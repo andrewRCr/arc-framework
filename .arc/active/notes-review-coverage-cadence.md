@@ -85,6 +85,13 @@ Counterfactual and rough: the real history would have branched once any finding 
 - **Complete through pass 3, then incremental plus a sibling sweep** keeps 20 of the 27 fixed in passes 4–8. The
   other 7 (5 major or critical: three C, two E) fall to a complete pass at the settled head.
 
+### How it ended
+
+After pass 8, the Owner directed in conversation a switch to incremental review whatever ARC asked, and the agent —
+a Codex session — ran two further rounds incrementally, outside the gate: the `full-final` route offered no
+incremental coverage. The final round returned only minor findings. These rounds are not in the records analyzed
+above, and how the agent got past the gate's refusal was not recorded.
+
 ## Every fixed finding, passes 2–8
 
 | Pass | Finding | Severity | Bucket | Defect class                     | Title                                                               |
@@ -159,6 +166,233 @@ Counterfactual and rough: the real history would have branched once any finding 
 | 7    | p7-03   | Mixed archive ordering is not promised                       |
 | 8    | p8-05   | Mixed unpublished archive ordering is not a stated guarantee |
 
+## Prior art sources
+
+Gathered 2026-10-16 by three parallel external-research passes, unverified beyond what each marks. Confidence is
+the researchers'; "secondary" means a summary or search result, not the source itself.
+
+### Stopping rules and remaining defects
+
+- **Capture-recapture in inspections.** Eick, Loader, Long, Votta, Vander Wiel, ICSE 1992 (introduced it; from
+  memory). Briand, El Emam, Freimut, Laitenberger, "A Comprehensive Evaluation of Capture-Recapture Models for
+  Estimating Software Defect Content", IEEE TSE 26(6), 2000 (abstract): below four inspectors no model was accurate
+  enough, with substantial underestimation; Mh-JK preferred. Petersson, Thelin, Runeson, Wohlin, "Capture-recapture in
+  software inspections after 10 years research", JSS 72(2), 2004 (abstract): proposes CR-based decision points; no
+  at-scale use as a re-inspect decision found. Wohlin, Runeson, Brantestam, 1995 (abstract): CR assumptions are not
+  fully met, biasing estimates low. Confidence high that few-inspector estimates run low.
+- **Transfer.** Repeated runs of one model share blind spots (defects with near-zero detection probability on every
+  run), fixes change the population between passes, and matching "the same defect" across passes is itself hard. On
+  LLM passes CR gives a lower bound at best.
+- **Discovery curves.** No validated application of reliability-growth models to inspection passes, and no tested
+  "stop after k quiet passes" rule, was found. This change's classes by pass — 8, 3, 0, 3, then none — mix two
+  processes: classes in original code that decay, and fix-induced defects that keep arising with each round.
+- **More inspectors or sessions.** Porter, Toman, Siy, Votta, UMD CS-TR-3410 (read in part): N-fold inspection is far
+  costlier than one team. Diminishing returns per added inspector or session, with the first sessions yielding most:
+  moderate confidence, humans only.
+- **Repeated LLM review.** Snyk VulnBench JS 1.0 (vendor blog, read): over five runs, 84.8% of reference-matched
+  findings appeared in every run, while 49.7% of the others appeared in only one; small fixtures and a lenient,
+  circular reference. SWR-Bench (arXiv 2509.01494, secondary): low run-to-run overlap. "Measuring Determinism in LLMs"
+  (arXiv 2502.20747, secondary): output varies even at temperature 0. No rigorous study of ensemble or majority-vote
+  code review, or of re-running review after fixes, was found. Low confidence that any of these numbers apply here.
+- **What a gate may claim.** A clean complete pass is a heuristic gate, never an estimate: claim no remaining-defect
+  figure, no convergence from k quiet passes, and no correctness from agreement across runs. Diversity of reviewer —
+  source, model, or framing — moves CR's independence assumption closer to true (inference).
+- **Data a later stopping rule would need:** a stable cross-pass finding identity, each finding's origin (fix-related,
+  sibling, new class), whether its locus was read and passed before, its detection count across passes, and the lines
+  changed between passes. Most of it is derivable later from what `seam-delivery-review` stores per pass — findings
+  with loci, and each pass's target — with only the sibling-or-new-class split needing judgment.
+
+### Re-review scope after rework
+
+- **Fagan 1976** (IBM Systems Journal 15(3), 182–211), follow-up: as summarized (the PDF is a scanned image and was
+  not read), where under 5% of the material was reworked the moderator may verify the rework alone or reconvene the
+  team. "Re-inspect above 5%" appears only in secondary sources (lecture slides, glossaries) without a page. Not
+  verified in Fagan 1986, Gilb and Graham 1993, or IEEE 1028; IEEE 1028's follow-up reportedly ends with the review
+  leader verifying action items closed, with no quantified trigger. Wikipedia's Fagan summary: trivial fixes may be
+  accepted unverified, complicated or critical ones get a team re-inspection.
+- **Gerrit** label `copyCondition` and change kinds (`TRIVIAL_REBASE`, `NO_CODE_CHANGE`, `MERGE_FIRST_PARENT_UPDATE`):
+  votes carry only across changes proven not semantic
+  (<https://gerrit-review.googlesource.com/Documentation/config-labels.html>). **GitHub** branch protection: "Dismiss
+  stale pull request approvals" on a diff change; "Require approval of the most recent reviewable push", which GitHub
+  calls a compromise next to dismissal. High confidence. Sadowski et al. 2018 (Critique) not obtained.
+- **Change impact analysis.** DO-178C §12.1.1 via FAA AC 00-69, and ISO 26262-8 clause 8 via secondary summaries:
+  re-verification scoped by impact analysis, widening with assurance level. Medium-low confidence; primary text not
+  read.
+- **AI review tools.** CodeRabbit: `@coderabbitai review` is incremental, `@coderabbitai full review` re-reviews from
+  scratch, `auto_incremental_review` defaults on, `auto_pause_after_reviewed_commits` defaults to 5
+  (<https://docs.coderabbit.ai/reference/review-commands.md>). Codex: trailing text after `@codex review` steers focus;
+  repeat-review scope is undocumented, and § Codex probe observes it. GitHub Copilot: re-review needs a re-request or
+  "Review new pushes", and it "may repeat the same comments" even when resolved.
+- **Transfer.** No source covers a reviewer without memory. Interdiff re-review is safe when someone — a moderator, a
+  human reviewer, an impact analysis — supplies the unchanged remainder's context; a fresh LLM pass has none unless the
+  fix check carries it.
+
+### Re-review after base movement
+
+Gathered 2026-10-16 at source grounding, when the incremental supplemental pass proved unrunnable (D6). Three
+external-research passes; nothing below was independently verified, and several quotes came from search summaries
+rather than the page itself.
+
+- **Gerrit** (<https://gerrit-review.googlesource.com/Documentation/config-labels.html>). `TRIVIAL_REBASE` needs the
+  same commit message and diff as the previous patch set, and no conflict resolution. A resolution makes the patch set
+  `REWORK`, which keeps only the votes a `copyCondition` copies. `MERGE_FIRST_PARENT_UPDATE` matches a merge commit
+  that differs only in its first parent. The review UI marks "rebase edits" between patch sets with different parents
+  (<https://gerrit-review.googlesource.com/Documentation/user-review-ui.html>; Gerrit 2.15). High confidence on the
+  rules, medium on exact wording.
+- **GitHub** (protected-branches docs; changelog 2023-06-06,
+  <https://github.blog/changelog/2023-06-06-security-enhancements-to-required-approvals-on-pull-requests/>). An approval
+  goes stale "when the merge base changes after a review is submitted", but such changes "will usually preserve
+  approvals when no new changes are introduced". Conflict resolution is not documented separately. Medium confidence.
+- **GitLab** (<https://docs.gitlab.com/user/project/merge_requests/approvals/settings/>). The approval reset compares
+  `patch-id`s, for "better reset decisions when you perform commands like `git rebase` or `git merge <target>`". Its
+  treatment of a resolution is not documented. High confidence on the quote.
+- **Linux kernel.** Review tags carry to the next version unless the patch "has changed substantially", and a dropped
+  tag is noted in the changelog (<https://www.kernel.org/doc/html/latest/process/submitting-patches.html>). Maintainers
+  warn of conflicts and may push a branch showing the intended resolution
+  (<https://docs.kernel.org/maintainer/rebasing-and-merging.html>). A merge that adds changes in neither parent ("evil")
+  is acceptable only when explained (LKML 2011 and 2012 threads; medium confidence).
+- **Git tooling.** `git range-diff` compares two versions of a series across a rebase, ignoring merges
+  (<https://git-scm.com/docs/git-range-diff>). `--remerge-diff` diffs a two-parent merge against Git's automatic
+  re-merge, so it shows only the resolution (<https://git-scm.com/docs/git-log>). `--cc` is a coarser filter. High
+  confidence.
+- **AI review tools.** CodeRabbit, Copilot, Codex, Greptile, and Qodo document re-review by trigger or by "commits
+  since the last review". None documents special handling of merges or rebases. Medium confidence.
+- **Conflict risk.**
+    - About 1 merge in 6 conflicts (Brun et al., ESEC/FSE 2011 and TSE 2013). Clean merges still broke builds in 0.1–10%
+      of merges across three projects.
+    - In Brindescu et al. (EMSE 2020, 143 projects), code tied to a conflict was about 2 times as likely to be buggy,
+      and code that needed manual resolution about 26 times as likely. This is an association, measured through bug-fix
+      commits.
+    - Semantic and build conflicts arise outside the conflicted lines, typically from a rename or removal on one side
+      that the other side uses (Da Silva et al.). Detectors are weak: SAM caught 9 of 29 test conflicts.
+    - LLM resolution benchmarks find under 60% correct (Merge-Bench, 2026; MergeBERT about 63–68%, 2022; ConGra uses a
+      lenient similarity metric).
+    - No study of LLMs reviewing a resolution was found.
+    - Medium confidence throughout; the samples are mostly open-source Java.
+- **Transfer.** Clean moves carry, as ARC's applicability check already decides
+  (`base-movement-disjoint`, `base-movement-clean-merge`). A resolution is reviewed as new content with its
+  cross-side dependencies, and build and test cover the semantic remainder. Nothing found shows that a complete
+  re-review after a conflicted merge is the norm.
+
+### How inputs shape reviewers and agents
+
+- **Human priming.** Spadini, Calikli, Bacchelli, "Primers or Reminders? The Effects of Existing Review Comments on
+  Code Review", ICSE 2020: 85 developers; a visible comment about an uncommon bug type raised detection of that type
+  and did not lower detection of others. High confidence in the finding, moderate in its transfer.
+- **LLM anchoring.** Lou 2024 (arXiv 2412.06593, preprint): anchoring in GPT-4 and GPT-4o, with chain-of-thought,
+  reflection, and "ignore the hint" barely helping. Nguyen 2024 (Journal of Behavioral and Experimental Finance):
+  anchoring across GPT-4, Claude 2, Gemini Pro, and GPT-3.5. Huang et al. 2025 (arXiv 2505.15392): 22–61% of questions
+  anchored, least for reasoning models. arXiv 2603.18740 (preprint): framing a change as bug-free cut vulnerability
+  detection by 16–93%. No study of showing a fresh LLM reviewer a prior reviewer's findings was found.
+- **Instruction literalness.** OpenAI GPT-4.1 prompting guide: "trained to follow instructions more closely and more
+  literally than its predecessors"; emphasis can over-apply rules; with conflicting instructions it tends to follow the
+  later one. OpenAI GPT-5 prompting guide: "contradictory or vague instructions can be more damaging to GPT-5 than to
+  other models". Anthropic Claude prompting best practices: give the reason behind an instruction, since Claude
+  "is smart enough to generalize from the explanation"; dial back aggressive emphasis. No controlled evaluation of
+  MUST/SHOULD wording, or of separating enforced bounds from advice, was found.
+
+## Codex probe
+
+Run 2026-10-16 on the throwaway draft pull request #1031, never merged. The branch seeded single-function defects,
+each a plain contract violation that Codex rated P1, and every trigger was a `@codex review` comment. Its
+`AGENTS.md` carried two canaries: one under ARC's `## Review guidelines` heading asked for an `[RG]` title prefix, and
+one under a new `## Code Review Rules` heading, the heading Codex's GitHub docs now name, asked for `[CRR]`.
+
+| Run | Head change before the run                        | Trigger text                       | Result                                          |
+| --- | ------------------------------------------------- | ---------------------------------- | ----------------------------------------------- |
+| R1  | seeds a path-containment and a keep-list defect   | plain                              | both, titled `[RG][CRR]`                        |
+| R2  | none                                              | plain                              | "Didn't find any major issues"; both still open |
+| R3  | adds a token-prefix defect                        | plain                              | the token defect only                           |
+| R4  | none                                              | asks it to re-report every finding | "Didn't find any major issues"                  |
+| R5  | adds defects in two files, A and B                | scoped to file A                   | file A's defect only                            |
+| R6  | none                                              | plain                              | file B's defect only                            |
+| R7  | an incomplete keep-list fix; that thread resolved | plain                              | "Didn't find any major issues"                  |
+| R8  | an incomplete token fix; that thread left open    | plain                              | "Didn't find any major issues"                  |
+| R9  | none                                              | asks it to verify both fixes       | "Didn't find any major issues"                  |
+
+Both incomplete fixes left the defect in place on the line changed: the keep-list function still deleted the names it
+was told to keep, and the token check still accepted any non-empty prefix of the secret.
+
+- **Headings.** Codex reads both `AGENTS.md` headings from the pull request's head, so ARC's generated heading works
+  and no defect exists there.
+- **What a request reports.** Each request reviews the whole pull request — R6 found a defect in code R5 had already
+  reviewed under a narrower request — but reports only defects Codex has not already posted on it. Five runs (R2, R4,
+  R7, R8, R9) never re-reported an earlier finding: not on an unchanged head, not after an incomplete fix whether its
+  thread was resolved or open, and not when asked by name to check the fix. "Didn't find any major issues" means
+  nothing new, not no open defects.
+- **Request text.** Text after `@codex review` narrows what is reported (R5) but cannot make Codex re-examine a
+  finding it has already raised (R4, R9).
+- **Machine-readable state.** Codex keeps an undocumented `codex-review-state:v1` marker in its summary comment,
+  including `has_unresolved_findings`. It tracks thread state, which ARC itself sets when it resolves a thread at
+  settlement (`settlement: "reply-and-resolve"`, `hosted/codex.ts`), so it cannot stand in for re-examination.
+- **Limits.** One repository, one day, nine runs, contract-level defects only. Every finding was Codex's own; whether
+  it also declines to raise a defect another reviewer posted on the pull request is untested, though ARC's local
+  findings are not pull-request threads. CodeRabbit's behavior is in § CodeRabbit probe.
+
+## CodeRabbit probe
+
+Run the same day on the same pull request, whose head then carried the Codex runs' seeded defects and their two
+incomplete fixes, and which CodeRabbit had not yet reviewed. This repository runs CodeRabbit on the `CHILL` profile
+with every automatic review off (`.coderabbit.yaml`).
+
+| Run | Head change before the run                                                 | Trigger                     | Result                                                                                                                                 |
+| --- | -------------------------------------------------------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| CR1 | none since the Codex runs                                                  | `@coderabbitai full review` | six findings: all five seeded defects as major, the two Codex-era incomplete fixes among them, and a minor on the conflicting canaries |
+| CR2 | incomplete fixes to two CodeRabbit findings, one thread resolved, one open | `@coderabbitai review`      | reviewed exactly those two files; "No actionable comments were generated in the recent review"                                         |
+| CR3 | none                                                                       | `@coderabbitai full review` | reviewed all five files from the pull request's base; "No actionable comments were generated in the recent review"                     |
+
+All six defects were still in the code at CR3: four untouched and two behind fixes that changed nothing.
+
+- **Each provider remembers only its own findings.** CR1 reported, as new, two defects Codex had already posted, and
+  CR3 — a full review — re-reported none of CodeRabbit's own six. A full review is not a fresh read of what it found
+  before.
+- **The summary knew; the findings did not say.** After CR2, CodeRabbit's summary comment still read "The probe still
+  contains incorrect permission, token, path, escaping, and deletion behavior" and noted that `canPerform` ignores its
+  `action` argument, but no finding was posted. ARC reads only the summary's recent-review line
+  (`summaryReportsNoFindings`, `hosted/coderabbit.ts`), so it would record CR2 as a clean incremental pass and CR3 as a
+  clean complete pass.
+- **Headings.** CodeRabbit read `AGENTS.md` — one finding title carried both canary prefixes — but applied neither
+  prefix to its other findings.
+- **Limits.** One run of each kind, contract-level defects only. The repository's plan allowed five reviews an hour.
+
+## Review call sites
+
+A read-only inventory of `packages/arc-framework/arc/system/` on 2026-10-16, made to shape D10. Line numbers drift; the
+implementation re-derives it on the then-current base as segment 4's before-inventory. Spot-checked against source:
+the `deliver-stack` and `integrate-work-unit` frontline contradiction, the cloned "frontline admission", the
+`prepare-work-unit` composer wording, `amend-design`'s offer form, and the `draft-design` and `create-spec` postures.
+
+- **Planning — one block, parameters.** `draft-design`, `create-spec`, and `generate-tasks` repeat the offer callout,
+  orientation YAML, authored-partition note, fix-check sentence, pass-record paragraph, and post-settle re-read nearly
+  verbatim. They differ in rubric, artifacts, and offer threshold — `draft-design` recommends at `Novel` only, the
+  other two at `Heavy` and `Novel`. `amend-design` scales by depth, not `Class` (low: no pass; medium: neutral offer;
+  high: recommended), and states its offer in prose with no callout, YAML, or pass cap. `generate-tasks` restarts at
+  depth resolution when proportionality returns `revise`; the others stay in their loop.
+- **Code — shared procedures, not one sequence.** Each site drives review through its own command and states: an
+  Errand through `arc review resolve`, prepublication through `arc review pre-publication <wu>`, integration through
+  the integration boundary's `nextAction`, and a stack member through `arc review status --target`. Each has its own
+  early stop — an Errand's conversational Owner stop, prepublication's durable `lanes.standard.terminus`, integration's
+  `arc review terminus accept` for delivery members, and none in `deliver-stack` — and its own fix verification: an
+  Errand names only `arc check increment`, while prepublication and integration replay `verifiedFix` after forced
+  gates. Shared and cloned across sites: the findings round, hosted await and its checks diagnostic (an Errand,
+  integration, and `deliver-stack`), hosted settlement phases, the converged rule, the chunk gate, ceiling-override
+  handling, the fix-commit template, and the stop line. `classify-review-risk` fires only at first entry (an Errand
+  and prepublication); integration and `deliver-stack` inherit the reservation. An Errand forces whole-target scope;
+  the others run chunking.
+- **Verification — one call, scoped.** `validate-criteria(scope)` owns the walk and its companion offer, at
+  delivery-member scope (`process-task-loop`) and work-unit scope (`verify-work-unit`), and both callers restate the
+  companion callout. `deliver-stack`'s review-fix verification calls it per member with no companion and "do not add
+  an interlock"; `amend-design`'s closure produces a delta with its companion unspecified. `self-review` runs only in
+  `verify-work-unit`, as an author preflight whose findings go through triage without the producer-backed response.
+- **Declarations.** `frontline-review` and `standard-review` name `adversarial-review`, `implementation-audit`, and
+  `review-chunking` without declaring them; `design-audit` names `assess-design-proportionality`, and
+  `review-response` names `review-triage`. Workflows declare methods their bodies never fire (`self-review` in
+  `prepare-work-unit`; `adversarial-review` and `standard-review` in `integrate-work-unit`) and cite methods they do
+  not declare (`source-grounding` in `create-spec`, `generate-tasks`, and `amend-design`). Methods' "Workflow:"
+  callouts list stale callers.
+- **Not settled from prose.** Whether the CLI performs the Errand path's fix-verification replay; how
+  `prepare-work-unit` handles a `run-self-review` action; `amend-design`'s pass cap.
+
 ## Caveats
 
 - **One change set.** Large, sensitive, and stochastic in its reviewer; a second data point would test the pattern.
@@ -166,6 +400,6 @@ Counterfactual and rough: the real history would have branched once any finding 
   fix elsewhere; bucket A and B counts are therefore floors for "fix-related".
 - **The C mechanism is unproven.** Whether a focused fix check would have caught C findings sooner than the complete
   pass that missed them is untested.
-- **Prior art does not settle thresholds.** Inspection practice verifies rework by default and re-inspects on large
-  rework or high estimated residual; the often-cited "re-inspect above 5% rework" figure could not be traced to a
-  primary source, and no validated stopping rule for repeated LLM review was found.
+- **Prior art does not settle thresholds.** Inspection practice verifies rework by default and re-inspects
+  complicated or critical rework; the "re-inspect above 5% rework" figure is folklore (§ Prior art sources), and no
+  validated stopping rule for repeated LLM review was found.
