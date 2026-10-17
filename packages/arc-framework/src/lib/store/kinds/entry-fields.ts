@@ -73,16 +73,12 @@ export function writeRemovalTrigger(trigger: string): string { return `_Remove w
  */
 export function writeEntryFields(raw: string, changes: Readonly<Record<string, string | undefined>>): string {
   const newline = raw.includes("\r\n") ? "\r\n" : "\n";
-  const firstLine = raw.split("\n")[0] ?? "", heading = firstLine.replace(/\r$/u, "");
-  const headingComment = [...raw.matchAll(/<!--[\s\S]*?(?:-->|$)/gu)].find(comment => comment.index < heading.length
-    && (comment.index + comment[0].length > heading.length || !comment[0].endsWith("-->")));
-  const header = headingComment === undefined ? heading : heading.slice(0, headingComment.index);
+  const { header, body: rawBody } = entryFieldHeader(raw);
   const fields = { ...fieldsOnLines(maskComments(raw).split("\n").slice(1)), ...changes };
   for (const [field, value] of Object.entries(fields)) {
     if (value !== undefined && !validEntryFieldValue(field, value)) throw new Error(`Invalid ${field} entry value: ${value}`);
   }
-  const body = withoutVisibleLines(raw, (line) => fieldOnLine(line) !== undefined).split("\n").slice(1);
-  if (headingComment !== undefined) body.unshift(firstLine.slice(headingComment.index));
+  const body = withoutVisibleLines(rawBody, (line) => fieldOnLine(line) !== undefined).split("\n");
   while (body[0]?.trim() === "") body.shift();
   const bodyText = body.join("\n");
   const openComment = bodyText.lastIndexOf("<!--") > bodyText.lastIndexOf("-->");
@@ -92,6 +88,23 @@ export function writeEntryFields(raw: string, changes: Readonly<Record<string, s
     .sort(([a], [b]) => Number(a === "Id") - Number(b === "Id"))
     .map(([field, value]) => `- _${field}:_ \`${value}\``);
   return [header, ...disposition, ...managed].join(newline) + (body.length ? `${newline}${newline}${body.join("\n")}` : "");
+}
+
+function entryFieldHeader(raw: string): { header: string; body: string } {
+  const firstBreak = raw.indexOf("\n"), bodyAt = firstBreak < 0 ? raw.length : firstBreak + 1;
+  const heading = raw.slice(0, firstBreak < 0 ? raw.length : firstBreak).replace(/\r$/u, "");
+  const comments = [...raw.matchAll(/<!--[\s\S]*?(?:-->|$)/gu)];
+  const spanning = comments.find(comment => comment.index < heading.length
+    && (comment.index + comment[0].length > heading.length || !comment[0].endsWith("-->")));
+  if (spanning === undefined) return { header: heading, body: raw.slice(bodyAt) };
+  let end = bodyAt;
+  for (const comment of comments) {
+    if (comment.index >= end) break;
+    if (!comment[0].endsWith("-->")) return { header: heading.slice(0, spanning.index), body: raw.slice(spanning.index) };
+    const nextBreak = raw.indexOf("\n", comment.index + comment[0].length);
+    end = nextBreak < 0 ? raw.length : nextBreak + 1;
+  }
+  return { header: raw.slice(0, end).replace(/\r?\n$/u, ""), body: raw.slice(end) };
 }
 
 function withoutVisibleLines(raw: string, omit: (line: string) => boolean): string {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readEntryField, writeEntryFields, readRemovalTrigger, writeRemovalTrigger, entryVersion, writeRoutedFrom } from "../../../../../src/lib/store/kinds/entry-fields.js";
 import { maskComments } from "../../../../../src/lib/store/concurrency/entries.js";
+import { parseEntryList } from "../../../../../src/lib/store/kinds/entry-list.js";
 
 describe("shared entry fields", () => {
   it("reads legacy spellings and writes a leading managed group", () => {
@@ -72,4 +73,14 @@ describe("shared entry fields", () => {
     expect(rewritten).toContain(comment);
     expect(rewritten).toContain("Actual prose");
   });
+  it.each(["\n", "\r\n"].flatMap(newline => [
+    ["<!--", "Keep the heading note.", "-->"],
+    ["<!--", "First heading note.", "--> <!--", "Last heading note.", "-->"],
+  ].map(lines => ({ newline, comment: lines.join(newline) }))))(
+    "keeps a closed heading comment entry-owned without following prose: $comment", ({ newline, comment }) => {
+      const rewritten = writeEntryFields([`### **Title** ${comment}`, '- _Id:_ `12345678`'].join(newline), { Created: "2026-02-01" });
+      const parsed = parseEntryList(`## Errand${newline}${newline}${rewritten}${newline}`, "personal/inbox");
+      expect(parsed).toMatchObject({ success: true, data: { entries: [{ id: "12345678", bytes: expect.stringContaining(comment),
+        fields: { Created: "2026-02-01" } }] } });
+    });
 });
