@@ -1,7 +1,7 @@
 /** Validated local mutations resolved onto state refs before object construction. */
 
 import { BatchInputSchema, WriteInputSchema, type Mutation, type BatchInput, type BatchResult, type WriteInput, type WriteResult } from "../write.js";
-import type { RecordReference } from "../identity.js";
+import { RecordReferenceSchema, type RecordReference } from "../identity.js";
 import type { StoreRefusal, StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import { randomUUID } from "node:crypto";
@@ -43,7 +43,7 @@ export async function batchRefRecords(context: RefBackendContext, input: BatchIn
   if (validated.status === "refused") return validated;
   const parsed = validated.result;
   for (const reference of parsed.writes.flatMap((mutation) => [mutation.reference, ...mutation.resolves ?? []])) {
-    const invalidKey = checkRefKey(reference, context.registry);
+    const invalidKey = checkRefKey(reference, context.registry, false);
     if (invalidKey) return { status: "refused", refusal: invalidKey };
   }
   const puts = parsed.writes.filter((mutation) => mutation.action === "put");
@@ -57,7 +57,8 @@ export async function batchRefRecords(context: RefBackendContext, input: BatchIn
   const prepared = prepareBatchPuts(context, parsed);
   if (prepared.status === "refused") return prepared;
   try {
-    return await executeRefBatch(context, { ...parsed, writes: prepared.result }, randomUUID());
+    const result = await executeRefBatch(context, { ...parsed, writes: prepared.result }, randomUUID());
+    return result.status === "refused" ? result : { status: "ok", result: bindResultNameHints(parsed, result.result) };
   } catch (error) {
     if (!(error instanceof AdvisoryLockTimeoutError) || error.phase !== "acquire") throw error;
     return { status: "refused", refusal: { code: "lock-held", class: "recoverable", lock: error.lockPath,
@@ -139,4 +140,15 @@ function ownerLocationsChanged(context: RefBackendContext, resolved: ResolvedBat
     if (/^refs\/arc\/(?:work|cohort)\//u.test(home.ref)) refs.push(home.ref.replace("refs/arc/", "refs/arc/history/"));
     return refs.some((ref) => tips.has(ref) !== resolved.tips.has(ref));
   });
+}
+
+function bindResultNameHints(input: BatchInput, result: BatchResult): BatchResult {
+  return { ...result, writes: result.writes.map((write, index) => {
+    const mutation = input.writes[index];
+    if (!mutation) throw new Error("A committed result has no requested mutation");
+    const requested = mutation.reference.owner;
+    if (requested.type === "person" || requested.type === "project" || requested.uid) return write;
+    // The UID identifies the resolved generation; the name still binds this reply to its operand.
+    return { ...write, reference: RecordReferenceSchema.parse({ ...write.reference, owner: { ...write.reference.owner, name: requested.name } }) };
+  }) };
 }

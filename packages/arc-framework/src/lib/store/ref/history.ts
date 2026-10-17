@@ -23,10 +23,10 @@ export interface RefHistoryDetail { entry: HistoryEntry; revision: string }
 export async function historyRefRecord(context: RefBackendContext, input: { reference: RecordReference }): Promise<StoreResult<HistoryEntry[]>> {
   const key = checkRefKey(input.reference, context.registry, false);
   if (key) return { status: "refused", refusal: key };
-  const resolved = await resolveReadReference(context, input.reference);
+  const tips = await readRefTips(context, { includeHistory: true });
+  const resolved = await resolveReadReference(context, input.reference, tips);
   if (resolved.status === "refused") return resolved;
   let reference = resolved.result;
-  const tips = await readRefTips(context, { includeHistory: true });
   if (reference.owner.type === "project") {
     const owner = projectOwnerFromObjects(tips, await readBatchObjects(context, projectIdentityQueries(tips)));
     if (owner.status === "refused") return owner;

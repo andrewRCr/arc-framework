@@ -51,6 +51,7 @@ function selectSnapshotTips(manifest: ReadonlyMap<string, string>, input: ListIn
     if (ref.startsWith("refs/arc/user/")) {
       if (ref.split("/")[3] !== identity || input.owner && input.owner.name !== identity) return false;
     }
+    if (input.family === "lineage" && input.owner?.type === "work-item" && !input.owner.uid && matchesFamilyRef(ref, "work-item")) return true;
     if (ref === "refs/arc/project/registry" && ["project-inbox", "project-registry"].includes(root)) return true;
     if (["work-item", "cohort"].includes(root) && isArchiveRef(ref)) return !liveOwner;
     if (!matchesFamilyRef(ref, input.family)) return false;

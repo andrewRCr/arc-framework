@@ -684,32 +684,24 @@ by every tier, and an item ref broken outside ARC.
   selectors and payloads. Retired origins remain lineage-only, partial Errands name their absent record, and held-here
   listings refuse with a supported retry.
 
-### `[ ]` **7.4 Resolution by every tier — § 5.1, § 8**
+### `[x]` **7.4 Resolution by every tier — § 5.1, § 8**
 
 - _Goal:_ A reference without a UID resolves the same way for `read`, `list`, `history`, `changes`, and every write, over
   the tips the operation reads, so a create over a completed item's slug starts a new generation.
+- _Outcome:_ Typed owner names use the lookup tiers for reads, owner-filtered listings, history, changes, and writes,
+  over each operation's captured tips. Saved lineage references retain live-owner precedence, and generic companion
+  aliases validate after owner binding. New-primary batches reserve one fresh generation even over ambiguous ended
+  holders; name-only write replies retain their requested hint beside the resolved UID, preserving input-bound
+  validation. Auxiliary records remain addressable when their owner has no primary.
 
-    - Completes 3.3.a's and 4.2.a's resolution among live owners with the ended tiers
-    - Build `test-first` (one behavior at a time):
-        - a create over a completed item's slug mints a new UID
-        - several ended holders, and two live items that each renamed away from one slug, refuse `ambiguous-match`, the
-          second built under the test registry, since `work-item.former-slug` refuses its setup
-        - a read, `history`, and `changes` by slug of a completed item resolve it
-        - a read as of a state version resolves a slug over that manifest's tips
-
-### `[ ]` **7.4.R Companion alias admission uses the resolved owner — § 3.2, § 5.1 (A10)**
+### `[x]` **7.4.R Companion alias admission uses the resolved owner — § 3.2, § 5.1 (A10)**
 
 - _Goal:_ Fixed role and reserved-storage paths refuse before I/O; generic companion aliases use the resolved owner,
   accepting a valid old-name-shaped path and refusing true aliases without partial write or batch effects (A10).
-
-    - Retain the pure fixed-form and storage-coordinate refusals; a generic `<key>-<slug>.md` alias is checked after
-      owner binding, including UID and former-name hints, before the write takes locks
-    - Build `test-first` (one behavior at a time):
-        - the pure guard refuses fixed role forms before consulting ports while canonical companion names still land
-        - a true generic alias refuses for name and UID operands through write and batch, preserving all refs and
-          admitting a corrected key
-        - an old-name-shaped literal key valid under the resolved owner lands by an older UID hint or former name
-          through write and batch, and reads, history, changes, and saved views retain its exact key
+- _Outcome:_ Fixed-form admission shares registered path patterns with the decoder, retaining canonical companion
+  names and paired keys. Only generic aliases wait for owner binding; true aliases refuse atomically and corrected
+  keys land through write and batch. Older UID hints and former names retain valid literal paths; A10's covering
+  revalidation remains at Task 8.6.
 
 ### `[ ]` **7.5 A broken item ref — § 3.3, § 8**
 

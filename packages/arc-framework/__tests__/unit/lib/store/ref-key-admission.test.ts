@@ -25,7 +25,7 @@ describe("ref key admission before I/O", () => {
   });
   it("reserves role names and stored coordinates before consulting a port", async () => {
     for (const resolved of [false, true]) {
-      for (const key of ["meta", "tasks", "draft", "spec", "notes", "errand", "inbound", "cohort", "extra-alpha.md",
+      for (const key of ["meta", "tasks", "draft", "spec", "notes", "errand", "inbound", "cohort",
         "spec-alpha-prd.md", "spec-alpha-rfc.md", "meta-other.md", "review/unknown.json", "conflicts/unknown.md", "receipts/unknown.md"]) {
         expect(await check(companion(key, resolved)), key).toMatchObject({ status: "refused", refusal: { code: "unsupported", class: "terminal", case: "unhomed-kind" } });
       }

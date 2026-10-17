@@ -30,9 +30,9 @@ export function lineageOwnerCandidates(reference: RecordReference, live: readonl
 }
 
 /** Resolve a transition by live ownership and then registry history; conflict paths need no owner UID. */
-export async function resolveLineageReadReference(context: RefBackendContext, reference: RecordReference): Promise<StoreResult<RecordReference>> {
+export async function resolveLineageReadReference(context: RefBackendContext, reference: RecordReference, captured?: ReadonlyMap<string, string>): Promise<StoreResult<RecordReference>> {
   if (reference.kind === "lineage/conflict-record" || reference.owner.type !== "work-item" || reference.owner.uid) return { status: "ok", result: reference };
-  const tips = await readRefTips(context);
+  const tips = captured ?? await readRefTips(context);
   const live = await readLiveRefOwners(context, tips);
   if (live.status === "refused") return live;
   const lineage = await readLineageOwners(context, tips);

@@ -16,7 +16,12 @@ const cache = new Map<string, { signature: string; trees: ReadonlyMap<string, Re
 
 /** Capture primary, completed, registry, and own-claim metadata without a persisted index. */
 export async function readLookupTrees(context: RefBackendContext, identity: string | null): Promise<StoreResult<ReadonlyMap<string, RefLookupTree>>> {
-  const all = await readRefTips(context);
+  return readCapturedLookupTrees(context, await readRefTips(context), identity);
+}
+
+/** Resolve exactly the supplied tips without taking a second live namespace snapshot. */
+export async function readCapturedLookupTrees(context: RefBackendContext, all: ReadonlyMap<string, string>,
+  identity: string | null = null): Promise<StoreResult<ReadonlyMap<string, RefLookupTree>>> {
   const tips = new Map([...all].filter(([ref]) => matchesFamilyRef(ref, "work-item") || matchesFamilyRef(ref, "cohort")
     || isArchiveRef(ref) || ref === "refs/arc/project/registry" || identity !== null && ref === `refs/arc/user/${identity}/claims`));
   const signature = JSON.stringify([identity, [...tips].sort(([left], [right]) => left.localeCompare(right))]);

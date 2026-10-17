@@ -6,7 +6,7 @@ import { isSlugSafe } from "../../kernel/schema/slug.js";
 import { IDENTITY_STATUS_FILENAME } from "../../user-surfaces.js";
 import type { RefBackendContext } from "./context.js";
 import type { StoreRefusal } from "../refusal.js";
-import { decodeStoredReference } from "./path-decode.js";
+import { decodeStoredReference, fixedStoredPathKind } from "./path-decode.js";
 
 type KeyContext = Pick<RefBackendContext, "registry">;
 
@@ -42,7 +42,7 @@ export function checkRefBatchPaths(references: readonly RecordReference[], regis
   return undefined;
 }
 
-/** Admit a key; defer UID-dependent companion aliases until the stored owner is resolved. */
+/** Admit a key; defer owner-dependent companion aliases until the stored owner is resolved. */
 export function checkRefKey(reference: RecordReference, registry: RefBackendContext["registry"], ownerResolved = true): StoreRefusal | undefined {
   const malformed = malformedKeyProblem(reference, registry);
   if (malformed) return { code: "record-malformed", class: "recoverable", reference, rule: "store.key", condition: malformed,
@@ -50,7 +50,7 @@ export function checkRefKey(reference: RecordReference, registry: RefBackendCont
   if (!registry[reference.kind].ref) return unsupportedKey(reference, `No ref home is declared for ${reference.kind}`);
   const resolved = pathPrototype(reference);
   const home = expandStoredPath(resolved, { registry });
-  const problem = storedKeyProblem({ registry }, resolved, home.path, ownerResolved || !("uid" in reference.owner && reference.owner.uid));
+  const problem = storedKeyProblem({ registry }, resolved, home.path, ownerResolved);
   return problem ? unsupportedKey(reference, problem) : undefined;
 }
 
@@ -85,7 +85,7 @@ export function storedKeyProblem(context: KeyContext, reference: RecordReference
     const problem = personalProblem(reference.owner.name, key, home);
     if (problem) return problem;
   }
-  if (!ownerResolved && reference.kind === "work-item/companion" && "uid" in reference.owner && reference.owner.uid) return null;
+  if (!ownerResolved && reference.kind === "work-item/companion") return null;
   return reference.kind === "work-item/companion" || reference.kind === "personal/document" ? aliasProblem(context, reference, path) : null;
 }
 
@@ -102,6 +102,8 @@ function companionProblem(context: KeyContext, key: string, path: string, home: 
     const prefix = candidate.id !== "work-item/companion" ? /^([a-z0-9-]+)-<slug>\.md$/u.exec(candidate.ref?.path ?? "")?.[1] : null;
     return prefix ? [{ prefix, kind: candidate.id }] : [];
   });
+  const fixed = !isSlugSafe(key) ? fixedStoredPathKind(context.registry, "work-item", path) : undefined;
+  if (fixed) return `The companion path belongs to ${fixed}`;
   const reserved = isSlugSafe(key) && reservedNames.find((candidate) => candidate.prefix === key);
   if (reserved) return `The companion key names ${reserved.kind}`;
   return reservedPath(path, ["review", "conflicts", "receipts", home.manifestPath.slice(0, -1)], home.metadataPath)

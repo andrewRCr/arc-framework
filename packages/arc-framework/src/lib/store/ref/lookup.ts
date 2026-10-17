@@ -6,7 +6,7 @@ import { RecordReferenceSchema, type RecordReference } from "../identity.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefMetadata } from "./metadata.js";
 import type { BatchObject, RefTreeEntry } from "./batch-read.js";
-import { lookupPrimary } from "./lookup-primary.js";
+import { lookupPrimary, preferredNameTrees } from "./lookup-primary.js";
 import { claimLookupCandidates, claimIdentityRefusal } from "./lookup-claims.js";
 import { readLookupTrees } from "./lookup-trees.js";
 import { z } from "zod";
@@ -72,16 +72,10 @@ function commitCandidates(context: Pick<RefBackendContext, "registry">, trees: R
 }
 
 function slugCandidates(context: Pick<RefBackendContext, "registry">, trees: ReadonlyMap<string, RefLookupTree>, slug: Slug): RecordReference[] {
-  const current: RecordReference[] = [];
-  const former: RecordReference[] = [];
-  const completed: RecordReference[] = [], completedFormer: RecordReference[] = [];
-  for (const [ref, tree] of trees) {
+  return preferredNameTrees(context, trees, slug).flatMap(([ref, tree]) => {
     const reference = lookupPrimary(context, ref, tree);
-    if (!reference) continue;
-    if (tree.metadata.slug === slug) (tree.liveRef ? completed : current).push(reference);
-    else if (tree.metadata.formerSlugs?.includes(slug)) (tree.liveRef ? completedFormer : former).push(reference);
-  }
-  return [current, former, completed, completedFormer].find((tier) => tier.length > 0) ?? [];
+    return reference ? [reference] : [];
+  });
 }
 
 function lineageCandidates(trees: ReadonlyMap<string, RefLookupTree>, origin: string): RecordReference[] {

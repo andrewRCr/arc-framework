@@ -79,7 +79,7 @@ describe.each(["files", "reftable"] as const)("ref store read pipeline (%s)", (f
     const before = f.processes();
     const unresolved = RecordReferenceSchema.parse({ ...reference, owner: { type: "work-item", name: "alpha" } });
     expect(await f.store.read({ reference: unresolved })).toMatchObject({ status: "ok", result: { reference, content: "found" } });
-    expect(f.processes() - before).toBe(6);
+    expect(f.processes() - before).toBe(5);
   });
   it("refuses person-owned reads without an identity and names arc.identity", async () => {
     const f = await fixture(format);

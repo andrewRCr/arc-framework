@@ -10,6 +10,7 @@ import type { StoreResult } from "../refusal.js";
 import { RecordReferenceSchema, sameReference, type RecordReference, type OwnerIdentity } from "../identity.js";
 import { decodeCapturedRef, resolveCapturedOwner, refListingRefusal } from "./read.js";
 import { matchesFamilyRef, refOwner, decodeRecord } from "./codec.js";
+import { resolveCapturedReference, resolveCapturedListInput, listOwnerReference } from "./reference-resolution.js";
 import { claimIdentityRefusal } from "./lookup-claims.js";
 import { appendArchivedLookupTrees } from "./lookup-trees.js";
 import { isArchiveRef } from "./archive-read.js";
@@ -43,6 +44,11 @@ export function capturedRefView(context: RefBackendContext, load: () => Promise<
 function lookupView(context: RefBackendContext, state: RefViewState, input: LookupInput, identity: string | null = null): StoreResult<LookupResult> {
   const missingIdentity = claimIdentityRefusal(input, identity);
   if (missingIdentity) return { status: "refused", refusal: missingIdentity };
+  const trees = lookupViewTrees(context, state, identity);
+  return trees.status === "refused" ? trees : lookupCapturedRefTrees(context, input, trees.result);
+}
+
+function lookupViewTrees(context: RefBackendContext, state: RefViewState, identity: string | null = null): StoreResult<ReadonlyMap<string, RefLookupTree>> {
   const trees = new Map<string, RefLookupTree>();
   for (const [ref, group] of state.refs) {
     if (!matchesFamilyRef(ref, "work-item") && !matchesFamilyRef(ref, "cohort") && ref !== "refs/arc/project/registry"
@@ -55,13 +61,16 @@ function lookupView(context: RefBackendContext, state: RefViewState, input: Look
   }
   const quarters = new Map([...state.refs].flatMap(([ref, group]) => isArchiveRef(ref) && group.entries ? [[ref, group.entries] as const] : []));
   appendArchivedLookupTrees(trees, quarters, state.objects);
-  return lookupCapturedRefTrees(context, input, trees);
+  return { status: "ok", result: trees };
 }
 
 async function listView(context: RefBackendContext, state: RefViewState, input: ListInput): Promise<StoreResult<ListingOutcome>> {
   const unsupported = refListingRefusal(input);
   if (unsupported) return { status: "refused", refusal: unsupported };
   if (FAMILY_REGISTRY[input.family].scope === "identity" && await context.identity() === null) return { status: "ok", result: { status: "absent" } };
+  const resolved = resolveViewListInput(context, state, input);
+  if (resolved.status === "refused") return resolved;
+  input = resolved.result;
   const refs = [...state.refs].filter(([ref]) => matchesFamilyRef(ref, input.family));
   const archived = archivedViewRecords(context, state, input);
   if (refs.length === 0 && !archived.records.length && !archived.diagnostics.length) return { status: "ok", result: { status: "absent" } };
@@ -77,6 +86,12 @@ async function listView(context: RefBackendContext, state: RefViewState, input: 
   if (groups.length > 0 && !archived.records.length && groups.every(({ unreadable }) => unreadable)) return { status: "ok", result: { status: "unreadable",
     condition: diagnostics.map(({ condition }) => condition).join("; "), remedy: { text: diagnostics.map(({ remedy }) => remedy.text).join(" ") } } };
   return { status: "ok", result: { status: "complete", records: [...groups.flatMap(({ records }) => records), ...archived.records], diagnostics, missed: diagnostics.length > 0 } };
+}
+
+function resolveViewListInput(context: RefBackendContext, state: RefViewState, input: ListInput): StoreResult<ListInput> {
+  if (!listOwnerReference(input)) return { status: "ok", result: input };
+  const trees = lookupViewTrees(context, state);
+  return trees.status === "refused" ? trees : resolveCapturedListInput(context, input, trees.result);
 }
 
 async function readView(context: RefBackendContext, state: RefViewState, input: ReadInput): Promise<StoreResult<StoreRecord>> {
@@ -151,10 +166,8 @@ function viewOpenConflicts(context: RefBackendContext, state: RefViewState, home
 
 function resolveViewOwner(context: RefBackendContext, state: RefViewState, reference: RecordReference): StoreResult<RecordReference> {
   if (!needsOwnerLookup(reference)) return { status: "ok", result: reference };
-  const query = reference.kind.startsWith("lineage/") ? { kind: "lineage" as const, origin: reference.owner.name }
-    : { kind: "slug" as const, slug: reference.owner.name };
-  const found = lookupView(context, state, query);
-  return found.status === "refused" ? found : { status: "ok", result: RecordReferenceSchema.parse({ ...reference, owner: found.result.reference.owner }) };
+  const trees = lookupViewTrees(context, state);
+  return trees.status === "refused" ? trees : resolveCapturedReference(context, reference, trees.result);
 }
 
 function canonicalViewReference(context: RefBackendContext, reference: RecordReference, ref: string, metadata: RefMetadata): RecordReference {

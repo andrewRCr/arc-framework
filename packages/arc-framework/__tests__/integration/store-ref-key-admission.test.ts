@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { RecordReferenceSchema, type RecordReference, type Mutation, type StoreResult } from "../../src/lib/store/index.js";
 import { createRefFixture, type RefConformanceFixture } from "../helpers/store/ref-fixture.js";
 import { makeGitExec } from "../helpers/integration.js";
-import { seed, success, testProvenance } from "../helpers/store/suite-tools.js";
+import { seed, success, testProvenance, update } from "../helpers/store/suite-tools.js";
 
 const document = (key: string) => RecordReferenceSchema.parse({ owner: { type: "person", name: "test-user" }, kind: "personal/document", key });
 const put = (reference: RecordReference, content = "text"): Mutation => ({ action: "put", reference, content, expected: null });
@@ -36,7 +36,7 @@ describe("ref key admission", () => {
       }
       success(await apply(fixture, operation, put(companion("sub/conflicts.md"))));
       expect(success(await fixture.store.read({ reference: companion("sub/conflicts.md") })).content).toBe("text");
-      for (const key of [`README-${root.reference.owner.name}.md`, "lineage/notes.md", "spec-prd", "extra"]) {
+      for (const key of [`README-${root.reference.owner.name}.md`, "lineage/notes.md", "notes-extra", "spec-prd", "spec-rfc", "extra"]) {
         success(await fixture.store.write({ ...put(companion(key)), provenance: testProvenance }));
         expect(success(await fixture.store.read({ reference: companion(key) })).reference.key).toBe(key);
       }
@@ -71,6 +71,33 @@ describe("ref key admission", () => {
       }
     });
   }
+
+  it.each([
+    ["write", "uid"], ["write", "name"], ["batch", "uid"], ["batch", "name"],
+  ] as const)("keeps resolved-owner generic aliases invalid through %s with a %s operand and admits repair", async (operation, handle) => {
+    const fixture = await createRefFixture(), root = await seed(fixture, fixture.reference("work-item/meta"));
+    const owner = handle === "uid" ? root.reference.owner : fixture.reference("work-item/meta").owner;
+    const invalid = RecordReferenceSchema.parse({ owner, kind: "work-item/companion", key: `extra-${owner.name}.md` });
+    const before = await refs(fixture);
+    expect(await apply(fixture, operation, put(invalid))).toMatchObject({ status: "refused", refusal: { code: "unsupported", case: "unhomed-kind" } });
+    expect(await refs(fixture)).toBe(before);
+    const corrected = RecordReferenceSchema.parse({ ...invalid, key: "extra" });
+    success(await apply(fixture, operation, put(corrected)));
+    expect(success(await fixture.store.read({ reference: corrected })).content).toBe("text");
+  });
+
+  it.each([
+    ["write", "uid"], ["write", "name"], ["batch", "uid"], ["batch", "name"],
+  ] as const)("admits a valid old-name-shaped literal path through %s with a %s hint", async (operation, handle) => {
+    const fixture = await createRefFixture(), named = fixture.reference("work-item/meta"), root = await seed(fixture, named);
+    const renamed = RecordReferenceSchema.parse({ ...root.reference, owner: { ...root.reference.owner, name: "renamed" } });
+    success(await fixture.store.write({ ...update(fixture, root, root.content), reference: renamed }));
+    const owner = handle === "uid" ? root.reference.owner : named.owner;
+    const reference = RecordReferenceSchema.parse({ owner, kind: "work-item/companion", key: `extra-${named.owner.name}.md` });
+    success(await apply(fixture, operation, put(reference)));
+    expect(success(await fixture.store.read({ reference })).content).toBe("text");
+    expect(success(await fixture.store.read({ reference: RecordReferenceSchema.parse({ ...reference, owner: renamed.owner }) })).content).toBe("text");
+  });
 
   it("refuses folder collisions within a batch in either order before requiring personal identity", async () => {
     const fixture = await createRefFixture();

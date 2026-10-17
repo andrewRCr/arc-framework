@@ -2,6 +2,7 @@
 import { RecordReferenceSchema, sameReference, type RecordReference, type OwnerIdentity } from "../identity.js";
 import type { StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
+import { resolveRefName } from "./reference-resolution.js";
 import { readLiveRefOwners } from "./live-owners.js";
 import { readLineageOwners, lineageOwnerCandidates } from "./lineage-resolution.js";
 import { rootFamily } from "./codec.js";
@@ -9,10 +10,24 @@ import { refKeyHome } from "./path-admission.js";
 import { readHistoryPaths } from "./history-paths.js";
 import type { RefChangeInterval, RefChangeWindow } from "./changes-graph.js";
 
-/** A named lineage origin resolves from the newer frame, then the older frame if removed. */
+/** Bind owner names from the newer frame, then the older frame when absent. */
 export async function resolveChangeRestrictions(context: RefBackendContext, interval: RefChangeInterval): Promise<StoreResult<RecordReference[] | undefined>> {
   const requested = interval.input.references;
-  if (!requested?.some((reference) => reference.kind === "lineage/transition" && reference.owner.type === "work-item" && !reference.owner.uid)) return { status: "ok", result: requested };
+  if (!requested) return { status: "ok", result: undefined };
+  const references: RecordReference[] = [];
+  for (const reference of requested) {
+    if (reference.kind.startsWith("lineage/")) { references.push(reference); continue; }
+    let found = await resolveRefName(context, reference, interval.after);
+    if (found.status === "refused" && found.refusal.code === "not-found") found = await resolveRefName(context, reference, interval.before);
+    if (found.status === "refused") return found;
+    references.push(found.result);
+  }
+  return resolveLineageRestrictions(context, interval, references);
+}
+
+async function resolveLineageRestrictions(context: RefBackendContext, interval: RefChangeInterval,
+  requested: RecordReference[]): Promise<StoreResult<RecordReference[] | undefined>> {
+  if (!requested.some((reference) => reference.kind === "lineage/transition" && reference.owner.type === "work-item" && !reference.owner.uid)) return { status: "ok", result: requested };
   const newer = await restrictionOwners(context, interval.after), older = await restrictionOwners(context, interval.before);
   if (newer.status === "refused") return newer;
   if (older.status === "refused") return older;

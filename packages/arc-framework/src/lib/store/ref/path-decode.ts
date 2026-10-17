@@ -77,12 +77,8 @@ function keyAtPath(kind: KindDefinition, owner: OwnerIdentity, path: string): un
 function pathOwnerMismatch(kinds: readonly KindDefinition[], owner: OwnerIdentity, path: string): ListingDiagnostic | null {
   for (const kind of kinds) {
     if (!kind.ref || kind.owner !== owner.type || kind.id === "work-item/companion") continue;
-    const coordinates: string[] = [];
-    const pattern = escapeRegex(kind.ref.path).replace(/<(slug|uid|person|key)>/gu, (_token, coordinate: string) => {
-      coordinates.push(coordinate);
-      return coordinate === "key" ? "(.+)" : coordinate === "uid" ? "([0-9a-f-]{36})" : "([a-z0-9]+(?:-[a-z0-9]+)*)";
-    });
-    const match = new RegExp(`^${pattern}$`, "u").exec(path);
+    const { expression, coordinates } = storedKindPattern(kind.ref.path);
+    const match = expression.exec(path);
     if (!match) continue;
     const mismatch = coordinates.some((coordinate, index) => coordinate !== "key" && match[index + 1]
       !== (coordinate === "uid" && owner.type !== "person" ? owner.uid : owner.name));
@@ -90,6 +86,21 @@ function pathOwnerMismatch(kinds: readonly KindDefinition[], owner: OwnerIdentit
       remedy: { text: "Repair the path or its owner metadata so they name one owner, then list again." } };
   }
   return null;
+}
+
+/** Identify a registered fixed form independently of which owner currently holds it. */
+export function fixedStoredPathKind(registry: Readonly<Record<KindId, KindDefinition>>, family: FamilyId, path: string): KindId | undefined {
+  return Object.values(registry).find((kind) => kind.ref && rootFamily(kind.family) === rootFamily(family)
+    && kind.id !== "work-item/companion" && kind.id !== "personal/document" && storedKindPattern(kind.ref.path).expression.test(path))?.id;
+}
+
+function storedKindPattern(template: string): { expression: RegExp; coordinates: string[] } {
+  const coordinates: string[] = [];
+  const pattern = escapeRegex(template).replace(/<(slug|uid|person|key)>/gu, (_token, coordinate: string) => {
+    coordinates.push(coordinate);
+    return coordinate === "key" ? "(.+)" : coordinate === "uid" ? "([0-9a-f-]{36})" : "([a-z0-9]+(?:-[a-z0-9]+)*)";
+  });
+  return { expression: new RegExp(`^${pattern}$`, "u"), coordinates };
 }
 
 function escapeRegex(value: string): string { return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"); }

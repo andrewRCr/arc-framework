@@ -1,4 +1,4 @@
-/** Resolve a mutation batch's owner generations from one captured live namespace. */
+/** Resolve a mutation batch's owner generations from one captured namespace. */
 
 import { randomUUID } from "node:crypto";
 import { OwnerIdentitySchema, RecordReferenceSchema, type OwnerIdentity, type RecordReference } from "../identity.js";
@@ -15,6 +15,7 @@ import type { RefBackendContext } from "./context.js";
 import { checkLiveNamespace } from "./namespace-admission.js";
 import { readLineageOwners, lineageOwnerCandidates } from "./lineage-resolution.js";
 import { retirementTargets } from "./write-retirement.js";
+import { resolveNamedRefWrites, writeOwnerNameKey } from "./write-names.js";
 import { readLiveRefOwners } from "./live-owners.js";
 
 /** Canonical mutation and its concrete ref/tree address. */
@@ -42,6 +43,9 @@ export async function resolveRefWrites(context: RefBackendContext, writes: reado
   const project = await bindProjectMutations(context, writes, tips);
   if (project.status === "refused") return project;
   writes = project.result;
+  const named = await resolveNamedRefWrites(context, writes, tips);
+  if (named.status === "refused") return named;
+  writes = named.result.writes;
   const observed = await readLiveRefOwners(context, tips);
   if (observed.status === "refused") return observed;
   const owners = observed.result;
@@ -53,10 +57,14 @@ export async function resolveRefWrites(context: RefBackendContext, writes: reado
   const lineage = needsLineage ? await readLineageOwners(context, tips) : { status: "ok" as const, result: [] };
   if (lineage.status === "refused") return lineage;
   const fresh = new Map<string, OwnerIdentity>();
-  const resolve = (reference: RecordReference) => resolveOwner(reference,
-    context.registry[reference.kind].family === "lineage"
-      ? lineageOwnerCandidates(reference, owners.map(({ owner }) => owner), lineage.result)
-      : [...owners.map(({ owner }) => owner), ...endedOwners], fresh);
+  const liveOwners = owners.map(({ owner }) => owner);
+  const resolve = (reference: RecordReference) => {
+    const freshName = !("uid" in reference.owner && reference.owner.uid) && named.result.freshNames.has(writeOwnerNameKey(reference));
+    const candidates = freshName ? liveOwners : context.registry[reference.kind].family === "lineage"
+      ? lineageOwnerCandidates(reference, liveOwners, lineage.result) : [...liveOwners, ...endedOwners];
+    return resolveOwner(reference, candidates, fresh);
+  };
+
   const renames = requestedRenames(writes);
   const resolved: ResolvedMutation[] = [];
   for (const mutation of writes) {

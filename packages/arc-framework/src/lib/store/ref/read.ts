@@ -19,20 +19,23 @@ import { checkRefKey } from "./path-admission.js";
 import { projectIdentityQueries, projectOwnerFromObjects, admitProjectReference, projectListInput, projectListingBinding, checkProjectIdentity } from "./project-identity.js";
 import { resolveLineageReadReference } from "./lineage-resolution.js";
 
+import { resolveRefName, resolveRefListInput } from "./reference-resolution.js";
 import { readUidRefRecord } from "./read-uid.js";
 
-/** Read one live record, resolving a slug-only owner through one captured family scan. */
+/** Read a record, resolving name-only owners through one captured namespace. */
 export async function readRefRecord(context: RefBackendContext, input: ReadInput): Promise<StoreResult<StoreRecord>> {
   let reference = input.reference;
   const invalidKey = checkRefKey(reference, context.registry, false);
   if (invalidKey) return { status: "refused", refusal: invalidKey };
+  const personal = reference.owner.type === "person" ? await resolveReadReference(context, reference) : null;
+  if (personal?.status === "refused") return personal;
   const byUid = await readUidRefRecord(context, reference);
   if (byUid) return byUid;
-  const resolved = await resolveReadReference(context, reference);
+  const tips = await readRefTips(context);
+  const resolved = personal ?? await resolveReadReference(context, reference, tips);
   if (resolved.status === "refused") return resolved;
   reference = resolved.result;
   const home = expandStoredPath(reference, { registry: context.registry });
-  const tips = await readRefTips(context);
   const tip = tips.get(home.ref);
   if (!tip && reference.owner.type !== "project") return readArchivedRecord(context, reference, tips);
   const recordQuery = `${tip}:${home.path}`;
@@ -59,22 +62,16 @@ export async function readRefRecord(context: RefBackendContext, input: ReadInput
     condition: record.condition, remedy: record.remedy } };
 }
 
-/** Resolve a live reference before choosing its containing ref and stored path. */
-export async function resolveReadReference(context: RefBackendContext, reference: RecordReference): Promise<StoreResult<RecordReference>> {
+/** Resolve a typed reference against captured tips before choosing its stored address. */
+export async function resolveReadReference(context: RefBackendContext, reference: RecordReference, tips?: ReadonlyMap<string, string>): Promise<StoreResult<RecordReference>> {
   if (reference.owner.type === "person" && await context.identity() === null) {
     return missing(reference, "No arc.identity is configured for person-owned state", "Configure arc.identity, then retry.");
   }
-  if (context.registry[reference.kind].family === "lineage") return resolveLineageReadReference(context, reference);
-  if (reference.owner.type !== "person" && !reference.owner.uid && reference.owner.type !== "project") {
-    const listing = await listRefRecords(context, { family: context.registry[reference.kind].family });
-    if (listing.status !== "ok" || listing.result.status !== "complete") return missing(reference);
-    const primary = ["work-item/meta", "work-item/record"].includes(reference.kind);
-    const resolved = listing.result.records.find((record) => record.placement?.kind !== "completed" && record.reference.owner.name === reference.owner.name
-      && (!primary || ["work-item/meta", "work-item/record"].includes(record.reference.kind)));
-    if (!resolved) return missing(reference);
-    return { status: "ok", result: RecordReferenceSchema.parse({ ...reference, owner: resolved.reference.owner,
-      ...(["work-item/meta", "work-item/record"].includes(reference.kind) ? { kind: resolved.reference.kind } : {}) }) };
+  if (context.registry[reference.kind].family === "lineage") return resolveLineageReadReference(context, reference, tips);
+  if (reference.owner.type === "work-item" || reference.owner.type === "cohort") {
+    return resolveRefName(context, reference, tips ?? await readRefTips(context));
   }
+
   return { status: "ok", result: reference };
 }
 
@@ -102,6 +99,9 @@ export async function listRefRecords(context: RefBackendContext, input: ListInpu
   if (unsupported) return { status: "refused", refusal: unsupported };
   const identityMissing = FAMILY_REGISTRY[input.family].scope === "identity" && await context.identity() === null;
   const captured = await readRefTips(context);
+  const resolved = await resolveRefListInput(context, input, captured);
+  if (resolved.status === "refused") return resolved;
+  input = resolved.result;
   const asOf = await saveCapturedManifest(context, captured);
   if (identityMissing) return { status: "ok", result: { status: "absent", asOf } };
   const tips = new Map([...captured].filter(([ref]) => matchesFamilyRef(ref, input.family)

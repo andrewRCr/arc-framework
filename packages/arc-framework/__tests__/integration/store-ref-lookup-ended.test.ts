@@ -38,8 +38,10 @@ describe("lookup across live and completed generations", () => {
     const liveRenamed = RecordReferenceSchema.parse({ ...liveFormer.reference, owner: { ...liveFormer.reference.owner, name: "live-former" } });
     success(await f.store.write({ ...update(f, liveFormer, liveFormer.content), reference: liveRenamed }));
     expect(success(await f.store.lookup({ kind: "slug", slug: target })).reference).toEqual(liveRenamed);
-    const current = await seed(f, reference);
-    expect(success(await f.store.lookup({ kind: "slug", slug: target })).reference).toEqual(current.reference);
+    const next = await seed(f, f.reference("work-item/meta", "next"));
+    const current = RecordReferenceSchema.parse({ ...next.reference, owner: { ...next.reference.owner, name: target } });
+    success(await f.store.write({ ...update(f, next, next.content), reference: current }));
+    expect(success(await f.store.lookup({ kind: "slug", slug: target })).reference).toEqual(current);
   });
 
   it.each(["current", "former"] as const)("names all ambiguous completed %s-slug holders", async (tier) => {
