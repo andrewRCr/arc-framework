@@ -10,6 +10,8 @@ import { ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs, writeWorktreeM
 import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { dispatchRegisteredCli } from "../helpers/registered-cli.js";
+import { runDerivedLocusStateProbe } from "../../src/handlers/derived-locus-state-probe.js";
+import { deriveStoreInFlight } from "../../src/lib/git/in-flight-store.js";
 const binding = vi.hoisted(() => ({ store: null as Store | null }));
 vi.mock("../../src/lib/store/create.js", async importOriginal => {
   const original = await importOriginal<typeof import("../../src/lib/store/create.js")>();
@@ -179,4 +181,33 @@ it("keeps project Errands with unknown location when identity is unavailable and
   const restored = await invoke(h, ["active", "in-flight", "--json"]);
   expect(restored.entries).toContainEqual(expect.objectContaining({ slug, worktreePath: holder }));
   expect(restored.entries.find((entry: { slug?: string }) => entry.slug === slug)).not.toHaveProperty("marks");
+}, 30_000);
+
+it.each(["registered", "reversed-roster"] as const)("withholds a transient location beside an unresolved stray marker and recovers after repair (%s)", async mode => {
+  const h = await fixture(), { slug, branch, holder, claimId } = await heldTransient(h, "errand");
+  await ensureWorktreeMarkerIgnored(h.cwd, h.exec, nodeWorktreeMarkerIgnoreFs);
+  await writeWorktreeMarker(h.cwd, { spawnedByArc: false, spawningIdentity: "test-user", createdAt: "2026-10-15T00:00:00Z",
+    createdFor: { kind: "errand", slug, claimId }, provisioning: "ready" });
+  const read = async () => {
+    if (mode === "registered") return invoke(h, ["active", "in-flight", "--json"]);
+    const frame = await runDerivedLocusStateProbe({ cwd: h.cwd, exec: h.exec, store: h.store, identity: "test-user", baseBranch: "main" });
+    return deriveStoreInFlight({ cwd: h.cwd, exec: h.exec, store: h.store, identity: "test-user", teamMode: false, roster: [...frame.roster].reverse() });
+  };
+  const uncertain = await read(), item = uncertain.entries.find((entry: { slug?: string }) => entry.slug === slug);
+  expect(item).toMatchObject({ kind: "errand", slug, branch, marks: ["degraded", "location-ambiguous"] });
+  expect(item).not.toHaveProperty("worktreePath");
+  expect(uncertain.snapshot.worktrees).not.toHaveProperty(branch);
+  const warning = JSON.stringify(uncertain.warnings);
+  expect(warning.replaceAll(holder, "<holder>")).toContain(h.cwd); expect(warning).toContain(holder);
+  expect(warning).toMatch(/topology-mismatch|branch/iu);
+  expect(warning).toContain("arc locus --json");
+  expect(warning).toMatch(/stray.*retry/iu);
+  const marker = await readWorktreeMarkerGeneration(h.cwd);
+  if (marker.kind !== "present") throw new Error("Missing stray transient marker");
+  expect(await removeWorktreeMarkerGeneration(h.cwd, marker.bytes)).toEqual({ kind: "removed" });
+  const repaired = await read();
+  expect(repaired.entries).toContainEqual(expect.objectContaining({ slug, branch, worktreePath: holder }));
+  expect(repaired.entries.find((entry: { slug?: string }) => entry.slug === slug)).not.toHaveProperty("marks");
+  expect(repaired.snapshot.worktrees[branch]).toBe(holder);
+  expect(repaired.warnings).toEqual([]);
 }, 30_000);

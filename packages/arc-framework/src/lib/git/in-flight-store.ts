@@ -93,13 +93,25 @@ class InFlightProjection {
     const record = acquisition.decoded.get(slug);
     if (record === undefined || record.branch === null) return;
     const branch = errandsOnly ? this.branchFor(saved, record.branch) : record.branch;
-    const row = this.options.roster?.find((candidate) => matchesTransient(candidate, slug, record.claimId));
+    const kind = record.kind === "groom" ? "groom" : record.purpose === "housekeep-routing" ? "housekeep" : "errand";
+    const { path, marks } = this.transientLocation(kind, slug, record.claimId);
     const owner = record.kind === "errand" && record.purpose === "errand" ? record.owner : this.options.identity;
-    const locationUnknown = this.options.identity === null && this.options.roster === undefined;
-    if (locationUnknown) this.warn(`Location for project Errand '${slug}' is unavailable without personal identity. Set arc.identity or Git user.name, then retry arc active in-flight.`, "worktree-list-failed");
-    this.entries.push({ kind: "errand", slug, ...this.locate(branch, row?.checkout.path), ...optionalField("owner", owner),
-      ...(locationUnknown ? { marks: ["degraded", "indeterminate"] as const } : {}) });
+    this.entries.push({ kind: "errand", slug, ...this.locate(branch, path), ...optionalField("owner", owner),
+      ...(marks === undefined ? {} : { marks }) });
     if (branch !== undefined) this.addMissingBranch(workBranchName(branch), slug);
+  }
+  private transientLocation(kind: "errand" | "groom" | "housekeep", slug: string, claimId: string): { path?: string; marks?: readonly InFlightEntryMark[] } {
+    if (this.options.identity === null && this.options.roster === undefined) {
+      this.warn(`Location for project Errand '${slug}' is unavailable without personal identity. Set arc.identity or Git user.name, then retry arc active in-flight.`, "worktree-list-failed");
+      return { marks: ["degraded", "indeterminate"] };
+    }
+    const rows = this.options.roster?.filter(candidate => matchesTransient(candidate, kind, slug, claimId)) ?? [];
+    if (rows.length > 1 || rows.some(row => row.kind !== "transient" || row.diagnostics.length > 0)) {
+      const details = rows.flatMap(row => row.diagnostics.map(diagnostic => `${diagnostic.code}: ${diagnostic.message}`)).join(" ");
+      this.warn(`Transient '${slug}' has unresolved checkout evidence at ${rows.map(row => row.checkout.path).join(", ")}. ${details} Inspect arc locus --json, repair or remove the stray transient marker, then retry.`, "worktree-list-failed");
+      return { marks: ["degraded", rows.length > 1 ? "location-ambiguous" : "indeterminate"] };
+    }
+    return { path: rows[0]?.checkout.path };
   }
   private addMissingBranch(branch: string, slug: string): void {
     if (this.refs.refs.localHeads[branch] !== undefined || this.refs.refs.remoteTracking[branch] !== undefined) return;
@@ -156,9 +168,10 @@ async function workUnitLocation(context: InFlightProjection, name: string): Prom
 function optionalField<Key extends string>(key: Key, value: string | null | undefined): Partial<Record<Key, string>> {
   return value == null ? {} : { [key]: value } as Record<Key, string>;
 }
-function matchesTransient(row: DerivedCheckoutRow, slug: string, claimId: string): boolean {
+function matchesTransient(row: DerivedCheckoutRow, kind: "errand" | "groom" | "housekeep", slug: string, claimId: string): boolean {
   const subject = row.subject;
-  return subject !== null && subject.kind !== "work-unit" && subject.kind !== "partial-errand" && subject.key === slug && subject.claimId === claimId;
+  return subject !== null && subject.kind !== "work-unit" && subject.kind !== "partial-errand"
+    && subject.kind === kind && subject.key === slug && subject.claimId === claimId;
 }
 function keepOwner(entry: StoreInFlightEntry, options: DeriveStoreInFlightOptions): boolean {
   return !options.teamMode || options.identity === null || entry.owner === undefined || entry.owner === options.identity;
