@@ -9,6 +9,20 @@ import type { Store } from "../../src/lib/store/contract.js";
 import { readWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { OwnerIdentitySchema } from "../../src/lib/store/identity.js";
 
+it("keeps the capture gate clear for commented targets and names a visible held capture", async () => {
+  const f = await repairCliFixture(), personal = await resolveEntryList("personal", f.h.context);
+  if (personal.status !== "ok" || !personal.result.saved) throw new Error("No personal inbox");
+  const comment = '<!--\n- WU_Target: example\n-->\n<!-- - _WU_Target:_ `example` -->';
+  const content = `## Work Unit\n\n${entry()}\n- _Hold:_ \`true\`\n- WU_Target: elsewhere\n${comment}\nActual prose\n`;
+  await editRecord(f, personal.result.saved, content);
+  const saved = success(await f.h.context.store.read({ reference: personal.result.reference }));
+  const list = (target: string) => repairCli(f, ["inbox", "personal", "--target", target, "--json"]);
+  expect(await list("example")).toMatchObject({ exitCode: 0, result: { state: "clear", entries: [] } });
+  expect(await list("elsewhere")).toMatchObject({ exitCode: 0, result: { state: "named", entries: [{ id: "12345678", held: true }] } });
+  await editRecord(f, saved, content.replace(comment, ""));
+  expect(await list("example")).toMatchObject({ exitCode: 0, result: { state: "clear", entries: [] } });
+}, 30000);
+
 it("routes the visible entry identity and fields while retaining commented examples", async () => {
   const f = await repairCliFixture(), source = await resolveEntryList("project", f.h.context);
   if (source.status !== "ok" || !source.result.saved) throw new Error("No source");

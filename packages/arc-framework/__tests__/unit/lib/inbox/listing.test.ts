@@ -36,6 +36,13 @@ describe("store inbox listing", () => {
     expect((await listInbox({ list: "personal", target: "elsewhere" }, context)).state).toBe("clear");
     expect(await listInbox({ list: "project", target: "example" }, context)).toMatchObject({ state: "refused", remedy: { text: expect.stringContaining("arc inbox personal --target") } });
   });
+  it.each(['- WU_Target: example', '- _WU_Target:_ `example`', '- `WU_Target: example`'])("ignores commented target examples: %s", async (target) => {
+    const { f, context } = fixture();
+    const content = `## Work Unit\n### **Concern**\n- _Id:_ \`12345678\`\n- _Hold:_ \`true\`\n- WU_Target: elsewhere\n<!--\n${target}\n-->\n<!-- ${target} -->\nActual prose\n`;
+    await seed(f, f.reference("personal/inbox"), content);
+    expect(await listInbox({ list: "personal", target: "example" }, context)).toMatchObject({ state: "clear", entries: [] });
+    expect(await listInbox({ list: "personal", target: "elsewhere" }, context)).toMatchObject({ state: "named", entries: [{ id: "12345678", held: true, raw: expect.stringContaining(target) }] });
+  });
   it("reports pending figures and a re-triage offer only for a nonempty backlog stub", async () => {
     const { f, context } = fixture();
     const reference = f.reference("work-item/meta");

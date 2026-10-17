@@ -1,6 +1,7 @@
 /** One completeness-preserving reader for every route source and destination list. */
 import { SlugSchema } from "../kernel/index.js";
 import { parseEntryList } from "../store/kinds/entry-list.js";
+import { maskComments } from "../store/concurrency/entries.js";
 import { listInboxEntriesNamingTarget } from "../user-sync/inbox-target.js";
 import { targetNamedByLine } from "../store/kinds/entry-fields.js";
 import { resolveEntryList, failure, type ResolvedEntryList } from "./lists.js";
@@ -54,7 +55,7 @@ function filterTarget(rows: InboxRow[], list: ResolvedEntryList, target?: string
   if (target === undefined) return { status: "ok", result: rows };
   const listing = listInboxEntriesNamingTarget(list.saved?.content ?? "", target);
   if (listing.diagnostics.length > 0) return failure("record-malformed", listing.diagnostics.join(" "), "Repair every unreadable capture or stray target line, then retry arc inbox personal --target <slug>.");
-  return { status: "ok", result: rows.filter((row) => row.raw.split("\n").some((line) => targetNamedByLine(line) === target)) };
+  return { status: "ok", result: rows.filter((row) => maskComments(row.raw).split("\n").some((line) => targetNamedByLine(line) === target)) };
 }
 
 function inboundFigures(list: ResolvedEntryList, rows: InboxRow[], context: InboxContext) {
