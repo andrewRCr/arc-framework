@@ -61,16 +61,17 @@ export async function readRefHistoryDetails(context: RefBackendContext, referenc
   const snapshots = await readHistorySnapshots(context, reference, home, revisions, paths);
   if (snapshots.status === "refused") return snapshots;
   const entries: RefHistoryDetail[] = [];
-  for (const row of orderHistoryCommits(rows)) {
+  for (const row of orderHistoryCommits(rows).reverse()) {
     const after = snapshots.result.get(row.revision);
     if (!after) throw new Error("A historical commit has no captured state");
-    const before = row.parents[0] ? snapshots.result.get(row.parents[0])?.state : undefined;
+    const parent = row.parents[0] ? snapshots.result.get(row.parents[0])?.state : undefined;
+    const before = row.parents.length > 1 ? entries.at(-1)?.entry ?? parent : parent;
     if (after.state.version === (before?.version ?? null)) continue;
     const selected = after.state.version === null ? before?.reference ?? after.state.reference : after.state.reference;
     entries.push({ revision: row.revision,
       entry: { ...after.state, reference: selected, provenance: parseStoreCommitProvenance(after.message, selected) } });
   }
-  return { status: "ok", result: entries };
+  return { status: "ok", result: entries.reverse() };
 }
 
 function parseHistoryRows(stdout: string): HistoryCommit[] {

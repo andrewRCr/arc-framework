@@ -4001,4 +4001,7 @@ open:
 - **A8** — 2026-10-16 — task: primary role replacement uses one version-bound put, retaining logical batch uniqueness.
   _Supersedes:_ none. _Trigger:_ 6.6 must-stop. _Work:_ 6.6.R. _Revalidated:_ 6.6.R.
 
+- **A9** — 2026-10-17 — task: merge history compares the result with the preceding ordered record state.
+  _Supersedes:_ none. _Trigger:_ 7.2 must-stop. _Work:_ 7.2.R. _Revalidated:_ 7.2.R.
+
 ---

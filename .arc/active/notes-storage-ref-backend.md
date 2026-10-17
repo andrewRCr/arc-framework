@@ -356,3 +356,17 @@ schema or specification behavior. Task 6.6.R covers both directions, duplicate a
 and check refusal followed by repair. Its grounding-only author check traced those schema, identity, reference
 write, and check paths; reader independence and binding completeness hold over this bounded correction. No new
 segment, public API, or later task depends on accepting duplicate role mutations.
+
+## A9 — Merge history uses the ordered record state
+
+The first `changes` probes exposed a missing part of § 3.6 in `readRefHistoryDetails` (`lib/store/ref/history.ts`).
+`orderHistoryCommits` places the local branch before the remote branch, but the entry filter compared every result
+with its first parent. A remote-kept merge consequently repeated the remote version; a local-kept merge omitted
+its result and left the remote version newest. Both failures were reproduced with commits made by the real write
+path, joined by a two-parent commit over the retained producer tree.
+
+The task arm preserves the specification: merge results compare with the preceding ordered entry, while ordinary
+commits compare with their parent. Task 7.2.R closes that correction before `changes` reuses the history behavior;
+the later real-pull cases still test the complete integration. Grounding-only author review traced the graph order,
+entry filter, and stale-base consumer in `mergeRefMutation`; reader independence and binding completeness hold over
+this correction, which changes no interface or design decision.

@@ -480,6 +480,8 @@ _Mode:_ `layer` through Phase 8 — closes on the local engine complete in both 
 - _Goal:_ `history` returns a record's versions as its own ref's log holds them, every one a commit where the record's
   version or presence changed, so a stale base finds the version it names.
 
+    - _Amended in:_ 7.2.R (A9)
+
 - _Outcome:_ `readRefHistory` compares path-limited commit snapshots by each record's own version and presence,
   retaining repeated versions, metadata-only primary changes, removals, and per-record owner provenance. Batched
   literal-path tree reads distinguish unavailable blobs from absence; restoration resumes the query. Historical
@@ -681,6 +683,15 @@ by every tier, and an item ref broken outside ARC.
           ref this clone lacks refuses naming it
         - a completed item whose history ref this clone holds without the batch its folder names, planted as another
           machine's write leaves it, refuses naming the ref
+
+### `[x]` **7.2.R Merge history follows ordered record state — § 3.6 (A9)**
+
+- _Goal:_ A merge retaining the remote version adds no duplicate entry, while one retaining the local version adds
+  that result after both branches, so the newest history entry equals the current record.
+
+- _Outcome:_ `readRefHistoryDetails` walks local-before-remote order from oldest to newest, comparing a merge result
+  with the preceding ordered entry while retaining parent comparison for ordinary commits. Both retained-side cases
+  preserve branch writes and provenance; the newest entry matches the readable merge result.
 
 ### `[ ]` **7.3 `lookup`'s scan over ended items, claims, and commits — § 8**
 
