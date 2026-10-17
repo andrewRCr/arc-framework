@@ -9,6 +9,21 @@ import type { Store } from "../../src/lib/store/contract.js";
 import { readWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { OwnerIdentitySchema } from "../../src/lib/store/identity.js";
 
+it("routes the visible entry identity and fields while retaining commented examples", async () => {
+  const f = await repairCliFixture(), source = await resolveEntryList("project", f.h.context);
+  if (source.status !== "ok" || !source.result.saved) throw new Error("No source");
+  const comment = '<!--\n- _Id:_ `deadbeef`\n- _Shapes:_ `Example decision`\n- _Routed from:_ example\n-->';
+  await editRecord(f, source.result.saved, `## Inbox\n\n${entry()}\n- _Shapes:_ \`Actual decision\`\n${comment}\nActual prose\n`);
+  const row = (await cliRows(f, "project"))[0]; if (!row) throw new Error("No capture");
+  expect(await repairCli(f, ["route", row.id, "--from", "project", "--expected-version", row.version,
+    "--to", "personal", "--section", "Errand"])).toMatchObject({ exitCode: 0, result: { state: "routed", entryId: row.id } });
+  expect(await cliRows(f, "project")).toEqual([]);
+  const destination = await cliRows(f, "personal");
+  expect(destination).toMatchObject([{ id: row.id, raw: expect.stringContaining("Actual decision") }]);
+  expect(destination[0]?.raw).toContain(comment);
+  expect(destination[0]?.raw).toContain("Actual prose");
+}, 30000);
+
 it("lists actual captures, refuses an invalid target filter, and routes a stale entry only after listing its new version", async () => {
   const f = await repairCliFixture(), original = (await cliRows(f, "project"))[0];
   if (!original) throw new Error("No capture");

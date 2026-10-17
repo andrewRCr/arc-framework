@@ -1,5 +1,6 @@
 /** Shared readers and canonical writers for managed Markdown entry fields. */
 import { createHash } from "node:crypto";
+import { maskComments } from "../concurrency/entries.js";
 export { drawId as drawEntryId } from "../concurrency/stamp.js";
 
 /** Fields owned by the shared entry grammar, including compatibility-only disposition. */
@@ -71,20 +72,31 @@ export function writeRemovalTrigger(trigger: string): string { return `_Remove w
  * @returns Entry with canonical managed bullets before its prose.
  */
 export function writeEntryFields(raw: string, changes: Readonly<Record<string, string | undefined>>): string {
-  const lines = raw.split(/\r?\n/u);
-  const header = lines.shift() ?? "";
-  const fields = { ...fieldsOnLines(lines), ...changes };
+  const newline = raw.includes("\r\n") ? "\r\n" : "\n";
+  const header = (raw.split("\n")[0] ?? "").replace(/\r$/u, "");
+  const fields = { ...fieldsOnLines(maskComments(raw).split("\n").slice(1)), ...changes };
   for (const [field, value] of Object.entries(fields)) {
     if (value !== undefined && !validEntryFieldValue(field, value)) throw new Error(`Invalid ${field} entry value: ${value}`);
   }
-  const body = lines.filter((line) => fieldOnLine(line) === undefined);
+  const body = withoutVisibleLines(raw, (line) => fieldOnLine(line) !== undefined).split("\n").slice(1);
   while (body[0]?.trim() === "") body.shift();
-  while (body.at(-1)?.trim() === "") body.pop();
+  const bodyText = body.join("\n");
+  const openComment = bodyText.lastIndexOf("<!--") > bodyText.lastIndexOf("-->");
+  while (!openComment && body.at(-1)?.trim() === "") body.pop();
   const disposition = fields.Disposition === undefined ? [] : ["", `- _Disposition:_ \`${fields.Disposition}\``, ""];
   const managed = Object.entries(fields).filter(([field, value]) => field !== "Disposition" && value !== undefined)
     .sort(([a], [b]) => Number(a === "Id") - Number(b === "Id"))
     .map(([field, value]) => `- _${field}:_ \`${value}\``);
-  return [header, ...disposition, ...managed, ...(body.length ? ["", ...body] : [])].join("\n");
+  return [header, ...disposition, ...managed].join(newline) + (body.length ? `${newline}${newline}${body.join("\n")}` : "");
+}
+
+function withoutVisibleLines(raw: string, omit: (line: string) => boolean): string {
+  const visible = maskComments(raw).split("\n");
+  return raw.split("\n").flatMap((line, index) => {
+    if (!omit(visible[index] ?? "")) return [line];
+    const comment = line.indexOf("<!--");
+    return comment < 0 ? [] : [line.slice(comment)];
+  }).join("\n");
 }
 
 function fieldOnLine(line: string): string | undefined {
@@ -107,13 +119,16 @@ function fieldsOnLines(lines: readonly string[]): Record<string, string | undefi
  * @returns Entry with its origin directly after the identity.
  */
 export function writeRoutedFrom(raw: string, origin?: string): string {
-  const lines = raw.split("\n").filter((line) => !/^- _Routed from:_/u.test(line));
-  if (origin !== undefined) {
-    const index = lines.findIndex((line) => /^- _Id:_/u.test(line));
-    if (index < 0) throw new Error("A routed entry must have an identity");
-    lines.splice(index + 1, 0, `- _Routed from:_ ${origin}`);
-  }
-  return lines.join("\n");
+  const rewritten = withoutVisibleLines(raw, (line) => /^- _Routed from:_/u.test(line));
+  if (origin === undefined) return rewritten;
+  const identity = /^- _Id:_[^\r\n]*(?:\r?\n|$)/mu.exec(maskComments(rewritten));
+  if (identity === null) throw new Error("A routed entry must have an identity");
+  const newline = raw.includes("\r\n") ? "\r\n" : "\n";
+  const position = identity.index + identity[0].length;
+  const originLine = `- _Routed from:_ ${origin}`;
+  return identity[0].endsWith("\n")
+    ? `${rewritten.slice(0, position)}${originLine}${newline}${rewritten.slice(position)}`
+    : `${rewritten}${newline}${originLine}`;
 }
 /** Digest exactly the identity-bearing section and bytes compared by entry merge.
  * @param entry - Losslessly split entry.

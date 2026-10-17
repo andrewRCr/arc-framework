@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readEntryField, writeEntryFields, readRemovalTrigger, writeRemovalTrigger, entryVersion, writeRoutedFrom } from "../../../../../src/lib/store/kinds/entry-fields.js";
+import { maskComments } from "../../../../../src/lib/store/concurrency/entries.js";
 
 describe("shared entry fields", () => {
   it("reads legacy spellings and writes a leading managed group", () => {
@@ -25,5 +26,41 @@ describe("shared entry fields", () => {
     const stamped = writeRoutedFrom(raw, "personal (andrew), Work Unit");
     expect(stamped).toContain('- _Id:_ `12345678`\n- _Routed from:_ personal (andrew), Work Unit\n');
     expect(writeRoutedFrom(stamped)).toBe(raw);
+  });
+  it.each(["\n", "\r\n"])("keeps commented field examples opaque with %j endings", (newline) => {
+    const comment = ["<!--", '- _Id:_ `deadbeef`', '- _Shapes:_ `Example decision`', "-->"].join(newline);
+    const raw = ['### **Title**', '- _Id:_ `12345678`', '- _Shapes:_ `Actual decision`', "", comment, "Actual prose"].join(newline);
+    const rewritten = writeEntryFields(raw, { Created: "2026-02-01" });
+    expect(readEntryField(maskComments(rewritten), "Id")).toBe("12345678");
+    expect(readEntryField(maskComments(rewritten), "Shapes")).toBe("Actual decision");
+    expect(rewritten).toContain(comment);
+    expect(rewritten).toContain("Actual prose");
+  });
+  it.each(["\n", "\r\n"])("retains inline comment bytes while replacing visible fields with %j endings", (newline) => {
+    const comment = "<!-- Keep this example: _Id:_ `deadbeef` -->";
+    const raw = ['### **Title**', `- _Id:_ \`12345678\` ${comment}`, "", "Actual prose"].join(newline);
+    const rewritten = writeEntryFields(raw, { Created: "2026-02-01" });
+    expect(rewritten).toContain(comment);
+    expect(readEntryField(maskComments(rewritten), "Id")).toBe("12345678");
+  });
+  it("retains opaque routing examples when replacing an origin", () => {
+    const comment = '<!--\n- _Id:_ `deadbeef`\n- _Routed from:_ example\n-->';
+    const raw = `### **Title**\n${comment}\n- _Id:_ \`12345678\`\n- _Routed from:_ previous\n\nProse`;
+    const rewritten = writeRoutedFrom(raw, "project");
+    expect(rewritten).toContain(comment);
+    expect(maskComments(rewritten)).toContain('- _Id:_ `12345678`\n- _Routed from:_ project\n');
+    expect(maskComments(rewritten)).not.toContain("previous");
+  });
+  it("retains an inline comment when removing the visible origin", () => {
+    const comment = "<!-- Keep this routing explanation -->";
+    const raw = `### **Title**\n- _Id:_ \`12345678\`\n- _Routed from:_ previous ${comment}\n\nProse`;
+    const rewritten = writeRoutedFrom(raw);
+    expect(rewritten).toContain(comment);
+    expect(maskComments(rewritten)).not.toContain("Routed from");
+  });
+  it("retains the complete opaque tail of an unclosed comment", () => {
+    const comment = "<!--\nAn unfinished example\n\n";
+    const raw = `### **Title**\n- _Id:_ \`12345678\`\n${comment}`;
+    expect(writeEntryFields(raw, { Created: "2026-02-01" })).toContain(comment);
   });
 });
