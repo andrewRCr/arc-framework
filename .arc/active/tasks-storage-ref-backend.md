@@ -505,22 +505,15 @@ _Mode:_ `layer` through Phase 8 — closes on the local engine complete in both 
   commit and this clone’s actor/clock, with committer-email and unknown fallbacks; lineage ownership decodes from the
   conflict target without requiring an origin-map entry.
 
-### `[ ]` **5.7 `lookup` over live state — § 8**
+### `[x]` **5.7 `lookup` over live state — § 8**
 
 - _Goal:_ `lookup` answers a slug and a lineage origin among live owners in four Git processes, over the store's tips or
   over a write's views, so the write checks that guard a slug read what the write found.
 
-    - § 8's scan over the live work and cohort refs and their metadata files, memoized within one process on the ref
-      tips; a slug resolves to the live item holding it, else the one holding it as a former slug; a lineage origin
-      resolves by UID through its path, and by slug through the slugs the registry's metadata keeps (5.3)
-    - The same scan runs over a tree set the caller gives, so 5.8's views reuse it; ended items, claims, commits, refs,
-      and the scan's refusals land in 7.3
-    - Build `test-first` (one behavior at a time):
-        - Integration tier
-        - a live item's slug resolves its primary, and its former slug resolves it where no live item holds that slug
-        - two live items holding one slug, planted as a pull would leave them, refuse `ambiguous-match` naming both
-        - a lineage origin resolves by UID and by slug
-        - a lookup spawns four processes, and a second one over unchanged tips in the same process spawns one
+- _Outcome:_ Live primary lookup ranks current slugs over former slugs and reports every tied owner; lineage resolves
+  UID paths and registry slugs with path-presence checks. A four-process metadata scan is cached by checkout and tips
+  across backend instances, with one-process reuse and no failed-scan retention. The same selector accepts prepared
+  tree sets for write views.
 
 ### `[ ]` **5.8 Write checks — § 5.3, § 1.4**
 
