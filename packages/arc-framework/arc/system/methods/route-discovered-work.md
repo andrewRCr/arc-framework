@@ -103,11 +103,13 @@ learned at its start is not a position. These rules govern the defaults below wi
 - **No window:** `arc status` names why; admit nothing until the target's session or owner confirms its position.
 
 **Live target.** A work unit with a registered checkout is live: coordinate with its session by message first, never
-by capture first. Propose the message to the Owner, and send it without asking only where the two sessions already
-have a conversation. Use the harness's session messaging where it has one; otherwise give the Owner the message to
-relay. A message for the Owner to approve or relay ends the turn it appears in: produce it when it is ready, then stop.
-A message places nothing until the target's owner adopts the concern; if the Owner declines to send it or the target
-declines it, the concern takes the door's other outcomes.
+by capture first. A checkout usually, but not always, has a session working in it. Propose the message to the Owner,
+and send it without asking only where the two sessions already have a conversation. Use the harness's session
+messaging where it has one; otherwise give the Owner the message to relay. A message for the Owner to approve or relay
+ends the turn it appears in: produce it when it is ready, then stop. A message places nothing until the target's owner
+adopts the concern. With no session there to receive it, the Owner chooses between holding it for the next session
+there and the door's other outcomes; a message the Owner declines to send, or the target declines, takes those
+outcomes.
 
 ### Integration and re-triage
 
