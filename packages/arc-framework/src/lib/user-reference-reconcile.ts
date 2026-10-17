@@ -647,10 +647,10 @@ async function runPreparedUserReferenceReconcile(ctx: UserReferenceReconcileBase
   if (!ctx.apply) return { status: plan.status, plan };
   const handle = await ctx.acquireLock();
   try {
-    const valid = await revalidateLifecycleRecords(basis.store, basis.records);
-    if (valid.status === "refused") return { status: "refused", plan, refusal: valid.refusal };
     const checked = await readPreparedReferencePlan(ctx, basis);
     if (checked.status === "refused") return { status: "refused", plan, refusal: checked.refusal };
+    const valid = await revalidateLifecycleRecords(basis.store, basis.records);
+    if (valid.status === "refused") return { status: "refused", plan, refusal: valid.refusal };
     plan = checked.result;
     const writes = plan.edits.map(edit => {
       const record = basis.byPath.get(edit.path);

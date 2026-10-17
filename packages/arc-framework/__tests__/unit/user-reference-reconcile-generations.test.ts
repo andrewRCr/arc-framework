@@ -8,6 +8,7 @@ import { ArchiveQuarterSchema, SlugSchema } from "../../src/lib/kernel/index.js"
 import { createStoreUserReferencePrepareContext } from "../../src/lib/user-reference-reconcile-store.js";
 import { projectUserReferenceSessionResult, runUserReferenceReconcile } from "../../src/lib/user-reference-reconcile.js";
 import type { StoreRecord } from "../../src/lib/store/read.js";
+import type { Store } from "../../src/lib/store/contract.js";
 
 async function generations() {
   const h = createLifecycleHarness(), quarter = ArchiveQuarterSchema.parse("2026-q4");
@@ -83,4 +84,37 @@ it("refuses a name reused under the apply lock and continues with an advisory af
   const fresh = ok(await createStoreUserReferencePrepareContext({ store: h.store, identity: "test-user" }));
   expect(projectUserReferenceSessionResult(fresh.authority, fresh.surfaces))
     .toMatchObject({ status: "advisory", plan: { edits: [], advisories: [expect.objectContaining({ subject: "former", kind: "conflict" })] } });
+});
+
+it("revalidates captured records after target lookups and continues after fresh preparation", async () => {
+  const h = createLifecycleHarness(), former = await h.seedMeta("former");
+  const reference = RecordReferenceSchema.parse({ ...former.reference, owner: { ...former.reference.owner, name: "current" } });
+  ok(await h.store.write({ ...recordPut(former, { content: former.content.replaceAll("former", "current") }), reference,
+    provenance: { verb: "rename", lifecycleAction: "rename" } }));
+  const meta = ok(await h.store.read({ reference }));
+  const inbox = await h.seed(recordReferences["personal/inbox"](OwnerIdentitySchema.parse({ type: "person", name: "test-user" })),
+    "## Work Unit\n\n### **Concern**\n- _WU_Target:_ `former`\n- _Id:_ `12345678`\n");
+  const store = Object.create(h.store) as Store;
+  let locked = false, edited = false;
+  const concurrent = meta.content + "\nConcurrent metadata edit\n";
+  store.lookup = async input => {
+    if (locked && !edited) {
+      edited = true;
+      ok(await h.store.write({ ...recordPut(meta, { content: concurrent }), provenance: { verb: "edit", lifecycleAction: "update" } }));
+    }
+    return h.store.lookup(input);
+  };
+  const prepare = async () => ok(await createStoreUserReferencePrepareContext({ store, identity: "test-user" }));
+  const apply = async () => {
+    const prepared = await prepare();
+    return runUserReferenceReconcile({ preparedStore: prepared.preparedStore, transitions: prepared.authority.transitions,
+      apply: true, readSurfaces: async () => prepared.surfaces, acquireLock: async () => { locked = true; return null; }, releaseLock: async () => {} });
+  };
+  expect(await apply()).toMatchObject({ status: "refused", refusal: { code: "version-conflict", condition: expect.stringContaining("changed after preparation") } });
+  expect(ok(await h.store.read({ reference: inbox.reference }))).toEqual(inbox);
+  const changed = ok(await h.store.read({ reference }));
+  expect(changed.content).toBe(concurrent);
+  expect(await apply()).toMatchObject({ status: "applied" });
+  expect(ok(await h.store.read({ reference: inbox.reference })).content).toBe(inbox.content.replace("`former`", "`current`"));
+  expect(ok(await h.store.read({ reference }))).toEqual(changed);
 });
