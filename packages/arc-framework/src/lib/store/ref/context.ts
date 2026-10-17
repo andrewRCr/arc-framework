@@ -7,12 +7,15 @@ import { createKindRegistry } from "../registry.js";
 import { parseProjectIdentity } from "./project-identity.js";
 import { validateRefAnchors } from "./anchor-registry.js";
 import { PRODUCTION_REGISTRATIONS } from "../kinds/registrations.js";
+import type { ObjectFormat } from "./manifest.js";
 
 /** Backend ports with a complete kind registry and failure-time executor checks. */
 export interface RefBackendContext extends RefStorePorts {
   registry: NonNullable<RefStorePorts["registry"]>;
   /** One operation's selected repository; absence leaves selection lazy. */
-  repository?: { commonDir: string; gitDir: string | null };
+  repository?: { commonDir: string; gitDir: string | null; source: RefBackendContext };
+  /** Prospective blobs stay readable in memory until their commit owns the layout lock. */
+  blobStage?: { format: ObjectFormat; blobs: Map<string, Uint8Array> };
 }
 
 /** Bind failure-time checks and pure defaults without invoking any dependency. */

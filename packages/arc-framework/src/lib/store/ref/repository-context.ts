@@ -3,18 +3,19 @@ import type { RefBackendContext } from "./context.js";
 
 /** Bind all executor variants while keeping identity and locks rooted in the code checkout. */
 export function bindRefRepository(context: RefBackendContext, commonDir: string, gitDir: string | null): RefBackendContext {
-  const repository = { commonDir, gitDir };
-  if (gitDir === null) return { ...context, repository };
+  const source = context.repository?.source ?? context;
+  const repository = { commonDir, gitDir, source };
+  if (gitDir === null) return { ...source, repository };
   let person: Promise<string[]> | undefined;
   const argsFor = async (args: string[]): Promise<string[]> => [
     `--git-dir=${gitDir}`,
-    ...args[0] === "commit-tree" ? await (person ??= codePerson(context)) : [],
+    ...args[0] === "commit-tree" ? await (person ??= codePerson(source)) : [],
     ...args,
   ];
-  return { ...context, repository,
-    exec: async (command, args, options) => context.exec(command, await argsFor(args), { ...options, cwd: context.checkoutRoot }),
-    execInput: async (args, input, options) => context.execInput(await argsFor(args), input, { ...options, cwd: context.checkoutRoot }),
-    rawExec: async (args, options) => context.rawExec(await argsFor(args), { ...options, cwd: context.checkoutRoot }),
+  return { ...source, repository,
+    exec: async (command, args, options) => source.exec(command, await argsFor(args), { ...options, cwd: source.checkoutRoot }),
+    execInput: async (args, input, options) => source.execInput(await argsFor(args), input, { ...options, cwd: source.checkoutRoot }),
+    rawExec: async (args, options) => source.rawExec(await argsFor(args), { ...options, cwd: source.checkoutRoot }),
   };
 }
 

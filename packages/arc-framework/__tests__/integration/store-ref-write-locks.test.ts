@@ -128,13 +128,14 @@ describe.each(["files", "reftable"] as const)("locked ref writes (%s)", (format)
     const f = await createRefReadFixture(format);
     const native = createRefLockFactory(f.ports);
     let cleanup = async () => {};
-    let lockPath = "";
     const store = createRefStore({ ...f.ports, lock: async (ref) => {
-      cleanup = await native(ref, 20);
-      lockPath = join(f.root, ".git", "arc", "locks", `${ref}.lock`);
+      const release = await native(ref, 20);
+      if (ref === "layout") return release;
+      cleanup = release;
+      const lockPath = join(f.root, ".git", "arc", "locks", `${ref}.lock`);
       return async () => {
         const blocker = await acquireAdvisoryLock(`${lockPath}.break`);
-        try { await cleanup(); } finally { await releaseAdvisoryLock(blocker); }
+        try { await release(); } finally { await releaseAdvisoryLock(blocker); }
       };
     } });
     const personal = RecordReferenceSchema.parse({ owner: { type: "person", name: "andrew" }, kind: "personal/document", key: "note.txt" });

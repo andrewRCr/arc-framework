@@ -1,5 +1,7 @@
 /** Prepare record trees over captured tips and publish their commits in one transaction. */
 
+import { readObjectFormat } from "./manifest.js";
+import { commitRefStep } from "./commit-step.js";
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 import { updateRefTransaction } from "../../git/ref-transaction.js";
 import type { BatchInput, BatchResult, WriteResult } from "../write.js";
@@ -35,7 +37,7 @@ type RefGroup = RefWriteGroup;
 
 /** Land prepared mutations over one captured namespace using expected old ref values. */
 export async function commitRefWrites(context: RefBackendContext, resolved: ResolvedBatch,
-  provenance: BatchInput["provenance"], batchId: string): Promise<StoreResult<BatchResult> | "retry" | "resolve"> {
+  provenance: BatchInput["provenance"], batchId: string): Promise<StoreResult<BatchResult> | "retry" | "resolve" | "layout-changed"> {
   const project = await bindLockedProjects(context, resolved);
   if (project.status === "refused") return project;
   resolved = project.result;
@@ -50,6 +52,7 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
   if (refusal) return { status: "refused", refusal };
   applyResolutions(context, resolved, groups);
   const tips = resolved.tips;
+  context = { ...context, blobStage: { format: await readObjectFormat(context), blobs: new Map() } };
   const applied = await applyPreparedMutations(context, prepared.result, groups);
   if (applied.status === "refused") return applied;
   const results = applied.result;
@@ -66,16 +69,19 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
   const broken = await checkRefWrites(context, prepared.result, completed, tips, provenance);
   if (broken) return { status: "refused", refusal: broken };
   sweepRefRetirements(retirements.result, groups, completed);
-  const committed = await prepareRefCommits(context, prepared.result, refWriteTargets(context, resolved), groups, completed, tips, provenance, batchId);
-  const archived = await archiveRefChanges(context, committed, archives.result, groups, completed, prepared.result, tips, provenance, batchId);
-  const reopened = await reopenRefChanges(context, archived, reopens.result, tips, provenance, batchId);
-  const refreshed = await refreshCompletedChanges(context, reopened, resolved, completed, provenance, batchId);
-  if (refreshed.status === "refused") return refreshed;
-  const changes = retirementRefChanges(refreshed.result, retirements.result, tips);
-  if (changes.length === 0) return { status: "ok", result: { batchId, writes: results } };
-  const outcome = await updateRefTransaction(context, changes, { cwd: context.checkoutRoot });
-  if (outcome.status !== "committed") return "retry";
-  return { status: "ok", result: { batchId, writes: results } };
+  const step = await commitRefStep(context, async (physical): Promise<StoreResult<BatchResult> | "retry"> => {
+    const committed = await prepareRefCommits(physical, prepared.result, refWriteTargets(context, resolved), groups, completed, tips, provenance, batchId);
+    const archived = await archiveRefChanges(physical, committed, archives.result, groups, completed, prepared.result, tips, provenance, batchId);
+    const reopened = await reopenRefChanges(physical, archived, reopens.result, tips, provenance, batchId);
+    const refreshed = await refreshCompletedChanges(physical, reopened, resolved, completed, provenance, batchId);
+    if (refreshed.status === "refused") return refreshed;
+    const changes = retirementRefChanges(refreshed.result, retirements.result, tips);
+    if (changes.length === 0) return { status: "ok", result: { batchId, writes: results } };
+    const outcome = await updateRefTransaction(physical, changes, { cwd: context.checkoutRoot });
+    if (outcome.status !== "committed") return "retry";
+    return { status: "ok", result: { batchId, writes: results } };
+  });
+  return step.status === "layout-changed" ? "layout-changed" : step.result;
 }
 
 async function bindLockedProjects(context: RefBackendContext, resolved: ResolvedBatch): Promise<StoreResult<ResolvedBatch>> {

@@ -112,8 +112,9 @@ function mutationValidationFailure(mutation: Mutation, condition: string): Store
 async function executeRefBatch(context: RefBackendContext, input: BatchInput, batchId: string): Promise<StoreResult<BatchResult>> {
   const identity = await refWriteIdentityRefusal(context, input.writes);
   if (identity) return { status: "refused", refusal: identity };
-  context = await writeRefRepository(context);
+  const source = context.repository?.source ?? context;
   for (;;) {
+    context = await writeRefRepository(source);
     const resolved = await resolveRefWrites(context, input.writes);
     if (resolved.status === "refused") return resolved;
     const admission = checkMutationReferences(context, resolved.result.writes.map((write) => write.mutation), input.provenance.verb);
@@ -123,12 +124,12 @@ async function executeRefBatch(context: RefBackendContext, input: BatchInput, ba
     if (collision) return { status: "refused", refusal: collision };
     const result = await withRefLocks(context, [...refWriteTargets(context, resolved.result).map(({ home }) => home.ref), ...archiveLockRefs(resolved.result), ...archivedLockRefs(resolved.result), ...retirementLockRefs(refWriteTargets(context, resolved.result))], () =>
       commitLockedRefBatch(context, resolved.result, input.provenance, batchId));
-    if (result !== null) return result;
+    if (result !== null && result !== "layout-changed") return result;
   }
 }
 
 async function commitLockedRefBatch(context: RefBackendContext, resolved: ResolvedBatch,
-  provenance: BatchInput["provenance"], batchId: string): Promise<StoreResult<BatchResult> | null> {
+  provenance: BatchInput["provenance"], batchId: string): Promise<StoreResult<BatchResult> | "layout-changed" | null> {
   for (;;) {
     const tips = await readRefTips(context, { includeHistory: true });
     if (ownerLocationsChanged(context, resolved, tips) || archiveBasisChanged(resolved, tips)) return null;

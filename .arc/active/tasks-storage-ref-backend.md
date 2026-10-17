@@ -750,26 +750,16 @@ those 4.4.d holds until Phase 11, and every § 14.3 case that needs no pull pass
   executor pins its Git directory and cwd; commits use the code checkout's person. Both object formats, shared
   worktrees, environment isolation, interrupted-install retry, and missing-tip diagnostics retain their behavior.
 
-### `[ ]` **8.3 The layout lock — § 11.4**
+### `[x]` **8.3 The layout lock — § 11.4**
 
 - _Goal:_ No write commits into a copy a layout move has taken or left: every write and merge takes the layout lock last,
   around its commit alone, and restarts where the layout changed.
 
-    - `arc/locks/layout.lock` beside the ref locks, taken after them and only around step 7; a changed layout under it
-      releases every lock and restarts from step 2; the commit step is one function 9.2.a's merge reuses, taking the
-      repository its refs live in, with two modes beside its own: held, for a caller that already holds the layout lock,
-      a layout move's copy (13.1), which takes it no second time, since a second take waits on its own holder and
-      refuses `lock-held`, even in one process (`lib/advisory-lock.ts`); and unlocked, for a caller committing onto
-      temporary refs no write or layout move reads, a remote move's copies, the follow's, and leaving the source's
-      (13.1), which takes no layout lock
-    - Until Phase 13's move exists, a case's stand-in move creates or removes the store directory with plumbing while it
-      holds the layout lock, and the lock factory port pauses the first writer at the layout lock
-    - Build `test-first` (one behavior at a time):
-        - a write whose layout changed between its resolution and its commit restarts and lands in the new layout
-        - a holder of the layout lock past a waiting write's injected wait refuses it `lock-held`
-        - a commit step run in the held mode by a caller holding the layout lock commits without waiting on it
-        - a commit step run unlocked commits onto refs in the repository it is given, the code repository in the
-          separate layout, while another holder keeps the layout lock
+    - _Amended in:_ 16.R (A12)
+
+- _Outcome:_ A shared commit step takes the layout lock after ref locks and retains it through publication. Layout
+  changes release all locks and restart resolution; prospective blobs remain in memory until publication, preserving
+  writes across a separate-store replacement at the same path. Migration modes retain public-caller verification.
 
 ### `[ ]` **8.4 `maintain()` — § 12**
 
@@ -2249,6 +2239,19 @@ _Mode:_ `slice` through Phase 17 — closes on state moved between remotes, ever
         - `--to` a remote carrying a forwarding record from outside this state's line of moves refuses `moved`, pushing
           nothing, naming `--to` the remote the state moved to
         - a remote move's trial report matches what the move then does
+
+### `[ ]` **16.R Migration commit modes through public callers — § 11.4 (A12)**
+
+- _Goal:_ Verify held and unlocked commit modes through real migration calls, preserving the backend's private test
+  boundary and the original lock behavior required by 8.3 (A12).
+
+    - Build `test-first` (one behavior at a time):
+        - retain 13.1's public layout-copy case over divergent destination state as evidence that a merge commits while
+          the caller already holds the layout lock, without a second acquisition or ref-lock acquisition
+        - in the separate layout, a remote copy through `runStoreMigrate` commits merged temporary refs in the code
+          repository while another holder retains the layout lock; release that holder after the copy and before a
+          later switch needs the lock, then complete the move and verify the destination's merged records
+        - keep imports at the public store boundary, and close A12 against the recorded public caller evidence
 
 ### `[ ]` **16.3 Forward, then switch — § 10.2, § 10.3**
 

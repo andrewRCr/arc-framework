@@ -4035,4 +4035,7 @@ open:
 - **A11** — 2026-10-17 — design: forward repair restores current state without inventing historical metadata.
   _Supersedes:_ § 3.3 repair remedy. _Trigger:_ 7.5 must-stop. _Work:_ 7.5.R. _Revalidated:_ pending → 8.6.
 
+- **A12** — 2026-10-17 — task: verify migration-only commit modes through their public callers.
+  _Supersedes:_ none. _Trigger:_ 8.3 must-stop. _Work:_ 16.R. _Revalidated:_ pending → 16.R.
+
 ---

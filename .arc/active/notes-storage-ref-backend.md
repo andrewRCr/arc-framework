@@ -415,3 +415,23 @@ encoding, inferred version, compatibility layer, or history rewrite. Its footpri
 broken-item verification, Task 7.5's recovery derivation, and the both-layout replay; earlier successful history cases
 remain unaffected. Grounding-only task audit and reader-independence/binding-completeness review found no additional
 contract needed in this bounded footprint.
+
+## A12 — Commit-mode tests follow their public callers
+
+Task 8.3 originally asked for direct executions of the private commit step in held and unlocked modes. The production
+callers arrive later: Task 13.1's layout copy holds the layout lock already, and Task 16.2's remote copy commits
+migration-temporary refs in the code repository without the layout lock. The public store factory in `create.ts`
+currently exposes ordinary Store operations; the migration entry is an expected contract built in Task 13.1.
+`storeViolations` (`eslint/architecture-imports.ts`) rejects every relative test import into either private store
+implementation, matching spec § 1.2, so a private test hook would defeat the intended boundary.
+
+This is a determinate task-derivation correction: retain the private implementation and default-write verification in
+Task 8.3; let Task 13.1's existing divergent layout-copy case prove held mode, and add Task 16.R after the remote-copy
+caller for unlocked-mode evidence and the combined closure. No mode requirement, public boundary, or spec behavior is
+changed. Task 8.6's no-pull conformance cases remain unchanged; the later modes have no ordinary Store caller there.
+The approved deferred range still ends before 15.3.a, so Task 16.R is captured future work and receives no execution
+under that authorization.
+
+Author grounding traced `createRefStore`, `createRefBackend`, `storeViolations`, and `commitRefWrites`, and checked the
+expected layout/remote-copy contracts in Tasks 13.1 and 16.2 against § 11.4. Grounding-only task audit found the caller
+ordering resolves the private-import conflict without adding an API, lock policy port, or generic helper for tests.

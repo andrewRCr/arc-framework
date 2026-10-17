@@ -2,15 +2,34 @@
 
 import type { RefBackendContext } from "./context.js";
 import type { RefTreeEntry } from "./batch-read.js";
+import { createHash } from "node:crypto";
 
 interface TreeNode { files: Map<string, RefTreeEntry>; children: Map<string, TreeNode> }
 
 /** Write UTF-8 record bytes as a blob in the local object store. */
 export async function writeRefBlob(context: RefBackendContext, content: string): Promise<string> {
+  if (context.blobStage) {
+    const bytes = Buffer.from(content);
+    const oid = createHash(context.blobStage.format).update(Buffer.from(`blob ${bytes.length}\0`)).update(bytes).digest("hex");
+    context.blobStage.blobs.set(oid, bytes);
+    return oid;
+  }
   const { stdout } = await context.rawExec(["hash-object", "-w", "--stdin"], {
     cwd: context.checkoutRoot, objectAccess: "local-only", input: Buffer.from(content),
   });
   return new TextDecoder().decode(stdout).trim();
+}
+
+/** Write every prospective blob into the repository protected by the commit scope. */
+export async function flushRefBlobStage(context: RefBackendContext): Promise<RefBackendContext> {
+  const physical = { ...context, blobStage: undefined };
+  for (const [oid, bytes] of context.blobStage?.blobs ?? []) {
+    const { stdout } = await physical.rawExec(["hash-object", "-w", "--stdin"], {
+      cwd: physical.checkoutRoot, objectAccess: "local-only", input: bytes,
+    });
+    if (new TextDecoder().decode(stdout).trim() !== oid) throw new Error("A staged blob does not match the store's object format");
+  }
+  return physical;
 }
 
 /** Build a recursive tree while retaining every untouched entry's mode and object identity. */

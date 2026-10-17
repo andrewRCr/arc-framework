@@ -24,6 +24,17 @@ export async function readRefTips(context: RefBackendContext, options: { include
 /** Read objects in one process, recursively partitioning only an exceeded output bound. */
 export async function readBatchObjects(context: RefBackendContext, queries: readonly string[]): Promise<Map<string, BatchObject | null>> {
   if (queries.length === 0) return new Map();
+  if (context.blobStage) {
+    const buffered = new Map<string, BatchObject>();
+    for (const query of queries) {
+      const bytes = context.blobStage.blobs.get(query);
+      if (bytes) buffered.set(query, { oid: query, type: "blob", bytes });
+    }
+    if (buffered.size > 0) {
+      const stored = await readBatchObjects({ ...context, blobStage: undefined }, queries.filter((query) => !buffered.has(query)));
+      return new Map(queries.map((query) => [query, buffered.get(query) ?? stored.get(query) ?? null]));
+    }
+  }
   try {
     const { stdout } = await context.rawExec(["cat-file", "--batch"], {
       cwd: context.checkoutRoot, objectAccess: "local-only", input: encoder.encode(`${queries.join("\n")}\n`),
