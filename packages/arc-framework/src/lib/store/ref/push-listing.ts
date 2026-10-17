@@ -1,0 +1,52 @@
+/** Capture changed state refs under a stable, globally ordered local lock set. */
+
+import type { PushRefChange } from "../../git/push.js";
+import { HistoryRefSchema } from "../refusal.js";
+import type { RefBackendContext } from "./context.js";
+import { isManifestRef } from "./manifest.js";
+import { readSyncRefs, syncRefIsAncestor } from "./sync-graph.js";
+import { withRefLocks } from "./write-locks.js";
+
+/** Immutable source and tracking tips read while the selected refs were locked. */
+export interface RefPushListing {
+  local: Map<string, string>; tracking: Map<string, string>; changes: PushRefChange[];
+}
+
+/** Release and retake the whole lock set whenever the locked listing gains a ref. */
+export async function capturePushListing(context: RefBackendContext, remote: string, identity: string | null): Promise<RefPushListing> {
+  for (;;) {
+    const initial = await readPushListing(context, remote, identity);
+    const locked = new Set(initial.changes.map(({ ref }) => ref));
+    const result = await withRefLocks(context, locked, async () => {
+      const current = await readPushListing(context, remote, identity);
+      return current.changes.some(({ ref }) => !locked.has(ref)) ? null : current;
+    });
+    if (result) return result;
+  }
+}
+
+/** A shared tracking advance can lift a lease only after the captured local tip includes it. */
+export async function pushListingIncludesTracking(context: RefBackendContext, listing: RefPushListing,
+  merged: ReadonlyMap<string, string>): Promise<boolean> {
+  for (const { ref, next } of listing.changes) {
+    const tracking = listing.tracking.get(ref);
+    if (tracking === merged.get(ref)) continue;
+    if (!tracking || !next || !await syncRefIsAncestor(context, tracking, next)) return false;
+  }
+  return true;
+}
+
+async function readPushListing(context: RefBackendContext, remote: string, identity: string | null): Promise<RefPushListing> {
+  const prefix = `refs/arc-remotes/${remote}/`;
+  const [allLocal, allTracking] = await Promise.all([readSyncRefs(context, "refs/arc/"), readSyncRefs(context, prefix)]);
+  const local = new Map([...allLocal].filter(([ref]) => publishableRef(ref, identity)));
+  const tracking = new Map([...allTracking].map(([ref, tip]) => [`refs/arc/${ref.slice(prefix.length)}`, tip]));
+  const changes = [...local].filter(([ref, tip]) => tracking.get(ref) !== tip).map(([ref, next]) => ({ ref, next }));
+  return { local, tracking, changes };
+}
+
+function publishableRef(ref: string, identity: string | null): boolean {
+  if (!isManifestRef(ref) && !HistoryRefSchema.safeParse(ref).success) return false;
+  return !ref.startsWith("refs/arc/user/") || identity !== null
+    && (ref === `refs/arc/user/${identity}/personal` || ref === `refs/arc/user/${identity}/claims`);
+}

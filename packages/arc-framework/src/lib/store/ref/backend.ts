@@ -2,7 +2,7 @@
 
 import type { Store } from "../contract.js";
 import type { RefStorePorts } from "../ports.js";
-import { createRefBackendContext, type RefBackendContext } from "./context.js";
+import { createRefBackendContext } from "./context.js";
 import { refStateVersion } from "./manifest.js";
 import { readSnapshotRecord, listSnapshotRecords } from "./snapshot-read.js";
 import { readRefRecord, listRefRecords } from "./read.js";
@@ -10,6 +10,7 @@ import { writeRefRecord, batchRefRecords } from "./write.js";
 import { historyRefRecord } from "./history.js";
 import { changesRefRecords } from "./changes.js";
 import { lookupRefRecord } from "./lookup.js";
+import { pushRefStore } from "./push.js";
 import { pullRefStore } from "./pull.js";
 import { maintainRefStore } from "./maintain.js";
 
@@ -24,10 +25,6 @@ export function createRefBackend(ports: RefStorePorts): Store {
     version: async () => ({ status: "ok", result: await refStateVersion(context) }),
     history: (input) => historyRefRecord(context, input), changes: (input) => changesRefRecords(context, input), lookup: (input) => lookupRefRecord(context, input),
     pull: (input) => pullRefStore(context, input),
-    push: pending("push", context), maintain: () => maintainRefStore(context),
+    push: (input) => pushRefStore(context, input), maintain: () => maintainRefStore(context),
   };
-}
-
-function pending(operation: string, context: RefBackendContext): () => Promise<never> {
-  return () => Promise.reject(new Error(`${operation} is not implemented for the ref store at ${context.checkoutRoot}`));
 }

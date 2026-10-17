@@ -859,67 +859,29 @@ converge with no lost write.
   and makes atomic collateral inherit those causes. Whole-push failures retain their typed reason, and diagnostic
   streams remain verbatim for the loop's final refusal.
 
-### `[ ]` **9.4 The push loop — § 6.5, § 6.7**
+### `[x]` **9.4 The push loop — § 6.5, § 6.7**
 
 - _Goal:_ `push` publishes every ref this clone wrote, never part of a local batch and never over a write it has not
   merged, and reports each declared family once.
 
-- **Additional Context:** `notes-storage-ref-backend.md` § The second model check
+    - `[x]` **9.4.a Listing and locks**
+        - Captures changed state refs under sorted native locks, releasing and retaking the whole set when it grows.
+          Concurrent batch publication stays intact; a held lock reports its path and permits a retry after release.
 
-- _Note:_ A case that needs the loop stopped between two steps wraps the executor port to pause at a named Git call —
-  the loop's fetch, its tip read, or its push — through `createManualStepBarrier` (`__tests__/helpers/multi-clone.ts`);
-  `setupMultiClone` gains a third clone and a second machine's worktree siblings where a case needs them.
+    - `[x]` **9.4.b Leases and the push**
+        - Captures source and tracking tips for one atomic publication, leasing work/cohort refs on the current tracking
+          tip or absence. Shared tracking advances require ancestry from the exact merged basis; a switched designation
+          restarts without pushing. Upstreams use Git's rewritten push URL; code and backing remotes use their names.
 
-    - A push-loop module under `lib/store/ref/` composing the pull, the listing, the leases, the push helper (2.4), and
-      the classification (9.3); until 9.5 a retry repeats with no sleep; the deletes an end or reopen owes, and the skip
-      of a live ref with a pending end, join the listing in Phase 10
+    - `[x]` **9.4.c Tracking refs and the settled refusal**
+        - Acknowledges successful refs with captured-value tracking CAS in both layouts and for pushes by URL. A fresh
+          fetch settles unknown server rejections against the expected tips; unchanged state returns the server's
+          verbatim reason, while moved state retries. A concurrent pull's newer tracking value survives acknowledgment.
 
-    - `[ ]` **9.4.a Listing and locks**
-        - Every store ref whose tip differs from its tracking ref or has none, taken under its locks in ref-name order and
-          listed again; a grown listing releases every lock and takes the larger set in order
-        - Build `test-first` (one behavior at a time):
-            - a push lists only refs this clone wrote since its last push
-            - a batch creating a ref while the loop lists grows the set, and the loop retakes it in order
-            - a ref lock another process holds past an injected wait ends the push with `lock-held` naming it, pushing
-              nothing
-
-    - `[ ]` **9.4.b Leases and the push**
-        - Tips and tracking tips read under the locks, then released before the network call; a work item's or cohort's
-          ref leased on its tracking tip or on absence, never on a tip kept after a prune; quarter, registry, inbox, and
-          identity refs pushed plainly; a moved tracking tip lets a ref push only where its local tip descends from it,
-          never a delete, else the loop repeats from step 1; the designation read again (8.1) before the push
-        - The code remote and `backing` are pushed to by name; another of the code repository's remotes to the URL
-          `git remote get-url --push` gives, its push URL where it has one, with `insteadOf` and `pushInsteadOf` applied
-        - Build `test-first` (one behavior at a time):
-            - a push of two refs is one `--atomic` push, and a lost lease lands neither
-            - two worktrees of one clone: one's loop between its merge and its push while the other's pull fetches another
-              machine's push to the same ref lands nothing over that write, its loop repeating, and the remote's tip then
-              descends from both machines' writes
-            - a push composed before a designation switch, made by editing `remote.<name>.arc-state` while the loop is
-              paused, reaches no remote after it
-
-    - `[ ]` **9.4.c Tracking refs and the settled refusal**
-        - On each per-ref `ok` line the tracking ref moves to the pushed tip, or is deleted for a pushed delete, where it
-          still holds the tip step 3 read, in both layouts and for a push by URL
-        - A refusal read by state repeats from step 1, whose fetch settles it: a lost race where the ref moved from the
-          push's expected old value, terminal `refused` otherwise
-        - Build `test-first` (one behavior at a time):
-            - the next listing after a push lists nothing new, in both layouts and for a fork's upstream pushed by URL
-            - a server refusing a state ref with other text, the ref moved meanwhile, settles as a lost race, and with the
-              ref unmoved ends terminal `refused` with that text
-
-    - `[ ]` **9.4.d Outcomes per family**
-        - One publish outcome per status and one `failed` per failure, every declared family named once, identity families
-          only with an identity, each carrying the loop's retry count and time waited; `publishes` lists `reconciled`,
-          then `pushed`, then `noop`, then each `failed`; a subtree family, `review` or `lineage`, counts movement only
-          where it changed a record under its subtree; a stopping state publishes nothing
-        - Build `test-first` (one behavior at a time):
-            - a family whose refs the loop's pulls moved reads `reconciled`, one that pushed with none `pushed`, and one
-              with neither `noop`
-            - with no identity, `no-identity` names the identity families and no outcome does
-            - `no-remote` leaves `publishes` empty
-            - a state-only push whose pull cannot reach the state remote ends before any push, `pulls` carrying that
-              `failed` outcome with its notices and `publishes` one `failed` naming every family of its scope
+    - `[x]` **9.4.d Outcomes per family**
+        - Groups every served family once by status or failure, with retry measurements and separate missing-identity
+          state. Subtree outcomes compare their own stored record versions, including format changes; quarter-only
+          pulls identify archived families. A failed state pull retains its failure and stops publication.
 
 ### `[ ]` **9.5 The deadline and backoff — § 6.1, § 6.7**
 

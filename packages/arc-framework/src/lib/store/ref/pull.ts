@@ -10,13 +10,14 @@ import { readRefDesignation, refDesignationStop, type RefDesignation, type RefRe
 import { writeRefRepository } from "./repository.js";
 import { fetchRefRemote } from "./fetch.js";
 import { readSyncRefs } from "./sync-graph.js";
-import { mergeRefSets } from "./sync-merge.js";
+import { mergeRefSets, type RefMergeOptions } from "./sync-merge.js";
 import { isManifestRef } from "./manifest.js";
 import { HistoryRefSchema } from "../refusal.js";
 
 /** Fetch only explicitly designated state sources into this store's tracking namespace. */
-export async function pullRefStore(context: RefBackendContext, input: PullInput = {}): Promise<StoreResult<PullResult>> {
-  try { return await pullRefStoreOnce(context, input); }
+export async function pullRefStore(context: RefBackendContext, input: PullInput = {},
+  onMerged?: (remote: string, incoming: ReadonlyMap<string, string>) => void, onApplied?: RefMergeOptions["onApplied"]): Promise<StoreResult<PullResult>> {
+  try { return await pullRefStoreOnce(context, input, onMerged, onApplied); }
   catch (error) {
     if (!(error instanceof AdvisoryLockTimeoutError) || error.phase !== "acquire") throw error;
     return { status: "refused", refusal: { code: "lock-held", class: "recoverable", lock: error.lockPath,
@@ -25,7 +26,8 @@ export async function pullRefStore(context: RefBackendContext, input: PullInput 
   }
 }
 
-async function pullRefStoreOnce(context: RefBackendContext, input: PullInput): Promise<StoreResult<PullResult>> {
+async function pullRefStoreOnce(context: RefBackendContext, input: PullInput,
+  onMerged?: (remote: string, incoming: ReadonlyMap<string, string>) => void, onApplied?: RefMergeOptions["onApplied"]): Promise<StoreResult<PullResult>> {
   const designation = await readRefDesignation(context);
   const stop = refDesignationStop(designation);
   if (stop) return { status: "ok", result: { states: [stop], pulls: [] } };
@@ -35,22 +37,24 @@ async function pullRefStoreOnce(context: RefBackendContext, input: PullInput): P
     && (identity !== null || FAMILY_REGISTRY[family].scope !== "identity"));
   const pulls: PullOutcome[] = [];
   for (const remote of designation.remotes.filter(({ role }) => role === "push" || role === "read")) {
-    const outcome = await pullRemote(context, input, designation, remote, families);
-    if (outcome === "restart") return pullRefStore(context.repository?.source ?? context, input);
+    const outcome = await pullRemote(context, input, designation, remote, families, onMerged, onApplied);
+    if (outcome === "restart") return pullRefStore(context.repository?.source ?? context, input, onMerged, onApplied);
     pulls.push(outcome);
   }
   return { status: "ok", result: { states: [], pulls } };
 }
 
 async function pullRemote(context: RefBackendContext, input: PullInput, designation: RefDesignation,
-  remote: RefRemoteDesignation, families: FamilyId[]): Promise<PullOutcome | "restart"> {
+  remote: RefRemoteDesignation, families: FamilyId[],
+  onMerged?: (remote: string, incoming: ReadonlyMap<string, string>) => void, onApplied?: RefMergeOptions["onApplied"]): Promise<PullOutcome | "restart"> {
   const fetched = await fetchRefRemote(context, remote, designation, input.history);
   const prefix = `refs/arc-remotes/${remote.name}/`;
   const incoming = new Map([...(await readSyncRefs(context, prefix))].map(([ref, tip]) =>
     [`refs/arc/${ref.slice(prefix.length)}`, tip] as const).filter(([ref]) => isManifestRef(ref) || HistoryRefSchema.safeParse(ref).success));
   const merged = fetched.status === "refs" && remote.role === "push"
-    ? await mergeRefSets(context, await readSyncRefs(context, "refs/arc/"), incoming, { lock: context.lock }) : null;
+    ? await mergeRefSets(context, await readSyncRefs(context, "refs/arc/"), incoming, { lock: context.lock, onApplied }) : null;
   if (merged?.status === "restart") return "restart";
+  if (merged) onMerged?.(remote.name, incoming);
   const common = { remote: remote.name, role: remote.role === "read" ? "read" as const : "state" as const,
     families: remote.role === "read" ? families.filter((family) => FAMILY_REGISTRY[family].scope !== "identity") : families, notices: merged?.notices ?? [] };
   return fetched.status === "unreachable" ? { ...common, status: "failed", failure: {
