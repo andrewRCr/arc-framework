@@ -823,7 +823,7 @@ converge with no lost write.
   Both layouts complete empty/absent-history and final-tracking-prune cases. Protocol-v2 packets retain no held code
   commits, and cancellation preserves diagnostics as failure rather than completed acquisition.
 
-### `[ ]` **9.2 Merge after fetch — § 6.4**
+### `[x]` **9.2 Merge after fetch — § 6.4**
 
 - _Goal:_ A pull brings every fetched ref into local state as a fast-forward or a merge commit by each kind's mechanism,
   never as a check that gates and never bringing a deletion back.
@@ -844,15 +844,10 @@ converge with no lost write.
           priors and primary-role replacements. Companion values retain inherited placement. Merges carry serialization
           violations and report oversized entries through listings.
 
-    - `[ ]` **9.2.d History and labels across a merge**
-        - Build `test-first` (one behavior at a time):
-            - where a merge keeps the remote side's version at a clash, `history` lists this clone's version and then the
-              remote's, newest the current, and a stale base on this clone's version merges
-            - where a merge keeps the local side after the remote's write, the local version lists again as newest
-            - a nested pair of merges orders the same way, and `changes` restricted to the record lists them in that order
-            - two clones of one person clashing on a single-writer record label the two sides with distinct actors
-            - an anchor's manifest resolves on a fresh clone that fetches the meta's ref, and a fresh clone's first pull
-              fetches no history ref
+    - `[x]` **9.2.d History and labels across a merge**
+        - Public pulls preserve both merge sides, ordered replay of retained local versions, and stale-base writes.
+          Nested merges keep restricted changes in the same order and label machines distinctly. A first pull carries
+          the meta's saved-state anchor without implicitly fetching ended-item history.
 
 ### `[ ]` **9.3 Classifying a push — § 6.9**
 
