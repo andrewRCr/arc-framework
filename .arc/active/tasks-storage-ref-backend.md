@@ -976,23 +976,14 @@ the withdrawal rule for two ends — the rules the model checks held.
   persist as notices until their histories are reconciled, lineage cleared, and every archive folder reopened. Lineage
   removal preserves branch authority through an exact archived-primary snapshot match.
 
-### `[ ]` **10.6 `arc rename`'s retry over a missing history ref — § 4.5**
+### `[x]` **10.6 `arc rename`'s retry over a missing history ref — § 4.5**
 
 - _Goal:_ Renaming an archived work unit on a clone that lacks its history ref completes: the verb pulls the refs the
   refusal names and retries, so the refusal never leaves the person at a dead end.
 
-    - The verb's store path, `runStoreRename` (`lib/work-unit/verbs/rename-store.ts`), live over the ref store, which
-      reports its state off the branch (`usesOffBranchState`, `lib/store/lifecycle-write.ts`; 3.1.a): meeting
-      `state-unresolvable` whose `historyRefs` names refs, from `readStoreRenameSubject` or from the write
-      `prepareStoreRename` (`lib/store/lifecycle-rename.ts`) and `applyPreparedLifecycleWrite` make, it pulls them by
-      name (`PullInput.history`, 9.1.b) and runs again from the subject read, once; a pull that fails, or a second
-      refusal, returns the refusal as it stands
-    - Build `test-first` (one behavior at a time):
-        - Integration tier, through `runStoreRename` over `createRefStore`, two clones on one bare origin
-        - a rename of an archived work unit on a clone whose history copy lacks the item's history ref pulls it and
-          lands, the folder renamed and its number kept
-        - on a clone that cannot reach the remote, the same rename returns `state-unresolvable` naming the ref and changes
-          nothing
+- _Outcome:_ `runStoreRename` pulls named history refs after a `state-unresolvable` refusal and restarts from the subject
+  read once. Failed pulls retain the original refusal, and a renewed refusal remains actionable; restoring missing
+  remote history lets the same rename finish with its archive number unchanged in either layout.
 
 ## **Phase 11:** Sync under faults
 

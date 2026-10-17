@@ -31,7 +31,14 @@ interface BranchRename { prior: BranchLink; next: BranchLink; oldBranch: string;
  * @returns A complete rename, original refusal, or exact physical continuation.
  */
 export async function runStoreRename(ctx: StoreRenameContext, params: { sourceSlug: string; targetSlug: string }): Promise<RunRenameResult> {
-  try { return await rename(ctx, params); }
+  try {
+    const result = await rename(ctx, params);
+    if (result.status !== "rejected" || result.recovery !== undefined || result.refusal?.code !== "state-unresolvable"
+      || result.refusal.historyRefs.length === 0) return result;
+    const pulled = await ctx.store.pull({ history: result.refusal.historyRefs });
+    if (pulled.status === "refused" || pulled.result.pulls.some((outcome) => outcome.status === "failed")) return result;
+    return await rename(ctx, params);
+  }
   catch (error) { return { status: "rejected", reason: error instanceof Error ? error.message : String(error) }; }
 }
 async function rename(ctx: StoreRenameContext, params: { sourceSlug: string; targetSlug: string }): Promise<RunRenameResult> {
