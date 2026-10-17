@@ -1223,12 +1223,14 @@ layouts.
   executable remedies; hidden `arc store conflict` inspects complete sides, discards explicitly, retries missing
   history once, and preserves malformed, unavailable, and changed-basis refusals. D6's forward amendment is recorded.
 
-### `[ ]` **13.6 Designation and layout moves** — validate exit criterion at segment scope
+### `[x]` **13.6 Designation and layout moves** — validate exit criterion at segment scope
 
 - _Goal:_ Every case of § 14.6 not needing a follow, leaving the source, the forwarding record, or a `backing` repoint,
   and every layout-move case of § 14.7, passes, and so do the conformance suite's sync items in both layouts.
 
-    - Request `arc check segment`
+- _Outcome:_ The designation/layout scenario and both layouts' shared sync assertions hold, including native command
+  answers, deadline repair, read-source isolation, and interrupted/concurrent layout moves. Hidden command pages have
+  curated summaries, and the lazy implementation inventory includes all three store handlers.
 
 ## **Phase 14:** The import's first path
 

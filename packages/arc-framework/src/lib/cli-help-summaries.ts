@@ -1,6 +1,9 @@
 /** Intentional concise list summaries for the registered visible command tree. */
 
 export const COMMAND_SUMMARIES: Readonly<Record<string, string>> = {
+  "store conflict": "Inspect or explicitly discard an exact stored conflict",
+  "store migrate": "Move or import state into the ref store",
+  "store remote": "Inspect or set the ref store's remote roles",
   "check": "Run standalone repository checks",
   "check commit-msg": "Validate a commit message",
   "check gate": "Run a declared check gate",

@@ -47,6 +47,9 @@ const expectedImplementationModules = [
   "./handlers/reconcile.js",
   "./commands/check.js",
   "./commands/release.js",
+  "./commands/store-conflict.js",
+  "./commands/store-migrate.js",
+  "./commands/store-remote.js",
   "./scripts/remedy-roadmap-conflict.js",
 ] as const;
 const deferredActiveProjectionModules = [
