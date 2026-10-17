@@ -42,9 +42,12 @@ export interface JoinStorePorts {
   renderer?: PromptRenderer;
 }
 
+/** Cancellation stops setup before identity or workspace writes. */
+export type JoinStorePullResult = StoreSessionInitUserValue | { status: "cancelled" } | null;
+
 /** Pull the selected person's state and offer an explicit remote designation when required. */
 export async function pullJoinStore(input: { cwd: string; exec: GitExec; identity: Slug | null; context: InteractionContext },
-  ports: JoinStorePorts = {}): Promise<StoreSessionInitUserValue | null> {
+  ports: JoinStorePorts = {}): Promise<JoinStorePullResult> {
   if (input.identity === null) return null;
   const store = ports.openStore?.({ cwd: input.cwd, exec: input.exec, identity: input.identity })
     ?? createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec, identity: input.identity }));
@@ -61,6 +64,7 @@ export async function pullJoinStore(input: { cwd: string; exec: GitExec; identit
       ...(choice === recommended ? { hint: result.remedy.argv.join(" ") } : {}) })),
     ...(recommended !== undefined && result.choices.includes(recommended) ? { initialValue: recommended } : {}),
   }, ports.renderer);
+  if (answer.kind === "cancelled") return { status: "cancelled" };
   if (answer.kind !== "answered" || !result.choices.includes(answer.value)) return value;
   const argv = answer.value === recommended ? [...result.remedy.argv] : ["arc", "store", "remote", result.remote, answer.value];
   await (ports.execute ?? executeJoinDesignation)(argv, input.cwd, input.context);
@@ -117,7 +121,8 @@ export async function handleJoin(opts: JoinOptions, context: InteractionContext,
     const store = identity === null ? undefined : storePorts.openStore?.({ cwd, exec: io.exec, identity })
       ?? createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec: io.exec, identity }));
     if (store?.capabilities.stateOffBranch) {
-      await pullJoinStore({ cwd, exec: io.exec, identity, context }, { ...storePorts, openStore: () => store });
+      const pulled = await pullJoinStore({ cwd, exec: io.exec, identity, context }, { ...storePorts, openStore: () => store });
+      if (pulled?.status === "cancelled") { spinner.stop("Workspace setup cancelled."); return; }
     }
     const result = await runJoin({
       cwd,
