@@ -13,6 +13,7 @@
  */
 
 import { isLandedInBase, isLandedInBaseStrict } from "../git/branch-containment.js";
+import { stat } from "node:fs/promises";
 import { checkWorktreeRemoval, type ProjectionRemovalSlots } from "../git/worktree-removal.js";
 import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
 import { missingRegistrationActions } from "./missing-worktree-folders.js";
@@ -167,10 +168,11 @@ async function buildWorktreeCandidate(
     }
     return null;
   }
-  // A worktree with no resolved meta is main / admin — always a switch
-  // destination, so the marker / clean / merged gathering is skipped.
+  // Main / admin destinations need a fresh folder observation, without
+  // gathering marker, cleanliness or removal authority.
   if (entry.workUnit === undefined && entry.metaFilePath === undefined) {
-    return { branch: entry.branch, worktreePath: entry.worktreePath, proposedAction: "switch" };
+    return { branch: entry.branch, worktreePath: entry.worktreePath,
+      proposedAction: await administrativeFolderAction(entry.worktreePath, ctx.folderExists) };
   }
 
   const [marker, removalCheck, merged, userSurfacesSafe] = await Promise.all([
@@ -191,6 +193,13 @@ async function buildWorktreeCandidate(
   const workUnitName = marker.kind === "present" ? marker.marker.wuName : undefined;
   return workUnitName === undefined ? { ...candidate, proposedAction: "external" }
     : { ...candidate, proposedAction, workUnitName };
+}
+
+async function administrativeFolderAction(path: string, folderExists: CandidateContext["folderExists"]): Promise<"switch" | "external"> {
+  try {
+    const present = folderExists === undefined ? (await stat(path)).isDirectory() : await folderExists(path);
+    return present ? "switch" : "external";
+  } catch { return "external"; }
 }
 
 async function resolveCandidateMerged(ctx: CandidateContext, branch: string): Promise<boolean | null> {

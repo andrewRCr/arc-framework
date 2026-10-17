@@ -509,6 +509,20 @@ describe("runBranchGoneRecovery", () => {
 });
 
 describe("recovery folder observations", () => {
+  it("rechecks an administrative destination's folder before switching and admits it after repair without removal probes", async () => {
+    const input = { roster: roster([{ worktreePath: "/wt/admin", branch: "chore/admin" }]),
+      currentBranch: "feat/gone", baseBranch: "main", recentBranches: ["chore/admin"], exec: buildExec(),
+      readMarker: async (): Promise<WorktreeMarkerReadResult> => { throw new Error("Administrative destinations need no marker read"); },
+      projectionRemovalSlots: { check: async (): Promise<never> => { throw new Error("No administrative removal check"); },
+        persist: async (): Promise<never> => { throw new Error("No persist"); }, release: async (): Promise<never> => { throw new Error("No release"); } },
+      userSurfaceFs: emptyUserSurfaceFs };
+    folderExists.mockResolvedValue(false);
+    expect(await runBranchGoneRecovery(input)).toMatchObject({ kind: "resolved", candidate: { worktreePath: "/wt/admin", proposedAction: "external" } });
+    folderExists.mockResolvedValue(true);
+    expect(await runBranchGoneRecovery(input)).toMatchObject({ kind: "resolved", candidate: { worktreePath: "/wt/admin", proposedAction: "switch" } });
+    folderExists.mockRejectedValue(Object.assign(new Error("Cannot observe folder"), { code: "EACCES" }));
+    expect(await runBranchGoneRecovery(input)).toMatchObject({ kind: "resolved", candidate: { worktreePath: "/wt/admin", proposedAction: "external" } });
+  });
   function options() {
     return { roster: roster([{ worktreePath: "/wt/a", branch: "feat/a", metaFilePath: "/wt/a/.arc/active/meta-a.md" }]),
       currentBranch: "feat/gone", baseBranch: "main", recentBranches: ["feat/a"], exec: buildExec(),
