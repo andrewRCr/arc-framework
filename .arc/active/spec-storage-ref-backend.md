@@ -585,6 +585,11 @@ export interface RefHome {
   does any key whose path is a folder another record's path runs through, or runs through another record's path, naming
   that record — a personal document keyed as a session context's folder — since a Git tree cannot hold one name as both
   a file and a folder.
+- **Generic companion aliases use the resolved owner (A10).** Whether a verbatim root key aliases the generic
+  `<key>-<slug>.md` form depends on the current owner's slug, so this decision follows owner binding, for an older UID
+  name hint or a UID-less former name alike. Fixed record forms, reserved storage coordinates, malformed keys, and
+  personal-path exclusions retain their early guards. Canonical companion names and paired-spec keys keep their
+  encoding; no additional key becomes valid under its resolved owner.
 - **A key that is not one path segment refuses** `record-malformed` at validation (§ 5.1): an `id` key, or an
   adversarial pass's activity, that holds `/` or a control character, NUL and newline among them. `keySchemas` admit any
   non-empty string there (`lib/store/identity.ts`); a `/` would nest the stored path, which the decode of § 3.1 could
@@ -947,14 +952,14 @@ caller names any. A ref in one manifest only reads by its namespace:
 `write` and `batch` run one path:
 
 1. **Validate.** The input schemas — a primary's put without placement, which `MutationSchema` refuses
-   (`lib/store/write.ts`), refusing `record-malformed` — and § 3.2's key rule, then the serialization rules on every put
-   (§ 5.6), then each put's kind parser, whose failure refuses `record-malformed` with the parser's error before any
-   check runs; `project-registry/identity` has no parser, and a put of it whose content is not § 3.2's shape refuses
-   `record-malformed` alike. A put of an entry kind whose grammar the backend's kind registry does not declare (its
-   `KindDefinition`'s `entry`, in the registry the backend is constructed with, § 1.2) refuses `unsupported`
-   `unhomed-kind` naming it — the contract's terminal case for a well-formed write that later work serves, which
-   declaring the grammar is — so no stored record of such a kind reaches a merge. Each other put of an entry kind then
-   stamps an `_Id:_` on every entry that lacks one, in the kind's grammar (`stampEntryIds`,
+   (`lib/store/write.ts`), refusing `record-malformed` — and § 3.2's owner-independent key rules (A10), then the
+   serialization rules on every put (§ 5.6), then each put's kind parser, whose failure refuses `record-malformed` with
+   the parser's error before any check runs; `project-registry/identity` has no parser, and a put of it whose content is
+   not § 3.2's shape refuses `record-malformed` alike. A put of an entry kind whose grammar the backend's kind registry
+   does not declare (its `KindDefinition`'s `entry`, in the registry the backend is constructed with, § 1.2) refuses
+   `unsupported` `unhomed-kind` naming it — the contract's terminal case for a well-formed write that later work serves,
+   which declaring the grammar is — so no stored record of such a kind reaches a merge. Each other put of an entry kind
+   then stamps an `_Id:_` on every entry that lacks one, in the kind's grammar (`stampEntryIds`,
    `lib/store/concurrency/stamp.ts`), as the reference backend stamps after its parser and before its merge and checks
    (`persistedContent`, `__tests__/helpers/store/merge.ts`), so a stale base's merge (§ 5.2), the write check's `next`
    (§ 5.3), the stored blob, and the returned version all carry the IDs (D6). The stamp draws from a SHA-256 stream
@@ -986,7 +991,8 @@ caller names any. A ref in one manifest only reads by its namespace:
    once it is archived its history ref and each quarter's ref holding its folder (§ 3.3, § 7). A write to records kept
    on their owner's own ref, naming by UID an owner with neither — one ended outside the archive (§ 7.4), whose history
    ref the scan never reads — refuses `not-found`, as § 8 resolves its slug; lineage, kept on the registry's ref, is
-   unaffected.
+   unaffected. Once each owner is resolved or minted, reject generic companion aliases using that owner's current
+   slug, before locking (A10); the same resolved-owner rule governs reads, history, changes, and captured views.
 3. **Lock.** Take the machine-local lock of every ref the batch writes, in ref-name order (§ 11.4); a wait past its
    limit refuses `lock-held`.
 4. **Read under the locks.** One `for-each-ref` reads the tips, each owner's live and history refs among them, and the
@@ -3947,6 +3953,11 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     UID-bearing handle refuses `identity-mismatch`, its UID-less project handle refuses `not-found`, and recreation
     succeeds. Shared conformance retains removal coverage without a new fixture exclusion (§ 14.2) (A7).
 
+20. **Companion alias admission uses the resolved owner.** Fixed record forms and reserved storage coordinates
+    refuse before I/O. A generic root path aliases its companion name only under the resolved owner's current slug;
+    valid literal paths remain usable through older UID hints and former names, while true aliases refuse without
+    partial write or batch effects and a corrected key succeeds (§ 3.2, § 5.1) (A10).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4003,5 +4014,8 @@ open:
 
 - **A9** — 2026-10-17 — task: merge history compares the result with the preceding ordered record state.
   _Supersedes:_ none. _Trigger:_ 7.2 must-stop. _Work:_ 7.2.R. _Revalidated:_ 7.2.R.
+
+- **A10** — 2026-10-17 — design: generic companion alias admission follows owner binding; fixed forms stay early.
+  _Supersedes:_ § 5.1 step 1 key-rule order. _Trigger:_ 7.4 must-stop. _Work:_ 7.4.R. _Revalidated:_ pending → 8.6.
 
 ---

@@ -444,6 +444,7 @@ _Mode:_ `layer` through Phase 8 — closes on the local engine complete in both 
         - Pure reference and neighbor-path checks reject reserved coordinates, aliases, controls, and file/folder
           collisions before locks or against captured tips. Reads enforce the same key boundary; decoding shares its
           classifier, and concurrent prefix writes retain one valid record with typed refusal and repaired retry.
+        - _Amended in:_ 7.4.R (A10)
 
     - `[x]` **5.2.b Parsers and entry stamps**
         - `prepareRefPut` runs the constructed parser and declared entry grammar before I/O, refusing malformed entry
@@ -696,6 +697,20 @@ by every tier, and an item ref broken outside ARC.
         - a read, `history`, and `changes` by slug of a completed item resolve it
         - a read as of a state version resolves a slug over that manifest's tips
 
+### `[ ]` **7.4.R Companion alias admission uses the resolved owner — § 3.2, § 5.1 (A10)**
+
+- _Goal:_ Fixed role and reserved-storage paths refuse before I/O; generic companion aliases use the resolved owner,
+  accepting a valid old-name-shaped path and refusing true aliases without partial write or batch effects (A10).
+
+    - Retain the pure fixed-form and storage-coordinate refusals; a generic `<key>-<slug>.md` alias is checked after
+      owner binding, including UID and former-name hints, before the write takes locks
+    - Build `test-first` (one behavior at a time):
+        - the pure guard refuses fixed role forms before consulting ports while canonical companion names still land
+        - a true generic alias refuses for name and UID operands through write and batch, preserving all refs and
+          admitting a corrected key
+        - an old-name-shaped literal key valid under the resolved owner lands by an older UID hint or former name
+          through write and batch, and reads, history, changes, and saved views retain its exact key
+
 ### `[ ]` **7.5 A broken item ref — § 3.3, § 8**
 
 - _Goal:_ A commit made outside ARC that breaks one item's ref costs that item alone: its records refuse
@@ -837,6 +852,8 @@ those 4.4.d holds until Phase 11, and every § 14.3 case that needs no pull pass
     - Replay 5.R2's independent lineage format/version cases in both layouts to close A6's covering revalidation
     - Replay 5.R's companion name/path byte boundaries over both layouts, retaining atomic refusal and repaired
       retries, to close A5's covering revalidation
+    - Replay 7.4.R's resolved-owner companion alias cases over both layouts, retaining early fixed-form guards,
+      true-alias refusal, and valid older-name hints, to close A10's covering revalidation
 
 ## **Phase 9:** Two clones converge
 
@@ -2812,3 +2829,7 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
 
 - `[ ]` Removing project identity expires its UID-bearing handle with `identity-mismatch`; the UID-less handle
   reports `not-found`, recreation succeeds, and shared removal conformance adds no fixture exclusion (§ 14.2) (A7)
+
+- `[ ]` Fixed role and reserved-storage paths refuse before I/O; generic companion aliases use the resolved owner,
+  preserving valid literal keys through older UID and former-name hints while true aliases refuse atomically and a
+  corrected key succeeds through write and batch (§ 3.2, § 5.1) (A10)

@@ -370,3 +370,27 @@ commits compare with their parent. Task 7.2.R closes that correction before `cha
 the later real-pull cases still test the complete integration. Grounding-only author review traced the graph order,
 entry filter, and stale-base consumer in `mergeRefMutation`; reader independence and binding completeness hold over
 this correction, which changes no interface or design decision.
+
+## A10 — Companion aliases require the resolved slug
+
+The superseded § 5.1 step 1 said “and § 3.2's key rule, then the serialization rules on every put”, placing every key
+check before owner resolution. `storedKeyProblem` calls `aliasProblem`, whose `decodeStoredReference` interprets a root
+path against its owner's slug. `extra-alpha.md` aliases companion key `extra` under `alpha`, but is a valid literal key
+after that owner renames to `beta`. Its UID and former-name operands can still carry `alpha` as a hint. The real-Git
+cases in Task 7.4 retain that literal path across reads, saved reads, history, changes, and writes.
+
+Unit feedback exposed the conflicting no-I/O expectation in `ref-key-admission.test.ts`: its fixed-form matrix also held
+the generic `extra-alpha.md` alias. The ordering correction moves that one decision after owner binding, while keeping
+fixed role forms, storage coordinates, control keys, and personal exclusions pure. `checkRefKey` and `storedKeyProblem`
+remain the shared guard; resolved callers retain complete alias admission. Reuse `decodeStoredReference`'s registered
+path classification for fixed forms, preserving canonical companion names and paired-spec keys rather than banning all
+paths with a managed-looking prefix. No encoding, public API, or conformance exclusion changes.
+
+The footprint is determinate. Grounding-only author review traced `decodeStoredReference`, `checkRefKey`,
+`storedKeyProblem`, `readRefRecord`, `readUidRefRecord`, `historyRefRecord`, `changesRefRecords`, `readView`,
+`batchRefRecords`, and `checkMutationReferences`. Stable preflight guards and resolved-owner checks remain separate call
+sites; `checkSerializationRules` retains its byte, secret, and path guards before I/O. The already-completed Task 5.2.a
+gets a forward amendment marker. Task 7.4.R records early fixed-form refusal, true-alias atomic refusal and corrected
+retry, and valid older-name hints; Task 8.6 repeats them in both layouts. The import's build continues to owe canonical-
+owner admission through its existing tasks. Criterion 20 makes the ordering observable without requiring planning
+history, and the task/criterion mapping retains every existing key restriction.
