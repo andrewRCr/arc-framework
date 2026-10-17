@@ -1,6 +1,6 @@
 /** Subject-keyed lifecycle queries and their operational boundary rendering. */
 
-import { readStoreStatusLocus, type StoreLifecycleStatusPorts } from "./store-locus.js";
+import { pullStoreStatus, readStoreStatusLocus, type StoreLifecycleStatusPorts } from "./store-locus.js";
 import * as p from "../../lib/terminal.js";
 import { readdir, readFile } from "node:fs/promises";
 import { runActiveStatus } from "../../commands/active.js";
@@ -196,6 +196,7 @@ async function resolveSlugOperationalBoundary(options: {
 /** Render lifecycle truth without composing code-ref or materialized-artifact evidence. */
 async function handleStoreLifecycleStatus(store: Store, slug: string, opts: StatusCliOptions,
   local: { cwd: string; exec: GitExec }, ports?: StoreLifecycleStatusPorts): Promise<void> {
+  const refreshWarnings = opts.fetch === true ? await pullStoreStatus(ports) : [];
   const view = await readLifecycleView(store);
   if (view.status === "refused") {
     renderStoreQueryRefusal(view.refusal, opts);
@@ -209,8 +210,8 @@ async function handleStoreLifecycleStatus(store: Store, slug: string, opts: Stat
   const query = resolveSlugQuery(view.result.index, record.status === "ok" ? record.result.reference.owner.name : slug);
   const fields = record.status === "ok" ? ParsedMetaRecordSchema.safeParse(record.result.fields) : undefined;
   const design = record.status === "ok" ? await readLifecycleDesign(store, record.result) : { content: null, warnings: [] };
-  const locus = await readStoreStatusLocus({ ...local, store, slug: query.slug, fetch: opts.fetch === true }, ports);
-  const warnings = [...design.warnings, ...lifecycleListingWarnings(view.result.listing), ...locus.warnings];
+  const locus = await readStoreStatusLocus({ ...local, store, slug: query.slug, fetch: false }, ports);
+  const warnings = [...design.warnings, ...lifecycleListingWarnings(view.result.listing), ...locus.warnings, ...refreshWarnings];
   const purpose = design.content === null ? null : extractWorkUnitPurpose(design.content);
   const output = { ...query, purpose, owner: fields?.success === true ? fields.data.owner : null,
     integrationBoundary: null, ...(locus.worktreePath === undefined ? {} : { worktreePath: locus.worktreePath }), ...(warnings.length === 0 ? {} : { warnings: [...new Set(warnings)] }) };

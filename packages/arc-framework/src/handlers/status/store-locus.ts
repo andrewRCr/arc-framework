@@ -12,16 +12,17 @@ export interface StoreLifecycleStatusPorts {
   readInFlightWarnings?: () => Promise<string[]>;
   sync?: StoreSyncPort;
 }
+/** Refresh Store state before acquiring the lifecycle and checkout facts to render. */
+export async function pullStoreStatus(ports: StoreLifecycleStatusPorts = {}): Promise<string[]> {
+  const pull = await (ports.sync ?? createStoreSyncPort()).pull();
+  return pull.status === "unreachable" ? ["Remote unreachable; query derived from local refs only."] : [];
+}
 /** Keep a failed holder observation visible in the path field rather than fabricating absence. */
 export async function readStoreStatusLocus(input: { cwd: string; exec: GitExec; store: Store; slug: string; fetch: boolean },
   ports: StoreLifecycleStatusPorts = {}): Promise<{ worktreePath?: string; warnings: string[] }> {
   const locus = createLocusPorts(input);
   const find = ports.findHoldingCheckout ?? ((name: string) => locus.findHoldingCheckout({ name, resolveLegacy: () => Promise.resolve(null) }));
-  const warnings: string[] = [];
-  if (input.fetch) {
-    const pull = await (ports.sync ?? createStoreSyncPort()).pull();
-    if (pull.status === "unreachable") warnings.push("Remote unreachable; query derived from local refs only.");
-  }
+  const warnings = input.fetch ? await pullStoreStatus(ports) : [];
   let worktreePath: string | null;
   try { worktreePath = await find(input.slug); }
   catch (error) { worktreePath = error instanceof Error ? error.message : String(error); }

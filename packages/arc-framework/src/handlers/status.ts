@@ -241,6 +241,8 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
     let pending = derivedLocusStatePromises.get(id);
     if (pending === undefined) {
       pending = (async () => {
+        // The user slot owns pull failures; sibling probes can still read local state.
+        if (stateOffBranch) await getStoreUser().catch(() => null);
         const resolved = await resolvedSettingsP;
         return runDerivedLocusStateProbe({
           cwd,
@@ -268,6 +270,8 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
     readSettings: async () => (await resolvedSettingsP).settings,
     readUserInbox,
   }) : null;
+  let storeUserPull: ReturnType<NonNullable<typeof operational>["user"]> | undefined;
+  const getStoreUser = () => storeUserPull ??= operational?.user() ?? Promise.resolve(null);
   const compactionSeedGitSnapshotP = opts.writeCompactionSeed
     ? readCompactionSeedGitSnapshot(cwd, exec)
     : null;
@@ -389,7 +393,7 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
     },
     remoteContext: getRemoteContext,
     user: async (id) => {
-      if (operational !== null) return operational.user();
+      if (operational !== null) return getStoreUser();
       const resolved = await resolvedSettingsP;
       const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
       return runUserSessionInitStatus({ cwd, io, identity: id, remoteSyncEnabled });
