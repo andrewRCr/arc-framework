@@ -6,8 +6,9 @@ import { LineageRecordSchema } from "../store/kinds/lineage/index.js";
 import { SlugSchema } from "../kernel/index.js";
 import { decodeWorktreeMarkerOwnership, type WorktreeMarkerReadResult } from "../git/worktree-marker.js";
 import type { RegisteredWorktree } from "../git/worktree-roster.js";
+import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
 import type { StaleWorktreeReport } from "./stale-worktree-sweep.js";
-type SelectionInput = { store: Store; topology: readonly RegisteredWorktree[];
+type SelectionInput = { store: Store; topology: readonly RegisteredWorktree[]; derivedRoster: readonly DerivedCheckoutRow[];
   readMarker: (path: string) => Promise<WorktreeMarkerReadResult>; identity?: string | null; excludeWorktreePath?: string };
 type Selected = { kind: "ended"; name: string } | { kind: "release"; name: string } | null;
 /** Read complete authority before treating a missing claim as a marker with no record. */
@@ -35,16 +36,19 @@ function incompleteInventoryMessage(listing: Awaited<ReturnType<typeof listLifec
     ...diagnostics.map(item => `${item.condition} ${item.remedy.text}`)].join(" ");
 }
 async function selectCheckout(input: SelectionInput, checkout: RegisteredWorktree): Promise<Selected> {
+  const row = cleanupAuthorityRow(input.derivedRoster, checkout.path);
   const marker = await input.readMarker(checkout.path);
   if (marker.kind !== "present" || marker.marker.husk !== undefined || marker.marker.renameMovePending !== undefined) return null;
   const owner = decodeWorktreeMarkerOwnership(marker.marker);
   if (owner.kind !== "current" || owner.subject.kind !== "work-unit") return null;
   const name = owner.subject.name;
+  if (row.subject?.kind !== "work-unit" || row.subject.key !== name) throw new Error("The marker no longer matches derived checkout authority. Refresh and retry cleanup.");
   const found = await input.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse(name) } });
   if (found.status === "refused") {
     if (found.refusal.code !== "not-found") throw new Error(`${found.refusal.condition} ${found.refusal.remedy.text}`);
     return await releaseMissingClaim(input.store, name, checkout.branch) ? { kind: "release", name } : null;
   }
+  if (row.kind === "unresolved-checkout") throw new Error("The missing-record release basis changed. Refresh checkout authority and retry cleanup.");
   const read = await input.store.read({ reference: found.result.reference });
   if (read.status === "refused") throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
   if (read.result.conflicts.length > 0) throw new Error(
@@ -52,6 +56,23 @@ async function selectCheckout(input: SelectionInput, checkout: RegisteredWorktre
   const fields = ParsedMetaRecordSchema.parse(read.result.fields);
   if ((input.identity != null && fields.owner !== input.identity) || read.result.placement?.kind === "backlog") return { kind: "release", name };
   return read.result.placement?.kind === "completed" ? { kind: "ended", name: read.result.reference.owner.name } : null;
+}
+function cleanupAuthorityRow(rows: readonly DerivedCheckoutRow[], path: string): DerivedCheckoutRow {
+  const matches = rows.filter(row => row.checkout.path === path), row = matches[0];
+  if (matches.length !== 1 || row === undefined) throw new Error(`Expected one derived checkout row; found ${matches.length}. Refresh checkout authority and retry cleanup.`);
+  const missingRecordRelease = row.subject?.kind === "work-unit" && row.actions?.some(action =>
+    action.checkout === path && action.argv?.join("\0") === ["arc", "locus", "release", row.subject?.key].join("\0")) === true;
+  if ((row.kind === "unresolved-checkout" || row.diagnostics.length > 0) && !missingRecordRelease) {
+    throw new Error(`${row.diagnostics.map(item => `${item.code}: ${item.message}`).join(" ")} Repair checkout authority and retry cleanup.`);
+  }
+  return row;
+}
+/** Retain only checkouts whose derived authority permits cleanup inspection. */
+export function selectStoreCleanupTopology(rows: readonly DerivedCheckoutRow[], topology: readonly RegisteredWorktree[], warnings: string[]): RegisteredWorktree[] {
+  return topology.filter(checkout => {
+    try { cleanupAuthorityRow(rows, checkout.path); return true; }
+    catch (error) { warnings.push(`Cannot select checkout ${checkout.path}: ${error instanceof Error ? error.message : String(error)}`); return false; }
+  });
 }
 async function releaseMissingClaim(store: Store, name: string, branch: string | null): Promise<boolean> {
   if (branch === null) return true;

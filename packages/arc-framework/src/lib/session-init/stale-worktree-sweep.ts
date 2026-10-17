@@ -19,7 +19,7 @@ import type { z } from "zod";
 import { StaleWorktreeSweepResultSchema } from "./stale-worktree-sweep-schema.js";
 import type { Store } from "../store/contract.js";
 import { readStoreCompletedEvidence } from "../store/lifecycle-completed.js";
-import { selectStoreWorktreeCleanup } from "./store-worktree-selection.js";
+import { selectStoreCleanupTopology, selectStoreWorktreeCleanup } from "./store-worktree-selection.js";
 import type { GitExec } from "../git/exec.js";
 import { isLandedInBaseStrict } from "../git/branch-containment.js";
 import {
@@ -269,8 +269,10 @@ export async function runStaleWorktreeSweep(
     : { candidates: [], warnings: roster.warnings };
   const warnings = [...selected.warnings, ...storeWarnings];
   const scan = await (options.scanWorktrees ?? scanRegisteredWorktrees)(exec);
+  const cleanupTopology = !scan.ok ? [] : options.store?.capabilities.stateOffBranch
+    ? selectStoreCleanupTopology(derivedRoster, scan.worktrees, warnings) : scan.worktrees;
   const storeSelection = options.store?.capabilities.stateOffBranch && scan.ok
-    ? await selectStoreWorktreeCleanup({ ...options, store: options.store, topology: scan.worktrees, readMarker }) : null;
+    ? await selectStoreWorktreeCleanup({ ...options, store: options.store, derivedRoster, topology: cleanupTopology, readMarker }) : null;
   warnings.push(...(storeSelection?.warnings ?? []));
   const retainedRoleCandidates = !options.store?.capabilities.stateOffBranch && worktreeIdentity.kind === "primary" && scan.ok
     ? scan.worktrees.flatMap((entry): WorktreeRosterEntry[] => {
@@ -308,7 +310,7 @@ export async function runStaleWorktreeSweep(
 
   const renameMoves: RenameMoveResidue[] = [];
   const branchedMarkers = new Map<string, WorktreeMarkerReadResult>();
-  for (const entry of scan.worktrees) {
+  for (const entry of cleanupTopology) {
     if (entry.detached || entry.branch === null) continue;
     let marker: WorktreeMarkerReadResult;
     try {
@@ -334,7 +336,7 @@ export async function runStaleWorktreeSweep(
   }
   const retirementSweep = await runLandedRetirementSweep({
     store: options.store, projectId: options.projectId,
-    topology: scan.worktrees,
+    topology: cleanupTopology,
     markers: branchedMarkers,
     baseBranch,
     protection: options.protection ?? "partial",
@@ -345,7 +347,7 @@ export async function runStaleWorktreeSweep(
   });
   warnings.push(...retirementSweep.warnings);
 
-  for (const entry of scan.worktrees) {
+  for (const entry of cleanupTopology) {
     if (!entry.detached || entry.path === options.excludeWorktreePath) continue;
     let marker: WorktreeMarkerReadResult;
     try {
