@@ -8,6 +8,8 @@ import { listInbox } from "../../../../src/lib/inbox/listing.js";
 import { routeEntry } from "../../../../src/lib/inbox/route.js";
 import { openErrandHolding } from "../../../../src/lib/inbox/errand-home.js";
 import { TransientIdentityRecordSchema } from "../../../../src/lib/errand/identity-record.js";
+import { prepareErrandAdoption } from "../../../../src/lib/inbox/errand-adoption.js";
+import { prepareErrandReturn } from "../../../../src/lib/inbox/errand-return.js";
 
 async function reservedItem(h: ReturnType<typeof createInboxHarness>, name: string, held = "", errand = false) {
   const owner = OwnerIdentitySchema.parse({ type: "work-item", name });
@@ -75,4 +77,29 @@ it.each(["personal", "project"] as const)("recognizes an open Errand named %s th
     .toMatchObject({ state: "routed" });
   expect(await openErrandHolding(row.id, { list: "personal", identity: "test-user" }, h.context))
     .toMatchObject({ status: "ok", result: { held: { slug: name, owner: "test-user" } } });
+});
+
+it.each(["personal", "project"] as const)("re-enters the same Errand named %s without treating its slug as an inbox", async name => {
+  const h = createInboxHarness(); await h.inbox("project");
+  const uid = await reservedItem(h, name, "", true), row = await first(h, "project");
+  expect(await routeEntry({ entryId: row.id, from: "project", expectedVersion: row.version, to: uid }, h.context))
+    .toMatchObject({ state: "routed" });
+  expect(await prepareErrandAdoption({ slug: name, from: `project:${row.id}` }, h.context))
+    .toMatchObject({ status: "ok", result: { origin: { title: `project:${row.id}` }, writes: [] } });
+  expect(await listInbox({ list: uid }, h.context)).toMatchObject({ entries: [{ id: row.id }] });
+  expect(await listInbox({ list: "project" }, h.context)).toMatchObject({ entries: [] });
+});
+
+it.each(["personal", "project"] as const)("returns an Errand named %s to its actual source inbox", async name => {
+  const h = createInboxHarness(); await h.inbox("project");
+  const uid = await reservedItem(h, name, "", true), row = await first(h, "project");
+  expect(await routeEntry({ entryId: row.id, from: "project", expectedVersion: row.version, to: uid }, h.context))
+    .toMatchObject({ state: "routed" });
+  h.context.now = () => new Date("2026-02-02T00:00:00Z");
+  const plan = await prepareErrandReturn(name, h.context);
+  expect(plan).toMatchObject({ status: "ok", result: { returned: [row.id], held: [] } });
+  if (plan.status !== "ok") throw new Error(plan.refusal.condition);
+  success(await h.context.store.batch({ writes: plan.result.writes, provenance: { verb: "errand-abandon", lifecycleAction: "abandon" } }));
+  expect(await listInbox({ list: "project" }, h.context)).toMatchObject({ entries: [{ id: row.id, fields: { Created: "2026-01-01" } }] });
+  expect(await listInbox({ list: uid }, h.context)).toMatchObject({ entries: [] });
 });

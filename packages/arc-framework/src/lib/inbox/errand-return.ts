@@ -1,7 +1,7 @@
 /** Abandon and failed-open rollback share the same observed-version return plan. */
 import type { Mutation } from "../store/write.js";
 import { RecordVersionSchema, sameReference } from "../store/identity.js";
-import { resolveEntryList, failure, type ResolvedEntryList } from "./lists.js";
+import { resolveEntryList, resolveWorkItemList, failure, type ResolvedEntryList } from "./lists.js";
 import { rowsInList } from "./listing.js";
 import { latestRoutingReceipt, listCoordinate } from "./receipts.js";
 import { openErrandHolding } from "./errand-home.js";
@@ -15,7 +15,7 @@ export interface ErrandReturn { writes: Mutation[]; disposition: "retained" | "a
  * @returns One companion batch, including receipts and remaining description.
  */
 export async function prepareErrandReturn(slug: string, context: InboxContext): Promise<InboxOutcome<ErrandReturn>> {
-  const found = await resolveEntryList(slug, context);
+  const found = await resolveWorkItemList(slug, context);
   if (found.status === "refused") return found;
   if (found.result.kind !== "work-item/description") return failure("invalid-input", `${slug} is not an Errand.`, "Name the Errand to abandon.");
   if (found.result.primary?.placement?.kind === "completed") return { status: "ok", result: { writes: [], disposition: "absent", returned: [], held: [] } };

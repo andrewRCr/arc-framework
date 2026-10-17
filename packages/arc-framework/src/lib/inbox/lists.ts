@@ -34,6 +34,15 @@ export async function resolveEntryList(selector: string, context: InboxContext):
     return readList({ selector, reference: recordReferences["personal/inbox"](owner.data), kind: "personal/inbox", primary: null, owner: context.identity, state: null, inbox: "personal" }, context);
   }
   if (selector === "project") return projectList(context);
+  return resolveWorkItemList(selector, context);
+}
+
+/** Resolve an explicit work-item subject independently of reserved inbox selectors.
+ * @param selector - Work-item slug, former slug, or generation UID.
+ * @param context - Store and current identity.
+ * @returns Its inbound list or Errand description, with primary lifecycle evidence.
+ */
+export async function resolveWorkItemList(selector: string, context: InboxContext): Promise<InboxOutcome<ResolvedEntryList>> {
   const primary = await findPrimary(selector, context);
   if (primary.status === "refused") return primary;
   const value = primary.result;

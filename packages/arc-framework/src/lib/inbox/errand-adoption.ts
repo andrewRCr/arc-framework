@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { OwnerIdentitySchema, recordReferences } from "../store/identity.js";
 import { drawEntryId, writeEntryFields } from "../store/kinds/entry-fields.js";
 import type { Mutation } from "../store/write.js";
-import { resolveEntryList, failure, withProvenance, type ResolvedEntryList } from "./lists.js";
+import { resolveEntryList, resolveWorkItemList, failure, withProvenance, type ResolvedEntryList } from "./lists.js";
 import { rowsInList } from "./listing.js";
 import { prepareEntryMove } from "./mover.js";
 import { listCoordinate, latestRoutingReceipt } from "./receipts.js";
@@ -47,7 +47,7 @@ export async function prepareErrandAdoption(input: { slug: string; from?: string
 }
 
 async function descriptionFor(slug: string, context: InboxContext): Promise<InboxOutcome<ResolvedEntryList>> {
-  const existing = await resolveEntryList(slug, context);
+  const existing = await resolveWorkItemList(slug, context);
   if (existing.status === "ok") {
     if (existing.result.kind !== "work-item/description") return failure("invalid-destination", `${slug} is a work unit.`, "Choose an Errand slug.");
     if (existing.result.primary?.placement?.kind !== "completed") return existing;
@@ -83,7 +83,7 @@ async function readAdoptedCapture(slug: string, from: string, id: string, source
   const holder = await openErrandHolding(id, listCoordinate(source), context);
   if (holder.status === "refused") return holder;
   if (holder.result.held?.slug === slug) {
-    const home = await resolveEntryList(slug, context);
+    const home = await resolveWorkItemList(slug, context);
     if (home.status === "refused") return home;
     const held = rowsInList(home.result);
     if (held.status === "refused") return held;
