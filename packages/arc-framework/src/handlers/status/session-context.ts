@@ -86,6 +86,7 @@ export async function readUserInboxFromStore(store: Store, identity: string): Pr
     if (read.refusal.code === "not-found") return "";
     throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
   }
+  if (!store.capabilities.stateOffBranch) return read.result.content;
   if (read.result.conflicts.length > 0) throw new Error("The personal inbox has unresolved conflicts. Resolve them before routing its entries.");
   const parsed = parseEntryList(read.result.content, "personal/inbox");
   if (!parsed.success) throw new Error(parsed.error);
