@@ -21,6 +21,7 @@ import { refFormatKey } from "./format-key.js";
 import { prepareRefCommits, type RefWriteGroup } from "./write-commits.js";
 import { expandStoredPath } from "../stored-path.js";
 import { checkRefWrites } from "./write-checks.js";
+import { prepareRefAnchors } from "./write-anchors.js";
 import { prepareRefConflicts } from "./write-conflicts.js";
 
 type RefGroup = RefWriteGroup;
@@ -47,6 +48,8 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
     if (applied.status === "refused") return applied;
     results.push(applied.result);
   }
+  const anchorRefusal = await prepareRefAnchors(context, prepared.result, groups);
+  if (anchorRefusal) return { status: "refused", refusal: anchorRefusal };
   const completed = await prepareRefConflicts(context, prepared.result, groups, results);
   const broken = await checkRefWrites(context, prepared.result, completed, tips, provenance);
   if (broken) return { status: "refused", refusal: broken };

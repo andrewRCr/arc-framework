@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createRefStore } from "../../../../src/lib/store/create.js";
+import { createKindRegistry, type KindId } from "../../../../src/lib/store/index.js";
 import type { RefStorePorts } from "../../../../src/lib/store/ports.js";
 
 function observedPorts() {
@@ -23,5 +24,30 @@ describe("ref store construction", () => {
     const store = createRefStore(ports);
     expect(calls).toEqual([]);
     expect(store.capabilities).toEqual({ stateOffBranch: true });
+  });
+
+  it.each<KindId>(["personal/document", "lineage/transition", "project-machinery/prose"])("rejects an anchor outside a singleton's own ref: %s", async (kind) => {
+    const { ports, calls } = observedPorts();
+    const registry = createKindRegistry();
+    await expect(createRefStore({ ...ports, registry: { ...registry, [kind]: { ...registry[kind], anchorFields: ["anchor"] } } }).version()).rejects.toThrow(kind);
+    expect(calls).toEqual([]);
+  });
+
+  it.each<[KindId, KindId]>([["work-item/meta", "review/candidate"], ["personal/inbox", "personal/working-memory"]])("rejects two anchored kinds sharing a ref: %s and %s", async (first, second) => {
+    const { ports, calls } = observedPorts();
+    const registry = createKindRegistry();
+    const construct = () => createRefStore({ ...ports, registry: { ...registry,
+      [first]: { ...registry[first], anchorFields: ["anchor"] }, [second]: { ...registry[second], anchorFields: ["anchor"] } } }).version();
+    await expect(construct()).rejects.toThrow(first);
+    await expect(construct()).rejects.toThrow(second);
+    expect(calls).toEqual([]);
+  });
+
+  it("rejects two anchor fields on one kind", async () => {
+    const { ports, calls } = observedPorts();
+    const registry = createKindRegistry();
+    await expect(createRefStore({ ...ports, registry: { ...registry,
+      "work-item/meta": { ...registry["work-item/meta"], anchorFields: ["one", "two"] } } }).version()).rejects.toThrow("work-item/meta");
+    expect(calls).toEqual([]);
   });
 });

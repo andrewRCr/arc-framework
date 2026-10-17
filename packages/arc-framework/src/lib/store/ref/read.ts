@@ -112,12 +112,12 @@ export function decodeCapturedRef(context: RefBackendContext, input: ListInput, 
   const diagnostics: ListingDiagnostic[] = [];
   const prototype = refPrototype(context, ref, input.family);
   const home = expandStoredPath(prototype, { registry: context.registry });
-  if (entries.every((entry) => entry.path === home.metadataPath || entry.path.startsWith(home.manifestPath))) return { records, diagnostics };
+  if (entries.every((entry) => entry.path === home.metadataPath || isManifestPath(home, entry.path))) return { records, diagnostics };
   const metadata = metadataOverride ?? capturedMetadata(home, entries, objects);
   if (!("formats" in metadata)) return metadata;
   const owner = refOwner(ref, input.family, metadata);
   for (const entry of entries) {
-    if (entry.path === home.metadataPath || entry.path.startsWith(home.manifestPath)) continue;
+    if (entry.path === home.metadataPath || isManifestPath(home, entry.path)) continue;
     const record = decodeCapturedEntry(context, input.family, owner, entry, objects.get(entry.oid), metadata);
     if (!record) continue;
     if ("reference" in record) records.push(record); else diagnostics.push(record);
@@ -147,7 +147,7 @@ function capturedMetadata(home: StoredRecordHome, entries: readonly RefTreeEntry
   const foreign = !entry && entries.find((candidate) => /^metadata-[0-9a-f-]+\.json$/u.test(candidate.path)
     && parseRefMetadata(objects.get(candidate.oid)) !== null);
   if (foreign) return { records: [], diagnostics: entries.filter((candidate) => candidate !== foreign
-    && !candidate.path.startsWith(home.manifestPath)).map((candidate) => recordDiagnostic(candidate.path, {
+    && !isManifestPath(home, candidate.path)).map((candidate) => recordDiagnostic(candidate.path, {
       kind: "key-mismatch", condition: "The metadata filename names a UID other than its ref's owner",
     })) };
   return { records: [], unreadable: true,
@@ -181,4 +181,8 @@ function missing(reference: RecordReference, condition = "The record is not pres
   remedy = "Pull state or create the record, then retry."): StoreResult<never> {
   return { status: "refused", refusal: { code: "not-found", class: "recoverable", reference,
     condition, remedy: { text: remedy } } };
+}
+
+function isManifestPath(home: StoredRecordHome, path: string): boolean {
+  return path === home.manifestPath.slice(0, -1) || path.startsWith(home.manifestPath);
 }

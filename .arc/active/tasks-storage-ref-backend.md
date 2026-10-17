@@ -525,18 +525,15 @@ _Mode:_ `layer` through Phase 8 — closes on the local engine complete in both 
   fields, derive writer authority from provenance, and refuse the whole batch in deterministic rule/write order.
   Public real-Git cases cover view isolation, absent refs, repaired retries, and shipped slug-edge settlement.
 
-### `[ ]` **5.9 Anchors and the manifests that travel with them — § 4.5**
+### `[x]` **5.9 Anchors and the manifests that travel with them — § 4.5**
 
 - _Goal:_ A state version written into a record resolves on any machine that fetches the record's ref, because the
   anchor and its manifest land in one commit on one ref.
 
-    - The anchor fields come from each kind's `anchorFields` (`RegisteredKind`), today the meta's `stateAtHandoff`
-    - Build `test-first` (one behavior at a time):
-        - a meta write that sets `stateAtHandoff` carries that token's manifest at `state-<uid>/` in the same commit,
-          and a null value carries none
-        - an anchor naming a token this clone cannot resolve refuses `state-unresolvable` naming the field
-        - `createRefBackend` throws naming the kinds on a registry declaring an anchor field on a kind that is not a
-          singleton on its owner's own ref, `lineage/transition` among them, or two on kinds one ref holds
+- _Outcome:_ Backend construction validates anchor cardinality and ref ownership. Writes resolve complete canonical
+  manifests before publication and carry changed anchors' trees in the record commit; null removes the active subtree.
+  Unchanged anchors and earlier manifests remain reachable, including empty trees. Public real-Git cases fetch only
+  the owning ref, resolve its token, and cover atomic refusal plus repaired retries for unavailable manifests/subtrees.
 
 ### `[ ]` **5.10 The project owner and its identity record — § 3.2**
 

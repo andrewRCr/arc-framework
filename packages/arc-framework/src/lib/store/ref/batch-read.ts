@@ -72,7 +72,7 @@ export async function readRefTrees(context: RefBackendContext, tips: ReadonlyMap
   });
   if (trees.length !== pairs.length) throw new Error("Incomplete tree batch-check response");
   const input = trees.filter((tree): tree is string => tree !== null).map((tree) => `${emptyTree(tree.length)} ${tree}\n`).join("");
-  const result = await context.rawExec(["diff-tree", "--stdin", "-r", "-z", ...(paths ? ["--", ...paths.map((path) => `:(literal)${path}`)] : [])], {
+  const result = await context.rawExec(["diff-tree", "--stdin", "-r", "-t", "-z", ...(paths ? ["--", ...paths.map((path) => `:(literal)${path}`)] : [])], {
     cwd: context.checkoutRoot, objectAccess: "local-only", input: encoder.encode(input),
   });
   const byTree = parseTreeDiff(result.stdout);
@@ -106,7 +106,9 @@ function parseTreeDiff(bytes: Uint8Array): Map<string, RefTreeEntry[]> {
     const entry = /^:\d{6} (\d{6}) [0-9a-f]{40,64} ([0-9a-f]{40,64}) A$/u.exec(token);
     const path = tokens[++index];
     if (!current || !entry?.[1] || !entry[2] || path === undefined) throw new Error("Malformed recursive tree diff");
-    current.push({ mode: entry[1], oid: entry[2], path });
+    // Recursive enumeration omits empty trees unless tree rows are requested.
+    // Keep only empty tree rows; nonempty parents are rebuilt from their leaves.
+    if (entry[1] !== "040000" || entry[2] === emptyTree(entry[2].length)) current.push({ mode: entry[1], oid: entry[2], path });
   }
   return trees;
 }
