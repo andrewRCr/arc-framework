@@ -2,7 +2,7 @@
 import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
 import { decodeMetaHistoryContent } from "../store/meta-history.js";
 import type { HistoryEntry } from "../store/contract.js";
-import type { StateVersion } from "../store/identity.js";
+import type { RecordVersion, StateVersion } from "../store/identity.js";
 import { scanTaskListStructure } from "../task-list/scanner.js";
 import type { Store } from "../store/contract.js";
 import { recordReferences, sameReference, type RecordReference } from "../store/identity.js";
@@ -30,7 +30,7 @@ export async function deriveStoreRestateCandidates(input: { store: Store; workUn
   const anchor = fields.stateAtHandoff;
   if (anchor === null) return null;
   const history = await readStateHistory(() => store.history({ reference: workUnit }), sync);
-  const anchorOwner = readAnchorOwner(history, anchor);
+  const anchorOwner = readAnchorOwner(history, anchor, meta.version);
   const task = recordReferences["work-item/task-list"](meta.reference.owner);
   const notes = recordReferences["work-item/notes"](meta.reference.owner);
   const changes = await readStateHistory(() => store.changes({ from: anchor, to: current,
@@ -55,9 +55,11 @@ function closedTasks(content: string): Set<string> {
   return new Set(scan.events.flatMap((event) => (event.type === "parent" || event.type === "subtask") && event.marker === "x" ? [event.item.id] : []));
 }
 
-function readAnchorOwner(history: HistoryEntry[], anchor: StateVersion): string {
+function readAnchorOwner(history: HistoryEntry[], anchor: StateVersion, selected: RecordVersion): string {
+  const start = history.findIndex((entry) => entry.version === selected);
+  if (start < 0) throw new Error(`The selected meta version ${selected} is unavailable in history. Restore the meta history, then retry handoff.`);
   let owner: string | null = null;
-  for (const entry of history) {
+  for (const entry of history.slice(start)) {
     if (entry.content === null) break;
     const previous = decodeMetaHistoryContent(entry.content);
     if (previous.stateAtHandoff !== anchor) break;

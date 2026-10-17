@@ -53,6 +53,38 @@ it("uses the Owner when the anchor was written, despite later ownership changes"
   expect((await deriveRestateCandidates({ exec, sessionNotes: null, store, workUnit: h.meta.reference, identity: "bob" }))
     .tasksClosedSinceHandoff).toEqual(["1.1"]);
 });
+it("retains the selected state's candidates when a newer handoff enters history", async () => {
+  const h = await fixture();
+  const store = Object.create(h.store) as Store;
+  store.history = async (input) => {
+    const nextAnchor = lifecycleSuccess(await h.store.version());
+    h.meta = await h.update(h.meta, writeMetaCommitAtHandoff(
+      writeMetaStateAtHandoff(h.meta.content, nextAnchor), "new-baseline"));
+    return h.store.history(input);
+  };
+  expect(await deriveRestateCandidates({ exec, sessionNotes: null, store, workUnit: h.meta.reference, identity: "alice" }))
+    .toEqual({ commitsSinceHandoff: [{ hash: "abc123", subject: "Code after handoff" }],
+      tasksClosedSinceHandoff: ["1.1"], noteFileChangesSinceHandoff: [".arc/active/notes-subject.md"] });
+  const fresh = await deriveRestateCandidates({ exec, sessionNotes: null, store: h.store, workUnit: h.meta.reference, identity: "alice" });
+  expect(fresh.tasksClosedSinceHandoff).toEqual([]);
+  expect(fresh.noteFileChangesSinceHandoff).toEqual([]);
+});
+it("names unavailable selected meta history and succeeds after its restoration", async () => {
+  const h = await fixture();
+  const store = Object.create(h.store) as Store;
+  let repaired = false;
+  store.history = async (input) => {
+    const result = await h.store.history(input);
+    return result.status === "ok" && !repaired
+      ? { status: "ok", result: result.result.filter((entry) => entry.version !== h.meta.version) }
+      : result;
+  };
+  await expect(deriveRestateCandidates({ exec, sessionNotes: null, store, workUnit: h.meta.reference, identity: "alice" }))
+    .rejects.toThrow(`The selected meta version ${h.meta.version} is unavailable in history. Restore the meta history, then retry handoff.`);
+  repaired = true;
+  expect((await deriveRestateCandidates({ exec, sessionNotes: null, store, workUnit: h.meta.reference, identity: "alice" }))
+    .tasksClosedSinceHandoff).toEqual(["1.1"]);
+});
 it("has no state baseline before the first handoff", async () => {
   const h = createLifecycleHarness();
   const meta = await h.seedMeta("new-unit");
