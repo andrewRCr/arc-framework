@@ -43,6 +43,9 @@ function requireOriginalSubject(seed: CompactionSeed, recover: Pick<RecoveryAudi
   const frame = recover.recoveryFrame.value;
   if (frame.checkoutPath !== seed.locus.checkoutPath || frame.parentCheckoutPath !== seed.locus.parentCheckoutPath
     || frame.checkoutPath !== seed.repoRoot) throw new Error("Cannot rebuild recovery state in another checkout. Resume in the seed's original checkout.");
+  if (seed.activeWorkUnit === null && frame.kind === "resolved" && frame.subject.kind === "work-unit") {
+    throw new Error(`The seed held no work unit, but this checkout now holds '${frame.subject.key}'. Start a fresh ARC session for that work unit, or restore the original checkout context and retry recovery.`);
+  }
   const sameWorkUnit = frame.kind === "resolved" && frame.subject.kind === "work-unit" && frame.subject.key === seed.activeWorkUnit;
   const parentMetas = recover.loadSet.ok ? recover.loadSet.value.entries.flatMap(entry => {
     const artifact = identifyWorkUnitArtifactPath(entry.path);

@@ -9,6 +9,7 @@ import { LocusIdentityV1Schema } from "../../../src/lib/locus/schema/identity.js
 import { resolveTaskListCursor } from "../../../src/lib/task-list/cursor.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import type { Store } from "../../../src/lib/store/contract.js";
+import { auditRecoveryState } from "../../../src/lib/recover/audit.js";
 
 const ok = <T>(value: T) => ({ ok: true as const, value });
 const cursor = resolveTaskListCursor("### `[ ]` **2.1 Continue**\n");
@@ -62,4 +63,38 @@ it.each(["checkout", "parent", "work-unit"] as const)("refuses a changed warm tr
   const recover = changed === "work-unit" ? { ...h.recover, loadSet: ok(other.loadSet) } : { ...h.recover,
     recoveryFrame: ok({ ...frame, ...(changed === "checkout" ? { checkoutPath: "/other" } : { parentCheckoutPath: "/other" }) }) };
   await expect(resolveRecoveryStateBasis({ seed: h.original, recover, store: h.selected })).rejects.toThrow(/checkout|subject/iu);
+});
+
+it.each(["null", "expired"] as const)("keeps a %s no-work-unit seed from adopting a new work unit", async anchor => {
+  const h = createLifecycleHarness(); await h.seedMeta("other", { state: "Planning", currentWorkflow: "draft-design" });
+  const head = "a".repeat(40), checkout = { path: "/repo", head, branch: "main", detached: false, primary: true, folderPresent: true };
+  const common = { checkout, markerGeneration: null, parentCheckoutPath: null, origin: null, identity: null, context: null, diagnostics: [], lifecycleLocation: null };
+  const free = { ...common, kind: "free-primary", subject: null };
+  const originalState = DerivedLocusFrameSchema.parse({ roster: [free], entering: { kind: "selected", row: free },
+    primaryAvailability: { kind: "free", checkoutPath: checkout.path }, identityDiscovery: { kind: "absent" }, active: null });
+  const context = (state: typeof originalState) => deriveRecoveryLocusContext({ state, identity: "andrew", workingMemoryPath: null });
+  const originalContext = context(originalState);
+  const emitted = await emitCompactionSeed({ cwd: checkout.path, stateVersion: anchor === "null" ? null : lifecycleSuccess(await h.store.version()),
+    envelope: { identity: { identity: "andrew" }, derivedLocusState: ok(originalState),
+      worktree: ok({ branch: "main", identity: { kind: "primary" } }), active: ok({ path: null, sessionType: null, currentWorkflow: null }),
+      loadSet: ok(originalContext.loadSet) }, gitSnapshot: { branch: "main", head, uncommittedFiles: [] }, writeSeed: async () => {} });
+  if (emitted.status !== "written") throw new Error(JSON.stringify(emitted));
+  const selected = Object.create(h.store) as Store;
+  if (anchor === "expired") selected.changes = async () => ({ status: "refused", refusal: { code: "state-unresolvable", class: "recoverable",
+    historyRefs: [], condition: "History expired.", remedy: { text: "Rebuild current state." } } });
+  const loadSet = resolveLoadSetManifest({ identity: "andrew", stateOffBranch: true, activeWorkUnit: "other", metaPath: ".arc/active/meta-other.md",
+    sessionType: "planning", planningStage: "draft-design", taskListPath: null, cohortDocPath: null });
+  const held = { ...common, kind: "work-unit", subject: { kind: "work-unit", key: "other" }, markerGeneration: "generation", lifecycleLocation: "active",
+    context: { kind: "resolved", metaPath: ".arc/active/meta-other.md", owner: "andrew", branch: null, sessionType: "planning", workflow: "planning",
+      stage: "draft-design", taskListPath: null, taskCursor: null, cohortDocPath: null, loadSet, integrationBoundary: null } };
+  const changedState = DerivedLocusFrameSchema.parse({ roster: [held], entering: { kind: "selected", row: held }, identityDiscovery: { kind: "absent" },
+    primaryAvailability: { kind: "occupied", checkoutPath: checkout.path, subject: held.subject },
+    active: { checkoutPath: checkout.path, subject: held.subject, context: held.context } });
+  const probe = (state: typeof originalState) => { const fresh = context(state); return { derivedLocusState: ok(state), recoveryFrame: ok(fresh.frame),
+    loadSet: ok(fresh.loadSet), dirty: ok({ state: "clean" as const, fileCount: 0 }) }; };
+  await expect(resolveRecoveryStateBasis({ seed: emitted.seed, recover: probe(changedState), store: selected })).rejects.toThrow(/fresh ARC session/iu);
+  const restored = probe(originalState), rebuilt = await resolveRecoveryStateBasis({ seed: emitted.seed, recover: restored, store: selected });
+  expect(rebuilt.seed).toEqual({ ...emitted.seed, stateVersion: lifecycleSuccess(await h.store.version()) });
+  expect(await auditRecoveryState({ seed: rebuilt.seed, recover: restored, freshBranch: "main", freshHead: head, freshRepoRoot: checkout.path,
+    freshUncommittedFiles: [], resolveCommittedProgress: async () => ({ advanced: false, files: new Set<string>() }) })).toMatchObject({ status: "ready" });
 });
