@@ -498,3 +498,24 @@ Author grounding traced `parseFetchPorcelain`, `fetchRefPatterns`, `checkRefFetc
 bounded grounding-only task audit cover § 6.3, its § 14.5 case, criterion 23, and Task 11.1.R, with Task 11.6 as the
 segment replay. The existing graph check, keepers, forced-update flag, forwarding replacement, and successful-fetch
 behavior remain required. Native failure evidence is retained with the ancestry task's ignored tools.
+
+## A16 — Retained conflicts need an actionable recovery path
+
+`observeSyncEndedConflicts` names conflicts on a lineage-ended UID, but `listRefRecords` excludes history refs and
+`resolveRefWrites` admits only live and archived owners for non-lineage writes. `historyRefRecord` already reaches those
+records through `retiredHistoryHome`. `applyResolutions` removes named conflicts from captured groups after
+`prepareCapturedWrites` prepares the mutation; the missing binding is the retired conflict's coordinate. There is no
+registered general store-history or conflict command in `cli.ts`.
+
+The Owner's standing authority covers this bounded elaboration inside the store and sync goals. Reuse history for
+inspection and admit only explicit retained-conflict removal, rather than expanding ordinary lifecycle reads and
+listings or reviving an origin. The hidden command takes the exact UID, kind, and key carried by the notice; discard
+explicitly accepts the end and removes its alternative. Its capture precedes corrective work in 13.5.R, after the
+hidden command ports exist. Section 14.13 and the appended criterion own this new scenario, so earlier segment exits
+keep their existing verification scope.
+
+Author grounding traced `historyRefRecord`, `retiredHistoryHome`, `resolveRefWrites`, `refWriteTargets`, `mutationHome`,
+`applyResolutions`, `planRefRetirements`, `observeSyncEndedConflicts`, the conflict schemas, and CLI registrations.
+The grounding-only task audit and specification reader, binding, and coherence checks cover the exact new command,
+notice shape, removal restriction, default backend, and retry boundary. The status port's A14 binding preserves the
+new condition and remedy; the status implementation that lands second completes its rendering.

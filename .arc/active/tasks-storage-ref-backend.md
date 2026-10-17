@@ -1421,6 +1421,32 @@ layouts.
         - `arc --help` lists no `arc store`; a test reading every file under `src/` finds `runStoreRemote` and
           `runStoreMigrate` called only by the two handlers, and `createRefStore` and `createReadSourceStore` by nothing
 
+### `[ ]` **13.5.R Retained conflict inspection and explicit discard — § 2.6, § 6.6, § 14.13 (A16)**
+
+- _Goal:_ Every ended-conflict notice leads to exact history inspection and explicit expected-version conflict removal
+  while the owner stays retired, with executable hidden-command remedies (A16).
+
+    - `historyRefRecord` and `retiredHistoryHome` already inspect a lineage-ended UID's retained history;
+      `resolveRefWrites` currently refuses conflict removal because `resolveOwner` admits only live or archived owners.
+      Extend only explicit conflict-removal and resolution targets to the retained coordinate, carrying that coordinate
+      through capture, locking, expected-version admission, and commit without reviving or sweeping the owner. Every
+      retired resolution target requires an explicit expected-version removal in that batch; record the forward D6
+      amendment in the contract specification's Amendments log
+    - `observeSyncEndedConflicts` currently emits work-item conflict kinds for every path and carries no remedy.
+      Retain each actual kind and add the condition and exact inspection argv, updating the notice schema and consumers
+    - Implement `runStoreConflict` and hidden `arc store conflict <uid> <kind> <id> [--discard] [--json]` as § 6.6 gives
+      them, including command-input declarations, no-input matrix entry, production ports, named-history retry, and
+      results; only its handler calls the entry and `createStore` keeps its current selection
+    - Build `test-first` (one behavior at a time):
+        - both layouts and both retirement kinds: inspect notice references through public history, explicitly remove
+          one conflict with its expected version, and observe only that conflict removed, with the primary absent,
+          lineage and children unchanged, another conflict preserved, and the resolution visible after another clone's pull
+        - review conflicts retain their actual kind; missing history retries exactly its named refs once, and a failed
+          fetch preserves the original refusal; stale versions fail atomically beside another owner's paired write
+        - real-CLI E2E in a disposable repository executes the notice's inspection argv and verifies both sides, then
+          explicitly discards and observes absence; cover JSON output, already-resolved IDs, invalid kinds, hidden help,
+          and the production entry's caller boundary
+
 ### `[ ]` **13.6 Designation and layout moves** — validate exit criterion at segment scope
 
 - _Goal:_ Every case of § 14.6 not needing a follow, leaving the source, the forwarding record, or a `backing` repoint,
@@ -2578,3 +2604,7 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
 - `[ ]` Failed fetches verify actual tracking updates: files and reftable lock failures report failed creates,
   advances, and deletes as `tracking-update-failed`, including reftable success rows before transaction abort; other
   acquired refs apply, shared tracking advances cause no false rewrite, and release permits a clean pull (§ 6.3) (A15)
+
+- `[ ]` An ended-conflict notice's remedy inspects its exact retained conflict and explicitly discards it with
+  expected-version protection through the hidden store command; both layouts preserve retirement, unrelated retained
+  records, lineage, and children, and missing-history retry and stale-basis refusal remain actionable (§ 14.13) (A16)

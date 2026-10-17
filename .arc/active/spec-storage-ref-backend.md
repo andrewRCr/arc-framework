@@ -157,16 +157,18 @@ review chunking to hold.
 - **`lib/git/`** gains the executor capabilities of § 11: the ref-transaction helper, the push helper, cancellation on
   the stdin and byte variants, and the Git-version check on failure.
 - **`lib/store/`** gains the contract changes of § 2; the serialization rules' function (§ 5.6); and, in
-  `lib/store/create.ts` beside `createStore`, four exports over the ref backend: `createRefStore(ports)`, which the
+  `lib/store/create.ts` beside `createStore`, five exports over the ref backend: `createRefStore(ports)`, which the
   conformance fixture and the integration tests build their store with (§ 14); `createReadSourceStore` (§ 9.6); and
   `runStoreRemote` and `runStoreMigrate`, the entry points the `arc store remote` and `arc store migrate` handlers call
-  (§ 9.4, § 10.1). `createStore` stays the one composition point that selects the backend operational reads and writes
-  run through; the four serve only tests, a read source's view, and the `arc store` commands, which act on the ref store
-  by name. The two entries build their store through `createRefBackend`, so nothing under `src/` calls `createRefStore`
+  (§ 9.4, § 10.1); and `runStoreConflict`, the `arc store conflict` handler's entry (§ 6.6, A16). `createStore` stays
+  the one composition point that selects the backend operational reads and writes run through; the five serve only
+  tests, a read source's view, and the `arc store` commands, which act on the ref store by name. The three command
+  entries build their store through `createRefBackend`, so nothing under `src/` calls `createRefStore`
   or `createReadSourceStore`.
 - **The import's transform** sits in its own module under `lib/store/ref/import/`, reading through the in-repo
   implementation, so the cutover's deletion pass removes it with that implementation and nothing else references it.
-- **Commands:** `arc store remote` and `arc store migrate` (§ 9.4, § 10.1), registered hidden until the flip, as
+- **Commands:** `arc store remote`, `arc store migrate`, and `arc store conflict` (§ 9.4, § 10.1, § 6.6), registered
+  hidden until the flip, as
   `cli.ts` registers `hook-remedy-roadmap-conflict`.
 
 Construction follows the contract's composition rule: `createRefBackend(ports)` takes every dependency as one object —
@@ -292,7 +294,7 @@ type PullOutcome =
 type PullNotice =
   | { kind: "history-diverged"; ref: string; local: CommitSha; remote: CommitSha; condition: string; remedy: Remedy }
   | { kind: "tracking-update-failed"; ref: string; condition: string; remedy: Remedy }
-  | { kind: "ended-with-conflicts"; item: OwnerIdentity; conflicts: RecordReference[] }
+  | { kind: "ended-with-conflicts"; item: OwnerIdentity; conflicts: RecordReference[]; condition: string; remedy: Remedy }
   | { kind: "end-withdrawn"; item: OwnerIdentity; condition: string; remedy: Remedy }
   | { kind: "ended-twice"; item: OwnerIdentity; condition: string; remedy: Remedy }
   | { kind: "rule-broken"; reference: RecordReference; rule: string; condition: string; remedy: Remedy }
@@ -443,6 +445,11 @@ Each amends the contract specification's named decision forward, in Part A or Pa
 | D10      | The size cap reaches projected kinds only; a repository that goes public moves its state to a backing repository only when it wants that state private; `refs/arc/project/moved` joins the ref table; a backend over Git adds the refusals Git or canonical JSON needs — `store.git-path`, `store.json`, a key that is not one path segment, and an owner's name or key over 2,040 bytes | § 3.2, 5.6, 9.5, 10.6 |
 | D12      | `stale info`, `reference already exists`, and `reference does not exist` join the retry set as lost races, and a server's refusal of a state ref outside it is read by state, a lost race when the ref moved; every push of a work item's or cohort's ref, live or under history, and every delete, is leased; a carried code ref's own rejection is never a lost race for state         | § 6.5, 6.7–6.9        |
 | D14      | Where no remote holds the project's registry, the clone asks once about its code remote, `push` or `off`; on a host whose forks copy state refs, a contributor's lone fork remote holding that copy is designated without asking and adopts the upstream's ID, a residual the host trial checks                                                                                          | § 9.2, 9.8            |
+
+Retained conflict recovery also amends D6 forward (A16): a lineage-ended owner permits expected-version removal of
+its retained conflict records through `write` and `batch`, explicitly resolving each removed conflict. Inspection uses
+`history` with the notice's UID-bearing reference. Ordinary `read` and `list` keep their lifecycle behavior, and the
+retired primary remains `not-found`.
 
 The contract left open where the designation is kept; § 9.1 settles it in Git config.
 
@@ -1427,7 +1434,8 @@ large state may outlast any bound.
     - An archived item's quarter folder is refreshed from the merged tree, as any write to a completed item refreshes it
       (§ 7.3), so reads and listings of the completed item find its conflict records.
     - An abandoned or decomposed item reads `not-found` (D9), so the pull's result names it and its conflict records in
-      an `ended-with-conflicts` notice.
+      an `ended-with-conflicts` notice. The notice also carries its condition and an actionable remedy (A16).
+
 - **An end's leased delete that loses to another machine's write** merges that remote tip into the local history ref and
   leases the delete again on the tip it merged.
 - **A pull that applies another machine's end while this clone holds unpublished writes to the item** merges the local
@@ -1440,6 +1448,32 @@ large state may outlast any bound.
   both reopens made the same move and its end came after both, so the backend merges the fetched live tip into its
   history ref and leases the live ref's delete on that tip. A live ref back without the folder's removal meets the end
   the same way.
+
+**Retained conflict recovery (A16).** Each notice's conflict reference retains the actual conflict kind, owner UID, and
+key; a review conflict keeps its review kind even though it shares the work item's physical ref. The hidden `arc store
+conflict <uid> <kind> <id> [--discard] [--json]` inspects that exact conflict through `Store.history`, returning the
+latest history entry's complete conflict content and side labels when its version is nonnull. It accepts only registered
+conflict kinds whose root family is `work-item`. An absent or already removed conflict reports `absent` and changes
+nothing; a malformed conflict or unreadable history preserves its typed refusal. A missing-history refusal pulls exactly
+its `historyRefs` and retries once; a failed pull preserves the original actionable refusal.
+
+With `--discard`, the command removes that exact latest conflict using its nonnull expected version and
+`resolves: [reference]`, with provenance `resolve`/`resolve`. It reports `discarded`; a concurrent resolution may report
+`absent`, while a changed basis retains the store's refusal rather than deleting another version. This explicitly
+accepts the end's current state and drops the retained alternative; wanted content must first be preserved elsewhere.
+Only conflict removal is admitted on a lineage-ended owner's history coordinate. Other retained records, lineage,
+children, the absence of the primary, and other conflict records are preserved. A batch may pair that explicit
+removal with writes to other owners, atomically. Every retired resolution target requires its own explicit
+expected-version removal in that batch; another owner's `resolves` alone cannot bypass that protection. No retained
+ordinary record becomes readable or writable by this exception, and no new kind or lifecycle transition is introduced.
+
+`runStoreConflict` takes `{ uid, kind, id, discard? }` and returns the usual `StoreResult` envelope containing
+`{ status: "present", reference, version, conflict }`, `{ status: "discarded", reference }`, or
+`{ status: "absent", reference }`; `conflict` validates as `ConflictRecordSchema`. Its handler supplies the same ref
+store ports as the other hidden store handlers and owns formatting and `--json`. The notice's remedy supplies the
+exact inspection argv for the first conflict and text naming inspection and explicit discard for every listed
+reference; status passes the condition and remedy through. The command inspects locally except for the required
+named-history retry and leaves publication to the next ordinary push.
 
 **This clone's own unpublished end,** here and in § 6.4, is an end this clone made whose record — its quarter folder, or
 the lineage it wrote or relied on (§ 7.4) — it still holds, and which no tracking ref of the item, live or history,
@@ -3716,6 +3750,19 @@ conformance run per layout stays within 1.5 times the in-repo conformance's time
 test-cost budget rows the new files touch — tier and CI-job rows in `packages/arc-framework/test-cost-budgets.json` —
 are baselined before the first file lands.
 
+#### 14.13 Retained conflict recovery (A16)
+
+In both layouts, an abandon and a decomposition followed by a conflicting late write report the exact conflict
+references and executable inspection remedies. Through the public store, history reveals each retained conflict's
+content and version, and expected-version removal explicitly resolving it removes only that conflict. A paired write
+to another owner lands atomically; a stale basis changes nothing. The primary stays `not-found`, lineage and children
+remain, and another clone fetching the history sees the resolution.
+
+A real-CLI temporary-repository E2E case executes the notice's inspection argv, verifies both preserved sides, then
+runs it with `--discard` and observes absence and a still-retired primary. Cover `--json`, already-removed IDs, invalid
+kinds, missing history repaired by the named retry, and failed fetch preserving the original refusal. The command
+remains hidden and only its handler calls `runStoreConflict`; the normal backend selection remains in-repo.
+
 ## Alternatives & Rationale
 
 The design composes from the contract, Git's own primitives, and the ref machinery the CLI already runs: one atomic
@@ -3906,8 +3953,8 @@ checks only on a failure an older Git would explain (§ 11.3), and the shipped `
 `storage.backing_repository`, empty, which `arc config status` lists and `arc config validate` knows, as they do every
 key in the configuration catalog (`readConfigSettings`, `lib/config/status-reader.ts`; `CONFIG_VALIDATION_FIELDS`,
 `lib/config/schema.ts`), and which only the hidden `arc store` commands act on until the flip (§ 9.2). From it: a
-designation question once per clone where § 9.2 asks one, `arc store remote` and `arc store migrate`, and `arc sync`
-running a pull and a push.
+designation question once per clone where § 9.2 asks one, `arc store remote`, `arc store migrate`, and the explicit
+retained-conflict inspection and discard command (§ 6.6), with `arc sync` running a pull and a push.
 
 **Package boundaries.** The backend sits under `lib/store/ref/`, imported only within `lib/store/`; its Git capabilities
 under `lib/git/`. Shipped content changes for the Git floor, edited in the package's `QUICK-REFERENCE.template.md` and
@@ -3994,6 +4041,10 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     reftable transaction abort. Other acquired refs apply, shared tracking advances cause no false rewrite, and a pull
     after release succeeds (§ 6.3) (A15).
 
+24. **Ended conflicts remain actionable.** The exact retained reference in an ended-conflict notice can be inspected
+    and explicitly discarded with expected-version protection through the hidden store command. Retirement, unrelated
+    records, lineage, and children remain, with named-history retry and stale-basis refusal covered (§ 14.13) (A16).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4076,5 +4127,8 @@ open:
 
 - **A15** — 2026-10-17 — design: failed fetches verify reported updates against actual tracking tips.
   _Supersedes:_ § 6.3 failed-update flag premise. _Trigger:_ 11.1 must-stop. _Work:_ 11.1.R. _Revalidated:_ pending → 11.6.
+
+- **A16** — 2026-10-17 — spec-depth: inspect and explicitly discard lineage-ended conflicts without reviving the owner.
+  _Supersedes:_ none. _Trigger:_ door. _Work:_ 13.5.R. _Revalidated:_ pending → 13.5.R.
 
 ---
