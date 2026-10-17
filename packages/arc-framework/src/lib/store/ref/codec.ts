@@ -32,7 +32,7 @@ export function refOwner(ref: string, family: FamilyId, metadata: RefMetadata): 
 }
 
 /** Decode an admitted stored reference, preserving exact-path owner diagnostics. */
-export function decodeReference(context: RefBackendContext, owner: OwnerIdentity, family: FamilyId, path: string,
+export function decodeReference(context: Pick<RefBackendContext, "registry">, owner: OwnerIdentity, family: FamilyId, path: string,
   metadata: RefMetadata, object?: BatchObject | null): RecordReference | ListingDiagnostic | null {
   const decoded = decodeStoredReference(context.registry, owner, family, path, metadata, object);
   return decoded && "owner" in decoded && storedKeyProblem(context, decoded, path) ? null : decoded;

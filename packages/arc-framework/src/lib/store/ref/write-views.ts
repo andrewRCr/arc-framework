@@ -8,8 +8,11 @@ import type { ReadInput, StoreRecord, ListInput, ListingOutcome } from "../read.
 import type { LookupInput, LookupResult } from "../lookup.js";
 import type { StoreResult } from "../refusal.js";
 import { RecordReferenceSchema, sameReference, type RecordReference, type OwnerIdentity } from "../identity.js";
-import { decodeCapturedRef, resolveCapturedOwner } from "./read.js";
+import { decodeCapturedRef, resolveCapturedOwner, refListingRefusal } from "./read.js";
 import { matchesFamilyRef, refOwner, decodeRecord } from "./codec.js";
+import { claimIdentityRefusal } from "./lookup-claims.js";
+import { appendArchivedLookupTrees } from "./lookup-trees.js";
+import { isArchiveRef } from "./archive-read.js";
 import { lookupCapturedRefTrees, type RefLookupTree } from "./lookup.js";
 import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
 import { metadataFailure, type RefMetadata } from "./metadata.js";
@@ -33,24 +36,31 @@ export function capturedRefView(context: RefBackendContext, load: () => Promise<
   return {
     read: async (input) => readView(context, await load(), input),
     list: async (input) => listView(context, await load(), input),
-    lookup: async (input) => lookupView(context, await load(), input),
+    lookup: async (input) => lookupView(context, await load(), input, await context.identity()),
   };
 }
 
-function lookupView(context: RefBackendContext, state: RefViewState, input: LookupInput): StoreResult<LookupResult> {
+function lookupView(context: RefBackendContext, state: RefViewState, input: LookupInput, identity: string | null = null): StoreResult<LookupResult> {
+  const missingIdentity = claimIdentityRefusal(input, identity);
+  if (missingIdentity) return { status: "refused", refusal: missingIdentity };
   const trees = new Map<string, RefLookupTree>();
   for (const [ref, group] of state.refs) {
-    if (!matchesFamilyRef(ref, "work-item") && !matchesFamilyRef(ref, "cohort") && ref !== "refs/arc/project/registry") continue;
+    if (!matchesFamilyRef(ref, "work-item") && !matchesFamilyRef(ref, "cohort") && ref !== "refs/arc/project/registry"
+      && !(identity !== null && ref === `refs/arc/user/${identity}/claims`)) continue;
     const family = viewRefFamily(ref);
     const metadata = family ? viewRefMetadata(context, state, ref, family) : null;
     if (!group.entries || !metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
       namespace: ref, ...metadataFailure(ref) } };
-    trees.set(ref, { entries: group.entries, metadata });
+    trees.set(ref, { entries: group.entries, metadata, objects: state.objects });
   }
+  const quarters = new Map([...state.refs].flatMap(([ref, group]) => isArchiveRef(ref) && group.entries ? [[ref, group.entries] as const] : []));
+  appendArchivedLookupTrees(trees, quarters, state.objects);
   return lookupCapturedRefTrees(context, input, trees);
 }
 
 async function listView(context: RefBackendContext, state: RefViewState, input: ListInput): Promise<StoreResult<ListingOutcome>> {
+  const unsupported = refListingRefusal(input);
+  if (unsupported) return { status: "refused", refusal: unsupported };
   if (FAMILY_REGISTRY[input.family].scope === "identity" && await context.identity() === null) return { status: "ok", result: { status: "absent" } };
   const refs = [...state.refs].filter(([ref]) => matchesFamilyRef(ref, input.family));
   const archived = archivedViewRecords(context, state, input);

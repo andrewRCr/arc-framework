@@ -674,25 +674,14 @@ by every tier, and an item ref broken outside ARC.
   with the preceding ordered entry while retaining parent comparison for ordinary commits. Both retained-side cases
   preserve branch writes and provenance; the newest entry matches the readable merge result.
 
-### `[ ]` **7.3 `lookup`'s scan over ended items, claims, and commits — § 8**
+### `[x]` **7.3 `lookup`'s scan over ended items, claims, and commits — § 8**
 
 - _Goal:_ `lookup` answers every input kind in four Git processes with no index, ended items and claims among them, and
   an item ended outside the archive answers only through its lineage.
-
-    - Extends 5.7's scan with the quarter refs and § 8's remaining tiers and inputs
-    - Build `test-first` (one behavior at a time):
-        - a slug resolves from the live item holding it, then a live former slug, then the one ended item in a quarter
-          holding it, then one holding it as a former slug
-        - any tier holding several items refuses `ambiguous-match` naming them
-        - a branch resolves through branch links, and a commit through task captures and the landing commit: a
-          captured SHA first, and the caller's copy key only where no SHA matches in that repository, a capture with no
-          copy key matching by SHA alone
-        - a work unit's checkout claim resolves by slug and an Errand's by its claim ID, and a `partial-errand` claim
-          refuses `not-found` as one that keeps no record, as the suite's `missing-lookup-names-request` expects
-        - a completed item resolves from its quarter folder, the one read placement reads where it holds two
-        - a grooming or housekeeping claim resolves from the person's own claims ref
-        - an abandoned item's slug refuses `not-found`, and a decomposed origin resolves through its lineage
-        - `list` with `heldHere` refuses `unsupported` `held-here`, recoverable
+- _Outcome:_ The four-process scan includes latest completed folders and own claims, with current/former name tiers,
+  global exact-SHA precedence, copy-key fallback, and branch and claim matching. Captured write-check views share the
+  selectors and payloads. Retired origins remain lineage-only, partial Errands name their absent record, and held-here
+  listings refuse with a supported retry.
 
 ### `[ ]` **7.4 Resolution by every tier — § 5.1, § 8**
 

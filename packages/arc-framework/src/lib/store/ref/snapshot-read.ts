@@ -8,6 +8,7 @@ import { readRefManifest } from "./manifest-read.js";
 import { captureRefViewState } from "./view-state.js";
 import { capturedRefView } from "./write-views.js";
 import { matchesFamilyRef, rootFamily } from "./codec.js";
+import { refListingRefusal } from "./read.js";
 import { isArchiveRef } from "./archive-read.js";
 
 /** Resolve a saved record without consulting today's state ref tips. */
@@ -20,6 +21,8 @@ export async function readSnapshotRecord(context: RefBackendContext, input: Read
 /** Retain the requested manifest as the listing's token without writing a new one. */
 export async function listSnapshotRecords(context: RefBackendContext, input: ListInput): Promise<StoreResult<ListingOutcome>> {
   if (!input.asOf) throw new Error("A snapshot listing requires a state version");
+  const unsupported = refListingRefusal(input);
+  if (unsupported) return { status: "refused", refusal: unsupported };
   const loaded = await snapshotView(context, input.asOf, input);
   if (loaded.status === "refused") return loaded;
   const listing = await loaded.result.list(input);

@@ -4,7 +4,7 @@ import type { ReadPlacement } from "../placement.js";
 import { archivedFolders, isArchiveRef, latestArchivedFolders } from "./archive-read.js";
 import type { ListInput, ListingOutcome, ListingDiagnostic, ReadInput, StoreRecord } from "../read.js";
 import { RecordReferenceSchema, OwnerIdentitySchema, sameOwner, type RecordReference, type OwnerIdentity } from "../identity.js";
-import type { StoreResult } from "../refusal.js";
+import type { StoreResult, StoreRefusal } from "../refusal.js";
 import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
 import type { FamilyId } from "../catalog.js";
 import { FAMILY_REGISTRY } from "../registry.js";
@@ -98,6 +98,8 @@ export function resolveCapturedOwner(context: RefBackendContext, reference: Reco
 
 /** List a registered family from one tip capture, tree check, recursive diff, and blob batch. */
 export async function listRefRecords(context: RefBackendContext, input: ListInput): Promise<StoreResult<ListingOutcome>> {
+  const unsupported = refListingRefusal(input);
+  if (unsupported) return { status: "refused", refusal: unsupported };
   const identityMissing = FAMILY_REGISTRY[input.family].scope === "identity" && await context.identity() === null;
   const captured = await readRefTips(context);
   const asOf = await saveCapturedManifest(context, captured);
@@ -254,4 +256,12 @@ function decodeListedRef(context: RefBackendContext, input: ListInput, ref: stri
     return { records: group.records, diagnostics: group.diagnostics.map((diagnostic) => ({ ...diagnostic, key: folder.root + diagnostic.key })) };
   });
   return { records: groups.flatMap(({ records }) => records), diagnostics: [...parsed.diagnostics, ...groups.flatMap(({ diagnostics }) => diagnostics)] };
+}
+
+/** Ref-backed state cannot infer checkout ownership from stored record placement. */
+export function refListingRefusal(input: ListInput): StoreRefusal | null {
+  return input.filter?.heldHere ? { code: "unsupported", class: "recoverable", case: "held-here",
+    condition: "Stored state does not identify which item this checkout holds.",
+    remedy: { text: "Use lookup with this checkout's claim, or list without heldHere." },
+  } : null;
 }
