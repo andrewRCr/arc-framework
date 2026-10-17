@@ -6,6 +6,7 @@ import { createLifecycleHarness } from "../../helpers/store/lifecycle-harness.js
 import { DerivedCheckoutRowSchema } from "../../../src/lib/locus/derived-schema.js";
 import { OwnerIdentitySchema, recordReferences } from "../../../src/lib/store/identity.js";
 import { ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
+import { serializeTransientIdentityRecord, TransientIdentityRecordSchema } from "../../../src/lib/errand/identity-record.js";
 function row(branch: string | null, locked: string | null = null) {
   return DerivedCheckoutRowSchema.parse({ kind: "unmanaged-checkout", subject: null, checkout: { path: "/missing", branch, head: "a".repeat(40), detached: branch === null, primary: false, folderPresent: false, locked },
     markerGeneration: null, parentCheckoutPath: null, origin: null, identity: null, context: null, lifecycleLocation: null, diagnostics: [] });
@@ -26,15 +27,16 @@ it("offers teardown only for an ended work unit's created branch, independent of
 });
 it.each([false, true])("keeps completed Errand registration cleanup as guarded path text (locked=%s)", async locked => {
   const h = createLifecycleHarness();
-  const branch = locked ? "topic/adopted" : "topic/arbitrary";
+  const branch = "chore/ended-errand";
   const reference = recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: "ended-errand" }));
-  await h.seed(reference, JSON.stringify({ version: 3, slug: "ended-errand", claimId: "a".repeat(32),
+  await h.seed(reference, serializeTransientIdentityRecord(TransientIdentityRecordSchema.parse({ version: 3, slug: "ended-errand", claimId: "a".repeat(32),
     createdAt: "2026-10-16T00:00:00Z", updatedAt: "2026-10-16T01:00:00Z", kind: "errand", purpose: "errand",
-    owner: "test-user", intent: "Completed probe", branch, state: "closed", savedHead: null, changeRequest: null,
-    origin: "description", originEntry: null }), { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
+    owner: "test-user", intent: "Completed probe", branch, state: "open", savedHead: null, changeRequest: null,
+    origin: "description", originEntry: null })), { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
     { branches: [{ repository: "project", ref: branch, linkedAs: "created", excluded: [] }] });
+  const errandExec = async () => ({ stdout: worktreePorcelainZ(`worktree /missing\nHEAD ${"a".repeat(40)}\nbranch refs/heads/${branch}${locked ? "\nlocked owner lock" : ""}`), stderr: "" });
   const reports = await readMissingWorktreeFolders({ store: h.store, projectId: async () => "project",
-    rows: [row(branch, locked ? "owner lock" : null)], shipped: new Set(), exec: locked ? lockedExec : exec,
+    rows: [row(branch, locked ? "owner lock" : null)], shipped: new Set(), exec: errandExec,
     folderExists: async () => false });
   expect(reports[0]?.actions).toEqual([{ text: locked
     ? "After confirming the folder is still missing, its lock's owner may run git worktree unlock '/missing', then git worktree remove '/missing'."
