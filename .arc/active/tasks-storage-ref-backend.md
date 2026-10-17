@@ -849,23 +849,15 @@ converge with no lost write.
           Nested merges keep restricted changes in the same order and label machines distinctly. A first pull carries
           the meta's saved-state anchor without implicitly fetching ended-item history.
 
-### `[ ]` **9.3 Classifying a push — § 6.9**
+### `[x]` **9.3 Classifying a push — § 6.9**
 
 - _Goal:_ Every push rejection is a lost race the loop retries, a terminal refusal it reports with the server's own
   words, or one the next fetch's state settles, read from the push helper's typed outcome and from Git's text only in
   the named cases.
 
-    - A pure classifier in `lib/git/` beside the push parser (2.4.a), over the helper's typed outcome; the loop settles
-      the by-state arm with its next fetch (9.4.c)
-    - Build `test-first` (one behavior at a time):
-        - Unit tier, over parsed outcomes
-        - a client-side `non-fast-forward`, `fetch first`, or `stale info` is a lost race
-        - `cannot lock ref`, `incorrect old value provided`, `reference already exists`, `reference does not exist`, and
-          `TF401028` under `remote rejected` are lost races
-        - any other server text on a state ref reads by state
-        - atomic collateral lines read as the refs whose lines carry a cause
-        - a terminal `refused` message carries the server's `remote:` lines verbatim, as the suite's
-          `remote-refusing-with-success-after-repair` asserts
+- _Outcome:_ `classifyPushOutcome` retains causal refs, distinguishes known races from refusals awaiting a state read,
+  and makes atomic collateral inherit those causes. Whole-push failures retain their typed reason, and diagnostic
+  streams remain verbatim for the loop's final refusal.
 
 ### `[ ]` **9.4 The push loop — § 6.5, § 6.7**
 
