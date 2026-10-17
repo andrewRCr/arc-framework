@@ -1112,24 +1112,15 @@ between layouts as its designation calls for.
           carried code publishes alone in both layouts; the earlier sync scenario and both full shared suites also run
           with designation active.
 
-### `[ ]` **12.3 The project ID and the `push` check — § 9.8**
+### `[x]` **12.3 The project ID and the `push` check — § 9.8**
 
 - _Goal:_ No designation publishes one project's state onto another's, and a clone that never minted a project ID adopts
   the one its remote holds.
 
-    - The check fetches the remote's registry and forwarding record into `refs/arc/tmp/designate/<remote>/`, cleared before
-      and dropped after, so a `!` line fails the read, with § 6.2's flags under the pull's deadline or 120 s of its own;
-      the arms a setting or an answer runs land with `arc store remote` in 13.4, and the forwarding-record arm with the
-      record in 16.1
-    - Build `test-first` (one behavior at a time):
-        - a clone holding a project ID whose pull would set `push` without asking on a remote whose identity record names
-          another project reports that remote's `failed` outcome terminal `refused`, naming both projects, with the remedy
-          `arc store remote <remote> off`, setting and pushing nothing
-        - a remote holding this project's ID, or none, is designated by the rule
-        - a designation fetch against a remote that never answers ends within its deadline, setting nothing
-        - a check whose fetch meets a `!` line fails the read, setting nothing
-        - a teammate's registry holding no identity record merges with the published one by unrelated histories, adopting
-          its ID
+- _Outcome:_ Automatic designation compares project IDs in a locked temporary namespace before setting a role. A
+  foreign ID refuses with both IDs and an answering command; failed fetches and incomplete repairs decide nothing.
+  Candidate refs are cleared before acquisition and removed after the decision, including cancellation. Partial clones
+  repair full object closure, and an unrelated teammate registry adopts the published identity without losing records.
 
 ### `[ ]` **12.4 Read sources — § 9.6, § 9.8**
 

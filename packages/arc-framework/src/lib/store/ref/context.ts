@@ -17,7 +17,7 @@ export interface RefBackendContext extends RefStorePorts {
   /** Prospective blobs stay readable in memory until their commit owns the layout lock. */
   blobStage?: { format: ObjectFormat; blobs: Map<string, Uint8Array> };
   /** A push and all its nested pulls share one cancellation bound. */
-  syncDeadline?: { signal: AbortSignal; end: number };
+  syncDeadline?: { signal: AbortSignal; end: number; cleanup: RefBackendContext };
 }
 
 /** Bind failure-time checks and pure defaults without invoking any dependency. */

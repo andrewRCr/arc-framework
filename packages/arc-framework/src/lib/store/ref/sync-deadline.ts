@@ -9,7 +9,7 @@ export async function withRefSyncDeadline<T>(context: RefBackendContext, operati
   const timer = new AbortController(), deadline = new AbortController();
   const end = context.clock().getTime() + 120_000;
   const bound = context.sleep.bound(120_000, timer.signal).then(() => { if (!timer.signal.aborted) deadline.abort(); });
-  try { return await operation(bindDeadline(context, { signal: deadline.signal, end })); }
+  try { return await operation(bindDeadline(context, { signal: deadline.signal, end, cleanup: context })); }
   finally { timer.abort(); await bound; }
 }
 

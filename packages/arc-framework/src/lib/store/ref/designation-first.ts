@@ -5,6 +5,7 @@ import { readRefDesignation, refDesignationStop, type RefDesignation, type RefRe
 import { readRefRepository, writeRefRepository } from "./repository.js";
 import { readRefTips } from "./batch-read.js";
 import { isManifestRef } from "./manifest.js";
+import { checkRefDesignationProject, type RefDesignationProjectCheck } from "./designation-project.js";
 import { readRefRegistryPresence } from "./designation-presence.js";
 import type { PullOutcome, SyncState } from "../sync.js";
 
@@ -78,6 +79,8 @@ async function decideDesignation(context: RefBackendContext, result: RefDesignat
     const physical = await readRefRepository(context);
     if (present.has(code.name) && present.size === 1 && !physical.repository?.gitDir
       && designation.remotes.every(({ role }) => role === undefined)) {
+      const check = await checkRefDesignationProject(context, code, designation);
+      if (check.status !== "ok") return { ...result, pulls: [automaticProjectFailure(code.name, check)] };
       const source = context.repository?.source ?? context;
       await source.exec("git", ["config", `remote.${code.name}.arc-state`, "push"]);
       return { ...result, designation: await readRefDesignation(context) };
@@ -99,4 +102,13 @@ function designationQuestion(remote: RefRemoteDesignation, designation: RefDesig
     text: `Choose ${choices.join(", ")} for ${remote.name} with arc store remote ${remote.name} <role>.`,
     argv: ["arc", "store", "remote", remote.name, own ? "push" : "read"],
   } };
+}
+
+function automaticProjectFailure(remote: string, check: Exclude<RefDesignationProjectCheck, { status: "ok" }>): PullOutcome {
+  const condition = check.status === "identity-mismatch"
+    ? `Remote ${remote} belongs to project ${check.remote}; this store belongs to ${check.local}.` : "";
+  return { remote, role: "candidate", families: ["project-registry"], notices: [], status: "failed",
+    failure: check.status === "failed" ? check.failure : { code: "refused", class: "terminal", message: condition, condition,
+      remedy: { text: `Set ${remote} off and choose the repository for this project before retrying.`,
+        argv: ["arc", "store", "remote", remote, "off"] } } };
 }
