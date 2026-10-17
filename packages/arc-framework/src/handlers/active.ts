@@ -11,6 +11,7 @@
 
 import { openDefaultStore } from "./lifecycle-shared.js";
 import type { StoreInFlightEntry } from "../lib/git/in-flight-store.js";
+import type { WorktreeRosterEntry } from "../lib/git/worktree-roster.js";
 import { createLocusPorts } from "../lib/locus/lifecycle-ports.js";
 import { readdir, readFile } from "node:fs/promises";
 
@@ -75,6 +76,11 @@ export function formatActiveInFlightLine(entry: InFlightEntry | StoreInFlightEnt
     : `${entry.branch ?? entry.slug}  (errand)  ${where}`;
 }
 
+/** Render one active work-unit registration for the human roster. */
+export function formatActiveRosterLine(entry: WorktreeRosterEntry): string {
+  return `${entry.branch ?? entry.workUnit}  (${entry.state ?? "unknown"})  ${entry.worktreePath}`;
+}
+
 export async function handleActiveStatus(
   opts: ActiveStatusCliOptions,
   interaction?: InteractionContext,
@@ -137,9 +143,7 @@ export async function handleActiveRoster(
   if (result.entries.length === 0) {
     p.note("No other work units in flight.", "In-flight");
   } else {
-    const lines = result.entries.map(
-      (e) => `${e.branch}  (${e.state ?? "unknown"})  ${e.worktreePath}`,
-    );
+    const lines = result.entries.map(formatActiveRosterLine);
     p.note(lines.join("\n"), "In-flight");
   }
   p.outro("Done.");
