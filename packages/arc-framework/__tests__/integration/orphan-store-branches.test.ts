@@ -65,6 +65,25 @@ it.each(["snapshot", "run"] as const)("%s keeps adopted cleanup with its owner, 
     { branch: "adopted-unique", merged: false, shippedWorkUnit: null, actions: [{ text: expect.stringMatching(/its owner.*git branch -D adopted-unique/u) }] },
   ]);
 });
+it.each([
+  { path: "snapshot", linkedAs: "created" }, { path: "snapshot", linkedAs: "adopted" },
+  { path: "run", linkedAs: "created" }, { path: "run", linkedAs: "adopted" },
+] as const)("$path declines duplicate canonical authority before repairing to a $linkedAs link", async ({ path, linkedAs }) => {
+  const h = await fixture(), branch = "topic/ambiguous";
+  await h.branch(branch);
+  const link = { repository, ref: branch, linkedAs, excluded: [] };
+  const primary = await h.seedMeta("shipped-widget", { state: "Shipped" }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q1") }, {
+    branches: [link, { ...link, ref: `refs/heads/${branch}`, linkedAs: linkedAs === "created" ? "adopted" : "created" }],
+  });
+  expect(await h.sweep(path, [branch])).toMatchObject({ orphans: [], warnings: [expect.stringMatching(/ambiguous.*repair.*retry/iu)] });
+  lifecycleSuccess(await h.store.write({ action: "put", reference: primary.reference, expected: primary.version, content: primary.content,
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q1") }, links: { branches: [link] }, provenance: { verb: "repair-links", lifecycleAction: "repair-links" } }));
+  expect((await h.sweep(path, [branch])).orphans).toEqual([{ branch, merged: true, shippedWorkUnit: linkedAs === "created" ? "shipped-widget" : null,
+    actions: linkedAs === "created" ? [{ text: "arc teardown shipped-widget", argv: ["arc", "teardown", "shipped-widget"] }]
+      : [{ text: `git branch -D ${branch}`, argv: ["git", "branch", "-D", branch] }],
+  }]);
+  expect((await h.exec("git", ["rev-parse", branch])).stdout.trim()).toBe(h.head);
+});
 it.each(["snapshot", "run"] as const)("%s excludes active Errands and live grooming claims while ended Errands offer only Git deletion", async path => {
   const h = await fixture();
   const branches = ["chore/open-errand", "chore/ended-errand", "chore/groom-widget"];

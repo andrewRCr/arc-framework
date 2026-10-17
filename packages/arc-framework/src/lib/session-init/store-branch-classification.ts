@@ -3,6 +3,7 @@ import type { Store } from "../store/contract.js";
 import type { StoreRecord } from "../store/read.js";
 import type { BranchLink } from "../store/links.js";
 import { createProjectIdentityReader, resolveProjectIdentity } from "../store/project-identity.js";
+import { workBranchName } from "../store/lifecycle-branch.js";
 
 /** Selected storage and optional invocation-bound project identity. */
 export interface StoreBranchOptions { store?: Store; projectId?: () => Promise<string> }
@@ -18,7 +19,7 @@ export async function resolveStoreBranch(store: Store, branch: string, projectId
   const read = await store.read({ reference: lookup.result.reference });
   if (read.status === "refused") return { status: "unavailable", reason: `${read.refusal.condition} ${read.refusal.remedy.text}` };
   const record = read.result;
-  const links = record.links?.branches?.filter(link => link.repository === project.id && link.ref === branch) ?? [];
+  const links = record.links?.branches?.filter(link => link.repository === project.id && workBranchName(link.ref) === workBranchName(branch)) ?? [];
   if (record.conflicts.length > 0 || links.length !== 1 || links[0] === undefined) return { status: "unavailable", reason: `Branch ${branch} has conflicting or ambiguous linked state; repair its record and branch links, then retry.` };
   return { status: "ready", record, link: links[0] };
 }
