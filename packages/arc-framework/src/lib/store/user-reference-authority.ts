@@ -1,6 +1,7 @@
 /** User-reference authority from complete primary alias projections and terminal lineage. */
 import { SlugSchema } from "../kernel/index.js";
 import { LineageRecordSchema } from "./kinds/lineage/index.js";
+import { sameReference } from "./identity.js";
 import type { Store } from "./contract.js";
 import type { ListingOutcome, StoreRecord } from "./read.js";
 import type { StoreResult, StoreRefusal } from "./refusal.js";
@@ -37,9 +38,6 @@ export async function acquireStoreUserReferenceAuthority(store: Store): Promise<
     transitions.push({ subject: decoded.data.origin.name, outcome: decoded.data.kind === "abandon" ? { kind: "removed" }
       : { kind: "decompose", successors: decoded.data.successors.map(({ name }) => name) } });
   }
-  const fresh = await store.version();
-  if (fresh.status === "refused") return fresh;
-  if (fresh.result !== basis.result) return { status: "refused", refusal: unavailable("work-item", "Reference authority changed while it was read; retry reconciliation.") };
   return { status: "ok", result: { transitions, records: [...workItems.result, ...terminals.result] } };
 }
 function completeRecords(result: StoreResult<ListingOutcome>, family: string): StoreResult<readonly StoreRecord[]> {
@@ -61,10 +59,18 @@ async function resolveAliases(store: Store, records: readonly StoreRecord[]): Pr
   }
   const transitions: ReachableReferenceTransition[] = [];
   for (const name of [...names].sort()) {
-    const found = await store.lookup({ kind: "slug", slug: SlugSchema.parse(name) });
+    const slug = SlugSchema.parse(name);
+    const found = await store.lookup({ kind: "slug", slug });
     if (found.status === "refused") return found;
     if (found.result.reference.kind !== "work-item/meta") return { status: "refused", refusal: unavailable("work-item", `Former work-unit name ${name} resolves to another record kind; repair its alias authority.`) };
     const target = found.result.reference.owner.name;
+    const sources = records.filter(record => record.aliases?.includes(slug));
+    const source = sources[0];
+    if (sources.length !== 1 || source === undefined || !sameReference(source.reference, found.result.reference) || source.reference.owner.name !== target) {
+      return { status: "refused", refusal: { code: "version-conflict", class: "recoverable", records: sources.map(record => record.reference),
+        condition: `The lookup for ${name} no longer matches its captured reference authority.`,
+        remedy: { text: "Read reference authority again and retry reconciliation." } } };
+    }
     if (target !== name) transitions.push({ subject: name, outcome: { kind: "rename", targetSlug: target } });
   }
   return { status: "ok", result: transitions };
