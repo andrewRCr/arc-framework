@@ -1257,17 +1257,14 @@ without duplicating one.
   diagnostics retain their raw records. Trials read the repository identity passively, and occupied stores refuse
   before the build with typed project or version conflicts.
 
-### `[ ]` **14.2 Live work units and open cohorts — § 10.9**
+### `[x]` **14.2 Live work units and open cohorts — § 10.9**
 
 - _Goal:_ Each live work unit and open cohort lands under one UID reused across its kinds, every record at its current
   content on its owner's ref.
 
-    - A live work unit's branch link and task captures land in 15.4, whose exclusions need the captures it derives
-    - Build `test-first` (one behavior at a time):
-        - a live work unit's meta, task list, draft, spec, notes, and companions land on one work ref under one UID
-        - an open cohort's document lands on its cohort ref
-        - the project inbox lands on its project ref, each entry stamped with an `_Id:_`
-        - JSON machine records land in canonical form
+- _Outcome:_ The prepared source includes every live work-unit document, an open cohort, the project inbox, and a
+  machine record. Imports retain the work unit's one UID across its kinds, place the cohort on its own ref, preserve
+  existing inbox IDs while stamping missing ones, and store machine bytes in canonical JSON in both layouts.
 
 ### `[ ]` **14.3 Landing, rerunning, and publishing the import — § 10.4, § 10.5, § 10.11**
 

@@ -15,6 +15,17 @@ import { withInteractionContext } from "../../../src/lib/command-input/interacti
 import { handleStoreMigrate, type StoreMigrateOptions } from "../../../src/commands/store-migrate.js";
 import type { RefStorePorts } from "../../../src/lib/store/ports.js";
 import type { StoreMigrateResult } from "../../../src/lib/store/commands.js";
+import { RecordReferenceSchema } from "../../../src/lib/store/identity.js";
+import { inRepoContent } from "./in-repo-fixture.js";
+
+export const IMPORT_DOCUMENTS = [
+  ["work-item/task-list", "tasks", "# Task List: Alpha\n\n## **Phase 1:** Example\n\n### `[ ]` **1.1 Example**\n\n- _Goal:_ Finish the example.\n"],
+  ["work-item/draft", "draft", "# Draft: Alpha\n\n**Purpose:** Explore the example.\n"],
+  ["work-item/spec", "spec", "# Spec: Alpha\n\n**Purpose:** Define the example.\n"],
+  ["work-item/notes", "notes", "# Notes: Alpha\n\nSource observations.\n"],
+] as const;
+export const IMPORT_COHORT = "# Cohort: `group`\n\n**Purpose:** Coordinate the example work.\n";
+export const IMPORT_INBOX = "# Project Inbox\n\n## Inbox\n\n### **First**\n\n- _Description:_ First source entry.\n\n### **Second**\n\n- _Id:_ `11111111`\n- _Description:_ Second source entry.\n";
 
 const shape = { kind: "plain", key: "tracked-import" } as const;
 let template: Promise<PreparedRepositoryTemplate> | undefined;
@@ -29,7 +40,19 @@ async function build(): Promise<string> {
   await writeFile(join(root, meta), makeMetaFixture("alpha", { owner: "andrew", branch: "feat/alpha" }));
   const cohort = resolveArcPath({ kind: "cohort-document", cohort: [SlugSchema.parse("group")], placement: { kind: "planned" } });
   await mkdir(dirname(join(root, cohort)), { recursive: true });
-  await writeFile(join(root, cohort), "# Cohort: `group`\n\n**Purpose:** Coordinate the example work.\n");
+  await writeFile(join(root, cohort), IMPORT_COHORT);
+  for (const [, artifact, content] of IMPORT_DOCUMENTS) {
+    const path = resolveArcPath({ kind: "work-unit-artifact", artifact, slug: SlugSchema.parse("alpha"),
+      placement: { kind: "active", scope: { kind: "project" } } });
+    await writeFile(join(root, path), content);
+  }
+  await writeFile(join(root, ".arc/active/extra-alpha.md"), "# Companion\n\nAdditional source.\n");
+  await writeFile(join(root, resolveArcPath({ kind: "inbox", scope: { kind: "project" } })), IMPORT_INBOX);
+  const candidate = resolveArcPath({ kind: "candidate-record", slug: SlugSchema.parse("alpha") });
+  await mkdir(dirname(join(root, candidate)), { recursive: true });
+  await writeFile(join(root, candidate), JSON.stringify(JSON.parse(inRepoContent(RecordReferenceSchema.parse({
+    kind: "review/candidate", owner: { type: "work-item", name: "alpha" },
+  }))), null, 2));
   await git("git", ["add", ".arc"]);
   await git("git", ["commit", "-m", "Seed tracked work"]);
   await git("git", ["branch", "feat/alpha"]);
