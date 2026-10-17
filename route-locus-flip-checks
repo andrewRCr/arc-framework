@@ -3,14 +3,20 @@
   "slug": "route-locus-flip-checks",
   "claimId": "8a3a74a7bfff58237e8f1d6de885a071",
   "createdAt": "2026-10-17T00:42:28.707Z",
-  "updatedAt": "2026-10-17T00:42:28.707Z",
+  "updatedAt": "2026-10-17T00:50:21.162Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Route the full seam-locus destructive CLI verification matrix into storage-cutover as a required flip rehearsal and pre-release check.",
   "branch": "chore/route-locus-flip-checks",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/route-locus-flip-checks",
+    "headSha": "61e3b347cf263f01aab4fdb4b8fce7c8759bac91"
+  }
 }
