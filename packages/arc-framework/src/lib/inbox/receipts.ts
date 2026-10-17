@@ -14,7 +14,10 @@ export type RoutingCoordinate = RoutingReceipt["destination"];
  * @returns Receipt coordinate independent of projection paths.
  */
 export function listCoordinate(list: ResolvedEntryList, section?: string): RoutingCoordinate {
-  return { list: list.inbox ?? list.primary?.reference.owner.name ?? list.selector,
+  const owner = list.primary?.reference.owner;
+  const workItem = owner?.type === "work-item" && (owner.name === "personal" || owner.name === "project")
+    ? owner.uid ?? list.selector : owner?.name ?? list.selector;
+  return { list: list.inbox ?? workItem,
     ...(section === undefined ? {} : { section }), ...(list.inbox === "personal" ? { identity: list.reference.owner.name } : {}) };
 }
 /** List equality ignores section: IDs are unique throughout one list.
