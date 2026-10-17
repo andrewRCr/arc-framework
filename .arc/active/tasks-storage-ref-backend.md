@@ -761,19 +761,14 @@ those 4.4.d holds until Phase 11, and every § 14.3 case that needs no pull pass
   changes release all locks and restart resolution; prospective blobs remain in memory until publication, preserving
   writes across a separate-store replacement at the same path. Migration modes retain public-caller verification.
 
-### `[ ]` **8.4 `maintain()` — § 12**
+### `[x]` **8.4 `maintain()` — § 12**
 
 - _Goal:_ `maintain()` keeps a store packed that only plumbing writes, and reports each never-retiring ref's growth for
   the tripwire.
 
-    - `git maintenance run --auto` against the store, with `--git-dir` in the separate layout; each never-retiring ref's
-      `git rev-list --count` and `git rev-list --disk-usage --objects`, over the tips read first, since both fail on an
-      absent ref
-    - The suite's `maintain()` assertion leaves 4.4.d's interim exclusions here
-    - Build `test-first` (one behavior at a time):
-        - it returns commit counts and disk usage for the person's `personal` and `claims` refs, `project/inbox`, and
-          `project/registry`, in both layouts
-        - a ref this clone lacks is left out
+- _Outcome:_ Both layouts run Git auto maintenance and measure captured permanent tips, omitting absent refs and
+  other identities. A real Git configuration failure remains retryable after repair; the shared maintenance assertion
+  now runs while remote-only assertions retain their existing later retirement.
 
 ### `[ ]` **8.5 Many processes on one clone — § 14.5**
 

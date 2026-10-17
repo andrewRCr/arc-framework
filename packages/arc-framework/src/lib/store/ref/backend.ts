@@ -11,6 +11,7 @@ import { historyRefRecord } from "./history.js";
 import { changesRefRecords } from "./changes.js";
 import { lookupRefRecord } from "./lookup.js";
 import { readRefDesignation, refDesignationStop } from "./designation.js";
+import { maintainRefStore } from "./maintain.js";
 
 /** Construct the backend with no commands, file reads, or resolved policy ports. */
 export function createRefBackend(ports: RefStorePorts): Store {
@@ -27,7 +28,7 @@ export function createRefBackend(ports: RefStorePorts): Store {
       if (state) return { status: "ok", result: { states: [state], pulls: [] } };
       return pending("pull", context)();
     },
-    push: pending("push", context), maintain: pending("maintain", context),
+    push: pending("push", context), maintain: () => maintainRefStore(context),
   };
 }
 
