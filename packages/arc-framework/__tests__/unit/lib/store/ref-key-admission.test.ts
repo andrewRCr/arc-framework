@@ -1,25 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createRefStore } from "../../../../src/lib/store/create.js";
-import type { RefStorePorts } from "../../../../src/lib/store/ports.js";
+import { createPreflightRefStore } from "../../../helpers/store/ref-preflight.js";
 import { RecordReferenceSchema } from "../../../../src/lib/store/identity.js";
-import { KIND_REGISTRY } from "../../../../src/lib/store/registry.js";
 
-function pureStore() {
-  const unexpected = async (): Promise<never> => { throw new Error("Key admission consulted an I/O port"); };
-  const ports: RefStorePorts = {
-    exec: unexpected, execInput: unexpected, rawExec: unexpected,
-    fs: { readFile: unexpected, readdir: unexpected, lstat: unexpected, mkdir: unexpected,
-      writeFile: unexpected, exclusiveCreate: unexpected, unlink: unexpected },
-    checkoutRoot: "/no-repository", identity: unexpected, actor: unexpected, lock: unexpected,
-    clock: () => { throw new Error("Key admission consulted the clock"); },
-    sleep: { wait: unexpected, bound: unexpected }, random: () => { throw new Error("Key admission drew randomness"); },
-    registry: KIND_REGISTRY,
-  };
-  return createRefStore(ports);
-}
 const provenance = { verb: "merge", lifecycleAction: "test" };
 const put = (reference: ReturnType<typeof RecordReferenceSchema.parse>) => ({ action: "put" as const, reference, content: "{}", expected: null });
-const check = (reference: ReturnType<typeof RecordReferenceSchema.parse>) => pureStore().write({ ...put(reference), provenance });
+const check = (reference: ReturnType<typeof RecordReferenceSchema.parse>) => createPreflightRefStore().write({ ...put(reference), provenance });
 
 const uid = "00000000-0000-4000-8000-000000000001";
 const companion = (key: string, resolved = true) => RecordReferenceSchema.parse({ owner: { type: "work-item", name: "alpha", ...(resolved ? { uid } : {}) }, kind: "work-item/companion", key });
@@ -57,7 +42,7 @@ describe("ref key admission before I/O", () => {
     const session = RecordReferenceSchema.parse({ owner: { type: "person", name: "andrew" }, kind: "personal/session-context", key: "work" });
     for (const writes of [[put(document("scratch/item")), put(document("scratch/item/child.md"))], [put(document("work")), put(session)]]) {
       for (const batch of [writes, [...writes].reverse()]) {
-        expect(await pureStore().batch({ writes: batch, provenance })).toMatchObject({ status: "refused", refusal: {
+        expect(await createPreflightRefStore().batch({ writes: batch, provenance })).toMatchObject({ status: "refused", refusal: {
           code: "unsupported", case: "unhomed-kind", condition: expect.stringContaining("personal/") } });
       }
     }

@@ -13,6 +13,7 @@ import { readRefTips } from "./batch-read.js";
 import type { ResolvedBatch } from "./write-resolution.js";
 import { checkSerializationRules } from "../serialization.js";
 import { checkRefKey, checkRefBatchPaths } from "./path-admission.js";
+import { prepareRefPut } from "./prepare-content.js";
 
 /** Describe invalid mutation content without changing any state. */
 export function malformedMutation(reference: RecordReference, condition: string, rule = "store.mutation"): StoreRefusal {
@@ -34,32 +35,50 @@ export async function writeRefRecord(context: RefBackendContext, input: WriteInp
 
 /** Validate one all-or-nothing batch before resolving any owner. */
 export async function batchRefRecords(context: RefBackendContext, input: BatchInput): Promise<StoreResult<BatchResult>> {
-  const parsed = BatchInputSchema.safeParse(input);
-  if (!parsed.success) {
-    const mutation = input.writes[0];
-    if (!mutation) throw parsed.error;
-    return { status: "refused", refusal: mutationValidationFailure(mutation, parsed.error.message) };
-  }
-  for (const mutation of parsed.data.writes) {
+  const validated = parseBatchInput(input);
+  if (validated.status === "refused") return validated;
+  const parsed = validated.result;
+  for (const mutation of parsed.writes) {
     const invalidKey = checkRefKey(mutation.reference, context.registry);
     if (invalidKey) return { status: "refused", refusal: invalidKey };
   }
-  const puts = parsed.data.writes.filter((mutation) => mutation.action === "put");
+  const puts = parsed.writes.filter((mutation) => mutation.action === "put");
   const collision = checkRefBatchPaths(puts.map((mutation) => mutation.reference), context.registry);
   if (collision) return { status: "refused", refusal: collision };
-  for (const mutation of parsed.data.writes) {
+  for (const mutation of parsed.writes) {
     if (mutation.action !== "put") continue;
     const refusal = checkSerializationRules(mutation.reference, mutation.content);
     if (refusal) return { status: "refused", refusal };
   }
+  const prepared = prepareBatchPuts(context, parsed.writes);
+  if (prepared.status === "refused") return prepared;
   try {
-    return await executeRefBatch(context, parsed.data, randomUUID());
+    return await executeRefBatch(context, { ...parsed, writes: prepared.result }, randomUUID());
   } catch (error) {
     if (!(error instanceof AdvisoryLockTimeoutError) || error.phase !== "acquire") throw error;
     return { status: "refused", refusal: { code: "lock-held", class: "recoverable", lock: error.lockPath,
       condition: `The lock remained held for ${error.waitedMs}ms.`,
       remedy: { text: "Wait for the holder to finish or release its lock, then retry the write." } } };
   }
+}
+
+function parseBatchInput(input: BatchInput): StoreResult<BatchInput> {
+  const parsed = BatchInputSchema.safeParse(input);
+  if (parsed.success) return { status: "ok", result: parsed.data };
+  const mutation = input.writes[0];
+  if (!mutation) throw parsed.error;
+  return { status: "refused", refusal: mutationValidationFailure(mutation, parsed.error.message) };
+}
+
+function prepareBatchPuts(context: Pick<RefBackendContext, "registry">, writes: readonly Mutation[]): StoreResult<Mutation[]> {
+  const result: Mutation[] = [];
+  for (const mutation of writes) {
+    if (mutation.action === "remove") { result.push(mutation); continue; }
+    const prepared = prepareRefPut(mutation.reference, mutation.expected, mutation.content, context.registry);
+    if (prepared.status === "refused") return prepared;
+    result.push({ ...mutation, content: prepared.result });
+  }
+  return { status: "ok", result };
 }
 
 function mutationValidationFailure(mutation: Mutation, condition: string): StoreRefusal {

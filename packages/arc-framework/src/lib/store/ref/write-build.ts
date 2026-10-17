@@ -110,10 +110,8 @@ async function applyMutation(context: RefBackendContext, group: RefGroup, write:
   const formatVersion = context.registry[mutation.reference.kind].formatVersion;
   const content = context.registry[mutation.reference.kind].projection === "never"
     ? canonicalize(JSON.parse(mutation.content)) : mutation.content;
-  if (content !== mutation.content) {
-    const refusal = checkSerializationRules(mutation.reference, content);
-    if (refusal) return { status: "refused", refusal };
-  }
+  const refusal = checkSerializationRules(mutation.reference, content);
+  if (refusal) return { status: "refused", refusal };
   const oid = await writeRefBlob(context, content);
   group.entries.set(home.path, { path: home.path, mode: "100644", oid });
   group.metadata.formats[formatKey] = formatVersion;

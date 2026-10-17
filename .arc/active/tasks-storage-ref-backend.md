@@ -443,19 +443,10 @@ _Mode:_ `layer` through Phase 8 — closes on the local engine complete in both 
           collisions before locks or against captured tips. Reads enforce the same key boundary; decoding shares its
           classifier, and concurrent prefix writes retain one valid record with typed refusal and repaired retry.
 
-    - `[ ]` **5.2.b Parsers and entry stamps**
-        - Each put's kind parser runs after the serialization rules and before any check; an entry kind's put stamps
-          `_Id:_` lines through `stampEntryIds` with a random source drawn from a SHA-256 stream seeded by the put's
-          reference, expected version or absence, and content
-        - The parse and stamp step is a function the write path and the import's build (14.1) both call, the import
-          seeding it with the record's reference, absence, and content
-        - Build `test-first` (one behavior at a time):
-            - a parser's refusal refuses `record-malformed` with its error, before any write check runs
-            - a put of an entry kind whose grammar the backend's registry does not declare refuses `unsupported`
-              `unhomed-kind` naming it, at `write` and at `batch`
-            - two puts of one hand-typed entry over one base stamp the same ID
-            - a `field-header` entry with no `_Remove when:_` line, and entries repeating an `_Id:_`, refuse
-              `record-malformed` naming the entry or the ID
+    - `[x]` **5.2.b Parsers and entry stamps**
+        - `prepareRefPut` runs the constructed parser and declared entry grammar before I/O, refusing malformed entry
+          frames and deriving stable IDs from the original reference, expected base, and bytes. Writes prepare once
+          across retries, preserve existing IDs and formatting, and recheck final serialized bytes before storage.
 
     - `[ ]` **5.2.c Writer rules and the primary a record needs**
         - A put of a work-item or review record whose owner has neither a primary nor a kept placement (§ 3.3) refuses
