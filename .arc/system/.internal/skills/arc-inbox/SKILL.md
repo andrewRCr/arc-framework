@@ -40,8 +40,8 @@ inline / message / errand-now / defer call. `arc-housekeep` drains captures; `ar
    a stub takes that skill's route-only shape. Deferred `errand`, pre-routed capture, and `capture` outcomes continue
    at steps 3–5, with section, `WU_Target` and `_Shapes:_` from the confirmed result, skipping step 2. Errands use
    `## Errand` without a work-unit home; a Work Unit capture carries its candidate target or `TBD`. A live target
-   takes a message to its session first; another started target takes the binding's owner-adoption capture or named
-   wait. `dismiss` writes nothing.
+   takes a message to its session first, with a transit capture beside it; another started target takes the binding's
+   owner-adoption capture or named wait. `dismiss` writes nothing.
 
 2. Classify by fate → section.
 

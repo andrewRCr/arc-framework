@@ -109,9 +109,10 @@ by capture first. The message carries the door's outcome to the target's owner a
 Propose the message to the Owner, and send it without asking only where the two sessions already have a conversation.
 Use the harness's session messaging where it has one; otherwise give the Owner the message to relay. A message for the
 Owner to approve or relay ends the turn it appears in: produce it when it is ready, then stop. A message places nothing
-until the target's owner adopts the concern. With no session there to receive it, the Owner relays it when one starts,
-and a pre-routed capture beside it holds the concern until then; a message the Owner declines to send, or the target
-declines, takes the door's other outcomes.
+until the target's owner adopts the concern, so write a pre-routed capture beside each message that goes out, as
+transit: it holds the concern until the target's owner removes it on adoption, including while no session is there and
+the Owner relays the message when one starts. A message the Owner declines to send, or the target declines, takes the
+door's other outcomes.
 
 ### Integration and re-triage
 
@@ -194,8 +195,8 @@ and opens with a one-sentence Purpose. Carry out minting through the binding bel
 
 - **Inbound entries:** backlog and Planning targets use the draft's `## Inbound Buffer — Pending Integration`
   section; admitted Active entries take the amendment or task route above. A held entry carries
-  `routed from <origin>, <date>` and `_Shapes:_`. Owner adoption carries only a gate-confirmed `hold` into a started work
-  unit. A capture owned by that target's owner is transit to their session, never rest in a capture surface.
+  `routed from <origin>, <date>` and `_Shapes:_`. Owner adoption carries only a gate-confirmed `hold` into a started
+  work unit. A capture owned by that target's owner is transit to their session, never rest in a capture surface.
 - **Writer line:** only a change off the base whose one concern is routing — the drain's or a route-only Errand's —
   writes another work unit's draft, and only a backlog stub's. Other routes reach a sibling as a pre-routed
   `USER-INBOX` capture, re-gated by the drain. A started target takes owner adoption, subject to the gap below.
@@ -218,7 +219,7 @@ and opens with a one-sentence Purpose. Carry out minting through the binding bel
   outcome, without re-gating.
 - **Capture vehicles:** deferred routes, routes into a started target with no checkout, and routes where no Errand
   can open are pre-routed captures with `WU_Target` and `_Shapes:_`. This includes partial protection's
-  `primary-occupied` refusal. A live target takes the message (§ Target lifecycle); a capture beside it is transit.
+  `primary-occupied` refusal. A live target takes the message with a transit capture beside it (§ Target lifecycle).
   `fold` into the session's own work unit and an `errand` execute directly. Every new capture gets the full gate at
   the drain; pre-routed values are first candidates, and disagreements enter its routing plan.
 - **Cascade vehicles:** `hold <other>` and `new-stub` are pre-routed captures.

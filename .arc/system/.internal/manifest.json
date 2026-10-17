@@ -710,7 +710,7 @@
     "system/methods/route-discovered-work.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "c0f9c545ba00d6eab785ac7f5bc8e9130df1a29f4a3e78e7b8f1a8540e36fac5"
+      "pristine_hash": "937e84dfa2e82522727fee7ec4479e154bc70a26633c81d85f9dae14c8d5c673"
     },
     "system/.internal/scripts/validate-links.sh": {
       "classification": "Framework",
