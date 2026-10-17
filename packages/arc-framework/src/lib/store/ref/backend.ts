@@ -4,6 +4,7 @@ import type { Store } from "../contract.js";
 import type { RefStorePorts } from "../ports.js";
 import { createRefBackendContext, type RefBackendContext } from "./context.js";
 import { refStateVersion } from "./manifest.js";
+import { readSnapshotRecord, listSnapshotRecords } from "./snapshot-read.js";
 import { readRefRecord, listRefRecords } from "./read.js";
 import { writeRefRecord, batchRefRecords } from "./write.js";
 import { historyRefRecord } from "./history.js";
@@ -14,7 +15,8 @@ export function createRefBackend(ports: RefStorePorts): Store {
   const context = createRefBackendContext(ports);
   return {
     capabilities: { stateOffBranch: true },
-    read: (input) => readRefRecord(context, input), list: (input) => listRefRecords(context, input),
+    read: (input) => input.asOf ? readSnapshotRecord(context, input) : readRefRecord(context, input),
+    list: (input) => input.asOf ? listSnapshotRecords(context, input) : listRefRecords(context, input),
     write: (input) => writeRefRecord(context, input), batch: (input) => batchRefRecords(context, input),
     version: async () => ({ status: "ok", result: await refStateVersion(context) }),
     history: (input) => historyRefRecord(context, input), changes: pending("changes", context), lookup: (input) => lookupRefRecord(context, input),

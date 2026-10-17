@@ -644,21 +644,15 @@ _Purpose:_ Reading the store over time and by name: reads as of a manifest, `cha
 namespace table and grouped by batch, `lookup`'s scan over ended items, claims, and commits, resolution of a reference
 by every tier, and an item ref broken outside ARC.
 
-### `[ ]` **7.1 Reads as of a state version — § 4.4**
+### `[x]` **7.1 Reads as of a state version — § 4.4**
 
 - _Goal:_ `read` and `list` as of a state version return the store as that manifest named it, or refuse with what this
   clone lacks and the remedy that recovers it.
 
-    - Build `test-first` (one behavior at a time):
-        - a read as of an earlier manifest returns each record as it stood
-        - a live listing's token resolves for a read as of it, as `version()`'s does
-        - a manifest made on another person's clone, planted with 3.1.e's helper, reads that person's identity refs as
-          absent and this clone's own as it names them
-        - a manifest this clone no longer holds refuses `state-unresolvable` with no history refs, its remedy to rebuild
-          from the current state
-        - a manifest naming an ended item's tip this clone lacks refuses naming its history ref, its remedy to pull it
-          and retry
-        - an item reopened since the manifest resolves through its live ref
+- _Outcome:_ Saved reads and listings use immutable manifest tips through the captured-state readers, retain the
+  listing token, and bind personal and project records to the saved identity. Missing manifests name rebuilding;
+  missing ended tips name their history refs and admit restored retries. Archive, reopen, later names, and later
+  primary roles leave the saved result intact; an unrelated quarter is unnecessary for a directly named live owner.
 
 ### `[ ]` **7.2 `changes` between two manifests — § 4.6**
 

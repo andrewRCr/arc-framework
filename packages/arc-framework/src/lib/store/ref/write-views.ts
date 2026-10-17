@@ -25,12 +25,16 @@ export function createRefWriteViews(context: RefBackendContext, tips: ReadonlyMa
   let next: Promise<RefViewState> | undefined;
   const before = () => prior ??= captureRefViewState(context, tips);
   const after = () => next ??= before().then((state) => overlayRefViewState(context, state, groups));
-  const view = (load: () => Promise<RefViewState>): StoreView => ({
+  return { before: capturedRefView(context, before), after: capturedRefView(context, after) };
+}
+
+/** Read only immutable captured trees, using the same selection in checks and saved-state reads. */
+export function capturedRefView(context: RefBackendContext, load: () => Promise<RefViewState>): StoreView {
+  return {
     read: async (input) => readView(context, await load(), input),
     list: async (input) => listView(context, await load(), input),
     lookup: async (input) => lookupView(context, await load(), input),
-  });
-  return { before: view(before), after: view(after) };
+  };
 }
 
 function lookupView(context: RefBackendContext, state: RefViewState, input: LookupInput): StoreResult<LookupResult> {
@@ -79,8 +83,7 @@ async function readView(context: RefBackendContext, state: RefViewState, input: 
   let home = expandStoredPath(reference, { registry: context.registry });
   const group = state.refs.get(home.ref);
   if (!group) {
-    const record = archivedViewRecords(context, state, { family: context.registry[reference.kind].family, kind: reference.kind, owner: reference.owner }).records
-      .find((record) => sameReference(record.reference, reference));
+    const record = archivedViewRecord(context, state, reference);
     return record ? { status: "ok", result: record } : missing(reference);
   }
   const family = context.registry[reference.kind].family;
@@ -147,4 +150,10 @@ function resolveViewOwner(context: RefBackendContext, state: RefViewState, refer
 function canonicalViewReference(context: RefBackendContext, reference: RecordReference, ref: string, metadata: RefMetadata): RecordReference {
   const kind = ["work-item/meta", "work-item/record"].includes(reference.kind) ? metadata.primary?.role ?? reference.kind : reference.kind;
   return RecordReferenceSchema.parse({ ...reference, kind, owner: refOwner(ref, context.registry[reference.kind].family, metadata) });
+}
+
+function archivedViewRecord(context: RefBackendContext, state: RefViewState, reference: RecordReference): StoreRecord | undefined {
+  const input: ListInput = { family: context.registry[reference.kind].family, owner: reference.owner,
+    ...(["work-item/meta", "work-item/record"].includes(reference.kind) ? {} : { kind: reference.kind }) };
+  return archivedViewRecords(context, state, input).records.find((record) => sameReference(record.reference, reference));
 }
