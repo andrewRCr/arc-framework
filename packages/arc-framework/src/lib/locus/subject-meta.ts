@@ -249,6 +249,9 @@ export async function projectCheckoutSubjectMeta(options: {
   const storedTasks = options.workUnit !== undefined && options.store !== undefined
     ? await readStoreTaskCursor(options.store, options.workUnit.record, options.subjectKey, record.cohort)
     : null;
+  if (storedTasks?.kind === "conflicted") {
+    return { kind: "unresolved", code: "subject-unresolved", message: storedTasks.message, metaPath: expectedPath };
+  }
   const taskListPath = storedTasks === null ? resolveTaskListPath(expectedPath, record.taskList) : storedTasks.path;
   const taskCursor = storedTasks !== null ? storedTasks.cursor : taskListPath === null ? null
     : await resolveTaskListCursorFromFile({
@@ -463,13 +466,18 @@ async function readStoreCohortDoc(store: Store, cohort: string | null): Promise<
   return cohortDocumentPath(read.result);
 }
 
+type StoreTaskCursor = { kind: "read"; path: string | null; cursor: TaskListCursorFileResult | null }
+  | { kind: "conflicted"; message: string };
+
 async function readStoreTaskCursor(store: Store, primary: import("../store/read.js").StoreRecord,
-  slug: string, cohort: string | null): Promise<{ path: string | null; cursor: TaskListCursorFileResult | null }> {
+  slug: string, cohort: string | null): Promise<StoreTaskCursor> {
   const read = await store.read({ reference: recordReferences["work-item/task-list"](primary.reference.owner) });
   if (read.status === "refused") {
-    if (read.refusal.code === "not-found") return { path: null, cursor: null };
+    if (read.refusal.code === "not-found") return { kind: "read", path: null, cursor: null };
     throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
   }
+  if (read.result.conflicts.length > 0) return { kind: "conflicted", message:
+    `The task list has unresolved conflicts: ${read.result.conflicts.map(reference => JSON.stringify(reference)).join(", ")}. Resolve the named conflict records, then retry session entry.` };
   const path = workItemArtifactPath(slug, "tasks", WorkUnitReadPlacementSchema.parse(primary.placement), cohort);
-  return { path, cursor: resolveTaskListCursor(read.result.content) };
+  return { kind: "read", path, cursor: resolveTaskListCursor(read.result.content) };
 }
