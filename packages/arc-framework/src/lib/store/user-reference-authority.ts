@@ -85,9 +85,9 @@ async function resolveAliases(store: Store, records: readonly StoreRecord[]): Pr
     if (found.status === "refused") return found;
     if (found.result.reference.kind !== "work-item/meta") return { status: "refused", refusal: unavailable("work-item", `Former work-unit name ${name} resolves to another record kind; repair its alias authority.`) };
     const target = found.result.reference.owner.name;
-    const sources = records.filter(record => record.aliases?.includes(slug));
-    const source = sources[0];
-    if (sources.length !== 1 || source === undefined || !sameReference(source.reference, found.result.reference) || source.reference.owner.name !== target) {
+    const sources = records.filter(record => record.reference.owner.name === slug || record.aliases?.includes(slug));
+    const source = sources.find(record => sameReference(record.reference, found.result.reference));
+    if (source === undefined || source.reference.owner.name !== target) {
       return { status: "refused", refusal: { code: "version-conflict", class: "recoverable", records: sources.map(record => record.reference),
         condition: `The lookup for ${name} no longer matches its captured reference authority.`,
         remedy: { text: "Read reference authority again and retry reconciliation." } } };

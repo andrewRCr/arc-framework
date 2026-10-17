@@ -6,6 +6,8 @@ import { OwnerIdentitySchema, RecordReferenceSchema, recordReferences } from "..
 import { createStoreUserReferencePrepareContext } from "../../../../src/lib/user-reference-reconcile-store.js";
 import { revalidateLifecycleRecords } from "../../../../src/lib/work-unit/prepared-lifecycle-write.js";
 import type { Store } from "../../../../src/lib/store/contract.js";
+import { ReferenceBackend } from "../../../helpers/store/reference-backend.js";
+import { createMemoryRemote } from "../../../helpers/store/sync.js";
 
 async function renamedAuthority() {
   const h = createLifecycleHarness(), former = await h.seedMeta("former");
@@ -48,6 +50,38 @@ it("refuses an alias lookup that advanced beyond the captured name and succeeds 
     { subject: "current", outcome: { kind: "rename", targetSlug: "advanced" } },
     { subject: "former", outcome: { kind: "rename", targetSlug: "advanced" } },
   ] } });
+});
+it("accepts a resolved current-name replacement while the earlier generation retains its alias", async () => {
+  const h = createLifecycleHarness(), original = await h.seedMeta("former"), remote = createMemoryRemote();
+  h.store.context.publication.remote = remote;
+  lifecycleSuccess(await h.store.sync());
+  const writer = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
+  const currentReference = RecordReferenceSchema.parse({ ...original.reference, owner: { ...original.reference.owner, name: "current" } });
+  lifecycleSuccess(await h.store.write({ action: "put", reference: currentReference, expected: original.version,
+    content: original.content.replaceAll("former", "current"), placement: { kind: "active" }, provenance: { verb: "rename", lifecycleAction: "transition" } }));
+  const incoming = lifecycleSuccess(await h.store.read({ reference: currentReference }));
+  lifecycleSuccess(await writer.write({ action: "remove", reference: original.reference, expected: original.version,
+    provenance: { verb: "abandon", lifecycleAction: "transition" } }));
+  const reusedReference = recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: "former" }));
+  const replacement = lifecycleSuccess(await writer.write({ action: "put", reference: reusedReference, expected: null,
+    content: original.content, placement: { kind: "active" }, provenance: { verb: "create", lifecycleAction: "create" } }));
+  lifecycleSuccess(await h.store.sync());
+  const conflicts = lifecycleSuccess(await h.store.list({ family: "work-item", kind: "work-item/conflict-record" }));
+  if (conflicts.status !== "complete") throw new Error("Missing name-reuse conflict");
+  expect(conflicts.records).toHaveLength(1);
+  lifecycleSuccess(await h.store.write({ action: "put", reference: incoming.reference, expected: null, content: incoming.content,
+    placement: { kind: "active" }, resolves: conflicts.records.map(record => record.reference), provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
+  lifecycleSuccess(await h.store.sync());
+  expect(lifecycleSuccess(await h.store.lookup({ kind: "slug", slug: reusedReference.owner.name })).reference).toEqual(replacement.reference);
+  const records = lifecycleSuccess(await h.store.list({ family: "work-item", kind: "work-item/meta" }));
+  if (records.status !== "complete") throw new Error("Missing complete primary inventory");
+  expect(records.records).toHaveLength(2);
+  expect(records.records.every(record => record.conflicts.length === 0)).toBe(true);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    expect(await acquireStoreUserReferenceAuthority(h.store)).toMatchObject({ status: "ok", result: { transitions: [] } });
+  }
+  expect(await createStoreUserReferencePrepareContext({ store: h.store, identity: "test-user" }))
+    .toMatchObject({ status: "ok", result: { authority: { transitions: [] } } });
 });
 it("returns the actual versioned alias authority while preserving the transition-only API", async () => {
   const h = createLifecycleHarness();
