@@ -476,6 +476,8 @@ async function runStoreRoster(store: Store, worktrees: readonly GitWorktreePorce
       if (lookup.status === "refused") { warnings.push(`${worktree.path}: ${lookup.refusal.condition}`); return entry; }
       const read = await store.read({ reference: lookup.result.reference });
       if (read.status === "refused") { warnings.push(`${worktree.path}: ${read.refusal.condition}`); return entry; }
+      if (read.result.conflicts.length > 0) throw new Error(
+        `The work-unit primary has unresolved conflicts: ${read.result.conflicts.map(reference => JSON.stringify(reference)).join(", ")}. Resolve the named conflict records, then retry the roster.`);
       Object.assign(entry, storeRosterFields(ParsedMetaRecordSchema.parse(read.result.fields)));
     } catch (error) { warnings.push(`${worktree.path}: ${error instanceof Error ? error.message : String(error)}`); }
     return entry;

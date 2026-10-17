@@ -9,6 +9,43 @@ import { parseMetaRecord } from "../../../src/lib/active/meta-reader.js";
 import { makeMetaFixture } from "../../helpers/meta-fixture.js";
 import { createReferenceFixture } from "../../helpers/store/reference-fixture.js";
 import { success, testProvenance } from "../../helpers/store/suite-tools.js";
+import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
+import { createMemoryRemote } from "../../helpers/store/sync.js";
+import { ReferenceBackend } from "../../helpers/store/reference-backend.js";
+import { renderMetaFile } from "../../../src/lib/store/kinds/meta/writers.js";
+
+it("withholds disputed primary fields after sync while retaining the marked checkout, then reads its resolved owner", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "arc-roster-conflicts-"));
+  onTestFinished(async () => rm(cwd, { recursive: true, force: true }));
+  const h = createLifecycleHarness(), meta = await h.seedMeta("demo", { state: "Planning", currentWorkflow: "draft-design", owner: "original" });
+  const remote = createMemoryRemote(); h.store.context.publication.remote = remote;
+  lifecycleSuccess(await h.store.sync());
+  const writer = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
+  const local = lifecycleSuccess(await h.store.read({ reference: meta.reference })), other = lifecycleSuccess(await writer.read({ reference: meta.reference }));
+  const content = (owner: string) => renderMetaFile("demo", { state: "Planning", currentWorkflow: "draft-design", owner });
+  const provenance = { verb: "race-owner", lifecycleAction: "race-owner" };
+  lifecycleSuccess(await h.store.write({ action: "put", reference: meta.reference, expected: local.version, placement: { kind: "active" }, content: content("andrew"), provenance }));
+  lifecycleSuccess(await writer.write({ action: "put", reference: meta.reference, expected: other.version, placement: { kind: "active" }, content: content("another"), provenance }));
+  lifecycleSuccess(await h.store.sync());
+  const disputed = lifecycleSuccess(await h.store.read({ reference: meta.reference })); expect(disputed.conflicts).toHaveLength(1);
+  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: { kind: "work-unit", name: "demo" }, spawningIdentity: "andrew", now: 0 });
+  const readRoster = () => runWorktreeRoster({ cwd, store: h.store,
+    exec: async () => ({ stdout: [`worktree ${cwd}`, `HEAD ${"a".repeat(40)}`, "detached", "", ""].join("\0") }),
+    fs: { readdir: async () => [], readFile: async () => { throw new Error("No checkout metadata"); } } });
+  const roster = await readRoster();
+  expect(roster.entries).toEqual([{ worktreePath: cwd, workUnit: "demo" }]);
+  expect(filterRosterByIdentity(roster, { identity: "andrew", teamMode: true }).entries).toEqual(roster.entries);
+  const warning = roster.warnings.join(" ");
+  for (const conflict of disputed.conflicts) expect(warning).toContain(JSON.stringify(conflict));
+  expect(warning).toMatch(/resolve.*retry/iu);
+  lifecycleSuccess(await h.store.write({ action: "put", reference: disputed.reference, expected: disputed.version, resolves: disputed.conflicts,
+    content: content("andrew"), placement: { kind: "active" }, provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
+  expect(lifecycleSuccess(await h.store.read({ reference: meta.reference })).conflicts).toEqual([]);
+  const repaired = await readRoster();
+  expect(repaired).toMatchObject({ warnings: [], entries: [{ workUnit: "demo", identity: "andrew", state: "Planning" }] });
+  expect(filterRosterByIdentity(repaired, { identity: "andrew", teamMode: true }).entries).toHaveLength(1);
+  expect(filterRosterByIdentity(repaired, { identity: "another", teamMode: true }).entries).toEqual([]);
+});
 
 it("lists detached marked Planning work with its store owner while no checkout has active metadata", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "arc-roster-store-"));
