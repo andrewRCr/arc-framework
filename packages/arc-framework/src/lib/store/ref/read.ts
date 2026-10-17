@@ -13,20 +13,16 @@ import type { RefBackendContext } from "./context.js";
 import { saveCapturedManifest } from "./manifest.js";
 import { recordDiagnostic } from "./content-read.js";
 import { readOpenConflicts, attachOpenConflicts } from "./conflicts-read.js";
+import { checkRefKey } from "./path-admission.js";
 
 /** Read one live record, resolving a slug-only owner through one captured family scan. */
 export async function readRefRecord(context: RefBackendContext, input: ReadInput): Promise<StoreResult<StoreRecord>> {
   let reference = input.reference;
-  if (reference.owner.type === "person" && await context.identity() === null) {
-    return missing(reference, "No arc.identity is configured for person-owned state", "Configure arc.identity, then retry.");
-  }
-  if (reference.owner.type !== "person" && !reference.owner.uid && reference.owner.type !== "project") {
-    const listing = await listRefRecords(context, { family: context.registry[reference.kind].family });
-    if (listing.status !== "ok" || listing.result.status !== "complete") return missing(reference);
-    const resolved = listing.result.records.find((record) => record.reference.owner.name === reference.owner.name);
-    if (!resolved) return missing(reference);
-    reference = RecordReferenceSchema.parse({ ...reference, owner: resolved.reference.owner });
-  }
+  const invalidKey = checkRefKey(reference, context.registry);
+  if (invalidKey) return { status: "refused", refusal: invalidKey };
+  const resolved = await resolveReadReference(context, reference);
+  if (resolved.status === "refused") return resolved;
+  reference = resolved.result;
   const home = expandStoredPath(reference, { registry: context.registry });
   const tips = await readRefTips(context);
   const tip = tips.get(home.ref);
@@ -49,6 +45,20 @@ export async function readRefRecord(context: RefBackendContext, input: ReadInput
   return "reference" in record ? { status: "ok", result: record } : { status: "refused", refusal: {
     code: "record-malformed", class: "recoverable", reference, rule: record.condition,
     condition: record.condition, remedy: record.remedy } };
+}
+
+async function resolveReadReference(context: RefBackendContext, reference: RecordReference): Promise<StoreResult<RecordReference>> {
+  if (reference.owner.type === "person" && await context.identity() === null) {
+    return missing(reference, "No arc.identity is configured for person-owned state", "Configure arc.identity, then retry.");
+  }
+  if (reference.owner.type !== "person" && !reference.owner.uid && reference.owner.type !== "project") {
+    const listing = await listRefRecords(context, { family: context.registry[reference.kind].family });
+    if (listing.status !== "ok" || listing.result.status !== "complete") return missing(reference);
+    const resolved = listing.result.records.find((record) => record.reference.owner.name === reference.owner.name);
+    if (!resolved) return missing(reference);
+    return { status: "ok", result: RecordReferenceSchema.parse({ ...reference, owner: resolved.reference.owner }) };
+  }
+  return { status: "ok", result: reference };
 }
 
 /** List a registered family from one tip capture, tree check, recursive diff, and blob batch. */

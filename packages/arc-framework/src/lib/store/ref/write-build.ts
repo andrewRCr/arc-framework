@@ -3,7 +3,7 @@
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 import { updateRefTransaction, type RefChange } from "../../git/ref-transaction.js";
 import type { BatchInput, BatchResult, WriteResult } from "../write.js";
-import type { StoreResult } from "../refusal.js";
+import type { StoreResult, StoreRefusal } from "../refusal.js";
 import { readBatchObjects, readRefTrees, type RefTreeEntry } from "./batch-read.js";
 import { metadataFailure, parseRefMetadata, type RefMetadata } from "./metadata.js";
 import { refRecordVersion } from "./record-version.js";
@@ -13,6 +13,8 @@ import type { ResolvedBatch, ResolvedMutation } from "./write-resolution.js";
 import type { RecordReference } from "../identity.js";
 import { renderStoreCommitMessage } from "../commit-provenance.js";
 import { checkSerializationRules } from "../serialization.js";
+import { checkRefPathCollision, type RefPathNeighbor } from "./path-admission.js";
+import { decodeStoredReference } from "./path-decode.js";
 
 interface RefGroup { entries: Map<string, RefTreeEntry>; metadata: RefMetadata }
 
@@ -24,12 +26,8 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
   const groups = loaded.result;
   if (resolved.writes.some(({ mutation, home }) => /^refs\/arc\/(?:work|cohort)\//u.test(home.ref)
     && groups.get(home.ref)?.metadata.slug !== mutation.reference.owner.name)) return "resolve";
-  const stale = staleMutations(resolved, groups);
-  if (stale.length > 0) return { status: "refused", refusal: {
-    code: "version-conflict", class: "recoverable", records: stale,
-    condition: "The expected record versions do not match the captured state",
-    remedy: { text: "Read every conflicting record, then retry the whole batch with its current versions." },
-  } };
+  const refusal = capturedWriteRefusal(context, resolved, groups);
+  if (refusal) return { status: "refused", refusal };
   const tips = resolved.tips;
   const results: WriteResult[] = [];
   for (const write of resolved.writes) {
@@ -56,6 +54,36 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
   const outcome = await updateRefTransaction(context, changes, { cwd: context.checkoutRoot });
   if (outcome.status !== "committed") return "retry";
   return { status: "ok", result: { batchId, writes: results } };
+}
+
+function capturedWriteRefusal(context: RefBackendContext, resolved: ResolvedBatch, groups: ReadonlyMap<string, RefGroup>): StoreRefusal | undefined {
+  const collision = storedPathCollision(context, resolved, groups);
+  if (collision) return collision;
+  const stale = staleMutations(resolved, groups);
+  if (stale.length > 0) return {
+    code: "version-conflict", class: "recoverable", records: stale,
+    condition: "The expected record versions do not match the captured state",
+    remedy: { text: "Read every conflicting record, then retry the whole batch with its current versions." },
+  };
+  return undefined;
+}
+
+function storedPathCollision(context: RefBackendContext, resolved: ResolvedBatch, groups: ReadonlyMap<string, RefGroup>): StoreRefusal | undefined {
+  for (const { mutation, home } of resolved.writes) {
+    if (mutation.action !== "put") continue;
+    const group = groups.get(home.ref);
+    if (!group) throw new Error("A resolved mutation has no captured ref group");
+    const removed = new Set(resolved.writes.filter((write) => write.home.ref === home.ref && write.mutation.action === "remove")
+      .map((write) => write.home.path));
+    const neighbors: RefPathNeighbor[] = [...group.entries.values()].filter((entry) => !removed.has(entry.path) && entry.path !== home.path).map((entry) => {
+      const reference = decodeStoredReference(context.registry, mutation.reference.owner, context.registry[mutation.reference.kind].family,
+        entry.path, group.metadata);
+      return { home: { ref: home.ref, path: entry.path }, ...(reference && "owner" in reference ? { reference } : {}) };
+    });
+    const refusal = checkRefPathCollision(mutation.reference, home, neighbors);
+    if (refusal) return refusal;
+  }
+  return undefined;
 }
 
 function staleMutations(resolved: ResolvedBatch, groups: ReadonlyMap<string, RefGroup>): RecordReference[] {

@@ -12,6 +12,7 @@ import { AdvisoryLockTimeoutError } from "../../advisory-lock.js";
 import { readRefTips } from "./batch-read.js";
 import type { ResolvedBatch } from "./write-resolution.js";
 import { checkSerializationRules } from "../serialization.js";
+import { checkRefKey, checkRefBatchPaths } from "./path-admission.js";
 
 /** Describe invalid mutation content without changing any state. */
 export function malformedMutation(reference: RecordReference, condition: string, rule = "store.mutation"): StoreRefusal {
@@ -40,6 +41,13 @@ export async function batchRefRecords(context: RefBackendContext, input: BatchIn
     return { status: "refused", refusal: mutationValidationFailure(mutation, parsed.error.message) };
   }
   for (const mutation of parsed.data.writes) {
+    const invalidKey = checkRefKey(mutation.reference, context.registry);
+    if (invalidKey) return { status: "refused", refusal: invalidKey };
+  }
+  const puts = parsed.data.writes.filter((mutation) => mutation.action === "put");
+  const collision = checkRefBatchPaths(puts.map((mutation) => mutation.reference), context.registry);
+  if (collision) return { status: "refused", refusal: collision };
+  for (const mutation of parsed.data.writes) {
     if (mutation.action !== "put") continue;
     const refusal = checkSerializationRules(mutation.reference, mutation.content);
     if (refusal) return { status: "refused", refusal };
@@ -65,6 +73,13 @@ async function executeRefBatch(context: RefBackendContext, input: BatchInput, ba
   for (;;) {
     const resolved = await resolveRefWrites(context, input.writes);
     if (resolved.status === "refused") return resolved;
+    for (const write of resolved.result.writes) {
+      const invalidKey = checkRefKey(write.mutation.reference, context.registry);
+      if (invalidKey) return { status: "refused", refusal: invalidKey };
+    }
+    const collision = checkRefBatchPaths(resolved.result.writes.filter((write) => write.mutation.action === "put")
+      .map((write) => write.mutation.reference), context.registry);
+    if (collision) return { status: "refused", refusal: collision };
     const result = await withRefLocks(context, resolved.result.writes.map((write) => write.home.ref), () =>
       commitLockedRefBatch(context, resolved.result, input.provenance, batchId));
     if (result !== null) return result;

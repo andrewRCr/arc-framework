@@ -438,28 +438,10 @@ _Mode:_ `layer` through Phase 8 — closes on the local engine complete in both 
   colliding with a stored record's, which only the tips read under the locks can show — and an entry kind's stamped IDs
   are the same on every retry.
 
-    - `[ ]` **5.2.a Key rules**
-        - Step 1 checks each key against the reserved paths and the batch's other puts; step 5's build checks the result
-          against the stored records on the tips read under the locks, so no unlocked check races a concurrent create
-        - Both checks are functions in `lib/store/ref/` taking a reference and the records around it rather than a
-          write in flight, so the import's build calls them over the records it lands (14.1)
-        - Build `test-first` (one behavior at a time):
-            - a companion keyed `meta`, `tasks`, `draft`, `spec`, `notes`, `errand`, `inbound`, or `cohort`, and a
-              personal document at another personal kind's path, the metadata file, `state-<person>/`, or exactly
-              `conflicts` or `receipts` or under either, refuse `unsupported` `unhomed-kind` naming that kind, while
-              `scratch/conflicts` stores
-            - a companion keyed verbatim at `extra-<slug>.md`, `spec-<slug>-prd.md`, or `meta-<other slug>.md`, at the
-              metadata file, or at `review`, `state-<uid>`, `conflicts`, or `receipts` or under any of them, refuses
-              `unsupported` `unhomed-kind` naming what the path holds or would read back as, while ones keyed
-              `sub/conflicts.md`, `README-<slug>.md`, and `lineage/notes.md` store
-            - a key whose path is a folder another record's path runs through, or runs through one, refuses naming that
-              record, whether the other is in the batch or already stored
-            - an `id` key or a pass's activity holding `/` or any control character, NUL and newline among them, and a
-              `path` key holding a control character, refuse `record-malformed`
-            - a personal document keyed `STATUS.USER.md` at the root, or under a root or one-folder-down `.internal/`,
-              refuses `record-malformed` at `write`, `batch`, and `read`, while `scratch/STATUS.USER.md` stores, and one
-              placed at the root by a commit outside ARC lists `malformed`
-            - an entry at a refused key, planted by a commit outside ARC, lists `malformed` beside the other records
+    - `[x]` **5.2.a Key rules**
+        - Pure reference and neighbor-path checks reject reserved coordinates, aliases, controls, and file/folder
+          collisions before locks or against captured tips. Reads enforce the same key boundary; decoding shares its
+          classifier, and concurrent prefix writes retain one valid record with typed refusal and repaired retry.
 
     - `[ ]` **5.2.b Parsers and entry stamps**
         - Each put's kind parser runs after the serialization rules and before any check; an entry kind's put stamps

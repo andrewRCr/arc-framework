@@ -1,24 +1,18 @@
 /** Decode captured state tree entries using registered record homes. */
 
-import { FAMILY_REGISTRY, type KindDefinition } from "../registry.js";
-import { OwnerIdentitySchema, RecordReferenceSchema, type OwnerIdentity, type RecordReference } from "../identity.js";
+import { FAMILY_REGISTRY } from "../registry.js";
+import { OwnerIdentitySchema, type OwnerIdentity, type RecordReference } from "../identity.js";
 import { StoreRecordSchema, type StoreRecord, type ListingDiagnostic } from "../read.js";
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
-import { isSlugSafe } from "../../kernel/schema/slug.js";
 import type { FamilyId } from "../catalog.js";
 import type { RefBackendContext } from "./context.js";
 import type { BatchObject } from "./batch-read.js";
-import { conflictTarget } from "./conflicts-read.js";
-import { pathOwnerMismatch, storedKeyProblem } from "./path-admission.js";
+import { storedKeyProblem } from "./path-admission.js";
 import type { RefMetadata } from "./metadata.js";
 import { readRefContent, recordDiagnostic, parsedOwnerProblem } from "./content-read.js";
+import { decodeStoredReference, rootFamily } from "./path-decode.js";
+export { rootFamily, lineageOwner } from "./path-decode.js";
 import { refRecordVersion } from "./record-version.js";
-
-/** Resolve the top-level family that owns a ref, including shared subtrees. */
-export function rootFamily(family: FamilyId): FamilyId {
-  const placement = FAMILY_REGISTRY[family].ref;
-  return placement && "subtreeOf" in placement ? placement.subtreeOf : family;
-}
 
 /** Match a captured live ref against the registry, never another ref under the prefix. */
 export function matchesFamilyRef(ref: string, family: FamilyId): boolean {
@@ -36,66 +30,11 @@ export function refOwner(ref: string, family: FamilyId, metadata: RefMetadata): 
   return OwnerIdentitySchema.parse({ type: root, name: metadata.slug, uid: ref.split("/").at(-1) });
 }
 
-/** Read an origin's canonical name from the registry's UID-keyed lineage map. */
-export function lineageOwner(metadata: RefMetadata, uid: string | undefined): OwnerIdentity {
-  return OwnerIdentitySchema.parse({ type: "work-item", uid, name: uid ? metadata.lineage?.[uid] : undefined });
-}
-
-/** Match an entry's fixed form before considering a work item's generic companion. */
+/** Decode an admitted stored reference, preserving exact-path owner diagnostics. */
 export function decodeReference(context: RefBackendContext, owner: OwnerIdentity, family: FamilyId, path: string,
   metadata: RefMetadata, object?: BatchObject | null): RecordReference | ListingDiagnostic | null {
-  const kinds = Object.values(context.registry).filter((kind) => kind.ref && rootFamily(kind.family) === rootFamily(family));
-  for (const kind of kinds) {
-    if (kind.id === "work-item/companion" || kind.id === "personal/document") continue;
-    const candidateOwner = kind.family === "lineage" ? lineageEntryOwner(kind, path, metadata, object) : owner;
-    if (!candidateOwner) continue;
-    const decoded = decodeKindReference(context, kind, candidateOwner, path);
-    if (decoded) return decoded;
-  }
-  const companion = rootFamily(family) === "work-item" ? decodeCompanion(owner, path) : null;
-  if (companion && typeof companion.key === "string" && isSlugSafe(companion.key)) return admitted(context, companion, path);
-  const mismatch = pathOwnerMismatch(kinds, owner, path);
-  if (mismatch) return mismatch;
-  if (companion) return admitted(context, companion, path);
-  const document = kinds.find((kind) => kind.id === "personal/document");
-  return document ? decodeKindReference(context, document, owner, path) : null;
-}
-
-function decodeKindReference(context: RefBackendContext, kind: KindDefinition, owner: OwnerIdentity, path: string): RecordReference | null {
-  const key = keyAtPath(kind, owner, path);
-  if (key === null) return null;
-  const parsed = RecordReferenceSchema.safeParse({ owner, kind: kind.id, ...(kind.key === null ? {} : { key }) });
-  return parsed.success ? admitted(context, parsed.data, path) : null;
-}
-
-function admitted(context: RefBackendContext, reference: RecordReference, path: string): RecordReference | null {
-  return storedKeyProblem(context, reference, path) ? null : reference;
-}
-
-function lineageEntryOwner(kind: KindDefinition, path: string, metadata: RefMetadata,
-  object?: BatchObject | null): OwnerIdentity | null {
-  const target = kind.id === "lineage/conflict-record" && object ? conflictTarget(object.bytes)?.owner : null;
-  const uid = target?.type === "work-item" ? target.uid : /^lineage\/([0-9a-f-]{36})\.json$/u.exec(path)?.[1];
-  return uid && metadata.lineage?.[uid] ? lineageOwner(metadata, uid) : null;
-}
-
-function decodeCompanion(owner: OwnerIdentity, path: string): RecordReference | null {
-  const paired = path === `spec-${owner.name}-prd.md` ? "spec-prd" : path === `spec-${owner.name}-rfc.md` ? "spec-rfc" : null;
-  const suffix = `-${owner.name}.md`;
-  const name = path.endsWith(suffix) ? path.slice(0, -suffix.length) : "";
-  const parsed = RecordReferenceSchema.safeParse({ owner, kind: "work-item/companion", key: paired ?? (isSlugSafe(name) ? name : path) });
-  return parsed.success ? parsed.data : null;
-}
-
-function keyAtPath(kind: KindDefinition, owner: OwnerIdentity, path: string): unknown {
-  const uid = owner.type === "person" ? "" : owner.uid ?? "";
-  const template = kind.ref?.path.replaceAll("<slug>", owner.name).replaceAll("<person>", owner.name).replaceAll("<uid>", uid);
-  if (!template) return null;
-  const match = new RegExp(`^${escapeRegex(template).replace("<key>", "(.+)")}$`, "u").exec(path);
-  if (!match) return null;
-  if (kind.key !== "pass") return match[1] ?? "";
-  const pass = /^(.*)-(\d+)$/u.exec(match[1] ?? "");
-  return pass ? { activity: pass[1], number: Number(pass[2]) } : null;
+  const decoded = decodeStoredReference(context.registry, owner, family, path, metadata, object);
+  return decoded && "owner" in decoded && storedKeyProblem(context, decoded, path) ? null : decoded;
 }
 
 /** Turn a captured blob and owner metadata into the contract's logical record. */
