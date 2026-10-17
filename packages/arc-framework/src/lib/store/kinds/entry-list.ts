@@ -42,7 +42,7 @@ function parseEntry(part: ListEntry, kind: EntryKind): ParsedListEntry | string 
   const config = ENTRY_CONFIGS[kind];
   const visible = maskComments(part.bytes);
   const heading = visible.split("\n")[0] ?? "";
-  const title = config.shape === "heading" ? matchInboxEntryTitle(heading) : heading.trim();
+  const title = config.shape === "heading" ? completeHeadingTitle(heading) : heading.trim();
   // Project captures historically admit any H3 heading; personal captures retain their bold-title contract.
   if (title === null && kind === "personal/inbox") return `${part.section} entry missing bold title: ${heading}`;
   const fields: Record<string, string> = {};
@@ -55,6 +55,12 @@ function parseEntry(part: ListEntry, kind: EntryKind): ParsedListEntry | string 
   }
   if (config.shape === "field-header" && fields["Remove when"] === undefined) return `Entry missing '_Remove when:_' trigger: ${title}`;
   return { ...part, title: title ?? heading.replace(/^###\s*/u, ""), fields, version: entryVersion(part) };
+}
+
+function completeHeadingTitle(heading: string): string | null {
+  // An enclosing bold heading can contain inline bold spans of its own.
+  return /^###\s+(?:`?\[[ xX]\]`?\s+)?\*\*(.+)\*\*\s*$/u.exec(heading)?.[1]?.trim()
+    ?? matchInboxEntryTitle(heading);
 }
 
 function memoryHeaderError(content: string): string | undefined {

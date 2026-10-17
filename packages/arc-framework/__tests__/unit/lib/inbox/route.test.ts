@@ -11,6 +11,22 @@ async function source(h: ReturnType<typeof createInboxHarness>) {
   return listing.entries[0];
 }
 describe("atomic versioned entry routes", () => {
+  it.each([
+    { heading: "Plain **bold** concern", title: "Plain **bold** concern", comment: "<!-- Body note. -->" },
+    { heading: "Plain concern <!--\nHeading note.\n-->", title: "Plain concern", comment: "<!--\nHeading note.\n-->" },
+  ])("preserves $title through personal routing and a return to the project inbox", async ({ heading, title, comment }) => {
+    const h = createInboxHarness(); await h.inbox("project", entry().replace("### **Concern**", `### [x] ${heading}`) + "\n<!-- Body note. -->\nActual prose");
+    await h.inbox("personal", "");
+    const original = await listInbox({ list: "project" }, h.context);
+    if (original.state === "refused" || !original.entries[0]) throw new Error("No source");
+    expect(await routeEntry({ entryId: "12345678", from: "project", expectedVersion: original.entries[0].version,
+      to: "personal", section: "Errand" }, h.context)).toMatchObject({ state: "routed" });
+    const home = await source(h);
+    expect(home).toMatchObject({ id: "12345678", title, raw: expect.stringContaining(comment) });
+    expect(home.raw).toContain("Actual prose");
+    expect(await routeEntry({ entryId: home.id, from: "personal", expectedVersion: home.version, to: "project" }, h.context)).toMatchObject({ state: "routed" });
+    expect(await listInbox({ list: "project" }, h.context)).toMatchObject({ entries: [{ id: home.id, title, raw: expect.stringContaining(comment) }] });
+  });
   it("moves admitted plain and checkbox headings into personal captures without changing their titles or IDs", async () => {
     const h = createInboxHarness();
     const headings = ["### Concern", "### [ ] Concern", "### `[X]` Concern", "### **Concern**"];

@@ -66,20 +66,30 @@ it.each(["\n", "\r\n"])("keeps receipt and destination IDs equal through heading
   expect(await cliRows(f, "comment-return")).toEqual([]);
 }, 30000);
 
-it("routes a plain inbound heading through an Errand and returns it to personal captures on abandon", async () => {
+it.each([
+  { heading: "Concern", title: "Concern" },
+  { heading: "Plain **bold** concern", title: "Plain **bold** concern" },
+  { heading: "Concern <!--\nHeading note.\n-->", title: "Concern" },
+])("routes an admitted $heading through an Errand and returns its full title on abandon", async ({ heading, title }) => {
   const f = await repairCliFixture(), workUnit = await f.h.workUnit("plain-heading");
   const reference = recordReferences["work-item/inbound"](workUnit.reference.owner);
   success(await f.h.context.store.write({ action: "put", reference, expected: null,
-    content: `## Inbound\n\n${entry("87654321").replace("### **Concern**", "### [ ] Concern")}\n<!-- Keep this comment. -->\nActual prose\n`, provenance: { verb: "edit", lifecycleAction: "edit" } }));
+    content: `## Inbound\n\n${entry("87654321").replace("### **Concern**", `### [ ] ${heading}`)}\n<!-- Keep this comment. -->\nActual prose\n`, provenance: { verb: "edit", lifecycleAction: "edit" } }));
   expect(await repairCli(f, ["errand", "open", "plain-return", "--intent", "Other concern", "--json"])).toMatchObject({ result: { outcome: "applied" } });
   const row = (await cliRows(f, workUnit.reference.owner.name))[0]; if (!row) throw new Error("No inbound entry");
   expect(await repairCli(f, ["route", row.id, "--from", workUnit.reference.owner.name, "--expected-version", row.version, "--to", "plain-return"])).toMatchObject({ result: { state: "routed" } });
   expect(await cliRows(f, workUnit.reference.owner.name)).toEqual([]);
   expect(await cliRows(f, "plain-return")).toEqual(expect.arrayContaining([expect.objectContaining({ id: row.id })]));
+  if (heading.includes("<!--")) {
+    const description = await resolveEntryList("plain-return", f.h.context);
+    if (description.status !== "ok" || !description.result.saved) throw new Error("No description");
+    await editRecord(f, description.result.saved, description.result.saved.content.replace("<!--\nHeading note.\n-->", "")
+      .replace("### [ ] Concern", `### [ ] ${heading}`));
+  }
   expect(await repairCli(f, ["errand", "abandon", "plain-return", "--json"])).toMatchObject({ result: { outcome: "applied" } });
   expect(await cliRows(f, "plain-return")).toEqual([]);
   const returned = (await cliRows(f, "personal")).find(entry => entry.id === row.id);
-  expect(returned).toMatchObject({ id: row.id, title: "Concern", section: "Errand", raw: expect.stringContaining("### [ ] **Concern**") });
+  expect(returned).toMatchObject({ id: row.id, title, section: "Errand", raw: expect.stringContaining(`### [ ] **${title}**`) });
   expect(returned?.raw).toContain("<!-- Keep this comment. -->"); expect(returned?.raw).toContain("Actual prose");
 }, 30000);
 

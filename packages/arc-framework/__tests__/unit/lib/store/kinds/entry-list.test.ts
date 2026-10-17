@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { parseEntryList } from "../../../../../src/lib/store/kinds/entry-list.js";
 import { ENTRY_CONFIGS } from "../../../../../src/lib/store/kinds/entry-configs.js";
+import { parsePersonalInboxEntries } from "../../../../../src/lib/store/kinds/personal-inbox.js";
 
 describe("production entry grammars", () => {
+  it("reads complete bold titles in ID-based entries while retaining title-keyed compatibility", () => {
+    const content = '## Errand\n\n### **Plain **bold** concern**\n- _Id:_ `12345678`\n';
+    const parsed = parseEntryList(content, "personal/inbox");
+    expect(parsed).toMatchObject({ success: true, data: { entries: [{ title: "Plain **bold** concern" }] } });
+    expect(parsePersonalInboxEntries(content)).toMatchObject([{ ok: true, entry: { key: "Plain" } }]);
+  });
   it.each(Object.keys(ENTRY_CONFIGS) as (keyof typeof ENTRY_CONFIGS)[])("decodes only admitted fields for %s while retaining bytes", (kind) => {
     const config = ENTRY_CONFIGS[kind];
     const header = config.shape === "heading" ? "### **Example**" : "**Example:**\n_Remove when: done._";

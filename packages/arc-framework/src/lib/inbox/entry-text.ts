@@ -27,9 +27,12 @@ export function entryForDestination(raw: string, kind: EntryKind, date: string, 
  * @returns Personal captures use bold titles; other destinations retain their heading.
  */
 export function entryHeadingForDestination(raw: string, kind: EntryKind): string {
-  if (kind !== "personal/inbox" || matchInboxEntryTitle(maskComments(raw.split("\n")[0] ?? "")) !== null) return raw;
-  return raw.replace(/^(###[ \t]+(?:`?\[[ xX]\]`?[ \t]+)?)([^\r\n]*)/u,
-    (_match, prefix: string, title: string) => `${prefix}**${title.trim()}**`);
+  const visible = maskComments(raw).split("\n")[0] ?? "";
+  if (kind !== "personal/inbox" || matchInboxEntryTitle(visible) !== null) return raw;
+  const prefix = /^###[ \t]+(?:`?\[[ xX]\]`?[ \t]+)?/u.exec(visible)?.[0];
+  if (prefix === undefined) return raw;
+  const end = visible.trimEnd().length;
+  return `${raw.slice(0, prefix.length)}**${raw.slice(prefix.length, end)}**${raw.slice(end)}`;
 }
 
 function describeOrigin(source: RoutingCoordinate): string {

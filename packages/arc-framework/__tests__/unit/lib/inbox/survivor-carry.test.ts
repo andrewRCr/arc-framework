@@ -23,7 +23,11 @@ async function racedSurvivor(owner = "test-user") {
   return { h, target, row: survivor.entries[0], input: { entryId: row.id, from: "personal", expectedVersion: survivor.entries[0].version, to: target.reference.owner.name } };
 }
 describe("survivor carry boundaries", () => {
-  it("normalizes a survivor's edited plain heading when replacing its held personal capture", async () => {
+  it.each([
+    { heading: "Updated concern", title: "Updated concern" },
+    { heading: "Updated **bold** concern", title: "Updated **bold** concern" },
+    { heading: "Updated concern <!--\nHeading note.\n-->", title: "Updated concern" },
+  ])("normalizes a survivor's edited $heading when replacing its held personal capture", async ({ heading, title }) => {
     const h = createInboxHarness();
     const saved = await h.inbox("project", entry() + "\n- _Hold:_ `true`\n<!-- Keep this comment. -->\nActual prose");
     await h.inbox("personal", "");
@@ -32,7 +36,7 @@ describe("survivor carry boundaries", () => {
     const racing = Object.create(h.context.store) as typeof h.context.store;
     racing.batch = async input => {
       success(await h.context.store.write({ action: "put", reference: saved.reference, expected: saved.version,
-        content: saved.content.replace("### **Concern**", "### [x] Updated concern").replace("Actual prose", "Surviving prose"), provenance: { verb: "edit", lifecycleAction: "edit" } }));
+        content: saved.content.replace("### **Concern**", `### [x] ${heading}`).replace("Actual prose", "Surviving prose"), provenance: { verb: "edit", lifecycleAction: "edit" } }));
       return h.context.store.batch(input);
     };
     const route = { entryId: "12345678", from: "project", expectedVersion: listed.entries[0].version, to: "personal", section: "Errand" };
@@ -43,7 +47,7 @@ describe("survivor carry boundaries", () => {
     expect(await routeEntry({ ...route, expectedVersion: survivor.entries[0].version }, h.context)).toMatchObject({ state: "routed", carried: "replaced" });
     expect(await listInbox({ list: "project" }, h.context)).toMatchObject({ entries: [] });
     const home = await listInbox({ list: "personal" }, h.context);
-    expect(home).toMatchObject({ entries: [{ id: "12345678", title: "Updated concern", held: true, fields: { Created: "2026-02-01" }, raw: expect.stringContaining("### [x] **Updated concern**") }] });
+    expect(home).toMatchObject({ entries: [{ id: "12345678", title, held: true, fields: { Created: "2026-02-01" }, raw: expect.stringContaining(`### [x] **${title}**`) }] });
     if (home.state !== "refused") { expect(home.entries[0]?.raw).toContain("<!-- Keep this comment. -->"); expect(home.entries[0]?.raw).toContain("Surviving prose"); }
   });
   it("inserts a citing entry into another person's started work unit", async () => {
