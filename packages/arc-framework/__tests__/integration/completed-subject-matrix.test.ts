@@ -106,7 +106,10 @@ it.each((["manual", "with-integration"] as const).flatMap(cadence => scenarios.m
     expect(lifecycleSuccess(await h.store.version())).toBe(version);
     expect((await h.exec("git", ["rev-parse", "HEAD"])).stdout.trim()).toBe(h.head);
     if (unresolved || integration) expect(cleanupCommands({ reader, session, recovered, audit: audited })).toEqual([]);
-    if (scenario === "missing" || scenario === "ambiguous") expect(reader.entering).toMatchObject({ row: { diagnostics: expect.arrayContaining([expect.objectContaining({ code: "subject-unresolved" })]) } });
+    if (scenario === "missing" || scenario === "ambiguous") {
+      const code = scenario === "missing" ? "work-unit-record-missing" : "subject-unresolved";
+      expect(reader.entering).toMatchObject({ row: { diagnostics: expect.arrayContaining([expect.objectContaining({ code })]) } });
+    }
   }, 30000);
 
 function cleanupCommands(value: unknown): string[][] {
