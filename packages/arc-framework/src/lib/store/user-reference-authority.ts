@@ -6,6 +6,7 @@ import type { Store } from "./contract.js";
 import type { ListingOutcome, StoreRecord } from "./read.js";
 import type { StoreResult, StoreRefusal } from "./refusal.js";
 import type { ReachableReferenceTransition } from "../work-unit/reference-reconcile.js";
+import { readTerminalReferenceAliases } from "../work-unit/terminal-reference-aliases.js";
 /** Versioned source records required to revalidate a prepared reference write. */
 export interface StoreUserReferenceAuthority {
   transitions: readonly ReachableReferenceTransition[];
@@ -30,15 +31,35 @@ export async function acquireStoreUserReferenceAuthority(store: Store): Promise<
   const aliases = await resolveAliases(store, workItems.result);
   if (aliases.status === "refused") return aliases;
   const transitions = [...aliases.result];
+  const terminalRecords: StoreRecord[] = [];
   for (const record of terminals.result) {
     const decoded = LineageRecordSchema.safeParse(record.fields);
     if (!decoded.success || record.reference.owner.type !== "work-item" || decoded.data.origin.name !== record.reference.owner.name
       || (decoded.data.origin.uid !== undefined && decoded.data.origin.uid !== record.reference.owner.uid)) return malformed(record, "lineage", "Terminal lineage does not match its owner and origin.");
     if (decoded.data.kind === "rename") continue;
+    terminalRecords.push(record);
     transitions.push({ subject: decoded.data.origin.name, outcome: decoded.data.kind === "abandon" ? { kind: "removed" }
       : { kind: "decompose", successors: decoded.data.successors.map(({ name }) => name) } });
   }
+  const formerNames = await resolveTerminalAliases(store, terminalRecords);
+  if (formerNames.status === "refused") return formerNames;
+  transitions.push(...formerNames.result);
   return { status: "ok", result: { transitions, records: [...workItems.result, ...terminals.result] } };
+}
+async function resolveTerminalAliases(store: Store, records: readonly StoreRecord[]): Promise<StoreResult<ReachableReferenceTransition[]>> {
+  const aliases = await readTerminalReferenceAliases(store, records);
+  if (aliases.status === "refused") return aliases;
+  const transitions: ReachableReferenceTransition[] = [];
+  for (const [name, targets] of aliases.result) {
+    const found = await store.lookup({ kind: "slug", slug: SlugSchema.parse(name) });
+    if (found.status === "ok") continue;
+    if (found.refusal.code !== "not-found") return found;
+    const target = targets[0];
+    if (targets.length !== 1 || target === undefined) return { status: "refused", refusal: unavailable("lineage",
+      `Terminal former-name authority for ${name} is ambiguous. Inspect its terminal history and repair the selected generation before retrying reconciliation.`) };
+    transitions.push({ subject: name, outcome: { kind: "rename", targetSlug: target } });
+  }
+  return { status: "ok", result: transitions };
 }
 function completeRecords(result: StoreResult<ListingOutcome>, family: string): StoreResult<readonly StoreRecord[]> {
   if (result.status === "refused") return result;
