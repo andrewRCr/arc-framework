@@ -11,12 +11,14 @@ arc:
 # ARC Inbox
 
 Route a discovered concern now or capture it for later. Consult `DEV-RULES.ARC § Discovered Work Routing` for the
-inline / errand-now / defer call. `arc-housekeep` drains captures; `arc-session` enters execution.
+inline / message / errand-now / defer call. `arc-housekeep` drains captures; `arc-session` enters execution.
 
 1. Choose route-now or capture.
 
-   - Fix a current-WU concern inline. For another concern, ask whether the session holds the commitment to place it
-     now. Without commitment, continue at step 2 for capture; with it, invoke the fast path below.
+   - Fix a current-WU concern inline. A concern for another work unit with a checkout takes a message to its session
+     first, whatever the commitment, by `route-discovered-work` § Target lifecycle. For another concern, ask whether
+     the session holds the commitment to place it now. Without commitment, continue at step 2 for capture; with it,
+     invoke the fast path below.
    - When `arc-errand` hands back an outcome the Owner already confirmed, enter this step's hand-off directly,
      without invoking the gate again or repeating step 2's classification.
 
