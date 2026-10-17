@@ -1001,6 +1001,7 @@ in both layouts with no exclusion beyond § 14.1's, 4.4.d's last set removed (9.
 - _Goal:_ A state ref whose new head does not descend from the last one seen is refused and reported with three ways out,
   while every other ref applies and a local tracking failure is never read as one.
 
+    - _Amended in:_ 11.1.R (A15)
     - The three remedies travel in the notice's remedy `text`, since `Remedy.argv` (`lib/store/refusal.ts`) holds one
       command
     - Build `test-first` (one behavior at a time):
@@ -1020,6 +1021,18 @@ in both layouts with no exclusion beyond § 14.1's, 4.4.d's last set removed (9.
         - a push holding writes on a diverged ref ends at once as terminal `refused` for every family of its scope, the
           notice in its `pulls`, while one holding none past the kept tip publishes every other ref
         - 9.4.b's two-worktree race run again with the check live: no clone's next pull reports `history-diverged`
+
+### `[ ]` **11.1.R Failed fetch transaction evidence — § 6.3 (A15)**
+
+- _Goal:_ A failed Git fetch's ordinary success rows are accepted only where actual tracking state establishes the
+  update, preserving tips and classifying failed creates, advances, and deletes as local tracking failures (A15).
+
+    - Build `test-first` (one behavior at a time):
+        - files and reftable native lock failures preserve the local and tracking tips, report `tracking-update-failed`,
+          and permit other acquired refs to apply; release the lock and the next pull completes
+        - a failed tracking create or delete reports the same local failure, never `history-diverged`
+        - a sibling's later tracking advance remains accepted when it descends from the reported acquired tip
+    - Re-run the ancestry cases and shared-worktree races in both layouts.
 
 ### `[ ]` **11.2 Refs left out of a push — § 3.3, § 6.7**
 
@@ -2576,3 +2589,7 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
 
 - `[ ]` Empty state fetches complete without code negotiation, absent history patterns leave other refs
   fetchable, and nested tracking refs remain usable negotiation tips (§ 6.2) (A13)
+
+- `[ ]` Failed fetches verify actual tracking updates: files and reftable lock failures report failed creates,
+  advances, and deletes as `tracking-update-failed`, including reftable success rows before transaction abort; other
+  acquired refs apply, shared tracking advances cause no false rewrite, and release permits a clean pull (§ 6.3) (A15)

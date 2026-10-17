@@ -478,3 +478,23 @@ capture, and § 6.2's source-fetch and migration reuse. The task grounding audit
 found no additional API, stored record, round trip, or lifecycle change needed. Task 9.1.R carries the correction;
 Task 11.6 repeats the segment-level sync scenario. Existing positive fetch, parser, host, and local conformance evidence
 is unaffected. A canceled fetch's partial stdout is separately retained as failure rather than completed acquisition.
+
+## A15 — A reftable fetch can report updates before its transaction aborts
+
+The superseded § 6.3 premise was “Git marks a refused non-fast-forward and a failed local update alike”. Native Git
+2.55 probes through `Store.pull` with a real stale lock confirm `!` rows under files refs. With reftable, a held
+`reftable/tables.list.lock` instead produces an ordinary advance or create row, followed by exit 251 and “cannot lock
+references”; the tracking ref stays unchanged. The initial both-layout fault fixture rejected that producer output,
+so it was invalid for reftable and provides no red evidence for the intended classification there.
+
+The Owner's standing authority covers this determinate design correction within the deferred range. Preserve whether
+`fetchRefPatterns` caught a completed failure, then verify reported accepted updates against actual tracking state.
+`checkRefFetchUpdates` reports a local tracking failure when that state does not establish the update; a later shared
+tracking descendant remains valid. Neither a failed create nor a failed delete supplies evidence of a remote rewrite.
+No new Store result, persisted record, remote round trip, or normal successful-fetch scan is required.
+
+Author grounding traced `parseFetchPorcelain`, `fetchRefPatterns`, `checkRefFetchUpdates`, `captureFetchedHistories`,
+`pullRemote`, and the push loop's listing and retry boundary. The specification's reader and binding checks and a
+bounded grounding-only task audit cover § 6.3, its § 14.5 case, criterion 23, and Task 11.1.R, with Task 11.6 as the
+segment replay. The existing graph check, keepers, forced-update flag, forwarding replacement, and successful-fetch
+behavior remain required. Native failure evidence is retained with the ancestry task's ignored tools.

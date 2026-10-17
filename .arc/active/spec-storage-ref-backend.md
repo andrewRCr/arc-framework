@@ -1270,6 +1270,15 @@ large state may outlast any bound.
   tip does not descend is a refused ref. The forwarding record's tracking ref is the exception: a record is replaced,
   never advanced (§ 10.6), so a `!` line for it sets that tracking ref to the fetched record by `git update-ref`, the
   refused fetch having brought its object, as probed on Git 2.55, and is never a refused ref or a notice.
+- **A failed fetch may report an uncommitted update (A15).** On Git 2.55 with reftable, an ordinary success row
+  can precede a transaction failure, leaving the tracking ref unchanged. `fetchRefPatterns` retains whether Git failed;
+  after such a completed failure, `checkRefFetchUpdates` checks every reported non-refused update against the actual
+  tracking tips. A matching tip, or a later tip descending from the reported one, establishes acquisition; a reported
+  delete establishes it only where the ref is absent. Otherwise the pull keeps the local and tracking tips, excludes
+  that ref from applying, and reports `tracking-update-failed`, including a failed create or delete. The other refs
+  apply and another pull can complete after the lock is released. These failed local updates are never remote
+  rewrites; actual `!` rows retain the ancestry classification above, with a zero new tip classified as a failed
+  tracking delete. The forwarding-record replacement exception remains unchanged.
 - **A refused ref** keeps its tracking and local tips, every other ref in the fetch applies, and the pull reports a
   `history-diverged` notice (§ 2.2) naming the ref and both tips, with a remedy giving the three ways out as Git
   commands: keep ours, a push of the local tip leased on the observed remote tip; take theirs, a forced fetch of the
@@ -3361,7 +3370,8 @@ typed conflicts:
       leaves out a ref a batch spans with it alike; and a forward repair on either clone, once pushed, brings both back
       to reads that succeed;
     - a fetch whose tracking-ref update meets a held lock reports `tracking-update-failed`, keeps that ref's tips, and
-      applies the rest, and the next pull applies it;
+      applies the rest, and the next pull applies it; with files and reftable, failed creates, advances, and deletes are
+      classified from actual tracking state even where a reftable failure reports ordinary success rows first (A15);
     - leased deletes, the archive sequence renumbered after a concurrent archive, and a cohort's `a` and `b` folders;
     - a server that moves or deletes a ref inside its own window, as a pre-receive hook can, so a single-ref leased
       create, a leased delete, and an update each read as a lost race and settle on the next attempt, and a hook that
@@ -3979,6 +3989,11 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     state ref, a pull completes as a no-op and names no code commit as held; an absent requested history pattern does
     not prevent another state ref from arriving. Nested tracking refs remain usable negotiation tips (§ 6.2) (A13).
 
+23. **Failed fetches establish actual tracking updates.** Files and reftable lock failures preserve refused refs and
+    report `tracking-update-failed` for failed creates, advances, and deletes, including success rows emitted before a
+    reftable transaction abort. Other acquired refs apply, shared tracking advances cause no false rewrite, and a pull
+    after release succeeds (§ 6.3) (A15).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4056,5 +4071,8 @@ open:
   The port gains `incomplete` for a pull invocation that did not fully synchronize the requested state, preserving
   partial outcomes, condition, and remedy; `unreachable` retains transport failure. Session entry and status fetch
   render `incomplete` as `pull-incomplete`, and successful outcomes retain their notices for rendering.
+
+- **A15** — 2026-10-17 — design: failed fetches verify reported updates against actual tracking tips.
+  _Supersedes:_ § 6.3 failed-update flag premise. _Trigger:_ 11.1 must-stop. _Work:_ 11.1.R. _Revalidated:_ pending → 11.6.
 
 ---
