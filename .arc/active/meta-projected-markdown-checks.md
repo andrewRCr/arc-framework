@@ -8,11 +8,11 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal] — the split of the `state-storage` register's lint clause (2026-10-16)
-- **Design:** `draft-projected-markdown-checks.md`
+- **Design:** `spec-projected-markdown-checks.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
