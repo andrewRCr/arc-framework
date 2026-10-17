@@ -108,8 +108,8 @@ follow the override instead):
 retain the selected checkout for the next session. Use [Errand-Session Handoff Path](#errand-session-handoff-path).
 
 **Between-WUs handoff** — no active meta file or SESSION-NOTES write. Review WORKING-MEMORY, route any durable
-captures to existing surfaces (`USER-INBOX`, `WORKING-MEMORY`, backlog artifacts as applicable), then
-sync + confirm. Use [Between-WUs Handoff Path](#between-wus-handoff-path).
+captures to existing surfaces (`USER-INBOX`, `WORKING-MEMORY` for approved additions, backlog artifacts as
+applicable), then sync + confirm. Use [Between-WUs Handoff Path](#between-wus-handoff-path).
 
 **When context changes** — capture working-directory paths or environment expectations in the active
 meta file only when they change next-session orientation.
@@ -174,8 +174,8 @@ Use this path when `handoffLocus.value.kind === "between-work-units"`.
    carried in tracked state. Surface removals in the handoff summary; do not silently rewrite. If identity
    is absent, skip user-state reads and surface the degraded state.
 2. **Route durable handoff context** — if anything must survive the handoff, write it to an existing
-   authoritative surface: `USER-INBOX` for deferred personal captures, `WORKING-MEMORY` for cross-WU
-   persistent context, or backlog artifacts when the project document is already the clear home.
+   authoritative surface: `USER-INBOX` for deferred personal captures, `WORKING-MEMORY` for cross-WU persistent
+   context, once its addition is approved, or backlog artifacts when the project document is already the clear home.
    Do not create a per-WU SESSION-NOTES home or a placeholder marker.
 3. **Refresh probe** — after WORKING-MEMORY edits or durable context routing, re-run the composite probe:
 
@@ -216,10 +216,10 @@ Update session state files before ending session:
     Below threshold (skip): minor rephrasing of Last Completed / Next Action with no semantic
     change, cosmetic reorderings, restating the same Next Action in different words.
 
-    **Skill invocation is the approval.** `/arc-handoff` is user-initiated; the invocation grants
-    approval for the workflow's bundled actions, including the `chore(arc): handoff` commit.
-    No separate per-commit prompt fires under either push-interlock mode — push behavior is gated
-    by `arc sync` internally (see § Sync), where remote-side consequences justify granular gating.
+    **Skill invocation is the approval.** `/arc-handoff` is user-initiated; the invocation grants approval for the
+    workflow's bundled actions, including the `chore(arc): handoff` commit, but not a `WORKING-MEMORY` addition, which
+    lands only on its own approval. No separate per-commit prompt fires under either push-interlock mode — push
+    behavior is gated by `arc sync` internally (see § Sync), where remote-side consequences justify granular gating.
     Stage the meta file and lint it (catches authoring errors before the chore-commit lands):
 
     ```bash
@@ -413,7 +413,8 @@ Markers:
 - **WORKING-MEMORY entries:** Cross-WU persistent context — entries that survive across handoffs
   (and WU boundaries) at the resolver-backed identity-global `WORKING-MEMORY.md` path. Under
   linked-worktree operation, this is the primary worktree's `.arc/user/{identity}/WORKING-MEMORY.md`.
-  Each needs an explicit removal trigger (not tied to full work unit completion). Same filter as above.
+  Each needs an explicit removal trigger (not tied to full work unit completion). Same filter as above. An addition
+  is proposed and lands only on approval; invoking the handoff does not approve it.
 
     - **Passes:** forward-looking constraints (terminology for an unlanded rename), un-codified
       meta-conventions, parking references to uncommitted work visible in `git status`.
