@@ -147,3 +147,20 @@ it.each([true, false])("reports a scratch collision acquired under the lock with
     expect(await readFile(join(to, "current-idea"), "utf8")).toBe("Current personal contents");
   } finally { await rm(cwd, { recursive: true, force: true }); }
 });
+
+it.each(["\n", "\r\n"])("updates only visible entry targets, preserving comments and outside bytes with newline %j", async newline => {
+  const { createStoreUserReferencePrepareContext } = await import("../../src/lib/user-reference-reconcile-store.js");
+  const h = await fixture();
+  const content = ["# Inbox", "", "## Work Unit", "", "- WU_Target: former", "",
+    "<!--", "### **Commented example**", "- WU_Target: former", "- _Id:_ `deadbeef`", "-->", "",
+    "### **Live capture**", "<!--", "- _WU_Target:_ `former`", "-->",
+    "- WU_Target: former (planned) <!-- keep this former example -->", "- _Id:_ `12345678`", "",
+    "<!-- trailing comment", "- _WU_Target:_ `former`", "-->", "", "---", "- WU_Target: former", ""].join(newline);
+  lifecycleSuccess(await h.store.write({ ...recordPut(h.inbox, { content }), provenance: { verb: "capture", lifecycleAction: "update" } }));
+  const fresh = lifecycleSuccess(await createStoreUserReferencePrepareContext({ store: h.store, identity: "andrew" }));
+  expect(await runUserReferenceReconcile({ ...h.context, preparedStore: fresh.preparedStore,
+    transitions: fresh.authority.transitions, readSurfaces: async () => fresh.surfaces })).toMatchObject({ status: "applied" });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.inbox.reference })).content).toBe(content.replace(
+    "- WU_Target: former (planned) <!-- keep this former example -->",
+    "- WU_Target: current (planned) <!-- keep this former example -->"));
+});

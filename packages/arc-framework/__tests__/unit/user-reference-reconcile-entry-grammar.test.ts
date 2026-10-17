@@ -8,5 +8,5 @@ it.each(['- WU_Target: origin (planned)', '- `WU_Target: origin (planned)`', '- 
     transitions: [{ subject: "origin", outcome: { kind: "rename", targetSlug: "successor" } }],
     userInbox: { path: "inbox.md", content: `## Work Unit\n### **Title**\n${line}\n` },
   });
-  expect(result.edits[0]?.content).toContain('- _WU_Target:_ `successor (planned)`');
+  expect(result.edits[0]?.content).toContain(line.replace("origin", "successor"));
 });

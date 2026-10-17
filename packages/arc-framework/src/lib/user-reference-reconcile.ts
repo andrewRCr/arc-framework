@@ -11,7 +11,9 @@ import type { z } from "zod";
 import { basename } from "node:path";
 import { UserReferenceReconcileSessionResultSchema } from "./user-reference-reconcile-schema.js";
 import { applyScratchReconcile, planScratchReconcile, type ScratchReconcileInput, type ScratchReconcilePlan } from "./user-reference-scratch.js";
-import { readEntryField, targetNamedByLine } from "./store/kinds/entry-fields.js";
+import { targetNamedByLine } from "./store/kinds/entry-fields.js";
+import { parseEntryList } from "./store/kinds/entry-list.js";
+import { maskComments } from "./store/concurrency/entries.js";
 
 import type { Store } from "./store/contract.js";
 import type { StoreRecord } from "./store/read.js";
@@ -213,25 +215,7 @@ export function planUserReferenceReconcile(
 ): UserReferenceReconcilePlan {
   const advisories: UserReferenceAdvisory[] = [];
   const replacements: UserReferenceReplacement[] = [];
-  let inWorkUnit = false;
-  const lines = input.userInbox.content.split("\n");
-  const rewritten = lines.map((line, index) => {
-    if (line.startsWith("## ")) inWorkUnit = line === "## Work Unit";
-    if (!inWorkUnit) return line;
-    const match = MANAGED_TARGET.exec(line);
-    const subject = input.stateOffBranch === true ? targetNamedByLine(line) : match?.[1];
-    if (subject === undefined) return line;
-    const resolution = resolveReferenceTransition(input.transitions, subject);
-    if (resolution.kind === "rename") {
-      replacements.push({ subject, targetSlug: resolution.targetSlug });
-      const hint = input.stateOffBranch === true ? /\s+\((?:planned|provisional)\)$/u.exec(readEntryField(line, "WU_Target") ?? "")?.[0] ?? "" : match?.[2] ?? "";
-      return `- _WU_Target:_ \`${resolution.targetSlug}${hint}\``;
-    }
-    if (resolution.kind !== "absent") {
-      advisories.push(managedAdvisory(input.userInbox, index + 1, line, subject, resolution));
-    }
-    return line;
-  }).join("\n");
+  const rewritten = rewriteInboxTargets(input, advisories, replacements);
 
   for (const surface of [input.workingMemory, input.sessionNotes]) {
     if (surface === undefined) continue;
@@ -251,6 +235,49 @@ export function planUserReferenceReconcile(
     edits,
     advisories: advisories.sort(compareAdvisories),
   };
+}
+
+function rewriteInboxTargets(input: PlanUserReferenceReconcileInput, advisories: UserReferenceAdvisory[],
+  replacements: UserReferenceReplacement[]): string {
+  const rewrite = (line: string, visible: string, index: number) => rewriteTargetLine(line, visible, index, input, advisories, replacements);
+  if (input.stateOffBranch === true) return rewriteParsedInbox(input.userInbox.content, rewrite);
+  let inWorkUnit = false;
+  return input.userInbox.content.split("\n").map((line, index) => {
+    if (line.startsWith("## ")) inWorkUnit = line === "## Work Unit";
+    return inWorkUnit ? rewrite(line, line, index) : line;
+  }).join("\n");
+}
+
+function rewriteParsedInbox(content: string, rewrite: (line: string, visible: string, index: number) => string): string {
+  const parsed = parseEntryList(content, "personal/inbox");
+  if (!parsed.success) throw new Error(`Cannot reconcile malformed personal inbox: ${parsed.error}`);
+  let lineIndex = 0;
+  return parsed.data.parts.map(part => {
+    const start = lineIndex;
+    const original = part.bytes + (part.kind === "entry" ? part.separator : "");
+    lineIndex += original.split("\n").length - 1;
+    if (part.kind !== "entry" || part.section !== "Work Unit") return original;
+    const visible = maskComments(part.bytes).split("\n");
+    return part.bytes.split("\n").map((line, index) => rewrite(line, visible[index] ?? "", start + index)).join("\n") + part.separator;
+  }).join("");
+}
+
+function rewriteTargetLine(line: string, visible: string, index: number, input: PlanUserReferenceReconcileInput,
+  advisories: UserReferenceAdvisory[], replacements: UserReferenceReplacement[]): string {
+  const match = MANAGED_TARGET.exec(visible);
+  const subject = input.stateOffBranch === true ? targetNamedByLine(visible) : match?.[1];
+  if (subject === undefined) return line;
+  const resolution = resolveReferenceTransition(input.transitions, subject);
+  if (resolution.kind === "rename") {
+    replacements.push({ subject, targetSlug: resolution.targetSlug });
+    if (input.stateOffBranch === true) {
+      const offset = visible.indexOf(subject, visible.indexOf("WU_Target") + "WU_Target".length);
+      return line.slice(0, offset) + resolution.targetSlug + line.slice(offset + subject.length);
+    }
+    return `- _WU_Target:_ \`${resolution.targetSlug}${match?.[2] ?? ""}\``;
+  }
+  if (resolution.kind !== "absent") advisories.push(managedAdvisory(input.userInbox, index + 1, line, subject, resolution));
+  return line;
 }
 
 /**
