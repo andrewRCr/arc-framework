@@ -1266,27 +1266,15 @@ without duplicating one.
   machine record. Imports retain the work unit's one UID across its kinds, place the cohort on its own ref, preserve
   existing inbox IDs while stamping missing ones, and store machine bytes in canonical JSON in both layouts.
 
-### `[ ]` **14.3 Landing, rerunning, and publishing the import — § 10.4, § 10.5, § 10.11**
+### `[x]` **14.3 Landing, rerunning, and publishing the import — § 10.4, § 10.5, § 10.11**
 
 - _Goal:_ The import lands in one transaction with one `Arc-Batch` across every ref's landing commit, is finished by a
   rerun after any step, publishes through `push`, and reports in its trial exactly what it then lands.
 
-    - Its steps, each declared at the step port (13.1): build, gathering every ref under `refs/arc/tmp/migrate/import/`
-      in the store's own repository — the code repository in the default layout, and in the separate one the store
-      directory, which the import first creates as 8.2 creates one, empty, so an interruption before the landing
-      leaves a store that holds no state; land, in one `update-ref` transaction in that repository; and publish,
-      through `push`; 15.3.a adds the transient-identity steps
-    - The import writes no move record: a store whose project ID is the clone's review-gate repository ID is its own
-      landing, from which a rerun finishes the steps after it (§ 10.4)
-    - Provenance `migrate` `import`; one `Arc-Batch` for the landing commit on every ref, and one more for each replayed
-      Candidate version (15.1)
-    - A trial and its landing are compared as multisets of each ref entry's name with its UID masked, scope, person, and
-      action, since the landing mints the UIDs the trial cannot name and `MigrateReport` carries no owner
-    - Build `test-first` (one behavior at a time):
-        - the landing writes every ref in one `update-ref` transaction, each ref's landing commit under one batch
-        - the import interrupted after each step and run again completes
-        - its trial report matches what it then lands
-        - a run after the landing finishes the steps that follow it without minting a second UID for any owner
+- _Outcome:_ The import declares build, land, and publish steps, replaces interrupted gathering refs in the selected
+  store, and lands all refs atomically under one batch. Its trial matches the landing after UID masking. Reruns
+  recognize their existing project ID and resume publication without reading or duplicating source records, including
+  after an unreachable remote or an interrupted successful push; failures carry the import retry remedy.
 
 ### `[ ]` **14.4 The import's comparison harness — § 14.7**
 

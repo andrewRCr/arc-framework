@@ -5,7 +5,7 @@ import { Command, Option } from "commander";
 import { afterAll, onTestFinished } from "vitest";
 import { createTempRepoCore, removeGitBackedDir } from "../temp-repo.js";
 import { makeGitExec } from "../integration.js";
-import { prepareRepositoryTemplate, copyPreparedRepository, type PreparedRepositoryTemplate } from "../prepared-repository.js";
+import { prepareRepositoryTemplate, copyPreparedRepository, PREPARED_REMOTE_PATH, type PreparedRepositoryTemplate } from "../prepared-repository.js";
 import { makeMetaFixture } from "../meta-fixture.js";
 import { createDefaultRefStorePorts } from "../../../src/lib/store/default-ports.js";
 import { resolveArcPath } from "../../../src/lib/layout/index.js";
@@ -27,7 +27,7 @@ export const IMPORT_DOCUMENTS = [
 export const IMPORT_COHORT = "# Cohort: `group`\n\n**Purpose:** Coordinate the example work.\n";
 export const IMPORT_INBOX = "# Project Inbox\n\n## Inbox\n\n### **First**\n\n- _Description:_ First source entry.\n\n### **Second**\n\n- _Id:_ `11111111`\n- _Description:_ Second source entry.\n";
 
-const shape = { kind: "plain", key: "tracked-import" } as const;
+const shape = { kind: "remote-bearing", key: "tracked-import" } as const;
 let template: Promise<PreparedRepositoryTemplate> | undefined;
 afterAll(async () => { if (template) await removeGitBackedDir((await template).root); });
 
@@ -56,6 +56,10 @@ async function build(): Promise<string> {
   await git("git", ["add", ".arc"]);
   await git("git", ["commit", "-m", "Seed tracked work"]);
   await git("git", ["branch", "feat/alpha"]);
+  const origin = join(root, PREPARED_REMOTE_PATH);
+  await mkdir(dirname(origin), { recursive: true });
+  await git("git", ["init", "--bare", "--initial-branch=main", origin]);
+  await git("git", ["remote", "add", "origin", origin]);
   return root;
 }
 
@@ -65,10 +69,10 @@ export async function importFixture(layout: "default" | "separate" = "default") 
   const root = await copyPreparedRepository(await template, shape);
   onTestFinished(() => removeGitBackedDir(root));
   const git = makeGitExec(root);
-  await git("git", ["remote", "add", "origin", "."]);
   await git("git", ["config", "remote.origin.arc-state", layout === "default" ? "push" : "off"]);
   const ports = createDefaultRefStorePorts({ checkoutRoot: root, backingRepository: async () => null });
-  return { root, git, ports, migrate: (trial = false) => invokeImport(ports, trial) };
+  const origin = join(root, PREPARED_REMOTE_PATH);
+  return { root, git, ports, origin, remote: makeGitExec(origin), migrate: (trial = false) => invokeImport(ports, trial) };
 }
 
 async function invokeImport(ports: RefStorePorts, trial: boolean): Promise<StoreMigrateResult> {
