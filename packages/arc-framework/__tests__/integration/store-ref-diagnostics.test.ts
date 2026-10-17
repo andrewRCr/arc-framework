@@ -7,6 +7,7 @@ import { RecordReferenceSchema } from "../../src/lib/store/identity.js";
 import { inRepoContent } from "../helpers/store/in-repo-fixture.js";
 import { createRefReadFixture } from "../helpers/store/ref-read.js";
 import { plantRef, removeLooseObject } from "../helpers/store/ref-plant.js";
+import { LineageRecordSchema } from "../../src/lib/store/kinds/lineage/index.js";
 
 const uid = "12345678-1234-4234-8234-123456789abc";
 const owner = { type: "work-item", name: "alpha", uid } as const;
@@ -129,6 +130,23 @@ describe.each(["files", "reftable"] as const)("ref diagnostics (%s)", (format) =
         expect.objectContaining({ kind: "malformed", key: `lineage/${uid}.json` }),
         expect.objectContaining({ kind: "key-mismatch", key: `lineage/${wrongUid}.json` }),
       ]) } });
+  });
+
+  it("reports a lineage origin UID mismatch even when its name matches, and reads the repaired entry", async () => {
+    const f = await createRefReadFixture(format);
+    const foreignUid = "abcdef12-1234-4234-8234-123456789abc";
+    const reference = RecordReferenceSchema.parse({ owner, kind: "lineage/transition" });
+    const path = `lineage/${uid}.json`;
+    const content = (originUid: string) => canonicalize(LineageRecordSchema.parse({ ...JSON.parse(inRepoContent(reference)),
+      origin: { name: owner.name, uid: originUid } }));
+    const entries = (content: string) => [{ path: "metadata-registry.json", content: canonicalize({ formatVersion: 1, formats: {}, lineage: { [uid]: owner.name } }) },
+      { path, content }];
+    const planted = await plantRef(f.root, "refs/arc/project/registry", entries(content(foreignUid)));
+    expect(await f.store.list({ family: "lineage" })).toMatchObject({ status: "ok", result: { status: "complete", records: [], missed: true,
+      diagnostics: [expect.objectContaining({ kind: "key-mismatch", key: path })],
+    } });
+    await plantRef(f.root, "refs/arc/project/registry", entries(content(uid)), { parents: [planted.tip] });
+    expect(await f.store.read({ reference })).toMatchObject({ status: "ok", result: { reference } });
   });
 
 });

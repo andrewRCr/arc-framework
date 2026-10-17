@@ -455,32 +455,16 @@ _Mode:_ `layer` through Phase 8 — closes on the local engine complete in both 
           through one captured namespace. Companion puts require captured primary metadata or a primary anywhere in
           the batch, retain placement after primary removal, and exempt conflict records.
 
-### `[ ]` **5.3 Live owners, the shared slug namespace, and lineage owners — § 3.3, § 5.1**
+### `[x]` **5.3 Live owners, the shared slug namespace, and lineage owners — § 3.3, § 5.1**
 
 - _Goal:_ Every work item and cohort shares one slug namespace, so no write that finds another live holder of its slug
   leaves two live owners holding it, while a clash between machines stays writable until a rename resolves it, and every
   lineage record's owner stays named.
 
-    - The tiers over ended items land in Phase 7
-    - The registry's metadata keeps each lineage record's owner slug under its origin UID: a put of
-      `lineage/<uid>.json` writes it in the same commit, and a removal removes it; a rename's upkeep lands in 6.6
-    - That map is a resolution step of its own: a reference without a UID whose slug no live owner holds resolves
-      through it to its lineage owner's UID, in `read`, `list`, `history`, `changes`, and the write path alike, before
-      Phase 7's ended tiers; this retires 4.4.d's exclusion of the `lineage` family's `everyKind` assertions
-    - Build `test-first` (one behavior at a time):
-        - a create whose slug a live owner of its type holds resolves to that owner and refuses by the absence rule
-        - a create of a work unit over a live cohort's slug, and of a cohort over a live work unit's, refuse
-          `ambiguous-match` naming both
-        - a write that changes no primary's slug or placement lands while two machines' owners share a slug, planted as
-          a pull would leave it
-        - a write naming by UID an owner with no live or archived refs refuses `not-found`, and lineage on the registry
-          ref is unaffected
-        - a lineage record's put and removal write and remove its owner's slug in the registry's metadata, and the record
-          lists under that owner
-        - a lineage record written and read back through a reference without a UID, as the suite's `seed` does, reads,
-          lists, and takes a second write under its owner's UID
-        - stored lineage whose origin name matches the registry map but whose origin UID names another generation
-          reports `key-mismatch` under its exact stored path
+- _Outcome:_ Captured primary claims enforce the shared namespace while unchanged UID-addressed writes survive
+  existing clashes. Transition puts/removals maintain independent registry origin names; reads resolve live owners
+  before that map, conflict owners come from content, and origin UID mismatches retain exact-path diagnostics.
+  Shared resolvers support the later history and changes operations; the lineage conformance exclusions are retired.
 
 ### `[ ]` **5.R2 Independent lineage format versions — § 3.3 (A6)**
 
@@ -502,6 +486,7 @@ _Mode:_ `layer` through Phase 8 — closes on the local engine complete in both 
     - One path-limited `git rev-list --full-history --parents` over every path the record has had and its ref's metadata
       file, keeping a commit only where the record's version or presence differs from its parent's, ordered from
       `--parents` with the local side first; renames and role changes extend the path set in 6.6, and merges order in 9.2
+    - Resolve a slug-only lineage reference through 5.3's live-owner and registry-map resolver before selecting its log
     - Each entry's provenance takes `ownerUid` from the record's own reference, read from the tree, since one commit can
       hold several owners' records
     - Build `test-first` (one behavior at a time):
@@ -808,6 +793,7 @@ by every tier, and an item ref broken outside ARC.
   changed, whatever ref carried it, or refuses naming what this clone lacks.
 
     - A module of its own for the namespace table, the batch grouping, and the restriction to named records
+    - Named lineage restrictions use 5.3's live-owner and registry-map resolution over the compared manifests
     - One case per row of § 4.6's table and per grouping rule; the pull by name that resolves a refusal fetches through
       9.1.b, and 10.3 carries the case of a `changes` landing after it
     - Build `test-first` (one behavior at a time):

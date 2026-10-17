@@ -43,8 +43,14 @@ export function parsedOwnerProblem(reference: RecordReference, fields: unknown):
       kind: "key-mismatch", condition: "Stored conflict names an owner other than its ref's metadata",
     };
   }
-  if (reference.kind !== "lineage/transition") return null;
+  return reference.kind === "lineage/transition" ? lineageOriginProblem(reference, fields) : null;
+}
+
+function lineageOriginProblem(reference: RecordReference, fields: unknown): ContentProblem | null {
   const lineage = LineageRecordSchema.safeParse(fields);
-  if (!lineage.success || lineage.data.origin.name === reference.owner.name) return null;
-  return { kind: "key-mismatch", condition: `Stored content names ${lineage.data.origin.name} instead of ${reference.owner.name}` };
+  if (!lineage.success) return null;
+  const { origin } = lineage.data;
+  if (origin.name === reference.owner.name && (origin.uid === undefined
+    || reference.owner.type === "work-item" && origin.uid === reference.owner.uid)) return null;
+  return { kind: "key-mismatch", condition: "Stored lineage origin names an owner other than its registry metadata" };
 }

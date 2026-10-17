@@ -122,6 +122,7 @@ async function applyMutation(context: RefBackendContext, group: RefGroup, write:
   const formatKey = canonicalize({ kind, ...(key === undefined ? {} : { key }) });
   if (mutation.action === "remove") {
     group.entries.delete(home.path);
+    if (kind === "lineage/transition") removeLineageOwner(group.metadata, mutation.reference);
     group.metadata.formats = Object.fromEntries(Object.entries(group.metadata.formats).filter(([key]) => key !== formatKey));
     return { status: "ok", result: { reference: mutation.reference, conflicts: [] } };
   }
@@ -131,6 +132,9 @@ async function applyMutation(context: RefBackendContext, group: RefGroup, write:
   const refusal = checkSerializationRules(mutation.reference, content);
   if (refusal) return { status: "refused", refusal };
   const oid = await writeRefBlob(context, content);
+  if (kind === "lineage/transition" && mutation.reference.owner.type === "work-item" && mutation.reference.owner.uid) {
+    group.metadata.lineage = { ...group.metadata.lineage, [mutation.reference.owner.uid]: mutation.reference.owner.name };
+  }
   group.entries.set(home.path, { path: home.path, mode: "100644", oid });
   group.metadata.formats[formatKey] = formatVersion;
   if ((kind === "work-item/meta" || kind === "work-item/record") && mutation.placement) {
@@ -138,6 +142,12 @@ async function applyMutation(context: RefBackendContext, group: RefGroup, write:
     group.metadata.primary = { role: kind, placement: mutation.placement, ...(links === undefined ? {} : { links }) };
   }
   return { status: "ok", result: { reference: mutation.reference, conflicts: [], version: refRecordVersion(mutation.reference, oid, group.metadata, formatVersion) } };
+}
+
+function removeLineageOwner(metadata: RefMetadata, reference: RecordReference): void {
+  if (reference.owner.type !== "work-item") return;
+  const ownerUid = reference.owner.uid;
+  metadata.lineage = Object.fromEntries(Object.entries(metadata.lineage ?? {}).filter(([uid]) => uid !== ownerUid));
 }
 
 async function readWriteGroups(context: RefBackendContext, resolved: ResolvedBatch): Promise<StoreResult<Map<string, RefGroup>>> {
@@ -157,7 +167,7 @@ async function readWriteGroups(context: RefBackendContext, resolved: ResolvedBat
       const tip = tips.get(home.ref);
       const metadata = tip ? parseRefMetadata(objects.get(`${tip}:${home.metadataPath}`), home.ref)
         : { formatVersion: 1 as const, formats: {},
-          ...(mutation.reference.owner.type === "work-item" || mutation.reference.owner.type === "cohort"
+          ...(/^refs\/arc\/(?:work|cohort)\//u.test(home.ref)
             ? { slug: mutation.reference.owner.name } : {}) };
       if (!metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
         namespace: home.ref, ...metadataFailure(home.ref) } };

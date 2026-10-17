@@ -7,13 +7,14 @@ import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
 import type { FamilyId } from "../catalog.js";
 import { FAMILY_REGISTRY } from "../registry.js";
 import { readBatchObjects, readRefTips, readRefTrees, type BatchObject, type RefTreeEntry } from "./batch-read.js";
-import { decodeRecord, decodeReference, lineageOwner, matchesFamilyRef, refOwner, rootFamily } from "./codec.js";
+import { decodeRecord, decodeReference, matchesFamilyRef, refOwner, rootFamily } from "./codec.js";
 import { parseRefMetadata, metadataFailure, type RefMetadata } from "./metadata.js";
 import type { RefBackendContext } from "./context.js";
 import { saveCapturedManifest } from "./manifest.js";
 import { recordDiagnostic } from "./content-read.js";
 import { readOpenConflicts, attachOpenConflicts } from "./conflicts-read.js";
 import { checkRefKey } from "./path-admission.js";
+import { resolveLineageReadReference } from "./lineage-resolution.js";
 
 /** Read one live record, resolving a slug-only owner through one captured family scan. */
 export async function readRefRecord(context: RefBackendContext, input: ReadInput): Promise<StoreResult<StoreRecord>> {
@@ -36,10 +37,9 @@ export async function readRefRecord(context: RefBackendContext, input: ReadInput
   const metadata = parseRefMetadata(objects.get(metadataQuery), home.ref);
   if (!metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
     namespace: home.ref, ...metadataFailure(home.ref) } };
-  const family = context.registry[reference.kind].family;
-  const owner = family === "lineage" ? lineageOwner(metadata, reference.owner.type === "work-item" ? reference.owner.uid : undefined)
-    : refOwner(home.ref, family, metadata);
-  reference = RecordReferenceSchema.parse({ ...reference, owner });
+  const owner = resolveCapturedOwner(context, reference, home, metadata, object);
+  if (owner.status === "refused") return owner;
+  reference = RecordReferenceSchema.parse({ ...reference, owner: owner.result });
   const conflicts = await readOpenConflicts(context, reference, objects.get(conflictsQuery));
   const record = decodeRecord(context, reference, object, metadata, home.path, conflicts);
   return "reference" in record ? { status: "ok", result: record } : { status: "refused", refusal: {
@@ -51,6 +51,7 @@ async function resolveReadReference(context: RefBackendContext, reference: Recor
   if (reference.owner.type === "person" && await context.identity() === null) {
     return missing(reference, "No arc.identity is configured for person-owned state", "Configure arc.identity, then retry.");
   }
+  if (context.registry[reference.kind].family === "lineage") return resolveLineageReadReference(context, reference);
   if (reference.owner.type !== "person" && !reference.owner.uid && reference.owner.type !== "project") {
     const listing = await listRefRecords(context, { family: context.registry[reference.kind].family });
     if (listing.status !== "ok" || listing.result.status !== "complete") return missing(reference);
@@ -59,6 +60,22 @@ async function resolveReadReference(context: RefBackendContext, reference: Recor
     return { status: "ok", result: RecordReferenceSchema.parse({ ...reference, owner: resolved.reference.owner }) };
   }
   return { status: "ok", result: reference };
+}
+
+function resolveCapturedOwner(context: RefBackendContext, reference: RecordReference, home: StoredRecordHome,
+  metadata: RefMetadata, object: BatchObject): StoreResult<OwnerIdentity> {
+  const family = context.registry[reference.kind].family;
+  if (family !== "lineage") return { status: "ok", result: refOwner(home.ref, family, metadata) };
+  const decoded = decodeReference(context, reference.owner, family, home.path, metadata, object);
+  if (!decoded || !("owner" in decoded)) return { status: "refused", refusal: {
+    code: "record-malformed", class: "recoverable", reference, rule: "store.lineage-owner",
+    condition: "The lineage record's owner cannot be decoded from its registry metadata or conflict target.",
+    remedy: { text: `Repair the stored entry at ${home.path} and its owner metadata, then retry.` },
+  } };
+  const requested = reference.owner;
+  const matches = requested.type !== "person" && requested.uid !== undefined ? sameOwner(requested, decoded.owner)
+    : requested.type === decoded.owner.type && requested.name === decoded.owner.name;
+  return matches ? { status: "ok", result: decoded.owner } : missing(reference);
 }
 
 /** List a registered family from one tip capture, tree check, recursive diff, and blob batch. */
@@ -107,7 +124,9 @@ function decodeCapturedRef(context: RefBackendContext, input: ListInput, ref: st
 function decodeCapturedEntry(context: RefBackendContext, family: FamilyId, owner: OwnerIdentity, entry: RefTreeEntry,
   object: BatchObject | null | undefined, metadata: RefMetadata): StoreRecord | ListingDiagnostic | null {
   const reference = decodeReference(context, owner, family, entry.path, metadata, object);
-  if (!reference) return recordDiagnostic(entry.path, { kind: "malformed", condition: "The stored path does not name an admitted record" });
+  if (!reference) return recordDiagnostic(entry.path, object?.type === "blob"
+    ? { kind: "malformed", condition: "The stored path does not name an admitted record" }
+    : { kind: "unreadable", condition: "The stored blob is not available locally" });
   if (!("owner" in reference)) return reference;
   if (context.registry[reference.kind].family !== family) return null;
   if (object?.type !== "blob") return recordDiagnostic(entry.path, {

@@ -49,7 +49,8 @@ function decodeKindReference(kind: KindDefinition, owner: OwnerIdentity, path: s
 function lineageEntryOwner(kind: KindDefinition, path: string, metadata: RefMetadata,
   object?: BatchObject | null): OwnerIdentity | null {
   const target = kind.id === "lineage/conflict-record" && object ? conflictTarget(object.bytes)?.owner : null;
-  const uid = target?.type === "work-item" ? target.uid : /^lineage\/([0-9a-f-]{36})\.json$/u.exec(path)?.[1];
+  if (target?.type === "work-item") return target.uid && metadata.lineage?.[target.uid] ? lineageOwner(metadata, target.uid) : target;
+  const uid = /^lineage\/([0-9a-f-]{36})\.json$/u.exec(path)?.[1];
   return uid && metadata.lineage?.[uid] ? lineageOwner(metadata, uid) : null;
 }
 

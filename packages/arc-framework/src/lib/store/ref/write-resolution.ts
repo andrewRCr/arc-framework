@@ -5,10 +5,11 @@ import { OwnerIdentitySchema, RecordReferenceSchema, type OwnerIdentity, type Re
 import type { Mutation } from "../write.js";
 import type { StoreResult } from "../refusal.js";
 import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
-import { readBatchObjects, readRefTips } from "./batch-read.js";
-import { matchesFamilyRef, refOwner } from "./codec.js";
-import { parseRefMetadata, metadataFailure } from "./metadata.js";
+import { readRefTips } from "./batch-read.js";
 import type { RefBackendContext } from "./context.js";
+import { checkLiveNamespace } from "./namespace-admission.js";
+import { readLineageOwners, lineageOwnerCandidates } from "./lineage-resolution.js";
+import { readLiveRefOwners } from "./live-owners.js";
 
 /** Canonical mutation and its concrete ref/tree address. */
 export interface ResolvedMutation { mutation: Mutation; home: StoredRecordHome }
@@ -24,43 +25,31 @@ export async function resolveRefWrites(context: RefBackendContext, writes: reado
     remedy: { text: "Configure arc.identity, then retry the write." },
   } };
   const tips = await readRefTips(context, { includeHistory: true });
-  const observed = await readLiveOwners(context, tips);
+  const observed = await readLiveRefOwners(context, tips);
   if (observed.status === "refused") return observed;
   const owners = observed.result;
+  const needsLineage = writes.some((mutation) => [mutation.reference, ...mutation.resolves ?? []]
+    .some((reference) => context.registry[reference.kind].family === "lineage"));
+  const lineage = needsLineage ? await readLineageOwners(context, tips) : { status: "ok" as const, result: [] };
+  if (lineage.status === "refused") return lineage;
   const fresh = new Map<string, OwnerIdentity>();
+  const resolve = (reference: RecordReference) => resolveOwner(reference,
+    context.registry[reference.kind].family === "lineage"
+      ? lineageOwnerCandidates(reference, owners.map(({ owner }) => owner), lineage.result)
+      : owners.map(({ owner }) => owner), fresh);
   const resolved: ResolvedMutation[] = [];
   for (const mutation of writes) {
-    const found = resolveOwner(mutation.reference, owners, fresh);
+    const found = resolve(mutation.reference);
     if (found.status === "refused") return found;
     const owner = found.result;
     const reference = RecordReferenceSchema.parse({ ...mutation.reference, owner });
     resolved.push({ mutation: { ...mutation, reference }, home: expandStoredPath(reference, { registry: context.registry }) });
   }
-  for (const write of resolved) {
-    if (write.mutation.resolves === undefined) continue;
-    const resolves: RecordReference[] = [];
-    for (const reference of write.mutation.resolves) {
-      const found = resolveOwner(reference, owners, fresh);
-      if (found.status === "refused") return found;
-      resolves.push(RecordReferenceSchema.parse({ ...reference, owner: found.result }));
-    }
-    write.mutation = { ...write.mutation, resolves };
-  }
+  const canonical = resolveConflictReferences(resolved, resolve);
+  if (canonical.status === "refused") return canonical;
+  const clash = checkLiveNamespace(resolved, owners);
+  if (clash) return { status: "refused", refusal: clash };
   return { status: "ok", result: { writes: resolved, tips } };
-}
-
-async function readLiveOwners(context: RefBackendContext, tips: ReadonlyMap<string, string>): Promise<StoreResult<OwnerIdentity[]>> {
-  const refs = [...tips].filter(([ref]) => matchesFamilyRef(ref, "work-item") || matchesFamilyRef(ref, "cohort"));
-  const query = (ref: string, tip: string) => `${tip}:metadata-${ref.split("/").at(-1)}.json`;
-  const objects = await readBatchObjects(context, refs.map(([ref, tip]) => query(ref, tip)));
-  const owners: OwnerIdentity[] = [];
-  for (const [ref, tip] of refs) {
-    const metadata = parseRefMetadata(objects.get(query(ref, tip)), ref);
-    if (!metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
-      namespace: ref, ...metadataFailure(ref) } };
-    owners.push(refOwner(ref, matchesFamilyRef(ref, "work-item") ? "work-item" : "cohort", metadata));
-  }
-  return { status: "ok", result: owners };
 }
 
 function resolveOwner(reference: RecordReference, owners: readonly OwnerIdentity[], fresh: Map<string, OwnerIdentity>): StoreResult<OwnerIdentity> {
@@ -68,6 +57,7 @@ function resolveOwner(reference: RecordReference, owners: readonly OwnerIdentity
   if (requested.type === "person" || requested.type === "project") return { status: "ok", result: requested };
   const candidates = owners.filter((owner) => owner.type !== "person" && owner.type === requested.type
     && (requested.uid ? owner.uid === requested.uid : owner.name === requested.name));
+  if (requested.uid && candidates.length === 0 && reference.kind.startsWith("lineage/")) return { status: "ok", result: requested };
   if (requested.uid && candidates.length === 0) return { status: "refused", refusal: {
     code: "not-found", class: "recoverable", reference,
     condition: "The named owner has no live ref",
@@ -82,4 +72,18 @@ function resolveOwner(reference: RecordReference, owners: readonly OwnerIdentity
   const owner = candidates[0] ?? fresh.get(key) ?? OwnerIdentitySchema.parse({ ...requested, uid: randomUUID() });
   if (candidates.length === 0) fresh.set(key, owner);
   return { status: "ok", result: owner };
+}
+
+function resolveConflictReferences(resolved: ResolvedMutation[], resolve: (reference: RecordReference) => StoreResult<OwnerIdentity>): StoreResult<ResolvedMutation[]> {
+  for (const write of resolved) {
+    if (write.mutation.resolves === undefined) continue;
+    const resolves: RecordReference[] = [];
+    for (const reference of write.mutation.resolves) {
+      const found = resolve(reference);
+      if (found.status === "refused") return found;
+      resolves.push(RecordReferenceSchema.parse({ ...reference, owner: found.result }));
+    }
+    write.mutation = { ...write.mutation, resolves };
+  }
+  return { status: "ok", result: resolved };
 }
