@@ -646,7 +646,8 @@ describe("in-flight reshuffle fixture", () => {
 
       await expect(probeMaterializableCandidates(exec, execInput, fixture.cloneA)).resolves.toEqual({
         pendingBranchCount: 0,
-        candidates: [{ name: "cross-machine-candidate", branch }],
+        candidates: [{ name: "cross-machine-candidate", branch,
+          actions: [{ text: "arc materialize cross-machine-candidate", argv: ["arc", "materialize", "cross-machine-candidate"] }] }],
       });
     } finally {
       await fixture.cleanup();

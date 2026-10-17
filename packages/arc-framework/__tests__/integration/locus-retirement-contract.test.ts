@@ -107,7 +107,8 @@ describe("retired locus authority closure", () => {
 
     expect(probe.match(/acquireDerivedLocusEvidence\(/gu)).toHaveLength(1);
     expect(probe).toContain("evidence.topology.worktrees.find");
-    expect(probe).toContain("createUserSurfaceResolver");
+    expect(probe).toContain('resolveArcPath({ kind: "user-root", identity })');
+    expect(probe).not.toContain("createUserSurfaceResolver");
     expect(probe).not.toContain("resolveUserSurfaceResolver");
   });
 
