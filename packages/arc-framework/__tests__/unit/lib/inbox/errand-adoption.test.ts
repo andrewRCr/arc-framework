@@ -19,8 +19,8 @@ it("prepares project adoption with description, removal, queue drop and receipt,
  expect(await listErrandQueue(h.context)).toMatchObject({members:[]});
 });
 it("mints text descriptions and leaves partial source bytes in place while dropping its queue reference",async()=>{
- const h=createInboxHarness();await h.inbox("personal");const target=await h.errand();
- const text=await prepareErrandAdoption({slug:target.reference.owner.name,intent:"Fresh intent"},h.context);
+ const h=createInboxHarness();await h.inbox("personal");
+ const text=await prepareErrandAdoption({slug:"fresh-text",intent:"Fresh intent"},h.context);
  expect(text).toMatchObject({status:"ok",result:{origin:null,writes:[{content:expect.stringContaining("Fresh intent")}]}});
  await setErrandQueue({schemaVersion:1,members:[{inbox:"personal",id:"12345678"}]},h.context);
  const partial=await prepareErrandAdoption({slug:"partial",from:"personal:12345678",partial:true},h.context);

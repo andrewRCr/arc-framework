@@ -76,6 +76,7 @@ async function prepareTextDescription(input: { slug: string; intent?: string; pa
     if (input.partial) return { status: "ok", result: { origin: null, writes: [] } };
     const destination = await descriptionFor(input.slug, context);
     if (destination.status === "refused") return destination;
+    if (destination.result.primary !== null) return { status: "ok", result: { origin: null, writes: [] } };
     const rows = rowsInList(destination.result);
     if (rows.status === "refused") return rows;
     const id = drawEntryId(new Set(rows.result.map((row) => row.id)), context.random ?? Math.random);

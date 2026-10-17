@@ -6,6 +6,8 @@ import { readStoreErrand, transitionStoreErrand } from "../../../src/lib/errand/
 import { TransientIdentityRecordV3Schema } from "../../../src/lib/errand/identity-record.js";
 import { OwnerIdentitySchema, recordReferences } from "../../../src/lib/store/identity.js";
 import { createStoreSyncPort } from "../../../src/lib/store/operational-sync.js";
+import { authorizeOrdinaryErrandResume } from "../../../src/lib/errand/open-runtime.js";
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 const timestamp = "2026-10-14T00:00:00Z";
 function record() {
   const parsed = TransientIdentityRecordV3Schema.parse({ version: 3, kind: "errand", purpose: "errand", slug: "fix-it", claimId: "a".repeat(32),
@@ -90,4 +92,23 @@ it("treats a stale write already equal to its computed result as idempotent, and
   const retired = await transitionStoreErrand({ store: h.store, identity: "alice", now: () => "2026-10-16T00:00:00Z" },
     { kind: "retire", previous: changed.record, reason: "abandon", authorization: "local" });
   expect(retired).toMatchObject({ kind: "refused", reason: expect.stringContaining("changed") });
+});
+
+it("keeps create-only description companions out of the actual awaiting-merge resume transition", async () => {
+  const h = createLifecycleHarness(), head = "b".repeat(40);
+  const previous = { ...record(), owner: SlugSchema.parse("alice"), state: "awaiting-merge" as const, savedHead: null,
+    changeRequest: { repositoryRef: "owner/repo", hostRef: "github.com", baseRef: "main", headRef: "chore/fix-it", headSha: head } };
+  const primary = await h.seed(recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: "fix-it" })), JSON.stringify(previous), { kind: "active" });
+  const description = await h.seed(recordReferences["work-item/description"](primary.reference.owner), "## Description\n\n### **Original concern**\n- _Id:_ `12345678`\n");
+  const companion = { action: "put" as const, reference: description.reference, expected: description.version,
+    content: description.content + "\n### **Prematurely minted concern**\n- _Id:_ `87654321`\n" };
+  const exec = scriptGitExec([
+    { match: ["config", "--get", "remote.origin.url"], responses: [{ stdout: "git@github.com:owner/repo.git\n" }] },
+    { command: "gh", match: { prefix: ["pr", "list"] }, responses: [{ stdout: JSON.stringify([{ number: 7, state: "OPEN", baseRefName: "main", headRefName: "chore/fix-it", headRefOid: head, reviewDecision: "CHANGES_REQUESTED" }]) }] },
+  ]).exec;
+  const authorization = await authorizeOrdinaryErrandResume(exec, "main", previous);
+  if (authorization.kind !== "authorized") throw new Error(JSON.stringify(authorization));
+  expect(await transitionStoreErrand({ store: h.store, identity: "alice", companionWrites: [companion] },
+    { kind: "resume", previous, authorization: authorization.authorization, updatedAt: "2026-10-17T00:00:00Z" })).toMatchObject({ kind: "applied", value: { state: "open", claimId: previous.claimId } });
+  expect(lifecycleSuccess(await h.store.read({ reference: description.reference }))).toEqual(description);
 });

@@ -1,6 +1,6 @@
 /** Registered leave and rematerialize preserve Store identity and real Git-backed code. */
 import { randomUUID } from "node:crypto";
-import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, onTestFinished, vi } from "vitest";
 import type { Store } from "../../src/lib/store/contract.js";
@@ -9,6 +9,7 @@ import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { deserializeTransientIdentityRecord } from "../../src/lib/errand/identity-record.js";
 import { ErrandOperationResultSchema } from "../../src/lib/errand/operation-result.js";
 import { readWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
+import { parseEntryList } from "../../src/lib/store/kinds/entry-list.js";
 import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { dispatchRegisteredCli } from "../helpers/registered-cli.js";
@@ -102,4 +103,37 @@ it("refuses dirty removal, leaves after preservation repair, and rematerializes 
   expect(reopened.record.reference.owner).toEqual(initial.record.reference.owner);
   expect(reopened.identity).toMatchObject({ state: "open", claimId: initial.identity.claimId });
   expect(await readWorktreeMarker(holder)).toMatchObject({ kind: "present", marker: { spawnedByArc: true, createdFor: { kind: "errand", slug, claimId: initial.identity.claimId } } });
+}, 60_000);
+
+it.each(["text", "inbox"] as const)("keeps a %s description unchanged through failed resume, no-selector resume and open recovery", async origin => {
+  const h = await fixture(), slug = `resume-${origin}`;
+  if (origin === "inbox") await h.seed(recordReferences["personal/inbox"](OwnerIdentitySchema.parse({ type: "person", name: "test-user" })),
+    "## Errand\n\n### **Captured concern**\n- _Id:_ `12345678`\n- _Created:_ `2026-10-17`\n\nPreserve capture prose\n");
+  const opened = await invoke(h, h.cwd, ["errand", "open", slug, "--isolate", ...(origin === "text" ? ["--intent", "Preserve typed concern"] : ["--from-inbox", "personal:12345678"]), "--json"]);
+  expect(opened, JSON.stringify(opened)).toMatchObject({ result: { outcome: "applied" } });
+  const initialResult = ErrandOperationResultSchema.parse(opened.result);
+  if (initialResult.outcome !== "applied" || initialResult.allocation === null) throw new Error("Expected an allocated checkout");
+  const holder = initialResult.allocation.checkoutPath, initial = await saved(h, slug);
+  const reference = recordReferences["work-item/description"](initial.record.reference.owner);
+  const description = lifecycleSuccess(await h.store.read({ reference }));
+  const parsed = parseEntryList(description.content, "work-item/description");
+  expect(parsed.success && parsed.data.entries.length).toBe(1);
+  expect(description.reference.owner).toEqual(initial.record.reference.owner);
+  await h.exec("git", ["push", "-u", "origin", initial.identity.branch], { cwd: holder });
+  expect(await invoke(h, holder, ["errand", "leave", slug, "--state", "paused", "--json"])).toMatchObject({ result: { outcome: "applied" } });
+  const paused = await saved(h, slug);
+  await mkdir(holder, { recursive: true }); await writeFile(join(holder, "keep.txt"), "Unrelated folder contents");
+  const refused = await invoke(h, h.cwd, ["errand", "open", slug, "--isolate", "--json"]);
+  expect(refused, JSON.stringify(refused)).toMatchObject({ exitCode: 1 });
+  expect((await saved(h, slug)).identity).toEqual(paused.identity);
+  expect(lifecycleSuccess(await h.store.read({ reference }))).toEqual(description);
+  expect(await readFile(join(holder, "keep.txt"), "utf8")).toBe("Unrelated folder contents");
+  await rm(holder, { recursive: true });
+  expect(await invoke(h, h.cwd, ["errand", "open", slug, "--isolate", "--json"])).toMatchObject({ result: { outcome: "applied" } });
+  expect(lifecycleSuccess(await h.store.read({ reference }))).toEqual(description);
+  expect((await saved(h, slug)).identity).toMatchObject({ claimId: initial.identity.claimId, state: "open", origin: initial.identity.origin, originEntry: initial.identity.originEntry });
+  await h.exec("git", ["worktree", "remove", holder]);
+  expect(await invoke(h, h.cwd, ["errand", "open", slug, "--isolate", "--json"])).toMatchObject({ result: { outcome: "applied" } });
+  expect(lifecycleSuccess(await h.store.read({ reference }))).toEqual(description);
+  expect((await saved(h, slug)).identity.claimId).toBe(initial.identity.claimId);
 }, 60_000);

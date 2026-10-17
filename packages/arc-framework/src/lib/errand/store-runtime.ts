@@ -50,7 +50,8 @@ export async function transitionStoreErrand(options: ErrandStoreOptions, request
   if (basis.kind !== "ready") return transactionFailure(basis);
   if (request.kind === "retire" && basis.saved?.placement?.kind === "completed") return { kind: "idempotent", value: null, tip: null };
   const owned = request.kind === "create" ? { ...request, record: { ...request.record, owner: SlugSchema.parse(options.identity) } } : request;
-  return applyTransform(options, slug, basis, ordinaryErrandTransform(owned), request.kind === "retire" ? request.previous : undefined);
+  const transitionOptions = request.kind === "resume" ? { ...options, companionWrites: [] } : options;
+  return applyTransform(transitionOptions, slug, basis, ordinaryErrandTransform(owned), request.kind === "retire" ? request.previous : undefined);
 }
 /** Restore an exact prior generation after provisioning fails, with the same version-bound admission.
  * @param options - Selected operational store.
