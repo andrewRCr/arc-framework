@@ -2,7 +2,7 @@
 
 > _Personal context spanning work units. Each entry carries an explicit
 > `_Remove when: <trigger>._` line, reviewed at handoff to keep the file actionable.
-> Additions are **proposed, not self-added** — land only at handoff with approval.
+> Additions are **proposed, not self-added** — proposed when they arise, landing on approval.
 > See `strategy-session-operations.md` § Working Memory._
 
 ## Memories

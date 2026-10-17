@@ -825,9 +825,10 @@ Triggers are concrete observable events (a downstream WU integrates, a tool land
 workaround becomes obsolete). Vague triggers (`once we figure out X`) defeat the
 eviction-on-trigger discipline and let entries accumulate indefinitely.
 
-**Lifecycle.** Written at session handoff alongside SESSION-NOTES; read at session-init as part
-of T2 state load. Reviewed at each handoff — entries whose triggers have fired are removed.
-Surviving entries travel with the developer's workspace across WU boundaries.
+**Lifecycle.** Additions are proposed when they arise, at any report boundary, and land on approval; read at
+session-init as part of T2 state load. Reviewed at each handoff — entries whose triggers have fired are removed, and
+an addition not yet proposed is proposed then. Surviving entries travel with the developer's workspace across WU
+boundaries.
 
 **Distinguishing the three personal surfaces:**
 
