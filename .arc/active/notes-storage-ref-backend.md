@@ -312,4 +312,18 @@ with another slug of up to 2,040 bytes. Verbatim paths do not gain a slug and us
 bound, as personal document paths do. Task 5.R corrects the guard and tests both forms; the local-engine verifier
 closes the covering revalidation. The import continues to call the same exported guard.
 
+## A6 — Independent lineage format coordinates
+
+The superseded § 3.3 field described each record's format version as “keyed by kind and key”. A lineage transition
+has no within-owner key, while all origins share the registry ref. `decodeRecord`, `staleMutations`, and
+`applyMutation` use canonical kind/key coordinates, so their singleton transitions share one format entry. A
+real-Git probe through `createRefStore`, with two production-schema transitions at format 2, removed the first
+origin and observed the second fall to format 1 with unchanged content and a changed record version.
+
+The format coordinate adds `ownerUid` only for `lineage/transition`, using its resolved origin UID. Other kinds'
+existing coordinates already distinguish records within their containing ref. Reads, stale admission, puts,
+removals, and fault planting must agree; subsequent history, changes, merge, and import paths retain that rule.
+This changes unpublished development encoding in place and adds no compatibility reader or migration. Task 5.R2
+covers independent origins, and Task 8.6 repeats its matrix over both layouts.
+
 ---

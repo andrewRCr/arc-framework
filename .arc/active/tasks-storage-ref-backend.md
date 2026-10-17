@@ -283,6 +283,7 @@ default layout.
         - Strict canonical metadata parsing refuses unsupported versions and unknown fields with a forward repair route.
           Composite format keys survive renames; unlisted records use the initial version. Retained primary facts place
           surviving records, and registry metadata names each lineage origin by UID.
+        - _Amended in:_ 5.R2 (A6)
 
     - `[x]` **3.3.d Record versions**
         - A pure version helper digests the blob and each record's own metadata. Primary placement changes leave
@@ -346,6 +347,7 @@ and 15 for every served family, but for the assertions 4.4.d excludes by name, a
         - Trees store canonical metadata and never-projected JSON while preserving other record bytes. Removals retain
           primary facts and unaffected versions. A bypassing writer's CAS race retries under the same ref locks with
           current trees; owner relocation or rename restarts resolution, and changed writes yield distinct state tokens.
+        - _Amended in:_ 5.R2 (A6)
 
     - `[x]` **4.2.d Batches**
         - Cross-ref batches publish together, including a new personal ref with expected absence. A competing creation
@@ -479,6 +481,18 @@ _Mode:_ `layer` through Phase 8 — closes on the local engine complete in both 
           lists, and takes a second write under its owner's UID
         - stored lineage whose origin name matches the registry map but whose origin UID names another generation
           reports `key-mismatch` under its exact stored path
+
+### `[ ]` **5.R2 Independent lineage format versions — § 3.3 (A6)**
+
+- _Goal:_ Each lineage transition's format key includes its origin UID, so reads, writes, and removals of one origin
+  preserve every other origin's format and record version (A6).
+
+    - Build `test-first` (one behavior at a time):
+        - two origins in one registry ref retain independent initial and newer format versions in reads and listings
+        - putting or removing one origin preserves the other's format, bytes, and record version
+        - an unknown newer format on one origin remains its own diagnostic and admits a supporting registry retry
+    - Reads, stale admission, metadata updates, and fixture fault planting use the same coordinate rule; history,
+      changes, merges, and import retain it when their tasks build those paths
 
 ### `[ ]` **5.4 `history` follows a record — § 3.1, § 3.6**
 
@@ -984,6 +998,7 @@ those 4.4.d holds until Phase 11, and every § 14.3 case that needs no pull pass
       `hold`, `race`, `produce`, and `repair` hooks serve every case they cover
     - The fixture produces `held-here`, `state-unresolvable`, and `namespace-corrupt`, the last by a commit outside ARC
       that a forward repair mends, which carries 7.5's recovery case
+    - Replay 5.R2's independent lineage format/version cases in both layouts to close A6's covering revalidation
     - Replay 5.R's companion name/path byte boundaries over both layouts, retaining atomic refusal and repaired
       retries, to close A5's covering revalidation
 
@@ -2952,3 +2967,6 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
 
 - `[ ]` Verbatim companion paths over 2,040 total UTF-8 bytes store with segments up to 4,096 bytes; combined
   companion names retain the 2,040-byte bound at the pure guard and ref write/batch boundaries (A5)
+
+- `[ ]` Each lineage transition's format key includes its origin UID; reads, puts, and removals preserve other origins'
+  formats and record versions in the same registry ref, including initial and newer-format cases (§ 3.3) (A6)

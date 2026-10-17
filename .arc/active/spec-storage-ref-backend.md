@@ -637,7 +637,7 @@ interface RefMetadata {
   /** A completed item's folder: the batch that ended it, and the last batch that wrote its records. */
   endBatch?: string;
   batch?: string;
-  /** Each record's format version, keyed by kind and key, for any record past the initial version. */
+  /** Per-record format versions; lineage transitions additionally key by their origin UID (A6). */
   formats: Record<string, number>;
 }
 ```
@@ -652,6 +652,10 @@ interface RefMetadata {
   probed on Git 2.55 in both ref formats, `for-each-ref` with `%(tree)` aborts the whole read on one such ref, while
   `%(objectname)` lists every ref, the files format's packed ones among them.
 - **A record absent from `formats` is at the initial format version** (`FormatVersionSchema`, `lib/store/identity.ts`).
+  Each key is canonical JSON of `{ kind, key? }`, omitting an absent key; a `lineage/transition` additionally includes
+  `ownerUid`, its resolved origin UID, because multiple singleton origins share the registry ref (A6). A read,
+  put, or removal uses that complete coordinate and leaves every other record's entry unchanged. This coordinate
+  also governs format selection in history, changes, merges, and import; an absent entry remains version 1.
 - **The registry's metadata names each lineage owner,** since a lineage record's path carries only its origin's UID
   (§ 3.2), and an origin ended outside the archive keeps no live ref whose metadata names it: a write of
   `lineage/<uid>.json` writes the owner's slug under that UID, its removal removes the entry, and a rename of an item
@@ -3201,6 +3205,11 @@ the default in a files-format code repository, and the separate one in its refta
   `Arc-Actor` and labels its incoming side with the person's email; and `createRefBackend` throws, naming the kinds, on
   a registry that declares an anchor field on `lineage/transition`, or two on kinds one ref holds (§ 3.7, § 1.2, § 4.5).
 
+- **Lineage formats remain independent (A6):** seed two origins on one registry ref at different format versions,
+  initial and newer versions included; reads and listings select each origin's own format. A put or removal of one
+  preserves the other's content, format, and record version. An unsupported format diagnoses only its origin and
+  reads after rebuilding with support.
+
 #### 14.4 Serialization rules
 
 `checkSerializationRules` refuses each rule — a binary file, a projected record over the cap, an `.env` file, a private
@@ -3925,6 +3934,10 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     bytes when every stored segment is at most 4,096 bytes; a companion name combined with its owner's slug retains
     the 2,040-byte bound. The pure guard and ref writes and batches enforce these boundaries (§ 5.6, § 14.4) (A5).
 
+18. **Lineage formats are per origin.** Each `lineage/transition` format key includes its origin UID; reads, puts,
+    and removals preserve other origins' formats and record versions in the same registry ref, including initial
+    and newer-format cases (§ 3.3, § 14.3) (A6).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -3969,5 +3982,8 @@ open:
 
 - **A5** — 2026-10-16 — design: verbatim companion paths use segment bounds; combined names retain the key bound.
   _Supersedes:_ § 3.2 key exception and § 5.6 key cap. _Trigger:_ 5.1 must-stop. _Work:_ 5.R. _Revalidated:_ pending → 8.6.
+
+- **A6** — 2026-10-16 — design: lineage transition format keys include the origin UID.
+  _Supersedes:_ § 3.3 format-key rule. _Trigger:_ 5.3 must-stop. _Work:_ 5.R2. _Revalidated:_ pending → 8.6.
 
 ---
