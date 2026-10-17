@@ -1,21 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { RecordReferenceSchema, type RecordReference, type Mutation, type StoreResult } from "../../src/lib/store/index.js";
 import { createRefFixture, type RefConformanceFixture } from "../helpers/store/ref-fixture.js";
-import { makeGitExec } from "../helpers/integration.js";
+import { fixtureGit } from "../helpers/store/ref-fixture-git.js";
 import { seed, success, testProvenance, update } from "../helpers/store/suite-tools.js";
 
 const document = (key: string) => RecordReferenceSchema.parse({ owner: { type: "person", name: "test-user" }, kind: "personal/document", key });
 const put = (reference: RecordReference, content = "text"): Mutation => ({ action: "put", reference, content, expected: null });
-const refs = async (fixture: RefConformanceFixture) => (await makeGitExec(fixture.root)("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout;
+const refs = async (fixture: RefConformanceFixture) => (await fixtureGit(fixture)("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout;
 async function apply(fixture: RefConformanceFixture, operation: "write" | "batch", mutation: Mutation): Promise<StoreResult<unknown>> {
   return operation === "write" ? fixture.store.write({ ...mutation, provenance: testProvenance })
     : fixture.store.batch({ writes: [put(document("safe-sibling.md")), mutation], provenance: testProvenance });
 }
 
-describe("ref key admission", () => {
+describe.each(["default", "separate"] as const)("ref key admission (%s)", (layout) => {
   for (const operation of ["write", "batch"] as const) {
     it(`refuses reserved keys before resolution through ${operation} and admits a corrected key`, async () => {
-      const fixture = await createRefFixture();
+      const fixture = await createRefFixture({}, layout);
       fixture.identity(undefined);
       expect(await apply(fixture, operation, put(document("USER-INBOX.md"))))
         .toMatchObject({ status: "refused", refusal: { code: "unsupported", case: "unhomed-kind", condition: expect.stringContaining("personal/inbox") } });
@@ -25,7 +25,7 @@ describe("ref key admission", () => {
       expect(success(await fixture.store.read({ reference: document("scratch/conflicts") })).content).toBe("text");
     });
     it(`refuses verbatim companion aliases through ${operation} and admits an unclaimed path`, async () => {
-      const fixture = await createRefFixture();
+      const fixture = await createRefFixture({}, layout);
       const root = await seed(fixture, fixture.reference("work-item/meta"));
       const companion = (key: string) => RecordReferenceSchema.parse({ owner: root.reference.owner, kind: "work-item/companion", key });
       const before = await refs(fixture);
@@ -42,7 +42,7 @@ describe("ref key admission", () => {
       }
     });
     it(`refuses malformed keys through ${operation} without changing refs`, async () => {
-      const fixture = await createRefFixture();
+      const fixture = await createRefFixture({}, layout);
       const root = await seed(fixture, fixture.reference("work-item/meta"));
       const before = await refs(fixture);
       const malformed = [document("STATUS.USER.md"), document(".internal/notes.md"), document("work/.internal/notes.md"), document("scratch/bad\n.md")];
@@ -58,7 +58,7 @@ describe("ref key admission", () => {
       success(await apply(fixture, operation, put(document("scratch/STATUS.USER.md"))));
     });
     it(`refuses either stored file/folder collision through ${operation} and admits replacement after removal`, async () => {
-      const fixture = await createRefFixture();
+      const fixture = await createRefFixture({}, layout);
       let record = await seed(fixture, document("scratch/item"), "original");
       for (const target of [document("scratch/item/child.md"), document("scratch/item")]) {
         const before = await refs(fixture);
@@ -75,7 +75,7 @@ describe("ref key admission", () => {
   it.each([
     ["write", "uid"], ["write", "name"], ["batch", "uid"], ["batch", "name"],
   ] as const)("keeps resolved-owner generic aliases invalid through %s with a %s operand and admits repair", async (operation, handle) => {
-    const fixture = await createRefFixture(), root = await seed(fixture, fixture.reference("work-item/meta"));
+    const fixture = await createRefFixture({}, layout), root = await seed(fixture, fixture.reference("work-item/meta"));
     const owner = handle === "uid" ? root.reference.owner : fixture.reference("work-item/meta").owner;
     const invalid = RecordReferenceSchema.parse({ owner, kind: "work-item/companion", key: `extra-${owner.name}.md` });
     const before = await refs(fixture);
@@ -89,7 +89,7 @@ describe("ref key admission", () => {
   it.each([
     ["write", "uid"], ["write", "name"], ["batch", "uid"], ["batch", "name"],
   ] as const)("admits a valid old-name-shaped literal path through %s with a %s hint", async (operation, handle) => {
-    const fixture = await createRefFixture(), named = fixture.reference("work-item/meta"), root = await seed(fixture, named);
+    const fixture = await createRefFixture({}, layout), named = fixture.reference("work-item/meta"), root = await seed(fixture, named);
     const renamed = RecordReferenceSchema.parse({ ...root.reference, owner: { ...root.reference.owner, name: "renamed" } });
     success(await fixture.store.write({ ...update(fixture, root, root.content), reference: renamed }));
     const owner = handle === "uid" ? root.reference.owner : named.owner;
@@ -100,7 +100,7 @@ describe("ref key admission", () => {
   });
 
   it("refuses folder collisions within a batch in either order before requiring personal identity", async () => {
-    const fixture = await createRefFixture();
+    const fixture = await createRefFixture({}, layout);
     fixture.identity(undefined);
     const writes = [put(document("scratch/item")), put(document("scratch/item/child.md"))];
     for (const batch of [writes, [...writes].reverse()]) {
@@ -113,7 +113,7 @@ describe("ref key admission", () => {
   });
 
   it("refuses direct reads through a companion alias while retaining the owning spec", async () => {
-    const fixture = await createRefFixture();
+    const fixture = await createRefFixture({}, layout);
     const record = await seed(fixture, fixture.reference("work-item/spec"), "spec bytes");
     for (const key of ["spec", `spec-${record.reference.owner.name}.md`]) {
       const reference = RecordReferenceSchema.parse({ ...record.reference, kind: "work-item/companion", key });
@@ -123,7 +123,7 @@ describe("ref key admission", () => {
   });
 
   it("serializes racing file and folder puts against the captured tips", async () => {
-    const fixture = await createRefFixture();
+    const fixture = await createRefFixture({}, layout);
     const parent = { ...put(document("scratch/item")), provenance: testProvenance };
     const child = { ...put(document("scratch/item/child.md")), provenance: testProvenance };
     const outcomes = await fixture.race(parent, child);
@@ -140,7 +140,7 @@ describe("ref key admission", () => {
   });
 
   it("refuses derived and machine-local reads before resolving identity", async () => {
-    const fixture = await createRefFixture();
+    const fixture = await createRefFixture({}, layout);
     fixture.identity(undefined);
     for (const key of ["STATUS.USER.md", ".internal/note.md", "work/.internal/note.md"]) {
       const reference = document(key);

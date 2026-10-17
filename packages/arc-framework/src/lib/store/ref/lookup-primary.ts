@@ -20,6 +20,12 @@ export function lookupPrimary(context: Pick<RefBackendContext, "registry">, ref:
 /** Rank one name consistently, optionally admitting owners whose auxiliary records outlive their primary. */
 export function preferredNameTrees(context: Pick<RefBackendContext, "registry">, trees: ReadonlyMap<string, RefLookupTree>,
   slug: Slug, requirePrimary = true): Array<[string, RefLookupTree]> {
+  const primaries = rankNameTrees(context, trees, slug, true);
+  return requirePrimary || primaries.length ? primaries : rankNameTrees(context, trees, slug, false);
+}
+
+function rankNameTrees(context: Pick<RefBackendContext, "registry">, trees: ReadonlyMap<string, RefLookupTree>,
+  slug: Slug, requirePrimary: boolean): Array<[string, RefLookupTree]> {
   const tiers: Array<Array<[string, RefLookupTree]>> = [[], [], [], []];
   for (const [ref, tree] of trees) {
     const live = tree.liveRef ?? ref;

@@ -16,7 +16,7 @@ export function prepareRefPut(reference: RecordReference, expected: RecordVersio
   const kind = registry[reference.kind];
   const parsed = kind.parser?.(content);
   if (parsed?.success === false) return { status: "refused", refusal: { code: "record-malformed", class: "recoverable",
-    reference, rule: "store.parser", condition: parsed.error, remedy: { text: "Correct the parser's content error, then retry." } } };
+    reference, rule: parsed.error, condition: parsed.error, remedy: { text: "Correct the parser's content error, then retry." } } };
   if (kind.merge === "entry" && !kind.entry) return { status: "refused", refusal: {
     code: "unsupported", class: "terminal", case: "unhomed-kind", condition: `No entry grammar is declared for ${reference.kind}`,
     remedy: { text: "Declare this kind's entry grammar in the constructed registry, then retry." },
@@ -32,7 +32,7 @@ export function prepareRefPut(reference: RecordReference, expected: RecordVersio
 function entryProblem(reference: RecordReference, content: string, config: EntryConfig): StoreRefusal | undefined {
   const seen = new Set<string>();
   for (const entry of splitEntryList(content, config).parts.filter((part) => part.kind === "entry")) {
-    if (entry.id && seen.has(entry.id)) return { code: "record-malformed", class: "recoverable", reference, rule: "entry-id",
+    if (entry.id && seen.has(entry.id)) return { code: "record-malformed", class: "recoverable", reference, rule: `Entry ID ${entry.id} occurs more than once.`,
       condition: `Entry ID ${entry.id} occurs more than once.`,
       remedy: { text: "Give the later entry a fresh ID or drop its ID line for stamping, then retry." } };
     if (entry.id) seen.add(entry.id);

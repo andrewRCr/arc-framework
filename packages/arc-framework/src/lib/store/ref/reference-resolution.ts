@@ -13,13 +13,13 @@ import { checkRefKey } from "./path-admission.js";
 
 /** A concrete owner needs no scan; names bind only within their declared owner namespace. */
 export function resolveCapturedReference(context: Pick<RefBackendContext, "registry">, reference: RecordReference,
-  trees: ReadonlyMap<string, RefLookupTree>, unreadable: ReadonlyMap<string, StoreRefusal> = new Map()): StoreResult<RecordReference> {
+  trees: ReadonlyMap<string, RefLookupTree>, unreadable: ReadonlyMap<string, StoreRefusal> = new Map(), requirePrimary = false): StoreResult<RecordReference> {
   const owner = reference.owner;
   if (owner.type === "person" || owner.type === "project" || owner.uid) return { status: "ok", result: reference };
   if (reference.kind === "lineage/transition") return resolveCapturedLineage(reference, trees, unreadable);
   const family = owner.type === "cohort" ? "cohort" : "work-item";
   const own = new Map([...trees].filter(([ref, tree]) => matchesFamilyRef(tree.liveRef ?? ref, family)));
-  const preferred = preferredNameTrees(context, own, owner.name, false);
+  const preferred = preferredNameTrees(context, own, owner.name, requirePrimary);
   const skipped = [...unreadable].find(([ref]) => matchesFamilyRef(ref, family) || isArchiveRef(ref))?.[1];
   if (skipped && !preferred.some(([, tree]) => !tree.liveRef && tree.metadata.slug === owner.name)) return { status: "refused", refusal: skipped };
   const candidates = preferred.map(([ref, tree]) => {
@@ -39,14 +39,14 @@ export function resolveCapturedReference(context: Pick<RefBackendContext, "regis
 
 /** Read lookup evidence solely from the operation's already captured namespace. */
 export async function resolveRefName(context: RefBackendContext, reference: RecordReference,
-  tips: ReadonlyMap<string, string>): Promise<StoreResult<RecordReference>> {
+  tips: ReadonlyMap<string, string>, requirePrimary = false): Promise<StoreResult<RecordReference>> {
   const owner = reference.owner;
   if (owner.type === "person" || owner.type === "project" || owner.uid) return { status: "ok", result: reference };
   if (reference.kind.startsWith("lineage/")) return resolveLineageReadReference(context, reference, tips);
   const family = owner.type === "cohort" ? "cohort" : "work-item";
   const selected = new Map([...tips].filter(([ref]) => matchesFamilyRef(ref, family) || isArchiveRef(ref)));
   const trees = await readCapturedLookupTrees(context, selected);
-  return trees.status === "refused" ? trees : resolveCapturedReference(context, reference, trees.result.trees, trees.result.unreadable);
+  return trees.status === "refused" ? trees : resolveCapturedReference(context, reference, trees.result.trees, trees.result.unreadable, requirePrimary);
 }
 
 /** Name-only owner filters bind before listing, while unknown names keep an empty selection. */

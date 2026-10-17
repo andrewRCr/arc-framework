@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { RecordReferenceSchema, type RecordReference, type StoreResult } from "../../src/lib/store/index.js";
 import { createRefFixture } from "../helpers/store/ref-fixture.js";
-import { makeGitExec } from "../helpers/integration.js";
+import { fixtureGit } from "../helpers/store/ref-fixture-git.js";
 import { seed, success, testProvenance } from "../helpers/store/suite-tools.js";
 
 const put = (reference: RecordReference) => ({ action: "put" as const, reference, expected: null, content: "text" });
 
-describe("companion serialized name boundaries", () => {
+describe.each(["default", "separate"] as const)("companion serialized name boundaries (%s)", (layout) => {
   for (const operation of ["write", "batch"] as const) {
     it(`stores verbatim paths and retains both byte limits through ${operation}, including repaired retries`, async () => {
-      const fixture = await createRefFixture();
+      const fixture = await createRefFixture({}, layout);
       const root = await seed(fixture, fixture.reference("work-item/meta"));
       const companion = (key: string) => RecordReferenceSchema.parse({ owner: root.reference.owner, kind: "work-item/companion", key });
       const apply = (reference: RecordReference): Promise<StoreResult<unknown>> => operation === "write"
@@ -25,7 +25,7 @@ describe("companion serialized name boundaries", () => {
       if (listed.status !== "complete") throw new Error("Companion listing is incomplete");
       expect(listed.records.map((record) => record.reference.key).sort()).toEqual([...admitted].sort());
       expect(listed.diagnostics).toEqual([]);
-      const git = makeGitExec(fixture.root);
+      const git = fixtureGit(fixture);
       for (const [index, key] of [`scratch/${"é".repeat(2_048)}x`, "a".repeat(2_041)].entries()) {
         const before = (await git("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout;
         expect(await apply(companion(key))).toMatchObject({ status: "refused", refusal: { code: "record-malformed", rule: "store.git-path" } });

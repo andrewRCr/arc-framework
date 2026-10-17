@@ -9,6 +9,9 @@ import type { RefStorePorts } from "../../../src/lib/store/ports.js";
 import { createRefStore } from "../../../src/lib/store/create.js";
 import { createDefaultStorePorts, createRefLockFactory } from "../../../src/lib/store/default-ports.js";
 import { createExecaRawGitExec } from "../../../src/lib/git/process-executor.js";
+import { readGitDirectories } from "../../../src/lib/git/directories.js";
+import { expandStoredPath } from "../../../src/lib/store/stored-path.js";
+import { createRefRecovery } from "./ref-recovery.js";
 import { SlugSchema } from "../../../src/lib/kernel/schema/slug.js";
 import { canonicalize } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import { referenceContent, referenceDeclarations } from "./reference-fixture.js";
@@ -31,11 +34,12 @@ export const refDeclarations: FixtureDeclarations = {
     .filter(([kind]) => families.some((family) => family === familyOf(kind as KindId)))),
 };
 
-const shape = { kind: "remote-bearing", key: "ref-default-files" } as const;
-let template: Promise<PreparedRepositoryTemplate> | undefined;
-afterAll(async () => { if (template) await removeGitBackedDir((await template).root); });
+export type RefFixtureLayout = "default" | "separate";
+const templates = new Map<RefFixtureLayout, Promise<PreparedRepositoryTemplate>>();
+const templateShape = (layout: RefFixtureLayout) => ({ kind: "remote-bearing", key: `ref-${layout}-files` } as const);
+afterAll(async () => { for (const template of templates.values()) await removeGitBackedDir((await template).root); });
 
-async function buildTemplate(): Promise<string> {
+async function buildTemplate(layout: RefFixtureLayout): Promise<string> {
   const root = await createTempRepoCore({ prefix: "arc-ref-conformance-", refFormat: "files" });
   try {
     const git = makeGitExec(root);
@@ -44,7 +48,12 @@ async function buildTemplate(): Promise<string> {
     await mkdir(dirname(remote), { recursive: true });
     await git("git", ["init", "--bare", "--initial-branch=main", remote]);
     await git("git", ["remote", "add", "origin", remote]);
-    await git("git", ["config", "remote.origin.arc-state", "push"]);
+    if (layout === "default") await git("git", ["config", "remote.origin.arc-state", "push"]);
+    else {
+      const store = join(root, ".git", "arc", "store");
+      await mkdir(dirname(store), { recursive: true });
+      await git("git", ["init", "--bare", "--ref-format=reftable", "--object-format=sha1", store]);
+    }
     return root;
   } catch (error) { await removeGitBackedDir(root); throw error; }
 }
@@ -52,22 +61,29 @@ async function buildTemplate(): Promise<string> {
 export interface RefConformanceFixture extends ConformanceFixture {
   root: string;
   ports: RefStorePorts;
+  gitDir?: string;
 }
 
-export async function createRefFixture(registryOverrides: Partial<Record<KindId, Partial<KindDefinition>>> = {}): Promise<RefConformanceFixture> {
-  template ??= prepareRepositoryTemplate(shape, buildTemplate);
+export async function createRefFixture(registryOverrides: Partial<Record<KindId, Partial<KindDefinition>>> = {}, layout: RefFixtureLayout = "default"): Promise<RefConformanceFixture> {
+  const shape = templateShape(layout);
+  let template = templates.get(layout);
+  if (!template) { template = prepareRepositoryTemplate(shape, () => buildTemplate(layout)); templates.set(layout, template); }
   const root = await copyPreparedRepository(await template, shape);
-  onTestFinished(() => removeGitBackedDir(root));
+  const held = new Map<string, () => Promise<void>>();
+  onTestFinished(async () => { for (const release of held.values()) await release(); await removeGitBackedDir(root); });
   const registry = createConformanceTestRegistry(refDeclarations.entryShapes, registryOverrides);
   const defaults = createDefaultStorePorts({ checkoutRoot: root });
+  const native = createRefLockFactory(defaults);
+  const { commonDir } = await readGitDirectories(root, defaults.fs);
+  const gitDir = layout === "separate" ? join(commonDir, "arc", "store") : undefined;
   let identity: string | undefined = "test-user";
   const ports: RefStorePorts = { ...defaults, ...createRefClock(), rawExec: createExecaRawGitExec(root),
     registry, random: () => 0.5, identity: async () => identity === undefined ? null : SlugSchema.parse(identity),
-    actor: async (identity) => `${identity}@00000000-0000-4000-8000-000000000001`, lock: createRefLockFactory(defaults) };
+    actor: async (identity) => `${identity}@00000000-0000-4000-8000-000000000001`, lock: (ref, wait) => native(ref, held.has(ref) ? 20 : wait) };
   const projectId = randomUUID();
   const store = createRefStore(ports);
   const unavailable = (): never => { throw new Error("This conformance fixture hook is not implemented yet"); };
-  return { root, ports, store, declarations: refDeclarations,
+  const fixture: RefConformanceFixture = { root, ports, store, gitDir, declarations: refDeclarations,
     reference(kind, suffix = "one") {
       const shape = KIND_SHAPES[kind];
       const owner = { type: shape.owner, name: shape.owner === "person" ? "test-user" : shape.owner === "project" ? "project" : `${shape.owner}-${suffix}` };
@@ -88,9 +104,19 @@ export async function createRefFixture(registryOverrides: Partial<Record<KindId,
     reopen: () => createRefStore(ports),
     race: (left, right) => Promise.all([store.write(left), createRefStore(ports).write(right)]),
     identity: (name) => { identity = name; },
-    plant: (reference, kind) => plantRefFixtureFault({ root, ports, store }, reference, kind),
-    remote: unavailable, remoteState: unavailable, hold: unavailable, produce: unavailable, repair: unavailable,
+    plant: (reference, kind) => plantRefFixtureFault({ root, ports, store, gitDir }, reference, kind),
+    remote: unavailable, remoteState: unavailable,
+    async hold(reference, holding) {
+      const ref = expandStoredPath(reference, { registry }).ref;
+      if (holding) { if (!held.has(ref)) held.set(ref, await native(ref)); }
+      else { const release = held.get(ref); if (release) { await release(); held.delete(ref); } }
+    },
+    produce: (id) => recovery.produce(id), repair: (id) => recovery.repair(id),
   };
+  const recovery = createRefRecovery(fixture);
+  return fixture;
 }
 
 export const refRegistration: ConformanceRegistration = { declarations: refDeclarations, create: createRefFixture };
+
+export const separateRefRegistration: ConformanceRegistration = { declarations: refDeclarations, create: (overrides) => createRefFixture(overrides, "separate") };

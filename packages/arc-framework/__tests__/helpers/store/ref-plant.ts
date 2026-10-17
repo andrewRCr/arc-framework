@@ -37,10 +37,12 @@ interface TreeNode {
 }
 
 export async function plantRef(root: string, ref: string, entries: readonly PlantTreeEntry[],
-  options: { parents?: readonly string[]; message?: string; allowMissingObjects?: boolean } = {}): Promise<PlantedRef> {
-  const exec = makeGitExec(root);
-  const input = makeGitExecInput(root);
-  const raw = createExecaRawGitExec(root);
+  options: { parents?: readonly string[]; message?: string; allowMissingObjects?: boolean; gitDir?: string } = {}): Promise<PlantedRef> {
+  const baseExec = makeGitExec(root), baseInput = makeGitExecInput(root), baseRaw = createExecaRawGitExec(root);
+  const scope = options.gitDir ? [`--git-dir=${options.gitDir}`, "-c", "user.name=Fixture Writer", "-c", "user.email=fixture@example.test"] : [];
+  const exec: typeof baseExec = (command, args, options) => baseExec(command, [...scope, ...args], options);
+  const input: typeof baseInput = (args, content, options) => baseInput([...scope, ...args], content, options);
+  const raw: typeof baseRaw = (args, options) => baseRaw([...scope, ...args], options);
   const node = (): TreeNode => ({ files: new Map(), children: new Map() });
   const tree = node();
   const blobs = new Map<string, string>();
@@ -75,8 +77,8 @@ export async function plantRef(root: string, ref: string, entries: readonly Plan
   return { tip, tree: treeId, blobs };
 }
 
-export async function removeLooseObject(root: string, oid: string): Promise<void> {
-  const common = await resolveGitCommonDir(makeGitExec(root), root);
+export async function removeLooseObject(root: string, oid: string, gitDir?: string): Promise<void> {
+  const common = gitDir ?? await resolveGitCommonDir(makeGitExec(root), root);
   await rm(join(common, "objects", oid.slice(0, 2), oid.slice(2)));
 }
 

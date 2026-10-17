@@ -5,7 +5,7 @@ import { readRefRepository } from "./repository.js";
 import type { ReadPlacement } from "../placement.js";
 import { archivedFolders, isArchiveRef, latestArchivedFolders } from "./archive-read.js";
 import type { ListInput, ListingOutcome, ListingDiagnostic, ReadInput, StoreRecord } from "../read.js";
-import { RecordReferenceSchema, OwnerIdentitySchema, sameOwner, type RecordReference, type OwnerIdentity } from "../identity.js";
+import { RecordReferenceSchema, OwnerIdentitySchema, sameOwner, type RecordReference, type OwnerIdentity, type StateVersion } from "../identity.js";
 import type { StoreResult, StoreRefusal } from "../refusal.js";
 import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
 import type { FamilyId } from "../catalog.js";
@@ -135,7 +135,22 @@ export async function listRefRecords(context: RefBackendContext, input: ListInpu
   if (groups.length > 0 && groups.every((group) => group.unreadable)) return { status: "ok", result: { status: "unreadable",
     condition: diagnostics.map((diagnostic) => diagnostic.condition).join("; "),
     remedy: { text: diagnostics.map((diagnostic) => diagnostic.remedy.text).join(" ") } } };
-  return { status: "ok", result: { status: "complete", records, diagnostics, missed: diagnostics.length > 0, asOf } };
+  return { status: "ok", result: readableRefListing(input, records, diagnostics, asOf) };
+}
+
+/** Preserve kind-scoped absence and lifecycle filtering in current, saved, and checked listings. */
+export function readableRefListing(input: ListInput, records: StoreRecord[], diagnostics: ListingDiagnostic[], asOf?: StateVersion): ListingOutcome {
+  const anchor = asOf === undefined ? {} : { asOf };
+  if (input.kind !== undefined && records.length === 0 && diagnostics.length === 0) return { status: "absent", ...anchor };
+  return { status: "complete", records: filterListingLocations(records, input), diagnostics, missed: diagnostics.length > 0, ...anchor };
+}
+
+/** Filter lifecycle locations after determining whether the requested kind and owner exist. */
+function filterListingLocations(records: StoreRecord[], input: ListInput): StoreRecord[] {
+  const locations = input.filter?.locations;
+  if (!locations) return records;
+  return records.filter(({ placement }) => placement !== undefined
+    && locations.includes(placement.kind === "backlog" ? placement.commitment : placement.kind));
 }
 
 interface DecodedRecords { records: StoreRecord[]; diagnostics: ListingDiagnostic[]; unreadable?: true }

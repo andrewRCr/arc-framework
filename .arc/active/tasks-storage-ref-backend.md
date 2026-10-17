@@ -779,28 +779,15 @@ those 4.4.d holds until Phase 11, and every § 14.3 case that needs no pull pass
   refusals and at most five version attempts. Two-process archive, abandon, reopen, and later-quarter races retain
   writes or return `not-found` without restoring obsolete refs or folders.
 
-### `[ ]` **8.6 Conformance over both layouts — § 14.1**
+### `[x]` **8.6 Conformance over both layouts — § 14.1**
 
 - _Goal:_ The shared suite passes over the ref backend in each layout with only § 14.1's named exclusions and those
   4.4.d holds until Phase 11.
 
-    - The fixture registers twice, each layout in its own integration file beside `store-in-repo-conformance.test.ts`
-      — `store-ref-conformance.test.ts` and `store-ref-separate-conformance.test.ts` — so CI lists and times each by
-      name (18.2, 18.3): the default layout in a files-format code repository whose template sets
-      `remote.origin.arc-state push`, and the separate one in its reftable directory with the key unset; 4.4.d's interim
-      exclusions retiring here are removed, items 3 and 14 narrowing to their sync assertions, and the fixture's `plant`,
-      `hold`, `race`, `produce`, and `repair` hooks serve every case they cover
-    - The fixture produces `held-here`, `state-unresolvable`, and `namespace-corrupt`, the last by a commit outside ARC
-      that a forward repair mends, which carries 7.5's recovery case
-    - Replay 5.10.R's expired project UID, UID-less absence, and recreation case in both layouts to close A7's
-      covering revalidation
-    - Replay 5.R2's independent lineage format/version cases in both layouts to close A6's covering revalidation
-    - Replay 5.R's companion name/path byte boundaries over both layouts, retaining atomic refusal and repaired
-      retries, to close A5's covering revalidation
-    - Replay 7.4.R's resolved-owner companion alias cases over both layouts, retaining early fixed-form guards,
-      true-alias refusal, and valid older-name hints, to close A10's covering revalidation
-    - Replay 7.5.R's current-state repair, persistent malformed-history refusal, readable post-repair interval, and
-      missing-object restoration cases over both layouts to close A11's covering revalidation
+- _Outcome:_ Both prepared layouts run the local shared suite with only the permanent and remote-only exclusions.
+  Real lock and recovery hooks, location-filtered views, current-role removals, fresh named generations, and refusal
+  details meet the shared contract. Both-layout identity, lineage, path, alias, and repair replays close A5, A6, A7,
+  A10, and A11.
 
 ## **Phase 9:** Two clones converge
 

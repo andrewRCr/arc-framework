@@ -9,7 +9,7 @@ import type { ReadInput, StoreRecord, ListInput, ListingOutcome } from "../read.
 import type { LookupInput, LookupResult } from "../lookup.js";
 import type { StoreResult, StoreRefusal } from "../refusal.js";
 import { RecordReferenceSchema, sameReference, type RecordReference, type OwnerIdentity } from "../identity.js";
-import { decodeCapturedRef, resolveCapturedOwner, refListingRefusal } from "./read.js";
+import { decodeCapturedRef, resolveCapturedOwner, refListingRefusal, readableRefListing } from "./read.js";
 import { matchesFamilyRef, refOwner, decodeRecord } from "./codec.js";
 import { resolveCapturedReference, resolveCapturedListInput, listOwnerReference } from "./reference-resolution.js";
 import { claimIdentityRefusal } from "./lookup-claims.js";
@@ -88,7 +88,8 @@ async function listView(context: RefBackendContext, state: RefViewState, input: 
   if (project?.diagnostic && !diagnostics.some(({ key }) => key === project.diagnostic?.key)) diagnostics.push(project.diagnostic);
   if (groups.length > 0 && !archived.records.length && groups.every(({ unreadable }) => unreadable)) return { status: "ok", result: { status: "unreadable",
     condition: diagnostics.map(({ condition }) => condition).join("; "), remedy: { text: diagnostics.map(({ remedy }) => remedy.text).join(" ") } } };
-  return { status: "ok", result: { status: "complete", records: [...groups.flatMap(({ records }) => records), ...archived.records], diagnostics, missed: diagnostics.length > 0 } };
+  const records = [...groups.flatMap(({ records }) => records), ...archived.records];
+  return { status: "ok", result: readableRefListing(input, records, diagnostics) };
 }
 
 function resolveViewListInput(context: RefBackendContext, state: RefViewState, input: ListInput): StoreResult<ListInput> {

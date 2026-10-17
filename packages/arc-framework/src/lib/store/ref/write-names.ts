@@ -34,7 +34,7 @@ async function freshPrimaryNames(context: RefBackendContext, writes: readonly Mu
     const { reference } = mutation, { owner } = reference;
     if (mutation.action !== "put" || mutation.expected !== null || owner.type === "person" || owner.type === "project" || owner.uid
       || !["work-item/meta", "work-item/record", "cohort/document"].includes(reference.kind)) continue;
-    const found = await resolveRefName(context, reference, live);
+    const found = await resolveRefName(context, reference, live, true);
     if (found.status === "refused" && found.refusal.code !== "not-found") return found;
     if (found.status === "refused") names.add(writeOwnerNameKey(reference));
   }

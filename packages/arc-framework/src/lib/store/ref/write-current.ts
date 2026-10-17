@@ -71,9 +71,10 @@ async function staleMutation(context: RefBackendContext, { mutation, home }: Res
 function primaryWriteBasis(context: RefBackendContext, write: ResolvedMutation, group: CapturedWriteGroup): ResolvedMutation {
   const { mutation } = write;
   const role = group.metadata.primary?.role;
-  if (mutation.action !== "put" || mutation.expected === null || !role || role === mutation.reference.kind
+  if (mutation.expected === null || !role || role === mutation.reference.kind
     || !["work-item/meta", "work-item/record"].includes(mutation.reference.kind)) return write;
   const reference = RecordReferenceSchema.parse({ ...(write.prior?.reference ?? mutation.reference), kind: role });
   const home = expandStoredPath(reference, { registry: context.registry, history: write.home.ref.startsWith("refs/arc/history/") });
+  if (mutation.action === "remove") return { ...write, mutation: { ...mutation, reference }, home, prior: undefined };
   return group.entries.has(home.path) ? { ...write, prior: { reference, home } } : write;
 }

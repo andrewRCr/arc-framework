@@ -37,9 +37,10 @@ export async function mergeRefMutation(context: RefBackendContext, write: Resolv
   const merged = definition.merge === "entry" && definition.entry ? mergeEntryText(input, definition.entry) : mergeLineText(input);
   const serialization = checkSerializationRules(mutation.reference, merged.content);
   const parsed = definition.parser?.(merged.content);
+  const parserRule = parsed?.success === false ? parsed.error : "Invalid merged content";
   if (serialization || parsed?.success === false) return { status: "refused", refusal: {
     ...(serialization ?? { code: "record-malformed" as const, class: "recoverable" as const, reference: mutation.reference,
-      rule: "store.parser", condition: parsed?.success === false ? parsed.error : "Invalid merged content" }),
+      rule: parserRule, condition: parserRule }),
     remedy: { text: "Read the record and write corrected content again over its current version." },
   } };
   return { status: "ok", result: { ...write, mutation: { ...mutation, content: merged.content }, conflicts: merged.conflicts } };

@@ -4015,13 +4015,13 @@ open:
   _Supersedes:_ § 7.4 other-origin put refusal. _Trigger:_ door. _Work:_ 6.R. _Revalidated:_ 6.R.
 
 - **A5** — 2026-10-16 — design: verbatim companion paths use segment bounds; combined names retain the key bound.
-  _Supersedes:_ § 3.2 key exception and § 5.6 key cap. _Trigger:_ 5.1 must-stop. _Work:_ 5.R. _Revalidated:_ pending → 8.6.
+  _Supersedes:_ § 3.2 key exception and § 5.6 key cap. _Trigger:_ 5.1 must-stop. _Work:_ 5.R. _Revalidated:_ 8.6.
 
 - **A6** — 2026-10-16 — design: lineage transition format keys include the origin UID.
-  _Supersedes:_ § 3.3 format-key rule. _Trigger:_ 5.3 must-stop. _Work:_ 5.R2. _Revalidated:_ pending → 8.6.
+  _Supersedes:_ § 3.3 format-key rule. _Trigger:_ 5.3 must-stop. _Work:_ 5.R2. _Revalidated:_ 8.6.
 
 - **A7** — 2026-10-16 — design: identity removal checks absence through the UID-less project handle.
-  _Supersedes:_ § 14.2 removal assertion. _Trigger:_ 5.10 must-stop. _Work:_ 5.10.R. _Revalidated:_ pending → 8.6.
+  _Supersedes:_ § 14.2 removal assertion. _Trigger:_ 5.10 must-stop. _Work:_ 5.10.R. _Revalidated:_ 8.6.
 
 - **A8** — 2026-10-16 — task: primary role replacement uses one version-bound put, retaining logical batch uniqueness.
   _Supersedes:_ none. _Trigger:_ 6.6 must-stop. _Work:_ 6.6.R. _Revalidated:_ 6.6.R.
@@ -4030,10 +4030,10 @@ open:
   _Supersedes:_ none. _Trigger:_ 7.2 must-stop. _Work:_ 7.2.R. _Revalidated:_ 7.2.R.
 
 - **A10** — 2026-10-17 — design: generic companion alias admission follows owner binding; fixed forms stay early.
-  _Supersedes:_ § 5.1 step 1 key-rule order. _Trigger:_ 7.4 must-stop. _Work:_ 7.4.R. _Revalidated:_ pending → 8.6.
+  _Supersedes:_ § 5.1 step 1 key-rule order. _Trigger:_ 7.4 must-stop. _Work:_ 7.4.R. _Revalidated:_ 8.6.
 
 - **A11** — 2026-10-17 — design: forward repair restores current state without inventing historical metadata.
-  _Supersedes:_ § 3.3 repair remedy. _Trigger:_ 7.5 must-stop. _Work:_ 7.5.R. _Revalidated:_ pending → 8.6.
+  _Supersedes:_ § 3.3 repair remedy. _Trigger:_ 7.5 must-stop. _Work:_ 7.5.R. _Revalidated:_ 8.6.
 
 - **A12** — 2026-10-17 — task: verify migration-only commit modes through their public callers.
   _Supersedes:_ none. _Trigger:_ 8.3 must-stop. _Work:_ 16.R. _Revalidated:_ pending → 16.R.
