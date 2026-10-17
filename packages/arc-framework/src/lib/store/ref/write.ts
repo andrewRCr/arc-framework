@@ -18,6 +18,7 @@ import type { ResolvedBatch } from "./write-resolution.js";
 import { checkSerializationRules } from "../serialization.js";
 import { checkRefKey, checkRefBatchPaths } from "./path-admission.js";
 import { prepareRefPut } from "./prepare-content.js";
+import { retainedBasisChanged } from "./write-retained.js";
 import { checkRefWriterRules } from "./writer-admission.js";
 
 /** Describe invalid mutation content without changing any state. */
@@ -122,7 +123,7 @@ async function executeRefBatch(context: RefBackendContext, input: BatchInput, ba
     const collision = checkRefBatchPaths(resolved.result.writes.filter((write) => write.mutation.action === "put")
       .map((write) => write.mutation.reference), context.registry);
     if (collision) return { status: "refused", refusal: collision };
-    const result = await withRefLocks(context, [...refWriteTargets(context, resolved.result).map(({ home }) => home.ref), ...archiveLockRefs(resolved.result), ...archivedLockRefs(resolved.result), ...retirementLockRefs(refWriteTargets(context, resolved.result))], () =>
+    const result = await withRefLocks(context, [...refWriteTargets(context, resolved.result).map(({ home }) => home.ref), ...(resolved.result.retained?.length ? ["refs/arc/project/registry", ...resolved.result.retained.map(({ home }) => home.ref.replace("refs/arc/history/", "refs/arc/"))] : []), ...archiveLockRefs(resolved.result), ...archivedLockRefs(resolved.result), ...retirementLockRefs(refWriteTargets(context, resolved.result))], () =>
       commitLockedRefBatch(context, resolved.result, input.provenance, batchId));
     if (result !== null && result !== "layout-changed") return result;
   }
@@ -132,7 +133,7 @@ async function commitLockedRefBatch(context: RefBackendContext, resolved: Resolv
   provenance: BatchInput["provenance"], batchId: string): Promise<StoreResult<BatchResult> | "layout-changed" | null> {
   for (;;) {
     const tips = await readRefTips(context, { includeHistory: true });
-    if (ownerLocationsChanged(context, resolved, tips) || archiveBasisChanged(resolved, tips)) return null;
+    if (ownerLocationsChanged(context, resolved, tips) || archiveBasisChanged(resolved, tips) || retainedBasisChanged(resolved.retained ?? [], resolved.tips, tips)) return null;
     const result = await commitRefWrites(context, { ...resolved, tips }, provenance, batchId);
     if (result === "resolve") return null;
     if (result !== "retry") return result;

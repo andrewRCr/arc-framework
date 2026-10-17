@@ -374,6 +374,7 @@ describe("repository command-input inventory", () => {
       "set-stage",
       "start",
       "status",
+      "store conflict",
       "store migrate",
       "store remote",
       "stub",

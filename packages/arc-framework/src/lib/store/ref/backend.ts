@@ -1,6 +1,6 @@
 /** Entry point for the ref-backed operational state implementation. */
 
-import type { StoreMigrateInput, StoreMigrateResult, StoreRemoteInput, StoreRemoteResult } from "../commands.js";
+import type { StoreConflictInput, StoreConflictResult, StoreMigrateInput, StoreMigrateResult, StoreRemoteInput, StoreRemoteResult } from "../commands.js";
 import type { Store, ReadOnlyStore } from "../contract.js";
 import type { RefStorePorts } from "../ports.js";
 import { createRefBackendContext, type RefBackendContext } from "./context.js";
@@ -15,6 +15,7 @@ import { pushRefStore } from "./push.js";
 import { pullRefStore } from "./pull.js";
 import { readSourceContext } from "./read-source-namespace.js";
 import { runRefMigrate, runRefRemote } from "./commands.js";
+import { runRefConflict } from "./conflict-command.js";
 import { maintainRefStore } from "./maintain.js";
 
 /** Construct the backend with no commands, file reads, or resolved policy ports. */
@@ -51,4 +52,9 @@ export async function runRefBackendMigrate(ports: RefStorePorts, input: StoreMig
 /** Enter the ref backend's explicit designation command. */
 export async function runRefBackendRemote(ports: RefStorePorts, input: StoreRemoteInput): Promise<StoreRemoteResult> {
   return runRefRemote(createRefBackendContext(ports), createRefBackend(ports), input);
+}
+
+/** Inspect an exact conflict without changing operational backend selection. */
+export async function runRefBackendConflict(ports: RefStorePorts, input: StoreConflictInput): Promise<StoreConflictResult> {
+  return runRefConflict(createRefBackend(ports), input);
 }

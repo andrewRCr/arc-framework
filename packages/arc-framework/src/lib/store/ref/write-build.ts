@@ -110,7 +110,7 @@ async function applyPreparedMutations(context: RefBackendContext, writes: readon
 function applyResolutions(context: RefBackendContext, resolved: ResolvedBatch, groups: ReadonlyMap<string, RefGroup>): void {
   for (const { mutation } of resolved.writes) {
     for (const reference of mutation.resolves ?? []) {
-      const target = mutationHome(context, reference, resolved.archived ?? []);
+      const target = mutationHome(context, reference, resolved.archived ?? [], resolved.retained);
       const group = groups.get(target.ref);
       if (!group) throw new Error("A resolved conflict has no captured ref group");
       group.entries.delete(target.path);

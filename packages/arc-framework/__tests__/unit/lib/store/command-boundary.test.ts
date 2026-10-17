@@ -6,7 +6,7 @@ import ts from "typescript";
 import { beforeAll, expect, it } from "vitest";
 
 const root = resolve(import.meta.dirname, "../../../../src");
-const expected = { runStoreRemote: ["commands/store-remote.ts"], runStoreMigrate: ["commands/store-migrate.ts"],
+const expected = { runStoreConflict: ["commands/store-conflict.ts"], runStoreRemote: ["commands/store-remote.ts"], runStoreMigrate: ["commands/store-migrate.ts"],
   createRefStore: [], createReadSourceStore: [] } as const;
 const callers = new Map<string, Set<string>>();
 

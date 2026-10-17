@@ -25,7 +25,7 @@ const states = [
 const notices = [
   { kind: "history-diverged", ref, local: sha, remote: "b".repeat(40), condition: "History moved", remedy },
   { kind: "tracking-update-failed", ref, condition: "Locked", remedy },
-  { kind: "ended-with-conflicts", item, conflicts: [reference] },
+  { kind: "ended-with-conflicts", item, conflicts: [reference], condition: "Retained alternatives", remedy },
   { kind: "end-withdrawn", item, condition: "Late edit", remedy },
   { kind: "ended-twice", item, condition: "Two ends", remedy },
   { kind: "rule-broken", reference, rule: "owner", condition: "Missing owner", remedy },

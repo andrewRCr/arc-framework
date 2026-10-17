@@ -260,6 +260,14 @@ program
   });
 
 const storeCmd = program.command("store", { hidden: true }).description("Operate on the ref store explicitly");
+storeCmd.command("conflict").argument("<uid>", "Owner UID").argument("<kind>", "Registered work-item conflict kind")
+  .argument("<id>", "Exact conflict ID")
+  .option("--discard", "Accept the current state and discard this retained alternative")
+  .option("--json", "Emit the complete conflict or resolution result as JSON")
+  .action(withInteractionContext({ machineReadable: (opts) => opts.json === true },
+    async (_context, uid: string, kind: string, id: string, options: import("./commands/store-conflict.js").StoreConflictOptions) => {
+      await (await import("./commands/store-conflict.js")).handleStoreConflict(uid, kind, id, options);
+    }));
 storeCmd.command("migrate").option("--to <remote-or-url>", "Move state to a remote or backing URL")
   .option("--trial", "Build and report the move without landing it")
   .option("--leave-source", "Finish leaving the recorded source")

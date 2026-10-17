@@ -49,8 +49,8 @@ describe.each(["default", "separate"] as const)("late writes in the %s layout", 
     const key = conflictPaths[0]!.slice("conflicts/".length, -".json".length);
     const conflict = ConflictRecordSchema.parse(JSON.parse((await h.a.git(["show", `${h.history}:${conflictPaths[0]}`])).stdout));
     expect(conflict).toMatchObject({ record: h.reference, current: { value: null }, incoming: { value: { content: late } } });
-    expect(pulled.pulls.flatMap(({ notices }) => notices)).toContainEqual({ kind: "ended-with-conflicts", item: h.reference.owner,
-      conflicts: [RecordReferenceSchema.parse({ owner: h.reference.owner, kind: "work-item/conflict-record", key })] });
+    expect(pulled.pulls.flatMap(({ notices }) => notices)).toContainEqual(expect.objectContaining({ kind: "ended-with-conflicts", item: h.reference.owner,
+      conflicts: [RecordReferenceSchema.parse({ owner: h.reference.owner, kind: "work-item/conflict-record", key })] }));
     expect((await h.a.git(["show", `${h.history}:late-only-late-write.md`])).stdout).toBe("Created only by the late writer.");
     expect(JSON.parse(success(await h.a.store.read({ reference: h.transition })).content)).toEqual(JSON.parse(h.lineage));
     const merged = (await h.a.git(["rev-parse", h.history])).stdout;

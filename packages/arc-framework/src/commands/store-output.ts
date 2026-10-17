@@ -1,6 +1,6 @@
 /** Output and dependency binding for explicit ref-store commands. */
 
-import type { StoreMigrateResult, StoreRemoteResult } from "../lib/store/commands.js";
+import type { StoreConflictResult, StoreMigrateResult, StoreRemoteResult } from "../lib/store/commands.js";
 import type { RefStorePorts } from "../lib/store/ports.js";
 import type { PromptRenderer } from "../lib/command-input/prompter.js";
 import { createExecaGitExec } from "../lib/git/process-executor.js";
@@ -30,7 +30,7 @@ export function invalidStoreCommand(command: "remote" | "migrate", condition: st
 }
 
 /** Preserve the complete result in machine mode and explain typed stops in terminal output. */
-export function renderStoreCommand(result: StoreRemoteResult | StoreMigrateResult, json: boolean,
+export function renderStoreCommand(result: StoreRemoteResult | StoreMigrateResult | StoreConflictResult, json: boolean,
   io: Pick<StoreCommandDependencies, "write" | "setExitCode">): void {
   if (json) io.write(`${JSON.stringify(result)}\n`);
   else if (result.status === "refused") {

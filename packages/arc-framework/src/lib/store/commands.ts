@@ -1,7 +1,11 @@
 /** Results and validated inputs owned by the explicit ref-store commands. */
 
 import { z } from "zod";
-import { RecordReferenceSchema } from "./identity.js";
+import { FAMILY_REGISTRY, KIND_REGISTRY } from "./registry.js";
+import type { ConflictRecord } from "./conflict.js";
+import type { RecordReference, RecordVersion } from "./identity.js";
+import type { StoreResult } from "./refusal.js";
+import { KindIdSchema, RecordReferenceSchema } from "./identity.js";
 import { RemedySchema, StoreRefusalSchema } from "./refusal.js";
 
 /** A complete account of the refs and source records a move examined. */
@@ -63,3 +67,16 @@ export interface StoreRemoteConfirmation {
 export type StoreMigrateResult = StoreCommandResult<MigrateReport> | StoreDesignationQuestion;
 /** The remote entry's complete result. */
 export type StoreRemoteResult = StoreCommandResult<StoreRemoteView> | StoreRemoteConfirmation;
+
+/** Exact conflict inspection or explicit discard; the handler owns output formatting. */
+export const StoreConflictInputSchema = z.strictObject({ uid: z.uuid(), kind: KindIdSchema.refine((kind) => {
+  const family = KIND_REGISTRY[kind].family, home = FAMILY_REGISTRY[family].ref;
+  return kind.endsWith("/conflict-record") && KIND_REGISTRY[kind].ref !== undefined
+    && (family === "work-item" || home && "subtreeOf" in home && home.subtreeOf === "work-item");
+}, "Expected a registered conflict kind on a work-item ref"), id: z.string().min(1), discard: z.boolean().optional() });
+/** An exact conflict operand and optional removal request. */
+export type StoreConflictInput = z.infer<typeof StoreConflictInputSchema>;
+/** A complete retained alternative or an explicit absence after resolution. */
+export type StoreConflictResult = StoreResult<
+  { status: "present"; reference: RecordReference; version: RecordVersion; conflict: ConflictRecord }
+  | { status: "discarded" | "absent"; reference: RecordReference }>;

@@ -45,6 +45,5 @@ function isCopyStateRef(ref: string): boolean { return isManifestRef(ref.replace
 
 function copyNotice(notice: PullNotice): MigrateReport["notices"][number] {
   if (notice.kind === "rule-broken") return { condition: `${notice.rule}: ${notice.condition}`, remedy: notice.remedy };
-  if ("condition" in notice) return { condition: notice.condition, remedy: notice.remedy };
-  return { condition: `Ended ${notice.item.type} ${notice.item.name} retains conflicts: ${notice.conflicts.map((ref) => `${ref.kind} ${canonicalize(ref.key ?? "")}`).join(", ")}.` };
+  return { condition: notice.condition, remedy: notice.remedy };
 }

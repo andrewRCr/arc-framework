@@ -42,7 +42,7 @@ export type PushInput = z.infer<typeof PushInputSchema>;
 export const PullNoticeSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("history-diverged"), ref: z.string().min(1), local: CommitShaSchema, remote: CommitShaSchema, ...explained }),
   z.strictObject({ kind: z.literal("tracking-update-failed"), ref: z.string().min(1), ...explained }),
-  z.strictObject({ kind: z.literal("ended-with-conflicts"), item: OwnerIdentitySchema, conflicts: z.array(RecordReferenceSchema) }),
+  z.strictObject({ kind: z.literal("ended-with-conflicts"), item: OwnerIdentitySchema, conflicts: z.array(RecordReferenceSchema), ...explained }),
   z.strictObject({ kind: z.enum(["end-withdrawn", "ended-twice"]), item: OwnerIdentitySchema, ...explained }),
   z.strictObject({ kind: z.literal("rule-broken"), reference: RecordReferenceSchema, rule: z.string().min(1), ...explained }),
   z.strictObject({ kind: z.literal("end-pending"), item: OwnerIdentitySchema, ref: z.string().min(1), ...explained }),

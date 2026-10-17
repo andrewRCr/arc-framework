@@ -2427,3 +2427,7 @@ operations and outcomes, and which test tier each conformance fixture runs in.
   designated without asking and adopts the upstream's ID, a residual the host trial checks. _Supersedes:_ D14.
   _Trigger:_ `spec-storage-ref-backend.md` § 9.2, 9.8. _Work:_ storage-ref-backend 1.10. _Revalidated:_
   storage-ref-backend 1.10.
+- **A25** — 2026-10-17 — design: A lineage-ended owner permits removal of a retained conflict on its history
+  coordinate with an explicit nonnull expected version. Every retired resolution target needs its own such removal
+  in the same batch; ordinary retained records remain inaccessible and the owner stays retired. _Supersedes:_ D6.
+  _Trigger:_ `spec-storage-ref-backend.md` § 2.6, 6.6 (A16). _Work:_ storage-ref-backend 13.5.R. _Revalidated:_ storage-ref-backend 13.5.R.

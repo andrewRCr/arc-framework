@@ -5,7 +5,7 @@ import { OwnerIdentitySchema, RecordReferenceSchema, type OwnerIdentity, type Re
 import type { Mutation } from "../write.js";
 import type { StoreResult, StoreRefusal } from "../refusal.js";
 import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
-import { sameOwner } from "../identity.js";
+import { sameOwner, sameReference } from "../identity.js";
 import type { ArchivedFolder } from "./archive-read.js";
 import { resolveArchivedReferences } from "./archive-resolution.js";
 import { rootFamily } from "./path-decode.js";
@@ -16,19 +16,20 @@ import { checkLiveNamespace } from "./namespace-admission.js";
 import { readLineageOwners, lineageOwnerCandidates } from "./lineage-resolution.js";
 import { retirementTargets } from "./write-retirement.js";
 import { resolveNamedRefWrites, writeOwnerNameKey } from "./write-names.js";
+import { resolveRetiredConflicts } from "./write-retained.js";
 import { readLiveRefOwners, type LiveRefOwners } from "./live-owners.js";
 
 /** Canonical mutation and its concrete ref/tree address. */
 export interface ResolvedMutation { mutation: Mutation; home: StoredRecordHome; prior?: { reference: RecordReference; home: StoredRecordHome } }
 /** One resolved owner generation per name, with its captured mutation basis. */
-export interface ResolvedBatch { writes: ResolvedMutation[]; tips: Map<string, string>; archived?: readonly ArchivedFolder[] }
+export interface ResolvedBatch { writes: ResolvedMutation[]; tips: Map<string, string>; archived?: readonly ArchivedFolder[]; retained?: readonly RefWriteTarget[] }
 /** A ref/tree coordinate that the batch may change directly or through resolution. */
 export interface RefWriteTarget { reference: RecordReference; home: StoredRecordHome }
 
 /** Include conflict-resolution refs in the same capture, locking, and publication set. */
 export function refWriteTargets(context: Pick<RefBackendContext, "registry">, batch: ResolvedBatch): RefWriteTarget[] {
   return batch.writes.flatMap(({ mutation, home }) => [{ reference: mutation.reference, home },
-    ...(mutation.resolves ?? []).map((reference) => ({ reference, home: mutationHome(context, reference, batch.archived ?? []) }))]).concat(retirementTargets(context, batch), renameRegistryTargets(context, batch));
+    ...(mutation.resolves ?? []).map((reference) => ({ reference, home: mutationHome(context, reference, batch.archived ?? [], batch.retained) }))]).concat(retirementTargets(context, batch), renameRegistryTargets(context, batch));
 }
 
 /** Resolve all owner names together so records created in one batch share a generation. */
@@ -49,6 +50,8 @@ export async function resolveRefWrites(context: RefBackendContext, writes: reado
   if (brokenTarget) return { status: "refused", refusal: brokenTarget };
   const archived = await resolveArchivedReferences(context, writes.flatMap((write) => [write.reference, ...write.resolves ?? []]), tips);
   if (archived.status === "refused") return archived;
+  const retained = await resolveRetiredConflicts(context, writes, tips);
+  if (retained.status === "refused") return retained;
   const endedOwners = [...new Map(archived.result.map(({ owner }) => ["uid" in owner ? owner.uid : owner.name, owner])).values()];
   const needsLineage = writes.some((mutation) => [mutation.reference, ...mutation.resolves ?? []]
     .some((reference) => context.registry[reference.kind].family === "lineage"));
@@ -57,6 +60,8 @@ export async function resolveRefWrites(context: RefBackendContext, writes: reado
   const fresh = new Map<string, OwnerIdentity>();
   const liveOwners = owners.map(({ owner }) => owner);
   const resolve = (reference: RecordReference) => {
+    const target = retained.result.find((target) => sameReference(target.reference, reference));
+    if (target) return { status: "ok" as const, result: target.reference.owner };
     const freshName = !("uid" in reference.owner && reference.owner.uid) && named.result.freshNames.has(writeOwnerNameKey(reference));
     const candidates = freshName ? owners.filter(({ primary }) => primary !== undefined).map(({ owner }) => owner) : context.registry[reference.kind].family === "lineage"
       ? lineageOwnerCandidates(reference, liveOwners, lineage.result) : [...liveOwners, ...endedOwners];
@@ -68,7 +73,9 @@ export async function resolveRefWrites(context: RefBackendContext, writes: reado
   for (const mutation of writes) {
     const found = resolve(mutation.reference);
     if (found.status === "refused") return found;
-    resolved.push(resolvedOwnerWrite(context, mutation, found.result, renames, archived.result));
+    const write = resolvedOwnerWrite(context, mutation, found.result, renames, archived.result);
+    write.home = mutationHome(context, write.mutation.reference, archived.result, retained.result);
+    resolved.push(write);
   }
   const canonical = resolveConflictReferences(resolved, resolve);
   if (canonical.status === "refused") return canonical;
@@ -76,7 +83,7 @@ export async function resolveRefWrites(context: RefBackendContext, writes: reado
   if (unknownClaim) return { status: "refused", refusal: unknownClaim };
   const clash = checkLiveNamespace(resolved, owners);
   if (clash) return { status: "refused", refusal: clash };
-  return { status: "ok", result: { writes: resolved, tips, archived: archived.result } };
+  return { status: "ok", result: { writes: resolved, tips, archived: archived.result, retained: retained.result } };
 }
 
 function resolveOwner(reference: RecordReference, owners: readonly OwnerIdentity[], fresh: Map<string, OwnerIdentity>): StoreResult<OwnerIdentity> {
@@ -116,7 +123,9 @@ function resolveConflictReferences(resolved: ResolvedMutation[], resolve: (refer
 }
 
 /** Select the history coordinate for a resolved completed owner. */
-export function mutationHome(context: Pick<RefBackendContext, "registry">, reference: RecordReference, archived: readonly ArchivedFolder[]): StoredRecordHome {
+export function mutationHome(context: Pick<RefBackendContext, "registry">, reference: RecordReference, archived: readonly ArchivedFolder[], retained: readonly RefWriteTarget[] = []): StoredRecordHome {
+  const target = retained.find((target) => sameReference(target.reference, reference));
+  if (target) return target.home;
   const history = ["work-item", "cohort"].includes(rootFamily(context.registry[reference.kind].family))
     && archived.some(({ owner }) => sameOwner(owner, reference.owner));
   return expandStoredPath(reference, { registry: context.registry, history });

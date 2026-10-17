@@ -1,7 +1,7 @@
 /** The sole composition point for operational state backends. */
 
 import type { Store, ReadOnlyStore } from "./contract.js";
-import type { StoreMigrateInput, StoreMigrateResult, StoreRemoteInput, StoreRemoteResult } from "./commands.js";
+import type { StoreConflictInput, StoreConflictResult, StoreMigrateInput, StoreMigrateResult, StoreRemoteInput, StoreRemoteResult } from "./commands.js";
 import type { StorePorts, RefStorePorts } from "./ports.js";
 
 /** Construct a lazy store without reading configuration, files, or Git topology.
@@ -62,4 +62,10 @@ export async function runStoreMigrate(ports: RefStorePorts, input: StoreMigrateI
 export async function runStoreRemote(ports: RefStorePorts, input: StoreRemoteInput = {}): Promise<StoreRemoteResult> {
   const { runRefBackendRemote } = await import("./ref/backend.js");
   return runRefBackendRemote(ports, input);
+}
+
+/** Inspect or explicitly discard one conflict through the ref backend's exact history. */
+export async function runStoreConflict(ports: RefStorePorts, input: StoreConflictInput): Promise<StoreConflictResult> {
+  const { runRefBackendConflict } = await import("./ref/backend.js");
+  return runRefBackendConflict(ports, input);
 }

@@ -97,6 +97,7 @@ export const NO_INPUT_MATRIX: readonly NoInputMatrixCase[] = Object.freeze([
   { commandPath: "start", promptSite: "prompt.start.create-new", args: ["start", "matrix", "--new"], setup: "reachable-origin", expected: { exitCode: 0, outputIncludes: "Ceremony committed and pushed." } },
   { commandPath: "start", upstreamRefusalFor: "safety.indeterminate-lifecycle", args: ["start", "matrix", "--new"], setup: "unreachable-origin", preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "could not completely expand remote work-unit candidates; retry `arc start`." } },
   { commandPath: "status", args: ["status", "--json"], expected: { exitCode: 0, outputIncludes: "\"mode\":\"full\"" } },
+  { commandPath: "store conflict", args: ["store", "conflict", "11111111-1111-4111-8111-111111111111", "work-item/conflict-record", "absent", "--json"], fixture: "bare", expected: { exitCode: 0, outputIncludes: '"status":"absent"' } },
   { commandPath: "store migrate", args: ["store", "migrate", "--json"], fixture: "bare", expected: { exitCode: 0, outputIncludes: '"move":"layout"' } },
   { commandPath: "store remote", promptSite: "prompt.store.own-state", args: ["store", "remote", "origin", "push"], fixture: "bare", setup: "store-pointer", preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "--own-state" } },
   { commandPath: "stub", promptSite: "prompt.stub.commitment", args: ["stub", "matrix"], preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "Missing required input: --commitment <tier>, --priority <priority>" } },

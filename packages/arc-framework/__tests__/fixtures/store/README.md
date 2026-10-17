@@ -8,3 +8,8 @@ readiness barrier, allowing tests to coordinate real lock contention and lifecyc
 local bare repositories. The six scenarios cover creation, verbose up-to-date reporting, fast-forward, non-fast-forward
 refusal, forced replacement, and pruning. Each scenario runs with an empty refmap to suppress configured tracking
 updates; deterministic empty-tree commits fix the object IDs.
+
+`retained-conflict.json` captures a real two-clone abandonment meeting a late primary edit. Its fast-export stream
+contains the produced registry and retained history, and its notice and conflict are the public pull/history results.
+CLI tests import that history into disposable repositories in both layouts and execute the captured inspection argv
+before explicitly discarding the alternative.
