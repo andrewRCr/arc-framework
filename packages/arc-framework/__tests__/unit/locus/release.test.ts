@@ -12,18 +12,21 @@ import { testProvenance, success } from "../../helpers/store/suite-tools.js";
 import { OwnerIdentitySchema, recordReferences } from "../../../src/lib/store/identity.js";
 import { serializeTransientIdentityRecord, TransientIdentityRecordV3Schema } from "../../../src/lib/errand/identity-record.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
+import type { GitExec } from "../../../src/lib/git/exec.js";
 
 async function fixture() {
   const cwd = await mkdtemp(join(tmpdir(), "arc-locus-release-"));
   const holder = join(cwd, "holder");
   await mkdir(holder);
+  await mkdir(join(cwd, ".git"));
   onTestFinished(async () => rm(cwd, { recursive: true, force: true }));
   const h = createLifecycleHarness();
   const record = await h.seedMeta("demo", { state: "Planning", owner: "andrew", currentWorkflow: "draft-design" });
   const marker = { spawnedByArc: false, createdFor: { kind: "work-unit" as const, name: "demo" }, spawningIdentity: "andrew", createdAt: new Date(0).toISOString() };
   await writeWorktreeMarker(holder, marker);
-  const exec = async () => ({ stdout: [`worktree ${cwd}`, `HEAD ${"a".repeat(40)}`, "branch refs/heads/main", "", "",
-    `worktree ${holder}`, `HEAD ${"b".repeat(40)}`, "branch refs/heads/person", "", ""].join("\0") });
+  const exec: GitExec = async (_command, args) => args[0] === "rev-parse" && args[1] === "--git-common-dir"
+    ? { stdout: join(cwd, ".git") } : { stdout: [`worktree ${cwd}`, `HEAD ${"a".repeat(40)}`, "branch refs/heads/main", "", "",
+      `worktree ${holder}`, `HEAD ${"b".repeat(40)}`, "branch refs/heads/person", "", ""].join("\0") };
   return { ...h, cwd, holder, record, marker, ctx: { cwd, exec, store: h.store, identity: "andrew", baseBranch: "main" } };
 }
 

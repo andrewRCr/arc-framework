@@ -3,7 +3,13 @@ import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, onTestFinished, vi } from "vitest";
 import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
-import { createLifecycleHarness } from "../helpers/store/lifecycle-harness.js";
+import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
+import { runPause, runResumePaused } from "../../src/lib/work-unit/verbs/pause-handover.js";
+import { runStoreRename } from "../../src/lib/work-unit/verbs/rename-store.js";
+import { storeRenameAdapters } from "../../src/commands/rename-store.js";
+import { createUserIOContext } from "../../src/lib/io-context.js";
+import { resolveWorktreeOperationLockPath } from "../../src/lib/work-unit/worktree-operation-lock.js";
+import type { GitExec } from "../../src/lib/git/exec.js";
 import { ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs, readWorktreeMarker,
   writeWorktreeOwnershipMarker, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { handleLocusRelease, type LocusReleaseHandlerContext } from "../../src/handlers/locus-release.js";
@@ -62,6 +68,69 @@ it("refuses a dirty spawned checkout and removes it once clean", async () => {
   expect(await invoke(h.context)).toMatchObject({ exitCode: undefined, result: { status: "released", spawned: true } });
   expect(await stat(h.holder).catch(() => null)).toBeNull();
   expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(h.holder);
+}, 30_000);
+
+it.each([false, true])("retains a checkout resumed during awaited projection work and releases after pausing again (spawned=%s)", async spawned => {
+  const h = await fixture(), ctx = { ...h.context, baseBranch: "main" };
+  const primary = await h.seedMeta("missing", { state: "Planning", owner: "andrew", currentWorkflow: "draft-design" });
+  if (!spawned) await writeWorktreeMarker(h.holder, { spawnedByArc: false, createdFor: { kind: "work-unit", name: "missing" }, spawningIdentity: "andrew", createdAt: new Date(0).toISOString() });
+  expect(await runPause(ctx, { name: "missing", identity: "andrew", reason: "Waiting" })).toMatchObject({ status: "paused" });
+  const marker = await readWorktreeMarker(h.holder);
+  const resume = async () => { expect(await runResumePaused(ctx, { name: "missing" })).toMatchObject({ status: "resumed" }); };
+  const slots = { ...passingProjectionRemovalSlots,
+    persist: async () => { await resume(); return { kind: "persisted" as const }; },
+    release: async () => { await resume(); return { kind: "released" as const }; } };
+  expect((await invoke({ ...h.context, projectionRemovalSlots: slots })).result).toMatchObject({ status: "refused", reason: expect.stringContaining("arc pause missing") });
+  expect(await readWorktreeMarker(h.holder)).toEqual(marker);
+  expect((await stat(h.holder)).isDirectory()).toBe(true);
+  expect(lifecycleSuccess(await h.store.read({ reference: primary.reference })).fields).toMatchObject({ pause: null });
+  expect(await runPause(ctx, { name: "missing", identity: "andrew", reason: "Waiting again" })).toMatchObject({ status: "paused" });
+  const paused = lifecycleSuccess(await h.store.read({ reference: primary.reference }));
+  expect((await invoke(h.context)).result).toMatchObject({ status: "released", spawned });
+  expect(await h.store.read({ reference: primary.reference })).toEqual({ status: "ok", result: paused });
+  expect(await readWorktreeMarker(h.holder)).toEqual({ kind: "absent" });
+  expect(await stat(h.holder).catch(() => null)).toEqual(spawned ? null : expect.anything());
+}, 30_000);
+
+it("preserves a new live marker generation installed while spawned projection persistence awaits", async () => {
+  const h = await fixture();
+  await h.seedMeta("replacement", { state: "Planning", owner: "andrew", currentWorkflow: "draft-design" });
+  const marker = { spawnedByArc: true, createdFor: { kind: "work-unit" as const, name: "replacement" }, spawningIdentity: "andrew", createdAt: new Date(1).toISOString() };
+  const slots = { ...passingProjectionRemovalSlots, persist: async () => { await writeWorktreeMarker(h.holder, marker); return { kind: "persisted" as const }; } };
+  expect((await invoke({ ...h.context, projectionRemovalSlots: slots })).result).toMatchObject({ status: "refused", reason: expect.stringMatching(/generation changed|arc pause replacement/u) });
+  expect(await readWorktreeMarker(h.holder)).toEqual({ kind: "present", marker });
+  expect((await stat(h.holder)).isDirectory()).toBe(true);
+  expect(await runPause({ ...h.context, baseBranch: "main" }, { name: "replacement", identity: "andrew", reason: "Now release" })).toMatchObject({ status: "paused" });
+  expect((await invoke(h.context, "replacement")).result).toMatchObject({ status: "released" });
+}, 30_000);
+
+it("serializes registered release behind a production rename transaction and preserves its renamed live checkout", async () => {
+  const h = await fixture(), ctx = { ...h.context, baseBranch: "main" };
+  await h.seedMeta("missing", { state: "Planning", owner: "andrew", currentWorkflow: "draft-design" });
+  expect(await runPause(ctx, { name: "missing", identity: "andrew", reason: "Waiting" })).toMatchObject({ status: "paused" });
+  const lock = await resolveWorktreeOperationLockPath(h.exec, h.cwd);
+  let unblock = () => {}, entered = () => {}, blocked = false;
+  const barrier = new Promise<void>(resolve => { unblock = resolve; }), acquired = new Promise<void>(resolve => { entered = resolve; });
+  const exec: GitExec = async (command, args, options) => {
+    if (!blocked && args[0] === "worktree" && args[1] === "list" && await stat(lock).then(() => true, () => false)) {
+      blocked = true; entered(); await barrier;
+    }
+    return h.exec(command, args, options);
+  };
+  const io = createUserIOContext(); io.exec = exec;
+  const renaming = runStoreRename({ ...ctx, exec, ...storeRenameAdapters({ cwd: h.cwd, io }) }, { sourceSlug: "missing", targetSlug: "renamed" });
+  await acquired;
+  let settled = false;
+  const releasing = invoke(h.context).finally(() => { settled = true; });
+  let premature: boolean;
+  try { await new Promise(resolve => setTimeout(resolve, 500)); premature = settled; } finally { unblock(); }
+  const [renamed, released] = await Promise.all([renaming, releasing]);
+  expect(premature).toBe(false);
+  expect(renamed).toMatchObject({ status: "renamed" });
+  expect(released.result).toMatchObject({ status: "refused" });
+  expect(await runResumePaused(ctx, { name: "renamed" })).toMatchObject({ status: "resumed" });
+  expect(await readWorktreeMarker(h.holder)).toMatchObject({ kind: "present", marker: { createdFor: { kind: "work-unit", name: "renamed" } } });
+  expect((await stat(h.holder)).isDirectory()).toBe(true);
 }, 30_000);
 
 it("preserves detached commits until a branch holds them and then removes only the checkout", async () => {

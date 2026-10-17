@@ -12,6 +12,7 @@ import { releaseWorktreeCheckout, removeWorktreeCheckout, describeRemovalRefusal
 import type { LocusPorts } from "../work-unit/locus-ports.js";
 import { createLocusPorts } from "./lifecycle-ports.js";
 import { inspectCheckoutMarker, type PresentMarker } from "./marker-occupancy.js";
+import { withWorktreeOperationLock } from "../work-unit/worktree-operation-lock.js";
 export interface LocusReleaseContext {
   cwd: string; exec: GitExec; store: Store; identity: string; baseBranch: string;
   locusPorts?: LocusPorts; projectionRemovalSlots?: ProjectionRemovalSlots; chdir?: (path: string) => void;
@@ -23,27 +24,31 @@ export async function runLocusRelease(ctx: LocusReleaseContext, slug?: string): 
   if (!ctx.store.capabilities.stateOffBranch) return { status: "refused", reason: "Locus release is unsupported until state lives off the branch; use arc park and arc teardown." };
   const exec: GitExec = (command, args, options) => ctx.exec(command, args, { cwd: ctx.cwd, ...options });
   try {
-    const ports = ctx.locusPorts ?? createLocusPorts({ cwd: ctx.cwd, exec, store: ctx.store });
-    const target = slug === undefined ? ctx.cwd : await ports.findHoldingCheckout({ name: slug, resolveLegacy: () => Promise.resolve(null) });
-    if (target === null) return refused(`No checkout here holds '${slug}'. Run arc locus --json to inspect this machine's checkouts.`);
-    const occupancy = await inspectCheckoutMarker({ cwd: target, store: ctx.store, identity: ctx.identity });
-    if (occupancy.kind === "clear") return refused(`Checkout ${target} has no work-unit marker to release. Run arc locus --json to inspect this machine's checkouts.`);
-    if (occupancy.kind === "unreadable") return refused(occupancy.reason);
-    const authority = releaseAuthority(ctx.identity, occupancy);
-    if (authority !== null) return refused(authority);
-    const topology = await scanRegisteredWorktrees(exec);
-    if (!topology.ok) return refused(`${topology.message}. Run again once Git lists the worktrees.`);
-    const checkout = topology.worktrees.find(entry => resolve(entry.path) === resolve(target));
-    const primary = topology.worktrees.find(entry => entry.primary);
-    if (checkout === undefined || primary === undefined) return refused("The target or primary checkout is absent from the registered-worktree listing. Run again once Git lists the worktrees.");
-    const spawned = occupancy.marker.marker.spawnedByArc;
-    if (spawned && checkout.primary) return refused("A spawned marker cannot authorize removal of the primary checkout. Inspect and repair its marker first.");
-    if (spawned) await requirePreservedDetachedHead(exec, checkout, ctx.baseBranch);
-    await revalidateMarker(target, occupancy.marker);
-    const nextCheckoutPath = await leaveReleasedCheckout(ctx, target, primary.path);
-    await releaseCheckout({ ...ctx, exec }, target, primary.path, spawned, occupancy.marker);
-    return { status: "released", checkoutPath: target, spawned, ...(nextCheckoutPath === undefined ? {} : { nextCheckoutPath }) };
+    return await withWorktreeOperationLock({ exec, cwd: ctx.cwd, operation: () => releaseUnderLock({ ...ctx, exec }, slug) });
   } catch (error) { return refused(error instanceof Error ? error.message : String(error)); }
+}
+async function releaseUnderLock(ctx: LocusReleaseContext, slug?: string): Promise<LocusReleaseResult> {
+  const exec = ctx.exec;
+  const ports = ctx.locusPorts ?? createLocusPorts({ cwd: ctx.cwd, exec, store: ctx.store });
+  const target = slug === undefined ? ctx.cwd : await ports.findHoldingCheckout({ name: slug, resolveLegacy: () => Promise.resolve(null) });
+  if (target === null) return refused(`No checkout here holds '${slug}'. Run arc locus --json to inspect this machine's checkouts.`);
+  const occupancy = await inspectCheckoutMarker({ cwd: target, store: ctx.store, identity: ctx.identity });
+  if (occupancy.kind === "clear") return refused(`Checkout ${target} has no work-unit marker to release. Run arc locus --json to inspect this machine's checkouts.`);
+  if (occupancy.kind === "unreadable") return refused(occupancy.reason);
+  const authority = releaseAuthority(ctx.identity, occupancy);
+  if (authority !== null) return refused(authority);
+  const topology = await scanRegisteredWorktrees(exec);
+  if (!topology.ok) return refused(`${topology.message}. Run again once Git lists the worktrees.`);
+  const checkout = topology.worktrees.find(entry => resolve(entry.path) === resolve(target));
+  const primary = topology.worktrees.find(entry => entry.primary);
+  if (checkout === undefined || primary === undefined) return refused("The target or primary checkout is absent from the registered-worktree listing. Run again once Git lists the worktrees.");
+  const spawned = occupancy.marker.marker.spawnedByArc;
+  if (spawned && checkout.primary) return refused("A spawned marker cannot authorize removal of the primary checkout. Inspect and repair its marker first.");
+  if (spawned) await requirePreservedDetachedHead(exec, checkout, ctx.baseBranch);
+  await revalidateMarker(target, occupancy.marker);
+  const nextCheckoutPath = await leaveReleasedCheckout(ctx, target, primary.path);
+  await releaseCheckout({ ...ctx, exec }, target, primary.path, spawned, occupancy.marker);
+  return { status: "released", checkoutPath: target, spawned, ...(nextCheckoutPath === undefined ? {} : { nextCheckoutPath }) };
 }
 function releaseAuthority(identity: string, occupancy: Extract<Awaited<ReturnType<typeof inspectCheckoutMarker>>, { kind: "occupied" }>): string | null {
   const ownership = decodeWorktreeMarkerOwnership(occupancy.marker.marker);
@@ -70,7 +75,8 @@ async function leaveReleasedCheckout(ctx: LocusReleaseContext, target: string, p
   return destination;
 }
 async function releaseCheckout(ctx: LocusReleaseContext, target: string, primary: string, spawned: boolean, expected: PresentMarker): Promise<void> {
-  const options = { exec: ctx.exec, checkoutPath: target, primaryWorktreePath: primary, slots: ctx.projectionRemovalSlots };
+  const options = { exec: ctx.exec, checkoutPath: target, primaryWorktreePath: primary, slots: ctx.projectionRemovalSlots,
+    beforeRetire: () => revalidateReleaseEligibility(ctx, target, expected) };
   if (spawned) {
     const result = await removeWorktreeCheckout(options);
     if (result.kind === "refused") throw new Error(describeRemovalRefusal(result.check));
@@ -79,8 +85,17 @@ async function releaseCheckout(ctx: LocusReleaseContext, target: string, primary
   }
   const result = await releaseWorktreeCheckout(options);
   if (result.kind === "refused") throw new Error(describeRemovalRefusal(result.check));
+  await options.beforeRetire();
   const removed = await removeWorktreeMarkerGeneration(target, expected.bytes);
   if (removed.kind !== "removed") throw new Error(`Checkout ${target}'s marker generation changed during release; inspect it, then retry.`);
+}
+async function revalidateReleaseEligibility(ctx: LocusReleaseContext, target: string, expected: PresentMarker): Promise<void> {
+  const occupancy = await inspectCheckoutMarker({ cwd: target, store: ctx.store, identity: ctx.identity });
+  if (occupancy.kind !== "occupied") throw new Error(occupancy.kind === "unreadable" ? occupancy.reason : `Checkout ${target}'s marker disappeared. Inspect arc locus --json and retry release.`);
+  if (!occupancy.marker.bytes.equals(expected.bytes)) throw new Error(`Checkout ${target}'s marker generation changed during release; inspect arc locus --json, then retry against its current marker.`);
+  const authority = releaseAuthority(ctx.identity, occupancy);
+  if (authority !== null) throw new Error(authority);
+  await revalidateMarker(target, expected);
 }
 async function requirePreservedDetachedHead(exec: GitExec, checkout: RegisteredWorktree, baseBranch: string): Promise<void> {
   if (!checkout.detached) return;
