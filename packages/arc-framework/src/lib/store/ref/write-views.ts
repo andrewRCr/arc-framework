@@ -55,7 +55,7 @@ async function listView(context: RefBackendContext, state: RefViewState, input: 
     if (admitted.status === "refused") return admitted;
     input = admitted.result;
   }
-  const groups = refs.map(([ref, group]) => decodeCapturedRef(context, input, ref, group.entries, state.objects, group.metadata, project?.owner));
+  const groups = refs.map(([ref, group]) => decodeCapturedRef(context, input, ref, group.entries, state.objects, group.metadata, project?.owner, group.readPlacement));
   const diagnostics = groups.flatMap(({ diagnostics }) => diagnostics);
   if (project?.diagnostic && !diagnostics.some(({ key }) => key === project.diagnostic?.key)) diagnostics.push(project.diagnostic);
   if (groups.every(({ unreadable }) => unreadable)) return { status: "ok", result: { status: "unreadable",
@@ -93,7 +93,7 @@ async function readView(context: RefBackendContext, state: RefViewState, input: 
   if (owner.status === "refused") return owner;
   reference = RecordReferenceSchema.parse({ ...reference, owner: owner.result });
   const conflicts = viewOpenConflicts(context, state, home, reference);
-  const record = decodeRecord(context, reference, object, metadata, home.path, conflicts);
+  const record = decodeRecord(context, reference, object, metadata, home.path, conflicts, group.readPlacement);
   return "reference" in record ? { status: "ok", result: record } : { status: "refused", refusal: { code: "record-malformed", class: "recoverable",
     reference, rule: record.condition, condition: record.condition, remedy: record.remedy } };
 }
@@ -126,7 +126,7 @@ function viewOpenConflicts(context: RefBackendContext, state: RefViewState, home
   if (!group) throw new Error("A checked record has no captured ref group");
   const family = context.registry[reference.kind].family;
   const listed = decodeCapturedRef(context, { family }, home.ref, group.entries, state.objects, group.metadata,
-    reference.owner.type === "project" ? reference.owner : undefined);
+    reference.owner.type === "project" ? reference.owner : undefined, group.readPlacement);
   return listed.records.find((record) => sameReference(record.reference, reference))?.conflicts ?? [];
 }
 

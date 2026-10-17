@@ -559,33 +559,15 @@ _Purpose:_ Every lifecycle move as one local transaction, as one clone sees it b
 close into a quarter folder, reopen, writes to a completed item, abandon and decomposition with lineage, a cohort's
 close, and renames and role changes.
 
-### `[ ]` **6.1 Archive and an Errand's close — § 7.1**
+### `[x]` **6.1 Archive and an Errand's close — § 7.1**
 
 - _Goal:_ A placement write to `completed` ends a work item in one transaction: a final commit on its ref, its records
   in a numbered or named folder of its quarter's ref, and its ref moved under `refs/arc/history/`.
 
-- _Note:_ Phase 6's cases name an ended owner by UID, since a slug resolves to ended owners only from 7.4; states only
-  another clone's sync leaves are planted with 3.1.e's helper; and cases run the conformance fixture's test registry,
-  overriding a kind's parser where a case needs one, as 6.5's `b` closeout needs the cohort's.
-
-    - The final commit writes the item's metadata with the end's batch as `endBatch` and `batch`, so the folder takes the
-      same blobs; the folder holds the item's records and metadata file and no anchor manifest, which the history ref's
-      log keeps reachable (§ 4.5)
-    - The sequence comes from the quarter's tip read under the locks, two digits zero-padded as `ArchiveSequenceSchema`
-      (`lib/kernel/schema/archive.ts`) and `computeArchiveDestination` (`lib/work-unit/completed-index.ts`) write it
-    - Build `test-first` (one behavior at a time):
-        - a work unit's archive commits the verb's writes, copies its records and metadata file into
-          `<sequence>_<slug>/` of `refs/arc/archive/<quarter>` with the same blobs, and moves its ref to
-          `refs/arc/history/work/<uid>`
-        - the sequence is the quarter's highest numbered folder plus one, a closed cohort's counted, and read placement
-          derives it from the folder's name, `01` for a quarter's first
-        - two worktrees archiving into one quarter at once take distinct numbers
-        - a create at `completed` lands as its archive: its history ref and folder created with expected absence, and no
-          live ref
-        - an Errand's close moves it into `<slug>-<suffix>/`, unnumbered, and with a 2,040-byte slug forms a name Git
-          accepts
-        - the folder's metadata records `endBatch` and `batch` as the archive's batch
-        - a reopened folder that held the highest number lets the next archive take it again, and any other leaves a gap
+- _Outcome:_ Archive and Errand-close batches lock the quarter and history destinations, stamp the final item,
+  copy record/metadata blobs without anchor manifests, and move refs in one transaction. Reads and check views derive
+  completed placement from assigned folders; numbering counts cohorts and current gaps. A missing quarter tree refuses
+  before publication and admits the unchanged retry after object restoration.
 
 ### `[ ]` **6.2 Reopen — § 7.2**
 

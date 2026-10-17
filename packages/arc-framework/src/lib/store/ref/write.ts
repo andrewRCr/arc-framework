@@ -7,6 +7,7 @@ import type { RefBackendContext } from "./context.js";
 import { randomUUID } from "node:crypto";
 import { resolveRefWrites, refWriteTargets } from "./write-resolution.js";
 import { commitRefWrites } from "./write-build.js";
+import { archiveLockRefs } from "./write-archive.js";
 import { withRefLocks } from "./write-locks.js";
 import { AdvisoryLockTimeoutError } from "../../advisory-lock.js";
 import { readRefTips } from "./batch-read.js";
@@ -113,7 +114,7 @@ async function executeRefBatch(context: RefBackendContext, input: BatchInput, ba
     const collision = checkRefBatchPaths(resolved.result.writes.filter((write) => write.mutation.action === "put")
       .map((write) => write.mutation.reference), context.registry);
     if (collision) return { status: "refused", refusal: collision };
-    const result = await withRefLocks(context, refWriteTargets(context, resolved.result).map(({ home }) => home.ref), () =>
+    const result = await withRefLocks(context, [...refWriteTargets(context, resolved.result).map(({ home }) => home.ref), ...archiveLockRefs(resolved.result)], () =>
       commitLockedRefBatch(context, resolved.result, input.provenance, batchId));
     if (result !== null) return result;
   }

@@ -1,6 +1,7 @@
 /** Build the write commit and its separately attributed conflict-record commit. */
 
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
+import type { ReadPlacement } from "../placement.js";
 import type { RefChange } from "../../git/ref-transaction.js";
 import type { BatchInput } from "../write.js";
 import type { RecordReference } from "../identity.js";
@@ -13,7 +14,7 @@ import { writeRefBlob, writeRefTree } from "./tree-write.js";
 import type { RefWriteTarget } from "./write-resolution.js";
 
 /** Mutable prepared tree with the original entries retained for no-op comparison. */
-export interface RefWriteGroup extends CapturedWriteGroup { original: Map<string, RefTreeEntry> }
+export interface RefWriteGroup extends CapturedWriteGroup { original: Map<string, RefTreeEntry>; readPlacement?: ReadPlacement }
 
 /** Construct each changed ref's write commit and optional conflict commit. */
 export async function prepareRefCommits(context: RefBackendContext, writes: readonly PreparedRefMutation[],

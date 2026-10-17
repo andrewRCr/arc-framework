@@ -1,5 +1,6 @@
 /** Decode captured state tree entries using registered record homes. */
 
+import type { ReadPlacement } from "../placement.js";
 import { FAMILY_REGISTRY } from "../registry.js";
 import { OwnerIdentitySchema, type OwnerIdentity, type RecordReference } from "../identity.js";
 import { StoreRecordSchema, type StoreRecord, type ListingDiagnostic } from "../read.js";
@@ -39,7 +40,7 @@ export function decodeReference(context: RefBackendContext, owner: OwnerIdentity
 
 /** Turn a captured blob and owner metadata into the contract's logical record. */
 export function decodeRecord(context: RefBackendContext, reference: RecordReference, object: BatchObject, metadata: RefMetadata,
-  path: string, conflicts: RecordReference[] = []): StoreRecord | ListingDiagnostic {
+  path: string, conflicts: RecordReference[] = [], placementOverride?: ReadPlacement): StoreRecord | ListingDiagnostic {
   const kind = context.registry[reference.kind];
   const primary = reference.kind === metadata.primary?.role || reference.kind === "cohort/document";
   const formatVersion = metadata.formats[refFormatKey(reference)] ?? 1;
@@ -49,7 +50,7 @@ export function decodeRecord(context: RefBackendContext, reference: RecordRefere
   if ("condition" in decoded) return recordDiagnostic(path, decoded);
   const mismatch = parsedOwnerProblem(reference, decoded.fields);
   if (mismatch) return recordDiagnostic(path, mismatch);
-  const placement = metadata.primary?.placement ?? metadata.placement;
+  const placement = placementOverride ?? metadata.primary?.placement ?? metadata.placement;
   const record = StoreRecordSchema.safeParse({ reference, ...decoded, formatVersion, conflicts,
     version: refRecordVersion(reference, object.oid, metadata, formatVersion),
     ...(placement ? { placement } : {}), ...(primary && metadata.primary?.links ? { links: metadata.primary.links } : {}),

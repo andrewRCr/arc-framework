@@ -1,5 +1,6 @@
 /** Lazy immutable record snapshots for a write's before and after views. */
 
+import type { ReadPlacement } from "../placement.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefWriteGroup } from "./write-commits.js";
 import { readBatchObjects, readRefTrees, type BatchObject, type RefTreeEntry } from "./batch-read.js";
@@ -11,7 +12,7 @@ import { matchesFamilyRef } from "./codec.js";
 import { refPrototype } from "./read.js";
 
 /** A ref's immutable entries, optionally overlaid with prepared metadata. */
-export interface RefViewGroup { entries?: readonly RefTreeEntry[]; metadata?: RefMetadata }
+export interface RefViewGroup { entries?: readonly RefTreeEntry[]; metadata?: RefMetadata; readPlacement?: ReadPlacement }
 /** All observed entries and objects without any live-ref reads during selection. */
 export interface RefViewState { refs: ReadonlyMap<string, RefViewGroup>; objects: ReadonlyMap<string, BatchObject | null> }
 
@@ -29,7 +30,7 @@ export async function overlayRefViewState(context: RefBackendContext, before: Re
   const refs = new Map(before.refs);
   for (const [ref, group] of groups) {
     if (group.original.size === 0 && group.entries.size === 0) continue;
-    refs.set(ref, { entries: [...group.entries.values()], metadata: structuredClone(group.metadata) });
+    refs.set(ref, { entries: [...group.entries.values()], metadata: structuredClone(group.metadata), readPlacement: group.readPlacement });
   }
   const oids = [...new Set([...groups.values()].flatMap(({ entries }) => [...entries.values()].map(({ oid }) => oid)))]
     .filter((oid) => !before.objects.has(oid));

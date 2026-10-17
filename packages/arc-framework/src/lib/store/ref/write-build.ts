@@ -22,6 +22,7 @@ import { prepareRefCommits, type RefWriteGroup } from "./write-commits.js";
 import { expandStoredPath } from "../stored-path.js";
 import { checkRefWrites } from "./write-checks.js";
 import { bindProjectMutations } from "./project-identity.js";
+import { planRefArchives, archiveRefChanges } from "./write-archive.js";
 import { prepareRefAnchors } from "./write-anchors.js";
 import { prepareRefConflicts } from "./write-conflicts.js";
 
@@ -58,10 +59,13 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
   }
   const anchorRefusal = await prepareRefAnchors(context, prepared.result, groups);
   if (anchorRefusal) return { status: "refused", refusal: anchorRefusal };
+  const archives = await planRefArchives(context, prepared.result, groups, tips, batchId);
+  if (archives.status === "refused") return archives;
   const completed = await prepareRefConflicts(context, prepared.result, groups, results);
   const broken = await checkRefWrites(context, prepared.result, completed, tips, provenance);
   if (broken) return { status: "refused", refusal: broken };
-  const changes = await prepareRefCommits(context, prepared.result, refWriteTargets(context, resolved), groups, completed, tips, provenance, batchId);
+  const committed = await prepareRefCommits(context, prepared.result, refWriteTargets(context, resolved), groups, completed, tips, provenance, batchId);
+  const changes = await archiveRefChanges(context, committed, archives.result, groups, completed, prepared.result, tips, provenance, batchId);
   if (changes.length === 0) return { status: "ok", result: { batchId, writes: results } };
   const outcome = await updateRefTransaction(context, changes, { cwd: context.checkoutRoot });
   if (outcome.status !== "committed") return "retry";

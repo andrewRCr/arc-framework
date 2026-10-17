@@ -1,5 +1,7 @@
 /** Batched live record reads and family listings over captured local state refs. */
 
+import type { ReadPlacement } from "../placement.js";
+import { archivedFolders, isArchiveRef } from "./archive-read.js";
 import type { ListInput, ListingOutcome, ListingDiagnostic, ReadInput, StoreRecord } from "../read.js";
 import { RecordReferenceSchema, OwnerIdentitySchema, sameOwner, type RecordReference, type OwnerIdentity } from "../identity.js";
 import type { StoreResult } from "../refusal.js";
@@ -28,7 +30,7 @@ export async function readRefRecord(context: RefBackendContext, input: ReadInput
   const home = expandStoredPath(reference, { registry: context.registry });
   const tips = await readRefTips(context);
   const tip = tips.get(home.ref);
-  if (!tip && reference.owner.type !== "project") return missing(reference);
+  if (!tip && reference.owner.type !== "project") return readArchivedRecord(context, reference, tips);
   const recordQuery = `${tip}:${home.path}`;
   const metadataQuery = `${tip}:${home.metadataPath}`;
   const conflictsQuery = `${tip}:${home.root}conflicts`;
@@ -93,7 +95,8 @@ export async function listRefRecords(context: RefBackendContext, input: ListInpu
   const captured = await readRefTips(context);
   const asOf = await saveCapturedManifest(context, captured);
   if (identityMissing) return { status: "ok", result: { status: "absent", asOf } };
-  const tips = new Map([...captured].filter(([ref]) => matchesFamilyRef(ref, input.family)));
+  const tips = new Map([...captured].filter(([ref]) => matchesFamilyRef(ref, input.family)
+    || ["work-item", "cohort"].includes(rootFamily(input.family)) && isArchiveRef(ref)));
   if (tips.size === 0) return { status: "ok", result: { status: "absent", asOf } };
   const trees = await readRefTrees(context, tips);
   const projectFamily = input.family === "project-inbox" || input.family === "project-registry";
@@ -107,7 +110,7 @@ export async function listRefRecords(context: RefBackendContext, input: ListInpu
   }
   const groups = [...tips.keys()].map((ref) => {
     const entries = trees.get(ref);
-    return entries ? decodeCapturedRef(context, input, ref, entries, objects, undefined, project?.owner) : unreadableRef(ref);
+    return entries ? decodeListedRef(context, input, ref, entries, objects, project?.owner) : unreadableRef(ref);
   });
   const records = groups.flatMap((group) => group.records);
   const diagnostics = groups.flatMap((group) => group.diagnostics);
@@ -122,7 +125,7 @@ interface DecodedRecords { records: StoreRecord[]; diagnostics: ListingDiagnosti
 
 /** Decode one ref without observing live tips, with optional prepared metadata. */
 export function decodeCapturedRef(context: RefBackendContext, input: ListInput, ref: string,
-  entries: readonly RefTreeEntry[] | undefined, objects: ReadonlyMap<string, BatchObject | null>, metadataOverride?: RefMetadata, projectOwner?: OwnerIdentity): DecodedRecords {
+  entries: readonly RefTreeEntry[] | undefined, objects: ReadonlyMap<string, BatchObject | null>, metadataOverride?: RefMetadata, projectOwner?: OwnerIdentity, placement?: ReadPlacement): DecodedRecords {
   if (!entries) return unreadableRef(ref);
   const records: StoreRecord[] = [];
   const diagnostics: ListingDiagnostic[] = [];
@@ -134,7 +137,7 @@ export function decodeCapturedRef(context: RefBackendContext, input: ListInput, 
   const owner = projectOwner ?? refOwner(ref, input.family, metadata);
   for (const entry of entries) {
     if (entry.path === home.metadataPath || isManifestPath(home, entry.path)) continue;
-    const record = decodeCapturedEntry(context, input.family, owner, entry, objects.get(entry.oid), metadata);
+    const record = decodeCapturedEntry(context, input.family, owner, entry, objects.get(entry.oid), metadata, placement);
     if (!record) continue;
     if ("reference" in record) records.push(record); else diagnostics.push(record);
   }
@@ -142,7 +145,7 @@ export function decodeCapturedRef(context: RefBackendContext, input: ListInput, 
 }
 
 function decodeCapturedEntry(context: RefBackendContext, family: FamilyId, owner: OwnerIdentity, entry: RefTreeEntry,
-  object: BatchObject | null | undefined, metadata: RefMetadata): StoreRecord | ListingDiagnostic | null {
+  object: BatchObject | null | undefined, metadata: RefMetadata, placement?: ReadPlacement): StoreRecord | ListingDiagnostic | null {
   const reference = decodeReference(context, owner, family, entry.path, metadata, object);
   if (!reference) return recordDiagnostic(entry.path, object?.type === "blob"
     ? { kind: "malformed", condition: "The stored path does not name an admitted record" }
@@ -152,7 +155,7 @@ function decodeCapturedEntry(context: RefBackendContext, family: FamilyId, owner
   if (object?.type !== "blob") return recordDiagnostic(entry.path, {
     kind: "unreadable", condition: "The stored blob is not available locally",
   });
-  const record = decodeRecord(context, reference, object, metadata, entry.path);
+  const record = decodeRecord(context, reference, object, metadata, entry.path, [], placement);
   if ("reference" in record) {
     const invalid = checkProjectIdentity(reference, new TextDecoder().decode(object.bytes));
     if (invalid) return recordDiagnostic(entry.path, { kind: "malformed", condition: invalid.condition });
@@ -213,4 +216,33 @@ function projectReadReference(reference: RecordReference, tips: ReadonlyMap<stri
   if (reference.owner.type !== "project") return { status: "ok", result: reference };
   const owner = projectOwnerFromObjects(tips, objects);
   return owner.status === "refused" ? owner : admitProjectReference(reference, owner.result);
+}
+
+async function readArchivedRecord(context: RefBackendContext, reference: RecordReference, tips: ReadonlyMap<string, string>): Promise<StoreResult<StoreRecord>> {
+  const family = context.registry[reference.kind].family;
+  if (reference.owner.type === "person" || !reference.owner.uid || !["work-item", "cohort"].includes(rootFamily(family))) return missing(reference);
+  const selected = new Map([...tips].filter(([ref]) => isArchiveRef(ref)));
+  if (!selected.size) return missing(reference);
+  const trees = await readRefTrees(context, selected);
+  const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid)))]);
+  const folders = [...trees].flatMap(([ref, entries]) => archivedFolders(family, ref, entries, objects).folders);
+  const folder = folders.filter(({ owner }) => sameOwner(owner, reference.owner)).sort((left, right) => right.ref.localeCompare(left.ref)
+    || Number(BigInt("sequence" in right.placement ? right.placement.sequence : "0") - BigInt("sequence" in left.placement ? left.placement.sequence : "0")))[0];
+  if (!folder) return missing(reference);
+  const decoded = decodeCapturedRef(context, { family, kind: reference.kind, owner: reference.owner }, folder.liveRef,
+    folder.entries, objects, folder.metadata, undefined, folder.placement);
+  const record = decoded.records.find((record) => record.reference.key === reference.key || JSON.stringify(record.reference.key) === JSON.stringify(reference.key));
+  if (record) return { status: "ok", result: record };
+  return missing(reference);
+}
+
+function decodeListedRef(context: RefBackendContext, input: ListInput, ref: string, entries: readonly RefTreeEntry[],
+  objects: ReadonlyMap<string, BatchObject | null>, owner?: OwnerIdentity): DecodedRecords {
+  if (!isArchiveRef(ref)) return decodeCapturedRef(context, input, ref, entries, objects, undefined, owner);
+  const parsed = archivedFolders(input.family, ref, entries, objects);
+  const groups = parsed.folders.map((folder) => {
+    const group = decodeCapturedRef(context, input, folder.liveRef, folder.entries, objects, folder.metadata, undefined, folder.placement);
+    return { records: group.records, diagnostics: group.diagnostics.map((diagnostic) => ({ ...diagnostic, key: folder.root + diagnostic.key })) };
+  });
+  return { records: groups.flatMap(({ records }) => records), diagnostics: [...parsed.diagnostics, ...groups.flatMap(({ diagnostics }) => diagnostics)] };
 }
