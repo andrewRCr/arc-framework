@@ -24,7 +24,10 @@ export async function runStoreRetirementSweep(options: StoreSweepOptions): Promi
     try {
       const residue = await inspectAbandonment(options, branched, name, remote.remoteEvidence === "exact");
       if (residue !== null) retirements.push(residue);
-    } catch (error) { const repair = error instanceof Error ? error.message : String(error); retirements.push({ ...blocked(branched, name, "repair-required"), repair }); }
+    } catch (error) {
+      const repair = error instanceof Error ? error.message : String(error);
+      retirements.push({ ...blocked(branched, name, "repair-required"), repair, actions: [{ text: repair }] });
+    }
   }
   return { ...remote, retirements, warnings: [] };
 }

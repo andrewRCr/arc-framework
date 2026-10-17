@@ -75,6 +75,7 @@ export type LandedRetirementResidue =
       subject: { slug: string; branch: string };
       reason: string;
       repair?: string;
+      actions?: SessionAction[];
     };
 
 export type LandedRetirementSweepResult = CleanupRemoteEvidence & {

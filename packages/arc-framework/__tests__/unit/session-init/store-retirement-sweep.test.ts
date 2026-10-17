@@ -9,6 +9,7 @@ import { createUserIOContext } from "../../../src/lib/io-context.js";
 import { recordReferences } from "../../../src/lib/store/identity.js";
 import { writeLineageRecord } from "../../../src/lib/store/kinds/lineage/index.js";
 import type { Store } from "../../../src/lib/store/contract.js";
+import { StaleWorktreeSweepResultSchema } from "../../../src/lib/session-init/stale-worktree-sweep-schema.js";
 const base = "a".repeat(40), head = "b".repeat(40);
 function checkout(name: string) { return { path: `/${name}`, branch: `topic/${name}`, head, detached: false, primary: false, folderPresent: true }; }
 function marker(name: string) { return { kind: "present" as const, marker: { spawnedByArc: true, wuName: name, createdFor: { kind: "work-unit" as const, name }, spawningIdentity: "test-user", createdAt: "2026-10-14T00:00:00Z" } }; }
@@ -41,8 +42,13 @@ it("keeps malformed lineage repair beside a sibling's usable abandonment", async
   await h.store.batch({ provenance: { verb: "abandon", lifecycleAction: "abandon" }, writes: [
     { action: "put", reference: recordReferences["lineage/transition"](primary.reference.owner), expected: null, content: writeLineageRecord({ schemaVersion: 2, origin: { name: primary.reference.owner.name }, kind: "abandon", successors: [], incoming: [] }) },
     { action: "remove", reference: primary.reference, expected: primary.version } ] });
-  expect((await run(h.store, ["broken", "done"])).retirements).toMatchObject([{ status: "blocked", repair: expect.stringContaining("retiredBranches") }, { status: "actionable" }]);
+  const result = await run(h.store, ["broken", "done"]);
+  const actions = [{ text: expect.stringContaining("retiredBranches") }];
+  expect(result.retirements).toMatchObject([{ status: "blocked", repair: expect.stringContaining("retiredBranches"), actions }, { status: "actionable" }]);
+  expect(StaleWorktreeSweepResultSchema.parse({ ...result, missingFolders: [], worktrees: [], renameMoves: [] })).toMatchObject({ retirements: [{ actions }, { status: "actionable" }] });
 });
 it("retains the remote physical-removal gate after valid store abandonment", async () => {
-  const h = await abandoned(); expect((await run(h.store, ["done"], false)).retirements).toMatchObject([{ status: "blocked", reason: "evidence-unavailable" }]);
+  const h = await abandoned(), result = await run(h.store, ["done"], false);
+  expect(result.retirements).toMatchObject([{ status: "blocked", reason: "evidence-unavailable" }]);
+  expect(JSON.stringify(result.retirements)).not.toContain('"actions"');
 });

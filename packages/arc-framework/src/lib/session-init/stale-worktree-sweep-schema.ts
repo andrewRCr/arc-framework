@@ -68,7 +68,7 @@ const LandedRetirementResidueSchema = z.discriminatedUnion("status", [
   }),
   z.strictObject({
     status: z.literal("blocked"), worktreePath: z.string(),
-    subject: z.strictObject({ slug: z.string(), branch: z.string() }), reason: z.string(), repair: z.string().optional(),
+    subject: z.strictObject({ slug: z.string(), branch: z.string() }), reason: z.string(), repair: z.string().optional(), actions: SessionActionsSchema.optional(),
   }),
 ]);
 const RenameMoveResidueSchema = z.strictObject({
