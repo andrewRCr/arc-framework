@@ -580,19 +580,10 @@ function scanProse(
       const line = before.split("\n").length;
       const start = before.lastIndexOf("\n") + 1;
       const end = surface.content.indexOf("\n", offset);
-      advisories.push({
-        path: surface.path,
-        line,
-        context: surface.content.slice(start, end === -1 ? undefined : end).trim(),
-        subject,
-        kind: resolution.kind === "conflict" ? "conflict" : resolution.kind === "rename" ? "prose" : "terminal",
-        ...(resolution.kind === "decompose" && resolution.successors !== undefined ? { successors: resolution.successors } : {}),
-        disposition: resolution.kind === "conflict"
-          ? "inspect-history"
-          : resolution.kind === "rename"
-            ? "review-rename"
-            : "remove-or-retarget",
-      });
+      const context = surface.content.slice(start, end === -1 ? undefined : end).trim();
+      advisories.push(resolution.kind === "rename"
+        ? { path: surface.path, line, context, subject, kind: "prose", disposition: "review-rename" }
+        : managedAdvisory(surface, line, context, subject, resolution));
     }
   }
   return advisories;

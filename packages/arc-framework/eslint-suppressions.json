@@ -1776,11 +1776,6 @@
       "count": 1
     }
   },
-  "src/lib/user-reference-reconcile.ts": {
-    "sonarjs/cognitive-complexity": {
-      "count": 1
-    }
-  },
   "src/lib/user-surface-migration.ts": {
     "sonarjs/cognitive-complexity": {
       "count": 1
