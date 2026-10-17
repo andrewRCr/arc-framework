@@ -9,7 +9,7 @@ import { acquireStoreUserReferenceAuthority, type StoreUserReferenceAuthority } 
 import { readLifecycleMetaFields, workUnitMetaPath } from "./store/lifecycle-write.js";
 import { parseEntryList } from "./store/kinds/entry-list.js";
 import { revalidateLifecycleRecords } from "./work-unit/prepared-lifecycle-write.js";
-import { findStoreReferenceTargetConflicts } from "./store/user-reference-targets.js";
+import { resolveStoreReferenceTargets } from "./store/user-reference-targets.js";
 import { planUserReferenceReconcile } from "./user-reference-reconcile.js";
 import type { PlanUserReferenceReconcileInput, UserReferenceEvidenceAuthorityResult, UserReferenceStoreBasis, UserReferenceSurface } from "./user-reference-reconcile.js";
 
@@ -69,9 +69,11 @@ async function acquireSessionContext(store: Store, records: readonly StoreRecord
 async function qualifyReferenceSurfaces(store: Store, records: readonly StoreRecord[],
   surfaces: StoreUserReferencePreparation["surfaces"], transitions: StoreUserReferenceAuthority["transitions"]): Promise<StoreResult<StoreUserReferencePreparation["surfaces"]>> {
   const plan = planUserReferenceReconcile({ ...surfaces, transitions });
-  const conflicts = await findStoreReferenceTargetConflicts(store, records, plan.edits.flatMap(edit => edit.replacements));
-  if (conflicts.status === "refused") return conflicts;
-  return { status: "ok", result: conflicts.result.length === 0 ? surfaces : { ...surfaces, referenceConflicts: conflicts.result } };
+  const subjects = [...plan.edits.flatMap(edit => edit.replacements.map(replacement => replacement.subject)),
+    ...plan.advisories.map(advisory => advisory.subject)];
+  const resolutions = await resolveStoreReferenceTargets(store, records, transitions, subjects);
+  if (resolutions.status === "refused") return resolutions;
+  return { status: "ok", result: resolutions.result.length === 0 ? surfaces : { ...surfaces, referenceResolutions: resolutions.result } };
 }
 async function readPersonal(store: Store, reference: RecordReference): Promise<StoreResult<StoreRecord | null>> {
   const read = await store.read({ reference });

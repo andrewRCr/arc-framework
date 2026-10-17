@@ -23,7 +23,7 @@ import { recordPut } from "./store/lifecycle-write.js";
 import { applyPreparedLifecycleWrite, revalidateLifecycleRecords } from "./work-unit/prepared-lifecycle-write.js";
 import type { Remedy } from "./store/refusal.js";
 import { readStoreUserReferenceTransitions } from "./store/user-reference-authority.js";
-import { findStoreReferenceTargetConflicts } from "./store/user-reference-targets.js";
+import { resolveStoreReferenceTargets, type StoreReferenceResolution } from "./store/user-reference-targets.js";
 import type { StoreResult } from "./store/refusal.js";
 import {
   enumerateTransitionReferenceTransitions,
@@ -85,7 +85,7 @@ export interface UserReferenceReconcilePlan {
 export interface PlanUserReferenceReconcileInput {
   scratch?: ScratchReconcilePlan;
   stateOffBranch?: boolean;
-  referenceConflicts?: readonly string[];
+  referenceResolutions?: readonly StoreReferenceResolution[];
   transitions: readonly ReachableReferenceTransition[];
   userInbox: UserReferenceSurface;
   workingMemory?: UserReferenceSurface;
@@ -222,7 +222,7 @@ export function planUserReferenceReconcile(
 
   for (const surface of [input.workingMemory, input.sessionNotes]) {
     if (surface === undefined) continue;
-    advisories.push(...scanProse(surface, input.transitions));
+    advisories.push(...scanProse(surface, input));
   }
   const edits: UserReferenceEdit[] = rewritten === input.userInbox.content
     ? []
@@ -270,8 +270,7 @@ function rewriteTargetLine(line: string, visible: string, index: number, input: 
   const match = MANAGED_TARGET.exec(visible);
   const subject = input.stateOffBranch === true ? targetNamedByLine(visible) : match?.[1];
   if (subject === undefined) return line;
-  const resolution: ReferenceTransitionResolution = input.referenceConflicts?.includes(subject)
-    ? { kind: "conflict", reason: "ambiguous-history" } : resolveReferenceTransition(input.transitions, subject);
+  const resolution = resolveUserReferenceTransition(input, subject);
   if (resolution.kind === "rename") {
     replacements.push({ subject, targetSlug: resolution.targetSlug });
     if (input.stateOffBranch === true) {
@@ -569,12 +568,13 @@ function managedAdvisory(
 
 function scanProse(
   surface: UserReferenceSurface,
-  transitions: readonly ReachableReferenceTransition[],
+  input: PlanUserReferenceReconcileInput,
 ): UserReferenceAdvisory[] {
-  const subjects = [...new Set(transitions.map(({ subject }) => subject))].sort(byteSort);
+  const subjects = [...new Set(input.transitions.map(({ subject }) => subject))].sort(byteSort);
   const advisories: UserReferenceAdvisory[] = [];
   for (const subject of subjects) {
-    const resolution = resolveReferenceTransition(transitions, subject);
+    const resolution = resolveUserReferenceTransition(input, subject);
+    if (resolution.kind === "absent") continue;
     for (const offset of slugOffsets(surface.content, subject)) {
       const before = surface.content.slice(0, offset);
       const line = before.split("\n").length;
@@ -596,6 +596,11 @@ function scanProse(
     }
   }
   return advisories;
+}
+
+function resolveUserReferenceTransition(input: PlanUserReferenceReconcileInput, subject: string): ReferenceTransitionResolution {
+  return input.referenceResolutions?.find(selected => selected.subject === subject)?.resolution
+    ?? resolveReferenceTransition(input.transitions, subject);
 }
 
 function slugOffsets(content: string, slug: string): number[] {
@@ -676,9 +681,11 @@ async function readPreparedReferencePlan(ctx: UserReferenceReconcileBaseContext,
   const surfaces = await ctx.readSurfaces();
   const input = { ...surfaces, transitions: ctx.transitions,
     ...(ctx.scratch === undefined ? {} : { scratch: await planScratchReconcile(ctx.scratch) }) };
-  const plan = planUserReferenceReconcile(input);
-  const conflicts = await findStoreReferenceTargetConflicts(basis.store, basis.records, plan.edits.flatMap(edit => edit.replacements));
-  if (conflicts.status === "refused") return conflicts;
-  return { status: "ok", result: conflicts.result.length === 0 ? plan : planUserReferenceReconcile({ ...input,
-    referenceConflicts: [...(input.referenceConflicts ?? []), ...conflicts.result] }) };
+  const plan = planUserReferenceReconcile({ ...input, referenceResolutions: [] });
+  const subjects = [...plan.edits.flatMap(edit => edit.replacements.map(replacement => replacement.subject)),
+    ...plan.advisories.map(advisory => advisory.subject)];
+  const resolutions = await resolveStoreReferenceTargets(basis.store, basis.records, input.transitions, subjects);
+  if (resolutions.status === "refused") return resolutions;
+  return { status: "ok", result: resolutions.result.length === 0 ? plan
+    : planUserReferenceReconcile({ ...input, referenceResolutions: resolutions.result }) };
 }
