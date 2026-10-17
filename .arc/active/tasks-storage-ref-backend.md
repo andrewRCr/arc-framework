@@ -956,27 +956,15 @@ the withdrawal rule for two ends — the rules the model checks held.
   only when needed, including when the local history ref is absent. Stale history operations refuse until the same
   operation can retry successfully after a named pull.
 
-### `[ ]` **10.4 Late writes and ends — § 6.6, § 7.4**
+### `[x]` **10.4 Late writes and ends — § 6.6, § 7.4**
 
 - _Goal:_ A late write meets an end by merging into the item's history ref, the end's version staying current, so the
   end's other writes stand as written and the late version is kept.
 
-    - Build `test-first` (one behavior at a time):
-        - a write racing an end between the push loop's pull and its push lands on the ended item
-        - a live ref back with its folder still in place meets the end as a late write
-        - a late write changing a record the end also changed keeps the end's version current and files the late version
-          in a conflict record on the item's ref, whichever side is remote, while a record only the late write changed
-          merges in
-        - an archived item's folder is refreshed from the merged tree, and an abandoned one's pull reports
-          `ended-with-conflicts` naming its conflict records
-        - a pull applying another machine's end while this clone holds unpublished writes merges the local ref into the
-          fetched history ref, and the next push fast-forwards it, leased
-        - a write to a completed item unpublished while another clone's reopen publishes lands on the reopened item, the
-          folder's removal kept; the same with the item reopened and ended again first, the write merging into the new
-          end's history ref
-        - a merge leaving a live item its lineage and no primary refuses a put of its other records naming the lineage,
-          while a put of its primary, or a batch putting the primary beside a companion, restores it and a removal ends
-          it
+- _Outcome:_ Late writes preserve the end's accepted version and retain conflicts on history, including leased push
+  races, restored live refs, and completed writes crossing reopens and later ends. Abandonment conflicts surface in
+  pull notices for both prepared merges and fast-forwards. Native split-retirement cases refuse other origin puts
+  without ref changes, then admit primary restoration alone or with a companion, or retirement by removal.
 
 ### `[ ]` **10.5 Two ends of one item — § 6.6**
 

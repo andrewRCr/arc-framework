@@ -12,6 +12,7 @@ import { commitRefStep, type RefCommitMode } from "./commit-step.js";
 import { withRefLocks } from "./write-locks.js";
 import { readSyncRefs, syncRefIsAncestor } from "./sync-graph.js";
 import { readSyncHistoryQuarters, prepareSyncHistoryFastForward, prepareSyncHistoryQuarters, unchangedSyncHistoryQuarters } from "./sync-history.js";
+import { observeSyncEndedConflicts } from "./sync-ended-conflicts.js";
 import { commitRefTree } from "./write-commits.js";
 import { updateRefTransaction, type RefChange } from "../../git/ref-transaction.js";
 
@@ -67,6 +68,7 @@ export async function mergeRefSets(context: RefBackendContext, local: ReadonlyMa
       }
       const prepared = tree;
       if (prepared?.metadata) await prepareSyncHistoryQuarters(staged, quarters, prepared);
+      const applied = [...prepared?.notices ?? [], ...await observeSyncEndedConflicts(staged, ref, next, local, prepared)];
       let publishedTip = next;
       const refreshed: { ref: string; before: string; after: string }[] = [];
       const committed = await commitRefStep(staged, async (physical) => {
@@ -83,9 +85,9 @@ export async function mergeRefSets(context: RefBackendContext, local: ReadonlyMa
         return updateRefTransaction(physical, changes, { cwd: context.checkoutRoot });
       }, options.commitMode);
       if (committed.status === "layout-changed" || committed.result.status === "lost-race") return { status: "restart" };
-      await options.onApplied?.(context, ref, current, publishedTip, prepared?.notices ?? []);
+      await options.onApplied?.(context, ref, current, publishedTip, applied);
       for (const quarter of refreshed) await options.onApplied?.(context, quarter.ref, quarter.before, quarter.after, []);
-      return { status: "complete", changed: true, notices: prepared?.notices ?? [] };
+      return { status: "complete", changed: true, notices: applied };
     });
     if (result.status === "restart") return result;
     changed ||= result.changed;
