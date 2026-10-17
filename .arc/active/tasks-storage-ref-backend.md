@@ -1162,16 +1162,13 @@ layouts.
     - `--leave-source` remains unsupported, naming the flag.
         - _Retired in:_ Phase 17
 
-### `[ ]` **13.2 The move lock and the record's guards — § 10.3, § 11.4**
+### `[x]` **13.2 The move lock and the record's guards — § 10.3, § 11.4**
 
 - _Goal:_ Every move runs alone on its clone, and no run replaces another's record or proceeds past one it cannot read.
 
-    - Build `test-first` (one behavior at a time):
-        - two layout moves started at once from two worktrees: the second refuses `lock-held` before it fetches
-        - a move started after a run was killed takes the lock its dead holder left
-        - a record written by one run is never replaced by another's
-        - a `move.json` that does not parse against its schema refuses the rerun `move-record-malformed`, naming the
-          record
+- _Outcome:_ Real-Git public-entry cases cover clone-wide exclusion across worktrees, captured-value leases for
+  record creation, replacement, and removal, and malformed-record refusal followed by repair. Competing records come
+  from the real no-target producer; the existing killed-process fixtures cover abandoned-holder recovery.
 
 ### `[ ]` **13.3 The report a move returns — § 10.5**
 
