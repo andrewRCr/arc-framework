@@ -16,6 +16,7 @@ import { withRefSyncDeadline } from "./sync-deadline.js";
 import { fetchRefRemote } from "./fetch.js";
 import { releaseEndedRefKeepers } from "./fetch-seen-ended.js";
 import { RefFetchKeeperLockError } from "./fetch-keeper-lock.js";
+import { RefFetchIncompleteError } from "./fetch-completeness.js";
 import { readSyncRefs } from "./sync-graph.js";
 import type { RefMergeOptions } from "./sync-merge.js";
 import { mergePulledRefState, captureFetchedHistories } from "./sync-pull-lifecycle.js";
@@ -93,6 +94,7 @@ async function pullRemote(context: RefBackendContext, input: PullInput, designat
     return { ...common, notices: uniqueNotices([...notices, ...merged?.notices ?? []]),
       status: observed.changed || merged?.changed ? "pulled" : "noop" };
   } catch (error) {
+    if (error instanceof RefFetchIncompleteError) return { ...common, notices: uniqueNotices([...notices, ...error.notices]), status: "failed", failure: error.failure };
     if (!context.syncDeadline?.signal.aborted || !isGitProcessError(error) || error.kind !== "canceled") throw error;
     return failedRemotePull(context, common, "timeout", "The pull deadline expired while applying fetched state; earlier merges remain applied.");
   }

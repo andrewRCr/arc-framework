@@ -11,6 +11,7 @@ import { PASSIVE_REMOTE_INTERACTION } from "../../git/remote-ref-reader.js";
 import { gitRefLockArgs } from "../../git/ref-transaction.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefDesignation, RefRemoteDesignation } from "./designation.js";
+import { refFetchNeedsCompleteness, missingRefFetchObjects, combineRefFetchOutcomes, RefFetchIncompleteError } from "./fetch-completeness.js";
 
 /** Parsed Git acquisition with independently actionable tracking observations. */
 export type RefFetchOutcome = FetchOutcome & { notices: PullNotice[] };
@@ -40,19 +41,34 @@ async function fetchRefPatterns(context: RefBackendContext, remote: RefRemoteDes
   const args = [...gitRefLockArgs(), "-c", `remote.${remote.name}.negotiationInclude=`, "fetch", "--refmap=", "--no-tags",
     "--no-filter", "--prune", "--show-forced-updates", "--porcelain", "--verbose", ...negotiation, "--", target,
     ...patterns.map((pattern) => `${pattern}:refs/arc-remotes/${remote.name}/${pattern.slice("refs/arc/".length)}`)];
-  let outcome: FetchOutcome;
-  let failed = false;
+  let fetched = await runRefFetch(context, args, signal);
+  const notices = await checkRefFetchUpdates(context, remote, designation, fetched.outcome, basis, fetched.failed);
   try {
-    outcome = parseFetchPorcelain(await context.exec("git", args, { cwd: context.checkoutRoot, signal,
-      diagnosticLocale: "stable", interaction: PASSIVE_REMOTE_INTERACTION, preserveOutput: true }));
+    if (fetched.outcome.status === "refs" && await refFetchNeedsCompleteness(context)
+      && (await missingRefFetchObjects(context, fetched.outcome)).length) {
+      const at = args.indexOf("fetch");
+      const repaired = await runRefFetch(context, [...args.slice(0, at + 1), "--refetch", ...args.slice(at + 1)], signal);
+      notices.push(...await checkRefFetchUpdates(context, remote, designation, repaired.outcome, basis, repaired.failed));
+      const outcome = combineRefFetchOutcomes(fetched.outcome, repaired.outcome);
+      if (outcome.status === "refs") {
+        const missing = await missingRefFetchObjects(context, outcome);
+        if (missing.length) throw new RefFetchIncompleteError(missing, notices);
+      }
+      fetched = { outcome, failed: repaired.failed };
+    }
+    return { ...fetched.outcome, notices };
+  } finally { await finishRefFetchBasis(context, remote.name, basis); }
+}
+
+async function runRefFetch(context: RefBackendContext, args: string[], signal?: AbortSignal): Promise<{ outcome: FetchOutcome; failed: boolean }> {
+  try {
+    return { outcome: parseFetchPorcelain(await context.exec("git", args, { cwd: context.checkoutRoot, signal,
+      diagnosticLocale: "stable", interaction: PASSIVE_REMOTE_INTERACTION, preserveOutput: true })), failed: false };
   } catch (error) {
-    failed = true;
     const failure = normalizeGitRejection(error, { command: "git", args });
     const parsed = parseFetchPorcelain(failure);
-    outcome = parsed.status === "unreachable" && failure.kind === "canceled" && signal?.aborted
+    const outcome: FetchOutcome = parsed.status === "unreachable" && failure.kind === "canceled" && signal?.aborted
       ? { ...parsed, cause: "timeout" } : parsed;
+    return { outcome, failed: true };
   }
-  const notices = await checkRefFetchUpdates(context, remote, designation, outcome, basis, failed);
-  await finishRefFetchBasis(context, remote.name, basis);
-  return { ...outcome, notices };
 }

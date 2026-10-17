@@ -1024,37 +1024,21 @@ in both layouts with no exclusion beyond § 14.1's, 4.4.d's last set removed (9.
   their families, separately from later transport or retry failures. Archive metadata cannot turn an unreadable local
   end into a reopen, forward repairs restore publication, and malformed historical merge labels remain per-ref notices.
 
-### `[ ]` **11.3 A partial clone's fetch — § 6.2**
+### `[x]` **11.3 A partial clone's fetch — § 6.2**
 
 - _Goal:_ A blobless or partial clone holds every state object after each fetch, so no read ever reaches the network.
 
     - _Amended in:_ 11.3.R (A17)
-    - After each fetch in a partial clone, `git rev-list --objects --missing=print` over the fetched tips' full reachable
-      closure; any missing object reruns the fetch with `--refetch`, and one still incomplete fails the remote as
-      terminal `refused` naming the objects; a clone with no filter skips the check
-    - Every check of a blob's presence runs with `--no-lazy-fetch`, since a plain `cat-file -e` fetches the blob it
-      tests in a partial clone
-    - Build `test-first` (one behavior at a time):
-        - Integration tier
-        - in a blobless partial clone of an origin whose state records share blobs with code history, served with and
-          without bitmaps, over protocol v2 and v0, and with `remote.<name>.negotiationInclude` configured, a first pull
-          and a later one each end holding every state blob, and reads run with no fetch
-        - over protocol v0 from an origin with bitmaps, a later fetch's check finds the object the fetch left out and the
-          `--refetch` rerun brings it, so the leg shows the check working rather than passing with nothing to find
-        - a leg whose fetch leaves nothing out records that it does, a control beside the leg that loses a blob
-        - a clone with no filter runs no `rev-list` check
 
-### `[ ]` **11.3.R Completeness after a refused fetch — § 6.2 (A17)**
+- _Outcome:_ Partial-clone fetches check the full reachable object closure locally and retry once with `--refetch`.
+  An incomplete repair refuses without applying its remote and retains rewrite notices. Retries repair earlier missing
+  ancestors with an unchanged or advancing remote; protocol and bitmap controls cover passive current and history reads,
+  while unfiltered stores skip the traversal.
+
+### `[x]` **11.3.R Completeness after a refused fetch — § 6.2 (A17)**
 
 - _Goal:_ A tracking tip advanced by a fetch that later refused cannot hide missing ancestor objects from a later
   completeness check, including a retry after the remote advances again (A17).
-
-    - Build `test-first` (one behavior at a time):
-        - protocol v0 with bitmaps omits a shared code blob; suppressing the full refetch through the Git boundary leaves
-          it missing, so the remote refuses and applies no state; after the remote advances with a new unshared blob,
-          restore the full refetch and retry, observing the older missing blob repaired and passive history readable
-        - the same retry with no remote advancement repairs the missing closure, preserving the original terminal
-          refusal's named objects and safe retry route
 
 ### `[ ]` **11.4 Carrying a code ref — § 6.8**
 
