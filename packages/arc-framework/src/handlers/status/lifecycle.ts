@@ -16,6 +16,15 @@ import { readLifecycleDesign } from "../../lib/store/lifecycle-design.js";
 import { readWorkUnit, usesOffBranchState } from "../../lib/store/lifecycle-write.js";
 import { ParsedMetaRecordSchema } from "../../lib/active/meta-schema.js";
 import { extractWorkUnitPurpose, readWorkUnitPurpose } from "../../lib/status/work-unit-purpose.js";
+import {
+  projectScopeWindow,
+  readDerivedSlugPosition,
+  type DerivedSlugPosition,
+  type ScopeWindowFact,
+} from "../../lib/status/slug-position.js";
+import type { DerivedCheckoutRow } from "../../lib/locus/derived-roster.js";
+import { readConfigSettings } from "../../lib/config/status-reader.js";
+import { runDerivedLocusStateProbe } from "../derived-locus-state-probe.js";
 import { resolveCallerComposedLifecycleIndex } from "../../lib/work-unit/composed-lifecycle-index.js";
 import { resolveSlugQuery, type SlugStateQuery } from "../../lib/work-unit/lifecycle-query.js";
 import {
@@ -75,18 +84,25 @@ export async function handleLifecycleStatus(
     worktreePath: operationalReadPath,
     exec,
   });
+  const derived = await readDerivedSlugPosition({
+    slug, worktreePath, identity, readRoster: (id) => readCheckoutRoster(cwd, exec, id),
+  });
+  const scopeWindow = projectScopeWindow(query.state, derived.position);
   const warnings = [
     ...composed.qualityFacts.warnings.map(renderInFlightWarning),
     ...(opts.fetch === true && composed.qualityFacts.unreachable === true
       ? ["Remote unreachable; query derived from local refs only."]
       : []),
     ...operational.warnings,
+    ...derived.warnings,
   ];
   const output = {
     ...query,
     purpose,
     owner,
     integrationBoundary: operational.integrationBoundary,
+    derivedPosition: derived.position,
+    scopeWindow,
     ...(worktreePath !== undefined ? { worktreePath } : {}),
     ...(warnings.length > 0 ? { warnings: [...new Set(warnings)] } : {}),
   };
@@ -98,6 +114,8 @@ export async function handleLifecycleStatus(
   p.note(formatSlugStateQuery(query, {
     purpose,
     integrationBoundary: output.integrationBoundary,
+    derivedPosition: derived.position,
+    scopeWindow,
     worktreePath,
     warnings: output.warnings ?? [],
   }), "Lifecycle state");
@@ -111,6 +129,8 @@ function formatSlugStateQuery(
   enrichment: {
     purpose?: string | null;
     integrationBoundary?: IntegrationBoundaryLocus | null;
+    derivedPosition?: DerivedSlugPosition | null;
+    scopeWindow?: ScopeWindowFact;
     worktreePath?: string;
     warnings?: readonly string[];
   } = {},
@@ -124,6 +144,7 @@ function formatSlugStateQuery(
     `position: ${position}`,
     `occupied: ${query.occupied} · shipped: ${query.shipped}`,
   ];
+  lines.push(...formatDerivedLines(enrichment.derivedPosition, enrichment.scopeWindow));
   if (enrichment.purpose !== null && enrichment.purpose !== undefined) lines.push(`purpose: ${enrichment.purpose}`);
   if (enrichment.worktreePath !== undefined) lines.push(`worktree: ${enrichment.worktreePath}`);
   if (enrichment.integrationBoundary !== null && enrichment.integrationBoundary !== undefined) {
@@ -138,6 +159,34 @@ function formatSlugStateQuery(
   }
   for (const warning of enrichment.warnings ?? []) lines.push(`warning: ${warning}`);
   return lines.join("\n");
+}
+
+/** Stage and scope-window lines; empty for whichever was not read. */
+function formatDerivedLines(
+  position: DerivedSlugPosition | null | undefined,
+  scopeWindow: ScopeWindowFact | undefined,
+): string[] {
+  return [
+    ...(position === null || position === undefined ? [] : [`stage: ${formatDerivedStage(position)}`]),
+    ...(scopeWindow === undefined ? [] : [`scope window: ${scopeWindow.window ?? "unknown"} — ${scopeWindow.reason}`]),
+  ];
+}
+
+/** One-line stage summary: session type, then planning or work-unit stage, then the open task. */
+function formatDerivedStage(position: DerivedSlugPosition): string {
+  return [
+    position.sessionType ?? "unresolved",
+    position.stage,
+    position.verifying ? "verification phase" : position.workUnitStage,
+    position.openTask === null ? null : `task ${position.openTask.id} ${position.openTask.title}`,
+  ].filter((part): part is string => part !== null).join(" · ");
+}
+
+/** Bind the checkout roster read to the derived locus reader. */
+async function readCheckoutRoster(cwd: string, exec: GitExec, identity: string): Promise<readonly DerivedCheckoutRow[]> {
+  const { settings } = await readConfigSettings(cwd);
+  const frame = await runDerivedLocusStateProbe({ cwd, identity, baseBranch: settings["branch.base"], exec });
+  return frame.roster;
 }
 
 async function resolveSlugOperationalBoundary(options: {
