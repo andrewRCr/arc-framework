@@ -770,21 +770,14 @@ those 4.4.d holds until Phase 11, and every § 14.3 case that needs no pull pass
   other identities. A real Git configuration failure remains retryable after repair; the shared maintenance assertion
   now runs while remote-only assertions retain their existing later retirement.
 
-### `[ ]` **8.5 Many processes on one clone — § 14.5**
+### `[x]` **8.5 Many processes on one clone — § 14.5**
 
 - _Goal:_ Concurrent writers on one clone lose no write, retry a bounded number of times, meet only typed conflicts, and
   never bring back a ref or folder a lifecycle move left.
 
-    - Integration tier, in both layouts; each writer a child process, as `personal-lock-holder.ts` runs one, writing a
-      personal document of its own key or a shared line-merge record, and re-reading and writing again over the current
-      version after a `version-conflict`, at most five times
-    - A race's second process waits at a seam the lock factory port provides, after it resolves and before it locks
-    - Build `test-first` (one behavior at a time):
-        - four processes each writing 25 times to one surface, and to four, lose no write, every refusal typed
-        - a write racing its item's archive or abandon in a second process restarts and lands on the item's refs as
-          they then stand, or refuses `not-found` after the abandon
-        - a write to a completed item racing its reopen, or its reopen and archive into a later quarter, lands on the
-          reopened or newly archived item, and no ended or reopened ref or folder comes back
+- _Outcome:_ Independent Node writers retain all 100 records on one ref and four refs in both layouts, with validated
+  refusals and at most five version attempts. Two-process archive, abandon, reopen, and later-quarter races retain
+  writes or return `not-found` without restoring obsolete refs or folders.
 
 ### `[ ]` **8.6 Conformance over both layouts — § 14.1**
 
