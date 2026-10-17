@@ -317,3 +317,27 @@ it("keeps project Errand discovery separate from absent identity claims", async 
   expect(result.identityDiscovery).toMatchObject({ kind: "store", errands: { kind: "complete",
     identities: [{ kind: "errand", key: "repair" }], diagnostics: [], missed: false }, claims: { kind: "absent" } });
 });
+
+it("binds exact marker corroboration through the Store reader when its Errand inventory omits the subject", async () => {
+  const h = await fixture(), slug = "partial-inventory", claimId = "a".repeat(32);
+  const reference = recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: slug }));
+  success(await h.fixture.store.write({ action: "put", reference, expected: null, placement: { kind: "active" }, provenance: testProvenance,
+    content: JSON.stringify({ version: 3, slug, claimId, createdAt: "2026-10-16T00:00:00Z", updatedAt: "2026-10-16T00:00:00Z", kind: "errand", purpose: "errand",
+      owner: "andrew", intent: "Repair", branch: `chore/${slug}`, state: "open", savedHead: null, changeRequest: null, origin: "description", originEntry: null }) }));
+  const list = h.fixture.store.list.bind(h.fixture.store);
+  h.fixture.store.list = async input => {
+    const result = await list(input);
+    return input.kind === "work-item/record" && result.status === "ok" && result.result.status === "complete"
+      ? { status: "ok", result: { ...result.result, missed: true, records: [] } } : result;
+  };
+  h.io.scanWorktrees = async () => ({ ok: true, worktrees: [{ path: "/repo", head: "a".repeat(40), primary: true,
+    branch: `chore/${slug}`, detached: false, folderPresent: true }] });
+  h.io.readMarker = async () => {
+    const marker: WorktreeMarker = { spawnedByArc: false, spawningIdentity: "andrew", createdAt: "2026-10-16T00:00:00Z",
+      provisioning: "ready", createdFor: { kind: "errand", slug, claimId } };
+    return { kind: "present", marker, bytes: Buffer.from(JSON.stringify(marker)) };
+  };
+  const result = await frame(h.io);
+  expect(result.roster[0]).toMatchObject({ kind: "transient", subject: { kind: "errand", key: slug, claimId } });
+  expect(result.identityDiscovery).toMatchObject({ kind: "store", errands: { kind: "complete", missed: true, identities: [] } });
+});

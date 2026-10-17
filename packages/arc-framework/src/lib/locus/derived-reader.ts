@@ -227,7 +227,7 @@ export async function readDerivedLocusRoster(options: {
       workUnit: evidence.workUnit,
       completed: options.completed,
       identities: options.identityAcquisitions === undefined ? options.identities
-        : markerIdentitySnapshot(options.identityAcquisitions, evidence.marker),
+        : await markerIdentitySnapshot(options.identityAcquisitions, evidence.marker, options.store),
       primarySafety: item.checkout.primary
         ? options.primarySafety
         : { kind: "error", message: "Primary safety does not apply to linked checkouts" },

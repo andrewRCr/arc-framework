@@ -9,6 +9,7 @@ import { projectDerivedCheckoutRow } from "../../../src/lib/locus/derived-roster
 import { readStoreTerminalBasis } from "../../../src/lib/errand/store-terminal-basis.js";
 import { TransientIdentityRecordSchema } from "../../../src/lib/errand/identity-record.js";
 import type { StoreIdentityEvidence } from "../../../src/lib/locus/store-identities.js";
+import type { Store } from "../../../src/lib/store/contract.js";
 
 const claimId = "a".repeat(32);
 const base = { version: 3, claimId, createdAt: "2026-10-14T00:00:00Z", updatedAt: "2026-10-14T00:00:00Z", state: "open", changeRequest: null };
@@ -16,12 +17,12 @@ function errand(slug: string) {
   return { ...base, savedHead: null, kind: "errand", purpose: "errand", slug, owner: "alice", branch: `chore/${slug}`, intent: "Fix", origin: "description", originEntry: null };
 }
 function housekeep(slug: string) { return { ...base, savedHead: null, kind: "errand", purpose: "housekeep-routing", slug, branch: `chore/${slug}` }; }
-function row(evidence: StoreIdentityEvidence, kind: "errand" | "groom" | "housekeep", slug = "subject") {
+async function row(store: Store, evidence: StoreIdentityEvidence, kind: "errand" | "groom" | "housekeep", slug = "subject") {
   const marker = { kind: "present" as const, generation: "generation", marker: { spawnedByArc: true, provisioning: "ready" as const, createdFor: { kind, slug, claimId } } };
   return projectDerivedCheckoutRow({
     checkout: { path: "/holder", head: "b".repeat(40), branch: `chore/${slug}`, detached: false, primary: false, folderPresent: true }, marker,
     activeMeta: { kind: "absent" }, completed: { status: "available", records: new Map() },
-    identities: markerIdentitySnapshot(evidence, marker), primarySafety: { kind: "error", message: "Not primary" },
+    identities: await markerIdentitySnapshot(evidence, marker, store), primarySafety: { kind: "error", message: "Not primary" },
   });
 }
 
@@ -36,7 +37,7 @@ it.each(["errand", "groom", "housekeep"] as const)("withholds conflicted %s auth
   const reference = kind === "errand" ? recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: slug }))
     : kind === "groom" ? recordReferences["claims/groom"](person, slug) : recordReferences["claims/housekeep"](person, slug);
   const initial = await h.seed(reference, JSON.stringify(content), kind === "errand" ? { kind: "active" } : undefined);
-  expect(row(await readStoreIdentityEvidence(h.store, "alice"), kind, slug).kind).toBe("transient");
+  expect((await row(h.store, await readStoreIdentityEvidence(h.store, "alice"), kind, slug)).kind).toBe("transient");
   const remote = createMemoryRemote(); h.store.context.publication.remote = remote;
   lifecycleSuccess(await h.store.sync());
   const writer = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry }); writer.environment.identity = "alice";
@@ -53,17 +54,17 @@ it.each(["errand", "groom", "housekeep"] as const)("withholds conflicted %s auth
   if (acquisition.kind !== "complete") throw new Error("No selected acquisition");
   expect(acquisition.decoded.has(slug)).toBe(false);
   expect(acquisition.identities.some(identity => identity.key === slug)).toBe(false);
-  const blocked = row(evidence, kind, slug);
+  const blocked = await row(h.store, evidence, kind, slug);
   expect(blocked).toMatchObject({ kind: "unresolved-checkout", identity: null });
   for (const conflict of disputed.conflicts) expect(blocked.diagnostics.map(item => item.message).join(" ")).toContain(JSON.stringify(conflict));
-  expect(row(evidence, "errand", "healthy-errand").kind).toBe("transient");
-  expect(row(evidence, "housekeep", "healthy-claim").kind).toBe("transient");
+  expect((await row(h.store, evidence, "errand", "healthy-errand")).kind).toBe("transient");
+  expect((await row(h.store, evidence, "housekeep", "healthy-claim")).kind).toBe("transient");
   const terminal = await readStoreTerminalBasis({ store: h.store, discovery: projectStoreIdentityDiscovery(evidence, []), subject: { slug: "healthy-errand", claimId } });
   expect(terminal.kind).toBe(kind === "errand" ? "ready" : "refused");
   lifecycleSuccess(await h.store.write({ action: "put", reference: disputed.reference, expected: disputed.version, resolves: disputed.conflicts,
     content: JSON.stringify(content), ...(kind === "errand" ? { placement: { kind: "active" as const } } : {}), provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
   const repaired = await readStoreIdentityEvidence(h.store, "alice");
   expect(kind === "errand" ? repaired.errands : repaired.claims).toMatchObject({ kind: "complete", missed: false, diagnostics: [] });
-  expect(row(repaired, kind, slug)).toMatchObject({ kind: "transient", subject: { kind, key: slug, claimId } });
+  expect(await row(h.store, repaired, kind, slug)).toMatchObject({ kind: "transient", subject: { kind, key: slug, claimId } });
   expect(await readStoreTerminalBasis({ store: h.store, discovery: projectStoreIdentityDiscovery(repaired, []), subject: { slug: "healthy-errand", claimId } })).toMatchObject({ kind: "ready" });
 });
