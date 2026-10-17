@@ -14,6 +14,7 @@ describe("ordered ref merge history", () => {
     const base = (await git("git", ["rev-parse", ref])).stdout;
     success(await f.store.write({ ...update(f, initial, "local\n"), provenance: { ...testProvenance, verb: "local-write", lifecycleAction: "local" } }));
     const local = (await git("git", ["rev-parse", ref])).stdout;
+    const from = await f.settle();
     await git("git", ["update-ref", ref, base]);
     success(await f.store.write({ ...update(f, initial, "remote\n"), provenance: { ...testProvenance, verb: "remote-write", lifecycleAction: "remote" } }));
     const remote = (await git("git", ["rev-parse", ref])).stdout;
@@ -26,5 +27,9 @@ describe("ordered ref merge history", () => {
     expect(history.map(({ content }) => content)).toEqual(kept === "remote" ? ["remote\n", "local\n", "base\n"] : ["local\n", "remote\n", "local\n", "base\n"]);
     expect(history[0]?.provenance).toMatchObject({ lifecycleAction: kept === "remote" ? "remote" : "merged" });
     expect(history[0]?.version).toBe(success(await f.store.read({ reference: initial.reference })).version);
+    const changes = success(await f.store.changes({ from, to: await f.settle(), references: [initial.reference] }));
+    expect(changes.map(({ content }) => content)).toEqual(kept === "remote" ? ["remote\n"] : ["remote\n", "local\n"]);
+    expect(changes.map(({ provenance }) => "lifecycleAction" in provenance ? provenance.lifecycleAction : "legacy"))
+      .toEqual(kept === "remote" ? ["remote"] : ["remote", "merged"]);
   });
 });

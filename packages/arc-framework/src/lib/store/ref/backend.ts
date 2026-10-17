@@ -8,6 +8,7 @@ import { readSnapshotRecord, listSnapshotRecords } from "./snapshot-read.js";
 import { readRefRecord, listRefRecords } from "./read.js";
 import { writeRefRecord, batchRefRecords } from "./write.js";
 import { historyRefRecord } from "./history.js";
+import { changesRefRecords } from "./changes.js";
 import { lookupRefRecord } from "./lookup.js";
 
 /** Construct the backend with no commands, file reads, or resolved policy ports. */
@@ -19,7 +20,7 @@ export function createRefBackend(ports: RefStorePorts): Store {
     list: (input) => input.asOf ? listSnapshotRecords(context, input) : listRefRecords(context, input),
     write: (input) => writeRefRecord(context, input), batch: (input) => batchRefRecords(context, input),
     version: async () => ({ status: "ok", result: await refStateVersion(context) }),
-    history: (input) => historyRefRecord(context, input), changes: pending("changes", context), lookup: (input) => lookupRefRecord(context, input),
+    history: (input) => historyRefRecord(context, input), changes: (input) => changesRefRecords(context, input), lookup: (input) => lookupRefRecord(context, input),
     pull: pending("pull", context), push: pending("push", context), maintain: pending("maintain", context),
   };
 }

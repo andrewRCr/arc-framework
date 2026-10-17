@@ -13,9 +13,9 @@ import { resolveReadReference } from "./read.js";
 import { resolveArchivedReferences } from "./archive-resolution.js";
 import { readHistoryPaths } from "./history-paths.js";
 import { retiredHistoryHome } from "./retired-history.js";
+import { parseHistoryRows, orderHistoryCommits } from "./history-order.js";
 import { readHistorySnapshots } from "./history-snapshots.js";
 
-interface HistoryCommit { revision: string; parents: string[] }
 /** A landed state paired with the commit that changed it. */
 export interface RefHistoryDetail { entry: HistoryEntry; revision: string }
 
@@ -72,32 +72,4 @@ export async function readRefHistoryDetails(context: RefBackendContext, referenc
       entry: { ...after.state, reference: selected, provenance: parseStoreCommitProvenance(after.message, selected) } });
   }
   return { status: "ok", result: entries.reverse() };
-}
-
-function parseHistoryRows(stdout: string): HistoryCommit[] {
-  return stdout.trim().split("\n").filter(Boolean).map((line) => {
-    const [revision, ...parents] = line.split(" ");
-    if (!revision || ![revision, ...parents].every((oid) => /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(oid))) throw new Error("Malformed Git history response");
-    return { revision, parents };
-  });
-}
-
-function orderHistoryCommits(rows: readonly HistoryCommit[]): HistoryCommit[] {
-  const byId = new Map(rows.map((row) => [row.revision, row]));
-  const seen = new Set<string>();
-  const ordered: HistoryCommit[] = [];
-  const stack = rows.map((row) => ({ row, closing: false })).reverse();
-  while (stack.length > 0) {
-    const frame = stack.pop();
-    if (!frame) throw new Error("An active history traversal has no frame");
-    if (frame.closing) { ordered.push(frame.row); continue; }
-    if (seen.has(frame.row.revision)) continue;
-    seen.add(frame.row.revision);
-    stack.push({ row: frame.row, closing: true });
-    for (const parent of [...frame.row.parents].reverse()) {
-      const row = byId.get(parent);
-      if (row) stack.push({ row, closing: false });
-    }
-  }
-  return ordered.reverse();
 }

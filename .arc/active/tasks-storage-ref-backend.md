@@ -656,33 +656,14 @@ by every tier, and an item ref broken outside ARC.
   missing ended tips name their history refs and admit restored retries. Archive, reopen, later names, and later
   primary roles leave the saved result intact; an unrelated quarter is unnecessary for a directly named live owner.
 
-### `[ ]` **7.2 `changes` between two manifests — § 4.6**
+### `[x]` **7.2 `changes` between two manifests — § 4.6**
 
 - _Goal:_ `changes` returns every landed mutation between two manifests, one entry per record per batch where its version
   changed, whatever ref carried it, or refuses naming what this clone lacks.
-
-    - A module of its own for the namespace table, the batch grouping, and the restriction to named records
-    - Named lineage restrictions use 5.3's live-owner and registry-map resolution over the compared manifests
-    - One case per row of § 4.6's table and per grouping rule; the pull by name that resolves a refusal fetches through
-      9.1.b, and 10.3 carries the case of a `changes` landing after it
-    - Build `test-first` (one behavior at a time):
-        - a live ref in both manifests reads its log between the two tips, oldest first within a ref, refs in name order
-        - an item in the older manifest only reads its end from its history ref
-        - one new since the older reads from its root, and one reopened since reads from its reopen
-        - one archived before the older and written while archived lists the window's writes alone, found through its
-          quarter's folder
-        - one reopened and archived again within the window lists from its reopen, and one reopened then abandoned lists
-          from its reopen through its end, its live writes among them
-        - one created and ended between them reads from its root on its history ref
-        - any other ref new since reads from root, and one in the older only reads nothing
-        - a reopen lists no removal of the item's other records, and an archive and a write to a completed item list each
-          changed record once
-        - a write followed by the item's archive in one window lists the record's later version last
-        - an identity ref present in one manifest only carries its history whole
-        - a manifest this clone lacks refuses `state-unresolvable`, and an item in the older manifest only whose history
-          ref this clone lacks refuses naming it
-        - a completed item whose history ref this clone holds without the batch its folder names, planted as another
-          machine's write leaves it, refuses naming the ref
+- _Outcome:_ Immutable ref windows enumerate record versions and group them by batch, discovering ended and reopened
+  owners through quarter folders and lineage changes. Copied archive records add no changes; saved archive batches
+  bound the log even after later lifecycle moves. Missing manifests or retained history admit repaired retries;
+  restrictions follow primary roles and compared lineage names without requiring unrelated histories.
 
 ### `[x]` **7.2.R Merge history follows ordered record state — § 3.6 (A9)**
 

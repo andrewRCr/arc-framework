@@ -39,7 +39,8 @@ export async function readHistorySnapshots(context: RefBackendContext, reference
   return { status: "ok", result: snapshots };
 }
 
-function historicalState(context: RefBackendContext, requested: RecordReference, home: StoredRecordHome,
+/** Decode one logical record from its historical tree without applying current semantic parsers. */
+export function historicalState(context: RefBackendContext, requested: RecordReference, home: StoredRecordHome,
   tree: readonly RefTreeEntry[], objects: ReadonlyMap<string, BatchObject | null>): StoreResult<HistoricalState> {
   const metadataEntry = tree.find((entry) => entry.path === home.metadataPath);
   const metadata = parseRefMetadata(metadataEntry ? objects.get(metadataEntry.oid) : null, home.ref);
