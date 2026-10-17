@@ -174,8 +174,8 @@ Use this path when `handoffLocus.value.kind === "between-work-units"`.
    carried in tracked state. Surface removals in the handoff summary; do not silently rewrite. If identity
    is absent, skip user-state reads and surface the degraded state.
 2. **Route durable handoff context** — if anything must survive the handoff, write it to an existing
-   authoritative surface: `USER-INBOX` for deferred personal captures, `WORKING-MEMORY` for cross-WU
-   persistent context, or backlog artifacts when the project document is already the clear home.
+   authoritative surface: `USER-INBOX` for deferred personal captures, `WORKING-MEMORY` for cross-WU persistent
+   context, once its addition is approved, or backlog artifacts when the project document is already the clear home.
    Do not create a per-WU SESSION-NOTES home or a placeholder marker.
 3. **Refresh probe** — after WORKING-MEMORY edits or durable context routing, re-run the composite probe:
 
