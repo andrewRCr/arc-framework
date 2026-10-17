@@ -158,7 +158,7 @@ describe("AuditEntrySchema", () => {
 describe("audit schema primitives", () => {
   it("derives the complete refusal-code domain", () => {
     expect(RefusalCodeSchema.options.map((option) => option.value)).toEqual([
-      10, 11, 12, 13, 14, 15, 16,
+      10, 11, 12, 13, 14, 15, 16, 17,
     ]);
   });
 
@@ -174,4 +174,11 @@ describe("audit schema primitives", () => {
     assertSchemaRefuses(schema, { value: "manual", source: "default", extra: true });
     expect(ConfigOverrideSourceSchema.options).toEqual(["git-config", "yaml", "default"]);
   });
+});
+
+it("accepts code17 only with its close precheck outcome", () => {
+  const entry = { ...common("release-commit"), interlockState: commitInterlocks, decision: "refused", refusalCode: 17,
+    outcome: { kind: "close-precheck-failed", check: "unsupported" } };
+  assertSchemaAccepts(AuditEntrySchema, entry);
+  assertSchemaRefuses(AuditEntrySchema, { ...entry, outcome: { kind: "refused" } });
 });

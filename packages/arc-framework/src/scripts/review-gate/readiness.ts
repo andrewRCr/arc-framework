@@ -44,7 +44,7 @@ import { CanonicalDigestSchema } from "../../lib/kernel/schema/vocabulary.js";
 import { parseMetaRecord } from "../../lib/active/meta-reader.js";
 import { isErrandBranchType } from "../../lib/errand/branch-type.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
-import { branchToWorkUnitSlug } from "../../lib/work-unit/completed-index.js";
+import { branchToWorkUnitSlug } from "../../lib/work-unit/work-unit-slug.js";
 import {
   classifyPredecessorRelation,
   type AncestryAnswer,

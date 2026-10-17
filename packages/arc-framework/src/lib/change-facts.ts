@@ -253,7 +253,8 @@ export function createSpawnRawGitExec(cwd = process.cwd()): RawGitExec {
         ? ["--no-lazy-fetch", ...args]
         : args;
       const effectiveCwd = options?.cwd ?? cwd;
-      const environment = environmentForRawGit();
+      const environment = Object.fromEntries(Object.entries(environmentForRawGit())
+        .filter(([name]) => !options?.removeEnvironment?.includes(name)));
       const env = options?.objectAccess === "local-only"
         ? { ...environment, GIT_NO_LAZY_FETCH: "1" }
         : environment;

@@ -658,6 +658,11 @@ describe("scanRegisteredWorktrees", () => {
     expect([...branchMap.paths.entries()]).toEqual([["main", "/home/dev/repo"]]);
   });
 
+  it("retains the registration's lock and reason", async () => {
+    const { exec } = buildExec({ [WORKTREE_LIST]: { stdout: "worktree /repo\0HEAD abc\0branch refs/heads/main\0locked owner\0\0", stderr: "" } });
+    expect(await scanRegisteredWorktrees(exec)).toEqual({ ok: true, worktrees: [{ path: "/repo", head: "abc", branch: "main", detached: false, primary: true, locked: "owner" }] });
+  });
+
   it("returns an explicit failure instead of fabricating an empty candidate set", async () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: (args) => {

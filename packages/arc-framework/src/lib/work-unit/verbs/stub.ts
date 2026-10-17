@@ -22,6 +22,9 @@
  */
 
 import { join } from "node:path";
+import { usesOffBranchState } from "../../store/lifecycle-write.js";
+import { OwnerIdentitySchema, recordReferences } from "../../store/identity.js";
+import { renderMetaFile as renderStoreMeta } from "../../store/kinds/meta/writers.js";
 
 import { validateClass } from "../../kernel/schema/vocabulary.js";
 import { isSafeCohortPath, validateCohortPath } from "../../active/cohort-path.js";
@@ -29,6 +32,7 @@ import { renderMetaFile, type MetaRenderOverrides } from "../../active/meta-read
 import { MetaPrioritySchema } from "../../active/meta-schema.js";
 import { SlugSchema } from "../../kernel/index.js";
 import { resolveArcPath } from "../../layout/index.js";
+import { projectLifecycleStubMetaPath } from "../../store/lifecycle-stub.js";
 import { ensureDir, type MkdirFn, type WriteFileFn } from "../../template/files.js";
 import {
   executeTransition,
@@ -172,6 +176,7 @@ export async function runStub(ctx: StubContext, params: StubParams): Promise<Stu
   if (rawCohortSegments.some((segment) => !SlugSchema.safeParse(segment).success)) {
     return { status: "rejected", reason: `\`stub --cohort\` rejects an invalid cohort path "${cohort}".` };
   }
+  if (usesOffBranchState(ctx.executor.store)) return runStoreStub(ctx, params, commitment, priority, cls, hasCohort ? cohort : undefined);
   const placement = {
     kind: "backlog",
     commitment,
@@ -216,4 +221,23 @@ export async function runStub(ctx: StubContext, params: StubParams): Promise<Stu
     return { status: "rejected", reason: outcome.message };
   }
   return { status: "scaffolded", outcome, metaPath };
+}
+
+async function runStoreStub(ctx: StubContext, params: StubParams, commitment: StubCommitment, priority: string,
+  cls: "Light" | "Heavy" | "Novel" | undefined, cohort: string | undefined): Promise<StubResult> {
+  const metaPath = projectLifecycleStubMetaPath(params.name, commitment, cohort);
+  const creationFields: MetaRenderOverrides = {
+    state: "Planning", owner: params.owner, priority: MetaPrioritySchema.parse(priority),
+    ...(params.origin === undefined ? {} : { origin: params.origin === "[internal]" ? "internal" : params.origin }),
+    ...(params.design === undefined ? {} : { design: params.design === "[none]" ? [] : [params.design] }),
+    ...(cls === undefined ? {} : { workClass: cls }), ...(cohort === undefined ? {} : { cohort }),
+  };
+
+    const reference = recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: params.name }));
+    const outcome = await executeTransition(ctx.executor, { verb: "stub", slug: params.name, inputs: {
+      commitment, suggestion: params.suggestion,
+      storeTransition: { create: { action: "put", reference, expected: null,
+        content: renderStoreMeta(params.name, creationFields), placement: { kind: "backlog", commitment } } },
+    } });
+    return outcome.status === "ok" ? { status: "scaffolded", outcome, metaPath } : { status: "rejected", reason: outcome.message };
 }

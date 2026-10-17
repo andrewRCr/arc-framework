@@ -50,6 +50,10 @@ import {
 } from "../active/meta-reader.js";
 import { readActiveMetaCandidates } from "../active/meta-reader.js";
 import { checkCurrentWorkflowConsistency } from "../active/current-workflow-consistency.js";
+import { createProjectIdentityReader } from "../store/project-identity.js";
+import { createStore } from "../store/create.js";
+import { createDefaultStorePorts } from "../store/default-ports.js";
+import type { Store } from "../store/contract.js";
 import type { GitExec } from "../git/exec.js";
 import { SlugSchema } from "../kernel/index.js";
 import { resolveArcPath } from "../layout/index.js";
@@ -72,13 +76,24 @@ import {
 import { relocateArtifacts } from "./mutators/relocate-artifacts.js";
 import { setPhase } from "./mutators/set-phase.js";
 import type { CurrentWuReconcileHost } from "./side-effects/discharge-dep-edges.js";
-import { withdrawPr } from "./side-effects/withdraw-pr.js";
+import { withdrawPr, preparePrWithdrawal, type RecoverablePrWithdrawalHandler } from "./side-effects/withdraw-pr.js";
+import type { LocusPorts } from "./locus-ports.js";
+import { linkedWorkBranch } from "./linked-work-branch.js";
+import { readWorkUnit, usesOffBranchState } from "../store/lifecycle-write.js";
 import { atomicGraduate } from "./atomic-graduation.js";
 import { createNodeTeardownSelectionReader } from "./teardown-selection.js";
 import { createNodeTeardownWorktreeTransactionDriver } from "./teardown-worktree-transaction.js";
 
 /** Ambient inputs the binder closes the executor seams over. */
 export interface ExecutorContextDeps {
+  /** Locus-owned checkout claim operations. */
+  locusPorts?: LocusPorts;
+  /** Injected operational store; defaults lazily to this checkout. */
+  store?: Store;
+  /** Reopen a production default on a new checkout; explicit injections omit this factory. */
+  reopenStore?: (cwd: string, exec: GitExec) => Store;
+  /** Project identity resolved once by a linking verb. */
+  projectId?: () => Promise<string>;
   /** Repository root containing `.arc/` — the executor's cwd and the path-resolution base. */
   cwd: string;
   /** I/O context carrying the git executor and filesystem ops. */
@@ -112,17 +127,19 @@ export function buildExecutorContext(
   const at = (p: string): string => (isAbsolute(p) ? p : join(cwd, p));
 
   // Git executor defaulting to the repository root, so cwd-relative `git mv` /
-  // worktree ops resolve — but an explicit per-call `cwd` wins (the `worktree-clean`
-  // guard checks the *target worktree*, not the base repo). Order matters: `cwd`
+  // worktree ops resolve — but an explicit per-call `cwd` wins so operations
+  // can target a worktree other than the base repo. Order matters: `cwd`
   // first as the default, `...opts` last so a supplied `opts.cwd` overrides it.
   const exec: GitExec = (cmd, args, opts) => io.exec(cmd, args, { cwd, ...opts });
+  const store = deps.store ?? deps.reopenStore?.(cwd, exec) ?? createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec }));
+  const projectId = deps.projectId ?? (usesOffBranchState(store) ? createProjectIdentityReader(store) : undefined);
   const transitionExec = deps.transitionExec ?? createExecaRawGitExec(cwd);
   const readTeardownSelection = identity === null
     ? undefined
     : createNodeTeardownSelectionReader({ exec, identity });
   const teardownWorktree = identity === null
     ? undefined
-    : createNodeTeardownWorktreeTransactionDriver({ exec, identity });
+    : createNodeTeardownWorktreeTransactionDriver({ exec, identity, cwd });
 
   /** The lifecycle-index scan seam — shared by the executor's entry build and the discharge side-effect. */
   const indexFs: LifecycleIndexFs = {
@@ -160,14 +177,8 @@ export function buildExecutorContext(
   // transient `gh` outage — degrade to an advisory rather than throwing, so the
   // already-applied `Integrating → Active` flip isn't left mid-transition (the
   // operator finishes the withdrawal by hand).
-  const withdrawPrHandler: SideEffectHandler = async ({ slug, inputs }) => {
-    const metaPath = resolveArcPath({
-      kind: "work-unit-artifact",
-      placement: { kind: "active", scope: { kind: "project" } },
-      slug: SlugSchema.parse(slug),
-      artifact: "meta",
-    });
-    const { branch } = parseMetaRecord(await io.readFile(at(metaPath)));
+  const legacyWithdrawPrHandler: SideEffectHandler = async ({ slug, inputs }) => {
+    const branch = await withdrawalBranch({ store, exec, cwd, io, at, projectId }, slug);
     const mode = inputs.prWithdrawMode ?? "close";
     if (branch === null) {
       return `Could not withdraw the PR for \`${slug}\`: no branch recorded — close or convert it manually.`;
@@ -181,10 +192,22 @@ export function buildExecutorContext(
     }
     return undefined;
   };
+  const withdrawPrHandler: RecoverablePrWithdrawalHandler = Object.assign(legacyWithdrawPrHandler, {
+    prepareWithdrawal: async ({ slug, inputs }: Parameters<SideEffectHandler>[0]) => {
+      const branch = await withdrawalBranch({ store, exec, cwd, io, at, projectId }, slug);
+      if (branch === null) throw new Error(`Cannot withdraw the PR for \`${slug}\`: no work branch is linked.`);
+      return preparePrWithdrawal({ exec }, { branch, mode: inputs.prWithdrawMode ?? "close" });
+    },
+  });
 
   return {
     cwd,
-    withCwd: (nextCwd) => buildExecutorContext({ ...deps, cwd: nextCwd }),
+    store,
+    execRaw: transitionExec,
+    ...(deps.locusPorts === undefined ? {} : { locusPorts: deps.locusPorts }),
+    ...(projectId === undefined ? {} : { projectId }),
+    withCwd: (nextCwd) => buildExecutorContext({ ...deps, cwd: nextCwd, projectId,
+      ...(deps.reopenStore === undefined ? {} : { store: undefined }) }),
     exec,
     indexFs,
 
@@ -209,6 +232,8 @@ export function buildExecutorContext(
     reconcileWorkUnitWorktree: (op) => {
       return reconcileWorkUnitWorktree({
         exec,
+        store,
+        ...(deps.locusPorts === undefined ? {} : { locusPorts: deps.locusPorts }),
         chdir: (dir) => { process.chdir(at(dir)); },
         fs: nodeReconcileWorkUnitWorktreeFs,
         ...(readTeardownSelection === undefined ? {} : { readTeardownSelection }),
@@ -285,9 +310,9 @@ export function buildExecutorContext(
       await exec("git", ["add", at(metaPath)]);
     },
 
-    currentWuReconcile: buildCurrentWuReconcile({ cwd, io, exec, transitionExec, indexFs, at }),
+    currentWuReconcile: buildCurrentWuReconcile({ cwd, io, exec, transitionExec, indexFs, at, store }),
 
-    guardValidators: buildFootgunGuards({ cwd, readActiveMetaCandidates, exec }),
+    guardValidators: buildFootgunGuards({ cwd, store, readActiveMetaCandidates }),
 
     sideEffects: {
       ...buildStatusSideEffects({
@@ -303,4 +328,16 @@ export function buildExecutorContext(
       "withdraw-pr": withdrawPrHandler,
     },
   };
+}
+
+async function withdrawalBranch(input: { store: Store; exec: GitExec; cwd: string; io: UserIOContext;
+  at: (path: string) => string; projectId?: () => Promise<string> }, slug: string): Promise<string | null> {
+  if (usesOffBranchState(input.store)) {
+    const read = await readWorkUnit(input.store, slug);
+    if (read.status === "refused") throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
+    return linkedWorkBranch(input, read.result);
+  }
+  const metaPath = resolveArcPath({ kind: "work-unit-artifact", placement: { kind: "active", scope: { kind: "project" } },
+    slug: SlugSchema.parse(slug), artifact: "meta" });
+  return parseMetaRecord(await input.io.readFile(input.at(metaPath))).branch;
 }

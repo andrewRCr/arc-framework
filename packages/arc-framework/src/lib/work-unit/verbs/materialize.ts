@@ -8,6 +8,9 @@
  * @module
  */
 
+import { usesOffBranchState } from "../../store/lifecycle-write.js";
+import type { StoreRefusal, Remedy } from "../../store/refusal.js";
+import { runStoreMaterialize } from "./materialize-store.js";
 import {
   type ExecuteTransitionContext,
   type TransitionInputs,
@@ -20,7 +23,10 @@ export interface MaterializeSpawnParams {
   /** WU name. */
   name: string;
   /** Remote branch short name, e.g. `feat/demo`. */
-  branch: string;
+  branch?: string;
+  /** Configured base and current identity on the store arm. */
+  baseBranch?: string;
+  identity?: string;
   /** Fresh-worktree placement (the default). */
   inPlace?: false;
   /** Resolved `worktree.location_template` — where the materialized worktree lands. */
@@ -42,9 +48,14 @@ export interface MaterializeInPlaceParams {
   /** WU name. */
   name: string;
   /** Remote branch short name, e.g. `feat/demo`. */
-  branch: string;
+  branch?: string;
+  /** Configured base and current identity on the store arm. */
+  baseBranch?: string;
+  identity?: string;
   /** Re-attach in the current worktree — no fresh worktree. */
   inPlace: true;
+  /** Identity bound to the anchored marker on the store arm. */
+  spawningIdentity?: string;
 }
 
 /** The operational inputs a materialize supplies. */
@@ -52,11 +63,11 @@ export type MaterializeParams = MaterializeSpawnParams | MaterializeInPlaceParam
 
 /** The outcome of a materialize attempt. */
 export type MaterializeResult =
-  | { status: "rejected"; reason: string }
+  | { status: "rejected"; reason: string; refusal?: StoreRefusal; remedy?: Remedy }
   | {
       status: "materialized";
       /** The materialized branch. */
-      branch: string;
+      branch: string | null;
       /** Whether the materialize landed in the current checkout. */
       inPlace: boolean;
       /** Exact checkout allocated for the fetched branch. */
@@ -81,10 +92,15 @@ function remoteBranch(branch: string): string {
  * @param params - The target WU and branch placement mode.
  * @returns A rejection, or the materialized branch.
  */
+export type MaterializeContext = Pick<ExecuteTransitionContext, "guardValidators" | "reconcileWorkUnitWorktree" | "store">
+  & Partial<Pick<ExecuteTransitionContext, "cwd" | "exec" | "projectId" | "locusPorts">>;
+
+/** Place a legacy remote branch or an owned store record in a checkout. */
 export async function runMaterialize(
-  ctx: Pick<ExecuteTransitionContext, "guardValidators" | "reconcileWorkUnitWorktree">,
+  ctx: MaterializeContext,
   params: MaterializeParams,
 ): Promise<MaterializeResult> {
+  if (usesOffBranchState(ctx.store)) return runStoreMaterialize(ctx, params);
   const { name, branch } = params;
   if (!isSlugSafe(name)) {
     return {
@@ -92,12 +108,12 @@ export async function runMaterialize(
       reason: "`materialize` requires a slug-safe name (`[a-z0-9-]`, no path separators or dot segments).",
     };
   }
-  if (branch.trim() === "") {
+  if (branch === undefined || branch.trim() === "") {
     return { status: "rejected", reason: "`materialize` requires a remote branch." };
   }
 
   const worktreeOp: NonNullable<TransitionInputs["worktreeOp"]> = params.inPlace
-    ? { mutation: "spawn", inPlace: true, branch, wuName: name, createBranch: false }
+    ? { mutation: "spawn", inPlace: true, branch, wuName: name, createBranch: false, ...(params.spawningIdentity === undefined ? {} : { spawningIdentity: params.spawningIdentity }) }
     : {
         mutation: "spawn",
         branch,

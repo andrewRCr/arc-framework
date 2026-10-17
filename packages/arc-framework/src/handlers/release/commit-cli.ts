@@ -19,6 +19,7 @@ import { execa } from "execa";
 import { resolveAllSettings } from "../../lib/config/resolved-settings.js";
 import { formatError, UserFacingError } from "../../lib/errors.js";
 import { hasEffectiveHook } from "../../lib/hook-manager.js";
+import { createUserIOContext } from "../../lib/io-context.js";
 import { createGitExec } from "../../lib/io-context.js";
 import {
   formatMissingHooksPathMessage,
@@ -49,6 +50,10 @@ import {
   type ResolveHead,
   type SpawnGit,
 } from "./commit.js";
+import { createTaskCommandContext, renderTaskClose } from "../task.js";
+import { createStore } from "../../lib/store/create.js";
+import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
+import { createTaskCloseOperations } from "./task-close.js";
 import { createCommitMessagePreflight } from "./commit-message-preflight.js";
 
 export interface HandleReleaseCommitOptions {
@@ -96,10 +101,25 @@ export function stripNoWrap(args: readonly string[]): { argv: string[]; wrap: bo
   return { argv: [...args], wrap: true };
 }
 
+/** Strip wrapper options only from leading tokens, preserving Git operands and terminators.
+ * @param args - Opaque Git commit arguments
+ * @returns Git arguments, wrapping policy, and optional close IDs
+ */
+export function stripReleaseCommitOptions(args: readonly string[]): { argv: string[]; wrap: boolean; close?: string[] } {
+  let wrap = true; let close: string[] | undefined; let position = 0;
+  for (const token of args) {
+    if (token === "--no-wrap") wrap = false;
+    else if (token === "--close" || token.startsWith("--close=")) close = token === "--close" ? [] : token.slice(8).split(",");
+    else break;
+    position += 1;
+  }
+  return { argv: args.slice(position), wrap, ...(close === undefined ? {} : { close }) };
+}
+
 /**
  * `arc release commit` Commander entry point. Resolves the I/O surface
  * needed by the orchestrator and delegates. Refusal paths print to
- * stderr and exit with the matched refusal code (10–13 or message-preflight 16); the authorize
+ * stderr and exit with the matched refusal code (10–13, message-preflight 16, or task-precheck 17); the authorize
  * path forwards to a wrapped `git commit` invocation that bubbles git's
  * stdout, stderr, and exit code verbatim.
  */
@@ -158,11 +178,13 @@ export async function handleReleaseCommit(
   });
 
   const currentBranch = (await resolveCurrentBranchName(exec)) ?? "";
-  const { argv, wrap } = stripNoWrap(opts.args);
-  const preflightRemedy = renderCommitMessageRemedy(argv);
+  const { argv, wrap, close } = stripReleaseCommitOptions(opts.args);
+  const preflightRemedy = renderCommitMessageRemedy(argv, close === undefined ? []
+    : [close.length === 0 ? "--close" : `--close=${close.join(",")}`]);
   const retryStore = createRealCommitMessageRetryStore(exec);
 
   const result = await runReleaseCommit({
+    stateOffBranch: createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec })).capabilities.stateOffBranch,
     cwd,
     identity,
     argv,
@@ -175,6 +197,8 @@ export async function handleReleaseCommit(
     cleanupConsumedMessageRetry: retryStore.cleanup,
     listRemoteRefsContainingHead: createRemoteRefsContainingHead(exec),
     preflightRemedy,
+    ...(close === undefined ? {} : { taskClose: createTaskCloseOperations(close, async () => createTaskCommandContext({ cwd, identity,
+      io: { ...createUserIOContext(context.subprocess), exec } }), renderTaskClose) }),
     preflightCommitMessage: createCommitMessagePreflight({
       stdinIsTTY: context.interaction === "allowed" && context.promptInput.isTTY,
       interactionAllowed: context.interaction === "allowed",
@@ -191,6 +215,7 @@ export async function handleReleaseCommit(
     }),
   });
 
+  if (result.continuation?.argv !== undefined) process.stderr.write(`Run: ${result.continuation.argv.join(" ")}\n`);
   if (result.exitCode !== 0) {
     process.exitCode = result.exitCode;
   }

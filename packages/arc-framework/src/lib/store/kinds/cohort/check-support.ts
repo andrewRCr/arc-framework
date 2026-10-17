@@ -53,3 +53,18 @@ export async function observeOpenMembers(view: StoreView): Promise<RuleObservati
   }
   return { status: "known", value: result };
 }
+
+/** Observe the open members and immediate subcohorts that keep a cohort open.
+ * @param view - Found or whole proposed state.
+ * @param name - Cohort whose membership is inspected.
+ * @returns Complete holding names or the original observation failure.
+ */
+export async function observeOpenCohortHoldings(view: StoreView, name: string): Promise<RuleObservation<readonly string[]>> {
+  const [cohorts, members] = await Promise.all([observeOpenCohorts(view), observeOpenMembers(view)]);
+  if (cohorts.status !== "known") return cohorts;
+  if (members.status !== "known") return members;
+  return { status: "known", value: [
+    ...members.value.filter(({ cohort }) => cohort?.split("/").includes(name)).map(({ record }) => record.reference.owner.name),
+    ...cohorts.value.filter(({ fields }) => fields.parent === name).map(({ record }) => record.reference.owner.name),
+  ] };
+}

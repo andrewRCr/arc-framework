@@ -135,7 +135,7 @@ export type MetaFieldName = (typeof META_FIELDS)[number]["name"];
 export type MetaProjectionOverrides = Partial<Record<MetaFieldName, string>>;
 
 /** Creation fields accepted by fresh metadata rendering; section bodies have separate writers. */
-export type MetaRenderOverrides = Partial<Omit<MetaRecord, "sessionContext" | "completionNotes" | "releaseNotesEntry">>;
+export type MetaRenderOverrides = Partial<Omit<MetaRecord, "sessionContext" | "completionNotes" | "releaseNotesEntry" | "pause">>;
 
 /** The structured field record recovered from a meta projection by {@link parseMetaRecord}. */
 /** Strict durable semantic record type. */

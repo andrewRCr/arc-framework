@@ -304,3 +304,15 @@ describe("setupLinkedWorktree", () => {
     expect(postCreateRan).toBe(false);
   });
 });
+
+describe("detached lifecycle creation", () => {
+  it("expands branch to the work-unit name and creates no branch", async () => {
+    let created: { path: string; detached: boolean } | undefined;
+    const result = await createLinkedWorktree({ pathExists: async () => false, exec: async (_command, args) => {
+      if (args[0] === "worktree" && args[1] === "add") created = { path: args[3] ?? "", detached: args[2] === "--detach" };
+      return { stdout: "" };
+    } }, { detached: true, locationTemplate: "/work/{repo}.{branch}", repo: "repo", placementName: "demo", base: "main" });
+    expect(result).toEqual({ kind: "created", receipt: { worktreePath: "/work/repo.demo", worktreeCreated: true, base: "main", branch: null, branchCreated: false, detached: true } });
+    expect(created).toEqual({ path: "/work/repo.demo", detached: true });
+  });
+});

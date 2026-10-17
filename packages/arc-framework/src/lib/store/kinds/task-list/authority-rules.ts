@@ -14,9 +14,17 @@ export function checkTaskListClose(input: WriteCheckInput): readonly BrokenRule[
   const closed = pairing.pairs.filter(({ prior, next }) =>
     (next.marker !== " " && next.marker !== prior?.marker)
     || (prior !== undefined && prior.marker !== " " && prior.marker !== next.marker));
+  const completed = closed.filter(({ next }) => next.marker === "x").map(({ next }) => next.item.id);
+  const deferred = closed.filter(({ prior, next }) => next.marker === "~" && (prior === undefined || prior.marker === " ")).map(({ next }) => next.item.id);
+  const reopened = closed.filter(({ prior, next }) => prior !== undefined && prior.marker !== " " && next.marker !== "x").map(({ next }) => next.item.id);
+  const repairs = [
+    ...(completed.length === 0 ? [] : [`Commit with arc release commit --close=${completed.join(",")}, or make the commit first, then arc task close ${completed.join(" ")}.`]),
+    ...deferred.map((id) => `Defer with arc task defer ${id}.`),
+    ...(reopened.length === 0 ? [] : [`A closed task stays closed (${reopened.join(", ")}); add a new task for corrective work.`]),
+  ];
   return closed.length === 0 ? [] : [brokenRule("task-list.close",
     `A hand edit changes closed task markers: ${closed.map(({ next }) => `${next.item.id} (line ${next.line})`).join(", ")}.`,
-    "Use the verb that owns task closure or reopening, then retry the remaining hand edit.")];
+    repairs.join(" "))];
 }
 /** Guard the exact marked delivery-plan region.
  * @param input - Proposed task-list write.

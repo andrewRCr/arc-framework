@@ -1,4 +1,5 @@
 /** Production local-frame transaction for ordinary Errand promotion. */
+import type { Store } from "../store/contract.js";
 
 import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -36,6 +37,8 @@ import {
 } from "./promote.js";
 
 export interface PromoteOrdinaryErrandRuntimeOptions {
+  /** Optional operational store injected by the lifecycle caller. */
+  store?: Store;
   readonly slug: string;
   readonly name: string;
   readonly type: string;

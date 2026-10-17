@@ -13,21 +13,21 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State         | Work unit                       | Priority | Owner  | Depends on                                      | Cohort        |
-| ------------- | ------------------------------- | -------- | ------ | ----------------------------------------------- | ------------- |
-| `Planning`    | storage-projection              | P1       | andrew | seam-lifecycle, seam-locus, storage-ref-backend | state-storage |
-| `Planning`    | storage-ref-backend             | P1       | andrew | seam-lifecycle, seam-locus                      | state-storage |
-| `Planning`    | seam-decomposition              | P1       | andrew | —                                               | storage-seam  |
-| `Planning`    | seam-delivery-review            | P1       | andrew | —                                               | storage-seam  |
-| `Integrating` | seam-lifecycle                  | P1       | andrew | —                                               | storage-seam  |
-| `Active`      | seam-locus                      | P1       | andrew | —                                               | storage-seam  |
-| `Planning`    | seam-status-roadmap             | P1       | andrew | —                                               | storage-seam  |
-| `Planning`    | candidate-reroot-recovery-frame | P1       | andrew | —                                               | —             |
-| `Planning`    | decomposition-doctrine          | P1       | andrew | —                                               | —             |
-| `Planning`    | delivery-rebuild-continuity     | P1       | andrew | —                                               | —             |
-| `Planning`    | review-checkout-lifecycle       | P1       | andrew | —                                               | —             |
-| `Planning`    | review-coverage-cadence         | P1       | andrew | —                                               | —             |
-| `Planning`    | stub-mint-to-launch             | P1       | andrew | —                                               | —             |
+| State      | Work unit                       | Priority | Owner  | Depends on                      | Cohort        |
+| ---------- | ------------------------------- | -------- | ------ | ------------------------------- | ------------- |
+| `Planning` | projected-markdown-checks       | P1       | andrew | —                               | state-storage |
+| `Planning` | storage-projection              | P1       | andrew | seam-locus, storage-ref-backend | state-storage |
+| `Active`   | storage-ref-backend             | P1       | andrew | seam-locus                      | state-storage |
+| `Planning` | seam-decomposition              | P1       | andrew | —                               | storage-seam  |
+| `Planning` | seam-delivery-review            | P1       | andrew | —                               | storage-seam  |
+| `Active`   | seam-locus                      | P1       | andrew | —                               | storage-seam  |
+| `Planning` | seam-status-roadmap             | P1       | andrew | seam-locus                      | storage-seam  |
+| `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —                               | —             |
+| `Planning` | decomposition-doctrine          | P1       | andrew | —                               | —             |
+| `Planning` | delivery-rebuild-continuity     | P1       | andrew | —                               | —             |
+| `Planning` | review-checkout-lifecycle       | P1       | andrew | —                               | —             |
+| `Planning` | review-coverage-cadence         | P1       | andrew | —                               | —             |
+| `Planning` | stub-mint-to-launch             | P1       | andrew | —                               | —             |
 
 ## Ready
 
@@ -107,18 +107,18 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 1
 
-| Work unit                     | Priority | Owner  | Depends on                                                                                                                         | Cohort                     |
-| ----------------------------- | -------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| review-activity-contracts     | P1       | andrew | review-source-authority                                                                                                            | review-protocol-alignment  |
-| storage-cutover               | P1       | andrew | storage-ref-backend, storage-projection, seam-decomposition, seam-delivery-review, seam-lifecycle, seam-locus, seam-status-roadmap | state-storage              |
-| roadmap-tooling               | P1       | andrew | seam-status-roadmap                                                                                                                | —                          |
-| unit-scoped-review            | P2       | andrew | commit-increments                                                                                                                  | approval-flow-refinement   |
-| documentation-surface-routing | P3       | andrew | handoff-optimization                                                                                                               | agent-context-optimization |
-| instruction-optimization      | P3       | andrew | composable-workflows                                                                                                               | agent-context-optimization |
-| workflow-template-loads       | P3       | andrew | composable-workflows                                                                                                               | principle-anchored-core    |
-| docs-content-sweep            | P3       | andrew | docs-site-refresh                                                                                                                  | release-readiness          |
-| comprehension-preservation    | P3       | andrew | execution-delegation-doctrine                                                                                                      | —                          |
-| errand-launchpads             | P3       | andrew | seam-locus                                                                                                                         | —                          |
+| Work unit                     | Priority | Owner  | Depends on                                                                                                                                    | Cohort                     |
+| ----------------------------- | -------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| review-activity-contracts     | P1       | andrew | review-source-authority                                                                                                                       | review-protocol-alignment  |
+| storage-cutover               | P1       | andrew | storage-ref-backend, storage-projection, seam-decomposition, seam-delivery-review, seam-locus, seam-status-roadmap, projected-markdown-checks | state-storage              |
+| roadmap-tooling               | P1       | andrew | seam-status-roadmap                                                                                                                           | —                          |
+| unit-scoped-review            | P2       | andrew | commit-increments                                                                                                                             | approval-flow-refinement   |
+| documentation-surface-routing | P3       | andrew | handoff-optimization                                                                                                                          | agent-context-optimization |
+| instruction-optimization      | P3       | andrew | composable-workflows                                                                                                                          | agent-context-optimization |
+| workflow-template-loads       | P3       | andrew | composable-workflows                                                                                                                          | principle-anchored-core    |
+| docs-content-sweep            | P3       | andrew | docs-site-refresh                                                                                                                             | release-readiness          |
+| comprehension-preservation    | P3       | andrew | execution-delegation-doctrine                                                                                                                 | —                          |
+| errand-launchpads             | P3       | andrew | seam-locus                                                                                                                                    | —                          |
 
 ### Depth 2
 

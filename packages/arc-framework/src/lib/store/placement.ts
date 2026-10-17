@@ -14,8 +14,10 @@ export const WorkUnitReadPlacementSchema = z.union([
 ]);
 /** An Errand cannot enter backlog and is archived without a sequence. */
 export const ErrandReadPlacementSchema = z.union([active, completed]);
+/** Completed cohort sidecars share a member's number and a closeout letter. */
+export const CohortReadPlacementSchema = completed.extend({ sequence: ArchiveSequenceSchema, closeout: z.enum(["a", "b"]) });
 /** Every logical placement a read can return. */
-export const ReadPlacementSchema = z.union([WorkUnitReadPlacementSchema, ErrandReadPlacementSchema]);
+export const ReadPlacementSchema = z.union([WorkUnitReadPlacementSchema, ErrandReadPlacementSchema, CohortReadPlacementSchema]);
 /** A caller's placement request. */
 export type WritePlacement = z.infer<typeof WritePlacementSchema>;
 /** Backend-assigned lifecycle placement. */

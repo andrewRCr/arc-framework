@@ -329,3 +329,22 @@ describe("validateFiles — lifecycle-complete context", () => {
     expect(result.diagnostics.some((d) => /cohort-core\.md/.test(d))).toBe(true);
   });
 });
+
+
+describe("off-branch cohort conditions", () => {
+  it("ignores filed directory mismatch and missing constitutive documents after the flip", () => {
+    const files = { ".arc/backlog/planned/wrong/demo/meta-demo.md": metaFor("demo", "right/sub") };
+    expect(validateFiles(Object.keys(files), fakeReader(files), undefined, true)).toEqual({ pass: true, diagnostics: [] });
+  });
+  it("continues to report orphan member sections after the flip", () => {
+    const files = { ".arc/backlog/planned/core/cohort-core.md": cohortDoc("core", { members: ["ghost"], purpose: null }) };
+    const result = validateFiles(Object.keys(files), fakeReader(files), undefined, true);
+    expect(result.pass).toBe(false);
+    expect(result.diagnostics).toEqual([expect.stringContaining("orphan member section `ghost`")]);
+  });
+  it.each([false, true])("counts an activated member outside its grouping directory (flip=%s)", (stateOffBranch) => {
+    const files = { ".arc/backlog/planned/core/cohort-core.md": cohortDoc("core", { members: ["demo"] }) };
+    const live = buildLiveCohortContext([{ path: ".arc/active/meta-demo.md", content: metaFor("demo", "core") }], []);
+    expect(validateFiles(Object.keys(files), fakeReader(files), live, stateOffBranch)).toEqual({ pass: true, diagnostics: [] });
+  });
+});

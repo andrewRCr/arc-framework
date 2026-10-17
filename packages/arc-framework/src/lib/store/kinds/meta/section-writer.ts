@@ -1,5 +1,7 @@
-/** Whole-body editing for the metadata Session Context section. */
+/** Whole-section editing for metadata Session Context and Pause. */
 
+import type { MetaPause } from "../../../active/meta-schema.js";
+import { pauseProseProblem, renderMetaPauseBody } from "./pause-section.js";
 import { locateMetaFieldBlock, type MetaFieldBlockLocation } from "./line-reading.js";
 
 interface SectionSpan {
@@ -8,13 +10,13 @@ interface SectionSpan {
   readonly lineEnding: string;
 }
 
-function sessionContextSpans(
-  block: MetaFieldBlockLocation, content: string, includePreamble: boolean,
+function sectionSpans(
+  block: MetaFieldBlockLocation, content: string, includePreamble: boolean, name: string,
 ): readonly SectionSpan[] {
   const spans: SectionSpan[] = [];
   for (let start = includePreamble ? 0 : block.h1Index + 1; start < block.lines.length; start += 1) {
     const heading = block.lines[start];
-    if (heading?.text !== "## Session Context") continue;
+    if (heading?.text !== `## ${name}`) continue;
     const insideBlock = start > block.h1Index && start < block.closingIndex;
     let end = start + 1;
     for (; end < block.lines.length; end += 1) {
@@ -49,7 +51,7 @@ export function writeMetaSessionContext(content: string, body: string | null): s
   if (body !== null && body.split(/\r?\n/u).some((line) => /^## /u.test(line) || line.trim() === "---")) {
     throw new Error("Cannot write Session Context: body contains a section boundary.");
   }
-  const targets = sessionContextSpans(block, content, body === null);
+  const targets = sectionSpans(block, content, body === null, "Session Context");
   if (body === null) {
     let result = content;
     for (const target of [...targets].reverse()) {
@@ -63,4 +65,27 @@ export function writeMetaSessionContext(content: string, body: string | null): s
   const start = target?.start ?? insertionOffset(block, content);
   const end = target?.end ?? start;
   return `${content.slice(0, start)}${rendered}${content.slice(end)}`;
+}
+
+/** Set, replace, insert, or remove the whole Pause section.
+ * @param content - Anchored metadata Markdown.
+ * @param pause - Whole pause state, or null to remove it.
+ * @returns Markdown preserving all bytes outside the section.
+ * @throws When any prose line would end the section.
+ */
+export function writeMetaPause(content: string, pause: MetaPause | null): string {
+  const block = locateMetaFieldBlock(content);
+  const targets = sectionSpans(block, content, pause === null, "Pause");
+  if (pause === null) {
+    let result = content;
+    for (const target of [...targets].reverse()) result = `${result.slice(0, target.start)}${result.slice(target.end)}`;
+    return result;
+  }
+  const problem = pauseProseProblem(pause);
+  if (problem !== null) throw new Error(`Cannot write Pause: ${problem}`);
+  const target = targets[0];
+  const ending = target?.lineEnding || block.lines[block.h1Index]?.lineEnding || "\n";
+  const body = renderMetaPauseBody(pause).replace(/\r?\n/gu, ending);
+  const start = target?.start ?? insertionOffset(block, content), end = target?.end ?? start;
+  return `${content.slice(0, start)}## Pause${ending}${ending}${body}${ending}${ending}${content.slice(end)}`;
 }

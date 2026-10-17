@@ -1,23 +1,23 @@
-# Metadata: Seam Lifecycle
+# Metadata: projected-markdown-checks
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
-- **Cohort:** `state-storage/storage-seam`
-- **Depends On:** `seam-record-kinds`
+- **Cohort:** `state-storage`
+- **Depends On:** [none]
 
-- **Origin:** [internal] — the `storage-seam` cut (2026-10-09)
-- **Design:** `draft-seam-lifecycle.md`
+- **Origin:** [internal] — the split of the `state-storage` register's lint clause (2026-10-16)
+- **Design:** `draft-projected-markdown-checks.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** [none]
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Begin draft-design
+- **Next Action:** —
 
 - **PR URL:** [none]
 - **Completed:** [none]

@@ -37,11 +37,8 @@ import { listGoneUpstreamBranches } from "../git/gone-upstream-branches.js";
 import type { WorktreeIdentity } from "../git/worktree-identity.js";
 import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
 import { SlugSchema, withRemoteEvidence } from "../kernel/index.js";
-import {
-  branchToWorkUnitSlug,
-  readShippedWorkUnitsFromExactRef,
-  readShippedWorkUnitsFromRef,
-} from "../work-unit/completed-index.js";
+import { readShippedWorkUnitsFromExactRef, readShippedWorkUnitsFromRef } from "../work-unit/completed-index.js";
+import { branchToWorkUnitSlug } from "../work-unit/work-unit-slug.js";
 import { locusOwnsBranch } from "./locus-classification.js";
 import {
   projectCleanupRemoteEvidence,

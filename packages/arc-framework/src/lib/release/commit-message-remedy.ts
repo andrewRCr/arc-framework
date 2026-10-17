@@ -11,9 +11,10 @@ const MESSAGE_FILE = "<message-file>";
  * would drop the reused commit's author and date.
  *
  * @param args - The refused commit's argv; none renders the placeholder alone.
+ * @param wrapperArgs - Leading wrapper metadata retained separately from Git arguments.
  * @returns Wrapper-only prepared-file retry guidance.
  */
-export function renderCommitMessageRemedy(args: readonly string[] = []): string {
+export function renderCommitMessageRemedy(args: readonly string[] = [], wrapperArgs: readonly string[] = []): string {
   if (reusesCommitMessage(args)) {
     return [
       "`-C` and `-c` reuse a commit's author and date as well as its message, which a prepared file cannot carry.",
@@ -22,6 +23,6 @@ export function renderCommitMessageRemedy(args: readonly string[] = []): string 
   }
   return [
     "Write the corrected message to a prepared file, then retry:",
-    renderReleaseCommitCommand(replaceCommitMessageSource(args, MESSAGE_FILE), [MESSAGE_FILE]),
+    renderReleaseCommitCommand([...wrapperArgs, ...replaceCommitMessageSource(args, MESSAGE_FILE)], [MESSAGE_FILE]),
   ].join("\n");
 }

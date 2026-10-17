@@ -38,19 +38,26 @@
  * @module
  */
 
+import { IncompleteWorktreePreparationError } from "../incomplete-worktree-preparation.js";
+import { claimSpawnedWorktree, requireSpawnedWorktreeClaim, requireSpawnedCheckoutCoordinate, removeDisposableSpawn,
+  type SpawnedCheckoutCoordinate } from "../spawned-worktree-claim.js";
 import { access, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
+import type { Store } from "../../store/contract.js";
+import { usesOffBranchState } from "../../store/lifecycle-write.js";
+import { createDefaultLocusPorts, requireMarkerExclusivity, type LocusPorts } from "../locus-ports.js";
 import type { GitExec } from "../../git/exec.js";
 import {
   nodeEditorDocumentsFs, writeEditorDocumentsOrThrow, type EditorDocumentsWriter,
 } from "../../schema-command/editor-documents.js";
-import { createLinkedWorktree } from "../../git/linked-worktree.js";
+import { createLinkedWorktree, type LinkedWorktreeCreationReceipt } from "../../git/linked-worktree.js";
 import { gitFailureText } from "../../git/process-error.js";
-import { isWorktreeClean } from "../../git/worktree-cleanup.js";
+import { checkWorktreeRemoval, clearMissingWorktreeRegistrations, removeWorktreeCheckout, describeRemovalRefusal, type ProjectionRemovalSlots } from "../../git/worktree-removal.js";
 import {
   ensureWorktreeMarkerIgnored,
   type WorktreeSubject,
+  type WorktreeMarker,
   writeWorktreeOwnershipMarker,
 } from "../../git/worktree-marker.js";
 import {
@@ -71,6 +78,9 @@ import { withWorktreeOperationLock } from "../worktree-operation-lock.js";
 /** Dependencies for {@link reconcileWorkUnitWorktree}. */
 export interface ReconcileWorkUnitWorktreeContext {
   writeEditorDocuments?: EditorDocumentsWriter;
+  store?: Store;
+  locusPorts?: LocusPorts;
+  projectionRemovalSlots?: ProjectionRemovalSlots;
   /** Git executor — runs `git worktree add` / `remove` / `list` / `status`. */
   exec: GitExec;
   /** Relocate the agent's process locus on a self-teardown. Production binds `process.chdir`. */
@@ -148,8 +158,10 @@ export type ReconcileWorkUnitWorktreeOp =
       mutation: "spawn";
       /** Fresh-worktree placement (the default). */
       inPlace?: false;
-      /** Full branch to create or re-attach (e.g. `plan/<name>`). */
-      branch: string;
+      /** Detached planning takes no branch. */
+      detached?: boolean;
+      /** Full branch to create or re-attach, absent for detached planning. */
+      branch?: string;
       /**
        * `true`/absent cuts a fresh branch (`-b <branch> <base>`, graduate / create-new); `false`
        * re-attaches an existing preserved branch (bare `git worktree add <path> <branch>`, resume).
@@ -178,12 +190,20 @@ export type ReconcileWorkUnitWorktreeOp =
       mutation: "spawn";
       /** In-place placement: check the branch out in the current worktree, no spawn. */
       inPlace: true;
-      /** Branch to place in the current worktree. */
-      branch: string;
+      /** Identity bound to an anchored marker on the store arm. */
+      spawningIdentity?: string;
+      /** Injectable marker timestamp. */
+      now?: number;
+      /** A no-link materialize claims only the marker and leaves HEAD unchanged. */
+      preserveHead?: boolean;
+      /** Branch to place, absent for a marker-only claim. */
+      branch?: string;
       /** Work-unit whose trusted transition owns this checkout. */
       wuName: string;
       /** `true` cuts a fresh branch (`-b`, graduate / create-new); `false` attaches an existing one (resume). */
-      createBranch: boolean;
+      createBranch?: boolean;
+      /** Exact selected commit for a newly created branch; omission retains Git's current-HEAD default. */
+      startPoint?: string;
       /**
        * Skip the physical `git checkout`, returning the branch for the caller to attach later. Resume sets
        * this: its tracked-branch pointer-record removal must be committed *before* switching off that branch
@@ -224,8 +244,12 @@ export type ReconcileWorkUnitWorktreeResult =
   | {
       mutation: "spawn";
       worktreePath: string;
-      branch: string;
+      branch: string | null;
       postCreateNotice?: string;
+      /** Exact marker bytes for a caller-owned anchored or spawned rollback. */
+      markerGeneration?: Buffer;
+      /** Initial fresh-checkout code position, before provisioning can add work. */
+      spawnCoordinate?: SpawnedCheckoutCoordinate;
     }
   | { mutation: "teardown"; worktreePath: string; locusHopped: boolean }
   | {
@@ -242,6 +266,7 @@ export type RenameWorktreeMoveResolution =
   | { status: "deferred-self-move"; from: string; to: string }
   | { status: "already-moved"; worktreePath: string; sourceWorktreePath: string }
   | { status: "unmatched"; worktreePath: string }
+  | { status: "anchored"; worktreePath: string }
   | { status: "in-place" };
 
 /**
@@ -255,12 +280,17 @@ export type RenameWorktreeMoveResolution =
  */
 export async function resolveRenameWorktreeMove(
   exec: GitExec,
-  params: { branch: string; oldSlug: string; newSlug: string; currentLocus: string },
+  params: { branch?: string; worktreePath?: string; oldSlug: string; newSlug: string; currentLocus: string; marker?: WorktreeMarker },
 ): Promise<RenameWorktreeMoveResolution> {
-  const registry = await resolveWorktreePathsByBranchResult(exec);
-  if (!registry.ok) throw new Error("could not read the registered worktree paths");
-  const from = registry.paths.get(params.branch);
+  let from = params.worktreePath;
+  if (from === undefined) {
+    const registry = await resolveWorktreePathsByBranchResult(exec);
+    if (!registry.ok) throw new Error("could not read the registered worktree paths");
+    from = params.branch === undefined ? undefined : registry.paths.get(params.branch);
+  }
   if (from === undefined) return { status: "in-place" };
+
+  if (params.marker?.spawnedByArc === false) return { status: "anchored", worktreePath: from };
 
   const leaf = basename(from);
   const slugOffset = leaf.lastIndexOf(params.oldSlug);
@@ -311,6 +341,8 @@ export interface ProvisionSpawnedWorktreeOp {
   primaryWorktreePath?: string;
   registeredHarnessDirs?: string;
   now?: number;
+  /** A store-backed spawn's claim, established before setup and retained unchanged. */
+  markerGeneration?: Buffer;
 }
 
 /**
@@ -332,7 +364,8 @@ export async function provisionSpawnedWorktree(
   });
   await ensureWorktreeMarkerIgnored(op.worktreePath, ctx.exec, ctx.fs);
   await writeEditorDocumentsOrThrow(op.worktreePath, ctx.exec, nodeEditorDocumentsFs, undefined, ctx.writeEditorDocuments);
-  await writeWorktreeOwnershipMarker(op.worktreePath, {
+  if (op.markerGeneration !== undefined) await requireSpawnedWorktreeClaim(op.worktreePath, op.markerGeneration);
+  else await writeWorktreeOwnershipMarker(op.worktreePath, {
     createdByArc: true,
     createdFor: { kind: "work-unit", name: op.wuName },
     spawningIdentity: op.spawningIdentity,
@@ -358,10 +391,11 @@ export async function reconcileWorkUnitWorktree(
   ctx: ReconcileWorkUnitWorktreeContext,
   op: ReconcileWorkUnitWorktreeOp,
 ): Promise<ReconcileWorkUnitWorktreeResult> {
+  const offBranch = usesOffBranchState(ctx.store);
   if (op.mutation === "move") {
     const selfMove = await isSelfTeardown(op.from, op.currentLocus);
     try {
-      await ctx.exec("git", ["worktree", "move", op.from, op.to]);
+      await ctx.exec("git", ["worktree", "move", "-f", "-f", op.from, op.to]);
     } catch (error) {
       if (!selfMove || !isOccupiedWorktreeMoveFailure(error)) throw error;
       return {
@@ -370,7 +404,7 @@ export async function reconcileWorkUnitWorktree(
         to: op.to,
         locusHopped: false,
         followUpNotice:
-          `Move the worktree from outside the worktree: git worktree move ${op.from} ${op.to}`,
+          `Move the worktree from outside the worktree: git worktree move -f -f ${op.from} ${op.to}`,
       };
     }
     if (selfMove) ctx.chdir(op.to);
@@ -381,21 +415,45 @@ export async function reconcileWorkUnitWorktree(
       locusHopped: selfMove,
     };
   }
+  if (op.mutation === "spawn" && offBranch) {
+    if (op.inPlace && op.spawningIdentity === undefined) throw new Error("anchored worktree claim requires a spawning identity");
+    await requireMarkerExclusivity(ctx.locusPorts, { name: op.wuName });
+  }
   if (op.mutation === "spawn" && op.inPlace) {
     // In place: cut/attach the branch in the current worktree — no `worktree add`,
     // no ownership marker (ARC did not mint this checkout). `deferCheckout` skips
     // the physical checkout — the caller (resume) re-attaches after committing the
     // pointer-record removal, since switching branches first would discard it.
-    if (!op.deferCheckout) {
-      const checkout = op.createBranch ? ["checkout", "-b", op.branch] : ["checkout", op.branch];
+    if (!op.deferCheckout && !op.preserveHead) {
+      if (op.branch === undefined) throw new Error("in-place worktree placement requires a branch or preserveHead");
+      if (offBranch) {
+        const primary = await resolvePrimaryWorktreePath(ctx.exec);
+        if (primary === null) throw new Error("cannot resolve the primary checkout before reattachment");
+        const cleared = await clearMissingWorktreeRegistrations({ exec: ctx.exec, branch: op.branch,
+          primaryWorktreePath: primary, folderExists: (path) => ctx.fs.directoryExists(path), slots: ctx.projectionRemovalSlots });
+        if (cleared.kind === "refused") throw new Error(cleared.reason);
+      }
+      const checkout = op.createBranch
+        ? ["checkout", "-b", op.branch, ...(op.startPoint === undefined ? [] : [op.startPoint])]
+        : ["checkout", op.branch];
       await ctx.exec("git", checkout);
     }
     const { stdout } = await ctx.exec("git", ["rev-parse", "--show-toplevel"]);
     const worktreePath = stdout.trim();
+    let markerGeneration: Buffer | undefined;
+    if (offBranch) {
+      const marker = await (ctx.locusPorts ?? createDefaultLocusPorts()).writeAnchoredMarker(worktreePath, {
+        spawnedByArc: false, wuName: op.wuName, createdFor: { kind: "work-unit", name: op.wuName },
+        spawningIdentity: op.spawningIdentity ?? "", createdAt: new Date(op.now ?? Date.now()).toISOString(),
+      });
+      if (marker.kind === "exists" || marker.kind === "generation-mismatch") throw new Error(`anchored marker write refused: ${marker.kind}`);
+      if (marker.kind === "created" || marker.kind === "replaced") markerGeneration = marker.bytes;
+    }
     return {
       mutation: "spawn",
       worktreePath,
-      branch: op.branch,
+      branch: op.branch ?? null,
+      ...(markerGeneration === undefined ? {} : { markerGeneration }),
     };
   }
 
@@ -406,46 +464,57 @@ export async function reconcileWorkUnitWorktree(
     // `..` that escapes the spawned worktree (`fatal: … outside repository`). Absolutize
     // a relative template against the repo root once, here, so every downstream consumer
     // gets an absolute path; an already-absolute template needs no root and passes through.
+    if (!op.detached && op.branch === undefined) throw new Error("branched worktree placement requires a branch");
+    let spawnCoordinate: SpawnedCheckoutCoordinate | undefined;
+    if (offBranch) {
+      const ref = op.detached || op.createBranch !== false ? op.base : `refs/heads/${op.branch}`;
+      const head = (await ctx.exec("git", ["rev-parse", "--verify", `${ref}^{commit}`], { objectAccess: "local-only" })).stdout.trim();
+      if (head === "") throw new Error("Cannot resolve the initial spawned checkout commit; retry after repairing its source ref.");
+      spawnCoordinate = { head, branch: op.detached ? null : `refs/heads/${op.branch}` };
+    }
+    const placement = { locationTemplate: op.locationTemplate, primaryWorktreePath: op.primaryWorktreePath,
+      repo: op.repo, placementName: op.wuName, base: spawnCoordinate?.head ?? op.base };
     const creation = await createLinkedWorktree({
-      exec: ctx.exec,
-      pathExists: (path) => ctx.fs.pathExists(path),
-    }, {
-      locationTemplate: op.locationTemplate,
-      primaryWorktreePath: op.primaryWorktreePath,
-      repo: op.repo,
-      placementName: op.wuName,
-      branch: op.branch,
-      createBranch: op.createBranch !== false,
-      base: op.base,
-    });
+      exec: ctx.exec, pathExists: (path) => ctx.fs.pathExists(path),
+      ...(offBranch ? { clearMissingRegistration: async (request: { targetPath: string; branch?: string }) => {
+        const primary = op.primaryWorktreePath ?? await resolvePrimaryWorktreePath(ctx.exec);
+        if (primary === null) throw new Error("cannot resolve the primary checkout before spawning");
+        const cleared = await clearMissingWorktreeRegistrations({ ...request, exec: ctx.exec,
+          primaryWorktreePath: primary, folderExists: (path) => ctx.fs.directoryExists(path), slots: ctx.projectionRemovalSlots });
+        if (cleared.kind === "refused") throw new Error(cleared.reason);
+      } } : {}),
+    }, op.detached ? { ...placement, detached: true } : { ...placement, branch: op.branch ?? "", createBranch: op.createBranch !== false });
     if (creation.kind === "refused") {
       throw new Error(`refusing linked worktree path collision: ${creation.worktreePath}`);
     }
     if (creation.kind === "error") throw creation.error;
     const { worktreePath } = creation.receipt;
+    let markerGeneration: Buffer | undefined;
     try {
-      const postCreateNotice = await provisionSpawnedWorktree(ctx, { ...op, worktreePath });
+      if (offBranch) markerGeneration = await claimSpawnedWorktree(worktreePath, op);
+      if (spawnCoordinate !== undefined) await requireSpawnedCheckoutCoordinate(ctx.exec, worktreePath, spawnCoordinate);
+      const postCreateNotice = await provisionSpawnedWorktree(ctx, { ...op, worktreePath, markerGeneration });
       return {
         mutation: "spawn",
         worktreePath,
-        branch: op.branch,
+        branch: creation.receipt.branch,
+        ...(markerGeneration === undefined ? {} : { markerGeneration }),
+        ...(spawnCoordinate === undefined ? {} : { spawnCoordinate }),
         ...(postCreateNotice === null ? {} : { postCreateNotice }),
       };
     } catch (error) {
-      const cleanupFailures = await rollbackFreshSpawn(ctx, creation.receipt);
+      const cleanupFailures = await rollbackFreshSpawn(ctx, creation.receipt, markerGeneration, spawnCoordinate);
       if (cleanupFailures.length === 0) throw error;
-      throw new AggregateError(
-        [error, ...cleanupFailures],
-        error instanceof Error ? error.message : String(error),
-        { cause: error },
-      );
+      throw new IncompleteWorktreePreparationError([worktreePath], cleanupFailures, error);
     }
   }
 
   const { worktreePath, currentLocus } = op;
-  if (op.huskApproved !== true && !(await isWorktreeClean({ exec: ctx.exec, cwd: worktreePath }))) {
-    throw new Error(`refusing to tear down a dirty worktree: ${worktreePath}`);
-  }
+  const removalOptions = { exec: ctx.exec, checkoutPath: worktreePath, disposition: "remove" as const,
+    folderExists: (path: string) => ctx.fs.directoryExists(path), check: ctx.projectionRemovalSlots?.check };
+  const preflight = await checkWorktreeRemoval(removalOptions);
+  if (preflight.kind === "refused") throw new Error(describeRemovalRefusal(preflight));
+  const folderPresent = preflight.kind !== "missing";
   if (op.huskApproved === true && await isSelfTeardown(worktreePath, currentLocus)) {
     throw new Error(`refusing to remove the current detached worktree: ${worktreePath}`);
   }
@@ -470,7 +539,8 @@ export async function reconcileWorkUnitWorktree(
     : null;
   let primary: string;
   if (lockedRetirement === null) {
-    primary = await reconcileUserSurfacesForRemoval(ctx, worktreePath);
+    primary = folderPresent ? await reconcileUserSurfacesForRemoval(ctx, worktreePath) : await resolvePrimaryWorktreePath(ctx.exec) ?? "";
+    if (primary === "") throw new Error(`cannot resolve the primary worktree before teardown of ${worktreePath}`);
   } else {
     primary = await resolvePrimaryWorktreePath(ctx.exec) ?? "";
     if (primary === "") throw new Error(`cannot resolve the primary worktree before teardown of ${worktreePath}`);
@@ -484,20 +554,23 @@ export async function reconcileWorkUnitWorktree(
     finalLocus = primary;
   }
 
-  const removeCheckout = () => ctx.exec("git", ["worktree", "remove", worktreePath]).then(() => undefined);
+  const removeCheckout = async (): Promise<void> => {
+    const result = await removeWorktreeCheckout({ ...removalOptions, primaryWorktreePath: primary, slots: ctx.projectionRemovalSlots });
+    if (result.kind === "refused") throw new Error(describeRemovalRefusal(result.check));
+    if (result.kind === "failed") throw new Error(`worktree removal failed at ${result.step}: ${result.detail}`);
+  };
   try {
     if (lockedRetirement !== null) {
       await lockedRetirement.driver.retire({
         expectedSelection: lockedRetirement.expectedSelection,
         revalidateLocal: async () => {
-          if (!(await isWorktreeClean({ exec: ctx.exec, cwd: worktreePath }))) {
-            throw new Error(`refusing to tear down a dirty worktree: ${worktreePath}`);
-          }
+          const check = await checkWorktreeRemoval(removalOptions);
+          if (check.kind === "refused") throw new Error(describeRemovalRefusal(check));
           if (await isSelfTeardown(worktreePath, ctx.readCurrentLocus?.() ?? finalLocus)) {
             throw new Error(`refusing to remove the current worktree: ${worktreePath}`);
           }
           await lockedRetirement.revalidateLocal?.();
-          await reconcileUserSurfacesForRemoval(ctx, worktreePath);
+          if (folderPresent) await reconcileUserSurfacesForRemoval(ctx, worktreePath);
         },
         retireProjection: removeCheckout,
       });
@@ -508,7 +581,7 @@ export async function reconcileWorkUnitWorktree(
           cwd: checkoutPath,
           operation: async () => operation(),
         }));
-      await serialize(worktreePath, removeCheckout);
+      await serialize(finalLocus, removeCheckout);
     }
   } catch (error) {
     if (!locusHopped) throw error;
@@ -544,9 +617,18 @@ export async function reconcileWorkUnitWorktree(
 
 async function rollbackFreshSpawn(
   ctx: ReconcileWorkUnitWorktreeContext,
-  receipt: { readonly worktreePath: string; readonly branch: string; readonly branchCreated: boolean },
+  receipt: LinkedWorktreeCreationReceipt,
+  markerGeneration?: Buffer,
+  coordinate?: SpawnedCheckoutCoordinate,
 ): Promise<unknown[]> {
   const failures: unknown[] = [];
+  if (usesOffBranchState(ctx.store)) {
+    try {
+      await removeDisposableSpawn({ exec: ctx.exec, path: receipt.worktreePath, markerGeneration, coordinate,
+        ...(receipt.branchCreated ? { createdBranch: receipt.branch } : {}) });
+      return [];
+    } catch (error) { return [error]; }
+  }
   try {
     await ctx.exec("git", ["worktree", "remove", "--force", receipt.worktreePath]);
   } catch (error) {
@@ -567,7 +649,8 @@ function isOccupiedWorktreeMoveFailure(error: unknown): boolean {
     .test(gitFailureText(error));
 }
 
-async function reconcileUserSurfacesForRemoval(
+/** Preserve linked identity-global user files in the primary checkout before physical removal. */
+export async function reconcileUserSurfacesForRemoval(
   ctx: ReconcileWorkUnitWorktreeContext,
   worktreePath: string,
 ): Promise<string> {

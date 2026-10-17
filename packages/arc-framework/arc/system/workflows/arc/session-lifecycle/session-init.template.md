@@ -231,9 +231,9 @@ are the **signal-absent** path.
   run `arc start --here --from <seed>`; otherwise run bare `arc start --here`. Either scaffolds a Planning meta and
   seeded SESSION-NOTES into the current worktree, with an advisory ownership marker since ARC didn't create it. Show the
   seed's resolved disposition in the offer so the user confirms the reading, not just the act — the command reads an
-  issue ref as `Origin`, an ARC spec artifact (`draft-` / `spec-`) as `Design`, and passes anything else (a file/URL or
-  free-text blurb) through for you to interpret. On accept, run the command, **re-run the Step 1 probe**, and proceed as
-  **Resume**. On decline, fall through to **Orient**.
+  issue ref as `Origin` and passes every other seed — including a draft or spec (`draft-` / `spec-`), a file/URL, or
+  a free-text blurb — through for you to interpret during planning. On accept, run the command, **re-run the Step 1
+  probe**, and proceed as **Resume**. On decline, fall through to **Orient**.
 - **Materialize** — the probe surfaces remote-only work units in `materializableWorkUnits.value.candidates` and eligible
   identity-backed Errands in `errandState.value.materializable.candidates`. Surface the candidates and ask which to
   materialize when more than one is present; never guess — the candidate lists _are_ the correctness mechanism. For a

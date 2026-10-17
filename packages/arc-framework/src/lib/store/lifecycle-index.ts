@@ -1,5 +1,8 @@
 /** Identity-based lifecycle queries over the public storage contract. */
-import { ParsedMetaRecordSchema, type ParsedMetaRecord } from "../active/meta-schema.js";
+import { MetaPauseSchema, ParsedMetaRecordSchema, type ParsedMetaRecord } from "../active/meta-schema.js";
+import { inspectMetaPauseStructure } from "./kinds/meta/line-reading.js";
+import { validateCohortPath } from "../active/cohort-path.js";
+import { workUnitMetaPath } from "./lifecycle-write.js";
 import { parseMetaRecord } from "../active/meta-reader.js";
 import { validateState, validatePriority } from "../kernel/schema/vocabulary.js";
 import type { Phase, Location } from "../work-unit/lifecycle-state.js";
@@ -104,9 +107,17 @@ function lifecycleEntry(record: StoreRecord): LifecycleEntry | ListingDiagnostic
   try {
     const decoded = ParsedMetaRecordSchema.safeParse(record.fields);
     const fields = decoded.success ? decoded.data : parseMetaRecord(record.content);
+    const pauseDefects = inspectMetaPauseStructure(record.content);
+    if (pauseDefects.length > 0) return malformedMeta(record, pauseDefects.join("; "));
+    if (fields.pause !== null && !MetaPauseSchema.safeParse(fields.pause).success) {
+      return malformedMeta(record, "Pause holds invalid durable scalar values.");
+    }
     const phase = validateState(fields.state);
     if (phase === "unknown") return malformedMeta(record, `Unrecognized State ${JSON.stringify(fields.state)}.`);
+    const cohortDefect = validateCohortPath(fields.cohort ?? "");
+    if (cohortDefect !== null) return malformedMeta(record, cohortDefect);
     const placement = record.placement;
+    workUnitMetaPath({ ...record, fields });
     const location = placement.kind === "backlog" ? placement.commitment : placement.kind;
     return { reference: record.reference, version: record.version, fields, placement, phase, location };
   } catch (error) {

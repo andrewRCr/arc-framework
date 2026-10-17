@@ -27,7 +27,8 @@ export type RefusalIdentifier =
   | "branch-protection-violation"
   | "pushability-precheck-failed"
   | "arg-grammar-fallthrough"
-  | "commit-message-preflight-failed";
+  | "commit-message-preflight-failed"
+  | "close-precheck-failed";
 
 /**
  * Mapping from `RefusalCode` to `RefusalIdentifier`. Single source of
@@ -42,6 +43,7 @@ export const REFUSAL_IDENTIFIERS: Readonly<Record<RefusalCode, RefusalIdentifier
   14: "pushability-precheck-failed",
   15: "arg-grammar-fallthrough",
   16: "commit-message-preflight-failed",
+  17: "close-precheck-failed",
 };
 
 // --- Authorization decision ---
@@ -98,7 +100,8 @@ export type AuthorizationDecision =
       code: 16;
       identifier: "commit-message-preflight-failed";
       reason: "validation" | "input";
-    };
+    }
+  | { kind: "refuse"; code: 17; identifier: "close-precheck-failed"; check: string; reason: string; remedy: string };
 
 // --- Refusal-message helper signature ---
 
