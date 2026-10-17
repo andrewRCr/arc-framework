@@ -17,7 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Merge `origin/main` into the branch (merge, not rebase), then begin generate-tasks
 
 - **PR URL:** [none]
 - **Completed:** [none]
