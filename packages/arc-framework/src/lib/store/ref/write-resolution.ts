@@ -36,6 +36,16 @@ export async function resolveRefWrites(context: RefBackendContext, writes: reado
     const reference = RecordReferenceSchema.parse({ ...mutation.reference, owner });
     resolved.push({ mutation: { ...mutation, reference }, home: expandStoredPath(reference, { registry: context.registry }) });
   }
+  for (const write of resolved) {
+    if (write.mutation.resolves === undefined) continue;
+    const resolves: RecordReference[] = [];
+    for (const reference of write.mutation.resolves) {
+      const found = resolveOwner(reference, owners, fresh);
+      if (found.status === "refused") return found;
+      resolves.push(RecordReferenceSchema.parse({ ...reference, owner: found.result }));
+    }
+    write.mutation = { ...write.mutation, resolves };
+  }
   return { status: "ok", result: { writes: resolved, tips } };
 }
 

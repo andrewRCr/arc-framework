@@ -15,6 +15,7 @@ import { renderStoreCommitMessage } from "../commit-provenance.js";
 import { checkSerializationRules } from "../serialization.js";
 import { checkRefPathCollision, type RefPathNeighbor } from "./path-admission.js";
 import { decodeStoredReference } from "./path-decode.js";
+import { familyOf } from "../catalog.js";
 
 interface RefGroup { entries: Map<string, RefTreeEntry>; metadata: RefMetadata }
 
@@ -59,12 +60,29 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
 function capturedWriteRefusal(context: RefBackendContext, resolved: ResolvedBatch, groups: ReadonlyMap<string, RefGroup>): StoreRefusal | undefined {
   const collision = storedPathCollision(context, resolved, groups);
   if (collision) return collision;
+  const primary = primaryPlacementRefusal(resolved, groups);
+  if (primary) return primary;
   const stale = staleMutations(resolved, groups);
   if (stale.length > 0) return {
     code: "version-conflict", class: "recoverable", records: stale,
     condition: "The expected record versions do not match the captured state",
     remedy: { text: "Read every conflicting record, then retry the whole batch with its current versions." },
   };
+  return undefined;
+}
+
+function primaryPlacementRefusal(resolved: ResolvedBatch, groups: ReadonlyMap<string, RefGroup>): StoreRefusal | undefined {
+  const primaryPuts = new Set(resolved.writes.filter(({ mutation }) => mutation.action === "put"
+    && (mutation.reference.kind === "work-item/meta" || mutation.reference.kind === "work-item/record")).map(({ home }) => home.ref));
+  for (const { mutation, home } of resolved.writes) {
+    const { reference } = mutation;
+    if (mutation.action !== "put" || reference.kind.endsWith("/conflict-record")
+      || !["work-item", "review"].includes(familyOf(reference.kind))) continue;
+    if (primaryPuts.has(home.ref) || groups.get(home.ref)?.metadata.primary !== undefined) continue;
+    return { code: "record-malformed", class: "recoverable", reference, rule: "store.primary-placement",
+      condition: "This work-item or review record has no primary or retained placement.",
+      remedy: { text: "Create its work-item primary with placement, separately or in the same atomic batch, then retry the companion write." } };
+  }
   return undefined;
 }
 

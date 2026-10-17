@@ -432,7 +432,7 @@ _Mode:_ `layer` through Phase 8 — closes on the local engine complete in both 
   per-segment byte limits; combined names retain their key limit, with public persistence, listing, atomic refusal,
   and repaired retries covered.
 
-### `[ ]` **5.2 Validation: key rules, parsers, entry stamps, and writer rules — § 3.2, § 3.3, § 5.1**
+### `[x]` **5.2 Validation: key rules, parsers, entry stamps, and writer rules — § 3.2, § 3.3, § 5.1**
 
 - _Goal:_ A put whose key, content, or writer the contract forbids refuses before any lock is taken — but for a path
   colliding with a stored record's, which only the tips read under the locks can show — and an entry kind's stamped IDs
@@ -448,16 +448,10 @@ _Mode:_ `layer` through Phase 8 — closes on the local engine complete in both 
           frames and deriving stable IDs from the original reference, expected base, and bytes. Writes prepare once
           across retries, preserve existing IDs and formatting, and recheck final serialized bytes before storage.
 
-    - `[ ]` **5.2.c Writer rules and the primary a record needs**
-        - A put of a work-item or review record whose owner has neither a primary nor a kept placement (§ 3.3) refuses
-          `record-malformed`, with the remedy to create the primary first or in the same batch; a conflict record is
-          exempt, as the reference backend exempts it (`validatePlacement`, `__tests__/helpers/store/write.ts`)
-        - Build `test-first` (one behavior at a time):
-            - a write to a `write-once` kind by a verb outside its `writerVerbs` refuses `record-malformed`
-            - a removal of a conflict record its write's `resolves` does not name refuses `record-malformed` with the
-              remedy to name it
-            - a task list put for an owner with no primary refuses with that remedy, and lands in a batch that creates
-              the primary
+    - `[x]` **5.2.c Writer rules and the primary a record needs**
+        - Declared writer verbs and explicit self-resolution gate mutations before locks; name and UID handles resolve
+          through one captured namespace. Companion puts require captured primary metadata or a primary anywhere in
+          the batch, retain placement after primary removal, and exempt conflict records.
 
 ### `[ ]` **5.3 Live owners, the shared slug namespace, and lineage owners — § 3.3, § 5.1**
 

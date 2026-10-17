@@ -14,6 +14,7 @@ import type { ResolvedBatch } from "./write-resolution.js";
 import { checkSerializationRules } from "../serialization.js";
 import { checkRefKey, checkRefBatchPaths } from "./path-admission.js";
 import { prepareRefPut } from "./prepare-content.js";
+import { checkRefWriterRules } from "./writer-admission.js";
 
 /** Describe invalid mutation content without changing any state. */
 export function malformedMutation(reference: RecordReference, condition: string, rule = "store.mutation"): StoreRefusal {
@@ -50,7 +51,7 @@ export async function batchRefRecords(context: RefBackendContext, input: BatchIn
     const refusal = checkSerializationRules(mutation.reference, mutation.content);
     if (refusal) return { status: "refused", refusal };
   }
-  const prepared = prepareBatchPuts(context, parsed.writes);
+  const prepared = prepareBatchPuts(context, parsed);
   if (prepared.status === "refused") return prepared;
   try {
     return await executeRefBatch(context, { ...parsed, writes: prepared.result }, randomUUID());
@@ -70,13 +71,28 @@ function parseBatchInput(input: BatchInput): StoreResult<BatchInput> {
   return { status: "refused", refusal: mutationValidationFailure(mutation, parsed.error.message) };
 }
 
-function prepareBatchPuts(context: Pick<RefBackendContext, "registry">, writes: readonly Mutation[]): StoreResult<Mutation[]> {
-  const result: Mutation[] = [];
+function checkMutationReferences(context: Pick<RefBackendContext, "registry">, writes: readonly Mutation[],
+  verb: string): StoreRefusal | undefined {
   for (const mutation of writes) {
-    if (mutation.action === "remove") { result.push(mutation); continue; }
-    const prepared = prepareRefPut(mutation.reference, mutation.expected, mutation.content, context.registry);
-    if (prepared.status === "refused") return prepared;
-    result.push({ ...mutation, content: prepared.result });
+    const refusal = checkRefKey(mutation.reference, context.registry)
+      ?? checkRefWriterRules(mutation, verb, context.registry, true);
+    if (refusal) return refusal;
+  }
+  return undefined;
+}
+
+function prepareBatchPuts(context: Pick<RefBackendContext, "registry">, input: BatchInput): StoreResult<Mutation[]> {
+  const result: Mutation[] = [];
+  for (const mutation of input.writes) {
+    let next = mutation;
+    if (mutation.action === "put") {
+      const prepared = prepareRefPut(mutation.reference, mutation.expected, mutation.content, context.registry);
+      if (prepared.status === "refused") return prepared;
+      next = { ...mutation, content: prepared.result };
+    }
+    const writer = checkRefWriterRules(next, input.provenance.verb, context.registry);
+    if (writer) return { status: "refused", refusal: writer };
+    result.push(next);
   }
   return { status: "ok", result };
 }
@@ -92,10 +108,8 @@ async function executeRefBatch(context: RefBackendContext, input: BatchInput, ba
   for (;;) {
     const resolved = await resolveRefWrites(context, input.writes);
     if (resolved.status === "refused") return resolved;
-    for (const write of resolved.result.writes) {
-      const invalidKey = checkRefKey(write.mutation.reference, context.registry);
-      if (invalidKey) return { status: "refused", refusal: invalidKey };
-    }
+    const admission = checkMutationReferences(context, resolved.result.writes.map((write) => write.mutation), input.provenance.verb);
+    if (admission) return { status: "refused", refusal: admission };
     const collision = checkRefBatchPaths(resolved.result.writes.filter((write) => write.mutation.action === "put")
       .map((write) => write.mutation.reference), context.registry);
     if (collision) return { status: "refused", refusal: collision };
