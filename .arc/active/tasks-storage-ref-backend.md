@@ -1061,13 +1061,15 @@ in both layouts with no exclusion beyond § 14.1's, 4.4.d's last set removed (9.
   ambiguous atomic failures by lease or local ancestry without fetching code; unattributed failures wait for state,
   and code inspection failures and ordered-leg races leave state independently publishable.
 
-### `[ ]` **11.6 Sync between clones** — validate exit criterion at segment scope
+### `[x]` **11.6 Sync between clones** — validate exit criterion at segment scope
 
 - _Goal:_ Every integration case of § 14.5 passes, in both layouts where it names them, with no lost write, but the
   three the exit criterion leaves to 12.2.b, 15.2, 16.1, and 12.2.c, and the shared suite runs with no interim
   exclusion left.
 
-    - Request `arc check segment`
+- _Outcome:_ The sync scenario covers both layouts, fault recovery, and lifecycle races without lost writes. Both
+  shared suites retain only permanent applicability exclusions. Empty fetches, failed tracking updates, and partial-clone
+  completeness revalidate A13, A15, and A17.
 
 ## **Phase 12:** Designation and read sources
 

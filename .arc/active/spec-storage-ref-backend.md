@@ -4121,7 +4121,7 @@ open:
   _Supersedes:_ none. _Trigger:_ 8.3 must-stop. _Work:_ 16.R. _Revalidated:_ pending → 16.R.
 
 - **A13** — 2026-10-17 — design: empty state fetches use an unmatched state tip instead of unconditional refetch.
-  _Supersedes:_ § 6.2 no-held-tip branch. _Trigger:_ 9.1.b must-stop. _Work:_ 9.1.R. _Revalidated:_ pending → 11.6.
+  _Supersedes:_ § 6.2 no-held-tip branch. _Trigger:_ 9.1.b must-stop. _Work:_ 9.1.R. _Revalidated:_ 11.6.
 
 - **A14** — 2026-10-17 — task: bind the session synchronization port to the invocation's selected store after the
   locus seam is available. _Supersedes:_ none; realizes § 6.1's session pull and § 12's maintenance through
@@ -4138,12 +4138,12 @@ open:
   that the conflict view omits them, and passes through the retained-conflict remedy.
 
 - **A15** — 2026-10-17 — design: failed fetches verify reported updates against actual tracking tips.
-  _Supersedes:_ § 6.3 failed-update flag premise. _Trigger:_ 11.1 must-stop. _Work:_ 11.1.R. _Revalidated:_ pending → 11.6.
+  _Supersedes:_ § 6.3 failed-update flag premise. _Trigger:_ 11.1 must-stop. _Work:_ 11.1.R. _Revalidated:_ 11.6.
 
 - **A16** — 2026-10-17 — spec-depth: inspect and explicitly discard lineage-ended conflicts without reviving the owner.
   _Supersedes:_ none. _Trigger:_ door. _Work:_ 13.5.R. _Revalidated:_ pending → 13.5.R.
 
 - **A17** — 2026-10-17 — design: partial-clone checks traverse fetched tips without tracking cutoffs.
-  _Supersedes:_ § 6.2 tracking-tip cutoffs. _Trigger:_ 11.3 must-stop. _Work:_ 11.3.R. _Revalidated:_ pending → 11.6.
+  _Supersedes:_ § 6.2 tracking-tip cutoffs. _Trigger:_ 11.3 must-stop. _Work:_ 11.3.R. _Revalidated:_ 11.6.
 
 ---
