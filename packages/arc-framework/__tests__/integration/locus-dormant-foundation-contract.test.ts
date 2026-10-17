@@ -61,6 +61,7 @@ const expectedSourceIncoming: Readonly<Record<(typeof dormantModules)[number], r
     "src/lib/session-init/locus-classification.ts",
     "src/lib/session-init/orphan-branch-sweep.ts",
     "src/lib/session-init/stale-worktree-sweep.ts",
+    "src/lib/status/slug-position.ts",
   ],
   "src/lib/locus/occupancy-marker.ts": [
     "src/lib/locus/derived-evidence.ts",
@@ -116,6 +117,7 @@ const expectedTestIncoming: Readonly<Record<(typeof dormantModules)[number], rea
     "__tests__/unit/recover/locus-context.test.ts",
     "__tests__/unit/session-init/locus-classification.test.ts",
     "__tests__/unit/session-init/stale-worktree-sweep.test.ts",
+    "__tests__/unit/status/slug-position.test.ts",
   ],
   "src/lib/locus/occupancy-marker.ts": [
     "__tests__/unit/locus/derived-lifecycle-evidence.test.ts",
