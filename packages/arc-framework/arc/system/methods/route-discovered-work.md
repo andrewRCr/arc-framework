@@ -106,6 +106,8 @@ learned at its start is not a position. These rules govern the defaults below wi
 by capture first. Propose the message to the Owner, and send it without asking only where the two sessions already
 have a conversation. Use the harness's session messaging where it has one; otherwise give the Owner the message to
 relay. A message for the Owner to approve or relay ends the turn it appears in: produce it when it is ready, then stop.
+A message places nothing until the target's owner adopts the concern; if the Owner declines to send it or the target
+declines it, the concern takes the door's other outcomes.
 
 ### Integration and re-triage
 
