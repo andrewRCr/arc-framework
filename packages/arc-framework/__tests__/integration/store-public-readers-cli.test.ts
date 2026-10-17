@@ -32,7 +32,7 @@ async function fixture() {
   await h.seed(recordReferences["work-item/spec"](paused.reference.owner), "# Specification: paused-unit\n\n**Purpose:** Read records reliably. More detail follows.\n");
   await exec("git", ["branch", "feat/paused-unit"]);
   const holder = join(cwd, ".arc-checkouts", "anchored-holder");
-  await exec("git", ["worktree", "add", "--detach", holder, "main"]);
+  await exec("git", ["worktree", "add", holder, "feat/paused-unit"]);
   await ensureWorktreeMarkerIgnored(holder, exec, nodeWorktreeMarkerIgnoreFs);
   await writeWorktreeMarker(holder, { spawnedByArc: false, spawningIdentity: "test-user", createdAt: "2026-10-15T00:00:00Z",
     createdFor: { kind: "work-unit", name: "paused-unit" } });
@@ -72,4 +72,33 @@ it("status uses the default anchored-holder lookup and retains lifecycle details
   stored.content = "Malformed metadata bytes";
   const degraded = await invoke(h, ["status", "paused-unit", "--json"]);
   expect(degraded).toMatchObject({ ...expected, warnings: expect.arrayContaining([expect.stringContaining("broken-unit")]) });
+}, 30_000);
+
+it("errand check reports committed and checkout code overlap for paused and branchless work", async () => {
+  const h = await fixture();
+  const planningHolder = join(h.cwd, ".arc-checkouts", "planning-holder");
+  await h.exec("git", ["worktree", "add", "--detach", planningHolder, "main"]);
+  await ensureWorktreeMarkerIgnored(planningHolder, h.exec, nodeWorktreeMarkerIgnoreFs);
+  await writeWorktreeMarker(planningHolder, { spawnedByArc: false, spawningIdentity: "test-user", createdAt: "2026-10-15T00:00:00Z",
+    createdFor: { kind: "work-unit", name: "planning-unit" } });
+  await mkdir(join(h.holder, "src"));
+  await writeFile(join(h.holder, "src/committed.ts"), "export const committed = true;\n");
+  await h.exec("git", ["add", "src/committed.ts"], { cwd: h.holder });
+  await h.exec("git", ["commit", "-m", "Change shared code"], { cwd: h.holder });
+  await writeFile(join(h.holder, "src/checkout.ts"), "export const checkout = true;\n");
+  await mkdir(join(planningHolder, "src"));
+  await writeFile(join(planningHolder, "src/planning.ts"), "export const planning = true;\n");
+  await h.seedMeta("caller", { state: "Planning", currentWorkflow: "draft-design" });
+  await ensureWorktreeMarkerIgnored(h.cwd, h.exec, nodeWorktreeMarkerIgnoreFs);
+  await writeWorktreeMarker(h.cwd, { spawnedByArc: false, spawningIdentity: "test-user", createdAt: "2026-10-15T00:00:00Z",
+    createdFor: { kind: "work-unit", name: "caller" } });
+  await mkdir(join(h.cwd, "src"));
+  await writeFile(join(h.cwd, "src/caller.ts"), "export const caller = true;\n");
+  const result = await invoke(h, ["errand", "check", "--target", "src/committed.ts", "src/checkout.ts", "src/planning.ts", "src/caller.ts", "--json"]);
+  expect(result.overlaps).toEqual(expect.arrayContaining([
+    expect.objectContaining({ workItem: "paused-unit", branch: "feat/paused-unit", worktreePath: h.holder, matchedPaths: ["src/committed.ts", "src/checkout.ts"] }),
+    expect.objectContaining({ workItem: "planning-unit", worktreePath: planningHolder, matchedPaths: ["src/planning.ts"] }),
+  ]));
+  expect(result.overlaps).toHaveLength(2);
+  expect(result.indeterminate ?? []).toEqual([]);
 }, 30_000);

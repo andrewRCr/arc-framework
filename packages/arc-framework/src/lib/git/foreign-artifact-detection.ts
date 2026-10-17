@@ -174,14 +174,15 @@ export async function preferRemoteBaseRef(exec: GitExec, baseBranch: string): Pr
 }
 
 /**
- * In-flight = a meta-bearing worktree whose WU has not shipped. A `Shipped` WU
+ * In-flight work units carry a Store identity or a legacy meta path. A `Shipped` WU
  * has already merged to base, so it can plant no future cross-branch conflict;
  * every other state (Planning / Active / Integrating, or an unparseable State)
  * still occupies a branch that will merge, so it counts. Meta-less admin/main
  * checkouts carry no WU and never count.
  */
 function isUnshippedWorkUnit(entry: OverlapCandidateEntry): boolean {
-  return entry.metaFilePath !== undefined && entry.state !== "Shipped";
+  const workUnit = entry.metaFilePath !== undefined || (entry.workItem !== undefined && entry.name !== undefined);
+  return workUnit && entry.state !== "Shipped";
 }
 
 /** An unshipped work unit, or an Errand, whose branch is still to merge. */
