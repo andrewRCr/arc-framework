@@ -14,6 +14,8 @@ import { syncRefMergeBase } from "./sync-graph.js";
 import { reconcileSyncRecords } from "./sync-records.js";
 import { mergeSyncMetadata } from "./sync-metadata.js";
 import { writeRefBlob } from "./tree-write.js";
+import { isArchiveRef } from "./archive-read.js";
+import { mergeArchiveTree } from "./sync-archive.js";
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 
 /** One immutable side's raw entries and validated group metadata. */
@@ -23,6 +25,10 @@ export interface SyncMergedTree { entries: Map<string, RefTreeEntry>; reference:
 
 /** Merge independently changed tree entries and metadata over their captured common ancestor. */
 export async function mergeSyncTree(context: RefBackendContext, ref: string, local: string, incoming: string): Promise<StoreResult<SyncMergedTree>> {
+  return isArchiveRef(ref) ? mergeArchiveTree(context, ref, local, incoming) : mergeGroupTree(context, ref, local, incoming);
+}
+
+async function mergeGroupTree(context: RefBackendContext, ref: string, local: string, incoming: string): Promise<StoreResult<SyncMergedTree>> {
   const live = ref.replace("refs/arc/history/", "refs/arc/"), family = viewRefFamily(live);
   if (!family) return { status: "refused", refusal: corruptRef(ref) };
   const prototype = refPrototype(context, live, family);

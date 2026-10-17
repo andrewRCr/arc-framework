@@ -834,13 +834,10 @@ converge with no lost write.
           merge-base versions, and record-changing labels. Lock refusal retains completed refs and supports retry.
             - _Retired in:_ Phase 10
 
-    - `[ ]` **9.2.b A quarter's merge renumbers**
-        - Build `test-first` (one behavior at a time):
-            - where both sides archived into one quarter, this clone's unpublished folders take the next sequences after
-              the remote's highest, in this clone's order, and a published folder keeps its number
-            - a cohort folder that took a member's number takes that member's new number, and one that took the
-              quarter's next renumbers as a work unit
-            - `changes` over the window groups the merge's entries under the merge's batch
+    - `[x]` **9.2.b A quarter's merge renumbers**
+        - Quarter merges select whole folders against their base, preserve published numbers, and renumber local
+          unpublished folders after the remote in local order. Cohorts retain borrowed member assignments or take the
+          next number; saved-state changes keep each merge's records under its one stored batch.
 
     - `[ ]` **9.2.c Checks report and rules never gate**
         - Build `test-first` (one behavior at a time):
