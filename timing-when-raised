@@ -3,7 +3,7 @@
   "slug": "timing-when-raised",
   "claimId": "a49e6a9c0cee40fde86add340d35290e",
   "createdAt": "2026-10-17T18:47:10.286Z",
-  "updatedAt": "2026-10-17T18:47:10.286Z",
+  "updatedAt": "2026-10-17T19:32:55.011Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Let routing and working-memory proposals land when they arise, keeping draft close and handoff as backstop sweeps",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Let routing and working-memory proposals happen when they arise, not only at draft close or handoff",
   "originEntrySourceDigest": "sha256:2917a9e6b4d3564c6ec4ce47d8da6f46b4b77b3b821a558cb16a9f549146f0b7",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/timing-when-raised",
+    "headSha": "5df59bd9469510eb80e4d50e07456d8bc8c3fcd1"
+  }
 }
