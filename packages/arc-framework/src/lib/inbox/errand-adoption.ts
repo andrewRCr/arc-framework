@@ -1,4 +1,5 @@
 /** Entry adoption plans join Errand identity transitions in one batch. */
+import { randomUUID } from "node:crypto";
 import { OwnerIdentitySchema, recordReferences } from "../store/identity.js";
 import { drawEntryId, writeEntryFields } from "../store/kinds/entry-fields.js";
 import type { Mutation } from "../store/write.js";
@@ -50,15 +51,19 @@ async function descriptionFor(slug: string, context: InboxContext): Promise<Inbo
   if (existing.status === "ok") {
     if (existing.result.kind !== "work-item/description") return failure("invalid-destination", `${slug} is a work unit.`, "Choose an Errand slug.");
     if (existing.result.primary?.placement?.kind !== "completed") return existing;
-    const reference = recordReferences["work-item/description"](OwnerIdentitySchema.parse({ type: "work-item", name: slug }));
+    const reference = newDescriptionReference(slug);
     return { status: "ok", result: { selector: slug, reference, kind: "work-item/description", saved: null,
       primary: null, owner: context.identity, state: "open", inbox: null } };
   }
   if (existing.refusal.code !== "not-found") return existing;
-  const reference = recordReferences["work-item/description"](OwnerIdentitySchema.parse({ type: "work-item", name: slug }));
+  const reference = newDescriptionReference(slug);
   const read = await context.store.read({ reference });
   if (read.status === "refused" && read.refusal.code !== "not-found") return { status: "refused", refusal: withProvenance(read.refusal) };
   return { status: "ok", result: { selector: slug, reference, kind: "work-item/description", saved: read.status === "ok" ? read.result : null, primary: null, owner: context.identity, state: "open", inbox: null } };
+}
+
+function newDescriptionReference(slug: string) {
+  return recordReferences["work-item/description"](OwnerIdentitySchema.parse({ type: "work-item", name: slug, uid: randomUUID() }));
 }
 
 async function prepareTextDescription(input: { slug: string; intent?: string; partial?: boolean }, context: InboxContext): Promise<InboxOutcome<ErrandAdoption>> {

@@ -119,7 +119,9 @@ async function prepareMutation(options: ErrandStoreOptions, slug: string, saved:
   if (computed === undefined && retirement === undefined) return { kind: "refused" as const, reason: "Errand removal requires an exact retirement generation." };
   const value = computed ?? { ...retirement, updatedAt: now } as OrdinaryErrandRecord;
   const content = serializeTransientIdentityRecord(value);
-  const reference = saved?.reference ?? recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: slug }));
+  const plannedOwner = options.companionWrites?.find(write => write.action === "put" && write.reference.kind === "work-item/description"
+    && write.reference.owner.type === "work-item" && write.reference.owner.name === slug)?.reference.owner;
+  const reference = saved?.reference ?? recordReferences["work-item/record"](plannedOwner ?? OwnerIdentitySchema.parse({ type: "work-item", name: slug }));
   let links = saved?.links;
   if (saved === null) {
     const project = await resolveProjectIdentity(options.projectId ?? createProjectIdentityReader(options.store));

@@ -33,10 +33,11 @@ it("returns the capture and retires the failed claim after actual Git provisioni
   expect((await repairCli(f, ["errand", "queue", "--json"])).result).toMatchObject({ state: "listed", members: [] });
   const receipts = await readRoutingReceipts(f.h.context);
   if (receipts.status !== "ok") throw new Error(receipts.refusal.condition);
+  const uid = record.reference.owner.type === "work-item" ? record.reference.owner.uid : undefined;
   expect(receipts.result).toHaveLength(2);
   expect(receipts.result).toEqual(expect.arrayContaining([
-    expect.objectContaining({ entryId: "12345678", source: { list: "project", section: "Inbox" }, destination: { list: slug, section: "Description" } }),
-    expect.objectContaining({ entryId: "12345678", source: { list: slug, section: "Description" }, destination: { list: "project", section: "Inbox" } }),
+    expect.objectContaining({ entryId: "12345678", source: { list: "project", section: "Inbox" }, destination: { list: uid, section: "Description" } }),
+    expect.objectContaining({ entryId: "12345678", source: { list: uid, section: "Description" }, destination: { list: "project", section: "Inbox" } }),
   ]));
   expect(await readWorktreeMarker(f.cwd)).toEqual({ kind: "absent" });
   expect((await f.exec("git", ["branch", "--show-current"])).stdout.trim()).toBe("main");

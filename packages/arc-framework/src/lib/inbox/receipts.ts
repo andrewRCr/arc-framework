@@ -8,15 +8,14 @@ import type { InboxContext, InboxOutcome } from "./types.js";
 
 /** The semantic list coordinate recorded at a move's time. */
 export type RoutingCoordinate = RoutingReceipt["destination"];
-/** Derive a list's canonical coordinate; a personal inbox is qualified by its identity.
+/** Derive a stable work-item generation or identity-qualified inbox coordinate.
  * @param list - Exact resolved list.
  * @param section - Entry's source or destination section.
  * @returns Receipt coordinate independent of projection paths.
  */
 export function listCoordinate(list: ResolvedEntryList, section?: string): RoutingCoordinate {
-  const owner = list.primary?.reference.owner;
-  const workItem = owner?.type === "work-item" && (owner.name === "personal" || owner.name === "project")
-    ? owner.uid ?? list.selector : owner?.name ?? list.selector;
+  const owner = list.primary?.reference.owner ?? list.reference.owner;
+  const workItem = owner.type === "work-item" ? owner.uid ?? owner.name : list.selector;
   return { list: list.inbox ?? workItem,
     ...(section === undefined ? {} : { section }), ...(list.inbox === "personal" ? { identity: list.reference.owner.name } : {}) };
 }

@@ -7,6 +7,7 @@ import { success } from "../helpers/store/suite-tools.js";
 import { resolveEntryList } from "../../src/lib/inbox/lists.js";
 import type { Store } from "../../src/lib/store/contract.js";
 import { readWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
+import { OwnerIdentitySchema } from "../../src/lib/store/identity.js";
 
 it("lists actual captures, refuses an invalid target filter, and routes a stale entry only after listing its new version", async () => {
   const f = await repairCliFixture(), original = (await cliRows(f, "project"))[0];
@@ -57,7 +58,7 @@ it("refuses duplicate queue IDs across inboxes and accepts a repaired single mem
   expect(await repairCli(f, ["errand", "queue", "--json"])).toMatchObject({ result: { state: "listed", members: [member] } });
 }, 30000);
 
-it("keeps a survivor through a failed atomic carry, then replaces only the owner's held capture on retry", async () => {
+it("keeps a survivor through destination rename and failed atomic carry, then replaces only its held capture on retry", async () => {
   const f = await repairCliFixture(), target = await f.h.workUnit();
   const source = await resolveEntryList("project", f.h.context);
   if (source.status !== "ok" || !source.result.saved) throw new Error("No source");
@@ -67,7 +68,15 @@ it("keeps a survivor through a failed atomic carry, then replaces only the owner
   const args = ["route", row.id, "--from", "project", "--expected-version", row.version, "--to", target.reference.owner.name];
   expect(await repairCli(f, args, { store: racing })).toMatchObject({ result: { state: "routed" } });
   const survivor = (await cliRows(f, "project"))[0]; if (!survivor) throw new Error("Survivor lost");
-  expect(survivor).toMatchObject({ survivor: { home: { list: target.reference.owner.name } } }); args[5] = survivor.version;
+  const uid = target.reference.owner.type === "work-item" ? target.reference.owner.uid : undefined;
+  expect(survivor).toMatchObject({ survivor: { home: { list: uid } } }); args[5] = survivor.version;
+  const renamed = `${target.reference.owner.name}-after`;
+  success(await f.h.context.store.write({ action: "put", reference: { ...target.reference,
+    owner: OwnerIdentitySchema.parse({ ...target.reference.owner, name: renamed }) }, expected: target.version,
+    content: target.content.replaceAll(target.reference.owner.name, renamed), placement: { kind: "active" },
+    provenance: { verb: "rename", lifecycleAction: "rename" } }));
+  if (uid === undefined) throw new Error("Generation UID required");
+  args[7] = uid;
   const failed = Object.create(f.h.context.store) as Store;
   failed.batch = async () => ({ status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: "project", condition: "Crash before atomic carry commit", remedy: { text: "Repair the Store and retry." } } });
   const before = success(await f.h.context.store.version());

@@ -22,7 +22,7 @@ it("lists a racing edit with its home and carries its new prose into the owner's
   const context = { ...h.context, store: racingStore };
   expect((await routeEntry({ entryId: row.id, from: "personal", expectedVersion: row.version, to: target.reference.owner.name }, context)).state).toBe("routed");
   const surviving = await listInbox({ list: "personal" }, h.context);
-  expect(surviving).toMatchObject({ state: "listed", entries: [{ title: "Retitled", survivor: { home: { list: target.reference.owner.name } } }] });
+  expect(surviving).toMatchObject({ state: "listed", entries: [{ title: "Retitled", survivor: { home: { list: target.reference.owner.type === "work-item" ? target.reference.owner.uid : undefined } } }] });
   if (surviving.state === "refused" || surviving.entries[0] === undefined) throw new Error("Survivor required");
   expect(await routeEntry({ entryId: row.id, from: "personal", expectedVersion: surviving.entries[0].version, to: target.reference.owner.name }, h.context)).toMatchObject({ state: "routed", carried: "replaced" });
   expect(await listInbox({ list: "personal" }, h.context)).toMatchObject({ entries: [] });

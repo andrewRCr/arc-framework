@@ -14,7 +14,7 @@ describe("atomic versioned entry routes", () => {
   it("moves into an inbound list and reports its receipt-backed destination", async () => {
     const h = createInboxHarness(); await h.inbox("personal"); const target = await h.workUnit();
     const row = await source(h);
-    expect(await routeEntry({ entryId: row.id, from: "personal", expectedVersion: row.version, to: target.reference.owner.name }, h.context)).toMatchObject({ state: "routed", entryId: row.id, destination: { list: target.reference.owner.name, section: "Inbound" } });
+    expect(await routeEntry({ entryId: row.id, from: "personal", expectedVersion: row.version, to: target.reference.owner.name }, h.context)).toMatchObject({ state: "routed", entryId: row.id, destination: { list: target.reference.owner.type === "work-item" ? target.reference.owner.uid : undefined, section: "Inbound" } });
     expect((await listInbox({ list: "personal" }, h.context))).toMatchObject({ state: "listed", entries: [] });
     expect((await listInbox({ list: target.reference.owner.name }, h.context))).toMatchObject({ state: "listed", entries: [{ id: row.id }] });
   });
