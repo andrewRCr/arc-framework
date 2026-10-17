@@ -25,6 +25,7 @@
 
 import { z } from "zod";
 import { SessionActionsSchema } from "./actions.js";
+import { DerivedCheckoutDiagnosticSchema } from "../locus/derived-schema.js";
 
 import { decideWorktreeCleanup } from "../git/worktree-cleanup.js";
 import type { RemovalCheck } from "../git/worktree-removal.js";
@@ -57,6 +58,7 @@ export const CascadeCandidateSchema = z.discriminatedUnion("proposedAction", [
     branch: NON_EMPTY_TEXT,
     worktreePath: NON_EMPTY_TEXT,
     proposedAction: z.literal("external"),
+    diagnostics: z.array(DerivedCheckoutDiagnosticSchema).readonly().optional(),
   }),
 ]);
 

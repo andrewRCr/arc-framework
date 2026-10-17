@@ -122,7 +122,7 @@ function recommendBranchGoneRecovery(
         return {
           ...recovery,
           recommendedAction: "surface",
-          recommendedPromptText: `Recover manually onto \`${recovery.candidate.branch}\`.`,
+          recommendedPromptText: recoveryCandidateRepair(recovery.candidate) || `Recover manually onto \`${recovery.candidate.branch}\`.`,
         };
       }
       return {
@@ -139,7 +139,7 @@ function recommendBranchGoneRecovery(
         recommendedPromptText: [
           "Choose a recovery branch:",
           ...recovery.candidates.map((candidate) =>
-            `- \`${candidate.branch}\` (${candidate.proposedAction}${candidate.proposedAction === "removable" ? `; ${workUnitTeardownAction(candidate.workUnitName).text}` : ""})`),
+            `- \`${candidate.branch}\` (${candidate.proposedAction}${candidate.proposedAction === "removable" ? `; ${workUnitTeardownAction(candidate.workUnitName).text}` : ""})${recoveryCandidateRepair(candidate)}`),
         ].join("\n"),
       };
     case "unproven":
@@ -152,7 +152,7 @@ function recommendBranchGoneRecovery(
           : [
               "Recovery candidates could not be proven against the advertised base"
                 + ` (${recovery.remoteEvidence}). Choose one manually:`,
-              ...recovery.candidates.map((candidate) => `- \`${candidate.branch}\``),
+              ...recovery.candidates.map((candidate) => `- \`${candidate.branch}\`${recoveryCandidateRepair(candidate)}`),
             ].join("\n"),
       };
     case "main-fallback":
@@ -162,6 +162,12 @@ function recommendBranchGoneRecovery(
         recommendedPromptText: `Recover onto \`${recovery.baseBranch}\`?`,
       };
   }
+}
+
+function recoveryCandidateRepair(candidate: Extract<CascadeResolution, { kind: "resolved" }>["candidate"]): string {
+  if (candidate.proposedAction !== "external" || !candidate.diagnostics?.length) return "";
+  return `\n${candidate.diagnostics.map(item => `${item.code}: ${item.message}`).join("\n")}\n`
+    + `Repair checkout authority at ${candidate.worktreePath} and retry recovery.`;
 }
 
 /** Inputs to {@link inferSessionInitRecommendations}. */

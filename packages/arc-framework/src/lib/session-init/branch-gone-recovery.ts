@@ -96,7 +96,7 @@ export async function runBranchGoneRecovery(
       buildWorktreeCandidate(entry, {
         exec,
         readMarker,
-        folderPresent: rows.get(entry.worktreePath)?.checkout.folderPresent,
+        row: rows.get(entry.worktreePath),
         folderExists: options.folderExists,
         projectionRemovalSlots: options.projectionRemovalSlots,
         missingFolders,
@@ -138,7 +138,7 @@ export async function runBranchGoneRecovery(
 }
 
 interface CandidateContext {
-  folderPresent: boolean | undefined;
+  row: DerivedCheckoutRow | undefined;
   folderExists?: (path: string) => Promise<boolean>;
   projectionRemovalSlots?: ProjectionRemovalSlots;
   missingFolders: { worktreePath: string; branch: string; actions: SessionAction[] }[];
@@ -156,10 +156,10 @@ async function buildWorktreeCandidate(
   ctx: CandidateContext,
 ): Promise<CascadeCandidate | null> {
   if (entry.branch === undefined) return null;
-  if (ctx.folderPresent === undefined) {
+  if (ctx.row === undefined) {
     return { branch: entry.branch, worktreePath: entry.worktreePath, proposedAction: "external" };
   }
-  if (!ctx.folderPresent) {
+  if (!ctx.row.checkout.folderPresent) {
     const check = await checkWorktreeRemoval({ exec: ctx.exec, checkoutPath: entry.worktreePath,
       disposition: "remove", check: ctx.projectionRemovalSlots?.check, folderExists: ctx.folderExists });
     if (check.kind === "missing" || (check.kind === "refused" && check.reason === "locked" && !check.folderPresent)) {
@@ -167,6 +167,11 @@ async function buildWorktreeCandidate(
         actions: missingRegistrationActions(entry.worktreePath, { locked: check.kind === "refused" }) });
     }
     return null;
+  }
+  if (ctx.row.kind === "unresolved-checkout" || ctx.row.diagnostics.length > 0) {
+    return { branch: entry.branch, worktreePath: entry.worktreePath, proposedAction: "external",
+      diagnostics: ctx.row.diagnostics.length > 0 ? ctx.row.diagnostics
+        : [{ code: "unresolved-checkout", message: "Checkout role could not be established." }] };
   }
   // Main / admin destinations need a fresh folder observation, without
   // gathering marker, cleanliness or removal authority.
