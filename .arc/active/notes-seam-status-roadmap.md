@@ -8,6 +8,7 @@
 - Files no row covers
 - What `seam-lifecycle` changed in the shared files
 - Provider contracts against the code
+- Neighbors' tasks on shared surfaces
 
 ## How the rows were checked
 
@@ -15,7 +16,7 @@ The rows are the 29 of `notes-storage-contract.md` § Consumer map, "Status and 
 (2026-10-16), which carries the merged `seam-lifecycle` (PR #1027) and `seam-record-kinds`. Three read-only sweeps ran:
 one over the 29 rows, running the ratchet's predicates (`findArchitectureImportViolations`,
 `eslint/architecture-imports.ts`) over every file, whose counts all match `eslint-suppressions.json`; one over the
-coupled files no row names; and one over the provider contracts the draft consumes. The sweeps' findings are advisory.
+coupled files no row names; and one over the provider contracts the design consumes. The sweeps' findings are advisory.
 Each one the design acts on was checked against source before it entered the design; those are marked **verified**, and
 the rest stand as the sweeps reported them. A citation is the file and symbol first, its line only where the line is the
 evidence. Floors read `store-raw-state / surface-names / work-unit-paths`.
@@ -38,9 +39,10 @@ the shared index that only the direct caller's row names.
   only `edge.fromFlip.sideEffects`, which no edge sets to `reconcile-roadmap` or `reconcile-status-user`, and
   `handleStoreStart` returns before `refreshRoadmapForStartCeremony` (`handlers/start.ts`).
 - **Entry points with no store in scope:** the `pre-commit` hook (bash, gated on `pm.mode`), the assert and remedy
-  scripts, the merge driver (git config), `arc init`, `arc join`, and `arc update`; and every `arc status` mode but the
-  slug query, since `SessionStatusContext` carries no store (**verified**). `handleBaseSync` now builds one
-  (`createStore(createDefaultStorePorts(...))`), the pattern a handler can follow.
+  scripts, the merge driver (git config), `arc init`, `arc join`, and `arc update`. On the merged base every
+  `arc status` mode but the slug query has no store too, since `SessionStatusContext` carries none (**verified**); the
+  `seam-locus` branch gives the context a store and synchronization port (`store`, `storeSync`,
+  `createSessionStatusContext`), which the spec's dispatch takes (§ 7).
 - **Two writes no row names** (**verified**): `handleStagedProjectStatus` (`--project --staged --write`,
   `handlers/status/views.ts`) writes ROADMAP by temp-then-rename, and `assembleStatusUserView` writes `STATUS.USER.md`
   whenever `writeFile` and `mkdir` are supplied, which `handleUserStatus` does on every rendered `arc status --user`.
@@ -75,11 +77,10 @@ the shared index that only the direct caller's row names.
 
 - **`validate-links.sh`** — Drift. The movable-artifact rule landed after the freeze (`is_movable`); add key 12 and
   `wu.meta`, `wu.prose`, `cohort` by filename prefix. Once state is not staged, the pre-commit link check never sees
-  those files; it ships in every project's hook (`init-recipe.json`), the general Markdown check other projects get,
-  the hook's checks of state files' shape having their own register row. From
-  the flip it reads no state, a departure from key 05 that `draft-seam-status-roadmap.md` § Direction records, with
-  checks over state split between `storage-projection`'s selection and `projected-markdown-checks`' check
-  (§ Coordination).
+  those files; it ships in every project's hook (`init-recipe.json`), the general Markdown check other projects get, the
+  hook's checks of state files' shape having their own register row. From the flip it reads no state, a departure from
+  key 05 that `spec-seam-status-roadmap.md` § 9.3 records, with checks over state split between `storage-projection`'s
+  selection and `projected-markdown-checks`' check.
 - **`cli.ts`** — Drift. Misses `arc status`'s `--staged`, `--write`, and `--user` options (keys 18, 53); the inbox
   verbs it describes carry keys 19 and 21. Floors 0/11/0. Cutover paths: the hidden remedy command and
   `--regenerate-roadmap` forwarding.
@@ -118,9 +119,9 @@ the shared index that only the direct caller's row names.
 - **`lib/markdown/descriptor-worktree.ts`** — Confirmed. It reads `selection.ts`'s worktree view
   (`enumerateTrackedMarkdownPaths`), so projected task lists drop out of its check from the flip (**verified**).
 - **`lib/markdown/selection.ts`** — Drift (minor). Add `placement` and keys 12 and 13. Floors 0/1/0. From the flip
-  neither view sees state (key 05; the draft records the departure). Its worktree view has other readers —
-  `prepareMarkdownMigrationInputs` (`lib/markdown/migration-audit.ts`), which reads each path's HEAD blob, and
-  `validateExplicitMarkdownPaths` — so widening it reaches them too (**verified**).
+  neither view sees state (key 05; `spec-seam-status-roadmap.md` § 9.3 records the departure). Its worktree view has
+  other readers — `prepareMarkdownMigrationInputs` (`lib/markdown/migration-audit.ts`), which reads each path's HEAD
+  blob, and `validateExplicitMarkdownPaths` — so widening it reaches them too (**verified**).
 - **`lib/setup.ts`** — Drift. `configureRoadmapConflictRemedy` writes the merge driver's git config and the tracked
   `.gitattributes` attribute, from `init`, `join`, and the unrowed `commands/update.ts`. Add key 13 and
   `machine-local`. Floors 0/4/0.
@@ -221,14 +222,32 @@ renders no view.
   `extractWorkUnitPurpose`); the composition helper has three callers, the in-repo store among them; the pre-flip arm
   is not one module (`started-artifacts.ts`, `handlers/view.ts`, `work-unit-purpose.ts`, `commands/view/run.ts`,
   `view-artifact.ts`, `types.ts`, and help text), and `started-artifacts.ts` also serves checkout targets.
-- **Contradicted draft claims:** `arc view`'s default target comes from the active-meta scan and branch match
-  (`resolveAmbientTarget`), not the marker, and the recorded-target hook is unwired; `VIEW_KINDS` is a literal list;
-  the design parsers' `purpose` field exists but `readLifecycleDesign` and the store arm re-parse content.
+- **`arc view` and the purpose reads today:** `arc view`'s default target comes from the active-meta scan and branch
+  match (`resolveAmbientTarget`), not the marker, and the recorded-target hook is unwired; `VIEW_KINDS` is a literal
+  list; the design parsers' `purpose` field exists but `readLifecycleDesign` and the store arm re-parse content.
 - **Identity:** three readers take `arc.identity` only (`readConfiguredIdentity`): `arc status` in every mode
   (`readIdentityPointers`), the ROADMAP renders that read the oracle context (`resolveProjectErrandOracleContext`), and
   the review gate's local live context (`readLocalReviewLiveContext`); decomposition's render
   (`renderGitV3RepositoryTreeRoadmap`) reads no Errand records. `arc view` and the store's ports use `resolveIdentity`,
   which falls back to the slugified `user.name`. With `arc.identity` unset, status reads no Errand records while view
   and the store read those of the fallback identity (**verified**).
+
+## Neighbors' tasks on shared surfaces
+
+Where another work unit's open task edits a file or contract this change shares (`spec-seam-status-roadmap.md` § 1.3,
+§ 12), as of 2026-10-17:
+
+- **The ref backend's port binding:** Task 15.3.R - `tasks-storage-ref-backend.md` binds the session context's port and,
+  landing second, completes `pullStoreStatus` for `incomplete` and every notice; Task 13.5.R -
+  `tasks-storage-ref-backend.md` gives the ended-with-conflicts notice its condition and `arc store conflict` remedy,
+  ahead of the binding.
+- **Delivery and review:** Task 4.4.b - `tasks-seam-delivery-review.md` edits
+  `scripts/review-gate/hosts/local/live-context.ts` for the flip, beside the identity switch (§ 8.1 of the spec); Task
+  7.2 - `tasks-seam-delivery-review.md` moves the slug query's operational-boundary read into
+  `handleStoreLifecycleStatus`. Whichever lands second takes each conflict.
+- **Locus:** Task 2.8.a - `tasks-seam-locus.md`, done, gives the session-notes resolver its arm from the flip, which
+  this change's `arc view` arm does not call (§ 6.4 of the spec). Its exact locus import inventory
+  (`locus-dormant-foundation-contract.test.ts`) registers each consumer of the locus modules, so this change's new
+  consumers, such as the slug query's store arm calling the derived locus probe, join it.
 
 ---

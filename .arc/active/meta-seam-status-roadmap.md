@@ -8,11 +8,11 @@
 - **Depends On:** `seam-locus`
 
 - **Origin:** [internal] — the `storage-seam` cut (2026-10-09)
-- **Design:** `draft-seam-status-roadmap.md`
+- **Design:** `spec-seam-status-roadmap.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
