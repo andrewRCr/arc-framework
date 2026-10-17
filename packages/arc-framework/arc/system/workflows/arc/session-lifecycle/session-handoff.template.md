@@ -108,8 +108,8 @@ follow the override instead):
 retain the selected checkout for the next session. Use [Errand-Session Handoff Path](#errand-session-handoff-path).
 
 **Between-WUs handoff** — no active meta file or SESSION-NOTES write. Review WORKING-MEMORY, route any durable
-captures to existing surfaces (`USER-INBOX`, an approved `WORKING-MEMORY` addition, backlog artifacts as applicable),
-then sync + confirm. Use [Between-WUs Handoff Path](#between-wus-handoff-path).
+captures to existing surfaces (`USER-INBOX`, `WORKING-MEMORY` for approved additions, backlog artifacts as
+applicable), then sync + confirm. Use [Between-WUs Handoff Path](#between-wus-handoff-path).
 
 **When context changes** — capture working-directory paths or environment expectations in the active
 meta file only when they change next-session orientation.
@@ -216,10 +216,10 @@ Update session state files before ending session:
     Below threshold (skip): minor rephrasing of Last Completed / Next Action with no semantic
     change, cosmetic reorderings, restating the same Next Action in different words.
 
-    **Skill invocation is the approval.** `/arc-handoff` is user-initiated; the invocation grants
-    approval for the workflow's bundled actions, including the `chore(arc): handoff` commit.
-    No separate per-commit prompt fires under either push-interlock mode — push behavior is gated
-    by `arc sync` internally (see § Sync), where remote-side consequences justify granular gating.
+    **Skill invocation is the approval.** `/arc-handoff` is user-initiated; the invocation grants approval for the
+    workflow's bundled actions, including the `chore(arc): handoff` commit, but not a `WORKING-MEMORY` addition, which
+    lands only on its own approval. No separate per-commit prompt fires under either push-interlock mode — push
+    behavior is gated by `arc sync` internally (see § Sync), where remote-side consequences justify granular gating.
     Stage the meta file and lint it (catches authoring errors before the chore-commit lands):
 
     ```bash
@@ -427,7 +427,7 @@ Markers:
       session sees them naturally.
 
     Review at each handoff: remove entries whose triggers are met, AND entries whose information
-    is now carried in tracked state, and propose any addition not yet proposed.
+    is now carried in tracked state.
 
 **Stay-out list — when you notice yourself writing one of these, delete it:**
 

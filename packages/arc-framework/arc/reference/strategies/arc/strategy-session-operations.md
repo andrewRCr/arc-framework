@@ -827,8 +827,7 @@ eviction-on-trigger discipline and let entries accumulate indefinitely.
 
 **Lifecycle.** Additions are proposed when they arise, at the latest at the next report boundary, and land on
 approval; read at session-init as part of T2 state load. Reviewed at each handoff — entries whose triggers have fired
-are removed, and an addition not yet proposed is proposed then. Surviving entries travel with the developer's
-workspace across WU boundaries.
+are removed. Surviving entries travel with the developer's workspace across WU boundaries.
 
 **Distinguishing the three personal surfaces:**
 
