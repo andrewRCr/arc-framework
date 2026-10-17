@@ -569,17 +569,15 @@ close, and renames and role changes.
   completed placement from assigned folders; numbering counts cohorts and current gaps. A missing quarter tree refuses
   before publication and admits the unchanged retry after object restoration.
 
-### `[ ]` **6.2 Reopen — § 7.2**
+### `[x]` **6.2 Reopen — § 7.2**
 
 - _Goal:_ A placement write out of `completed` brings an item back under `refs/arc/work/` and removes every folder it
   holds, refusing where this clone lacks what the folder names.
 
-    - The reopen's commit clears `endBatch` and `batch` from the live ref's metadata
-    - Build `test-first` (one behavior at a time):
-        - a reopen moves the history ref back to the live ref and removes the item's folder from each quarter holding one
-        - a reopen whose slug a live work item or cohort has taken refuses `ambiguous-match` naming both
-        - a reopen where this clone holds no history ref, or one whose log lacks the folder's `batch`, refuses
-          `state-unresolvable` naming it
+- _Outcome:_ Reopens validate every archive folder's batch against retained history, revalidate after acquiring locks,
+  and publish the live move with every folder removal while preserving other owners. Check views retain independent
+  archived/live states; missing or stale history and slug clashes refuse with repaired retries. Canonical quarter refs
+  enter manifests, and slug reads keep selecting the live generation after a name is reused.
 
 ### `[ ]` **6.3 Writes to a completed item — § 7.3**
 

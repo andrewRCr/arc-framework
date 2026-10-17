@@ -30,7 +30,7 @@ export async function overlayRefViewState(context: RefBackendContext, before: Re
   const refs = new Map(before.refs);
   for (const [ref, group] of groups) {
     if (group.original.size === 0 && group.entries.size === 0) continue;
-    refs.set(ref, { entries: [...group.entries.values()], metadata: structuredClone(group.metadata), readPlacement: group.readPlacement });
+    refs.set(group.viewRef ?? ref, { entries: [...group.entries.values()], metadata: structuredClone(group.metadata), readPlacement: group.readPlacement });
   }
   const oids = [...new Set([...groups.values()].flatMap(({ entries }) => [...entries.values()].map(({ oid }) => oid)))]
     .filter((oid) => !before.objects.has(oid));

@@ -22,6 +22,7 @@ import { prepareRefCommits, type RefWriteGroup } from "./write-commits.js";
 import { expandStoredPath } from "../stored-path.js";
 import { checkRefWrites } from "./write-checks.js";
 import { bindProjectMutations } from "./project-identity.js";
+import { planRefReopens, reopenRefChanges } from "./write-reopen.js";
 import { planRefArchives, archiveRefChanges } from "./write-archive.js";
 import { prepareRefAnchors } from "./write-anchors.js";
 import { prepareRefConflicts } from "./write-conflicts.js";
@@ -31,13 +32,9 @@ type RefGroup = RefWriteGroup;
 /** Land prepared mutations over one captured namespace using expected old ref values. */
 export async function commitRefWrites(context: RefBackendContext, resolved: ResolvedBatch,
   provenance: BatchInput["provenance"], batchId: string): Promise<StoreResult<BatchResult> | "retry" | "resolve"> {
-  const project = await bindProjectMutations(context, resolved.writes.map(({ mutation }) => mutation), resolved.tips);
+  const project = await bindLockedProjects(context, resolved);
   if (project.status === "refused") return project;
-  resolved = { ...resolved, writes: resolved.writes.map((write, index) => {
-    const mutation = project.result[index];
-    if (!mutation) throw new Error("A project-bound mutation is missing");
-    return { ...write, mutation };
-  }) };
+  resolved = project.result;
   const loaded = await readWriteGroups(context, resolved);
   if (loaded.status === "refused") return loaded;
   const groups = loaded.result;
@@ -49,27 +46,48 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
   if (prepared.status === "refused") return prepared;
   applyResolutions(context, resolved, groups);
   const tips = resolved.tips;
-  const results: WriteResult[] = [];
-  for (const write of prepared.result) {
-    const group = groups.get(write.home.ref);
-    if (!group) throw new Error("A resolved mutation has no captured ref group");
-    const applied = await applyMutation(context, group, write);
-    if (applied.status === "refused") return applied;
-    results.push(applied.result);
-  }
+  const applied = await applyPreparedMutations(context, prepared.result, groups);
+  if (applied.status === "refused") return applied;
+  const results = applied.result;
   const anchorRefusal = await prepareRefAnchors(context, prepared.result, groups);
   if (anchorRefusal) return { status: "refused", refusal: anchorRefusal };
+  const reopens = await planRefReopens(context, resolved, groups, tips);
+  if (reopens.status === "refused") return reopens;
   const archives = await planRefArchives(context, prepared.result, groups, tips, batchId);
   if (archives.status === "refused") return archives;
   const completed = await prepareRefConflicts(context, prepared.result, groups, results);
   const broken = await checkRefWrites(context, prepared.result, completed, tips, provenance);
   if (broken) return { status: "refused", refusal: broken };
   const committed = await prepareRefCommits(context, prepared.result, refWriteTargets(context, resolved), groups, completed, tips, provenance, batchId);
-  const changes = await archiveRefChanges(context, committed, archives.result, groups, completed, prepared.result, tips, provenance, batchId);
+  const archived = await archiveRefChanges(context, committed, archives.result, groups, completed, prepared.result, tips, provenance, batchId);
+  const changes = await reopenRefChanges(context, archived, reopens.result, tips, provenance, batchId);
   if (changes.length === 0) return { status: "ok", result: { batchId, writes: results } };
   const outcome = await updateRefTransaction(context, changes, { cwd: context.checkoutRoot });
   if (outcome.status !== "committed") return "retry";
   return { status: "ok", result: { batchId, writes: results } };
+}
+
+async function bindLockedProjects(context: RefBackendContext, resolved: ResolvedBatch): Promise<StoreResult<ResolvedBatch>> {
+  const project = await bindProjectMutations(context, resolved.writes.map(({ mutation }) => mutation), resolved.tips);
+  if (project.status === "refused") return project;
+  return { status: "ok", result: { ...resolved, writes: resolved.writes.map((write, index) => {
+    const mutation = project.result[index];
+    if (!mutation) throw new Error("A project-bound mutation is missing");
+    return { ...write, mutation };
+  }) } };
+}
+
+async function applyPreparedMutations(context: RefBackendContext, writes: readonly ResolvedMutation[],
+  groups: ReadonlyMap<string, RefGroup>): Promise<StoreResult<WriteResult[]>> {
+  const results: WriteResult[] = [];
+  for (const write of writes) {
+    const group = groups.get(write.home.ref);
+    if (!group) throw new Error("A resolved mutation has no captured ref group");
+    const applied = await applyMutation(context, group, write);
+    if (applied.status === "refused") return applied;
+    results.push(applied.result);
+  }
+  return { status: "ok", result: results };
 }
 
 function applyResolutions(context: RefBackendContext, resolved: ResolvedBatch, groups: ReadonlyMap<string, RefGroup>): void {

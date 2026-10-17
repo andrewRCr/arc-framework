@@ -64,7 +64,7 @@ export async function resolveReadReference(context: RefBackendContext, reference
   if (reference.owner.type !== "person" && !reference.owner.uid && reference.owner.type !== "project") {
     const listing = await listRefRecords(context, { family: context.registry[reference.kind].family });
     if (listing.status !== "ok" || listing.result.status !== "complete") return missing(reference);
-    const resolved = listing.result.records.find((record) => record.reference.owner.name === reference.owner.name);
+    const resolved = listing.result.records.find((record) => record.placement?.kind !== "completed" && record.reference.owner.name === reference.owner.name);
     if (!resolved) return missing(reference);
     return { status: "ok", result: RecordReferenceSchema.parse({ ...reference, owner: resolved.reference.owner }) };
   }

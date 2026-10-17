@@ -6,6 +6,7 @@ import { updateRefTransaction } from "../../git/ref-transaction.js";
 import { readGitDirectories } from "../../git/directories.js";
 import { FAMILY_IDS } from "../catalog.js";
 import { StateVersionSchema, type StateVersion } from "../identity.js";
+import { isArchiveRef } from "./archive-read.js";
 import { matchesFamilyRef } from "./codec.js";
 import { readRefTips } from "./batch-read.js";
 import type { RefBackendContext } from "./context.js";
@@ -37,7 +38,7 @@ export async function readObjectFormat(context: RefBackendContext): Promise<Obje
 
 /** Select registered state refs while excluding history and machine-local/control refs. */
 export function isManifestRef(ref: string): boolean {
-  return FAMILY_IDS.some((family) => matchesFamilyRef(ref, family)) || /^refs\/arc\/archive\/\d{4}-Q[1-4]$/u.test(ref);
+  return FAMILY_IDS.some((family) => matchesFamilyRef(ref, family)) || isArchiveRef(ref);
 }
 
 /** Compute Git's exact object IDs for a ref manifest, retaining its writable tree entries. */

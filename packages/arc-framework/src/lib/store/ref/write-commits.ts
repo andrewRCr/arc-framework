@@ -14,7 +14,7 @@ import { writeRefBlob, writeRefTree } from "./tree-write.js";
 import type { RefWriteTarget } from "./write-resolution.js";
 
 /** Mutable prepared tree with the original entries retained for no-op comparison. */
-export interface RefWriteGroup extends CapturedWriteGroup { original: Map<string, RefTreeEntry>; readPlacement?: ReadPlacement }
+export interface RefWriteGroup extends CapturedWriteGroup { original: Map<string, RefTreeEntry>; readPlacement?: ReadPlacement; viewRef?: string }
 
 /** Construct each changed ref's write commit and optional conflict commit. */
 export async function prepareRefCommits(context: RefBackendContext, writes: readonly PreparedRefMutation[],
@@ -34,21 +34,22 @@ export async function prepareRefCommits(context: RefBackendContext, writes: read
     const clashes = selected.some((write) => write.conflicts.length > 0);
     if (!clashes && unchangedGroup(group)) continue;
     const parent = tips.get(ref);
-    let next = await commitGroup(context, group, parent, provenance, first.reference, batchId, actor);
+    let next = await commitRefTree(context, group.entries.values(), parent, provenance, first.reference, batchId, actor);
     if (clashes) {
       const final = completed.get(ref);
       if (!final) throw new Error("A ref with staged conflicts has no final tree");
       final.entries.set(path, { path, mode: "100644", oid: await writeRefBlob(context, canonicalize(final.metadata)) });
-      next = await commitGroup(context, final, next, { ...provenance, verb: "merge" }, first.reference, batchId, actor);
+      next = await commitRefTree(context, final.entries.values(), next, { ...provenance, verb: "merge" }, first.reference, batchId, actor);
     }
     changes.push({ ref, next, expected: parent ?? null });
   }
   return changes;
 }
 
-async function commitGroup(context: RefBackendContext, group: RefWriteGroup, parent: string | undefined,
+/** Commit a prepared entry set with the same structured provenance on every lifecycle ref. */
+export async function commitRefTree(context: RefBackendContext, entries: Iterable<RefTreeEntry>, parent: string | undefined,
   provenance: BatchInput["provenance"], reference: RecordReference, batchId: string, actor: string | undefined): Promise<string> {
-  const tree = await writeRefTree(context, group.entries.values());
+  const tree = await writeRefTree(context, entries);
   const { stdout } = await context.exec("git", ["commit-tree", tree, ...(parent ? ["-p", parent] : []),
     "-m", renderStoreCommitMessage(provenance, reference, batchId, actor)], { cwd: context.checkoutRoot });
   return stdout.trim();

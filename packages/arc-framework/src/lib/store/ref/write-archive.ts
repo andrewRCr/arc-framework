@@ -6,14 +6,12 @@ import type { RecordReference } from "../identity.js";
 import type { StoreResult } from "../refusal.js";
 import type { ReadPlacement } from "../placement.js";
 import type { BatchInput } from "../write.js";
-import { renderStoreCommitMessage } from "../commit-provenance.js";
 import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
 import { readRefTrees, type RefTreeEntry } from "./batch-read.js";
 import type { RefBackendContext } from "./context.js";
 import type { ResolvedBatch } from "./write-resolution.js";
 import type { PreparedRefMutation } from "./write-merge.js";
-import type { RefWriteGroup } from "./write-commits.js";
-import { writeRefTree } from "./tree-write.js";
+import { commitRefTree, type RefWriteGroup } from "./write-commits.js";
 
 /** One item's assigned destination, resolved from the locked quarter tree. */
 export interface RefArchivePlan {
@@ -82,10 +80,8 @@ export async function archiveRefChanges(context: RefBackendContext, changes: rea
   const quarters = new Map(plans.map((plan) => [plan.home.ref, plan]));
   for (const [ref, plan] of quarters) {
     const parent = tips.get(ref);
-    const tree = await writeRefTree(context, plan.entries.values());
-    const { stdout } = await context.exec("git", ["commit-tree", tree, ...(parent ? ["-p", parent] : []),
-      "-m", renderStoreCommitMessage(provenance, plan.reference, batchId, actor)], { cwd: context.checkoutRoot });
-    result.push({ ref, next: stdout.trim(), expected: parent ?? null });
+    const next = await commitRefTree(context, plan.entries.values(), parent, provenance, plan.reference, batchId, actor);
+    result.push({ ref, next, expected: parent ?? null });
   }
   return result;
 }

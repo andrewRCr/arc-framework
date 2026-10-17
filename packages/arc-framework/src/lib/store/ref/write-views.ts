@@ -15,6 +15,7 @@ import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
 import { metadataFailure } from "./metadata.js";
 import { FAMILY_REGISTRY } from "../registry.js";
 import { projectOwnerFromEntries, admitProjectReference, projectListInput, projectListingBinding } from "./project-identity.js";
+import { archivedViewRecords } from "./archive-view.js";
 import { checkRefKey } from "./path-admission.js";
 
 /** Build lazy views which never recapture a live ref during a check. */
@@ -48,7 +49,8 @@ function lookupView(context: RefBackendContext, state: RefViewState, input: Look
 async function listView(context: RefBackendContext, state: RefViewState, input: ListInput): Promise<StoreResult<ListingOutcome>> {
   if (FAMILY_REGISTRY[input.family].scope === "identity" && await context.identity() === null) return { status: "ok", result: { status: "absent" } };
   const refs = [...state.refs].filter(([ref]) => matchesFamilyRef(ref, input.family));
-  if (refs.length === 0) return { status: "ok", result: { status: "absent" } };
+  const archived = archivedViewRecords(context, state, input);
+  if (refs.length === 0 && !archived.records.length && !archived.diagnostics.length) return { status: "ok", result: { status: "absent" } };
   const project = input.family === "project-registry" || input.family === "project-inbox" ? projectListingBinding(viewProjectOwner(state)) : undefined;
   if (project && !project.diagnostic) {
     const admitted = projectListInput(input, project.owner);
@@ -56,11 +58,11 @@ async function listView(context: RefBackendContext, state: RefViewState, input: 
     input = admitted.result;
   }
   const groups = refs.map(([ref, group]) => decodeCapturedRef(context, input, ref, group.entries, state.objects, group.metadata, project?.owner, group.readPlacement));
-  const diagnostics = groups.flatMap(({ diagnostics }) => diagnostics);
+  const diagnostics = [...groups.flatMap(({ diagnostics }) => diagnostics), ...archived.diagnostics];
   if (project?.diagnostic && !diagnostics.some(({ key }) => key === project.diagnostic?.key)) diagnostics.push(project.diagnostic);
-  if (groups.every(({ unreadable }) => unreadable)) return { status: "ok", result: { status: "unreadable",
+  if (groups.length > 0 && !archived.records.length && groups.every(({ unreadable }) => unreadable)) return { status: "ok", result: { status: "unreadable",
     condition: diagnostics.map(({ condition }) => condition).join("; "), remedy: { text: diagnostics.map(({ remedy }) => remedy.text).join(" ") } } };
-  return { status: "ok", result: { status: "complete", records: groups.flatMap(({ records }) => records), diagnostics, missed: diagnostics.length > 0 } };
+  return { status: "ok", result: { status: "complete", records: [...groups.flatMap(({ records }) => records), ...archived.records], diagnostics, missed: diagnostics.length > 0 } };
 }
 
 async function readView(context: RefBackendContext, state: RefViewState, input: ReadInput): Promise<StoreResult<StoreRecord>> {
@@ -76,7 +78,11 @@ async function readView(context: RefBackendContext, state: RefViewState, input: 
   reference = resolved.result;
   let home = expandStoredPath(reference, { registry: context.registry });
   const group = state.refs.get(home.ref);
-  if (!group) return missing(reference);
+  if (!group) {
+    const record = archivedViewRecords(context, state, { family: context.registry[reference.kind].family, kind: reference.kind, owner: reference.owner }).records
+      .find((record) => sameReference(record.reference, reference));
+    return record ? { status: "ok", result: record } : missing(reference);
+  }
   const family = context.registry[reference.kind].family;
   const metadata = viewRefMetadata(context, state, home.ref, family);
   if (!metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: home.ref, ...metadataFailure(home.ref) } };

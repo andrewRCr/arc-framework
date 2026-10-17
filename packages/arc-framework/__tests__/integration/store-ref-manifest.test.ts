@@ -3,7 +3,7 @@ import { createRefReadFixture } from "../helpers/store/ref-read.js";
 import { plantRef } from "../helpers/store/ref-plant.js";
 
 const uid = "12345678-1234-4234-8234-123456789abc";
-const stored = [`refs/arc/work/${uid}`, `refs/arc/cohort/${uid}`, "refs/arc/archive/2026-Q4",
+const stored = [`refs/arc/work/${uid}`, `refs/arc/cohort/${uid}`, "refs/arc/archive/2026-q4",
   "refs/arc/project/inbox", "refs/arc/project/registry", "refs/arc/user/andrew/personal", "refs/arc/user/zoe/claims"];
 const ignored = ["refs/arc/user/andrew/errands", "refs/arc/user/andrew/sync-state", "refs/arc/bootstrap/old",
   "refs/arc/tmp/other", "refs/arc/tmp/version", "refs/arc/project/moved", `refs/arc/history/work/${uid}`];
