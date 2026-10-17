@@ -18,7 +18,7 @@ export interface RefMergeOptions {
   lock: RefStorePorts["lock"];
   commitMode?: RefCommitMode;
   targetRef?: (canonical: string) => string;
-  onApplied?: (context: RefBackendContext, ref: string, before: string | null, after: string) => Promise<void>;
+  onApplied?: (context: RefBackendContext, ref: string, before: string | null, after: string, notices: readonly PullNotice[]) => Promise<void>;
 }
 /** A changed basis asks the caller to release locks and capture its sets again. */
 export type RefMergeResult = { status: "complete"; changed: boolean; notices: PullNotice[] } | { status: "restart" };
@@ -53,7 +53,7 @@ export async function mergeRefSets(context: RefBackendContext, local: ReadonlyMa
         return updateRefTransaction(physical, [{ ref: target, next: tip, expected: current }], { cwd: context.checkoutRoot });
       }, options.commitMode);
       if (committed.status === "layout-changed" || committed.result.status === "lost-race") return { status: "restart" };
-      await options.onApplied?.(context, ref, current, publishedTip);
+      await options.onApplied?.(context, ref, current, publishedTip, prepared?.notices ?? []);
       return { status: "complete", changed: true, notices: prepared?.notices ?? [] };
     });
     if (result.status === "restart") return result;

@@ -33,7 +33,7 @@ type ExclusiveCreateFn = (path: string, content: string) => Promise<void>;
 const BREAK_LOCK_SUFFIX = ".break";
 
 /** Total bounded wait for a held-and-live lock before surfacing a timeout. */
-const DEFAULT_MAX_WAIT_MS = 10_000;
+export const DEFAULT_MAX_WAIT_MS = 10_000;
 
 /** Staleness TTL for the break-lock itself; the main lock is never broken by age. */
 const DEFAULT_BREAK_LOCK_TTL_MS = 30_000;

@@ -883,25 +883,15 @@ converge with no lost write.
           state. Subtree outcomes compare their own stored record versions, including format changes; quarter-only
           pulls identify archived families. A failed state pull retains its failure and stops publication.
 
-### `[ ]` **9.5 The deadline and backoff — § 6.1, § 6.7**
+### `[x]` **9.5 The deadline and backoff — § 6.1, § 6.7**
 
 - _Goal:_ No `pull` or `push` stalls a session past 120 s, and retries back off by the host's own push time, so writes
   stay local for the next firing point whatever the remote does.
 
-    - The deadline is a 120 s bound on the sleep port (3.1.a), started with the operation, whose end aborts the signal
-      passed to every Git call (2.1); on the fake's virtual clock a retry's wait ending before it wakes first, and a
-      case reaches the deadline only by advancing the clock while a call never returns; the `n`th retry waits on the
-      sleep port for a time the random source draws uniformly from zero to the lesser of 10 s and `d · 2^n`, `d` the
-      last push's duration, holding no lock
-    - Build `test-first` (one behavior at a time):
-        - an HTTP endpoint that accepts the connection and never answers ends `pull` and `push` at the deadline, `failed`
-          `unreachable` with cause `timeout`, carrying the notices of what applied, with no helper process left, and the
-          next push lands the writes
-        - a deadline passing between attempts ends the loop `retries-exhausted` with its retry count and time waited
-        - each retry's wait stays within its limit, its draw taken from the random source
-        - in the separate layout, an `unreachable` failure's remedy names moving a transport setting held only in the code
-          repository's config — `core.sshCommand`, a credential helper, or an `http.*` key — to the person's global
-          configuration or the store directory's (§ 9.7), which the default layout's omits
+- _Outcome:_ Pulls and the push loop share one cancellable deadline across Git ports and cap native lock waits by the
+  remaining budget. Retries use measured push duration and full jitter, with capped waits and measured exhaustion.
+  Applied merge notices survive cancellation, including after remote acceptance; a fresh call reconciles saved writes.
+  Unreachable results explain the separate store's transport configuration boundary.
 
 ### `[ ]` **9.6 The conformance sync items in both layouts — § 14.1**
 

@@ -1,6 +1,7 @@
 /** State publication from captured source tips after an initial reconciliation. */
 
 import { AdvisoryLockTimeoutError } from "../../advisory-lock.js";
+import { isGitProcessError } from "../../git/process-error.js";
 import { pushRefs } from "../../git/push.js";
 import { classifyPushOutcome, type PushClassification } from "../../git/push-classification.js";
 import type { FamilyId } from "../catalog.js";
@@ -9,7 +10,10 @@ import type { PushInput, PushResult, PublishOutcome } from "../sync.js";
 import type { StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import { readRefDesignation, refDesignationStop, type RefDesignation, type RefRemoteDesignation } from "./designation.js";
-import { writeRefRepository } from "./repository.js";
+import { readRefRepository, writeRefRepository } from "./repository.js";
+import { refSyncTransportRemedy } from "./sync-remedy.js";
+import { waitForPushRetry } from "./push-backoff.js";
+import { withRefSyncDeadline, refSyncDeadlineExpired } from "./sync-deadline.js";
 import { pullRefStore } from "./pull.js";
 import { recordPushTracking } from "./push-tracking.js";
 import { capturePushListing, pushListingIncludesTracking, type RefPushListing } from "./push-listing.js";
@@ -17,7 +21,7 @@ import { capturePushListing, pushListingIncludesTracking, type RefPushListing } 
 /** Reconcile first, then publish only a stable listing of this clone's changed refs. */
 export async function pushRefStore(context: RefBackendContext, input: PushInput = {}): Promise<StoreResult<PushResult>> {
   void input;
-  try { return await publishRefStore(context); }
+  try { return await withRefSyncDeadline(context, publishRefStore); }
   catch (error) {
     if (!(error instanceof AdvisoryLockTimeoutError) || error.phase !== "acquire") throw error;
     return { status: "refused", refusal: { code: "lock-held", class: "recoverable", lock: error.lockPath,
@@ -28,16 +32,24 @@ export async function pushRefStore(context: RefBackendContext, input: PushInput 
 
 interface PushLoop {
   pulls: PushResult["pulls"];
-  reconciled: Set<FamilyId>; pushed: Set<FamilyId>; retryCount: number; waitedMs: number;
+  reconciled: Set<FamilyId>; pushed: Set<FamilyId>; retryCount: number; waitedMs: number; lastPushMs: number;
+  states: PushResult["states"];
   pending?: { designation: string; listing: RefPushListing; outcome: Extract<PushClassification, { status: "lost-race" | "by-state" }> };
 }
 
 async function publishRefStore(context: RefBackendContext): Promise<StoreResult<PushResult>> {
-  const loop: PushLoop = { pulls: [], reconciled: new Set(), pushed: new Set(), retryCount: 0, waitedMs: 0 };
+  const loop: PushLoop = { pulls: [], reconciled: new Set(), pushed: new Set(), retryCount: 0, waitedMs: 0, lastPushMs: 0, states: [] };
   for (;;) {
-    const result = await publishRefAttempt(context.repository?.source ?? context, loop);
+    if (refSyncDeadlineExpired(context)) return exhaustedStatePublication(context, loop);
+    let result: StoreResult<PushResult> | "retry";
+    try { result = await publishRefAttempt(context.repository?.source ?? context, loop); }
+    catch (error) {
+      if (!context.syncDeadline?.signal.aborted || !isGitProcessError(error) || error.kind !== "canceled") throw error;
+      return timedOutStatePublication(context, loop);
+    }
     if (result !== "retry") return result;
     loop.retryCount++;
+    loop.waitedMs += await waitForPushRetry(context, loop.retryCount, loop.lastPushMs);
   }
 }
 
@@ -51,10 +63,12 @@ async function publishRefAttempt(context: RefBackendContext, loop: PushLoop): Pr
   if (pulled.status === "refused") return pulled;
   loop.pulls.push(...pulled.result.pulls);
   const result: PushResult = { ...pulled.result, states: statePushStates(pulled.result.states, await context.identity()), pulls: loop.pulls, publishes: [] };
-  const failedPull = pulled.result.pulls.find((pull) => pull.role === "state" && pull.status === "failed");
+  loop.states = result.states;
+  const failedPull = pulled.result.pulls.find((pull) => pull.status === "failed" && (pull.role === "state"
+    || pull.failure.code === "unreachable" && pull.failure.cause === "timeout"));
   if (failedPull?.status === "failed") return failedStatePublication(context, result, failedPull.failure, loop);
   const unsettled = settlePushRejection(loop, designation, merged);
-  if (unsettled) return failedStatePublication(context, result, pushOutcomeFailure(unsettled), loop);
+  if (unsettled) return failedStatePublication(context, result, pushOutcomeFailure(context, unsettled), loop);
   context = await writeRefRepository(context);
   const listing = await capturePushListing(context, remote.name, await context.identity());
   const target = await checkedPushTarget(context, remote, designation, listing, merged);
@@ -65,7 +79,7 @@ async function publishRefAttempt(context: RefBackendContext, loop: PushLoop): Pr
     loop.pending = { designation: JSON.stringify(designation), listing, outcome };
     return "retry";
   }
-  if (outcome.status !== "ok") return failedStatePublication(context, result, pushOutcomeFailure(outcome), loop);
+  if (outcome.status !== "ok") return failedStatePublication(context, result, pushOutcomeFailure(context, outcome), loop);
   result.publishes = successfulStatePublishes(statePushFamilies(await context.identity()), loop.reconciled, loop.pushed, loop.retryCount, loop.waitedMs);
   return { status: "ok", result };
 }
@@ -86,11 +100,11 @@ async function failedStatePublication(context: RefBackendContext, result: PushRe
     retryCount: loop.retryCount, waitedMs: loop.waitedMs }] } };
 }
 
-function pushOutcomeFailure(outcome: Exclude<PushClassification, { status: "ok" }>): StatePushFailure {
+function pushOutcomeFailure(context: RefBackendContext, outcome: Exclude<PushClassification, { status: "ok" }>): StatePushFailure {
   return outcome.status === "unreachable"
     ? { code: "unreachable", class: "recoverable", cause: outcome.cause,
       condition: outcome.message || "The state push could not reach its receiver.",
-      remedy: { text: "Repair connectivity or authentication and retry the push." } }
+      remedy: refSyncTransportRemedy(context, "push") }
     : { code: "refused", class: "terminal", message: outcome.message || "The receiver refused the state push.",
       condition: "The receiver refused publication; all unaccepted writes remain local.",
       remedy: { text: outcome.status === "refused" && outcome.reason === "atomic-unsupported"
@@ -107,7 +121,9 @@ async function publishListing(context: RefBackendContext, remote: string, target
   if (listing.changes.length === 0) return { status: "ok", message: "" };
   const changes = listing.changes.map((change) => /^refs\/arc\/(?:history\/)?(?:work|cohort)\//u.test(change.ref)
     ? { ...change, expected: listing.tracking.get(change.ref) ?? null } : change);
-  const outcome = await pushRefs(context.exec, target, changes, { cwd: context.checkoutRoot });
+  const started = context.clock().getTime();
+  const outcome = await pushRefs(context.exec, target, changes, { cwd: context.checkoutRoot, signal: context.syncDeadline?.signal });
+  loop.lastPushMs = Math.max(0, context.clock().getTime() - started);
   await recordPushTracking(context, remote, listing, outcome);
   if (outcome.status === "refs") for (const row of outcome.refs) {
     if (row.status === "ok") for (const family of await refMovementFamilies(context, row.ref, listing.tracking.get(row.ref) ?? null,
@@ -129,4 +145,19 @@ async function checkedPushTarget(context: RefBackendContext, remote: RefRemoteDe
   const target = await pushRemoteTarget(context, remote, designation);
   const source = context.repository?.source ?? context;
   return JSON.stringify(await readRefDesignation(source)) === JSON.stringify(designation) ? target : null;
+}
+
+async function exhaustedStatePublication(context: RefBackendContext, loop: PushLoop): Promise<StoreResult<PushResult>> {
+  const result: PushResult = { states: statePushStates(loop.states, await context.identity()), pulls: loop.pulls, publishes: [] };
+  return failedStatePublication(context, result, { code: "retries-exhausted", class: "recoverable",
+    retryCount: loop.retryCount, waitedMs: loop.waitedMs,
+    condition: "The push deadline expired between attempts; unpublished writes remain local.",
+    remedy: { text: "Retry the push; it will fetch and reconcile the saved writes first." } }, loop);
+}
+
+async function timedOutStatePublication(context: RefBackendContext, loop: PushLoop): Promise<StoreResult<PushResult>> {
+  context = await readRefRepository(context);
+  const result: PushResult = { states: statePushStates(loop.states, await context.identity()), pulls: loop.pulls, publishes: [] };
+  return failedStatePublication(context, result, pushOutcomeFailure(context, { status: "unreachable", cause: "timeout",
+    message: "The push deadline expired while running Git; retry to reconcile any writes the receiver accepted." }), loop);
 }

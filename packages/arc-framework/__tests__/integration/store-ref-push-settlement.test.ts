@@ -78,7 +78,7 @@ it.each(["default", "separate"] as const)("settles an unknown server rejection a
   success(await h.a.store.write({ action: "put", reference: local, expected: before.version, content: "still local\n", provenance }));
   await writeFile(hook, '#!/bin/sh\nprintf "state policy requires repair\\n" >&2\nexit 1\n', { mode: 0o755 });
   const refused = success(await h.a.store.push());
-  expect(refused.publishes).toEqual([expect.objectContaining({ retryCount: 1, waitedMs: 0 })]);
+  expect(refused.publishes).toEqual([expect.objectContaining({ retryCount: 1, waitedMs: expect.any(Number) })]);
   expect(refused.publishes).toEqual([expect.objectContaining({ status: "failed", failure: expect.objectContaining({
     code: "refused", class: "terminal", message: expect.stringContaining("remote: state policy requires repair"),
   }) })]);

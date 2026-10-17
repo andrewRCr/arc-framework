@@ -25,7 +25,12 @@ export async function fetchRefRemote(context: RefBackendContext, remote: RefRemo
   try {
     return parseFetchPorcelain(await context.exec("git", args, { cwd: context.checkoutRoot, signal,
       diagnosticLocale: "stable", interaction: PASSIVE_REMOTE_INTERACTION, preserveOutput: true }));
-  } catch (error) { return parseFetchPorcelain(normalizeGitRejection(error, { command: "git", args })); }
+  } catch (error) {
+    const failure = normalizeGitRejection(error, { command: "git", args });
+    const outcome = parseFetchPorcelain(failure);
+    return outcome.status === "unreachable" && failure.kind === "canceled" && signal?.aborted
+      ? { ...outcome, cause: "timeout" } : outcome;
+  }
 }
 
 async function negotiationArgs(context: RefBackendContext, identity: string | null): Promise<string[]> {
