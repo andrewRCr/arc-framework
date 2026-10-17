@@ -2,7 +2,8 @@
 import type { Store } from "../store/contract.js";
 import { listLifecycleIndex } from "../store/lifecycle-index.js";
 import { createProjectIdentityReader, resolveProjectIdentity } from "../store/project-identity.js";
-import { workBranchName } from "../store/lifecycle-branch.js";
+import { selectWorkBranchLink, workBranchName } from "../store/lifecycle-branch.js";
+import type { StoreRecord } from "../store/read.js";
 import { acquireStoreErrands, acquireStoreClaims, type StoreIdentityAcquisition } from "../errand/store-discovery.js";
 import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
 import type { GitExec } from "./exec.js";
@@ -57,8 +58,15 @@ class InFlightProjection {
   warn(message: string, code: InFlightWarning["code"] = "meta-read-failed"): void {
     this.warnings.push({ code, rendered: message }); this.degraded = true;
   }
-  branchFor(links: { branches?: readonly { repository: string; ref: string }[] } | undefined): string | undefined {
-    return this.repository === undefined ? undefined : links?.branches?.find((link) => link.repository === this.repository)?.ref;
+  branchFor(record: Pick<StoreRecord, "links">, currentBranch?: string | null): string | undefined {
+    if (this.repository === undefined) return undefined;
+    for (const link of record.links?.branches ?? []) {
+      if (link.repository === this.repository) this.linked.add(workBranchName(link.ref));
+    }
+    const selection = selectWorkBranchLink(record, { repository: this.repository,
+      ...(currentBranch === undefined ? {} : { currentBranch }) });
+    if (selection.kind === "ambiguous") this.warn(selection.reason);
+    return selection.kind === "linked" ? selection.link.ref : undefined;
   }
   locate(branch: string | undefined, path: string | null | undefined) {
     const short = branch === undefined ? undefined : workBranchName(branch);
@@ -84,7 +92,7 @@ class InFlightProjection {
     const slug = errandsOnly ? saved.reference.owner.name : typeof saved.reference.key === "string" ? saved.reference.key : "";
     const record = acquisition.decoded.get(slug);
     if (record === undefined || record.branch === null) return;
-    const branch = errandsOnly ? this.branchFor(saved.links) : record.branch;
+    const branch = errandsOnly ? this.branchFor(saved, record.branch) : record.branch;
     const row = this.options.roster?.find((candidate) => matchesTransient(candidate, slug, record.claimId));
     const owner = record.kind === "errand" && record.purpose === "errand" ? record.owner : this.options.identity;
     this.entries.push({ kind: "errand", slug, ...this.locate(branch, row?.checkout.path), ...optionalField("owner", owner) });
@@ -121,7 +129,9 @@ async function addWorkUnit(context: InFlightProjection, item: import("../store/l
     try { path = await context.options.findHoldingCheckout(name) ?? undefined; }
     catch (error) { context.warn(error instanceof Error ? error.message : String(error)); }
   }
-  context.entries.push({ kind: "work-unit", name, state: item.phase, ...context.locate(context.branchFor(item.links), path), dependsOn: fields.dependsOn,
+  const holder = path === row?.checkout.path ? row : context.options.roster?.find(candidate => candidate.checkout.path === path
+    && candidate.subject?.kind === "work-unit" && candidate.subject.key === name);
+  context.entries.push({ kind: "work-unit", name, state: item.phase, ...context.locate(context.branchFor(item, holder?.checkout.branch), path), dependsOn: fields.dependsOn,
     ...optionalField("owner", fields.owner), ...optionalField("cohort", fields.cohort), ...optionalField("class", fields.workClass),
     ...optionalField("priority", fields.priority), ...(fields.pause === null ? {} : { scheduling: "paused" }),
     ...(fields.design.length === 0 ? {} : { design: fields.design.join(", ") }) });

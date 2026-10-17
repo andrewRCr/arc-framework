@@ -58,6 +58,10 @@ it.each(["derivation", "scale"] as const)("promotes through registered %s option
   expect((await f.exec("git", ["rev-parse", `refs/heads/chore/${f.slug}`])).stdout.trim()).toBe(f.cut);
   expect((await f.exec("git", ["rev-parse", `refs/heads/preserved-${name}`])).stdout.trim()).toBe(f.head.trim());
   expect(await readWorktreeMarker(f.cwd)).toMatchObject({ kind: "present", marker: { spawnedByArc: false, createdFor: { kind: "work-unit", name } } });
+  const inFlight = await repairCli(f, ["active", "in-flight", "--json"]);
+  expect(inFlight).toMatchObject({ result: { entries: [expect.objectContaining({ kind: "work-unit", name, branch: `feat/${name}`, worktreePath: f.cwd })] } });
+  const result = inFlight.result as { warnings: { branch?: string }[] };
+  expect(result.warnings.filter(warning => [f.primary.links?.branches?.[0]?.ref, `feat/${name}`].includes(warning.branch))).toEqual([]);
 }, 30_000);
 
 it("recovers a registered promotion's recorded cut after a real ref lock and repaired branch conflict", async () => {
