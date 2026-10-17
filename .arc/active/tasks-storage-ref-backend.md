@@ -588,31 +588,15 @@ close, and renames and role changes.
   each end's batch and quarter. Reads and listings select one latest folder; check views expose the prepared state.
   Shared quarter preparation composes archive, reopen, and refresh changes, while identical rewrites remain no-ops.
 
-### `[ ]` **6.4 Abandon, decomposition, and every other removal — § 7.4, § 7.5**
+### `[x]` **6.4 Abandon, decomposition, and every other removal — § 7.4, § 7.5**
 
 - _Goal:_ An item ends outside the archive exactly when a write leaves it with its lineage and no primary, and every other
   removal is an ordinary write of absence, so each end carries a record other machines read.
 
-    - Apply the final sweep only after 5.8's checks admit the prepared batch; the empty final tree and history-ref move
-      remain in the same transaction, with the ref-backend check-view cases in 6.R (A4)
-    - An origin inbound-list put settling its entries in the same batch creating terminal lineage is the exception to
-      the other-origin put refusal: admit its proposed list through the declared grammar and `checkLineageRecord`
-      before sweeping it; explicit inbound removal remains permitted, with both cases closed by 6.R (A4)
-    - An ended item's final tree holds no metadata file, so its `history` takes the paths from the last metadata file in
-      its ref's log
-    - Build `test-first` (one behavior at a time):
-        - one batch removing the primary and creating the lineage ends the item: the ref's final commit removes every
-          record and the ref moves to `refs/arc/history/work/<uid>`
-        - the lineage first and the primary's removal later end it at the removal, as the suite's
-          `terminal-transition-after-primary-removal` writes it, and the removal first then the lineage end it at the
-          lineage
-        - lineage beside a live primary ends nothing
-        - a put of another record of an item left with its lineage and no primary refuses `record-malformed` naming the
-          lineage, while a put of its primary restores it
-        - a decomposition's children are refs the same batch creates with expected absence
-        - an ended item's `read` refuses `not-found` by UID, and `history` by UID reads its history ref, or refuses
-          `state-unresolvable` naming it where this clone holds the lineage without the ref
-        - a primary's removal with no lineage keeps the ref live, as `current-removal` expects
+- _Outcome:_ Lineage writes lock their origin and history destination. After checks admit the prepared batch, a
+  primary-less origin with lineage moves to history with an empty final tree; history recovers paths from retained
+  metadata. Other origin puts refuse unless the batch restores its primary or settles inbound during retirement.
+  Missing lineage trees and retained history name repair routes without publishing partial changes.
 
 ### `[ ]` **6.R Retirement checks before the final sweep — § 5.3, § 7.4**
 

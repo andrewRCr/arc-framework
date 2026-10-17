@@ -14,6 +14,7 @@ import { readRefTips } from "./batch-read.js";
 import type { RefBackendContext } from "./context.js";
 import { checkLiveNamespace } from "./namespace-admission.js";
 import { readLineageOwners, lineageOwnerCandidates } from "./lineage-resolution.js";
+import { retirementTargets } from "./write-retirement.js";
 import { readLiveRefOwners } from "./live-owners.js";
 
 /** Canonical mutation and its concrete ref/tree address. */
@@ -26,7 +27,7 @@ export interface RefWriteTarget { reference: RecordReference; home: StoredRecord
 /** Include conflict-resolution refs in the same capture, locking, and publication set. */
 export function refWriteTargets(context: Pick<RefBackendContext, "registry">, batch: ResolvedBatch): RefWriteTarget[] {
   return batch.writes.flatMap(({ mutation, home }) => [{ reference: mutation.reference, home },
-    ...(mutation.resolves ?? []).map((reference) => ({ reference, home: mutationHome(context, reference, batch.archived ?? []) }))]);
+    ...(mutation.resolves ?? []).map((reference) => ({ reference, home: mutationHome(context, reference, batch.archived ?? []) }))]).concat(retirementTargets(context, batch));
 }
 
 /** Resolve all owner names together so records created in one batch share a generation. */

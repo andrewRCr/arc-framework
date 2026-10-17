@@ -11,6 +11,7 @@ import { readBatchObjects, readRefTips } from "./batch-read.js";
 import { checkRefKey } from "./path-admission.js";
 import { resolveReadReference } from "./read.js";
 import { resolveArchivedReferences } from "./archive-resolution.js";
+import { retiredHistoryHome } from "./retired-history.js";
 import { readHistorySnapshots } from "./history-snapshots.js";
 
 interface HistoryCommit { revision: string; parents: string[] }
@@ -34,7 +35,9 @@ export async function historyRefRecord(context: RefBackendContext, input: { refe
   }
   const archived = await resolveArchivedReferences(context, [reference], tips);
   if (archived.status === "refused") return archived;
-  const home = expandStoredPath(reference, { registry: context.registry, history: archived.result.length > 0 });
+  const retired = archived.result.length ? { status: "ok" as const, result: null } : await retiredHistoryHome(context, reference, tips);
+  if (retired.status === "refused") return retired;
+  const home = retired.result ?? expandStoredPath(reference, { registry: context.registry, history: archived.result.length > 0 });
   const tip = tips.get(home.ref);
   return tip ? readRefHistory(context, reference, home, tip) : { status: "ok", result: [] };
 }

@@ -25,6 +25,7 @@ import { planRefReopens, reopenRefChanges } from "./write-reopen.js";
 import { planRefArchives, archiveRefChanges } from "./write-archive.js";
 import { prepareRefAnchors } from "./write-anchors.js";
 import { stampCompletedWrites, refreshCompletedChanges } from "./write-completed.js";
+import { planRefRetirements, sweepRefRetirements, retirementRefChanges } from "./write-retirement.js";
 import { prepareRefConflicts } from "./write-conflicts.js";
 
 type RefGroup = RefWriteGroup;
@@ -56,15 +57,18 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
   const archives = await planRefArchives(context, prepared.result, groups, tips, batchId, reopens.result[0]?.quarters);
   if (archives.status === "refused") return archives;
   await stampCompletedWrites(context, resolved, prepared.result, groups, batchId);
+  const retirements = await planRefRetirements(context, resolved, refWriteTargets(context, resolved), groups);
+  if (retirements.status === "refused") return retirements;
   const completed = await prepareRefConflicts(context, prepared.result, groups, results);
   const broken = await checkRefWrites(context, prepared.result, completed, tips, provenance);
   if (broken) return { status: "refused", refusal: broken };
+  sweepRefRetirements(retirements.result, groups, completed);
   const committed = await prepareRefCommits(context, prepared.result, refWriteTargets(context, resolved), groups, completed, tips, provenance, batchId);
   const archived = await archiveRefChanges(context, committed, archives.result, groups, completed, prepared.result, tips, provenance, batchId);
   const reopened = await reopenRefChanges(context, archived, reopens.result, tips, provenance, batchId);
   const refreshed = await refreshCompletedChanges(context, reopened, resolved, completed, provenance, batchId);
   if (refreshed.status === "refused") return refreshed;
-  const changes = refreshed.result;
+  const changes = retirementRefChanges(refreshed.result, retirements.result, tips);
   if (changes.length === 0) return { status: "ok", result: { batchId, writes: results } };
   const outcome = await updateRefTransaction(context, changes, { cwd: context.checkoutRoot });
   if (outcome.status !== "committed") return "retry";

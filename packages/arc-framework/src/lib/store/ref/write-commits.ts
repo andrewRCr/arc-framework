@@ -14,7 +14,7 @@ import { writeRefBlob, writeRefTree } from "./tree-write.js";
 import type { RefWriteTarget } from "./write-resolution.js";
 
 /** Mutable prepared tree with the original entries retained for no-op comparison. */
-export interface RefWriteGroup extends CapturedWriteGroup { original: Map<string, RefTreeEntry>; readPlacement?: ReadPlacement; viewRef?: string }
+export interface RefWriteGroup extends CapturedWriteGroup { original: Map<string, RefTreeEntry>; readPlacement?: ReadPlacement; viewRef?: string; retired?: true }
 
 /** Construct each changed ref's write commit and optional conflict commit. */
 export async function prepareRefCommits(context: RefBackendContext, writes: readonly PreparedRefMutation[],
@@ -28,9 +28,9 @@ export async function prepareRefCommits(context: RefBackendContext, writes: read
     const selected = writes.filter((write) => write.home.ref === ref);
     const first = targets.find(({ home }) => home.ref === ref);
     if (!first) throw new Error("A changed ref has no mutation");
-    if (selected.length === 0 && group.original.size === 0) continue;
+    if (selected.length === 0 && group.original.size === 0 && !group.retired) continue;
     const path = first.home.metadataPath;
-    group.entries.set(path, { path, mode: "100644", oid: await writeRefBlob(context, canonicalize(group.metadata)) });
+    await serializeRefMetadata(context, group, path);
     const clashes = selected.some((write) => write.conflicts.length > 0);
     if (!clashes && unchangedGroup(group)) continue;
     const parent = tips.get(ref);
@@ -38,7 +38,7 @@ export async function prepareRefCommits(context: RefBackendContext, writes: read
     if (clashes) {
       const final = completed.get(ref);
       if (!final) throw new Error("A ref with staged conflicts has no final tree");
-      final.entries.set(path, { path, mode: "100644", oid: await writeRefBlob(context, canonicalize(final.metadata)) });
+      await serializeRefMetadata(context, final, path);
       next = await commitRefTree(context, final.entries.values(), next, { ...provenance, verb: "merge" }, first.reference, batchId, actor);
     }
     changes.push({ ref, next, expected: parent ?? null });
@@ -55,7 +55,12 @@ export async function commitRefTree(context: RefBackendContext, entries: Iterabl
   return stdout.trim();
 }
 
+async function serializeRefMetadata(context: RefBackendContext, group: RefWriteGroup, path: string): Promise<void> {
+  if (!group.retired) group.entries.set(path, { path, mode: "100644", oid: await writeRefBlob(context, canonicalize(group.metadata)) });
+}
+
 function unchangedGroup(group: RefWriteGroup): boolean {
+  if (group.retired) return false;
   return group.entries.size === group.original.size && [...group.entries].every(([path, entry]) => {
     const before = group.original.get(path);
     return before?.oid === entry.oid && before.mode === entry.mode;
