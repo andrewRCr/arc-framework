@@ -16,7 +16,7 @@ export function entryForDestination(raw: string, kind: EntryKind, date: string, 
   const admitted: readonly string[] = ["Id", ...ENTRY_CONFIGS[kind].managedFields];
   const changes = Object.fromEntries(ENTRY_FIELDS.filter((field) => !admitted.includes(field) || field === "Cites").map((field) => [field, undefined])) as Record<string, string | undefined>;
   if (kind !== "work-item/description" && !preserveCreated) changes.Created = date;
-  const rewritten = writeEntryFields(entryHeadingForDestination(raw, kind), changes);
+  const rewritten = writeEntryFields(writeRoutedFrom(entryHeadingForDestination(raw, kind)), changes);
   const origin = kind === "work-item/inbound" && source !== null ? describeOrigin(source) : undefined;
   return writeRoutedFrom(rewritten, origin);
 }

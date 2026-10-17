@@ -11,6 +11,26 @@ import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/ident
 import { readQueueState } from "../../src/lib/inbox/queue-storage.js";
 import { resolveQueueExecutionOffer } from "../../src/lib/inbox/offer.js";
 
+async function routedInboundNotes(newline: string) {
+  const f = await repairCliFixture(), workUnit = await f.h.workUnit("origin-notes");
+  const capture = (await cliRows(f, "project"))[0]; if (!capture) throw new Error("No project capture");
+  expect(await repairCli(f, ["route", capture.id, "--from", "project", "--expected-version", capture.version,
+    "--to", workUnit.reference.owner.name])).toMatchObject({ result: { state: "routed", entryId: capture.id } });
+  const routed = (await cliRows(f, workUnit.reference.owner.name))[0]; if (!routed) throw new Error("No routed inbound");
+  const fields = routed.raw.split(/\r?\n/u).filter(line => line.startsWith("- "));
+  expect(fields.at(-1)).toMatch(/^- _Routed from:_ project /u);
+  const first = ["<!--", "First inbound note.", "-->"].join(newline);
+  const second = ["<!--", "Second inbound note.", "-->"].join(newline);
+  const footer = "<!-- Inbound document footer. -->";
+  const inbound = await resolveEntryList(workUnit.reference.owner.name, f.h.context);
+  if (inbound.status !== "ok" || !inbound.result.saved) throw new Error("No inbound record");
+  await editRecord(f, inbound.result.saved, ["## Inbound", "", `### **Concern** ${first}`, second,
+    ...fields, "", footer, ""].join(newline));
+  const row = (await cliRows(f, workUnit.reference.owner.name))[0]; if (!row) throw new Error("No annotated entry");
+  expect(row.raw).toContain(first); expect(row.raw).toContain(second); expect(row.raw).not.toContain(footer);
+  return { f, workUnit, row, first, second, footer };
+}
+
 it("keeps the capture gate clear for commented targets and names a visible held capture", async () => {
   const f = await repairCliFixture(), personal = await resolveEntryList("personal", f.h.context);
   if (personal.status !== "ok" || !personal.result.saved) throw new Error("No personal inbox");
@@ -187,6 +207,44 @@ it.each(["\n", "\r\n"])("returns interspersed entry notes from an Errand with %j
   expect(returned).toMatchObject({ id: row.id, title: "Concern", raw: expect.stringContaining(first) });
   expect(returned?.raw).toContain(second);
   expect(await cliRows(f, "field-notes-return")).toEqual([]);
+}, 30000);
+
+it.each(["\n", "\r\n"])("keeps generated-origin entry notes through onward routing with %j endings", async newline => {
+  const { f, workUnit, row, first, second, footer } = await routedInboundNotes(newline);
+  expect(await repairCli(f, ["route", row.id, "--from", workUnit.reference.owner.name, "--expected-version", row.version,
+    "--to", "personal", "--section", "Errand"])).toMatchObject({ result: { state: "routed", entryId: row.id } });
+  const onward = (await cliRows(f, "personal"))[0]; if (!onward) throw new Error("No personal entry");
+  expect(onward).toMatchObject({ id: row.id, title: "Concern", raw: expect.stringContaining(first) });
+  expect.soft(onward.raw).toContain(second);
+  expect(await repairCli(f, ["route", onward.id, "--from", "personal", "--expected-version", onward.version, "--to", "project"]))
+    .toMatchObject({ result: { state: "routed", entryId: row.id } });
+  const returned = (await cliRows(f, "project"))[0];
+  expect(returned).toMatchObject({ id: row.id, raw: expect.stringContaining(first) });
+  expect.soft(returned?.raw).toContain(second);
+  const personal = await resolveEntryList("personal", f.h.context), inbound = await resolveEntryList(workUnit.reference.owner.name, f.h.context);
+  if (personal.status !== "ok" || !personal.result.saved || inbound.status !== "ok" || !inbound.result.saved) throw new Error("No persisted list");
+  expect.soft(personal.result.saved.content).not.toContain(second);
+  expect(inbound.result.saved.content).not.toContain(first); expect(inbound.result.saved.content).not.toContain(second);
+  expect(inbound.result.saved.content.split(footer)).toHaveLength(2); expect(returned?.raw).not.toContain(footer);
+}, 30000);
+
+it.each(["\n", "\r\n"])("keeps generated-origin entry notes through Errand return with %j endings", async newline => {
+  const { f, workUnit, row, first, second } = await routedInboundNotes(newline);
+  expect(await repairCli(f, ["errand", "open", "origin-notes-return", "--intent", "Other concern", "--json"]))
+    .toMatchObject({ result: { outcome: "applied" } });
+  expect(await repairCli(f, ["route", row.id, "--from", workUnit.reference.owner.name, "--expected-version", row.version,
+    "--to", "origin-notes-return"])).toMatchObject({ result: { state: "routed", entryId: row.id } });
+  const description = (await cliRows(f, "origin-notes-return")).find(entry => entry.id === row.id);
+  expect(description?.raw).toContain(first); expect.soft(description?.raw).toContain(second);
+  expect(await repairCli(f, ["errand", "abandon", "origin-notes-return", "--json"]))
+    .toMatchObject({ result: { outcome: "applied" } });
+  const returned = (await cliRows(f, "personal")).find(entry => entry.id === row.id);
+  expect(returned).toMatchObject({ id: row.id, title: "Concern", raw: expect.stringContaining(first) });
+  expect.soft(returned?.raw).toContain(second);
+  const saved = await resolveEntryList("origin-notes-return", f.h.context);
+  if (saved.status !== "ok" || !saved.result.saved) throw new Error("No saved description");
+  expect.soft(saved.result.saved.content).not.toContain(second);
+  expect(await cliRows(f, "origin-notes-return")).toEqual([]);
 }, 30000);
 
 it("lists actual captures, refuses an invalid target filter, and routes a stale entry only after listing its new version", async () => {
