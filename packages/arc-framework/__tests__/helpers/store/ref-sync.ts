@@ -29,7 +29,7 @@ export async function createRefSyncCheckout(root: string, layout: "default" | "s
     await exec("git", [`--git-dir=${gitDir}`, "config", "remote.backing.arc-state", "push"]);
   }
   const actor = `andrew@${randomUUID()}`;
-  const ports: RefStorePorts = { ...defaults, ...createRefClock(), rawExec: createExecaRawGitExec(root),
+  const ports: RefStorePorts = { ...defaults, backingRepository: async () => null, ...createRefClock(), rawExec: createExecaRawGitExec(root),
     actor: async () => actor, random: () => 0.5, lock: createRefLockFactory(defaults) };
   const git = async (args: string[]) => {
     const directory = join(root, ".git", "arc", "store");

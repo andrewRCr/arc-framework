@@ -9,7 +9,8 @@ import { FAMILY_REGISTRY } from "../registry.js";
 import type { PullInput, PullResult, PullOutcome, PullNotice } from "../sync.js";
 import type { StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
-import { readRefDesignation, refDesignationStop, type RefDesignation, type RefRemoteDesignation } from "./designation.js";
+import { type RefDesignation, type RefRemoteDesignation } from "./designation.js";
+import { resolveRefDesignation } from "./designation-first.js";
 import { writeRefRepository } from "./repository.js";
 import { refSyncTransportRemedy } from "./sync-remedy.js";
 import { withRefSyncDeadline } from "./sync-deadline.js";
@@ -40,15 +41,16 @@ export async function pullRefStore(context: RefBackendContext, input: PullInput 
 async function pullRefStoreOnce(context: RefBackendContext, input: PullInput,
   onMerged?: (remote: string, incoming: ReadonlyMap<string, string>) => void, onApplied?: RefMergeOptions["onApplied"],
   retained = new Map<string, PullAttemptObservations>()): Promise<StoreResult<PullResult>> {
-  const designation = await readRefDesignation(context);
-  const stop = refDesignationStop(designation);
-  if (stop) return { status: "ok", result: { states: [stop], pulls: [] } };
+  const resolved = await resolveRefDesignation(context);
+  const { designation, states } = resolved;
+  const sources = designation.remotes.filter(({ role }) => role === "read" || role === "push" && !states.length && !resolved.pulls.length);
+  if (!sources.length) return { status: "ok", result: { states, pulls: resolved.pulls } };
   context = await writeRefRepository(context);
   const identity = await context.identity();
   const families = FAMILY_IDS.filter((family) => family !== "project-machinery" && family !== "constitution"
     && (identity !== null || FAMILY_REGISTRY[family].scope !== "identity"));
-  const pulls: PullOutcome[] = [];
-  for (const remote of designation.remotes.filter(({ role }) => role === "push" || role === "read")) {
+  const pulls: PullOutcome[] = [...resolved.pulls];
+  for (const remote of sources) {
     const observed = retained.get(remote.name) ?? { notices: [], changed: false };
     retained.set(remote.name, observed);
     const outcome = await pullRemote(context, input, designation, remote, families, onMerged, onApplied, observed);
@@ -57,7 +59,7 @@ async function pullRefStoreOnce(context: RefBackendContext, input: PullInput,
     pulls.push(outcome);
     if (timedOutPull(outcome)) break;
   }
-  return { status: "ok", result: { states: [], pulls } };
+  return { status: "ok", result: { states, pulls } };
 }
 
 async function pullRemote(context: RefBackendContext, input: PullInput, designation: RefDesignation,

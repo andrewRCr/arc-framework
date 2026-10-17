@@ -21,7 +21,7 @@ export function createRefRemote(root: string, ports: RefStorePorts, advance: (mi
   const git = (checkout: string, args: string[]) => execFileSync("git", [
     ...directory(checkout) ? [`--git-dir=${directory(checkout)}`] : [], ...args,
   ], { cwd: checkout, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] }).trim();
-  const peerPorts: RefStorePorts = { ...peerDefaults, ...createRefClock(), rawExec: createExecaRawGitExec(peer),
+  const peerPorts: RefStorePorts = { ...peerDefaults, backingRepository: async () => null, ...createRefClock(), rawExec: createExecaRawGitExec(peer),
     registry: ports.registry, random: ports.random, identity: ports.identity,
     actor: async (identity) => `${identity}@00000000-0000-4000-8000-000000000002`, lock: createRefLockFactory(peerDefaults) };
   const peerStore = createRefStore(peerPorts);

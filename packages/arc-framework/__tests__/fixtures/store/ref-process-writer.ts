@@ -15,7 +15,7 @@ const resume = async () => {
   process.stdout.write("READY\n");
   await new Promise<void>((resolve) => process.stdin.once("data", () => { process.stdin.pause(); resolve(); }));
 };
-const store = createRefStore({ ...defaults, rawExec: createExecaRawGitExec(root),
+const store = createRefStore({ ...defaults, backingRepository: async () => null, rawExec: createExecaRawGitExec(root),
   identity: async () => SlugSchema.parse(job.identity), actor: async (identity) => `${identity}@00000000-0000-4000-8000-000000000001`,
   random: Math.random, sleep: { wait: async () => {}, bound: async () => {} },
   lock: async (ref, wait) => {

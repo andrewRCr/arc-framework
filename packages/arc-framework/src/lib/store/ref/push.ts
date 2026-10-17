@@ -8,7 +8,8 @@ import { statePushFamilies, statePushStates, refMovementFamilies, successfulStat
 import type { PushInput, PushResult, PublishOutcome } from "../sync.js";
 import type { StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
-import { readRefDesignation, refDesignationStop, type RefDesignation, type RefRemoteDesignation } from "./designation.js";
+import { readRefDesignation, type RefDesignation, type RefRemoteDesignation } from "./designation.js";
+import { resolveRefDesignation } from "./designation-first.js";
 import { readRefRepository, writeRefRepository } from "./repository.js";
 import { refSyncTransportRemedy } from "./sync-remedy.js";
 import { waitForPushRetry } from "./push-backoff.js";
@@ -63,8 +64,9 @@ async function publishRefStore(context: RefBackendContext, carry?: RefCarryPubli
 
 async function publishRefAttempt(context: RefBackendContext, loop: PushLoop): Promise<StoreResult<PushResult> | "retry"> {
   const source = context.repository?.source ?? context;
-  const designation = await readRefDesignation(context), stop = refDesignationStop(designation);
-  if (stop) return { status: "ok", result: { states: statePushStates([stop], await context.identity()), pulls: loop.pulls, publishes: [] } };
+  const resolved = await resolveRefDesignation(context), { designation } = resolved;
+  if (resolved.states.length || resolved.pulls.length) return { status: "ok", result: {
+    states: statePushStates(resolved.states, await context.identity()), pulls: [...loop.pulls, ...resolved.pulls], publishes: [] } };
   const remote = designation.pushes[0];
   if (!remote) return { status: "ok", result: { states: statePushStates([{ status: "no-remote" }], await context.identity()), pulls: loop.pulls, publishes: [] } };
   const { pulled, merged } = await pullPushBasis(source, remote.name, loop);

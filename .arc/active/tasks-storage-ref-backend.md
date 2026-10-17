@@ -1107,24 +1107,11 @@ between layouts as its designation calls for.
       an upstream; where two remotes other than the code remote hold the registry, the first in `git remote`'s order is
       asked, the next once it is answered
 
-    - `[ ]` **12.2.a The decision**
-        - Build `test-first` (one behavior at a time):
-            - Integration tier, a fresh clone of remotes that hold or lack the registry, through `pull`
-            - a code remote holding the registry where no other remote does sets `push` without asking, where that
-              changes no layout and the project check passes
-            - a clone already holding state in the separate directory is asked instead
-            - an upstream holding the registry is asked `push`, `read`, or `off`, and a code remote where no remote holds
-              it `push` or `off`
-            - a clone whose store directory carries `backing` has it as its only candidate, and a fork upstream's `push`
-              counts for nothing beside it
-            - a pointer naming a backing repository at a first designation adds `backing` at its URL and asks about it,
-              and the code remote is never set or asked about
-            - a remote of the code repository named `backing` is never set or asked about, its key counting for nothing
-            - a clone with no code remote is asked about nothing but a remote holding the registry
-            - two remotes other than the code remote holding the registry: the first in `git remote`'s order is asked,
-              and once its answer is set the next pull asks about the second
-            - every remote `off` or `read`, or none to ask about, reports `no-remote`, and two `push` keys
-              `designation-ambiguous` naming both
+    - `[x]` **12.2.a The decision**
+        - The first-choice resolver preserves recorded roles, asks about a separate store or backing pointer, and
+          automatically designates only the sole registry-bearing code remote. Upstreams are asked in Git order;
+          reserved code remotes are ignored, local-only clones report no state remote, and held state requires an explicit
+          layout move. The tracked-pointer port remains lazy and outside configuration policy.
 
     - `[ ]` **12.2.b Presence reads**
         - `git ls-remote` of `refs/arc/project/registry` alone, run through the backend's executor and bounded by a

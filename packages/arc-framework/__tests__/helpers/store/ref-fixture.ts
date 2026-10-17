@@ -91,7 +91,7 @@ export async function createRefFixture(registryOverrides: Partial<Record<KindId,
   const gitDir = layout === "separate" ? join(commonDir, "arc", "store") : undefined;
   let identity: string | undefined = "test-user";
   const clock = createRefClock(new Date("2026-01-01T00:00:00Z"), 0);
-  const ports: RefStorePorts = { ...defaults, ...clock, rawExec: createExecaRawGitExec(root),
+  const ports: RefStorePorts = { ...defaults, backingRepository: async () => null, ...clock, rawExec: createExecaRawGitExec(root),
     registry, random: () => 0, identity: async () => identity === undefined ? null : SlugSchema.parse(identity),
     actor: async (identity) => `${identity}@00000000-0000-4000-8000-000000000001`, lock: (ref, wait) => native(ref, held.has(ref) ? 20 : wait) };
   const projectId = randomUUID();

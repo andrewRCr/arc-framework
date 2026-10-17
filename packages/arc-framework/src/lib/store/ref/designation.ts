@@ -19,7 +19,7 @@ export async function readRefDesignation(context: RefBackendContext, common?: st
   const commonDir = common ?? (await readGitDirectories(context.checkoutRoot, context.fs)).commonDir;
   const config = await repositoryConfig(context, commonDir);
   const code = configRemotes(config, "code");
-  const codeRemote = code.length === 0 ? null : config.get("remote.pushdefault") ?? (code.length === 1 ? code[0]?.name ?? null : "origin");
+  const codeRemote = code.length === 0 ? null : config.get("remote.pushdefault") ?? (code.length === 1 ? code[0]?.name ?? null : code.some(({ name }) => name === "origin") ? "origin" : null);
   const store = join(commonDir, "arc", "store");
   const backing = await directoryExists(context, store)
     ? configRemotes(await repositoryConfig(context, store), "backing").find(({ name }) => name === "backing") ?? null : null;

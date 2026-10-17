@@ -59,6 +59,8 @@ export interface RefStorePorts {
   checkoutRoot: string;
   identity: () => Promise<Slug | null>;
   actor: (identity: Slug) => Promise<string>;
+  /** Read the invoking checkout's tracked pointer only at destination decisions. */
+  backingRepository: () => Promise<string | null>;
   registry?: Readonly<Record<KindId, KindDefinition>>;
   /** Acquire a state ref lock or the "layout" lock in the code repository's common Git directory. */
   lock: (ref: string, waitMs?: number) => Promise<() => Promise<void>>;
