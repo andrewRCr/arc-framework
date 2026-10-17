@@ -8,6 +8,7 @@
  * @module
  */
 import type { z } from "zod";
+import { basename } from "node:path";
 import { UserReferenceReconcileSessionResultSchema } from "./user-reference-reconcile-schema.js";
 import { applyScratchReconcile, planScratchReconcile, type ScratchReconcileInput, type ScratchReconcilePlan } from "./user-reference-scratch.js";
 import { readEntryField, targetNamedByLine } from "./store/kinds/entry-fields.js";
@@ -493,8 +494,9 @@ export function projectUserReferenceSessionResult(
       plan,
       recommendedAction: "apply",
       recommendedCommand: ["arc", "user", "reconcile-references", "--apply", "--json"],
-      recommendedPromptText:
-        "User references and personal scratch folders can be reconciled from authoritative work-unit evidence.",
+      recommendedPromptText: surfaces.stateOffBranch === true
+        ? "User references and personal scratch folders can be reconciled from authoritative work-unit evidence."
+        : `Managed ${basename(surfaces.userInbox.path, ".md")} references can be reconciled from authoritative rename evidence.`,
     };
   }
   return {
@@ -504,7 +506,9 @@ export function projectUserReferenceSessionResult(
     plan,
     recommendedAction: "surface",
     recommendedCommand: ["arc", "user", "reconcile-references", "--json"],
-    recommendedPromptText: `User-reference reconcile found ${plan.advisories.length + (plan.scratch?.advisories.length ?? 0)} advisory finding(s).`,
+    recommendedPromptText: surfaces.stateOffBranch === true
+      ? `User-reference reconcile found ${plan.advisories.length + (plan.scratch?.advisories.length ?? 0)} advisory finding(s).`
+      : `User-reference reconcile found ${plan.advisories.length} advisory reference(s).`,
   };
 }
 

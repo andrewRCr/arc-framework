@@ -46,6 +46,7 @@ import { SlugSchema } from "../lib/kernel/index.js";
 import { resolveArcPath } from "../lib/layout/index.js";
 import { isProtectedBranch } from "../lib/release/interlock-validation.js";
 import { resolveCurrentWorkUnit } from "../lib/store/current-work-unit.js";
+import { workItemArtifactPath } from "../lib/store/lifecycle-storage.js";
 import { branchToWorkUnitSlug } from "../lib/work-unit/work-unit-slug.js";
 import {
   buildLifecycleIndex,
@@ -558,7 +559,9 @@ export function deriveColdStartWuName(
 async function coldStartOccupancyRefusal(worktreePath: string): Promise<string | null> {
   const active = await resolveCurrentWorkUnit({ cwd: worktreePath });
   if (active.status === "none") return active.warnings.length === 0 ? null : active.warnings.join("; ");
-  const existing = active.candidates.map(candidate => candidate.reference.owner.name).join(", ");
+  const existing = active.status === "resolved" ? active.candidate.reference.owner.name
+    : active.candidates.map(candidate => workItemArtifactPath(candidate.reference.owner.name, "meta",
+      { kind: "active" }, candidate.record?.cohort ?? null)).join(", ");
   const occupancy = active.status === "resolved" ? "an active work unit" : "multiple active work units";
   return `worktree already has ${occupancy} (${existing}); `
     + "resolve the existing work-unit occupancy before retrying; "

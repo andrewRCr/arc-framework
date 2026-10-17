@@ -444,6 +444,20 @@ describe("planUserReferenceReconcile", () => {
 
 
 describe("user-reference session repair actions", () => {
+  it.each([undefined, false])("preserves the legacy pending recommendation with off-branch state %s", stateOffBranch => {
+    expect(projectUserReferenceSessionResult({ status: "ready", ref: "main", remoteEvidence: "exact",
+      transitions: [{ subject: "origin", outcome: { kind: "rename", targetSlug: "successor" } }],
+    }, { userInbox: { path: "USER-INBOX.md", content: inbox }, stateOffBranch }).recommendedPromptText)
+      .toBe("Managed USER-INBOX references can be reconciled from authoritative rename evidence.");
+  });
+
+  it.each([undefined, false])("preserves the legacy advisory recommendation with off-branch state %s", stateOffBranch => {
+    const result = projectUserReferenceSessionResult({ status: "ready", ref: "main", remoteEvidence: "exact",
+      transitions: [{ subject: "origin", outcome: { kind: "decompose" } }],
+    }, { userInbox: { path: "USER-INBOX.md", content: inbox }, stateOffBranch });
+    expect(result.recommendedPromptText).toBe(`User-reference reconcile found ${result.plan?.advisories.length} advisory reference(s).`);
+  });
+
   it("offers inspection and application for pending rewrites, and inspection for advisory references", () => {
     const pending = projectUserReferenceSessionResult({
       status: "ready", ref: "main", remoteEvidence: "exact",
