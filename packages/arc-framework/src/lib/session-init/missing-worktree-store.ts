@@ -28,7 +28,7 @@ export async function readStoreMissingFolderActions(input: { store: Store; proje
     input.warnings?.push(`Work item ${read.result.reference.owner.name} has conflicting state; repair its record before cleaning up ${branch}.`);
     return null;
   }
-  if (read.result.placement?.kind !== "completed") return plain();
+  if (read.result.reference.kind !== "work-item/meta" || read.result.placement?.kind !== "completed") return plain();
   const links = read.result.links?.branches?.filter((item) => item.repository === project.id && workBranchName(item.ref) === branch) ?? [];
   if (links.length !== 1 || links[0] === undefined) {
     input.warnings?.push(`Work item ${read.result.reference.owner.name} has missing or ambiguous linked authority for ${branch}; repair its branch links, then retry.`);

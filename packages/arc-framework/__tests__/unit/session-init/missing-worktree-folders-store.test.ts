@@ -17,12 +17,28 @@ const lockedExec = async () => ({ stdout: worktreePorcelainZ(`worktree /missing
 HEAD ${"a".repeat(40)}
 branch refs/heads/topic/adopted
 locked owner lock`), stderr: "" });
-it("offers teardown only for an ended work item's created branch, independent of its spelling", async () => {
+it("offers teardown only for an ended work unit's created branch, independent of its spelling", async () => {
   const h = createLifecycleHarness();
   await h.seedMeta("shipped", { state: "Shipped", currentWorkflow: null }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
     { branches: [{ repository: "project", ref: "topic/arbitrary", linkedAs: "created", excluded: [] }] });
   const reports = await readMissingWorktreeFolders({ store: h.store, projectId: async () => "project", rows: [row("topic/arbitrary")], shipped: new Set(), exec, folderExists: async () => false });
   expect(reports[0]?.actions).toEqual([{ text: "arc teardown shipped", argv: ["arc", "teardown", "shipped"] }]);
+});
+it.each([false, true])("keeps completed Errand registration cleanup as guarded path text (locked=%s)", async locked => {
+  const h = createLifecycleHarness();
+  const branch = locked ? "topic/adopted" : "topic/arbitrary";
+  const reference = recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: "ended-errand" }));
+  await h.seed(reference, JSON.stringify({ version: 3, slug: "ended-errand", claimId: "a".repeat(32),
+    createdAt: "2026-10-16T00:00:00Z", updatedAt: "2026-10-16T01:00:00Z", kind: "errand", purpose: "errand",
+    owner: "test-user", intent: "Completed probe", branch, state: "closed", savedHead: null, changeRequest: null,
+    origin: "description", originEntry: null }), { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
+    { branches: [{ repository: "project", ref: branch, linkedAs: "created", excluded: [] }] });
+  const reports = await readMissingWorktreeFolders({ store: h.store, projectId: async () => "project",
+    rows: [row(branch, locked ? "owner lock" : null)], shipped: new Set(), exec: locked ? lockedExec : exec,
+    folderExists: async () => false });
+  expect(reports[0]?.actions).toEqual([{ text: locked
+    ? "After confirming the folder is still missing, its lock's owner may run git worktree unlock '/missing', then git worktree remove '/missing'."
+    : "After confirming the folder is still missing, git worktree remove '/missing'." }]);
 });
 it("keeps adopted registration cleanup as text with unlocking first", async () => {
   const h = createLifecycleHarness();
