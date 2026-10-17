@@ -94,6 +94,12 @@ code, which stays the in-repo arm unchanged.
   slug, a renamed work unit's former slug included (`lookupSlug`, `lib/store/in-repo/lookup.ts`, following rename
   lineage; the reference backend's `formerSlugs`), or a lineage record by its origin (`{ kind: "lineage", origin }`),
   refusing `not-found` where none matches.
+- **A dependent's disposition.** A dependent's own reconcile resolves an edge whose slug no work unit holds through its
+  store context's disposition query (`createStoreReconcilePrepareContext`, `lib/work-unit/store-reconcile-context.ts`):
+  the lineage listing enumerated by origin (`storeLineageEnumeration`), the terminal records' former names read from
+  their histories (`readTerminalReferenceAliases`, `lib/work-unit/terminal-reference-aliases.ts`), and the origin's
+  record, which names the dependent's disposition, matched by the dependent's UID first, then its name
+  (`queryStoreDisposition`, `readDependentMatch`). The pieces are private to that module.
 - **The pause record.** `MetaPauseSchema` (`lib/active/meta-schema.ts`) carries `pausedBy`, `since`, `reason`,
   `waitsOn` (a work unit, a note, or none), `resumeNotes`, and `open`. Status ignores it today: `readProjectMeta`
   (`project-view.ts`) parses it and drops it, and the Parked tier comes from park's own markers (`isParkedPointer`,
@@ -164,10 +170,10 @@ and § 12 the expected contracts this design consumes.
 The boundary read keeps the change whole (`stays one WU`). Its concern is one: rendering status and opening artifacts
 from typed store listings. The Paused tier and the conflict view are status surfaces over the same store, `arc view`'s
 arm from the flip reads the same records, and the three fixes touch the same files. A part that was once a candidate —
-Markdown checks over projected state — is its own planned work, with its own design of a check's deadline, pass key,
-and file selection, so moving it out removed scope and added nothing new to weigh. Nothing here is landable on its own
-before the flip, since every arm from the flip is dark, so the change lands as one merge reviewed in chunks and carries
-no delivery plan.
+Markdown checks over projected state — is its own planned work, with its own design of where and when a check over
+projected state runs and which files it reads, so moving it out removed scope and added nothing new to weigh. Nothing
+here is landable on its own before the flip, since every arm from the flip is dark, so the change lands as one merge
+reviewed in chunks and carries no delivery plan.
 
 #### 1.2 What this change takes
 
@@ -178,10 +184,14 @@ no delivery plan.
   `--fetch` renders, § 2.4).
 - **Status modules:** `lib/status/project-view.ts` (the composer's optional inputs, its tier classification exported,
   `class` and `pause` on the record candidate, the Paused tier, the new warning codes), `lib/status/project-horizon.ts`,
-  `lib/status/in-flight-mine.ts`, `lib/status/render.ts` (the Paused tier's columns), `lib/status/work-unit-purpose.ts`,
-  `lib/status/slug-position.ts` (the scope window's pause, § 4), `lib/store/lifecycle-index.ts` (the entry's `conflicts`
-  and `aliases`, § 2.1), `lib/session-init/store-user-pull.ts` (the pull's `no-identity` orientation, § 2.4), and new
-  modules for the acquisition from the flip, one record per slug among it (§ 2.1), and the conflict view.
+  `lib/status/in-flight-mine.ts`, `lib/status/ready-mine.ts` (`isMine`, § 3), `lib/status/render.ts` (the Paused tier's
+  columns), `lib/status/work-unit-purpose.ts`, `lib/status/slug-position.ts` (the scope window's pause, § 4),
+  `lib/store/lifecycle-index.ts` (the entry's `aliases`, § 2.1), `lib/store/lifecycle-view.ts` (the index builder
+  the slug query's state read shares, § 4), `lib/session-init/store-user-pull.ts` (the pull's
+  `no-identity` orientation, § 2.4), and new modules for the acquisition from the flip, one record per slug among it
+  (§ 2.1), and the conflict view.
+- **Shared reads:** `lib/work-unit/store-reconcile-context.ts`, whose retired-origin query § 2.2 calls, and
+  `handlers/status/store-session.ts`, whose parser of `pause.review_after_days` the marks share (§ 2.3).
 - **`arc view`:** `handlers/view.ts`, `lib/view-artifact.ts`, `lib/view/types.ts`, `lib/view/started-artifacts.ts`, and
   `commands/view/run.ts`.
 - **The fixes:** `handlers/identity-pointers.ts`, `lib/status/project-oracle-context.ts`,
@@ -197,13 +207,13 @@ This change lands after the change that derives locus and the in-flight set from
 whose pieces it consumes (§ 12), so it edits that change's version of every file both touch: `cli.ts`,
 `lib/cli-help-content.ts`, `handlers/status.ts`, `handlers/status/lifecycle.ts` (the locus reads in the slug query's
 arm, before this change's purpose and state reads and derived position), `handlers/status/store-locus.ts` (the slug
-query's pull, through which every status mode then pulls under `--fetch`, § 2.4), `lib/session-init/store-user-pull.ts`
-(the pull's orientation, § 2.4), `handlers/recover.ts`, `commands/status/format.ts`, `handlers/view.ts` and
-`lib/view-artifact.ts` (the session context, the default target, and the session-notes resolver's arms from the flip,
-§ 6), `lib/store/lifecycle-index.ts` (the entry's `links`, beside which this change adds `conflicts` and `aliases`), and
-`lib/store/lifecycle-record-path.ts` (`cohortDocumentPath`, beside which this change narrows `lifecycleRecordPath`'s
-meta parameter). Two files are shared with the delivery-and-review change, and whichever lands second takes the
-conflict:
+query's pull, through which every status mode then pulls under `--fetch`, § 2.4), `handlers/status/store-session.ts`
+(the setting parser, § 2.3), `lib/session-init/store-user-pull.ts` (the pull's orientation, § 2.4),
+`handlers/recover.ts`, `commands/status/format.ts`, `handlers/view.ts` and `lib/view-artifact.ts` (the session context,
+the default target, and the session-notes resolver's arms from the flip, § 6), `lib/store/lifecycle-index.ts` (the
+entry's `links`, beside which this change adds `aliases`), and `lib/store/lifecycle-record-path.ts`
+(`cohortDocumentPath`, beside which this change narrows `lifecycleRecordPath`'s meta parameter). Two files are shared
+with the delivery-and-review change, and whichever lands second takes the conflict:
 
 - `handlers/status/lifecycle.ts`, where that change moves the slug query's operational-boundary read;
 - `scripts/review-gate/hosts/local/live-context.ts`, where that change edits the local host for the flip.
@@ -211,7 +221,12 @@ conflict:
 The ref backend's binding of the synchronization port also lands after the locus change, in either order with this one
 (§ 12). It shares `handlers/status.ts`, `handlers/status/store-locus.ts`, whose `pullStoreStatus` is the one place
 status renders the port's results under `--fetch` (§ 2.4), and `lib/session-init/store-user-pull.ts`, and whichever
-lands second takes the conflict.
+lands second takes the conflict. The projection's change, which gives the work-item path function,
+`lifecycleRecordPath`, `workUnitMetaPath`, and `lifecycleArtifactPath` a checkout-root input and updates their callers,
+also lands in either order with this one. It shares `lib/store/lifecycle-record-path.ts` and
+`lib/store/lifecycle-write.ts` (whose meta parameter this change narrows, § 8.2), `lib/store/lifecycle-view.ts` (§ 4),
+and `lib/work-unit/store-reconcile-context.ts` (§ 2.2), and the arms from the flip call those path functions (§ 6.3);
+whichever lands second takes the conflict.
 
 The review chunks run in this order: the fixes (§ 8), of which the identity fix is the only change observable before the
 flip; the pure modules' additions, with the in-repo render's byte-identity tests (§ 1.4); then the arms from the flip —
@@ -286,8 +301,8 @@ rows therefore stay one implementation across the flip.
   `lib/work-unit/lifecycle-store-executor.ts`) and its store reconcile checks words against it
   (`artifactAliasTransitions`, `lib/work-unit/store-reconcile-context.ts`): how they treat a reused or clashed slug is
   not this change's, and no change owns it yet, nor does the storage-coupling register hold a row for it.
-  `LifecycleEntry` gains an optional `aliases`, its record's former slugs (§ 12), carried as it carries `links` and read
-  only by this function. For each slug:
+  `LifecycleEntry` gains an optional `aliases`, its record's former slugs (§ 12), carried only where the record has at
+  least one, an empty list dropped, and read only by this function. For each slug:
     - **a live entry named by it,** at any placement but `completed`, stands, and the completed entries named by it are
       left out, so an edge naming a reused slug classifies against the live work unit, as `readWorkUnit` resolves it;
     - **else, where a live entry holds it as a former slug,** no entry stands for it, so an edge naming it takes § 2.2's
@@ -304,6 +319,19 @@ rows therefore stay one implementation across the flip.
   (`readStoreRenameSubject`, `lib/store/lifecycle-rename.ts`), which refuses `ambiguous-match` there. An edge naming
   that slug takes § 2.2's lookup, which refuses `ambiguous-match`, so it stays unsatisfied with that section's
   `store-read-failed` warning.
+
+  A meta lifecycle's view withholds, one with open conflicts or a malformed one, reaches the listing only as a
+  `malformed` diagnostic keyed `work-item/meta:<name>` (`lifecycleEntry`, `lib/store/lifecycle-index.ts`), so the view
+  cannot tell whether it is the live holder of its name. That name fails closed: no entry stands for it, the entries
+  named by it are left out, and an edge naming it stays unsatisfied, reported by the diagnostic's own
+  `listing-diagnostic` warning (below) rather than classifying against another holder of the name or reading as
+  dangling. An edge whose § 2.2 lookup names a work unit the listing does not hold stays unsatisfied the same way. The
+  name is read from the diagnostic's key, whatever its kind, since a backend's own diagnostic for a meta its parser
+  rejects carries the same key. A diagnostic under any other key — a backend's own key for an `oversized`,
+  `unreadable`, `unknown-format-version`, or `key-mismatch` record, which may name the record by its UID — names no
+  work unit, so it fails no name closed: its `listing-diagnostic` warning states that the view omits a record. Failing
+  every name closed for it instead would drop every completed holder whenever any record is unreadable, leaving each
+  dependent of shipped work Blocked.
 - **Purposes come from one listing per design kind.** The acquisition lists `work-item/spec`, `work-item/draft`, and
   `work-item/companion` once each per render, with no owner in the input, groups the records by owner identity, the UID
   where the reference carries one, as lifecycle's view keys its entries, so a reused slug's purpose comes from its own
@@ -316,7 +344,8 @@ rows therefore stay one implementation across the flip.
   set (§ 12) adds nothing here: what its degradation concerns, Errands and claims, the project view never shows.
 - **The tiers from the flip are In Flight, Ready, Blocked, and Paused** (§ 2.3), Paused taking Parked's place. No work
   unit parks from the flip, since `arc park` refuses there (`runPark`, `lib/work-unit/verbs/park-resume.ts`), so the
-  Parked tier, printed only when it has rows, never prints.
+  Parked tier, printed only when it has rows, holds only a planned work unit whose `State` reads Active, which no verb
+  from the flip writes, and never a paused one.
 - **Completeness.** A refused read refuses the command with the refusal's condition and remedy, and so does an
   `unreadable` listing with its own, since it carries no entries and an empty render would read as no work. An `absent`
   listing renders the empty view. A `complete` listing renders the entries it has, each diagnostic passed as a source
@@ -324,16 +353,15 @@ rows therefore stay one implementation across the flip.
   condition and remedy (`ListingDiagnosticSchema`, `lib/store/read.ts`) and, where the listing missed a record, stating
   that the view omits it, so a malformed record never reads as absent work. The arm from the flip never passes the
   composer's `indeterminate` input, whose warning describes in-flight derivation.
-- **Conflicted records.** `LifecycleEntry` gains an optional `conflicts`, the record's conflict references
-  (`StoreRecord.conflicts`, `lib/store/read.ts`), carried as the entry carries `links`; the in-repo implementation's are
-  always empty. For each listed entry with open conflicts, standing for its slug or not, the acquisition adds a
-  `record-conflicted` warning naming the work unit and `arc status --conflicts <conflict>` for each of its conflicts
-  (§ 5), and a standing entry's row renders the record's current side, as the store reads it.
+- **Conflicted records.** Lifecycle's view withholds a meta with open conflicts, so lifecycle's verbs never act on a
+  conflicted record: it reaches the view as its `listing-diagnostic` warning, which names its conflict records, states
+  that the view omits it, and passes through the diagnostic's remedy, and its name fails closed as the fold above
+  states. The conflict view lists its conflicts (§ 5).
 - **Warning codes.** `ProjectReadinessWarningCode` gains `listing-diagnostic`, `store-read-failed` (a design listing
-  refusing or `unreadable`, an edge's lookup or lineage read, or a marking refusing, § 2.2, § 2.3), `dependency-retired`
-  (§ 2.2), `pull-incomplete` and `pull-notice` (§ 2.4), `record-conflicted`, and `slug-clash`; the in-repo arm emits
-  none of them. The codes are the project view's (`--project --json`); the user view's warnings stay strings, as
-  `StatusUserViewResult.warnings` (`lib/status/user-view.ts`) is today (§ 3).
+  refusing or `unreadable`, an edge's lookup or lineage listing, or a marking failing, § 2.2, § 2.3), `dependency-retired`
+  (§ 2.2), `pull-incomplete` and `pull-notice` (§ 2.4), and `slug-clash`; the in-repo arm emits none of them. The codes
+  are the project view's (`--project --json`); the user view's warnings stay strings, as `StatusUserViewResult.warnings`
+  (`lib/status/user-view.ts`) is today (§ 3).
 - **No render stamp.** The composer's `renderedRef` becomes optional; with none, the view's header carries no stamp
   lines, since a view rendered on demand cannot go stale.
 - **`--json`** writes the same `{ markdown, warnings, facts }` result as today. Each fact row keeps today's fields —
@@ -352,12 +380,18 @@ either up, so the acquisition resolves each unlisted edge before composing and p
 the in-repo acquisition never passes:
 
 1. **By slug,** `store.lookup({ kind: "slug", slug })`. A match names the work unit the edge means, and the edge
-   classifies against that work unit's record: satisfied once it has shipped, as any edge.
-2. **Then by lineage origin,** where the slug lookup refuses `not-found`: `store.lookup({ kind: "lineage", origin })`,
-   then a read of the lineage record it names (`LineageRecordSchema`, `lib/store/kinds/lineage/schema.ts`). A `decompose`
-   or `abandon` record names a retired origin. The edge stays unsatisfied, as a dangling edge does today, and its
-   warning (`dependency-retired`), in place of "missing work unit", names the retirement, the dependent's disposition,
-   and that the dependent's dependency reconcile applies it:
+   classifies against that work unit's listed record: satisfied once it has shipped, as any edge. A match the listing
+   does not hold, a withheld meta's, leaves the edge unsatisfied (§ 2.1). A match that is no work unit's meta, an
+   Errand's record, which the lookup ranks beside metas, names no work unit, so the edge reads as step 3 states.
+2. **Then by lineage origin,** where the slug lookup refuses `not-found`, as the dependent's own reconcile resolves the
+   same edge, through its disposition query's pieces (§ Introduction / Context), exported for this: the lineage listing,
+   read once per render and only when an edge reaches this step, enumerated by origin, with the terminal records' former
+   names, so an edge naming a retired origin's former slug resolves as one naming that origin. A `decompose` or
+   `abandon` record names a retired origin. A `rename` record found there, whose successor the slug lookup did not find,
+   resolves as an edge naming that successor, as the reconcile follows it (`planDependencyReconcile`). The edge stays
+   unsatisfied, as a dangling edge does today, and its warning (`dependency-retired`), in place of "missing work unit",
+   names the retirement, the dependent's disposition, which the query matches by the dependent's UID first, then its
+   name, and that the dependent's dependency reconcile applies it:
     - for a cut, the dependent's `incoming` entry: the work units replacing the edge, or why the edge drops;
     - for an abandonment, `abandoned`, since an abandonment rewrites no dependent's `Depends On`;
     - for a dependent the cut did not map, no disposition (`unmapped-dependent`): the warning says so and names the
@@ -367,11 +401,14 @@ the in-repo acquisition never passes:
    `lib/work-unit/side-effects/discharge-dep-edges.ts`): at activation (`runStoreActivate`), or sooner by
    `arc wu reconcile --apply` from its checkout. Until then a stub depending on an abandoned origin reads Blocked, with
    the warning.
-3. **Neither found:** today's dangling-dependency warning.
+3. **Neither found:** today's dangling-dependency warning, also for an edge that is not a valid slug (`SlugSchema`),
+   which takes no lookup.
 
-A lookup or read refusing with anything but `not-found`, or a lineage record that does not parse, adds a
-`store-read-failed` warning naming its condition and remedy, and the edge stays unsatisfied; it never reads as a
-missing work unit.
+A lookup or history read refusing with anything but `not-found`, a lineage listing that is not complete or holds a
+record that does not parse, a former slug two terminal records held, several records for one origin, or a chain of
+renames returning to a name it passed adds a `store-read-failed` warning naming its condition and remedy, and the edge
+stays unsatisfied; it never reads as a missing work unit. The dependent's reconcile reads the same listing and refuses on
+the same conditions.
 
 The resolutions reach every composer site that reads an edge. They reach its classification (`classifyDependencies`),
 and its default readiness (`depsOnlyReadinessProvider`), which classifies the records again today, reads that same
@@ -445,11 +482,11 @@ and states that the conflict view does not list them, since the item was abandon
 history ref (`spec-storage-ref-backend.md` § 6.6, § 7.4), which the store's listing does not read (`listRefRecords`,
 `lib/store/ref/read.ts` in the ref backend's change); it adds no `arc status --conflicts`. A conflict a pull files on a
 listed item also shows in the conflicted file's notice line, which names `arc status --conflicts <conflict>`, in the
-conflict view's listing, and as the conflicted row's warning (§ 2.1). Until the port is bound to a backend's pull it
-pulls nothing and reports `no-remote`, so a `--fetch` render is local with no warning, and until the ref backend's
-binding lands the port's results are the locus change's, without `incomplete` or notices (§ 12). The flags' help text in
-`cli.ts` and the `status` help notes in `lib/cli-help-content.ts` describe today's arms until the cutover rewrites them
-(§ 12), since changing them before the flip would be observable.
+conflict view's listing, and, on a work unit's meta, as its listing diagnostic (§ 2.1). Until the port is bound to a
+backend's pull it pulls nothing and reports `no-remote`, so a `--fetch` render is local with no warning, and until the
+ref backend's binding lands the port's results are the locus change's, without `incomplete` or notices (§ 12). The
+flags' help text in `cli.ts` and the `status` help notes in `lib/cli-help-content.ts` describe today's arms until the
+cutover rewrites them (§ 12), since changing them before the flip would be observable.
 
 #### 2.5 The staged write refuses from the flip
 
@@ -485,8 +522,10 @@ resolved it prints the identity message (§ 8.1) and exits 0, as today, its `--j
   slice has its own rule (`buildReadyMineSlice`), which also lists a planned meta whose `State` is Active and drops a
   row with a missing dependency silently; that rule stays in the in-repo arm.
 - **Completeness** follows § 2.1: a refused or unreadable listing refuses, and a complete one renders with its
-  diagnostics as warnings, a warning for each conflicted entry, naming the conflict view, and a `slug-clash` warning for
-  each clash.
+  diagnostics as warnings, a withheld meta among them, and a `slug-clash` warning for each clash.
+- **Warnings in text mode.** Today's arm prints no warning in text mode, carrying them only in its `--json` result, and
+  keeps that. From the flip text mode prints each warning to stderr as `warning: <text>`, as `--project` does, so an
+  omitted record or a clash never reads as absent work.
 - **`--json`** writes the same result shape as today.
 
 ### 4. `arc status <slug>`
@@ -495,8 +534,11 @@ From the flip the slug query is lifecycle's arm (`handleStoreLifecycleStatus`), 
 operational-boundary read other changes add to it (§ 12). This change alters four things in it:
 
 - **Its purpose read** (§ 8.2).
-- **Its state read,** which takes an index built from § 2.1's standing entries, as `readLifecycleView` builds its own
-  (`buildLifecycleIndexFromRecords`), in place of that view's index, so a reused slug reports its live holder's state.
+- **Its state read,** which takes an index built from § 2.1's standing entries, in place of that view's index, so a
+  reused slug reports its live holder's state. The index comes from the builder `readLifecycleView` uses
+  (`buildLifecycleIndexFromRecords` over its entries), exported from `lib/store/lifecycle-view.ts` for both, since that
+  function's module is a raw state helper, which only `lib/store/` imports without raising a `store-raw-state` count
+  (§ Cross-cutting Considerations).
 - **Its derived position and scope window,** which its `--json` carries as `derivedPosition` and `scopeWindow` and its
   text as the in-repo arm prints them, read as the in-repo arm reads them (`readDerivedSlugPosition` and
   `projectScopeWindow`, `lib/status/slug-position.ts`; § 12). The roster comes through the derived locus probe given the
@@ -525,14 +567,15 @@ operational-boundary read other changes add to it (§ 12). This change alters fo
   § 2.4's precedence.
 - **Whose conflicts.** The families owned by the project, a work item, or a cohort list for everyone. The `personal` and
   `claims` families are scoped to an identity (`FAMILY_REGISTRY`, `lib/store/registry.ts`, each under
-  `refs/arc/user/<id>/`), so their listings read the conflicts the store holds for the resolved identity; with no
-  identity resolved they list `absent` (`listReference`), and the view lists the rest and warns that those two families
-  were not read, naming `git config arc.identity <name>`.
+  `refs/arc/user/<id>/`), so their listings read the conflicts the store holds for the resolved identity, which the view
+  names as those two listings' owner, since a person's name has no other holder to hide; with no identity resolved they
+  list `absent` (`listReference`), and the view lists the rest and warns that those two families were not read, naming
+  `git config arc.identity <name>`.
 - **The token.** `<conflict>` is `<family>/<owner type>/<owner name>/<id>`, the form a conflicted file's notice line
   prints and `arc save --resolve <conflict>` parses (§ 12).
 - **With no token** it lists every open conflict of a listed item across the ten families' conflict-record kinds
-  (`lib/store/catalog.ts`), each listing given no owner in its input (`ListInputSchema`, `lib/store/read.ts`). An
-  abandoned or cut item's retained conflicts reach status only as its pull's notice (§ 2.4).
+  (`lib/store/catalog.ts`), each listing but the identity-scoped two given no owner in its input (`ListInputSchema`,
+  `lib/store/read.ts`). An abandoned or cut item's retained conflicts reach status only as its pull's notice (§ 2.4).
 - **With a token** it lists that family's conflict-record kind the same way, with no owner in the input, and matches the
   token's owner type, owner name, and ID itself. An owner named without its UID resolves to a single holder, the live
   one first (`listReference`, `__tests__/helpers/store/read.ts`), which would hide a completed holder of the same name,
@@ -541,6 +584,10 @@ operational-boundary read other changes add to it (§ 12). This change alters fo
 - **Each conflict shows** its token, its subject record, both sides' labels, and both sides' content: for a hunk the
   line range, the base text, and each side's content; for an entry its ID, its base section, and each side's section
   and content; for a whole record each side's value, or that the side removed it.
+- **A record that does not decode.** No parser is registered for the conflict-record kinds, so the view decodes each
+  record's content against `ConflictRecordSchema` itself. One that does not decode is omitted, with a warning naming its
+  token, stating that its content could not be read, and naming `arc store conflict`, which inspects and discards a
+  conflict record (`spec-storage-ref-backend.md` § 6.6, A16); the view lists the rest.
 - **`--json`** writes `{ conflicts, warnings }`: the matched conflict records as the store lists them, each with its
   token, and the view's warnings as strings.
 - **Before the flip** the flag refuses `unsupported`: the in-repo implementation stores no conflict record, and a
@@ -552,15 +599,15 @@ operational-boundary read other changes add to it (§ 12). This change alters fo
 
 - **The default target** is the locus change's arm from the flip of `resolveAmbientTarget` (`createViewDependencies`,
   `handlers/view.ts`; § 12): the checkout's claim (`resolveCurrentWorkUnit`), a work-unit claim giving its work unit,
-  and anything else, an Errand claim, no claim, or a claim that does not resolve, giving no default target. The
-  command then refuses with a message of the arm from the flip: no work-unit claim resolved for this checkout, each
-  warning `resolveCurrentWorkUnit` returned with its condition (a malformed marker, a claim read refusing, a claimed
-  record not at placement `active`, or several candidates), and `arc view <kind> --for <slug>` to open a work unit's
-  artifacts. This change extends the locus change's arm to return that message, which `unavailableTarget` prints in
-  place of its own. Today's no-target message ("No active work unit matches the current branch.", `unavailableTarget`,
-  `lib/view-artifact.ts`), which names no remedy and describes a branch match the arm from the flip does not make,
-  stays the in-repo arm's. This change builds `createViewDependencies`'s other arms from the flip: the explicit target,
-  the cohort read, the session notes (§ 6.4), and the personal records.
+  and anything else, an Errand claim, no claim, or a claim that does not resolve, giving no default target. The command
+  then refuses with a message of the arm from the flip: no work-unit claim resolved for this checkout, each warning
+  `resolveCurrentWorkUnit` returned (a malformed marker or meta, a claim lookup, read, or listing refusing or
+  unreadable, or a listing diagnostic), each candidate where it reports several (`ambiguous`), and `arc view <kind>
+  --for <slug>` to open a work unit's artifacts. This change extends the locus change's arm to return that message,
+  which `unavailableTarget` prints in place of its own. Today's no-target message ("No active work unit matches the
+  current branch.", `unavailableTarget`, `lib/view-artifact.ts`), which names no remedy and describes a branch match the
+  arm from the flip does not make, stays the in-repo arm's. This change builds `createViewDependencies`'s other arms
+  from the flip: the explicit target, the cohort read, the session notes (§ 6.4), and the personal records.
 - **`--for <slug>`** reads the work unit through `readWorkUnit`, whose slug lookup also resolves a former slug. A slug
   naming no work unit refuses as an unknown target does today; a closed Errand is no work unit, so it is never viewed.
   The lookup gives a slug's live holder over a completed one, so a completed work unit whose slug a later one holds is
@@ -590,11 +637,12 @@ maps each to what it reads, so a renamed or removed store kind fails the type ch
 | `working-memory` | `personal/working-memory`                                                          |
 | `inbox`          | `personal/inbox`, or with `--project` `project-inbox/inbox`                        |
 
-`readLifecycleDesign` gains a return of the reference and version of the record it selects, beside its content, so the
-view opens that record. With no kind given, an open work unit opens its furthest artifact present, in today's order
-(`resolveFurthestPresent`, `lib/view-artifact.ts`: tasks, spec, draft, meta), and a completed one opens its meta, which
-carries its completion and release notes. The personal kinds read the resolved identity's records and keep today's
-refusal where no identity resolves (`resolveViewArtifactUnchecked`, `lib/view-artifact.ts`).
+`readLifecycleDesign` gains a return of the record it selects (`StoreRecord`: its reference, version, and conflicts),
+beside its content, so the view opens that record and warns of its conflicts (§ 6.3). With no kind given, an open work
+unit opens its furthest artifact present, in today's order (`resolveFurthestPresent`, `lib/view-artifact.ts`: tasks,
+spec, draft, meta), and a completed one opens its meta, which carries its completion and release notes. The personal
+kinds read the resolved identity's records and keep today's refusal where no identity resolves
+(`resolveViewArtifactUnchecked`, `lib/view-artifact.ts`).
 
 #### 6.3 Paths and content
 
@@ -615,9 +663,9 @@ unit's `<kind>` has no file in this checkout, and `arc view <kind> --for <slug>`
 a ref (`viewArtifactFileRefusal`) is not reused, since it names its ref as where the work unit is.
 
 A target whose record has open conflicts carries a warning naming `arc status --conflicts <conflict>` for each of its
-conflicts (§ 5), as the status views warn (§ 2.1). With a file at its path it opens that file as any projected target
-does, for display, `--path`, and `--editor`, showing whatever the projection wrote for the conflict (§ 12). With no file
-it renders the record's current side, as the store reads it, through the content arm above.
+conflicts (§ 5). With a file at its path it opens that file as any projected target does, for display, `--path`, and
+`--editor`, showing whatever the projection wrote for the conflict (§ 12). With no file it renders the record's current
+side, as the store reads it, through the content arm above.
 
 #### 6.4 Session notes open the meta
 
@@ -628,7 +676,7 @@ resolver requires an identity, and a work unit's meta is not identity-scoped, so
 it. This arm takes the place of the session-notes arm from the flip the locus change gives `createViewDependencies`,
 which calls the resolver and reads the meta through the store, refusing one with open conflicts; a conflicted meta
 renders as § 6.3 states. The in-repo arm keeps calling the resolver, with today's missing-identity refusal
-(`resolveExactKind`, `lib/view-artifact.ts`), and never reads the interim per-person session-context kind
+(`resolveSessionContextArtifact`, `lib/view-artifact.ts`), and never reads the interim per-person session-context kind
 (`personal/session-context`), which retires at the flip.
 
 ### 7. The capability dispatch
@@ -704,12 +752,13 @@ first-sentence extractor serves both, so the slug query and the project view rep
 whose projected path ends in that name, the first such record with a purpose, or else the first found — becomes a pure
 exported function over a meta and its candidate records, which `readLifecycleDesign` calls after its own listing and the
 project view's acquisition calls over its per-kind listings (§ 2.1). Its meta is the meta's `reference`, `fields`, and
-`placement`, which a `StoreRecord` and a `LifecycleEntry` both carry, and `lifecycleRecordPath` and `workUnitMetaPath`
-(`lib/store/lifecycle-write.ts`), which read only those three, narrow their meta parameter to the same shape, a change
-of types alone. The extractor is `extractWorkUnitPurpose`'s first-sentence step, made a function over the purpose field,
-which `extractWorkUnitPurpose` keeps calling, so its in-repo callers (`selectWorkUnitDesign`, `readWorkUnitPurpose`)
-return what they return today. The callers that change, `readLifecycleDesign` and the slug query's purpose read, run
-only in an arm from the flip (`handleStoreLifecycleStatus`), so nothing observable changes before it.
+`placement`, which a `StoreRecord` and a `LifecycleEntry` both carry, and `lifecycleRecordPath`
+(`lib/store/lifecycle-record-path.ts`) and `workUnitMetaPath` (`lib/store/lifecycle-write.ts`), which read only those
+three, narrow their meta parameter to the same shape, a change of types alone. The extractor is
+`extractWorkUnitPurpose`'s first-sentence step, made a function over the purpose field, which `extractWorkUnitPurpose`
+keeps calling, so its in-repo callers (`selectWorkUnitDesign`, `readWorkUnitPurpose`) return what they return today. The
+callers that change, `readLifecycleDesign` and the slug query's purpose read, run only in an arm from the flip
+(`handleStoreLifecycleStatus`), so nothing observable changes before it.
 
 #### 8.3 One work-unit kind list
 
@@ -767,8 +816,8 @@ From the flip no Markdown check a gate runs reads projected state, which is giti
 repository's `lint:md` lists its worktree view with `--exclude-standard` (`enumerateTrackedMarkdownPaths`,
 `lib/markdown/selection.ts`), and the shipped pre-commit hook's link check reads staged files (`validate-links.sh`). The
 hook's checks of a state file's shape leave with that file's commit path. Checks over projected state — which files a
-check may read, and the check over them — are separate planned work, and until it ships those files go unchecked by
-any gate.
+check may read, and the check over them — are separate planned work, which checks them where they are written and as
+feedback, never at a gate; from the flip no gate checks them.
 
 The table formatter (`format:tables`, `lib/markdown/format-plan.ts` and `format-write.ts`), which normalizes metas
 outside lifecycle's executor, needs nothing here: from the flip a meta it rewrites is a hand edit to a projected file,
@@ -809,10 +858,11 @@ but `arc rename` resolves its subject by slug (§ 2.1).
 | `--conflicts` before the flip (§ 5)                                                                    | `git status`, where a tracked file's conflict shows                                 | text |
 | `--conflicts <conflict>` with an unknown token (§ 5)                                                   | `arc status --conflicts`                                                            | text |
 | `--conflicts` with no identity resolved (§ 5)                                                          | `git config arc.identity <name>`                                                    | text |
-| A record with open conflicts (§ 2.1, § 6.3)                                                            | `arc status --conflicts <conflict>`, for each                                       | text |
+| A record with open conflicts (§ 6.3)                                                                   | `arc status --conflicts <conflict>`, for each                                       | text |
+| A conflict record whose content does not decode (§ 5)                                                  | `arc store conflict`, which inspects and discards it                                | text |
 | An edge naming a retired origin, its dependent unmapped (§ 2.2)                                        | edit the dependent's `Depends On`                                                   | text |
 | An edge naming a retired origin, its dependent mapped (§ 2.2)                                          | `arc wu reconcile --apply` from the dependent's checkout, or its activation         | text |
-| A design listing refusing or `unreadable`; a lookup, read, or marking refusing (§ 2.1–§ 2.3, § 6.1)    | the refusal's own remedy                                                            | text |
+| A design or lineage listing failing; a lookup, read, or marking refusing (§ 2.1–§ 2.3, § 6.1)          | the refusal's own remedy                                                            | text |
 | A `--fetch` pull reporting `unreachable`, `incomplete`, or `designation-needed`; `no-identity` (§ 2.4) | its remedy, or the designation command; `git config arc.identity <name>`            | text |
 | A `--fetch` pull's notice (§ 2.4)                                                                      | the notice's own remedy (§ 2.4)                                                     | text |
 | `arc view --for` over a slug several holders tie on (§ 6.1)                                            | the lookup's own remedy, and a completed holder's projected file under `completed/` | text |
@@ -888,6 +938,9 @@ holds until then is stated with it.
       summary and, for `unreachable` and `designation-needed`, its remedy as a typed action (§ 2.4);
     - **a listed meta record's former slugs:** `aliases` on a primary `StoreRecord` (`lib/store/read.ts`), which § 2.1's
       fold reads;
+    - **a withheld meta:** lifecycle's view lists a meta with open conflicts, as a malformed one, only as a
+      `malformed` diagnostic keyed `work-item/meta:<name>`, never as an entry (`lifecycleEntry`,
+      `lib/store/lifecycle-index.ts`), which § 2.1's fold reads;
     - **the in-flight set's degraded mark** set without a warning of its own where its read of the checkout's local refs
       fails (`deriveStoreInFlight`, `lib/git/in-flight-store.ts`), which § 3's degraded warning covers.
 
@@ -1008,10 +1061,11 @@ holds until then is stated with it.
   `work-unit-paths` floor in `eslint-suppressions.json` grows; floors in the in-repo arms stay until the deletion pass.
 - **Performance.** From the flip a default render makes no network call; `--fetch` adds a pull before listing. The
   acquisition then makes the lifecycle listing, three design listings for every work unit's purpose, one marking per
-  paused row, and one or two lookups per unlisted edge, all local.
+  paused row, and one slug lookup per unlisted edge, all local; an edge whose slug lookup misses adds the lineage listing,
+  once per render, and one history read per lineage record it lists, as the dependent's reconcile reads them.
 - **Trust.** The identity fix extends no trust (§ 8.1). A `--fetch` pull merges remote state into the local store as
-  any pull does; the view renders what the store holds, its current side where a record is conflicted, its warnings
-  naming what it could not read and what is in conflict.
+  any pull does; the view renders what the store holds, withholding a conflicted meta as lifecycle's view does, its
+  warnings naming what it could not read, what it omits, and what is in conflict.
 - **User-facing impact.** Before the flip: the identity line's label, and status working without `arc.identity` where
   `user.name` is set. From the flip: no ROADMAP or `STATUS.USER` file; a Paused tier in place of Parked; a default
   render from the local store, with `--fetch` to pull first; `arc status --conflicts`; `arc view` of completed and
@@ -1036,23 +1090,25 @@ holds until then is stated with it.
 4. **One kind list.** The conformance test fails when a `WorkUnitArtifactKindSchema` name or its `work-item/*` kind is
    renamed or removed, and the `VIEW_KINDS` table fails the type check when a kind it maps is.
 5. **The project view from the flip,** over the reference backend: renders from the store and writes no file; shows In
-   Flight from placement, Ready, Blocked in depth bands, and Paused, with no Parked tier; folds the entries sharing a
-   slug to the live holder, or with none the latest archived, a dependent of a reused slug classifying against the live
-   work unit; over a store double (§ Cross-cutting Considerations), omits several live holders of one slug with a
-   `slug-clash` warning naming each, an edge naming that slug staying unsatisfied; renders a complete listing's
-   diagnostics as `listing-diagnostic` warnings carrying each diagnostic's remedy, naming each record it missed as
-   omitted, and never the in-flight indeterminate warning; refuses over a refused read or an `unreadable` listing,
-   naming its remedy; renders an `absent` listing empty; lists each design kind once per render, an `absent` design
-   listing adding no warning and a refused or `unreadable` one rendering every purpose empty with a warning; warns for
-   each conflicted entry, standing or not, naming the conflict view, and renders a standing one's current side; and
-   carries no render stamp.
+   Flight from placement, Ready, Blocked in depth bands, and Paused, a paused work unit in no other tier; folds the
+   entries sharing a slug to the live holder, or with none the latest archived, a dependent of a reused slug classifying
+   against the live work unit; over a store double (§ Cross-cutting Considerations), omits several live holders of one
+   slug with a `slug-clash` warning naming each, an edge naming that slug staying unsatisfied; renders a complete
+   listing's diagnostics as `listing-diagnostic` warnings carrying each diagnostic's remedy, naming each record it
+   missed as omitted, and never the in-flight indeterminate warning; refuses over a refused read or an `unreadable`
+   listing, naming its remedy; renders an `absent` listing empty; lists each design kind once per render, an `absent`
+   design listing adding no warning and a refused or `unreadable` one rendering every purpose empty with a warning;
+   renders a meta with open conflicts as its listing diagnostic, omitted, no entry standing for its name and an edge
+   naming it staying unsatisfied, a completed holder of that name among the entries left out; and carries no render
+   stamp.
 6. **Edges naming no listed work unit:** an edge naming a renamed work unit's former slug classifies against that work
    unit, a former slug a completed work unit holds as its own name among them; one naming a decomposed origin warns
    naming the cut and the dependent's disposition, or that the cut left it unmapped and the remedy; one naming an
-   abandoned origin warns naming the abandonment; each retired-origin edge stays unsatisfied; a dependent of an
-   unshipped renamed work unit shows in Blocked with the former slug as written in its row and fact row, banded below
-   that work unit; a lookup refusing other than `not-found` warns with its condition; and an edge naming nothing warns
-   as today.
+   abandoned origin warns naming the abandonment; one naming a retired origin's former slug warns as one naming that
+   origin; each retired-origin edge stays unsatisfied, with the disposition the dependent's reconcile reads; a dependent
+   of an unshipped renamed work unit shows in Blocked with the former slug as written in its row and fact row, banded
+   below that work unit; a lookup refusing other than `not-found`, or a lineage listing that is not complete, warns with
+   its condition; and an edge naming nothing, or an Errand, warns as today.
 7. **The Paused tier** shows Planning and Active paused work alike, and nowhere else, with its reason, what it waits on,
    whether it is open, and the marking function's mark for anyone's paused work; a failed marking leaves its row
    unmarked with a warning; and a paused work unit's fact row carries the paused horizon advisory and its derived
@@ -1074,11 +1130,13 @@ holds until then is stated with it.
 10. **The user view from the flip** renders its in-flight slice from the in-flight set, a branchless entry and a paused
     one among its rows, with the set's warnings and, for a degraded set, a warning naming `arc status --user`, and its
     ready slice from the exported tier classification with Class, a clash's holders omitted with the `slug-clash`
-    warning; writes no `STATUS.USER.md`; and with no identity prints the identity message and exits 0.
+    warning; prints each warning to stderr in text mode; writes no `STATUS.USER.md`; and with no identity prints the
+    identity message and exits 0.
 11. **The staged write** refuses from the flip, with and without `--write`, naming `arc status --project`.
 12. **The conflict view** refuses before the flip naming `git status`; from the flip lists every open conflict of a
     listed item, of each shape, with both sides' labels and content; shows one by its token, each owner where several
-    match, and a completed holder of the name as well as a live one; refuses an unknown token naming the listing;
+    match, and a completed holder of the name as well as a live one; omits a record that does not decode with a warning
+    naming its token and `arc store conflict`; refuses an unknown token naming the listing;
     refuses alongside another status mode, through the input schema and the mode count, with the help notes listing it
     among the modes; writes `{ conflicts, warnings }` with `--json`; and with no identity lists the other families with
     a warning naming how to set one.

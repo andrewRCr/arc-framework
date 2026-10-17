@@ -9,7 +9,7 @@
 
 - **Origin:** [internal] — the `storage-seam` cut (2026-10-09)
 - **Design:** `spec-seam-status-roadmap.md`
-- **Task List:** [none]
+- **Task List:** `tasks-seam-status-roadmap.md`
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
@@ -17,7 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]

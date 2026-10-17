@@ -9,6 +9,8 @@
 - What `seam-lifecycle` changed in the shared files
 - Provider contracts against the code
 - Neighbors' tasks on shared surfaces
+- Grounding baseline for the task list
+- Implementation facts by phase
 
 ## How the rows were checked
 
@@ -245,9 +247,222 @@ Where another work unit's open task edits a file or contract this change shares 
   `scripts/review-gate/hosts/local/live-context.ts` for the flip, beside the identity switch (§ 8.1 of the spec); Task
   7.2 - `tasks-seam-delivery-review.md` moves the slug query's operational-boundary read into
   `handleStoreLifecycleStatus`. Whichever lands second takes each conflict.
+- **The projection:** Task 5.4.c - `tasks-storage-projection.md` gives the work-item path function
+  (`workItemArtifactPath`) a checkout-root input, resolves `workUnitMetaPath`'s, `lifecycleRecordPath`'s, and
+  `lifecycleArtifactPath`'s active arms through it, and updates every caller. That reaches `readLifecycleView`'s entry
+  mapping (`lib/store/lifecycle-view.ts`), which this change exports as the slug query's index builder (§ 4 of the
+  spec); the two functions whose meta parameter Task 1.2.a narrows; the reconcile's `lifecycleRecordPath` keying in
+  `store-reconcile-context.ts`, which Task 3.3.a extracts from; and the path calls Tasks 7.1 and 7.3 make. Whichever
+  lands second takes each conflict.
 - **Locus:** Task 2.8.a - `tasks-seam-locus.md`, done, gives the session-notes resolver its arm from the flip, which
   this change's `arc view` arm does not call (§ 6.4 of the spec). Its exact locus import inventory
-  (`locus-dormant-foundation-contract.test.ts`) registers each consumer of the locus modules, so this change's new
-  consumers, such as the slug query's store arm calling the derived locus probe, join it.
+  (`locus-dormant-foundation-contract.test.ts`) registers every importer, `import type` included, of seven dormant
+  modules (`derived-lifecycle-evidence`, `derived-reader`, `derived-roster`, `occupancy-marker`, and the three
+  `role-*` modules). `runDerivedLocusStateProbe` is not among them, so calling it adds nothing; a new production or test
+  file of this change that imports `DerivedCheckoutRow` or `DerivedLocusFrame` joins the inventory, as `slug-position.ts`
+  did on `main` (`786b7c4c2`).
+
+## Grounding baseline for the task list
+
+`tasks-seam-status-roadmap.md` was grounded on 2026-10-17 against `main` at `a28e626d4` merged in memory with the local
+`feat/seam-locus` at `aeceda7dc`, 53 commits ahead of its remote and still in verification, and re-checked at
+`aabc7f17c`, whose three later commits change only `deriveStoreInFlight`'s Errand location, which the user view drops.
+The merge conflicted only in `locus-dormant-foundation-contract.test.ts`, where `main` registered `slug-position.ts` and
+locus reworked the inventory; locus's own base merge resolves it. Before activation, merge the shipped locus change and
+re-ground the locus-provided symbols the tasks name, since its review fixes are still landing: `pullStoreStatus` and
+`readStoreStatusLocus` (`handlers/status/store-locus.ts`), `describeStorePull` (`lib/session-init/store-user-pull.ts`),
+`markPausedWorkItem` (`lib/session-init/paused-work.ts`), the `pause.review_after_days` parse in
+`handlers/status/store-session.ts`, `deriveStoreInFlight` (`lib/git/in-flight-store.ts`, whose entries now carry
+`marks`), `lifecycleEntry` (`lib/store/lifecycle-index.ts`), `createViewDependencies` (`handlers/view.ts`),
+`resolveSessionContextArtifact` (`lib/view-artifact.ts`), `readDerivedLocusStateSnapshot`
+(`handlers/derived-locus-state-probe.ts`), and `createSessionStatusContext` (`handlers/status/session-context.ts`).
+
+**Conflicted metas** (Owner, 2026-10-17). Locus's `cc679df92` withholds a meta with open conflicts from lifecycle's
+view as a `malformed` diagnostic keyed `work-item/meta:<name>`, so lifecycle's verbs never act on a conflicted record.
+The spec's first version gave `LifecycleEntry` a `conflicts` field and rendered a conflicted row's current side; the
+Owner chose to follow the provider instead. A conflicted meta reaches the views as its `listing-diagnostic` warning,
+and a name a withheld meta holds fails closed in the fold and in edge resolution (spec § 2.1, § 2.2). The same
+session settled two smaller gaps: `--user` prints its warnings to stderr in text mode from the flip (§ 3), and the
+conflict view omits a record that does not decode, with a warning (§ 5).
+
+## Implementation facts by phase
+
+Facts the read-only grounding sweeps found and the plan settles, each cited from its task. Line numbers are as of the
+baseline above.
+
+### Phase 1 — the identity, purpose, and kind-list fixes
+
+- **`resolveIdentity` takes no `cwd`** (`IdentityOptions = { exec; prompt? }`, `lib/git/identity.ts`). The review gate's
+  local host passes `input.cwd` to `readConfiguredIdentity` today, and `live-context.test.ts` pins the read to the
+  repository root. Resolve through the root-bound `exec` the file already builds (`readLocalReviewLiveContext`) rather
+  than widening `IdentityOptions`. Omitting `prompt` never prompts; with both values unset, or a `user.name` that
+  slugifies to empty, it returns null.
+- **Keep each reader's error policy.** `readIdentityPointers` returns null on any failure but `identity.invalid`, and
+  `resolveProjectErrandOracleContext` reports `errandRecordsComplete: false`; both keep their catch around
+  `resolveIdentity`, which rethrows Git failures `readConfiguredIdentity` rethrows. `live-context.ts` has no catch today
+  and gains none.
+- **Reach.** `readIdentityPointers` serves every status mode through `createSessionStatusContext` and the slug query's
+  in-repo arm, plus `arc base drift` (`handleBaseDrift`) and `arc recover audit` (`handleRecoverAudit`). The six
+  review-gate consumers read `live.context.activeIdentity` and need no edit; no test covers their null-identity path.
+- **Tests that move.** `helpers/session-envelope-compat.ts` unsets only `arc.identity`, and `createTempRepoCore` sets
+  `user.name "Test User"`, so the identity-missing golden would resolve `test-user`: unset `user.name` too (pattern:
+  `e2e/wu-reconcile.e2e.test.ts`), regenerate `fixtures/session-envelope/session-init-identity-missing.json` with
+  `UPDATE_SESSION_ENVELOPE_GOLDENS=1`, and update `e2e/session-envelope-compat.e2e.test.ts`. Mocks that stop matching:
+  `unit/handlers/recover-envelope-boundary.test.ts` (mocks `lib/git/index.js` without `resolveIdentity`),
+  `unit/handlers/start.test.ts` (overrides `readConfiguredIdentity` only), and
+  `unit/scripts/review-gate/hosts/local/live-context.test.ts`. The label is pinned in `unit/status-format.test.ts`.
+- **Message texts today:** `runStatusUserView` "Status (User) requires `arc.identity` to be set in git config.";
+  `handleRecoverAudit` "arc.identity is not configured; compaction seed path cannot be resolved";
+  `SessionIdentityMissingError` "`<label>` probe skipped: `arc.identity` is not configured in git config."; the
+  strategy's table cell "identity-missing short-circuit applies when `arc.identity` is absent" (both copies
+  byte-identical; re-pad the table). JSDoc in `commands/status/types.ts` and `commands/status/run.ts` names the same.
+- **Purpose selection.** `readLifecycleDesign` lists the work item's records with no kind and keeps the first candidate
+  whose `readDesignPurpose(content)` is non-null. Select on the parsed `fields.purpose !== null`, narrowed through
+  `ParsedDesignRecordSchema`, which keeps today's choice; selecting on the extracted sentence would not, since
+  `extractWorkUnitPurpose` turns `""` and `"—"` into null. `lifecycle-record-path.test.ts` pins the return as
+  `{ content, warnings: [] }` and `rename-store-paired.test.ts` reads `.content`.
+- **Kind list.** The registry already maps each `work-item/*` kind to a layout artifact name
+  (`KIND_MECHANISMS`, `LayoutRoleDescriptor.artifact`, typed `string`), and `registry.test.ts` covers the
+  registry-to-layout direction. The missing direction is layout name to registered kind; model the table on
+  `registry.test.ts`'s typed `it.each`.
+
+### Phase 2 — the pure modules
+
+- **No byte-identity baseline exists.** Every project-view, ROADMAP, and user-view test compares the composer with
+  itself or asserts `toContain`; there are no snapshots and no status fixtures. Capture literal output from the
+  pre-change composer over inline fixtures covering every tier and warning. Consumers to hold: the composer with
+  injected records, `renderRoadmapFromIndexViewResult` and `renderRoadmapFromIndexResult` over an index exec,
+  `renderTrackedProjectReadinessViewResult` (no direct test today), decomposition's render
+  (`renderGitV3RepositoryTreeRoadmap` calls the composer), and `runStatusUserView` over a stub exec. The fixture
+  builders in `project-view.test.ts` and `user-view.test.ts` are module-private; move what the new test needs into
+  `__tests__/helpers/`.
+- **Lint headroom.** `project-view.ts` measures 871 of 1000 effective lines. Both its `max-lines-per-function` and
+  `sonarjs/cognitive-complexity` suppressions belong to `resolveOracleCandidates`, an in-repo arm, so the composer
+  (74 lines, complexity 9) has none: any new violation in the file fails lint. Extracting the tier classification is
+  what keeps the composer inside the gate.
+- **Tier filters.** In Flight is active and not parked; Ready and Blocked are planned, not parked, `Planning`; Parked is
+  parked or planned with `State` Active. A paused record must leave all four, Parked included.
+- **The provider takes records only.** `ProjectReadinessProvider.resolve(records)` cannot take edge resolutions, so with
+  no provider the composer derives its verdicts from its own classification, and `depsOnlyReadinessProvider` stays
+  for callers that pass it. `project-view.test.ts` asserts the default equals the explicit provider; that holds over
+  inputs with no resolutions.
+- **Depth banding** looks up the blocked map by the written slug (`blockedDepths`), so a Blocked row carries its written
+  edges for display and their resolved targets for banding.
+- **Rows.** `rowOf` always sets `priority` and never `class`, and the result exposes no rows, so the exported tier
+  classification returns records, from which `--user` builds its own rows with Class.
+- **Paused cells.** `formatTable` escapes nothing, and a pause's reason and note are free text; escape `|` and fold
+  newlines, as `lib/delivery/task-list-render.ts` does. Render an empty cell with the em dash convention.
+- **Scope window.** A parked unit with a checkout takes the checkout window today; a paused one is null whatever its
+  checkout, so the pause check runs before `checkoutWindow`. The pause is a third optional parameter, keeping the
+  eight-state `it.each` in `slug-position.test.ts` untouched.
+- **In-flight builder.** It takes `InFlightEntry[]`, whose `branch` is required and whose scheduling is `parked` only;
+  `scheduling: "paused"` and an optional branch exist only on `StoreInFlightWorkUnit`. Widen the parameter to the union,
+  as `lib/session-init/errand-state.ts` does.
+- **Lifecycle entry.** `StoreRecordSchema` already carries `aliases` on primary records (the reference backend fills it
+  from `formerSlugs`, an empty list included); `lifecycleEntry` copies a non-empty list and drops an empty one, where
+  it copies `links` only when defined.
+
+### Phases 3 and 4 — the project view's acquisition, freshness, and the slug query
+
+- **Slug ranking.** The reference lookup scores live-named 3, live-former 2, completed-named 1, completed-former 0, and
+  refuses `ambiguous-match` on a tie at the top score. The fold's tie-break among completed holders compares
+  `ArchiveQuarterSchema` (`^\d{4}-q[1-4]$`, ordered as a string) then `ArchiveSequenceSchema`, a digit string that needs
+  a numeric compare. No production function selects a standing entry per slug; the in-repo `lookupSlug` ranks
+  differently and never reads aliases. `identityKey` (`lifecycle-index.ts`) is private; the design grouping needs it
+  exported or a twin.
+- **Clash fixtures.** The reference backend refuses a second live holder of a name at write and sync
+  (`helpers/store/identities.ts`), so a clash test builds a store double or mutates `state.records` directly; a reused
+  slug (completed plus new) can be written through the store.
+- **Design listings.** `store.list({ family: "work-item", kind })` with no owner is valid; `absent` means nothing of that
+  kind. The reference backend's `state.unreadable` works per family, so an unreadable design listing alone needs a
+  `Store` wrapper in tests.
+- **Lineage** (Owner, 2026-10-17). Retired-origin edges reuse the dependent's own reconcile query rather than a second
+  path, so the warning names what `arc wu reconcile --apply` reads; the cost is that an incomplete or unparsable lineage
+  listing fails every retired-origin edge, the condition the reconcile itself stops on. The query is `queryDisposition`'s
+  `not-found` branch (`createStoreReconcilePrepareContext`, `lib/work-unit/store-reconcile-context.ts`): the terminal-alias
+  selection over `storeLineageEnumeration`'s result, then `queryStoreDisposition`, whose matcher (`readDependentMatch`)
+  takes the dependent's UID first, then its name, and reads only its owner. All three are module-private today. Its
+  results: `unique` with a cut's `replace` or `drop`, `abandoned`, or a rename's `retarget`, which `resolveRetiredEdge`
+  (`lib/work-unit/side-effects/discharge-dep-edges.ts`) follows to the successor, refusing a cycle as `rename-cycle`;
+  `unmapped-dependent`, a query status rather than a record field; `absent`; `ambiguous`; and `namespace-corrupt`.
+  `planDependencyReconcile` produces codes, not text, so `dependency-retired`'s wording is new. The slug lookup ranks
+  Errand records (`work-item/record`) beside metas (`preferredSlugRecords`), so a first-step hit can name an Errand.
+- **Marking.** `markPausedWorkItem` throws on every failure, so the acquisition wraps it to produce `store-read-failed`;
+  pass `MetaPauseSchema.parse(entry.fields.pause)`. `pause.review_after_days` is declared in `config/schema.ts`; its
+  only reader (`store-session.ts`) parses it with a private helper (`positive`, which also parses two inbound settings).
+  This change exports it there, and the handler dispatching the acquisition passes the parsed number in, so
+  `lib/status/` imports no handler.
+- **Diagnostic keys.** The fold reads a name from the key form `work-item/meta:<name>`, whatever the diagnostic's kind.
+  Lifecycle's view gives that key to a conflicted or malformed meta (`malformedMeta`), and the reference backend's
+  listing to a meta its parser rejects (`listReference`, `__tests__/helpers/store/read.ts`). Its `oversized`,
+  `unreadable`, `unknown-format-version`, and `key-mismatch` diagnostics carry `recordKey`
+  (`__tests__/helpers/store/model.ts`), which names a meta by its UID, so the fold reads no name from them. The in-repo
+  backend's keys (`work-item:<slug>`, `lib/store/in-repo/composition-quality.ts`, and a source path) never reach the
+  arms from the flip.
+- **The state read's index.** `buildLifecycleIndexFromRecords` lives in `lib/work-unit/lifecycle-index.ts`, a raw
+  state helper (`RAW_STATE_MODULES`, `eslint/architecture-imports.ts`) that only `lib/store/` imports without a count,
+  and `handlers/status/lifecycle.ts` holds one `store-raw-state` count, spent on `resolveCallerComposedLifecycleIndex`.
+  `readLifecycleView`'s entry-to-record mapping becomes the exported builder both call.
+- **Dispatch today.** `handleStatus` dispatches a slug to `handleLifecycleStatus` before it builds the session context,
+  and builds the context with no `operational` input, so `storeSync` is always undefined in production. The slug arm's
+  store binds no identity; the context's binds `identity` and `execInput`.
+- **Refusals.** An `unsupported` `StoreRefusal` needs a case from the closed `UNSUPPORTED_CASES`, and the dormant-command
+  helper (`runDormantStoreCommand`) is typed to its own command union with off-branch text that does not fit a view.
+  Status's refusals get one renderer of their own: stderr `Error [<code>]: <condition> <remedy>` and, with `--json`,
+  `{ status: "refused", refusal }` on stdout, exit 1, the printed shape `handleDormantStoreCommand` uses.
+- **Tests.** Store-arm status tests call `handleLifecycleStatus` directly with a harness store and ports
+  (`unit/handlers/status/store-locus.test.ts`, `unit/work-unit/store-read-consumers.test.ts`); no test drives
+  `handleProjectStatus` or `handleUserStatus` with an injected store.
+
+### Phases 5 and 6 — the user view and the conflict view
+
+- **User view.** `deriveStoreInFlight` returns `reachable: false`, so the arm from the flip bypasses
+  `runStatusUserView`'s cache branch and passes no `writeFile`. Its degraded mark comes with a specific warning except
+  for a failed read of local refs. `isMine` is module-private.
+- **Conflict records.** No parser is registered for the conflict kinds, so a listing carries raw `content`: decode with
+  `JSON.parse` and `ConflictRecordSchema.safeParse`, as `entryConflictReason` (`lib/inbox/conflicts.ts`) does. The ID is
+  the record's reference key, not a field. A `work-item` listing with no kind refuses `unsupported` in-repo, so always
+  pass the kind.
+- **The token** has no formatter or parser anywhere yet. Form it as `<family>/<owner type>/<owner name>/<key>`; an ID may
+  hold `/`, so parse three segments and the remainder.
+- **Mode exclusivity.** Commander matches `conflicts([...])` against camelCase attribute names, so today's kebab-case
+  entries (`session-init`, `session-handoff`) never fire, and the schema refinement enforces exclusivity. `--conflicts`'s
+  own list and the entries the other modes gain use attribute names. `[slug]` is positional, so the flag is
+  `--conflicts [conflict]`, valued `true` or a token. Tests that pin the exclusion message and help:
+  `e2e/session-init.e2e.test.ts`, `e2e/run-cli.e2e.test.ts`, `e2e/cli-help-examples.e2e.test.ts`, and
+  `unit/command-input/repository-inventory.test.ts`.
+- **Seeding conflicts.** A stale-base write to a merging kind files one; or put a conflict record directly with a writer
+  verb's provenance (`merge`; `seed-lifecycle` is refused for conflict kinds), which links it to its subject. Unset
+  `environment.identity` for `absent` personal and claims listings.
+
+### Phase 7 — `arc view`
+
+- **Locus's session-notes arm is three pieces:** the handler's `resolveSessionNotes`, the `sessionContexts` map with the
+  `readFile` override, and the short-circuit in `resolveViewArtifactUnchecked`. This change's meta-path arm replaces all
+  three.
+- **Content results.** Three helpers `commands/view/run.ts` calls tell a ref result from a file by `"ref" in artifact`
+  (`readViewArtifactContent`, `viewArtifactDisplayLabel`, `viewArtifactFileRefusal`, all in
+  `lib/view/started-artifacts.ts`); a store-content result needs its own discriminator so the ref refusal never fires
+  for it.
+- **The default target's placement.** Locus's arm of `resolveAmbientTarget` returns placement `active` and
+  `taskListPath: null` for any resolved claim, reading no placement, so the arm from the flip takes only the claim's slug
+  and reads the work unit as `--for` does.
+- **Kinds.** `design` maps to no kind, `inbox` to two, and `session-notes` to meta, so the table maps each view kind to
+  a read selector typed by `KindId`, not to a bare `KindId`. The table and its selectors live in the port's module under
+  `handlers/`, which reads the store at runtime; `lib/view` imports only types from `lib/store`.
+- **The seam.** `resolveViewArtifact` reaches every effect through `ViewArtifactDependencies`' ports, none of whose
+  types returns a record's version or conflicts, and `ResolvedViewTarget` carries paths only. Locus's bindings read the
+  store behind `resolveAmbientTarget`, `resolveSessionNotes`, and `readFile` (`createViewDependencies`), the last two of
+  which Task 7.5 replaces. A target already names where its artifacts come from (`artifactSource`, `checkout` or `ref`),
+  and `presentOrAbsent` consults a ref source before the file check, so a `store` source with one optional port follows
+  that pattern. A separate store resolver chosen in `handleView` would ease the deletion pass but contradicts the spec's
+  § 6.1, which builds the arms in `createViewDependencies`.
+- **`--for` an Errand.** `readWorkUnit` refuses `record-malformed` for a slug that names an Errand; the arm maps it, and
+  `not-found`, to today's unknown-target refusal.
+- **Roots and files.** `resolveArcPath` is relative; root every path at the checkout, so a target is projected only where
+  this checkout holds its file. `pathExists` (`handlers/view.ts`) is module-private, so tests of a present file use a
+  temporary directory or lib-level dependencies.
+- **Ratchet.** `handlers/view.ts` holds `store-raw-state` 2 and `lib/view-artifact.ts` `surface-names` 2 and
+  `work-unit-paths` 2; the arms from the flip add no surface literal or work-unit address outside `lib/store/`.
 
 ---
