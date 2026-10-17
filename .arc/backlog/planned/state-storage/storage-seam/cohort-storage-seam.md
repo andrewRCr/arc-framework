@@ -206,6 +206,13 @@ Errands land after the contract and before the members:
   Today's decomposition machine stays the in-repo arm, untouched, and its one pre-flip change is the capability branch
   in `handleDecompose`, which sends a post-flip invocation to a store version rebuilt from the domain rules. The machine
   leaves in `storage-cutover`'s deletion pass, in place of the consumer map's per-module end states for it.
+
+  Amended 2026-10-16 — at its spec the pre-flip footprint widens, still changing nothing a cut does
+  (`spec-seam-decomposition.md` § 1.4). Beside the capability branch land the `--revise` and `--discard` flags, each
+  refusing `unsupported`, with `--finish`'s operand optional and the in-repo arm refusing its absence; the cut-map kind,
+  registered with no in-repo home; the `cut-map` schema at version 4 beside `decompose-cut-map`; the fan-out writer and
+  `lineage.cut-in-flight`, which nothing reaches before the flip; and a setup move of the locator schema and source-ID
+  function from version 3's schema module into the scanner's.
 - **Prepared writes** are shared decision 12, lifecycle's; decomposition's and locus's reconciling writers follow it.
 - **Moves, archive, rename, and links.** The in-repo implementation refuses each `unsupported` (D4, D8). The refusals
   for moves and archive name the verb that serves them until rerouted (`lib/store/in-repo/write-admission.ts`); the link
@@ -224,6 +231,9 @@ Errands land after the contract and before the members:
   holding a cut's map on its origin between the cut's two batches. Through record kinds' modules it adds the cohort
   kind's at-cap fan-out writer and the lineage kind's `lineage.cut-in-flight` write-check rule
   (`draft-seam-decomposition.md` § The cut, R7).
+
+  Amended 2026-10-16 — the working name stands: the kind is `work-item/cut-map`, beside the schema `cut-map` at version
+  4 (`spec-seam-decomposition.md` § 15).
 - **The write check** is shared decision 11, record kinds'; every member whose verbs write a checked kind runs through
   it, and `storage-ref-backend` and `storage-projection` call it from the flip.
 - **The machine-local set.** `MACHINE_LOCAL_PATHS` (`lib/store/registry.ts`) names the identity's `.internal/` folders
