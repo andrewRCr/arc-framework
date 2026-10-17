@@ -18,7 +18,7 @@ import { retirementTargets } from "./write-retirement.js";
 import { readLiveRefOwners } from "./live-owners.js";
 
 /** Canonical mutation and its concrete ref/tree address. */
-export interface ResolvedMutation { mutation: Mutation; home: StoredRecordHome }
+export interface ResolvedMutation { mutation: Mutation; home: StoredRecordHome; prior?: { reference: RecordReference; home: StoredRecordHome } }
 /** One resolved owner generation per name, with its captured mutation basis. */
 export interface ResolvedBatch { writes: ResolvedMutation[]; tips: Map<string, string>; archived?: readonly ArchivedFolder[] }
 /** A ref/tree coordinate that the batch may change directly or through resolution. */
@@ -27,7 +27,7 @@ export interface RefWriteTarget { reference: RecordReference; home: StoredRecord
 /** Include conflict-resolution refs in the same capture, locking, and publication set. */
 export function refWriteTargets(context: Pick<RefBackendContext, "registry">, batch: ResolvedBatch): RefWriteTarget[] {
   return batch.writes.flatMap(({ mutation, home }) => [{ reference: mutation.reference, home },
-    ...(mutation.resolves ?? []).map((reference) => ({ reference, home: mutationHome(context, reference, batch.archived ?? []) }))]).concat(retirementTargets(context, batch));
+    ...(mutation.resolves ?? []).map((reference) => ({ reference, home: mutationHome(context, reference, batch.archived ?? []) }))]).concat(retirementTargets(context, batch), renameRegistryTargets(context, batch));
 }
 
 /** Resolve all owner names together so records created in one batch share a generation. */
@@ -57,13 +57,12 @@ export async function resolveRefWrites(context: RefBackendContext, writes: reado
     context.registry[reference.kind].family === "lineage"
       ? lineageOwnerCandidates(reference, owners.map(({ owner }) => owner), lineage.result)
       : [...owners.map(({ owner }) => owner), ...endedOwners], fresh);
+  const renames = requestedRenames(writes);
   const resolved: ResolvedMutation[] = [];
   for (const mutation of writes) {
     const found = resolve(mutation.reference);
     if (found.status === "refused") return found;
-    const owner = found.result;
-    const reference = RecordReferenceSchema.parse({ ...mutation.reference, owner });
-    resolved.push({ mutation: { ...mutation, reference }, home: mutationHome(context, reference, archived.result) });
+    resolved.push(resolvedOwnerWrite(context, mutation, found.result, renames, archived.result));
   }
   const canonical = resolveConflictReferences(resolved, resolve);
   if (canonical.status === "refused") return canonical;
@@ -113,4 +112,25 @@ export function mutationHome(context: Pick<RefBackendContext, "registry">, refer
   const history = ["work-item", "cohort"].includes(rootFamily(context.registry[reference.kind].family))
     && archived.some(({ owner }) => sameOwner(owner, reference.owner));
   return expandStoredPath(reference, { registry: context.registry, history });
+}
+
+function renameRegistryTargets(context: Pick<RefBackendContext, "registry">, batch: ResolvedBatch): RefWriteTarget[] {
+  return batch.writes.flatMap(({ mutation, prior }) => {
+    if (!prior || mutation.reference.owner.type !== "work-item") return [];
+    const reference = RecordReferenceSchema.parse({ kind: "lineage/transition", owner: mutation.reference.owner });
+    return [{ reference, home: expandStoredPath(reference, { registry: context.registry }) }];
+  });
+}
+
+function requestedRenames(writes: readonly Mutation[]): Map<string, string> {
+  return new Map(writes.filter((write) => write.action === "put" && ["work-item/meta", "work-item/record", "cohort/document"].includes(write.reference.kind))
+    .flatMap(({ reference }) => "uid" in reference.owner && reference.owner.uid ? [[reference.owner.uid, reference.owner.name] as const] : []));
+}
+
+function resolvedOwnerWrite(context: RefBackendContext, mutation: Mutation, owner: OwnerIdentity, renames: ReadonlyMap<string, string>, archived: readonly ArchivedFolder[]): ResolvedMutation {
+  const current = RecordReferenceSchema.parse({ ...mutation.reference, owner });
+  const name = "uid" in owner && owner.uid ? renames.get(owner.uid) : undefined;
+  const reference = RecordReferenceSchema.parse({ ...current, owner: { ...owner, name: name ?? owner.name } });
+  return { mutation: { ...mutation, reference }, home: mutationHome(context, reference, archived),
+    ...(reference.owner.name === owner.name ? {} : { prior: { reference: current, home: mutationHome(context, current, archived) } }) };
 }

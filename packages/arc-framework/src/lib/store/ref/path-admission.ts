@@ -42,15 +42,15 @@ export function checkRefBatchPaths(references: readonly RecordReference[], regis
   return undefined;
 }
 
-/** Admit a caller's key without resolving an owner or consulting storage. */
-export function checkRefKey(reference: RecordReference, registry: RefBackendContext["registry"]): StoreRefusal | undefined {
+/** Admit a key; defer UID-dependent companion aliases until the stored owner is resolved. */
+export function checkRefKey(reference: RecordReference, registry: RefBackendContext["registry"], ownerResolved = true): StoreRefusal | undefined {
   const malformed = malformedKeyProblem(reference, registry);
   if (malformed) return { code: "record-malformed", class: "recoverable", reference, rule: "store.key", condition: malformed,
     remedy: { text: "Choose a stored key without control characters or excluded machine-local or derived paths, using one segment for an ID or activity, then retry." } };
   if (!registry[reference.kind].ref) return unsupportedKey(reference, `No ref home is declared for ${reference.kind}`);
   const resolved = pathPrototype(reference);
   const home = expandStoredPath(resolved, { registry });
-  const problem = storedKeyProblem({ registry }, resolved, home.path);
+  const problem = storedKeyProblem({ registry }, resolved, home.path, ownerResolved || !("uid" in reference.owner && reference.owner.uid));
   return problem ? unsupportedKey(reference, problem) : undefined;
 }
 
@@ -71,7 +71,7 @@ function unsupportedKey(reference: RecordReference, condition: string): StoreRef
 }
 
 /** Explain a decoded key that cannot be written back at the captured tree path. */
-export function storedKeyProblem(context: KeyContext, reference: RecordReference, path: string): string | null {
+export function storedKeyProblem(context: KeyContext, reference: RecordReference, path: string, ownerResolved = true): string | null {
   const malformed = malformedKeyProblem(reference, context.registry);
   if (malformed) return malformed;
   const key = reference.key;
@@ -85,6 +85,7 @@ export function storedKeyProblem(context: KeyContext, reference: RecordReference
     const problem = personalProblem(reference.owner.name, key, home);
     if (problem) return problem;
   }
+  if (!ownerResolved && reference.kind === "work-item/companion" && "uid" in reference.owner && reference.owner.uid) return null;
   return reference.kind === "work-item/companion" || reference.kind === "personal/document" ? aliasProblem(context, reference, path) : null;
 }
 

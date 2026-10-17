@@ -617,36 +617,26 @@ close, and renames and role changes.
   Closed-cohort edits refresh their folder through retained history; incomplete child evidence refuses before publication
   and admits repaired retries. Long slugs retain their full Git folder names.
 
-### `[ ]` **6.6 Renames and role changes — § 3.3, § 3.6, § 5.2, § 5.3**
+### `[x]` **6.6 Renames and role changes — § 3.3, § 3.6, § 5.2, § 5.3**
 
 - _Goal:_ A rename and a primary's role change move no ref and add no record blob, and `history` follows a record through
   both.
 
-    - A rename of an item whose lineage the registry holds rewrites that lineage's owner slug in the registry's metadata
-      in the same batch (§ 3.3)
-    - A rename refuses where a companion keyed verbatim at the root would read back under the new slug as another
-      reference, 5.2.a's key check run over each such key under the new slug (§ 3.6)
-    - A put expecting absence in the new primary role admits a batch that removes the other role, and a role replacement
-      runs the removed kind's write check with no next record and the created kind's with no prior (§ 5.3)
-    - Build `test-first` (one behavior at a time):
-        - a rename writes the new slug, appends the old one to `formerSlugs`, and renames the projected files in one
-          commit, adding no record blob, only the new metadata file: a companion keyed `notes-extra` moves to
-          `notes-extra-<new slug>.md`, and one keyed `sub/notes.md` keeps its path
-        - a rename of item `a` onto `b` holding a companion keyed verbatim `x-b.md` refuses `unsupported` `unhomed-kind`
-          naming it, with or without a companion keyed `x`, and lands once it is re-keyed; one keyed `x-c.md` keeps its
-          path through the rename
-        - a completed item's rename also renames its quarter folder
-        - a rename onto a live work item's or cohort's slug refuses `ambiguous-match` naming both, and one that ends a
-          clash between machines lands
-        - a rename to a 2,041-byte slug refuses `record-malformed` under `store.git-path`, and a companion of a 2,040-byte
-          key renamed with its owner forms a name Git accepts
-        - a rename of an item with lineage rewrites the registry's lineage slug
-        - a role change between `work-item/meta` and `work-item/record` keeps the item's UID and links, and runs both
-          kinds' checks
-        - `history` lists a record's versions across a rename and a role change, from the paths its former slugs and
-          roles give
-        - a read by UID carrying the owner's prior name expands the current metadata's slug paths and returns its
-          current name, including slug-named companions
+    - _Amended in:_ 6.6.R (A8)
+
+- _Outcome:_ Renames move projected tree paths and completed folders, preserving record blobs and owner refs while
+  updating former slugs and retained lineage metadata atomically. Companion aliases refuse with a re-key retry;
+  UID-based renames repair live slug clashes. UID reads resolve the current name within two processes and retry a
+  changed capture. History follows every former slug and primary role without attributing a reused path to another key.
+
+### `[x]` **6.6.R Primary role replacement admission — § 5.2, § 5.3 (A8)**
+
+- _Goal:_ Replace a primary's role with one put against its current version, preserving the shared contract's one
+  mutation per logical primary; an absent expectation and duplicate role mutations refuse without changing state.
+
+- _Outcome:_ Both replacement directions retain the UID, links, and actual historical roles, remove the old physical
+  path, and run each kind's check against its own prior/next side with complete views. Either check can refuse without
+  publishing; an admitted retry lands. Shared mutation and result uniqueness schemas remain unchanged.
 
 ## **Phase 7:** Changes, reads as of a state version, and lookup
 

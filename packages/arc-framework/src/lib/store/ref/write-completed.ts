@@ -86,9 +86,10 @@ async function refreshFolder(context: RefBackendContext, folder: ArchivedFolder,
   if (folder.placement.kind !== "completed") throw new Error("A completed folder has no completed placement");
   if (metadata.placement) metadata.placement = { kind: "completed", quarter: folder.placement.quarter };
   if (metadata.primary) metadata.primary = { ...metadata.primary, placement: { kind: "completed", quarter: folder.placement.quarter } };
+  const root = expandStoredPath({ ...reference, owner: { ...reference.owner, name: group.metadata.slug ?? reference.owner.name } }, { registry: context.registry, placement: folder.placement }).root;
   for (const entry of group.entries.values()) {
     if (entry.path === home.manifestPath.slice(0, -1) || entry.path.startsWith(home.manifestPath)) continue;
-    const path = folder.root + entry.path;
+    const path = root + entry.path;
     entries.set(path, { ...entry, path, ...(entry.path === home.metadataPath ? { oid: await writeRefBlob(context, canonicalize(metadata)) } : {}) });
   }
 }

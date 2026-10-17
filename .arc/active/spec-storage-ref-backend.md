@@ -3998,4 +3998,7 @@ open:
 - **A7** — 2026-10-16 — design: identity removal checks absence through the UID-less project handle.
   _Supersedes:_ § 14.2 removal assertion. _Trigger:_ 5.10 must-stop. _Work:_ 5.10.R. _Revalidated:_ pending → 8.6.
 
+- **A8** — 2026-10-16 — task: primary role replacement uses one version-bound put, retaining logical batch uniqueness.
+  _Supersedes:_ none. _Trigger:_ 6.6 must-stop. _Work:_ 6.6.R. _Revalidated:_ 6.6.R.
+
 ---

@@ -13,24 +13,24 @@ import { createRefWriteViews } from "./write-views.js";
 /** Check every caller mutation in order, retaining the original and final bytes. */
 export async function checkRefWrites(context: RefBackendContext, writes: readonly PreparedRefMutation[],
   groups: ReadonlyMap<string, RefWriteGroup>, tips: ReadonlyMap<string, string>, provenance: BatchInput["provenance"]): Promise<StoreRefusal | undefined> {
-  const checked = writes.filter(({ mutation }) => context.registry[mutation.reference.kind].check !== null);
-  if (checked.length === 0) return undefined;
-  const queries = checked.flatMap(({ home }) => [groups.get(home.ref)?.original.get(home.path)?.oid,
-    groups.get(home.ref)?.entries.get(home.path)?.oid].filter((oid): oid is string => oid !== undefined));
+  const units = checkUnits(writes).filter(({ reference }) => context.registry[reference.kind].check !== null);
+  if (units.length === 0) return undefined;
+  const queries = units.flatMap(({ ref, priorPath, nextPath }) => [priorPath ? groups.get(ref)?.original.get(priorPath)?.oid : undefined,
+    nextPath ? groups.get(ref)?.entries.get(nextPath)?.oid : undefined].filter((oid): oid is string => oid !== undefined));
   const objects = await readBatchObjects(context, [...new Set(queries)]);
   const { before, after } = createRefWriteViews(context, tips, groups);
   const results: { reference: RecordReference; rules: readonly BrokenRule[] }[] = [];
-  for (const { mutation, home } of checked) {
-    const group = groups.get(home.ref);
+  for (const { reference, ref, priorPath, nextPath } of units) {
+    const group = groups.get(ref);
     if (!group) throw new Error("A checked mutation has no captured ref group");
-    const priorSide = checkRecord(context, mutation.reference, group.original.get(home.path)?.oid, objects);
+    const priorSide = checkRecord(context, reference, entryOid(group.original, priorPath), objects);
     if (priorSide.status === "refused") return priorSide.refusal;
-    const nextSide = checkRecord(context, mutation.reference, group.entries.get(home.path)?.oid, objects);
+    const nextSide = checkRecord(context, reference, entryOid(group.entries, nextPath), objects);
     if (nextSide.status === "refused") return nextSide.refusal;
     const prior = priorSide.result, next = nextSide.result;
-    const check = context.registry[mutation.reference.kind].check;
+    const check = context.registry[reference.kind].check;
     if (!check) continue;
-    results.push({ reference: mutation.reference, rules: await check({ reference: mutation.reference, before, after,
+    results.push({ reference, rules: await check({ reference, before, after,
       writer: deriveWriteCheckWriter(provenance), ...(prior ? { prior } : {}),
       ...(next ? { next: { content: next.content, fields: next.fields } } : {}) }) });
   }
@@ -47,4 +47,20 @@ function checkRecord(context: RefBackendContext, reference: RecordReference, oid
   const content = new TextDecoder("utf-8", { fatal: true }).decode(object.bytes);
   const parsed = context.registry[reference.kind].parser?.(content);
   return { status: "ok", result: { content, ...(parsed?.success ? { fields: parsed.data } : {}) } };
+}
+
+interface CheckUnit { reference: RecordReference; ref: string; priorPath: string | undefined; nextPath: string | undefined }
+
+function checkUnits(writes: readonly PreparedRefMutation[]): CheckUnit[] {
+  return writes.flatMap(({ mutation, home, prior }) => {
+    const replacement = prior && prior.reference.kind !== mutation.reference.kind;
+    return [
+      ...(replacement ? [{ reference: prior.reference, ref: home.ref, priorPath: prior.home.path, nextPath: undefined }] : []),
+      { reference: mutation.reference, ref: home.ref, priorPath: replacement ? undefined : prior?.home.path ?? home.path, nextPath: home.path },
+    ];
+  });
+}
+
+function entryOid(entries: ReadonlyMap<string, { oid: string }>, path: string | undefined): string | undefined {
+  return path === undefined ? undefined : entries.get(path)?.oid;
 }

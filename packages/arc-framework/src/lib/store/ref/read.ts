@@ -19,11 +19,15 @@ import { checkRefKey } from "./path-admission.js";
 import { projectIdentityQueries, projectOwnerFromObjects, admitProjectReference, projectListInput, projectListingBinding, checkProjectIdentity } from "./project-identity.js";
 import { resolveLineageReadReference } from "./lineage-resolution.js";
 
+import { readUidRefRecord } from "./read-uid.js";
+
 /** Read one live record, resolving a slug-only owner through one captured family scan. */
 export async function readRefRecord(context: RefBackendContext, input: ReadInput): Promise<StoreResult<StoreRecord>> {
   let reference = input.reference;
-  const invalidKey = checkRefKey(reference, context.registry);
+  const invalidKey = checkRefKey(reference, context.registry, false);
   if (invalidKey) return { status: "refused", refusal: invalidKey };
+  const byUid = await readUidRefRecord(context, reference);
+  if (byUid) return byUid;
   const resolved = await resolveReadReference(context, reference);
   if (resolved.status === "refused") return resolved;
   reference = resolved.result;
@@ -64,9 +68,12 @@ export async function resolveReadReference(context: RefBackendContext, reference
   if (reference.owner.type !== "person" && !reference.owner.uid && reference.owner.type !== "project") {
     const listing = await listRefRecords(context, { family: context.registry[reference.kind].family });
     if (listing.status !== "ok" || listing.result.status !== "complete") return missing(reference);
-    const resolved = listing.result.records.find((record) => record.placement?.kind !== "completed" && record.reference.owner.name === reference.owner.name);
+    const primary = ["work-item/meta", "work-item/record"].includes(reference.kind);
+    const resolved = listing.result.records.find((record) => record.placement?.kind !== "completed" && record.reference.owner.name === reference.owner.name
+      && (!primary || ["work-item/meta", "work-item/record"].includes(record.reference.kind)));
     if (!resolved) return missing(reference);
-    return { status: "ok", result: RecordReferenceSchema.parse({ ...reference, owner: resolved.reference.owner }) };
+    return { status: "ok", result: RecordReferenceSchema.parse({ ...reference, owner: resolved.reference.owner,
+      ...(["work-item/meta", "work-item/record"].includes(reference.kind) ? { kind: resolved.reference.kind } : {}) }) };
   }
   return { status: "ok", result: reference };
 }
@@ -230,7 +237,8 @@ async function readArchivedRecord(context: RefBackendContext, reference: RecordR
   const folders = [...trees].flatMap(([ref, entries]) => archivedFolders(family, ref, entries, objects).folders);
   const folder = latestArchivedFolders(folders.filter(({ owner }) => sameOwner(owner, reference.owner)))[0];
   if (!folder) return missing(reference);
-  const decoded = decodeCapturedRef(context, { family, kind: reference.kind, owner: reference.owner }, folder.liveRef,
+  const kind = ["work-item/meta", "work-item/record"].includes(reference.kind) ? folder.metadata.primary?.role ?? reference.kind : reference.kind;
+  const decoded = decodeCapturedRef(context, { family, kind, owner: reference.owner }, folder.liveRef,
     folder.entries, objects, folder.metadata, undefined, folder.placement);
   const record = decoded.records.find((record) => record.reference.key === reference.key || JSON.stringify(record.reference.key) === JSON.stringify(reference.key));
   if (record) return { status: "ok", result: record };

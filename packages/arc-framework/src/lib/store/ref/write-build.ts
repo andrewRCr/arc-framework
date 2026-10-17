@@ -11,6 +11,7 @@ import { writeRefBlob } from "./tree-write.js";
 import type { RefBackendContext } from "./context.js";
 import type { ResolvedBatch, ResolvedMutation } from "./write-resolution.js";
 import { refWriteTargets, mutationHome } from "./write-resolution.js";
+import { expandStoredPath } from "../stored-path.js";
 import type { RecordReference } from "../identity.js";
 import { prepareCapturedWrites } from "./write-current.js";
 import { checkSerializationRules } from "../serialization.js";
@@ -28,6 +29,8 @@ import { stampCompletedWrites, refreshCompletedChanges } from "./write-completed
 import { planRefRetirements, sweepRefRetirements, retirementRefChanges } from "./write-retirement.js";
 import { prepareRefConflicts } from "./write-conflicts.js";
 
+import { prepareRefRenames } from "./write-rename.js";
+
 type RefGroup = RefWriteGroup;
 
 /** Land prepared mutations over one captured namespace using expected old ref values. */
@@ -39,12 +42,12 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
   const loaded = await readWriteGroups(context, resolved);
   if (loaded.status === "refused") return loaded;
   const groups = loaded.result;
-  if (resolved.writes.some(({ mutation, home }) => /^refs\/arc\/(?:work|cohort)\//u.test(home.ref)
-    && groups.get(home.ref)?.metadata.slug !== mutation.reference.owner.name)) return "resolve";
-  const refusal = capturedWriteRefusal(context, resolved, groups);
-  if (refusal) return { status: "refused", refusal };
+  if (resolved.writes.some(({ mutation, home, prior }) => /^refs\/arc\/(?:work|cohort)\//u.test(home.ref)
+    && groups.get(home.ref)?.metadata.slug !== (prior?.reference.owner.name ?? mutation.reference.owner.name))) return "resolve";
   const prepared = await prepareCapturedWrites(context, resolved, groups, provenance);
   if (prepared.status === "refused") return prepared;
+  const refusal = prepareRefRenames(context, resolved, groups) ?? capturedWriteRefusal(context, resolved, groups);
+  if (refusal) return { status: "refused", refusal };
   applyResolutions(context, resolved, groups);
   const tips = resolved.tips;
   const applied = await applyPreparedMutations(context, prepared.result, groups);
@@ -161,6 +164,12 @@ async function applyMutation(context: RefBackendContext, group: RefGroup, write:
     if (kind === "lineage/transition") removeLineageOwner(group.metadata, mutation.reference);
     group.metadata.formats = Object.fromEntries(Object.entries(group.metadata.formats).filter(([key]) => key !== formatKey));
     return { status: "ok", result: { reference: mutation.reference, conflicts: [] } };
+  }
+  if (write.prior && write.prior.reference.kind !== kind) {
+    const priorPath = expandStoredPath({ ...write.prior.reference, owner: mutation.reference.owner }, { registry: context.registry }).path;
+    group.entries.delete(priorPath);
+    const priorFormat = refFormatKey(write.prior.reference);
+    group.metadata.formats = Object.fromEntries(Object.entries(group.metadata.formats).filter(([key]) => key !== priorFormat));
   }
   const formatVersion = context.registry[mutation.reference.kind].formatVersion;
   const content = context.registry[mutation.reference.kind].projection === "never"

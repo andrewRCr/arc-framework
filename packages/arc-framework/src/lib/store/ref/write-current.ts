@@ -1,6 +1,6 @@
 /** Expected-version admission against immutable, locked state trees. */
 
-import type { RecordReference } from "../identity.js";
+import { RecordReferenceSchema, type RecordReference } from "../identity.js";
 import type { BatchInput } from "../write.js";
 import type { RefBackendContext } from "./context.js";
 import type { ResolvedBatch, ResolvedMutation } from "./write-resolution.js";
@@ -21,21 +21,25 @@ export async function prepareCapturedWrites(context: RefBackendContext, resolved
   groups: ReadonlyMap<string, CapturedWriteGroup>, provenance: BatchInput["provenance"]): Promise<StoreResult<PreparedRefMutation[]>> {
   const stale: RecordReference[] = [];
   const prepared: PreparedRefMutation[] = [];
-  for (const write of resolved.writes) {
-    const group = groups.get(write.home.ref);
+  for (const requested of resolved.writes) {
+    const group = groups.get(requested.home.ref);
     if (!group) throw new Error("A resolved mutation has no captured ref group");
-    if (!await staleMutation(context, write, group, provenance)) { prepared.push({ ...write, conflicts: [] }); continue; }
-    const { mutation, home } = write;
+    const write = primaryWriteBasis(context, requested, group);
+    const basis = { ...write, mutation: { ...write.mutation, reference: write.prior?.reference ?? write.mutation.reference },
+      home: write.prior?.home ?? write.home };
+    if (!await staleMutation(context, basis, group, provenance)) { prepared.push({ ...write, conflicts: [] }); continue; }
+    const { mutation } = write;
+    const home = write.prior?.home ?? write.home;
     const definition = context.registry[mutation.reference.kind];
     const entry = group.entries.get(home.path);
     const tip = resolved.tips.get(home.ref);
     if (mutation.action === "put" && mutation.expected !== null && entry && tip
-      && definition.merge !== "single-writer" && !["create-only", "write-once"].includes(definition.writerRule)) {
+      && basis.mutation.reference.kind === mutation.reference.kind && definition.merge !== "single-writer" && !["create-only", "write-once"].includes(definition.writerRule)) {
       const current = refRecordVersion(mutation.reference, entry.oid, group.metadata,
         group.metadata.formats[refFormatKey(mutation.reference)] ?? 1);
-      const merged = await mergeRefMutation(context, write, tip, current);
+      const merged = await mergeRefMutation(context, { ...write, home }, tip, current);
       if (merged.status === "refused") return merged;
-      if (merged.result) { prepared.push(merged.result); continue; }
+      if (merged.result) { prepared.push({ ...merged.result, home: write.home }); continue; }
     }
     stale.push(mutation.reference);
   }
@@ -62,4 +66,14 @@ async function staleMutation(context: RefBackendContext, { mutation, home }: Res
   if (mutation.action !== "put" || !["create-only", "write-once"].includes(context.registry[reference.kind].writerRule)) return false;
   const object = entry ? (await readBatchObjects(context, [entry.oid])).get(entry.oid) : null;
   return !isTerminalSnapshotRepair({ ...mutation, provenance }, object?.type === "blob" ? new TextDecoder().decode(object.bytes) : null);
+}
+
+function primaryWriteBasis(context: RefBackendContext, write: ResolvedMutation, group: CapturedWriteGroup): ResolvedMutation {
+  const { mutation } = write;
+  const role = group.metadata.primary?.role;
+  if (mutation.action !== "put" || mutation.expected === null || !role || role === mutation.reference.kind
+    || !["work-item/meta", "work-item/record"].includes(mutation.reference.kind)) return write;
+  const reference = RecordReferenceSchema.parse({ ...(write.prior?.reference ?? mutation.reference), kind: role });
+  const home = expandStoredPath(reference, { registry: context.registry, history: write.home.ref.startsWith("refs/arc/history/") });
+  return group.entries.has(home.path) ? { ...write, prior: { reference, home } } : write;
 }

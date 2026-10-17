@@ -340,3 +340,19 @@ The removal's no-version result and successful recreation checks remain. A dedic
 handles, and Task 8.6 repeats it over both layouts. No additional conformance exclusion is introduced.
 
 ---
+
+## A8 — Primary replacement and logical batch uniqueness
+
+Task 6.6's derivation asked for a new-role put expecting absence beside an old-role removal. `sameReference`
+(`lib/store/identity.ts`) treats the two primary roles on one UID as one record; `BatchInputSchema` and
+`BatchResultSchema` (`lib/store/write.ts`) reject duplicate logical records. The reference backend's `recordKey`
+(`__tests__/helpers/store/model.ts`) stores both roles in that same primary slot, and its `stale` and
+`checkPreparedWrites` admit replacement against the existing primary's version and check each kind separately.
+The failed real-Git probe reached the shared duplicate-mutation refusal before backend admission.
+
+The design holds: § 5.2 already requires both primary roles absent for an absent expectation, and § 5.3 already
+requires replacement checks. The task arm corrects the derivation to one version-bound put; it changes no shared
+schema or specification behavior. Task 6.6.R covers both directions, duplicate and absent refusals, preservation,
+and check refusal followed by repair. Its grounding-only author check traced those schema, identity, reference
+write, and check paths; reader independence and binding completeness hold over this bounded correction. No new
+segment, public API, or later task depends on accepting duplicate role mutations.

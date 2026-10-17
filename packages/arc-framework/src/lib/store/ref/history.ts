@@ -11,6 +11,7 @@ import { readBatchObjects, readRefTips } from "./batch-read.js";
 import { checkRefKey } from "./path-admission.js";
 import { resolveReadReference } from "./read.js";
 import { resolveArchivedReferences } from "./archive-resolution.js";
+import { readHistoryPaths } from "./history-paths.js";
 import { retiredHistoryHome } from "./retired-history.js";
 import { readHistorySnapshots } from "./history-snapshots.js";
 
@@ -20,7 +21,7 @@ export interface RefHistoryDetail { entry: HistoryEntry; revision: string }
 
 /** Resolve a record and read its newest-first landed states from its own ref. */
 export async function historyRefRecord(context: RefBackendContext, input: { reference: RecordReference }): Promise<StoreResult<HistoryEntry[]>> {
-  const key = checkRefKey(input.reference, context.registry);
+  const key = checkRefKey(input.reference, context.registry, false);
   if (key) return { status: "refused", refusal: key };
   const resolved = await resolveReadReference(context, input.reference);
   if (resolved.status === "refused") return resolved;
@@ -52,11 +53,12 @@ export async function readRefHistory(context: RefBackendContext, reference: Reco
 /** Retain change-commit identities for merge bases and stored-side labels. */
 export async function readRefHistoryDetails(context: RefBackendContext, reference: RecordReference,
   home: StoredRecordHome, tip: string): Promise<StoreResult<RefHistoryDetail[]>> {
+  const paths = await readHistoryPaths(context, reference, home, tip);
   const { stdout } = await context.exec("git", ["rev-list", "--full-history", "--parents", "--topo-order", tip, "--",
-    `:(literal)${home.path}`, `:(literal)${home.metadataPath}`], { cwd: context.checkoutRoot, objectAccess: "local-only" });
+    ...paths.map((path) => `:(literal)${path}`)], { cwd: context.checkoutRoot, objectAccess: "local-only" });
   const rows = parseHistoryRows(stdout);
   const revisions = [...new Set(rows.flatMap((row) => [row.revision, ...row.parents]))];
-  const snapshots = await readHistorySnapshots(context, reference, home, revisions);
+  const snapshots = await readHistorySnapshots(context, reference, home, revisions, paths);
   if (snapshots.status === "refused") return snapshots;
   const entries: RefHistoryDetail[] = [];
   for (const row of orderHistoryCommits(rows)) {

@@ -12,7 +12,7 @@ import { decodeCapturedRef, resolveCapturedOwner } from "./read.js";
 import { matchesFamilyRef, refOwner, decodeRecord } from "./codec.js";
 import { lookupCapturedRefTrees, type RefLookupTree } from "./lookup.js";
 import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
-import { metadataFailure } from "./metadata.js";
+import { metadataFailure, type RefMetadata } from "./metadata.js";
 import { FAMILY_REGISTRY } from "../registry.js";
 import { projectOwnerFromEntries, admitProjectReference, projectListInput, projectListingBinding } from "./project-identity.js";
 import { archivedViewRecords } from "./archive-view.js";
@@ -67,7 +67,7 @@ async function listView(context: RefBackendContext, state: RefViewState, input: 
 
 async function readView(context: RefBackendContext, state: RefViewState, input: ReadInput): Promise<StoreResult<StoreRecord>> {
   let reference = input.reference;
-  const invalid = checkRefKey(reference, context.registry);
+  const invalid = checkRefKey(reference, context.registry, false);
   if (invalid) return { status: "refused", refusal: invalid };
   const project = viewProjectReference(state, reference);
   if (project.status === "refused") return project;
@@ -87,7 +87,7 @@ async function readView(context: RefBackendContext, state: RefViewState, input: 
   const metadata = viewRefMetadata(context, state, home.ref, family);
   if (!metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: home.ref, ...metadataFailure(home.ref) } };
   if (family !== "lineage" && reference.owner.type !== "project") {
-    reference = RecordReferenceSchema.parse({ ...reference, owner: refOwner(home.ref, family, metadata) });
+    reference = canonicalViewReference(context, reference, home.ref, metadata);
     home = expandStoredPath(reference, { registry: context.registry });
   }
   const entry = group.entries?.find(({ path }) => path === home.path);
@@ -142,4 +142,9 @@ function resolveViewOwner(context: RefBackendContext, state: RefViewState, refer
     : { kind: "slug" as const, slug: reference.owner.name };
   const found = lookupView(context, state, query);
   return found.status === "refused" ? found : { status: "ok", result: RecordReferenceSchema.parse({ ...reference, owner: found.result.reference.owner }) };
+}
+
+function canonicalViewReference(context: RefBackendContext, reference: RecordReference, ref: string, metadata: RefMetadata): RecordReference {
+  const kind = ["work-item/meta", "work-item/record"].includes(reference.kind) ? metadata.primary?.role ?? reference.kind : reference.kind;
+  return RecordReferenceSchema.parse({ ...reference, kind, owner: refOwner(ref, context.registry[reference.kind].family, metadata) });
 }
