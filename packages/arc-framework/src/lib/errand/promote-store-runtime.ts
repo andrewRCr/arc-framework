@@ -7,6 +7,10 @@ import { authorizeErrandTerminal } from "./terminal-authority.js";
 import { createProjectIdentityReader, resolveProjectIdentity } from "../store/project-identity.js";
 import { createLocusPorts } from "../locus/lifecycle-ports.js";
 import type { OrdinaryErrandRecord } from "./identity-transitions.js";
+import type { Store } from "../store/contract.js";
+import type { DerivedLocusFrame } from "../locus/derived-reader.js";
+
+type StoreRuntimeOptions = PromoteOrdinaryErrandRuntimeOptions & { store: Store };
 
 /** Select store promotion steps only after identity and marker exclusivity are available. */
 export async function promoteStoreErrandAtRuntime(options: PromoteOrdinaryErrandRuntimeOptions,
@@ -17,19 +21,24 @@ export async function promoteStoreErrandAtRuntime(options: PromoteOrdinaryErrand
   if (project.status !== "ready") return refused(`${project.reason} ${project.remedy.text}`);
   const frame = await options.readFrame();
   if (frame.entering.kind !== "selected") return refused("The entering checkout could not be resolved.");
-  const ports = options.locusPorts ?? createLocusPorts({ cwd: frame.entering.row.checkout.path, exec: options.exec, store });
-  const exclusive = await ports.checkMarkerExclusivity({ name: options.name, checkoutPath: frame.entering.row.checkout.path });
-  if (exclusive.kind === "refused") return refused(exclusive.reason);
-  const steps = createStorePromotionSteps({ ...options, store, repository: project.id,
-    checkout: (record, mode) => selectCheckout(options, record, mode) });
+  const bound = { ...options, store };
+  const steps = createStorePromotionSteps({ ...bound, repository: project.id,
+    checkout: (record, mode) => selectCheckout(bound, record, mode) });
   return promoteOrdinaryErrand({ ...options, dependencies: { ...steps,
     settleInbox: (receipt) => Promise.resolve({ ...receipt, originEntry: null, originEntrySourceDigest: null }), settleOccupancy } });
 }
-async function selectCheckout(options: PromoteOrdinaryErrandRuntimeOptions, record: OrdinaryErrandRecord,
+async function selectCheckout(options: StoreRuntimeOptions, record: OrdinaryErrandRecord,
   mode: "replaceFrame" | "recoverPromoted"): Promise<StorePromotionCheckoutResult> {
   const frame = await options.readFrame();
   const branch = `${options.type}/${options.name}`;
-  if (mode === "recoverPromoted") return selectRecoveryCheckout(frame, record, options.name, branch);
+  const selected = mode === "recoverPromoted" ? selectRecoveryCheckout(frame, record, options.name, branch)
+    : await selectTerminalCheckout(options, record, frame);
+  if (selected.kind !== "ready") return selected;
+  const ports = options.locusPorts ?? createLocusPorts({ cwd: selected.checkoutPath, exec: options.exec, store: options.store });
+  const exclusive = await ports.checkMarkerExclusivity({ name: options.name, checkoutPath: selected.checkoutPath });
+  return exclusive.kind === "refused" ? { kind: "refused", reason: "authority-unresolved", message: exclusive.reason } : selected;
+}
+async function selectTerminalCheckout(options: StoreRuntimeOptions, record: OrdinaryErrandRecord, frame: DerivedLocusFrame): Promise<StorePromotionCheckoutResult> {
   const authority = await authorizeErrandTerminal({
     store: options.store, frame, operation: "promote", subject: { kind: "errand", slug: record.slug, claimId: record.claimId },
     confirmForeignGeneration: options.confirmForeignGeneration,
