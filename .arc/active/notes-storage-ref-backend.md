@@ -435,3 +435,28 @@ under that authorization.
 Author grounding traced `createRefStore`, `createRefBackend`, `storeViolations`, and `commitRefWrites`, and checked the
 expected layout/remote-copy contracts in Tasks 13.1 and 16.2 against § 11.4. Grounding-only task audit found the caller
 ordering resolves the private-import conflict without adding an API, lock policy port, or generic helper for tests.
+
+## A13 — Empty fetches need a no-tip negotiation form that completes
+
+Superseded § 6.2 text:
+
+> or, where none does yet, `--refetch`, which names nothing as held under either protocol version. Tips that
+> match nothing would name nothing under protocol v2 too, but Git warns of each such pattern.
+
+Task 9.1.b's fresh read-only clone exposed two distinct issues. `negotiationArgs` initially asked `for-each-ref` for
+`refs/arc-remotes/*`, which did not enumerate nested remote/family refs; its corrected prefix scan finds them.
+Separately, a disposable Git 2.55 probe with protocol v2 and no requested remote ref hangs under `--refetch`, including
+with automatic maintenance disabled. Protocols v0/v1 finish but report no matching remote head. An unmatched
+`--negotiation-tip=refs/arc/work/*` completes with exit zero and sends no held commit in the recorded v2 packets.
+
+The Owner delegated amendments within this work unit's and cohort's intent. This determinate design correction keeps
+one round trip, explicit refspecs, state-only negotiation, and the no-lazy-fetch boundary. The benign unmatched-pattern
+warning remains captured. `fetchRefRemote` will use the unmatched state pattern only where no state or tracking tip
+exists. The partial-clone completeness retry keeps `--refetch`, since a missing object from fetched tips establishes
+that the requested remote state exists; the protocol-v0 completeness obligation is unchanged.
+
+Author grounding covered `fetchRefRemote`, `negotiationArgs`, `parseFetchPorcelain`, the real Git probes and packet
+capture, and § 6.2's source-fetch and migration reuse. The task grounding audit and specification reader/binding checks
+found no additional API, stored record, round trip, or lifecycle change needed. Task 9.1.R carries the correction;
+Task 11.6 repeats the segment-level sync scenario. Existing positive fetch, parser, host, and local conformance evidence
+is unaffected. A canceled fetch's partial stdout is separately retained as failure rather than completed acquisition.

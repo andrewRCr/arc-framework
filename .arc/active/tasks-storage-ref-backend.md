@@ -802,6 +802,7 @@ converge with no lost write.
 
 - _Goal:_ One fetch round trip brings the remote's state, and only its state, into a tracking namespace no push, manifest,
   or listing reads, never naming a code commit as held.
+    - _Amended in:_ 9.1.R (A13)
 
     - `[x]` **9.1.a Parsing the porcelain**
         - `lib/git/fetch.ts` reads all six flags with both tips and preserves the complete process evidence. Typed
@@ -833,6 +834,18 @@ converge with no lost write.
             - in the separate layout the fetch reaches the remote through the command-line refspecs alone, the
               directory's own configuration carrying none
             - a fork's upstream fetched by URL creates and prunes its tracking refs as a fetch by name does
+
+### `[ ]` **9.1.R Empty fetches keep state-only negotiation — § 6.2 (A13)**
+
+- _Goal:_ A pull with no state tips completes when the remote has no requested state, preserving state-only
+  negotiation, and a nested tracking tip remains usable after the remote prunes its ref.
+
+    - Replace the no-tip `--refetch` branch in `fetchRefRemote` with the unmatched state pattern, retaining the
+      diagnostics and the completeness retry's explicit refetch. Scan nested tracking refs by prefix.
+    - Build `test-first` (one behavior at a time):
+        - Integration tier, both layouts: an empty state remote and an absent history request complete as a no-op;
+          a later state write is fetched without advertising a held code commit, proved by protocol-v2 packets
+        - A read-only clone with no local state prunes its final tracking ref and completes without hanging
 
 ### `[ ]` **9.2 Merge after fetch — § 6.4**
 
@@ -2778,3 +2791,6 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
 - `[ ]` Forward metadata repair restores current operations without inferring historical metadata; malformed ancestors
   still refuse explicitly, readable post-repair changes succeed, and restoring missing objects recovers exact historical
   queries (§ 3.3) (A11)
+
+- `[ ]` Empty state fetches complete without code negotiation, absent history patterns leave other refs
+  fetchable, and nested tracking refs remain usable negotiation tips (§ 6.2) (A13)

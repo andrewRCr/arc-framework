@@ -1212,8 +1212,11 @@ large state may outlast any bound.
   that named code commits left one missing from origins with and without bitmaps. So the fetch names as held only state
   commits:
     - `--negotiation-tip` for each of § 3.1's ref patterns, and the tracking namespace `refs/arc-remotes/*`, that names
-      a ref, or, where none does yet, `--refetch`, which names nothing as held under either protocol version. Tips that
-      match nothing would name nothing under protocol v2 too, but Git warns of each such pattern.
+      a ref; the existence scan includes every nested ref under each pattern's prefix. Where none exists, pass the
+      unmatched state pattern `--negotiation-tip=refs/arc/work/*`, which names nothing as held under protocol v2 (A13).
+      Its unmatched-pattern warning stays in the captured diagnostics. Git 2.55's `--refetch` can hang under protocol
+      v2 when no requested ref exists, so it is reserved for the completeness retry below, where missing fetched
+      objects establish a nonempty fetch. Protocol v0 still requires that completeness check with either tip form.
     - A blank `-c remote.<name>.negotiationInclude=`, since Git 2.55's setting adds the refs it names to the tips; an
       older Git ignores the key.
     - The tips leave out the rest of `refs/arc/`, whose residue in this repository points at code commits (§ 3.1), and
@@ -3972,6 +3975,10 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     and changes requiring the malformed ancestor refuse explicitly; a changes interval wholly after repair succeeds.
     Missing commit or root-tree objects require restoration before exact historical reads can recover (§ 3.3) (A11).
 
+22. **Empty fetches complete without code negotiation.** With no local state or tracking tips and no requested remote
+    state ref, a pull completes as a no-op and names no code commit as held; an absent requested history pattern does
+    not prevent another state ref from arriving. Nested tracking refs remain usable negotiation tips (§ 6.2) (A13).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4037,5 +4044,8 @@ open:
 
 - **A12** — 2026-10-17 — task: verify migration-only commit modes through their public callers.
   _Supersedes:_ none. _Trigger:_ 8.3 must-stop. _Work:_ 16.R. _Revalidated:_ pending → 16.R.
+
+- **A13** — 2026-10-17 — design: empty state fetches use an unmatched state tip instead of unconditional refetch.
+  _Supersedes:_ § 6.2 no-held-tip branch. _Trigger:_ 9.1.b must-stop. _Work:_ 9.1.R. _Revalidated:_ pending → 11.6.
 
 ---
