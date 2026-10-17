@@ -394,3 +394,24 @@ gets a forward amendment marker. Task 7.4.R records early fixed-form refusal, tr
 retry, and valid older-name hints; Task 8.6 repeats them in both layouts. The import's build continues to owe canonical-
 owner admission through its existing tasks. Criterion 20 makes the ordering observable without requiring planning
 history, and the task/criterion mapping retains every existing key restriction.
+
+## A11 — Forward repair cannot rewrite historical metadata
+
+Task 7.5's superseded recovery promise was “the forward repair restores every read”; § 3.3 gave metadata repair as the
+single remedy for both malformed metadata and unavailable trees. `readRefHistoryDetails` includes ancestors and their
+parents, `readHistorySnapshots` decodes each with its own metadata, and `changeWindowReferences` plus `historicalState`
+likewise require the historical coordinate. A forward commit preserves the malformed ancestor. Substituting metadata
+would fabricate the version that § 3.4 binds to that historical record; dropping the commit would conceal changes.
+
+The Owner delegated within-intent amendments for the deferred range. This determinate correction keeps immutable
+history, truthful failure, per-item containment, and successful current-state repair. Current operations recover;
+queries requiring malformed historical states refuse and explain the remaining limit, while a changes interval after
+repair succeeds. Missing objects are a separate failure: restore or fetch the exact object before historical recovery.
+Saved-state reads stay pinned. Task 7.5.R verifies those boundaries and Task 8.6 repeats them in both layouts.
+
+Author grounding traced `historyRefRecord`, `readRefHistoryDetails`, `readHistorySnapshots`, `historicalState`,
+`captureChangeWindow`, `changeWindowReferences`, `readUidRefRecord`, and `readRefTrees`. The amendment adds no schema,
+encoding, inferred version, compatibility layer, or history rewrite. Its footprint is § 3.3's repair contract, the
+broken-item verification, Task 7.5's recovery derivation, and the both-layout replay; earlier successful history cases
+remain unaffected. Grounding-only task audit and reader-independence/binding-completeness review found no additional
+contract needed in this bounded footprint.

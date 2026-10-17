@@ -708,6 +708,8 @@ by every tier, and an item ref broken outside ARC.
 - _Goal:_ A commit made outside ARC that breaks one item's ref costs that item alone: its records refuse
   `namespace-corrupt` with the forward repair, and `lookup` refuses only where the broken ref could hold a better answer.
 
+    - _Amended in:_ 7.5.R (A11)
+
     - Build `test-first` (one behavior at a time):
         - a work item's ref whose metadata file or root tree such a commit broke lists as one `unreadable` diagnostic with
           `missed`, and `version` still lists it
@@ -716,8 +718,19 @@ by every tier, and an item ref broken outside ARC.
         - a slug another live item holds as its current slug, and a commit another item matches by SHA, resolve
         - a slug only the broken ref could hold, a commit another item matches only by copy key, and a branch or claim
           the scan matches nowhere else refuse `namespace-corrupt` naming it
-        - the forward repair restores every read; the fixture's `namespace-corrupt` recovery case, which produces and
-          repairs the break through the hooks 8.6 builds, lands there
+        - forward repair restores current operations; exact historical queries retain undecodable-state refusals
+          under 7.5.R, and the fixture's produced/repaired recovery case lands through 8.6's hooks
+
+### `[ ]` **7.5.R Forward repair preserves exact historical evidence — § 3.3 (A11)**
+
+- _Goal:_ Verify that metadata repair restores current operations without inventing an ancestor's metadata, and that
+  restoring missing objects separately recovers exact historical queries (A11).
+
+    - Build `test-first` (one behavior at a time):
+        - a forward metadata commit restores current read, list, lookup and write; history and changes across the
+          malformed ancestor retain `namespace-corrupt` with a historical-evidence remedy
+        - a changes interval wholly after repair succeeds; a saved broken state still refuses
+        - restoring a missing tip or root object restores current and historical queries without altering the ref
 
 ## **Phase 8:** The separate layout
 
@@ -846,6 +859,8 @@ those 4.4.d holds until Phase 11, and every § 14.3 case that needs no pull pass
       retries, to close A5's covering revalidation
     - Replay 7.4.R's resolved-owner companion alias cases over both layouts, retaining early fixed-form guards,
       true-alias refusal, and valid older-name hints, to close A10's covering revalidation
+    - Replay 7.5.R's current-state repair, persistent malformed-history refusal, readable post-repair interval, and
+      missing-object restoration cases over both layouts to close A11's covering revalidation
 
 ## **Phase 9:** Two clones converge
 
@@ -2825,3 +2840,7 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
 - `[ ]` Fixed role and reserved-storage paths refuse before I/O; generic companion aliases use the resolved owner,
   preserving valid literal keys through older UID and former-name hints while true aliases refuse atomically and a
   corrected key succeeds through write and batch (§ 3.2, § 5.1) (A10)
+
+- `[ ]` Forward metadata repair restores current operations without inferring historical metadata; malformed ancestors
+  still refuse explicitly, readable post-repair changes succeed, and restoring missing objects recovers exact historical
+  queries (§ 3.3) (A11)

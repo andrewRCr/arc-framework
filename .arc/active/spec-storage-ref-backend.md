@@ -699,6 +699,16 @@ interface RefMetadata {
   a local ref onto such a tip, by fast-forward or merge, leaves the ref, applies every other, and reports a
   `namespace-corrupt` notice naming it (§ 2.2), with the remedy to take the remote's tip (§ 6.3) and repair it forward.
 
+- **Repair preserves exact historical evidence (A11).** A forward metadata repair restores current reads, listings,
+  lookup, and writes; a history or changes query that still requires an ancestor whose records lack parseable metadata
+  continues to refuse `namespace-corrupt`, naming the ref and explaining that the historical state cannot be decoded.
+  Its remedy restores the original missing objects when those are available, or uses a readable saved interval for
+  `changes`; a forward commit cannot alter an ancestor. No reader substitutes inferred metadata or silently omits an
+  undecodable state. A missing commit or root-tree object additionally needs restoration or fetching of that object;
+  after restoration, historical queries succeed when all required states decode. A saved-state read keeps its exact
+  captured tip and does not acquire a later repair. The ordinary forward-metadata remedy applies to malformed current
+  metadata; unavailable-object diagnostics name the object-restoration prerequisite.
+
 #### 3.4 Record versions
 
 Each record carries two identifiers:
@@ -3958,6 +3968,10 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     valid literal paths remain usable through older UID hints and former names, while true aliases refuse without
     partial write or batch effects and a corrected key succeeds (§ 3.2, § 5.1) (A10).
 
+21. **Repair does not invent historical states.** Forward metadata repair restores current operations while history
+    and changes requiring the malformed ancestor refuse explicitly; a changes interval wholly after repair succeeds.
+    Missing commit or root-tree objects require restoration before exact historical reads can recover (§ 3.3) (A11).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4017,5 +4031,8 @@ open:
 
 - **A10** — 2026-10-17 — design: generic companion alias admission follows owner binding; fixed forms stay early.
   _Supersedes:_ § 5.1 step 1 key-rule order. _Trigger:_ 7.4 must-stop. _Work:_ 7.4.R. _Revalidated:_ pending → 8.6.
+
+- **A11** — 2026-10-17 — design: forward repair restores current state without inventing historical metadata.
+  _Supersedes:_ § 3.3 repair remedy. _Trigger:_ 7.5 must-stop. _Work:_ 7.5.R. _Revalidated:_ pending → 8.6.
 
 ---
