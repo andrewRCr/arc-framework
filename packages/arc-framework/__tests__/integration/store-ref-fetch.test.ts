@@ -1,3 +1,4 @@
+import { runStoreMigrate } from "../../src/lib/store/index.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -107,6 +108,7 @@ describe.each(["default", "separate"] as const)("state fetch in the %s layout", 
     await h.b.exec("git", ["config", "remote.origin.arc-state", "off"]);
     await h.b.exec("git", ["remote", "add", "upstream", h.origin]);
     await h.b.exec("git", ["config", "remote.upstream.arc-state", "read"]);
+    if (layout === "default") expect((await runStoreMigrate(h.b.ports)).status).toBe("ok");
     const result = success(await h.b.store.pull());
     expect(result.pulls).toMatchObject([{ status: "pulled", remote: "upstream", role: "read" }]);
     expect(result.pulls[0]?.families).not.toContain("personal");

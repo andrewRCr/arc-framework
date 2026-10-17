@@ -1,3 +1,4 @@
+import { runStoreMigrate } from "../../src/lib/store/index.js";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
@@ -54,11 +55,14 @@ describe.each(["default", "separate"] as const)("push outcomes in the %s layout"
     const h = await refSyncFixture(layout);
     success(await h.a.store.write({ action: "put", reference, expected: null, content: "pending\n", provenance }));
     await h.a.git(["config", `remote.${h.remoteName}.arc-state`, "off"]);
+    if (layout === "default") expect((await runStoreMigrate(h.a.ports)).status).toBe("ok");
     const result = PushResultSchema.parse(success(await h.a.store.push()));
     expect(result.states).toEqual([{ status: "no-remote" }]);
     expect(result.publishes).toEqual([]);
     expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout).toBe("");
-    await h.a.git(["config", `remote.${h.remoteName}.arc-state`, "push"]);
+    if (layout === "default") await h.a.exec("git", ["config", "remote.origin.arc-state", "push"]);
+    else await h.a.git(["config", `remote.${h.remoteName}.arc-state`, "push"]);
+    if (layout === "default") expect((await runStoreMigrate(h.a.ports)).status).toBe("ok");
     success(await h.a.store.push()); success(await h.b.store.pull());
     expect(success(await h.b.store.read({ reference })).content).toBe("pending\n");
   });

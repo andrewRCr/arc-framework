@@ -1,3 +1,4 @@
+import { runStoreMigrate } from "../../src/lib/store/index.js";
 import { join } from "node:path";
 import { makeGitExec } from "../helpers/integration.js";
 import { createManualStepBarrier } from "../helpers/multi-clone.js";
@@ -132,6 +133,7 @@ describe.each(["default", "separate"] as const)("push leases in the %s layout", 
     try {
       await Promise.race([listed.reached, pushing.then(() => { throw new Error("Push ended before the captured listing"); })]);
       await h.a.git(["config", `remote.${h.remoteName}.arc-state`, "off"]);
+      if (layout === "default") expect((await runStoreMigrate(h.a.ports)).status).toBe("ok");
       listed.release();
       expect(success(await pushing).states).toContainEqual({ status: "no-remote" });
       expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout).toBe("");

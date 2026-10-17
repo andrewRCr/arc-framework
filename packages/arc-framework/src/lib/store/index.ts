@@ -16,6 +16,7 @@ export * from "./contract.js";
 export * from "./registry.js";
 export * from "./ports.js";
 export * from "./create.js";
+export * from "./commands.js";
 export * from "./default-ports.js";
 export * from "./current-work-unit.js";
 export * from "./lifecycle-index.js";

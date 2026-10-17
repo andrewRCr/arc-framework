@@ -17,7 +17,7 @@ import { createRefClock } from "../helpers/store/ref-clock.js";
 import { createRefStore } from "../../src/lib/store/create.js";
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
 import { success } from "../helpers/store/suite-tools.js";
-import { RecordReferenceSchema, PullResultSchema } from "../../src/lib/store/index.js";
+import { RecordReferenceSchema, PullResultSchema, runStoreMigrate } from "../../src/lib/store/index.js";
 
 const identity = RecordReferenceSchema.parse({ kind: "project-registry/identity", owner: { type: "project", name: "project" } });
 const localId = "34567890-1234-4234-8234-123456789abc";
@@ -48,6 +48,7 @@ describe("automatic designation project check", () => {
     expect(success(await h.b.store.read({ reference: identity })).content).toContain(localId);
     expect((await h.b.git(["for-each-ref", "--format=%(refname)", "refs/arc/tmp/designate/"])).stdout).toBe("");
     await h.b.exec("git", ["config", "remote.origin.arc-state", "off"]);
+    expect((await runStoreMigrate(h.b.ports)).status).toBe("ok");
     expect(success(await h.b.store.pull())).toEqual({ states: [{ status: "no-remote" }], pulls: [] });
   });
 

@@ -21,6 +21,27 @@ export type LifecyclePullResult = RefMergeResult | { status: "fetch-failed"; fet
 export async function mergePulledRefState(context: RefBackendContext, incoming: Map<string, string>,
   designation: RefDesignation, remote: RefRemoteDesignation, requested: readonly HistoryRef[],
   options: RefMergeOptions, previous: ReadonlyMap<string, string> = new Map()): Promise<LifecyclePullResult> {
+  return mergeCapturedRefState(context, incoming, requested, { ...options, previous,
+    acquireHistories: async (histories) => {
+      const fetched = await fetchRefHistories(context, remote, designation, histories, context.syncDeadline?.signal);
+      if (fetched.status === "unreachable") return { status: "fetch-failed", fetched };
+      captureFetchedHistories(incoming, histories, remote.name, fetched);
+      return { status: "complete", notices: fetched.notices };
+    },
+  });
+}
+
+/** A copy already acquired its complete source; a pull can acquire histories as lifecycle records reveal them. */
+export interface CapturedRefMergeOptions extends RefMergeOptions {
+  previous?: ReadonlyMap<string, string>;
+  acquireHistories?: (histories: readonly HistoryRef[]) => Promise<
+    { status: "complete"; notices: PullNotice[] } | Extract<LifecyclePullResult, { status: "fetch-failed" }>>;
+}
+
+/** Reconcile a complete captured source over the selected destination without assuming a transport. */
+export async function mergeCapturedRefState(context: RefBackendContext, incoming: Map<string, string>,
+  requested: readonly HistoryRef[], options: CapturedRefMergeOptions): Promise<LifecyclePullResult> {
+  const previous = options.previous ?? new Map<string, string>();
   const published = refEndPublished(context, incoming, previous);
   let held = await readSyncRefs(context, "refs/arc/");
   const corrupt = await readCorruptArchiveBatchRefs(context, held, new Map([...previous, ...incoming]));
@@ -32,13 +53,9 @@ export async function mergePulledRefState(context: RefBackendContext, incoming: 
   let pending = await readPendingRefEnds(context, held, state, incoming, published);
   const required = new Map([...pending, ...completed].map((item) => [item.history, item]));
   const discovered = [...required.values()].filter(({ history }) => !requested.includes(history));
-  if (discovered.length) {
-    const fetched = await fetchRefHistories(context, remote, designation, discovered.map(({ history }) => history), context.syncDeadline?.signal);
-    if (fetched.status === "unreachable") return { status: "fetch-failed", fetched };
-    first.notices.push(...fetched.notices);
-    options.onObserved?.(fetched.notices);
-    captureFetchedHistories(incoming, discovered.map(({ history }) => history), remote.name, fetched);
-  }
+  const acquired = await acquireDiscoveredHistories(discovered.map(({ history }) => history), options);
+  if (acquired.status === "fetch-failed") return acquired;
+  first.notices.push(...acquired.notices);
   const withdrawal = await withdrawEndBatches(context, held, state, incoming, options, published), withdrawn = withdrawal.result;
   if (withdrawn.status === "restart") return withdrawn;
   if (withdrawn.changed) {
@@ -71,6 +88,14 @@ export async function mergePulledRefState(context: RefBackendContext, incoming: 
   const unambiguous = [...notices, ...last.notices].filter((notice) => notice.kind !== "end-pending"
     || !("uid" in notice.item) || !doubledUids.has(notice.item.uid));
   return { status: "complete", changed: first.changed || withdrawn.changed || last.changed, notices: [...unambiguous, ...doubled] };
+}
+
+async function acquireDiscoveredHistories(histories: readonly HistoryRef[], options: CapturedRefMergeOptions): Promise<
+  { status: "complete"; notices: PullNotice[] } | Extract<LifecyclePullResult, { status: "fetch-failed" }>> {
+  if (!histories.length || !options.acquireHistories) return { status: "complete", notices: [] };
+  const acquired = await options.acquireHistories(histories);
+  if (acquired.status === "complete") options.onObserved?.(acquired.notices);
+  return acquired;
 }
 
 async function withdrawEndBatches(context: RefBackendContext, held: Map<string, string>, state: Map<string, string>,

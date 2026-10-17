@@ -62,6 +62,8 @@ export interface RefStorePorts {
   /** Read the invoking checkout's tracked pointer only at destination decisions. */
   backingRepository: () => Promise<string | null>;
   registry?: Readonly<Record<KindId, KindDefinition>>;
+  /** Observe an explicit move step before it runs; fault tests may interrupt the operation here. */
+  migrateStep?: (step: string) => Promise<void>;
   /** Acquire a state ref lock or the "layout" lock in the code repository's common Git directory. */
   lock: (ref: string, waitMs?: number) => Promise<() => Promise<void>>;
 }

@@ -2,7 +2,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { createRefStore, RecordReferenceSchema, type Store } from "../../../src/lib/store/index.js";
+import { createRefStore, runStoreMigrate, RecordReferenceSchema, type Store } from "../../../src/lib/store/index.js";
 import { createDefaultStorePorts, createRefLockFactory } from "../../../src/lib/store/default-ports.js";
 import { createExecaRawGitExec } from "../../../src/lib/git/process-executor.js";
 import type { RefStorePorts } from "../../../src/lib/store/ports.js";
@@ -24,7 +24,8 @@ export function createRefRemote(root: string, ports: RefStorePorts, advance: (mi
   const peerPorts: RefStorePorts = { ...peerDefaults, backingRepository: async () => null, ...createRefClock(), rawExec: createExecaRawGitExec(peer),
     registry: ports.registry, random: ports.random, identity: ports.identity,
     actor: async (identity) => `${identity}@00000000-0000-4000-8000-000000000002`, lock: createRefLockFactory(peerDefaults) };
-  const peerStore = createRefStore(peerPorts);
+  const peerStore = guard(createRefStore(peerPorts));
+  const migrationPorts = [{ ...ports }, { ...peerPorts }];
   const rawExec = ports.exec;
   const unguarded = createRefStore({ ...ports });
   let pending = Promise.resolve(), state: RemoteState = "available", attempt = 0;
@@ -75,10 +76,20 @@ export function createRefRemote(root: string, ports: RefStorePorts, advance: (mi
     return result;
   };
   return {
+    guard,
     remote(enabled: boolean): Store | undefined {
       for (const checkout of [root, peer]) {
         git(checkout, ["remote", "set-url", remoteName, origin]);
         git(checkout, ["config", `remote.${remoteName}.arc-state`, enabled ? "push" : "off"]);
+      }
+      if (!gitDir) {
+        pending = pending.then(async () => {
+          for (const selected of migrationPorts) {
+            const result = await runStoreMigrate(selected);
+            if (result.status !== "ok") throw new Error(`Fixture layout move refused: ${JSON.stringify(result)}`);
+          }
+        });
+        void pending.catch(() => undefined);
       }
       return enabled ? remoteStore : undefined;
     },
@@ -87,13 +98,24 @@ export function createRefRemote(root: string, ports: RefStorePorts, advance: (mi
       if (existsSync(away)) renameSync(away, origin);
       const hook = join(origin, "hooks/pre-receive");
       if (existsSync(hook)) unlinkSync(hook);
-      if (value === "contended" && state !== value) { pending = prepareContention(); void pending.catch(() => undefined); }
+      if (value === "contended" && state !== value) { pending = pending.then(prepareContention); void pending.catch(() => undefined); }
       state = value;
       expireAfterReads = undefined;
       if (value === "down") renameSync(origin, away);
       if (value === "refusing") writeFileSync(hook, `#!/bin/sh\nprintf '%s\\n' '${message.replaceAll("'", "'\\''")}' >&2\nexit 1\n`, { mode: 0o755 });
     },
   };
+  function guard(store: Store): Store {
+    const guarded = Object.create(store) as Store;
+    for (const name of ["read", "list", "write", "batch", "version", "history", "changes", "lookup", "pull", "push", "maintain"] as const) {
+      Object.assign(guarded, { [name]: async (...args: unknown[]) => {
+        await pending;
+        const operation = store[name] as (...input: unknown[]) => Promise<unknown>;
+        return operation.apply(store, args);
+      } });
+    }
+    return guarded;
+  }
   async function prepareContention(): Promise<void> {
     const reference = RecordReferenceSchema.parse({ kind: "personal/document", owner: { type: "person", name: "test-user" }, key: "contention-base.md" });
     success(await unguarded.write({ action: "put", reference, expected: null, content: "Shared basis\n", provenance: { verb: "user", lifecycleAction: "save" } }));

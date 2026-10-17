@@ -95,8 +95,8 @@ export async function createRefFixture(registryOverrides: Partial<Record<KindId,
     registry, random: () => 0, identity: async () => identity === undefined ? null : SlugSchema.parse(identity),
     actor: async (identity) => `${identity}@00000000-0000-4000-8000-000000000001`, lock: (ref, wait) => native(ref, held.has(ref) ? 20 : wait) };
   const projectId = randomUUID();
-  const store = createRefStore(ports);
   const remote = createRefRemote(root, ports, clock.advance, gitDir);
+  const store = remote.guard(createRefStore(ports));
   const fixture: RefConformanceFixture = { root, ports, store, gitDir, declarations: refDeclarations,
     reference(kind, suffix = "one") {
       const shape = KIND_SHAPES[kind];
@@ -115,8 +115,8 @@ export async function createRefFixture(registryOverrides: Partial<Record<KindId,
       if (result.status !== "ok") throw new Error("The fixture could not capture its state version");
       return result.result;
     },
-    reopen: () => createRefStore(ports),
-    race: (left, right) => Promise.all([store.write(left), createRefStore(ports).write(right)]),
+    reopen: () => remote.guard(createRefStore(ports)),
+    race: (left, right) => Promise.all([store.write(left), remote.guard(createRefStore(ports)).write(right)]),
     identity: (name) => { identity = name; },
     plant: (reference, kind) => plantRefFixtureFault({ root, ports, store, gitDir }, reference, kind),
     ...remote,

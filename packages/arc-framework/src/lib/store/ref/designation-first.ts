@@ -1,5 +1,6 @@
 /** Resolve the clone's first state designation without prompting or moving held state. */
 
+import { observeRefLayout, layoutRecoveryRemedy } from "./layout-state.js";
 import type { RefBackendContext } from "./context.js";
 import { readRefDesignation, refDesignationStop, type RefDesignation, type RefRemoteDesignation } from "./designation.js";
 import { readRefRepository, writeRefRepository } from "./repository.js";
@@ -18,7 +19,18 @@ export interface RefDesignationResolution {
 
 /** Read existing roles first; only an unanswered first designation consults the tracked pointer. */
 export async function resolveRefDesignation(context: RefBackendContext): Promise<RefDesignationResolution> {
-  let designation = await readRefDesignation(context);
+  const designation = await readRefDesignation(context);
+  const layout = await observeRefLayout(context, designation), configured = refDesignationStop(designation);
+  const configuredStop = configured && configured.status !== "no-remote" ? configured : undefined;
+  const stop = configuredStop ?? layout.incomplete;
+  if (stop) return { designation, states: [stop.status === "move-incomplete" ? { ...stop, remedy: layoutRecoveryRemedy() } : stop,
+    ...layout.unfinished ? [layout.unfinished] : []], pulls: [] };
+  const resolved = await resolveFirstDesignation(context, designation);
+  return { ...resolved, states: [...resolved.states, ...layout.unfinished ? [layout.unfinished] : []] };
+}
+
+async function resolveFirstDesignation(context: RefBackendContext, initial: RefDesignation): Promise<RefDesignationResolution> {
+  let designation = initial;
   const result: RefDesignationResolution = { designation, states: [], pulls: [] };
   const stopped = refDesignationStop(designation);
   if (stopped && stopped.status !== "no-remote") return { ...result, states: [stopped] };

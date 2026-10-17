@@ -1142,95 +1142,25 @@ _Exit criterion:_ Every case of § 14.6 but those that need a follow, leaving th
 `backing` repoint, and § 14.7's layout-move cases, pass, and the conformance suite's sync items still pass in both
 layouts.
 
-### `[ ]` **13.1 The move engine and the layout move — § 1.2, § 10.2, § 10.3, § 10.4, § 11.4**
+### `[x]` **13.1 The move engine and the layout move — § 1.2, § 10.2, § 10.3, § 10.4, § 11.4**
 
 - _Goal:_ A clone's store moves between the code repository's refs and the store directory with every ref, tracking ref,
   and kept tip, through one engine that keeps a record of each move across its switch and lands at its destination all
   or nothing, so an interruption at any step is finished by a rerun in the direction the record names, never reversed;
   tests reach every move through the two entries the `arc store` handlers call.
 
-    - `runStoreRemote(ports, { remote?, role?, ownState? })` and `runStoreMigrate(ports, { to?, trial?, leaveSource?,
-      import? })` in `lib/store/create.ts`, each building its store through `createRefBackend`; `runStoreRemote`
-      returns the roles view, a setting with the `MigrateReport` of any layout move it ran, a refusal, or a confirmation
-      due naming the repository and what a yes publishes; `runStoreMigrate` returns a `MigrateReport`, a refusal, or a
-      question due carrying `designation-needed`'s remote, choices, and remedy (§ 2.2), which the follow produces (17.1)
-      and its handler asks (17.2.a)
-    - Their refusals are `StoreCommandRefusalSchema` beside them, § 10.1's closed union, every code landing here: each
-      refusal Phases 13, 16, and 17 build takes the code § 10.1 gives its kind, which its case names; the import's
-      refusals of Phases 14 and 15 take the codes 14.1 states; and one a store operation, the move lock, a project
-      check, the import's check of a store holding state, or a remote read returns travels in the `store` arm unchanged,
-      keeping its class
-    - A migrate engine under `lib/store/ref/`: the move lock `arc/locks/migrate.lock`, held for the whole run; the record
-      at `refs/arc/tmp/migrate/move`, a root commit holding `move.json`, written expecting absence and replaced leased on
-      its value; gathered refs under `refs/arc/tmp/migrate/`; a layout move or the import landing in one `update-ref`
-      transaction
-    - `move.json` is a schema discriminated by kind: the layout arm, its two layouts, lands here; the remote, follow, and
-      leaving-the-source arms, each remote by its name and the fetch and push URLs `git remote get-url` and
-      `git remote get-url --push` resolve at the move's start, land with their moves in 16.2, 17.2, and 17.3
-    - A step port the engine calls before each step a move declares, by the step's name — the layout move's build,
-      record, rename, designation change, and delete here, and each later move its own as it builds the step (14.3;
-      16.2, 16.3, and 16.4 for a remote move; 17.2.a; 17.3) — which a test makes throw, or at which a child process
-      running the move is killed
-    - The layout move: a local fetch between the two, then a delete of the source, under the layout lock from listing
-      through the delete; into the separate layout the store builds under a temporary name and renames into place, out
-      of it renames aside and is removed; moving in, the code remote's `push` is set before the rename, and moving out,
-      `off` after it
-    - A layout move run as another move's switch runs under that move's lock, writes no record of its own, and keeps its
-      temporary refs under `refs/arc/tmp/migrate/layout/`
-    - The copy onto a destination holding state (§ 10.4), a module of its own: 9.2.a's merge and 10.2's pending tests
-      run over its own local and incoming ref sets and its own test of what counts as published, taking no ref lock,
-      each broken rule in its `notices`:
-        - a layout move's, which merges store refs it finds at its destination: the destination's refs local and the
-          source's incoming, an end on the destination published where the source's copy of the item descends from it,
-          committing onto the destination's store refs through 8.3's commit step in its held mode, under the layout lock
-          the move holds (§ 11.4)
-        - a remote move's copy and re-copy (16.2, 16.4), the follow's clearing copy (17.2.a), and leaving the source's
-          (17.3): the destination's refs fetched under `refs/arc/tmp/migrate/` local and the source's incoming,
-          committing onto those temporary refs, which no write or layout move reads, so through 8.3's commit step in its
-          unlocked mode, in the code repository, where those refs live, each then pushed leased on the destination tip
-          it read
-    - The default-layout conformance fixture's `remote(false)`, once this task's layout check lives, runs the no-target
-      `runStoreMigrate` after it sets `off`, and `remote(true)` after it sets `push`, each deferred to the fixture
-      store's next call through a pending chain, as `inRepoRemote` (`in-repo-remote.ts`) defers its own; a Phase 9–11
-      case that turns a remote off on a default-layout clone holding state does the
-      same
-    - `runStoreMigrate` with no target finishes a recorded move, then brings the clone into the layout its designation
-      calls for, deleting leftovers and temporary directories
-    - `--import` refuses `unsupported`, naming `--import`, until the import's entry lands (14.1)
+- _Outcome:_ Public migrate and remote-setting entries share a clone-wide move lock and leased root record. Isolated
+  copies reuse pull lifecycle reconciliation under held layout serialization, then land through one ref transaction or
+  directory rename. No-target recovery finishes the recorded direction before aligning designation and cleaning up.
+  Both layouts retain state, history, tracking, and version keepers; sync reports incomplete switches and unfinished
+  cleanup. Conformance remote toggles queue the public migration before the next store operation.
+
+    - `--import` remains unsupported, naming the flag.
         - _Retired in:_ Phase 14
-    - `--to` on a clone with a state remote refuses `unsupported`, naming `--to`, until the remote move lands (16.2)
+    - `--to` remains unsupported with a state remote and names it; no state remote returns a designation remedy.
         - _Retired in:_ Phase 17
-    - `--leave-source` refuses `unsupported`, naming it, until leaving the source lands (17.3), and a no-target run
-      finds no follow due until the follow lands (17.1)
+    - `--leave-source` remains unsupported, naming the flag.
         - _Retired in:_ Phase 17
-    - Build `test-first` (one behavior at a time):
-        - Integration tier, through the two entries, as every case of Phase 13 is
-        - a layout move each way, run by the no-target form, carries every store ref, the tracking refs,
-          `refs/arc/tmp/seen/`, `refs/arc/tmp/version`, and `refs/arc/tmp/read/`, never `refs/arc/tmp/migrate/`
-        - a landing that fails lands nothing at its destination
-        - each step interrupted at the step port and rerun completes; one interrupted between the rename and the
-          designation's change finishes in its record's direction
-        - an interruption leaving the store directory beside a code remote carrying `push` reports `move-incomplete` from
-          `pull` and `push`, naming both with its remedies, fetching and pushing nothing
-        - a move out interrupted before its source's delete reports `move-unfinished` beside `no-remote` until a rerun
-          deletes the leftover
-        - a move out interrupted after its build and before its record leaves a temporary directory the next build
-          replaces, a ref deleted meanwhile staying deleted, and a no-target run removes
-        - a layout move finding store refs at its destination merges them, a broken rule in its `notices`, under the
-          layout lock it already holds and with no ref lock taken
-        - over a destination an earlier move left holding state, an end the source holds moves the destination's live
-          ref under history
-        - a reopen the source holds brings the destination's ended item back
-        - a live ref the source holds beside the destination's end merges into that end as a late write
-        - of two ends, the source's holds and the destination's is withdrawn
-        - a writer in a second worktree creating one item and updating another lands both in the layout the move leaves,
-          and a sync there that pulled before the switch pushes nothing to the old remote after it, the same for a move
-          to local-only
-        - after each move a ref rewritten on the remote still refuses `history-diverged` at the next pull
-        - a `git remote rename` of `origin` among several remotes with no `remote.pushDefault`, a remote added beside a
-          lone remote not named `origin`, and `remote.pushDefault` set each leave the store where it is and report
-          `move-incomplete`
-        - the 9.6 sync items in both layouts, and every Phase 9–11 case, run again green with the layout check live
 
 ### `[ ]` **13.2 The move lock and the record's guards — § 10.3, § 11.4**
 

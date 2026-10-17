@@ -1,6 +1,7 @@
 /** The sole composition point for operational state backends. */
 
 import type { Store, ReadOnlyStore } from "./contract.js";
+import type { StoreMigrateInput, StoreMigrateResult, StoreRemoteInput, StoreRemoteResult } from "./commands.js";
 import type { StorePorts, RefStorePorts } from "./ports.js";
 
 /** Construct a lazy store without reading configuration, files, or Git topology.
@@ -49,4 +50,16 @@ function lazyReadStore(stateOffBranch: boolean, construct: () => Promise<ReadOnl
     changes: async (input) => (await get()).changes(input),
     lookup: async (input) => (await get()).lookup(input),
   };
+}
+
+/** Run an explicit migration against the ref backend, independently of operational backend selection. */
+export async function runStoreMigrate(ports: RefStorePorts, input: StoreMigrateInput = {}): Promise<StoreMigrateResult> {
+  const { runRefBackendMigrate } = await import("./ref/backend.js");
+  return runRefBackendMigrate(ports, input);
+}
+
+/** Inspect or set ref-store roles, performing any layout move required by that setting. */
+export async function runStoreRemote(ports: RefStorePorts, input: StoreRemoteInput = {}): Promise<StoreRemoteResult> {
+  const { runRefBackendRemote } = await import("./ref/backend.js");
+  return runRefBackendRemote(ports, input);
 }

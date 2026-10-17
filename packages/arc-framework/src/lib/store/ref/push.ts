@@ -65,7 +65,7 @@ async function publishRefStore(context: RefBackendContext, carry?: RefCarryPubli
 async function publishRefAttempt(context: RefBackendContext, loop: PushLoop): Promise<StoreResult<PushResult> | "retry"> {
   const source = context.repository?.source ?? context;
   const resolved = await resolveRefDesignation(context), { designation } = resolved;
-  if (resolved.states.length || resolved.pulls.length) return stoppedRefPublication(context, loop, resolved);
+  if (resolved.states.some(({ status }) => status !== "move-unfinished") || resolved.pulls.length) return stoppedRefPublication(context, loop, resolved);
   const remote = designation.pushes[0];
   if (!remote) return { status: "ok", result: { states: statePushStates([{ status: "no-remote" }], await context.identity()), pulls: loop.pulls, publishes: [] } };
   const { pulled, merged } = await pullPushBasis(source, remote.name, loop);

@@ -1,3 +1,4 @@
+import { runStoreMigrate } from "../../src/lib/store/index.js";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { dirname, join } from "node:path";
 import { mkdir, rm, writeFile } from "node:fs/promises";
@@ -328,6 +329,7 @@ it("keeps ours at the designated remote's push URL when it differs from its fetc
   await h.b.git(["config", "remote.origin.arc-state", "off"]);
   await h.b.git(["config", "remote.state.arc-state", "push"]);
   await h.b.git(["config", "remote.state.pushurl", target]);
+  expect((await runStoreMigrate(h.b.ports)).status).toBe("ok");
   await h.b.git(["update-ref", "refs/arc-remotes/state/user/andrew/personal", h.second]);
   const notice = success(await h.b.store.pull()).pulls.flatMap(({ notices }) => notices).find(({ kind }) => kind === "history-diverged");
   if (notice?.kind !== "history-diverged") throw new Error("Missing rewrite refusal");

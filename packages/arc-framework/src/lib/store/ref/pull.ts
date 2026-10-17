@@ -44,7 +44,7 @@ async function pullRefStoreOnce(context: RefBackendContext, input: PullInput,
   retained = new Map<string, PullAttemptObservations>(), resolution?: RefDesignationResolution): Promise<StoreResult<PullResult>> {
   const resolved = resolution ?? await resolveRefDesignation(context);
   const { designation, states } = resolved;
-  const sources = designation.remotes.filter(({ role }) => role === "read" || role === "push" && !states.length && !resolved.pulls.length);
+  const sources = designation.remotes.filter(({ role }) => role === "read" || role === "push" && states.every(({ status }) => status === "move-unfinished") && !resolved.pulls.length);
   if (!sources.length) return { status: "ok", result: { states, pulls: resolved.pulls } };
   context = await writeRefRepository(context);
   const identity = await context.identity();
