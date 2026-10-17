@@ -9,8 +9,9 @@ import type { BatchInput } from "../write.js";
 import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
 import { readRefTrees, type RefTreeEntry } from "./batch-read.js";
 import type { RefBackendContext } from "./context.js";
-import type { ResolvedBatch } from "./write-resolution.js";
+import type { ResolvedBatch, ResolvedMutation } from "./write-resolution.js";
 import type { PreparedRefMutation } from "./write-merge.js";
+import { preparedCohortParents, cohortClosePlacement } from "./cohort-coordinates.js";
 import { commitRefTree, type RefWriteGroup } from "./write-commits.js";
 
 /** One item's assigned destination, resolved from the locked quarter tree. */
@@ -31,24 +32,23 @@ export async function planRefArchives(context: RefBackendContext, writes: readon
   sharedQuarters?: Map<string, Map<string, RefTreeEntry>>): Promise<StoreResult<RefArchivePlan[]>> {
   const selected = archiveWrites(writes);
   if (selected.length === 0) return { status: "ok", result: [] };
-  const quarters = new Set(selected.flatMap(({ mutation }) => mutation.action === "put" && mutation.placement?.kind === "completed"
-    ? [`refs/arc/archive/${mutation.placement.quarter}`] : []));
-  const captured = new Map([...tips].filter(([ref]) => quarters.has(ref)));
-  const trees = captured.size ? await readRefTrees(context, captured) : new Map<string, RefTreeEntry[]>();
-  for (const ref of captured.keys()) {
-    if (!trees.has(ref)) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: ref,
-      condition: "The archive quarter's captured tree is unavailable.", remedy: { text: `Restore or fetch the missing objects for ${ref}, then retry the archive.` } } };
-  }
-  const entries = sharedQuarters ?? new Map<string, Map<string, RefTreeEntry>>();
-  for (const ref of quarters) if (!entries.has(ref)) entries.set(ref, new Map((trees.get(ref) ?? []).map((entry) => [entry.path, entry])));
+  const captured = await readArchiveQuarters(context, selected, tips, sharedQuarters);
+  if (captured.status === "refused") return captured;
+  const entries = captured.result;
+  const parents = selected.some(({ mutation }) => mutation.reference.kind === "cohort/document")
+    ? await preparedCohortParents(context, tips, groups) : { status: "ok" as const, result: new Set<string>() };
+  if (parents.status === "refused") return parents;
   const plans: RefArchivePlan[] = [];
-  for (const { mutation, home } of selected) {
+  const ordered = [...selected.filter(({ mutation }) => mutation.reference.kind !== "cohort/document"),
+    ...selected.filter(({ mutation }) => mutation.reference.kind === "cohort/document")];
+  for (const { mutation, home } of ordered) {
     if (mutation.action !== "put" || mutation.placement?.kind !== "completed") continue;
     const quarterRef = `refs/arc/archive/${mutation.placement.quarter}`;
     const quarter = entries.get(quarterRef), group = groups.get(home.ref);
     if (!quarter || !group) throw new Error("An archive has no captured group or quarter");
-    const placement = mutation.reference.kind === "work-item/meta"
-      ? { ...mutation.placement, sequence: nextArchiveSequence(quarter.values()) } : mutation.placement;
+    const placement: ReadPlacement = mutation.reference.kind === "cohort/document"
+      ? cohortClosePlacement(context, mutation.reference, mutation.placement.quarter, { plans, writes, parents: parents.result, fallback: nextArchiveSequence(quarter.values()) })
+      : mutation.reference.kind === "work-item/meta" ? { ...mutation.placement, sequence: nextArchiveSequence(quarter.values()) } : mutation.placement;
     const destination = expandStoredPath(mutation.reference, { registry: context.registry, placement });
     group.metadata.endBatch = batchId;
     group.metadata.batch = batchId;
@@ -88,6 +88,21 @@ export async function archiveRefChanges(context: RefBackendContext, changes: rea
   return result;
 }
 
+async function readArchiveQuarters(context: RefBackendContext, selected: readonly ResolvedMutation[], tips: ReadonlyMap<string, string>,
+  sharedQuarters?: Map<string, Map<string, RefTreeEntry>>): Promise<StoreResult<Map<string, Map<string, RefTreeEntry>>>> {
+  const quarters = new Set(selected.flatMap(({ mutation }) => mutation.action === "put" && mutation.placement?.kind === "completed"
+    ? [`refs/arc/archive/${mutation.placement.quarter}`] : []));
+  const captured = new Map([...tips].filter(([ref]) => quarters.has(ref)));
+  const trees = captured.size ? await readRefTrees(context, captured) : new Map<string, RefTreeEntry[]>();
+  for (const ref of captured.keys()) {
+    if (!trees.has(ref)) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: ref,
+      condition: "The archive quarter's captured tree is unavailable.", remedy: { text: `Restore or fetch the missing objects for ${ref}, then retry the archive.` } } };
+  }
+  const entries = sharedQuarters ?? new Map<string, Map<string, RefTreeEntry>>();
+  for (const ref of quarters) if (!entries.has(ref)) entries.set(ref, new Map((trees.get(ref) ?? []).map((entry) => [entry.path, entry])));
+  return { status: "ok", result: entries };
+}
+
 function copyArchiveEntries(context: RefBackendContext, plan: RefArchivePlan, group: RefWriteGroup): void {
   const live = expandStoredPath(plan.reference, { registry: context.registry });
   const folder = plan.home.metadataPath.slice(0, -live.metadataPath.length);
@@ -99,8 +114,8 @@ function copyArchiveEntries(context: RefBackendContext, plan: RefArchivePlan, gr
 }
 
 function archiveWrites<T extends ResolvedBatch["writes"][number]>(writes: readonly T[]): T[] {
-  return writes.filter(({ mutation, home }) => /^refs\/arc\/work\//u.test(home.ref) && mutation.action === "put"
-    && (mutation.reference.kind === "work-item/meta" || mutation.reference.kind === "work-item/record") && mutation.placement?.kind === "completed");
+  return writes.filter(({ mutation, home }) => /^refs\/arc\/(?:work|cohort)\//u.test(home.ref) && mutation.action === "put"
+    && (mutation.reference.kind === "work-item/meta" || mutation.reference.kind === "work-item/record" || mutation.reference.kind === "cohort/document") && mutation.placement?.kind === "completed");
 }
 
 function nextArchiveSequence(entries: Iterable<RefTreeEntry>): ReturnType<typeof ArchiveSequenceSchema.parse> {

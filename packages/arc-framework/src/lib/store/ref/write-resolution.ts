@@ -110,7 +110,7 @@ function resolveConflictReferences(resolved: ResolvedMutation[], resolve: (refer
 
 /** Select the history coordinate for a resolved completed owner. */
 export function mutationHome(context: Pick<RefBackendContext, "registry">, reference: RecordReference, archived: readonly ArchivedFolder[]): StoredRecordHome {
-  const history = rootFamily(context.registry[reference.kind].family) === "work-item"
+  const history = ["work-item", "cohort"].includes(rootFamily(context.registry[reference.kind].family))
     && archived.some(({ owner }) => sameOwner(owner, reference.owner));
   return expandStoredPath(reference, { registry: context.registry, history });
 }

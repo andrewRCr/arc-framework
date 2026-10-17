@@ -177,6 +177,7 @@ async function applyMutation(context: RefBackendContext, group: RefGroup, write:
     const links = mutation.links ?? group.metadata.primary?.links;
     group.metadata.primary = { role: kind, placement: mutation.placement, ...(links === undefined ? {} : { links }) };
   }
+  if (kind === "cohort/document" && mutation.placement?.kind === "completed") group.metadata.placement = mutation.placement;
   return { status: "ok", result: { reference: mutation.reference, conflicts: [], version: refRecordVersion(mutation.reference, oid, group.metadata, formatVersion) } };
 }
 

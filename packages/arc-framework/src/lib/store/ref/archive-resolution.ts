@@ -11,14 +11,14 @@ import type { ResolvedBatch } from "./write-resolution.js";
 
 /** Find every folder belonging to a requested ended UID, validating its history basis. */
 export async function resolveArchivedReferences(context: RefBackendContext, references: readonly RecordReference[], tips: ReadonlyMap<string, string>): Promise<StoreResult<ArchivedFolder[]>> {
-  const requested = references.filter((reference) => reference.owner.type === "work-item" && reference.owner.uid
-    && !tips.has(`refs/arc/work/${reference.owner.uid}`) && !reference.kind.startsWith("lineage/"));
+  const requested = references.filter((reference) => (reference.owner.type === "work-item" || reference.owner.type === "cohort") && reference.owner.uid
+    && !tips.has(`refs/arc/${reference.owner.type === "work-item" ? "work" : "cohort"}/${reference.owner.uid}`) && !reference.kind.startsWith("lineage/"));
   if (!requested.length) return { status: "ok", result: [] };
   const selected = new Map([...tips].filter(([ref]) => isArchiveRef(ref)));
   if (!selected.size) return { status: "ok", result: [] };
   const trees = await readRefTrees(context, selected);
   const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid)))]);
-  const folders = [...trees].flatMap(([ref, entries]) => archivedFolders("work-item", ref, entries, objects).folders)
+  const folders = [...trees].flatMap(([ref, entries]) => (["work-item", "cohort"] as const).flatMap((family) => archivedFolders(family, ref, entries, objects).folders))
     .filter(({ owner }) => requested.some((reference) => sameOwner(owner, reference.owner)));
   for (const reference of requested) {
     const own = folders.filter(({ owner }) => sameOwner(owner, reference.owner));

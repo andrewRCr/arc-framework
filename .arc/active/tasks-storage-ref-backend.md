@@ -607,27 +607,15 @@ close, and renames and role changes.
   abandonment and decomposition without ref changes; same-batch settlement or removal admits an empty final history
   tree. Adding another origin put still refuses, preserving the exception's inbound-only boundary.
 
-### `[ ]` **6.5 A cohort's close — § 7.6**
+### `[x]` **6.5 A cohort's close — § 7.6**
 
 - _Goal:_ A cohort closes by a `completed` placement write to its document, its folder named as today's closeout sidecar
   with the coordinates seam-lifecycle's reference backend assigns, so the projection resolves it with the same letters.
 
-    - The sequence is the highest the same batch assigns, in the cohort's quarter, to a work unit whose meta's `Cohort`
-      path names the cohort, else the quarter's next; the closeout is `b` where any cohort document's parsed `parent`
-      names the cohort, else `a`, as `assignCompletedCohorts` (`__tests__/helpers/store/cohort-placement.ts`) assigns
-      them; a document whose kind has no parser registered names no parent, as that assignment reads it
-    - A cohort put carries no other placement, so a closed cohort comes back only through the reopen an end's withdrawal
-      runs (10.5): its history ref moves back under `refs/arc/cohort/` and its folder leaves the quarter, as 6.2's reopen
-      moves a work item
-    - Build `test-first` (one behavior at a time):
-        - a close commits finally on the cohort's ref, copies the document and metadata into
-          `<sequence><a|b>_cohort-<slug>/`, and moves the ref to `refs/arc/history/cohort/<uid>`
-        - the sequence is the work unit's the same batch archives into the quarter naming the cohort, the highest of
-          several, else the quarter's next, and a work unit of another cohort archived in the batch lends it none
-        - the closeout is `b` where another cohort's document names the cohort as its parent, whether or not the batch
-          closes that one, and `a` otherwise or with no parser registered
-        - a cohort with a 2,040-byte slug closes into a folder name Git accepts
-        - the reopen a withdrawal runs, called directly, moves the history ref back and removes the folder
+- _Outcome:_ Cohort closes share the locked archive transaction, borrowing the highest matching same-quarter member
+  number or allocating the next. Registered fields select parent letters across prepared, live, and archived documents.
+  Closed-cohort edits refresh their folder through retained history; incomplete child evidence refuses before publication
+  and admits repaired retries. Long slugs retain their full Git folder names.
 
 ### `[ ]` **6.6 Renames and role changes — § 3.3, § 3.6, § 5.2, § 5.3**
 
@@ -1288,6 +1276,9 @@ the withdrawal rule for two ends — the rules the model checks held.
         - a withdrawn end whose batch closed a cohort reopens it, unless the published end closed it too, and each inbox
           entry it returned is taken back out and the receipt the end wrote for it removed, so its latest receipt again
           names its home before the end, unless the published end returned it too, whose receipt then stands
+        - the cohort withdrawal case runs through public `pull`, confirming the history ref moves back under
+          `refs/arc/cohort/<uid>` and its quarter folder disappears; this carries 6.5's private-helper test through the
+          public boundary required by § 1.2
         - a clone that wrote the item's lineage in one batch and removed its primary in a later one, neither published,
           meeting another clone's archive, withdraws both and reports no `ended-twice`
         - a clone holding its own unpublished archive meets a lineage end as pending and withdraws its archive
