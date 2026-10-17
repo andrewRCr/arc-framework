@@ -152,12 +152,13 @@ route-discovered-work:
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop before routing the discovered concern. Show the outcome, `_Shapes:_`, any unclear pair
-> with its four record answers, the coupled target's horizon advisory verbatim, and any named wait; await approval
-> before carrying out that route through the method's binding.
+> with its four record answers, the coupled target's horizon advisory verbatim, any message to a live target, and any
+> named wait; await approval before carrying out that route through the method's binding.
 
-Build captures with `arc-inbox`'s entry shape: `hold <wu>` and `new-stub` become pre-routed captures; `errand` waits
-as a `§ Errand` capture unless the Owner runs it as its own Errand; `capture` has its home undecided; `dismiss` writes
-nothing. Keep the method's writer line: this Errand's change stays its own concern.
+Build captures with `arc-inbox`'s entry shape: `hold <wu>` and `new-stub` become pre-routed captures, though a live
+target's confirmed message replaces its capture; `errand` waits as a `§ Errand` capture unless the Owner runs it as its
+own Errand; `capture` has its home undecided; `dismiss` writes nothing. Keep the method's writer line: this Errand's
+change stays its own concern.
 
 **Explicit abandon.** On explicit direction to discard a safely preserved generation, invoke
 `arc errand abandon <slug> --json`. A full identity and its local review tail abandon only when the verb proves
