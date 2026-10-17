@@ -1710,6 +1710,30 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
             - every entry compares clean through 14.4's harness, its comparator adding only the two shared files'
               dropped tombstones
 
+### `[ ]` **15.3.R Session synchronization port binding — § 6.1, § 12 (A14)**
+
+- _Goal:_ The status session's synchronization port calls the same selected store as its operational reads, so session
+  entry, named-history retries, explicit status fetches, and local maintenance reach the backend after the flip.
+
+    - Starts after 15.3.a's `seam-locus` availability gate; this work sits beyond the deferred range ending at 15.2
+    - Bind `StoreSyncPort` (`lib/store/operational-sync.ts`) to the invocation's `Store.pull`, `Store.maintain`, and
+      recoverable refusal history refs, and supply it through `createSessionStatusContext`
+      (`handlers/status/session-context.ts`), where `handlers/status.ts` builds that context
+    - Reconcile the narrow port's result model with the store's remote outcomes and configuration states, retaining
+      failures, actionable remedies, and partial-application notices; no failed pull is presented as success
+    - Add `incomplete` for an invocation that did not fully synchronize its requested state, including partially
+      applied results; retain its condition, remedy, and partial outcomes. Keep `unreachable` for transport failures.
+      Both `describeStorePull` and status fetch render `incomplete` as `pull-incomplete`, with exhaustive mappings;
+      successful pulls retain their notices for rendering
+    - Keep `createStore` as the backend selection point and its current in-repo selection until the cutover
+    - Build `test-first` (one behavior at a time):
+        - the result projection covers configured and undesignated remotes, no identity, no remote, success, and failure
+        - a named-history refusal pulls exactly its refs through the bound store, then the original operation succeeds;
+          a failed fetch keeps the original refusal actionable
+        - maintenance returns the selected store's measurements, including unsupported measurements as `null`
+        - the production status-context construction supplies the binding to its selected store while the pre-flip
+          session arms remain inactive
+
 ### `[ ]` **15.4 Branch links, exclusions, and task captures — § 10.9, § 10.11**
 
 - _Goal:_ Every commit whose footer names a closed task, and every live item's branch, resolves through the store's
