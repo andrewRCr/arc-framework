@@ -167,10 +167,11 @@ removal.
   the section after Origin/Purpose, set off by `---`, when absent. The owner folds or dispositions every held entry
   before the draft is ready, at drafting's readiness exit and spec entry; the drain never performs that owner's pass.
 - **In-flight owner adoption** — only a gate-confirmed `hold` into a started target. Make no routing write. Once the
-  writes are done, remove each live target's capture line, then send its confirmed message or hand it to the Owner to
-  relay. Keep every other capture with `_Hold: true`, `_Created:` re-stamped to the adoption date, and its target and
-  `_Shapes:_` for its owning session. Follow the method binding's named gap for another person's started
-  target, with the wait confirmed at § 3. Never append to the base branch's stale backlog copy.
+  writes are done, send each confirmed message to a live target and then remove its capture line, or remove the line
+  and hand the message to the Owner to relay as the turn's last act. A message that does not go, or that its target
+  declines, restores its capture. Keep every other capture with `_Hold: true`, `_Created:` re-stamped to the adoption
+  date, and its target and `_Shapes:_` for its owning session. Follow the method binding's named gap for another
+  person's started target, with the wait confirmed at § 3. Never append to the base branch's stale backlog copy.
 - **New stub** — carry out a `new-stub` outcome, or one grouped set sharing a concern, through `arc stub` at the
   confirmed commitment level. Always write a `draft-*` beside the meta, carrying the concern and opening with a
   one-sentence Purpose; name it through `arc stub --design`. A provisional stub carries no design authority.
