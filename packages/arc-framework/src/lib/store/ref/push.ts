@@ -18,6 +18,7 @@ import { pullRefStore } from "./pull.js";
 import { refPushTarget } from "./fetch-target.js";
 import { recordPushTracking } from "./push-tracking.js";
 import { capturePushListing, readPushHistoryRefs, pushListingIncludesTracking, type RefPushListing } from "./push-listing.js";
+import { excludeBrokenPushRefs, type RefPushExclusion } from "./push-exclusion.js";
 
 /** Reconcile first, then publish only a stable listing of this clone's changed refs. */
 export async function pushRefStore(context: RefBackendContext, input: PushInput = {}): Promise<StoreResult<PushResult>> {
@@ -35,11 +36,12 @@ interface PushLoop {
   pulls: PushResult["pulls"];
   reconciled: Set<FamilyId>; pushed: Set<FamilyId>; retryCount: number; waitedMs: number; lastPushMs: number;
   states: PushResult["states"];
+  refusals: RefPushExclusion["failures"];
   pending?: { designation: string; listing: RefPushListing; outcome: Extract<PushClassification, { status: "lost-race" | "by-state" }> };
 }
 
 async function publishRefStore(context: RefBackendContext): Promise<StoreResult<PushResult>> {
-  const loop: PushLoop = { pulls: [], reconciled: new Set(), pushed: new Set(), retryCount: 0, waitedMs: 0, lastPushMs: 0, states: [] };
+  const loop: PushLoop = { pulls: [], reconciled: new Set(), pushed: new Set(), retryCount: 0, waitedMs: 0, lastPushMs: 0, states: [], refusals: [] };
   for (;;) {
     if (refSyncDeadlineExpired(context)) return exhaustedStatePublication(context, loop);
     let result: StoreResult<PushResult> | "retry";
@@ -73,12 +75,15 @@ async function publishRefAttempt(context: RefBackendContext, loop: PushLoop): Pr
   context = await writeRefRepository(context);
   const refused = pulled.result.pulls.filter((pull) => pull.remote === remote.name && pull.role === "state")
     .flatMap(({ notices }) => notices).filter((notice) => notice.kind === "history-diverged");
-  const listing = await capturePushListing(context, remote.name, await context.identity(), new Set(refused.map(({ ref }) => ref)));
-  const divergence = refused.find((notice) => listing.changes.some(({ ref }) => ref === notice.ref));
+  const captured = await capturePushListing(context, remote.name, await context.identity(), new Set(refused.map(({ ref }) => ref)));
+  const divergence = refused.find((notice) => captured.changes.some(({ ref }) => ref === notice.ref));
   if (divergence?.kind === "history-diverged") return failedStatePublication(context, result, {
     code: "refused", class: "terminal", message: `Unpublished writes remain on ${divergence.ref}, whose remote history diverged.`,
     condition: divergence.condition, remedy: divergence.remedy,
   }, loop);
+  const notices = pulled.result.pulls.filter((pull) => pull.remote === remote.name && pull.role === "state").flatMap(({ notices }) => notices);
+  const excluded = await excludeBrokenPushRefs(context, captured, notices), listing = excluded.listing;
+  loop.refusals = excluded.failures;
   const target = await checkedPushTarget(context, remote, designation, listing, merged);
   if (target === null) return "retry";
   const outcome = await publishListing(context, remote.name, target, listing, loop);
@@ -88,7 +93,8 @@ async function publishRefAttempt(context: RefBackendContext, loop: PushLoop): Pr
     return "retry";
   }
   if (outcome.status !== "ok") return failedStatePublication(context, result, pushOutcomeFailure(context, outcome), loop);
-  result.publishes = successfulStatePublishes(statePushFamilies(await context.identity()), loop.reconciled, loop.pushed, loop.retryCount, loop.waitedMs);
+  result.publishes = [...refusedStatePublishes(loop), ...successfulStatePublishes(unrefusedFamilies(await context.identity(), loop),
+    loop.reconciled, loop.pushed, loop.retryCount, loop.waitedMs)];
   return { status: "ok", result };
 }
 
@@ -103,9 +109,18 @@ type StatePushFailure = Extract<PublishOutcome, { status: "failed" }>["failure"]
 
 async function failedStatePublication(context: RefBackendContext, result: PushResult, failure: StatePushFailure,
   loop: PushLoop): Promise<StoreResult<PushResult>> {
-  const families = statePushFamilies(await context.identity());
-  return { status: "ok", result: { ...result, publishes: [{ status: "failed", families, failure,
-    retryCount: loop.retryCount, waitedMs: loop.waitedMs }] } };
+  const families = unrefusedFamilies(await context.identity(), loop);
+  return { status: "ok", result: { ...result, publishes: [...refusedStatePublishes(loop), ...families.length ? [{ status: "failed" as const, families, failure,
+    retryCount: loop.retryCount, waitedMs: loop.waitedMs }] : []] } };
+}
+
+function unrefusedFamilies(identity: string | null, loop: PushLoop): FamilyId[] {
+  const refused = new Set(loop.refusals.flatMap(({ families }) => families));
+  return statePushFamilies(identity).filter((family) => !refused.has(family));
+}
+
+function refusedStatePublishes(loop: PushLoop): PublishOutcome[] {
+  return loop.refusals.map((failure) => ({ status: "failed", ...failure, retryCount: loop.retryCount, waitedMs: loop.waitedMs }));
 }
 
 function pushOutcomeFailure(context: RefBackendContext, outcome: Exclude<PushClassification, { status: "ok" }>): StatePushFailure {

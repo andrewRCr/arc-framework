@@ -22,6 +22,7 @@ import { completeSyncPlacements } from "./sync-placement.js";
 import { observeSyncChecks } from "./sync-checks.js";
 import type { PullNotice } from "../sync.js";
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
+import { RefSyncLabelError } from "./sync-label.js";
 
 /** One immutable side's raw entries and validated group metadata. */
 export interface SyncTreeSide { tip: string | null; entries: Map<string, RefTreeEntry>; metadata: RefMetadata; placement?: ReadPlacement }
@@ -32,7 +33,12 @@ export interface SyncMergedTree { entries: Map<string, RefTreeEntry>; reference:
 
 /** Merge independently changed tree entries and metadata over their captured common ancestor. */
 export async function mergeSyncTree(context: RefBackendContext, ref: string, local: string, incoming: string, tips: ReadonlyMap<string, string>, scope: SyncTreeMergeScope = {}): Promise<StoreResult<SyncMergedTree>> {
-  return isArchiveRef(ref) ? mergeArchiveTree(context, ref, local, incoming) : mergeGroupTree(context, ref, local, incoming, tips, scope);
+  try {
+    return await (isArchiveRef(ref) ? mergeArchiveTree(context, ref, local, incoming) : mergeGroupTree(context, ref, local, incoming, tips, scope));
+  } catch (error) {
+    if (error instanceof RefSyncLabelError) return { status: "refused", refusal: error.refusal };
+    throw error;
+  }
 }
 
 async function mergeGroupTree(context: RefBackendContext, ref: string, local: string, incoming: string, captured: ReadonlyMap<string, string>, scope: SyncTreeMergeScope): Promise<StoreResult<SyncMergedTree>> {

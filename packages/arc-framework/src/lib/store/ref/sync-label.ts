@@ -7,11 +7,22 @@ import type { RefBackendContext } from "./context.js";
 import { readHistoryPaths } from "./history-paths.js";
 import { orderHistoryCommits, parseHistoryRows } from "./history-order.js";
 import { readRefTrees, readBatchObjects, type BatchObject, type RefTreeEntry } from "./batch-read.js";
-import { parseRefMetadata } from "./metadata.js";
+import { historicalMetadataFailure, parseRefMetadata } from "./metadata.js";
+import type { StoreRefusal } from "../refusal.js";
 import { refFormatKey } from "./format-key.js";
 import { refRecordVersion } from "./record-version.js";
 import { refOwner } from "./codec.js";
 import { readStoredMergeLabel } from "./side-labels.js";
+
+/** An unreadable historical label refuses its ref without masking other reconciliation failures. */
+export class RefSyncLabelError extends Error {
+  readonly refusal: StoreRefusal;
+  constructor(ref: string) {
+    const failure = historicalMetadataFailure(ref);
+    super(failure.condition);
+    this.refusal = { code: "namespace-corrupt", class: "terminal", namespace: ref, ...failure };
+  }
+}
 
 /** Find the latest accepted state change on a competing side since its merge base. */
 export async function readSyncRecordLabel(context: RefBackendContext, reference: RecordReference, ref: string,
@@ -45,7 +56,7 @@ function versionAt(context: RefBackendContext, reference: RecordReference, ref: 
   const metadata = parseRefMetadata(metadataEntry ? objects.get(metadataEntry.oid) : null, ref);
   if (!metadata) {
     if (entries.every(({ path }) => path === metadataPath)) return null;
-    throw new Error("A competing side's historical metadata is unavailable");
+    throw new RefSyncLabelError(ref);
   }
   const family = context.registry[reference.kind].family;
   const owner = reference.owner.type === "project" || family === "lineage" ? reference.owner : refOwner(ref, family, metadata);

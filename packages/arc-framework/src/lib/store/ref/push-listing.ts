@@ -11,6 +11,7 @@ import { readPendingRefEnds } from "./sync-lifecycle.js";
 /** Immutable source and tracking tips read while the selected refs were locked. */
 export interface RefPushListing {
   local: Map<string, string>; tracking: Map<string, string>; changes: PushRefChange[];
+  pending: Set<string>;
 }
 
 /** Release and retake the whole lock set whenever the locked listing gains a ref. */
@@ -18,10 +19,10 @@ export async function capturePushListing(context: RefBackendContext, remote: str
   diverged: ReadonlySet<string> = new Set()): Promise<RefPushListing> {
   for (;;) {
     const initial = await readPushListing(context, remote, identity, diverged);
-    const locked = new Set(initial.changes.map(({ ref }) => ref));
+    const locked = new Set([...initial.changes.map(({ ref }) => ref), ...initial.pending]);
     const result = await withRefLocks(context, locked, async () => {
       const current = await readPushListing(context, remote, identity, diverged);
-      return current.changes.some(({ ref }) => !locked.has(ref)) ? null : current;
+      return [...current.changes.map(({ ref }) => ref), ...current.pending].some((ref) => !locked.has(ref)) ? null : current;
     });
     if (result) return result;
   }
@@ -65,7 +66,7 @@ async function readPushListing(context: RefBackendContext, remote: string, ident
       : /^refs\/arc\/(work|cohort)\//u.test(ref) ? ref.replace("refs/arc/", "refs/arc/history/") : null;
     if (counterpart && local.has(counterpart)) changes.push({ ref, next: null });
   }
-  return { local, tracking, changes };
+  return { local, tracking, changes, pending };
 }
 
 function publishableRef(ref: string, identity: string | null): boolean {

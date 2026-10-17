@@ -1014,22 +1014,15 @@ in both layouts with no exclusion beyond § 14.1's, 4.4.d's last set removed (9.
 - _Goal:_ A failed Git fetch's ordinary success rows are accepted only where actual tracking state establishes the
   update, preserving tips and classifying failed creates, advances, and deletes as local tracking failures (A15).
 
-### `[ ]` **11.2 Refs left out of a push — § 3.3, § 6.7**
+### `[x]` **11.2 Refs left out of a push — § 3.3, § 6.7**
 
 - _Goal:_ A ref whose metadata a commit outside ARC broke, or whose end is pending, holds back exactly the unpublished
   batches that span it, and every other ref publishes.
 
-    - Build `test-first` (one behavior at a time):
-        - a broken item ref is left out of the push with every ref its unpublished batches reach — a batch spanning it and
-          a second ref, and another spanning the second and a third, leaving out all three — failing their families
-          `refused` while every other ref pushes, the refs a pull merged beforehand among them
-        - a push whose other families then exhaust their retries reports one `failed` outcome for each failure
-        - the same commit pushed outside ARC makes another clone's pull keep that ref, apply every other, and report a
-          `namespace-corrupt` notice, while that clone's push fails its families only where it holds a write on that ref
-        - malformed historical metadata encountered by merge side-label construction reports the ref's
-          `namespace-corrupt` notice, applies other refs, and never escapes as a generic exception
-        - a live ref left out for `end-pending` leaves out a ref a batch spans with it alike
-        - a forward repair on either clone, once pushed, brings both back to reads that succeed
+- _Outcome:_ Damaged local and remote endpoints and pending ends exclude the transitive closure of unpublished
+  batches, including merged history and owed lifecycle deletes. Independent refs still publish; held writes alone fail
+  their families, separately from later transport or retry failures. Archive metadata cannot turn an unreadable local
+  end into a reopen, forward repairs restore publication, and malformed historical merge labels remain per-ref notices.
 
 ### `[ ]` **11.3 A partial clone's fetch — § 6.2**
 

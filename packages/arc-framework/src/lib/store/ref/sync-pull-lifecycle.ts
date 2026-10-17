@@ -12,6 +12,7 @@ import { fetchRefHistories } from "./fetch.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { mergeRefSets, type RefMergeOptions, type RefMergeResult, type RefMergeRoute } from "./sync-merge.js";
 import { readPendingRefEnds, readPendingRefReopens, resolvePendingRefEnds, refEndPublished, type RefEndPublished } from "./sync-lifecycle.js";
+import { readCorruptArchiveBatchRefs } from "./sync-corrupt.js";
 
 /** A failed supplemental fetch retains the shared merges already committed. */
 export type LifecyclePullResult = RefMergeResult | { status: "fetch-failed"; fetched: Extract<FetchOutcome, { status: "unreachable" }> };
@@ -22,6 +23,7 @@ export async function mergePulledRefState(context: RefBackendContext, incoming: 
   options: RefMergeOptions, previous: ReadonlyMap<string, string> = new Map()): Promise<LifecyclePullResult> {
   const published = refEndPublished(context, incoming, previous);
   let held = await readSyncRefs(context, "refs/arc/");
+  const corrupt = await readCorruptArchiveBatchRefs(context, held, new Map([...previous, ...incoming]));
   const shared = new Map([...incoming].filter(([ref]) => !isItem(ref)));
   const first = await mergeRefSets(context, held, shared, options);
   if (first.status === "restart") return first;
@@ -46,9 +48,10 @@ export async function mergePulledRefState(context: RefBackendContext, incoming: 
   pending = await resolvePendingRefEnds(context, pending, held, incoming);
   const histories = new Set<string>([...requested, ...discovered.map(({ history }) => history)]);
   const items = new Map([...incoming].filter(([ref]) => isItem(ref)
+    && !corrupt.refs.has(ref) && !corrupt.refs.has(ref.replace("refs/arc/", "refs/arc/history/"))
     && !pending.some(({ live, history }) => ref === live || ref === history)
     && (!ref.startsWith("refs/arc/history/") || histories.has(ref))));
-  const notices: PullNotice[] = [...first.notices, ...withdrawn.notices];
+  const notices: PullNotice[] = [...corrupt.notices, ...first.notices, ...withdrawn.notices];
   for (const { history, owner } of new Map([...pending, ...completed].map((item) => [item.history, item])).values()) {
     const tip = incoming.get(history);
     if (tip) items.set(history, tip);

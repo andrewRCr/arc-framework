@@ -13,12 +13,16 @@ import { writeRefBlob } from "./tree-write.js";
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 import type { StoreResult } from "../refusal.js";
 import { corruptRef } from "./namespace-health.js";
+import { checkSyncRefTip } from "./sync-tip.js";
 
 /** Stamp a history fast-forward only when its retained folders need a paired refresh. */
 export async function prepareSyncHistoryFastForward(context: RefBackendContext, ref: string, tip: string,
   quarters: readonly SyncHistoryQuarter[], batchId: string): Promise<StoreResult<SyncMergedTree | undefined>> {
   const folder = quarters[0]?.folders[0];
-  if (!folder || !("uid" in folder.owner)) return { status: "ok", result: undefined };
+  if (!folder || !("uid" in folder.owner)) {
+    const refusal = await checkSyncRefTip(context, ref, tip);
+    return refusal ? { status: "refused", refusal } : { status: "ok", result: undefined };
+  }
   const path = `metadata-${folder.owner.uid}.json`;
   const entries = (await readRefTrees(context, new Map([[ref, tip]]))).get(ref);
   const entry = entries?.find((entry) => entry.path === path);
