@@ -828,41 +828,11 @@ converge with no lost write.
 - _Goal:_ A pull brings every fetched ref into local state as a fast-forward or a merge commit by each kind's mechanism,
   never as a check that gates and never bringing a deletion back.
 
-    - `[ ]` **9.2.a Fast-forwards and merge commits**
-        - Where one tip descends from the other the local ref moves or waits to push; otherwise a merge commit, this
-          clone's tip first, its tree merged by kind against the merge base and its metadata field by field, under the
-          ref's lock and compare-and-swap and committed through 8.3's commit step under the layout lock, with the
-          provenance `sync` `merge`
-        - A local ref absent where this clone holds the item's history ref, Phase 9's stand-in for this clone's own
-          unpublished end (§ 6.6), is never brought back from its tracking ref (§ 6.4)
+    - `[x]` **9.2.a Fast-forwards and merge commits**
+        - Pull merges captured ref sets under ref locks and the layout-guarded commit step, with local-first parents
+          and per-ref batches. Kind-driven records and field-wise metadata preserve deletions, whole-record clashes,
+          merge-base versions, and record-changing labels. Lock refusal retains completed refs and supports retry.
             - _Retired in:_ Phase 10
-        - The merge runs over a local and an incoming ref set and the lock it is to take, as parameters: the pull passes
-          the store's refs, its tracking refs, and the ref locks, and 13.1's copy its own sets, with the commit step's
-          mode and repository its caller needs (8.3)
-        - A lock past its wait — a ref lock, or the layout lock a move holds for its whole run — ends the pull with its
-          top-level `lock-held` refusal naming the lock, as a write refuses (§ 11.4); the merges it committed before
-          stand, and the next pull merges the rest
-        - The pull mints one `Arc-Batch` per merged ref, but one across the commits that must publish together, which
-          Phase 10's folder rebuilds, applied ends and reopens, and withdrawals use (§ 3.1)
-        - The merge passes the merge library the record's version at the merge base as its base version, null where the
-          base held no such record (§ 3.7); a metadata field changed on both sides files a conflict record naming the
-          record the field belongs to, the primary for placement, slugs, and links
-        - Build `test-first` (one behavior at a time):
-            - another clone's write fast-forwards the local ref
-            - a ref this clone ended, its end not yet pushed, stays absent beside its tracking ref
-            - two clones' writes to different records of one ref merge into one commit holding both
-            - a single-writer record changed on both sides becomes a conflict record, and a merge-kind record repeating
-              an entry ID on either side or the base does too
-            - a write's merge and a pull's merge clashing in one hunk: the pull's conflict record's `baseVersion` names
-              the record's version at the merge base, and a pull whose two sides each created the record clashes with
-              `baseVersion` null
-            - tips sharing no ancestor merge against an empty base, as two machines' first archives into a quarter do
-            - a personal record one clone removed, merged with another clone's unchanged older copy, stays removed
-            - one metadata field changed on both sides becomes a conflict record, and a record removed on one side and
-              changed on the other is one clash over the whole record
-            - a pull whose merge waits on the layout lock past an injected wait refuses `lock-held` naming
-              `arc/locks/layout.lock`, the refs it merged before keeping their merges, and a pull after the lock is
-              released merges the rest
 
     - `[ ]` **9.2.b A quarter's merge renumbers**
         - Build `test-first` (one behavior at a time):
