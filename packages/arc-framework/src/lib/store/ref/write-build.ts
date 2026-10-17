@@ -20,6 +20,8 @@ import { familyOf } from "../catalog.js";
 import { refFormatKey } from "./format-key.js";
 import { prepareRefCommits, type RefWriteGroup } from "./write-commits.js";
 import { expandStoredPath } from "../stored-path.js";
+import { checkRefWrites } from "./write-checks.js";
+import { prepareRefConflicts } from "./write-conflicts.js";
 
 type RefGroup = RefWriteGroup;
 
@@ -45,7 +47,10 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
     if (applied.status === "refused") return applied;
     results.push(applied.result);
   }
-  const changes = await prepareRefCommits(context, prepared.result, refWriteTargets(context, resolved), groups, tips, provenance, batchId, results);
+  const completed = await prepareRefConflicts(context, prepared.result, groups, results);
+  const broken = await checkRefWrites(context, prepared.result, completed, tips, provenance);
+  if (broken) return { status: "refused", refusal: broken };
+  const changes = await prepareRefCommits(context, prepared.result, refWriteTargets(context, resolved), groups, completed, tips, provenance, batchId);
   if (changes.length === 0) return { status: "ok", result: { batchId, writes: results } };
   const outcome = await updateRefTransaction(context, changes, { cwd: context.checkoutRoot });
   if (outcome.status !== "committed") return "retry";

@@ -515,28 +515,15 @@ _Mode:_ `layer` through Phase 8 — closes on the local engine complete in both 
   across backend instances, with one-process reuse and no failed-scan retention. The same selector accepts prepared
   tree sets for write views.
 
-### `[ ]` **5.8 Write checks — § 5.3, § 1.4**
+### `[x]` **5.8 Write checks — § 5.3, § 1.4**
 
 - _Goal:_ Every registered write check runs under the write's locks over the state before and after the batch, and the
   first broken rule refuses the whole write.
 
-- _Note:_ A primary's role replacement, whose checks run the removed kind with no next record and the created kind with
-  no prior, is a case of 6.6, which builds role changes.
-
-    - `WriteCheckInput` with `before` over the found tips and `after` over the new trees laid on them, each offering
-      `read`, `list`, and 5.7's `lookup`; the writer through `deriveWriteCheckWriter`; refusals composed through
-      `composeWriteCheckRefusal`
-    - A retirement's `after` view contains the prepared batch mutations, including its own inbound-list settlement or
-      removal, before 6.4's automatic sweep; 6.R closes that ordering over the real ref backend (A4)
-    - Cases install their checks through the registry override, as the suite's write-check item does; a case about a
-      shipped check, such as `work-item.slug-edges`, builds the backend with `PRODUCTION_REGISTRATIONS`
-    - Build `test-first` (one behavior at a time):
-        - a check's broken rule refuses `record-malformed` naming the first rule in identifier order and the first
-          breaking record in write order, counting the other pairs
-        - a create's `before.lookup` of its slug refuses `not-found` and `after.lookup` resolves it
-        - a stale write's check reads the merged content as its next record
-        - a prior record whose stored version fails to parse reaches the check with content and no fields
-        - a verb in `HAND_EDIT_VERBS` reaches the check as a hand edit, and any other verb as itself
+- _Outcome:_ Registered checks run under all batch locks against captured-before and complete prepared-after views,
+  including generated conflicts. Checks receive persisted merged bytes, preserve unparseable prior content without
+  fields, derive writer authority from provenance, and refuse the whole batch in deterministic rule/write order.
+  Public real-Git cases cover view isolation, absent refs, repaired retries, and shipped slug-edge settlement.
 
 ### `[ ]` **5.9 Anchors and the manifests that travel with them — § 4.5**
 

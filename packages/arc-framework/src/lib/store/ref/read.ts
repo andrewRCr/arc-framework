@@ -63,7 +63,8 @@ export async function resolveReadReference(context: RefBackendContext, reference
   return { status: "ok", result: reference };
 }
 
-function resolveCapturedOwner(context: RefBackendContext, reference: RecordReference, home: StoredRecordHome,
+/** Decode and validate the requested owner against captured metadata and content. */
+export function resolveCapturedOwner(context: RefBackendContext, reference: RecordReference, home: StoredRecordHome,
   metadata: RefMetadata, object: BatchObject): StoreResult<OwnerIdentity> {
   const family = context.registry[reference.kind].family;
   if (family !== "lineage") return { status: "ok", result: refOwner(home.ref, family, metadata) };
@@ -103,14 +104,16 @@ export async function listRefRecords(context: RefBackendContext, input: ListInpu
 
 interface DecodedRecords { records: StoreRecord[]; diagnostics: ListingDiagnostic[]; unreadable?: true }
 
-function decodeCapturedRef(context: RefBackendContext, input: ListInput, ref: string,
-  entries: readonly RefTreeEntry[], objects: ReadonlyMap<string, BatchObject | null>): DecodedRecords {
+/** Decode one ref without observing live tips, with optional prepared metadata. */
+export function decodeCapturedRef(context: RefBackendContext, input: ListInput, ref: string,
+  entries: readonly RefTreeEntry[] | undefined, objects: ReadonlyMap<string, BatchObject | null>, metadataOverride?: RefMetadata): DecodedRecords {
+  if (!entries) return unreadableRef(ref);
   const records: StoreRecord[] = [];
   const diagnostics: ListingDiagnostic[] = [];
   const prototype = refPrototype(context, ref, input.family);
   const home = expandStoredPath(prototype, { registry: context.registry });
   if (entries.every((entry) => entry.path === home.metadataPath || entry.path.startsWith(home.manifestPath))) return { records, diagnostics };
-  const metadata = capturedMetadata(home, entries, objects);
+  const metadata = metadataOverride ?? capturedMetadata(home, entries, objects);
   if (!("formats" in metadata)) return metadata;
   const owner = refOwner(ref, input.family, metadata);
   for (const entry of entries) {
@@ -162,7 +165,8 @@ function selectRecords(records: readonly StoreRecord[], input: ListInput): Store
     && (!input.owner || sameOwner(input.owner, record.reference.owner)));
 }
 
-function refPrototype(context: RefBackendContext, ref: string, family: FamilyId): RecordReference {
+/** Construct a reference shell for resolving a captured ref's auxiliary paths. */
+export function refPrototype(context: RefBackendContext, ref: string, family: FamilyId): RecordReference {
   const root = rootFamily(family);
   const kind = Object.values(context.registry).find((candidate) => candidate.ref && candidate.family === root);
   if (!kind) throw new Error(`No ref home for ${family}`);
