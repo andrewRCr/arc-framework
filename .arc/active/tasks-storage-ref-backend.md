@@ -945,22 +945,16 @@ the withdrawal rule for two ends — the rules the model checks held.
   later copy. Named history observations come from verbose fetch rows, including unchanged tips. Historical quarter
   snapshots supply completed placement when an intervening reopen removed the current folder.
 
-### `[ ]` **10.3 A completed item's folder across clones — § 6.4, § 7.3**
+### `[x]` **10.3 A completed item's folder across clones — § 6.4, § 7.3**
 
 - _Goal:_ A completed item's folder changes only with its history ref, so two machines' writes to it are filed once on the
   history ref and no folder rebuild drops a write another machine's refresh carried.
 
-    - Build `test-first` (one behavior at a time):
-        - a folder only one side changed takes that side's, and a removal on one side beside a change on the other holds
-        - two clones writing one completed item's single-writer record: the second's pull fetches the history ref by
-          name, merges it, files one conflict record there, and rebuilds the folder naming the history ref's conflict IDs
-          and the pull's batch
-        - a write merged in by a pull by name rebuilds the folder the same way
-        - a clone whose history copy lacks the folder's `batch` leaves the folder as merged until its own pull by name,
-          and its `history`, `changes`, writes, and reopen refuse `state-unresolvable` naming the ref, each landing after
-          a pull by name
-        - two writes to one completed item whose history ref a mirror push removed from the remote leave the second
-          writer's folder and history ref as they were, report `end-pending` naming the ref, and apply every other ref
+- _Outcome:_ Concurrent completed writes fetch their retained history together with pending ends, then publish the
+  history and rebuilt folders with one batch and one set of conflict records. The pending refresh survives failed and
+  missing-history fetches across repeated pulls. Named-history fast-forwards pair a history batch with a folder refresh
+  only when needed, including when the local history ref is absent. Stale history operations refuse until the same
+  operation can retry successfully after a named pull.
 
 ### `[ ]` **10.4 Late writes and ends — § 6.6, § 7.4**
 

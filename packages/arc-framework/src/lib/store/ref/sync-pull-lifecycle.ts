@@ -5,6 +5,7 @@ import type { HistoryRef } from "../refusal.js";
 import type { PullNotice } from "../sync.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefDesignation, RefRemoteDesignation } from "./designation.js";
+import { readPendingArchiveHistories } from "./sync-archive-histories.js";
 import { fetchRefHistories } from "./fetch.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { mergeRefSets, type RefMergeOptions, type RefMergeResult, type RefMergeRoute } from "./sync-merge.js";
@@ -22,8 +23,10 @@ export async function mergePulledRefState(context: RefBackendContext, incoming: 
   const first = await mergeRefSets(context, held, shared, options);
   if (first.status === "restart") return first;
   const state = await readSyncRefs(context, "refs/arc/");
+  const completed = await readPendingArchiveHistories(context, held, state, incoming);
   let pending = await readPendingRefEnds(context, held, state, incoming);
-  const discovered = pending.filter(({ history }) => !requested.includes(history));
+  const required = new Map([...pending, ...completed].map((item) => [item.history, item]));
+  const discovered = [...required.values()].filter(({ history }) => !requested.includes(history));
   if (discovered.length) {
     const fetched = await fetchRefHistories(context, remote, designation, discovered.map(({ history }) => history), context.syncDeadline?.signal);
     if (fetched.status === "unreachable") return { status: "fetch-failed", fetched };
@@ -35,7 +38,7 @@ export async function mergePulledRefState(context: RefBackendContext, incoming: 
     && !pending.some(({ live, history }) => ref === live || ref === history)
     && (!ref.startsWith("refs/arc/history/") || histories.has(ref))));
   const notices: PullNotice[] = [...first.notices];
-  for (const { history, owner } of pending) {
+  for (const { history, owner } of new Map([...pending, ...completed].map((item) => [item.history, item])).values()) {
     const tip = incoming.get(history);
     if (tip) items.set(history, tip);
     else notices.push({ kind: "end-pending", item: owner, ref: history,

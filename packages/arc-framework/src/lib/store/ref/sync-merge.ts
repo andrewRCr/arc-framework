@@ -11,7 +11,7 @@ import type { RefBackendContext } from "./context.js";
 import { commitRefStep, type RefCommitMode } from "./commit-step.js";
 import { withRefLocks } from "./write-locks.js";
 import { readSyncRefs, syncRefIsAncestor } from "./sync-graph.js";
-import { readSyncHistoryQuarters, prepareSyncHistoryQuarters, unchangedSyncHistoryQuarters } from "./sync-history.js";
+import { readSyncHistoryQuarters, prepareSyncHistoryFastForward, prepareSyncHistoryQuarters, unchangedSyncHistoryQuarters } from "./sync-history.js";
 import { commitRefTree } from "./write-commits.js";
 import { updateRefTransaction, type RefChange } from "../../git/ref-transaction.js";
 
@@ -51,19 +51,26 @@ export async function mergeRefSets(context: RefBackendContext, local: ReadonlyMa
       const batchId = randomUUID();
       const staged = { ...context, blobStage: { format: await readObjectFormat(context), blobs: new Map<string, Uint8Array>() } };
       let tree: SyncMergedTree | undefined;
+      let parents = [next];
       if (current && !await syncRefIsAncestor(context, current, next)) {
         const merged = await mergeSyncTree(staged, ref, current, next, local, { currentSide: route?.currentSide, incoming: options.incomingState ?? incoming, priorState: options.priorState, batchId, reopening: route?.reopening });
         if (merged.status === "refused") return { status: "complete", changed: false, notices: [{
           kind: "namespace-corrupt", ref, condition: merged.refusal.condition, remedy: merged.refusal.remedy,
         }] };
-        tree = merged.result;
+        tree = merged.result; parents = [current, next];
+      } else {
+        const prepared = await prepareSyncHistoryFastForward(staged, ref, next, quarters, batchId);
+        if (prepared.status === "refused") return { status: "complete", changed: false, notices: [{
+          kind: "namespace-corrupt", ref, condition: prepared.refusal.condition, remedy: prepared.refusal.remedy,
+        }] };
+        tree = prepared.result;
       }
       const prepared = tree;
-      if (prepared && quarters.length) await prepareSyncHistoryQuarters(staged, quarters, prepared);
+      if (prepared?.metadata) await prepareSyncHistoryQuarters(staged, quarters, prepared);
       let publishedTip = next;
       const refreshed: { ref: string; before: string; after: string }[] = [];
       const committed = await commitRefStep(staged, async (physical) => {
-        const tip = prepared && current ? await commitSyncMerge(physical, prepared, current, next, batchId) : next;
+        const tip = prepared ? await commitSyncMerge(physical, prepared, parents, batchId) : next;
         publishedTip = tip;
         const changes: RefChange[] = [{ ref: target, next: tip, expected: local.get(ref) ?? null }];
         if (source !== ref && current) changes.push({ ref: sourceTarget, delete: true, expected: current });
@@ -87,10 +94,10 @@ export async function mergeRefSets(context: RefBackendContext, local: ReadonlyMa
   return { status: "complete", changed, notices };
 }
 
-async function commitSyncMerge(context: RefBackendContext, prepared: SyncMergedTree, local: string, incoming: string, batchId: string): Promise<string> {
+async function commitSyncMerge(context: RefBackendContext, prepared: SyncMergedTree, parents: readonly string[], batchId: string): Promise<string> {
   const tree = await writeRefTree(context, prepared.entries.values());
   const identity = await context.identity(), actor = identity === null ? undefined : await context.actor(identity);
-  const { stdout } = await context.exec("git", ["commit-tree", tree, "-p", local, "-p", incoming, "-m",
+  const { stdout } = await context.exec("git", ["commit-tree", tree, ...parents.flatMap((parent) => ["-p", parent]), "-m",
     renderStoreCommitMessage({ verb: "sync", lifecycleAction: "merge" }, prepared.reference, batchId, actor)], { cwd: context.checkoutRoot });
   return stdout.trim();
 }
