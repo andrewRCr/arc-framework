@@ -167,9 +167,9 @@ removal.
   the section after Origin/Purpose, set off by `---`, when absent. The owner folds or dispositions every held entry
   before the draft is ready, at drafting's readiness exit and spec entry; the drain never performs that owner's pass.
 - **In-flight owner adoption** — only a gate-confirmed `hold` into a started target. Make no routing write. Once the
-  writes are done, send each confirmed message to a live target, or hand it to the Owner to relay, and remove its
-  capture's line. Keep every other capture with `_Hold: true`, `_Created:` re-stamped to the adoption date, and its
-  target and `_Shapes:_` for its owning session. Follow the method binding's named gap for another person's started
+  writes are done, remove each live target's capture line, then send its confirmed message or hand it to the Owner to
+  relay. Keep every other capture with `_Hold: true`, `_Created:` re-stamped to the adoption date, and its target and
+  `_Shapes:_` for its owning session. Follow the method binding's named gap for another person's started
   target, with the wait confirmed at § 3. Never append to the base branch's stale backlog copy.
 - **New stub** — carry out a `new-stub` outcome, or one grouped set sharing a concern, through `arc stub` at the
   confirmed commitment level. Always write a `draft-*` beside the meta, carrying the concern and opening with a
@@ -188,9 +188,9 @@ removal.
 
 - `dismiss` removes the held entry.
 - `hold <other>` moves it to another backlog stub's draft with provenance and `_Shapes:_`. For a started target,
-  follow the method binding's in-flight new-home rule: the runner's own target takes a pre-routed `_Hold` capture
-  for owner adoption after removal here; another person's target waits, rewritten here as `hold <host>` naming
-  the decided destination.
+  follow the method binding's in-flight new-home rule: after removal here, the runner's own target takes the
+  in-flight owner-adoption route above — its confirmed message when live, otherwise a pre-routed `_Hold` capture;
+  another person's target waits, rewritten here as `hold <host>` naming the decided destination.
 - `new-stub` takes the new-stub route above and removes the old entry.
 - `errand` takes the homeless-atomic route and removes the old entry.
 - `hold <host>` keeps the entry, or rewrites only the residual of a split in place.
@@ -305,14 +305,15 @@ session, by this sweep — idempotent backstops to the authoritative removal in 
 ### 7. Confirm the drain is complete
 
 The drain **closes on dispositions, not on a physically empty file.** Verify every entry has a terminal
-disposition — **routed** / **dismissed** / **flushed** (line removed with the write), **retained** (`_Hold:_`,
-line stays), **owner-adoption** (started target; line stays for its owning session), or **execute-bound** (dispatched
-in-flight, or pending a fresh `--errand` — line stays until the errand completes). No entry is left
-**un-triaged**. The lines that remain are only the retained, owner-adoption, and execute-bound entries; their async
-tail is owned by the target's session or by `run-errand` plus session-init's in-flight sweep, not the drain. Report
-what routed where, which entries were retained or handed to their owners, and which errands are in flight. Surface
-shared-inbox (`ATOMIC-INBOX`) aging as an advisory while there — reminder nudges for personal captures and
-in-flight-errand staleness belong to session-init orientation, not the drain.
+disposition — **routed** / **dismissed** / **flushed** (line removed with the write or the message to a live target),
+**retained** (`_Hold:_`, line stays), **owner-adoption** (started target; line stays for its owning session), or
+**execute-bound** (dispatched in-flight, or pending a fresh `--errand` — line stays until the errand completes). No
+entry is left **un-triaged**. The lines that remain are only the retained, owner-adoption, and execute-bound entries;
+their async tail is owned by the target's session or by `run-errand` plus session-init's in-flight sweep, not the
+drain. Report what routed where, which messages went to which sessions, which entries were retained or handed to
+their owners, and which errands are in flight. Surface shared-inbox (`ATOMIC-INBOX`) aging as an advisory while there
+— reminder nudges for personal captures and in-flight-errand staleness belong to session-init orientation, not the
+drain.
 
 ---
 

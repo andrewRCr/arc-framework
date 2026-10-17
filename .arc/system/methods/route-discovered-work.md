@@ -199,16 +199,16 @@ and opens with a one-sentence Purpose. Carry out minting through the binding bel
   work unit. A capture owned by that target's owner is transit to their session, never rest in a capture surface.
 - **Writer line:** only a change off the base whose one concern is routing — the drain's or a route-only Errand's —
   writes another work unit's draft, and only a backlog stub's. Other routes reach a sibling as a pre-routed
-  `USER-INBOX` capture, re-gated by the drain. A started target takes owner adoption, subject to the gap below.
-  Owner stops hold this line; no enforcement is claimed.
+  `USER-INBOX` capture, re-gated by the drain, or a live sibling by message. A started target takes owner adoption,
+  subject to the gap below. Owner stops hold this line; no enforcement is claimed.
 - **Dispositions table:** no other record keeps an owner's-pass disposition, so give every entry a row.
 - **Drain writes:** use its grooming PR off the base under full protection, direct base commit under partial.
   Record what moved where in the PR body or commit message, never the target's draft. Its counts are shown, never
   compared; the re-triage offer is judgment over the entries already read.
 - **In-flight new home:** when re-triage's `hold <other>` names a started target owned by the drain's runner
-  (`owner` from `arc status`), remove the old entry into a pre-routed `_Hold` capture for owner adoption.
-  Another person's started target instead waits by the gap below, rewritten in place as `hold <host>` naming
-  its decided destination.
+  (`owner` from `arc status`), remove the old entry into a pre-routed `_Hold` capture for owner adoption, or into a
+  message when the target is live (§ Target lifecycle). Another person's started target instead waits by the gap
+  below, rewritten in place as `hold <host>` naming its decided destination.
 - **Route-now vehicles:** routes outside the session's own work unit that write a backlog stub or mint a stub run
   as a route-only Errand's own change off the base, its own branch and PR under full protection, direct base commit
   under partial. Its Launch classifies the routing change, not the carried concern, and does not show that concern's
