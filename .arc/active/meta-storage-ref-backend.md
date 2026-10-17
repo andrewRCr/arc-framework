@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** activate-work-unit — plan checked against the shipped `seam-lifecycle` code, review mapping folded
-- **Next Task:** Task 1.1 — Baseline the test-cost rows the new files touch (line ~17)
-- **Blockers:** [none] — the `seam-locus` edge gates only Task 15.3.a, which starts once it ships
+- **Last Completed:** Task 15.2 — Lineage, renames, and abandoned origins
+- **Next Task:** Task 15.3.a — Errands and claims re-homed (line ~1347)
+- **Blockers:** Waiting for `seam-locus` to ship before Task 15.3.a
 
-- **Next Action:** Start Task 1.1 — baseline the test-cost rows the new files touch
+- **Next Action:** Once `seam-locus` ships, reconcile its changes and agree the next execution scope before Task 15.3.a
 
 - **PR URL:** [none]
 - **Completed:** [none]
