@@ -20,8 +20,8 @@ override-active: false
 >   entry, and `USER-INBOX` captures naming the work unit at spec entry, activation, or verification.
 > - **Signature:** `route-discovered-work(entry, door, host?) → per concern, one outcome or an Owner-decided pair`
 > - **Contract:** Decide disposition → homing → integration → re-triage. Decide only: callers execute outcomes
->   through verbs after their own interlock. Read lifecycle position, owner, and horizon advisory from `arc status`,
->   and design from `arc view`.
+>   through verbs after their own interlock. Read lifecycle position, scope window, owner, and horizon advisory from
+>   `arc status`, and design from `arc view`.
 
 ## route-discovered-work.override
 
@@ -84,17 +84,28 @@ the primary reads the named section. Give the reader no primary-side door or all
 
 ### Target lifecycle
 
-Use the target's lifecycle position from `arc status <slug> --json` before proposing or retaining any `fold` or
-`hold`, including own-work reconciliation, re-triage, and fallback holds. These rules govern the defaults below
-within each door's allowed outcomes.
+Route a concern coupled to another work unit when it is raised, at the latest at the next report boundary, never held
+for handoff or later; naming the owner without placing the concern is not a route. Read the target's position at that
+moment, from the lifecycle position and `scopeWindow` that `arc status <slug> --json` reports, before proposing or
+retaining any `fold` or `hold`, including own-work reconciliation, re-triage, and fallback holds. What the session
+learned at its start is not a position. These rules govern the defaults below within each door's allowed outcomes.
 
-- **Active:** propose a route out — `new-stub`, `hold` on a follow-on stub, `errand`, or `capture`, as the door permits.
-  When the entry modifies that work and belongs there, carry admission as the alternative at the door's Owner stop.
-  Only the Owner selects admission. The work unit's owner then writes a spec amendment through
-  [amend-design][amend-design] or new tasks: `fold <wu>` at the owner's own door, otherwise `hold <wu>` for owner
-  adoption through the binding's `_Hold` capture and writer line.
-- **Integrating:** takes nothing and is not a routing target. The route back in is `arc reopen`; reconsider the
-  target only after its lifecycle position changes.
+- **`open`** (backlog or planning, a finished plan included): the door's outcomes apply. After its spec is approved,
+  an addition costs an amendment and another review; name that cost at the door's Owner stop.
+- **`gated`** (activated, before its verification phase): admit only what changes none of its pre-commitment text —
+  no spec decision, goal, success criterion, or task phase; in practice, coordination on an interface it already
+  exposes, or completing what its spec commits to. Route anything else out — `new-stub`, `hold` on a follow-on stub,
+  `errand`, or `capture`, as the door permits — and carry admission as the alternative at the door's Owner stop. Only
+  the Owner selects admission. The work unit's owner then writes a spec amendment through [amend-design][amend-design]
+  or new tasks: `fold <wu>` at the owner's own door, otherwise `hold <wu>` for owner adoption.
+- **`closed`** (verification phase onward, integrating included): takes nothing and is not a routing target. The
+  route back in is `arc reopen`; reconsider the target only after its position changes.
+- **No window:** `arc status` names why; admit nothing until the target's session or owner confirms its position.
+
+**Live target.** A work unit with a registered checkout is live: coordinate with its session by message first, never
+by capture first. Propose the message to the Owner, and send it without asking only where the two sessions already
+have a conversation. Use the harness's session messaging where it has one; otherwise give the Owner the message to
+relay. A message for the Owner to approve or relay ends the turn it appears in: produce it when it is ready, then stop.
 
 ### Integration and re-triage
 
@@ -199,10 +210,11 @@ and opens with a one-sentence Purpose. Carry out minting through the binding bel
   the base's current copies. A changed result returns to the Owner. Invoked directly, the route shape runs the
   fast-path gate before opening; a result other than a now-route goes to arc-inbox's hand-off with the confirmed
   outcome, without re-gating.
-- **Capture vehicles:** deferred routes, routes into a started target, and routes where no Errand can open are
-  pre-routed captures with `WU_Target` and `_Shapes:_`. This includes partial protection's `primary-occupied`
-  refusal. `fold` into the session's own work unit and an `errand` execute directly. Every new capture gets the full
-  gate at the drain; pre-routed values are first candidates, and disagreements enter its routing plan.
+- **Capture vehicles:** deferred routes, routes into a started target with no checkout, and routes where no Errand
+  can open are pre-routed captures with `WU_Target` and `_Shapes:_`. This includes partial protection's
+  `primary-occupied` refusal. A live target takes the message (§ Target lifecycle); a capture beside it is transit.
+  `fold` into the session's own work unit and an `errand` execute directly. Every new capture gets the full gate at
+  the drain; pre-routed values are first candidates, and disagreements enter its routing plan.
 - **Cascade vehicles:** `hold <other>` and `new-stub` are pre-routed captures.
 - **Minted design:** carry slug, commitment, priority, Class, and origin through
   `arc stub <name> --commitment ... --priority ... --class ... --origin ...`; dependencies have no CLI option and
