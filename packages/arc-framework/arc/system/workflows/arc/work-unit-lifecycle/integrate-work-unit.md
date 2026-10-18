@@ -169,14 +169,15 @@ command again for a delivery, or use the exact `targetRef` command for an ordina
 judgment option; never narrow a delivery-status action to an agent-reconstructed member target.
 
 `select-coverage` renders `coverageSelectionAction.interactionText` verbatim and gives a recommendation among its
-listed choices.
+listed choices. On the work-unit delivery route, also surface `terminusAction.offer.interactionText` when supplied and
+recommend whether to continue or accept that exact stop. The published singleton takes no new Owner terminus.
 
 > [!IMPORTANT]
-> `workflow-interlock`: Stop at the coverage offer. Await the Owner's listed choice before re-entering the same
-> status scope.
+> `workflow-interlock`: Stop at the coverage offer. Await the Owner's listed coverage choice or explicit acceptance
+> of the offered member terminus before continuing review.
 
-Re-enter with the offer's command for that pair. Carry the returned admission unchanged into local prepare; do not
-ask the coverage question again.
+For a coverage choice, re-enter with the offer's command for that pair. Carry the returned admission unchanged into
+local prepare; do not ask the coverage question again. Accepted member termini follow the acceptance procedure below.
 
 `stop` renders the refusal's `reason`, `detail`, and `remedy.text` verbatim, then stops. Preserve the structured remedy
 and follow its exact command after the stated repair or Owner decision.
@@ -203,10 +204,11 @@ execute the returned review action unchanged.
 After a converged standard result — a clean pass, or one whose approved dispositions fix no confirmed `critical` or
 `major` finding — status replay remains complete under `full-final` only when that pass has complete coverage. A
 converged fix check continues to the ranked complete pass. On both delivery and singleton routes, an explicit Owner
-decision for another named pass after a converged complete pass is carried as exact JSON with `--additional-pass` on the
-same status scope. The authorization names the current target, preceding producer, completed-pass count, and next
-ordinal; each later pass needs a fresh decision. Above the configured ceiling, that same decision covers the named pass
-without a second approval. A later material result re-enters the ordinary response route.
+decision for another named pass after a converged complete pass under `full-final`, or after convergence under
+`incremental`, is carried as exact JSON with `--additional-pass` on the same status scope. The authorization names the
+current target, preceding producer, completed-pass count, and next ordinal; each later pass needs a fresh decision.
+Above the configured ceiling, that same decision covers the named pass without a second approval. A later material
+result re-enters the ordinary response route.
 
 On the delivery route, status measures the selected pass after its coverage choice; that is the exact chunk check. Read
 its returned scope selection without running another whole-member measure at the moved head.

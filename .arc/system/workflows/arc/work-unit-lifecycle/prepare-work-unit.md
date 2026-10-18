@@ -164,7 +164,9 @@ through `candidate-publish-ready`; the publication transition in Step 3 is the s
 - `ready / local-prepare` — invoke `arc review local prepare -`, carrying the chunk gate's selected scope as
   `policyJudgment.scopeMode`, as well as in the procedure's `--lanes` on re-entry.
 - `coverage-required / select-coverage` — while `policy.payload.responseRequired` is true, enter the disposition
-  protocol below. Once false, invoke ordinary `arc review local prepare -` for the next pass and its coverage question.
+  protocol below. Once false, offer the Owner's stop alongside the next pass, with a recommendation and disclosure that
+  the approved material fixes have not been re-examined. Carry explicit acceptance through `lanes.standard.terminus`
+  as above. Otherwise invoke ordinary `arc review local prepare -` for the next pass and its coverage question.
 - `findings / respond` — enter the disposition protocol below.
 - `approval-required / obtain-ceiling-override` — surface the exact consequence and `Approve (or redirect)?`.
 - `chunk-pending / continue-chunks` — continue the selected local chunk series.

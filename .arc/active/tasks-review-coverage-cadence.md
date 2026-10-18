@@ -374,9 +374,17 @@ first, then in the `.arc/` copy by targeted edit.
         - A clean converged fix check with supplied Owner acceptance projects publication readiness, retains the
           accepted terminus, and clears the reservation without claiming complete review coverage.
 
-    - `[ ]` **2.6.c Offer the stop in `prepare-work-unit` and `integrate-work-unit`'s delivery route**
-        - Each `coverage-required` arm offers the stop once the response is performed. The published singleton takes no
-          new terminus after publication (§ 8.3), so `integrate-work-unit`'s singleton route offers none.
+    - `[x]` **2.6.c Offer the stop in `prepare-work-unit` and `integrate-work-unit`'s delivery route**
+        - Settled coverage offers the existing pre-publication or exact delivery-member stop with a recommendation and
+          unchecked-fix disclosure. Integration preserves its singleton limit and incremental additional-pass authority.
+
+    - `[ ]` **2.6.d Keep the unconfigured-source Owner-stop remedy executable — § 7.3**
+        - The unconfigured-local-source refusal names the Owner's stop, but its blocked status cannot currently bind
+          the exact delivery-member offer. Carry that offer and its unchecked-fix disclosure through work-unit status
+          and its refusal dispatch; accepted termini must settle the member without adding a source.
+        - Build `test-first` (one behavior at a time):
+            - The work-unit refusal offers the exact stop, and acceptance discharges its member without provider spend.
+            - Configuring the local source still resumes review through the original remedy command.
 
 ### `[ ]` **2.7 Remove hosted incremental review — § 7.9, § 7.10**
 
