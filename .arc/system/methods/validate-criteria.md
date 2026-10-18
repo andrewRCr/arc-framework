@@ -135,6 +135,19 @@ Locate a member's deltas through the log: each `## Amendments` row's `_Work:_` n
 closing subtask carries that delta. Never locate one positionally, and never by scanning a member's revision
 parents — either would be a second authority over the same fact.
 
+### Verification subject
+
+For the caller's pre-walk `arc review changeset resolve -`, use the selected diff's actual baseline: the member's
+bounded base or the work unit's merge base. A committed subject uses its exact commit coordinates. For local content,
+anchor `target.headSha` to current HEAD and supply `localSubject: index` or `localSubject: worktree` to include the
+index or staged, unstaged, and non-ignored untracked content respectively. Use `kind: change-set` for local sizing
+with that bounded diff base; a snapshot has no published delivery-member binding. Never measure HEAD alone when
+verifying local edits.
+
+The local mode snapshots through a private index without staging files or moving refs. Retain the returned exact
+target and use its snapshot as the reviewed subject; refresh sizing and scope selection when that subject changes.
+Any `scopeSelection` must name that returned target, rather than the HEAD used to anchor the snapshot.
+
 ### Adversarial companion
 
 After the primary walk, offer one fresh-context pass over the same selected scope. Use the work unit's
