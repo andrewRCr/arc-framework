@@ -345,7 +345,7 @@ coincide at the member site and diverge elsewhere.
 | must-stop / skill door | `pending → X.Z`, the next covering verifier | the parent closes on its own evidence                       |
 
 **Member-site closure.** The corrective parent's closing subtask records the delta — run
-[`validate-criteria`][validate-criteria] over the changed criteria and the amendment's span; that method defines
+[`validate-criteria`][criteria-delta-check] over the changed criteria and the amendment's span; that method defines
 the delta's shape, a supplement to the preserved report rather than a second one. The member's closing task, left
 `[ ]` at the stop with its boundary report preserved, then closes on the **effective report**: a marker flip whose
 completion note cites the delta subtask. **A closing task that already carries a preserved boundary report does
@@ -404,6 +404,7 @@ appended supersession lines — the same extent rule parent Goals follow. Stated
 ---
 
 [validate-criteria]: ../../../methods/validate-criteria.md
+[criteria-delta-check]: ../../../methods/validate-criteria.md#amendment-deltas
 [resolve-planning-depth]: ../../../methods/resolve-planning-depth.md
 [classify-work-unit]: ../../../methods/classify-work-unit.md
 [resolve-plan-segmentation]: ../../../methods/resolve-plan-segmentation.md

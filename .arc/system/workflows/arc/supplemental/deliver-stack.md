@@ -721,7 +721,7 @@ terminal merge. Do not fire a delivery interlock here.
 [integrate-work-unit]: ../work-unit-lifecycle/integrate-work-unit.md
 [assess-evidence-applicability]: ../../../methods/assess-evidence-applicability.md
 [review-chunking]: ../../../methods/review-chunking.md
-[validate-criteria]: ../../../methods/validate-criteria.md
+[validate-criteria]: ../../../methods/validate-criteria.md#validate-criteriadefault
 [pull-request-format]: ../../../methods/pull-request-format.md
 
 [code-successor-decision]: ../../../methods/code-review.md#successor-decision

@@ -978,7 +978,7 @@ package's `arc/` source first, then in the `.arc/` copy.
           verification, and lifecycle. Verification and inbox routing reach the same homes; delivery description upkeep
           follows pushed corrections. Content assertions resolve actual links and reject replay after push.
 
-### `[ ]` **7.4 Add `verification-review`, and make `validate-criteria` its check — § 11.4**
+### `[x]` **7.4 Add `verification-review`, and make `validate-criteria` its check — § 11.4**
 
 - _Goal:_ `verification-review(scope)` runs the author's criteria walk and its independent companion at delivery-member
   and work-unit scope, `validate-criteria` becomes its pure check, and the two sites that want evidence without review
@@ -993,9 +993,10 @@ package's `arc/` source first, then in the `.arc/` copy.
         - Both boundaries pass their full scope through named YAML calls and fragment links to the walk and companion.
           Their quality gates, unresolved stops, criterion marking, and lifecycle remain with the caller.
 
-    - `[ ]` **7.4.c Call the check directly from `deliver-stack` and `amend-design`**
-        - `deliver-stack`'s review-fix verification, whose exemption from the companion becomes structural, and
-          `amend-design`'s closing criteria delta, whose independent pass is the `planning-review` over its footprint.
+    - `[x]` **7.4.c Call the check directly from `deliver-stack` and `amend-design`**
+        - Delivery corrections link directly to the pure criteria walk; amendment closure links to its delta section.
+          Both retain direct check declarations and their exact evidence scope, structurally bypassing the independent
+          review method.
 
 ### `[ ]` **7.5 Declare what each site and review-type method fires, and map the family — § 11.1**
 
