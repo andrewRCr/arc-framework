@@ -335,17 +335,15 @@ and an unavailable selection causes no write before a successful retry after rep
   to verify literal tool inputs, and how changed and whole-selection feedback differ. Its ungated shipped-validator
   example preserves record-write authority, existing gate evidence, and on-demand fixing.
 
-### `[ ]` **5.6 Exercise repository feedback and fixing together — D6** — validate exit criterion at segment scope
+### `[x]` **5.6 Exercise repository feedback and fixing together — D6** — validate exit criterion at segment scope
 
 - _Goal:_ Repository tools demonstrably see changed projected Markdown, share the intended lint/fix corpus, and keep
   durability and every Git-backed quality gate independent of selection availability.
 
-    - Run the real-tool recipes, input-admission agreement, exact-list fixer, explicit-subset, and unavailable/recovery
-      cases from Tasks 5.1–5.4, plus `npx arc check segment`.
-    - Include large-corpus batch coverage and failure reporting, projected-only fixing with an empty Git list, and an
-      entirely empty union that invokes no fixer; verify full-list validation precedes the first batch.
-    - Verify the ordinary tracked lint commands still pass and the unconnected production adapter reports selection
-      checks `not selected`; successful injected fixtures prove the post-connection behavior without waiting on it.
+- _Outcome:_ Real recipes retain their distinct admission sets, while both fix commands use the full authorized
+  union and complete preflight before bounded mutation. Recovery, skipped unsafe paths, projected-only and empty
+  corpora, and earlier batch failures are exercised together. Ordinary Git-backed lint remains independent, and the
+  unconnected production supplier leaves selection feedback unselected; ordinary declaration diagnostics close A3.
 
 ## **Phase 6:** Verification
 
