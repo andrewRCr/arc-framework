@@ -1357,13 +1357,13 @@ describe("review response command", () => {
       consequence: { kind: "ceiling-decision" },
       text: "Standard pass 2 of 2 (limit reached). 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the "
         + "head, and another pass needs a ceiling decision." },
-    { name: "a codex-pr Errand review's fix", build: () => hostedErrandCase("codex-pr", "incremental"),
-      severity: "minor" as const, consequence: { kind: "next-pass", coverage: "complete" },
-      text: "Standard pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
-        + "needs standard pass 2 of 2, with complete coverage." },
-    { name: "a coderabbit-pr Errand review's fix", build: () => hostedErrandCase("coderabbit-pr", "incremental"),
+    { name: "a codex-pr Errand review's incremental minor fix", build: () => hostedErrandCase("codex-pr", "incremental"),
       severity: "minor" as const, consequence: { kind: "next-pass", coverage: "incremental-when-proven" },
       text: "Standard pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
+        + "needs standard pass 2 of 2, covering only the fix where its chain is proven." },
+    { name: "a full-final hosted Errand review's material fix", build: () => hostedErrandCase("coderabbit-pr", "full-final"),
+      severity: "major" as const, consequence: { kind: "next-pass", coverage: "incremental-when-proven" },
+      text: "Standard pass 1 of 2. 1 confirmed finding, highest 🟠 major. Approving a FIX moves the head, which "
         + "needs standard pass 2 of 2, covering only the fix where its chain is proven." },
     { name: "a full-final coderabbit-pr Errand review's fix",
       build: () => hostedErrandCase("coderabbit-pr", "full-final"),
@@ -1372,9 +1372,9 @@ describe("review response command", () => {
         + "needs standard pass 2 of 2, with complete coverage." },
     { name: "a coderabbit-pr Errand review's fix once that source is removed",
       build: () => hostedErrandCase("coderabbit-pr", "incremental"), configuredSources: ["codex-pr", "delegated-agent"],
-      severity: "minor" as const, consequence: { kind: "next-pass", coverage: "complete" },
+      severity: "minor" as const, consequence: { kind: "next-pass", coverage: "incremental-when-proven" },
       text: "Standard pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
-        + "needs standard pass 2 of 2, with complete coverage." },
+        + "needs standard pass 2 of 2, covering only the fix where its chain is proven." },
     { name: "a delivery member's minor fix", build: () => hostedCase(memberVehicle), severity: "minor" as const,
       consequence: { kind: "lane-closes" },
       text: "Standard pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head without "

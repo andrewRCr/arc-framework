@@ -173,7 +173,7 @@ The confirmation map is in `notes-review-coverage-cadence.md` § Chain confirmat
   response is settled. Outstanding responses retain `coverage-required`; frontline still refuses a terminus.
 - Direct reducer regressions cover clean and unconverged fix checks at the ceiling, pending responses, and frontline.
 
-### `[ ]` **1.8 Retire the Errand's hosted correction and predict its next pass by the rule — § 2.5, § 7.2, § 7.9**
+### `[x]` **1.8 Retire the Errand's hosted correction and predict its next pass by the rule — § 2.5, § 7.2, § 7.9**
 
 - _Goal:_ An Errand's pass after a hosted pass with material fixes is a local fix check rather than a hosted incremental
   request, the complete pass after a converged look at a head that already holds a review reaches a hosted source by
@@ -188,25 +188,16 @@ The confirmation map is in `notes-review-coverage-cadence.md` § Chain confirmat
           successful hosted continuation after the local check. Legacy fixtures now supply configured sources and
           repository-derived context; malformed identity refuses and succeeds after repair.
 
-    - `[ ]` **1.8.b Predict the Errand's next-pass coverage by the rule**
-        - `errandNextPassCoverage` (`respond-command.ts`) takes whether the look fixed a material finding. It returns
-          `incremental-when-proven` when `delegated-agent` is configured and the look fixed a material finding or the
-          retrigger is `incremental`, and `complete` otherwise; the hosted arm goes, and the `attested-local` arm that
-          feeds `projectFixConsequence` follows the same rule.
-        - Build `test-first` (one behavior at a time):
-            - Under `full-final`, a material fix predicts `incremental-when-proven` and minor fixes predict `complete`.
-            - Under `incremental`, minor fixes predict `incremental-when-proven`.
-            - The rows in `respond-command.test.ts` that pin the old arms are rewritten to the rule.
+    - `[x]` **1.8.b Predict the Errand's next-pass coverage by the rule**
+        - Errand fix coverage now depends on a configured local reviewer plus materiality or incremental retrigger;
+          provider identity and retention no longer determine the prediction. Extracted the consequence projection.
+        - The producer report cases and a focused policy matrix cover material and minor fixes under both retriggers,
+          including missing local configuration and a removed reviewing source.
 
-    - `[ ]` **1.8.c Make the fix consequence follow convergence**
-        - `projectFixConsequence` stops telling a delivery member under `full-final` that approving minor fixes after a
-          fix check closes the lane (`lane-closes`), keyed on the admitted attempt's `effectiveCoverage`;
-          `fixConsequenceText`'s "moves the head without another standard pass" applies only where it still holds. The
-          Errand already reports a complete pass.
-        - Build `test-first` (one behavior at a time):
-            - Under `full-final`, minor fixes after a delivery member's fix check report that a complete pass follows.
-            - Under `full-final`, a complete pass with minor fixes on a delivery member still closes the lane.
-            - Under `incremental`, minor fixes on a delivery member still move the head without another pass.
+    - `[x]` **1.8.c Make the fix consequence follow convergence**
+        - A delivery member's minor fix after a `full-final` fix check predicts a complete successor or a ceiling
+          decision. Complete passes and incremental-policy minor fixes retain their existing lane closure.
+        - Consequence regressions preserve the complete-pass and incremental closures; all 123 focused cases pass.
 
 ### `[ ]` **1.9 Give `run-errand` its `coverage-required`, selection, and stop arms — § 2.4, § 2.5, § 6.5, § 8.2**
 

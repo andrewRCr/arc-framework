@@ -1,6 +1,7 @@
 /** Source-authoritative orchestration for `arc review respond`. */
 
 import { z } from "zod";
+import { projectFixConsequence } from "./fix-consequence.js";
 import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
 import { canonicalize, type CanonicalDigest } from "../../../lib/kernel/index.js";
@@ -89,8 +90,7 @@ import type {
   LocalCorrectionTargetConfirmation,
   LocalTargetConfirmation,
 } from "../hosts/local/repository-target.js";
-import { hostedProviderReviewsIncrementally } from "../hosted/correction-review-capability.js";
-import { HostedProviderIdSchema, type HostedTarget } from "../hosted/request.js";
+import type { HostedTarget } from "../hosted/request.js";
 import { laneContinuationOperationId } from "../lane-progress.js";
 import {
   projectCandidateDeltaVerification,
@@ -1735,52 +1735,6 @@ async function withdrawConditionalResponseAuthority(
         replayed: result.state === "already-withdrawn",
       },
     });
-}
-
-/**
- * The coverage an Errand's next standard pass expects: only the fix where the reviewing source runs that pass and can
- * cover a proven fix range alone, otherwise everything.
- */
-function errandNextPassCoverage(
-  result: Exclude<ReviewResult, { kind: "frontline" }>,
-  configuredSources: readonly string[],
-): "complete" | "incremental-when-proven" {
-  const reviewingSource = result.kind === "hosted" ? result.sourceIdentity : "delegated-agent";
-  // The next pass keeps the reviewing source only while it stays configured; any other reports complete coverage,
-  // which every source admits.
-  if (result.requirement.retrigger === "full-final"
-    || !configuredSources.includes(reviewingSource)) return "complete";
-  if (result.kind === "attested-local") return "incremental-when-proven";
-  const provider = HostedProviderIdSchema.safeParse(result.sourceIdentity);
-  return provider.success && hostedProviderReviewsIncrementally(provider.data)
-    && result.requirement.retrigger === "incremental"
-    ? "incremental-when-proven"
-    : "complete";
-}
-
-/** What approving the proposal's fixes does to the lane subject that owns the reviewed result's pass progress. */
-function projectFixConsequence(input: {
-  proposal: ProposedDispositionSet;
-  result: ReviewResult;
-  configuredSources: readonly string[];
-  materialFix: boolean;
-  belowCeiling: boolean;
-}): ProvisionalFixConsequence {
-  if (!input.proposal.dispositionSet.findings.some((finding) => finding.disposition === "fix")) {
-    return { kind: "no-fix" };
-  }
-  const { result } = input;
-  const lineage = result.admission.lineage;
-  // An Errand's standard progress is bound to its head, so every fixed head starts unreviewed.
-  const errand = result.kind !== "frontline" && lineage.kind === "head-bound" && lineage.vehicleKind === "errand";
-  if (input.materialFix || errand) {
-    if (!input.belowCeiling) return { kind: "ceiling-decision" };
-    const coverage = errand ? errandNextPassCoverage(result, input.configuredSources) : null;
-    return { kind: "next-pass", coverage };
-  }
-  return result.kind === "frontline" || lineage.kind === "delivery-member"
-    ? { kind: "lane-closes" }
-    : { kind: "decided-at-fixed-head" };
 }
 
 function fixConsequenceText(
