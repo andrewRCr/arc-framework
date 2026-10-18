@@ -840,4 +840,7 @@ design open.
 - **A1** — 2026-10-17 — task: preserve field-specific selection diagnostics through `readTypedProjectFile`.
   _Supersedes:_ none. _Trigger:_ 3.6 segment. _Work:_ 3.R. _Revalidated:_ 3.6.
 
+- **A2** — 2026-10-17 — task: install the resumption and deactivation ceremonies through `resolveFileList`.
+  _Supersedes:_ none. _Trigger:_ 4.6 must-stop. _Work:_ 4.6.R. _Revalidated:_ pending → 4.7.
+
 ---

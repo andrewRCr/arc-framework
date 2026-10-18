@@ -216,6 +216,9 @@ carrying the approved applicability and verification evidence. Require `candidat
 idempotent `candidate-current / continue-review`, then commit its staged Candidate response as `taskCommit` under
 the same approved increment before any Candidate-currentness or delivery-preparation read.
 
+When an approved fix includes authored state text the Markdown checks read, run `arc check increment` before its
+commit; ordinary corrections and spec-changing amendments use this same request.
+
 > [!CAUTION]
 > `commit-interlock` release — commit the approved fixes as `taskCommit`:
 
@@ -246,9 +249,9 @@ The verb reads `Next Action` from the boundary it writes and `Last Completed` fr
 `--last-completed "{work}"` or `--action "{pointer}"` only when that read refuses or is wrong.
 
 The executor fires `Active → Integrating`, writes the composed orientation, regenerates ROADMAP, and stages the
-publication boundary with any reservation. An advisory-only reconcile stops before transition; edit and rerun, or
-obtain explicit direction to retain all advisories and use `--allow-advisories`. Confirm ROADMAP changed only for
-the state flip.
+publication boundary with any reservation. An advisory-only reconcile stops before transition; edit, run
+`arc check increment`, and rerun `arc publish`, or obtain explicit direction to retain all advisories and use
+`--allow-advisories`. Confirm ROADMAP changed only for the state flip.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:

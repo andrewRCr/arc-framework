@@ -227,21 +227,22 @@ failures follow their specified handling, and exempt ceremonies acquire no redun
   corrections now request increment feedback before their commit or retry. Completed-only repairs stay exempt
   under either archive cadence; the rendered workflow retains Step 7, gate requests, and exact-head approval routing.
 
-### `[ ]` **4.6 Check publication fixes, resumption, and deactivation corrections — D5.1–D5.2**
+### `[x]` **4.6 Check publication fixes, resumption, and deactivation corrections — D5.1–D5.2**
 
 - _Goal:_ Preparation's review fixes, hand-corrected publication and resumption advisories, and Case C's reversed
   deactivation fields receive feedback before the corresponding commit or retry.
 
-- _Note:_ See `notes-projected-markdown-checks.md` § Ceremony coverage, rows 14–17.
+- _Outcome:_ Publication and resumption corrections request feedback before retry; preparation review fixes share
+  one caller request for ordinary and spec-changing fixes; Case C checks reversed fields before its PR commit.
+  Existing gate requests, advisory retention choices, and approval machinery remain in their containing steps.
 
-    - In package `work-unit-lifecycle/prepare-work-unit.md`, request increment before an approved review-fix commit
-      when the fix includes authored state text the checks read. Ordinary corrections and spec-changing amendments
-      share this caller-owned request; retain existing gate requests and review-response approval machinery.
-    - Also request increment after an advisory correction and before rerunning `arc publish`; leave the no-correction
-      publish path alone.
-    - In `resume-work-unit.md` Step 5, request it after hand correction in the pending reconcile arm and before retry.
-    - In `deactivate-work-unit.md` Case C, request it before the deactivation PR commit over the reversed meta fields;
-      render all three counterparts, keeping ordinary rendered transition commits exempt.
+### `[x]` **4.6.R Install the two missing ceremony workflows — A2**
+
+- _Goal:_ A2's resumption and deactivation feedback reaches installations through the recipe and can render through
+  the ordinary Framework projection path, with self-hosting membership kept consistent.
+
+- _Outcome:_ Registered both workflows in the recipe and self-hosting manifest; the refused projection now renders all three
+  workflows. Updated the recipe-derived inventory counts.
 
 ### `[ ]` **4.7 Verify the complete ceremony inventory — D5** — validate exit criterion at segment scope
 
