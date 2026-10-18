@@ -462,15 +462,10 @@ the range proof. Workflow text changes in the package's `arc/` source first, the
   reports it as `range-proven` only after today's grounds and the performed-response test, so every leg that holds today
   keeps its ground.
 
-    - `[ ]` **3.1.a Build the range proof**
-        - A new module. It takes the predecessor's convergence from the next-pass context and a Git exec bound to the
-          checkout, and reads through `readAncestry` (`lib/work-unit/git-decomposition-object-readers.ts`) and
-          `readCheckMerges` (`lib/checks/merged.ts`), which throws on failure, so the module catches it and fails closed.
-          The head must differ from the predecessor's, so the proof never holds at the converged look's own head.
-        - Build `test-first` (one behavior at a time):
-            - A linear commit after a converged look at an unchanged base proves.
-            - The converged look's own head, a moved base, a merge commit in range, a head that does not descend, an
-              unconverged predecessor, and a Git failure each fail to prove.
+    - `[x]` **3.1.a Build the range proof**
+        - The new range prover requires convergence, a changed descendant head, an exact unchanged base, and no merge
+          in the Git range. It uses the existing ancestry and merge readers bound to the checkout and fails closed on
+          unreadable evidence; real Git distinguishes linear commits from merged contribution.
 
     - `[ ]` **3.1.b Add it to the chain proof as its own result**
         - The chain proof tests any ground the site's confirmation accepts today — among them an equal subject digest
