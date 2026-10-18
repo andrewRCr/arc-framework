@@ -1568,10 +1568,15 @@ This amends the contract's return to "the inbox it came from", which assumed a d
   latest receipt (§ 7.3) moved it into the description of an Errand still open, a reading the abandon's check shares
   (§ 7.5), since an ID is unique only within its list. An entry whose Errand already closed is reported rather than
   refused, since a surviving edit can carry new work. An Errand opened from text mints its description's entry in
-  the open's batch: its intent as the title, with a fresh `_Id:_` and `_Created:_`, as the storage contract's D11
-  settles. `arc errand link --from-inbox` moves a capture into an Errand opened from text the same way, beside the entry
-  minted at open. Until the flip an Errand starts only from its person's own inbox and the entry stays there until
-  close, as today.
+  the open's batch, with its slug as the title and a fresh `_Id:_` and `_Created:_` (A24). Its complete nonblank intent
+  appears beneath that title as literal preformatted text, including backticks, markup, field-like prose, line endings,
+  and surrounding whitespace; it supplies no additional entry boundaries or managed fields. An absent or blank intent
+  uses the slug as its literal body. `prepareTextDescription` serializes that body in an HTML `code` element inside
+  one `pre` element, preserving a leading newline and encoding markup, underscores, backslashes, and line endings as
+  character references so the entry grammar cannot interpret them. Ordinary return preserves the title, literal
+  concern, and ID, applying § 7.5's creation-date rule. `arc errand link --from-inbox` moves a capture into an Errand
+  opened from text the same way, beside the entry minted at open. Until the flip an Errand starts only from its person's
+  own inbox and the entry stays there until close, as today.
 - **The origin's carriers.** An Errand's origin keeps today's fields and changes what a start from the flip writes in
   them. The record's and the claim's inbox arm (`lib/errand/identity-record.ts`, `lib/locus/schema/identity.ts`), under
   the discriminator `origin: inbox | description` the record keeps as its own (`spec-seam-record-kinds.md` § 4), carries
@@ -2173,6 +2178,8 @@ the change is stated here and built by this change; neither specification is edi
 
 #### 15.1 The storage contract (`spec-storage-contract.md`)
 
+- **D11's text-open description** uses the Errand slug as its title and preserves the complete concern as literal
+  preformatted body text, rather than interpreting the intent as an entry title or Markdown (§ 7.6, A24).
 - **D11's routing receipt** carries the time of the move rather than its date, and the list and section the move left;
   it goes to the ref of each inbox the move leaves or enters, and an entry's latest receipt is read across the person's
   receipts and the project inbox's together (§ 7.3).
@@ -2599,6 +2606,12 @@ close.
     Working-memory and meta session-context prose yield advisories and remain byte-for-byte unchanged; no unchanged
     record is written merely for revalidation.
 
+27. **Text-open concerns remain literal and complete (A24).** From the flip, opening from text creates one description
+    entry titled by the Errand slug. Its rendered body preserves the entire nonblank concern, including code examples,
+    backticks, field-like prose, comments, markup, line endings, and surrounding whitespace. Only the minted ID and
+    creation date become managed fields. Ordinary return keeps that single entry, its title, concern, and ID, with
+    its creation date following § 7.5.
+
 ## Open Questions
 
 None blocks starting. The expected contracts in § 16 each state what holds until their change lands, and none leaves
@@ -2653,5 +2666,8 @@ this design open.
   _Trigger:_ 7.5 must-stop. _Work:_ 7.R2. _Revalidated:_ 7.6.
 - **A23** — 2026-10-16 — task: include the Store consumers in the exact locus import inventory. _Supersedes:_ none.
   _Trigger:_ 2.10 segment. _Work:_ 2.R2. _Revalidated:_ 2.10.
+
+- **A24** — 2026-10-18 — design: text-open concerns display literally beneath the slug. _Supersedes:_ § 7.6; § 15.1, D11.
+  _Trigger:_ F9 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

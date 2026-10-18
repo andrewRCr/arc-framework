@@ -869,4 +869,18 @@ retain provider-level evidence; no successful hosted merge or built-CLI flipped-
 | identity add/init/join                                           | Selected identity binding before configured identity; pull before read/seed; seed only absent records; warn on reuse; explicit decline/cancel preserves configuration/data; repaired/new choice seeds only selected person                                                                                                 | identity-setup-store-cli; join-store-cli; identity-setup-store; user-personal-store-callers                                                                                                                                                                            |
 | session-init / handoff status / recovery / Candidate orientation | Real backend persisted state supplies slots, asOf task baseline and restate changes; unavailable state rebuild preserves original Git/same subject; mismatch stops; unclosed set and close/resume action appear; exact Store-owned Candidate ignores checkout bytes and repairs missing/conflicted state                   | completed-subject-matrix; recovery-state-basis/store-evidence; restate-store; unclosed-task-frame; recovery-unclosed-task-commits; subject-meta-candidate                                                                                                              |
 
+## A24: Literal text-open descriptions
+
+Superseded § 7.6: “its intent as the title, with a fresh `_Id:_` and `_Created:_`, as the storage contract's D11
+settles.” Text entered as a concern can contain entry headings and managed-field examples; escaping underscores in
+Markdown code instead displays the escape text. The approved presentation uses the slug as the title and displays the
+complete concern literally beneath it, including backticks. Markdown formatting in that generated concern is not
+interpreted. The original task criteria remain unchanged; specification Criterion 27 checks the amended behavior.
+
+`prepareTextDescription` and its `textDescriptionEntry` serializer keep the concern in one encoded HTML `pre` body;
+`prepareErrandReturn` moves that same entry through the ordinary return path. Capture adoption and the shared entry
+parser keep their existing contracts. This is a determinate presentation correction, with no new record kind,
+dependency, reader grammar, or lifecycle transition. Its review-fix verification covers creation, listing, rendering,
+and return; successful built-CLI execution over the flipped backend remains the release check recorded above.
+
 ---

@@ -83,10 +83,17 @@ async function prepareTextDescription(input: { slug: string; intent?: string; pa
     const rows = rowsInList(destination.result);
     if (rows.status === "refused") return rows;
     const id = drawEntryId(new Set(rows.result.map((row) => row.id)), context.random ?? Math.random);
-    const raw = writeEntryFields(`### **${input.intent?.trim() || input.slug}**`, { Id: id, Created: context.now().toISOString().slice(0, 10) });
+    const raw = writeEntryFields(textDescriptionEntry(input.slug, input.intent), { Id: id, Created: context.now().toISOString().slice(0, 10) });
     const prepared = await prepareEntryMove({ source: null, destination: destination.result, entry: { id, raw, section: "Description" }, section: "Description" }, context);
     return prepared.status === "refused" ? prepared : { status: "ok", result: { origin: null, writes: prepared.result.writes } };
 
+}
+
+function textDescriptionEntry(slug: string, intent?: string): string {
+  const text = intent?.trim() ? intent : slug;
+  // Keep concern lines and field-like prose inside one literal body, outside the entry grammar.
+  const escaped = text.replace(/[&<>_\\\r\n]/gu, character => `&#${character.charCodeAt(0)};`);
+  return `### **${slug}**\n\n<pre><code>${escaped}</code></pre>`;
 }
 
 type AdoptedCapture = { kind: "resume"; origin: NonNullable<ErrandAdoption["origin"]> } | { kind: "capture"; entry: import("./types.js").InboxRow; closed?: string };
