@@ -9,7 +9,7 @@
 
 - **Origin:** [internal] — the split of the `state-storage` register's lint clause (2026-10-16)
 - **Design:** `spec-projected-markdown-checks.md`
-- **Task List:** [none]
+- **Task List:** `tasks-projected-markdown-checks.md`
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
@@ -17,7 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]

@@ -164,7 +164,7 @@ does nothing before the flip and ARC's layer runs nowhere before it either.
 The design falls into five contract-closed chunks, in this order: ARC's link rules over records (§ 2); their other end
 over tracked Markdown (§ 3); the `selection` mode in the check verb, with its matcher and the selection function (§ 4);
 the fire sites in shipped workflows (§ 5); and this repository's declarations and fixer (§ 6), with the documentation
-(§ 7) riding the chunk whose surface it describes. Chunks 1 and 2 are independent of 3–5; chunk 5 needs only that
+(§ 7) riding the chunk whose surface it describes. Chunks 1 and 2 are independent of 3–5; chunk 4 needs only that
 `arc check increment` exists, which it does.
 
 #### 1.3 Before the flip
@@ -544,26 +544,41 @@ commit included; and at every `process-task-loop` task, so the verification comm
 already covered. Review-fix rounds in `prepare-work-unit` and `integrate-work-unit` request `arc check gate commit`,
 which selects no `selection` check (§ 4.3); `run-errand`'s request `arc check increment`.
 
+Before a review-fix commit in `prepare-work-unit` or `integrate-work-unit`, request increment feedback when the fix
+includes authored state text the Markdown checks read. The same request covers ordinary corrections and spec-changing
+amendments; an ordinary notes-only correction needs no amendment to receive it. Retain the existing gate requests and
+approval machinery. At a review site, `amend-design` uses this caller-owned request rather than adding a duplicate;
+at a task site it continues to use the task's increment request.
+
 #### 5.2 The sites
 
-| Workflow (package source)                        | Step                                                                          | Request                                                                                                                                                                                                                                       |
-| ------------------------------------------------ | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `draft-design.md`                                | Capture the draft                                                             | Before the readiness `workflow-interlock`; again before the capture commit when the post-settle re-read changed text                                                                                                                          |
-| `create-spec.md`                                 | Finalize                                                                      | Before Gate 1; again before the `create spec` commit, over the `notes-*` migration and post-settle edits written after Gate 2                                                                                                                 |
-| `generate-tasks.template.md`                     | Pre-save checklist and the `generate tasks` commit                            | Before the `workflow-interlock`, beside the checklist's `lint:md:descriptors`                                                                                                                                                                 |
-| `supplemental/amend-design.md`                   | The capture commit; at the review site, the review-fix commit                 | Before the capture commit, after `spec-review`'s grounding slice, since every write follows the stop; at the review site, where the amendment rides the review-fix increment's commit, before that commit, beside its `arc check gate commit` |
-| `work-unit-lifecycle/decompose-work-unit.md`     | Review the distributed result; finish source extraction                       | Before the distribution `workflow-interlock`; before the finish release commit, over the owner's reconciliation written after the apply stop                                                                                                  |
-| `work-unit-lifecycle/planning/init-work-unit.md` | Step 4, Create or Reconcile Meta File (in-place and resumed paths)            | Before the init commit                                                                                                                                                                                                                        |
-| `supplemental/drain-inbox.md`                    | § 5 Route — write to homes                                                    | Before each routing commit: the grooming branch's under full protection, each direct base commit under partial                                                                                                                                |
-| `session-lifecycle/session-handoff.template.md`  | Update the active meta file + commit                                          | Before the `handoff` commit, after staging and linting the meta; `SESSION-NOTES.md`, written after that commit, keeps its explicit lint                                                                                                       |
-| `work-unit-lifecycle/activate-work-unit.md`      | Step 3, the `activate` transition                                             | Before the activation commit, when it carries a fold's spec or task-list edits                                                                                                                                                                |
-| `work-unit-lifecycle/integrate-work-unit.md`     | Step 7, Commit completion content                                             | Unchanged: it already requests `arc check increment`                                                                                                                                                                                          |
-| `work-unit-lifecycle/integrate-work-unit.md`     | The merged-PR guard, when Completion Notes or Release Notes are missing       | Before the commit of the lifecycle-only repair change request that lands them                                                                                                                                                                 |
-| `work-unit-lifecycle/integrate-work-unit.md`     | A composition correction after a redirect at the `integration-interlock`      | Before the correction commit, beside the rerun of affected gates                                                                                                                                                                              |
-| `work-unit-lifecycle/integrate-work-unit.md`     | Step 10, the reconcile's `pending` arm, when advisories are corrected by hand | After the correction, before the reconcile reruns                                                                                                                                                                                             |
-| `work-unit-lifecycle/prepare-work-unit.md`       | The publish step, when an advisory-only reconcile is corrected by hand        | After the correction, before `arc publish` reruns                                                                                                                                                                                             |
-| `work-unit-lifecycle/resume-work-unit.md`        | Step 5, the reconcile's `pending` arm, when advisories are corrected by hand  | After the correction, before the reconcile reruns                                                                                                                                                                                             |
-| `work-unit-lifecycle/deactivate-work-unit.md`    | Case C, the deactivation pull request                                         | Before its commit, over the reversed meta fields                                                                                                                                                                                              |
+Every listed site inherits § 5.1's exclusions. An integration repair confined to completed files takes no new request;
+a repair that includes authored text the checks read requests feedback at the listed boundary. This applies under
+both archive cadences, without widening the selection or the Markdown checks to include completed files.
+`integrate-work-unit.md`'s Step 8 cadence dispatch archives the meta before the later composition-correction branch
+under `with-integration`, and its merged-PR guard can resolve an already completed meta; under `manual`, the meta stays
+active until the separate archive. Verification checks which edited files receive feedback, not just that a request ran.
+
+| Workflow (package source)                        | Step                                                                          | Request                                                                                                                                                                            |
+| ------------------------------------------------ | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `draft-design.md`                                | Capture the draft                                                             | Before the readiness `workflow-interlock`; again before the capture commit when the post-settle re-read changed text                                                               |
+| `create-spec.md`                                 | Finalize                                                                      | Before Gate 1; again before the `create spec` commit, over the `notes-*` migration and post-settle edits written after Gate 2                                                      |
+| `generate-tasks.template.md`                     | Settled task list and the `generate tasks` commit                             | After the final post-settle coherence reread, immediately before the `workflow-interlock`; repeat if subsequent authored text changes before commit                                |
+| `supplemental/amend-design.md`                   | The capture commit; task and review sites                                     | Before the capture commit, after `spec-review`'s grounding slice; task and review sites use their caller's increment request before the shared commit, without a duplicate request |
+| `work-unit-lifecycle/decompose-work-unit.md`     | Review the distributed result; finish source extraction                       | Before the distribution `workflow-interlock`; before the finish release commit, over the owner's reconciliation written after the apply stop                                       |
+| `work-unit-lifecycle/planning/init-work-unit.md` | Step 4, Create or Reconcile Meta File (in-place and resumed paths)            | Before the init commit                                                                                                                                                             |
+| `supplemental/drain-inbox.md`                    | § 5 Route — write to homes                                                    | Before each routing commit: the grooming branch's under full protection, each direct base commit under partial                                                                     |
+| `session-lifecycle/session-handoff.template.md`  | Update the active meta file + commit                                          | Before the `handoff` commit, after staging and linting the meta; `SESSION-NOTES.md`, written after that commit, keeps its explicit lint                                            |
+| `work-unit-lifecycle/activate-work-unit.md`      | Step 3, the `activate` transition                                             | Before the activation commit, when it carries a fold's spec or task-list edits                                                                                                     |
+| `work-unit-lifecycle/integrate-work-unit.md`     | Step 7, Commit completion content                                             | Unchanged: it already requests `arc check increment`                                                                                                                               |
+| `work-unit-lifecycle/integrate-work-unit.md`     | The merged-PR guard, when Completion Notes or Release Notes are missing       | Before the repair commit when it includes authored text the checks read; completed-only repairs remain exempt                                                                      |
+| `work-unit-lifecycle/integrate-work-unit.md`     | A composition correction after a redirect at the `integration-interlock`      | Before the correction commit, beside affected gates, when it includes authored text the checks read; completed-only repairs remain exempt                                          |
+| `work-unit-lifecycle/integrate-work-unit.md`     | Step 10, the reconcile's `pending` arm, when advisories are corrected by hand | After the correction, before the reconcile reruns                                                                                                                                  |
+| `work-unit-lifecycle/prepare-work-unit.md`       | The publish step, when an advisory-only reconcile is corrected by hand        | After the correction, before `arc publish` reruns                                                                                                                                  |
+| `work-unit-lifecycle/resume-work-unit.md`        | Step 5, the reconcile's `pending` arm, when advisories are corrected by hand  | After the correction, before the reconcile reruns                                                                                                                                  |
+| `work-unit-lifecycle/deactivate-work-unit.md`    | Case C, the deactivation pull request                                         | Before its commit, over the reversed meta fields                                                                                                                                   |
+| `work-unit-lifecycle/prepare-work-unit.md`       | Approved review fixes, ordinary corrections and amendments included           | Before the review-fix commit when the fix includes authored state text the checks read; retain its existing gate requests                                                          |
+| `work-unit-lifecycle/integrate-work-unit.md`     | Approved review fixes, ordinary corrections and amendments included           | Before the review-fix commit when the fix includes authored state text the checks read; retain its existing gate requests                                                          |
 
 Every other commit step in the shipped workflows — the spawned and graduate `arc start`, ROADMAP refreshes, inbox
 absorption, the Errand promotion's receipt commit, `deactivate`'s, `abandon`'s, `park`'s, `promote`'s (its hand-set
@@ -642,6 +657,17 @@ which lint reads but a fixer must not write through. It loads and validates the 
 (`loadWorktreeMarkdownConfigurations`) and hands each path to markdownlint-cli2 as a literal with `--fix --no-globs`,
 never through a glob of its own, as `runExplicitMarkdownlint` hands a lint read its paths. `lint:md:fix:file` runs the
 same script over the paths it is given, refusing a path outside that list with the reason the list excludes it.
+
+Resolve the complete corpus, validate every explicit operand's membership, apply write-authority validation, and load
+and validate configuration before the first fixer invocation. Run the admitted literal operands in bounded batches
+using `batchCheckPaths` (`lib/checks/batching.ts`), budgeting the actual command, flags, and literal path arguments for
+the platform. Each admitted path appears in exactly one batch; any nonzero batch result makes the fix command return
+nonzero. A large-corpus test proves complete, nonduplicated coverage, untouched exclusions, and failure reporting.
+
+`enumerateTrackedMarkdownPaths` refuses an empty Git list with `markdown.empty-selection` (`lib/markdown/selection.ts`);
+for these fixers that one result contributes an empty set to the union, so a projected-only corpus still works.
+Other enumeration failures remain failures. If the whole union is empty, report that there is nothing to fix without
+invoking the tool with no path operands.
 
 When the selection is unavailable, both fail closed: each refuses with the selection's reason and fixes nothing, so no
 run rewrites a list other than the one lint reads, and the same command succeeds once the selection can be read.
@@ -788,7 +814,10 @@ it refuses them where it saves; the project owns its linter, so it runs as the p
    selection; no hook, gate, or `new-head` request selects one; and with the selection function unconnected, each
    reports `not selected`.
 7. A `selection` check's inputs select exactly the paths Git's pathspecs would select were they tracked.
-8. Every ceremony § 5 names requests `arc check increment` at the point § 5 places it, and handoff names an unfinished
+8. Every non-exempt ceremony § 5 names requests `arc check increment` at the point § 5 places it, after the last
+   authored-text change that boundary must report. Ordinary notes-only review fixes and spec-changing amendments in
+   preparation and integration share one feedback request before commit, preserving their existing gate requests.
+   Completed-only integration repairs remain exempt under either archive cadence, and handoff names an unfinished
    failure in its notes without stopping.
 9. Given a selection whose changed part holds projected files with known findings, `arc check increment` reports this
    repository's markdownlint, underwrap, and link-audit findings over exactly those files, and none over the rest of the
@@ -796,7 +825,9 @@ it refuses them where it saves; the project owns its linter, so it runs as the p
 10. Given a selection, `lint:md:fix` rewrites exactly the Markdown files `lint:md` lists that are present in the
     worktree, plus the selection less the root configuration's `ignores`, and nothing else, naming any listed path it
     skips because the write validation refuses it; `lint:md:fix:file` refuses a path outside that list, naming why; and
-    with the selection unavailable, both refuse naming its reason and rewrite nothing.
+    with the selection unavailable, both refuse naming its reason and rewrite nothing. Large corpora use bounded
+    literal batches with each admitted path processed once and nonzero batch results retained; an empty Git list still
+    permits fixing the projected corpus, and an entirely empty union invokes no fixer.
 11. The quality gates pass at every gate this repository declares.
 
 ## Open Questions

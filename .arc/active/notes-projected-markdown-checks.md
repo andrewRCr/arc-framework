@@ -26,4 +26,164 @@
 - The `USER-INBOX § Errand` capture "Merge aligned Markdown tables without clashing on column padding" removes the
   table-merge clash the specification accepts for on-demand fixing.
 
+## Framework synchronization
+
+`prepareFrameworkProjection` calls `validateExplicitMarkdownPaths`, which maps `validateMarkdownPath` before reading
+content (`lib/markdown/format-plan.ts`, `selection.ts`, and `authority.ts`). The validator requires a `.md` suffix, so
+`render:framework` accepts Markdown sources and templates, not `validate-links.sh` or the extensionless `pre-commit`.
+Both non-Markdown counterparts are Framework-classified in the installed manifest. Task 2.1 in
+`tasks-projected-markdown-checks.md` applies the matching targeted edits to source and installed copies, preserves
+executable modes, and verifies agreement; Task 2.3 reserves rendering for Markdown sources/templates.
+
+`integration/validate-links.test.ts` executes the installed `.arc/` script, while
+`integration/scripts/validate-links.test.ts` executes the package source. Synchronization belongs with Task 2.1's
+implementation so both test homes can pass. `integration/framework-sync.test.ts` compares Framework counterparts
+with rendered package sources; no broader update or renderer change is needed.
+
+## Record-check grounding
+
+`WriteCheckInput` carries content and parsed fields independently (`lib/store/write-check.ts`), so a malformed
+`prior.fields` is no reason to drop `prior.content`. `createKindRegistry` rejects duplicate registrations and retains
+parser/check/anchor slots from its one registration (`lib/store/registry.ts`); compose once at
+`PRODUCTION_REGISTRATIONS`, not once per backend or per kind module. `checkPreparedWrites` is the reference backend's
+write/batch check path (`__tests__/helpers/store/write-checks.ts`).
+
+`companionArtifactName` maps conventional companion keys, including `spec-prd` and `spec-rfc`, to Markdown filenames
+(`lib/store/companion-name.ts`). A path-keyed companion instead declares its extension in its key. Personal document
+keys are managed paths below the identity root (`personalFileReference`, `lib/store/in-repo/personal-paths.ts`); use
+that semantic key without importing its checkout-bound lookup helpers into the pure check. Fixed known personal and
+project-inbox paths come from `resolveArcPath` (`lib/layout/projection.ts`).
+
+`audit-links.ts`'s `parse` and `LINK_NODE_TYPES` supply the parser/node precedent, not a store dependency on a script.
+The record check scans full-reference source spans, not decoded text values: escaping and source positions must survive.
+No store check resolves targets through the filesystem, checks anchors, or gates a fetch merge.
+
+## Check-runner grounding
+
+`GitExecInput` currently accepts only `cwd` and `objectAccess` (`lib/git/exec.ts`); it cannot be handed alternate-index
+options by assumption. `RawGitExec` already supports stdin bytes, `indexFile`, and `removeEnvironment`, implemented
+by `createExecaRawGitExec` (`lib/git/process-executor.ts`). Reuse that seam for the path-list matcher instead of mutating
+the agent process environment or widening the generic executor solely for one caller. Compute the empty-blob identity
+for the repository's object format without writing it; NUL-frame pathnames and release temporary indexes on failures.
+
+`resolveCheckSelection` currently builds own-input observations for every declaration, then derives shared coverage
+from them (`lib/checks/selection.ts`). Selection declarations must leave that loop entirely, not merely be filtered out
+when one runs, or their inputs could still change ordinary checks' widening. Its `namedPathChange` accepts directory
+selectors; selection path scope keeps those descendant semantics while intersecting with the provider's list.
+
+`executeResolvedRequest` awaits `runRequestedCheck` without isolating a rejected pre-execution read
+(`handlers/check/run.ts`), and `runDeclaredCliRequest` converts an escaping rejection into a request-level error
+(`handlers/check/run-cli.ts`). The new matcher's success/unavailable result stays inside per-check reporting: matching
+failure is not an empty selection, does not discard completed results, and does not stop ordinary checks from running.
+Tasks 3.2–3.4 in `tasks-projected-markdown-checks.md` define this boundary, and its Task 3.6 proves serial execution and
+recovery at the command boundary.
+
+`runDeclaredRequest` is the existing injectable orchestration entry; the public handlers currently construct their
+dependencies inside private `runDeclaredCliRequest` (`handlers/check/run.ts`, `run-cli.ts`). Nonempty command tests
+therefore need the narrow selection-reader override in Task 3.3. `handleSchemaInstall` supplies an existing handler
+override pattern (`handlers/schema.ts`). Test through public handlers with real Git and child processes; subprocess
+CLI tests use the empty production adapter until its supplier connects. No test-only production environment flag is
+needed. Request coordinate resolution remains shared; only the selection-specific tree evidence is skipped.
+
+`handleSchemaInstall` invokes `writeEditorDocuments` to regenerate all registered editor documents with
+`npx arc schema install --json` (`handlers/schema.ts`, `lib/schema-command/editor-documents.ts`). The outputs under
+`.arc/system/.internal/schemas/` are ignored checkout artifacts, not a package-source schema copy. Build source changes
+before regenerating and inspect both runtime defaults and emitted input-schema behavior.
+
+The production `readProjectedSelection` empty result is the specified pre-connection contract, not temporary test
+scaffolding. No phase builds a substitute index, marks changes, or guesses the supplier command's final name.
+
+## Ceremony coverage
+
+Workflow paths below are relative to package `arc/system/workflows/arc/`. Render their installed counterparts with
+`npm run render:framework -- <package-source paths...>`; `render-framework.ts` delegates to `markdown-write-command`
+and handles template counterparts. Requests are single `arc check increment` instructions in shipped-content register.
+
+| Row | Workflow and boundary                                                                                        | Task |
+| --- | ------------------------------------------------------------------------------------------------------------ | ---- |
+| 1   | `draft-design.md`: readiness approval; capture after changed post-settle text                                | 4.1  |
+| 2   | `create-spec.md`: Gate 1; final capture after notes migration and post-Gate-2 text                           | 4.1  |
+| 3   | `generate-tasks.template.md`: after the settled reread, immediately before final pre-save approval           | 4.2  |
+| 4   | `supplemental/amend-design.md`: grounded capture; shared task/review caller request                          | 4.2  |
+| 5   | `work-unit-lifecycle/decompose-work-unit.md`: distribution approval and finish-release owner reconciliation  | 4.3  |
+| 6   | `work-unit-lifecycle/planning/init-work-unit.md`: in-place and resumed init commits                          | 4.3  |
+| 7   | `supplemental/drain-inbox.md`: grooming routing commit or each direct base commit                            | 4.3  |
+| 8   | `session-lifecycle/session-handoff.template.md`: after staged-meta lint, before commit                       | 4.4  |
+| 9   | `work-unit-lifecycle/activate-work-unit.md`: Step 3 commit carrying a fold's authored spec/task text         | 4.4  |
+| 10  | `work-unit-lifecycle/integrate-work-unit.md`: preserve Step 7 completion-content increment                   | 4.5  |
+| 11  | `work-unit-lifecycle/integrate-work-unit.md`: eligible merged-PR missing-notes repair; completed-only exempt | 4.5  |
+| 12  | `work-unit-lifecycle/integrate-work-unit.md`: eligible composition correction; completed-only exempt         | 4.5  |
+| 13  | `work-unit-lifecycle/integrate-work-unit.md`: Step 10 pending reconcile, after correction and before retry   | 4.5  |
+| 14  | `work-unit-lifecycle/prepare-work-unit.md`: advisory correction before retrying publish                      | 4.6  |
+| 15  | `work-unit-lifecycle/resume-work-unit.md`: Step 5 pending reconcile correction before retry                  | 4.6  |
+| 16  | `work-unit-lifecycle/deactivate-work-unit.md`: Case C commit over reversed fields                            | 4.6  |
+| 17  | `work-unit-lifecycle/prepare-work-unit.md`: authored-state review fix, ordinary correction or amendment      | 4.6  |
+| 18  | `work-unit-lifecycle/integrate-work-unit.md`: authored-state review fix, ordinary correction or amendment    | 4.5  |
+
+### Ceremony verification
+
+Each row's scenario is the authored-text branch and its existing stop/commit/retry ordering, including a second write
+after approval where the row names one. Read the source and rendered containing step and record its request locus;
+the invocation's executable changed/empty/failed/unavailable behavior is proved at the public check handler in Phase 3
+and with the real project recipes in Phase 5. Text-presence tests alone do not demonstrate agent execution. This change
+adds no workflow interpreter, eval framework, or schema for the inventory.
+
+For task generation, `generate-tasks.template.md` places the descriptor checklist before adversarial folds, delivery
+rendering, and the final coherence reread. The request belongs after that reread and immediately before the final
+interlock; an earlier report cannot cover a later edit. Preserve the existing descriptor lint rather than treating its
+earlier textual position as the new request's required insertion point.
+
+For integration, `integrate-work-unit.md`'s Step 8 archives the meta under `with-integration` before a later composition
+redirect can correct it; the merged-PR guard also recognizes shipped metadata under completed placement. Under `manual`,
+the meta stays active until the separate archive. Both paths obey the specification's completed-only exemption:
+verify that a covered edited file reaches feedback, or record the exemption, rather than counting any increment
+invocation as proof that it checked an archived edit. Selection and script exclusions remain unchanged.
+
+For handoff, distinguish failure in unfinished work (capture remaining work, no additional stop) from failure in its
+own meta edit (correct before commit); retain its later explicit SESSION-NOTES lint.
+
+`review-response.md`'s `ready-to-fix` leaf delegates checks to its caller. The package `prepare-work-unit.md` and
+`integrate-work-unit.md` currently request gate checks there; `amend-design.md`'s Entry gate steps 1–2 can return an
+ordinary fix without a spec-changing amendment. Rows 17–18 therefore place feedback in those callers whenever a fix
+includes authored state text the checks read, preserving every existing gate request. An ordinary active notes-only
+correction and a spec-changing amendment each use that same request before commit. Row 4's review-site amendment
+instruction points to the caller's request rather than adding a second one; task-site amendments retain the existing
+task increment. Task 4.7 in `tasks-projected-markdown-checks.md` walks both kinds at each review site, using the public
+handler fixtures to prove feedback over the edited projected file. `run-errand` already requests increment feedback,
+and delivery corrections close through task work; those paths keep their existing requests.
+
+The exclusions are part of the same coverage read: rendered-option-only writes, including free-text options; manually
+selected closed-vocabulary Class; moves/deletions; rendered ROADMAP; spawned/graduate start scaffolds; completed-only
+cohort Closeout; ordinary rendered transitions; applied reconcile; integration records, boundaries, attestations, and
+base merge. Existing `run-errand` and `process-task-loop` increments remain sufficient for their own paths.
+
+## Fixer grounding
+
+`validateExplicitMarkdownPaths` already has `allowIgnoredPaths`, a named set bypassing Git membership while retaining
+physical and Git-directory checks (`lib/markdown/selection.ts`). `runExplicitMarkdownlint` currently checks
+`MARKDOWN_SELECTION.ignores` using `matchesGlob` before that validation (`lib/markdown/worktree-lint.ts`); replace that
+matching with the pathspec matcher rather than loosening the canonical selection. `isMarkdownPathExcluded` rejects any
+`.venv`-prefixed segment, filename included (`lib/markdown/authority.ts`); the underwrap declaration must exclude that
+class as well as the existing directory patterns.
+
+`enumerateTrackedMarkdownPaths` selects the index plus nonignored untracked worktree files in worktree mode; filter
+out absent worktree entries before fixing. `prepareExplicitMarkdownFormat` is the existing named ignored-path mutation
+precedent (`lib/markdown/format-plan.ts`), while the new fixer must first acquire its complete tracked-plus-projected
+corpus. Validate explicit-list membership and selection availability before invoking a mutating tool; preserve the
+separate reported-skip behavior for listed files whose mutation authority fails. `loadWorktreeMarkdownConfigurations`
+validates worktree tool configuration (`lib/markdown/configuration.ts`). Real process fixtures must prove literal
+filenames survive markdownlint's own selection settings, rather than relying only on command construction assertions.
+
+`enumerateTrackedMarkdownPaths` throws `markdown.empty-selection` when its Git contribution has no Markdown
+(`lib/markdown/selection.ts`). Treat that specific result as an empty contribution when forming the fixer's union;
+do not suppress other Git read failures or reject a valid projected-only corpus. A wholly empty union must not reach
+markdownlint as a no-operand invocation.
+
+`checkArgumentBudget` and `batchCheckPaths` already bound literal command lines, including Windows shim escaping
+(`lib/checks/batching.ts`). A read-only enumeration during task generation returned 783 Git-selected Markdown paths,
+56,624 bytes of literal `:path` operands, and nine batches under that helper's Windows budget. Reuse the helper after
+complete corpus and explicit-membership validation, write-authority checks, and configuration validation; preserve
+each admitted path exactly once and aggregate nonzero batch results. Tasks 5.4 and 5.6 in
+`tasks-projected-markdown-checks.md` cover large corpora, projected-only and empty corpora, and batch failure reporting.
+
 ---
