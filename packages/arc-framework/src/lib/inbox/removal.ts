@@ -3,6 +3,7 @@ import { resolveEntryList, failure, withProvenance } from "./lists.js";
 import { rowsInList } from "./listing.js";
 import { withoutEntry } from "./entry-text.js";
 import type { InboxContext, InboxOutcome } from "./types.js";
+import { entryConflictRefusal } from "./conflicts.js";
 /** Exact source entry's settlement. */
 export interface EntryRemoval { disposition: "removed" | "retained" | "absent"; foundVersion?: string }
 /** Remove only the entry bytes at the caller's observed version and read back survivors.
@@ -14,6 +15,8 @@ export async function removeInboxEntry(input: { list: "personal" | "project"; id
   if (!/^[0-9a-f]{8}$/u.test(input.id) || !/^v1:[0-9a-f]{16}$/u.test(input.expectedVersion)) return failure("invalid-input", "Removal requires an ID and its exact entry version.", "Read arc inbox <list>, then use --id <id> --expected-version <version>.");
   const source = await resolveEntryList(input.list, context);
   if (source.status === "refused") return source;
+  const conflict = await entryConflictRefusal(source.result, input.id, context);
+  if (conflict !== null) return conflict;
   const rows = rowsInList(source.result);
   if (rows.status === "refused") return rows;
   const entry = rows.result.find(row => row.id === input.id);
@@ -24,6 +27,8 @@ export async function removeInboxEntry(input: { list: "personal" | "project"; id
   if (written.status === "refused") return { status: "refused", refusal: withProvenance(written.refusal) };
   const after = await resolveEntryList(input.list, context);
   if (after.status === "refused") return after;
+  const afterConflict = await entryConflictRefusal(after.result, input.id, context);
+  if (afterConflict !== null) return afterConflict;
   const current = rowsInList(after.result);
   if (current.status === "refused") return current;
   const survivor = current.result.find(row => row.id === input.id);

@@ -12,6 +12,7 @@ import { prepareEntryMove, type PreparedEntryMove } from "./mover.js";
 import { latestRoutingReceipt, listCoordinate, sameRoutingList, type RoutingCoordinate } from "./receipts.js";
 import type { InboxContext, InboxOutcome, InboxRow } from "./types.js";
 import type { RouteEntryInput } from "./route.js";
+import { entryConflictRefusal } from "./conflicts.js";
 
 /** Idempotence reports a proven home while writing nothing. */
 export type RoutePreparation = { kind: "move"; plan: PreparedEntryMove } | { kind: "already-home"; entryId: string; destination: RoutingCoordinate };
@@ -40,6 +41,8 @@ async function prepareInsert(input: RouteEntryInput, destination: ResolvedEntryL
   const ready = parseEntryList(stamped, destination.kind);
   const entry = ready.success ? ready.data.entries[0] : undefined;
   if (entry?.id === undefined) return failure("invalid-input", "The inserted entry has no valid identity.", "Supply one valid entry heading and retry.");
+  const conflict = await entryConflictRefusal(destination, entry.id, context);
+  if (conflict !== null) return conflict;
   if (held.some((row) => row.id === entry.id)) return idClash(entry.id, entry.title, held.find((row) => row.id === entry.id)?.title ?? "", destination.selector);
   const prepared = await prepareEntryMove({ source: null, destination, section, entry: { id: entry.id, raw: entry.bytes, section } }, context);
   return prepared.status === "refused" ? prepared : { status: "ok", result: { kind: "move", plan: prepared.result } };
@@ -49,6 +52,10 @@ async function prepareExisting(input: RouteEntryInput, destination: ResolvedEntr
   if (input.from === undefined || input.expectedVersion === undefined || !/^[0-9a-f]{8}$/u.test(input.entryId ?? "")) return failure("invalid-input", "A move requires an entry ID, --from, and --expected-version.", "List the source with arc inbox <list>, then pass the ID and version it reports.");
   const source = await resolveEntryList(input.from, context);
   if (source.status === "refused") return source;
+  for (const list of [source.result, destination]) {
+    const conflict = await entryConflictRefusal(list, input.entryId, context);
+    if (conflict !== null) return conflict;
+  }
   const rows = rowsInList(source.result);
   if (rows.status === "refused") return rows;
   const entry = rows.result.find((row) => row.id === input.entryId);

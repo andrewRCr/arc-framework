@@ -7,6 +7,7 @@ import { mayReplaceEntry } from "./admission.js";
 import { prepareEntryMove, type EntryMoveInput, type PreparedEntryMove } from "./mover.js";
 import { listCoordinate } from "./receipts.js";
 import type { InboxContext, InboxOutcome, InboxRow } from "./types.js";
+import { entryConflictRefusal } from "./conflicts.js";
 
 /** Preserve the observed source removal and receipts while replacing or citing its held home.
  * @param input - Source entry and its proven existing destination.
@@ -23,6 +24,8 @@ export async function prepareSurvivorCarry(input: EntryMoveInput, held: InboxRow
   const replaces = mayReplaceEntry(destination, context.identity);
   const carried = replaces ? "replaced" : "cited";
   const id = replaces ? held.id : drawEntryId(new Set(splitEntryList(destination.saved?.content ?? "", ENTRY_CONFIGS[destination.kind]).parts.flatMap((part) => part.kind === "entry" && part.id !== undefined ? [part.id] : [])), context.random ?? Math.random);
+  const conflict = await entryConflictRefusal(destination, id, context);
+  if (conflict !== null) return conflict;
   const raw = replaces ? replacementProse(entryHeadingForDestination(input.entry.raw, destination.kind), held)
     : writeEntryFields(entryForDestination(input.entry.raw, destination.kind, now.toISOString().slice(0, 10), input.source === null ? null : listCoordinate(input.source, input.entry.section)), { Id: id, Cites: held.id });
   const content = replaces ? replaceEntry(destination.saved?.content ?? "", destination.kind, held.id, raw)

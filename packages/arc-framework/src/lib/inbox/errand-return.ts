@@ -7,6 +7,7 @@ import { latestRoutingReceipt, listCoordinate } from "./receipts.js";
 import { openErrandHolding } from "./errand-home.js";
 import { prepareEntryMove } from "./mover.js";
 import type { InboxContext, InboxOutcome, InboxRow } from "./types.js";
+import { entryConflictRefusal } from "./conflicts.js";
 /** Returned descriptions retain entries held by another open Errand. */
 export interface ErrandReturn { writes: Mutation[]; disposition: "retained" | "absent"; returned: string[]; held: { id: string; errand: string }[] }
 /** Compose every description return at observed record versions without writing.
@@ -18,6 +19,8 @@ export async function prepareErrandReturn(slug: string, context: InboxContext): 
   const found = await resolveWorkItemList(slug, context);
   if (found.status === "refused") return found;
   if (found.result.kind !== "work-item/description") return failure("invalid-input", `${slug} is not an Errand.`, "Name the Errand to abandon.");
+  const conflict = await entryConflictRefusal(found.result, undefined, context);
+  if (conflict !== null) return conflict;
   if (found.result.primary?.placement?.kind === "completed") return { status: "ok", result: { writes: [], disposition: "absent", returned: [], held: [] } };
   let source = found.result;
   const entries = rowsInList(source);
@@ -50,10 +53,12 @@ async function prepareReturnEntry(entry: InboxRow, source: ResolvedEntryList, de
   const previous = latest.result?.source;
   const original = previous?.list === "project" || (previous?.list === "personal" && previous.identity === context.identity);
   const selector = original ? previous.list : "personal";
-  const cached = destinations.get(selector);
-  const resolved = cached === undefined ? await resolveEntryList(selector, context) : { status: "ok" as const, result: cached };
+  const resolved = await resolveEntryList(selector, context);
   if (resolved.status === "refused") return resolved;
-  return returnToDestination(entry, source, resolved.result, original ? previous.section : undefined, original, context);
+  const conflict = await entryConflictRefusal(resolved.result, entry.id, context);
+  if (conflict !== null) return conflict;
+  const destination = destinations.get(selector) ?? resolved.result;
+  return returnToDestination(entry, source, destination, original ? previous.section : undefined, original, context);
 }
 
 async function returnToDestination(entry: InboxRow, source: ResolvedEntryList, destination: ResolvedEntryList, previousSection: string | undefined, original: boolean, context: InboxContext): Promise<InboxOutcome<ReturnEntry>> {
@@ -74,5 +79,5 @@ function mergeWrite(writes: Mutation[], write: Mutation): void {
 function overlay(list: ResolvedEntryList, writes: readonly Mutation[]): ResolvedEntryList {
   const write = writes.find(value => value.action === "put" && sameReference(value.reference, list.reference));
   return write?.action !== "put" ? list : { ...list, saved: { ...list.saved, reference: list.reference, content: write.content,
-    version: list.saved?.version ?? RecordVersionSchema.parse("new"), formatVersion: 1, conflicts: [], fields: list.saved?.fields } };
+    version: list.saved?.version ?? RecordVersionSchema.parse("new"), formatVersion: 1, conflicts: list.saved?.conflicts ?? [], fields: list.saved?.fields } };
 }

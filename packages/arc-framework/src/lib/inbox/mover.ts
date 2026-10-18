@@ -6,6 +6,7 @@ import type { Mutation } from "../store/write.js";
 import type { ResolvedEntryList } from "./lists.js";
 import type { InboxContext, InboxOutcome, InboxRow } from "./types.js";
 import type { RoutingCoordinate } from "./receipts.js";
+import { entryConflictRefusal } from "./conflicts.js";
 
 /** A move's exact source basis and selected destination section. */
 export interface EntryMoveInput {
@@ -24,6 +25,10 @@ export interface PreparedEntryMove { writes: Mutation[]; entryId: string; destin
  */
 export async function prepareEntryMove(input: EntryMoveInput, context: InboxContext): Promise<InboxOutcome<PreparedEntryMove>> {
   const { source, destination, entry } = input;
+  for (const list of [source, destination]) {
+    const conflict = await entryConflictRefusal(list, entry.id, context);
+    if (conflict !== null) return conflict;
+  }
   const receipts = await readRoutingReceipts(context);
   if (receipts.status === "refused") return receipts;
   const now = context.now(), date = now.toISOString();

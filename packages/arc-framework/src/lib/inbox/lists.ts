@@ -3,7 +3,8 @@ import { z } from "zod";
 import { SlugSchema, WorkUnitStateSchema } from "../kernel/index.js";
 import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
 import { TransientIdentityRecordSchema } from "../errand/identity-record.js";
-import { OwnerIdentitySchema, recordReferences, type RecordReference } from "../store/identity.js";
+import { OwnerIdentitySchema, recordReferences, sameReference, type RecordReference } from "../store/identity.js";
+import { ConflictRecordSchema } from "../store/conflict.js";
 import type { StoreRecord } from "../store/read.js";
 import type { EntryKind } from "../store/kinds/entry-configs.js";
 import { failure, withProvenance } from "./refusals.js";
@@ -74,8 +75,27 @@ async function projectList(context: InboxContext): Promise<InboxOutcome<Resolved
   const records = value.status === "complete" ? value.records : [];
   if (records.length > 1) return failure("ambiguous-match", "More than one project inbox was listed.", "Repair the project inbox namespace, then retry.");
   const saved = records[0] ?? null;
-  const reference = saved?.reference ?? recordReferences["project-inbox/inbox"](OwnerIdentitySchema.parse({ type: "project", name: "project" }));
-  return { status: "ok", result: { selector: "project", reference, saved, primary: null, kind: "project-inbox/inbox", owner: null, state: null, inbox: "project" } };
+  const reference = saved === null ? await absentProjectInboxReference(context) : { status: "ok" as const, result: saved.reference };
+  if (reference.status === "refused") return reference;
+  return { status: "ok", result: { selector: "project", reference: reference.result, saved, primary: null, kind: "project-inbox/inbox", owner: null, state: null, inbox: "project" } };
+}
+
+async function absentProjectInboxReference(context: InboxContext): Promise<InboxOutcome<RecordReference>> {
+  const listed = await context.store.list({ family: "project-inbox", kind: "project-inbox/conflict-record" });
+  if (listed.status === "refused") return { status: "refused", refusal: withProvenance(listed.refusal) };
+  const value = listed.result;
+  if (value.status === "unreadable") return failure("observation-incomplete", value.condition, value.remedy.text, value);
+  if (value.status === "complete" && (value.missed || value.diagnostics.length > 0)) return failure("observation-incomplete",
+    `Project inbox conflict listing is incomplete. ${value.diagnostics.map((diagnostic) => `${diagnostic.key}: ${diagnostic.condition} ${diagnostic.remedy.text}`).join(" ")}`, "Repair the project inbox conflict listing, then retry.", value);
+  const subjects: RecordReference[] = [];
+  for (const saved of value.status === "complete" ? value.records : []) {
+    let conflict;
+    try { conflict = ConflictRecordSchema.parse(JSON.parse(saved.content)); }
+    catch { return failure("record-malformed", `Conflict evidence ${JSON.stringify(saved.reference)} is malformed.`, "Repair the named conflict record, then retry."); }
+    if (conflict.record.kind === "project-inbox/inbox" && !subjects.some((reference) => sameReference(reference, conflict.record))) subjects.push(conflict.record);
+  }
+  if (subjects.length > 1) return failure("ambiguous-match", `More than one absent project inbox has unresolved conflicts: ${subjects.map((reference) => JSON.stringify(reference)).join(", ")}.`, "Resolve the conflicting project inbox generations, then retry.");
+  return { status: "ok", result: subjects[0] ?? recordReferences["project-inbox/inbox"](OwnerIdentitySchema.parse({ type: "project", name: "project" })) };
 }
 
 async function findPrimary(selector: string, context: InboxContext): Promise<InboxOutcome<StoreRecord>> {

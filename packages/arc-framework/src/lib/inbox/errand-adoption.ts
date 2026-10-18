@@ -10,6 +10,7 @@ import { listCoordinate, latestRoutingReceipt } from "./receipts.js";
 import { openErrandHolding } from "./errand-home.js";
 import { readQueueState, renderQueueSet } from "./queue-storage.js";
 import type { InboxContext, InboxOutcome, InboxRow } from "./types.js";
+import { entryConflictRefusal } from "./conflicts.js";
 /** A start reports its exact qualified capture origin. */
 export interface ErrandAdoption { origin: { title: string; sourceDigest: null; executeBound: false; version: string } | null; writes: Mutation[]; closed?: string }
 /** Prepare capture adoption or a fresh text description without writing.
@@ -46,6 +47,8 @@ export async function prepareErrandAdoption(input: { slug: string; from?: string
 async function prepareCaptureMove(slug: string, source: ResolvedEntryList, entry: InboxRow, context: InboxContext): Promise<InboxOutcome<PreparedEntryMove>> {
   const destination = await descriptionFor(slug, context);
   if (destination.status === "refused") return destination;
+  const conflict = await entryConflictRefusal(destination.result, entry.id, context);
+  if (conflict !== null) return conflict;
   const held = rowsInList(destination.result);
   if (held.status === "refused") return held;
   if (held.result.some(row => row.id === entry.id)) return failure("id-clash", `Errand ${slug} already holds ID ${entry.id}.`, "Inspect its description before linking this entry.");
@@ -88,11 +91,15 @@ async function prepareTextDescription(input: { slug: string; intent?: string; pa
 
 type AdoptedCapture = { kind: "resume"; origin: NonNullable<ErrandAdoption["origin"]> } | { kind: "capture"; entry: import("./types.js").InboxRow; closed?: string };
 async function readAdoptedCapture(slug: string, from: string, id: string, source: ResolvedEntryList, context: InboxContext): Promise<InboxOutcome<AdoptedCapture>> {
+  const conflict = await entryConflictRefusal(source, id, context);
+  if (conflict !== null) return conflict;
   const holder = await openErrandHolding(id, listCoordinate(source), context);
   if (holder.status === "refused") return holder;
   if (holder.result.held?.slug === slug) {
     const home = await resolveWorkItemList(slug, context);
     if (home.status === "refused") return home;
+    const homeConflict = await entryConflictRefusal(home.result, id, context);
+    if (homeConflict !== null) return homeConflict;
     const held = rowsInList(home.result);
     if (held.status === "refused") return held;
     const row = held.result.find(value => value.id === id);
