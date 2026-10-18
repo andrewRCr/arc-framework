@@ -337,6 +337,7 @@ export async function projectHostedReservationDischarge(input: {
           return {
             discharged: false,
             detail: `The terminal review producer did not establish convergence (${policy.state}/${policy.nextAction}).`,
+            terminalPolicyState: policy.state,
             nextSource: null,
             ...requestContext(),
             ...projectHostedCorrectionDefault({ sources: reservation.sources,
@@ -392,6 +393,7 @@ export async function projectHostedReservationDischarge(input: {
       discharged: false,
       detail: `The retained terminal review producer did not establish convergence `
         + `(${policy.state}/${policy.nextAction}).`,
+      terminalPolicyState: policy.state,
       nextSource: null,
       ...requestContext(),
       ...context,

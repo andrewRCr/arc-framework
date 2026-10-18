@@ -45,7 +45,8 @@ const LOCAL_FIX_REVIEW_DIAGNOSTIC = {
 };
 
 /** Select fresh-pass candidates without changing the list that binds recorded attempts. */
-export function selectReviewSources(request: ReviewPolicyRequest): {
+export function selectReviewSources(request: Pick<ReviewPolicyRequest,
+  "lane" | "invocation" | "sources" | "selectionSources" | "configuredSources" | "nextPassContext">): {
   sources: readonly string[];
   refusal: ReviewDiagnostic | null;
   reason?: ReviewDiagnostic;

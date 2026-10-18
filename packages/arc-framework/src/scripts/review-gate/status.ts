@@ -454,6 +454,7 @@ interface ReviewApplicabilityContext {
 }
 
 interface ReviewDischargeIntervention {
+  readonly terminalPolicyState?: ReviewResolveEnvelope["state"];
   readonly detail: string;
   readonly requestCoverage?: HostedReviewCoverage;
   readonly applicability?: z.infer<typeof ReviewContributionApplicabilityResultSchema>;
@@ -670,7 +671,9 @@ function composeSingletonRequest(
   if (discharge.requestCoverage !== undefined && discharge.requestCoverage !== request.coverage) {
     return { state: "blocked", detail: "The singleton review coverage differs from the active pass." };
   }
-  if (request.admission.state === "ready" && request.admission.nextAction === "local-prepare") {
+  if ((request.admission.state === "ready" && request.admission.nextAction === "local-prepare")
+    || (request.admission.state === "coverage-required" && discharge.terminalPolicyState === "coverage-required"
+      && request.sourceId === "delegated-agent")) {
     if (request.standardReview === undefined) return { state: "blocked",
       detail: "The singleton local-prepare action is missing its reserved obligation." };
     return RoutedReviewObligationSchema.parse({ state: "review-required", scope: "singleton", detail: discharge.detail,

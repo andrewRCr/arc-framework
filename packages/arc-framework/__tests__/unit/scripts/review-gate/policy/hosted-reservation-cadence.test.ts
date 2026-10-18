@@ -133,7 +133,7 @@ describe("converged fix-check continuation", () => {
         })).resolves.toMatchObject({ state: "ready", nextAction: "hosted-request", payload: { sourceId: "codex-pr", pass: 2 } });
       }
       expect(result).toMatchObject({ discharged: false, nextSource: "codex-pr", requestCoverage: "complete",
-        completedPasses: 1, requestAttempts: [] });
+        completedPasses: 1, requestAttempts: [], terminalPolicyState: "coverage-required" });
       expect(result).not.toHaveProperty("coverageSelectionAction");
     });
 });

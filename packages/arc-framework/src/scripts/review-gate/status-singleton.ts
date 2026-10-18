@@ -1,5 +1,7 @@
 /** Compose the actionable review status of one published singleton Candidate. */
 
+import { selectReviewSources } from "./policy/review-source-eligibility.js";
+import { projectReviewSourceRefusal } from "./status-driver-refusal.js";
 import type { ReviewStatusRoute } from "./status-route.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import type { GitExec } from "../../lib/git/exec.js";
@@ -52,7 +54,16 @@ export async function composePublishedSingletonReview(input: PublishedSingletonI
     ...(input.judgment?.sourceId === undefined ? {}
       : { invocation: { mode: "force" as const, sourceId: input.judgment.sourceId } }),
   };
-  const discharge = await readDischarge(dischargeInput);
+  let discharge = await readDischarge(dischargeInput);
+  if (!discharge.discharged && discharge.terminalPolicyState === "coverage-required") {
+    const invocation = input.judgment?.sourceId === undefined ? discharge.invocation
+      : { mode: "force" as const, sourceId: input.judgment.sourceId };
+    const selection = selectReviewSources({ lane: "standard", sources: reservation.sources,
+      nextPassContext: discharge.nextPassContext, ...(invocation === undefined ? {} : { invocation }) });
+    const refusal = projectReviewSourceRefusal({ diagnostic: selection.refusal, route: input.statusRoute });
+    if (refusal !== null) return refusal;
+    if (discharge.nextSource === null) discharge = { ...discharge, nextSource: selection.sources[0] ?? null };
+  }
   const applicabilityContext = {
     workUnitId: input.workUnit,
     expectedRecordVersion: input.recordVersion,

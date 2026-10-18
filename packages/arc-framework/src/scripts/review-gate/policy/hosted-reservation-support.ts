@@ -466,6 +466,7 @@ export function retainedSafeUnavailableAttempt(
 
 /** Whether the reserved hosted review has produced a verdict, with the evidence for that reading. */
 export interface HostedReservationDischarge {
+  terminalPolicyState?: ReviewResolveEnvelope["state"];
   nextPassContext?: ReviewNextPassContext;
   discharged: boolean;
   detail: string;

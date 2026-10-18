@@ -20,8 +20,19 @@ export function projectReviewDriverRefusal(input: {
 }): z.infer<typeof ReviewDriverRefusalSchema> | null {
   if (input.policy.state !== "unavailable") return null;
   const diagnostic = input.policy.diagnostics.find(item => ReviewDriverRefusalReasonSchema.safeParse(item.code).success);
-  if (diagnostic === undefined) return null;
-  const reason = ReviewDriverRefusalReasonSchema.parse(diagnostic.code);
+  return projectReviewSourceRefusal({ diagnostic, route: input.route, allowOwnerStop: input.allowOwnerStop });
+}
+
+/** Render the source selector's own refusal before a continuation has acquired its review admission. */
+export function projectReviewSourceRefusal(input: {
+  readonly diagnostic?: ReviewResolveEnvelope["diagnostics"][number] | null;
+  readonly route: ReviewStatusRoute;
+  readonly allowOwnerStop?: boolean;
+}): z.infer<typeof ReviewDriverRefusalSchema> | null {
+  const diagnostic = input.diagnostic;
+  const parsed = ReviewDriverRefusalReasonSchema.safeParse(diagnostic?.code);
+  if (diagnostic === undefined || diagnostic === null || !parsed.success) return null;
+  const reason = parsed.data;
   const unconfigured = reason === "material-fix-local-source-unconfigured";
   const correction = unconfigured
     ? "Add delegated-agent to review.standard_sources"

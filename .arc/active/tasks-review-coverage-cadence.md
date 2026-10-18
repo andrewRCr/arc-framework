@@ -342,15 +342,9 @@ first, then in the `.arc/` copy by targeted edit.
           Pending and completed replay re-confirm it, and admission re-reads it under the existing locks.
           Candidate-bound attestation retains the reservation's normalized requirement.
 
-    - `[ ]` **2.5.c Route the singleton's `coverage-required` to local prepare**
-        - The discharge returns only a `detail` with `nextSource: null` there today, and status's fallback also serves
-          other null-source discharges — conflicting coverage and incomplete earlier evidence. The discharge result
-          gains its terminal policy state, and status routes only `coverage-required` to local prepare. It is reached
-          only after an unconverged look, and no response is pending there, since the discharge resolves terminal policy
-          only over a `clean` or `settled-findings` terminal.
-        - Build `test-first` (one behavior at a time):
-            - The singleton's `coverage-required` routes to local prepare.
-            - The other null-source discharges keep their routes.
+    - `[x]` **2.5.c Route the singleton's `coverage-required` to local prepare**
+        - Current and retained terminal discharges carry their policy state. Singleton status routes only settled
+          coverage-required results to ordinary local prepare, preserving source refusals and other null-source routes.
 
     - `[ ]` **2.5.d Read a vehicle-less local result in the discharge and hosted request admission**
         - On a subject with no vehicle, four readers accept a local result in the same lineage as `delegated-agent`
