@@ -1,10 +1,12 @@
 /** All routeable list kinds use production grammar and expose exact mutation bases. */
 import { describe, expect, it } from "vitest";
 import { createReferenceFixture } from "../../../helpers/store/reference-fixture.js";
-import { seed } from "../../../helpers/store/suite-tools.js";
+import { seed, success, testProvenance } from "../../../helpers/store/suite-tools.js";
 import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
 import { META_REGISTRATION } from "../../../../src/lib/store/kinds/meta/registration.js";
 import { listInbox } from "../../../../src/lib/inbox/listing.js";
+import { routeEntry } from "../../../../src/lib/inbox/route.js";
+import { recordReferences } from "../../../../src/lib/store/identity.js";
 import { TransientIdentityRecordSchema } from "../../../../src/lib/errand/identity-record.js";
 import { entryVersion } from "../../../../src/lib/store/kinds/entry-fields.js";
 import type { InboxContext } from "../../../../src/lib/inbox/types.js";
@@ -14,6 +16,48 @@ function fixture() {
   const context: InboxContext = { store: f.store, identity: "test-user", now: () => new Date("2026-01-31T12:00:00Z") };
   return { f, context };
 }
+
+describe.each(["work-unit", "errand"] as const)("disputed %s primary", kind => {
+  it.each(["slug", "uid"] as const)("refuses a move selected by %s until primary authority is resolved", async selection => {
+    const { f, context } = fixture(), reference = f.reference(kind === "work-unit" ? "work-item/meta" : "work-item/record");
+    const content = (owner: string) => kind === "work-unit" ? makeMetaFixture(reference.owner.name, { owner, state: "Active" })
+      : JSON.stringify(TransientIdentityRecordSchema.parse({ version: 3, kind: "errand", purpose: "errand", slug: reference.owner.name,
+        claimId: "a".repeat(32), intent: "Concern", branch: `chore/${reference.owner.name}`, owner, origin: "description", originEntry: null,
+        state: "open", savedHead: null, changeRequest: null, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" }));
+    const primary = await seed(f, reference, content("starter"));
+    if (primary.reference.owner.type === "person" || primary.reference.owner.uid === undefined) throw new Error("Expected work-item UID");
+    const selector = selection === "slug" ? primary.reference.owner.name : primary.reference.owner.uid;
+    const sourceRef = kind === "work-unit" ? recordReferences["work-item/inbound"](primary.reference.owner)
+      : recordReferences["work-item/description"](primary.reference.owner);
+    await seed(f, sourceRef, `## ${kind === "work-unit" ? "Inbound" : "Description"}\n\n### **Held concern**\n- _Id:_ \`12345678\`\n\nPreserve me\n`);
+    const destination = await seed(f, f.reference("project-inbox/inbox"), "## Inbox\n");
+    const listed = await listInbox({ list: selector }, context);
+    if (listed.state === "refused" || listed.entries[0] === undefined) throw new Error("Expected a held entry");
+    const row = listed.entries[0], remote = f.remote(true);
+    if (remote === undefined) throw new Error("Expected remote writer");
+    success(await f.store.sync());
+    const local = success(await f.store.read({ reference })), other = success(await remote.read({ reference }));
+    success(await f.store.write({ action: "put", reference, expected: local.version, content: content("alice"), placement: { kind: "active" }, provenance: testProvenance }));
+    success(await remote.write({ action: "put", reference, expected: other.version, content: content("test-user"), placement: { kind: "active" }, provenance: testProvenance }));
+    success(await f.store.sync());
+    const disputed = success(await f.store.read({ reference }));
+    expect(disputed.conflicts.length).toBeGreaterThan(0);
+    const source = success(await f.store.read({ reference: sourceRef })), target = success(await f.store.read({ reference: destination.reference }));
+    const version = success(await f.store.version()), input = { entryId: row.id, expectedVersion: row.version, from: selector, to: "project" };
+    const refused = await routeEntry(input, context);
+    expect(refused).toMatchObject({ state: "refused", code: "record-conflicted" });
+    if (refused.state !== "refused") throw new Error("Expected disputed primary refusal");
+    for (const conflict of disputed.conflicts) expect(refused.reason).toContain(JSON.stringify(conflict));
+    expect(refused.remedy.text).toMatch(/resolve.*retry/iu);
+    expect(success(await f.store.version())).toBe(version);
+    expect(success(await f.store.read({ reference: sourceRef }))).toEqual(source);
+    expect(success(await f.store.read({ reference: destination.reference }))).toEqual(target);
+    success(await f.store.write({ action: "put", reference, expected: disputed.version, content: disputed.content, placement: { kind: "active" },
+      resolves: disputed.conflicts, provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
+    expect(await routeEntry(input, context)).toMatchObject({ state: "routed" });
+    expect(await listInbox({ list: "project" }, context)).toMatchObject({ entries: [{ title: "Held concern" }] });
+  });
+});
 describe("store inbox listing", () => {
   it.each(["personal", "project", "work-unit", "errand"])("lists %s IDs, versions, and original bytes", async (selector) => {
     const { f, context } = fixture();

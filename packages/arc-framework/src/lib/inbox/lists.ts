@@ -46,6 +46,9 @@ export async function resolveWorkItemList(selector: string, context: InboxContex
   const primary = await findPrimary(selector, context);
   if (primary.status === "refused") return primary;
   const value = primary.result;
+  if (value.conflicts.length > 0) return failure("record-conflicted",
+    `The work-item primary has unresolved conflicts: ${value.conflicts.map(reference => JSON.stringify(reference)).join(", ")}.`,
+    "Resolve the named conflict records, then retry the entry command.");
   if (value.reference.kind === "work-item/meta") {
     const fields = ParsedMetaRecordSchema.safeParse(value.fields);
     if (!fields.success || !WorkUnitStateSchema.safeParse(fields.data.state).success) return failure("record-malformed", `Work unit ${selector} has no readable lifecycle fields.`, "Repair its metadata and retry.");
