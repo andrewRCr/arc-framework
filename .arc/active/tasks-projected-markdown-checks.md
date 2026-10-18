@@ -39,22 +39,14 @@ admits unchanged historical violations and valid corrections, and leaves existin
           Each increased key reports all its next-content locations, grouped by rule with the specified retry remedy;
           removals, unchanged historical violations, and corrections remain admissible for every writer.
 
-### `[ ]` **1.3 Compose link rules into every covered kind — D2.4, D2.6**
+### `[x]` **1.3 Compose link rules into every covered kind — D2.4, D2.6**
 
 - _Goal:_ Every projecting kind with a stored family receives the link rules exactly once, preserving its parser,
   anchor fields, and the ordering of its original check results.
 
-    - Compose `PRODUCTION_REGISTRATIONS` in `lib/store/kinds/registrations.ts`; derive coverage from `KIND_MECHANISMS`
-      and `FAMILY_REGISTRY`, excluding `personal/errand-queue` as specified, rather than maintaining a kind list.
-    - Build `test-first` (one behavior at a time):
-        - Existing registrations retain their parser and anchors and return their own rules before the link rules;
-          a covered kind with no registration receives a link-only registration.
-        - `createKindRegistry` accepts the composed set with no duplicate, and an exact derived-set assertion covers
-          today's kinds, the queue exception, non-projecting kinds, and families without refs.
-        - A reference backend given the production set refuses both verb and hand-edit violations in `write` and
-          `batch`, using `checkPreparedWrites`; nonviolating writes still reach the original kind checks.
-    - Extend `__tests__/unit/lib/store/kind-registrations.test.ts` and add focused record-link tests nearby. Preserve
-      the in-repo implementation's existing behavior; backend merge and projection wiring remain supplier contracts.
+- _Outcome:_ Production registrations derive fourteen covered kinds from projection and family storage data,
+  retain each original parser, anchors, and check order, and add missing link-only registrations without duplicates.
+  Reference-store writes and atomic batches refuse each link rule and accept corrected retries and historical content.
 
 ### `[ ]` **1.4 Exercise record-write admission — D2** — validate exit criterion at segment scope
 
