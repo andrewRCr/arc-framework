@@ -1039,6 +1039,10 @@ insert, the removal, and both receipts in one batch; an edit racing it survives 
 drain carries it there; an Errand started from the project inbox moves its entry into its description and leaves the
 queue, and its abandon returns the entry where § 7.5 states; and `inboxState` reports the survivors.
 
+_Receipt-count clarification:_ The preserved Exit criterion and Success Criterion 8 follow § 7.3: one receipt for
+each inbox touched. `routingReceiptMutations` writes one personal receipt for personal-to-inbound, two receipts for
+personal-to-project, and none for inbound-to-description. The insert and removal share the same batch.
+
 _Design decisions:_ Hold-and-route's drain side stays until the flip, and the routing method's binding and its hand-off
 sites change in the flip's rewrite; this change's obligation to that path is what its verbs return — the listing's rows,
 the routing verb's report, and the receipts (§ 7.9). Every move composes one mover's write set (Task 6.2.b) through the
@@ -1153,10 +1157,10 @@ Errand write step's batch (Task 3.3.b). The new verbs' handlers and the mover li
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
 
-- _Outcome:_ The freshly merged scenario moves a personal capture into inbound with both receipts, preserves a racing
-  edit as a survivor with its derived home, and carries it without duplication. A project-inbox Errand start adopts its
-  description and removes its queue member; abandon returns it to the receipt-selected inbox. The inbox slot reports
-  those survivors through the shared Store binding.
+- _Outcome:_ The freshly merged scenario moves a personal capture into inbound with its personal-inbox receipt,
+  preserves a racing edit as a survivor with its derived home, and carries it without duplication. A project-inbox
+  Errand start adopts its description and removes its queue member; abandon returns it to the receipt-selected inbox.
+  The inbox slot reports those survivors through the shared Store binding.
 
 ## **Phase 7:** Session continuity — handoff, identity setup, and commits not yet closed
 
