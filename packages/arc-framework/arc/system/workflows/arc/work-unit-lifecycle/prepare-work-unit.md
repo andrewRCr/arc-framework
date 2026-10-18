@@ -190,7 +190,11 @@ through `candidate-publish-ready`; the publication transition in Step 3 is the s
   the approved material fixes have not been re-examined. Carry explicit acceptance through `lanes.standard.terminus`
   as above. Otherwise invoke ordinary `arc review local prepare -` for the next pass and its coverage question.
 - `findings / respond` — enter the disposition protocol below.
-- `approval-required / obtain-ceiling-override` — surface the exact consequence and `Approve (or redirect)?`.
+- `approval-required / obtain-ceiling-override` — for the standard lane, run the lane read with the same subject and
+  member selector as above; follow any refusal's remedy. From `payload.facts`, recommend another pass or stopping,
+  with the expected fresh signal, cost, and what would change the recommendation. The ceiling bounds autonomous
+  spending, not advice. Surface the exact consequence and `Approve (or redirect)?`; the recommendation grants no pass
+  authority.
 - `chunk-pending / continue-chunks` — continue the selected local chunk series.
 - `stale-target / select-scope` — rerun chunking against the current target.
 - `blocked | unavailable | invalid-override / stop` — surface diagnostics and stop.

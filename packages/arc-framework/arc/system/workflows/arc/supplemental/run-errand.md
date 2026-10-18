@@ -327,8 +327,11 @@ remote base all name the same exact head. Any tracked change continues through t
      [`review-response`][review-response]. Preserve the `ready-to-fix` authorization's `approvedVerification` through
      re-entry and changed-target continuation; it does not select fewer checks here. Retain any returned
      `payload.policyRequest` carrying `conditionalPassAuthorizationId` unchanged for the named next-pass admission.
-   - `approval-required / obtain-ceiling-override` — surface the exact one-pass consequence and
-     `Approve (or redirect)?`; return only exact approval to the same target/lane call.
+   - `approval-required / obtain-ceiling-override` — for the standard lane, run `arc review lane read -` with its
+     schema-derived request and follow any refusal's remedy. From `payload.facts`, recommend another pass or stopping,
+     with the expected fresh signal, cost, and what would change the recommendation. The ceiling bounds autonomous
+     spending, not advice. Surface the exact one-pass consequence and `Approve (or redirect)?`; return only exact
+     approval to the same target/lane call. The recommendation grants no pass authority.
    - `stale-target / select-scope` — recompose the exact target, bind its whole-target scope, and rerun the driver.
    - `blocked | unavailable | invalid-override / stop` — surface the typed diagnostics and stop.
 

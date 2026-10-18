@@ -202,7 +202,10 @@ local prepare; do not ask the coverage question again. Accepted member termini f
 `terminusAction` also offers the exact Owner stop; render its `offer.interactionText` and follow the acceptance procedure
 below on explicit acceptance. Otherwise stop, preserve the structured remedy, and follow its exact command after repair.
 
-`obtain-ceiling-override` renders the exact `consequence` and, when present for a delivery member, the exact
+At `obtain-ceiling-override`, run the lane read with the same subject and member selector as above; follow any refusal's
+remedy. From `payload.facts`, recommend another pass or stopping, with the expected fresh signal, cost, and what would
+change the recommendation. The ceiling bounds autonomous spending, not advice; the recommendation grants no pass
+authority. Render the exact `consequence` and, when present for a delivery member, the exact
 `terminusAction.offer.interactionText`, then stops without requesting. Only explicit approval of the consequence admits
 one additional pass; on approval, re-enter the same status scope with the returned consequence serialized unchanged.
 For a delivery, use:

@@ -340,9 +340,11 @@ ask the coverage question again.
 `stop` renders the refusal's `reason`, `detail`, and `remedy.text` verbatim, then stops. Preserve the structured remedy
 and follow its exact command after the stated repair or Owner decision.
 
-`obtain-ceiling-override` renders the exact `consequence` and stops without requesting.
-Only explicit approval of that exact consequence admits one additional pass; on approval, re-enter the same target
-with the returned consequence serialized unchanged:
+At `obtain-ceiling-override`, run the lane read with the same exact member-head selector as above; follow any refusal's
+remedy. From `payload.facts`, recommend another pass or stopping, with the expected fresh signal, cost, and what would
+change the recommendation. The ceiling bounds autonomous spending, not advice; the recommendation grants no pass
+authority. Render the exact `consequence` and stop without requesting. Only explicit approval of that exact consequence
+admits one additional pass; on approval, re-enter the same target with the returned consequence serialized unchanged:
 
 ```bash
 arc review status --target '{targetRef}' --ceiling-override '{consequence}'

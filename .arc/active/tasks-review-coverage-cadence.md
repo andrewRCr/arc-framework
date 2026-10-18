@@ -639,15 +639,12 @@ rejections. Method and workflow text changes in the package's `arc/` source firs
   and keeps rejection context with the primary agent. Delivery reads name the exact member head, refusals retain their
   remedies, and author self-review outside a lane skips the read. Package and project method copies match.
 
-### `[ ]` **4.6 Stop for the Owner after a clean fix check when the judgment recommends stopping — § 6.2, § 8.3**
+### `[x]` **4.6 Stop for the Owner after a clean fix check when the judgment recommends stopping — § 6.2, § 8.3**
 
 - _Goal:_ After a clean fix check on a `full-final` standard lane, each code-review workflow runs the lane read at its
   next-pass step and applies the judgment; where a surface takes the stop it stops before the complete pass is
   dispatched when the judgment recommends stopping, and where none does it states the recommendation and the limit and
   the complete pass runs.
-
-- _Context:_ No typed state marks a pass as following a clean fix check, so each arm keys on the lane read's typed
-  result rather than on memory. A delta check reads as a fix check there.
 
     - `[x]` **4.6.a `run-errand` at the driver's `ready`**
         - Both standard ready routes read typed lane facts before dispatch. A clean fix check prompts advisory
@@ -669,9 +666,10 @@ rejections. Method and workflow text changes in the package's `arc/` source firs
           advisory successor judgment; the workflow states that its target route takes no Owner terminus and follows
           the admitted complete pass without replacing repair verification.
 
-    - `[ ]` **4.6.e Recommend from the same read at the ceiling**
-        - At the ceiling each arm stops and recommends another pass or stopping, with its rationale, as
-          `adversarial-review`'s cap recommendation does.
+    - `[x]` **4.6.e Recommend from the same read at the ceiling**
+        - Every standard-lane ceiling arm reads the same subject's facts and recommends another pass or stopping with
+          cost, expected signal, and the evidence that would change the recommendation. Exact consequence approval
+          remains the authority for another pass.
 
 ### `[ ]` **4.7 The cadence on every path** — validate exit criterion at segment scope
 
