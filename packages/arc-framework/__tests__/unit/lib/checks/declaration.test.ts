@@ -1,5 +1,6 @@
 /** Project-authored check fields and their resolved defaults. */
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import { CheckDeclarationSchema } from "../../../../src/lib/checks/declaration.js";
 
 const illustrative = {
@@ -12,6 +13,38 @@ const illustrative = {
       inputs: ["src/**", "test/**"], shards: { count: 4, argument: "--shard={index}/{count}" } },
   },
 };
+
+describe("selection declarations", () => {
+  it("resolves feedback defaults while allowing runtime inputs", () => {
+    const check = { command: ["lint"], mode: "selection", runtime_inputs: [["node", "--version"]] };
+    expect(CheckDeclarationSchema.parse({ checks: { lint: check } }).checks.lint).toMatchObject({
+      ...check, cache: false, widen: false, pass_paths: true, shell: false, fixes: false,
+      ci_only: false, reads_index: false,
+    });
+  });
+  it.each([
+    ["cache", true], ["widen", true], ["pass_paths", false], ["gate", "commit"],
+    ["shell", false], ["shell", true], ["ci_only", false], ["ci_only", true],
+    ["reads_index", false], ["reads_index", true], ["fixes", false], ["fixes", true],
+  ])("refuses declared %s=%j with an actionable field message", (field, value) => {
+    const result = CheckDeclarationSchema.safeParse({ checks: { lint: {
+      command: ["lint"], mode: "selection", [field]: value,
+    } } });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.message).toContain(field);
+  });
+  it("projects authored restrictions and resolved defaults into JSON Schema", () => {
+    const schema = z.toJSONSchema(CheckDeclarationSchema, { io: "input" });
+    expect(JSON.stringify(schema)).toContain('"selection"');
+    expect(schema).toMatchObject({ properties: { checks: { additionalProperties: { anyOf: expect.arrayContaining([
+      expect.objectContaining({ properties: expect.objectContaining({
+        mode: expect.objectContaining({ const: "selection" }), cache: { type: "boolean", const: false, default: false },
+        shell: { not: {} },
+      }) }),
+    ]) } } } });
+    expect(() => z.toJSONSchema(CheckDeclarationSchema, { io: "output" })).not.toThrow();
+  });
+});
 
 describe("check declaration fields", () => {
   it("accepts typed commands, global inputs, and shard configuration", () => {

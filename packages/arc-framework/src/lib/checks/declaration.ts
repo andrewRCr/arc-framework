@@ -3,23 +3,54 @@ import { z } from "zod";
 import type { KernelRegistry } from "../kernel/index.js";
 
 const ArgumentListSchema = z.array(z.string()).min(1);
-const CheckSchema = z.strictObject({
+const SharedFields = {
   command: z.union([ArgumentListSchema, z.string()]),
-  shell: z.boolean().default(false),
-  gate: z.enum(["commit", "push", "merge"]).optional(),
-  mode: z.enum(["files", "project"]).default("project"),
-  pass_paths: z.boolean().default(true),
   inputs: z.array(z.string()).default(["**"]),
   runtime_inputs: z.array(ArgumentListSchema).default([]),
-  widen: z.boolean().default(true),
   root: z.string().default("."),
+  shards: z.strictObject({ count: z.int().positive(), argument: z.string() }).optional(),
+  no_evidence_exit: z.int().min(1).max(255).optional(),
+};
+const OrdinaryCheckSchema = z.strictObject({
+  ...SharedFields,
+  shell: z.boolean().default(false),
+  gate: z.enum(["commit", "push", "merge"]).optional(),
+  mode: z.enum(["files", "project"]).default("project")
+    .describe("files receives selected tracked paths; project runs once over its declared inputs."),
+  pass_paths: z.boolean().default(true),
+  widen: z.boolean().default(true),
   fixes: z.boolean().default(false),
   ci_only: z.boolean().default(false),
-  shards: z.strictObject({ count: z.int().positive(), argument: z.string() }).optional(),
   cache: z.boolean().default(true),
   reads_index: z.boolean().default(false),
-  no_evidence_exit: z.int().min(1).max(255).optional(),
-}).superRefine((check, context) => {
+});
+const SelectionFields = {
+  ...SharedFields,
+  mode: z.literal("selection").describe("selection receives editable projected Markdown paths as feedback."),
+  gate: z.never({ error: "selection cannot declare gate: no gate reads projected state." }).optional(),
+  cache: z.literal(false, { error: "selection cannot enable cache: nothing keys its content." }).default(false),
+  widen: z.literal(false, { error: "selection cannot enable widen: Git changes do not describe state changes." }).default(false),
+  pass_paths: z.literal(true, { error: "selection requires pass_paths: only files checks can withhold paths." }).default(true),
+};
+const SelectionInputSchema = z.strictObject({
+  ...SelectionFields,
+  shell: z.never({ error: "selection cannot declare shell: shell commands cannot receive path batches." }).optional(),
+  ci_only: z.never({ error: "selection cannot declare ci_only: a CI clone projects nothing." }).optional(),
+  reads_index: z.never({ error: "selection cannot declare reads_index: projected files are never indexed." }).optional(),
+  fixes: z.never({ error: "selection cannot declare fixes: fixer rewrites are detected only through Git." }).optional(),
+});
+// Validate authored presence before supplying the common execution fields.
+const SelectionCheckSchema = z.codec(SelectionInputSchema, z.strictObject({
+  ...SelectionFields,
+  shell: z.literal(false).default(false), ci_only: z.literal(false).default(false),
+  reads_index: z.literal(false).default(false), fixes: z.literal(false).default(false),
+}), {
+  decode: check => ({ ...check, shell: false as const, ci_only: false as const,
+    reads_index: false as const, fixes: false as const }),
+  encode: check => SelectionInputSchema.parse({ ...check,
+    shell: undefined, ci_only: undefined, reads_index: undefined, fixes: undefined }),
+});
+const CheckSchema = z.union([OrdinaryCheckSchema, SelectionCheckSchema]).superRefine((check, context) => {
   if (check.shell && check.mode === "files") {
     context.addIssue({ code: "custom", path: ["mode"], message: "Shell checks require project mode." });
   }

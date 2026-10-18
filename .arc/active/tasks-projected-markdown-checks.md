@@ -107,22 +107,14 @@ _Mode:_ `slice` — `increment`, `segment`, and named runs execute checks over i
 _Exit criterion:_ An injected changed selection reaches a batched feedback command; full, named, empty, unavailable,
 and recovered selections produce their specified outcomes, while every gate excludes selection checks.
 
-### `[ ]` **3.1 Admit selection declarations and request membership — D4.1, D4.3**
+### `[x]` **3.1 Admit selection declarations and request membership — D4.1, D4.3**
 
 - _Goal:_ Selection declarations are feedback-only by construction, and no existing gate or ordinary declaration
   changes membership or defaults when the new mode is added.
 
-    - Extend `CheckDeclarationSchema` in `lib/checks/declaration.ts` with `selection`; resolve mode-dependent cache
-      and widen defaults while preserving explicitly supplied values for refinement and emitted schema behavior.
-    - Extend `selectRequestChecks` in `lib/checks/gates.ts` so only `increment`, `segment`, and a named `run` select
-      this mode. Keep `checkResultKind` reporting it as feedback through the absence of a gate.
-    - Build `test-first` (one behavior at a time):
-        - Defaults are false for selection and unchanged for files/project; each forbidden declaration from D4.1
-          refuses with its field named, including `ci_only`, `reads_index`, and `fixes` when declared.
-        - `runtime_inputs` remains legal; selection has no gate; shell and path-withholding refinements remain sound.
-        - Increment/segment add selection checks in declaration order; hooks, every gate, and `new-head` exclude them;
-          named runs still validate identifiers and select exactly those requested.
-    - Extend unit `lib/checks/declaration.test.ts`, `gates.test.ts`, and the declaration registry/schema tests.
+- _Outcome:_ Mode-specific authored schemas preserve omitted defaults while refusing forbidden explicit fields,
+  including false flags. Increment and segment include selection feedback in declaration order; gates and hooks
+  exclude it, and both input and output JSON Schema projections remain representable.
 
 ### `[ ]` **3.2 Match explicit path lists with Git pathspecs — D4.2**
 
