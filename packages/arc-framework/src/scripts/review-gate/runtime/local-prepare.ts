@@ -355,6 +355,9 @@ async function replayPendingLocalAdmission(supplied: PendingLocalReplayInput): P
       receipt,
       now: input.dependencies.now(),
     });
+    if (receipt.result === "clean" && state.requirement.retrigger === "full-final"
+      && state.coverageAdmission.requestedCoverage === "incremental"
+      && input.request.coverageAdmission === undefined && input.request.deliveryAdmission === undefined) return null;
     return LocalPrepareEnvelopeSchema.parse({
       schemaVersion: 1,
       mode: "review-local-prepare",

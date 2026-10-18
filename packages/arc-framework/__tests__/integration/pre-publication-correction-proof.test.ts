@@ -42,6 +42,9 @@ import { createRepositoryReviewResultReader } from "../../src/scripts/review-gat
 import { acknowledgeHostedRequest, bindHostedAttemptDisposition, hostedLaneAttemptId, recordHostedAwaitAttempt,
   recordHostedRequestAdmission, recordLaneResponsePerformance } from "../../src/scripts/review-gate/lane-progress.js";
 import { createPrePublicationCompositionDependencies } from "../../src/scripts/review-gate/policy/pre-publication-composition.js";
+import { composePrePublicationReviewRequest } from "../../src/scripts/review-gate/policy/pre-publication-request.js";
+import { resolveReviewPolicy } from "../../src/scripts/review-gate/policy/review-policy-driver.js";
+import { projectPrePublicationReview } from "../../src/scripts/review-gate/policy/pre-publication-procedure.js";
 import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "../../src/scripts/review-gate/policy/standard-review.js";
 import { approvedRecord } from "../fixtures/review-response-proof.js";
 import { makeGitExec } from "../helpers/integration.js";
@@ -51,7 +54,8 @@ import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js"
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => removeGitBackedDir(root))); });
-async function candidateFix(local = false, member = false, hostedFirst = false, unchecked = false, fullFinal = false) {
+async function candidateFix(local = false, member = false, hostedFirst = false, unchecked = false, fullFinal = false,
+  sources = ["codex-pr", "coderabbit-pr", "delegated-agent"]) {
   const cwd = await createTempRepoCore({ prefix: "arc-pre-publication-correction-", identity: "andrew" });
   roots.push(cwd);
   const realExec = makeGitExec(cwd);
@@ -62,7 +66,8 @@ async function candidateFix(local = false, member = false, hostedFirst = false, 
   };
   const git = async (...args: string[]) => (await exec("git", args, { cwd })).stdout.trim();
   await mkdir(join(cwd, ".arc/system"), { recursive: true });
-  await writeFile(join(cwd, ".arc/system/arc-config.yml"), "branch.base: main\nreview.standard_sources: [codex-pr, coderabbit-pr, delegated-agent]\nreview.standard_max_passes: 4\n");
+  await writeFile(join(cwd, ".arc/system/arc-config.yml"),
+    `branch.base: main\nreview.standard_sources: [${sources.join(", ")}]\nreview.standard_max_passes: 4\n`);
   await writeFile(join(cwd, "source.ts"), "export const value = 0;\n");
   await git("add", "."); await git("commit", "-m", "base");
   const base = await git("rev-parse", "HEAD");
@@ -407,6 +412,45 @@ describe("pre-publication correction confirmation", () => {
     await inProcessReview.attest(cwd, localReviewResult(prepared.payload, "singleton-delta", []));
     await expect(discharge(args)).resolves.toMatchObject({ discharged: true, nextSource: null });
   });
+
+  it("closes a private full-final Candidate only after its clean fix check and complete successor", async () => {
+    const fixture = await candidateFix(true, false, false, false, true, ["delegated-agent"]);
+    if (fixture.current.kind === "frontline") throw new Error("expected standard fix check");
+    expect(fixture.current.admission.effectiveCoverage).toBe("incremental");
+    const routingFacts = { contentKind: "code-bearing", reviewRisk: "sensitive", changeDeterminacy: "ordinary",
+      ownership: "self", surfaceAuthority: "ordinary" };
+    const compose = async () => {
+      const result = await composePrePublicationReviewRequest({ workUnit: "example", selfReview: "settled",
+        changeSet: { changeSetState: "known", ...routingFacts }, lanes: { frontline: { invocation: { mode: "skip" } } } },
+      createPrePublicationCompositionDependencies(fixture));
+      if (result.status !== "composed") throw new Error(JSON.stringify(result));
+      return result.request;
+    };
+    const before = await compose();
+    expect(resolveReviewPolicy(before.standard)).toMatchObject({ state: "ready", nextAction: "local-prepare",
+      payload: { pass: 3 } });
+    const output: string[] = []; const exits: number[] = [];
+    await handleReviewLocalPrepare("-", { resolveRoot: () => fixture.cwd,
+      readText: async () => JSON.stringify({ schemaVersion: 1, evaluatorIdentity: "independent-reviewer", routingFacts }),
+      prepare: input => prepareLocalReview(input, createLocalPrepareDependencies(fixture)),
+      write: text => output.push(text), setExitCode: code => exits.push(code) });
+    expect(exits, output.join("")).toEqual([]);
+    const prepared = LocalPrepareEnvelopeSchema.parse(JSON.parse(output.join("")));
+    if (prepared.state !== "ready") throw new Error(JSON.stringify(prepared));
+    expect(prepared.payload.request).toMatchObject({ logicalPass: 3 });
+    expect(prepared.payload.reviewerPayload.reviewerInstructions).toContain("Previously reported and fixed");
+    await inProcessReview.attest(fixture.cwd, localReviewResult(prepared.payload, "private-complete-successor", []));
+    const terminal = await createRepositoryReviewResultReader(new RepositoryGitCommonStatePublisher(fixture.exec, fixture.cwd))
+      .readResult(prepared.payload.operationId);
+    if (terminal.kind === "frontline") throw new Error("expected standard complete pass");
+    expect(terminal.admission.effectiveCoverage).toBe("complete");
+    const after = await compose();
+    expect(resolveReviewPolicy(after.standard)).toMatchObject({ state: "pass-complete", nextAction: "none" });
+    expect(projectPrePublicationReview(after, { reviewedHead: after.standard.target.headSha,
+      nextAction: { kind: "continue-pre-publication-review", command: "arc review pre-publication example",
+        interactionText: "Resume Candidate review." }, projectionDisposition: "keep-staged-until-publication" }))
+      .toMatchObject({ locus: "candidate-convergence-verification-pending", policy: null, reservation: null });
+  }, 60_000);
 
   it("proves an open-PR Candidate fix leg without carrying the earlier review", async () => {
     const { dependencies, predecessor, current } = await candidateFix();

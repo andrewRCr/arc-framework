@@ -75,6 +75,8 @@ The confirmation map is in `notes-review-coverage-cadence.md` § Chain confirmat
           complete coverage without a selection; a material fix whose chain is unavailable retains the complete-only
           stop, including when an earlier-head producer hint is present.
 
+        - _Amended in:_ 4.R (A1)
+
 ### `[x]` **1.3 Admit a fix check only after a fix, and carry what a memoryless reviewer lacks — § 3.1, § 3.2**
 
 - _Goal:_ A fix check — the incremental local attempt, admitted only after an approved, performed response that fixed
@@ -670,6 +672,15 @@ rejections. Method and workflow text changes in the package's `arc/` source firs
         - Every standard-lane ceiling arm reads the same subject's facts and recommends another pass or stopping with
           cost, expected signal, and the evidence that would change the recommendation. Exact consequence approval
           remains the authority for another pass.
+
+### `[x]` **4.R Prepare the complete successor after a clean local fix check — A1**
+
+- _Goal:_ Ordinary local preparation under `full-final` admits the complete successor after a clean fix check at the
+  same head, while replay of an unfinished or explicitly named operation remains stable (A1).
+
+- _Outcome:_ `replayPendingLocalAdmission` lets ordinary preparation advance beyond a clean incremental result under
+  `full-final`, retaining explicit coverage and delivery replay. The private Candidate scenario reaches complete
+  coverage and pre-publication convergence verification after the clean fix check.
 
 ### `[ ]` **4.7 The cadence on every path** — validate exit criterion at segment scope
 
