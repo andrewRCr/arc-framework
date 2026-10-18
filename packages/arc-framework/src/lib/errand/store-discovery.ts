@@ -46,8 +46,7 @@ async function acquire(store: Store, inputs: Parameters<Store["list"]>[0][], err
 
 function projectRecord(saved: StoreRecord, errands: boolean): { record?: TransientIdentityRecord; diagnostics: ListingDiagnostic[] } {
   const slug = errands ? saved.reference.owner.name : typeof saved.reference.key === "string" ? saved.reference.key : "";
-  const diagnostic = (condition: string): ListingDiagnostic => ({ kind: "malformed", key: slug,
-    condition: `Malformed ${saved.reference.kind} ${slug}: ${condition}.`, remedy: { text: `Repair the ${saved.reference.kind} record ${slug}, then retry.` } });
+  const diagnostic = (condition: string): ListingDiagnostic => recordDiagnostic(saved, slug, condition);
   if (saved.conflicts.length > 0) return { diagnostics: [{
     ...diagnostic(`unresolved conflicts: ${saved.conflicts.map(reference => JSON.stringify(reference)).join(", ")}`),
     remedy: { text: "Resolve the named conflict records, then retry transient identity discovery." },
@@ -57,6 +56,17 @@ function projectRecord(saved: StoreRecord, errands: boolean): { record?: Transie
   if (errands && (saved.placement?.kind !== "active" || read.record.kind !== "errand" || read.record.purpose !== "errand")) {
     return { diagnostics: [diagnostic("active ordinary Errand expected")] };
   }
-  const ownerMissing = errands && read.record.kind === "errand" && read.record.purpose === "errand" && read.record.owner === undefined;
-  return { record: read.record, diagnostics: ownerMissing ? [diagnostic("Errand owner is missing")] : [] };
+  return { record: read.record, diagnostics: storeIdentityRecordDiagnostics(saved, read.record) };
+}
+
+/** Retain advisory problems on a valid decoded identity without withholding its role. */
+export function storeIdentityRecordDiagnostics(saved: StoreRecord, record: TransientIdentityRecord): ListingDiagnostic[] {
+  const ownerMissing = saved.reference.kind === "work-item/record" && record.kind === "errand"
+    && record.purpose === "errand" && record.owner === undefined;
+  return ownerMissing ? [recordDiagnostic(saved, record.slug, "Errand owner is missing")] : [];
+}
+
+function recordDiagnostic(saved: StoreRecord, slug: string, condition: string): ListingDiagnostic {
+  return { kind: "malformed", key: slug, condition: `Malformed ${saved.reference.kind} ${slug}: ${condition}.`,
+    remedy: { text: `Repair the ${saved.reference.kind} record ${slug}, then retry.` } };
 }

@@ -106,7 +106,8 @@ class InFlightProjection {
       return { marks: ["degraded", "indeterminate"] };
     }
     const rows = this.options.roster?.filter(candidate => matchesTransient(candidate, kind, slug, claimId)) ?? [];
-    if (rows.length > 1 || rows.some(row => row.kind !== "transient" || row.diagnostics.length > 0)) {
+    // A valid transient role may carry advisory record diagnostics without losing its holder.
+    if (rows.length > 1 || rows.some(row => row.kind !== "transient")) {
       const details = rows.flatMap(row => row.diagnostics.map(diagnostic => `${diagnostic.code}: ${diagnostic.message}`)).join(" ");
       this.warn(`Transient '${slug}' has unresolved checkout evidence at ${rows.map(row => row.checkout.path).join(", ")}. ${details} Inspect arc locus --json, repair or remove the stray transient marker, then retry.`, "worktree-list-failed");
       return { marks: ["degraded", rows.length > 1 ? "location-ambiguous" : "indeterminate"] };

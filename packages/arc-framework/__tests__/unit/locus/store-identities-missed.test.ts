@@ -7,15 +7,17 @@ import { readStoreIdentityEvidence, markerIdentitySnapshot, projectStoreIdentity
 import { projectDerivedCheckoutRow } from "../../../src/lib/locus/derived-roster.js";
 import type { DormantMarkerGenerationEvidence } from "../../../src/lib/locus/derived-lifecycle-evidence.js";
 import type { Store } from "../../../src/lib/store/contract.js";
+import { deriveStoreInFlight } from "../../../src/lib/git/in-flight-store.js";
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 
-async function fixture(kind: "errand" | "groom" | "housekeep", omit = false) {
+async function fixture(kind: "errand" | "groom" | "housekeep", omit = false, missingOwner = false, missed = true) {
   const h = createLifecycleHarness(); h.store.environment.identity = "alice";
   const slug = kind === "groom" ? "groom-alpha" : "repair", claimId = "a".repeat(32);
   const base = { version: 3, slug, claimId, createdAt: "2026-10-14T00:00:00Z", updatedAt: "2026-10-14T00:00:00Z", state: "open", changeRequest: null, branch: `chore/${slug}` };
   const content = TransientIdentityRecordSchema.parse(kind === "groom"
     ? { ...base, kind, protection: "full", anchorStub: "alpha", members: ["alpha"], openedBaseHead: "a".repeat(40) }
     : { ...base, kind: "errand", purpose: kind === "errand" ? "errand" : "housekeep-routing", savedHead: null,
-      ...(kind === "errand" ? { owner: "alice", intent: "Repair", origin: "description", originEntry: null } : {}) });
+      ...(kind === "errand" ? { ...(missingOwner ? {} : { owner: "alice" }), intent: "Repair", origin: "description", originEntry: null } : {}) });
   const person = OwnerIdentitySchema.parse({ type: "person", name: "alice" });
   const reference = kind === "errand" ? recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: slug }))
     : kind === "groom" ? recordReferences["claims/groom"](person, slug) : recordReferences["claims/housekeep"](person, slug);
@@ -23,7 +25,7 @@ async function fixture(kind: "errand" | "groom" | "housekeep", omit = false) {
   const partial = Object.create(h.store) as Store;
   partial.list = async input => {
     const listed = await h.store.list(input);
-    return input.kind === reference.kind && listed.status === "ok" && listed.result.status === "complete"
+    return missed && input.kind === reference.kind && listed.status === "ok" && listed.result.status === "complete"
       ? { status: "ok", result: { ...listed.result, missed: true, records: omit ? [] : listed.result.records } } : listed;
   };
   const marker: DormantMarkerGenerationEvidence = { kind: "present", generation: "generation", marker: {
@@ -50,6 +52,47 @@ it.each(["errand", "groom", "housekeep"] as const)("withholds an incompletely in
   expect((await h.project(evidence)).kind).toBe("transient");
   const publicEvidence = projectStoreIdentityDiscovery(evidence, []);
   expect(kind === "errand" ? publicEvidence.errands : publicEvidence.claims).toMatchObject({ kind: "complete", missed: true });
+});
+
+it.each(["normal", "missed", "omitted"])("retains a valid Errand role and its subject-local owner repair after %s discovery", async mode => {
+  const h = await fixture("errand", mode === "omitted", true, mode !== "normal");
+  const evidence = await readStoreIdentityEvidence(h.partial, "alice");
+  const row = await h.project(evidence);
+  expect(row).toMatchObject({ kind: "transient", identity: { kind: "errand", key: "repair", claimId: "a".repeat(32) } });
+  expect(row.diagnostics).toEqual([expect.objectContaining({ message: expect.stringMatching(/Errand owner is missing.*Repair.*record repair.*retry/u) })]);
+  expect(projectStoreIdentityDiscovery(evidence, []).errands).toMatchObject({ kind: "complete", missed: mode !== "normal",
+    identities: mode === "omitted" ? [] : [expect.objectContaining({ key: "repair" })] });
+});
+
+it("keeps another Errand's owner warning off a valid owned subject", async () => {
+  const h = await fixture("errand", false, false, false);
+  const reference = recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: "other" }));
+  await h.seed(reference, JSON.stringify({ ...h.content, slug: "other", branch: "chore/other", claimId: "b".repeat(32), owner: undefined }), { kind: "active" });
+  const evidence = await readStoreIdentityEvidence(h.partial, "alice");
+  expect(evidence.errands).toMatchObject({ missed: false, diagnostics: [expect.objectContaining({ key: "other", condition: expect.stringContaining("Errand owner is missing") })] });
+  expect(await h.project(evidence)).toMatchObject({ kind: "transient", subject: { kind: "errand", key: "repair" }, diagnostics: [] });
+});
+
+it("reports an omitted Errand's owner warning at the acquired state after its current record is repaired", async () => {
+  const h = await fixture("errand", true, true);
+  const evidence = await readStoreIdentityEvidence(h.partial, "alice");
+  lifecycleSuccess(await h.store.write({ action: "put", reference: h.saved.reference, expected: h.saved.version,
+    placement: { kind: "active" }, content: JSON.stringify({ ...h.content, owner: "alice" }), provenance: { verb: "repair", lifecycleAction: "repair" } }));
+  const pinned = await h.project(evidence);
+  expect(pinned.kind).toBe("transient");
+  expect(pinned.diagnostics).toEqual([expect.objectContaining({ message: expect.stringMatching(/Errand owner is missing.*retry/u) })]);
+  expect(await h.project(await readStoreIdentityEvidence(h.partial, "alice"))).toMatchObject({ kind: "transient", diagnostics: [] });
+});
+
+it("keeps a valid Errand's observed checkout usable beside its advisory owner warning", async () => {
+  const h = await fixture("errand", false, true, false);
+  const row = await h.project(await readStoreIdentityEvidence(h.partial, "alice"));
+  const fake = scriptGitExec([{ match: { prefix: ["for-each-ref"] }, responses: [{ stdout: "" }] }]);
+  const result = await deriveStoreInFlight({ store: h.partial, exec: fake.exec, identity: "alice", teamMode: false,
+    projectId: async () => "project", roster: [row] });
+  expect(result.entries).toEqual([expect.objectContaining({ slug: "repair", worktreePath: "/holder" })]);
+  expect(result.entries[0]).not.toHaveProperty("marks");
+  expect(result.warnings).toEqual([expect.objectContaining({ rendered: expect.stringMatching(/Errand owner is missing.*retry/u) })]);
 });
 
 it.each(["errand", "groom", "housekeep"] as const)("corroborates an omitted %s through its exact claim at the acquired saved state", async kind => {

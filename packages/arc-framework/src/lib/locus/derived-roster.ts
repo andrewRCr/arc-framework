@@ -117,13 +117,13 @@ export function projectDerivedCheckoutRow(options: {
         : composed.kind === "work-unit" && markerWorkUnit !== null
           ? "parked"
           : null,
-    diagnostics: "diagnostics" in composed
+    diagnostics: [...("diagnostics" in composed
       ? composed.diagnostics.map((diagnostic) => ({
           code: diagnostic.code,
           ...("source" in diagnostic ? { source: diagnostic.source } : {}),
           message: diagnostic.message,
         }))
-      : [],
+      : []), ...identityDiagnostics(options.identities, subject, identity)],
   };
   if (composed.kind === "unoccupied-primary") {
     return {
@@ -141,6 +141,12 @@ export function projectDerivedCheckoutRow(options: {
       diagnostics: [...base.diagnostics, ...pendingErrandRetry(options)] };
   }
   return { ...base, kind: composed.kind, subject: composed.subject };
+}
+
+function identityDiagnostics(snapshot: TransientIdentitySnapshot, subject: DerivedCheckoutSubject | null, identity: LocusIdentityV1 | null): DerivedCheckoutDiagnostic[] {
+  if (identity === null || subject === null || snapshot.kind !== "complete") return [];
+  return snapshot.diagnostics.filter(diagnostic => diagnostic.key === subject.key).map(diagnostic => ({ code: diagnostic.kind, source: "identity",
+    message: "message" in diagnostic ? diagnostic.message : `Transient identity ${subject.key} is ${diagnostic.kind}` }));
 }
 
 function projectMarkerDetails(marker: DormantMarkerGenerationEvidence): {

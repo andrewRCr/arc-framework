@@ -6,7 +6,7 @@ import { StateVersionSchema, sameReference } from "../store/identity.js";
 import { CheckoutClaimSchema } from "../store/lookup.js";
 import { deserializeTransientIdentityRecord, projectLocusIdentity, type TransientIdentityRecord } from "../errand/identity-record.js";
 import type { OccupancySubject } from "./occupancy-marker.js";
-import { acquireStoreErrands, acquireStoreClaims, type StoreIdentityAcquisition } from "../errand/store-discovery.js";
+import { acquireStoreErrands, acquireStoreClaims, storeIdentityRecordDiagnostics, type StoreIdentityAcquisition } from "../errand/store-discovery.js";
 import type { TransientIdentitySnapshot } from "../errand/identity-snapshot.js";
 import { LocusIdentityV1Schema } from "./schema/identity.js";
 import type { DerivedCheckoutRow } from "./derived-roster.js";
@@ -54,7 +54,8 @@ async function corroborateMarkerIdentity(store: Store | undefined, selected: Ext
     if (saved.conflicts.length > 0) return incompleteIdentity(`Exact claim has unresolved conflicts: ${saved.conflicts.map(reference => JSON.stringify(reference)).join(", ")}. Resolve the named conflicts, then retry.`);
     const record = sameReference(saved.reference, found.result.reference) ? matchingMarkerRecord(saved, subject) : null;
     if (record === null) return incompleteIdentity("Exact claim does not agree with its record kind, generation or active placement. Repair the marker's exact claim evidence, then retry.");
-    return acquisitionSnapshot({ ...selected, records: [saved], decoded: new Map([[record.slug, record]]), identities: [projectLocusIdentity(record)] });
+    return acquisitionSnapshot({ ...selected, records: [saved], decoded: new Map([[record.slug, record]]), identities: [projectLocusIdentity(record)],
+      diagnostics: storeIdentityRecordDiagnostics(saved, record) });
   } catch (error) { return incompleteIdentity(`${error instanceof Error ? error.message : String(error)} Repair the exact claim evidence, then retry.`); }
 }
 function matchingMarkerRecord(saved: StoreRecord, subject: IdentityMarker): TransientIdentityRecord | null {
