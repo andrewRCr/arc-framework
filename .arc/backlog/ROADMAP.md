@@ -13,20 +13,21 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State      | Work unit                       | Priority | Owner  | Depends on                      | Cohort        |
-| ---------- | ------------------------------- | -------- | ------ | ------------------------------- | ------------- |
-| `Planning` | storage-projection              | P1       | andrew | seam-locus, storage-ref-backend | state-storage |
-| `Active`   | storage-ref-backend             | P1       | andrew | seam-locus                      | state-storage |
-| `Planning` | seam-decomposition              | P1       | andrew | —                               | storage-seam  |
-| `Planning` | seam-delivery-review            | P1       | andrew | —                               | storage-seam  |
-| `Active`   | seam-locus                      | P1       | andrew | —                               | storage-seam  |
-| `Planning` | seam-status-roadmap             | P1       | andrew | —                               | storage-seam  |
-| `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —                               | —             |
-| `Planning` | decomposition-doctrine          | P1       | andrew | —                               | —             |
-| `Planning` | delivery-rebuild-continuity     | P1       | andrew | —                               | —             |
-| `Planning` | review-checkout-lifecycle       | P1       | andrew | —                               | —             |
-| `Planning` | review-coverage-cadence         | P1       | andrew | —                               | —             |
-| `Planning` | stub-mint-to-launch             | P1       | andrew | —                               | —             |
+| State         | Work unit                       | Priority | Owner  | Depends on                      | Cohort        |
+| ------------- | ------------------------------- | -------- | ------ | ------------------------------- | ------------- |
+| `Active`      | projected-markdown-checks       | P1       | andrew | —                               | state-storage |
+| `Planning`    | storage-projection              | P1       | andrew | seam-locus, storage-ref-backend | state-storage |
+| `Active`      | storage-ref-backend             | P1       | andrew | seam-locus                      | state-storage |
+| `Planning`    | seam-decomposition              | P1       | andrew | —                               | storage-seam  |
+| `Active`      | seam-delivery-review            | P1       | andrew | —                               | storage-seam  |
+| `Active`      | seam-locus                      | P1       | andrew | —                               | storage-seam  |
+| `Planning`    | seam-status-roadmap             | P1       | andrew | seam-locus                      | storage-seam  |
+| `Planning`    | candidate-reroot-recovery-frame | P1       | andrew | —                               | —             |
+| `Planning`    | decomposition-doctrine          | P1       | andrew | —                               | —             |
+| `Planning`    | delivery-rebuild-continuity     | P1       | andrew | —                               | —             |
+| `Planning`    | review-checkout-lifecycle       | P1       | andrew | —                               | —             |
+| `Integrating` | review-coverage-cadence         | P1       | andrew | —                               | —             |
+| `Planning`    | stub-mint-to-launch             | P1       | andrew | —                               | —             |
 
 ## Ready
 
@@ -39,7 +40,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | host-policy-evidence                | P1       | andrew | —          | review-protocol-alignment  |
 | review-evaluator-isolation          | P1       | andrew | —          | review-protocol-alignment  |
 | review-source-authority             | P1       | andrew | —          | review-protocol-alignment  |
-| projected-markdown-checks           | P1       | andrew | —          | state-storage              |
 | cross-worktree-git-state-safety     | P1       | andrew | —          | —                          |
 | delivery-intent-integrity           | P1       | andrew | —          | —                          |
 | locus-claim-revalidation            | P1       | andrew | —          | —                          |

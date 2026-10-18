@@ -107,6 +107,16 @@ function cleanComment(body: string): HostedGitHubIssueComment {
 }
 
 describe("Codex hosted adapter", () => {
+  it("refuses incremental requests before contacting GitHub", async () => {
+    const adapter = new CodexHostedAdapter(port({
+      readHead: () => Promise.reject(new Error("unexpected hosted access")),
+    }));
+    await expect(adapter.request(target, "incremental")).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: "Hosted incremental review is unavailable. Run a local fix check on delegated-agent or request a complete hosted pass.",
+    });
+  });
+
   it.each([
     ["readHead", "rate-limited"],
     ["currentActorIdentity", "transient-unavailable"],
@@ -117,7 +127,7 @@ describe("Codex hosted adapter", () => {
       [boundary]: () => Promise.reject(failure),
     }));
 
-    await expect(adapter.request(target, "incremental")).resolves.toEqual(
+    await expect(adapter.request(target, "complete")).resolves.toEqual(
       kind === "terminal-failure"
         ? { kind, reason: `${boundary}-${kind}` }
         : { kind },
@@ -145,7 +155,7 @@ describe("Codex hosted adapter", () => {
     });
   });
 
-  it("fails open to complete coverage when incremental review is unavailable", async () => {
+  it("requests complete coverage with the bare provider command", async () => {
     const posted: string[] = [];
     const adapter = new CodexHostedAdapter(port({
       createIssueComment: (_target, body) => {
@@ -168,11 +178,7 @@ describe("Codex hosted adapter", () => {
       kind: "created",
       effectiveCoverage: "complete",
     });
-    await expect(adapter.request(target, "incremental")).resolves.toMatchObject({
-      kind: "created",
-      effectiveCoverage: "complete",
-    });
-    expect(posted).toEqual(["@codex review", "@codex review"]);
+    expect(posted).toEqual(["@codex review"]);
     expect(CODEX_HOSTED_REGISTRATION).toMatchObject({
       id: "codex-pr",
       identities: { appId: "1144995", botUserId: "199175422" },

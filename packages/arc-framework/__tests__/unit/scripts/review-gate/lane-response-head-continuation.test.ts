@@ -1,3 +1,4 @@
+import { localPendingBinding } from "../../../fixtures/lane-pending-binding.js";
 /** Response bindings survive a proved Candidate record commit without spending pass authority. */
 
 import { describe, expect, it, vi } from "vitest";
@@ -116,6 +117,7 @@ describe("Candidate response head continuation", () => {
     };
     const pending = { ...coordinates, headSha: recordHead, attemptId: "next", logicalPass: 2,
       changeRequestId: "pull/1", sourceId: "delegated-agent", outcome: "pending" as const, consumedPass: false,
+      local: localPendingBinding({ operationId: "next", repositoryId: "repo", headSha: recordHead }),
       conditionalPendingAdmission: { authorizationId: captured.authorizationId, repositoryId: "repo",
         lane: "standard" as const, lineage, producedHeadSha: recordHead, nextPass: 2, admissionId: "next", now,
         confirmDispositionSetCurrent: async () => true, confirmResponseHeadContinuation } };
@@ -127,6 +129,7 @@ describe("Candidate response head continuation", () => {
     expect(admitted.attempts[1]?.headSha).toBe(recordHead);
     await expect(recordLaneResponsePerformance(store, performance)).resolves.toEqual(admitted);
     await expect(recordLaneAttempt(store, { ...pending, attemptId: "another",
+      local: localPendingBinding({ operationId: "another", repositoryId: "repo", headSha: recordHead }),
       conditionalPendingAdmission: { ...pending.conditionalPendingAdmission, admissionId: "another" } }))
       .rejects.toThrow(/consumed|only one pending/u);
   });
@@ -163,6 +166,7 @@ describe("Candidate response head continuation", () => {
     };
     const pending = { ...coordinates, headSha: recordHead, attemptId: "next", logicalPass: 2,
       changeRequestId: "pull/1", sourceId: "delegated-agent", outcome: "pending" as const, consumedPass: false,
+      local: localPendingBinding({ operationId: "next", repositoryId: "repo", headSha: recordHead }),
       conditionalPendingAdmission: { authorizationId: captured.authorizationId, repositoryId: "repo",
         lane: "standard" as const, lineage, producedHeadSha: recordHead, nextPass: 2, admissionId: "next", now,
         confirmDispositionSetCurrent: async () => true,
@@ -179,6 +183,7 @@ describe("Candidate response head continuation", () => {
     const { store, captured, performed } = await performedFixture();
     const pending = { ...coordinates, headSha: recordHead, attemptId: "next", logicalPass: 2,
       changeRequestId: "pull/1", sourceId: "delegated-agent", outcome: "pending" as const, consumedPass: false,
+      local: localPendingBinding({ operationId: "next", repositoryId: "repo", headSha: recordHead }),
       conditionalPendingAdmission: { authorizationId: captured.authorizationId, repositoryId: "repo",
         lane: "standard" as const, lineage, producedHeadSha: recordHead, nextPass: 2, admissionId: "next", now,
         confirmDispositionSetCurrent: async () => true } };

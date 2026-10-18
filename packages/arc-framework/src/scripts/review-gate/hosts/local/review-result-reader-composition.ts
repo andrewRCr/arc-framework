@@ -24,6 +24,31 @@ export function createRepositoryReviewResultReader(
       .then((repositoryId) => new LocalForwardReviewReceiptStore(publisher, repositoryId));
     return receiptStore;
   };
+  return composeResultReader(publisher, receipts);
+}
+
+/** Compose immutable result reads without locks, initialization, or state publication. */
+export function createReadOnlyRepositoryReviewResultReader(
+  publisher: Pick<GitCommonStatePublisher, "read" | "list">, repositoryId: string,
+): ReviewResultReader {
+  const readOnly: GitCommonStatePublisher = {
+    read: (location, name) => publisher.read(location, name),
+    list: location => publisher.list(location),
+    update: () => Promise.reject(new Error("Read-only review result access cannot publish state.")),
+    snapshot: async location => Promise.all((await publisher.list(location)).map(async entry => {
+      if (entry.kind !== "file") return { name: entry.name, kind: "other" as const };
+      const content = await publisher.read(location, entry.name);
+      if (content === null) throw new Error("Review history changed during the read. Retry the lane read.");
+      return { ...entry, kind: "file" as const, content };
+    })),
+  };
+  const receipts = new LocalForwardReviewReceiptStore(readOnly, repositoryId);
+  return composeResultReader(readOnly, () => Promise.resolve(receipts));
+}
+
+function composeResultReader(publisher: GitCommonStatePublisher,
+  receipts: () => Promise<LocalForwardReviewReceiptStore>,
+): ReviewResultReader {
   const receiptIndex: ForwardReviewReceiptIndex = {
     readReceiptEntries: async (targetId) => (await receipts()).readReceiptEntries(targetId),
     readReceiptReference: async (reference) => (await receipts()).readReceiptReference(reference),

@@ -10,7 +10,6 @@ export { parseCodeRabbitReviewBody } from "./coderabbit-body.js";
 export type { CodeRabbitReviewBodyParseResult } from "./coderabbit-body.js";
 
 import type {
-  HostedCoverageEvidence,
   HostedObservation,
   HostedReviewObserver,
 } from "./await.js";
@@ -31,7 +30,6 @@ import type {
   HostedReviewCoverage,
   HostedTarget,
 } from "./request.js";
-import type { IncrementalReviewScope } from "../core/incremental-review-scope.js";
 
 const COMMANDS = {
   complete: "@coderabbitai full review",
@@ -53,7 +51,6 @@ const RESOLVED_THREAD_REPLY_FOOTER = new RegExp(
 export const CODERABBIT_HOSTED_REGISTRATION = {
   id: "coderabbit-pr",
   commands: COMMANDS,
-  correctionReview: "native-incremental",
   identities: { botUserId: BOT_USER_ID, appOwnerId: APP_OWNER_ID, appId: APP_ID },
 } as const;
 
@@ -88,66 +85,6 @@ function summaryCompletesHead(
   const ranges = [...recent.matchAll(/\bbetween\s+[a-f0-9]{7,40}\s+and\s+([a-f0-9]{7,40})\b/giu)];
   const reviewedHead = ranges[0]?.[1]?.toLowerCase();
   return ranges.length === 1 && reviewedHead !== undefined && target.headSha.startsWith(reviewedHead);
-}
-
-function nativeIncrementalCoverageEvidence(
-  comments: readonly HostedGitHubIssueComment[],
-  target: HostedTarget,
-  scope: IncrementalReviewScope | null,
-  requestArtifactId: string,
-  requestedAt: string,
-  requestBoundary: string | null,
-  commandArtifactVisible: boolean,
-): HostedCoverageEvidence {
-  const unestablished = (
-    reason: Extract<HostedCoverageEvidence, { status: "unestablished" }>["reason"],
-  ): HostedCoverageEvidence => ({
-    schemaVersion: 1,
-    kind: "provider-native-incremental",
-    sourceId: "coderabbit-pr",
-    requestArtifactId,
-    status: "unestablished",
-    reason,
-  });
-  if (!commandArtifactVisible) return unestablished("provider-incremental-range-ambiguous");
-  if (scope === null) return unestablished("provider-incremental-range-missing");
-  const ranges = comments.flatMap((comment) => {
-    if (comment.updatedAt < requestedAt || !precedesBoundary(comment.updatedAt, requestBoundary)) return [];
-    const recent = recentReviewBody(comment);
-    if (recent === null) return [];
-    return [...recent.matchAll(
-      /\bbetween\s+([a-f0-9]{7,40})\s+and\s+([a-f0-9]{7,40})\b/giu,
-    )].map((match) => ({
-      base: match[1]?.toLowerCase(),
-      head: match[2]?.toLowerCase(),
-      comment,
-    }));
-  });
-  if (ranges.length === 0) return unestablished("provider-incremental-range-missing");
-  const range = ranges[0];
-  if (ranges.length !== 1 || range?.base === undefined || range.head === undefined) {
-    return unestablished("provider-incremental-range-ambiguous");
-  }
-  if (!scope.predecessorHeadSha.startsWith(range.base) || !target.headSha.startsWith(range.head)) {
-    return unestablished("provider-incremental-range-mismatch");
-  }
-  return {
-    schemaVersion: 1,
-    kind: "provider-native-incremental",
-    sourceId: "coderabbit-pr",
-    requestArtifactId,
-    status: "established",
-    baselineSha: range.base,
-    headSha: range.head,
-    providerGeneration: {
-      artifactId: range.comment.id,
-      url: range.comment.url,
-      createdAt: range.comment.createdAt,
-      updatedAt: range.comment.updatedAt,
-      actorIdentity: BOT_USER_ID,
-      appId: APP_ID,
-    },
-  };
 }
 
 function commandReplyCompleted(
@@ -396,6 +333,8 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
     target: HostedTarget,
     coverage: HostedReviewCoverage,
   ): Promise<HostedRequestOutcome> {
+    if (coverage === "incremental") return { kind: "terminal-failure",
+      reason: "Hosted incremental review is unavailable. Run a local fix check on delegated-agent or request a complete hosted pass." };
     let actorIdentity: string;
     try {
       if (await this.github.readHead(target) !== target.headSha) {
@@ -407,7 +346,7 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
       if (outcome !== null) return outcome;
       throw error;
     }
-    const command = COMMANDS[coverage];
+    const command = COMMANDS.complete;
     const result = await this.github.createIssueComment(target, command);
     if (result.kind !== "created") return result;
     if (result.actorIdentity !== actorIdentity || result.body !== command) {
@@ -428,22 +367,18 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
       handle.target,
       handle.artifact,
       handle.effectiveCoverage,
-      handle.requestedCoverage === "incremental"
-        ? handle.admission.correctionScope ?? null
-        : null,
       options,
     );
   }
 
   observeHandle(target: HostedTarget): Promise<HostedObservation> {
-    return this.observeSince(target, null, null, null);
+    return this.observeSince(target, null, null);
   }
 
   private async observeSince(
     target: HostedTarget,
     requestArtifact: HostedRequestHandle["artifact"] | null,
     coverage: HostedReviewCoverage | null,
-    correctionScope: IncrementalReviewScope | null,
     options?: { signal?: AbortSignal },
   ): Promise<HostedObservation> {
     try {
@@ -495,17 +430,6 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
         comment.actorIdentity === BOT_USER_ID
         && comment.appId === APP_ID
         && precedesBoundary(comment.createdAt, requestBoundary));
-      const coverageEvidence = coverage === "incremental" && requestArtifact !== null
-        ? nativeIncrementalCoverageEvidence(
-            providerComments,
-            target,
-            correctionScope,
-            requestArtifact.id,
-            requestedAt,
-            requestBoundary,
-            generationBoundary.commandArtifactVisible,
-          )
-        : null;
       if (review === undefined) {
         const completedStatus = statuses.find((status) =>
           status.context === "CodeRabbit"
@@ -524,7 +448,6 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
           return {
             kind: "clean",
             reviewUrl: completedSummary.url,
-            ...(coverageEvidence === null ? {} : { coverageEvidence }),
           };
         }
         if (requestBoundary !== null) {
@@ -610,14 +533,12 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
           kind: "findings",
           reviewUrl: review.url,
           findings: allFindings,
-          ...(coverageEvidence === null ? {} : { coverageEvidence }),
         };
       }
       if (review.state === "approved") {
         return {
           kind: "clean",
           reviewUrl: review.url,
-          ...(coverageEvidence === null ? {} : { coverageEvidence }),
         };
       }
       return review.state === "changes-requested"

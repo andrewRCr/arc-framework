@@ -10,9 +10,8 @@ arc:
     - classify-work-unit
     - assess-boundary-fit
     - assess-draft-readiness
-    - adversarial-review
+    - planning-review
     - assess-design-proportionality
-    - design-audit
     - source-grounding
 ---
 
@@ -197,57 +196,27 @@ accretion is real.
 
 ## Capture the draft
 
-On a draft-producing path (`medium` / `high`), ground the finished draft once at readiness, before the adversarial
-offer and capture commit. Run [source-grounding][source-grounding] as the author's own check and fold fixes inline,
-surfacing any decision needed at the existing capture gate:
+Run [planning-review's author checks][planning-author-checks] and [independent offer][planning-offer] at this
+stage gate, then its [findings and pass record][planning-findings].
 
 ```yaml
-source-grounding:
-  artifacts:  # finished draft + its upstream chain
-  scope: artifact
+planning-review:
+  artifact: draft
+  artifacts:       # draft-{name}.md or determinacy confirmation + upstream chain + neutral key-file pointers
+  class:           # resolved Class
+  prior-findings:  # recorded history; fresh-loop first pass takes ended-loop findings, not folds, as context
 ```
-
-The readiness boundary then carries an advisory adversarial fire-point — the gate's own rubrics run from fresh
-context:
-
-> [!IMPORTANT]
-> `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Novel` (strongest framing);
-> surface a neutral offer at `Light` / `Heavy`. Offer the pass and await the call — user decides; decline
-> proceeds normally.
-
-```yaml
-adversarial-review:
-  rubric:          # assess-draft-readiness divergence + assess-design-proportionality + design-audit + source-grounding
-  artifacts:       # draft-{name}.md + non-exhaustive key-file pointers (the implementation loci the design names)
-  orientation:
-    - AGENT-BRIEF.ARC
-    - AGENT-BRIEF.PROJECT
-  pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3
-  fold-verification: on
-  prior-findings:  # pass two onward; omitted on pass one
-```
-
-For a large target with a stable, contract-closed authored partition (segments, delivery members, or numbered spec
-sections), consider [adversarial-review § Authored-partition carrier mode][authored-partition]. Use one whole-target
-reviewer when no such partition exists or seams are dense.
-
-Beside every disposition set carrying a fix, offer the [fix check][fold-verification] to run after author grounding
-of the folds, before any successor pass or the final post-settle re-read.
-
-After each returned pass, apply the method's complete-disposition and bounded-continuation protocol, then append the
-pass to `ADVERSARIAL-PASSES.md` in the work unit's personal workspace (`.arc/user/{identity}/{name}/`, beside
-SESSION-NOTES): follow [adversarial-review § Pass record][pass-record] for the entry contents. Later passes take their
-`prior-findings` from it, and the commit below summarizes each pass in one body line. A stub groomed before it starts
-has no workspace yet, so that summary is its only record. This advisory evidence creates no lane-progress record.
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop when the draft (or determinacy confirmation) is ready. Surface it for review; await
 > approval before persisting `Class` and committing the capture.
 
-**Re-entry valve (the loop's floor-raising back-edge):** if review surfaces that the design runs deeper than the
-resolved level authored, re-enter `draft-design` higher — the derivation headwater re-enters itself only — per
-[resolve-planning-depth][resolve-planning-depth] § Mid-stage re-entry: capture, ratchet, re-enter rather than
-ship a too-thin draft.
+**Re-entry valve (the loop's floor-raising back-edge):** follow
+[resolve-planning-depth's mid-stage route][resolve-planning-depth] when the design runs deeper than the resolved
+level authored. Below `high`, re-enter this derivation headwater higher. At `high`, offer a return to the facilitated
+shaping step over the named locus, from the problem and alternatives, the `Novel` ratchet when invention is required,
+or boundary assessment when concerns can stand apart. Accepting a return ends the loop as `re-entered`; re-run
+readiness after shaping, then offer a fresh loop with a fresh cap and the ended loop's findings as context.
 
 On approval, capture what the level produced and persist the resolved `Class` to the meta. The `Class` decision
 is live from the entry read — it drove this stage's depth immediately — but its `**Class:**` write lands here,
@@ -275,13 +244,11 @@ lean PR on the auto-merge lane: one-line Summary, Test Plan only when non-obviou
 not assume the repo's advertised default is the allowed method. After the PR lands, return to the base checkout,
 fast-forward it, and remove the local grooming branch if it is still present.
 
-**Post-settle coherence re-read** (always-on, in-context): when folds landed after the readiness read —
-adversarial-pass findings, review amendments — re-read the settled draft for coherence (the readiness bar's
-coherence check, re-fired) as the last step before the capture commit.
-
 What is staged sets the commit shape: a `medium` / `high` path bundles the `draft-*` with the meta `Class` +
 `Design` writes; a `low` path that produced no draft writes only the meta, landing as a dedicated `chore(arc):`
 commit (see [DEV-RULES.ARC][dev-rules-arc] § Meta-file commit shape).
+
+Run [planning-review's post-settle reread][planning-reread] as the last step before this commit.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -311,7 +278,9 @@ planning-depth level is never recorded.
 [setup-merge-gate]: supplemental/setup-merge-gate.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [source-grounding]: ../../methods/source-grounding.md
-[pass-record]: ../../methods/adversarial-review.md#pass-record
 [route-discovered-work]: ../../methods/route-discovered-work.md
-[authored-partition]: ../../methods/adversarial-review.md#authored-partition-carrier-mode
-[fold-verification]: ../../methods/adversarial-review.md#fold-verification
+
+[planning-author-checks]: ../../methods/planning-review.md#author-checks
+[planning-offer]: ../../methods/planning-review.md#independent-offer
+[planning-findings]: ../../methods/planning-review.md#findings-and-pass-record
+[planning-reread]: ../../methods/planning-review.md#post-settle-reread

@@ -220,11 +220,11 @@ describe("init", () => {
       "assess-boundary-fit", "assess-design-proportionality", "assess-draft-readiness",
       "assess-evidence-applicability", "adversarial-review",
       "route-discovered-work", "classify-review-risk", "classify-work-unit", "commit-footer", "commit-format",
-      "frontline-review", "standard-review",
-      "implementation-audit", "review-chunking", "self-review", "design-audit",
+      "code-review-frontline", "code-review-standard",
+      "implementation-audit", "review-chunking", "code-review-author", "design-audit",
       "disposition-report",
       "issue-triage", "resolve-plan-segmentation", "resolve-planning-depth",
-      "review-response", "review-triage",
+      "review-model", "planning-review", "code-review", "verification-review", "review-response", "review-triage",
       "session-state", "source-grounding", "spec-review", "task-audit", "test-first", "testing-standards", "validate-criteria",
     ];
 

@@ -11,7 +11,8 @@ override-active: false
 
 # Method: task-audit
 
-> - **Workflow:** [generate-tasks.md][generate-tasks], [amend-design.md][amend-design]
+> - **Workflow:** [planning-review](planning-review.md), [generate-tasks.md][generate-tasks],
+>   [amend-design.md][amend-design], and the [standalone task audit][arc-task-audit-skill].
 > - **When:** Task generation runs its grounding-audit gate over a just-written phase, or an ad-hoc run audits
 >   tasks-as-written before or during implementation — a pre-impl pause or a mid-impl reground — via the
 >   [`arc-task-audit` door][arc-task-audit-skill].

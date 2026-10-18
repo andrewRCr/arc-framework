@@ -16,6 +16,8 @@ interface StandardExecutionInput {
   readonly target: ReviewPolicyRequest["target"];
   readonly frontlineActive: boolean;
   readonly standardReview: ReviewPolicyRequest["standardReview"];
+  readonly nextPassContext?: ReviewPolicyRequest["nextPassContext"];
+  readonly chosenCoverage?: ReviewPolicyRequest["chosenCoverage"];
   readonly completedPasses: number;
   readonly attempts: ReviewPolicyCommandRequest["attempts"];
   readonly sources: readonly string[];
@@ -32,6 +34,7 @@ export class ReviewDriverAdmissionError extends Error {
   readonly code = "invalid-input" as const;
   readonly state: ReviewResolveEnvelope["state"];
   readonly nextAction: ReviewResolveEnvelope["nextAction"];
+  readonly diagnostics: ReviewResolveEnvelope["diagnostics"];
   /** Why the driver refused a supplied override, when that is its answer. */
   readonly reason: string | null;
   /** The policy request the driver evaluated, when the refusing producer composed one. */
@@ -42,6 +45,7 @@ export class ReviewDriverAdmissionError extends Error {
     this.name = "ReviewDriverAdmissionError";
     this.state = resolution.state;
     this.nextAction = resolution.nextAction;
+    this.diagnostics = resolution.diagnostics;
     this.reason = resolution.state === "invalid-override" ? resolution.payload.reason : null;
     this.request = request ?? null;
   }
@@ -142,6 +146,8 @@ export function assertStandardReviewExecutionAdmission(
     frontlineActive: input.frontlineActive,
     standardReview: input.standardReview,
     completedPasses: input.completedPasses,
+    nextPassContext: input.nextPassContext,
+    chosenCoverage: input.chosenCoverage,
     attempts: input.attempts,
     sources: input.sources,
     maxPasses: input.maxPasses,

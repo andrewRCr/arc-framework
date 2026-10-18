@@ -1,5 +1,6 @@
 /** Recover one exact pending local admission before resolving fresh evaluator input. */
 
+import { localAttemptCoverageAdmission } from "../policy/local-review-coverage-selection.js";
 import { canonicalize } from "../../../lib/kernel/index.js";
 import { GitObjectIdSchema, type ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import { laneSubjectOwnerMatches, type LaneSubjectLineage } from "../core/lane-admission.js";
@@ -31,15 +32,15 @@ function requestedReplayPass(request: LocalPrepareRequest): number | undefined {
 }
 
 /**
- * A completed replay may answer only the pass and target this request names.
+ * A completed replay may answer only the pass, target, and coverage this request names.
  *
  * @param attempt - Durable completed lane attempt.
- * @param input - Target and pass selected by the current request.
+ * @param input - Target, pass, and coverage selected by the current request.
  * @returns Whether the completed attempt may be replayed.
  */
 export function completedReplayAttemptMatches(
   attempt: PendingAttempt,
-  input: Pick<StablePendingReplayContext, "request" | "target" | "scopeMode">,
+  input: Pick<StablePendingReplayContext, "request" | "target" | "scopeMode" | "coverageAdmission">,
 ): boolean {
   const requestedPass = requestedReplayPass(input.request);
   if (!attempt.terminalProducer || attempt.local === undefined) return false;
@@ -47,7 +48,8 @@ export function completedReplayAttemptMatches(
   if (input.request.deliveryAdmission === undefined && attempt.outcome === "settled-findings") return false;
   if (input.request.deliveryAdmission !== undefined
     && attempt.logicalPass !== input.request.deliveryAdmission.pass) return false;
-  return attempt.local.scopeMode === input.scopeMode
+  return canonicalize(localAttemptCoverageAdmission(attempt.local)) === canonicalize(input.coverageAdmission)
+    && attempt.local.scopeMode === input.scopeMode
     && attempt.headSha === input.target.headSha
     && attempt.local.target.targetId === input.target.targetId;
 }

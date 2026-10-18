@@ -2,8 +2,8 @@
 name: review-chunking
 description: Contract-cohesive bounded scopes for reviewing one exact change set
 related:
-  - frontline-review
-  - standard-review
+  - code-review-frontline
+  - code-review-standard
 override-active: false
 ---
 
@@ -79,6 +79,6 @@ Recursive chunking forms a hierarchy: local seams reconcile sibling chunks, and 
 domain roots. Higher seams consume the cross-boundary contracts and bounded child summaries they need, not every
 descendant body or raw diff wholesale.
 
-`frontline-review` and `standard-review` may consume this method only through a carrier capable of curated scopes
-and complete aggregation. Partial chunk reports have no standalone review authority. The role-specific methods own
-carrier eligibility, evaluator isolation, pass accounting, and their existing authority boundaries.
+`code-review-frontline` and `code-review-standard` may consume this method only through a carrier capable of curated
+scopes and complete aggregation. Partial chunk reports have no standalone review authority. The role-specific methods
+own carrier eligibility, evaluator isolation, pass accounting, and their existing authority boundaries.

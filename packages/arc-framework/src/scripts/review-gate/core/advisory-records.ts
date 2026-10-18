@@ -18,6 +18,7 @@ import {
 } from "../policy/frontline-outcome.js";
 import { HostedTargetSchema } from "../hosted/request.js";
 import { ReviewPolicyCommandRequestSchema } from "../policy/review-policy-driver.js";
+import { ReviewFixTagsSchema, validateReviewFixTags, type ReviewFixTags } from "./review-report-inputs.js";
 import { ApprovedDispositionSetSchema } from "./disposition-records.js";
 import { BoundFrontlineResponseBindingSchema } from "./frontline-response-binding.js";
 import {
@@ -86,6 +87,7 @@ export type DeliveryMemberReviewFixResponse = z.infer<typeof DeliveryMemberRevie
 
 export const ApprovedDispositionLineageNodeSchema = z.strictObject({
   approvedDisposition: ApprovedDispositionSetSchema,
+  advisoryFixTags: ReviewFixTagsSchema.optional(),
   responsePolicyRequest: ReviewPolicyCommandRequestSchema,
   // Approval is durable before policy projection. An interrupted projection may be
   // retried with a corrected, source-bound request until this marker is cleared.
@@ -116,8 +118,28 @@ export const ApprovedDispositionLineageNodeSchema = z.strictObject({
       path: ["fixAuthorization"],
     });
   }
+}).superRefine((node, context) => {
+  if (node.advisoryFixTags === undefined) return;
+  try { validateReviewFixTags(node.approvedDisposition.dispositionSet.findings, node.advisoryFixTags); }
+  catch (error) { context.addIssue({ code: "custom", path: ["advisoryFixTags"],
+    message: error instanceof Error ? error.message : "invalid advisory fix tags" }); }
 });
 export type ApprovedDispositionLineageNode = z.infer<typeof ApprovedDispositionLineageNodeSchema>;
+
+/** Construct the first approved response node before policy projection or fix performance. */
+export function createPendingResponseDispositionNode(input: Pick<ApprovedDispositionLineageNode,
+  "approvedDisposition" | "responsePolicyRequest" | "fixAuthorization"> & {
+    advisoryFixTags: ReviewFixTags | undefined;
+  }): ApprovedDispositionLineageNode {
+  return ApprovedDispositionLineageNodeSchema.parse({
+    approvedDisposition: input.approvedDisposition, responsePolicyRequest: input.responsePolicyRequest,
+    ...(input.advisoryFixTags === undefined ? {} : { advisoryFixTags: input.advisoryFixTags }),
+    policyProjectionPending: true, fixAuthorization: input.fixAuthorization,
+    errandFixResponse: null, deliveryMemberFixResponse: null,
+    predecessorDispositionSetId: null, successorDispositionSetId: null,
+  });
+}
+
 
 const ApprovedDispositionRecordObjectSchema = z.strictObject({
   ...AdvisoryRecordHeaderShape,

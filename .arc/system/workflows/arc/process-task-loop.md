@@ -6,7 +6,7 @@ arc:
     - issue-triage
     - review-chunking
     - testing-standards
-    - validate-criteria
+    - verification-review
 ---
 
 # Workflow: Task Processing Loop
@@ -193,10 +193,10 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
      for terminal verification. If the report contains an unresolved `[ ]`, dispatch to item 4's unresolved branch;
      otherwise dispatch to its resolved completion branch.
 
-     **A closing task that already carries a preserved boundary report does not re-walk.** It closes on the
-     effective report — that preserved report plus the deltas recorded since, composed per `validate-criteria` —
-     with a completion note citing the subtask that recorded the delta, and dispatches to item 4's resolved
-     completion branch. The key is a fact on the task being executed, never list-wide state.
+     **A closing task that already carries a preserved boundary report does not re-walk.** It closes on the effective
+     report — that preserved report plus the deltas recorded since, composed per [validate-criteria's amendment
+     deltas][criteria-deltas] — with a completion note citing the subtask that recorded the delta, and dispatches to
+     item 4's resolved completion branch. The key is a fact on the task being executed, never list-wide state.
 
      Before a fresh member criteria walk or its first independent reviewer, invoke `arc review changeset resolve -`
      over the bounded member diff, including local edits, using `validate-criteria` § Verification subject for its
@@ -216,7 +216,7 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
      check below still closes the member's final span.
 
      ```yaml
-     validate-criteria:
+     verification-review:
        scope:
          kind: delivery-member
          criteria: member group in the task list's Success Criteria section
@@ -224,23 +224,8 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
          reachability: cumulative tree through this member
      ```
 
-     **Method fire-point** · [`adversarial-review`][adversarial-review], declared by `validate-criteria`: After
-     the primary member walk, load its adversarial companion.
-
-     > [!IMPORTANT]
-     > `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Novel`; offer neutrally
-     > at `Light` / `Heavy`. Offer the pass and await the call — user decides; decline keeps the primary report.
-     >
-     > ```yaml
-     > adversarial-review:
-     >   rubric:          # selected member Success Criteria group
-     >   artifacts:       # upstream design + task list with markings withheld + member diff and reachable tree
-     >   orientation:
-     >     - AGENT-BRIEF.ARC
-     >     - AGENT-BRIEF.PROJECT
-     >   pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3
-     >   prior-findings:  # pass two onward; omitted on pass one
-     > ```
+     Run [verification-review][verification-review] over that scope, including its [author criteria
+     walk][verification-walk] and [independent companion][verification-companion].
 
      Before advancing beyond the member, close its scale-attention result against the exact committed member span.
      When the closing task's changes do not yet have their approved commit head, defer this scale step through item 4
@@ -424,7 +409,10 @@ updates**. Always update the task list file before reporting completion.
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [arc-methods-ts]: ../../methods/testing-standards.md
 [arc-methods-it]: ../../methods/issue-triage.md
-[adversarial-review]: ../../methods/adversarial-review.md
+[verification-review]: ../../methods/verification-review.md
+[verification-walk]: ../../methods/verification-review.md#author-criteria-walk
+[verification-companion]: ../../methods/verification-review.md#independent-companion
+[criteria-deltas]: ../../methods/validate-criteria.md#amendment-deltas
 [review-chunking]: ../../methods/review-chunking.md
 [arc-commit-skill]: ../../.internal/skills/arc-commit/SKILL.md
 [session-ops]: ../../../reference/strategies/arc/strategy-session-operations.md

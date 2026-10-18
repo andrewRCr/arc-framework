@@ -1,3 +1,5 @@
+import { firstReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
+import { withReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
 /** Unit coverage for ordered hosted-review admission. */
 
 import { describe, expect, it } from "vitest";
@@ -326,6 +328,7 @@ describe("hosted reservation admission", () => {
       vehicle: deliveryVehicle,
     })).toEqual({
       status: "complete",
+      predecessorProducerId: "attempt-prior",
       completedPasses: 1,
       completePasses: 1,
       attempts: [{ sourceId: "coderabbit-pr", outcome: "rate-limited" }],
@@ -559,6 +562,7 @@ describe("hosted reservation admission", () => {
       vehicle: deliveryVehicle,
     })).toEqual({
       status: "complete",
+      predecessorProducerId: "local-review-1",
       completedPasses: 1,
       completePasses: 0,
       attempts: [],
@@ -612,6 +616,7 @@ describe("hosted reservation admission", () => {
       vehicle: deliveryVehicle,
     })).toEqual({
       status: "complete",
+      predecessorProducerId: "attempt-upgraded",
       completedPasses: 1,
       completePasses: 1,
       attempts: [{
@@ -669,6 +674,7 @@ describe("hosted reservation admission", () => {
       vehicle: deliveryVehicle,
     })).toEqual({
       status: "complete",
+      predecessorProducerId: "attempt-incremental",
       completedPasses: 1,
       completePasses: 0,
       attempts: [{
@@ -933,14 +939,14 @@ describe("hosted reservation admission", () => {
   });
 
   it("admits the next member pass from selector-qualified lineage progress", () => {
-    const result = resolveHostedReservationPolicy({
+    const result = resolveHostedReservationPolicy(withReviewNextPassContext({
       reservation: deliveryReservation,
       snapshot: memberProgressSnapshot(),
       repositoryId: "repo-1",
       target: { repository: "owner/repo", pullRequest: 42, headSha: deliveryVehicle.head },
       vehicle: deliveryVehicle,
       maxPasses: 2,
-    });
+    }));
 
     expect(result).toMatchObject({
       status: "resolved",
@@ -954,7 +960,7 @@ describe("hosted reservation admission", () => {
 
   it("selects the delegated carrier for an exact chunked member scope", () => {
     const target = { repository: "owner/repo", pullRequest: 42, headSha: deliveryVehicle.head };
-    const result = resolveHostedReservationPolicy({
+    const result = resolveHostedReservationPolicy(withReviewNextPassContext({
       reservation: {
         ...deliveryReservation,
         sources: ["coderabbit-pr", "codex-pr", "delegated-agent"],
@@ -965,7 +971,7 @@ describe("hosted reservation admission", () => {
       vehicle: deliveryVehicle,
       maxPasses: 2,
       scopeSelection: { mode: "chunked", target },
-    });
+    }));
 
     expect(result).toMatchObject({
       status: "resolved",
@@ -983,7 +989,7 @@ describe("hosted reservation admission", () => {
 
   it("retains a whole-target refusal while starting the selected chunked carrier", () => {
     const target = { repository: "owner/repo", pullRequest: 42, headSha: deliveryVehicle.head };
-    const result = resolveHostedReservationPolicy({
+    const result = resolveHostedReservationPolicy(withReviewNextPassContext({
       reservation: {
         ...deliveryReservation,
         sources: ["coderabbit-pr", "codex-pr", "delegated-agent"],
@@ -994,7 +1000,7 @@ describe("hosted reservation admission", () => {
       vehicle: deliveryVehicle,
       maxPasses: 2,
       scopeSelection: { mode: "chunked", target },
-    });
+    }));
 
     expect(result).toMatchObject({
       status: "resolved",
@@ -1022,10 +1028,10 @@ describe("hosted reservation admission", () => {
       maxPasses: 2,
     };
 
-    expect(resolveHostedReservationPolicy({
+    expect(resolveHostedReservationPolicy(withReviewNextPassContext({
       ...input,
       invocation: { mode: "force", sourceId: "codex-pr" },
-    })).toMatchObject({
+    }))).toMatchObject({
       status: "resolved",
       policy: {
         state: "ready",
@@ -1033,7 +1039,7 @@ describe("hosted reservation admission", () => {
         payload: { sourceId: "codex-pr" },
       },
     });
-    expect(resolveHostedReservationPolicy(input)).toMatchObject({
+    expect(resolveHostedReservationPolicy(withReviewNextPassContext(input))).toMatchObject({
       status: "resolved",
       policy: {
         state: "ready",
@@ -1053,15 +1059,15 @@ describe("hosted reservation admission", () => {
       maxPasses: 2,
     };
 
-    expect(() => resolveHostedReservationPolicy({
+    expect(() => resolveHostedReservationPolicy(withReviewNextPassContext({
       ...input,
       invocation: { mode: "force", sourceId: "other-pr" },
-    })).toThrow(/configured standard-review source/u);
-    expect(() => resolveHostedReservationPolicy({
+    }))).toThrow(/configured standard-review source/u);
+    expect(() => resolveHostedReservationPolicy(withReviewNextPassContext({
       ...input,
       requestAttempts: [{ sourceId: "codex-pr", outcome: "rate-limited" }],
       invocation: { mode: "force", sourceId: "coderabbit-pr" },
-    })).toThrow(/cannot precede recorded source progress/u);
+    }))).toThrow(/cannot precede recorded source progress/u);
   });
 
   it("preserves an applicable safe-unavailability prefix when the member head moves", async () => {
@@ -1128,7 +1134,7 @@ describe("hosted reservation admission", () => {
         throw new Error("not reached");
       },
     });
-    const result = resolveHostedReservationPolicy({
+    const result = resolveHostedReservationPolicy(withReviewNextPassContext({
       reservation: deliveryReservation,
       snapshot,
       repositoryId: "repo-1",
@@ -1136,7 +1142,7 @@ describe("hosted reservation admission", () => {
       vehicle: deliveryVehicle,
       maxPasses: 2,
       requestAttempts: discharge.requestAttempts,
-    });
+    }));
 
     expect(discharge).toMatchObject({
       discharged: false,
@@ -1155,6 +1161,7 @@ describe("hosted reservation admission", () => {
 
   it("rechecks the member pass ceiling immediately before hosted capacity is spent", () => {
     const input = {
+      nextPassContext: { ...firstReviewNextPassContext, completePasses: 1 },
       reservation: deliveryReservation,
       snapshot: memberProgressSnapshot(),
       repositoryId: "repo-1",
@@ -1165,8 +1172,8 @@ describe("hosted reservation admission", () => {
       maxPasses: 1,
     };
 
-    expect(() => assertHostedReservationPolicyAdmission(input)).toThrow(/approval-required/u);
-    expect(() => assertHostedReservationPolicyAdmission({
+    expect(() => assertHostedReservationPolicyAdmission(withReviewNextPassContext(input))).toThrow(/approval-required/u);
+    expect(() => assertHostedReservationPolicyAdmission(withReviewNextPassContext({
       ...input,
       ceilingOverride: {
         target: input.target,
@@ -1174,7 +1181,7 @@ describe("hosted reservation admission", () => {
         exhaustedPassCount: 1,
         nextPass: 2,
       },
-    })).not.toThrow();
+    }))).not.toThrow();
   });
 
   it("admits the preferred source before any attempt", () => {

@@ -336,7 +336,8 @@ export async function recordLocalReceiptConclusion(
   });
 }
 
-function countCompleteLogicalPasses(attempts: readonly LaneAttempt[]): number {
+/** Count terminal complete looks once per logical pass within one lane owner. */
+export function countCompleteLogicalPasses(attempts: readonly LaneAttempt[]): number {
   return new Set(attempts.filter((attempt) => (
     attempt.terminalProducer
       && (attempt.local?.effectiveCoverage === "complete"

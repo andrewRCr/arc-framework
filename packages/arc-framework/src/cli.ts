@@ -18,6 +18,7 @@ import {
   createDevBuildGuardDeps,
   refreshDevBuildAfterAction,
 } from "./lib/dev-check.js";
+import { reviewRequestAction } from "./lib/command-input/review-request-action.js";
 import { withInteractionContext } from "./lib/command-input/interaction-context.js";
 import { isDecomposeMachineReadableInvocation } from "./lib/work-unit/decompose-command-routing.js";
 import { throwCheckParserResult, writeCheckParserDiagnostic } from "./lib/checks/usage.js";
@@ -1960,7 +1961,7 @@ reviewCmd
   .option("--work-unit <slug>", "Resolve the live stacked-delivery review continuation")
   .option("--ceiling-override <override>", "Exact JSON consequence approving one additional review pass")
   .option("--additional-pass <authorization>", "Exact JSON Owner authorization for review after convergence")
-  .option("--coverage <coverage>", "Requested hosted coverage (complete or incremental)")
+  .option("--coverage <coverage>", "Requested review coverage (complete or incremental; hosted sources require complete)")
   .option("--source <source-id>", "Explicit standard-review source for this work-unit status invocation")
   .addOption(new Option("--json").hideHelp())
   .on("option:json", rejectUnsupportedReviewOutputJson)
@@ -2032,6 +2033,16 @@ reviewCmd
     await (await import("./handlers/review.js")).handleReviewChecksAwait(options, {}, context);
   }));
 
+reviewCmd.command("lane").description("Read review lineage history").command("read")
+  .description("Read lineage rejections and standard-lane facts as JSON")
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
+  .action(withInteractionContext({ machineReadable: () => true }, reviewRequestAction("review-lane-read-request",
+    async (input, context) => (await import("./handlers/review.js")).handleReviewLaneRead(input, {}, context))));
+
 reviewCmd
   .command("readiness")
   .description("Validate exact-head lifecycle readiness as JSON")
@@ -2040,13 +2051,8 @@ reviewCmd
   .option("--schema", "Print the registered public request schema bundle")
   .addOption(new Option("--json").hideHelp())
   .hook("preAction", rejectUnsupportedReviewJson)
-  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
-    if (opts.schema === true) {
-      (await import("./handlers/review.js")).handleReviewRequestSchema("review-readiness-request", input);
-      return;
-    }
-    await (await import("./handlers/review.js")).handleReviewReadiness(input ?? "", {}, context);
-  }));
+  .action(withInteractionContext({ machineReadable: () => true }, reviewRequestAction("review-readiness-request",
+    async (input, context) => (await import("./handlers/review.js")).handleReviewReadiness(input, {}, context))));
 
 reviewCmd
   .command("planning-lane")
@@ -2127,13 +2133,8 @@ frontlineCmd
   .option("--schema", "Print the registered public request schema bundle")
   .addOption(new Option("--json").hideHelp())
   .hook("preAction", rejectUnsupportedReviewJson)
-  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
-    if (opts.schema === true) {
-      (await import("./handlers/review.js")).handleReviewRequestSchema("review-frontline-resolve-request", input);
-      return;
-    }
-    await (await import("./handlers/review.js")).handleReviewFrontlineResolve(input ?? "", {}, context);
-  }));
+  .action(withInteractionContext({ machineReadable: () => true }, reviewRequestAction("review-frontline-resolve-request",
+    async (input, context) => (await import("./handlers/review.js")).handleReviewFrontlineResolve(input, {}, context))));
 
 frontlineCmd
   .command("run")
@@ -2224,13 +2225,8 @@ reviewCmd
   .option("--schema", "Print the registered public request schema bundle")
   .addOption(new Option("--json").hideHelp())
   .hook("preAction", rejectUnsupportedReviewJson)
-  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
-    if (opts.schema === true) {
-      (await import("./handlers/review.js")).handleReviewRequestSchema("review-chunking-resolve-request", input);
-      return;
-    }
-    await (await import("./handlers/review.js")).handleReviewChunkingResolve(input ?? "", {}, context);
-  }));
+  .action(withInteractionContext({ machineReadable: () => true }, reviewRequestAction("review-chunking-resolve-request",
+    async (input, context) => (await import("./handlers/review.js")).handleReviewChunkingResolve(input, {}, context))));
 
 const localReviewCmd = reviewCmd
   .command("local")

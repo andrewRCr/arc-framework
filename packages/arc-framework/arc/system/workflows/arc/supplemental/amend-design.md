@@ -8,9 +8,8 @@ arc:
     - resolve-plan-segmentation
     - task-audit
     - spec-review
-    - adversarial-review
-    - assess-design-proportionality
-    - design-audit
+    - planning-review
+    - source-grounding
     - validate-criteria
 ---
 
@@ -30,9 +29,6 @@ a planning workflow whole.
 
 **The section headings below are load-bearing.** The detection sites and the ad-hoc door enter this workflow by
 anchor. Rename a heading only with every citing site updated in the same change.
-
-**`adversarial-review` is declared here in its own right.** The depth ladder fires it directly; that
-[`validate-criteria`][validate-criteria] also owns it as a dependency does not make this declaration redundant.
 
 ## The spine
 
@@ -131,24 +127,20 @@ gate, and none lands work inside the verifier's own increment.
 
 The arm says what changes and who decides; **depth** says how much must be derived, and it is what sets the rigor.
 Run [`resolve-planning-depth`][resolve-planning-depth] over the finding and the gap — not over the work unit — and
-take the level it returns. The work unit's `Class` does not govern here.
+take the level it returns. The work unit's `Class` does not set the amendment's depth.
 
-At every depth, `low` included, retain [`spec-review`][spec-review]'s grounding slice. Run the selected review on
-the written amendment before release, as directed in § The capture commit below.
-Apply both common reader-independence and binding-completeness checks to specification amendments, regardless of when
-the specification was authored, even when grounding is the only selected slice. Cover the amendment footprint,
-including removals and affected surrounding obligations and definitions, without expanding to unrelated content.
-At `medium` / `high`, retain the coherence slice below alongside grounding; unchanged specifications need no retrofit.
+The written amendment receives the shared [author checks][planning-author-checks] at release, as directed in
+The capture commit below. The footprint includes removals and affected surrounding obligations and definitions.
 
-- **`low`** — a determinate correction. The Owner's approval at the existing stop is the gate and no adversarial
-  pass runs. Run [`task-audit`][task-audit] at grounding-only depth over the revision tasks.
+- **`low`** — a determinate correction. The Owner's approval at the existing stop is the gate. Run
+  [`task-audit`][task-audit] at grounding-only depth over the revision tasks.
 - **`medium`** — a bounded set of decisions to compose. The canonical procedures run **at scope, never whole**:
   the spec stage's authoring moves and [`spec-review`][spec-review]'s coherence slice over the affected elements;
   [`task-audit`][task-audit] over the affected phases; and [`resolve-plan-segmentation`][resolve-plan-segmentation] only
-  when a new segment appears. Offer [`adversarial-review`][adversarial-review] over the footprint, neutrally.
-- **`high`** — design that must be authored rather than corrected. The same procedures at scope, with the
-  adversarial pass recommended. Run [`classify-work-unit`][classify-work-unit] to ratchet `Class` to the realized
-  floor; the write itself lands at the capture commit (§ The capture commit).
+  when a new segment appears.
+- **`high`** — design that must be authored rather than corrected. Run the same procedures at scope and
+  [`classify-work-unit`][classify-work-unit] to ratchet `Class` to the realized floor; the write itself lands at the
+  capture commit (§ The capture commit).
 
 **Stage procedures at scope move nothing.** They carry no lifecycle prerequisite beyond the artifacts existing, so
 running them inside an active work unit moves no lifecycle state, advances no stage pointer, and repoints nothing.
@@ -156,23 +148,9 @@ Skip their ceremony steps by reference.
 
 ### The assurance invariant
 
-An amendment's artifacts pass the gates the originals passed, over the amendment's footprint, at the amendment's
-depth. The depth ladder governs whether an adversarial pass is omitted, offered, or recommended. Run every such pass
-with `fold-verification: on`. When an eligible pass is authorized, run it on the finalization rubric the original
-cleared, minus nothing — [`assess-design-proportionality`][assess-design-proportionality],
-[`design-audit`][design-audit], and [`spec-review`][spec-review]'s coherence and grounding slices, and
-[`task-audit`][task-audit]'s grounding floor over the footprint's tasks — and pass any prior findings recorded in the
-work unit's `ADVERSARIAL-PASSES.md` through `adversarial-review`'s `prior-findings` input so untouched elements are
-never re-attacked. Append the amendment's pass to that record following [adversarial-review § Pass
-record][pass-record], as the planning passes do. Closure re-runs the detecting check (§ Closure).
-
-Beside every disposition set carrying a fix, offer the [fix check][fold-verification] to run after author grounding
-of the folds, before any successor pass or the final post-settle re-read.
-
-**Post-settle coherence re-read** (always-on, in-context): when its pass folded anything, re-fire
-[`spec-review`][spec-review]'s coherence slice over the amended footprint as the last step before the amendment
-lands, on every arm. Retain both common reader checks and the affected surrounding contract at this reread, without
-expanding to unrelated content.
+An amendment's artifacts pass the gates the originals passed, over the amendment's footprint, at its depth.
+The capture step invokes [planning-review's author checks][planning-author-checks], [independent offer][planning-offer],
+and [findings and pass record][planning-findings]. Closure still reruns the detecting check below.
 
 ### The accretion guard
 
@@ -260,12 +238,19 @@ forward-amendment paragraphs and no provenance in task bodies — the list stays
 
 ## The capture commit
 
-After the amendment record's bounded writes, run [`spec-review`][spec-review]'s grounding slice at every depth,
-`low` included, over the written specification delta and affected surrounding obligations and definitions. When
-the specification body is unchanged, retain the existing affected-element grounding scope. Apply the common reader
-checks to specifications and retain the other slices selected by § Depth and rigor. Complete this review
-before the existing capture, task, or review-fix commit; route findings through the existing iteration and approval
-flow.
+After the amendment record's bounded writes, run the shared [author checks][planning-author-checks],
+[independent offer][planning-offer], and [findings and pass record][planning-findings] before release:
+
+```yaml
+planning-review:
+  artifact: amendment
+  artifacts:       # written footprint + affected surrounding contract + upstream chain + neutral key-file pointers
+  depth:           # resolved amendment depth
+  class:           # resolved Class, including a live ratchet; sets the pass cap
+  prior-findings:  # recorded planning findings; untouched elements stay outside the footprint
+```
+
+Return corrections through the existing iteration and approval flow. No stage pointer or lifecycle state moves.
 
 On the **spec-depth and design arms** the capture — log row, revision tasks, body edit, criterion, notes entry,
 and the `Class` ratchet where the depth read requires one — lands as **one commit before corrective work begins**,
@@ -273,6 +258,9 @@ released at the stop where the Owner authorized it, so the point-in-time design 
 
 Write the `Class` ratchet with `arc finalize amend-design --class <Class>` rather than editing the meta by hand:
 the capture is a planning ceremony and that verb performs the write with no lifecycle guard.
+
+Run [planning-review's post-settle reread][planning-reread] as the last step before the capture, task, or
+review-fix commit, on every arm.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -358,7 +346,7 @@ coincide at the member site and diverge elsewhere.
 | must-stop / skill door | `pending → X.Z`, the next covering verifier | the parent closes on its own evidence                       |
 
 **Member-site closure.** The corrective parent's closing subtask records the delta — run
-[`validate-criteria`][validate-criteria] over the changed criteria and the amendment's span; that method defines
+[`validate-criteria`][criteria-delta-check] over the changed criteria and the amendment's span; that method defines
 the delta's shape, a supplement to the preserved report rather than a second one. The member's closing task, left
 `[ ]` at the stop with its boundary report preserved, then closes on the **effective report**: a marker flip whose
 completion note cites the delta subtask. **A closing task that already carries a preserved boundary report does
@@ -417,14 +405,12 @@ appended supersession lines — the same extent rule parent Goals follow. Stated
 ---
 
 [validate-criteria]: ../../../methods/validate-criteria.md
+[criteria-delta-check]: ../../../methods/validate-criteria.md#amendment-deltas
 [resolve-planning-depth]: ../../../methods/resolve-planning-depth.md
 [classify-work-unit]: ../../../methods/classify-work-unit.md
 [resolve-plan-segmentation]: ../../../methods/resolve-plan-segmentation.md
 [task-audit]: ../../../methods/task-audit.md
 [spec-review]: ../../../methods/spec-review.md
-[adversarial-review]: ../../../methods/adversarial-review.md
-[assess-design-proportionality]: ../../../methods/assess-design-proportionality.md
-[design-audit]: ../../../methods/design-audit.md
 [draft-design]: ../draft-design.md
 [decompose]: ../work-unit-lifecycle/decompose-work-unit.md
 [reopen-work-unit]: ../work-unit-lifecycle/reopen-work-unit.md
@@ -433,5 +419,8 @@ appended supersession lines — the same extent rule parent Goals follow. Stated
 [verify-work-unit]: ../work-unit-lifecycle/verify-work-unit.md
 [prepare-work-unit]: ../work-unit-lifecycle/prepare-work-unit.md
 [source-grounding]: ../../../methods/source-grounding.md
-[pass-record]: ../../../methods/adversarial-review.md#pass-record
-[fold-verification]: ../../../methods/adversarial-review.md#fold-verification
+
+[planning-author-checks]: ../../../methods/planning-review.md#author-checks
+[planning-offer]: ../../../methods/planning-review.md#independent-offer
+[planning-findings]: ../../../methods/planning-review.md#findings-and-pass-record
+[planning-reread]: ../../../methods/planning-review.md#post-settle-reread
