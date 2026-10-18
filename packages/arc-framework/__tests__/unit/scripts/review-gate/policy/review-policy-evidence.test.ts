@@ -1,4 +1,6 @@
 import { firstReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
+import type { IncrementalReviewScope } from "../../../../../src/scripts/review-gate/core/incremental-review-scope.js";
+import type { StandardReviewObligationProjection } from "../../../../../src/scripts/review-gate/policy/standard-review-projection-schema.js";
 import { describe, expect, it, vi } from "vitest";
 import { cleanHostedResult, findingsHostedResult, approvedRecord, performedFix } from "../../../../fixtures/review-response-proof.js";
 
@@ -52,7 +54,10 @@ const standardReview = {
   count: 1 as const,
 };
 
-function chunkedLocalAggregateResult(): ReviewResult {
+function chunkedLocalAggregateResult(options: { projection?: StandardReviewObligationProjection;
+  logicalPass?: number; correctionScope?: IncrementalReviewScope; clean?: boolean } = {}): Extract<ReviewResult, { kind: "attested-local" }> {
+  const logicalPass = options.logicalPass ?? 1;
+  const coverage = options.correctionScope === undefined ? "complete" : "incremental";
   const target = createReviewTarget({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
@@ -66,7 +71,7 @@ function chunkedLocalAggregateResult(): ReviewResult {
   });
   const requirement = createReviewRequirement({
     target,
-    projection: standardReview,
+    projection: options.projection ?? standardReview,
     acceptableSources: [{ sourceKind: "agent", qualifier: "standard-review/v1" }],
     initialAdmission: "automatic",
   });
@@ -81,7 +86,7 @@ function chunkedLocalAggregateResult(): ReviewResult {
     authorIdentity: "andrew",
     evaluatorIdentity: "codex",
     lineageId: digest("lineage"),
-    logicalPass: 1,
+    logicalPass,
     generation: 0,
     requestMechanism: "subagent",
   });
@@ -101,11 +106,12 @@ function chunkedLocalAggregateResult(): ReviewResult {
       workUnitId: "example",
       head: policyTarget.headSha,
     },
-    pass: 1,
-    requestedCoverage: "complete",
+    pass: logicalPass,
+    requestedCoverage: coverage,
     scopeSelection: { mode: "chunked", target: policyTarget },
+    ...(options.correctionScope === undefined ? {} : { correctionScope: options.correctionScope }),
   });
-  const findings = ["major", "minor"].map((severity, index) => ({
+  const findings = options.clean === true ? [] : ["major", "minor"].map((severity, index) => ({
     findingId: `aggregate-finding-${index + 1}`,
     severity: severity as "major" | "minor",
     locus: `src/chunk-${index + 1}.ts:1`,
@@ -115,13 +121,13 @@ function chunkedLocalAggregateResult(): ReviewResult {
   return {
     kind: "attested-local",
     vehicle: { kind: "delivery-member", identity: deliveryAdmission.vehicle.deliverableId },
-    producerId: "local/aggregate-1",
+    producerId: `local/aggregate-${logicalPass}`,
     repositoryId: target.repositoryId,
     target,
     sourceIdentity: "delegated-agent",
-    originalOutcome: "findings",
+    originalOutcome: options.clean === true ? "clean" : "findings",
     findings,
-    resultDigest: digest("local-aggregate-result"),
+    resultDigest: digest(`local-aggregate-result-${logicalPass}`),
     admission: {
       lineage: {
         kind: "delivery-member",
@@ -129,15 +135,16 @@ function chunkedLocalAggregateResult(): ReviewResult {
         deliverableId: deliveryAdmission.vehicle.deliverableId,
         workUnitId: deliveryAdmission.vehicle.workUnitId,
       },
-      logicalPass: 1,
+      logicalPass,
       retryGeneration: 0,
-      requestedCoverage: "complete",
-      effectiveCoverage: "complete",
+      requestedCoverage: coverage,
+      effectiveCoverage: coverage,
       scopeMode: "chunked",
       policyVersion: requirement.policyVersion,
+      ...(options.correctionScope === undefined ? {} : { correctionScope: options.correctionScope }),
     },
-    receiptRef: "receipts/local-aggregate-1.json",
-    localSourceRef: "sources/local-aggregate-1.json",
+    receiptRef: `receipts/local-aggregate-${logicalPass}.json`,
+    localSourceRef: `sources/local-aggregate-${logicalPass}.json`,
     requirement,
     request,
     deliveryAdmission,
@@ -746,6 +753,26 @@ describe("evidence-bound review policy", () => {
       sources: ["codex-pr", "coderabbit-pr"],
       maxPasses: 2,
     })).rejects.toThrow(message);
+  });
+
+  it.each(["fresh", "additional"] as const)("uses the caller's scope on a %s successor of a chunked fix check", async mode => {
+    const projection: StandardReviewObligationProjection = { ...standardReview,
+      retrigger: mode === "additional" ? "incremental" : "full-final" };
+    const root = chunkedLocalAggregateResult({ projection, clean: true });
+    const result = chunkedLocalAggregateResult({ projection, logicalPass: 2, clean: true,
+      correctionScope: { schemaVersion: 1, predecessorProducerId: root.producerId,
+        predecessorHeadSha: root.target.headSha, basisHeadSha: root.target.headSha,
+        headSha: root.target.headSha, requiredFindings: [] } });
+    const request = { ...cleanRequest(result), completedPasses: 2, standardReview: projection,
+      attempts: [{ sourceId: "delegated-agent", outcome: "clean", reviewOperationId: result.producerId, chunkSeriesComplete: true }],
+      scopeSelection: { mode: "whole-target", target: policyTarget },
+      ...(mode === "additional" ? { additionalPassAuthorization: { target: policyTarget, lane: "standard",
+        precedingProducerId: result.producerId, completedPasses: 2, nextPass: 3 } } : {}) };
+    await expect(resolveEvidenceBoundReviewPolicyContinuation(request, { terminalResponsePerformed: false }, {
+      ...dependencies(result), sources: ["delegated-agent"], maxPasses: 4,
+      nextPassContext: { convergence: "converged", responseDue: false, incremental: null },
+      resultReader: { readResult: async producerId => producerId === root.producerId ? root : result },
+    })).resolves.toMatchObject({ state: "ready", nextAction: "local-prepare", payload: { pass: 3, scope: "whole-target" } });
   });
 
   it("exposes a validated terminal producer's exact scope mismatch", async () => {

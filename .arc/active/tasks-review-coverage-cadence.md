@@ -96,24 +96,13 @@ The confirmation map is in `notes-review-coverage-cadence.md` § Chain confirmat
           behavioral grounding, propagation and completeness with a sibling sweep, and new failure. The axes apply
           without earlier material findings; complete-pass guidance is unchanged.
 
-### `[ ]` **1.4 Bind the terminal with its own scope and resolve the successor with its own — § 3.4**
+### `[x]` **1.4 Bind the terminal with its own scope and resolve the successor with its own — § 3.4**
 
 - _Goal:_ A complete pass that follows a fix check at the same head resolves with its own scope instead of inheriting
   the fix check's, while the continuation still binds the terminal producer to the scope it recorded.
 
-- _Context:_ One request carries one scope today: the terminal binding requires it to equal the producer's
-  (`ReviewProducerScopeMismatchError`, `review-policy-evidence.ts`), and both successors reuse the request.
-
-    - The continuation (`resolveEvidenceBoundReviewPolicyContinuation`) reads the terminal's scope from its recorded
-      result and binds the terminal with it, and resolves the fresh successor and the additional-pass successor with the
-      caller's scope. The mismatch refusal stays for callers that bind directly (`bindReviewPolicyEvidence`);
-      pre-publication's same-head scope change rides the scope Task 2.1.c carries.
-    - _Note:_ `ReviewTerminalAttemptInputError`'s corrected-replay remedy (`runtime/review-policy-remedy.ts`) no longer
-      fires for continuation callers.
-    - Build `test-first` (one behavior at a time):
-        - A whole-target complete pass after a chunked fix check at the same head resolves with no scope mismatch,
-          through the fresh successor and the additional-pass successor.
-        - A direct binding with a scope other than the terminal's recorded one is still refused.
+- _Outcome:_ Continuation binds the cached terminal under its recorded scope, then applies the caller's scope to
+  fresh and authorized additional successors. Direct evidence binding retains its scope-mismatch refusal.
 
 ### `[ ]` **1.5 Run the pass after an unconverged look on `delegated-agent` — § 7.1, § 7.2, § 7.3**
 

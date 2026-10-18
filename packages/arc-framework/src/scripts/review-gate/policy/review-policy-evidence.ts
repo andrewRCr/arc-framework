@@ -518,18 +518,9 @@ export async function bindReviewPolicyContinuationEvidence(
   dependencies: EvidenceBoundReviewPolicyDependencies,
 ): Promise<ReviewPolicyRequest> {
   const request = ReviewPolicyCommandRequestSchema.parse(input);
-  const terminalOutcome = request.attempts.at(-1)?.outcome;
-  const terminalRequest = terminalOutcome === "findings" || terminalOutcome === "clean"
-    ? ReviewPolicyCommandRequestSchema.parse({
-        ...request,
-        ceilingOverride: undefined,
-        additionalPassAuthorization: undefined,
-      })
-    : request;
-  const terminalAttempt = terminalRequest.attempts.at(-1);
-  const terminalOperationId = terminalAttempt?.outcome === "findings"
-    ? terminalAttempt.reviewOperationId
-    : undefined;
+  const terminalAttempt = request.attempts.at(-1);
+  const terminalOperationId = terminalAttempt?.outcome === "findings" || terminalAttempt?.outcome === "clean"
+    ? terminalAttempt.reviewOperationId : undefined;
   let terminalResult: Promise<ReviewResult> | undefined;
   const resultReader: ReviewResultReader = {
     readResult: (producerId) => {
@@ -540,6 +531,13 @@ export async function bindReviewPolicyContinuationEvidence(
       return terminalResult;
     },
   };
+  const producer = terminalOperationId === undefined ? undefined : await resultReader.readResult(terminalOperationId);
+  const terminalRequest = producer === undefined ? request : ReviewPolicyCommandRequestSchema.parse({
+    ...request,
+    scopeSelection: { mode: producer.admission.scopeMode, target: request.target },
+    ceilingOverride: undefined,
+    additionalPassAuthorization: undefined,
+  });
   const boundTerminal = await bindReviewPolicyEvidence(terminalRequest, {
     ...dependencies,
     resultReader,
@@ -549,10 +547,12 @@ export async function bindReviewPolicyContinuationEvidence(
     ? null
     : resolveReviewPolicy({
         ...boundTerminal,
+        scopeSelection: request.scopeSelection,
         additionalPassAuthorization: request.additionalPassAuthorization,
       });
   if (additionalPass?.state === "invalid-override") return {
-    ...boundTerminal, additionalPassAuthorization: request.additionalPassAuthorization,
+    ...boundTerminal, scopeSelection: request.scopeSelection,
+    additionalPassAuthorization: request.additionalPassAuthorization,
   };
   // A settled outcome alone does not prove that the current findings response was performed.
   const currentResponsePerformed = await responsePerformedForTerminal(
@@ -565,7 +565,8 @@ export async function bindReviewPolicyContinuationEvidence(
   });
   if (choice === "terminal") return boundTerminal;
   if (choice === "additional" && additionalPass !== null) return {
-    ...boundTerminal, additionalPassAuthorization: request.additionalPassAuthorization,
+    ...boundTerminal, scopeSelection: request.scopeSelection,
+    additionalPassAuthorization: request.additionalPassAuthorization,
   };
   return ReviewPolicyRequestSchema.parse({
     ...request,
