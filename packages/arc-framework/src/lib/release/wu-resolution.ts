@@ -49,6 +49,8 @@ async function resolveBranch(store: Store, candidate: CurrentWorkUnitCandidate, 
   if (repository.trim() === "") throw new Error("Project identity is unavailable.");
   const read = await store.read({ reference: candidate.reference });
   if (read.status === "refused") throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
+  if (read.result.conflicts.length > 0) throw new Error(
+    `The work-unit primary has unresolved conflicts: ${read.result.conflicts.map(reference => JSON.stringify(reference)).join(", ")}. Resolve the named conflict records, then retry work-unit resolution.`);
   const selected = selectWorkBranchLink(read.result, { repository });
   if (selected.kind === "ambiguous") throw new Error(selected.reason);
   return selected.kind === "linked" ? workBranchName(selected.link.ref) : null;
