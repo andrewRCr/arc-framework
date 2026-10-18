@@ -201,10 +201,12 @@ pass. Surface it as an optional Owner alternative without turning it into a stop
 execute the returned review action unchanged.
 
 After a converged standard result — a clean pass, or one whose approved dispositions fix no confirmed `critical` or
-`major` finding — status replay remains complete. An explicit Owner decision for another named pass is carried as exact
-JSON with `--additional-pass` on the same status scope. The authorization names the current target, preceding producer,
-completed-pass count, and next ordinal; each later pass needs a fresh decision. Above the configured ceiling, that same
-decision covers the named pass without a second approval. A later material result re-enters the ordinary response route.
+`major` finding — status replay remains complete under `full-final` only when that pass has complete coverage. A
+converged fix check continues to the ranked complete pass. On both delivery and singleton routes, an explicit Owner
+decision for another named pass after a converged complete pass is carried as exact JSON with `--additional-pass` on the
+same status scope. The authorization names the current target, preceding producer, completed-pass count, and next
+ordinal; each later pass needs a fresh decision. Above the configured ceiling, that same decision covers the named pass
+without a second approval. A later material result re-enters the ordinary response route.
 
 On the delivery route, status measures the selected pass after its coverage choice; that is the exact chunk check. Read
 its returned scope selection without running another whole-member measure at the moved head.
@@ -255,9 +257,24 @@ arc review hosted request -
 arc review local prepare -
 ```
 
-Follow the typed local launch, attest, reduce, and findings-response sequence. Do not rerun source selection or
-substitute the current checkout head for the returned member head. After the local attempt concludes, re-enter
-through `arc review status`; durable lane progress consumes the admitted pass.
+Keep the returned member head and driver admission through preparation.
+
+`review-singleton-local-prepare` supplies an ordinary work-unit request seed in `action.request`. Add
+`evaluatorIdentity` and the work-unit `routingFacts`, then submit that request to `arc review local prepare -`.
+Local prepare binds the Candidate lineage and reserved obligation from the submission boundary.
+
+For local prepare's `coverage-required / select-coverage`, render `payload.coverageSelectionAction.interactionText`
+verbatim and recommend a listed choice.
+
+> [!IMPORTANT]
+> `workflow-interlock`: Stop at local prepare's coverage offer. Await the Owner's listed choice before submitting
+> the selected local coverage admission.
+
+Add the selected choice unchanged as `coverageAdmission` to the same request. Complete the singleton chunk measure
+above, then re-enter local prepare with that request.
+
+For either local action, follow the typed local launch, attest, reduce, and findings-response sequence. After the local
+attempt concludes, re-enter the same `arc review status` scope; durable lane progress consumes the admitted pass.
 
 When `action.scopeSelection.mode` is `chunked`, apply [`review-chunking`][review-chunking] to the prepared exact
 target: run contract-closed chunks, the dedicated seam, and a fresh aggregate evaluator against the returned review

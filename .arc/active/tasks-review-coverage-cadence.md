@@ -351,17 +351,10 @@ first, then in the `.arc/` copy by targeted edit.
           Earlier-attempt queries retain local history without a PR coordinate; the shared predecessor confirmation
           already names local producers as delegated-agent. Real records prove fix-check convergence and ranked admission.
 
-    - `[ ]` **2.5.e Dispatch it from `integrate-work-unit`**
-        - An arm for the local prepare request replaces status's `run-review` result, which no workflow dispatches; the
-          route's existing `review-local-prepare` arm passes its `action` as a `deliveryAdmission` and stays
-          delivery-only. The new arm runs local prepare's launch, attest, reduce, and respond sequence for a request with
-          no `deliveryAdmission`, and an arm for local prepare's selection follows it.
-        - Local prepare resolves the Candidate lineage from the submission boundary (`resolveLineage`,
-          `runtime/local-prepare-composition.ts`), so the pass continues the singleton's lane and asks the coverage
-          question itself.
-        - In § 2) Review iteration, for both the delivery and singleton routes, restate both rules: a converged result
-          replays as complete under `full-final` only for a complete pass, and `--additional-pass` follows a converged
-          complete pass; `convergedSignal` refuses one after a fix check under `full-final` (Task 1.2.a).
+    - `[x]` **2.5.e Dispatch it from `integrate-work-unit`**
+        - Integration consumes the ordinary singleton request seed and local coverage choices before launch, attestation,
+          reduction, and response. Both routes distinguish a converged fix check from complete full-final replay and
+          carry additional-pass authority only after a converged complete pass.
 
     - `[ ]` **2.5.f Drive the singleton's lane end to end**
         - Build `test-first` (one behavior at a time):
