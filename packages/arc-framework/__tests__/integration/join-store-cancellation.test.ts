@@ -15,6 +15,38 @@ import { personalReference } from "../helpers/store/personal-fixture.js";
 import { createStoreSyncPort } from "../../src/lib/store/operational-sync.js";
 import { dispatchRegisteredCli } from "../helpers/registered-cli.js";
 
+it("reports an unreachable pull while completing local setup and clears the warning after repair", async () => {
+  const cwd = await createTempRepo(); onTestFinished(() => cleanupTempDir(cwd));
+  const exec = makeGitExec(cwd);
+  await exec("git", ["config", "arc.identity", "previous-person"]);
+  await mkdir(join(cwd, ".arc/system"), { recursive: true });
+  await writeFile(join(cwd, ".arc/system/arc-config.yml"), "pm.mode: none\n");
+  const h = createLifecycleHarness(); h.store.environment.identity = "alice";
+  let offline = true, output = "";
+  binding.ports = { openStore: () => h.store, sync: () => createStoreSyncPort({ pull: async () => offline
+    ? { status: "unreachable", condition: "State remote offline.", remedy: { text: "Reconnect the state remote, then retry join." } }
+    : { status: "pulled" } }) };
+  const originalCwd = process.cwd(), originalExit = process.exitCode;
+  const out = vi.spyOn(process.stdout, "write").mockImplementation(chunk => { output += String(chunk); return true; });
+  try {
+    process.chdir(cwd); process.exitCode = undefined;
+    const argv = ["--no-input", "join", "--contributor", "--tools", "", "--identity", "alice"];
+    await dispatchRegisteredCli(argv);
+    expect(output).toContain("State remote offline.");
+    expect(output).toContain("Reconnect the state remote, then retry join.");
+    expect(output).toContain("Workspace setup complete"); expect(output).toContain("Done.");
+    expect((await exec("git", ["config", "--get", "arc.identity"])).stdout.trim()).toBe("alice");
+    for (const kind of ["personal/inbox", "personal/working-memory"] as const) {
+      expect(await h.store.read({ reference: personalReference(kind, undefined, "alice") })).toMatchObject({ status: "ok" });
+    }
+    expect(process.exitCode).toBeUndefined();
+    offline = false; output = "";
+    await dispatchRegisteredCli(argv);
+    expect(output).not.toContain("State remote offline."); expect(output).not.toContain("Reconnect the state remote");
+    expect(output).toContain("Workspace setup complete"); expect(process.exitCode).toBeUndefined();
+  } finally { out.mockRestore(); binding.ports = null; process.chdir(originalCwd); process.exitCode = originalExit; }
+}, 30_000);
+
 it("cancels designation before setup mutations and completes an explicitly answered retry", async () => {
   const cwd = await createTempRepo(); onTestFinished(() => cleanupTempDir(cwd));
   const exec = makeGitExec(cwd);

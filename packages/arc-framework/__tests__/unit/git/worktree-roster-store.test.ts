@@ -2,7 +2,7 @@
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { expect, it, onTestFinished } from "vitest";
+import { expect, it, onTestFinished, vi } from "vitest";
 import { runWorktreeRoster, filterRosterByIdentity } from "../../../src/lib/git/worktree-roster.js";
 import { writeWorktreeOwnershipMarker } from "../../../src/lib/git/worktree-marker.js";
 import { parseMetaRecord } from "../../../src/lib/active/meta-reader.js";
@@ -13,6 +13,27 @@ import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/li
 import { createMemoryRemote } from "../../helpers/store/sync.js";
 import { ReferenceBackend } from "../../helpers/store/reference-backend.js";
 import { renderMetaFile } from "../../../src/lib/store/kinds/meta/writers.js";
+
+it("preserves primary read refusal repair guidance and reads the owner after repair", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "arc-roster-refusal-"));
+  onTestFinished(async () => rm(cwd, { recursive: true, force: true }));
+  const h = createLifecycleHarness(); await h.seedMeta("demo", { owner: "andrew" });
+  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: { kind: "work-unit", name: "demo" }, spawningIdentity: "andrew", now: 0 });
+  const roster = () => runWorktreeRoster({ cwd, store: h.store,
+    exec: async () => ({ stdout: [`worktree ${cwd}`, `HEAD ${"a".repeat(40)}`, "detached", "", ""].join("\0") }),
+    fs: { readdir: async () => [], readFile: async () => { throw new Error("No checkout metadata"); } } });
+  const read = vi.spyOn(h.store, "read").mockImplementationOnce(async input => ({ status: "refused", refusal: {
+    code: "record-malformed", class: "recoverable", reference: input.reference, rule: "fixture",
+    condition: "Primary record cannot be decoded.", remedy: { text: "Repair the primary encoding, then retry." },
+  } }));
+  try {
+    const failed = await roster();
+    expect(failed.entries).toEqual([{ worktreePath: cwd, workUnit: "demo" }]);
+    expect(failed.warnings.join(" ")).toContain("Primary record cannot be decoded.");
+    expect(failed.warnings.join(" ")).toContain("Repair the primary encoding, then retry.");
+  } finally { read.mockRestore(); }
+  expect(await roster()).toMatchObject({ warnings: [], entries: [{ workUnit: "demo", identity: "andrew" }] });
+});
 
 it("withholds disputed primary fields after sync while retaining the marked checkout, then reads its resolved owner", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "arc-roster-conflicts-"));

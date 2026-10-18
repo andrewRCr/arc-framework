@@ -1,5 +1,5 @@
 /** Store cold starts anchor existing checkouts without moving code history. */
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, onTestFinished, vi } from "vitest";
 import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
@@ -16,7 +16,7 @@ import { createUserIOContext } from "../../src/lib/io-context.js";
 import { createLocusPorts } from "../../src/lib/locus/lifecycle-ports.js";
 import { RecordReferenceSchema, OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { resolveArcPath } from "../../src/lib/layout/index.js";
-import { readWorktreeMarker, readWorktreeMarkerGeneration, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
+import { readWorktreeMarker, readWorktreeMarkerGeneration, resolveWorktreeMarkerPath, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 
 async function fixture() {
   const cwd = await createTempRepo();
@@ -72,6 +72,26 @@ async function invokeStart(h: Awaited<ReturnType<typeof fixture>>, name: string 
     return process.exitCode;
   } finally { binding.store = null; process.chdir(originalCwd); process.exitCode = originalExitCode; }
 }
+
+it("retains malformed-marker repair guidance and permits a cold start after repair", async () => {
+  const h = await fixture(), markerPath = resolveWorktreeMarkerPath(h.cwd);
+  await mkdir(join(markerPath, ".."), { recursive: true });
+  await writeFile(markerPath, "{");
+  const marker = await readWorktreeMarker(h.cwd);
+  if (marker.kind !== "malformed") throw new Error("Expected malformed marker fixture");
+  const before = lifecycleSuccess(await h.store.version());
+  let output = "";
+  const stdout = vi.spyOn(process.stdout, "write").mockImplementation(chunk => { output += String(chunk); return true; });
+  try { expect(await invokeStart(h, "demo")).toBe(1); } finally { stdout.mockRestore(); }
+  expect(output).toContain(markerPath); expect(output).toContain(marker.message);
+  expect(output).toMatch(/inspect.*repair.*marker.*retry/isu);
+  expect(await readFile(markerPath, "utf8")).toBe("{");
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  expect((await h.exec("git", ["rev-parse", "HEAD"])).stdout).toBe(h.before);
+  await rm(markerPath);
+  expect(await invokeStart(h, "demo")).toBeUndefined();
+  expect(await readWorktreeMarker(h.cwd)).toMatchObject({ kind: "present", marker: { createdFor: { name: "demo" } } });
+}, 30_000);
 
 it("reaches the production cold-start slot with automatic locus ports and refuses a held explicit name", async () => {
   const h = await fixture();

@@ -54,6 +54,7 @@ export async function pullJoinStore(input: { cwd: string; exec: GitExec; identit
   if (!store.capabilities.stateOffBranch) return null;
   const result = await (ports.sync?.(store) ?? createStoreSyncPort()).pull();
   const value = describeStorePull(result);
+  if (result.status === "unreachable") p.log.warn(`${result.condition} ${result.remedy.text}`);
   if (result.status !== "designation-needed") return value;
   p.log.info(value.summary);
   if (input.context.interaction !== "allowed") return value;
