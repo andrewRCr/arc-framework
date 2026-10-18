@@ -1,3 +1,5 @@
+import { linearReviewRangeProof } from "../../../../fixtures/local-review-delta.js";
+import { proveReviewDeltaRange } from "../../../../../src/scripts/review-gate/policy/review-delta-range-proof.js";
 import { withReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
 /** Storage-neutral discovery of exact earlier hosted review attempts. */
 
@@ -1077,6 +1079,35 @@ describe("earlier review attempt query", () => {
         },
       }],
     });
+  });
+
+  it("keeps a proven plain descendant at the earlier-review applicability stop", async () => {
+    const candidate = candidateRecord();
+    const lineage = { kind: "candidate" as const, candidateId: candidate.attestation.candidateId };
+    const state = laneState({ candidateId: lineage.candidateId });
+    const query = { ...selector(), lineage };
+    const producerTarget = state.attempts[0]?.hosted?.reviewTarget;
+    if (producerTarget === undefined) throw new Error("expected exact producer target");
+    const { targetId: ignored, ...coordinates } = producerTarget;
+    void ignored;
+    const current = createReviewTarget({ ...coordinates, headSha: query.currentHead, headTree: oid("4") });
+    await expect(proveReviewDeltaRange({ predecessor: producerTarget, current, convergence: "converged",
+      ...linearReviewRangeProof(producerTarget.headSha, current.headSha) })).resolves.toBe(true);
+    const trees = new Map([[oid("1"), oid("2")], [oid("a"), oid("3")], [oid("c"), oid("4")]]);
+    const bytes = (stdout: string) => ({ stdout: new TextEncoder().encode(stdout) });
+    const exec = scriptRawGitExec([
+      { match: { prefix: ["merge-base", "--all"] }, responses: [bytes(oid("1"))] },
+      { match: { predicate: args => args[0] === "rev-parse" && args[1] === "--verify" },
+        responses: [({ args }) => bytes(args[2]!.split("^")[0]!)] },
+      { match: { prefix: ["rev-parse"] }, responses: [({ args }) => bytes(trees.get(args[1]!.split("^")[0]!)!)] },
+      { match: { predicate: args => args[0] === "merge-tree" && args.includes("--name-only") },
+        responses: [bytes(`${oid("3")}\0`)] },
+      { match: { prefix: ["merge-tree"] }, responses: [bytes(oid("9"))] },
+      { match: { prefix: ["diff"] }, responses: [bytes("src/example.ts\0")] },
+    ]).exec;
+    expect(await projectEarlierReviewApplicability({ query, currentBase: oid("1"), candidate,
+      snapshot: { status: "complete", records: [{ version: 1, state }] }, exec, observeEndpoints: stableEndpoints,
+    })).toMatchObject({ status: "complete", attempts: [{ applicability: "stop", projection: { state: "decision-required" } }] });
   });
 
   it("reobserves current endpoints before deriving contribution applicability", async () => {

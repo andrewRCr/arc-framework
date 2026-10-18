@@ -10,8 +10,11 @@ import { recordLocalReceiptConclusion } from "../../src/scripts/review-gate/lane
 import { assertStandardReviewExecutionAdmission } from "../../src/scripts/review-gate/policy/review-execution-admission.js";
 import { prepareLocalReview } from "../../src/scripts/review-gate/runtime/local-prepare.js";
 
-export async function createLocalContinuationFixture(scopeMode: "whole-target" | "chunked" = "whole-target") {
+export async function createLocalContinuationFixture(scopeMode: "whole-target" | "chunked" = "whole-target",
+  workClass: "Light" | "Heavy" = "Heavy") {
   const fixture = createLocalReviewPreparationFixture();
+  fixture.dependencies.composeAssurance = async () => ({ ...await fixture.composeAssurance(),
+    assurance: { workContext: "work-unit", workClass } });
   let target = fixture.changeSetTarget;
   const receipts: ReturnType<typeof createReviewReceipt>[] = [];
   fixture.deriveTarget.mockImplementation(async () => target);

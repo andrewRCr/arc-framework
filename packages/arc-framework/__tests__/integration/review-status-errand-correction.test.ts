@@ -2,6 +2,7 @@ import type { GitExec } from "../../src/lib/git/exec.js";
 import type { StandardReviewObligationProjection } from "../../src/scripts/review-gate/policy/standard-review-projection-schema.js";
 import { LocalPrepareEnvelopeSchema } from "../../src/scripts/review-gate/core/review-command-envelope.js";
 import { approvedRecord } from "../fixtures/review-response-proof.js";
+import { proveReviewDeltaRange } from "../../src/scripts/review-gate/policy/review-delta-range-proof.js";
 import { confirmReviewCorrectionLeg } from "../../src/scripts/review-gate/policy/review-next-pass.js";
 import { deriveLocalReviewTarget } from "../../src/scripts/review-gate/hosts/local/repository-target.js";
 /** Errand local fix checks, complete hosted successors, and historical correction evidence. */
@@ -488,6 +489,21 @@ async function requestHostedSuccessor(errand: FixedErrand) {
 }
 
 describe("Errand local correction cadence", () => {
+  it("keeps Errand review open across a plain commit even when the delta range is provable", async () => {
+    const errand = await fixedErrand({ retrigger: "incremental", routine: true,
+      sources: ["delegated-agent"], maxPasses: 4 });
+    const checked = await localFixCheck(errand);
+    await expect(errand.readStatus()).resolves.toMatchObject({ state: "settled" });
+    await writeFile(join(errand.root, "change.txt"), "reviewed change, fixed, then extended\n");
+    await git(errand.root, ["commit", "-am", "plain successor after convergence"]);
+    errand.statusTarget.headSha = await git(errand.root, ["rev-parse", "HEAD"]);
+    const current = await deriveLocalReviewTarget({ cwd: errand.root, exec: errand.exec,
+      baseRef: "main", repositoryId: checked.repositoryId });
+    await expect(proveReviewDeltaRange({ predecessor: checked.target, current, convergence: "converged",
+      cwd: errand.root, exec: errand.exec })).resolves.toBe(true);
+    await expect(errand.readStatus()).resolves.toMatchObject({ state: "review-required" });
+  });
+
   it("names local prepare after a hosted material fix", async () => {
     const errand = await fixedErrand({ provider: "codex-pr", sources: ["codex-pr", "delegated-agent"] });
     await expect(errand.readStatus()).resolves.toMatchObject({ state: "review-required",

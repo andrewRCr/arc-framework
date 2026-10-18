@@ -499,29 +499,15 @@ the range proof. Workflow text changes in the package's `arc/` source first, the
   a delta-specific remedy. Local coverage selection returns its admitted scope; preparation and replay adopt it when
   coverage is omitted, while an explicit complete choice publishes a complete local pass.
 
-### `[ ]` **3.4 Keep the range proof out of every consumer that carries an earlier attempt — § 3.5**
+### `[x]` **3.4 Keep the range proof out of every consumer that carries an earlier attempt — § 3.5**
 
 - _Goal:_ No consumer that carries an earlier attempt from its own head to the current head accepts a leg only the range
   proof supports, so a converged look alone never closes the lane at a new head, while the delta check's own attempt, a
   carried attempt's own chain, and every carry that holds today on another ground are unaffected.
 
-    - The exclusion is structural: no carry calls the chain proof, and the earlier-attempt read never sees
-      `range-proven`. The consumers are pre-publication's historical-attempt carry (`applicableHistoricalAttempt`,
-      `pre-publication-request.ts`, through the carry role of `confirmPriorProducerApplicability`); the discharge's
-      branches that settle on an earlier attempt marked `retain-prior-attempt` (`cleanApplicable` and
-      `settledApplicable`, `hosted-reservation-discharge.ts`), not its current-terminal branch, and hosted request
-      admission's `applicabilityAction` (`handlers/review.ts`), both of which read the mark
-      `projectEarlierReviewApplicability` (`earlier-review-applicability.ts`) sets, the discharge's guard locus; and
-      Errand status's carry check (`readCarriedErrandReview`), whose contribution applicability never takes the range
-      proof.
-    - Build `test-first` (one behavior at a time):
-        - Pre-publication's carry and the discharge's retained branches treat a range-proof-only leg as not applicable,
-          and the earlier read still marks a plain commit's earlier attempt `stop`.
-        - A delta check's own attempt at its head is admitted and, under `incremental`, closes the lane when it
-          converges.
-        - A carried attempt whose own chain holds a delta leg still carries; a carry on an equal subject digest still
-          holds.
-        - Errand status never carries an earlier review across a plain commit without a look.
+- _Outcome:_ Carry readers remain separate from correction-chain proof. Regression coverage keeps a provable plain
+  descendant at the earlier-read and Errand review stops, admits a delta attempt at its own head, and preserves a
+  mechanically carried attempt whose own chain includes a delta leg. Equal-subject carry remains applicable.
 
 ### `[ ]` **3.5 Run the delta check on an Errand, before and after its pull request — § 3.5**
 
