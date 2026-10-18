@@ -72,6 +72,8 @@ async function terminalLineageRetires(store: Store, record: StoreRecord): Promis
   const lineage = await store.lookup({ kind: "lineage", origin });
   if (lineage.status === "refused" && lineage.refusal.code === "not-found") return false;
   const read = unwrap(await store.read({ reference: unwrap(lineage).reference }));
+  if (read.conflicts.length > 0) throw new Error(
+    `The work-unit lineage has unresolved conflicts: ${read.conflicts.map(reference => JSON.stringify(reference)).join(", ")}. Resolve the named conflict records, then retry session entry.`);
   const terminal = parseLineageRecord(read.content);
   if (terminal === null) throw new Error("The work-unit lineage record is unreadable.");
   return terminal.kind === "decompose" || terminal.kind === "abandon";

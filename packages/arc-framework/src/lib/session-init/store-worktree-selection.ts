@@ -75,12 +75,13 @@ export function selectStoreCleanupTopology(rows: readonly DerivedCheckoutRow[], 
   });
 }
 async function releaseMissingClaim(store: Store, name: string, branch: string | null): Promise<boolean> {
-  if (branch === null) return true;
   const lineage = await store.lookup({ kind: "lineage", origin: SlugSchema.parse(name) });
   if (lineage.status === "ok") {
     const read = await store.read({ reference: lineage.result.reference });
     if (read.status === "refused") throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
-    return LineageRecordSchema.parse(read.result.fields).kind !== "abandon";
+    if (read.result.conflicts.length > 0) throw new Error(
+      `The work-unit lineage has unresolved conflicts: ${read.result.conflicts.map(reference => JSON.stringify(reference)).join(", ")}. Resolve the named conflict records, then retry checkout cleanup.`);
+    return branch === null || LineageRecordSchema.parse(read.result.fields).kind !== "abandon";
   }
   if (lineage.refusal.code !== "not-found") throw new Error(`${lineage.refusal.condition} ${lineage.refusal.remedy.text}`);
   return true;

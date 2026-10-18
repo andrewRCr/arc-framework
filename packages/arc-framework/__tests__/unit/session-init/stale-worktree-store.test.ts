@@ -8,6 +8,8 @@ import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/li
 import { createMemoryRemote } from "../../helpers/store/sync.js";
 import { ReferenceBackend } from "../../helpers/store/reference-backend.js";
 import { renderMetaFile } from "../../../src/lib/store/kinds/meta/writers.js";
+import { recordReferences } from "../../../src/lib/store/identity.js";
+import { LineageRecordSchema } from "../../../src/lib/store/kinds/lineage/index.js";
 import { listLifecycleIndex } from "../../../src/lib/store/lifecycle-index.js";
 import { requireCompleteInventory } from "../../../src/lib/store/lifecycle-storage.js";
 import { selectStoreWorktreeCleanup } from "../../../src/lib/session-init/store-worktree-selection.js";
@@ -155,6 +157,40 @@ it("keeps a branchless abandoned checkout in no-record release selection", async
   const result = await runStaleWorktreeSweep(await options(h.store));
   expect(result.worktrees[0]).toMatchObject({ kind: "detached", actions: [{ argv: ["arc", "locus", "release", "done"] }] });
   expect(result.retirements).toEqual([]);
+});
+
+it("withholds a missing-primary release after lineage becomes disputed and retries after resolution", async () => {
+  const h = createLifecycleHarness();
+  const primary = await h.seedMeta("done", {}, { kind: "active" }, { branches: [{ repository: "project", ref: "feat/done", linkedAs: "created", excluded: [] }] });
+  const exec = async () => { throw new Error("No Git lifecycle artifact applies"); };
+  const executor = buildExecutorContext({ cwd: "/absent", store: h.store, io: { ...createUserIOContext(), exec }, identity: "test-user", teamMode: false,
+    internalTemplateDir: "/templates", projectId: async () => "project", locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null } });
+  expect(await runStoreAbandon({ executor }, { name: "done", confirmed: true })).toMatchObject({ status: "abandoned" });
+  const input = await options(h.store), reference = recordReferences["lineage/transition"](primary.reference.owner);
+  const initial = lifecycleSuccess(await h.store.read({ reference })), fields = LineageRecordSchema.parse(initial.fields);
+  const remote = createMemoryRemote(); h.store.context.publication.remote = remote;
+  const writer = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
+  lifecycleSuccess(await writer.write({ action: "put", reference: primary.reference, expected: null, content: primary.content,
+    placement: { kind: "active" }, links: { branches: (fields.retiredBranches ?? []).map(link => ({ ...link, excluded: [{ repository: link.repository, sha: base }] })) },
+    provenance: { verb: "seed-lifecycle", lifecycleAction: "create" } }));
+  const remoteExecutor = buildExecutorContext({ cwd: "/absent", store: writer, io: { ...createUserIOContext(), exec }, identity: "test-user", teamMode: false,
+    internalTemplateDir: "/templates", projectId: async () => "project", locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null } });
+  expect(await runStoreAbandon({ executor: remoteExecutor }, { name: "done", confirmed: true })).toMatchObject({ status: "abandoned" });
+  lifecycleSuccess(await h.store.sync());
+  const disputed = lifecycleSuccess(await h.store.read({ reference }));
+  expect(disputed.conflicts.length).toBeGreaterThan(0);
+  const selected = await selectStoreWorktreeCleanup({ store: h.store, topology: [checkout], derivedRoster: input.derivedRoster ?? [],
+    readMarker: path => input.readMarker!(path), identity: "test-user" });
+  expect(selected).toMatchObject({ ended: [], releases: [] });
+  for (const conflict of disputed.conflicts) expect(selected.warnings.join(" ")).toContain(JSON.stringify(conflict));
+  expect(selected.warnings.join(" ")).toMatch(/resolve.*retry/iu);
+  for (const reference of disputed.conflicts) {
+    const conflict = lifecycleSuccess(await h.store.read({ reference }));
+    lifecycleSuccess(await h.store.write({ action: "remove", reference, expected: conflict.version, resolves: [reference],
+      provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
+  }
+  expect((await runStaleWorktreeSweep(await options(h.store))).worktrees[0]?.actions?.[0]?.argv)
+    .toEqual(["arc", "locus", "release", "done"]);
 });
 
 it.each(["completed", "foreign", "missing"] as const)("withholds cleanup and release for duplicate %s holders, then retries after releasing the stray claim", async state => {

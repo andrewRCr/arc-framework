@@ -236,6 +236,36 @@ it.each(["abandon", "decompose"] as const)("derives terminal %s lineage as retir
   expect((await frame(h.io)).roster[0]?.kind).toBe("retired");
 });
 
+it("withholds terminal role from disputed lineage even when a completed primary remains", async () => {
+  const h = await fixture();
+  await changeMeta(h, { state: "Shipped", currentWorkflow: null }, undefined, true);
+  h.io.archiveCadence = "with-integration";
+  const primary = success(await h.fixture.store.read({ reference: h.reference }));
+  const reference = recordReferences["lineage/transition"](primary.reference.owner);
+  const origin = { name: primary.reference.owner.name, ...("uid" in primary.reference.owner ? { uid: primary.reference.owner.uid } : {}) };
+  const content = (sha: string) => writeLineageRecord({ schemaVersion: 2, kind: "abandon", origin, successors: [], incoming: [],
+    retiredBranches: [{ repository: "project-1", ref: "feat/retired", linkedAs: "created", excluded: [{ repository: "project-1", sha }] }] });
+  await seed(h.fixture, reference, content("a".repeat(40)));
+  const remote = h.fixture.remote(true);
+  if (remote === undefined) throw new Error("Expected a remote writer");
+  success(await remote.write({ action: "put", reference, expected: null, content: content("c".repeat(40)), provenance: testProvenance }));
+  success(await h.fixture.store.sync());
+  const disputed = success(await h.fixture.store.read({ reference }));
+  expect(disputed.conflicts.length).toBeGreaterThan(0);
+  const unresolved = await frame(h.io);
+  expect(unresolved.active).toBeNull();
+  expect(unresolved.roster[0]?.kind).toBe("unresolved-checkout");
+  const message = unresolved.roster[0]?.diagnostics.map(item => item.message).join(" ") ?? "";
+  for (const conflict of disputed.conflicts) expect(message).toContain(JSON.stringify(conflict));
+  expect(message).toMatch(/resolve.*retry/iu);
+  for (const reference of disputed.conflicts) {
+    const conflict = success(await h.fixture.store.read({ reference }));
+    success(await h.fixture.store.write({ action: "remove", reference, expected: conflict.version, resolves: [reference],
+      provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
+  }
+  expect((await frame(h.io)).roster[0]?.kind).toBe("retired");
+});
+
 it("recovers an Integrating Candidate's boundary and session type from its work-branch link", async () => {
   const h = await fixture();
   const name = h.reference.owner.name;

@@ -1,13 +1,16 @@
 /** Pulled terminal lineage supplies cleanup authority without Git lifecycle receipts. */
 import { expect, it } from "vitest";
-import { createLifecycleHarness } from "../../helpers/store/lifecycle-harness.js";
+import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
+import { createMemoryRemote } from "../../helpers/store/sync.js";
+import { ReferenceBackend } from "../../helpers/store/reference-backend.js";
 import { runLandedRetirementSweep } from "../../../src/lib/session-init/lifecycle-residue-sweep.js";
 import { runStoreAbandon } from "../../../src/lib/work-unit/verbs/abandon-store.js";
 import { buildExecutorContext } from "../../../src/lib/work-unit/executor-context.js";
 import { createDefaultLocusPorts } from "../../../src/lib/work-unit/locus-ports.js";
 import { createUserIOContext } from "../../../src/lib/io-context.js";
 import { recordReferences } from "../../../src/lib/store/identity.js";
-import { writeLineageRecord } from "../../../src/lib/store/kinds/lineage/index.js";
+import { writeLineageRecord, LineageRecordSchema } from "../../../src/lib/store/kinds/lineage/index.js";
+import { renderMetaFile } from "../../../src/lib/store/kinds/meta/writers.js";
 import type { Store } from "../../../src/lib/store/contract.js";
 import { StaleWorktreeSweepResultSchema } from "../../../src/lib/session-init/stale-worktree-sweep-schema.js";
 const base = "a".repeat(40), head = "b".repeat(40);
@@ -51,4 +54,36 @@ it("retains the remote physical-removal gate after valid store abandonment", asy
   const h = await abandoned(), result = await run(h.store, ["done"], false);
   expect(result.retirements).toMatchObject([{ status: "blocked", reason: "evidence-unavailable" }]);
   expect(JSON.stringify(result.retirements)).not.toContain('"actions"');
+});
+
+it("blocks disputed abandonment lineage and restores teardown after explicit resolution", async () => {
+  const h = await abandoned();
+  const found = lifecycleSuccess(await h.store.lookup({ kind: "lineage", origin: "done" }));
+  const initial = lifecycleSuccess(await h.store.read({ reference: found.reference }));
+  const fields = LineageRecordSchema.parse(initial.fields);
+  const remote = createMemoryRemote(); h.store.context.publication.remote = remote;
+  const writer = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
+  lifecycleSuccess(await writer.write({ action: "put", reference: recordReferences["work-item/meta"](initial.reference.owner), expected: null,
+    content: renderMetaFile("done", { state: "Active", owner: "test-user", workClass: "Light", currentWorkflow: "process-task-loop" }),
+    placement: { kind: "active" }, links: { branches: (fields.retiredBranches ?? []).map(link => ({ ...link, excluded: [{ repository: link.repository, sha: base }] })) },
+    provenance: { verb: "seed-lifecycle", lifecycleAction: "create" } }));
+  const executor = buildExecutorContext({ cwd: "/absent", store: writer, io: { ...createUserIOContext(), exec: async () => { throw new Error("No Git lifecycle receipt"); } },
+    identity: "test-user", teamMode: false, internalTemplateDir: "/templates", projectId: async () => "project",
+    locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null } });
+  expect(await runStoreAbandon({ executor }, { name: "done", confirmed: true })).toMatchObject({ status: "abandoned" });
+  lifecycleSuccess(await h.store.sync());
+  const disputed = lifecycleSuccess(await h.store.read({ reference: initial.reference }));
+  expect(disputed.conflicts.length).toBeGreaterThan(0);
+  const blocked = await run(h.store);
+  expect(blocked.retirements).toMatchObject([{ status: "blocked", reason: "repair-required" }]);
+  const item = blocked.retirements[0];
+  const repair = item?.status === "blocked" ? item.repair ?? "" : "";
+  for (const conflict of disputed.conflicts) expect(repair).toContain(JSON.stringify(conflict));
+  expect(repair).toMatch(/resolve.*retry/iu);
+  for (const reference of disputed.conflicts) {
+    const conflict = lifecycleSuccess(await h.store.read({ reference }));
+    lifecycleSuccess(await h.store.write({ action: "remove", reference, expected: conflict.version, resolves: [reference],
+      provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
+  }
+  expect((await run(h.store)).retirements).toMatchObject([{ status: "actionable", teardown: { argv: ["arc", "teardown", "done"] } }]);
 });

@@ -75,6 +75,8 @@ async function hasAbandonment(store: Store, name: string): Promise<boolean> {
   }
   const read = await store.read({ reference: found.result.reference });
   if (read.status === "refused") throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
+  if (read.result.conflicts.length > 0) throw new Error(
+    `The work-unit lineage has unresolved conflicts: ${read.result.conflicts.map(reference => JSON.stringify(reference)).join(", ")}. Resolve the named conflict records, then retry checkout cleanup.`);
   return LineageRecordSchema.parse(read.result.fields).kind === "abandon";
 }
 function blocked(checkout: BranchedCheckout, name: string, reason: string): Extract<LandedRetirementResidue, { status: "blocked" }> {
