@@ -1,5 +1,6 @@
 /** Exact-target review, check, and base-status reduction. */
 
+import { projectDeliveryTerminusOffer, type DeliveryTerminusOfferBinding } from "./status-terminus-offer.js";
 import { SingletonLocalPrepareActionSchema, projectSingletonLocalPrepareAction } from "./singleton-local-prepare-action.js";
 import type { StandardReviewObligationProjection } from "./policy/standard-review-projection-schema.js";
 import { projectReviewDriverRefusal, ReviewDriverRefusalReasonSchema, ReviewDriverRefusalSchema } from "./status-driver-refusal.js";
@@ -484,6 +485,7 @@ export function isDeliveryReviewMemberDischargedByOwnerTerminus(input: {
   readonly discharge: {
     readonly discharged: boolean;
     readonly nextSource: string | null;
+    readonly terminalPolicyState?: ReviewResolveEnvelope["state"];
     readonly applicability?: z.infer<typeof ReviewContributionApplicabilityResultSchema>;
     readonly applicabilityAuthority?: "decision-required" | "blocked";
     readonly responsePlan?: z.infer<typeof HostedFindingsResponsePlanSchema>;
@@ -507,11 +509,12 @@ export function isDeliveryReviewMemberDischargedByOwnerTerminus(input: {
   });
   const replayedApplicability = input.discharge.applicability?.state === "decision-required"
     && input.discharge.applicabilityAuthority !== "blocked";
+  const coverageContinuation = input.discharge.terminalPolicyState === "coverage-required"
+    || input.discharge.coverageSelectionAction !== undefined;
   const hasPendingIntervention = input.discharge.responsePlan !== undefined
     || input.discharge.awaitAction !== undefined
     || input.discharge.localResumeAction !== undefined
-    || input.discharge.coverageSelectionAction !== undefined
-    || (!replayedApplicability && (input.discharge.nextSource === null
+    || (!replayedApplicability && ((input.discharge.nextSource === null && !coverageContinuation)
       || (input.discharge.applicability !== undefined && input.discharge.applicability.state !== "applicable")));
   return terminus !== undefined
     && !input.discharge.discharged
@@ -729,6 +732,7 @@ export function composeDeliveryReviewObligation(input: {
     discharged: boolean;
     detail: string;
     nextSource: string | null;
+    terminalPolicyState?: ReviewResolveEnvelope["state"];
     applicability?: z.infer<typeof ReviewContributionApplicabilityResultSchema>;
     equivalentApplicabilities?: readonly z.infer<typeof ReviewContributionApplicabilityResultSchema>[];
     applicabilityAuthority?: "decision-required" | "blocked";
@@ -1183,6 +1187,7 @@ const ReviewStatusCoverageRequiredSchema = z.strictObject({
   state: z.literal("coverage-required"),
   nextAction: z.literal("select-coverage"),
   coverageSelectionAction: ReviewCoverageSelectionActionSchema,
+  terminusAction: DeliveryReviewTerminusAcceptanceActionSchema.optional(),
 });
 const ReviewStatusDriverRefusalSchema = z.strictObject({
   ...ReviewStatusBaseShape, state: z.literal("blocked"), nextAction: z.literal("stop"),
@@ -1237,62 +1242,13 @@ const ReviewStatusResultSchemaInternal: z.ZodType<ReviewStatusResult> = z.union(
 ]);
 export const ReviewStatusResultSchema: z.ZodType<ReviewStatusResult> = ReviewStatusResultSchemaInternal;
 
-function hasCompletedCompleteReviewPass(
-  member: z.infer<typeof DeliveryReviewConjunctionMemberSchema>,
-): boolean {
-  return member.progress.completedPasses > 0 && member.progress.attempts.some((attempt) => (
-    (attempt.outcome === "clean"
-      || attempt.outcome === "findings"
-      || attempt.outcome === "settled-findings")
-    && (attempt.requestedCoverage === "complete" || attempt.effectiveCoverage === "complete")
-  ));
-}
-
 /** Bind an eligible delivery-member continuation to the exact Owner-terminus mutation offer. */
 export function bindDeliveryReviewTerminusOffer(
   result: ReviewStatusResult,
-  binding: {
-    readonly workUnitId: string;
-    readonly remote?: string;
-    readonly expectedBoundaryVersion: string;
-    readonly candidateId: string;
-    readonly candidateSubjectDigest: string;
-  },
+  binding: DeliveryTerminusOfferBinding,
 ): ReviewStatusResult {
-  const isCeiling = result.nextAction === "obtain-ceiling-override";
-  const isBaseMoved = result.state === "base-moved";
-  const isEligibleContinuation = result.nextAction === "review-hosted-request"
-    || result.nextAction === "review-local-prepare"
-    || result.nextAction === "resolve-review-applicability";
-  if (!isCeiling && !isBaseMoved && !isEligibleContinuation) return result;
-  const member = result.deliveryCursor?.currentMember;
-  if (member === undefined || member === null) {
-    if (isCeiling) {
-      throw new Error("A delivery-member ceiling stop requires one exact first-outstanding member.");
-    }
-    return result;
-  }
-  if (!isCeiling && !hasCompletedCompleteReviewPass(member)) return result;
-  return ReviewStatusResultSchema.parse({
-    ...result,
-    terminusAction: {
-      schemaVersion: 1,
-      offer: {
-        schemaVersion: 1,
-        kind: "delivery-member-owner-terminus",
-        workUnitId: binding.workUnitId,
-        remote: binding.remote ?? "origin",
-        expectedBoundaryVersion: binding.expectedBoundaryVersion,
-        candidateId: binding.candidateId,
-        candidateSubjectDigest: binding.candidateSubjectDigest,
-        target: member.target,
-        vehicle: member.vehicle,
-        completedPasses: member.progress.completedPasses,
-        interactionText: "Accept the standard-review terminus for this exact delivery member without claiming a "
-          + "clean or converged pass.",
-      },
-    },
-  });
+  const terminusAction = projectDeliveryTerminusOffer(result, binding);
+  return terminusAction === undefined ? result : ReviewStatusResultSchema.parse({ ...result, terminusAction });
 }
 
 const ReviewStatusCommandResultSchemaInternal = z.union([

@@ -365,18 +365,10 @@ first, then in the `.arc/` copy by targeted edit.
 - _Goal:_ The Owner's stop is offered and carried at `coverage-required` on the delivery path's work-unit route and in
   pre-publication once the terminal's response is performed, as Task 1.7 lets the driver honor it.
 
-    - `[ ]` **2.6.a Bind the delivery terminus offer at status's `coverage-required`**
-        - After Task 2.4.b, status reaches `coverage-required` only after material fixes, so the offer
-          `bindDeliveryReviewTerminusOffer` (`status.ts`) binds there is disclosed as resting on fixes no reviewer
-          re-examined. After a converged fix check status names the complete pass, and the offer rides its request as
-          today (`hasCompletedCompleteReviewPass`).
-        - `isDeliveryReviewMemberDischargedByOwnerTerminus` stops counting a pending coverage selection, or the
-          discharge's `nextSource: null` at `coverage-required`, as an intervention (`hasPendingIntervention`), and
-          `ReviewStatusCoverageRequiredSchema` gains the offer.
-        - Build `test-first` (one behavior at a time):
-            - After material fixes, status's `coverage-required` carries the offer with its disclosure, and an accepted
-              terminus discharges the member.
-            - After a converged fix check, the offer rides the complete pass's request.
+    - `[x]` **2.6.a Bind the delivery terminus offer at status's `coverage-required`**
+        - Settled material-fix coverage carries the exact member offer with the unchecked-fix disclosure. Accepted
+          termini preempt coverage choices and coverage-required null sources; converged fix checks retain the offer
+          beside ranked complete requests. Offer projection lives outside the status reducer.
 
     - `[ ]` **2.6.b Pin pre-publication's terminus at `coverage-required`**
         - `pre-publication-procedure.ts` already takes a terminus from the driver's `owner-accepted`; after Task 1.7 the
