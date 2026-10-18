@@ -7,7 +7,7 @@ import { hostedLaneAttemptId } from "../../../../src/scripts/review-gate/hosted/
 import { projectHostedCorrectionCoverageSelection } from "../../../../src/scripts/review-gate/policy/hosted-coverage-selection.js";
 import { resolveReviewPolicy } from "../../../../src/scripts/review-gate/policy/review-policy-driver.js";
 import { createStandardReviewReservation, projectPublicationBoundary } from "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
-import { resolveDeliveryReviewTerminusAcceptance } from "../../../../src/scripts/review-gate/policy/delivery-review-terminus.js";
+import { resolveDeliveryReviewTerminusAcceptance, type DeliveryReviewTerminusAcceptanceAction } from "../../../../src/scripts/review-gate/policy/delivery-review-terminus.js";
 import { bindDeliveryReviewTerminusOffer, composeDeliveryReviewObligation, resolveReviewStatus }
   from "../../../../src/scripts/review-gate/status.js";
 
@@ -47,24 +47,36 @@ async function status(obligation: ReturnType<typeof composeDeliveryReviewObligat
     currentBaseOid: "b".repeat(40), baseContained: true, requiredChecks: "green", routedObligation: obligation }) });
 }
 
+type Discharge = Parameters<typeof composeDeliveryReviewObligation>[0]["discharges"][number];
+async function boundStatus(current: Discharge) {
+  return bindDeliveryReviewTerminusOffer(await status(composeDeliveryReviewObligation({ targets, discharges: [current],
+    statusRoute: { kind: "work-unit", workUnitId: "example" } })), binding);
+}
+async function acceptStop(action: DeliveryReviewTerminusAcceptanceAction, current: Discharge,
+  sources: readonly string[] = ["codex-pr", "delegated-agent"]) {
+  const reservation = createStandardReviewReservation({ candidateId: binding.candidateId, sourceId: "codex-pr",
+    sources, obligation: standardReview,
+    target: { kind: "delivery", repository: target.repository, planId: vehicle.planId, workUnitId: "example" } });
+  let boundary = projectPublicationBoundary({ workUnit: "example", branch: "feat/example", candidateId: binding.candidateId,
+    candidateSubjectDigest: binding.candidateSubjectDigest, reservation,
+    changeRequest: { repository: target.repository, pullRequest: handle.target.pullRequest } });
+  const result = await resolveDeliveryReviewTerminusAcceptance({ ...action, judgment: { mode: "owner-accepted" } }, {
+    readBoundary: async () => ({ boundary, version: binding.expectedBoundaryVersion }),
+    readOwnerAuthority: async () => ({ status: "authorized", ownerIdentity: "andrew" }),
+    readCurrentOffer: async () => { const fresh = await boundStatus(current);
+      return "terminusAction" in fresh ? fresh.terminusAction?.offer ?? null : null; },
+    writeBoundary: async next => { boundary = next; return { status: "written", path: "boundary.json" }; },
+  });
+  return { result, boundary };
+}
+
 it("offers the disclosed stop at settled coverage and discharges the exact member after acceptance", async () => {
   expect(terminalPolicy).toMatchObject({ state: "coverage-required", payload: { responseRequired: false } });
   const offered = bindDeliveryReviewTerminusOffer(await status(composeDeliveryReviewObligation({ targets, discharges: [discharge] })), binding);
   expect(offered).toMatchObject({ nextAction: "select-coverage", terminusAction: { offer: { completedPasses: 1, vehicle } } });
   if (!("terminusAction" in offered) || offered.terminusAction === undefined) throw new Error("expected Owner stop");
   expect(offered.terminusAction.offer.interactionText).toContain("not been re-examined");
-  const reservation = createStandardReviewReservation({ candidateId: binding.candidateId, sourceId: "codex-pr",
-    sources: ["codex-pr", "delegated-agent"], obligation: standardReview,
-    target: { kind: "delivery", repository: target.repository, planId: vehicle.planId, workUnitId: "example" } });
-  let boundary = projectPublicationBoundary({ workUnit: "example", branch: "feat/example", candidateId: binding.candidateId,
-    candidateSubjectDigest: binding.candidateSubjectDigest, reservation,
-    changeRequest: { repository: target.repository, pullRequest: handle.target.pullRequest } });
-  const result = await resolveDeliveryReviewTerminusAcceptance({ ...offered.terminusAction, judgment: { mode: "owner-accepted" } }, {
-    readBoundary: async () => ({ boundary, version: binding.expectedBoundaryVersion }),
-    readOwnerAuthority: async () => ({ status: "authorized", ownerIdentity: "andrew" }),
-    readCurrentOffer: async () => offered.terminusAction?.offer ?? null,
-    writeBoundary: async next => { boundary = next; return { status: "written", path: "boundary.json" }; },
-  });
+  const { result, boundary } = await acceptStop(offered.terminusAction, discharge);
   expect(result).toMatchObject({ state: "recorded", record: { terminus: { acceptedBy: "andrew", completedPasses: 1 } } });
   if (boundary.locus !== "delivery-status-required") throw new Error("expected delivery boundary");
   for (const stopped of [discharge, { ...discharge, coverageSelectionAction: undefined }]) {
@@ -88,4 +100,36 @@ it("retains the stop beside the ranked complete request after a converged fix ch
     terminusAction: { offer: { vehicle, completedPasses: 2 } } });
   if (!("terminusAction" in result) || result.terminusAction === undefined) throw new Error("expected exact stop");
   expect(result.terminusAction.offer.interactionText).not.toContain("not been re-examined");
+});
+
+function sourceContinuation(configured: boolean): Discharge {
+  const requestAdmission = resolveReviewPolicy({ schemaVersion: 1, target: handle.target, lane: "standard", standardReview,
+    sources: configured ? ["codex-pr", "delegated-agent"] : ["codex-pr"], completedPasses: 1, maxPasses: 4, attempts: [],
+    nextPassContext: { convergence: "unconverged", responseDue: false, incremental: null } });
+  return { ...discharge, coverageSelectionAction: undefined, requestAdmission, requestCoverage: "complete",
+    nextSource: configured ? "delegated-agent" : "codex-pr" };
+}
+
+it("makes the advertised Owner stop executable when the local source is unconfigured", async () => {
+  const current = sourceContinuation(false);
+  const offered = await boundStatus(current);
+  expect(offered).toMatchObject({ state: "blocked", reason: "material-fix-local-source-unconfigured",
+    terminusAction: { offer: { vehicle, completedPasses: 1 } }, remedy: { argv: ["arc", "review", "status", "--work-unit", "example"] } });
+  if (!("terminusAction" in offered) || offered.terminusAction === undefined) throw new Error("expected executable stop");
+  expect(offered.terminusAction.offer.interactionText).toContain("not been re-examined");
+  const { result, boundary } = await acceptStop(offered.terminusAction, current, ["codex-pr"]);
+  expect(result).toMatchObject({ state: "recorded" });
+  if (boundary.locus !== "delivery-status-required") throw new Error("expected delivery boundary");
+  expect(boundary.reservation.sources).toEqual(["codex-pr"]);
+  await expect(status(composeDeliveryReviewObligation({ targets, discharges: [current],
+    ownerTermini: boundary.deliveryReviewTermini }))).resolves.toMatchObject({ state: "settled", nextAction: "continue-reconcile",
+    routedObligation: { conjunction: { members: [{ state: "discharged" }] } } });
+});
+
+it("resumes local review on the original route after configuring the missing source", async () => {
+  const refused = await boundStatus(sourceContinuation(false));
+  expect(refused).toMatchObject({ state: "blocked", reason: "material-fix-local-source-unconfigured",
+    remedy: { argv: ["arc", "review", "status", "--work-unit", "example"] } });
+  await expect(boundStatus(sourceContinuation(true))).resolves.toMatchObject({ nextAction: "review-local-prepare",
+    action: { sourceId: "delegated-agent", vehicle, target: handle.target, pass: 2, requestedCoverage: "complete" } });
 });

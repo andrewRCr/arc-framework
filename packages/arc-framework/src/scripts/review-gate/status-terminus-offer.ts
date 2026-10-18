@@ -31,11 +31,12 @@ export function projectDeliveryTerminusOffer(
 ): DeliveryReviewTerminusAcceptanceAction | undefined {
   const isCeiling = result.nextAction === "obtain-ceiling-override";
   const isBaseMoved = result.state === "base-moved";
-  const isCoverage = result.nextAction === "select-coverage";
+  const uncheckedFixes = result.nextAction === "select-coverage"
+    || (result.state === "blocked" && result.reason === "material-fix-local-source-unconfigured");
   const isEligibleContinuation = result.nextAction === "review-hosted-request"
     || result.nextAction === "review-local-prepare"
     || result.nextAction === "resolve-review-applicability";
-  if (!isCeiling && !isBaseMoved && !isCoverage && !isEligibleContinuation) return undefined;
+  if (!isCeiling && !isBaseMoved && !uncheckedFixes && !isEligibleContinuation) return undefined;
   const member = result.deliveryCursor?.currentMember;
   if (member === undefined || member === null) {
     if (isCeiling) {
@@ -43,7 +44,7 @@ export function projectDeliveryTerminusOffer(
     }
     return undefined;
   }
-  if (!isCeiling && !isCoverage && !hasCompletedCompleteReviewPass(member)) return undefined;
+  if (!isCeiling && !uncheckedFixes && !hasCompletedCompleteReviewPass(member)) return undefined;
   return DeliveryReviewTerminusAcceptanceActionSchema.parse({
     schemaVersion: 1,
     offer: {
@@ -59,7 +60,7 @@ export function projectDeliveryTerminusOffer(
       completedPasses: member.progress.completedPasses,
       interactionText: "Accept the standard-review terminus for this exact delivery member without claiming a "
         + "clean or converged pass."
-        + (isCoverage ? " The approved material fixes have not been re-examined." : ""),
+        + (uncheckedFixes ? " The approved material fixes have not been re-examined." : ""),
     },
   });
 }

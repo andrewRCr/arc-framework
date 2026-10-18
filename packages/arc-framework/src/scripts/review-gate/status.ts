@@ -1,5 +1,6 @@
 /** Exact-target review, check, and base-status reduction. */
 
+import { projectDeliveryReviewCursor } from "./status-delivery-cursor.js";
 import { projectDeliveryTerminusOffer, type DeliveryTerminusOfferBinding } from "./status-terminus-offer.js";
 import { SingletonLocalPrepareActionSchema, projectSingletonLocalPrepareAction } from "./singleton-local-prepare-action.js";
 import type { StandardReviewObligationProjection } from "./policy/standard-review-projection-schema.js";
@@ -1192,6 +1193,7 @@ const ReviewStatusCoverageRequiredSchema = z.strictObject({
 const ReviewStatusDriverRefusalSchema = z.strictObject({
   ...ReviewStatusBaseShape, state: z.literal("blocked"), nextAction: z.literal("stop"),
   reason: ReviewDriverRefusalReasonSchema, detail: z.string().min(1), remedy: SpineRemedySchema,
+  terminusAction: DeliveryReviewTerminusAcceptanceActionSchema.optional(),
 });
 export type ReviewStatusResult =
   | z.infer<typeof ReviewStatusSettledSchema>
@@ -1522,12 +1524,7 @@ export async function resolveReviewStatus(
     }
     return ReviewStatusCoverageRequiredSchema.parse({
       ...base,
-      deliveryCursor: {
-        status: conjunction.status,
-        completedMemberCount: conjunction.members.filter((member) => member.state === "discharged").length,
-        memberCount: conjunction.members.length,
-        currentMember,
-      },
+      deliveryCursor: projectDeliveryReviewCursor(conjunction, currentMember),
       state: "coverage-required",
       nextAction: "select-coverage",
       coverageSelectionAction: base.routedObligation.coverageSelectionAction,
@@ -1535,6 +1532,8 @@ export async function resolveReviewStatus(
   }
   if (base.routedObligation.state === "blocked" && "remedy" in base.routedObligation) {
     return { ...base, state: "blocked", nextAction: "stop", reason: base.routedObligation.reason,
+      ...(currentMember === null || conjunction === undefined ? {}
+        : { deliveryCursor: projectDeliveryReviewCursor(conjunction, currentMember) }),
       detail: base.routedObligation.detail, remedy: base.routedObligation.remedy };
   }
   if (base.currentBaseOid === null) {
@@ -1551,12 +1550,7 @@ export async function resolveReviewStatus(
     if ("reason" in base.routedObligation && currentMember !== null && conjunction !== undefined) {
       return ReviewStatusCoverageRefusalSchema.parse({
         ...base,
-        deliveryCursor: {
-          status: conjunction.status,
-          completedMemberCount: conjunction.members.filter((member) => member.state === "discharged").length,
-          memberCount: conjunction.members.length,
-          currentMember,
-        },
+        deliveryCursor: projectDeliveryReviewCursor(conjunction, currentMember),
         state: "blocked",
         nextAction: "stop",
         reason: base.routedObligation.reason,

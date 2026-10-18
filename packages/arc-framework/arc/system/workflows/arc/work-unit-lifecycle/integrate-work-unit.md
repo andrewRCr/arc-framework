@@ -179,8 +179,9 @@ recommend whether to continue or accept that exact stop. The published singleton
 For a coverage choice, re-enter with the offer's command for that pair. Carry the returned admission unchanged into
 local prepare; do not ask the coverage question again. Accepted member termini follow the acceptance procedure below.
 
-`stop` renders the refusal's `reason`, `detail`, and `remedy.text` verbatim, then stops. Preserve the structured remedy
-and follow its exact command after the stated repair or Owner decision.
+`stop` renders the refusal's `reason`, `detail`, and `remedy.text` verbatim. On the work-unit delivery route, a supplied
+`terminusAction` also offers the exact Owner stop; render its `offer.interactionText` and follow the acceptance procedure
+below on explicit acceptance. Otherwise stop, preserve the structured remedy, and follow its exact command after repair.
 
 `obtain-ceiling-override` renders the exact `consequence` and, when present for a delivery member, the exact
 `terminusAction.offer.interactionText`, then stops without requesting. Only explicit approval of the consequence admits

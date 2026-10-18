@@ -360,7 +360,7 @@ first, then in the `.arc/` copy by targeted edit.
         - Real Git and production handlers carry hosted material findings through an offered ordinary local fix check
           to ranked hosted complete closure. A base move after an unchecked fix offers only local complete coverage.
 
-### `[ ]` **2.6 Offer and carry the Owner's stop at `coverage-required` on the work-unit path — § 8.2**
+### `[x]` **2.6 Offer and carry the Owner's stop at `coverage-required` on the work-unit path — § 8.2**
 
 - _Goal:_ The Owner's stop is offered and carried at `coverage-required` on the delivery path's work-unit route and in
   pre-publication once the terminal's response is performed, as Task 1.7 lets the driver honor it.
@@ -378,13 +378,10 @@ first, then in the `.arc/` copy by targeted edit.
         - Settled coverage offers the existing pre-publication or exact delivery-member stop with a recommendation and
           unchecked-fix disclosure. Integration preserves its singleton limit and incremental additional-pass authority.
 
-    - `[ ]` **2.6.d Keep the unconfigured-source Owner-stop remedy executable — § 7.3**
-        - The unconfigured-local-source refusal names the Owner's stop, but its blocked status cannot currently bind
-          the exact delivery-member offer. Carry that offer and its unchecked-fix disclosure through work-unit status
-          and its refusal dispatch; accepted termini must settle the member without adding a source.
-        - Build `test-first` (one behavior at a time):
-            - The work-unit refusal offers the exact stop, and acceptance discharges its member without provider spend.
-            - Configuring the local source still resumes review through the original remedy command.
+    - `[x]` **2.6.d Keep the unconfigured-source Owner-stop remedy executable — § 7.3**
+        - Work-unit missing-source refusals retain the exact member cursor and disclosed acceptance offer. Acceptance
+          settles its member with the source list unchanged; configuring the local source resumes the original route.
+          Integration's refusal dispatch consumes the offered stop through the existing acceptance procedure.
 
 ### `[ ]` **2.7 Remove hosted incremental review — § 7.9, § 7.10**
 
