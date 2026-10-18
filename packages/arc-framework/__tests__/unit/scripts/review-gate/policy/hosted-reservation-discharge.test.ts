@@ -3058,12 +3058,14 @@ describe("hosted reservation discharge", () => {
       expect(incrementalApplicabilityFromEarlierRead({
         producerId: "hosted/prior-complete",
         producerTarget,
+        currentTarget: producerTarget,
         earlier: projected(applicability),
       })).toBe(applicability === "request-review" ? "review-required" : "applicable");
     }
     expect(incrementalApplicabilityFromEarlierRead({
       producerId: "hosted/prior-complete",
       producerTarget,
+      currentTarget: producerTarget,
       earlier: projected("stop"),
     })).toBe("unavailable");
   });

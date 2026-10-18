@@ -136,7 +136,7 @@ The confirmation map is in `notes-review-coverage-cadence.md` § Chain confirmat
         - Both standard-source comments and initial setup identify the local fix-check source and hosted complete-pass
           cadence; the project's configured source values remain intact.
 
-### `[ ]` **1.6 Prove a fix's leg at every chain confirmation, and break the chain on a base move — § 7.4, § 7.8**
+### `[x]` **1.6 Prove a fix's leg at every chain confirmation, and break the chain on a base move — § 7.4, § 7.8**
 
 - _Goal:_ Every confirmation that resolves a correction scope or re-confirms a chain proves a leg holding a fix through
   the chain proof, before a pull request and after; every confirmation that carries an earlier attempt to the current
@@ -158,23 +158,11 @@ The confirmation map is in `notes-review-coverage-cadence.md` § Chain confirmat
         - Both production-reader boundaries prove the hosted material fix followed by a local fix check, including
           the Candidate's record-only commit. Full singleton routing remains Task 2.5.
 
-    - `[ ]` **1.6.c Break the chain on a base move after an unchecked fix**
-        - On a change-set target the chain proof breaks it by construction, since the performed-response test needs an
-          unchanged diff base; the shared applicability reads, which still carry a converged terminal across a base move,
-          are untouched. A fix check's range holds only fixes: carried across a move, its scope would run from the
-          predecessor's head (`buildIncrementalCorrectionScope`'s `predecessorHeadSha`) over the whole base movement.
-        - On delivery the refusal sits in the discharge's two confirmations, which take the earlier read's re-anchor
-          facts — its `retentionBasis` and the prior and current base — and refuse a leg re-anchored across a base move
-          after an unchecked fix. `verifiedDeliveryMemberFixResponse` stays as it is, so a member restacked in the middle
-          of its fix rounds takes a complete pass while a converged terminal still carries. On an Errand before its pull
-          request the chain already needs an unchanged diff base (`exactErrandResponseContext`).
-        - Build `test-first` (one behavior at a time):
-            - After a base merge that follows an unchecked fix, the chain proof refuses the leg on an Errand and in
-              pre-publication, and the discharge's confirmations refuse it on the singleton and a delivery member,
-              whatever applicability or a `covered` choice says about the move. The next pass on the singleton and a
-              delivery member end to end is Tasks 2.4 and 2.5's.
-            - A base move after a converged look still carries through the shared applicability reads, delivery's
-              re-anchor included.
+    - `[x]` **1.6.c Break the chain on a base move after an unchecked fix**
+        - Discharge's historical and current confirmations compare the retained producer's base with the successor's
+          before accepting delivery's verified fix-response re-anchor. Changed base ref, commit, or tree requires review.
+        - Real-Git Errand, Candidate, and member merges break fix legs; shared delivery applicability still carries a
+          settled response through a mechanical base move. Ordinary contribution retention stays unchanged.
 
 ### `[ ]` **1.7 Honor the Owner's terminus at `coverage-required` — § 8.2**
 

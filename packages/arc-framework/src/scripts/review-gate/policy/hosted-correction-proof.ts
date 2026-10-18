@@ -32,7 +32,7 @@ export async function confirmHostedCurrentCorrection(input: {
       : input.predecessor.kind === "attested-local" ? "delegated-agent" : undefined;
     if (sourceId === undefined || input.readEarlierAttemptApplicability === undefined) return "unavailable";
     return incrementalApplicabilityFromEarlierRead({ producerId: input.predecessor.producerId,
-      producerTarget: input.predecessor.target, earlier: await input.readEarlierAttemptApplicability(sourceId) });
+      producerTarget: input.predecessor.target, currentTarget, earlier: await input.readEarlierAttemptApplicability(sourceId) });
   };
   return confirmReviewCorrectionLeg({ ...input, currentTarget, currentLineage: input.currentLineage, confirmGrounds });
 }

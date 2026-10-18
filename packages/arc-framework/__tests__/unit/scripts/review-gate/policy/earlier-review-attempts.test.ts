@@ -585,7 +585,7 @@ describe("earlier review attempt query", () => {
     });
   });
 
-  it("retains a settled local findings pass at its verified corrected member head", async () => {
+  it.each([false, true])("retains a settled local findings pass at its corrected member head, moved base=%s", async movedBase => {
     const prior = laneState({ delivery: true });
     const oldTarget = prior.attempts[0]!.hosted!.reviewTarget;
     const local = LaneProgressStateSchema.parse({
@@ -701,11 +701,12 @@ describe("earlier review attempt query", () => {
         ...selector(deliveryVehicle(oid("c"))),
         sourceId: "delegated-agent",
       },
-      currentBase: newTarget.diffBaseSha,
+      currentBase: movedBase ? oid("e") : newTarget.diffBaseSha,
       snapshot: { status: "complete", records: [{ version: 1, state: local }] },
       candidate: candidateRecord(),
       exec: async () => { throw new Error("verified response should retain without Git projection"); },
       observeEndpoints: stableEndpoints,
+      ...(movedBase ? { projectApplicability: async (selector: Parameters<typeof mechanicalApplicability>[0]) => mechanicalApplicability(selector) } : {}),
       readDispositionRecord: async () => disposition,
     })).resolves.toMatchObject({
       status: "complete",
@@ -713,7 +714,7 @@ describe("earlier review attempt query", () => {
         attemptId: "local-review-prior",
         outcome: "settled-findings",
         applicability: "retain-prior-attempt",
-        retentionBasis: "verified-fix-response",
+        ...(movedBase ? {} : { retentionBasis: "verified-fix-response" }),
       }],
     });
   });

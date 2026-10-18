@@ -1,4 +1,5 @@
 /** Candidate chain confirmation through production pre-publication dependencies and real records. */
+import { deriveLocalReviewTargetFromCoordinates } from "../../src/scripts/review-gate/hosts/local/repository-target.js";
 import { createHostedReservationDischargeReader } from "../../src/scripts/review-gate/policy/hosted-reservation-discharge.js";
 import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -250,6 +251,28 @@ describe("pre-publication correction confirmation", () => {
       expect({ exitCodes, result: JSON.parse(output.join("")) }).toMatchObject({ exitCodes: [],
         result: { state: "pass-complete", payload: { verifiedTerminalSignal: { coverageAdequate: true } } } });
     }
+  });
+
+  it.each([false, true])("breaks an unchecked fix's chain after a base merge, delivery=%s", async member => {
+    const { cwd, exec, git, base, candidate, predecessor, current, dependencies } = await candidateFix(false, member);
+    if (candidate === null) throw new Error("missing Candidate");
+    await git("switch", "-c", "fixture-base", base);
+    await writeFile(join(cwd, "base-change.ts"), "export const baseChange = true;\n");
+    await git("add", "."); await git("commit", "-m", "advance base");
+    const movedBase = await git("rev-parse", "HEAD");
+    await git("branch", "-f", "main", movedBase);
+    await git("switch", "feat/example"); await git("merge", "--no-edit", "fixture-base");
+    const headSha = await git("rev-parse", "HEAD");
+    const target = await deriveLocalReviewTargetFromCoordinates({ cwd, exec, repositoryId: current.repositoryId,
+      coordinates: { kind: member ? "delivery-member" : "change-set", baseRef: "main", diffBaseSha: movedBase, headSha } });
+    const lineage = current.admission.lineage;
+    const args = { reservation: null, baseRevision: movedBase, approvedHead: headSha,
+      changeRequest: { repository: "owner/repo", pullRequest: 42 }, candidate,
+      ...(lineage.kind === "delivery-member" ? { vehicle: { ...lineage, head: headSha } } : {}) };
+    await expect(createHostedReservationDischargeReader({ cwd, exec })
+      .confirmCurrentIncrementalApplicability(args, predecessor)).resolves.not.toBe("applicable");
+    await expect(dependencies.confirmIncrementalApplicability("example", predecessor, { ...current, target },
+      { repository: "owner/repo", pullRequest: null, headSha })).resolves.not.toBe("applicable");
   });
 
   it.each(["historical", "current"] as const)("proves the singleton's local fix leg in discharge's %s confirmation", async surface => {

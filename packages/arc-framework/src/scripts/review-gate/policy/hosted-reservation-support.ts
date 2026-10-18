@@ -134,6 +134,7 @@ export interface IncrementalCorrectionScopeCandidate {
 export function incrementalApplicabilityFromEarlierRead(input: {
   readonly producerId: string;
   readonly producerTarget: NonNullable<EarlierApplicableAttempt["producerTarget"]>;
+  readonly currentTarget: ReviewResult["target"];
   readonly earlier: EarlierHostedAttemptApplicabilityRead;
 }): IncrementalPredecessorApplicability {
   if (input.earlier.status !== "complete") return "unavailable";
@@ -143,7 +144,12 @@ export function incrementalApplicabilityFromEarlierRead(input: {
     && canonicalize(attempt.producerTarget) === canonicalize(input.producerTarget)
   ));
   if (exact.length !== 1) return "unavailable";
-  const applicability = exact[0]?.applicability;
+  const retained = exact[0];
+  if (retained?.retentionBasis === "verified-fix-response"
+    && (input.producerTarget.baseRef !== input.currentTarget.baseRef
+      || input.producerTarget.diffBaseSha !== input.currentTarget.diffBaseSha
+      || input.producerTarget.diffBaseTree !== input.currentTarget.diffBaseTree)) return "review-required";
+  const applicability = retained?.applicability;
   return applicability === "retain-prior-attempt"
     ? "applicable"
     : applicability === "request-review"
@@ -178,6 +184,7 @@ export async function confirmIncrementalPredecessorApplicability(input: {
     return incrementalApplicabilityFromEarlierRead({
       producerId: predecessor.producerId,
       producerTarget: predecessor.target,
+      currentTarget: current.target,
       earlier: await input.readEarlierAttemptApplicability(sourceId),
     });
   };

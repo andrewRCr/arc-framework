@@ -1,3 +1,5 @@
+import { confirmReviewCorrectionLeg } from "../../src/scripts/review-gate/policy/review-next-pass.js";
+import { deriveLocalReviewTarget } from "../../src/scripts/review-gate/hosts/local/repository-target.js";
 /** The hosted pass an Errand head offers after an approved fix, and the correction its admission accepts. */
 
 import { createLocalPrepareDependencies } from "../../src/scripts/review-gate/runtime/local-prepare-composition.js";
@@ -44,6 +46,7 @@ import {
   bindHostedAttemptDisposition,
   hostedLaneAttemptId,
   readLaneProgressOwner,
+  readLaneResponsePerformance,
   recordHostedAwaitAttempt,
   recordHostedRequestAdmission,
   recordLaneResponsePerformance,
@@ -530,6 +533,22 @@ describe("ordinary resolve next-pass records", () => {
     });
     expect({ exitCodes, result: JSON.parse(output.join("")) }).toMatchObject({ exitCodes: [],
       result: { state: "ready", nextAction: "hosted-request", payload: { sourceId: "coderabbit-pr", pass: 3 } } });
+  });
+
+  it("breaks an Errand's unchecked fix leg after a base merge even if contribution is covered", async () => {
+    const errand = await fixedErrand({ provider: "codex-pr", retrigger: "incremental" });
+    await git(errand.root, ["switch", "main"]);
+    await writeFile(join(errand.root, "base-change.ts"), "export const baseChange = true;\n");
+    await git(errand.root, ["add", "."]); await git(errand.root, ["commit", "-m", "advance base"]);
+    await git(errand.root, ["switch", errand.errand.branch]);
+    await git(errand.root, ["merge", "--no-edit", "main"]);
+    const predecessor = await createRepositoryReviewResultReader(errand.publisher).readResult(errand.firstAttemptId);
+    const currentTarget = await deriveLocalReviewTarget({ cwd: errand.root, exec: errand.exec, baseRef: "main",
+      repositoryId: predecessor.repositoryId });
+    await expect(confirmReviewCorrectionLeg({ predecessor, currentTarget,
+      currentLineage: predecessor.admission.lineage, dispositionStore: errand.dispositionStore,
+      readResponsePerformance: result => readLaneResponsePerformance(errand.store, result),
+      confirmGrounds: async () => "applicable" })).resolves.toBe("unavailable");
   });
 
   it.each((["resolve", "respond", "local-prepare"] as const).flatMap(surface =>
