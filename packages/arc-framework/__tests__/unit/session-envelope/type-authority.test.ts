@@ -5,6 +5,12 @@ import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 import ts from "typescript";
+import type { SessionInitProbeResult } from "../../../src/commands/status/types.js";
+import type { SessionInitProbeResultSchemaInputCompatibility } from "../../../src/commands/status/schema.js";
+
+type InvalidProducer = Omit<SessionInitProbeResult, "mode"> & { mode: "invalid" };
+// @ts-expect-error Invalid producer modes must fail schema input compatibility.
+export type InvalidSessionInitProducer = SessionInitProbeResultSchemaInputCompatibility<InvalidProducer>;
 
 const SOURCE_ROOT = resolve(import.meta.dirname, "../../../src");
 

@@ -431,7 +431,7 @@ function sessionTypeAcceptsWorkflow(
   return workflow === null;
 }
 
-const SessionInitProbeResultRuntimeSchema: z.ZodType<SessionInitEnvelopeValue> =
+const SessionInitProbeResultRuntimeSchema =
   SessionInitEnvelopeObjectSchema.superRefine((value, context) => {
   const active = activeValue(value);
   const worktree = worktreeValue(value);
