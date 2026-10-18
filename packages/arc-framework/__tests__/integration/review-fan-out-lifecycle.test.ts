@@ -46,11 +46,13 @@ import { bindReviewSourceReference } from "../../src/scripts/review-gate/core/re
 import { awaitHostedReview, HostedAwaitEnvelopeSchema, HostedAwaitResultSchema } from "../../src/scripts/review-gate/hosted/await.js";
 import { createHostedAdmission, HostedRequestResultSchema, requestHostedReview, type HostedRequestEnvelope, type HostedRequestHandle, type HostedRequestOutcome } from "../../src/scripts/review-gate/hosted/request.js";
 import { settleHostedFinding } from "../../src/scripts/review-gate/hosted/settle.js";
-import { acknowledgeHostedRequest, bindHostedAttemptDisposition, hostedLaneAttemptId, laneProgressOperationId, recordHostedAwaitAttempt, recordLaneAttempt, recordHostedRequestAdmission, recordHostedRequestConclusion, recordLaneResponsePerformance, settleLaneAttempt, settleHostedAttemptFinding } from "../../src/scripts/review-gate/lane-progress.js";
+import { acknowledgeHostedRequest, bindHostedAttemptDisposition, hostedLaneAttemptId, laneProgressOperationId, readLaneResponsePerformance, recordHostedAwaitAttempt, recordLaneAttempt, recordHostedRequestAdmission, recordHostedRequestConclusion, recordLaneResponsePerformance, settleLaneAttempt, settleHostedAttemptFinding } from "../../src/scripts/review-gate/lane-progress.js";
 import { LocalReviewOperationStateStore } from "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
 import { HostedRequestOwnerIndex } from "../../src/scripts/review-gate/hosts/local/hosted-request-owner-index.js";
 import { createRepositoryReviewResultReader } from "../../src/scripts/review-gate/hosts/local/review-result-reader-composition.js";
 import { resolveEvidenceBoundReviewPolicy } from "../../src/scripts/review-gate/policy/review-policy-evidence.js";
+import { deriveReviewNextPassContext } from "../../src/scripts/review-gate/policy/review-next-pass.js";
+import { readStandardPassCounts } from "../../src/scripts/review-gate/runtime/lane-pass-counts.js";
 import { LocalApprovedDispositionRecordStore } from "../../src/scripts/review-gate/hosts/local/disposition-record-store.js";
 import { RepositoryDeliveryMemberLookup } from "../../src/scripts/review-gate/hosts/local/delivery-member-lookup.js";
 
@@ -77,6 +79,7 @@ import { deliveryStackPlanWithMemberTitlesFixture } from "../fixtures/delivery-p
 import { cleanupTempDir, createTempRepo, makeGitExec } from "../helpers/integration.js";
 
 const oid = (character: string): string => character.repeat(40);
+const materialPassesTimeoutMs = 120_000;
 
 
 
@@ -2401,9 +2404,12 @@ describe("hosted review fan-out lifecycle", () => {
       schemaVersion: 1, source, policyRequest, dispositions,
     })).resolves.toMatchObject({
       state: "settled", nextAction: "continue-review",
-      payload: { policy: { state: "pass-complete", payload: {
-        verifiedTerminalSignal: { coverageAdequate: true },
-      } } },
+      payload: { policy: { state: "unavailable", payload: { attemptedSources: [] } } },
+    });
+    const resultReader = createRepositoryReviewResultReader(new RepositoryGitCommonStatePublisher(harness.exec, harness.root));
+    await expect(resultReader.readResult(currentTerminal.attemptId)).resolves.toMatchObject({
+      originalOutcome: "findings", admission: { effectiveCoverage: "incremental" },
+      requirement: { retrigger: "full-final" },
     });
   });
 
@@ -2929,17 +2935,28 @@ describe("hosted review fan-out lifecycle", () => {
     });
     const awaited = HostedAwaitResultSchema.parse(terminal.output);
     if ((awaited.state !== "clean" && awaited.state !== "findings")
-      || awaited.attempt === undefined || awaited.responseSourceRef === undefined) {
+      || awaited.attempt === undefined || !("reviewOperationId" in awaited.attempt) || awaited.responseSourceRef === undefined) {
       throw new Error("expected a terminal policy attempt");
     }
     const policy = await responsePolicyRequest(harness.root, {
       kind: "hosted", attemptRef: awaited.responseSourceRef,
     }, repository);
     const publisher = new RepositoryGitCommonStatePublisher(harness.exec, harness.root);
+    const resultReader = createRepositoryReviewResultReader(publisher);
+    const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
+    const nextPassContext = await deriveReviewNextPassContext({
+      predecessor: await resultReader.readResult(awaited.attempt.reviewOperationId),
+      currentTarget: requested.handle.admission.reviewTarget,
+      currentLineage: requested.handle.admission.lineage,
+      ...await readStandardPassCounts({ cwd: harness.root, exec: harness.exec, store: harness.store,
+        repositoryId: harness.repositoryId, headSha: requested.handle.target.headSha,
+        lineage: requested.handle.admission.lineage }),
+      standardReview: policy.standardReview, resultReader, dispositionStore,
+      readResponsePerformance: (result) => readLaneResponsePerformance(harness.store, result),
+    });
     const boundPolicy = resolveEvidenceBoundReviewPolicy({ ...policy, attempts: [awaited.attempt] }, {
       sources: harness.standardSources, maxPasses: 5,
-      resultReader: createRepositoryReviewResultReader(publisher),
-      dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+      resultReader, dispositionStore, nextPassContext,
       confirmTarget: async () => requested.handle.admission.reviewTarget,
     });
     if (outcome === "clean") {
@@ -3007,19 +3024,31 @@ describe("hosted review fan-out lifecycle", () => {
       kind: "candidate" as const,
       candidateId: candidate.record.attestation.candidateId,
     };
-    for (const [index, sourceId] of ["coderabbit-pr", "codex-pr"].entries()) {
-      await recordLaneAttempt(harness.store, {
-        lane: "standard",
+    const reviewTarget = createReviewTarget({
+      schemaVersion: 2, semanticsVersion: "review-gate/v2", kind: "change-set",
+      repositoryId: harness.repositoryId, baseRef: "main", diffBaseSha: harness.baseHead,
+      diffBaseTree: harness.baseTree, headSha: harness.oldFirst, headTree: harness.oldFirstTree,
+    });
+    const requirement = createReviewRequirement({ target: reviewTarget, projection: pinnedReservation.obligation,
+      acceptableSources: [{ sourceKind: "hosted", qualifier: "coderabbit-pr" },
+        { sourceKind: "hosted", qualifier: "codex-pr" }], initialAdmission: "automatic" });
+    if (requirement === null) throw new Error("expected prior Candidate obligation");
+    for (const [index, sourceId] of (["coderabbit-pr", "codex-pr"] as const).entries()) {
+      const admission = createHostedAdmission({ schemaVersion: 1, repositoryId: harness.repositoryId,
+        lineage, logicalPass: index + 1, sourceId, target: { repository, pullRequest: 42, headSha: harness.oldFirst },
+        requestedCoverage: "complete", reviewTarget, requirement, actorIdentity: "1" });
+      await publishHostedTerminalProgressFixture(harness.store, {
+        operationId: laneProgressOperationId({ lane: "standard", repositoryId: harness.repositoryId,
+          headSha: harness.oldFirst, lineage }),
         repositoryId: harness.repositoryId,
         changeRequestId: "pull/42",
         headSha: harness.oldFirst,
         lineage,
         logicalPass: index + 1,
         retryGeneration: 0,
-        attemptId: `prior-head-clean-${String(index + 1)}`,
         sourceId,
         outcome: "clean",
-        consumedPass: true,
+        terminal: createHostedTerminalAttemptFixture({ admission, outcome: "clean" }),
         now: `2026-09-01T11:0${String(index)}:00.000Z`,
       });
     }
@@ -3031,16 +3060,33 @@ describe("hosted review fan-out lifecycle", () => {
       schemaVersion: 1, target, provider: "coderabbit-pr", coverage: "complete",
     });
     expect(refused.exitCodes).toEqual([1]);
-    expect(JSON.stringify(refused.output)).toContain("driver admission (approval-required/obtain-ceiling-override)");
-    const statusTarget = remedyStatusTarget(refused.output);
-    expect(statusTarget).toEqual({ repository, headRef: "prior-top", headSha: harness.priorSecond });
-    const ceiling = await selectReviewRequiredUntilRouted(harness, statusTarget);
-    expect(ceiling).toMatchObject({
+    expect(JSON.stringify(refused.output)).toContain("contribution applicability is unresolved");
+    await expect(access(providerCalled)).rejects.toThrow();
+    const statusTarget = { repository, headRef: "prior-top", headSha: harness.priorSecond };
+    const singletonHost: ReturnType<typeof deliveryHost> = { readRequest: async (requestedRepository, binding) => ({
+      status: "observed", request: { binding, repository: requestedRepository, headRepository: requestedRepository,
+        headRef: statusTarget.headRef, headSha: statusTarget.headSha, baseRef: "main", state: "open", draft: false },
+    }) };
+    await writeFile(join(harness.root, ".git", "info", "exclude"),
+      ".arc/active/\n.arc/system/arc-config.yml\n.arc/system/.internal/candidates/*.boundary.json\n"
+      + "fake-bin/\nprovider-called\nprovider-verdict\n", "utf8");
+    const ceiling = await selectReviewRequiredUntilRouted(harness, statusTarget, "review-required", singletonHost);
+    expect(ceiling, JSON.stringify(ceiling)).toMatchObject({
       state: "approval-required",
       nextAction: "obtain-ceiling-override",
       consequence: { target, lane: "standard", exhaustedPassCount: 2, nextPass: 3 },
     });
     if (ceiling.nextAction !== "obtain-ceiling-override") throw new Error("expected exact ceiling consequence");
+    await git(harness.root, ["reset", "--", resolveCandidateRecordRelativePath(harness.plan.workUnitId)]);
+    await writeFile(join(harness.root, ".git", "info", "exclude"),
+      ".arc/\nfake-bin/\nprovider-called\nprovider-verdict\n", "utf8");
+    expect(await git(harness.root, ["status", "--porcelain"])).toBe("");
+    const capped = await requestThroughProductionHandler(harness, fakeBin, {
+      schemaVersion: 1, target, provider: "coderabbit-pr", coverage: "complete",
+    });
+    expect(capped.exitCodes).toEqual([1]);
+    expect(JSON.stringify(capped.output)).toContain("driver admission (approval-required/obtain-ceiling-override)");
+    expect(remedyStatusTarget(capped.output)).toEqual(statusTarget);
 
     const result = await requestThroughProductionHandler(harness, fakeBin, {
       schemaVersion: 1,
@@ -3160,7 +3206,7 @@ describe("hosted review fan-out lifecycle", () => {
         findings: [finding] }, now: "2026-09-01T10:04:00.000Z" });
     if (progress === null) throw new Error("expected fallback findings");
     const dispositionSetId = await bindApprovedHostedFinding(harness, { operationId: progress.operationId, handle, progress,
-      finding, disposition: "fix", channelAction: "record-only", now: "2026-09-01T10:05:00.000Z" });
+      finding, disposition: "reject", channelAction: "record-only", now: "2026-09-01T10:05:00.000Z" });
     await recordLaneResponsePerformance(harness.store, {
       lane: "standard", repositoryId: harness.repositoryId, headSha: target.headSha, lineage,
       attemptId: hostedLaneAttemptId(handle), dispositionSetId,
@@ -3172,7 +3218,7 @@ describe("hosted review fan-out lifecycle", () => {
     const nextStatus = await statusThroughHandler(harness, {
       repository, headRef: "prior-top", headSha: harness.priorSecond,
     }, undefined, "complete", "coderabbit-pr");
-    expect(nextStatus).toMatchObject({ state: "review-required" });
+    expect(nextStatus).toMatchObject({ state: "settled", nextAction: "continue-reconcile" });
 
     const { fakeBin, providerCalled } = await installHostedRequestTestHost(harness, harness.priorSecond);
     const fresh = await requestThroughProductionHandler(harness, fakeBin, coderabbitRequest);
@@ -3631,10 +3677,9 @@ describe("hosted review fan-out lifecycle", () => {
     expect(status).toMatchObject({
       state: "blocked",
       nextAction: "stop",
-      reason: "coverage-unsupported",
+      reason: "hosted-incremental-unsupported",
       remedy: { argv: [
-        "arc", "review", "status", "--work-unit", harness.plan.workUnitId,
-        "--coverage", "complete",
+        "arc", "review", "status", "--target", JSON.stringify(statusTarget), "--source", "delegated-agent",
       ] },
     });
     await expect(access(providerCalled)).rejects.toThrow();
@@ -3643,7 +3688,7 @@ describe("hosted review fan-out lifecycle", () => {
       .resolves.toMatchObject({ state: "review-required", nextAction: "review-hosted-request" });
   });
 
-  it("requires a predecessor scope before Codex can upgrade incremental coverage", async () => {
+  it("refuses hosted incremental coverage on Codex before provider dispatch", async () => {
     const harness = await createHarness(["codex-pr"]);
     const statusTarget = {
       repository,
@@ -3654,7 +3699,7 @@ describe("hosted review fan-out lifecycle", () => {
     expect(initial).toMatchObject({
       state: "blocked",
       nextAction: "stop",
-      reason: "coverage-unsupported",
+      reason: "hosted-incremental-unsupported",
     });
   });
 
@@ -3683,7 +3728,7 @@ describe("hosted review fan-out lifecycle", () => {
   });
 
   it("keeps a five-pass material-fix member outstanding without re-reviewing its clean sibling", async () => {
-    const harness = await createHarness(["coderabbit-pr"]);
+    const harness = await createHarness(["coderabbit-pr", "delegated-agent"]);
     const firstStatusTarget = {
       repository,
       headRef: "delivery/delivery-plan-record/first",
@@ -3714,7 +3759,7 @@ describe("hosted review fan-out lifecycle", () => {
 
     const materialCounts = [6, 7, 5, 2, 3] as const;
     const secondStatusTarget = { repository, headRef: "prior-top", headSha: harness.priorSecond };
-    let nextStatus = await statusThroughHandler(harness, secondStatusTarget);
+    let nextStatus = await statusThroughHandler(harness, secondStatusTarget, undefined, "complete", "delegated-agent");
     for (const [passIndex, findingCount] of materialCounts.entries()) {
       const pass = passIndex + 1;
       if (nextStatus.nextAction === "obtain-ceiling-override") {
@@ -3723,13 +3768,14 @@ describe("hosted review fan-out lifecycle", () => {
           exhaustedPassCount: pass - 1,
           nextPass: pass,
         });
-        nextStatus = await statusThroughHandler(harness, secondStatusTarget, nextStatus.consequence);
+        nextStatus = await statusThroughHandler(harness, secondStatusTarget, nextStatus.consequence, "complete", "delegated-agent");
       }
       expect(nextStatus).toMatchObject({
         state: "review-required",
-        nextAction: "review-hosted-request",
+        nextAction: "review-local-prepare",
         action: {
-          provider: "coderabbit-pr",
+          sourceId: "delegated-agent",
+          requestedCoverage: "complete",
           vehicle: member(harness.plan, 1, harness.priorSecond),
           ...(pass < 3 ? {} : { ceilingOverride: expect.objectContaining({ nextPass: pass }) }),
         },
@@ -3742,8 +3788,8 @@ describe("hosted review fan-out lifecycle", () => {
           },
         },
       });
-      if (nextStatus.nextAction !== "review-hosted-request") {
-        throw new Error(`expected material pass ${String(pass)} request`);
+      if (nextStatus.nextAction !== "review-local-prepare") {
+        throw new Error(`expected material pass ${String(pass)} local admission`);
       }
       const findings = Array.from({ length: findingCount }, (_, findingIndex) => ({
         findingId: `material-${String(pass)}-${String(findingIndex + 1)}`,
@@ -3757,37 +3803,18 @@ describe("hosted review fan-out lifecycle", () => {
         body: `Material finding ${String(findingIndex + 1)} in pass ${String(pass)}.`,
         sourceOrdinal: findingIndex + 1,
       }));
-      const requested = await requestThroughHandler(nextStatus.action, {
-        kind: "created",
-        artifact: {
-          kind: "pull-request-review",
-          id: `review-material-${String(pass)}`,
-          url: `https://example.test/review-material-${String(pass)}`,
-          createdAt: `2026-09-10T14:${String(pass).padStart(2, "0")}:00.000Z`,
-        },
-        effectiveCoverage: "complete",
-      }, harness.root, harness.exec);
-      if (requested.nextAction !== "await") throw new Error("expected material member await");
-      const awaited = await awaitThroughObserver(requested.handle, {
-        kind: "findings",
-        reviewUrl: `https://example.test/review-material-${String(pass)}`,
-        findings,
-      });
-      await recordHostedAwaitAttempt(harness.store, {
-        repositoryId: harness.repositoryId,
-        result: awaited,
-        now: `2026-09-10T14:${String(pass).padStart(2, "0")}:30.000Z`,
-      });
+      const local = await completeLocalReviewThroughHandlers(harness, nextStatus.action, "findings", undefined,
+        findings.map(finding => ({ findingId: finding.findingId, severity: finding.severity,
+          locus: finding.locus, evidenceUrlOrId: finding.url })));
       const responseStatus = await statusThroughHandler(harness, secondStatusTarget);
-      expect(responseStatus).toMatchObject({
-        nextAction: "respond-to-findings",
+      expect(responseStatus).toMatchObject({ nextAction: "review-local-resume" });
+      if (responseStatus.nextAction !== "review-local-resume") throw new Error("expected local findings continuation");
+      const resumed = await resumeLocalThroughHandler(harness, responseStatus.action);
+      expect(resumed).toMatchObject({ state: "respond-to-findings", payload: {
         responsePlan: { findings: findings.map(({ findingId }) => ({ findingId })) },
-      });
-      if (responseStatus.nextAction !== "respond-to-findings"
-        || responseStatus.responsePlan.source.kind !== "hosted") {
-        throw new Error("expected material findings response action");
-      }
-      const source = responseStatus.responsePlan.source;
+      } });
+      if (resumed.state !== "respond-to-findings") throw new Error("expected material findings response action");
+      const source = resumed.payload.responsePlan.source;
       const proposal = await respondThroughHandler(harness, {
         schemaVersion: 1,
         source,
@@ -3823,12 +3850,14 @@ describe("hosted review fan-out lifecycle", () => {
       })).resolves.toMatchObject({ state: "delivery-correction-required", nextAction: "continue-delivery-correction" });
       await recordLaneResponsePerformance(harness.store, {
         lane: "standard", repositoryId: harness.repositoryId, headSha: harness.priorSecond,
-        lineage: requested.handle.admission.lineage, attemptId: hostedLaneAttemptId(requested.handle),
+        lineage: { kind: "delivery-member", planId: harness.plan.planId,
+          workUnitId: harness.plan.workUnitId, deliverableId: harness.plan.members[1]!.deliverableId },
+        attemptId: local.prepared.payload.operationId,
         dispositionSetId: CanonicalDigestSchema.parse(dispositions.dispositionSet.dispositionSetId),
         producedHeadSha: harness.priorSecond,
         now: `2026-09-10T14:${String(pass).padStart(2, "0")}:50.000Z`,
       });
-      nextStatus = await statusThroughHandler(harness, secondStatusTarget);
+      nextStatus = await statusThroughHandler(harness, secondStatusTarget, undefined, "complete", "delegated-agent");
     }
 
     expect(nextStatus).toMatchObject({
@@ -3845,7 +3874,7 @@ describe("hosted review fan-out lifecycle", () => {
         },
       },
     });
-  });
+  }, materialPassesTimeoutMs);
 
   it("keeps one invocation-selected hosted source pending before returning to configured ordering", async () => {
     const harness = await createHarness();
@@ -4210,19 +4239,9 @@ describe("hosted review fan-out lifecycle", () => {
       hosted: { settledFindingIds: [finding.findingId] },
     });
 
-    await git(harness.root, ["checkout", "-b", "delivery/delivery-plan-record/correction-first", harness.baseHead]);
-    await writeFile(
-      join(harness.root, "first.txt"),
-      "fixed first contribution\ncorrection follow-up\n",
-      "utf8",
-    );
-    await git(harness.root, ["add", "first.txt"]);
-    await git(harness.root, ["commit", "-m", "correct fixed first member"]);
-    const correctionHead = await git(harness.root, ["rev-parse", "HEAD"]);
-    const correctionTree = await git(harness.root, ["rev-parse", "HEAD^{tree}"]);
-    await expect(harness.exec("git", ["merge-base", "--is-ancestor", harness.oldFirst, correctionHead], {
-      cwd: harness.root,
-    })).rejects.toThrow();
+    await git(harness.root, ["checkout", "-b", "delivery/delivery-plan-record/correction-first", fixedHead]);
+    const correctionHead = fixedHead;
+    const correctionTree = fixedTree;
     const correctedState: DeliveryStateV1 = {
       ...harness.state,
       members: [
@@ -4271,42 +4290,8 @@ describe("hosted review fan-out lifecycle", () => {
       "coderabbit-pr",
     );
     expect(hostedCorrectionStatus).toMatchObject({
-      state: "review-required",
-      nextAction: "review-hosted-request",
-      action: {
-        provider: "coderabbit-pr",
-        coverage: "incremental",
-        correctionScope: {
-          predecessorProducerId: attemptId,
-          predecessorHeadSha: harness.oldFirst,
-          basisHeadSha: harness.oldFirst,
-          headSha: correctionHead,
-        },
-      },
-    });
-    if (hostedCorrectionStatus.nextAction !== "review-hosted-request") {
-      throw new Error("expected native hosted correction request");
-    }
-    await writeFile(join(harness.root, ".git", "info", "exclude"),
-      ".arc/\nfake-bin/\nprovider-called\nprovider-verdict\n", "utf8");
-    const { fakeBin } = await installHostedRequestTestHost(
-      harness, undefined, "prior-top", correctionHead, "delivery/delivery-plan-record/correction-first",
-    );
-    const fakeGh = join(fakeBin, "gh");
-    const ghScript = await readFile(fakeGh, "utf8");
-    const commentRoute = "  api:repos/owner/repository/issues/41/comments)\n";
-    const commentStart = ghScript.indexOf(commentRoute);
-    const commentEnd = ghScript.indexOf("    ;;\n", commentStart);
-    if (commentStart < 0 || commentEnd < 0) throw new Error("expected fake hosted request route");
-    await writeFile(fakeGh, ghScript.slice(0, commentStart)
-      + `${commentRoute}    echo 'HTTP 429' >&2\n    exit 1\n`
-      + ghScript.slice(commentEnd), "utf8");
-    const publicRequest = await requestThroughProductionHandler(harness, fakeBin, hostedCorrectionStatus.action);
-    expect(publicRequest.exitCodes, JSON.stringify(publicRequest.output)).toEqual([]);
-    expect(publicRequest.output).toMatchObject({
-      state: "rate-limited",
-      nextAction: "try-next-source",
-      requestedCoverage: "incremental",
+      state: "blocked", nextAction: "stop", reason: "coverage-selection-invalid",
+      remedy: { argv: ["arc", "review", "status", "--target", JSON.stringify(correctionStatusTarget)] },
     });
 
     const correctionStatus = await statusThroughHandler(
@@ -4384,6 +4369,12 @@ describe("hosted review fan-out lifecycle", () => {
         }),
       ]),
     });
+    const completeSuccessor = await statusThroughHandler(harness, correctionStatusTarget, undefined, "complete", "delegated-agent");
+    expect(completeSuccessor).toMatchObject({ state: "review-required", nextAction: "review-local-prepare",
+      action: { requestedCoverage: "complete", pass: 3 },
+    });
+    if (completeSuccessor.nextAction !== "review-local-prepare") throw new Error("expected complete successor");
+    await completeLocalReviewThroughHandlers(harness, completeSuccessor.action);
     const firstDischargedStatus = await statusThroughHandler(
       harness,
       correctionStatusTarget,
@@ -4397,7 +4388,7 @@ describe("hosted review fan-out lifecycle", () => {
         conjunction: {
           status: "outstanding",
           members: [
-            { state: "discharged", progress: { completedPasses: 2, completePasses: 1 } },
+            { state: "discharged", progress: { completedPasses: 3, completePasses: 2 } },
             { state: "outstanding", progress: { completedPasses: 0 } },
           ],
         },
@@ -4578,7 +4569,7 @@ describe("hosted review fan-out lifecycle", () => {
     });
   });
 
-  it("refuses incremental broadening before routing an oversized member through complete local review", async () => {
+  it.each([undefined, "delegated-agent"] as const)("refuses unscoped incremental coverage before complete chunked review (%s)", async (source) => {
     const harness = await createHarness(["coderabbit-pr", "codex-pr", "delegated-agent"]);
     await writeFile(
       join(harness.root, ".arc", "system", "arc-config.yml"),
@@ -4593,10 +4584,10 @@ describe("hosted review fan-out lifecycle", () => {
       headSha: harness.oldFirst,
     };
 
-    await expect(statusThroughHandler(harness, statusTarget, undefined, "incremental")).resolves.toMatchObject({
+    await expect(statusThroughHandler(harness, statusTarget, undefined, "incremental", source)).resolves.toMatchObject({
       state: "blocked",
       nextAction: "stop",
-      reason: "coverage-unsupported",
+      reason: source === "delegated-agent" ? "coverage-unsupported" : "hosted-incremental-unsupported",
       deliveryCursor: {
         currentMember: {
           vehicle: first,

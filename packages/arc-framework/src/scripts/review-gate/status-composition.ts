@@ -702,15 +702,18 @@ export async function readRoutedObligation(
       if (firstOutstanding !== undefined && firstTarget !== undefined && coverageSelection?.state !== "refused"
         && (firstOutstanding.coverageSelectionAction === undefined || forcedSourceWithOffer)
         && (firstOutstanding.nextSource !== null || forcedSourceWithOffer)) {
-        const scopeSelection = await resolveDeliveryMemberScopeSelection({
-          rawExec,
-          settings,
-          planId: reservation.target.planId,
-          target: firstTarget,
-          coverage: firstOutstanding.requestCoverage ?? judgment?.coverage ?? "complete",
-          ...(firstOutstanding.correctionScope === undefined ? {} : { correctionScope: firstOutstanding.correctionScope }),
-          ...(judgment?.sourceId === undefined ? {} : { sourceId: judgment.sourceId }),
-        });
+        const coverage = firstOutstanding.requestCoverage ?? judgment?.coverage ?? "complete";
+        const scopeSelection = coverage === "incremental" && firstOutstanding.correctionScope === undefined
+          ? undefined
+          : await resolveDeliveryMemberScopeSelection({
+            rawExec,
+            settings,
+            planId: reservation.target.planId,
+            target: firstTarget,
+            coverage,
+            ...(firstOutstanding.correctionScope === undefined ? {} : { correctionScope: firstOutstanding.correctionScope }),
+            ...(judgment?.sourceId === undefined ? {} : { sourceId: judgment.sourceId }),
+          });
         const dischargeArgs = { reservation, baseRevision: firstTarget.baseRevision, approvedHead: firstTarget.headSha,
           changeRequest: { repository: firstTarget.repository, pullRequest: firstTarget.pullRequest },
           vehicle: firstTarget.vehicle, candidate: record };

@@ -25,6 +25,7 @@ import { collectCandidateSubjectTarget } from "../helpers/candidate-subject.js";
 import { readSubmissionBoundaryVersioned, writeSubmissionBoundary } from "../../src/lib/work-unit/submission-boundary-store.js";
 import { createReviewRequirement, createReviewTarget } from "../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { LocalAttestEnvelopeSchema, LocalPrepareEnvelopeSchema, LocalResumeEnvelopeSchema, RespondEnvelopeSchema } from "../../src/scripts/review-gate/core/review-command-envelope.js";
+import type { LocalReviewEvaluatorResult } from "../../src/scripts/review-gate/core/local-review-result.js";
 import { type HostedReviewCoverage } from "../../src/scripts/review-gate/hosted/request.js";
 import { LocalReviewOperationStateStore } from "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
 import { RepositoryDeliveryMemberLookup } from "../../src/scripts/review-gate/hosts/local/delivery-member-lookup.js";
@@ -481,6 +482,7 @@ export async function statusThroughHandler(
   coverage?: HostedReviewCoverage,
   sourceId?: "coderabbit-pr" | "codex-pr" | "delegated-agent",
   additionalPass?: ReviewAdditionalPassAuthorization,
+  host = deliveryHost(harness),
 ) {
   const output: string[] = [];
   const exitCodes: number[] = [];
@@ -509,7 +511,7 @@ export async function statusThroughHandler(
             coverage: admittedCoverage,
             sourceId: admittedSourceId,
           }),
-          deliveryHost(harness),
+          host,
         ),
         currentBaseOid: harness.baseHead,
         baseContained: true,
@@ -527,6 +529,7 @@ export async function completeLocalReviewThroughHandlers(
   deliveryAdmission: DeliveryLocalReviewAdmission,
   result: "clean" | "findings" | "failed" = "clean",
   productionHostBin?: string,
+  findings?: LocalReviewEvaluatorResult["findings"],
 ) {
   const basePrepare = createLocalPrepareDependencies({ exec: harness.exec, cwd: harness.root });
   const memberLookup = new RepositoryDeliveryMemberLookup({ cwd: harness.root, exec: harness.exec });
@@ -667,7 +670,7 @@ export async function completeLocalReviewThroughHandlers(
         reviewRunId: `run-${prepared.payload.operationId}`,
         applicabilityId: null,
         findings: result === "findings"
-          ? [{
+          ? findings ?? [{
               findingId: "finding-local-1",
               severity: "major",
               locus: "first.txt:1",
@@ -692,9 +695,10 @@ export async function selectReviewRequiredUntilRouted(
   harness: FanOutHarness,
   target: { repository: string; headRef: string; headSha: string },
   choice: "covered" | "review-required" = "review-required",
+  host = deliveryHost(harness),
 ) {
   for (let index = 0; index < 4; index += 1) {
-    const status = await statusThroughHandler(harness, target);
+    const status = await statusThroughHandler(harness, target, undefined, undefined, undefined, undefined, host);
     if (status.nextAction !== "resolve-review-applicability") return status;
     const output: string[] = [];
     const exitCodes: number[] = [];

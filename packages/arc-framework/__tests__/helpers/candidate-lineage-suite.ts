@@ -2781,7 +2781,10 @@ async function reserveHostedReview(root: string, approvedHead: string): Promise<
 function registerRoutedReviewObligation(it: typeof vitestIt): void {
   describe("routed review obligation", () => {
   it("keeps a settled-findings verdict outstanding until a complete clean pass", async () => {
-    const { root, approvedHead } = await settledReviewLineage();
+    const root = await fixture();
+    expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
+    await git(root, ["commit", "-m", "verification"]);
+    const approvedHead = await git(root, ["rev-parse", "HEAD"]);
     await reserveHostedReview(root, approvedHead);
     const publisher = new RepositoryGitCommonStatePublisher(gitExec, root);
     const repositoryId = await resolveRepositoryIdentity(publisher);
@@ -2866,7 +2869,10 @@ function registerRoutedReviewObligation(it: typeof vitestIt): void {
   });
 
   it("leaves review required while the reserved source has returned no verdict", async () => {
-    const { root, approvedHead } = await settledReviewLineage();
+    const root = await fixture();
+    expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
+    await git(root, ["commit", "-m", "verification"]);
+    const approvedHead = await git(root, ["rev-parse", "HEAD"]);
     await reserveHostedReview(root, approvedHead);
 
     await expect(readRoutedObligation(root, gitExec, {
