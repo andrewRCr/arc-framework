@@ -886,15 +886,12 @@ function composeHandoffPathSet(options: {
   if (surfaces === null) {
     return { ok: true, value: { sessionNotes: null, workingMemory: null } };
   }
-  return {
-    ok: true,
-    value: {
-      sessionNotes: options.activeWuName !== null
-        ? surfaces.sessionNotesPath(options.activeWuName)
-        : null,
-      workingMemory: surfaces.workingMemoryPath,
-    },
-  };
+  return toProbe(composeSlot("compose-handoff-path-set", "pathSet", () => ({
+    sessionNotes: options.activeWuName !== null
+      ? surfaces.sessionNotesPath(options.activeWuName)
+      : null,
+    workingMemory: surfaces.workingMemoryPath,
+  })));
 }
 
 

@@ -3451,6 +3451,40 @@ describe("runSessionHandoffStatus — orchestration", () => {
     expect(result.active.ok).toBe(true);
   });
 
+  it("isolates a deferred handoff notes path failure and permits a repaired retry", async () => {
+    const probes = sessionHandoffProbes({
+      derivedLocusState: vi.fn(async (identity) =>
+        derivedFrameFromActive(activeSessionInit({
+          resolution: "single",
+          path: ".arc/active/meta-example-wu.md",
+          sessionType: "execution",
+        }), identity, null, null),
+      ),
+    });
+    let unavailable = true;
+    const resolveHandoffSurfaces = async () => stubHandoffSurfaces({
+      sessionNotesPath: (workUnitName) => {
+        if (unavailable) throw new Error(`Notes path for ${workUnitName} is unavailable; repair the subject and retry.`);
+        return `/repo/.arc/user/andrew/${workUnitName}/SESSION-NOTES.md`;
+      },
+    });
+    const options = { identity: "andrew", role: "maintainer" as const, probes, resolveHandoffSurfaces };
+    const failed = await runSessionHandoffStatus(options);
+    expect(failed.pathSet).toEqual({
+      ok: false,
+      error: { kind: "runtime", message: "Notes path for example-wu is unavailable; repair the subject and retry." },
+    });
+    expect(failed.dirty.ok).toBe(true);
+    expect(failed.active.ok).toBe(true);
+    expect(failed.head.ok).toBe(true);
+    unavailable = false;
+    const repaired = await runSessionHandoffStatus(options);
+    expect(repaired.pathSet).toEqual({ ok: true, value: {
+      sessionNotes: "/repo/.arc/user/andrew/example-wu/SESSION-NOTES.md",
+      workingMemory: "/primary/.arc/user/andrew/WORKING-MEMORY.md",
+    } });
+  });
+
   it("finalizes loadNeeded on the handoff user slot when disk lags behind the notes ref", async () => {
     const probes = sessionHandoffProbes({
       user: vi.fn(async () =>
