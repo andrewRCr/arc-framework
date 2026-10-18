@@ -347,87 +347,93 @@ and an unavailable selection causes no write before a successful retry after rep
 
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Goal:_ The completed change satisfies the operational success criteria with recorded quality-gate evidence and
   is ready for the existing integration workflow.
+
+- _Quality gates:_ Fresh forced serial merge gate: 19 applicable checks passed, including lint, both type checks,
+  build, unit, integration and ARC contracts; the three CI-only checks retain their CI deadlines.
+
+- _Success criteria:_ All 22 met, none superseded or unresolved. Five adversarial passes converged after the approved
+  repairs. `notes-projected-markdown-checks.md` records criterion digests, evidence, the exact source span and dispositions.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Production-registered `write` and `batch` calls refuse newly introduced relative links from movable records,
+- `[x]` Production-registered `write` and `batch` calls refuse newly introduced relative links from movable records,
   links into projected roots, and undefined full references with the corresponding `links.*` rule, all new occurrence
   locations, and an actionable remedy; historical violations pass unchanged and a corrected retry succeeds.
 
-- `[ ]` Coverage derives from projecting kinds and stored families with the specified queue exception; every covered
+- `[x]` Coverage derives from projecting kinds and stored families with the specified queue exception; every covered
   kind has exactly one composed registration preserving its parser, anchors, and original check ordering.
 
-- `[ ]` The shipped hook and repository audit reject relative and root-absolute links to movable or Git-ignored ARC
+- `[x]` The shipped hook and repository audit reject relative and root-absolute links to movable or Git-ignored ARC
   targets, admit the tracked user README, resolve leading slashes from repository root, and pass after source correction.
 
-- `[ ]` ADR 021 and the package/rendered project-definition prompt contain the specified filename/path corrections,
+- `[x]` ADR 021 and the package/rendered project-definition prompt contain the specified filename/path corrections,
   and the complete tracked link audit passes.
 
-- `[ ]` Runtime and generated declaration schemas expose selection mode and its false cache/widen defaults, retain
+- `[x]` Runtime and generated declaration schemas expose selection mode and its false cache/widen defaults, retain
   ordinary defaults, and reject each forbidden field/value with a field-specific reason.
 
-- `[ ]` Increment and segment pass only the changed projected selection; named runs support whole, named-path, and
+- `[x]` Increment and segment pass only the changed projected selection; named runs support whole, named-path, and
   changed scopes as specified; every hook, gate, and new-head request excludes selection checks.
 
-- `[ ]` Git-pathspec filtering agrees with tracked-path semantics across all declared inputs, dot-directories, case,
+- `[x]` Git-pathspec filtering agrees with tracked-path semantics across all declared inputs, dot-directories, case,
   and literal filenames, without modifying the real index or object store or leaving temporary indexes behind.
 
-- `[ ]` Selection feedback runs uncached with no tree-divergence or merged-in filtering; empty selection is not
+- `[x]` Selection feedback runs uncached with no tree-divergence or merged-in filtering; empty selection is not
   selected, failed feedback exits 1, unavailable selection exits 2 with each affected check's reason, and repair permits
   the same request to succeed with the specified retry scope.
 
-- `[ ]` Temporary-index or Git matching failure after successful selection acquisition reports the affected check as
+- `[x]` Temporary-index or Git matching failure after successful selection acquisition reports the affected check as
   `couldn't run` with its reason and retry remedy, preserves ordinary check results under serial execution, exits 2,
   and permits the same request to succeed after matching is repaired.
 
-- `[ ]` Draft capture checks before readiness approval and after post-settle text changes; specification creation
+- `[x]` Draft capture checks before readiness approval and after post-settle text changes; specification creation
   checks before Gate 1 and before the final capture of notes migration/post-Gate-2 text, preserving rendered-only skips.
 
-- `[ ]` Task generation checks after the settled reread and immediately before its final interlock, including any
+- `[x]` Task generation checks after the settled reread and immediately before its final interlock, including any
   post-check fold or rendering change; amendment capture checks after grounding and before commit, while task and
   review-site amendments share their caller's increment request without a duplicate.
 
-- `[ ]` Decomposition checks before distribution approval and finish-release commit; in-place/resumed initialization
+- `[x]` Decomposition checks before distribution approval and finish-release commit; in-place/resumed initialization
   checks before init commit; inbox routing checks before the grooming commit or each direct commit as protection requires.
 
-- `[ ]` Handoff checks after staged-meta lint and before commit, retains explicit session-notes lint, fixes its own meta
+- `[x]` Handoff checks after staged-meta lint and before commit, retains explicit session-notes lint, fixes its own meta
   failures, and records unfinished-work failures without another stop; activation checks before a fold's authored-text
   commit and skips a rendered-fields-only transition.
 
-- `[ ]` Integration retains its completion-content increment and checks ordinary review fixes over authored state,
+- `[x]` Integration retains its completion-content increment and checks ordinary review fixes over authored state,
   eligible merged-PR missing-notes repairs, and composition corrections before commit, plus eligible hand-corrected
   pending reconciles before retry; completed-only repairs remain exempt under both archive cadences without widening
   checks or altering merge authority. Review fixes preserve existing gates and need no amendment to receive feedback.
 
-- `[ ]` Preparation checks ordinary review fixes over authored state before commit while preserving existing gates;
+- `[x]` Preparation checks ordinary review fixes over authored state before commit while preserving existing gates;
   publication and resumption check hand-corrected advisories before retry; Case C deactivation checks reversed fields
   before its repair PR commit. The eighteen-row inventory and enumerated exemptions agree in package and installed
   workflows without adding a request to an exempt ceremony.
 
-- `[ ]` Each declared markdownlint, underwrap, and link-audit selection recipe runs its real process over every admitted
+- `[x]` Each declared markdownlint, underwrap, and link-audit selection recipe runs its real process over every admitted
   changed fixture, reports its known findings as feedback, reads no unrequested selection member, and refuses none of the
   paths its inputs admit.
 
-- `[ ]` The whole-list fixer rewrites only present Git-selected Markdown plus the admitted full selection, with shared
+- `[x]` The whole-list fixer rewrites only present Git-selected Markdown plus the admitted full selection, with shared
   ignores applied, reporting unsafe mutation skips; explicit fixing confines itself to a valid subset and names the
   exclusion for any refused operand, including before the projection connects.
 
-- `[ ]` Both fix commands write nothing when selection acquisition is unavailable, report its reason, and succeed over
+- `[x]` Both fix commands write nothing when selection acquisition is unavailable, report its reason, and succeed over
   the same intended corpus once acquisition is repaired; literal operands never expand as tool globs.
 
-- `[ ]` Large fixer corpora use bounded literal batches after complete membership, authority, and configuration
+- `[x]` Large fixer corpora use bounded literal batches after complete membership, authority, and configuration
   validation; every admitted path is processed once, excluded files remain untouched, and any nonzero batch result
   remains nonzero overall. An empty Git list permits projected-only fixing; an empty union invokes no fixer.
 
-- `[ ]` CLI help, regenerated editor schema, and the rendered quality-gates strategy explain feedback scope and the
+- `[x]` CLI help, regenerated editor schema, and the rendered quality-gates strategy explain feedback scope and the
   worked link-validator declaration consistently; the production empty adapter needs no projection dependency to land.
 
-- `[ ]` All quality gates pass at their declared deadlines.
+- `[x]` All quality gates pass at their declared deadlines.
 
-- `[ ]` Ready for integration.
+- `[x]` Ready for integration.

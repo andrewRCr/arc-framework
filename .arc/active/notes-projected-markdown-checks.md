@@ -1,5 +1,16 @@
 # Notes: projected-markdown-checks
 
+## Contents
+
+- [Suppliers](#suppliers)
+- [Neighbors](#neighbors)
+- [Framework synchronization](#framework-synchronization)
+- [Record-check grounding](#record-check-grounding)
+- [Check-runner grounding](#check-runner-grounding)
+- [Ceremony coverage](#ceremony-coverage)
+- [Fixer grounding](#fixer-grounding)
+- [Verification evidence](#verification-evidence)
+
 ## Suppliers
 
 - **The selection and write-back** — `storage-projection`, whose specification sits on `plan/storage-projection`
@@ -66,10 +77,10 @@ by `createExecaRawGitExec` (`lib/git/process-executor.ts`). Reuse that seam for 
 the agent process environment or widening the generic executor solely for one caller. Compute the empty-blob identity
 for the repository's object format without writing it; NUL-frame pathnames and release temporary indexes on failures.
 
-`resolveCheckSelection` currently builds own-input observations for every declaration, then derives shared coverage
-from them (`lib/checks/selection.ts`). Selection declarations must leave that loop entirely, not merely be filtered out
-when one runs, or their inputs could still change ordinary checks' widening. Its `namedPathChange` accepts directory
-selectors; selection path scope keeps those descendant semantics while intersecting with the provider's list.
+`resolveCheckSelection` skips selection declarations before building the ordinary checks' own-input observations and
+shared coverage (`lib/checks/selection.ts`), so selection inputs never change ordinary checks' widening. Its
+`namedPathChange` accepts directory selectors; `runProjectedCheck` keeps those descendant semantics while intersecting
+named paths with the provider's list.
 
 `executeResolvedRequest` awaits `runRequestedCheck` without isolating a rejected pre-execution read
 (`handlers/check/run.ts`), and `runDeclaredCliRequest` converts an escaping rejection into a request-level error
@@ -78,12 +89,12 @@ failure is not an empty selection, does not discard completed results, and does 
 Tasks 3.2–3.4 in `tasks-projected-markdown-checks.md` define this boundary, and its Task 3.6 proves serial execution and
 recovery at the command boundary.
 
-`runDeclaredRequest` is the existing injectable orchestration entry; the public handlers currently construct their
-dependencies inside private `runDeclaredCliRequest` (`handlers/check/run.ts`, `run-cli.ts`). Nonempty command tests
-therefore need the narrow selection-reader override in Task 3.3. `handleSchemaInstall` supplies an existing handler
-override pattern (`handlers/schema.ts`). Test through public handlers with real Git and child processes; subprocess
-CLI tests use the empty production adapter until its supplier connects. No test-only production environment flag is
-needed. Request coordinate resolution remains shared; only the selection-specific tree evidence is skipped.
+`runDeclaredRequest` is the injectable orchestration entry; the public handlers construct dependencies inside private
+`runDeclaredCliRequest` and accept a narrow selection-reader override (`handlers/check/run.ts`, `run-cli.ts`). This
+follows the handler override pattern in `handleSchemaInstall` (`handlers/schema.ts`). Public-handler tests retain real
+Git and child processes; subprocess CLI tests use the empty production adapter until its supplier connects, without
+a test-only production environment flag. Request coordinate resolution remains shared; selection-specific tree
+evidence is skipped.
 
 `handleSchemaInstall` invokes `writeEditorDocuments` to regenerate all registered editor documents with
 `npx arc schema install --json` (`handlers/schema.ts`, `lib/schema-command/editor-documents.ts`). The outputs under
@@ -218,31 +229,210 @@ by the existing mode tests; this matrix also checks the actual project entries' 
 
 ## Fixer grounding
 
-`validateExplicitMarkdownPaths` already has `allowIgnoredPaths`, a named set bypassing Git membership while retaining
-physical and Git-directory checks (`lib/markdown/selection.ts`). `runExplicitMarkdownlint` currently checks
-`MARKDOWN_SELECTION.ignores` using `matchesGlob` before that validation (`lib/markdown/worktree-lint.ts`); replace that
-matching with the pathspec matcher rather than loosening the canonical selection. `isMarkdownPathExcluded` rejects any
-`.venv`-prefixed segment, filename included (`lib/markdown/authority.ts`); the underwrap declaration must exclude that
-class as well as the existing directory patterns.
+`validateExplicitMarkdownPaths` accepts `allowIgnoredPaths`, a named set bypassing Git membership while retaining
+physical and Git-directory checks (`lib/markdown/selection.ts`). `runExplicitMarkdownlint` applies the shared
+`selectMarkdownlintPaths` Git-pathspec matcher before that validation (`lib/markdown/worktree-lint.ts`), keeping its
+admission aligned with the declaration without loosening the canonical selection. `isMarkdownPathExcluded` rejects
+any `.venv`-prefixed segment, filename included (`lib/markdown/authority.ts`); the underwrap declaration excludes that
+class alongside the existing directory patterns.
 
-`enumerateTrackedMarkdownPaths` selects the index plus nonignored untracked worktree files in worktree mode; filter
-out absent worktree entries before fixing. `prepareExplicitMarkdownFormat` is the existing named ignored-path mutation
-precedent (`lib/markdown/format-plan.ts`), while the new fixer must first acquire its complete tracked-plus-projected
-corpus. Validate explicit-list membership and selection availability before invoking a mutating tool; preserve the
-separate reported-skip behavior for listed files whose mutation authority fails. `loadWorktreeMarkdownConfigurations`
-validates worktree tool configuration (`lib/markdown/configuration.ts`). Real process fixtures must prove literal
-filenames survive markdownlint's own selection settings, rather than relying only on command construction assertions.
+`enumerateTrackedMarkdownPaths` selects the index plus nonignored untracked worktree files in worktree mode;
+`resolveMarkdownFixCorpus` filters absent entries and acquires the full tracked-plus-projected corpus before fixing.
+`prepareExplicitMarkdownFormat` supplies the named ignored-path mutation precedent (`lib/markdown/format-plan.ts`).
+`prepareMarkdownFix` validates membership and availability before mutation, reports listed files whose write authority
+fails as skips, and calls `loadWorktreeMarkdownConfigurations` (`lib/markdown/configuration.ts`). Real process fixtures
+prove that literal filenames survive markdownlint's own selection settings.
 
 `enumerateTrackedMarkdownPaths` throws `markdown.empty-selection` when its Git contribution has no Markdown
-(`lib/markdown/selection.ts`). Treat that specific result as an empty contribution when forming the fixer's union;
-do not suppress other Git read failures or reject a valid projected-only corpus. A wholly empty union must not reach
-markdownlint as a no-operand invocation.
+(`lib/markdown/selection.ts`). `resolveMarkdownFixCorpus` treats only that result as an empty contribution; other Git
+read failures remain failures, and a projected-only corpus stays valid. `runMarkdownFix` invokes no tool for an empty
+union.
 
-`checkArgumentBudget` and `batchCheckPaths` already bound literal command lines, including Windows shim escaping
+`checkArgumentBudget` and `batchCheckPaths` bound literal command lines, including Windows shim escaping
 (`lib/checks/batching.ts`). A read-only enumeration during task generation returned 783 Git-selected Markdown paths,
-56,624 bytes of literal `:path` operands, and nine batches under that helper's Windows budget. Reuse the helper after
-complete corpus and explicit-membership validation, write-authority checks, and configuration validation; preserve
-each admitted path exactly once and aggregate nonzero batch results. Tasks 5.4 and 5.6 in
+56,624 bytes of literal `:path` operands, and nine batches under that helper's Windows budget. `runMarkdownFix` batches
+after complete corpus and explicit-membership validation, write-authority checks, and configuration validation,
+preserving each admitted path exactly once and retaining nonzero batch results. Tasks 5.4 and 5.6 in
 `tasks-projected-markdown-checks.md` cover large corpora, projected-only and empty corpora, and batch failure reporting.
+
+## Verification evidence
+
+The complete work-unit implementation was walked against `spec-projected-markdown-checks.md` and all 22 immutable
+criteria in `tasks-projected-markdown-checks.md`. There is no Delivery Plan. The production empty selection adapter is
+the agreed pre-connection behavior; live supplier integration belongs to whichever member lands second.
+
+### Subject and attention scope
+
+The walk's base is `94d0ee7e187026a9bddc8a695f50a5e1b11af9d1`; the source head is
+`5c97a470ce31458b8f4ce36048b62cc4f10442d8`. The resolver included the local notes cleanup as a worktree snapshot:
+`c596fb99ad9324c6321c7527a1bdb3c783374705`, tree `3735a2900901552d32c1bd77b2741f773d63a67b`,
+target `sha256:4d11bd3aff37ce4018c67174e290b78958f754f192c6d2f766b4d5d51fd33e5d`.
+It returned `below-threshold / continue-review`: 4,880 lines and 100 files, against thresholds of 5,000 and 150.
+The disposition was a whole-target criteria walk and fresh whole-target reviewer. Subsequent report, checkbox and
+Candidate projection edits are closeout evidence rather than new implementation.
+
+Closeout staging returned `consider-chunks / select-review-scope` at 5,060 lines and 100 files for snapshot
+`dcf40fda5ee67d3612956584114a4d4126956814`, tree `e20c4d1fc2cde00dae0bf00cc315d0af081bfbdf`,
+target `sha256:ddbb5a1ddafe02a4f4d0da6fd9b6684835902a227c96cdd7af93cf5c12a1beb5`.
+The verification disposition is an explicit whole-target route: the implementation is unchanged from the fresh
+4,880-line pass, while the added report and markers carry its evidence. The primary checked report coherence and
+unchanged criterion identities; Candidate preparation retains its own review-scope selection.
+
+### Adversarial findings and responses
+
+These were advisory criteria passes, separate from Candidate frontline/standard lanes. Each used fresh context,
+the full spec and unmarked task list, and the complete implementation target. Author verification conclusions were
+withheld. Each finding was independently checked against source before complete-set approval and implementation.
+
+| Pass   | Verified finding and action                                                                                     | Response and continuation                                                                        |
+| ------ | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 1 of 2 | Major: Git drive-form roots disagreed with shell physical roots; FIX in both validators.                        | Approved; `4491d4884` canonicalizes with `pwd -P`; pass 2 authorized.                            |
+| 2 of 2 | Major: private index population inherited split-index cleanup; FIX in the shared matcher.                       | Approved; `7e44c6afb` disables split index; pass 3 explicitly authorized beyond the default cap. |
+| 3 of 3 | Major: unquoted staged Markdown filenames bypassed hook link checks; FIX in both hooks.                         | Approved; `5c6092ec8` preserves NUL-framed literal operands; pass 4 explicitly authorized.       |
+| 4 of 4 | Major: bracketed full-reference text was missed and escaped labels were truncated; FIX the source-span scanner. | Approved; `ce6e8dd05` scans balanced/escaped brackets and complete labels.                       |
+| 4 of 4 | Major: hook source reads used worktree prose instead of the index; FIX both callers and validators.             | Approved; `5c97a470c` uses explicit staged reads; pass 5 explicitly authorized.                  |
+
+Pass 1's root correction had three behavioral failures before repair; both validator suites then passed 35 tests.
+Pass 2's aged shared-index cases failed under SHA-1 and SHA-256 before repair; the four matcher, selection, fixer and
+recipe integration suites then passed 59 tests. Pass 3's eight full-hook cases failed before repair; both hook
+copies and both validator suites then passed 43 tests, covering movable/ignored targets and successful correction.
+These first three response increments passed their required checks and committed only the approved fixes.
+
+The first three passes examined record registration/admission, selection/schema/request behavior, ceremony placement,
+and fixer/recipe behavior without another finding in those regions. Pass 2 re-examined the root repair; pass 3 also
+probed real index preservation under split indexes and case distinctions under `core.ignoreCase=true`.
+Native Windows execution was not performed locally; the drive-form fixture exercises the Git/shell spelling seam.
+
+Pass 4's reference correction had seven behavioral failures before repair; four parser, rule, admission and
+registration suites then passed 69 tests. Its staged-source correction had six full-hook failures before repair;
+two additional staged-read refusal cases failed under a narrow worktree-read reconstruction. The four hook,
+validator and recipe integration suites then passed 52 tests. The fixes retained the existing text-node boundaries,
+historical-count policy and selection recipe's default worktree reads, and needed no design amendment. Both response
+increments passed their required checks and committed separately.
+
+The default Heavy allowance ended at pass 2. Passes 3, 4 and 5 each had explicit continuation authorization;
+cap exhaustion resolved no finding. Pass 4's remaining examined regions, including all eighteen ceremony rows,
+rendered counterparts, schemas, recipes and fixer boundaries, produced no additional finding. Record admission
+was exercised through the reference backend with production registrations, not through the in-repo backend that
+performs no write check before the supplier lands.
+
+Pass 5 of 5 returned no findings: stop reason `converged`, with the extended allowance exhausted. It independently
+passed the complete 539-file tracked audit and disposable probes for nested/escaped full references, index/worktree
+source disagreement with corrected retries, and aged split indexes with literal brackets, spaces, tabs and newlines.
+Its remaining account covered criteria 1–20, including registration preservation, schemas and request recovery,
+eighteen ceremony sites, recipe boundaries, and fixer acquisition/authority/batching. Criteria 21–22 remained for the
+primary's live deadline and readiness evidence. No builds or broad suites ran in that read-only pass.
+
+### Quality-gate evidence
+
+The final `npx arc check gate merge --force --serial` ran on source head `5c97a470c`: 19 checks passed.
+Both type checks, TypeScript/shell/Markdown lint, package/framework contracts, build, unit and integration checks
+passed. Unit: 990 files and 15,998 tests passed; integration: 358 files and 3,869 tests passed. The declared skipped
+cases remain reported by their test tiers. The three CI-only checks — E2E, portability and macOS portability —
+were not selected locally and retain their CI deadlines. The configured remote runner's results are gate results.
+
+The first concurrent forced gate had unit and integration timeouts; the targeted unit retry passed 26 tests, and
+subsequent serial forced gates passed. The final result above covers both last repairs. Increment checks and related
+feedback also passed for the approved fix commits; no declaration, gate or runner setting was bypassed.
+
+### Criteria report
+
+```yaml
+criteria-slice: Success Criteria
+span:
+  diff: 94d0ee7e187026a9bddc8a695f50a5e1b11af9d1..c596fb99ad9324c6321c7527a1bdb3c783374705
+  reachability: 3735a2900901552d32c1bd77b2741f773d63a67b
+  boundary-order-deviation: null
+criteria:
+  - locus: Success Criteria > 1
+    criterion-digest: sha256:20e71b8f29cd9787626b2078348ae25a38b77577a4e682a0a7d78b6177bc365c
+    evidence: "Production registrations compose checkRecordLinks; record-links.test.ts, record-link-admission.test.ts and reference checkPreparedWrites cover introduced-only write/batch refusal, locations, historical content and repaired retries. A disposable production-harness probe additionally exercised atomic refusal and corrected batch retry for all three links.* rules. Bracket-aware source scanning preserves complete escaped labels, locations and historical count keys; seven regression cases failed before repair and 69 parser, rule, production-admission and registration tests passed afterward."
+    state: "[x]"
+  - locus: Success Criteria > 2
+    criterion-digest: sha256:c587d1eb8842542d378601debd1cca47f502d66a397f01525953d6a0c557da62
+    evidence: "RECORD_LINK_KINDS derives projecting stored kinds with the queue exception; kind-registrations.test.ts checks coverage, unique registration, parser/anchor preservation and own-check ordering."
+    state: "[x]"
+  - locus: Success Criteria > 3
+    criterion-digest: sha256:d1ed53ccb322007fa9eecf7dd259f4ba6df0feb91db2139a9cf6701397ae31f7
+    evidence: "validate-links.sh and audit-links.ts normalize root/relative targets and refuse movable or ignored ARC targets; validate-links.test.ts and audit-links.test.ts exercise failures, tracked user README and corrected retry. The drive-root regression failed for all three outcomes before the approved fix and both validator suites then passed 35 tests. Full-hook pre-commit-markdown-links.test.ts covers both shipped copies with literal space/tab/glob filenames, movable/ignored target refusal and corrected retries; all eight cases failed before the approved caller fix and the three validator/hook suites then passed 43 tests. Both hooks use explicit staged-source reads; six full-hook stage/worktree counterexamples failed before repair. Two staged-read refusal cases failed under a narrow reconstruction, then four integration suites passed 52 tests including restaging retry and the real selection recipes."
+    state: "[x]"
+  - locus: Success Criteria > 4
+    criterion-digest: sha256:3225d7604a59b7fa4bcea5db7638483e22e82f4191b82761ae6e86166c80c48f
+    evidence: "ADR 021 and both define-project copies carry filename/path references; lint:arc:links audited the complete 539-file tracked corpus."
+    state: "[x]"
+  - locus: Success Criteria > 5
+    criterion-digest: sha256:e226175a6301e7c00d3ae01769300133d6147f665c36fd9b178fd8ed27bc4c3a
+    evidence: "CheckDeclarationSchema preserves ordinary defaults and gives selection false cache/widen defaults with field-specific restrictions; declaration tests and the regenerated editor-schema probe cover runtime/input-schema agreement."
+    state: "[x]"
+  - locus: Success Criteria > 6
+    criterion-digest: sha256:f5a8061e6520c22b951e82eacb258f2cadd2057fc3d07c2187c3f6a171efdc48
+    evidence: "selectRequestChecks, requestProjectedSelection and runProjectedCheck implement changed/full/named scopes with gate/hook exclusion; gates.test.ts and check-projected-selection.test.ts cover the request matrix."
+    state: "[x]"
+  - locus: Success Criteria > 7
+    criterion-digest: sha256:23be2fd0a8273feb69ed29be33dae7d7b9aa9b2660ed383265180ee4bbcfa603
+    evidence: "matchPathList uses the shared native Git pathspecs in a disposable NUL-framed index; check-matching.test.ts covers declared inputs, dot paths, case, literals, SHA-1/SHA-256 isolation and cleanup. The SHA-1/SHA-256 preservation matrix now covers split indexes with expired backing files; --no-split-index prevents shared-file creation/expiry while preserving real staging and configuration."
+    state: "[x]"
+  - locus: Success Criteria > 8
+    criterion-digest: sha256:451bbc9c99015effb828f31439ca433588140ed868ac3e95f3e226bb0b79e8ef
+    evidence: "runProjectedCheck bypasses Git evidence filtering and selectedCheckKey returns no reusable key for uncached selection checks; handler integration tests cover empty, failed, unavailable and recovered runs with scoped remedies."
+    state: "[x]"
+  - locus: Success Criteria > 9
+    criterion-digest: sha256:8a2cfac3673e261c923961c3ab2a2c47181ea2af30f3becc1a2620818027149b
+    evidence: "matchPathList failure returns per-check unavailable; serial public-handler integration preserves ordinary results, reports exit 2 and the original remedy, and succeeds after temporary-directory repair."
+    state: "[x]"
+  - locus: Success Criteria > 10
+    criterion-digest: sha256:07d28f3cba510867df08a6af54f3e3ab4be68cedbbb8a774e1a8f36f22ecdb8b
+    evidence: "draft-design and create-spec source/rendered steps place increment before readiness/Gate 1 and repeat after authored post-settle or notes-migration edits, retaining rendered-only skips."
+    state: "[x]"
+  - locus: Success Criteria > 11
+    criterion-digest: sha256:2cde039dc30b39dc9f67f97245cac4c8f18c620aedc0312a827c9c48b6bd8ad6
+    evidence: "generate-tasks checks after its final coherence reread and again for later prose; amend-design checks after grounding and reuses task/review caller requests."
+    state: "[x]"
+  - locus: Success Criteria > 12
+    criterion-digest: sha256:33fc799e928d8cae858a15129ce2f3b8ae8bbd6a242db9b9e9a984d8e70905be
+    evidence: "decompose, init and drain-inbox source/rendered steps request feedback before distribution/finish-release, in-place/resumed initialization, and each protected-grooming or partial-protection direct routing commit."
+    state: "[x]"
+  - locus: Success Criteria > 13
+    criterion-digest: sha256:7782a0f4d9519d968b674883b2daf3d94a371ea02be00f69ad56aa2a3ad03f22
+    evidence: "handoff checks after staged-meta lint, preserves later SESSION-NOTES lint and distinct failure handling; activate checks authored folds before commit and exempts rendered-only transitions."
+    state: "[x]"
+  - locus: Success Criteria > 14
+    criterion-digest: sha256:88afc1cb44c085aa33357fca141eb30efe35132886484b6ec4b2a9592b292e88
+    evidence: "integrate retains Step 7 feedback and adds caller feedback before authored review fixes, eligible repairs/composition corrections and pending-reconcile retries; completed-only exemptions and merge authority remain intact."
+    state: "[x]"
+  - locus: Success Criteria > 15
+    criterion-digest: sha256:807ba4406cff8b6ce2e03b71d065b8af3467849802151545c75aba1ddf92b5c9
+    evidence: "prepare, resume and deactivate request feedback at authored correction/retry boundaries; the eighteen-row ceremony inventory is coherent in installed/package copies and exclusions remain intact."
+    state: "[x]"
+  - locus: Success Criteria > 16
+    criterion-digest: sha256:3832abf6f5c39f200f24f76a5b8f4c4ff10f6326ee2e90ff7b6ff58e4cbb5eb2
+    evidence: "markdown-selection-recipes.test.ts invokes the real three declared commands over per-clone ignored files and asserts findings for every admitted changed path, with unrequested/excluded paths absent."
+    state: "[x]"
+  - locus: Success Criteria > 17
+    criterion-digest: sha256:1f8ab512966146d384a2686899fe08d4e933751ba1040753b12fcbdd79ebb9b3
+    evidence: "resolveMarkdownFixCorpus and prepareMarkdownFix form the present Git-plus-projected union, canonical exclusions, exact subset membership and safe-write skips; real-tool integration verifies only admitted files change."
+    state: "[x]"
+  - locus: Success Criteria > 18
+    criterion-digest: sha256:9bba7aaf1c3d99a832da74dbe290b61c51b854060f4a15be094988a6cd39eab7
+    evidence: "Both fixer modes acquire selection before mutation and retain acquisition reasons; markdown-fix integration proves untouched failure, recovered same-corpus execution and literal operands."
+    state: "[x]"
+  - locus: Success Criteria > 19
+    criterion-digest: sha256:81d00e28a1fc1545f6fd15d92c7f1326d287b0795ed08d31343f34267a791dcb
+    evidence: "runMarkdownFix preflights membership/authority/configuration and all bounded batches before execution; integration proves exactly-once literal coverage, retained earlier failure, untouched exclusions, projected-only and empty-union behavior."
+    state: "[x]"
+  - locus: Success Criteria > 20
+    criterion-digest: sha256:75f3a6715313113c52a1871b4f8fa05c6eeecbd276552f30a15ddd71092808b8
+    evidence: "CLI scope help, regenerated check-declaration schema and rendered quality-gates strategy agree; readProjectedSelection remains a dependency-free empty adapter until its supplier connects."
+    state: "[x]"
+  - locus: Success Criteria > 21
+    criterion-digest: sha256:8ed2eb3c19deeb7f7787fdfddf456648a63828bf4a6c794e2fbb8ee7abcb7caa
+    evidence: "The fresh forced serial merge gate on source head 5c97a470c passed all 19 locally applicable checks, including both type checks, lint, build, unit, integration and ARC contracts. The three CI-only E2E/portability checks remain assigned to CI."
+    state: "[x]"
+  - locus: Success Criteria > 22
+    criterion-digest: sha256:58db93fe39223454b81347ff1a639f8238086deb7e85ae3c3f70a2bbbc6c04d1
+    evidence: "All 22 implementation criteria have evidence, with no unresolved adversarial finding. Structural task closure and the staged verification subject establish readiness for initial Candidate attestation; preparation owns the independent review lanes."
+    state: "[x]"
+summary: 22 met; 0 superseded; 0 unresolved. Ready for Candidate preparation.
+```
 
 ---

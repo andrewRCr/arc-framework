@@ -11,13 +11,14 @@
 - **Design:** `spec-projected-markdown-checks.md`
 - **Task List:** `tasks-projected-markdown-checks.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:e7aa19c360ec8535f0dabd7d857219e8bfc496767b1a37696008695067a73819`
 
-- **Current Workflow:** `process-task-loop`
-- **Last Completed:** Task 5.6 — Exercise repository feedback and fixing together
-- **Next Task:** Task 6.1 — Complete verification (line ~350)
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 6.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 6.1 in a fresh session — load and follow `verify-work-unit.md`
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]
