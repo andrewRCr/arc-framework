@@ -282,6 +282,17 @@ remote base all name the same exact head. Any tracked change continues through t
    reports the outstanding review. A fresh decision is required for each later pass; the same decision covers a named
    above-ceiling pass. A later material result enters the ordinary response route.
 
+   **Clean-fix-check successor.** Before dispatching `ready / hosted-request` or `ready / local-prepare` on a
+   `full-final` standard lane, run `arc review lane read -` with its request derived from `arc review lane read --schema`.
+   Follow a refusal's remedy. When `payload.lastLook` has `coverage: incremental` and `outcome: clean`, use
+   `payload.facts` for an advisory recommendation: another complete pass while new defect classes keep appearing in
+   previously read code or a fix round introduced new design; otherwise stop. Prefer a different source for a successor
+   pass. State the recommendation, its reasons, and what would change it. Honor an existing Owner decision for this
+   exact successor across unchanged re-entry. Otherwise, when recommending stopping with a PR open, present the
+   Owner-directed review stop below before source dispatch; acceptance follows that stop's continuation,
+   while a choice to continue review follows the ready action. Before the PR, state the recommendation and that this
+   surface takes no stop yet, then run the complete pass. A complete pass never replaces a required fix check.
+
    Resolve frontline, then the pre-PR standard lane. Follow only the driver's typed `state` / `nextAction`:
 
    - `skipped | no-op | pass-complete / none` — complete the lane at this boundary.
@@ -412,7 +423,8 @@ remote base all name the same exact head. Any tracked change continues through t
    exact head.
 
    Bind the opened target's `scopeSelection` directly to whole-target and invoke `arc review resolve -` for each
-   incomplete lane. If the Owner has directed that no further standard-review pass be spent, take the exact
+   incomplete lane. Before either standard-lane ready source dispatch, apply the clean-fix-check successor check above.
+   If the Owner has directed that no further standard-review pass be spent, take the exact
    Owner-directed review stop below only from `ready / hosted-request`, `ready / local-prepare`, or
    `approval-required / obtain-ceiling-override`, or `coverage-required / select-coverage` once
    `payload.responseRequired` is false; stop before source dispatch. Every other driver state follows the resolve
@@ -519,20 +531,19 @@ remote base all name the same exact head. Any tracked change continues through t
      an uncertain request.
 
    **Owner-directed review stop (open PR only).** When the Owner explicitly asks to end further standard-review
-   spending, declines at a disposition turn the pass a fix triggers, or redirects an
-   `approval-required / obtain-ceiling-override` decision, present one exact offer before treating that direction as
-   approval. A settled-response `coverage-required / select-coverage` also admits this offer; while
-   `payload.responseRequired` is true, perform the approved response first. Before PR creation defer the stop to the
-   open PR, as above. Re-read `arc review status --target <targetRef>` to validate the current Errand binding;
-   `review-required` is expected, but a refusal or pending/response action stops. Name the
-   current Errand key and claim, repository and PR, base ref and OID, head SHA, at least one completed same-claim
-   standard-review pass and its disposition/settlement state, the complete current PR diff, and the change since
-   the last completely reviewed head. State the residual risk and that `arc review status` will remain
-   `review-required`: this is Owner acceptance, not a clean provider result or an ARC terminus. Stop if any review
-   request is pending, a known finding lacks an approved disposition or required channel settlement, an authorized
-   fix remains unfinished, the earlier reviewed head is not an ancestor of this head, or the evidence is incomplete.
-   Ask for explicit acceptance of that exact residual risk; an earlier approval to fix, commit, or spend a pass does
-   not answer this offer.
+   spending, declines at a disposition turn the pass a fix triggers, or redirects an `approval-required /
+   obtain-ceiling-override` decision, or the clean-fix-check successor check recommends stopping, present one exact
+   offer before treating that direction as approval. A settled-response `coverage-required / select-coverage` also
+   admits this offer; while `payload.responseRequired` is true, perform the approved response first. Before PR creation
+   defer the stop to the open PR, as above. Re-read `arc review status --target <targetRef>` to validate the current
+   Errand binding; `review-required` is expected, but a refusal or pending/response action stops. Name the current
+   Errand key and claim, repository and PR, base ref and OID, head SHA, at least one completed same-claim
+   standard-review pass and its disposition/settlement state, the complete current PR diff, and the change since the
+   last completely reviewed head. State the residual risk and that `arc review status` will remain `review-required`:
+   this is Owner acceptance, not a clean provider result or an ARC terminus. Stop if any review request is pending, a
+   known finding lacks an approved disposition or required channel settlement, an authorized fix remains unfinished, the
+   earlier reviewed head is not an ancestor of this head, or the evidence is incomplete. Ask for explicit acceptance of
+   that exact residual risk; an earlier approval to fix, commit, or spend a pass does not answer this offer.
 
    On acceptance, request no further standard-review pass for those exact coordinates and continue to the reviewed
    merge lane below, not auto-merge. Do not submit a fabricated `clean` attempt, `terminus`, or `ceilingOverride` to

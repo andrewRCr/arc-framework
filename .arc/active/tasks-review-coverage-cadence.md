@@ -649,10 +649,10 @@ rejections. Method and workflow text changes in the package's `arc/` source firs
 - _Context:_ No typed state marks a pass as following a clean fix check, so each arm keys on the lane read's typed
   result rather than on memory. A delta check reads as a fix check there.
 
-    - `[ ]` **4.6.a `run-errand` at the driver's `ready`**
-        - At `ready / hosted-request` and `ready / local-prepare` with a pull request open, the arm stops and offers the
-          Owner-directed review stop, which `run-errand` admits from those states and only at an open pull request.
-          Before the pull request it states the recommendation and the limit, and the complete pass runs.
+    - `[x]` **4.6.a `run-errand` at the driver's `ready`**
+        - Both standard ready routes read typed lane facts before dispatch. A clean fix check prompts advisory
+          successor judgment; a stop recommendation offers exact Owner risk acceptance at the open PR. Before the PR,
+          the workflow states the limit and continues the complete pass without creating a terminus.
 
     - `[ ]` **4.6.b `prepare-work-unit` at `ready` and at the hosted-first reservation**
         - The driver's `awaiting-change-request` reserves the complete pass for a hosted source, and pre-publication
