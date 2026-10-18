@@ -199,7 +199,7 @@ The confirmation map is in `notes-review-coverage-cadence.md` § Chain confirmat
           decision. Complete passes and incremental-policy minor fixes retain their existing lane closure.
         - Consequence regressions preserve the complete-pass and incremental closures; all 123 focused cases pass.
 
-### `[ ]` **1.9 Give `run-errand` its `coverage-required`, selection, and stop arms — § 2.4, § 2.5, § 6.5, § 8.2**
+### `[x]` **1.9 Give `run-errand` its `coverage-required`, selection, and stop arms — § 2.4, § 2.5, § 6.5, § 8.2**
 
 - _Goal:_ `run-errand` dispatches every state the rule now reaches — `coverage-required` before and after the response,
   the driver's `ready` after a converged look, local prepare's selection, and the Owner's stop from `coverage-required`
@@ -222,16 +222,11 @@ The confirmation map is in `notes-review-coverage-cadence.md` § Chain confirmat
           hosted selection ends at material fixes, whose declined successor uses the local route. Supplemental requests
           take status's complete pass. Package and installed workflow copies match; 87 workflow contract cases pass.
 
-    - `[ ]` **1.9.d Drive an Errand's `full-final` lane end to end**
-        - Integration coverage beside `review-status-errand.test.ts` and `review-driver-lifecycle.test.ts`.
-        - Build `test-first` (one behavior at a time):
-            - Before its pull request, with sources that reserve no hosted source first: a local complete pass with a
-              material fix, a local fix check offered, a converged fix check, the complete pass admitted with no
-              selection, and a clean complete pass closing the lane.
-            - Before its pull request with a hosted source ranked first: after the converged fix check, the complete
-              pass awaits the change request.
-            - After its pull request: a hosted complete pass with a material fix, a forced hosted source refused, a
-              local fix check, a clean converged fix check at the same head, and a hosted complete pass by rank.
+    - `[x]` **1.9.d Drive an Errand's `full-final` lane end to end**
+        - Real-Git integration cases cover local pre-PR closure, the hosted-first pre-PR wait, and hosted material
+          findings through a local fix check to ranked hosted complete closure. Completed local replay now matches
+          coverage, allowing the same-head complete successor while preserving idempotent replay of its own pass.
+        - All 33 Errand cases pass; workflow contracts check complete hosted requests and local coverage selection.
 
 ## **Phase 2:** The work-unit paths — pre-publication, the published singleton, and a delivery member
 

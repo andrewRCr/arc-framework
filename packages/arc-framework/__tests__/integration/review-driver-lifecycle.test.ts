@@ -42,8 +42,13 @@ describe("lifecycle review driver", () => {
     expect(packaged).toContain("`settlement: not-applicable`");
     expect(packaged).toContain("originating `target`");
     expect(packaged).toContain("changed `fixTarget`");
-    expect(packaged).toContain("`coverage: incremental`");
-    expect(packaged).toContain("`effectiveCoverage: complete`");
+    if (path === errandWorkflow) {
+      expect(packaged).toContain("`coverage: complete`; fix checks run locally");
+      expect(packaged).toContain("`coverageAdmission`");
+    } else {
+      expect(packaged).toContain("`coverage: incremental`");
+      expect(packaged).toContain("`effectiveCoverage: complete`");
+    }
     expect(packaged).not.toContain("`Coverage`");
     expect(packaged).toMatch(
       /never invoke `hosted settle`, post a reply or\s+compensating\s+summary\s+comment/u,
