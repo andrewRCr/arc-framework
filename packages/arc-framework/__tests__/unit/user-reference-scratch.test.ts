@@ -91,8 +91,10 @@ it("reports a scratch-only apply plan in the registered session contract", async
   const { UserReferenceReconcileSessionResultSchema } = await import("../../src/lib/user-reference-reconcile-schema.js");
   const scratch = await planScratchReconcile(h.input);
   const result = projectUserReferenceSessionResult({ status: "ready", ref: "store", transitions: [], remoteEvidence: "not-applicable" },
-    { userInbox: { path: "inbox", content: "" }, scratch });
-  expect(result).toMatchObject({ status: "pending", plan: { scratch }, recommendedAction: "apply" });
+    { userInbox: { path: "inbox", content: "" }, scratch }, h.cwd);
+  expect(result).toMatchObject({ status: "pending", plan: { scratch }, recommendedAction: "apply",
+    actions: [{ checkout: h.cwd, argv: ["arc", "user", "reconcile-references", "--json"] },
+      { checkout: h.cwd, argv: ["arc", "user", "reconcile-references", "--apply", "--json"] }] });
   expect(UserReferenceReconcileSessionResultSchema.safeParse(result).success).toBe(true);
   expect(await readdir(h.root)).toEqual(["former"]);
 });

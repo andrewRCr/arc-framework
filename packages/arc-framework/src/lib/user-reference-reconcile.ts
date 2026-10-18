@@ -474,9 +474,11 @@ export async function resolveUserReferenceAuthority(
 export function projectUserReferenceSessionResult(
   authority: UserReferenceEvidenceAuthorityResult,
   surfaces: Omit<PlanUserReferenceReconcileInput, "transitions">,
+  checkout?: string,
 ): UserReferenceReconcileSessionResult {
   const inspect = {
     text: "arc user reconcile-references --json", argv: ["arc", "user", "reconcile-references", "--json"],
+    ...(checkout === undefined ? {} : { checkout }),
   };
   // No remote evidence was required, so there is nothing to reconcile and nothing to
   // report. Surfacing here would ask the operator to fix a configuration they chose.
@@ -518,7 +520,7 @@ export function projectUserReferenceSessionResult(
     return {
       status: "pending",
       actions: [inspect, { text: "arc user reconcile-references --apply --json",
-        argv: ["arc", "user", "reconcile-references", "--apply", "--json"] },
+        argv: ["arc", "user", "reconcile-references", "--apply", "--json"], ...(checkout === undefined ? {} : { checkout }) },
         ...(plan.scratch?.advisories.map(advisory => ({ text: advisory.text })) ?? [])],
       authority,
       plan,

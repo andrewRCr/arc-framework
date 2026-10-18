@@ -53,7 +53,7 @@ export function createStoreSessionProbes(context: StoreSessionContext) {
         reason: "state-unavailable", condition: prepared.refusal.condition, remedy: prepared.refusal.remedy, remoteEvidence: "not-applicable" },
         { userInbox: { path: "", content: "" } });
       return projectUserReferenceSessionResult(prepared.result.authority, { ...prepared.result.surfaces,
-        scratch: await planScratchReconcile({ cwd: context.cwd, identity: context.identity, store: context.store }) });
+        scratch: await planScratchReconcile({ cwd: context.cwd, identity: context.identity, store: context.store }) }, context.cwd);
     },
     errandState: async (input: Omit<RunErrandStateOptions, "entries" | "records" | "recordsComplete">) => {
       const snapshot = input.includeDiscovery ? await getOracle() : null;

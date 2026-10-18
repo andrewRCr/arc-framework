@@ -7,6 +7,7 @@ import { RecordReferenceSchema } from "../../src/lib/store/identity.js";
 import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { dispatchRegisteredCli } from "../helpers/registered-cli.js";
+import { createStoreSessionProbes } from "../../src/handlers/status/store-session.js";
 const binding = vi.hoisted(() => ({ store: null as Store | null }));
 vi.mock("../../src/lib/store/create.js", async (importOriginal) => {
   const original = await importOriginal<typeof import("../../src/lib/store/create.js")>();
@@ -52,6 +53,50 @@ it("plans without writes, then replaces an empty destination from CLI-parsed --a
     process.chdir(originalCwd);
     process.exitCode = originalExit;
   }
+}, 30_000);
+
+it("executes session scratch actions in the linked checkout while preserving primary scratch", async () => {
+  const cwd = await createTempRepo(), linked = join(cwd, "linked");
+  onTestFinished(() => cleanupTempDir(cwd));
+  const exec = makeGitExec(cwd);
+  await exec("git", ["config", "arc.identity", "andrew"]);
+  await mkdir(join(cwd, ".arc/system"), { recursive: true });
+  await writeFile(join(cwd, ".arc/system/arc-config.yml"), "branch.base: main\nbranch.protection: full\nsession.remote_sync: disabled\n");
+  await exec("git", ["add", ".arc/system/arc-config.yml"]);
+  await exec("git", ["commit", "-m", "Scratch configuration"]);
+  await exec("git", ["worktree", "add", "-b", "feat/linked", linked]);
+  const h = createLifecycleHarness(), former = await h.seedMeta("former", { owner: "andrew", state: "Planning", currentWorkflow: "draft-design" });
+  const reference = RecordReferenceSchema.parse({ ...former.reference, owner: { ...former.reference.owner, name: "current" } });
+  lifecycleSuccess(await h.store.write({ action: "put", reference, expected: former.version, content: former.content.replaceAll("former", "current"),
+    placement: { kind: "active" }, provenance: { verb: "rename", lifecycleAction: "transition" } }));
+  const scratch = (root: string, slug: string) => join(root, ".arc/user/andrew/scratch/work-unit", slug);
+  for (const root of [cwd, linked]) {
+    await mkdir(scratch(root, "former"), { recursive: true });
+    await writeFile(join(scratch(root, "former"), "idea"), root);
+  }
+  const stateVersion = lifecycleSuccess(await h.store.version()), head = (await exec("git", ["rev-parse", "HEAD"])).stdout;
+  const slot = await createStoreSessionProbes({ cwd: linked, store: h.store, exec: makeGitExec(linked), identity: "andrew",
+    readFrame: async () => null, readSettings: async () => ({}), readUserInbox: async () => "" }).userReferenceReconcile("current");
+  expect(slot).toMatchObject({ status: "pending", plan: { scratch: { moves: [{ from: scratch(linked, "former"), to: scratch(linked, "current") }] } } });
+  const originalCwd = process.cwd(), originalExit = process.exitCode;
+  let output = "";
+  const stdout = vi.spyOn(process.stdout, "write").mockImplementation(chunk => { output += String(chunk); return true; });
+  try {
+    binding.store = h.store;
+    for (const action of slot.actions ?? []) {
+      if (action.argv === undefined) continue;
+      output = ""; process.exitCode = undefined; process.chdir(action.checkout ?? cwd);
+      await dispatchRegisteredCli(["--no-input", ...action.argv.slice(1)]);
+      expect(process.exitCode).toBeUndefined();
+    }
+    expect(JSON.parse(output)).toMatchObject({ status: "applied" });
+    expect(await readFile(join(scratch(linked, "current"), "idea"), "utf8")).toBe(linked);
+    expect(await readdir(join(linked, ".arc/user/andrew/scratch/work-unit"))).toEqual(["current"]);
+    expect(await readFile(join(scratch(cwd, "former"), "idea"), "utf8")).toBe(cwd);
+    expect(await readdir(join(cwd, ".arc/user/andrew/scratch/work-unit"))).toEqual(["former"]);
+    expect(lifecycleSuccess(await h.store.version())).toBe(stateVersion);
+    expect((await exec("git", ["rev-parse", "HEAD"])).stdout).toBe(head);
+  } finally { binding.store = null; stdout.mockRestore(); process.chdir(originalCwd); process.exitCode = originalExit; }
 }, 30_000);
 
 it("applies registered managed-target repairs to the Store while preserving session prose and code history", async () => {
