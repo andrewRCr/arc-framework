@@ -129,7 +129,7 @@ Your execution strategy — what gets built in what order, and why. Backlog sour
 decisions and dependency chains so you can plan work deliberately rather than reactively. ROADMAP renders a
 project status cache from those sources.
 
-**Generated view**: [ROADMAP.md][roadmap] → goes in `backlog/`
+**Generated view**: `backlog/ROADMAP.md`
 
 **Think through**:
 
@@ -223,7 +223,6 @@ workflows to your tracker.
 [dev-rules]: ../../../../system/rules/DEV-RULES.PROJECT.md
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
 <!-- arc:if pm.mode == arc-in-git -->
-[roadmap]: ../../../../backlog/ROADMAP.md
 <!-- arc:endif -->
 <!-- arc:if pm.mode == none -->
 [create-spec]: ../create-spec.md

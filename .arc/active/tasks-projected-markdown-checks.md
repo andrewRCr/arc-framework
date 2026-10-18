@@ -75,34 +75,19 @@ user README exception; the complete tracked link audit passes after the two name
   repository root, and refuse movable or Git-ignored ARC targets before existence fallback. Real Git scenarios
   retain the tracked user README exception, source skips, and corrected retries; hook advice names filename references.
 
-### `[ ]` **2.2 Audit the same targets and accept named paths — D3.3**
+### `[x]` **2.2 Audit the same targets and accept named paths — D3.3**
 
 - _Goal:_ The repository audit enforces the same target boundary in its normal corpus and explicit-path modes,
   while preserving target-existence and Markdown-anchor feedback.
 
-    - Extend `resolveTarget`, `checkTarget`, `auditLinks`, and the CLI in `src/scripts/audit-links.ts`; use the layout
-      root declaration and an injectable ignored-target result with one batched `git check-ignore --stdin` read.
-    - With operands, select exactly the supplied `.arc/` Markdown paths, retaining template/archive exclusions;
-      with none, retain `selectLinkAuditFiles` over Git's tracked list. Do not enumerate through Git in named mode.
-    - Build `test-first` (one behavior at a time):
-        - Both target rules apply before missing-target and anchor checks, including normalized/decoded targets and
-          the tracked user README exception; existing source-position and anchor diagnostics still work.
-        - Named ignored projected paths can be audited, unrequested files are not read, and no-operand behavior
-          retains its existing corpus. Verify the single batched ignore read at the process boundary.
-    - Extend `__tests__/unit/scripts/audit-links.test.ts` and add real-Git integration coverage for ignored targets
-      and CLI operand handling, rather than proving ignore behavior with a fake filesystem alone.
+- _Outcome:_ The audit shares lifecycle-root recognition, checks normalized targets before existence and anchors,
+  and batches ignored-target decisions through Git. Named mode reads literal ignored sources without enumerating
+  tracked files; no-operand mode retains the tracked corpus and its exclusions.
 
-### `[ ]` **2.3 Correct the existing corpus links and render framework changes — D3.4**
+### `[x]` **2.3 Correct the existing corpus links and render framework changes — D3.4**
 
 - _Goal:_ The new tracked-link rules land over a clean existing corpus, and installed framework content reflects its
   authoritative package sources.
-
-    - Replace ADR 021's cohort link with `cohort-agile-parallelism.md` as a backticked filename, and replace the
-      `02_define-project` ROADMAP link with a backticked path in the package template and its rendered counterpart.
-    - Render changed Markdown framework sources/templates with `npm run render:framework -- <package-source.md...>`;
-      use its template handling. Task 2.1 synchronizes the hook and shell script through matching targeted edits.
-    - Run `npm run -s lint:arc:links` over the whole tracked corpus. Restrict corrections to the specified link rules;
-      unrelated findings follow the discovered-work route.
 
 ### `[ ]` **2.4 Exercise the tracked-file link boundary — D3** — validate exit criterion at segment scope
 
