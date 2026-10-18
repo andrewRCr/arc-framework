@@ -316,16 +316,6 @@ arc review status --target '{targetRef}' --source <hosted-source-id>
 
 The source-less form retains the automatic chunked route.
 
-The default action requests complete coverage. When a typed applicability recommendation requires a focused
-supplemental hosted pass, request it from the same first-outstanding member position instead of editing an action:
-
-```bash
-arc review status --target '{targetRef}' --coverage incremental
-```
-
-Pass the returned action unchanged. Re-enter without `--coverage` after the supplemental attempt concludes; an
-incremental result does not settle or consume the member's required complete review.
-
 Dispatch only on `nextAction`.
 
 `select-coverage` renders `coverageSelectionAction.interactionText` verbatim and gives a recommendation among its

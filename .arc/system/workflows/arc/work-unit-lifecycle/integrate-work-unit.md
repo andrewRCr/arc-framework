@@ -331,11 +331,17 @@ the returned `deliverySuffixReconstruction` directs. A `ready-to-fix` response w
 ordinary singleton route and never substitutes for the delivery-owned controller.
 
 The action already carries the selected source, exact opened target, requested coverage, and any delivery-member
-vehicle. Status uses complete coverage by default; only the explicit supplemental route below returns incremental
-coverage. When `resolve-review-applicability` carries `terminusAction`, surface that exact Owner alternative first.
+vehicle. When `resolve-review-applicability` carries `terminusAction`, surface that exact Owner alternative first.
 Explicit acceptance follows the terminus path above and re-enters status without resolving applicability. Absent
-explicit acceptance, render `selectionAction.interactionText`, obtain the Owner's typed choice, and submit the
-returned `selectionAction` unchanged as `offer` beside that `selection` to:
+explicit acceptance, render `selectionAction.interactionText`.
+
+**Method fire-point** · [`assess-evidence-applicability`][assess-evidence-applicability]: At this pre-reconcile
+`resolve-review-applicability` stop, apply the method to each supplied review projection whose applicability carries
+`judgmentRequired: true`. Show the bounded check's findings and `supplemental | fresh` recommendation before the
+Owner's choice. A `judgmentRequired: false` result is final; `merge-safety` never fires the method.
+
+Obtain the Owner's typed choice and submit the returned `selectionAction` unchanged as `offer` beside that
+`selection` to:
 
 ```bash
 arc candidate applicability resolve {workUnitId} -
@@ -450,25 +456,7 @@ allowed when useful. Do not commit, push, archive, regenerate readiness, or dest
 before `review-settled`.
 
 After every target movement, re-enter through `arc review status` and dispatch its typed action. Do not classify
-movement or choose review scope from prose; this pre-reconcile status route does not fire the applicability method.
-When a supplied action requires a hosted supplemental review for an ordinary singleton, request it through its exact
-target:
-
-```bash
-arc review status --target '{targetRef}' --coverage incremental
-```
-
-For a delivery, let WU status select the current first-outstanding member without reconstructing it:
-
-```bash
-arc review status --work-unit '{integrationBoundary.nextAction.workUnitId}' --coverage incremental
-```
-
-Pass the returned action unchanged; it carries `coverage: incremental`. After the supplemental attempt concludes,
-re-enter status without the coverage option so the still-required complete lane remains executable. If the adapter
-reports `effectiveCoverage: complete`, accept the broader review and disclose the upgrade. Stop only when the pass
-needs new authority, material cost, or resolution of genuine uncertainty.
-
+movement or choose review scope from prose; follow the applicability procedure above when its typed stop is returned.
 Request `arc check gate commit` after every review-driven change. Before an approved fix's `verifiedFix` replay,
 which attests the approved scope as performed, a `focused` scope also requests `arc check gate push --range --force`
 and a `full` scope `arc check gate merge --force` over the new target. A new target invalidates clearance and merge
@@ -652,14 +640,15 @@ surfaced Candidate-applicability action exactly:
   explicit choice. Do not infer a selection from the recommendation.
 
 **Method fire-point** · [`assess-evidence-applicability`][assess-evidence-applicability]: On this post-reconcile
-route only, when `payload.applicability.judgmentRequired: true`, load and apply the method to the supplied bounded
+route, when `payload.applicability.judgmentRequired: true`, load and apply the method to the supplied bounded
 review or verification residual. Show its `supplemental | fresh` recommendation before the existing authority
 selection; only the recorded selection acts. A `judgmentRequired: false` result is final, and `merge-safety` never
 fires the method.
 
 After an explicit `covered`, `targeted-check`, or `changed` choice, compose the strict input from
-`payload.resolutionSelector`, the selecting actor, and that choice. For `targeted-check`, first complete the bounded
-check and add its evidence reference. Then invoke `arc candidate applicability resolve {name} -` with that input.
+`payload.resolutionSelector`, the selecting actor, and that choice. For `targeted-check`, add the completed check's
+evidence reference; the review movement check above runs once. Other evidence kinds retain their ordinary bounded
+verification. Then invoke `arc candidate applicability resolve {name} -` with that input.
 For `covered` or `targeted-check`, `resolved / commit-selection` and `exact-replay / commit-selection` leave the
 Candidate selection staged. Request `arc check gate commit` over that correction, then commit:
 

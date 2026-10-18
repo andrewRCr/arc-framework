@@ -409,56 +409,39 @@ first, then in the `.arc/` copy by targeted edit.
           local fix checks, converged fixes before hosted complete passes, and bare provider commands; stored type names
           and the standard-review stream remain intact.
 
-### `[ ]` **2.8 Run the bounded check at both applicability stops — § 7.7**
+### `[x]` **2.8 Run the bounded check at both applicability stops — § 7.7**
 
 - _Goal:_ At both applicability stops over a bounded residual, a fresh-context local evaluator runs one check of what
   the movement changed before the Owner chooses, the supplemental `--coverage incremental` arms that ran nothing are
   gone, and a fix the check prompts lands by its own route outside and inside a bound delivery.
 
-    - `[ ]` **2.8.a Give `assess-evidence-applicability` the bounded check**
-        - What it reads: a merge's conflict resolution against Git's automatic merge (`git log --remerge-diff`) or a
-          rewrite's interdiff (`git range-diff`), the residual's files, and dependencies across the two sides. It carries
-          that context explicitly, since the evaluator remembers nothing of the earlier pass.
-        - Where it runs: only at the two review-applicability stops — status's `resolve-review-applicability` and the
-          Candidate checkpoint at the final reconcile — not at `run-errand`'s merge step or on a verification residual,
-          which the method also serves. It does not run at a `residual-unbounded` stop — 200 paths or 16 KiB of path
-          text (`classifyReviewContributionApplicability`; the Candidate checkpoint's own in
-          `candidate-applicability.ts`) — nor where a complete pass follows a mid-round base move (Task 1.6.c). It is not
-          a pass: no lane attempt, no ceiling, nothing stored beyond what the stop records.
-        - What it returns: the method's `{ recommendation, residual, rationale }` contract stays, and the check's findings
-          go to the Owner beside it as a complete disposition set. `supplemental` recommends `covered`, or
-          `targeted-check` at the reconcile with the check as its evidence; `fresh` recommends `review-required`, or
-          `changed` at the reconcile, which the agent recommends whenever the check finds a material defect or prompts a
-          fix.
+    - `[x]` **2.8.a Give `assess-evidence-applicability` the bounded check**
+        - The method directs one fresh local movement check at the two bounded review stops, with explicit merge or
+          rewrite context and dependency inspection. Findings accompany the unchanged recommendation contract; scope
+          exclusions, disposition approval, recommendation mapping, and post-fix disclosure remain explicit.
 
-    - `[ ]` **2.8.b Fire it at `integrate-work-unit`'s pre-reconcile stop**
-        - The route already declares the method and fires it after the reconcile; it gains the pre-reconcile fire-point
-          where it says today that it does not. `deliver-stack`'s member-rewrite stop already fires it.
+    - `[x]` **2.8.b Fire it at `integrate-work-unit`'s pre-reconcile stop**
+        - Integration applies the declared method before the pre-reconcile applicability choice and presents its
+          findings and recommendation. The post-reconcile fire-point remains; machine-final and merge-safety results
+          retain their existing boundaries.
 
-    - `[ ]` **2.8.c Remove the supplemental `--coverage incremental` arms**
-        - In `deliver-stack` and `integrate-work-unit`'s delivery route, which end at `coverage-unsupported`
-          (`status.ts`), and `integrate-work-unit`'s singleton arm, which ends at `status-unavailable` or a bare
-          `review-required` that drops the coverage (`composeSingletonRequest`).
+    - `[x]` **2.8.c Remove the supplemental `--coverage incremental` arms**
+        - Delivery and integration dispatch typed coverage offers and applicability choices without requesting an
+          incremental hosted supplement. Local fix-check selection remains on its ordinary admitted route.
 
-    - `[ ]` **2.8.d Land a prompted fix outside a bound delivery**
-        - The fix is committed after `arc check gate commit` as an ordinary change, since the check leaves no review
-          result for `arc review respond -` to bind. The Owner then chooses once, at the stop raised over the fixed head,
-          and the check does not run again; `covered`, or `targeted-check`, is disclosed as resting on a fix no pass has
-          read.
+    - `[x]` **2.8.d Land a prompted fix outside a bound delivery**
+        - An unbound fix uses ordinary change and commit gates, then re-enters applicability over its fixed head for
+          one Owner choice. The movement check does not repeat; retained or targeted evidence explicitly leaves the
+          fix unchecked by a pass, and checkpoint dispatch reuses the completed movement check.
 
-    - `[ ]` **2.8.e Land a prompted fix under a bound delivery**
-        - The Owner chooses first, and the choice governs only until the fix lands. While an approved fix is unlanded
-          the agent requests no pass for that member and takes it to no landing preparation. The fix takes the
-          delivery's correction route — a correction task in the owning member's section, covered by a plan revision
-          (`amend-design` § Under a bound delivery plan), through `arc delivery review-fix continue -` — authored only
-          when the continuation holds no other correction: none from a pending review response (`inspectDeliveryEntry`'s
-          `pending-review-response`, `lib/delivery/entry-inspection.ts`) or a pending verification
-          (`review-fix-verification-required`).
-        - Status then asks again over the fixed head, and the check does not run again; a `covered` choice there is
-          disclosed as resting on a fix no pass has read.
+    - `[x]` **2.8.e Land a prompted fix under a bound delivery**
+        - A bound fix takes the Owner's applicability choice first and blocks member review and landing while pending.
+          The existing correction controller must be idle before a member-owned task and plan revision are authored;
+          its continuation lands the fix, then the fixed-head choice repeats without rerunning the check.
 
-    - `[ ]` **2.8.f Replace "focused supplementation" in the overview**
-        - `TECHNICAL-OVERVIEW.md` § Self-Hosting Review Gate names the bounded check at an applicability stop instead.
+    - `[x]` **2.8.f Replace "focused supplementation" in the overview**
+        - The project overview names the fresh local movement check at bounded review applicability stops and leaves
+          verification and complete-review continuations with their typed routes.
 
 ## **Phase 3:** The delta check after a plain commit
 
