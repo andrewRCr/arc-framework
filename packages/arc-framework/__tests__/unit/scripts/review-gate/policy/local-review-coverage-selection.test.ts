@@ -217,7 +217,7 @@ async function resolveWithEvidence(
   const producerId = terminal !== undefined && "reviewOperationId" in terminal
     ? terminal.reviewOperationId : input.predecessorOperationId;
   const predecessor = producerId === undefined ? null : await proof.resultReader.readResult(producerId).catch(() => null);
-  const nextPassContext = await deriveReviewNextPassContext({ predecessor,
+  const nextPassContext = await deriveReviewNextPassContext({ predecessor, completePasses: predecessor === null ? 0 : 1,
     currentTarget: input.target, currentLineage: input.lineage, standardReview: input.standardReview,
     resultReader: proof.resultReader, dispositionStore: proof.dispositionStore,
     readResponsePerformance: proof.readResponsePerformance ?? (async () => null),

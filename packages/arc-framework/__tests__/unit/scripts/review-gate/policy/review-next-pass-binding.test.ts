@@ -13,7 +13,8 @@ function fixture(findings = false) {
     headSha: result.target.headSha, sourceId: "codex-pr", reviewOperationId: result.producerId,
     standardReview: { obligation: "required", reasons: ["sensitive-change-set"], rubricVersion: "standard-review/v1",
       rubricDigest: result.kind === "frontline" ? "sha256:unused" : result.requirement.rubricDigest, retrigger: "full-final", count: 1 } });
-  const nextPassContext = { convergence: findings ? "unconverged" as const : "converged" as const, responseDue: false, incremental: null };
+  const nextPassContext = { completePasses: 1,
+    convergence: findings ? "unconverged" as const : "converged" as const, responseDue: false, incremental: null };
   return { result, request: { ...request, attempts: [{ sourceId: "codex-pr", outcome: findings ? "findings" as const : "clean" as const, reviewOperationId: result.producerId }] },
     dependencies: { sources: ["codex-pr", "delegated-agent"], maxPasses: 3, nextPassContext,
       resultReader: { readResult: async () => result },
@@ -25,6 +26,15 @@ function fixture(findings = false) {
 }
 
 describe("next-pass evidence binding", () => {
+  it("requires the complete-pass count inside standard next-pass facts", () => {
+    const { request, dependencies } = fixture();
+    const internal = { ...request, attempts: [], completedPasses: 0, sources: dependencies.sources,
+      maxPasses: dependencies.maxPasses, nextPassContext: { convergence: "none", responseDue: false, incremental: null } };
+    assertSchemaRefuses(ReviewPolicyRequestSchema, internal, ["nextPassContext", "completePasses"]);
+    assertSchemaAccepts(ReviewPolicyRequestSchema, { ...internal,
+      nextPassContext: { ...internal.nextPassContext, completePasses: 0 } });
+  });
+
   it("refuses a standard internal request without repository-derived next-pass facts", () => {
     const { request, dependencies } = fixture();
     const internal = { ...request, attempts: [], completedPasses: 0, sources: dependencies.sources,

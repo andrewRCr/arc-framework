@@ -172,7 +172,7 @@ describe("pre-publication delta coverage", () => {
     expect((await fixture.reader.readResult(prepared.payload.operationId)).admission.effectiveCoverage).toBe("complete");
     const dependencies = createPrePublicationCompositionDependencies(fixture);
     if (fixture.current === null) throw new Error("expected new Candidate root");
-    await expect(deriveReviewNextPassContext({
+    await expect(deriveReviewNextPassContext({ completePasses: 2,
       predecessor: await fixture.reader.readResult(fixture.first.payload.operationId), currentTarget: request.target,
       currentLineage: { kind: "candidate", candidateId: fixture.current.attestation.candidateId },
       standardReview: request.standard.standardReview, resultReader: dependencies.resultReader,

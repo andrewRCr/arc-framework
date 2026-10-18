@@ -4,6 +4,7 @@ import { IncrementalReviewScopeSchema } from "../core/incremental-review-scope.j
 
 /** Internal facts derived from immutable results and approved responses, never command inputs. */
 export const ReviewNextPassContextSchema = z.strictObject({
+  completePasses: z.number().int().nonnegative(),
   convergence: z.enum(["none", "converged", "pending", "unconverged"]),
   responseDue: z.boolean(),
   incremental: z.strictObject({ basis: z.enum(["fix-check", "delta-check"]), scope: IncrementalReviewScopeSchema }).nullable(),

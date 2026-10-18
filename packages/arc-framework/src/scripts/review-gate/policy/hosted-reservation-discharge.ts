@@ -47,6 +47,8 @@ import {
   resolveIncrementalCorrectionScope as resolveVerifiedIncrementalCorrectionScope,
   type IncrementalPredecessorApplicability,
 } from "./incremental-coverage-basis.js";
+import type { LaneSubjectLineage } from "../core/lane-admission.js";
+import { readStandardCompletePassCount } from "../runtime/lane-complete-pass-count.js";
 import { projectHostedConvergedComplete, projectHostedCorrectionCoverageSelection, projectHostedCorrectionDefault, projectHostedDeltaCheck } from "./hosted-coverage-selection.js";
 import type { ReviewNextPassContext } from "./review-next-pass-schema.js";
 
@@ -752,7 +754,10 @@ export function createHostedReservationDischargeReader(input: {
         }),
       });
     };
-    const nextPassInputs = { target: currentTarget, lineage, standardReview: reservation.obligation,
+    const nextPassInputs = {
+      readCompletePassCount: (currentLineage: LaneSubjectLineage) => readStandardCompletePassCount({ ...input, store,
+        repositoryId: currentRepositoryId, headSha: approvedHead, lineage: currentLineage, candidate }),
+      target: currentTarget, lineage, standardReview: reservation.obligation,
       configuredSources: reservation.sources,
       evidence: { resultReader, dispositionStore: dispositions, readResponsePerformance, confirmIncrementalApplicability },
       candidate, cwd: input.cwd, exec: input.exec, observeTarget: observeCurrentTarget,

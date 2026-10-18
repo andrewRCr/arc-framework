@@ -41,7 +41,7 @@ async function fixture(input: { severity?: "major" | "minor"; performed?: boolea
       : { ...performedFix(result, record), producedHeadSha: "9".repeat(40) },
     confirmIncrementalApplicability: async () => "applicable" as const,
   };
-  const nextPassContext = await deriveReviewNextPassContext({ predecessor: result, currentTarget: target,
+  const nextPassContext = await deriveReviewNextPassContext({ completePasses: coverage === "complete" ? 2 : 1, predecessor: result, currentTarget: target,
     currentLineage: result.admission.lineage, standardReview, ...evidence });
   const request = { schemaVersion: 1, target: result.hostedTarget, lane: "standard", standardReview,
     completedPasses: 2, attempts: [{ sourceId: result.sourceIdentity, outcome: result.originalOutcome,

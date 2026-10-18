@@ -2,7 +2,6 @@
 import { NextPassFactsSchema, type NextPassFacts } from "./next-pass-facts-schema.js";
 export { NextPassFactsSchema, type NextPassFacts } from "./next-pass-facts-schema.js";
 import { resolveChangeStats } from "../../../lib/change-stats.js";
-import { countCompleteLogicalPasses } from "../lane-progress.js";
 import type { RawGitExec } from "../../../lib/git/exec.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import type { LaneProgressState, LaneResponsePerformance } from "../core/operation-state-schema.js";
@@ -95,7 +94,7 @@ export async function deriveNextPassFacts(input: {
   ]);
   return NextPassFactsSchema.parse({
     fixRounds: rounds, chainProven: scope !== undefined, rangeSize: { target: targetSize, fix: fixSize },
-    completePasses: progress.reduce((count, owner) => count + countCompleteLogicalPasses(owner.attempts), 0),
+    completePasses: input.nextPassContext.completePasses,
     ceiling: input.ceiling, fixChecksSinceLastComplete: looks.slice(lastComplete + 1),
     materialTrend: materialTrend(looks, input.dispositions, input.proposed),
   });

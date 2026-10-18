@@ -15,7 +15,7 @@ describe("hosted next-pass context", () => {
       sourceVerification: "verified", verifiedSeverity: "major", disposition: "fix",
     }]);
     const { obligation, reasons, rubricVersion, rubricDigest, retrigger, count } = predecessor.requirement;
-    const context = await deriveHostedNextPassContext({ target, lineage: predecessor.admission.lineage,
+    const context = await deriveHostedNextPassContext({ target, readCompletePassCount: async () => 1, lineage: predecessor.admission.lineage,
       configuredSources: ["delegated-agent"],
       standardReview: { obligation, reasons, rubricVersion, rubricDigest, retrigger, count },
       progress: [{ status: "recorded", completedPasses: 1, completePasses: 1, attempts: [],

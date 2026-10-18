@@ -29,6 +29,7 @@ export interface ReviewNextPassInput extends Omit<ReviewCorrectionLegInput, "pre
     readonly sources: readonly string[];
     readonly surface: "ordinary" | "pre-publication" | "open-pr-errand";
   };
+  readonly completePasses: number;
   readonly predecessor: ReviewResult | null;
   readonly currentTarget: PerformedResponseProofInput["currentTarget"] | null;
   readonly standardReview: StandardReviewObligationProjection;
@@ -95,14 +96,14 @@ function incrementalBasis(input: ReviewNextPassInput, ground: IncrementalPredece
 
 /** Derive the predecessor's convergence, response obligation, and exact next correction scope. */
 export async function deriveReviewNextPassContext(input: ReviewNextPassInput): Promise<ReviewNextPassContext> {
-  const { predecessor, currentTarget } = input;
-  if (predecessor === null) return { convergence: "none", responseDue: false, incremental: null };
+  const { predecessor, currentTarget, completePasses } = input;
+  if (predecessor === null) return { completePasses, convergence: "none", responseDue: false, incremental: null };
   const readResponseEvidence = (result: ReviewResult) => readIncrementalPredecessorResponseEvidence(
     result, input.dispositionStore, input.readResponsePerformance,
   );
   const { convergence, responseDue } = await predecessorFacts({ ...input, predecessor });
   if (currentTarget === null || !samePolicy(predecessor, input, currentTarget)) {
-    return { convergence, responseDue, incremental: null };
+    return { completePasses, convergence, responseDue, incremental: null };
   }
   const { confirmApplicability, confirmCurrentApplicability } = input;
   const currentLeg: { ground: IncrementalPredecessorApplicability } = { ground: "unavailable" };
@@ -126,7 +127,7 @@ export async function deriveReviewNextPassContext(input: ReviewNextPassInput): P
     },
   });
   const basis = incrementalBasis(input, currentLeg.ground, convergence);
-  return { convergence, responseDue, incremental: scope === null || basis === null ? null : { basis, scope } };
+  return { completePasses, convergence, responseDue, incremental: scope === null || basis === null ? null : { basis, scope } };
 }
 
 /** Select a referenced terminal or an owning composition's earlier-head producer before deriving the next look. */

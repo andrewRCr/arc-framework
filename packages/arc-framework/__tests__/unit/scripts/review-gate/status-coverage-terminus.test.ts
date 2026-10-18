@@ -27,7 +27,7 @@ const targets = [{ ...handle.target, vehicle, position: 1, memberCount: 1, chunk
 const scope = { schemaVersion: 1 as const, predecessorProducerId: hostedLaneAttemptId(handle),
   predecessorHeadSha: handle.target.headSha, basisHeadSha: handle.target.headSha, headSha: handle.target.headSha,
   requiredFindings: [{ producerId: hostedLaneAttemptId(handle), findingId: "finding-1", locus: "source.ts:1" }] };
-const nextPassContext = { convergence: "unconverged" as const, responseDue: false,
+const nextPassContext = { completePasses: 0, convergence: "unconverged" as const, responseDue: false,
   incremental: { basis: "fix-check" as const, scope } };
 const terminalPolicy = resolveReviewPolicy({ schemaVersion: 1, target: handle.target, lane: "standard", standardReview,
   sources: ["codex-pr", "delegated-agent"], maxPasses: 4, completedPasses: 1, nextPassContext,
@@ -89,7 +89,7 @@ it("offers the disclosed stop at settled coverage and discharges the exact membe
 it("retains the stop beside the ranked complete request after a converged fix check", async () => {
   const admission = resolveReviewPolicy({ schemaVersion: 1, target: handle.target, lane: "standard", standardReview,
     sources: ["codex-pr", "delegated-agent"], maxPasses: 4, completedPasses: 2, attempts: [],
-    nextPassContext: { convergence: "converged", responseDue: false, incremental: null } });
+    nextPassContext: { completePasses: 1, convergence: "converged", responseDue: false, incremental: null } });
   const continued = { ...discharge, nextSource: "codex-pr", coverageSelectionAction: undefined,
     requestAdmission: admission, requestCoverage: "complete" as const, completedPasses: 2, completePasses: 1,
     attemptHistory: [{ ...discharge.attemptHistory[0]!, requestedCoverage: "complete" as const, effectiveCoverage: "complete" as const },
@@ -105,7 +105,7 @@ it("retains the stop beside the ranked complete request after a converged fix ch
 function sourceContinuation(configured: boolean): Discharge {
   const requestAdmission = resolveReviewPolicy({ schemaVersion: 1, target: handle.target, lane: "standard", standardReview,
     sources: configured ? ["codex-pr", "delegated-agent"] : ["codex-pr"], completedPasses: 1, maxPasses: 4, attempts: [],
-    nextPassContext: { convergence: "unconverged", responseDue: false, incremental: null } });
+    nextPassContext: { completePasses: 0, convergence: "unconverged", responseDue: false, incremental: null } });
   return { ...discharge, coverageSelectionAction: undefined, requestAdmission, requestCoverage: "complete",
     nextSource: configured ? "delegated-agent" : "codex-pr" };
 }

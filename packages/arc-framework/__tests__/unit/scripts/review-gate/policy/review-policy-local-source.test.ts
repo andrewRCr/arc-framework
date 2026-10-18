@@ -8,7 +8,7 @@ function request(convergence: "converged" | "unconverged" = "unconverged", pullR
     lane: "standard", standardReview: { obligation: "required", reasons: ["sensitive-change-set"],
       rubricVersion: "standard-review/v1", rubricDigest: canonicalDigest({ rubric: "standard" }), retrigger: "full-final", count: 1 },
     sources: ["codex-pr", "delegated-agent"], maxPasses: 4, completedPasses: 1, attempts: [],
-    nextPassContext: { convergence, responseDue: false, incremental: null } };
+    nextPassContext: { completePasses: 1, convergence, responseDue: false, incremental: null } };
 }
 
 describe("local review after material fixes", () => {

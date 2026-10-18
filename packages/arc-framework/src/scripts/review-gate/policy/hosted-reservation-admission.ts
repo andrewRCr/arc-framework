@@ -1,4 +1,5 @@
 /** Ordered admission for a hosted-review reservation carried across publication. */
+import { countCompleteLogicalPasses } from "../lane-progress.js";
 import { deriveReviewNextPassContextFromAttempts } from "./review-next-pass.js";
 import type { LocalReviewState } from "../core/operation-state-schema.js";
 import type { ReviewResult } from "../core/review-result.js";
@@ -104,7 +105,7 @@ export function projectHostedReservationPolicyProgress(input: {
   }
   let predecessor: { attemptId: string; logicalPass: number } | undefined;
   const completedLogicalPasses = new Set<number>();
-  const completeLogicalPasses = new Set<number>();
+  const completeAttempts: Parameters<typeof countCompleteLogicalPasses>[0][number][] = [];
   const historyTimeline: Array<{
     readonly progress: HostedReservationPolicyAttemptProgress;
     readonly operationId: string;
@@ -167,9 +168,7 @@ export function projectHostedReservationPolicyProgress(input: {
           predecessor = { attemptId: attempt.attemptId, logicalPass: attempt.logicalPass };
         }
         completedLogicalPasses.add(attempt.logicalPass);
-        if (local?.effectiveCoverage === "complete" || hosted?.effectiveCoverage === "complete") {
-          completeLogicalPasses.add(attempt.logicalPass);
-        }
+        completeAttempts.push(attempt);
       }
       if (attempt.headSha === input.target.headSha
         && attempt.outcome !== "pending"
@@ -207,7 +206,7 @@ export function projectHostedReservationPolicyProgress(input: {
   return {
     status: "complete",
     completedPasses: completedLogicalPasses.size,
-    completePasses: completeLogicalPasses.size,
+    completePasses: countCompleteLogicalPasses(completeAttempts),
     attempts,
     attemptHistory,
     ...(predecessor === undefined ? {} : { predecessorProducerId: predecessor.attemptId }),
@@ -304,7 +303,7 @@ export async function resolveEvidenceBoundHostedReservationPolicy(
   const latestCurrentAttempt = [...progress.attemptHistory].reverse().find((attempt) => (
     attempt.headSha === input.target.headSha
   ));
-  const nextPassContext = await deriveReviewNextPassContextFromAttempts({ attempts,
+  const nextPassContext = await deriveReviewNextPassContextFromAttempts({ attempts, completePasses: progress.completePasses,
     predecessorOperationId: progress.predecessorProducerId,
     currentTarget: input.currentReviewTarget ?? null,
     currentLineage: { kind: "delivery-member", planId: input.vehicle.planId,
@@ -621,7 +620,11 @@ async function verifyCandidateAdditionalPassPredecessor(
     terminalResponsePerformed: predecessor.outcome === "settled-findings",
   };
   const producer = await dependencies.resultReader.readResult(predecessor.attemptId);
-  const nextPassContext = await deriveReviewNextPassContextFromAttempts({ attempts: predecessorRequest.attempts,
+  const completePasses = (input.discharge.nextPassContext ?? input.nextPassContext ?? dependencies.nextPassContext)?.completePasses;
+  if (completePasses === undefined) {
+    throw new Error("Additional review requires repository-derived complete-pass counts. Re-read the exact lane and retry.");
+  }
+  const nextPassContext = await deriveReviewNextPassContextFromAttempts({ attempts: predecessorRequest.attempts, completePasses,
     currentTarget: producer.target, currentLineage: producer.admission.lineage,
     standardReview: input.reservation.obligation, resultReader: dependencies.resultReader,
     dispositionStore: dependencies.dispositionStore,

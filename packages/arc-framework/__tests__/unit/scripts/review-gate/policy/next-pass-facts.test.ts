@@ -22,7 +22,7 @@ async function laneWithDelta(outcome: "clean" | "findings" = "clean") {
 it("counts complete looks and the fix checks since the last one from lane progress", async () => {
   const fixture = await laneWithDelta();
   const facts = await deriveNextPassFacts({ progress: fixture.progress(), dispositions: [],
-    nextPassContext: { convergence: "converged", responseDue: false, incremental: null },
+    nextPassContext: { completePasses: 1, convergence: "converged", responseDue: false, incremental: null },
     target: fixture.currentTarget(), ceiling: 4,
     exec: async () => { throw new Error("Git statistics unavailable"); } });
   expect(NextPassFactsSchema.parse(facts)).toMatchObject({ completePasses: 1, ceiling: 4,
@@ -40,7 +40,7 @@ it("labels clean and findings looks and marks the proposed material count provis
     findings: fields.findings.map(finding => ({ ...finding, sourceVerification: "verified" as const,
       verifiedSeverity: "minor" as const, disposition: "defer" as const })) }));
   const facts = await deriveNextPassFacts({ progress: fixture.progress(), dispositions: [record], proposed,
-    nextPassContext: { convergence: "unconverged", responseDue: false, incremental: null },
+    nextPassContext: { completePasses: 1, convergence: "unconverged", responseDue: false, incremental: null },
     target: fixture.currentTarget(), ceiling: 4, exec: async () => { throw new Error("Git unavailable"); } });
   expect(facts.materialTrend).toMatchObject([
     { producerId: fixture.original.operationId, coverage: "complete", outcome: "clean", materialCount: 0, provisional: false },
@@ -54,7 +54,7 @@ it.each([true, false])("reports the proven chain and its range against the targe
   const root = await fixture.resultReader.readResult(fixture.original.operationId);
   if (root.kind === "frontline") throw new Error("expected standard review");
   const { obligation, reasons, rubricVersion, rubricDigest, retrigger, count } = root.requirement;
-  const nextPassContext = await deriveReviewNextPassContext({ predecessor: root, currentTarget: fixture.currentTarget(),
+  const nextPassContext = await deriveReviewNextPassContext({ completePasses: 1, predecessor: root, currentTarget: fixture.currentTarget(),
     currentLineage: root.admission.lineage, standardReview: { obligation, reasons, rubricVersion, rubricDigest, retrigger, count },
     resultReader: fixture.resultReader, dispositionStore: { readDispositionRecord: async () => null,
       appendDispositionRecord: async () => { throw new Error("Read-only context"); } }, readResponsePerformance: async () => null,
@@ -96,7 +96,7 @@ it.each([
       : { stdout: Buffer.from(`:${oldMode} 100644 ${oldObject} ${"2".repeat(40)} ${scenario.status}\0${scenario.path}\0`) },
   ] }]).exec;
   const facts = await deriveNextPassFacts({ progress: fixture.progress(), dispositions: [record],
-    nextPassContext: { convergence: "unconverged", responseDue: false, incremental: null },
+    nextPassContext: { completePasses: 1, convergence: "unconverged", responseDue: false, incremental: null },
     target: fixture.currentTarget(), ceiling: 4, exec });
   expect(facts.fixRounds).toMatchObject([{ producerId: producer.producerId, dispositionSetId: record.currentDispositionSetId,
     originatingHeadSha: producer.target.headSha, producedHeadSha,
@@ -127,7 +127,7 @@ it("joins each historical response round to its own approved set", async () => {
   const exec = scriptRawGitExec([{ match: { prefix: ["diff", "--raw"] }, responses: [{ stdout: Buffer.from(
     `:100644 100644 ${"1".repeat(40)} ${"2".repeat(40)} M\0src/example.ts\0`) }] }]).exec;
   const facts = await deriveNextPassFacts({ progress: fixture.progress(), dispositions: [record],
-    nextPassContext: { convergence: "converged", responseDue: false, incremental: null },
+    nextPassContext: { completePasses: 1, convergence: "converged", responseDue: false, incremental: null },
     target: fixture.currentTarget(), ceiling: 4, exec });
   expect(facts.fixRounds).toMatchObject([
     { dispositionSetId, outsideCitedLoci: false, addedFiles: false },
@@ -143,7 +143,7 @@ it("resets fix-check rounds when a later complete look concludes", async () => {
   const owner = fixture.laneProgress();
   if (owner?.kind !== "lane-progress") throw new Error("expected lane owner");
   const facts = await deriveNextPassFacts({ progress: [owner], dispositions: [],
-    nextPassContext: { convergence: "converged", responseDue: false, incremental: null },
+    nextPassContext: { completePasses: 2, convergence: "converged", responseDue: false, incremental: null },
     target: fixture.currentTarget(), ceiling: 4, exec: async () => { throw new Error("Git unavailable"); } });
   expect(facts).toMatchObject({ completePasses: 2, fixChecksSinceLastComplete: [] });
 });
@@ -155,7 +155,7 @@ it.each(["critical", "unsupported"] as const)("counts the verified grade rather 
     ? { sourceVerification: "not-supported", verifiedSeverity: null, disposition: "reject" }
     : { sourceVerification: "verified", verifiedSeverity: "critical", disposition: "fix" }]);
   const facts = await deriveNextPassFacts({ progress: fixture.progress(), dispositions: [record],
-    nextPassContext: { convergence: "unconverged", responseDue: false, incremental: null },
+    nextPassContext: { completePasses: 1, convergence: "unconverged", responseDue: false, incremental: null },
     target: fixture.currentTarget(), ceiling: 4, exec: async () => { throw new Error("Git unavailable"); } });
   expect(facts.materialTrend.at(-1)).toMatchObject({ producerId: producer.producerId,
     materialCount: grade === "critical" ? 1 : 0, provisional: false });

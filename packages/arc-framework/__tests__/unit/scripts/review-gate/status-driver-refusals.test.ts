@@ -29,7 +29,7 @@ it.each(["delivery work-unit", "delivery target", "singleton"].flatMap(surface =
     ? ["--work-unit", "example"] : ["--target", JSON.stringify(target)])];
     const admission = resolveReviewPolicy({ schemaVersion: 1, target: handle.target, lane: "standard", standardReview,
       sources: configured ? ["codex-pr", "delegated-agent"] : ["codex-pr"], maxPasses: 4, completedPasses: 1,
-      attempts: [], nextPassContext: { convergence: "unconverged", responseDue: false, incremental: null },
+      attempts: [], nextPassContext: { completePasses: 1, convergence: "unconverged", responseDue: false, incremental: null },
       ...(configured ? { invocation: { mode: "force" as const, sourceId: "codex-pr" } } : {}),
     });
     const discharge = { discharged: false, detail: "A material fix still needs local review.",
@@ -63,7 +63,7 @@ it.each(["delivery work-unit", "delivery target", "singleton"])(
       : { kind: "target" as const, target };
     const admission = resolveReviewPolicy({ schemaVersion: 1, target: handle.target, lane: "standard", standardReview,
       sources: ["codex-pr", "delegated-agent"], maxPasses: 4, completedPasses: 0, attempts: [],
-      nextPassContext: { convergence: "none", responseDue: false, incremental: null } });
+      nextPassContext: { completePasses: 0, convergence: "none", responseDue: false, incremental: null } });
     const discharge = { discharged: false, detail: "Review is required.", nextSource: "codex-pr",
       requestCoverage: "incremental" as const };
     const obligation = surface.startsWith("delivery") ? composeDeliveryReviewObligation({ statusRoute,

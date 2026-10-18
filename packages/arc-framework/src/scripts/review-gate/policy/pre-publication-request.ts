@@ -616,6 +616,12 @@ async function readCandidateCorrectionContext(
     deltaAdmission: { sources, surface: "pre-publication" as const } };
 }
 
+function standardNextPassProgress(progress: LaneProgressProjection) {
+  if (progress.status !== "recorded") return { completePasses: 0 };
+  const earlier = latestCompletedLaneAttempt(progress.attempts) ?? progress.historicalAttempt;
+  return { completePasses: progress.completePasses, predecessorOperationId: earlier?.attemptId };
+}
+
 /**
  * Compose both lane policy requests for one work unit from repository state and author judgment.
  *
@@ -839,11 +845,9 @@ export async function composePrePublicationReviewRequest(
         : Promise.resolve(exactTarget),
     };
     if (lane === "frontline") return bindReviewPolicyEvidence(policyInput, evidenceDependencies);
-    const earlier = rawProgress.status === "recorded"
-      ? latestCompletedLaneAttempt(rawProgress.attempts) ?? rawProgress.historicalAttempt : undefined;
     const currentLineage = lineage ?? { kind: "candidate" as const, candidateId: candidate.candidateId };
     const nextPassContext = await deriveReviewNextPassContextFromAttempts({
-      attempts: policyInput.attempts, predecessorOperationId: earlier?.attemptId,
+      attempts: policyInput.attempts, ...standardNextPassProgress(rawProgress),
       currentTarget: exactTarget, currentLineage, standardReview,
       resultReader: dependencies.resultReader, dispositionStore: dependencies.dispositionStore,
       readResponsePerformance: evidenceDependencies.readResponsePerformance,

@@ -25,7 +25,7 @@ export async function createLocalDeltaFixture(workClass: "Light" | "Heavy" = "He
     const after = input.target.headSha;
     const dispositionStore = { readDispositionRecord: async () => null,
       appendDispositionRecord: async () => { throw new Error("read-only evidence"); } };
-    const nextPassContext = await deriveReviewNextPassContext({ predecessor, currentTarget: input.target,
+    const nextPassContext = await deriveReviewNextPassContext({ predecessor, completePasses: input.completePasses, currentTarget: input.target,
       currentLineage: input.lineage, standardReview: input.standardReview, dispositionStore,
       resultReader: fixture.resultReader, readResponsePerformance: async () => null,
       deltaAdmission: { sources: ["delegated-agent"], surface: "pre-publication" },

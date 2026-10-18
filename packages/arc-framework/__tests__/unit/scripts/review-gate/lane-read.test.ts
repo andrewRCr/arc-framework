@@ -14,7 +14,7 @@ it("returns a Candidate's rejection reason and verification status from its lane
     .filter((state): state is LaneProgressState => state.kind === "lane-progress");
   const before = structuredClone({ progress, record });
   const result = await projectReviewLaneRead({ lineage: delta.lineage, progress, dispositions: [record],
-    nextPassContext: { convergence: "pending", responseDue: true, incremental: null }, target: delta.target, ceiling: 4,
+    nextPassContext: { completePasses: 1, convergence: "pending", responseDue: true, incremental: null }, target: delta.target, ceiling: 4,
     exec: async () => { throw new Error("Git unavailable"); } });
   expect(result).toMatchObject({ state: "ready", payload: { lineage: delta.lineage,
     rejections: [{ lane: "standard", findingId: "finding-1", locus: "src/example.ts:1",
@@ -29,7 +29,7 @@ it("returns the shared facts and identifies the last clean fix check", async () 
   const owner = fixture.laneProgress();
   if (owner?.kind !== "lane-progress") throw new Error("expected lane owner");
   const result = await projectReviewLaneRead({ lineage: delta.lineage, progress: [owner], dispositions: [],
-    nextPassContext: { convergence: "converged", responseDue: false, incremental: null }, target: delta.target, ceiling: 4,
+    nextPassContext: { completePasses: 1, convergence: "converged", responseDue: false, incremental: null }, target: delta.target, ceiling: 4,
     exec: async () => { throw new Error("Git unavailable"); } });
   expect(result).toMatchObject({ state: "ready", payload: {
     lastLook: { producerId: delta.operationId, coverage: "incremental", outcome: "clean" },
@@ -49,7 +49,7 @@ it("returns frontline rejections beside standard rejections in the Candidate lin
   const result = await projectReviewLaneRead({ lineage: delta.lineage, progress: [frontline.lane, fixture.laneProgress()!],
     dispositions: [approvedRecord(producer, [{ sourceVerification: "not-supported", verifiedSeverity: null, disposition: "reject" }]),
       approvedRecord(standard, [{ sourceVerification: "verified", verifiedSeverity: "minor", disposition: "reject" }])],
-    nextPassContext: { convergence: "pending", responseDue: true, incremental: null }, target: delta.target, ceiling: 4,
+    nextPassContext: { completePasses: 1, convergence: "pending", responseDue: true, incremental: null }, target: delta.target, ceiling: 4,
     exec: async () => { throw new Error("Git unavailable"); } });
   expect(result).toMatchObject({ state: "ready", payload: { rejections: [
     { lane: "frontline", findingId: "frontline-finding", locus: "src/frontline.ts:3", sourceVerification: "not-supported" },

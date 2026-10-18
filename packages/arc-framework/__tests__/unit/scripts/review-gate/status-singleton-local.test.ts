@@ -29,7 +29,7 @@ function localObligation(includeObligation = true, authority?: "ceiling" | "addi
       verifiedTerminalSignal: { reviewOperationId: producerId, confirmedFindingCount: 0, maxConfirmedSeverity: null,
         materialFix: false, coverageAdequate: true } }),
     ...(ceilingOverride === undefined ? {} : { ceilingOverride }),
-    nextPassContext: { convergence: elective ? "converged" : "unconverged", responseDue: false, incremental: null } });
+    nextPassContext: { completePasses: 1, convergence: elective ? "converged" : "unconverged", responseDue: false, incremental: null } });
   expect(admission).toMatchObject({ state: "ready", nextAction: "local-prepare" });
   return composeSingletonReviewObligation({
     discharge: { discharged: false, detail: "The material fix needs local review." },

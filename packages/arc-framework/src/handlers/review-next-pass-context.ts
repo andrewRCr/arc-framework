@@ -7,7 +7,7 @@ import { CandidateManagedRecordV1Schema, resolveCandidateSupersessionAncestors }
 import { readLocalReviewLiveContext } from "../scripts/review-gate/hosts/local/live-context.js";
 import { resolveRepositoryIdentity } from "../scripts/review-gate/hosts/local/git-common-state.js";
 import { deriveLocalReviewTarget } from "../scripts/review-gate/hosts/local/repository-target.js";
-import { readLaneProgressOwner, readCandidateInheritedLaneProgress, readLaneResponsePerformance } from "../scripts/review-gate/lane-progress.js";
+import { countCompleteLogicalPasses, readLaneProgressOwner, readCandidateInheritedLaneProgress, readLaneResponsePerformance } from "../scripts/review-gate/lane-progress.js";
 import type { LaneProgressState } from "../scripts/review-gate/core/operation-state-schema.js";
 import type { ReviewTarget } from "../scripts/review-gate/core/gate-contract-v2-schema.js";
 import type { StandardReviewObligationProjection } from "../scripts/review-gate/policy/standard-review-projection-schema.js";
@@ -86,7 +86,9 @@ export async function readResolveNextPassContext(input: {
   const earlier = selectErrandCorrectionPredecessor(owner?.attempts ?? [], target.headSha) ?? inheritedTerminal;
   const predecessor = terminalResult ?? (earlier === undefined
     ? null : await resultReader.readResult(earlier.attemptId));
-  return deriveReviewNextPassContext({ predecessor, currentTarget: target, currentLineage: lineage,
+  return deriveReviewNextPassContext({ predecessor,
+    completePasses: countCompleteLogicalPasses(owner?.attempts ?? []) + (inherited?.inheritedCompletePasses ?? 0),
+    currentTarget: target, currentLineage: lineage,
     standardReview: request.standardReview, resultReader, dispositionStore, rangeProof: { cwd: root, exec },
     deltaAdmission: { sources: input.configuredSources, surface: live.context.errand !== null
       && request.target.pullRequest !== null ? "open-pr-errand" : "ordinary" },
@@ -112,6 +114,7 @@ export async function readHostedErrandNextPassContext(input: {
     && attempt.outcome !== "pending") ?? [];
   const earlier = selectErrandCorrectionPredecessor(input.progress?.attempts ?? [], input.target.headSha);
   return deriveReviewNextPassContextFromAttempts({ attempts: attempts.map(projectReviewPolicyAttempt),
+    completePasses: countCompleteLogicalPasses(input.progress?.attempts ?? []),
     rangeProof: { cwd: input.cwd, exec: input.exec },
     deltaAdmission: { sources: input.configuredSources, surface: "open-pr-errand" },
     predecessorOperationId: earlier?.attemptId, currentTarget: input.target, currentLineage: input.lineage,

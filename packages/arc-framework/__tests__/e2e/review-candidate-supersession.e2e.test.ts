@@ -321,7 +321,7 @@ describe("Candidate review usage across supersession", () => {
       dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
       resultReader: createRepositoryReviewResultReader(publisher),
     });
-    expect(nextPassContext).toEqual({ convergence: "unconverged", responseDue: false, incremental: null });
+    expect(nextPassContext).toEqual({ completePasses: 1, convergence: "unconverged", responseDue: false, incremental: null });
 
     await git(root, ["remote", "add", "origin", OFFLINE_ORIGIN]);
     const continuation = await runArc([

@@ -526,7 +526,7 @@ describe("pre-publication correction confirmation", () => {
       baseRevision: movedBase, approvedHead: headSha, changeRequest: { repository: "owner/repo", pullRequest: 42 },
       candidate, vehicle: { ...lineage, head: headSha } });
     expect(result).toMatchObject({ discharged: false, nextSource: "delegated-agent", requestCoverage: "complete",
-      nextPassContext: { convergence: "unconverged", responseDue: false, incremental: null } });
+      nextPassContext: { completePasses: 1, convergence: "unconverged", responseDue: false, incremental: null } });
     expect(result).not.toHaveProperty("coverageSelectionAction");
   });
 

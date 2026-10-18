@@ -13,7 +13,7 @@ const request = ReviewPolicyCommandRequestSchema.parse({ schemaVersion: 1,
   completedPasses: 1, attempts: [], invocation: { mode: "force", sourceId: "codex-pr" } });
 function resolution(configured = true) {
   return resolveReviewPolicy({ ...request, sources: configured ? ["codex-pr", "delegated-agent"] : ["codex-pr"], maxPasses: 4,
-    nextPassContext: { convergence: "unconverged", responseDue: false, incremental: null } });
+    nextPassContext: { completePasses: 1, convergence: "unconverged", responseDue: false, incremental: null } });
 }
 const localRequest = { schemaVersion: 1, evaluatorIdentity: "reviewer", routingFacts: {} };
 

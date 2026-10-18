@@ -31,7 +31,7 @@ it("holds hosted capacity while an ordinary Candidate local attempt is pending",
   if (progress === null) throw new Error("expected pending local lane progress");
   expect(() => assertCandidateHostedReservationPolicyAdmission({ reservation, progress,
     discharge: { discharged: false, detail: "The lane requires review.", nextSource: "codex-pr" },
-    nextPassContext: { convergence: "none", responseDue: false, incremental: null },
+    nextPassContext: { completePasses: 0, convergence: "none", responseDue: false, incremental: null },
     target: { repository: "owner/repository", pullRequest: 42, headSha: state.target.headSha },
     provider: "codex-pr", coverage: "complete", maxPasses: 4, logicalPass: 1,
   })).toThrow(/capacity.*pending/u);

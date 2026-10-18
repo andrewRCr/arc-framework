@@ -706,23 +706,14 @@ coverage is chosen, and `approval-required` once complete coverage is chosen; a 
 complete pass. Workflow, method, and configuration text changes in the package's `arc/` source first, then in the
 `.arc/` copy by targeted edit.
 
-### `[ ]` **5.1 Derive the complete count once, and give every ceiling reader that count — § 4, § 5.1**
+### `[x]` **5.1 Derive the complete count once, and give every ceiling reader that count — § 4, § 5.1**
 
 - _Goal:_ The next-pass context carries the lane's complete count — its finished passes whose `effectiveCoverage` is
   `complete` — as the one derivation every ceiling read takes, so no ceiling read can disagree with the driver's.
 
-    - The count is lane progress's `completePasses` (`countCompleteLogicalPasses`, `lane-progress.ts`), which a
-      superseding Candidate already inherits (`readCandidateInheritedLaneProgress`, `lane-progress-supersession.ts`).
-      The supersession module's own count (`completePasses`, yielding `inheritedCompletePasses`),
-      `projectHostedReservationPolicyProgress`'s (`hosted-reservation-admission.ts`), which also requires a verdict
-      outcome, has no frontline branch, and counts one delivery member's attempts, and Task 4.1's facts take it — the
-      second over the same member's attempts.
-    - The driver takes the count as an internal input; `composeDeliveryReviewObligation` (`status.ts`) still blocks a
-      member when its ceiling read disagrees with the driver's.
-    - Build `test-first` (one behavior at a time):
-        - A lane with complete passes and fix checks counts only the complete passes, across supersession and on one
-          delivery member alike.
-        - A standard-lane request without the count is refused.
+- _Outcome:_ The internal next-pass context now requires the canonical complete count. Supersession and delivery
+  projection share `countCompleteLogicalPasses`; resolve, admission, respond, and lane facts carry the same count,
+  including validated Candidate ancestors. Interleaved histories retain their logical attempt numbering.
 
 ### `[ ]` **5.2 Compare against the ceiling by complete count, and bind attempts by `logicalPass` — § 5.2**
 

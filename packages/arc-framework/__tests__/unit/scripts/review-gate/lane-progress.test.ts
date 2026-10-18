@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createHostedHandleFixture, createHostedTerminalAttemptFixture, publishHostedTerminalProgressFixture } from "../../../fixtures/hosted-review.js";
 
 import { CanonicalDigestSchema } from "../../../../src/lib/kernel/index.js";
 
@@ -251,6 +252,35 @@ describe("lane progress", () => {
     expect(result.inheritedCompletePasses).toBe(0);
     expect(result.ancestorOwners.map(({ owner }) => owner?.attempts[0]?.attemptId))
       .toEqual(["ancestor-1", "ancestor-0"]);
+  });
+
+  it("inherits only complete passes while retaining interleaved fix-check attempts", async () => {
+    const store = createStore();
+    const candidates = [digest(`sha256:${"1".repeat(64)}`), digest(`sha256:${"2".repeat(64)}`)];
+    for (const [index, candidateId] of candidates.entries()) {
+      const lineage = { kind: "candidate" as const, candidateId };
+      for (const [offset, requestedCoverage] of (["complete", "incremental", "complete"] as const).entries()) {
+        const logicalPass = offset + 1;
+        const handle = createHostedHandleFixture({ repositoryId: attempt.repositoryId, lineage, logicalPass,
+          provider: "coderabbit-pr", requestedCoverage,
+          target: { repository: "owner/repo", pullRequest: 42, headSha: attempt.headSha },
+          artifact: { kind: "issue-comment", id: `ancestor-${index}-pass-${logicalPass}`,
+            url: `https://example.invalid/request-${index}-${logicalPass}`, createdAt: "2026-08-15T11:00:00Z" } });
+        const terminal = createHostedTerminalAttemptFixture({ admission: handle.admission,
+          artifact: handle.artifact, outcome: "clean" });
+        await publishHostedTerminalProgressFixture(store, {
+          operationId: laneProgressOperationId({ lane: "standard", repositoryId: attempt.repositoryId,
+            headSha: attempt.headSha, lineage }), repositoryId: attempt.repositoryId, lineage, logicalPass,
+          changeRequestId: "pull/42", headSha: attempt.headSha, sourceId: "coderabbit-pr", outcome: "clean",
+          terminal, now: attempt.now });
+      }
+    }
+    const inherited = await readCandidateInheritedLaneProgress(store, { lane: "standard",
+      repositoryId: attempt.repositoryId, headSha: objectId("d"),
+      ancestors: candidates.map(candidateId => ({ candidateId, baseRevision: objectId("a"), reviewResponseCount: 0 })) });
+    expect(inherited).toMatchObject({ inheritedCompletedPasses: 6, inheritedCompletePasses: 4 });
+    expect(inherited.ancestorOwners.map(({ owner }) => owner?.attempts.map(value => value.logicalPass)))
+      .toEqual([[1, 2, 3], [1, 2, 3]]);
   });
 
   it("distinguishes a zero-attempt ancestor from a missing owner with a recorded response", async () => {

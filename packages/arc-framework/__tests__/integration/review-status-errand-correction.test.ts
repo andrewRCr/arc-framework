@@ -573,7 +573,7 @@ describe("Errand local correction cadence", () => {
       const result = await attestErrandLocal(errand, prepared);
       await expect(createLocalPrepareDependencies({ cwd: errand.root, exec: errand.exec }).validatePolicyAdmission({
         repositoryId: result.repositoryId, target: result.target, lineage: result.admission.lineage,
-        standardReview: errand.standardReview, completedPasses: 3,
+        standardReview: errand.standardReview, completedPasses: 3, completePasses: 1,
         attempts: [{ sourceId: "delegated-agent", outcome: "clean", reviewOperationId: result.producerId }],
         terminalResponsePerformed: false,
       })).rejects.toMatchObject({ state: "pass-complete" });
@@ -761,7 +761,7 @@ describe("ordinary resolve next-pass records", () => {
     } else if (surface === "local-prepare") {
       await expect(createLocalPrepareDependencies({ cwd: errand.root, exec: errand.exec }).validatePolicyAdmission({
         repositoryId: result.repositoryId, target: result.target, lineage: result.admission.lineage,
-        standardReview: errand.standardReview, completedPasses: 2,
+        standardReview: errand.standardReview, completedPasses: 2, completePasses: 1,
         attempts: [{ sourceId: "delegated-agent", outcome: "clean", reviewOperationId: result.producerId }],
         terminalResponsePerformed: false,
       })).rejects.toMatchObject({ state: "pass-complete" });
@@ -800,7 +800,7 @@ describe("ordinary resolve next-pass records", () => {
     const input = { repositoryId: errand.fixedReviewTarget.repositoryId, target: errand.fixedReviewTarget,
       lineage: { kind: "head-bound" as const, vehicleKind: "errand" as const,
         vehicleIdentity: errand.errand.claimId, headSha: errand.fixedReviewTarget.headSha },
-      standardReview: errand.standardReview, completedPasses: 1, attempts: [], terminalResponsePerformed: false,
+      standardReview: errand.standardReview, completedPasses: 1, completePasses: 1, attempts: [], terminalResponsePerformed: false,
       predecessorOperationId: errand.firstAttemptId };
     const error = await dependencies.validatePolicyAdmission(input).catch(error => error as unknown);
     expect(error).toMatchObject({ state: "unavailable", diagnostics: [
@@ -828,7 +828,7 @@ describe("ordinary resolve next-pass records", () => {
     await expect(createLocalPrepareDependencies({ cwd: errand.root, exec: errand.exec }).validatePolicyAdmission({
       repositoryId: target.repositoryId, target,
       lineage: { kind: "head-bound", vehicleKind: "errand", vehicleIdentity: errand.errand.claimId, headSha: target.headSha },
-      standardReview: errand.standardReview, completedPasses: 1, attempts: [], terminalResponsePerformed: false,
+      standardReview: errand.standardReview, completedPasses: 1, completePasses: 1, attempts: [], terminalResponsePerformed: false,
       predecessorOperationId: errand.firstAttemptId, coverageAdmission: { requestedCoverage: "complete" },
     })).resolves.toMatchObject({ state: "ready", pass: 2, coverageAdmission: { requestedCoverage: "complete" } });
   });
@@ -840,7 +840,7 @@ describe("ordinary resolve next-pass records", () => {
     const context = await readResolveNextPassContext({ configuredSources: ["coderabbit-pr", "codex-pr"], request: { ...request, attempts: [] }, root: errand.root,
       exec: errand.exec, operationStore: errand.store, dispositionStore: errand.dispositionStore,
       resultReader: createRepositoryReviewResultReader(errand.publisher) });
-    expect(context).toEqual({ convergence: severity === "major" ? "unconverged" : "converged",
+    expect(context).toEqual({ completePasses: 1, convergence: severity === "major" ? "unconverged" : "converged",
       responseDue: false, incremental: severity === "major" ? { basis: "fix-check", scope: errand.expectedScope } : null });
   });
 
@@ -856,7 +856,7 @@ describe("ordinary resolve next-pass records", () => {
       attempts: [{ sourceId: errand.provider, outcome: "clean", reviewOperationId: terminal.attemptId }] }, root: errand.root,
       exec: errand.exec, operationStore: errand.store, dispositionStore: errand.dispositionStore,
       resultReader: createRepositoryReviewResultReader(errand.publisher) });
-    expect(context).toEqual({ convergence: "converged", responseDue: false, incremental: null });
+    expect(context).toEqual({ completePasses: 1, convergence: "converged", responseDue: false, incremental: null });
   });
 });
 

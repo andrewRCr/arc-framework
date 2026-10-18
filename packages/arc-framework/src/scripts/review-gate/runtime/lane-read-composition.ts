@@ -16,7 +16,7 @@ import { LocalReviewAuthorityError } from "../hosts/local/review-authority.js";
 import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-store.js";
 import { LocalApprovedDispositionRecordStore } from "../hosts/local/disposition-record-store.js";
 import { createReadOnlyRepositoryReviewResultReader } from "../hosts/local/review-result-reader-composition.js";
-import { readLaneResponsePerformance } from "../lane-progress.js";
+import { countCompleteLogicalPasses, readLaneResponsePerformance } from "../lane-progress.js";
 import { deriveReviewNextPassContext } from "../policy/review-next-pass.js";
 import type { ReviewNextPassContext } from "../policy/review-next-pass-schema.js";
 import { parseReviewSourceIds } from "../hosts/local/frontline-source-preferences.js";
@@ -36,9 +36,11 @@ async function readNextContext(input: LaneReadBoundary & {
   workUnitId?: string; sources: readonly string[]; operationStore: LocalReviewOperationStateStore;
   dispositionStore: LocalApprovedDispositionRecordStore; publisher: RepositoryGitCommonStatePublisher;
 }): Promise<ReviewNextPassContext> {
+  const completePasses = input.progress.filter(owner => owner.lane === "standard")
+    .reduce((count, owner) => count + countCompleteLogicalPasses(owner.attempts), 0);
   const terminal = input.progress.filter(owner => owner.lane === "standard").flatMap(owner => owner.attempts)
     .filter(attempt => attempt.terminalProducer).at(-1);
-  if (terminal === undefined) return { convergence: "none", responseDue: false, incremental: null };
+  if (terminal === undefined) return { completePasses, convergence: "none", responseDue: false, incremental: null };
   const resultReader = createReadOnlyRepositoryReviewResultReader(input.publisher, input.target.repositoryId);
   const predecessor = await resultReader.readResult(terminal.attemptId);
   if (predecessor.kind === "frontline") throw new Error("standard lane contains a frontline producer");
@@ -52,7 +54,7 @@ async function readNextContext(input: LaneReadBoundary & {
   const context = { input, dispositionStore: input.dispositionStore, operationStore: input.operationStore };
   const confirm = createLocalContributionConfirmation({ context, repositoryId: input.target.repositoryId,
     baseRef: input.target.baseRef, policyTarget, candidate });
-  return deriveReviewNextPassContext({ predecessor, currentTarget: input.target, currentLineage: input.lineage,
+  return deriveReviewNextPassContext({ predecessor, completePasses, currentTarget: input.target, currentLineage: input.lineage,
     standardReview, resultReader, dispositionStore: input.dispositionStore, rangeProof: input,
     readResponsePerformance: result => readLaneResponsePerformance(input.operationStore, result),
     confirmApplicability: (before, current) => confirm(before, current.target, current.admission.lineage, current),
@@ -82,7 +84,7 @@ async function readResolvedLane(request: ReviewLaneReadRequest, input: LaneReadB
       store: operationStore, dispositionStore, repositoryId, headSha: coordinates.headSha, lineage, workUnitId });
   const target = repositoryId === null ? null : createReviewTarget({ schemaVersion: 2,
     semanticsVersion: "review-gate/v2", repositoryId, ...coordinates });
-  const nextPassContext = target === null ? { convergence: "none" as const, responseDue: false, incremental: null }
+  const nextPassContext = target === null ? { completePasses: 0, convergence: "none" as const, responseDue: false, incremental: null }
     : await readNextContext({ ...input, ...history, target, lineage, workUnitId, candidateReader,
       sources: parseReviewSourceIds(settings["review.standard_sources"]), operationStore, dispositionStore, publisher });
   return projectReviewLaneRead({ ...history, lineage, nextPassContext, target: coordinates,

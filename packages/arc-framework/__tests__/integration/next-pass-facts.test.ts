@@ -39,7 +39,7 @@ it("measures the fix separately from the contribution and observes files added o
   const target = createReviewTarget({ ...coordinates, headSha: await git("rev-parse", "HEAD"),
     headTree: await git("rev-parse", "HEAD^{tree}") });
   const { obligation, reasons, rubricVersion, rubricDigest, retrigger, count } = root.requirement;
-  const nextPassContext = await deriveReviewNextPassContext({ predecessor: root, currentTarget: target,
+  const nextPassContext = await deriveReviewNextPassContext({ completePasses: 1, predecessor: root, currentTarget: target,
     currentLineage: root.admission.lineage, standardReview: { obligation, reasons, rubricVersion, rubricDigest, retrigger, count },
     resultReader: fixture.resultReader, dispositionStore: { readDispositionRecord: async () => null,
       appendDispositionRecord: async () => { throw new Error("Read-only context"); } }, readResponsePerformance: async () => null,
@@ -62,7 +62,7 @@ it("measures the fix separately from the contribution and observes files added o
       headSha: reviewed.headSha, attemptId: producer.producerId, dispositionSetId: record.currentDispositionSetId,
       producedHeadSha: target.headSha, now: "2026-10-18T00:00:00Z" });
   const observed = await deriveNextPassFacts({ progress: [performed], dispositions: [record],
-    nextPassContext: { convergence: "unconverged", responseDue: false, incremental: null },
+    nextPassContext: { completePasses: 1, convergence: "unconverged", responseDue: false, incremental: null },
     target, ceiling: 4, exec: createRawGitExec(cwd) });
   expect(observed.fixRounds).toMatchObject([{ dispositionSetId: record.currentDispositionSetId,
     originatingHeadSha: reviewed.headSha, producedHeadSha: target.headSha, outsideCitedLoci: true, addedFiles: true }]);

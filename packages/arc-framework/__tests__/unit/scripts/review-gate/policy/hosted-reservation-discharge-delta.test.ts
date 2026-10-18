@@ -31,7 +31,7 @@ async function scenario() {
     repository: "owner/repository", headSha: root.target.headSha });
   async function terminalPolicy(attempt: { attemptId: string }) {
     const current = await fixture.resultReader.readResult(attempt.attemptId);
-    const nextPassContext = await deriveReviewNextPassContext({ predecessor: current, currentTarget: current.target,
+    const nextPassContext = await deriveReviewNextPassContext({ completePasses: 1, predecessor: current, currentTarget: current.target,
       currentLineage: current.admission.lineage, standardReview, dispositionStore,
       resultReader: fixture.resultReader, readResponsePerformance: async () => null });
     return resolveEvidenceBoundReviewPolicy({ schemaVersion: 1, lane: "standard", standardReview,
@@ -108,7 +108,7 @@ it("discharges a converged local delta at its own head through the proven covera
 it.each(["bounded", "unbounded", "missing"] as const)("requests a local delta across a plain commit with residual=%s", async residual => {
   const fixture = await scenario();
   const { current, read } = earlierRead(fixture, fixture.root, false, residual);
-  const nextPassContext = await deriveReviewNextPassContext({ predecessor: fixture.root, currentTarget: current,
+  const nextPassContext = await deriveReviewNextPassContext({ completePasses: 1, predecessor: fixture.root, currentTarget: current,
     currentLineage: fixture.root.admission.lineage, standardReview: fixture.reservation.obligation,
     dispositionStore, resultReader: fixture.resultReader, readResponsePerformance: async () => null,
     rangeProof: linearReviewRangeProof(fixture.root.target.headSha, current.headSha),
@@ -165,7 +165,7 @@ it("drops an earlier forced hosted choice before the delta reaches source select
   const reservation = createStandardReviewReservation({ candidateId: fixture.candidateId,
     sourceId: "delegated-agent", sources: ["delegated-agent", "codex-pr"], obligation: fixture.reservation.obligation,
     repository: "owner/repository", headSha: root.target.headSha });
-  const nextPassContext = await deriveReviewNextPassContext({ predecessor: producer, currentTarget: current,
+  const nextPassContext = await deriveReviewNextPassContext({ completePasses: 1, predecessor: producer, currentTarget: current,
     currentLineage: producer.admission.lineage, standardReview: reservation.obligation, dispositionStore,
     resultReader: fixture.resultReader, readResponsePerformance: async () => null,
     rangeProof: linearReviewRangeProof(producer.target.headSha, current.headSha),

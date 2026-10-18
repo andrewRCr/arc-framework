@@ -20,6 +20,7 @@ import { LocalReviewResultReaderError } from "./hosts/local/review-result-reader
 import { resolveRepositoryIdentity } from "./hosts/local/git-common-state.js";
 import {
   readLaneProgress,
+  countCompleteLogicalPasses,
   readLaneProgressOwner,
   readLaneResponsePerformance,
   type LanePolicyAttempt,
@@ -364,6 +365,7 @@ async function resolveErrandLaneAtHead(input: {
   readonly errand: OrdinaryErrand;
   readonly policyTarget: ErrandPolicyTarget;
   readonly completedPasses: number;
+  readonly completePasses: number;
   readonly terminal: LanePolicyAttempt;
   readonly result: StandardReviewResult;
   readonly ceilingOverride?: ReviewCeilingOverride;
@@ -383,6 +385,7 @@ async function resolveErrandLaneAtHead(input: {
   const requirement = result.requirement;
   const dispositionStore = new LocalApprovedDispositionRecordStore(input.publisher);
   const nextPassContext = await deriveReviewNextPassContext({
+    completePasses: input.completePasses,
     predecessor: result, currentTarget: result.target, currentLineage: result.admission.lineage,
     rangeProof: { cwd: input.cwd, exec: input.exec },
     deltaAdmission: { sources: configured.sources, surface: "open-pr-errand" },
@@ -452,6 +455,7 @@ async function readCarriedErrandReview(input: {
   readonly target: ExactErrandStatusTarget;
   readonly pullRequest: number;
   readonly completedPasses: number;
+  readonly completePasses: number;
   readonly prior: { readonly attemptId: string; readonly headSha: string };
   readonly result: StandardReviewResult;
   readonly currentBaseOid: string;
@@ -513,7 +517,7 @@ async function readCarriedErrandReview(input: {
   const policy = await resolveErrandLaneAtHead({
     cwd: input.cwd, exec: input.exec, publisher: input.publisher, store: input.store, resultReader: input.resultReader,
     errand: input.errand, policyTarget: { repository: target.repository, pullRequest, headSha: priorHead },
-    completedPasses: input.completedPasses, terminal, result,
+    completedPasses: input.completedPasses, completePasses: input.completePasses, terminal, result,
   });
   return policy.state !== "pass-complete" ? null : {
     state: "settled",
@@ -594,14 +598,15 @@ async function readUnreviewedErrandHead(input: {
   if (input.currentBaseOid !== undefined && input.additionalPassAuthorization === undefined) {
     const carried = await readCarriedErrandReview({
       cwd: input.cwd, exec: input.exec, rawExec: input.rawExec, publisher: input.publisher, store, resultReader,
-      repositoryId, errand, target, pullRequest: input.pullRequest, completedPasses, prior: historical, result,
+      repositoryId, errand, target, pullRequest: input.pullRequest, completedPasses,
+      completePasses: countCompleteLogicalPasses(owner.attempts), prior: historical, result,
       currentBaseOid: input.currentBaseOid, currentBaseRef: input.currentBaseRef, baseMovement: input.baseMovement,
     });
     if (carried !== null) return carried;
   }
   return nextErrandPassObligation({
     cwd: input.cwd, exec: input.exec, publisher: input.publisher, store, resultReader, errand, policyTarget, configured, result, completedPasses,
-    statusTarget: target, sourceId: input.sourceId,
+    completePasses: countCompleteLogicalPasses(owner.attempts), statusTarget: target, sourceId: input.sourceId,
     currentBase: await currentErrandDiffBase(input.exec, target.headSha, input.currentBaseOid, input.currentBaseRef),
     ...(input.ceilingOverride === undefined ? {} : { ceilingOverride: input.ceilingOverride }),
     ...(input.additionalPassAuthorization === undefined ? {}
@@ -621,6 +626,7 @@ async function nextErrandPassObligation(input: {
   readonly configured: { readonly sources: readonly string[]; readonly maxPasses: number };
   readonly result: StandardReviewResult;
   readonly completedPasses: number;
+  readonly completePasses: number;
   readonly currentBase: Awaited<ReturnType<typeof currentErrandDiffBase>>;
   readonly ceilingOverride?: ReviewCeilingOverride;
   readonly additionalPassAuthorization?: ReviewAdditionalPassAuthorization;
@@ -634,6 +640,7 @@ async function nextErrandPassObligation(input: {
     repositoryId: input.result.repositoryId, ...input.currentBase,
   });
   const nextPassContext = await deriveReviewNextPassContext({
+    completePasses: input.completePasses,
     predecessor: input.result, currentTarget, currentLineage: input.result.admission.lineage,
     rangeProof: { cwd: input.cwd, exec: input.exec },
     deltaAdmission: { sources: configured.sources, surface: "open-pr-errand" },
@@ -881,7 +888,7 @@ export async function readErrandRoutedObligation(input: {
       cwd: input.cwd, exec, publisher, store, resultReader, errand: selected.record, sourceId: input.sourceId,
       policyTarget: { repository: input.target.repository, pullRequest: input.pullRequest,
         headSha: input.target.headSha },
-      completedPasses: progress.completedPasses, terminal, result,
+      completedPasses: progress.completedPasses, completePasses: progress.completePasses, terminal, result,
       ...(input.ceilingOverride === undefined ? {} : { ceilingOverride: input.ceilingOverride }),
       ...(input.additionalPassAuthorization === undefined ? {}
         : { additionalPassAuthorization: input.additionalPassAuthorization }),

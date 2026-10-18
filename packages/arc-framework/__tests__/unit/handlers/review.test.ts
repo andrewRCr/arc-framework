@@ -2399,7 +2399,7 @@ describe("handleReviewPrePublication", () => {
     schemaVersion: 1 as const,
     target,
     lane: name,
-    ...(name === "standard" ? { nextPassContext: { convergence: "none" as const, responseDue: false, incremental: null } } : {}),
+    ...(name === "standard" ? { nextPassContext: { completePasses: 1, convergence: "none" as const, responseDue: false, incremental: null } } : {}),
     frontlineActive: false,
     standardReview,
     completedPasses: 0,

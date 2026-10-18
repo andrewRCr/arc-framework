@@ -245,7 +245,7 @@ function dependencies(
   };
   return {
     resultReader,
-    ...(result.kind === "frontline" ? {} : { nextPassContext: firstReviewNextPassContext }),
+    ...(result.kind === "frontline" ? {} : { nextPassContext: { ...firstReviewNextPassContext, completePasses: result.admission.effectiveCoverage === "complete" ? 1 : 0 } }),
     dispositionStore,
     confirmTarget: vi.fn(async () => currentTarget),
   };
@@ -770,7 +770,7 @@ describe("evidence-bound review policy", () => {
         precedingProducerId: result.producerId, completedPasses: 2, nextPass: 3 } } : {}) };
     await expect(resolveEvidenceBoundReviewPolicyContinuation(request, { terminalResponsePerformed: false }, {
       ...dependencies(result), sources: ["delegated-agent"], maxPasses: 4,
-      nextPassContext: { convergence: "converged", responseDue: false, incremental: null },
+      nextPassContext: { completePasses: 1, convergence: "converged", responseDue: false, incremental: null },
       resultReader: { readResult: async producerId => producerId === root.producerId ? root : result },
     })).resolves.toMatchObject({ state: "ready", nextAction: "local-prepare", payload: { pass: 3, scope: "whole-target" } });
   });
@@ -790,7 +790,7 @@ describe("evidence-bound review policy", () => {
         precedingProducerId: result.producerId, completedPasses: 2, nextPass: 3 } } : {}) };
     await expect(resolveEvidenceBoundReviewPolicyContinuation(request, { terminalResponsePerformed: false }, {
       ...dependencies(result), sources: ["delegated-agent", "codex-pr"], selectionSources: ["codex-pr"], maxPasses: 4,
-      nextPassContext: { convergence: "converged", responseDue: false, incremental: null },
+      nextPassContext: { completePasses: 1, convergence: "converged", responseDue: false, incremental: null },
       resultReader: { readResult: async producerId => producerId === root.producerId ? root : result },
     })).resolves.toMatchObject({ state: "ready", nextAction: "hosted-request", payload: { sourceId: "codex-pr", pass: 3 } });
   });
@@ -1024,7 +1024,7 @@ describe("evidence-bound review policy", () => {
       standardReview: { ...standardReview, retrigger: "incremental" },
     }, {
       ...dependencies(result, record),
-      nextPassContext: { convergence: "unconverged" as const, responseDue: true, incremental: null },
+      nextPassContext: { completePasses: 0, convergence: "unconverged" as const, responseDue: true, incremental: null },
       sources: ["codex-pr", "delegated-agent"],
       maxPasses: 2,
     })).resolves.toMatchObject({
@@ -1047,7 +1047,7 @@ describe("evidence-bound review policy", () => {
     };
     const evidence = {
       ...dependencies(result, record),
-      nextPassContext: { convergence: "unconverged" as const, responseDue: true, incremental: null },
+      nextPassContext: { completePasses: 0, convergence: "unconverged" as const, responseDue: true, incremental: null },
       sources: ["codex-pr", "delegated-agent"],
       maxPasses: 2,
       readResponsePerformance: async () => performedFix(result, record),

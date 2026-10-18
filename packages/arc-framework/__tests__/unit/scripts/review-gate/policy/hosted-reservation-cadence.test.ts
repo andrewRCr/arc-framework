@@ -30,7 +30,7 @@ const scope = { schemaVersion: 1 as const, predecessorProducerId: hostedLaneAtte
 function fixture(proven = true) {
   return {
     reservation, span: [headSha],
-    nextPassContext: { convergence: "unconverged" as const, responseDue: false,
+    nextPassContext: { completePasses: 1, convergence: "unconverged" as const, responseDue: false,
       incremental: proven ? { basis: "fix-check" as const, scope } : null },
     target: { ...handle.target, headSha, baseRevision: handle.admission.reviewTarget.diffBaseSha,
       vehicle: { ...vehicle, head: headSha } },
@@ -65,7 +65,8 @@ describe("delivery material-response coverage", () => {
   });
 
   it("defaults an unproved material fix-check successor to local complete coverage without a selection", async () => {
-    const input = fixture(false);
+    const original = fixture(false);
+    const input = { ...original, nextPassContext: { ...original.nextPassContext, completePasses: 0 } };
     const incremental = createHostedHandleFixture({ provider: "codex-pr", vehicle,
       requestedCoverage: "incremental", effectiveCoverage: "incremental" });
     const attemptId = hostedLaneAttemptId(incremental);
@@ -100,7 +101,7 @@ describe("converged fix-check continuation", () => {
       const incremental = createHostedHandleFixture({ provider: "codex-pr", ...(member ? { vehicle } : {}),
         requestedCoverage: "incremental", effectiveCoverage: "incremental" });
       const terminal = createHostedTerminalAttemptFixture({ admission: incremental.admission, outcome: "clean" });
-      const nextPassContext = { convergence: "converged" as const, responseDue: false, incremental: null };
+      const nextPassContext = { completePasses: 0, convergence: "converged" as const, responseDue: false, incremental: null };
       const reserved = createStandardReviewReservation({ candidateId: canonicalDigest({ candidate: 1 }),
         sourceId: "codex-pr", sources: ["codex-pr", "delegated-agent"],
         ...(member ? { target: reservation.target } : { target: { kind: "pinned-head" as const,

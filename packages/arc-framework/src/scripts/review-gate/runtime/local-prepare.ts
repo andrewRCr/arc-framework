@@ -1,5 +1,6 @@
 /** Prepare exact local review operations and enforce lane admission. */
 
+import { countCompleteLogicalPasses } from "../lane-progress.js";
 import { assertReservedLocalObligation, confirmReservedLocalReplay } from "./local-reserved-obligation.js";
 import type { ConfirmResponseHeadContinuation } from "../core/response-head-continuation.js";
 import type { FixedFindingPointer } from "../core/fixed-finding-pointers.js";
@@ -198,6 +199,7 @@ export interface LocalPrepareDependencies {
     workUnitId?: string;
     standardReview: StandardReviewObligationProjection;
     completedPasses: number;
+    completePasses: number;
     attempts: ReviewPolicyCommandRequest["attempts"];
     terminalResponsePerformed: boolean;
     predecessorOperationId?: string;
@@ -551,6 +553,7 @@ async function resolveSettlementPolicyAdmission(
       ? { workUnitId: input.authority.vehicle.identity }
       : {}),
     standardReview: projection,
+    completePasses: inherited.inheritedCompletePasses + countCompleteLogicalPasses(owner?.attempts ?? []),
     completedPasses: inherited.inheritedCompletedPasses + (owner?.completedPasses ?? 0),
     attempts: policyAttempts,
     terminalResponsePerformed: currentAttempts.at(-1)?.outcome === "settled-findings",

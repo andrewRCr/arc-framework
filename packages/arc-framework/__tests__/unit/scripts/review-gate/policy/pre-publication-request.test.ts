@@ -1339,7 +1339,7 @@ describe("composePrePublicationReviewRequest", () => {
     });
     expect(composition.status === "composed" && composition.request.standard).toMatchObject({
       completedPasses: 1,
-      nextPassContext: { convergence: "pending", responseDue: true, incremental: null },
+      nextPassContext: { completePasses: 1, convergence: "pending", responseDue: true, incremental: null },
       attempts: [{ sourceId: "codex-pr", outcome: "findings" }],
     });
     expect(composition.status === "composed" && composition.request.pendingResponse.standard)
@@ -1472,7 +1472,7 @@ describe("composePrePublicationReviewRequest", () => {
 
     expect(composition.status === "composed" && composition.request.standard).toMatchObject({
       completedPasses: 2,
-      nextPassContext: { convergence: "converged", responseDue: false, incremental: null },
+      nextPassContext: { completePasses: 1, convergence: "converged", responseDue: false, incremental: null },
       attempts: [],
       sources: ["codex-pr"],
     });

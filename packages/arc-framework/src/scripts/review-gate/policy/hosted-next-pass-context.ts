@@ -13,6 +13,7 @@ import type { StandardReviewObligationProjection } from "./standard-review-proje
 
 /** Read the latest completed look in one subject's projected span and derive its next scope. */
 export async function deriveHostedNextPassContext(input: {
+  readonly readCompletePassCount: (lineage: LaneSubjectLineage) => Promise<number>;
   readonly target: ReviewTarget;
   readonly lineage?: LaneSubjectLineage;
   readonly progress?: readonly LaneProgressProjection[];
@@ -34,9 +35,10 @@ export async function deriveHostedNextPassContext(input: {
   const producerId = input.predecessorId ?? latest?.attemptId;
   const predecessor = producerId === undefined ? null : await input.evidence.resultReader.readResult(producerId);
   const confirmCurrent = input.confirmCurrentApplicability;
-  return deriveReviewNextPassContext({ predecessor, currentTarget: input.target,
-    currentLineage: input.lineage ?? predecessor?.admission.lineage ?? { kind: "head-bound", vehicleKind: "review-target",
-      vehicleIdentity: input.target.targetId, headSha: input.target.headSha },
+  const lineage = input.lineage ?? predecessor?.admission.lineage ?? { kind: "head-bound" as const,
+    vehicleKind: "review-target" as const, vehicleIdentity: input.target.targetId, headSha: input.target.headSha };
+  const completePasses = await input.readCompletePassCount(lineage);
+  return deriveReviewNextPassContext({ predecessor, completePasses, currentTarget: input.target, currentLineage: lineage,
     standardReview: input.standardReview, resultReader: input.evidence.resultReader,
     rangeProof: { cwd: input.cwd, exec: input.exec },
     deltaAdmission: { sources: input.configuredSources, surface: "ordinary" },

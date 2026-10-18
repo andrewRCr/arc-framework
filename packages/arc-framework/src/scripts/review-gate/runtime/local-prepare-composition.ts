@@ -195,7 +195,7 @@ async function validateLocalPolicyAdmission(
         confirmTarget: (attemptedTarget: ReviewTarget) => Promise.resolve(attemptedTarget),
       };
       const nextPassContext = await deriveReviewNextPassContextFromAttempts({
-        attempts: policyRequest.attempts, predecessorOperationId,
+        attempts: policyRequest.attempts, predecessorOperationId, completePasses: request.completePasses,
         currentTarget: target, currentLineage: lineage, standardReview, rangeProof: context.input,
         deltaAdmission: { sources: evidenceDependencies.sources,
           surface: await readLocalDeltaAdmissionSurface({ ...context.input, lineage, workUnitId,

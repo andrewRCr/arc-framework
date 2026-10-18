@@ -13,7 +13,7 @@ const standardReview = { obligation: "required" as const, reasons: ["sensitive-c
   rubricVersion: "standard-review/v1", rubricDigest: canonicalDigest({ rubric: "standard" }), retrigger: "full-final" as const, count: 1 as const };
 const lineage = { kind: "head-bound" as const, vehicleKind: "errand", vehicleIdentity: "claim", headSha: target.headSha };
 function input(convergence: "converged" | "unconverged") {
-  const nextPassContext = { convergence, responseDue: false, incremental: null };
+  const nextPassContext = { completePasses: 1, convergence, responseDue: false, incremental: null };
   const facts = nextPassFactsFixture(); facts.chainProven = false; facts.rangeSize.fix = null;
   return { target, sourceId: "delegated-agent", lineage, standardReview, nextPassContext, facts,
     predecessorOperationId: "earlier-material-producer",

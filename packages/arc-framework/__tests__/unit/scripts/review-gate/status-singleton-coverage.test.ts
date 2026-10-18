@@ -31,7 +31,7 @@ const standardReview = { obligation: requirement.obligation, reasons: requiremen
 const reservation = createStandardReviewReservation({ candidateId: attestation.candidateId, sourceId: "codex-pr",
   sources: ["codex-pr", "delegated-agent"], target: { kind: "pinned-head", repository: target.repository, headSha: target.headSha },
   obligation: standardReview });
-const nextPassContext = { convergence: "unconverged" as const, responseDue: false, incremental: null };
+const nextPassContext = { completePasses: 0, convergence: "unconverged" as const, responseDue: false, incremental: null };
 function coveragePolicy(sources: readonly string[] = reservation.sources) {
   const policy = resolveReviewPolicy({ schemaVersion: 1, target: handle.target, lane: "standard", standardReview,
     sources, maxPasses: 4, completedPasses: 1, nextPassContext,
@@ -94,7 +94,7 @@ it.each(([undefined, "complete", "incremental"] as const).flatMap(coverage =>
       "review.standard_sources: [delegated-agent]\nreview.standard_max_passes: 4\n");
     const localReservation = createStandardReviewReservation({ candidateId: attestation.candidateId,
       sourceId: "delegated-agent", sources: ["delegated-agent"], target: reservation.target, obligation: standardReview });
-    const freshContext = await deriveReviewNextPassContext({ predecessor: null, currentTarget: handle.admission.reviewTarget,
+    const freshContext = await deriveReviewNextPassContext({ completePasses: 0, predecessor: null, currentTarget: handle.admission.reviewTarget,
       currentLineage: handle.admission.lineage, standardReview,
       resultReader: { readResult: async () => { throw new Error("No predecessor exists."); } },
       dispositionStore: { readDispositionRecord: async () => null,

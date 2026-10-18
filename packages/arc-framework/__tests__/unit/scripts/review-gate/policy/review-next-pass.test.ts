@@ -29,6 +29,7 @@ function input(predecessor: ReviewResult | null, severity: "major" | "minor" = "
   }]) : null;
   const { obligation, reasons, rubricVersion, rubricDigest, count } = result.requirement;
   return {
+    completePasses: predecessor === null ? 0 : 1,
     deltaAdmission: { sources: ["delegated-agent"], surface: "ordinary" },
     predecessor, currentTarget, currentLineage: result.admission.lineage,
     standardReview: { obligation, reasons, rubricVersion, rubricDigest, retrigger, count },
@@ -107,7 +108,7 @@ it("resolves a range-proven correction scope with a delta basis", async () => {
     },
     confirmCurrentApplicability: async () => "review-required",
   });
-  expect(context).toMatchObject({ convergence: "converged", responseDue: false, incremental: {
+  expect(context).toMatchObject({ completePasses: 1, convergence: "converged", responseDue: false, incremental: {
     basis: "delta-check", scope: { predecessorProducerId: request.predecessor!.producerId,
       predecessorHeadSha: request.predecessor!.target.headSha, basisHeadSha: request.predecessor!.target.headSha,
       headSha: request.currentTarget.headSha },
@@ -205,7 +206,7 @@ describe("next-pass context", () => {
     const request = input(findingsHostedResult(["major"]));
     expect(await deriveReviewNextPassContext({ ...request,
       dispositionStore: { ...request.dispositionStore, readDispositionRecord: async () => null },
-    })).toMatchObject({ convergence: "pending", responseDue: true, incremental: null });
+    })).toMatchObject({ completePasses: 1, convergence: "pending", responseDue: true, incremental: null });
   });
 
   it.each(["clean", "no-fix"] as const)("offers no fix check after a %s predecessor under incremental policy", async kind => {
@@ -258,7 +259,7 @@ describe("next-pass context", () => {
     const record = approvedRecord(predecessor, [{ sourceVerification: "verified", verifiedSeverity: "minor", disposition: "defer" }]);
     expect(await deriveReviewNextPassContext({ ...request,
       dispositionStore: { ...request.dispositionStore, readDispositionRecord: async () => record },
-    })).toMatchObject({ convergence: "pending", responseDue: true, incremental: null });
+    })).toMatchObject({ completePasses: 1, convergence: "pending", responseDue: true, incremental: null });
   });
 
   it("re-proves an earlier fixed leg before extending its correction chain", async () => {
@@ -307,7 +308,7 @@ describe("next-pass context", () => {
   it("retains response facts but offers no range when the current Git target is unavailable", async () => {
     const request = input(findingsHostedResult(["major"]));
     expect(await deriveReviewNextPassContext({ ...request, currentTarget: null }))
-      .toEqual({ convergence: "unconverged", responseDue: false, incremental: null });
+      .toEqual({ completePasses: 1, convergence: "unconverged", responseDue: false, incremental: null });
   });
 
 });

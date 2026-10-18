@@ -1,4 +1,5 @@
 /** Production assembly for approved review dispositions. */
+import { readStandardCompletePassCount } from "./lane-complete-pass-count.js";
 import { confirmReviewCorrectionLeg, deriveReviewNextPassContext } from "../policy/review-next-pass.js";
 import type { EvidenceBoundReviewPolicyDependencies } from "../policy/review-policy-evidence.js";
 import type { ReviewPolicyCommandRequest } from "../policy/review-policy-driver.js";
@@ -396,6 +397,42 @@ function createRespondPolicyConfirmation(context: {
   };
 }
 
+async function readRespondPolicyNextPassContext(context: {
+  input: { cwd: string; exec: GitExec };
+  request: ReviewPolicyCommandRequest;
+  confirmedProducerTarget: ReviewResult["target"];
+  prepare: Pick<ReturnType<typeof createLocalPrepareDependencies>, "operationStore">;
+  policyDependencies: EvidenceBoundReviewPolicyDependencies;
+  configured: { sources: readonly string[] };
+  currentSettings: Awaited<ReturnType<typeof readConfigSettings>>["settings"];
+}) {
+  const { input, request, confirmedProducerTarget, prepare, policyDependencies, configured, currentSettings } = context;
+  const terminal = request.attempts.at(-1);
+  const predecessor = terminal?.outcome === "clean" || terminal?.outcome === "findings"
+    ? await policyDependencies.resultReader.readResult(terminal.reviewOperationId) : null;
+  const selected = predecessor === null ? null : await readRespondCandidate(input, predecessor);
+  const lineage = predecessor?.admission.lineage ?? { kind: "head-bound" as const, vehicleKind: "review-target" as const,
+    vehicleIdentity: confirmedProducerTarget.targetId, headSha: confirmedProducerTarget.headSha };
+  const completePasses = await readStandardCompletePassCount({ ...input, store: prepare.operationStore,
+    repositoryId: confirmedProducerTarget.repositoryId, headSha: confirmedProducerTarget.headSha,
+    lineage, candidate: selected?.record });
+  return deriveReviewNextPassContext({ predecessor, completePasses,
+    currentTarget: confirmedProducerTarget,
+    currentLineage: lineage,
+    standardReview: request.standardReview, resultReader: policyDependencies.resultReader,
+    dispositionStore: policyDependencies.dispositionStore,
+    readResponsePerformance: producer => readLaneResponsePerformance(prepare.operationStore, producer),
+    confirmApplicability: policyDependencies.confirmIncrementalApplicability,
+    rangeProof: input,
+    deltaAdmission: { sources: configured.sources, surface: predecessor?.admission.lineage.kind === "head-bound"
+      && predecessor.admission.lineage.vehicleKind === "errand" && request.target.pullRequest !== null
+      ? "open-pr-errand" : "ordinary" },
+    candidateProof: { candidate: selected?.record ?? null, ...input, baseRef: currentSettings["branch.base"],
+      observeTarget: () => deriveLocalReviewTarget({ ...input, baseRef: currentSettings["branch.base"],
+        repositoryId: confirmedProducerTarget.repositoryId }) },
+  });
+}
+
 /** Bind respond to repository-common records and trusted local/runtime identities. */
 export function createRespondDependencies(input: {
   exec: GitExec;
@@ -771,26 +808,8 @@ export function createRespondDependencies(input: {
       if (request.lane === "frontline") return resolveEvidenceBoundReviewPolicyContinuation(request, {
         terminalResponsePerformed: false,
       }, policyDependencies);
-      const terminal = request.attempts.at(-1);
-      const predecessor = terminal?.outcome === "clean" || terminal?.outcome === "findings"
-        ? await policyDependencies.resultReader.readResult(terminal.reviewOperationId) : null;
-      const selected = predecessor === null ? null : await readRespondCandidate(input, predecessor);
-      const nextPassContext = await deriveReviewNextPassContext({ predecessor,
-        currentTarget: confirmedProducerTarget,
-        currentLineage: predecessor?.admission.lineage ?? { kind: "head-bound", vehicleKind: "review-target",
-          vehicleIdentity: confirmedProducerTarget.targetId, headSha: confirmedProducerTarget.headSha },
-        standardReview: request.standardReview, resultReader: policyDependencies.resultReader,
-        dispositionStore: policyDependencies.dispositionStore,
-        readResponsePerformance: producer => readLaneResponsePerformance(prepare.operationStore, producer),
-        confirmApplicability: confirmIncrementalApplicability,
-        rangeProof: input,
-        deltaAdmission: { sources: configured.sources, surface: predecessor?.admission.lineage.kind === "head-bound"
-          && predecessor.admission.lineage.vehicleKind === "errand" && request.target.pullRequest !== null
-          ? "open-pr-errand" : "ordinary" },
-        candidateProof: { candidate: selected?.record ?? null, ...input, baseRef: currentSettings["branch.base"],
-          observeTarget: () => deriveLocalReviewTarget({ ...input, baseRef: currentSettings["branch.base"],
-            repositoryId: confirmedProducerTarget.repositoryId }) },
-      });
+      const nextPassContext = await readRespondPolicyNextPassContext({ input, request, confirmedProducerTarget,
+        prepare, policyDependencies, configured, currentSettings });
       return resolveEvidenceBoundReviewPolicyContinuation(request, { terminalResponsePerformed: false },
         { ...policyDependencies, selectionSources: configured.sources, nextPassContext });
     },

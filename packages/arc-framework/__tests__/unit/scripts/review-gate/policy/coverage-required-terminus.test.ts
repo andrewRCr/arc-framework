@@ -14,7 +14,7 @@ function request(outcome: "clean" | "findings", responseDue: boolean) {
     attempts: [{ sourceId: "delegated-agent", outcome, reviewOperationId: "local/fix-check" }],
     verifiedTerminalSignal: { reviewOperationId: "local/fix-check", confirmedFindingCount: outcome === "clean" ? 0 : 1,
       maxConfirmedSeverity: outcome === "clean" ? null : "major", materialFix: outcome === "findings", coverageAdequate: false },
-    nextPassContext: { convergence: outcome === "clean" ? "converged" : "unconverged", responseDue, incremental: null },
+    nextPassContext: { completePasses: 1, convergence: outcome === "clean" ? "converged" : "unconverged", responseDue, incremental: null },
     terminus: { schemaVersion: 1, semanticsVersion: "review-terminus/v1", kind: "owner-accepted", lane: "standard",
       acceptedBy: "andrew", completedPasses: 2 },
   };
