@@ -313,6 +313,23 @@ it("reads the task cursor from the store at its projected artifact path", async 
     taskCursor: { status: "found", cursor: { leaf: { id: "1.1" } } }, sessionType: "execution" });
 });
 
+it("withholds a declared missing task list and resumes execution after restoring its record", async () => {
+  const h = await fixture(), name = h.reference.owner.name;
+  await changeMeta(h, { state: "Active", currentWorkflow: null, taskList: `tasks-${name}.md` });
+  const before = success(await h.fixture.store.version()), unresolved = await frame(h.io);
+  expect(unresolved.active).toBeNull();
+  expect(unresolved.roster[0]).toMatchObject({ kind: "unresolved-checkout", context: null });
+  const message = unresolved.roster[0]?.diagnostics.map(item => item.message).join(" ") ?? "";
+  expect(message).toContain(`tasks-${name}.md`);
+  expect(message).toMatch(/task list.*(unavailable|missing|not.found).*restore.*retry/isu);
+  expect(success(await h.fixture.store.version())).toBe(before);
+  const primary = success(await h.fixture.store.read({ reference: h.reference }));
+  success(await h.fixture.store.write({ action: "put", reference: recordReferences["work-item/task-list"](primary.reference.owner),
+    expected: null, content: "## **Phase 1:** Work\n\n### `[ ]` **1.1 Do the work**\n", provenance: testProvenance }));
+  expect((await frame(h.io)).active?.context).toMatchObject({ sessionType: "execution", workflow: "process-task-loop",
+    taskListPath: `.arc/active/tasks-${name}.md`, taskCursor: { status: "found", cursor: { leaf: { id: "1.1" } } } });
+});
+
 it.each([false, true])("offers the correct repair for a no-record marker, spawned=%s", async spawnedByArc => {
   const h = await fixture();
   const record = success(await h.fixture.store.read({ reference: h.reference }));

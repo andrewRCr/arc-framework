@@ -247,9 +247,9 @@ export async function projectCheckoutSubjectMeta(options: {
     }
   }
   const storedTasks = options.workUnit !== undefined && options.store !== undefined
-    ? await readStoreTaskCursor(options.store, options.workUnit.record, options.subjectKey, record.cohort)
+    ? await readStoreTaskCursor(options.store, options.workUnit.record, options.subjectKey, record.cohort, record.taskList)
     : null;
-  if (storedTasks?.kind === "conflicted") {
+  if (storedTasks?.kind === "unresolved") {
     return { kind: "unresolved", code: "subject-unresolved", message: storedTasks.message, metaPath: expectedPath };
   }
   const taskListPath = storedTasks === null ? resolveTaskListPath(expectedPath, record.taskList) : storedTasks.path;
@@ -475,16 +475,17 @@ async function readStoreCohortDoc(store: Store, cohort: string | null): Promise<
 }
 
 type StoreTaskCursor = { kind: "read"; path: string | null; cursor: TaskListCursorFileResult | null }
-  | { kind: "conflicted"; message: string };
+  | { kind: "unresolved"; message: string };
 
 async function readStoreTaskCursor(store: Store, primary: import("../store/read.js").StoreRecord,
-  slug: string, cohort: string | null): Promise<StoreTaskCursor> {
+  slug: string, cohort: string | null, declaration: string | null): Promise<StoreTaskCursor> {
   const read = await store.read({ reference: recordReferences["work-item/task-list"](primary.reference.owner) });
   if (read.status === "refused") {
-    if (read.refusal.code === "not-found") return { kind: "read", path: null, cursor: null };
+    if (read.refusal.code === "not-found") return declaration === null ? { kind: "read", path: null, cursor: null }
+      : { kind: "unresolved", message: `The declared task list ${JSON.stringify(declaration)} is unavailable: ${read.refusal.condition} Restore the task-list record or repair its meta declaration, then retry session entry.` };
     throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
   }
-  if (read.result.conflicts.length > 0) return { kind: "conflicted", message:
+  if (read.result.conflicts.length > 0) return { kind: "unresolved", message:
     `The task list has unresolved conflicts: ${read.result.conflicts.map(reference => JSON.stringify(reference)).join(", ")}. Resolve the named conflict records, then retry session entry.` };
   const path = workItemArtifactPath(slug, "tasks", WorkUnitReadPlacementSchema.parse(primary.placement), cohort);
   return { kind: "read", path, cursor: resolveTaskListCursor(read.result.content) };
