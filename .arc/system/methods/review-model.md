@@ -72,10 +72,11 @@ means the latest look's approved set fixes no verified material finding: zero fi
 material findings deferred or rejected can converge. Fixing a verified major or critical finding withholds that look's
 convergence. Performing its fixes does not retroactively change the result.
 
-A cap bounds autonomy, never authorizes an invocation or settles a finding. A recommendation is not authorization.
-Every successor pass needs explicit approval naming the activity and pass; every fix-check round runs only with
-approval. Conditional successor permission waits for complete response performance, including the offered fix check's
-resolution, and is consumed only by its named complete-pass admission. A fix check neither spends nor inherits it.
+A cap alone never authorizes an invocation or settles a finding. A recommendation is not authorization.
+Adversarial successor passes need explicit approval naming the activity and pass; code-review successors follow their
+caller's disposition approvals and ceiling rules. Every fix-check round runs only with approval. Conditional successor
+permission waits for complete response performance, including the offered fix check's resolution, and is consumed only
+by its named complete-pass admission. A fix check neither spends nor inherits it.
 
 Recommend a fix check, and another round, whenever the last look's approved fixes include a material one. Decline only
 on the fixes' own merits: minor-only repairs, or an accepted re-entry or pending rewrite that will supersede them.
