@@ -1,4 +1,5 @@
 /** Production adapters for the local review prepare command. */
+import { readLocalWorkUnitBoundary, readReservedWorkUnitObligation } from "./local-reserved-obligation.js";
 import { confirmReviewCorrectionLeg, deriveReviewNextPassContextFromAttempts } from "../policy/review-next-pass.js";
 
 
@@ -449,10 +450,7 @@ export function createLocalPrepareDependencies(input: {
         });
       }
       if (vehicle.kind === "work-unit") {
-        const boundary = (await readSubmissionBoundaryVersioned(input.cwd, vehicle.identity)).boundary;
-        if (boundary === null || boundary.workUnit !== vehicle.identity) {
-          throw new Error("Candidate lineage authority is unavailable for local review");
-        }
+        const boundary = await readLocalWorkUnitBoundary(input.cwd, vehicle.identity);
         return LaneSubjectLineageSchema.parse({
           kind: "candidate",
           candidateId: boundary.candidateId,
@@ -521,6 +519,7 @@ export function createLocalPrepareDependencies(input: {
     validatePolicyAdmission: (request) => validateLocalPolicyAdmission(request, {
       input, resultReader, dispositionStore, operationStore,
     }),
+    readReservedWorkUnitObligation: (vehicle, lineage) => readReservedWorkUnitObligation(input.cwd, vehicle, lineage),
     validateDeliveryAdmission: async (admission) => {
       const before = await readSubmissionBoundaryVersioned(input.cwd, admission.vehicle.workUnitId);
       const reservation = before.boundary?.reservation;

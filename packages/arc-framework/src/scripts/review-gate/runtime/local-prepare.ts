@@ -1,5 +1,6 @@
 /** Prepare exact local review operations and enforce lane admission. */
 
+import { assertReservedLocalObligation, confirmReservedLocalReplay } from "./local-reserved-obligation.js";
 import type { ConfirmResponseHeadContinuation } from "../core/response-head-continuation.js";
 import { z } from "zod";
 
@@ -208,6 +209,10 @@ export interface LocalPrepareDependencies {
         readonly action: LocalReviewCoverageSelectionAction;
       }
   >;
+  readReservedWorkUnitObligation(
+    vehicle: LocalReviewAuthority["vehicle"],
+    lineage: LaneSubjectLineage,
+  ): Promise<StandardReviewObligationProjection | undefined>;
   validateDeliveryAdmission(
     admission: DeliveryLocalReviewAdmission,
   ): Promise<StandardReviewObligationProjection | undefined>;
@@ -327,6 +332,8 @@ async function replayPendingLocalAdmission(input: PendingLocalReplayInput): Prom
     || !replayContextMatches(state, input)) {
     throw new LocalPrepareCommandError("local pending admission does not match its operation");
   }
+  await confirmReservedLocalReplay({ request: input.request, state, lineage: input.lineage,
+    dependencies: input.dependencies });
   const receipts = (await input.dependencies.readReceipts(state.targetId)).receipts
     .filter((receipt) => receipt.requestId === state.requestId);
   if (receipts.length > 1) {
@@ -753,13 +760,13 @@ async function settleLocalPreparation(input: LocalAdmissionSettlementInput) {
         lineage,
       },
     );
-    if (request.deliveryAdmission !== undefined) {
-      const currentProjection = await dependencies.validateDeliveryAdmission(request.deliveryAdmission);
-      if ((admittedProjection !== undefined && currentProjection === undefined)
-        || (currentProjection !== undefined
-          && canonicalize(currentProjection) !== canonicalize(projection))) {
-        throw new LocalPrepareCommandError("local delivery review policy changed before preparation");
-      }
+    const currentProjection = request.deliveryAdmission === undefined
+      ? await dependencies.readReservedWorkUnitObligation(authority.vehicle, lineage)
+      : await dependencies.validateDeliveryAdmission(request.deliveryAdmission);
+    if ((admittedProjection !== undefined && currentProjection === undefined)
+      || (currentProjection !== undefined && canonicalize(currentProjection) !== canonicalize(projection))) {
+      throw new LocalPrepareCommandError(request.deliveryAdmission === undefined
+        ? "reserved work-unit review policy changed before preparation" : "local delivery review policy changed before preparation");
     }
     const currentAttempts = currentLocalPolicyAttempts(owner, target);
     const retryingLocalAttempt = retryingLocalAttemptFor(owner?.attempts ?? [], input);
@@ -941,8 +948,11 @@ export async function prepareLocalReview(
   });
   const routedProjection = projectStandardReviewObligation(routing.decision);
   const admittedProjection = request.deliveryAdmission === undefined
-    ? undefined
+    ? await dependencies.readReservedWorkUnitObligation(authority.vehicle, lineage)
     : await dependencies.validateDeliveryAdmission(request.deliveryAdmission);
+  if (request.deliveryAdmission === undefined && admittedProjection !== undefined) {
+    assertReservedLocalObligation(admittedProjection, routedProjection);
+  }
   const projection = admittedProjection ?? routedProjection;
   const allDiagnostics = [...assurance.diagnostics, ...routing.diagnostics];
   if (projection.obligation === "exempt") {

@@ -337,15 +337,10 @@ first, then in the `.arc/` copy by targeted edit.
           boundary, and reserved obligation. The seed preserves the selected invocation and approved pass authority;
           missing obligation metadata refuses the action.
 
-    - `[ ]` **2.5.b Bind the singleton's local request to the reservation's obligation**
-        - With no `deliveryAdmission`, local prepare routes the obligation from the caller's `routingFacts`, and the
-          discharge binds terminals to `reservation.obligation` (`resolveTerminalPolicy`), so a mismatch fails
-          `resultMatchesPolicy` (`review-policy-evidence.ts`). When a hosted reservation binds the submission boundary
-          and no `deliveryAdmission` is supplied, local prepare takes the obligation from the reservation, as
-          `validateDeliveryAdmission` binds it for delivery, and refuses routing facts that route elsewhere.
-        - Build `test-first` (one behavior at a time):
-            - The singleton's local result's requirement equals `reservation.obligation`.
-            - Routing facts that route to another obligation are refused.
+    - `[x]` **2.5.b Bind the singleton's local request to the reservation's obligation**
+        - Ordinary work-unit prepare binds the live reserved obligation and refuses conflicting routing facts.
+          Pending and completed replay re-confirm it, and admission re-reads it under the existing locks.
+          Candidate-bound attestation retains the reservation's normalized requirement.
 
     - `[ ]` **2.5.c Route the singleton's `coverage-required` to local prepare**
         - The discharge returns only a `detail` with `nextSource: null` there today, and status's fallback also serves

@@ -1257,6 +1257,7 @@ describe("local review member preparation", () => {
       }),
       validatePolicySelection: () => undefined,
       validatePolicyAdmission: async () => ({ state: "ready" as const, pass: 1 }),
+      readReservedWorkUnitObligation: async () => undefined,
       validateDeliveryAdmission: async () => undefined,
       operationStore: {
         readOperation: async (operationId: string) => {
@@ -1394,6 +1395,7 @@ describe("local review member preparation", () => {
         }),
         validatePolicySelection: () => undefined,
         validatePolicyAdmission: async () => ({ state: "ready" as const, pass: 1 }),
+        readReservedWorkUnitObligation: async () => undefined,
         validateDeliveryAdmission: async () => undefined,
         operationStore: {
           readOperation: async (operationId: string) => (

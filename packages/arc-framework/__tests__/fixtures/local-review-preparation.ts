@@ -173,6 +173,7 @@ export function createLocalReviewPreparationFixture() {
     composeAssurance,
     resolvePolicy,
     validatePolicySelection: () => undefined,
+    readReservedWorkUnitObligation: async () => undefined,
     validateDeliveryAdmission,
     validatePolicyAdmission,
     operationStore: {
