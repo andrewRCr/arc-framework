@@ -89,14 +89,14 @@ user README exception; the complete tracked link audit passes after the two name
 - _Goal:_ The new tracked-link rules land over a clean existing corpus, and installed framework content reflects its
   authoritative package sources.
 
-### `[ ]` **2.4 Exercise the tracked-file link boundary — D3** — validate exit criterion at segment scope
+### `[x]` **2.4 Exercise the tracked-file link boundary — D3** — validate exit criterion at segment scope
 
 - _Goal:_ Both production entry points reject links that Git-hosted readers cannot follow, while legal tracked
   targets still pass and the installed corpus remains valid.
 
-    - Run the real-Git hook and audit scenarios, the no-operand whole-corpus audit, and `npx arc check segment`.
-    - Exercise a movable target, a separate ignored target, root-absolute tracked target resolution, the tracked user
-      README, and a corrected source that succeeds on retry; cover package-source and installed script paths.
+- _Outcome:_ Real-Git scenarios exercise package and installed validators and the audit: movable and ignored targets
+  refuse, root-absolute tracked files and the tracked user README pass, and corrected sources succeed on retry.
+  The no-operand audit accepts the complete tracked corpus after the two source corrections.
 
 ## **Phase 3:** Run selection checks as uncached feedback
 
