@@ -38,57 +38,13 @@ The confirmation map is in `notes-review-coverage-cadence.md` § Chain confirmat
   and Task 3.1 a `delta-check` basis. It reaches the binders as a field of `EvidenceBoundReviewPolicyDependencies` and
   the driver as an internal request field.
 
-    - `[ ]` **1.1.a Build the performed-response test**
-        - A new module, lifted from what `confirmErrandCorrectionPredecessor` (`status-errand.ts`) composes today — the
-          diff base through `sharesCorrectionBase`, the response through `fixProducedHead`, read from
-          `readLaneResponsePerformance` (`lane-progress.ts`) — so it outlives the hosted correction Task 1.8 deletes: at
-          an unchanged diff base, the predecessor's approved response was performed from its head and produced the head
-          that follows. It serves change-set targets; a delivery member's leg keeps delivery's own fix-response proof.
-        - On a Candidate it also accepts a later head whose Candidate subject digest equals the fix head's, since
-          `persistCandidateResponse` (`respond-command.ts`) records the fix commit and a record commit follows. The
-          digest leaves out the record and boundary (`candidateProjectionPaths`), the work unit's own artifacts and the
-          roadmap, and the paths `classifyPathTreatment` marks non-reviewable. It takes the Git exec, checkout, base
-          ref, and Candidate record that `privateCandidateGitProof` (`local-review-coverage-selection.ts`) takes.
-          `confirmPrivateCandidateCorrectionBasis` already proves a correction this way, a historical leg included;
-          `confirmCandidateResponseHeadContinuation` does not serve.
-        - Build `test-first` (one behavior at a time):
-            - A leg whose approved response was performed from the predecessor's head and produced the next head at an
-              unchanged diff base proves.
-            - On a Candidate, a record-only commit after the fix head still proves; a commit touching reviewable code
-              does not.
-            - A changed diff base, an unperformed response, or a response that produced another head does not prove.
+    - `[x]` **1.1.a Build the performed-response test**
+        - Added the shared change-set response proof over validated approval and lane performance at an unchanged
+          base. Candidate record-only successors reuse the Candidate subject proof; later reviewable edits refuse.
 
-    - `[ ]` **1.1.b Build the next-pass context and its chain proof**
-        - A new policy module. The chain proof wraps a site's confirmation: today's grounds first, then the
-          performed-response test for a leg that holds a fix. It serves both roles `resolveIncrementalCorrectionScope`
-          (`incremental-coverage-basis.ts`) takes — re-confirming each earlier leg (`confirmApplicability`) and the
-          predecessor at the current head (`confirmCurrentApplicability`) — and where a composition has no
-          confirmation of its own, the proof with no site grounds is its confirmation.
-        - Convergence: no predecessor reads `none`. A clean look, or a performed approved response that fixes no
-          verified material finding (`fixesMaterialFinding`, `core/review-convergence.ts`), reads `converged`. An
-          approved response that fixes a material finding reads `unconverged`, performed or not. A response not yet
-          approved or not yet performed that fixes no material finding reads `pending`, an unapproved findings result
-          (pre-publication's `allowUnapprovedFindings`) and a no-fix response whose host settlement is pending
-          included. The predecessor is the terminal in `attempts` or the earlier-head producer a composition supplies
-          (local prepare's `predecessorOperationId`, Errand status's result at an earlier head, and hosted request
-          admission's Errand branch).
-        - `responseDue`: true while the predecessor's findings response is unapproved or unperformed, false otherwise,
-          from the response evidence the helper reads for convergence (`readIncrementalPredecessorResponseEvidence`,
-          `review-policy-evidence.ts`). It does not set `terminalResponseSettled`, which remains pre-publication's own
-          input.
-        - Admissibility: the correction scope `resolveIncrementalCorrectionScope` resolves for the next attempt
-          through the chain proof, with basis `fix-check`; under `full-final` only after an `unconverged` look.
-        - Build `test-first` (one behavior at a time):
-            - A first pass reads `none`; a clean look and a performed minor-only response read `converged`; an
-              approved material fix reads `unconverged` whether or not it is performed; an unapproved findings result
-              and an unperformed minor-only response read `pending`.
-            - `responseDue` is true for an unapproved findings response or an approved response still unperformed,
-              including material fixes; it is false before the first pass, after a clean look, and after a performed
-              response.
-            - After a material fix, a leg the site's grounds refuse but the performed-response test proves admits a fix
-              check with its scope; a leg both refuse admits none.
-            - Under `full-final` a converged look admits no fix check; under `incremental` a material-fix predecessor
-              admits what it does today.
+    - `[x]` **1.1.b Build the next-pass context and its chain proof**
+        - Added shared convergence, response-due, and fix-check scope derivation. Historical and current correction
+          legs retain site grounds and prove change-set fixes through the performed response; delivery keeps its proof.
 
     - `[ ]` **1.1.c Carry the context through the driver's request and the evidence binders**
         - `ReviewPolicyRequestSchema` (`review-policy-driver.ts`) takes the context beside `sources` and `maxPasses`;
