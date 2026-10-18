@@ -1068,14 +1068,13 @@ package's `arc/` source first, then in the `.arc/` copy.
           guidance, activity, routing, promotion, and author-action literals. Identity preimages and published schema
           IDs remain bound; narrow negative controls reject renamed contracts and IDs.
 
-### `[ ]` **7.8 Every review step in exactly one place** — validate exit criterion at segment scope
+### `[x]` **7.8 Every review step in exactly one place** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds against Task 7.1's inventory.
 
-    - Re-derive the inventory after the rewiring and fill each row's home: every row has one home section, and every
-      old restatement is gone or replaced by a reference link carrying that section's fragment; confirm each § 11.5
-      item is fixed and no old method file remains.
-    - Run `arc check segment`.
+- _Outcome:_ The after-inventory in `notes-review-coverage-cadence.md` binds all 43 original rows to their actual
+  home sections and reaching callers. Used fragments, direct evidence checks, every drift correction, both-copy
+  registration, project activation, replay ordering, and absence of old method files close the replication boundary.
 
 ## **Phase 8:** Verification
 
