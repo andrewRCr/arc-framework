@@ -264,22 +264,15 @@ _Mode:_ `slice` — projected findings reach the real tools, and fixing uses the
 _Exit criterion:_ Real tool fixtures report each admitted projected finding, the fixer changes only the lint corpus,
 and an unavailable selection causes no write before a successful retry after repair.
 
-### `[ ]` **5.1 Admit ignored lint operands without weakening file authority — D6.2**
+### `[x]` **5.1 Admit ignored lint operands without weakening file authority — D6.2**
 
 - _Goal:_ Explicit lint can read an authorized ignored operand on request, while ordinary selection, exclusions,
   repository containment, and Git-administration boundaries keep their existing guarantees.
 
-    - Parse `--allow-ignored` in `src/scripts/lint-markdown-worktree.ts` and `lint-markdown-underwrap.ts`; thread named
-      operands into `validateExplicitMarkdownPaths`' existing `allowIgnoredPaths`, only on explicit worktree reads.
-    - Replace `runExplicitMarkdownlint`'s `matchesGlob` ignore test with the matcher from Task 3.2; preserve
-      `isMarkdownPathExcluded` and worktree configuration validation.
-    - Build `test-first` (one behavior at a time):
-        - Ignored projected files fail without the option and are read with it; the option is never treated as a path.
-        - Excluded files, escaping paths, nonregular operands, and Git administration paths remain refused; admitted
-          paths retain existing lint-read symlink semantics rather than inheriting mutation authority.
-        - Dot-directory and letter-case exclusions match Git pathspecs on each supported platform.
-    - Extend `integration/markdown-file-lint.test.ts`, `markdown-worktree-lint.test.ts`, `markdown-underwrap.test.ts`,
-      and the focused authority/contract unit cases.
+- _Outcome:_ Explicit markdownlint and underwrap worktree reads parse `--allow-ignored` and retain physical read
+  validation, including contained-file symlinks and Git-administration refusal. `selectMarkdownlintPaths` replaces
+  Node glob matching with the shared Git matcher; dot-directory exclusions and case-sensitive paths agree with
+  canonical configuration. Default Git selection and indexed underwrap certification retain their existing paths.
 
 ### `[ ]` **5.2 Declare the three selection checks and prove input agreement — D6.1–D6.2**
 
