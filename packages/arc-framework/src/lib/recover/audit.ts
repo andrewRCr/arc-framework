@@ -31,7 +31,7 @@ import {
 } from "../load-set/audit.js";
 import type { LoadSetManifest } from "../load-set/types.js";
 import type { DerivedLocusFrame } from "../locus/derived-reader.js";
-import type { RecoveryLocusFrame } from "./locus-context.js";
+import { resolveRecoveryParentContext, type RecoveryLocusFrame } from "./locus-context.js";
 import type {
   TaskListCursor,
 } from "../task-list/cursor.js";
@@ -738,6 +738,15 @@ function requiresTaskCursor(options: AuditRecoveryStateOptions): boolean {
     ? options.recover.recoveryFrame.value.sessionType
     : null;
   const freshCursor = options.recover.taskCursor;
+  const parent = options.recover.derivedLocusState.ok && options.recover.recoveryFrame.ok
+    ? resolveRecoveryParentContext(options.recover.derivedLocusState.value, options.recover.recoveryFrame.value) : null;
+  if (options.seed.sessionType === "execution" && options.seed.taskCursor === null
+    && freshCursor?.ok && freshCursor.value.status === "no-open-task"
+    && parent?.sessionType === "execution" && parent.workflow === "verify-work-unit"
+    && parent.taskCursor?.status === "no-open-task" && parent.workUnit === options.seed.activeWorkUnit
+    && parent.metaPath === options.seed.metaPath && options.recover.recoveryFrame.ok
+    && options.seed.currentWorkflow === options.recover.recoveryFrame.value.workflow
+    && options.seed.locus.parentCheckoutPath === options.recover.recoveryFrame.value.parentCheckoutPath) return false;
   if (options.seed.sessionType === "execution"
     && options.seed.currentWorkflow === "verify-work-unit"
     && options.seed.taskCursor === null

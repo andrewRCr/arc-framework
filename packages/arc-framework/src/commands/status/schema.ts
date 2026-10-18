@@ -59,7 +59,7 @@ import { RetiredSubdirDetectionResultSchema } from "../../lib/session-init/retir
 import { ClassCompositionSchema } from "../../lib/status/class-composition.js";
 import { TaskListCursorFileResultSchema } from "../../lib/task-list/file-cursor.js";
 import { LocusSessionGuidanceSchema } from "../../lib/locus/session-guidance.js";
-import { RecoveryLocusFrameSchema } from "../../lib/recover/locus-context.js";
+import { RecoveryLocusFrameSchema, resolveRecoveryParentContext } from "../../lib/recover/locus-context.js";
 import { ReleaseRoutingValueSchema } from "../../lib/release/routing.js";
 import { assertSessionEnvelopeContract } from "../../lib/session-envelope/validation.js";
 import { DeliveryPositionViewSchema } from "../../lib/session-init/delivery-position.js";
@@ -666,6 +666,8 @@ const SessionRecoverEnvelopeObjectSchema = z.strictObject({
 
 const SessionRecoverProbeResultRuntimeSchema = SessionRecoverEnvelopeObjectSchema.superRefine(
   (value, context) => {
+    const parent = value.derivedLocusState.ok && value.recoveryFrame.ok
+      ? resolveRecoveryParentContext(value.derivedLocusState.value, value.recoveryFrame.value) : null;
     const taskCursorRequired = value.loadSet.ok
       && value.loadSet.value.entries.some((entry) => entry.readMode.kind === "partial-strategic");
     const cursorlessPhaseTaskCursorAllowed = value.recoveryFrame.ok
@@ -673,7 +675,8 @@ const SessionRecoverProbeResultRuntimeSchema = SessionRecoverEnvelopeObjectSchem
       && (value.recoveryFrame.value.sessionType === "prepublication"
         || value.recoveryFrame.value.sessionType === "integration"
         || (value.recoveryFrame.value.sessionType === "execution"
-          && value.recoveryFrame.value.workflow === "verify-work-unit"));
+          && (value.recoveryFrame.value.workflow === "verify-work-unit"
+            || (parent?.workflow === "verify-work-unit" && parent.taskCursor?.status === "no-open-task"))));
     const taskCursorPresent = Object.hasOwn(value, "taskCursor");
     if (!taskCursorPresent && taskCursorRequired) {
       context.addIssue({

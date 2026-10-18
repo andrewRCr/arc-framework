@@ -6,7 +6,10 @@ import type { StoreSyncPort } from "../store/operational-sync.js";
 import { readStateHistory, StateHistoryRefusal } from "../handoff/state-history.js";
 import { CompactionSeedSchema } from "../compaction-seed/schema.js";
 import { identifyWorkUnitArtifactPath } from "../layout/index.js";
-import type { RecoveryLocusFrame } from "./locus-context.js";
+import { resolveRecoveryParentContext, type RecoveryLocusFrame } from "./locus-context.js";
+
+type RecoveryBasisProbe = Pick<RecoveryAuditProbeState, "recoveryFrame" | "loadSet" | "taskCursor">
+  & Partial<Pick<RecoveryAuditProbeState, "derivedLocusState">>;
 
 /** State continuity outcome reported alongside the read-only audit. */
 export interface RecoveryStateBasis { seed: CompactionSeed; rebuilt: boolean }
@@ -14,7 +17,7 @@ export interface RecoveryStateBasis { seed: CompactionSeed; rebuilt: boolean }
  * @param input - Seed, fresh recovery subject, selected store and history synchronization.
  * @returns Seed used in memory by this audit; never writes the original seed.
  */
-export async function resolveRecoveryStateBasis(input: { seed: CompactionSeed; recover: Pick<RecoveryAuditProbeState, "recoveryFrame" | "loadSet" | "taskCursor">; store: Store; sync?: StoreSyncPort }): Promise<RecoveryStateBasis> {
+export async function resolveRecoveryStateBasis(input: { seed: CompactionSeed; recover: RecoveryBasisProbe; store: Store; sync?: StoreSyncPort }): Promise<RecoveryStateBasis> {
   const { seed, store, recover } = input;
   if (!store.capabilities.stateOffBranch) return { seed, rebuilt: false };
   const current = await readStateHistory(() => store.version(), input.sync);
@@ -38,7 +41,7 @@ export async function resolveRecoveryStateBasis(input: { seed: CompactionSeed; r
     taskCursor: cursor?.ok === true && cursor.value.status === "found" ? cursor.value.cursor : null }) };
 }
 
-function requireOriginalSubject(seed: CompactionSeed, recover: Pick<RecoveryAuditProbeState, "recoveryFrame" | "loadSet">): RecoveryLocusFrame {
+function requireOriginalSubject(seed: CompactionSeed, recover: RecoveryBasisProbe): RecoveryLocusFrame {
   if (!recover.recoveryFrame.ok) throw new Error(`Cannot rebuild recovery state: ${recover.recoveryFrame.error.message}`);
   const frame = recover.recoveryFrame.value;
   if (frame.checkoutPath !== seed.locus.checkoutPath || frame.parentCheckoutPath !== seed.locus.parentCheckoutPath
@@ -54,8 +57,15 @@ function requireOriginalSubject(seed: CompactionSeed, recover: Pick<RecoveryAudi
   if (seed.activeWorkUnit === null && parentMetas.length > 0) {
     throw new Error("The seed held no work unit, but this transient now inherits a work unit. Start a fresh ARC session for that context, or restore the original parent context and retry recovery.");
   }
+  const parent = recover.derivedLocusState?.ok === true ? resolveRecoveryParentContext(recover.derivedLocusState.value, frame) : null;
+  const cursorlessParent = frame.kind === "resolved" && frame.subject.kind !== "work-unit" && frame.sessionType === "execution"
+    && recover.taskCursor?.ok === true && recover.taskCursor.value.status === "no-open-task";
+  if (cursorlessParent && (parent?.workflow !== "verify-work-unit" || parent.taskCursor?.status !== "no-open-task")) {
+    throw new Error("Cannot rebuild cursorless recovery without its exact verification parent. Repair the parent context, then retry recovery.");
+  }
   const sameParentContext = frame.kind === "resolved" && frame.subject.kind !== "work-unit"
-    && seed.locus.parentCheckoutPath !== null && parentMetas.length === 1 && parentMetas[0] === seed.activeWorkUnit;
+    && seed.locus.parentCheckoutPath !== null && parentMetas.length === 1 && parentMetas[0] === seed.activeWorkUnit
+    && (recover.derivedLocusState === undefined || parent?.workUnit === seed.activeWorkUnit);
   if (seed.activeWorkUnit !== null && !sameWorkUnit && !sameParentContext) {
     throw new Error(`Cannot rebuild recovery state for a different subject. Resume the seed's subject ${seed.activeWorkUnit}.`);
   }

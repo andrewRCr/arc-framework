@@ -10,18 +10,23 @@ import { resolveTaskListCursor } from "../../../src/lib/task-list/cursor.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import type { Store } from "../../../src/lib/store/contract.js";
 import { auditRecoveryState } from "../../../src/lib/recover/audit.js";
+import { runRecoverStatus } from "../../../src/commands/status/run.js";
+import { SessionRecoverProbeResultSchema } from "../../../src/commands/status/schema.js";
 
 const ok = <T>(value: T) => ({ ok: true as const, value });
 const cursor = resolveTaskListCursor("### `[ ]` **2.1 Continue**\n");
-function transientState(kind: "errand" | "groom" | "housekeep", parentName = "subject", warm = true) {
+const noOpenCursor = resolveTaskListCursor("### `[x]` **2.1 Complete**\n");
+function transientState(kind: "errand" | "groom" | "housekeep", parentName = "subject", warm = true, phase: "tasks" | "verification" = "tasks") {
   const loadSet = resolveLoadSetManifest({ identity: "andrew", stateOffBranch: true, activeWorkUnit: parentName,
     metaPath: `.arc/active/meta-${parentName}.md`, sessionType: "execution", planningStage: null,
-    taskListPath: `.arc/active/tasks-${parentName}.md`, cohortDocPath: null });
+    taskListPath: `.arc/active/tasks-${parentName}.md`, cohortDocPath: null,
+    workUnitStage: phase === "verification" ? "verification-closeout" : "task-work" });
   const common = { markerGeneration: "generation", origin: null, identity: null, context: null, diagnostics: [], lifecycleLocation: null };
   const checkout = { path: "/parent", head: "a".repeat(40), branch: "feat/subject", detached: false, primary: true, folderPresent: true };
   const parent = { ...common, checkout, kind: "work-unit", parentCheckoutPath: null, subject: { kind: "work-unit", key: parentName },
     context: { kind: "resolved", metaPath: `.arc/active/meta-${parentName}.md`, owner: "andrew", branch: "feat/subject", sessionType: "execution",
-      workflow: "process-task-loop", stage: null, taskListPath: `.arc/active/tasks-${parentName}.md`, taskCursor: cursor,
+      workflow: phase === "verification" ? "verify-work-unit" : "process-task-loop", stage: null,
+      taskListPath: `.arc/active/tasks-${parentName}.md`, taskCursor: phase === "verification" ? noOpenCursor : cursor,
       cohortDocPath: null, loadSet, integrationBoundary: null } };
   const key = kind === "groom" ? "groom-stub" : "fix", claimId = "c".repeat(32), branch = kind === "groom" ? "plan/groom-stub" : "errand/fix";
   const identity = LocusIdentityV1Schema.parse({ kind: kind === "groom" ? "groom" : "errand", key, claimId, protection: "full", branch,
@@ -33,20 +38,58 @@ function transientState(kind: "errand" | "groom" | "housekeep", parentName = "su
   return DerivedLocusFrameSchema.parse({ roster: [entering, ...(warm ? [parent] : [])], entering: { kind: "selected", row: entering },
     primaryAvailability: { kind: "occupied", checkoutPath: "/parent", subject: parent.subject }, identityDiscovery: { kind: "absent" }, active: null });
 }
-async function emitted(kind: "errand" | "groom" | "housekeep", anchor: "null" | "expired", warm = true) {
+async function emitted(kind: "errand" | "groom" | "housekeep", anchor: "null" | "expired" | "current", warm = true, phase: "tasks" | "verification" = "tasks") {
   const h = createLifecycleHarness(); await h.seedMeta("subject");
-  const state = transientState(kind, "subject", warm), recovery = deriveRecoveryLocusContext({ state, identity: "andrew", workingMemoryPath: null });
+  const state = transientState(kind, "subject", warm, phase), recovery = deriveRecoveryLocusContext({ state, identity: "andrew", workingMemoryPath: null });
+  const branch = state.entering.kind === "selected" ? state.entering.row.checkout.branch : null;
+  if (branch === null) throw new Error("Expected a branched transient fixture");
   const selected: Store = Object.create(h.store) as Store;
   const missing = { code: "state-unresolvable" as const, class: "recoverable" as const, historyRefs: [], condition: "History expired.", remedy: { text: "Rebuild current state." } };
   const result = await emitCompactionSeed({ cwd: "/child", envelope: { identity: { identity: "andrew" }, derivedLocusState: ok(state),
-    worktree: ok({ branch: "errand/fix", identity: { kind: "linked", path: "/child" } }), active: ok({ path: null, sessionType: null, currentWorkflow: null }),
-    loadSet: ok(recovery.loadSet), taskCursor: ok(cursor) }, gitSnapshot: { branch: "errand/fix", head: "a".repeat(40), uncommittedFiles: ["src/code.ts"] },
+    worktree: ok({ branch, identity: { kind: "linked", path: "/child" } }), active: ok({ path: null, sessionType: null, currentWorkflow: null }),
+    loadSet: ok(recovery.loadSet), taskCursor: ok(phase === "verification" ? noOpenCursor : cursor) },
+    gitSnapshot: { branch, head: "a".repeat(40), uncommittedFiles: ["src/code.ts"] },
     store: anchor === "null" ? { version: async () => ({ status: "refused", refusal: missing }) } : h.store, writeSeed: async () => {} });
   if (result.status !== "written") throw new Error(JSON.stringify(result));
   if (anchor === "expired") selected.changes = async () => ({ status: "refused", refusal: missing });
-  const recover = { recoveryFrame: ok(recovery.frame), loadSet: ok(recovery.loadSet), taskCursor: recovery.taskCursor === null ? undefined : ok(recovery.taskCursor) };
-  return { ...h, original: result.seed, selected, recover };
+  const recover = { derivedLocusState: ok(state), recoveryFrame: ok(recovery.frame), loadSet: ok(recovery.loadSet), taskCursor: recovery.taskCursor === null ? undefined : ok(recovery.taskCursor) };
+  return { ...h, original: result.seed, selected, recover, state };
 }
+
+async function recoveryEnvelope(state: ReturnType<typeof transientState>) {
+  const unused = async (): Promise<never> => { throw new Error("Independent informational probe unavailable"); };
+  return runRecoverStatus({ identity: "andrew", role: "maintainer", workingMemoryPath: null, probes: {
+    derivedLocusState: async () => state, dirty: async () => ({ state: "dirty", fileCount: 1 }),
+    worktree: unused, worktreeIdentity: unused, config: unused, releaseRouting: unused,
+  } });
+}
+
+it.each((["errand", "groom", "housekeep"] as const).flatMap(kind => (["current", "null", "expired"] as const).map(anchor => ({ kind, anchor }))))(
+  "recovers a warm $kind from its verification parent with a $anchor state anchor", async ({ kind, anchor }) => {
+    const h = await emitted(kind, anchor, true, "verification");
+    const recover = await recoveryEnvelope(h.state);
+    const schemaAccepted = SessionRecoverProbeResultSchema.safeParse(recover).success;
+    const basis = await resolveRecoveryStateBasis({ seed: h.original, recover, store: h.selected });
+    expect(basis.rebuilt).toBe(anchor !== "current");
+    expect(basis.seed).toMatchObject({ activeWorkUnit: "subject", sessionType: "execution", taskCursor: null,
+      currentWorkflow: kind === "errand" ? "run-errand" : kind === "groom" ? "draft-design" : "drain-inbox" });
+    const verdict = await auditRecoveryState({ seed: basis.seed, recover, freshBranch: h.original.branch, freshHead: h.original.head,
+      freshRepoRoot: "/child", freshUncommittedFiles: ["src/code.ts"], resolveCommittedProgress: async () => ({ advanced: false, files: new Set<string>() }) });
+    expect({ schemaAccepted, verdict }).toMatchObject({ schemaAccepted: true, verdict: { status: "ready", taskCursor: null } });
+    expect(h.original).toMatchObject({ currentWorkflow: basis.seed.currentWorkflow, taskCursor: null });
+  });
+
+it.each(["task-work", "replacement-parent"] as const)("requires cursor comparison for %s after cursorless verification", async changed => {
+  const h = await emitted("errand", "current", true, "verification");
+  const state = transientState("errand", changed === "replacement-parent" ? "other" : "subject", true,
+    changed === "replacement-parent" ? "verification" : "tasks");
+  const recover = await recoveryEnvelope(state);
+  expect(SessionRecoverProbeResultSchema.safeParse(recover).success).toBe(true);
+  const verdict = await auditRecoveryState({ seed: h.original, recover, freshBranch: h.original.branch, freshHead: h.original.head,
+    freshRepoRoot: "/child", freshUncommittedFiles: ["src/code.ts"], resolveCommittedProgress: async () => ({ advanced: false, files: new Set<string>() }) });
+  expect(verdict).toMatchObject({ status: "stop", taskCursor: { match: false } });
+  expect(verdict.stopReasons).toContainEqual(expect.objectContaining({ kind: "task-cursor-missing" }));
+});
 
 it.each((["errand", "groom", "housekeep"] as const).flatMap(kind => (["null", "expired"] as const).map(anchor => ({ kind, anchor }))))(
   "rebuilds a $anchor anchor for a warm $kind emitted with inherited parent context", async ({ kind, anchor }) => {
