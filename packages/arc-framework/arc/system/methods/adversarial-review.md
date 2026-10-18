@@ -505,7 +505,8 @@ checkout may lose the copies; scope the fix check from the account alone and dis
 
 Advisory planning callers keep the finding/account/action set, conditional decision, response-performance check, and
 consumption fact in `ADVERSARIAL-PASSES.md` in the work unit's personal workspace; criteria callers keep them with
-the criteria report. This creates no lane-progress record, code-review operation, Candidate, policy binding, or receipt.
+the criteria report. This creates no lane-progress record, stored review-gate operation, Candidate, policy binding,
+or receipt.
 
 A planning pass entry carries:
 

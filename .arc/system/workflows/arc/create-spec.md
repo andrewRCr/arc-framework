@@ -267,8 +267,8 @@ planning-review:
 ```
 
 > [!IMPORTANT]
-> `workflow-interlock` — Gate 1 (review / iterate): Stop after the spec is saved and self-reviewed. Surface the
-> spec location and the self-review findings for a full read and feedback. Iteration loops here against the saved
+> `workflow-interlock` — Gate 1 (review / iterate): Stop after the spec is saved and checked with `spec-review`.
+> Surface the spec location and the spec-check findings for a full read and feedback. Iteration loops here against the saved
 > spec — amend and re-surface until the spec is right. This approval means the spec is correct; it does **not**
 > authorize the irreversible finalize actions below · `[invariant]`.
 

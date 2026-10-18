@@ -1022,10 +1022,10 @@ package's `arc/` source first, then in the `.arc/` copy.
           through their supported routes. The Errand retains its explicit hosted, local, and frontline admissions;
           shared ceiling handling grants no unsupported caller capability.
 
-    - `[ ]` **7.6.b Fix the composer and naming drift**
-        - `prepare-work-unit` has `review-triage` compose the proposal, as everywhere else; `create-spec` stops calling
-          its `spec-review` pass "self-review" in five places; and `adversarial-review` § Pass record's "no …
-          code-review operation" names the review gate's stored operation in words no reader takes for `code-review`.
+    - `[x]` **7.6.b Fix the composer and naming drift**
+        - The shared findings round assigns proposal composition to `review-triage`. Specification finalization names
+          its spec check; three former naming sites disappeared with the shared planning call. Adversarial pass records
+          now distinguish the stored review-gate operation from the `code-review` method.
 
     - `[ ]` **7.6.c Fix the declarations nothing fires and the fire-points nothing declares**
         - The list in § 11.5, re-derived on the current base, folded into Task 7.5's declarations.
