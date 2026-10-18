@@ -1,8 +1,8 @@
 # Metadata: projected-markdown-checks
 
-| **State**  | **Owner** | **Branch**                       | **Class** | **Priority** |
-| ---------- | --------- | -------------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/projected-markdown-checks` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**                       | **Class** | **Priority** |
+| --------- | --------- | -------------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/projected-markdown-checks` | `Heavy`   | `P1`         |
 
 - **Cohort:** `state-storage`
 - **Depends On:** [none]
@@ -12,12 +12,12 @@
 - **Task List:** `tasks-projected-markdown-checks.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** `process-task-loop`
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Task 1.1 — Declare the projected roots through layout (line ~16)
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1 — Declare the projected roots through layout
 
 - **PR URL:** [none]
 - **Completed:** [none]
