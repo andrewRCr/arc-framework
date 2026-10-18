@@ -9,6 +9,21 @@ import type { Store } from "../../../../src/lib/store/contract.js";
 
 const request = (...ids: string[]) => ({ schemaVersion: 1, members: ids.map((id) => ({ id, inbox: "personal" })) });
 describe("identity Errand queue", () => {
+  it.each(["\n", "\r\n"])("retains heading-spanning comments when reranking a queue member with %j endings", async (newline) => {
+    const h = createInboxHarness();
+    await h.inbox("personal", [entry("11111111", "One"), entry("22222222", "Two"), entry("33333333", "Three")].join("\n\n"));
+    expect(await setErrandQueue(request("11111111", "22222222", "33333333"), h.context)).toMatchObject({ state: "set" });
+    const ref = recordReferences["personal/errand-queue"](OwnerIdentitySchema.parse({ type: "person", name: "test-user" }));
+    const prior = success(await h.context.store.read({ reference: ref }));
+    const comment = "<!--\n- _Id:_ `deadbeef`\nKeep this heading note.\n-->";
+    success(await h.context.store.write({ action: "put", reference: ref, expected: prior.version,
+      content: prior.content.replace("### **Two**", `### **Two** ${comment}`).replaceAll("\n", newline),
+      provenance: { verb: "edit", lifecycleAction: "edit" } }));
+    expect(await setErrandQueue(request("22222222", "11111111", "33333333"), h.context)).toMatchObject({ state: "set" });
+    const saved = success(await h.context.store.read({ reference: ref }));
+    expect(saved.content).toContain(comment.replaceAll("\n", newline));
+    expect(await listErrandQueue(h.context)).toMatchObject({ state: "listed", members: [{ id: "22222222" }, { id: "11111111" }, { id: "33333333" }] });
+  });
   it("repairs an admitted malformed rank through the whole-queue setter without overwriting a lost version", async () => {
     const h = createInboxHarness();
     await h.inbox("personal", [entry("11111111", "One"), entry("22222222", "Two")].join("\n\n"));

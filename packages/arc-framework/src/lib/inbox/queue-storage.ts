@@ -3,7 +3,7 @@ import { OwnerIdentitySchema, recordReferences, type RecordReference } from "../
 import { generateRankBetween } from "../store/concurrency/rank.js";
 import { parseEntryList } from "../store/kinds/entry-list.js";
 import { writeEntryFields } from "../store/kinds/entry-fields.js";
-import { rejoinEntryList, splitEntryList, type ListEntry, type OutsideEntry } from "../store/concurrency/entries.js";
+import { maskComments, rejoinEntryList, splitEntryList, type ListEntry, type OutsideEntry } from "../store/concurrency/entries.js";
 import { ENTRY_CONFIGS } from "../store/kinds/entry-configs.js";
 import type { StoreRecord } from "../store/read.js";
 import { appendEntry } from "./entry-text.js";
@@ -61,7 +61,7 @@ export function renderQueueSet(state: QueueState, desired: readonly QueueReferen
     if (rank === undefined) throw new Error("Queue rank assignment omitted a new member");
     if (prior !== undefined && prior.inbox === reference.inbox && prior.rank === rank) return prior;
     const title = titles.get(`${reference.inbox}:${reference.id}`) ?? prior?.title ?? reference.id;
-    const raw = writeEntryFields(prior?.raw.replace(/^###.*$/mu, () => `### **${title}**`) ?? `### **${title}**`, { Id: reference.id, Inbox: reference.inbox, Rank: rank });
+    const raw = writeEntryFields(queueHeading(prior?.raw, title), { Id: reference.id, Inbox: reference.inbox, Rank: rank });
     return { ...reference, rank, title, raw };
   });
   const byId = new Map(members.map((member) => [member.id, member]));
@@ -73,6 +73,14 @@ export function renderQueueSet(state: QueueState, desired: readonly QueueReferen
   }) });
   for (const member of members) if (!previous.has(member.id)) content = appendEntry(content, "Queue", member.raw);
   return { content, members: members.sort(compareQueueMembers) };
+}
+
+function queueHeading(raw: string | undefined, title: string): string {
+  const heading = `### **${title}**`;
+  if (raw === undefined) return heading;
+  const end = (maskComments(raw).split("\n")[0] ?? "").trimEnd().length;
+  const comments = raw.slice(0, end).match(/<!--[\s\S]*?-->/gu) ?? [];
+  return `${heading}${comments.map(comment => ` ${comment}`).join("")}${raw.slice(end)}`;
 }
 
 function validRank(rank: string): boolean { try { generateRankBetween(rank, null); return true; } catch { return false; } }
