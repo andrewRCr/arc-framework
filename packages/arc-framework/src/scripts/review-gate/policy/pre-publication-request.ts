@@ -608,6 +608,14 @@ function routingInput(
   return { ...supplied, schemaVersion: 1, assurance, activity };
 }
 
+async function readCandidateCorrectionContext(
+  dependencies: PrePublicationCompositionDependencies, workUnit: string, sources: readonly string[],
+) {
+  const candidateProof = await dependencies.readCandidateCorrectionProof?.(workUnit);
+  return { candidateProof, rangeProof: candidateProof,
+    deltaAdmission: { sources, surface: "pre-publication" as const } };
+}
+
 /**
  * Compose both lane policy requests for one work unit from repository state and author judgment.
  *
@@ -842,7 +850,7 @@ export async function composePrePublicationReviewRequest(
       confirmApplicability: evidenceDependencies.confirmIncrementalApplicability,
       confirmCurrentApplicability: predecessor => exactTarget === null ? Promise.resolve("unavailable")
         : dependencies.confirmPriorProducerApplicability(input.workUnit, predecessor, exactTarget, currentLineage, policyTarget),
-      candidateProof: await dependencies.readCandidateCorrectionProof?.(input.workUnit),
+      ...await readCandidateCorrectionContext(dependencies, input.workUnit, policy.sources),
     });
     return bindReviewPolicyContinuationEvidence(policyInput, {
       terminalResponsePerformed: evidenceDependencies.terminalResponseSettled,

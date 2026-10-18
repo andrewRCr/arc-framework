@@ -10,6 +10,9 @@ import { projectStandardReviewObligation } from "../policy/standard-review-proje
 import type { StandardReviewObligationProjection } from "../policy/standard-review-projection-schema.js";
 import type { LocalPrepareDependencies, LocalPrepareRequest } from "./local-prepare.js";
 import { LocalPrepareCommandError } from "./local-prepare-error.js";
+import type { ReviewNextPassInput } from "../policy/review-next-pass.js";
+import type { GitExec } from "../../../lib/git/exec.js";
+import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
 
 /** Read one work unit's current Candidate boundary, optionally requiring an already resolved lineage. */
 export async function readLocalWorkUnitBoundary(
@@ -23,6 +26,27 @@ export async function readLocalWorkUnitBoundary(
     throw new LocalPrepareCommandError("reserved work-unit Candidate lineage changed before preparation");
   }
   return boundary;
+}
+
+/** Admit private Candidate delta coverage only while its matching boundary remains in pre-publication. */
+export async function readLocalDeltaAdmissionSurface(input: {
+  readonly cwd: string;
+  readonly exec: GitExec;
+  readonly lineage: LaneSubjectLineage;
+  readonly workUnitId?: string;
+  readonly pullRequest: number | null;
+}): Promise<NonNullable<ReviewNextPassInput["deltaAdmission"]>["surface"]> {
+  const { lineage, pullRequest } = input;
+  if (lineage.kind === "head-bound" && lineage.vehicleKind === "errand" && pullRequest !== null) {
+    return "open-pr-errand";
+  }
+  if (lineage.kind !== "candidate" || input.workUnitId === undefined || pullRequest !== null) return "ordinary";
+  const boundary = await readLocalWorkUnitBoundary(input.cwd, input.workUnitId, lineage.candidateId).catch(() => null);
+  if (boundary === null || boundary.locus === "publication-pending" || boundary.locus === "hosted-review-pending"
+    || boundary.locus === "delivery-status-required") return "ordinary";
+  const live = await readLocalReviewLiveContext(input).catch(() => null);
+  return live?.meta?.state === "Active" && live.context.workUnit?.identity === input.workUnitId
+    ? "pre-publication" : "ordinary";
 }
 
 /** Return the live reservation's policy for an ordinary work-unit review in the same Candidate lineage. */

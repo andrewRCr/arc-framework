@@ -1,5 +1,5 @@
 /** Production adapters for the local review prepare command. */
-import { readLocalWorkUnitBoundary, readReservedWorkUnitObligation } from "./local-reserved-obligation.js";
+import { readLocalDeltaAdmissionSurface, readLocalWorkUnitBoundary, readReservedWorkUnitObligation } from "./local-reserved-obligation.js";
 import { confirmReviewCorrectionLeg, deriveReviewNextPassContextFromAttempts } from "../policy/review-next-pass.js";
 
 
@@ -312,8 +312,9 @@ async function validateLocalPolicyAdmission(
       const nextPassContext = await deriveReviewNextPassContextFromAttempts({
         attempts: policyRequest.attempts, predecessorOperationId,
         currentTarget: target, currentLineage: lineage, standardReview, rangeProof: context.input,
-        deltaAdmission: { sources: evidenceDependencies.sources, surface: lineage.kind === "head-bound"
-          && lineage.vehicleKind === "errand" && policyTarget.pullRequest !== null ? "open-pr-errand" : "ordinary" },
+        deltaAdmission: { sources: evidenceDependencies.sources,
+          surface: await readLocalDeltaAdmissionSurface({ ...context.input, lineage, workUnitId,
+            pullRequest: policyTarget.pullRequest }) },
         resultReader: context.resultReader, dispositionStore: context.dispositionStore,
         readResponsePerformance: evidenceDependencies.readResponsePerformance,
         confirmApplicability: evidenceDependencies.confirmIncrementalApplicability,

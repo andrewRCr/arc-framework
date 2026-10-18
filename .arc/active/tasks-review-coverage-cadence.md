@@ -532,29 +532,16 @@ the range proof. Workflow text changes in the package's `arc/` source first, the
           local complete alternative through explicit coverageAdmission first, then the hosted successor by rank or
           additional-pass authorization. Package source and installed workflow agree.
 
-### `[ ]` **3.6 Run the delta check in pre-publication once the Candidate checkpoint advances the same Candidate — § 3.5**
+### `[x]` **3.6 Run the delta check in pre-publication once the Candidate checkpoint advances the same Candidate — § 3.5**
 
 - _Goal:_ In pre-publication, after the Candidate checkpoint's `covered` or `targeted-check` advances the same Candidate
   to a plain commit's head, the next pass is a delta check, while `changed`, which roots a new Candidate, leaves the
   complete pass as today.
 
-    - The checkpoint guards the Candidate's own currentness and stays as it is. The historical-attempt carry still drops
-      the earlier attempt, since the subject changed. The next pass's scope resolves through
-      `confirmPrivateCandidateCorrectionBasis`, which today refuses a predecessor without findings
-      (`privateCandidateTargetsMatch`), and the composition's current leg (Task 1.1.e), both taking the range proof
-      through the chain proof, so with a hosted source ranked first the driver reserves none; respond's chain
-      confirmation (`confirmNoPullRequestCandidatePriorProducer`, `runtime/respond-composition.ts`) re-confirms the leg.
-    - Under `incremental` a hosted complete pass after a converged delta check runs through an additional pass, which
-      pre-publication's lane request carries; under `full-final` the delta check runs as a lane attempt and Task 4.6's
-      arm follows it.
-    - `prepare-work-unit` names the delta check after a plain commit.
-    - Build `test-first` (one behavior at a time):
-        - After `covered` advances the Candidate, the next pass is a delta check whose leg respond re-confirms, and with
-          a hosted source ranked first no hosted source is reserved.
-        - Under `full-final`, the complete pass follows the delta check; under `incremental`, a converged delta check
-          settles the standard lane.
-        - After `changed`, the complete pass runs.
-        - A re-rooted Candidate admits no delta check.
+- _Outcome:_ Same-root `covered` and `targeted-check` selections lead to local delta coverage without reserving a
+  hosted source. Private full-final admission binds the live Active work unit and matching Candidate boundary;
+  changed roots keep complete coverage. Pre-publication and respond re-confirm delta chains, and the exact
+  additional-pass authorization survives convergence. `prepare-work-unit` names the delta and complete alternative.
 
 ### `[ ]` **3.7 Request the delta check from the published singleton's discharge under `incremental` — § 3.5**
 

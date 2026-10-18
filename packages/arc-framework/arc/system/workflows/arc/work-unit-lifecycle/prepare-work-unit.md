@@ -78,7 +78,15 @@ standard passes still count toward the ceiling, while older producer evidence re
 
 A standard look converges when it is clean or its approved dispositions fix no confirmed `critical` or `major`
 finding. Under `full-final`, only a converged complete pass replays as complete; a converged fix check still requires
-complete review. If the Owner explicitly authorizes another named standard pass after a converged complete pass under
+complete review.
+
+After a plain commit, when the Candidate checkpoint's `covered` or `targeted-check` advances the same Candidate, follow
+the local delta check without a coverage question. It closes the standard lane on convergence under `incremental`; under
+`full-final`, a complete pass follows by configured rank. `changed` requires a new Candidate and keeps complete review.
+For a local complete pass instead, supply `coverageAdmission: { requestedCoverage: "complete" }` with no correction
+scope. An additional hosted pass after an incremental delta converges takes the authorization below.
+
+If the Owner explicitly authorizes another named standard pass after a converged complete pass under
 `full-final`, or after convergence under `incremental`, carry its exact head, preceding producer, completed-pass count,
 and next ordinal as `lanes.standard.additionalPassAuthorization` in `--lanes`. This admits that pass only; each further
 pass needs a fresh decision. If it is above the configured ceiling, the same explicit decision covers the named ceiling

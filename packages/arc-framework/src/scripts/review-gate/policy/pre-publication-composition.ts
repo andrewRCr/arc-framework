@@ -574,6 +574,7 @@ export function createPrePublicationCompositionDependencies(input: {
       };
       return confirmReviewCorrectionLeg({ predecessor, currentTarget: current.target,
         currentLineage: current.admission.lineage, currentResult: current, dispositionStore,
+        rangeProof: input,
         readResponsePerformance: result => readLaneResponsePerformance(store, result),
         candidateProof: { candidate, ...input, baseRef: (await settings())["branch.base"], observeTarget },
         confirmGrounds });
