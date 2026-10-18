@@ -84,7 +84,7 @@ describe("identity Errand queue", () => {
 
 it("merges independent whole-queue moves and conflicts only when both writers change one member", async () => {
   const h = createInboxHarness();
-  await h.inbox("personal", ["11111111", "22222222", "33333333", "44444444"].map((id) => entry(id, id)).join("\n\n"));
+  const inbox = await h.inbox("personal", ["11111111", "22222222", "33333333", "44444444"].map((id) => entry(id, id)).join("\n\n"));
   await setErrandQueue(request("11111111", "22222222", "33333333", "44444444"), h.context);
   await Promise.all([setErrandQueue(request("22222222", "11111111", "33333333", "44444444"), h.context), setErrandQueue(request("11111111", "22222222", "44444444", "33333333"), h.context)]);
   const shown = await listErrandQueue(h.context);
@@ -94,4 +94,19 @@ it("merges independent whole-queue moves and conflicts only when both writers ch
   expect(success(await h.context.store.read({ reference: ref })).conflicts).toEqual([]);
   await Promise.all([setErrandQueue(request("44444444", "22222222", "11111111", "33333333"), h.context), setErrandQueue(request("22222222", "44444444", "11111111", "33333333"), h.context)]);
   expect(success(await h.context.store.read({ reference: ref })).conflicts).toHaveLength(1);
+  expect(await setErrandQueue(request("44444444"), h.context)).toMatchObject({ state: "set" });
+  expect(success(await h.context.store.read({ reference: ref })).conflicts).toEqual([]);
+  expect(await resolveQueueExecutionOffer(h.context)).toMatchObject({ result: { nextOffer: { key: "personal:44444444" } } });
+  const source = success(await h.context.store.read({ reference: inbox.reference }));
+  await Promise.all(["First edit", "Second edit"].map(prose => h.context.store.write({ action: "put", reference: source.reference,
+    expected: source.version, content: source.content.replace(entry("44444444", "44444444"), entry("44444444", "44444444", prose)),
+    provenance: { verb: "edit", lifecycleAction: "edit" } })));
+  const conflicted = success(await h.context.store.read({ reference: source.reference }));
+  expect(conflicted.conflicts).toHaveLength(1);
+  expect(await setErrandQueue(request("44444444"), h.context)).toMatchObject({ state: "set" });
+  expect(success(await h.context.store.read({ reference: source.reference })).conflicts).toEqual(conflicted.conflicts);
+  expect(await resolveQueueExecutionOffer(h.context)).toMatchObject({ result: { nextOffer: null, skipped: [{ id: "44444444" }] } });
+  success(await h.context.store.write({ action: "put", reference: conflicted.reference, expected: conflicted.version,
+    content: conflicted.content, resolves: conflicted.conflicts, provenance: { verb: "resolve", lifecycleAction: "edit" } }));
+  expect(await resolveQueueExecutionOffer(h.context)).toMatchObject({ result: { nextOffer: { key: "personal:44444444" } } });
 });

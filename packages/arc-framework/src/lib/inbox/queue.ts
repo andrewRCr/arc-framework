@@ -39,6 +39,7 @@ export async function setErrandQueue(request: unknown, context: InboxContext): P
   if (titles.status === "refused") return refused(titles.refusal);
   const rendered = renderQueueSet(state.result, parsed.data.members, titles.result);
   const written = await context.store.write({ action: "put", reference: state.result.reference, content: rendered.content,
+    ...(state.result.saved?.conflicts.length ? { resolves: state.result.saved.conflicts } : {}),
     expected: state.result.saved?.version ?? null, provenance: { verb: "errand-queue-set", lifecycleAction: "set" } });
   if (written.status === "refused") return refused(written.refusal);
   return { schemaVersion: 1, mode: "errand-queue", state: "set", members: rendered.members.map(publicMember) };
