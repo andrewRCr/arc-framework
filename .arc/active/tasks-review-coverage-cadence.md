@@ -809,14 +809,13 @@ complete pass. Workflow, method, and configuration text changes in the package's
   them. The capped member scenario predicts and runs three material fix-check rounds, then requires approval for
   the complete successor; missing proof and changed-target refusals remain in the shared validator.
 
-### `[ ]` **5.7 Fix checks at the ceiling** — validate exit criterion at segment scope
+### `[x]` **5.7 Fix checks at the ceiling** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds through a real lane at the ceiling.
 
-    - Scenario: a lane at its ceiling after material fixes runs fix checks with no override and converges, then needs an
-      override for the complete pass past the ceiling; the summaries show complete passes against the ceiling and fix
-      checks as rounds.
-    - Run `arc check segment`.
+- _Outcome:_ A real member lane capped at one complete pass runs and predicts three fix-check rounds without an
+  override. Its clean check leaves the lane open, and only an approved second complete pass discharges it; the
+  summaries keep round numbers separate from complete-pass counts. This rerun revalidates A2.
 
 ## **Phase 6:** One pass model and its report
 

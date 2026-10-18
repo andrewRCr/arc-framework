@@ -2100,6 +2100,6 @@ None. Every design question this change raises is settled above; what remains op
   _Supersedes:_ none. _Trigger:_ 4.7 segment. _Work:_ 4.R. _Revalidated:_ 4.7.
 
 - **A2** — 2026-10-18 — task: send historical member legs through `confirmReviewCorrectionLeg` before refusing them.
-  _Supersedes:_ none. _Trigger:_ 5.7 segment. _Work:_ 5.R. _Revalidated:_ pending → 5.7.
+  _Supersedes:_ none. _Trigger:_ 5.7 segment. _Work:_ 5.R. _Revalidated:_ 5.7.
 
 ---
