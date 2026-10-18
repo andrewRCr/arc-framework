@@ -519,18 +519,19 @@ which remains reserved for Novel fan-out with disjoint responsibility and AND-co
 
 ### Bounded chunk-series carrier mode
 
-When `review-chunking` invokes the bounded chunk-series carrier mode, the carrier runs fresh bounded contexts
-serially as sequential attention isolation within one logical pass. The carrier keeps a stable evaluator profile and
-complete rubric across every closure chunk and the seam; only the current scope and its explicit external or
-pre-existing annotations vary.
+When `review-chunking` invokes the bounded chunk-series carrier mode, the carrier runs fresh bounded contexts with
+dependency-based scheduling within one logical pass. Run ready independent scopes concurrently when supported;
+wait only where a seam or aggregate consumes unfinished reports. Keep a stable evaluator profile and complete rubric
+across every closure chunk and the seam; only the current scope and its explicit external or pre-existing annotations
+vary. Apply `review-chunking`'s bounded orchestration and reuse rules throughout the pass.
 
 The carrier orchestration owns exact-target identity, partition, and coverage state outside those contexts. Each
 chunk or seam report has no standalone authority. A fresh non-author aggregate context consumes the complete report
 series and coverage facts, inspects targeted source loci as needed, and emits the caller role's one whole-target
 result. Evaluator-call count does not change pass accounting.
 
-This mode is distinct from Novel partitioned fan-out: the series isolates attention across dependent scopes inside
-one review responsibility, rather than assigning orthogonal responsibilities to parallel evaluators.
+This mode is distinct from Novel partitioned fan-out: chunks isolate attention inside one review responsibility.
+Concurrent scheduling does not assign the orthogonal responsibilities or AND-convergence semantics of Novel fan-out.
 
 ### Context provisioning
 

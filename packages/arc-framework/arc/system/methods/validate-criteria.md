@@ -38,6 +38,13 @@ Do not widen or reconstruct one coordinate independently of the others. At membe
 inspect the bounded diff and reachable tree, and resolve each criterion in the selected member group against
 source-grounded evidence.
 
+Direct inspection toward whether the selected criteria and governing spec contract are fulfilled, including required
+failure and recovery behavior. Tie each reviewer assignment and seam question to that verification purpose. Read
+whole files and follow dependencies when needed to answer it; do not add an independent general code-quality rubric
+or an exhaustive file-body reading requirement. Report concrete incidental defects through the ordinary findings
+and approval protocol; their discovery does not widen every remaining assignment. Criteria-review evidence does not
+satisfy the separate standard-review obligation.
+
 At work-unit scope, first inspect whether the task list contains a Delivery Plan. When none is present, open the
 upstream design/spec artifact, inspect the complete work-unit diff and reachable tree, and resolve every criterion
 in the flat Success Criteria section against actual outcomes. When a Delivery Plan is present, disposition each

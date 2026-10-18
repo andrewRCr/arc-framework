@@ -69,6 +69,10 @@ Request `arc check gate merge --force` before the final local attestation.
 
 ## Step 2 — Validate Success Criteria at Work-Unit Scope
 
+Before the criteria walk or its first independent reviewer, apply [`review-chunking`][review-chunking]
+§ Verification scale attention to the complete work-unit subject, including verified local edits. Retain the exact
+subject and resolved attention with the criteria evidence. This also applies without a Delivery Plan.
+
 Inspect the task list for a Delivery Plan, then run the criteria walk at work-unit scope with exactly one of these
 criteria shapes.
 

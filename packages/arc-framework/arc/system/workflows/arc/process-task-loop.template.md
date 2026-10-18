@@ -198,6 +198,11 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
      with a completion note citing the subtask that recorded the delta, and dispatches to item 4's resolved
      completion branch. The key is a fact on the task being executed, never list-wide state.
 
+     Before a fresh member criteria walk or its first independent reviewer, apply
+     [`review-chunking`][review-chunking] § Verification scale attention to the bounded member subject, including
+     local edits. Retain that exact-subject result with the criteria evidence; the committed-span check below
+     still closes the member's final span.
+
      ```yaml
      validate-criteria:
        scope:
