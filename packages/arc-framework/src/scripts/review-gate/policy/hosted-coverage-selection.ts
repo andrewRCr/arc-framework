@@ -5,7 +5,6 @@ import { ReviewCoverageSelectionActionSchema, type ReviewCoverageSelectionAction
 import { coverageSelectionChoices, type HostedReservationDischarge, type IncrementalCorrectionScopeCandidate } from "./hosted-reservation-support.js";
 import type { IncrementalReviewScope } from "../core/incremental-review-scope.js";
 import type { DeliveryReviewMemberVehicle } from "../../../lib/delivery/review-vehicle.js";
-import { reviewStatusRouteCommand, type ReviewStatusRoute } from "../status-route.js";
 import type { StandardReviewObligationProjection } from "./standard-review-projection-schema.js";
 
 /** Request a singleton's proven delta without retaining the earlier review or its source selection. */
@@ -33,23 +32,19 @@ export function projectHostedCorrectionCoverageSelection(input: {
   readonly predecessor: IncrementalCorrectionScopeCandidate;
   readonly completedPasses: number;
   readonly vehicle?: DeliveryReviewMemberVehicle;
-  readonly statusRoute?: ReviewStatusRoute;
 }): ReviewCoverageSelectionAction | undefined {
   const basis = input.nextPassContext?.incremental;
-  const statusRoute = input.statusRoute;
-  if (input.vehicle === undefined || statusRoute === undefined || input.scope === undefined
+  if (input.vehicle === undefined || input.scope === undefined
     || input.nextPassContext?.convergence !== "unconverged" || input.nextPassContext.responseDue
     || !input.sources.includes("delegated-agent") || basis?.basis !== "fix-check"
     || canonicalize(basis.scope) !== canonicalize(input.scope)) return undefined;
-  const command = (coverage: string) => reviewStatusRouteCommand(statusRoute,
-    ["--source", "delegated-agent", "--coverage", coverage]);
   return ReviewCoverageSelectionActionSchema.parse({
     schemaVersion: 1, kind: "review-coverage-selection", workUnitId: input.vehicle.workUnitId,
     sourceId: input.predecessor.sourceId, pass: input.predecessor.logicalPass,
     completedPasses: Math.max(input.completedPasses, input.predecessor.logicalPass), consumedPass: true,
     choices: coverageSelectionChoices(["delegated-agent"], input.scope),
-    interactionText: "Select one listed source and coverage pair. For a fix check, re-run "
-      + `\`${command("incremental")}\`; for a complete pass, re-run \`${command("complete")}\`.`,
+    interactionText: "A local fix check is admitted for the proven correction range. A local complete pass is also admitted; "
+      + "it does not replace the fix check. The Owner approves one listed source and coverage pair.",
   });
 }
 

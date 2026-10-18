@@ -601,7 +601,7 @@ rejections. Method and workflow text changes in the package's `arc/` source firs
   It shares prepare's subject resolver, counts each member independently, and reads without initialization or
   publication locks. Refusals retain the exact request and a checkout or member-head remedy.
 
-### `[ ]` **4.3 State the next-pass offer as bounds, then considerations — § 6.3**
+### `[x]` **4.3 State the next-pass offer as bounds, then considerations — § 6.3**
 
 - _Goal:_ Every coverage offer states the allowed steps once, in plain words, then gives each consideration its reason
   and the condition under which it favors an option, and ends by asking for the recommendation — in local prepare and on
@@ -612,13 +612,10 @@ rejections. Method and workflow text changes in the package's `arc/` source firs
           considerations. The fix check comes first; a complete pass stays separate, and a failed chain names complete
           alone with a prompt to check why. Each fact supplies its value and decision condition before advisory judgment.
 
-    - `[ ]` **4.3.b Replace the work-unit path's selection prompt**
-        - The discharge's prompt (`hosted-reservation-discharge.ts`) has no considerations, names a `--json` flag that
-          `review status` rejects (`cli.ts`), and always names `--work-unit`. The discharge has no route, so it emits the
-          text with no command, and status's route composition appends the argv that re-runs status by the route that
-          reached it, as Task 2.4.d's remedy does (`SpineRemedy`, `integration/spine-refusal.ts`).
-        - Build `test-first` (one behavior at a time):
-            - Each route's prompt names its own re-run command and no flag status rejects.
+    - `[x]` **4.3.b Replace the work-unit path's selection prompt**
+        - Hosted coverage offers render shared facts from the delivery member's own lane history, with admitted bounds
+          before considerations and advisory judgment last. Discharge emits no command; status inserts executable retry
+          commands for its original work-unit or target selector, using only accepted flags.
 
 ### `[ ]` **4.4 Give a complete pass pointers and withhold verdicts — § 9.1, § 9.2, § 9.3**
 

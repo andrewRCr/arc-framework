@@ -3,6 +3,7 @@ import { composeHostedCorrectionProof, confirmHostedCurrentCorrection } from "./
 import { createHostedApplicabilityContext } from "./hosted-applicability-context.js";
 import { deriveHostedReviewTarget } from "./hosted-review-target.js";
 import { deriveHostedNextPassContext } from "./hosted-next-pass-context.js";
+import { groundHostedCoverageOffer } from "./hosted-next-pass-facts.js";
 
 import type { DeliveryReviewMemberVehicle } from "../../../lib/delivery/review-vehicle.js";
 import { canonicalize } from "../../../lib/kernel/canonical/canonical-json.js";
@@ -48,7 +49,6 @@ import {
 } from "./incremental-coverage-basis.js";
 import { projectHostedConvergedComplete, projectHostedCorrectionCoverageSelection, projectHostedCorrectionDefault, projectHostedDeltaCheck } from "./hosted-coverage-selection.js";
 import type { ReviewNextPassContext } from "./review-next-pass-schema.js";
-import type { ReviewStatusRoute } from "../status-route.js";
 
 import {
   ProjectedLaneAttempt,
@@ -99,7 +99,6 @@ export * from "./hosted-reservation-support.js";
 export async function projectHostedReservationDischarge(input: {
   reservation: StandardReviewReservationV1 | null;
   nextPassContext?: ReviewNextPassContext;
-  statusRoute?: ReviewStatusRoute;
   invocation?: HostedRequestEnvelope["invocation"];
   span: readonly string[];
   target: {
@@ -332,7 +331,7 @@ export async function projectHostedReservationDischarge(input: {
           const coverageSelectionAction = correctionCandidate === null ? undefined
             : projectHostedCorrectionCoverageSelection({ sources: reservation.sources,
               nextPassContext: input.nextPassContext, scope: correctionScope ?? undefined,
-              predecessor: correctionCandidate, completedPasses, vehicle: target.vehicle, statusRoute: input.statusRoute });
+              predecessor: correctionCandidate, completedPasses, vehicle: target.vehicle });
           return {
             discharged: false,
             detail: `The terminal review producer did not establish convergence (${policy.state}/${policy.nextAction}).`,
@@ -380,7 +379,7 @@ export async function projectHostedReservationDischarge(input: {
     if (correctionScope === null) return defaultCoverage();
     const coverageSelectionAction = projectHostedCorrectionCoverageSelection({ sources: reservation.sources,
       nextPassContext: input.nextPassContext, scope: correctionScope, predecessor: candidate,
-      completedPasses, vehicle: target.vehicle, statusRoute: input.statusRoute });
+      completedPasses, vehicle: target.vehicle });
     return { correctionScope, ...(coverageSelectionAction === undefined ? {} : { coverageSelectionAction }),
       ...defaultCoverage(coverageSelectionAction) };
   };
@@ -626,7 +625,6 @@ export function createHostedReservationDischargeReader(input: {
     changeRequest,
     vehicle,
     candidate,
-    statusRoute,
   }: Omit<HostedReservationDischargeReaderArgs, "workUnitId">): Promise<HostedReservationDischarge> => {
     if (reservation === null) {
       const unreachableTerminalPolicy = (): Promise<ReviewResolveEnvelope> => Promise.reject(
@@ -774,7 +772,7 @@ export function createHostedReservationDischargeReader(input: {
     const nextPassContext = await deriveHostedNextPassContext({ ...nextPassInputs,
       progress: await Promise.all(span.map(readProgress)) });
     const discharge = await projectHostedReservationDischarge({
-      reservation, nextPassContext, statusRoute,
+      reservation, nextPassContext,
       ...(invocation === undefined ? {} : { invocation }),
       span,
       target: changeRequest === null
@@ -852,7 +850,8 @@ export function createHostedReservationDischargeReader(input: {
             ),
           }),
     });
-    return { ...discharge, nextPassContext };
+    return groundHostedCoverageOffer({ ...discharge, nextPassContext }, { lineage, target: currentTarget, store,
+      dispositionStore: dispositions, nextPassContext, ceiling: await maxPasses(), exec: rawExec });
   };
 
   const reader = async ({ workUnitId, ...target }: HostedReservationDischargeReaderArgs) => {
@@ -893,7 +892,6 @@ export function createHostedReservationDischargeReader(input: {
       },
       ...(resolvedTarget.vehicle === undefined ? {} : { vehicle: resolvedTarget.vehicle }),
       ...(target.candidate === undefined ? {} : { candidate: target.candidate }),
-      ...(target.statusRoute === undefined ? {} : { statusRoute: target.statusRoute }),
     })));
     if (!allHostedReservationTargetsDischarged(discharges)) {
       const index = discharges.findIndex(({ discharged }) => !discharged);

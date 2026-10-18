@@ -1848,7 +1848,7 @@ describe("review status", () => {
 
     expect(obligation).toMatchObject({
       state: "coverage-required",
-      coverageSelectionAction,
+      coverageSelectionAction: { ...coverageSelectionAction, interactionText: expect.stringContaining(coverageSelectionAction.interactionText) },
       conjunction: {
         members: [{ progress: { completedPasses: 1, passCeiling: 2 } }],
       },
@@ -1856,7 +1856,7 @@ describe("review status", () => {
     await expect(resolveReviewStatus({ target }, port({ routedObligation: obligation }))).resolves.toMatchObject({
       state: "coverage-required",
       nextAction: "select-coverage",
-      coverageSelectionAction,
+      coverageSelectionAction: { ...coverageSelectionAction, interactionText: expect.stringContaining(coverageSelectionAction.interactionText) },
       deliveryCursor: {
         currentMember: { progress: { completedPasses: 1, passCeiling: 2 } },
       },

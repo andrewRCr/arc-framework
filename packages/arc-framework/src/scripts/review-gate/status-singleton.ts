@@ -46,7 +46,6 @@ export async function composePublishedSingletonReview(input: PublishedSingletonI
   const { target, reservation, readDischarge } = input;
   const dischargeInput = {
     reservation,
-    statusRoute: input.statusRoute,
     baseRevision: input.baseRevision,
     approvedHead: target.headSha,
     changeRequest: { repository: target.repository, pullRequest: target.pullRequest },

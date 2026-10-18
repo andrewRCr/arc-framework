@@ -2,7 +2,6 @@
 import { confirmReviewCorrectionLeg, type ReviewCorrectionLegInput } from "./review-next-pass.js";
 import { deriveHostedReviewTarget } from "./hosted-review-target.js";
 
-import type { ReviewStatusRoute } from "../status-route.js";
 import type { ReviewNextPassContext } from "./review-next-pass-schema.js";
 
 import {
@@ -496,7 +495,6 @@ export interface HostedReservationDischarge {
 /** Exact inputs shared by discharge projection and evidence-bound applicability re-entry. */
 export interface HostedReservationDischargeReaderArgs {
   workUnitId?: string;
-  statusRoute?: ReviewStatusRoute;
   reservation: StandardReviewReservationV1 | null;
   baseRevision: string;
   approvedHead: string;

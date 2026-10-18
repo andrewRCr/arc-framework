@@ -36,7 +36,7 @@ const terminalPolicy = resolveReviewPolicy({ schemaVersion: 1, target: handle.ta
     maxConfirmedSeverity: "major", materialFix: true, coverageAdequate: false } });
 const coverageSelectionAction = projectHostedCorrectionCoverageSelection({ sources: ["codex-pr", "delegated-agent"],
   nextPassContext, scope, predecessor: { attemptId: hostedLaneAttemptId(handle), logicalPass: 1, sourceId: "codex-pr",
-    outcome: "settled-findings" }, completedPasses: 1, vehicle, statusRoute: { kind: "work-unit", workUnitId: "example" } });
+    outcome: "settled-findings" }, completedPasses: 1, vehicle });
 const discharge = { discharged: false, detail: "The material fixes require another look.", nextSource: null,
   terminalPolicyState: terminalPolicy.state, coverageSelectionAction, completedPasses: 1, completePasses: 0, passCeiling: 4,
   attemptHistory: [{ updatedAt: "2026-10-18T00:00:00Z", headSha: handle.target.headSha, sourceId: "codex-pr",

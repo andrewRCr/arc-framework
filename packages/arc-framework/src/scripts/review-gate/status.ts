@@ -5,7 +5,7 @@ import { projectDeliveryTerminusOffer, type DeliveryTerminusOfferBinding } from 
 import { singletonNeedsLocalPrepare, SingletonLocalPrepareActionSchema, projectSingletonLocalPrepareAction } from "./singleton-local-prepare-action.js";
 import type { StandardReviewObligationProjection } from "./policy/standard-review-projection-schema.js";
 import { projectHostedIncrementalRefusal, projectReviewDriverRefusal, ReviewDriverRefusalReasonSchema, ReviewDriverRefusalSchema } from "./status-driver-refusal.js";
-import type { ReviewStatusRoute } from "./status-route.js";
+import { routeDischargeCoverageOffer, type ReviewStatusRoute } from "./status-route.js";
 import { z } from "zod";
 
 import {
@@ -834,7 +834,7 @@ export function composeDeliveryReviewObligation(input: {
   }
   if (discharge !== undefined) {
     const intervention = composeReviewDischargeIntervention(
-      discharge,
+      routeDischargeCoverageOffer(discharge, input.statusRoute),
       input.applicabilityContext,
       { kind: "delivery", status: "outstanding", members },
     );

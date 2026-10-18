@@ -3067,7 +3067,14 @@ describe("hosted review fan-out lifecycle", () => {
       const selection = ReviewStatusCommandResultSchema.parse(JSON.parse(offered.stdout));
       expect(selection).toMatchObject({ state: "coverage-required", nextAction: "select-coverage" });
       if (selection.state !== "coverage-required") throw new Error("expected the exact status coverage offer");
-      const command = [...selection.coverageSelectionAction.interactionText.matchAll(/`(arc review status[^`]+)`/gu)]
+      const prompt = selection.coverageSelectionAction.interactionText;
+      expect(prompt).toContain("Complete passes: 1 of 2");
+      expect(prompt).toContain("Correction chain: proven");
+      expect(prompt).toContain("Round 1, paths outside cited loci:");
+      expect(prompt).toContain("Material trend:");
+      expect(prompt.indexOf("local fix check")).toBeLessThan(prompt.indexOf("Complete passes:"));
+      expect(prompt).toContain("What do you recommend, why, and what would change your recommendation?");
+      const command = [...prompt.matchAll(/`(arc review status[^`]+)`/gu)]
         .map(match => match[1]).find(value => value?.endsWith("--coverage incremental"));
       if (command === undefined) throw new Error("expected an executable fix-check command");
       for (const invalid of [["--source", "coderabbit-pr", "--coverage", "incremental"]]) {

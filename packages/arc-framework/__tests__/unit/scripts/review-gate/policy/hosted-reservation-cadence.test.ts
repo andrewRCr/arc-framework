@@ -1,5 +1,6 @@
 /** Coverage selection after a performed material response on a delivery member. */
 import { describe, expect, it } from "vitest";
+import { routeReviewCoverageOffer } from "../../../../../src/scripts/review-gate/status-route.js";
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import { DeliveryReviewMemberVehicleSchema } from "../../../../../src/lib/delivery/review-vehicle.js";
 import type { EarlierHostedAttemptApplicabilityRead } from "../../../../../src/scripts/review-gate/policy/earlier-review-applicability.js";
@@ -26,11 +27,9 @@ const scope = { schemaVersion: 1 as const, predecessorProducerId: hostedLaneAtte
   predecessorHeadSha: handle.target.headSha, basisHeadSha: handle.target.headSha, headSha,
   requiredFindings: [{ producerId: hostedLaneAttemptId(handle), findingId: "finding-1", locus: "large.ts:1" }] };
 
-function fixture(route: "work-unit" | "target", proven = true) {
+function fixture(proven = true) {
   return {
     reservation, span: [headSha],
-    statusRoute: route === "work-unit" ? { kind: "work-unit" as const, workUnitId: "example" }
-      : { kind: "target" as const, target: statusTarget },
     nextPassContext: { convergence: "unconverged" as const, responseDue: false,
       incremental: proven ? { basis: "fix-check" as const, scope } : null },
     target: { ...handle.target, headSha, baseRevision: handle.admission.reviewTarget.diffBaseSha,
@@ -51,18 +50,22 @@ function fixture(route: "work-unit" | "target", proven = true) {
 
 describe("delivery material-response coverage", () => {
   it.each(["work-unit", "target"] as const)("offers only local choices with the original %s status route", async route => {
-    const result = await projectHostedReservationDischarge(fixture(route));
+    const result = await projectHostedReservationDischarge(fixture());
     expect(result).toMatchObject({ discharged: false, correctionScope: scope, coverageSelectionAction: {
       choices: [{ sourceId: "delegated-agent", coverage: "incremental" }, { sourceId: "delegated-agent", coverage: "complete" }],
     } });
-    const text = result.coverageSelectionAction?.interactionText ?? "";
+    const action = result.coverageSelectionAction;
+    if (action === undefined) throw new Error("expected a route-free coverage offer");
+    expect(action.interactionText).not.toContain("arc review status");
+    const text = routeReviewCoverageOffer(action, route === "work-unit"
+      ? { kind: "work-unit", workUnitId: "example" } : { kind: "target", target: statusTarget }).interactionText;
     expect(text).not.toContain("--json");
     expect(text).toContain(route === "work-unit" ? "--work-unit example" : `--target '${JSON.stringify(statusTarget)}'`);
     expect(text).toContain("--source delegated-agent --coverage incremental");
   });
 
   it("defaults an unproved material fix-check successor to local complete coverage without a selection", async () => {
-    const input = fixture("target", false);
+    const input = fixture(false);
     const incremental = createHostedHandleFixture({ provider: "codex-pr", vehicle,
       requestedCoverage: "incremental", effectiveCoverage: "incremental" });
     const attemptId = hostedLaneAttemptId(incremental);
@@ -110,7 +113,7 @@ describe("converged fix-check continuation", () => {
         verifiedTerminalSignal: { reviewOperationId: terminal.attemptId, confirmedFindingCount: 0,
           maxConfirmedSeverity: null, materialFix: false, coverageAdequate: false } });
       const result = await projectHostedReservationDischarge({ reservation: reserved, nextPassContext,
-        statusRoute: { kind: "work-unit", workUnitId: "example" }, span: [incremental.target.headSha],
+        span: [incremental.target.headSha],
         target: { ...incremental.target, ...(member ? { vehicle } : {}) },
         readLaneProgress: async () => current ? { status: "recorded", completedPasses: 1, completePasses: 0,
           attempts: [{ ...terminal, sourceId: "codex-pr", logicalPass: 1, outcome: "clean", scopeMode: "whole-target",

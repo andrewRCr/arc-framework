@@ -620,7 +620,6 @@ export async function readRoutedObligation(
         },
         vehicle: memberTarget.vehicle,
         candidate: record,
-        statusRoute: options.statusRoute ?? { kind: "target", target },
       })));
       const publisher = new RepositoryGitCommonStatePublisher(exec, cwd);
       const store = new LocalReviewOperationStateStore(publisher);
