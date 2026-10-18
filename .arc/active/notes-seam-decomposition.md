@@ -26,4 +26,50 @@ carried or deleted (§ 1.5, § 13).
   (`decompose-v3-operation.ts`, `git-decompose-v3-operation.ts`) and lifecycle (`verbs/abandon.ts`, `verbs/rename.ts`,
   `handlers/lifecycle.ts`, `commands/rename.ts`) both import it.
 
+## Refusal coverage
+
+Each row of the spec's § 14, by the tasks of `tasks-seam-decomposition.md` that build and test it. A row's tests show
+the refusal firing where its condition holds and the cut completing after its remedy.
+
+| Refusal                                                                         | Tasks                        |
+| ------------------------------------------------------------------------------- | ---------------------------- |
+| The origin holds a stored map, or another cut stores one first                  | 2.2, 2.6                     |
+| The origin's inbound list holds entries                                         | 2.2, 2.4, 3.3                |
+| The origin is Integrating or archived                                           | 2.2, 2.4, 5.2                |
+| The origin is one no member can be made from                                    | 2.2, 2.4, 2.5, 3.2, 5.2, 5.3 |
+| A task list the batch would copy carries a completed task                       | 2.5, 5.3                     |
+| The origin's meta or a source record holds an open conflict                     | 2.2, 2.4, 3.3, 5.2           |
+| The lifecycle listing is unreadable or incomplete                               | 2.2, 3.4, 5.1                |
+| The map does not decode, or is version 3                                        | 1.2, 2.4, 5.3                |
+| The map breaks a carried ownership, edge, or placement rule                     | 2.4, 5.3                     |
+| The map's machine half differs from a fresh preflight                           | 2.4, 5.3                     |
+| The wrong flag for the map's shape                                              | 2.4                          |
+| A name is held, or taken before the batch lands                                 | 2.4, 2.6, 5.3                |
+| An allocation into a file the operator may not edit                             | 2.4, 5.3                     |
+| An existing home resolves to nothing, to a completed work unit, or to an Errand | 2.4, 3.1, 5.3                |
+| A started home would take an edge, or a started dependent's edge would move     | 2.4, 3.3, 4.1, 4.3, 5.3      |
+| A `document` home                                                               | 2.4, 5.3                     |
+| An edge's provider does not resolve by slug                                     | 2.4, 3.3, 5.3                |
+| A Purpose missing for a created document, or present for an existing one        | 2.4, 5.3                     |
+| No stored map                                                                   | 3.1, 5.1, 5.3                |
+| The origin's current kind is not the shape's                                    | 3.2                          |
+| A member gone, a seeded field diverging, a locator unresolved, an origin moved  | 3.1, 3.2, 3.3, 4.3, 5.3      |
+| An `at-cap` subcohort document holds a lone fan-out marker or a different block | 3.4, 4.3                     |
+| The origin's checkout fails the removal check                                   | 3.4, 3.5                     |
+| The apply authority is stale                                                    | 3.5, 4.3, 5.1, 5.3           |
+| A started member would be removed, or its seeded field moved                    | 5.1, 5.3                     |
+| An edge names a stub the batch removes                                          | 5.1, 5.3                     |
+| A removed stub holds its own stored map, or inbound entries                     | 5.1, 5.3                     |
+| An open work item or cohort document holds a cohort document the batch removes  | 5.1, 5.3                     |
+| A member was renamed between the batches                                        | 3.2, 5.3                     |
+| The cut has landed                                                              | 3.6, 4.3, 5.4                |
+| The stored map is conflicted after a sync                                       | 5.5                          |
+| A member is gone that the revised map keeps, or a revised `Parent` would change | 5.3                          |
+| A placement names a cohort after the origin                                     | 2.4, 5.3                     |
+| A retirement's member names the origin                                          | 3.2                          |
+| `abandon` lineage for an origin holding a stored map                            | 1.5, 5.6                     |
+| `--revise`, `--discard`, or `--finish` without its map, before the flip         | 6.1                          |
+| `--advance-base` or `--finish <cut-map>` from the flip                          | 6.2                          |
+| A version conflict at the batch                                                 | 2.6, 3.5, 4.3, 5.1, 5.3      |
+
 ---

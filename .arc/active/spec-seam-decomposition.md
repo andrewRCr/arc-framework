@@ -83,7 +83,8 @@ members, would buy nothing here.
   **extraction** keeps it (`extraction` shape). **Member** — a work unit the cut creates. **Stub** — a work unit placed
   in the backlog, unstarted; a **started** work unit is placed active. **Existing home** — a work unit, a block of
   another work unit's draft, or a document an allocation sends content to (`ExistingTargetSchema`,
-  `decompose-v3-schema.ts`). **Dependent** — a work item whose `Depends On` names the origin.
+  `decompose-v3-schema.ts`). **Dependent** — an open work item whose `Depends On` names the origin, by its slug or by a
+  former slug that `lookup` resolves to it; a completed record's edges gate nothing.
 - **Cut map** — the map of a cut: a machine half the verb derives from the origin and an authoring half the operator
   completes (§ 3). **Stored map** — the completed map held as a record on the origin between the cut's batches (§ 4).
   **Source unit** — one addressable unit of the origin's artifacts, found by the scanner and named by a **locator**
@@ -109,8 +110,10 @@ members, would buy nothing here.
 6. **A decomposed origin tears down:** its lineage record carries `retiredBranches` from the removed primary's exact
    branch links (§ 8.5).
 7. **Flat cost:** a cut reads the records it touches through the store a fixed number of times each — its acquisition,
-   its revalidation before the batch, and in a retirement the lifecycle executor's own read of the listing and the
-   primary — and nothing it reads grows with history or branch count (§ 5, § 8.1).
+   its revalidation before the batch, in a retirement the lifecycle executor's own read of the listing and the primary,
+   and once per run of the verb (a preview, an apply, or the revision starter) the `history` of the stored map and of
+   each item a member's slug finds (§ 8.3) — and nothing it reads grows with the repository's history or branch count;
+   each `history` read walks only the history of the item that owns the record (§ 5, § 8.1).
 8. **Every refusal names its remedy,** and the cut completes once the remedy is applied (§ 14), but for the leftovers of
    § 10's races between unsynced clones.
 9. **No ratchet floor grows:** the store version adds no `store-raw-state`, `surface-names`, or `work-unit-paths` entry
@@ -170,6 +173,8 @@ invented.
   the lineage kind's `lineage.cut-in-flight` rule (`checkLineageRecord`, `lib/store/kinds/lineage/check.ts`). A member
   that writes another member's kind uses that kind's writers and never registers its own (`cohort-storage-seam.md`
   § Soft coordination, Parsers and field schemas), so both go into the kinds' modules (§ 4, § 8.5, § 10).
+- **Rename's reference sweep** passing over the cut-map record (`prepareStoreRename`, `lib/store/lifecycle-rename.ts`),
+  which would otherwise rewrite a stored map's bytes (§ 4).
 - **The map schema** `cut-map`, version 4, in the production schema registry (`createProductionSchemaRegistry`,
   `production-schema-registry.ts`) beside `decompose-cut-map` version 3 (§ 3).
 - **The locator move,** a setup chunk (§ 1.3).
@@ -182,20 +187,31 @@ Teardown is not touched: its store arm already serves a decomposed origin (`runS
 1. **Setup: the locator moves.** The scanner (`decompose-content.ts`) imports its locator schema and source-ID function
    from version 3's schema module (`V3DecomposeLocatorSchema`, `v3SourceId`, `decompose-v3-schema.ts`), so it cannot
    carry into the store version while version 3 stays deletable. Both definitions move into the scanner's module with
-   the private schemas they rest on, and `decompose-v3-schema.ts` imports them from there and re-exports both names, so
-   its importers — `decompose-v3-preflight.ts`, `decompose-v3-thinning.ts`, `decompose-v3-finish.ts`, and their tests —
-   stay as they are. Names stay as they are. Behavior does not change: version 3's decode tests and the scanner's pass
-   unchanged.
-2. **The kinds:** the cut-map kind, the fan-out writer, and `lineage.cut-in-flight`. Where `storage-ref-backend` has
-   landed, the kind's mechanism takes its ref home here; otherwise that change sets it (§ 18).
+   `HeadingIdentitySchema`, which only the locator uses; the basename and managed-path checks they rest on are the
+   scanner's own (`isArtifactBasename`, `isManagedPath`), and version 3 keeps its copies for its other fields.
+   `decompose-v3-schema.ts` imports both definitions from there and re-exports both names, so its importers —
+   `decompose-v3-preflight.ts`, `decompose-v3-thinning.ts`, `decompose-v3-finish.ts`, and the tests and fixtures
+   importing them — stay as they are. Names stay as they are. Behavior does not change: version 3's decode tests and the
+   scanner's pass unchanged.
+2. **The kinds:** the cut-map kind with rename's sweep passing over it, the fan-out writer, and `lineage.cut-in-flight`.
+   Where `storage-ref-backend` has landed, the kind's mechanism takes its ref home here; otherwise that change sets it
+   (§ 18).
 3. **The schema** `cut-map`, version 4 (§ 3).
 4. **The store version:** preflight, the additive batch, the terminal batch with its preview, then the discard and the
    revision (§ 5–§ 9).
 5. **The dispatch and the flags** (§ 2), last, since the store version is unreachable until it lands.
 
-A file another change also rewrites serializes with it: `lib/store/catalog.ts` and `lib/store/registry.ts` with
-`storage-ref-backend`, and `lib/store/kinds/lineage/check.ts` with `seam-locus` where its inbound grammar reaches the
-held-entry rules.
+A file another in-flight change also rewrites serializes with it, the branch merging base holding that change first
+where it has landed. Each entry this change adds to a shared list lands in its sorted position where the list is sorted,
+and otherwise after the last entry of its family, or at the end where the list groups none, any count beside it raised
+by one rather than set; a merge that meets both changes' additions keeps both. With `storage-ref-backend`:
+`lib/store/catalog.ts`, `lib/store/registry.ts`, `lib/store/kinds/lineage/check.ts`, `lib/store/lifecycle-rename.ts`,
+`eslint/architecture-imports.ts` and its test, `registry.test.ts`, and `cli.ts`. With `seam-locus`:
+`lib/store/registry.ts` and `lib/store/kinds/registrations.ts`, where it declares the inbound kind's grammar and
+registers its receipt kinds, the grammar reaching the held-entry rules through the registry;
+`production-schema-registry.ts`, the production schema IDs, and `authored-metadata.test.ts`;
+`eslint/architecture-imports.ts`; and `cli.ts`. With `storage-projection`, whose plan adds to `MACHINE_LOCAL_PATHS` and
+registers commands: `lib/store/registry.ts` and `cli.ts`.
 
 #### 1.4 Before the flip (Owner, 2026-10-16)
 
@@ -210,6 +226,7 @@ nothing a cut does:
   Commander reports the missing argument.
 - **The cut-map kind,** registered with no in-repo home, so the in-repo implementation refuses its writes `unsupported`
   and lists it absent: no record of it can exist before the flip.
+- **Rename's sweep passing over the cut-map record,** which no record of the kind reaches before the flip.
 - **The `cut-map` schema,** published through `arc schema` beside `decompose-cut-map`.
 - **The cohort kind's fan-out writer,** which only the store version calls; today's topology keeps its own splice
   (`fanoutBlock`, `decompose-v3-topology.ts`).
@@ -304,7 +321,8 @@ The verb derives it at preflight (§ 5); the operator never edits it.
   dependent's other edges may change between the batches (§ 8.4). Incoming dispositions key by `edgeId`, as today. The
   cut's own members are never dependents: an extraction's member naming the surviving origin holds a seeded edge, which
   § 8.3 checks, so every scan after the additive batch — the terminal batch's and a revision's fresh preflight — leaves
-  out each work item the stored map names as a member.
+  out each work item the stored map names as a member, a member as § 8.3 tells it from an item that took its slug, which
+  is scanned like any other.
 - **`outgoingEdges`** — one per provider the origin's `Depends On` names: `{edgeId, provider: {slug, uid?}}`. The
   provider resolves by `lookup` on its slug, a former slug included, and failing that by lineage lookup on the slug
   (`{kind: "lineage", origin}`, `lib/store/lookup.ts`), which finds an abandoned or decomposed item; its `edgeId` is the
@@ -321,8 +339,10 @@ with ownership, incoming and outgoing dispositions, and internal and external ed
 the placement:** the `cohort` and `subcohort` placements gain `purpose`, and a `subcohort` placement gains
 `parentPurpose` for the parent document the cut creates beside it (today's `planTopology` backfills that parent). A
 Purpose is required where the cut creates the document and refused where the document already exists, since an existing
-document's Purpose is edited through write-back. The starter map (§ 5) carries an author slot for each. Every cohort
-document a cut creates thus has its Purpose from the map, where today's scaffold writes `—` (`renderV3IncompleteCohort`,
+document's Purpose is edited through write-back. The starter map (§ 5) keeps one author slot for the whole placement,
+Purpose included, since which documents a cut creates follows from the placement the operator authors; a created
+document's missing Purpose refuses at the additive batch (§ 6). Every cohort document a cut creates thus has its Purpose
+from the map, where today's scaffold writes `—` (`renderV3IncompleteCohort`,
 `decompose-v3-topology.ts`); `cohort.purpose` refuses a new document without one (record kinds § 8.2).
 
 #### 3.4 Decoding
@@ -340,7 +360,10 @@ The additive batch stores the completed map as a record on the origin, so a half
   (`machine(unhomed)`) — single-writer, never projected, and with no in-repo home, which the arm from the flip never
   needs. Its content is the completed map as canonical JSON; its parser decodes it as § 3.4 does, and it registers in
   the production set. No write check is needed: being never projected, it takes no hand edit, and its single writer is
-  the verb.
+  the verb. Other verbs' writes on its owner keep its bytes: a prepared write acquires it with the rest of the group and
+  re-puts it unchanged (`applyPreparedLifecycleWrite`), and a rename re-puts it under its owner's new name, its
+  reference sweep (`planRenameReferences`) passing over it (`prepareStoreRename`), since rewriting a backticked artifact
+  name in a locator would leave the map undecodable.
 - **Its stored path** is `cut-map-<uid>.json` on the work item's ref, ending in its owner's UID, as a never-projected
   kind's name does (`errand-<uid>.json`; the ref backend's § 3.2).
 - **Its life.** The additive batch creates it with expected absence. A revision replaces it at its version (§ 9.2). The
@@ -364,7 +387,10 @@ decision. Every batch repeats the same read before it writes.
   Nothing from Git.
 - **The source kind** follows the origin's state and placement, as today's preflight selects it
   (`createV3DecomposePreflight`, `decompose-v3-preflight.ts`): a stub, a started Planning work unit, or an Active one.
-  An Integrating or archived origin refuses. A paused origin proceeds, since a pause holds no cut
+  An Integrating or archived origin refuses, as that selection refuses each (`source-predecessor`). No origin is parked
+  from the flip: `arc park` refuses `unsupported` there (`runPark`, `verbs/park-resume.ts`), and the import makes a
+  parked work unit a paused one, one parked from Planning being a stub already (`spec-seam-lifecycle.md` § 8.9), so
+  the store version has no parked refusal. A paused origin proceeds, since a pause holds no cut
   (`spec-seam-lifecycle.md` § 8.2).
 - **The source units** are scanned from the origin's draft or spec, task list, notes, and companions, or from an Active
   origin's design artifacts alone (`sourceUnits`, `decompose-v3-preflight.ts`) — never from the stored map or the
@@ -372,7 +398,17 @@ decision. Every batch repeats the same read before it writes.
 - **The planning profile** follows the origin's `Design` alone, not the artifacts present (`inferPlanningProfile`).
 - **It refuses** an origin holding a stored map, and an origin whose inbound list holds an entry, naming each by its
   `_Id:_` for its owner to fold into the draft or spec every member copies, or to route with `arc route`; the held-entry
-  refusal admits until `seam-locus` declares the inbound kind's grammar (§ 18).
+  refusal admits until `seam-locus` declares the inbound kind's grammar (§ 18). It refuses, as today's preflight and
+  scaffold do, an origin no member can be made from, naming the locus to repair: a `Design` naming no profile's
+  artifacts, an artifact it names that is absent, a `Task List` disagreeing with the profile, an artifact the scanner
+  rejects (`inferPlanningProfile`, `sourceUnits`), a design record every member copies whose first line is no
+  level-one heading (`scaffold-title-missing`, `retitleScaffold`), or an `Owner`, `Priority`, or `Origin` missing from
+  the meta each member copies (`scaffold-source-meta-incomplete`, `decompose-v3-repository-plan.ts`). It refuses an
+  origin whose meta or a source record holds an open conflict, naming each from the record's `conflicts` (`read`),
+  since the contract has a verb that depends on a conflicted record refuse until a write naming the conflict
+  resolves it (D6); the remedy is the projection's resolution (§ 18), and the stored map's own conflict is § 10's. An
+  unreadable or incomplete lifecycle listing, which `requireCompleteInventory` throws on
+  (`lib/store/lifecycle-storage.ts`), refuses as recoverable, naming the listing's own remedy.
 
 ### 6. The additive batch
 
@@ -383,38 +419,68 @@ extraction's; each refuses the other's shape, naming the other flag. Neither has
 1. **Read and bind.** The map is read once from its path and decoded (§ 3.4). The verb repeats preflight (§ 5) and
    requires the map's machine half to equal the fresh one; a difference refuses, naming `--preflight` for a fresh
    starter.
-2. **Check before writing.** Each member's slug and each new cohort document's name is free: no live work item or cohort
-   holds it, since both share one namespace (D14; expected absence), and no record holds it as a former slug
-   (`work-item.former-slug`). The map's own names are distinct too: no member's slug is the name of a cohort document
-   the cut creates, and no two documents it creates share a name, the segments of a `subcohort` placement among them.
-   The live origin holds its own slug, so a cohort named after it refuses (below). Each allocation targets a file the
-   operator may edit (§ 7). Every `Depends On` edge the cut writes must resolve by slug, since `meta.depends-on` checks
-   each new edge so (`checkMetaDependsOn`): a member's, from an outgoing `targets` disposition or an internal or
-   external edge, a stub home's, from either, and a stub dependent's, from an incoming `replace`. So each such edge's
-   provider must be one a slug lookup resolves in the batch's after-state, where the check looks it up (`input.after`):
-   the map's own members pass, as does a completed work item; a provider abandoned or decomposed, which a slug lookup no
-   longer finds, or one resolving to no single owner (§ 3.2) refuses, naming `drop` or another provider. Where it is the
-   origin's own edge on a decomposed provider, the remedy is first to apply the disposition that provider's lineage
-   gives the edge: for a started origin through its reconcile (`arc wu reconcile --apply`, record kinds § 5.3), which
-   runs only from the checkout holding a started work unit (`resolveCurrentWorkUnit`, `handlers/reconcile.ts`), and for
-   a stub by editing its `Depends On` through write-back, as anyone may; then a fresh `--preflight`, or once the map is
-   stored a revision, which re-binds the changed edge (§ 9.4). A started existing home takes no new edge, its remedy to
-   leave the edge to the home's owner. A `document` home refuses, its remedy to allocate that content to a work item or
-   a member. In an extraction, a started dependent keeps its edge on the origin (§ 12). Each Purpose is present exactly
-   where the batch creates the document (§ 3.3).
+2. **Check before writing.** Each member's slug and each new cohort document's name is free: no live work item holds
+   it, nor any open cohort document, since both share one namespace (D14; expected absence); no record holds it as a
+   former slug (`work-item.former-slug`); and no new cohort document takes a completed cohort's name. That last is
+   stricter than D2, which frees a name once its record completes: the reference backend resolves a completed cohort's
+   name to its record (`canonicalReference`), so a create expecting absence there is stale, and the rule keeps a map
+   landing alike on every backend. The map's own names are distinct too: no member's slug is the name of a cohort
+   document the cut creates, and no two documents it creates share a name, the segments of a `subcohort` placement
+   among them. The live origin holds its own slug, so a cohort named after it refuses (below).
+   The map's ownership, edge, and placement rules carry from today's conservation and topology (§ 13), each
+   refusing at its locus in the map. Each existing home resolves to an open work
+   unit, and each allocation targets a file the operator may edit (§ 7); its target locator resolves at the terminal
+   batch (§ 8.4), since authoring writes the content it names. Every `Depends On` edge the cut writes must resolve by
+   slug, since `meta.depends-on` checks each new edge so (`checkMetaDependsOn`): a member's, from an outgoing `targets`
+   disposition or an internal or external edge, a stub home's, from either, and a stub dependent's, from an incoming
+   `replace`. So each such edge's provider must be one a slug lookup resolves in the batch's after-state, where the check
+   looks it up (`input.after`): the map's own members pass, as does a completed work item; a provider abandoned or
+   decomposed, which a slug lookup no longer finds, or one resolving to no single owner (§ 3.2) refuses, naming `drop`
+   or another provider. The origin's own edge on a provider whose slug a member takes refuses too, whatever that
+   provider's state, shipped included: a slug lookup in the after-state would find the member, and settling the edge in
+   the batch would change an edge the terminal batch binds (§ 8.4). Where it is the origin's own edge, on a decomposed
+   provider or on one whose slug a member takes, the remedy is first to settle that edge with the disposition reconcile
+   gives it: for a started origin through its reconcile (`arc wu reconcile --apply`, record kinds § 5.3), which runs
+   only from the checkout holding a started work unit (`resolveCurrentWorkUnit`, `handlers/reconcile.ts`), and for a
+   stub by editing its `Depends On` through write-back, as anyone may; then a fresh `--preflight`, or once the map is
+   stored a revision, which re-binds the changed edge (§ 9.4). Once the origin no longer names that slug, no edge the
+   cut writes does: a member's or a stub home's edge on a provider outside the map comes from the origin's own, through
+   an outgoing `targets` disposition, or from an external edge, which refuses when it names a member's slug
+   (`redundant-external-edge`, `decompose-v3-conservation.ts`); an internal edge to that member names it by design. A
+   started existing home takes no new edge, its remedy to leave the edge to the home's owner. A `document` home refuses,
+   its remedy to allocate that content to a work item or a member. In an extraction, a started dependent keeps its edge
+   on the origin (§ 12). Each Purpose is present exactly where the batch creates the document (§ 3.3).
 3. **Write, in one batch,** with caller provenance naming `decompose` and the batch:
     - each member's meta through the meta kind's creation writer (`renderMetaFile`,
       `lib/store/kinds/meta/projection.ts`), placed backlog planned, with `State` Planning, `Owner` and `Priority` from
       the origin, `Class` from its destination, `Origin` from the origin's own `Origin`, `Design` from the planning
-      profile, `Cohort` the cohort's full path or none, its seeded `Depends On`, and `Next Action` naming its first
-      workflow, as today's scaffold seeds them (`renderV3NewLeafMeta`, `decompose-v3-repository-plan.ts`);
-    - beside each member, a copy of the origin's draft or spec, and of its task list or notes where an allocation
-      targets that companion on the member, each retitled where its first line holds the origin slug (`retitleScaffold`,
+      profile, `Cohort` the cohort's full path or none, its seeded `Depends On`, and `Current Workflow` its first
+      workflow, which `Next Action` names, as today's scaffold seeds them (`scaffoldMemberProfile`,
       `decompose-v3-repository-plan.ts`);
+    - beside each member, a copy of each design record the profile names — a draft, a spec, or a paired spec's two
+      companions — and of its task list or notes where an allocation targets that companion on the member, each copy's
+      title, its first line, retitled where it holds the origin slug and kept as it is otherwise (`retitleScaffold`,
+      `decompose-v3-repository-plan.ts`); a task list or notes the batch would copy with no title line refuses before
+      anything is written, as § 5 refuses such a design record (`scaffold-title-missing`), and so does a task list
+      whose copy carries a diagnostic the task-list write checks report, naming the origin's task list and each
+      diagnostic, since with no prior version they count every diagnostic as added (`checkTaskListSegmentation`,
+      `checkTaskListDescriptor`, `lib/store/kinds/task-list/shape-rules.ts`) and the store's refusal would name a
+      member copy never written; and so does a task list whose copy would carry a completed task, marked `[x]`, which
+      the store would keep there for good, since it refuses any write that drops a completed task, a removal included
+      (`checkTaskListCompletedIdentifier`, `lib/store/kinds/task-list/integrity-rules.ts`), so neither authoring nor
+      a discard or revision could remove it — the refusal names the origin's task list and each completed task, the
+      remedy being to target the member's draft, spec, or notes instead, while a deferred task, which a write may drop,
+      passes;
     - each new cohort document through the cohort kind's creation writer with the map's Purpose (`writeCohortDocument`,
       `lib/store/kinds/cohort/creation-writer.ts`), reading the shipped cohort template as today's handler does;
-    - the settling of every edge a member's new slug would otherwise trip, in the records the batch may write
-      (`work-item.slug-edges`, record kinds § 5.3);
+    - the settling of every edge a member's new slug would otherwise trip in an open stub other than the origin, whose
+      own such edge refuses at step 2, and than a stub holding a stored map of its own, whose edges its cut's terminal
+      batch binds (§ 8.4), so `work-item.slug-edges` refuses that stub's edge, its remedy naming another slug
+      (`work-item.slug-edges`, record kinds § 5.3): an edge on shipped work discharges, an edge on a decomposed origin
+      takes the replacement its lineage record gives that dependent, and an edge on an abandoned origin drops, the
+      disposition reconcile gives it (`planDependencyReconcile`, `side-effects/discharge-dep-edges.ts`), which follows a
+      replacement itself retired on through its own lineage record and discharges a shipped or Integrating one
+      (`resolveRetiredEdge`), each judged against the state before the batch;
     - the stored map, with expected absence (§ 4).
 4. **Report** what the batch wrote — each member, its copies, and each cohort document — with each destination's
    authoring requirements, as today's result packets carry them, and the next step: authoring, then `--finish` to
@@ -472,10 +538,14 @@ its writes, revalidates, and applies them in one batch.
 #### 8.1 What it acquires
 
 The stored map, read by the origin's slug (§ 4); the origin's whole artifact group (`acquireLifecycleRecords`); each
-member's meta and the cohort documents the map names; the existing homes' records the map allocates to; and the stub
-dependents, found through the lifecycle listing, the members left out (§ 3.2). Each is acquired once, through the store,
-at its version, and read again only by the revalidation before the batch (lifecycle § 3) and, in a retirement, by the
-lifecycle executor's own read of the listing and the primary (`executeStoreTransition`, `lifecycle-store-executor.ts`).
+member's meta and the cohort documents the map names; the existing homes' records the map allocates to, each home
+resolved through `lookup` first as § 6 step 2 resolves it, one resolving to nothing, to a completed work unit, or to an
+Errand refusing before anything is written, naming the revision that retargets its allocations; and the stub dependents,
+found through the lifecycle listing, the members left out (§ 3.2). Each is acquired once, through the store, at its
+version, and read again only by the revalidation before the batch (lifecycle § 3) and, in a retirement, by the lifecycle
+executor's own read of the listing and the primary (`executeStoreTransition`, `lifecycle-store-executor.ts`). Beside
+them it reads, once each, the `history` of the stored map and of each item a member's slug finds, which tells a member
+from an item that took its slug (§ 8.3).
 
 #### 8.2 The origin's current state
 
@@ -484,7 +554,12 @@ the stored map recorded, which is all today's source-kind refusal reads (`map.ma
 `retirement:source-kind`, `decompose-v3-repository-plan.ts`). It applies the shape's rules to that kind:
 
 - **A kind the shape does not take refuses** — a retirement takes no Active origin, and neither shape an Integrating or
-  archived one — naming the move that restores a kind it takes, such as `arc deactivate <origin>`, or else `--discard`.
+  archived one: for a retirement the `decompose` edges leave none of these positions (`lifecycle-transitions.ts`),
+  which the executor would refuse only after the approval, and for an extraction, which runs no transition, the
+  source-kind selection refuses it, as today's does (`source-predecessor`, `decompose-v3-preflight.ts`). It refuses
+  here, before the preview, naming the moves that restore a kind it takes — `arc deactivate <origin>` for an Active
+  origin, and for an Integrating one `arc reopen <origin>`, followed in a retirement by `arc deactivate <origin>` — or
+  else `--discard`. No origin is parked from the flip (§ 5).
 - **A kind it takes passes,** and the content check follows it (§ 8.4): an extraction origin activated or deactivated
   since the additive batch scans a narrower or wider set, whose removed or added units refuse, naming a revision; a stub
   started since scans what it did.
@@ -499,18 +574,30 @@ batch seeded. The batch requires only what the map decided, compared by provider
 the member's `Depends On` resolve as § 3.2 resolves a provider — by slug, a former slug included, then through lineage —
 and the provider is named when an entry resolves to its owner, or by slug where either resolves to no single owner. So a
 provider's rename, which rewrites a stub's edges (record kinds § 5.3), passes, and so does an abandoned provider, whose
-dependents keep their edge (record kinds § 7.4). A provider another cut has retired since is also named by the
-disposition its lineage record gives the member (`incoming`), which that cut wrote into the stub: its replacement
-providers, or none for a drop. A gate or reason set during authoring (§ 12) and any added edge pass. A dropped seeded
-edge or a changed `Cohort` refuses, naming the revision that would make it legitimate (§ 9.2). So does a member gone,
-abandoned between the batches, which no rule stops: the revision that drops it from the map. A member renamed between
-the batches, which `arc rename` admits for a stub, is found by its map slug, which `lookup` resolves to it as a former
-slug; the batch refuses, naming `arc rename <new> <old>`, which `work-item.former-slug` admits since the slug is the
-member's own (`checkFormerSlug`), and whose reference sweep restores the siblings' seeded edges. The member may be
-renamed again once the cut lands. In a retirement, a member whose `Depends On` names the origin refuses too, since the
-origin it names is retiring and the lineage record carries no disposition for a member's edge; the remedy is for the
-member's owner to drop that edge, or anyone for a stub, through write-back. Refusing any divergence was rejected: it
-would block the grooming authoring exists for.
+dependents keep their edge (record kinds § 7.4). A seeded provider is also named by the disposition reconcile gives the
+member's edge on it (`planDependencyReconcile`, `side-effects/discharge-dep-edges.ts`), whether another cut wrote it
+into the stub or a started member's own reconcile applied it: no edge for shipped or Integrating work, which discharges,
+or for an abandoned provider, which drops, and for a provider another cut has retired, the disposition its lineage
+record gives the member (`incoming`) — its replacement providers, or none for a drop — followed on through a replacement
+itself retired, as reconcile resolves the chain (`resolveRetiredEdge`). A gate or reason set during authoring (§ 12) and
+any added edge pass. Any other dropped seeded edge or a changed `Cohort` refuses, naming the field's restoration through
+write-back, or the revision that would make it legitimate (§ 9.2) where one can: the map takes one placement for every
+member (`memberPlacement`, `decompose-v3-repository-projections.ts`), so a revision makes a changed `Cohort` legitimate
+only where a placement the map's rules admit gives every member its current `Cohort`, and otherwise the field is
+restored. A member gone, abandoned between the batches, which no rule stops, refuses too, naming the revision that drops
+it from the map. A member is found by its map slug and is the member only where its primary's creation entry in
+`history` names that slug as the owner it was created under and carries the batch ID of an entry naming `decompose` in
+the stored map's `history` since the map was last created — the additive batch or a revision (the contract's provenance,
+the backend adding the record's reference and the batch ID as the write lands; `StoredProvenanceSchema`,
+`lib/store/links.ts`); an entry with no batch ID matches none. So an item that took the slug of a member abandoned
+since, or a sibling renamed to it, is not that member, and the member is gone. A member renamed between the batches,
+which `arc rename` admits for a stub, is found by its map slug, which `lookup` resolves to it as a former slug; the
+batch refuses, naming `arc rename <new> <old>`, which `work-item.former-slug` admits since the slug is the member's own
+(`checkFormerSlug`), and whose reference sweep restores the siblings' seeded edges. The member may be renamed again once
+the cut lands. In a retirement, a member whose `Depends On` names the origin refuses too, since the origin it names is
+retiring and the lineage record carries no disposition for a member's edge; the remedy is for the member's owner to drop
+that edge, or anyone for a stub, through write-back. Refusing any divergence was rejected: it would block the grooming
+authoring exists for.
 
 #### 8.4 The content
 
@@ -521,12 +608,23 @@ would block the grooming authoring exists for.
   heading or any heading above it, merging it, or adding an earlier heading of the same text refuses, naming the
   allocation; the remedy is to update that allocation's target locator through a revision. Authoring may change anything
   else.
+- **A retiring group's content is all accounted for,** as `uncovered-retirement-content` requires today
+  (`decompose-v3-conservation.ts`), with no refusal of its own: every content record of the group — its draft, spec,
+  task list, notes, and companions, the Markdown artifacts today's rule counts — is a source record the scan covers, and
+  one added between the batches is an added source unit, which the rescan below refuses. Each other `work-item` kind
+  the group can hold (`KIND_SHAPES`, `lib/store/catalog.ts`) is accounted for: the meta, the inbound list, and the
+  stored map are checked on their own; a promoted origin's description record (the contract's D5) retires with the
+  item, as at an abandonment; and an open conflict on the meta or a source record refuses, as at preflight (§ 5). So the
+  batch that ends the origin leaves no content unaccounted for.
 - **The origin is bound by content between the batches.** The batch rescans what preflight scans for the origin's
   current kind (§ 5) and requires exactly the map's source units, by content digest, and its edges, each by its `edgeId`
   (§ 3.2) — an incoming edge by its dependent naming the origin, the members left out, and an outgoing edge by its
   provider, so a provider's rename changes neither. A write the scan does not cover passes, such as to the origin's meta
   or an Active origin's task list. An added, changed, or removed source unit or edge refuses, naming a revision that
-  re-binds the map (§ 9.4).
+  re-binds the map (§ 9.4). Another cut may change the origin's outgoing edges where it must write them — its terminal
+  batch rewriting the origin's edge as that cut's stub dependent (§ 8.5), or its revision moving the origin's seeded
+  edges as that cut's retained member (§ 9.2) — and this batch then refuses as for any changed edge. Only another cut's
+  additive batch leaves the origin's edges alone, since a member's slug is that cut's own to choose (§ 6 step 3).
 - **The origin's inbound list holds no entry,** which the batch checks itself over the list it acquired, beside the
   write check `lineage.inbound-held`. An entry routed to it between the batches is routed on to the member it shapes
   (D11), which writes the inbound lists and no source unit of the origin's. The refusal names each entry by its `_Id:_`
@@ -552,14 +650,18 @@ and from a started Planning work unit already declare that form: the primary's r
   (lifecycle § 8.6). On the ref backend the item's group moves under history (its § 7.4); the reference backend keeps
   the group's other records under the ended owner, as after an abandonment, and nothing reads them by the origin's slug.
   The lineage record is schema version 2 of kind `decompose`: its `successors` the new members, its `incoming` each
-  dependent's disposition, its `outgoing` each provider's members, and its `retiredBranches` the removed primary's exact
-  branch links, `[]` where it has none, as `runStoreAbandon` writes them. The write check refuses a snapshot differing
-  from the primary's links (`lineage.retired-branches`), and teardown refuses a decompose lineage lacking one
-  (`store-retirement-evidence.ts`).
-- **In the same batch** it removes the stored map (§ 4); rewrites each stub dependent's `Depends On` (§ 12); writes the
-  edges stub homes take; and, under an `at-cap` placement, appends the fan-out block to the placement's subcohort
-  document (its two-segment `parent`) through the cohort kind's fan-out writer, naming the new members as they finally
-  stand (`planAtCap`). Every acquired record keeps its version guard (`preparedRecords`).
+  dependent's disposition, its `outgoing` each provider's members, each reference carrying its current name and its UID
+  where known, by which reconcile matches a dependent (`store-reconcile-context.ts`), and its `retiredBranches` the
+  removed primary's exact branch links, `[]` where it has none, as `runStoreAbandon` writes them. The write check
+  refuses a snapshot differing from the primary's links (`lineage.retired-branches`), and teardown refuses a decompose
+  lineage lacking one (`store-retirement-evidence.ts`).
+- **In the same batch** it removes the stored map (§ 4); rewrites each stub dependent's `Depends On` (§ 12), one holding
+  a stored map of its own included, whose cut then re-binds (§ 8.4); writes the edges stub homes take; and, under an
+  `at-cap` placement, appends the fan-out block to the placement's subcohort document (its two-segment `parent`) through
+  the cohort kind's fan-out writer, naming the new members as they finally stand (`planAtCap`); a lone marker or a
+  different block, which a hand edit can leave between the batches, refuses before anything is written, as today's
+  `conflicting-at-cap-provenance` does, naming the block's repair or removal through write-back. The executor
+  revalidates every acquired record at its version just before the batch (`preparedRecords`).
 - **After the batch** the origin's checkout is removed, or released where it was anchored in place, by teardown's store
   arm, as a Git step whose failure leaves the continuation `arc teardown <origin>` (`runStoreTeardown`; lifecycle § 11,
   § 12).
@@ -574,16 +676,19 @@ cohort, as topology counts it among them (`planInternalV3DecomposeTopology`): it
 take (`memberPlacement`, `decompose-v3-repository-projections.ts`) — the placement's cohort, new or reused, or an
 `at-cap` placement's subcohort — never one named after it, which § 6 refuses. Under `direct-member` it keeps its own.
 
-Its terminal batch is no lifecycle transition, since the origin keeps its position, so it applies its prepared writes
-directly (`applyPreparedLifecycleWrite`, `prepared-lifecycle-write.ts`), as lifecycle's verbs outside a transition do
-(lifecycle § 2.1). After the checks of § 8.2–8.4, in one batch, it:
+Its terminal batch is no lifecycle transition, since the origin keeps its position, so it revalidates the records it
+acquired (`revalidateLifecycleRecords`, `prepared-lifecycle-write.ts`) and applies its prepared writes alone in one batch
+(`batchLifecycleWrites`), as the executor applies a retirement's. It does not re-put the records it leaves unwritten, as
+`applyPreparedLifecycleWrite` does: that would write each member, home, and dependent under `decompose` beyond what the
+preview shows (§ 8.7), and the store refuses such a put of a lineage record, which is create-only, or of a conflict
+record, which is write-once. After the checks of § 8.2–8.4, in one batch, it:
 
 - thins the origin's draft or spec to the units it keeps, deleting a file that keeps none, as today's thinning plans it
   (`planV3ExtractionSourceThinning`, `decompose-v3-thinning.ts`), over the records the batch acquired;
 - sets the origin's `Cohort` to the members' path where it differs, under every placement but `direct-member`
   (`writeMetaCohort`);
 - rewrites stub dependents and writes the edges stub homes take (§ 12), and under an `at-cap` placement appends the
-  fan-out block;
+  fan-out block, a lone marker or a different block refusing before anything is written, as § 8.5 refuses it;
 - removes the stored map.
 
 It writes no lineage record, since the origin survives and the lineage kind has no extraction kind, so `retiredBranches`
@@ -604,41 +709,46 @@ The terminal batch is irreversible, so it applies only what was approved. `--fin
 and prepares as § 8.1–8.6 do, the removal check included, so a dirty checkout refuses at the preview rather than after
 the approval; it writes nothing and reports the preview: for a retirement the lineage record, the removals, and each
 record the batch would write; for an extraction the retained bytes of the thinned artifacts and each record it would
-write. With it comes the apply authority: the digest of the origin's identity, every acquired record's reference and
-version, and the prepared writes. `--finish --apply <authority>` acquires and prepares again and runs the batch only
-when the fresh digest equals the authority; otherwise it refuses, naming `--finish` for a fresh preview. The preview is
-what the distribution approval surfaces (§ 16), so a change after it — a stub groomed, a dependent added — needs a fresh
-preview and approval. Within the apply, revalidation by version guards the gap between its own acquisition and its batch
-(lifecycle § 3); the authority carries that freshness across the approval, as today's finish authority does
-(`git-decompose-v3-finish.ts`).
+write. With it comes the apply authority: the digest of the batch's mode, the origin's slug and UID, every acquired
+record's reference and version, and the prepared writes. `--finish --apply <authority>` acquires, checks, and prepares
+again and, once every check passes, runs the batch only when the fresh digest equals the authority; otherwise it
+refuses, naming `--finish` for a fresh preview. The preview is what the distribution approval surfaces (§ 16), so a
+change after it — a stub groomed, a dependent added — needs a fresh preview and approval. Within the apply,
+revalidation by version guards the gap between its own acquisition and its batch (lifecycle § 3); the authority carries
+that freshness across the approval, as today's finish authority does (`git-decompose-v3-finish.ts`).
 
 The same rule holds for every batch that removes a record: the discard and the revision preview and apply under an
 authority too (§ 9). The additive batch, which removes nothing, runs straight.
 
 **A landed cut.** `--finish`, `--discard`, or `--revise` on a cut that has landed reports it landed and names its
 members, as a repeated finish reports `already-finished` today (`decompose-v3-finish-operation.ts`), rather than
-refusing for want of a stored map: a retirement through the origin's `decompose` lineage record, which `lookup` resolves
-the origin's slug through, and an extraction through the origin's `history`, where the stored map's last removal is the
-terminal batch's. Every batch of the cut writes with caller provenance naming `decompose` and the batch (§ 6), so that
-removal is told from a discard's. For `--finish` the report is its result; for the discard and the revision it is a
-terminal refusal.
+refusing for want of a stored map: a retirement through the origin's `decompose` lineage record, which a lineage
+`lookup` on the origin's slug finds (`{kind: "lineage", origin}`), and an extraction through the origin's `history`,
+where the stored map's last removal is the terminal batch's. Every batch of the cut writes with caller provenance naming
+`decompose` and the batch (§ 6), so that removal is told from a discard's. For `--finish` the report is its result; for
+the discard and the revision it is a terminal refusal.
 
 ### 9. Discard and revision
 
 A rejected or revised distribution is one prepared verb batch (`meta.verb-owned-field` refuses only hand edits, and no
-rule asks lineage for it), previewed and applied under an authority as § 8.7 defines.
+rule asks lineage for it), previewed and applied under an authority as § 8.7 defines. Like an extraction's terminal
+batch (§ 8.6), it revalidates what it acquired and applies its prepared writes alone (`revalidateLifecycleRecords`,
+`batchLifecycleWrites`), so it writes nothing its preview does not show and never puts a conflict record a sync filed in
+a group it acquired.
 
 #### 9.1 The discard
 
 `arc decompose <origin> --discard` previews and `--discard --apply <authority>` removes each stub still present as a
-whole group — found by its map slug, which `lookup` resolves through a rename — the cut's new cohort documents, and the
-stored map, after § 9.3's checks. A stub's whole group is every record of it, acquired at its version
+whole group — found by its map slug, which `lookup` resolves through a rename, and a member only where the cut created
+it (§ 8.3), an item that took a gone member's slug being left untouched — the cut's new cohort documents, and the stored
+map, after § 9.3's checks. A stub's whole group is every record of it, acquired at its version
 (`acquireLifecycleRecords`): with no lineage written, the ref backend removes only the records a batch names (its
-§ 7.5), as the reference backend does. It writes no lineage. Edges the additive batch settled for a slug stay settled,
-each still naming its other record. The store's `history` keeps the created-then-removed records (the contract's
-operation table, A2). A discard cannot undo authoring's edits to existing homes and existing cohort coordination (§ 7),
-which stay as authored; its preview lists each existing home and existing cohort coordination the map allocated to as
-left edited.
+§ 7.5), as the reference backend does. A stub's conflict record is write-once, removed only by its writer verbs (`once`,
+`lib/store/registry.ts`), so the discard names it in the `resolves` of its subject's removal, which closes it (the
+contract's D6). It writes no lineage. Edges the additive batch settled for a slug stay settled, each still naming its
+other record. The store's `history` keeps the created-then-removed records (the contract's operation table, A2). A
+discard cannot undo authoring's edits to existing homes and existing cohort coordination (§ 7), which stay as authored;
+its preview lists each existing home and existing cohort coordination the map allocated to as left edited.
 
 #### 9.2 The revision
 
@@ -651,15 +761,16 @@ left edited.
   between the stored map and the revised one, after § 9.3's checks. The revised map decodes as § 3.4 does, and its
   machine half must equal a fresh one taken as § 9.4 takes it, which also holds it to the same origin. A cohort document
   the stored map created counts as the cut's for § 3.3's Purpose rule: the revised map carries its Purpose, and the
-  revision writes a Purpose only for a document it creates. The batch adds stubs, removes them whole as the discard does
-  (§ 9.1), and creates or removes cohort documents through § 6's writers. It moves each retained member's seeded
-  `Depends On` edges, found by provider as § 8.3 finds them, and `Cohort` from the stored map's to the revised map's
-  through the field writers (`writeMetaDependsOn`, `writeMetaCohort`, `lib/store/kinds/meta/bullet-writers.ts`), leaves
-  edges the stored map did not seed as they stand, and replaces the stored map. A member already gone that the revised
-  map drops has nothing to remove. The stubs and cohort documents it adds pass § 6 step 2's name checks, and the revised
-  map the rest of that step's checks, with the Purpose rule above, so a revised placement naming a cohort after the
-  origin refuses as at the additive batch. The members and their authored content stay. A changed unit allocated to a
-  destination is carried into it by hand during authoring.
+  revision writes a Purpose only for a document it creates. The batch adds stubs through § 6 step 3's writers, after
+  that step's copy checks, removes them whole as the discard does (§ 9.1), and creates or removes cohort documents
+  through § 6's writers. It moves each retained member's seeded `Depends On` edges, found by provider as § 8.3 finds
+  them, and `Cohort` from the stored map's to the revised map's through the field writers (`writeMetaDependsOn`,
+  `writeMetaCohort`, `lib/store/kinds/meta/bullet-writers.ts`), a member holding a stored map of its own included, whose
+  cut then re-binds (§ 8.4), leaves edges the stored map did not seed as they stand, and replaces the stored map. A
+  member already gone (§ 8.3) that the revised map drops has nothing to remove. The stubs and cohort documents it adds
+  pass § 6 step 2's name checks, and the revised map the rest of that step's checks, with the Purpose rule above, so a
+  revised placement naming a cohort after the origin refuses as at the additive batch. The members and their authored
+  content stay. A changed unit allocated to a destination is carried into it by hand during authoring.
 
 #### 9.3 What either refuses
 
@@ -669,16 +780,17 @@ left edited.
   § 12).
 - **An edge it does not write that names a stub it removes** — a retained member's own, or any other open work item's,
   found through the lifecycle listing — counting a `Depends On` edge and a pause `waits-on` edge and skipping completed
-  records, as `work-item.slug-edges` counts them (`namedEdges`, `survivingEdge`). It names each edge for its owner to
-  retarget or drop, a `waits-on` edge through `arc pause <name> --waits-on <other>` or `--no-waits-on`. No write check
-  refuses removing a record an edge names (`checkMetaDependsOn` judges new edges only), and a later work item taking the
-  slug would silently become the edge's provider: `priorTarget` finds no primary or lineage for a removed stub, so
+  records, as `work-item.slug-edges` counts them (`namedEdges`, `survivingEdge`), a count the verb makes itself since
+  both are private to that rule's module. It names each edge for its owner to retarget or drop, a `waits-on` edge
+  through `arc pause <name> --waits-on <other>`, `--waits-on-note <text>`, or `--no-waits-on`. No write check refuses
+  removing a record an edge names (`checkMetaDependsOn` judges new edges only), and a later work item taking the slug
+  would silently become the edge's provider: `priorTarget` finds no primary or lineage for a removed stub, so
   `work-item.slug-edges` admits the new slug, and `lookup` resolves the edge to the new item.
 - **A stub it would remove that holds a stored map of its own,** naming that cut's `arc decompose <stub> --discard`.
 - **A member renamed since the additive batch,** in a revision, naming `arc rename <new> <old>`, as the terminal batch
   does (§ 8.3).
-- **A member gone that the revised map keeps,** in a revision, naming its removal from the map, as the terminal batch
-  names it (§ 8.3).
+- **A member gone that the revised map keeps** (§ 8.3), in a revision, naming its removal from the map, as the terminal
+  batch names it (§ 8.3).
 - **A revised placement keeping a cohort document the cut created under another `Parent`,** naming another name for it
   in the map: no verb re-parents a cohort (record kinds § 8.2), and a create of the document's name resolves to the live
   document it would replace and refuses its expected absence (the ref backend's § 5.1 step 2 and § 5.2;
@@ -704,12 +816,15 @@ When the terminal batch refuses a changed origin (§ 8.2, § 8.4), a revision re
 extraction refresh applies (`refreshV3ExtractionCutMap`, `decompose-v3-refresh.ts`), carried to both shapes: a fresh
 preflight's machine half, read as preflight reads it and leaving out the members (§ 3.2), replaces the map's, and the
 authoring half carries whole when the only change is to the content of units allocated `drop` or, in an extraction, kept
-by the origin. Any other change — an added or removed unit, a changed unit identity, a changed unit some allocation
-sends to a destination or one under a repeated heading, a changed edge, or a changed origin identity or planning profile
-— names the first place to reauthor. `--revise` emits the result (§ 9.2). The re-binding scan skips the two refusals
-that guard starting a cut — an origin holding a stored map, and one whose inbound list holds an entry, which the
-terminal batch refuses on its own (§ 8.4) — while an Integrating or archived origin refuses the revision as it refuses
-preflight.
+by the origin, or to the source kind, where the revised map still passes `source-shape` (§ 3.4): a stub started since
+the additive batch scans what it did (§ 8.2), and the terminal batch takes it. Any other change — an added or removed
+unit, a changed unit identity, a changed unit some allocation sends to a destination or one under a repeated heading, a
+changed edge, or a changed origin identity or planning profile — names the first place to reauthor. Edges compare by
+their `edgeId` (§ 3.2), where today's rule compares the whole edge arrays: a changed edge is a different set or order of
+them, so a dependent or provider renamed since carries, its new slug arriving with the fresh machine half. `--revise`
+emits the result (§ 9.2). The re-binding scan skips the two refusals that guard starting a cut — an origin holding a
+stored map, and one whose inbound list holds an entry, which the terminal batch refuses on its own (§ 8.4) — while an
+Integrating or archived origin refuses the revision as it refuses preflight.
 
 ### 10. Lifecycle moves between the batches
 
@@ -771,7 +886,8 @@ the checkout holding the origin, as abandonment's arm reads it, and the removal 
   started dependent keeps its edge on the surviving origin (§ 8.6). An existing home taking a new edge is treated as a
   dependent.
 - **Slug edges.** A cut giving a member a slug an edge already names settles that edge first, or `work-item.slug-edges`
-  refuses (record kinds § 5.3) — in the additive batch (§ 6).
+  refuses (record kinds § 5.3) — in the additive batch (§ 6) — save the origin's own such edge, which refuses before
+  anything is written, naming its settlement and a fresh preflight (§ 6 step 2).
 
 `work-item-relations` (planned, after `storage-cutover`) types how work items relate: an edge gains the dependent's gate
 and a reason — `design`, `start`, `task`, or `land`, an unqualified edge reading `start` — which a cut must carry when
@@ -811,12 +927,15 @@ classes:
 `decompose-command-routing.ts` takes the new mode keys, which the in-repo arm's routing reads too, so it carries with
 the change.
 
-- **Conservation** keeps allocation coverage and dependency projection, its inputs records rather than paths:
-  `writablePath` and `unwritable-dependent` go (§ 12).
-- **Topology** keeps the four placements and both `Parent` checks, which already read the cohort kind's parsed `parent`
-  (`structurallyMatches`, `decompose-v3-topology.ts`); the at-cap block comes from the cohort kind's fan-out writer.
-- **Lineage** keeps the builder's projection from the map (`createDecomposeTransitionRecord`), adding `retiredBranches`
-  from the primary (§ 8.5).
+- **Conservation** keeps allocation coverage, the map's ownership and edge rules, and dependency projection, its inputs
+  records rather than paths and its dependents keyed by UID: `writablePath` and `unwritable-dependent` go (§ 12), and so
+  does `stale-dependent`, which compares version 3's `currentTargets` (§ 3.2).
+- **Topology** keeps the four placements, their member-count and coordination rules, the surviving origin counted among
+  an extraction's members (`planInternalV3DecomposeTopology`), and both `Parent` checks, which already read the cohort
+  kind's parsed `parent` (`structurallyMatches`, `decompose-v3-topology.ts`); the at-cap block comes from the cohort
+  kind's fan-out writer.
+- **Lineage** keeps the builder's projection from the map (`createDecomposeTransitionRecord`), adding UIDs where known
+  and `retiredBranches` from the primary (§ 8.5).
 - **Refusals** keep their domain conditions; those naming Git conditions go, and every remedy names the arm from the
   flip's commands (§ 14).
 - **Scaffolds** keep the creation writer, the planning profile read from `Design`, and the retitle.
@@ -827,44 +946,51 @@ Every refusal says whether it is terminal and names the command that repairs it 
 refusals"): a typed action where running it as given repairs the condition, and the command in its text where the repair
 needs the operator's input. After the remedy the cut completes, but for the leftovers of § 10's races.
 
-| Refusal                                                                                                                                                                                         | Where                          | Repair it names                                                                                                                                                                                                                                                         | Form                            |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| The origin holds a stored map, or another cut stores one before the batch lands                                                                                                                 | preflight, additive            | `arc decompose <origin> --finish`, `--revise`, or `--discard`                                                                                                                                                                                                           | text                            |
-| The origin's inbound list holds entries                                                                                                                                                         | preflight, additive, terminal  | each entry's `_Id:_`, to fold into the draft or spec or route with `arc route <entry-id> --from <origin> --expected-version <version> --to <destination>`                                                                                                               | text                            |
-| The origin is Integrating or archived                                                                                                                                                           | preflight, additive, revision  | none for archived; `arc reopen <origin>` for Integrating; for a cut in flight, also `arc decompose <origin> --discard`                                                                                                                                                  | text                            |
-| The map does not decode, or is version 3                                                                                                                                                        | additive, revision             | the locus of the failing rule; `--preflight` for a version-3 map                                                                                                                                                                                                        | text                            |
-| The map's machine half differs from a fresh preflight                                                                                                                                           | additive, revision             | `arc decompose <origin> --preflight`, or `--revise` in a revision, then the authoring carried over                                                                                                                                                                      | text                            |
-| The wrong flag for the map's shape                                                                                                                                                              | additive                       | `--execute` or `--extract`                                                                                                                                                                                                                                              | action                          |
-| A member's slug or a new cohort document's name is held, by a live work item or cohort (D14), as a former slug, or by another name in the map, or taken by another write before the batch lands | additive, revision             | another slug or cohort name in the map                                                                                                                                                                                                                                  | text                            |
-| An allocation into a file the operator may not edit                                                                                                                                             | additive, revision             | target the home's draft, spec, or notes; or route the home an inbound entry                                                                                                                                                                                             | text                            |
-| A started home would take an edge, or an extraction would move a started dependent's edge off the origin                                                                                        | additive, revision, terminal   | leave the edge to its owner, in the map or, once stored, through `--revise`                                                                                                                                                                                             | text                            |
-| A `document` home                                                                                                                                                                               | additive, revision             | allocate the content to a work item or a member                                                                                                                                                                                                                         | text                            |
-| An edge the cut writes names a provider a slug lookup does not resolve: abandoned, decomposed, or ambiguous                                                                                     | additive, revision, terminal   | `drop` it or name another provider, in the map or, once stored, through `--revise`; for the origin's own edge on a decomposed provider, first `arc wu reconcile --apply` from a started origin's checkout, or for a stub an edit of its `Depends On` through write-back | text                            |
-| A Purpose missing for a created document, or present for an existing one                                                                                                                        | additive, revision             | add or remove it in the map                                                                                                                                                                                                                                             | text                            |
-| No stored map, the cut never stored or discarded                                                                                                                                                | terminal, discard, revision    | `arc decompose <origin> --execute <cut-map>` or `--extract <cut-map>`                                                                                                                                                                                                   | text                            |
-| The origin's current kind is not the shape's                                                                                                                                                    | terminal                       | the restoring move, such as `arc deactivate <origin>`, or `arc decompose <origin> --discard`                                                                                                                                                                            | text                            |
-| A member is gone, a seeded field diverges, a locator does not resolve, or the origin changed or was renamed                                                                                     | terminal                       | `arc decompose <origin> --revise`, then `--revise <cut-map>`                                                                                                                                                                                                            | text                            |
-| The origin's checkout fails the removal check                                                                                                                                                   | terminal, its preview included | the removal check's own remedy (`describeRemovalRefusal`)                                                                                                                                                                                                               | text                            |
-| The apply authority is stale                                                                                                                                                                    | terminal, discard, revision    | `--finish`, `--discard`, or `--revise <cut-map>` for a fresh preview and approval                                                                                                                                                                                       | text                            |
-| A started member would be removed                                                                                                                                                               | discard, revision              | `arc abandon <member>`, or keep it in the map                                                                                                                                                                                                                           | text                            |
-| A started member's seeded field would move                                                                                                                                                      | revision                       | the member's owner makes the change, or the map drops it                                                                                                                                                                                                                | text                            |
-| An edge names a stub it removes                                                                                                                                                                 | discard, revision              | the edge's owner retargets or drops it; `arc pause <name> --waits-on <other>` or `--no-waits-on`                                                                                                                                                                        | text                            |
-| A removed stub holds its own stored map                                                                                                                                                         | discard, revision              | `arc decompose <stub> --discard`                                                                                                                                                                                                                                        | text                            |
-| An open work item or cohort document holds a cohort document it would remove                                                                                                                    | discard, revision              | a work item's owner takes it out of the cohort, anyone for a stub; a cohort document's `Parent` is changed after its own members leave it, or with theirs in one batch; each through write-back                                                                         | text                            |
-| A member was renamed between the batches                                                                                                                                                        | terminal, revision             | `arc rename <new> <old>`                                                                                                                                                                                                                                                | action                          |
-| The cut has landed                                                                                                                                                                              | discard, revision              | none: `--finish` reports the landed cut (§ 8.7)                                                                                                                                                                                                                         | text                            |
-| The stored map is conflicted after a sync, the two cuts' names differing                                                                                                                        | terminal                       | `arc decompose <origin> --discard` or `--revise <cut-map>`, which resolve it, keeping the current map (§ 10)                                                                                                                                                            | text                            |
-| A member is gone that the revised map keeps                                                                                                                                                     | revision                       | drop it from the map                                                                                                                                                                                                                                                    | text                            |
-| A revised placement keeps a cohort document the cut created under another `Parent`                                                                                                              | revision                       | another cohort name in the map                                                                                                                                                                                                                                          | text                            |
-| A placement names a cohort after the origin                                                                                                                                                     | additive, revision             | another cohort name in the map                                                                                                                                                                                                                                          | text                            |
-| A retirement's member names the origin in its `Depends On`                                                                                                                                      | terminal                       | the member's owner drops the edge, anyone for a stub, through write-back                                                                                                                                                                                                | text                            |
-| A removed stub's inbound list holds entries                                                                                                                                                     | discard, revision              | `arc route <entry-id> --from <stub> --expected-version <version> --to <origin or member>`                                                                                                                                                                               | text                            |
-| `abandon` lineage for an origin holding a stored map (`lineage.cut-in-flight`)                                                                                                                  | `arc abandon`                  | `arc decompose <origin> --finish` or `--discard`                                                                                                                                                                                                                        | text                            |
-| `--revise` or `--discard` before the flip                                                                                                                                                       | in-repo arm                    | `unsupported`: until the flip a rejected cut stays staged, or as its ARC-owned candidate, for explicit cleanup direction (`decompose-work-unit.md`)                                                                                                                     | text                            |
-| `--finish` without its map before the flip                                                                                                                                                      | in-repo arm                    | `arc decompose <origin> --finish <cut-map>`                                                                                                                                                                                                                             | text                            |
-| `--advance-base` from the flip                                                                                                                                                                  | arm from the flip              | `unsupported`: `arc decompose <origin> --finish`                                                                                                                                                                                                                        | text                            |
-| `--finish <cut-map>` from the flip                                                                                                                                                              | arm from the flip              | `arc decompose <origin> --finish`, which reads the stored map                                                                                                                                                                                                           | action                          |
-| A version conflict at the batch, where the repeated checks find nothing (§ 6)                                                                                                                   | any batch                      | the additive batch again as given; for a removing batch, a fresh preview and approval                                                                                                                                                                                   | action, or text after a preview |
+| Refusal                                                                                                                                                                                                                                                                                                                                                                                                                       | Where                                   | Repair it names                                                                                                                                                                                                                                                                                                                                    | Form                            |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| The origin holds a stored map, or another cut stores one before the batch lands                                                                                                                                                                                                                                                                                                                                               | preflight, additive                     | `arc decompose <origin> --finish`, `--revise`, or `--discard`                                                                                                                                                                                                                                                                                      | text                            |
+| The origin's inbound list holds entries                                                                                                                                                                                                                                                                                                                                                                                       | preflight, additive, terminal           | each entry's `_Id:_`, to fold into the draft or spec or route with `arc route <entry-id> --from <origin> --expected-version <version> --to <destination>`                                                                                                                                                                                          | text                            |
+| The origin is Integrating or archived                                                                                                                                                                                                                                                                                                                                                                                         | preflight, additive, revision           | none for archived; `arc reopen <origin>` for Integrating, then for a retirement `arc deactivate <origin>`; for a cut in flight, also `arc decompose <origin> --discard`                                                                                                                                                                            | text                            |
+| The origin is one no member can be made from: a `Design` naming no profile's artifacts, an artifact it names absent, a `Task List` disagreeing with the profile, an artifact the scanner rejects, a design record, or a task list or notes it would copy, with no title line, a task list it would copy carrying a diagnostic the task-list write checks report, or an `Owner`, `Priority`, or `Origin` missing from its meta | preflight, additive, revision, terminal | the field or artifact at the locus, repaired; then the mode again                                                                                                                                                                                                                                                                                  | text                            |
+| A task list the batch would copy carries a completed task                                                                                                                                                                                                                                                                                                                                                                     | additive, revision                      | target the member's draft, spec, or notes in the map instead                                                                                                                                                                                                                                                                                       | text                            |
+| The origin's meta or a source record holds an open conflict                                                                                                                                                                                                                                                                                                                                                                   | preflight, additive, revision, terminal | each conflict, named by its token and subject, resolved: its markers in the file that shows them, which write-back persists naming it, or otherwise `arc save --resolve <token>` from a checkout projecting its subject (§ 18); then the mode again                                                                                                | text                            |
+| The lifecycle listing is unreadable or incomplete                                                                                                                                                                                                                                                                                                                                                                             | preflight, every batch                  | the listing's own remedy; then the mode again                                                                                                                                                                                                                                                                                                      | text                            |
+| The map does not decode, or is version 3                                                                                                                                                                                                                                                                                                                                                                                      | additive, revision                      | the locus of the failing rule; `--preflight` for a version-3 map                                                                                                                                                                                                                                                                                   | text                            |
+| The map breaks a carried ownership, edge, or placement rule                                                                                                                                                                                                                                                                                                                                                                   | additive, revision                      | the rule's locus, corrected in the map                                                                                                                                                                                                                                                                                                             | text                            |
+| The map's machine half differs from a fresh preflight                                                                                                                                                                                                                                                                                                                                                                         | additive, revision                      | `arc decompose <origin> --preflight`, or `--revise` in a revision, then the authoring carried over                                                                                                                                                                                                                                                 | text                            |
+| The wrong flag for the map's shape                                                                                                                                                                                                                                                                                                                                                                                            | additive                                | `--execute` or `--extract`                                                                                                                                                                                                                                                                                                                         | action                          |
+| A member's slug or a new cohort document's name is held by a live work item or an open cohort document (D14), as a former slug, or by another name in the map, a new cohort document's also by a completed cohort, or taken by another write before the batch lands                                                                                                                                                           | additive, revision                      | another slug or cohort name in the map                                                                                                                                                                                                                                                                                                             | text                            |
+| An allocation into a file the operator may not edit                                                                                                                                                                                                                                                                                                                                                                           | additive, revision                      | target the home's draft, spec, or notes; or route the home an inbound entry                                                                                                                                                                                                                                                                        | text                            |
+| An existing home resolves to nothing, to a completed work unit, or to an Errand                                                                                                                                                                                                                                                                                                                                               | additive, revision, terminal            | another destination in the map, at the terminal batch through `arc decompose <origin> --revise`, then `--revise <cut-map>`                                                                                                                                                                                                                         | text                            |
+| A started home would take an edge, or an extraction would move a started dependent's edge off the origin                                                                                                                                                                                                                                                                                                                      | additive, revision, terminal            | leave the edge to its owner, in the map or, once stored, through `--revise`                                                                                                                                                                                                                                                                        | text                            |
+| A `document` home                                                                                                                                                                                                                                                                                                                                                                                                             | additive, revision                      | allocate the content to a work item or a member                                                                                                                                                                                                                                                                                                    | text                            |
+| An edge the cut writes names a provider a slug lookup does not resolve — abandoned, decomposed, or ambiguous — or the origin's own edge names a provider whose slug a member takes                                                                                                                                                                                                                                            | additive, revision, terminal            | `drop` it or name another provider, in the map or, once stored, through `--revise`; for the origin's own edge on a decomposed provider or one whose slug a member takes, first `arc wu reconcile --apply` from a started origin's checkout, or for a stub an edit of its `Depends On` through write-back, then a fresh `--preflight` or a revision | text                            |
+| A Purpose missing for a created document, or present for an existing one                                                                                                                                                                                                                                                                                                                                                      | additive, revision                      | add or remove it in the map                                                                                                                                                                                                                                                                                                                        | text                            |
+| No stored map, the cut never stored or discarded                                                                                                                                                                                                                                                                                                                                                                              | terminal, discard, revision             | `arc decompose <origin> --execute <cut-map>` or `--extract <cut-map>`                                                                                                                                                                                                                                                                              | text                            |
+| The origin's current kind is not the shape's                                                                                                                                                                                                                                                                                                                                                                                  | terminal                                | the restoring moves — `arc deactivate <origin>` for an Active origin; `arc reopen <origin>`, then for a retirement `arc deactivate <origin>`, for an Integrating one — or `arc decompose <origin> --discard`                                                                                                                                       | text                            |
+| A member is gone, abandoned or its slug held by another item (§ 8.3); a seeded field diverges; a locator does not resolve; or the origin changed or was renamed                                                                                                                                                                                                                                                               | terminal                                | `arc decompose <origin> --revise`, then `--revise <cut-map>`; for a seeded field, its restoration through write-back, and the revision only where it can make the change legitimate (§ 8.3)                                                                                                                                                        | text                            |
+| An `at-cap` placement's subcohort document holds a lone fan-out marker or a different block                                                                                                                                                                                                                                                                                                                                   | terminal                                | the block repaired or removed through write-back; then `arc decompose <origin> --finish`                                                                                                                                                                                                                                                           | text                            |
+| The origin's checkout fails the removal check                                                                                                                                                                                                                                                                                                                                                                                 | terminal, its preview included          | the removal check's own remedy (`describeRemovalRefusal`)                                                                                                                                                                                                                                                                                          | text                            |
+| The apply authority is stale                                                                                                                                                                                                                                                                                                                                                                                                  | terminal, discard, revision             | `--finish`, `--discard`, or `--revise <cut-map>` for a fresh preview and approval                                                                                                                                                                                                                                                                  | text                            |
+| A started member would be removed                                                                                                                                                                                                                                                                                                                                                                                             | discard, revision                       | `arc abandon <member>`, or keep it in the map                                                                                                                                                                                                                                                                                                      | text                            |
+| A started member's seeded field would move                                                                                                                                                                                                                                                                                                                                                                                    | revision                                | the member's owner makes the change, or the map drops it                                                                                                                                                                                                                                                                                           | text                            |
+| An edge names a stub it removes                                                                                                                                                                                                                                                                                                                                                                                               | discard, revision                       | the edge's owner retargets or drops it; `arc pause <name> --waits-on <other>`, `--waits-on-note <text>`, or `--no-waits-on`                                                                                                                                                                                                                        | text                            |
+| A removed stub holds its own stored map                                                                                                                                                                                                                                                                                                                                                                                       | discard, revision                       | `arc decompose <stub> --discard`                                                                                                                                                                                                                                                                                                                   | text                            |
+| An open work item or cohort document holds a cohort document it would remove                                                                                                                                                                                                                                                                                                                                                  | discard, revision                       | a work item's owner takes it out of the cohort, anyone for a stub; a cohort document's `Parent` is changed after its own members leave it, or with theirs in one batch; each through write-back                                                                                                                                                    | text                            |
+| A member was renamed between the batches                                                                                                                                                                                                                                                                                                                                                                                      | terminal, revision                      | `arc rename <new> <old>`                                                                                                                                                                                                                                                                                                                           | action                          |
+| The cut has landed                                                                                                                                                                                                                                                                                                                                                                                                            | discard, revision                       | none: `--finish` reports the landed cut (§ 8.7)                                                                                                                                                                                                                                                                                                    | text                            |
+| The stored map is conflicted after a sync, the two cuts' names differing                                                                                                                                                                                                                                                                                                                                                      | terminal                                | `arc decompose <origin> --discard` or `--revise <cut-map>`, which resolve it, keeping the current map (§ 10)                                                                                                                                                                                                                                       | text                            |
+| A member is gone that the revised map keeps                                                                                                                                                                                                                                                                                                                                                                                   | revision                                | drop it from the map                                                                                                                                                                                                                                                                                                                               | text                            |
+| A revised placement keeps a cohort document the cut created under another `Parent`                                                                                                                                                                                                                                                                                                                                            | revision                                | another cohort name in the map                                                                                                                                                                                                                                                                                                                     | text                            |
+| A placement names a cohort after the origin                                                                                                                                                                                                                                                                                                                                                                                   | additive, revision                      | another cohort name in the map                                                                                                                                                                                                                                                                                                                     | text                            |
+| A retirement's member names the origin in its `Depends On`                                                                                                                                                                                                                                                                                                                                                                    | terminal                                | the member's owner drops the edge, anyone for a stub, through write-back                                                                                                                                                                                                                                                                           | text                            |
+| A removed stub's inbound list holds entries                                                                                                                                                                                                                                                                                                                                                                                   | discard, revision                       | `arc route <entry-id> --from <stub> --expected-version <version> --to <origin or member>`                                                                                                                                                                                                                                                          | text                            |
+| `abandon` lineage for an origin holding a stored map (`lineage.cut-in-flight`)                                                                                                                                                                                                                                                                                                                                                | `arc abandon`                           | `arc decompose <origin> --finish` or `--discard`                                                                                                                                                                                                                                                                                                   | text                            |
+| `--revise` or `--discard` before the flip                                                                                                                                                                                                                                                                                                                                                                                     | in-repo arm                             | `unsupported`: until the flip a rejected cut stays staged, or as its ARC-owned candidate, for explicit cleanup direction (`decompose-work-unit.md`)                                                                                                                                                                                                | text                            |
+| `--finish` without its map before the flip                                                                                                                                                                                                                                                                                                                                                                                    | in-repo arm                             | `arc decompose <origin> --finish <cut-map>`                                                                                                                                                                                                                                                                                                        | text                            |
+| `--advance-base` from the flip                                                                                                                                                                                                                                                                                                                                                                                                | arm from the flip                       | `unsupported`: `arc decompose <origin> --finish`                                                                                                                                                                                                                                                                                                   | text                            |
+| `--finish <cut-map>` from the flip                                                                                                                                                                                                                                                                                                                                                                                            | arm from the flip                       | `arc decompose <origin> --finish`, which reads the stored map                                                                                                                                                                                                                                                                                      | action                          |
+| A version conflict at the batch, where the repeated checks find nothing (§ 6)                                                                                                                                                                                                                                                                                                                                                 | any batch                               | the additive batch again as given; for a removing batch, a fresh preview and approval                                                                                                                                                                                                                                                              | action, or text after a preview |
 
 ### 15. Names
 
@@ -888,9 +1014,9 @@ against today's workflow:
 
 1. **Preconditions** add where the cut runs (§ 11): a started origin's in its own checkout, a stub's from any.
 2. **Preflight and the map** stay, under the `cut-map` schema. The starter binds the origin by its source units' digests
-   and its edges; the planning profile follows the origin's `Design`; the authoring slots gain Purpose for each cohort
-   document the cut creates; the workflow names the schema's published shapes (`arc schema get cut-map`) and passes the
-   completed map by path to the additive batch, after which the cut reads it from its record by slug.
+   and its edges; the planning profile follows the origin's `Design`; the authored placement carries the Purpose of each
+   cohort document the cut creates; the workflow names the schema's published shapes (`arc schema get cut-map`) and
+   passes the completed map by path to the additive batch, after which the cut reads it from its record by slug.
 3. **The additive batch** replaces dispatch, for either shape, with no candidate branch, protection arm, or commit.
 4. **Authoring** stays, through write-back, with today's specification reviews; under a draft profile the member
    specification review has nothing to review.
@@ -908,8 +1034,8 @@ against today's workflow:
 
 ### 17. Forward amendments to shipped specifications
 
-The storage contract and the record kinds have shipped. Where this design changes what their specifications define, the
-change is stated here and built by this change; neither specification is edited.
+The storage contract, the record kinds, and lifecycle have shipped. Where this design changes what their specifications
+define, the change is stated here and built by this change; no specification of theirs is edited.
 
 #### 17.1 The storage contract (`spec-storage-contract.md`)
 
@@ -929,6 +1055,12 @@ change is stated here and built by this change; neither specification is edited.
   (§ 10).
 - **§ 8.3's cohort writers** gain the at-cap fan-out writer, which appends to an existing subcohort's document a fan-out
   block naming the members a cut adds to it, as today's splice renders it (`fanoutBlock`, `decompose-v3-topology.ts`).
+
+#### 17.3 Lifecycle (`spec-seam-lifecycle.md`)
+
+- **§ 7.1's rename** applies the reference sweep's edits in the records it may write, a stub origin's stored map among
+  them. The sweep passes over the `work-item/cut-map` record, and the rename re-puts its owner's own under the new name
+  with its bytes unchanged (§ 4).
 
 ### 18. Expected contracts
 
@@ -960,9 +1092,22 @@ holds until then is stated with it.
   it is declared they admit, as record kinds' held-entry rules do; entries named by `_Id:_` and versioned; and
   `arc route <entry-id> --from <list> --expected-version <version> --to <destination>`, a stale version refusing (its
   § 6.1, § 6.3, § 7.2). Naming each held entry is this design's addition; `meta.inbound-held` reports only that some are
-  held. In-flight derivation's candidate-branch arm (`lib/git/in-flight-derivation.ts`) goes with the in-repo arm.
+  held. In-flight derivation's candidate-branch arm (`lib/git/in-flight-derivation.ts`) goes with the in-repo arm. That
+  change registers `arc route`, and a remedy names only a command `cli.ts` registers
+  (`command-surface-documentation.test.ts`), so this branch merges base holding it before building the remedies that
+  name it — an ordering, not an edge.
 - **The projection and write-back** (`storage-projection`): authoring's edits of the stubs, the cohort documents, and
-  the existing homes, under D13's edit rights.
+  the existing homes, under D13's edit rights; and the resolution of a conflict on a projected record, the remedy of
+  § 5's conflict refusal, which names each conflict by its token, `<family>/<owner type>/<owner name>/<id>`, and its
+  subject: markers resolved by hand in the file that shows them, which write-back persists naming the conflict in
+  `resolves`, or otherwise `arc save --resolve <token>` from a checkout projecting the subject, which itself refuses,
+  naming the repair, a conflict it cannot resolve (its § 6.4, § 6.5). That change registers `arc save`, and nothing
+  orders the two, so whichever lands second names the command in the remedy, which until then names the markers'
+  resolution alone — an ordering, not an edge. A test holds it: the remedy names `arc save --resolve` exactly when the
+  source's command inventory registers a top-level `save` with `--resolve` (`loadRepositoryCommandInputSnapshot`), so
+  the change merging the other second meets it failing until the remedy matches. The flip waits on that change, so the
+  whole remedy exists wherever the refusal can fire; the refusal's tests resolve a conflict by a write naming it in
+  `resolves` under `write-back`, which the reference backend accepts.
 - **Status** (`seam-status-roadmap`): decomposition writes no ROADMAP from the flip (D15). A retired origin, decomposed
   or abandoned, has no status row, since the terminal batch removes its primary; status reads its lineage only for an
   edge still naming it. Between the batches status shows the members and new cohort documents as ordinary stubs and
@@ -1007,7 +1152,8 @@ holds until then is stated with it.
   backend, and leaves D14's reason standing, since a planned origin and its same-name cohort project to one
   `backlog/planned/` folder. The cost of refusing instead is that a cut's cohort never takes the origin's name (§ 6).
 - **Track members by UID in the stored map,** so a member's rename between the batches carries. Set aside: a rename back
-  costs one command (§ 8.3), against a binding the map needs nowhere else.
+  costs one command (§ 8.3), the batch that created a member already tells it from an item that later takes its slug
+  (§ 8.3), and the additive batch could not record a UID the store assigns only as the batch lands.
 - **Carry extraction in a follow-on after the cutover,** `--extract` refusing from the flip until then, which is a tail;
   or **drop it,** which leaves a split of a started work unit to `arc stub` and hand editing without the map's
   conservation or edge dispositions. Both rejected (Owner, 2026-10-16).
@@ -1030,24 +1176,30 @@ holds until then is stated with it.
 
 ## Cross-cutting Considerations
 
-**Testing.** Every decomposition test passes unchanged over the in-repo implementation, but the input schema's tests the
-new flags change. The store version runs over the reference backend, which reports `stateOffBranch: true`, with Git
-steps over the shared scripted `GitExec` fake: a retirement and an extraction end to end, a discard, and a revision,
-each refusal of § 14 with the cut completing after its remedy, and every batch's preview and its stale authority. § 10's
-races are tested as far as the reference backend's sync produces them, their leftovers stated outcomes rather than
-refusals. The held-entry refusals' tests supply a stub grammar, as `inbound-held-rule.test.ts` does. The reference
-backend keeps names per type, so it admits a cohort and a live work item sharing a name that the ref backend refuses
-(D14); the tests exercise the verb's own check of the shared namespace (§ 6 step 2), including a cohort named after the
-origin, names clashing within one map, and a name taken between the check and the batch, through an injected store
-refusal; and they assert that no batch's after-state holds a live cohort and work item of one name. The cut-map kind
-runs the store's conformance suite as a registered kind. The locator move's tests are version 3's decode tests and the
-scanner's, unchanged. Until the cutover's rehearsal the store version is verified on the reference backend alone, and
-the first real cut runs after the flip.
+**Testing.** Every decomposition test passes unchanged over the in-repo implementation, but for the lists the new modes,
+the `cut-map` schema, and the cut-map kind join. The store version runs over the reference backend, which reports
+`stateOffBranch: true`, with Git steps over the shared scripted `GitExec` fake: a retirement and an extraction end to
+end, a discard, and a revision, each refusal of § 14 with the cut completing after its remedy, and every batch's preview
+and its stale authority. § 10's races are tested as far as the reference backend's sync produces them, their leftovers
+stated outcomes rather than refusals: where two cuts share a member slug or a new cohort document's name, that sync
+itself refuses `ambiguous-match` (`indexIdentities`), since each clone mints its own owner's UID (`canonicalReference`),
+so the clash at lookup is the ref backend's alone. The held-entry refusals' tests supply a stub
+grammar, as `inbound-held-rule.test.ts` does. The reference backend keeps names per type, so it admits a cohort and a
+live work item sharing a name that the ref backend refuses (D14); the tests exercise the verb's own check of the shared
+namespace (§ 6 step 2), including a cohort named after the origin, names clashing within one map, and a name taken
+between the check and the batch, through an injected store refusal; and they assert that no batch's after-state holds a
+live cohort and work item of one name. The cut-map kind runs the store's conformance suite as a registered kind. The
+locator move's tests are version 3's decode tests and the scanner's, unchanged. Until the cutover's rehearsal the store
+version is verified on the reference backend alone, and the first real cut runs after the flip.
 
 **Performance.** A cut reads the origin's group, the selected cohort documents, the existing homes, and the dependents
 the lifecycle listing names, each a fixed number of times through the store (§ 8.1), with no per-branch reads. The
 lifecycle listing is the one read that grows with the project, and every lifecycle verb from the flip already reads it
-(lifecycle § 2.1). The scanner's own costs stay as today's (Non-Goals).
+(lifecycle § 2.1). The member test (§ 8.3) adds one `history` read of the stored map and of each item a member's slug
+finds per run. `history` has no bounded form (`Store.history`, `lib/store/contract.ts`), so each read walks the whole
+history of the item owning the record — on the ref backend, a path-limited walk of that item's ref — and grows with the
+origin's and the members' own writes, never with the repository's history or branch count. The scanner's own costs stay
+as today's (Non-Goals).
 
 **Security and trust.** The origin is the cut's own subject: like abandonment (`runStoreAbandon`), the verb checks no
 operator against its `Owner`, so a retirement removes it and an extraction writes its `Cohort` and thins its draft or
@@ -1072,9 +1224,10 @@ nothing is committed, pushed, or merged by the cut.
 ## Success Criteria
 
 1. **Nothing a cut does changes before the flip.** Every decomposition test passes over the in-repo implementation,
-   unchanged but for the input schema's tests the flags change; the dispatch sends no invocation to the store version;
-   `--revise` and `--discard` refuse `unsupported`, and `--finish` without its map refuses, each naming what serves; and
-   the locator move leaves version 3's decode tests and the scanner's unchanged and passing.
+   unchanged but for the lists the new modes, the `cut-map` schema, and the cut-map kind join; the dispatch sends no
+   invocation to the store version; `--revise` and `--discard` refuse `unsupported`, and `--finish` without its map
+   refuses, each naming what serves; and the locator move leaves version 3's decode tests and the scanner's unchanged
+   and passing.
 2. **A retirement runs end to end on the reference backend:** `--preflight`, `--execute`, authoring through write-back,
    `--finish`, and `--finish --apply`. The additive batch writes the members, their copies, the cohort documents with
    their Purpose, and the stored map in one batch; the terminal batch writes `decompose` lineage carrying
@@ -1087,15 +1240,17 @@ nothing is committed, pushed, or merged by the cut.
 4. **A discard leaves the members only in `history`,** and a revision adds and removes stubs and cohort documents, moves
    only seeded edges and `Cohort`, and replaces the stored map; after a changed origin, `--revise` emits the complete
    revised map when the only change is to the content of units allocated `drop` or, in an extraction, kept by the
-   origin, and otherwise a fresh starter with the stored authoring beside it and the first place to reauthor.
+   origin, or to the source kind, and otherwise a fresh starter with the stored authoring beside it and the first place
+   to reauthor.
 5. **Each refusal of § 14 fires where its condition holds and the cut completes after its remedy,** the held-entry
    refusals under a supplied grammar; a stale apply authority refuses every removing batch; and `lineage.cut-in-flight`
    refuses abandoning an origin holding a stored map, an abandonment after the discard succeeding; and `--finish` on a
    landed cut, in either shape, reports it landed (§ 8.7). The records § 10's races leave, which no verb clears today,
    are outside this criterion.
 6. **A cut's reads stay flat:** over the reference backend, each batch reads the origin's group, the selected cohort
-   documents, the existing homes, and the dependents the listing names, each a fixed number of times that does not grow
-   with the repository's history or branch count (§ 8.1), and nothing from Git but the locus reads of § 11.
+   documents, the existing homes, and the dependents the listing names, each a fixed number of times, and the `history`
+   of the stored map and of each item a member's slug finds once per run, none of those counts growing with the
+   repository's history or branch count (§ 8.1), and nothing from Git but the locus reads of § 11.
 7. **The kind and schema are registered:** `work-item/cut-map` passes the store's conformance suite as a registered
    kind, the in-repo implementation refuses its writes `unsupported`, and `arc schema get cut-map` publishes version 4
    beside `decompose-cut-map` version 3.

@@ -350,6 +350,14 @@ With `storage-ref-backend` (2026-10-16): `seam-decomposition` registers the cut-
 kind's `RefHome`, as its spec sets one for every kind whose family has a ref (its § 3.2). This is an ordering, not an
 edge.
 
+With `storage-projection` (2026-10-17): `seam-decomposition`'s refusal of an origin holding an open conflict names, in
+its remedy, `arc save --resolve <token>` for a conflict shown without markers, a command `storage-projection` registers
+(`spec-seam-decomposition.md` § 18). A remedy may name only a registered command
+(`command-surface-documentation.test.ts`), so whichever lands second names it there; until then the remedy names the
+markers' resolution alone. A `seam-decomposition` test requires the remedy to name the command exactly when the source
+registers it, so the change merging the other second meets that test failing until it does. This is an ordering, not an
+edge.
+
 ### Citing the register
 
 **Citing the register.** Row keys are `notes-storage-contract.md` § Register keys, which the consumer map's Register
@@ -422,6 +430,10 @@ Amended 2026-10-16 — a cut runs as two batches with the distribution approval 
 the stored cut map. The terminal batch writes the lineage record and the dependents' edges, and appends the at-cap
 fan-out block. Key 49's one-write end state holds for the terminal batch. The member also consumes locus's inbound
 kind (item 9), whose grammar its held-entry refusals read.
+
+Amended 2026-10-17 — the member also consumes locus's `arc route`, which its held-entry remedies name; a remedy may
+name only a registered command, so its branch merges base holding `seam-locus` before building them (Task 2.2 -
+`tasks-seam-decomposition.md`; `spec-seam-decomposition.md` § 18). This is an ordering, not an edge.
 
 ### `seam-delivery-review`
 
