@@ -1,11 +1,11 @@
-/** Incremental admissions recover by dropping complete-pass ceiling authority. */
+/** Recovery guidance preserves incremental coverage and available lifecycle actions. */
 import { describe, expect, it } from "vitest";
 import { findingsHostedResult, approvedRecord, performedFix } from "../../../../fixtures/review-response-proof.js";
 import { createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { deriveReviewNextPassContext } from "../../../../../src/scripts/review-gate/policy/review-next-pass.js";
 import { ReviewPolicyCommandRequestSchema, resolveReviewPolicy } from "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
 import { ReviewDriverAdmissionError } from "../../../../../src/scripts/review-gate/policy/review-execution-admission.js";
-import { localPrepareAdmissionRemedy, requireReviewSourceSelection, reviewResolveRemedy } from "../../../../../src/scripts/review-gate/runtime/review-policy-remedy.js";
+import { HostedReviewAdmissionError, hostedRequestAdmissionRemedy, localPrepareAdmissionRemedy, requireReviewSourceSelection, reviewResolveRemedy } from "../../../../../src/scripts/review-gate/runtime/review-policy-remedy.js";
 import { LocalPrepareRequestSchema } from "../../../../../src/scripts/review-gate/runtime/local-prepare.js";
 
 async function fixture() {
@@ -57,5 +57,40 @@ describe("incremental override recovery", () => {
     expect(corrected.coverageAdmission).toEqual(local.coverageAdmission);
     expect(corrected.policyJudgment).toEqual({ scopeMode: "whole-target" });
     expect(resolveReviewPolicy({ ...internal, ceilingOverride: corrected.policyJudgment?.ceilingOverride })).toMatchObject({ state: "ready" });
+  });
+});
+
+async function missingLocalSource() {
+  const { request, facts, local } = await fixture();
+  const { ceilingOverride: _override, ...withoutOverride } = request; void _override;
+  const policy = ReviewPolicyCommandRequestSchema.parse(withoutOverride);
+  const resolution = resolveReviewPolicy({ ...policy, ...facts, sources: ["codex-pr"] });
+  expect(resolution).toMatchObject({ state: "unavailable", diagnostics: [
+    expect.objectContaining({ code: "material-fix-local-source-unconfigured" }),
+  ] });
+  return { policy, facts, error: new ReviewDriverAdmissionError("refused", resolution, policy),
+    local: LocalPrepareRequestSchema.parse({ ...local, policyJudgment: { scopeMode: "whole-target" } }) };
+}
+
+describe("missing local source recovery", () => {
+  it.each(["resolve", "local request", "local policy fallback"])(
+    "offers configuration repair without an unbound Owner stop through %s", async surface => {
+      const { policy, facts, error, local } = await missingLocalSource();
+      const remedy = surface === "resolve" ? reviewResolveRemedy(error, policy)
+        : localPrepareAdmissionRemedy(error, surface === "local request" ? local : undefined);
+      expect(remedy).toMatchObject({ text: expect.stringContaining("Add delegated-agent to review.standard_sources"),
+        argv: surface === "local request" ? ["arc", "review", "local", "prepare", "-"] : ["arc", "review", "resolve", "-"],
+        stdin: surface === "local request" ? local : policy });
+      expect(remedy?.text).not.toContain("Owner's stop");
+      expect(resolveReviewPolicy({ ...policy, ...facts })).toMatchObject({ state: "ready", nextAction: "local-prepare" });
+    });
+
+  it.each([false, true])("retains the hosted caller's Owner-stop capability %s", async allowsOwnerStop => {
+    const { policy, error } = await missingLocalSource();
+    const statusTarget = { repository: policy.target.repository, headRef: "feat/example", headSha: policy.target.headSha };
+    const remedy = hostedRequestAdmissionRemedy(new HostedReviewAdmissionError(error, statusTarget, allowsOwnerStop));
+    expect(remedy).toMatchObject({ text: expect.stringContaining("Add delegated-agent to review.standard_sources"),
+      argv: ["arc", "review", "status", "--target", JSON.stringify(statusTarget)] });
+    expect(remedy?.text.includes("Owner's stop")).toBe(allowsOwnerStop);
   });
 });

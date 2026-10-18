@@ -850,7 +850,8 @@ describe("ordinary resolve next-pass records", () => {
     expect(error).toMatchObject({ state: "unavailable", diagnostics: [
       expect.objectContaining({ code: "material-fix-local-source-unconfigured" }),
     ] });
-    expect(localPrepareAdmissionRemedy(error)?.text).toContain("no reviewer re-examined");
+    expect(localPrepareAdmissionRemedy(error)?.text).toContain("Add delegated-agent to review.standard_sources");
+    expect(localPrepareAdmissionRemedy(error)?.text).not.toContain("Owner's stop");
     await writeFile(join(errand.root, ".arc/system/arc-config.yml"),
       "review.standard_sources: [coderabbit-pr, codex-pr, delegated-agent]\n", "utf8");
     await git(errand.root, ["add", ".arc/system/arc-config.yml"]);

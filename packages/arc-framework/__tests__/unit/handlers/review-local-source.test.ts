@@ -25,6 +25,7 @@ describe("material-fix source remedies", () => {
     expect(JSON.parse(output.join(""))).toMatchObject({ diagnostics: resolution(configured).diagnostics, error: { code: "invalid-input" },
       remedy: { argv: ["arc", "review", "resolve", "-"], stdin: request,
         text: configured ? expect.stringContaining("delegated-agent") : expect.stringContaining("review.standard_sources") } });
+    if (!configured) expect(JSON.parse(output.join("")).remedy.text).not.toContain("Owner's stop");
     expect(exitCodes).toEqual([1]);
   });
   it.each([true, false])("returns a local prepare remedy with local source configured=%s", async configured => {
@@ -33,8 +34,9 @@ describe("material-fix source remedies", () => {
       prepare: async () => { throw new ReviewDriverAdmissionError("refused", resolution(configured), request); },
       write: text => output.push(text), setExitCode: code => exitCodes.push(code) });
     expect(JSON.parse(output.join(""))).toMatchObject({ diagnostics: resolution(configured).diagnostics, error: { code: "invalid-input" }, remedy: {
-      text: configured ? expect.stringContaining("delegated-agent") : expect.stringContaining("no reviewer re-examined"),
+      text: configured ? expect.stringContaining("delegated-agent") : expect.stringContaining("review.standard_sources"),
       argv: ["arc", "review", "local", "prepare", "-"], stdin: localRequest } });
+    if (!configured) expect(JSON.parse(output.join("")).remedy.text).not.toContain("Owner's stop");
     expect(exitCodes).toEqual([1]);
   });
   it.each([true, false])("returns a hosted admission remedy with local source configured=%s", configured => {
