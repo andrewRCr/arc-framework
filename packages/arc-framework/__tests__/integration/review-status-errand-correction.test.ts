@@ -283,9 +283,10 @@ async function fixedErrand(options: FixedErrandOptions = {}) {
     root, exec, dispositionStore, firstAttemptId, publisher, store, provider, standardReview, statusTarget, reviewTargetAt,
     errand: { slug, claimId, branch },
     fixedReviewTarget: reviewTargetAt(fixedHead, fixedTree),
-    readStatus: (withBaseRef = true, sourceId?: string) => readErrandRoutedObligation({
+    readStatus: (withBaseRef = true, sourceId?: string, additionalPassAuthorization?: ReviewAdditionalPassAuthorization) => readErrandRoutedObligation({
       cwd: root, exec, rawExec, target: statusTarget, pullRequest: 42, currentBaseOid: base,
       ...(sourceId === undefined ? {} : { sourceId }),
+      ...(additionalPassAuthorization === undefined ? {} : { additionalPassAuthorization }),
       ...(withBaseRef
         ? { changeRequestCandidate: { baseRefName: "main", url: "https://github.com/owner/repo/pull/42" } }
         : {}),
@@ -615,6 +616,49 @@ describe("Errand local correction cadence", () => {
       })).toMatchObject({ exitCodes: [],
         result: { state: "requested", handle: { requestedCoverage: "complete", admission: { logicalPass: 4 } } } });
     });
+  });
+
+  it("runs an open-PR full-final Errand delta before the ranked complete successor", async () => {
+    const errand = await plainErrand({ retrigger: "full-final", routine: false });
+    await withErrandHost(errand, true, async () => {
+      const prepared = await prepareErrandLocal(errand);
+      if (prepared.state !== "ready") throw new Error("expected delta preparation");
+      const delta = await attestErrandLocal(errand, prepared);
+      expect(delta.admission.effectiveCoverage).toBe("incremental");
+      expect(await resolveErrandReview(errand, delta, 42)).toMatchObject({ exitCodes: [],
+        result: { state: "ready", nextAction: "hosted-request", payload: { sourceId: "codex-pr", pass: 4 } } });
+      await expect(errand.readStatus()).resolves.toMatchObject({ state: "review-required",
+        action: { provider: "codex-pr", coverage: "complete" } });
+      expect(await performHostedRequest(errand)).toMatchObject({ exitCodes: [],
+        result: { state: "requested", handle: { requestedCoverage: "complete", admission: { logicalPass: 4 } } } });
+    });
+  });
+
+  it("runs a pre-PR full-final Errand complete pass directly after a plain commit", async () => {
+    const errand = await plainErrand({ retrigger: "full-final", routine: false });
+    await withErrandHost(errand, false, async () => {
+      const prepared = await prepareErrandLocal(errand);
+      if (prepared.state !== "ready") throw new Error("expected complete preparation");
+      const complete = await attestErrandLocal(errand, prepared);
+      expect(complete.admission).toMatchObject({ effectiveCoverage: "complete", logicalPass: 3 });
+      expect(complete.admission.correctionScope).toBeUndefined();
+      expect(await resolveErrandReview(errand, complete)).toMatchObject({ exitCodes: [],
+        result: { state: "pass-complete", nextAction: "none" } });
+    });
+  });
+
+  it("offers an authorized additional hosted pass after an Errand delta closes the lane", async () => {
+    const errand = await plainErrand();
+    const prepared = await prepareErrandLocal(errand);
+    if (prepared.state !== "ready") throw new Error("expected delta preparation");
+    const delta = await attestErrandLocal(errand, prepared);
+    await expect(errand.readStatus()).resolves.toMatchObject({ state: "settled" });
+    await expect(errand.readStatus(true, "codex-pr", {
+      target: { repository: "owner/repo", pullRequest: 42, headSha: delta.target.headSha }, lane: "standard",
+      precedingProducerId: delta.producerId, completedPasses: 3, nextPass: 4,
+    })).resolves.toMatchObject({ state: "review-required", action: { provider: "codex-pr", coverage: "complete",
+      additionalPassAuthorization: { precedingProducerId: delta.producerId, completedPasses: 3, nextPass: 4 },
+    } });
   });
 
   it("names local prepare after a hosted material fix", async () => {

@@ -522,18 +522,10 @@ the range proof. Workflow text changes in the package's `arc/` source first, the
         - Private and open-PR preparation and chain rechecks agree; hosted admission refuses a due delta check and
           re-confirms a converged delta before admitting an authorized additional complete pass.
 
-    - `[ ]` **3.5.b Close or continue the Errand's lane by its retrigger**
-        - Under `incremental` a converged delta check closes the lane; a hosted complete pass after it runs through an
-          additional pass (`additionalPassAuthorization`, which Errand status's lane request carries). Under
-          `full-final` with a pull request open it runs as a lane attempt and the complete pass follows; before the pull
-          request the complete pass runs.
-        - Build `test-first` (one behavior at a time):
-            - Under `incremental`, a plain commit after convergence takes a delta check that closes the lane, before and
-              after the pull request.
-            - Under `incremental`, a hosted additional pass after a converged delta check is admitted at hosted request
-              admission.
-            - Under `full-final` with a pull request open, the delta check runs and the complete pass follows.
-            - Under `full-final` before the pull request, the complete pass runs with no delta check.
+    - `[x]` **3.5.b Close or continue the Errand's lane by its retrigger**
+        - Integration coverage closes incremental delta checks before and after publication, admits their authorized
+          additional hosted pass, and preserves that authorization in status's request. Full-final takes a delta then
+          the ranked complete successor with an open PR, and a complete pass directly before publication.
 
     - `[ ]` **3.5.c Say so in `run-errand`**
         - The workflow names the delta check after a plain commit and the Owner's outcomes in order: a local complete
