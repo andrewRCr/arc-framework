@@ -682,15 +682,14 @@ rejections. Method and workflow text changes in the package's `arc/` source firs
   `full-final`, retaining explicit coverage and delivery replay. The private Candidate scenario reaches complete
   coverage and pre-publication convergence verification after the clean fix check.
 
-### `[ ]` **4.7 The cadence on every path** — validate exit criterion at segment scope
+### `[x]` **4.7 The cadence on every path** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on every path it names, each exercised through its real composition.
 
-    - Scenarios: an Errand before and after its pull request, pre-publication, the published singleton, and a delivery
-      member, each running a `full-final` lane through a material fix, a local fix check, a converged fix check that does
-      not close it, and a closing complete pass at the settled head; and a plain commit after a converged look on each
-      path, admitting a delta check where § 3.5 does and none on a delivery member or where the range proof fails.
-    - Run `arc check segment`.
+- _Outcome:_ Real-handler scenarios exercise material fix → local fix check → complete closure on both Errand
+  surfaces, the private Candidate, the published singleton, and a delivery member. Plain commits take delta checks
+  only on the admitted paths; delivery, moved bases, merge ranges, and re-rooted Candidates retain their exclusions.
+  The private Candidate's missing successor is corrected in 4.R (A1); the rerun reaches closure on every path.
 
 ## **Phase 5:** The ceiling counts complete passes
 

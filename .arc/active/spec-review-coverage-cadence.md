@@ -2097,6 +2097,6 @@ None. Every design question this change raises is settled above; what remains op
 ## Amendments
 
 - **A1** — 2026-10-18 — task: let `replayPendingLocalAdmission` admit a clean fix check's complete successor.
-  _Supersedes:_ none. _Trigger:_ 4.7 segment. _Work:_ 4.R. _Revalidated:_ pending → 4.7.
+  _Supersedes:_ none. _Trigger:_ 4.7 segment. _Work:_ 4.R. _Revalidated:_ 4.7.
 
 ---
