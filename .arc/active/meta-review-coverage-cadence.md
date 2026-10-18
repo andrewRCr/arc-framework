@@ -9,7 +9,7 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-review-coverage-cadence.md`
-- **Task List:** [none]
+- **Task List:** `tasks-review-coverage-cadence.md`
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
@@ -17,8 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** generate-tasks Finalize — land adversarial pass 2's approved fixes (F1–F5), run their fix check, then
-  finalize the task list
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]

@@ -6,7 +6,7 @@
   incremental fix check, a commit after convergence that answers no finding gets a local delta check, a `full-final`
   lane closes only on a complete pass at the settled head, and hosted sources run complete passes only. Code review
   and adversarial review share one pass model, and each review type — planning, code, verification — gets one named
-  operation that its lifecycle sites call.
+  method that its lifecycle sites call.
 
 ---
 
@@ -132,10 +132,11 @@ catches part of the defects on each run; sources and their confidence are in `no
    response that exists at its stage's level.
 7. **A complete pass receives earlier findings as pointers and no verdicts,** and triage catches a rejected finding
    raised again.
-8. **Each review type has one named operation** that its lifecycle sites call, every review step sits in exactly one
+8. **Each review type has one named method** that its lifecycle sites call, every review step sits in exactly one
    place, and the known drift between sites is fixed.
-9. **Nothing new is stored.** No stored record kind, field, or shape is added; every new fact derives from records that
-   exist.
+9. **One stored addition, an advisory note.** No stored record kind or shape is added, and the one field added is a
+   fix's tag: optional, outside the approved set's identity, and written once by the approved respond call (§ 10.4).
+   Every other new fact derives from records that exist.
 10. **A commit after convergence that answers no finding gets a scoped look, not a complete pass,** on an Errand, in
     pre-publication, and on the published singleton, wherever Git proves its range: under `incremental` a delta check
     that closes the lane when it converges, and under `full-final` a look before the Owner's stop wherever one follows.
@@ -146,12 +147,13 @@ _Editable in place until activation, then frozen; changes after that append: `Am
 
 This change does not:
 
-- **add a stored record kind, field, or shape,** or change what `review/adversarial-pass` or any review-gate operation
-  record holds. Where a choice would need one — a counted base-merge check marking its scope in a stored record, or a
-  `targeted-check` choice on the review-applicability selection — that choice is not made here (§ 7.7).
+- **add a stored record kind, field, or shape beyond § 10.4's optional advisory fix-tag note,** or change what
+  `review/adversarial-pass` or any review-gate operation record holds. Where a choice would need another stored addition
+  — a counted base-merge check marking its scope in a stored record, or a `targeted-check` choice on the
+  review-applicability selection — that choice is not made here (§ 7.7).
 - **change routing.** `sensitive` keeps `retrigger: full-final`, and `routing.ts` needs no change.
-- **store rework or origin tags.** Whether a fix was new design stays the agent's judgment, informed by observable
-  signals (§ 6.1).
+- **store origin tags or other rework state beyond that advisory fix-tag note.** Whether a fix was new design stays
+  the agent's judgment, informed by observable signals (§ 6.1).
 - **compute a remaining-defect estimate, a quiet-pass stopping rule, or a verdict on the next pass.**
 - **vary sensitivity by path** within a change set.
 - **discharge a correction obligation** because a later pass independently validated the fix.
@@ -181,7 +183,7 @@ This change does not:
 
 § 1 bounds the change and orders it. § 2–9 settle code review's half of the pass model: convergence, the fix check, the
 next-pass context, the ceiling, the offer, source selection, the Owner's decisions, and what a complete pass receives.
-§ 10 states the shared model and its report, § 11 the review family's operations, § 12 the names, and § 13 the remaining
+§ 10 states the shared model and its report, § 11 the review family's methods, § 12 the names, and § 13 the remaining
 references.
 
 ### 1. Boundary, segments, and storage
@@ -189,8 +191,8 @@ references.
 #### 1.1 One work unit
 
 The boundary read keeps the change whole (`stays one WU`). Its concern is one: how much each review pass re-reads, and
-the model and operations that carry that rule. The four segments edit the same review fire-points: segment 4's
-operations carry segments 1–3's cadence and model, so rewiring the sites once, after the rule settles, costs less than
+the model and methods that carry that rule. The four segments edit the same review fire-points: segment 4's review-type
+methods carry segments 1–3's cadence and model, so rewiring the sites once, after the rule settles, costs less than
 rewiring them twice. Segment 1 could land alone, but the change lands as one branch with chunked review and carries no
 delivery plan.
 
@@ -209,9 +211,10 @@ delivery plan.
    re-derived on the then-current base shows every review step from before landing in exactly one place after, and
    § 11.5's drift list is fixed.
 
-#### 1.3 Nothing stored
+#### 1.3 One stored addition
 
-Every new fact derives from records that already exist:
+Every new fact but one derives from records that already exist; the one is a fix's tag, kept as an advisory note
+(§ 10.4):
 
 - convergence (§ 2) changes what a derived signal reports, not its shape. The integration boundary stores the resolve
   envelope in two places (`CandidatePolicyReviewBoundarySchema.policy` and `CandidateFixBoundarySchema.policy`,
@@ -230,7 +233,9 @@ Every new fact derives from records that already exist:
 - a complete pass's pointers (§ 9) are composed into the reviewer-instructions string the local review operation already
   stores, and the lane read (§ 9.4) composes its rejections and facts from lane progress and the disposition records of
   an Errand's, a Candidate's, or a delivery member's lineage;
-- the report's render-only inputs (§ 10.4) ride beside `proposal` on the first respond call and are never stored;
+- the report's render-only inputs (§ 10.4) ride beside `proposal` on the first respond call and are never stored,
+  except each fix's tag, which the approved call stores on the disposition record's lineage node, outside the approved
+  set's identity, as an optional field;
 - the review family (§ 11) moves prose and adds and renames methods, keeping every stored literal that carries a renamed
   method's name (§ 12).
 
@@ -263,11 +268,16 @@ policy driver's existing `coverage-required` state (`review-policy-driver.ts`) r
 unconverged one lands there too, because the driver reads coverage before the material fix; its response still runs
 before the next pass. The signal is derived centrally, so the local, Errand, and work-unit paths all inherit the rule.
 
-The payload's `responseRequired` cannot separate those cases. The driver sets it from the last attempt's outcome without
-consulting `terminalResponseSettled`, and `projectReviewPolicyAttempt` (`review-policy-attempt.ts`) folds
-`settled-findings` into `findings`, so it says only that the terminal had findings, settled or not; `continuationChoice`
-(`review-policy-evidence.ts`) already pairs it with whether the response was performed. The composition splits instead
-on whether the last look converged, which the next-pass context supplies (§ 4):
+Today the payload's `responseRequired` cannot separate those cases. The driver sets it from the last attempt's outcome
+without consulting `terminalResponseSettled`, which only pre-publication supplies, and `projectReviewPolicyAttempt`
+(`review-policy-attempt.ts`) folds `settled-findings` into `findings`, so it says only that the terminal had findings,
+settled or not; `continuationChoice` (`review-policy-evidence.ts`) pairs it with whether the response was performed.
+The next-pass context therefore derives `responseDue` from the response evidence it reads for convergence
+(`readIncrementalPredecessorResponseEvidence`, `review-policy-evidence.ts`): true while the predecessor's findings
+response is unapproved or unperformed, false otherwise. `responseRequired` reads that fact, which is what a workflow
+arm keys on (§ 2.4). `terminalResponseSettled` remains pre-publication's own input, whose fall-through is its successor
+(`composePrePublicationReviewRequest`, `pre-publication-request.ts`); other compositions do not set it. The composition
+splits on whether the last look converged, which the next-pass context supplies (§ 4):
 
 - **after a converged look,** a clean one included, it re-resolves to the complete pass with the source § 7.1's rank
   picks, once any response the terminal requires is performed (§ 2.3, § 8.2), unless a plain commit followed and the
@@ -289,7 +299,8 @@ takes § 3.5's delta check where it is admissible, before the complete pass unde
 #### 2.4 Workflow arms on `coverage-required`
 
 A workflow arm cannot read the next-pass context; it follows the driver's typed state. The arms added for
-`coverage-required` therefore split on response performance, which lane progress records (`settled-findings`):
+`coverage-required` therefore split on response performance, which lane progress records (`settled-findings`) and the
+payload's `responseRequired` reports (§ 2.2):
 
 - **while the response is unperformed,** which a converged fix check with minor fixes also reaches, they enter the
   disposition protocol;
@@ -336,10 +347,12 @@ attempt kind, admission path, counter, or authorization record.
 A fix check runs only after an approved, performed response that fixed something. Today
 `buildIncrementalCorrectionScope` also admits an incremental pass after a clean predecessor, because
 `readIncrementalPredecessorResponseEvidence` reports a clean predecessor as performed. The bound lands in the producer,
-`buildIncrementalCorrectionScope`, never in that reader, which the coverage chain's walker also consults for every
-earlier link. Under `full-final`, the next-pass context additionally admits a fix check only after an unconverged look
-(§ 2.3, § 4). § 3.5's delta check is the bound's sibling: after a converged predecessor, where no performed response
-produced the head, a scope resolves only with its range proof.
+`buildIncrementalCorrectionScope`, never in that reader's performed reading, which the coverage chain's walker also
+consults for every earlier link. The reader also reports whether the approved set holds a `fix` disposition, which it
+computes today (`hasFix`) without returning it; the producer bounds on that, and the walker ignores it. Under
+`full-final`, the next-pass context additionally admits a fix check only after an unconverged look (§ 2.3, § 4).
+§ 3.5's delta check is the bound's sibling: after a converged predecessor, where no performed response produced the
+head, a scope resolves only with its range proof.
 
 #### 3.3 Chunked by the range it reviews
 
@@ -424,39 +437,29 @@ complete (§ The rule today). A **delta check** is the scoped look it takes inst
   fix check, and what follows a converged one is the same.
 - **Its instructions.** The incremental reviewer prompt already asks for the whole range to be reviewed and the clean
   rules applied to it (`localReviewerInstructions`, `core/local-prepare.ts`). The delta check takes that and the
-  required findings' re-examination, without § 3.1's closure axis, which needs a fix to close.
-- **Admission.** The confirmation that proves a leg reports which ground held: one it accepts today, such as an equal
-  subject digest (`noPullRequestCandidatePriorApplicability`, `pre-publication-composition.ts`), contribution
-  applicability (`projectGitReviewContributionApplicability`), or a recorded Candidate selection
+  required findings' re-examination, without § 3.1's closure axis, which needs a fix to close. Nothing stored tells a
+  delta check from a fix check, so the context's basis reaches `publishLocalReviewPreparation` beside its guidance, in
+  an instruction input that is never persisted, and the stored schemas are unchanged.
+- **Admission.** The range proof is the chain proof's last ground (§ 4), which reaches every chain confirmation. A
+  confirmation reports which ground held: one it accepts today, such as an equal subject digest
+  (`noPullRequestCandidatePriorApplicability`, `pre-publication-composition.ts`), contribution applicability
+  (`projectGitReviewContributionApplicability`), or a recorded Candidate selection
   (`candidateReviewApplicabilitySelections`); the performed-response test (§ 7.4); or the range proof. It tests today's
   grounds and the performed-response test first and reports the range proof only when none of them holds, so every leg
-  that holds today keeps its basis. The next-pass context carries that basis (§ 4), which is never stored. The range
-  proof only admits a delta check's correction scope and re-confirms its leg in the coverage chain on every later round
-  (`resolveCoverageChain`, `incremental-coverage-basis.ts`). It never carries an earlier attempt to a later head: where
-  a consumer carries an attempt from its own head to the current head, it treats that leg as not applicable when only
-  the range proof supports it, whichever confirmation it calls. The exclusion covers that one leg: it never blocks a
-  delta check's own attempt at its head, so under `incremental` a converged one closes the lane there, and a carried
-  attempt's own coverage chain still accepts a delta leg. Those consumers are:
-    - pre-publication's historical-attempt carry (`applicableHistoricalAttempt`, `pre-publication-request.ts`), which
-      reaches `confirmNoPullRequestCandidatePriorProducer` or `confirmNonDeliveryIncrementalApplicability` through
-      `confirmPriorProducerApplicability` (`pre-publication-composition.ts`);
-    - the discharge's branches that settle on an earlier attempt `projectEarlierReviewApplicability` marks
-      `retain-prior-attempt` (`cleanApplicable` and `settledApplicable`, `hosted-reservation-discharge.ts`), not its
-      current-terminal branch;
-    - Errand status's carry check (`readCarriedErrandReview`), whose carry leg
-      `projectGitReviewContributionApplicability` proves, which never takes the range proof.
-
-  The confirmations that resolve a correction scope or re-confirm a chain take the range proof:
-    - local prepare's (`confirmErrandFixResponseApplicability`, `createLocalContributionConfirmation`, and
-      `confirmPrivateCandidateCorrectionBasis`);
-    - the `arc review resolve -` handler's;
-    - Errand status's chain confirmation (`confirmErrandCorrectionPredecessor`, `status-errand.ts`);
-    - respond's, where `confirmNoPullRequestCandidatePriorProducer` serves the coverage chain
-      (`runtime/respond-composition.ts`);
-    - the discharge's `confirmCurrentApplicability` (`hosted-reservation-discharge.ts`) and
-      `confirmIncrementalPredecessorApplicability` (`hosted-reservation-support.ts`), which test the range proof
-      directly rather than through the earlier-attempt read that maps a retained attempt to `applicable`
-      (`incrementalApplicabilityFromEarlierRead`).
+  that holds today keeps its ground. The next-pass context's basis is a delta check when the current leg's ground is the
+  range proof (§ 4), and is never stored. The range proof is a result of its own, `range-proven`, that only the
+  resolution of a correction scope and the coverage chain's re-confirmation on every later round accept
+  (`resolveIncrementalCorrectionScope` and `resolveCoverageChain`, `incremental-coverage-basis.ts`); every other check
+  of a confirmation's result treats it as not applicable. It never carries an earlier attempt to a later head, since no
+  consumer that carries an attempt from its own head to the current head calls the chain proof: pre-publication's
+  historical-attempt carry (`applicableHistoricalAttempt`, `pre-publication-request.ts`); the discharge's branches that
+  settle on an earlier attempt `projectEarlierReviewApplicability` marks `retain-prior-attempt` (`cleanApplicable` and
+  `settledApplicable`, `hosted-reservation-discharge.ts`), and hosted request admission's `applicabilityAction`
+  (`handlers/review.ts`), which reads the same mark; and Errand status's carry check (`readCarriedErrandReview`), whose
+  contribution applicability never takes it. The exclusion covers that one leg: it never blocks a delta check's own
+  attempt at its head, so under `incremental` a converged one closes the lane there, and a carried attempt's own
+  coverage chain still accepts a delta leg. A delivery member's confirmation
+  (`confirmDeliveryMemberIncrementalApplicability`) never takes the range proof.
 - **Cost.** It sits outside the ceiling, as a fix check does (§ 5.3, § 5.4), and takes no approval: the commit already
   passed its review-increment approval gate, and the look is local. Where it is admissible nothing asks: local prepare
   and status admit it without a selection (§ 6.4), and source selection limits to `delegated-agent` whatever the
@@ -475,8 +478,10 @@ complete (§ The rule today). A **delta check** is the scoped look it takes inst
       reach that request: where status routes the singleton to a local pass it returns `review-required` without the
       coverage today (`composeSingletonRequest`, `status.ts`), and it refuses a supplied `--coverage` there instead,
       with a remedy naming local prepare's `coverageAdmission`, rather than dropping it (§ 6.5). Local prepare's
-      coverage default, which assumes complete when the request supplies none (`runtime/local-prepare.ts`), takes the
-      delta check instead wherever one is admissible (§ 6.4);
+      coverage default assumes complete today when the request supplies none (`resolveLocalPreparationContext`,
+      `runtime/local-prepare.ts`); the coverage selection's `ready` result instead returns the coverage and scope it
+      admits (`resolveLocalReviewCoverageSelection`), which settlement and its replay adopt (`settleLocalPreparation`),
+      so with none supplied local prepare takes the delta check wherever one is admissible (§ 6.4);
     - under `full-final`, the hosted complete pass that follows the delta check by the configured rank (§ 2.3);
     - under `incremental`, on an Errand and in pre-publication, a hosted complete pass after a converged delta check
       closes the lane, through an additional pass (`additionalPassAuthorization`, which Errand status and
@@ -503,12 +508,14 @@ complete (§ The rule today). A **delta check** is the scoped look it takes inst
 
 - **an Errand,** before and after its pull request. Local prepare's confirmations
   (`confirmErrandFixResponseApplicability` before; `createLocalContributionConfirmation`, through
-  `confirmNonDeliveryIncrementalApplicability`, after), the `arc review resolve -` handler's, and Errand status's
-  (`confirmErrandCorrectionPredecessor`, `status-errand.ts`) take the range proof. Each refuses that leg today: they
-  require the predecessor to have had findings (`exactErrandResponseContext`, `local-review-coverage-selection.ts`;
-  `sharesCorrectionBase`) and its fix to have produced the current head, and with a pull request open contribution
-  applicability returns `review-required`. Errand status still never carries the earlier review without a look
-  (`readCarriedErrandReview`);
+  `confirmNonDeliveryIncrementalApplicability`, after), the `arc review resolve -` handler's, Errand status's
+  (`confirmErrandCorrectionPredecessor`, `status-errand.ts`, and its resolve at a new head), respond's Errand chain
+  (`runtime/respond-composition.ts`), and hosted request admission's Errand branch take the range proof through the
+  chain proof. None admits that leg today: the confirmations require the predecessor to have had findings
+  (`exactErrandResponseContext`, `local-review-coverage-selection.ts`; `sharesCorrectionBase`) and its fix to have
+  produced the current head, and with a pull request open contribution applicability returns `review-required`; the two
+  with no confirmation admit no incremental leg at a new head (§ 7.4). Errand status still never carries the earlier
+  review without a look (`readCarriedErrandReview`);
 - **pre-publication.** A moved Candidate first meets the Candidate checkpoint, which guards the Candidate's own
   currentness and which this change leaves alone. Once `covered` or `targeted-check` advances the same Candidate to the
   new head, the historical-attempt carry still drops the earlier attempt, since the subject changed. The next pass's
@@ -520,8 +527,11 @@ complete (§ The rule today). A **delta check** is the scoped look it takes inst
   `resolve-review-applicability` before coverage or the ceiling is read (`projectEarlierReviewApplicability`,
   `earlier-review-applicability.ts`), whose `decision-required` maps to `stop` (`reviewApplicabilityConsumerAction`,
   `review-applicability-authority.ts`). Under `incremental`, when the earlier terminal converged and the range proof
-  holds, the discharge leaves that stop branch and requests the delta check instead: `delegated-agent`, with the
-  correction scope its `confirmCurrentApplicability` resolves by the range proof. The request carries no invocation the
+  holds, the discharge requests the delta check in place of whichever stop the plain commit's classification would
+  raise, bounded or not, since the delta check reviews the range itself: `delegated-agent`, with the correction scope
+  its `confirmCurrentApplicability` resolves by the range proof. It and `confirmIncrementalPredecessorApplicability`
+  (`hosted-reservation-support.ts`) test the range proof directly, never through the earlier-attempt read that maps a
+  retained attempt to `applicable` (`incrementalApplicabilityFromEarlierRead`). The request carries no invocation the
   discharge recovers from an earlier attempt (`retainedOwnerCleanAttempt`, `hosted-reservation-support.ts`) and no
   source list cut from one (`configuredSourceSuffix`, `hosted-reservation-admission.ts`), so an earlier pass's forced
   source neither reaches the driver nor drops `delegated-agent`. The earlier attempt is never retained across the
@@ -544,12 +554,17 @@ helper:
    derives it as `completePasses` (`countCompleteLogicalPasses`, `lane-progress.ts`), and a superseding Candidate
    already inherits it beside the finished-pass number (`readCandidateInheritedLaneProgress`,
    `lane-progress-supersession.ts`);
-2. **the predecessor's convergence,** which § 2.2's composition split and § 7.1's source selection read;
+2. **the predecessor's convergence and response state,** which § 2.2's composition split and § 7.1's source selection
+   read: `none` before a first pass, `converged` after a clean look or a performed response that fixes no material
+   finding, `unconverged` once an approved response fixes a material finding, and `pending` while a response that fixes
+   none is unapproved or unperformed. Beside convergence, `responseDue` is true while the predecessor's findings response
+   is unapproved or unperformed, false otherwise, derived from the same response evidence
+   (`readIncrementalPredecessorResponseEvidence`, `review-policy-evidence.ts`);
 3. **whether an incremental look is admissible, and on which basis** — the correction scope
    `resolveIncrementalCorrectionScope` (`incremental-coverage-basis.ts`) resolves for the next attempt, with the basis
-   its confirmation reports: a fix check, which under `full-final` follows only an unconverged look (§ 2.3); a delta
-   check after a plain commit, admissible only where `delegated-agent` can run, and under `full-final` only on an Errand
-   with an open pull request and in pre-publication (§ 3.5); or none.
+   the ground of the current leg's confirmation sets: a fix check, which under `full-final` follows only an unconverged
+   look (§ 2.3); a delta check after a plain commit, admissible only where `delegated-agent` can run, and under
+   `full-final` only on an Errand with an open pull request and in pre-publication (§ 3.5); or none.
 
 The driver takes all three as internal inputs, beside `sources` and `maxPasses` (`ReviewPolicyRequestSchema`,
 `review-policy-driver.ts`), and the chosen coverage joins them once selected (§ 5.3). None rides the command request,
@@ -557,6 +572,13 @@ which carries only `completedPasses` (`ReviewPolicyRequestBaseShape`) and is sto
 lineage node keeps the whole request (`ApprovedDispositionLineageNodeSchema.responsePolicyRequest`,
 `core/advisory-records.ts`). The agent never supplies them, so `run-errand`'s hand-built request is unchanged. One
 helper replaces a mechanism per site, so every composition reaches the same answer from the same records.
+
+The admissibility fact rests on one chain proof the helper shares. Each composition's confirmations keep their call
+sites and today's grounds, and take the chain proof for every correction scope and chain re-confirmation: the
+performed-response test for a leg that holds a fix (§ 7.4), and § 3.5's range proof as a result of its own. A
+composition with no confirmation of its own takes the chain proof alone, and a consumer that carries an earlier attempt
+to the current head never calls it. The context's `responseDue` supplies response state (§ 2.2);
+`terminalResponseSettled` stays pre-publication's own input, unchanged, rather than being supplied by every composition.
 
 The compositions, each of which builds the driver's request directly or through the evidence binders:
 
@@ -580,17 +602,21 @@ The compositions, each of which builds the driver's request directly or through 
 - **pre-publication** (the lane composition in `composePrePublicationReviewRequest`, `pre-publication-request.ts`, with
   the lane-progress and lane-policy dependencies `pre-publication-composition.ts` binds).
   `applyCarriedStandardReviewReservation` and `applyCarriedOwnerAcceptedTerminus` re-parse the bound request before
-  `projectPrePublicationReview` (`pre-publication-procedure.ts`) resolves it, and the facts survive both re-parses;
+  `projectPrePublicationReview` (`pre-publication-procedure.ts`) resolves it, and the facts survive both re-parses. The
+  procedure resolves the bound request directly (`resolveReviewPolicy`) and never reaches the continuation, so the lane
+  composition applies § 2.2's split through the same decision (`continuationChoice`): after a converged look whose
+  response is settled, it hands the procedure the fresh successor request the continuation builds, and the complete pass
+  resolves by rank;
 - **respond** (the `resolvePolicy` closure in `createRespondDependencies`, `runtime/respond-composition.ts`).
 
 Two driver wrappers that only tests reach today — `assertStandardReviewExecutionAdmission`
 (`review-execution-admission.ts`) and `resolveHostedReservationPolicy` (`hosted-reservation-admission.ts`) — take the
 same inputs, so no path to the driver omits them. The inputs are standard-lane: the driver's internal request requires
 them on the standard lane and refuses a standard-lane request without them rather than reading it as today's behavior.
-The frontline lane, whose ceiling and numbering are unchanged (§ 5.1), takes none, so its direct calls stay as they are
-(`acceptedSingletonFrontlineSkip`, `handlers/review.ts`; the member frontline resolve in
-`composePrePublicationReviewRequest`, `pre-publication-request.ts`; and the procedure's frontline resolve in
-`projectPrePublicationReview`, `pre-publication-procedure.ts`).
+The frontline lane, whose ceiling and numbering are unchanged (§ 5.1), takes none and refuses them, as it refuses a
+terminus, so its direct calls stay as they are (`acceptedSingletonFrontlineSkip`, `handlers/review.ts`; the member
+frontline resolve in `composePrePublicationReviewRequest`, `pre-publication-request.ts`; and the procedure's frontline
+resolve in `projectPrePublicationReview`, `pre-publication-procedure.ts`).
 
 Three counts of complete passes exist today. `countCompleteLogicalPasses` (`lane-progress.ts`) and the supersession
 module's own count (`completePasses`, `lane-progress-supersession.ts`), which yields `inheritedCompletePasses`, share
@@ -603,7 +629,10 @@ do.
 `arc review resolve -` (`resolveConfiguredReviewPolicy`, `handlers/review.ts`) serves an Errand's main resolve and the
 ordinary singleton's continuation (`integrate-work-unit`). It adds only `sources` and `maxPasses` today and reads no
 lane progress; it takes the context from the request's lineage: the Errand claim's lane progress, as Errand status does,
-or the Candidate's.
+or the Candidate's. It resolves the standard lane through the continuation
+(`resolveEvidenceBoundReviewPolicyContinuation`) rather than `resolveEvidenceBoundReviewPolicy`, so a converged look
+re-resolves to its successor there as it does elsewhere; its frontline resolve stays as it is, since the frontline lane
+takes none of the context.
 
 `scripts/integration/checkpoint-composition.ts` is not a composition: it reaches the driver only through the discharge
 reader above. It copies lane progress's `completedPasses` into the discharge for the terminus binding
@@ -638,7 +667,8 @@ A site that numbers or binds an attempt keeps `logicalPass`:
 - the evidence binding, which pins the request's `completedPasses` to the terminal producer's `logicalPass`
   (`validateTerminalResult` and `correctedTerminalRequest`, `review-policy-evidence.ts`), and respond's equivalent
   (`validateApprovedResponsePolicyBinding`, `respond-command.ts`);
-- `resolveOfferedCorrectionScope`'s predecessor match (`local-review-coverage-selection.ts`);
+- the next-pass context's predecessor match (§ 4), which replaces `resolveOfferedCorrectionScope`'s own
+  (`local-review-coverage-selection.ts`) once it takes its predecessor from the context;
 - the conditional-pass authorization's producer and consumer bindings: `requireCaptureProducer` and
   `bindConditionalPendingAdmission` (`lane-progress-conditional.ts`), `validateAuthorizations`
   (`core/lane-progress-state-validation.ts`), and the stored refinement that `nextPass` is `exhaustedPassCount + 1`
@@ -658,8 +688,11 @@ coverage, and a ceiling decision arises only when that attempt is a complete pas
 A comparison against `review.standard_max_passes`, or a decision whether an override is needed, reads the complete
 count:
 
-- the driver's `approval-required` and `ceilingOverrideApplied`, and `resolveInvalidOverrideReason`'s
-  `ceiling-not-exhausted` (`review-policy-driver.ts`), which also binds an override's attempt numbers;
+- the driver's `approval-required` and `ceilingOverrideApplied`, whose additional-pass arm also compares the ceiling,
+  and `resolveInvalidOverrideReason`'s `ceiling-not-exhausted` (`review-policy-driver.ts`). That function also binds
+  an override's attempt numbers from one base, `completedPasses` less a recorded terminal, which it splits: the
+  override's `exhaustedPassCount` and `nextPass` still bind that `logicalPass` base, and `ceiling-not-exhausted`
+  compares the complete count, less the terminal only when the terminal is a complete pass;
 - `missingHistoricalResultObligation` (`status-errand.ts`), which also binds the next pass's number;
 - `composeDeliveryReviewObligation` (`status.ts`), which blocks a member when its own ceiling read disagrees with the
   driver's `ceilingOverrideApplied`;
@@ -688,15 +721,25 @@ would be spent by the fix check. (After a pass whose coverage chain is inadequat
 `approval-required` before any coverage step (`composeSingletonRequest`; the delivery route's `requestAdmission`). The
 ceiling applies only to a complete pass:
 
-- at the ceiling, when the next-pass context finds a fix check admissible, the driver returns the coverage choice, not
-  `approval-required`, and when it finds a delta check admissible, the composition admits it (§ 3.5);
-- choosing a complete pass there needs the ceiling override or an `additional` extra pass, so an override always binds
-  to the complete pass that uses it, and neither a fix check nor a delta check spends one;
-- the chosen coverage reaches the driver as an internal input beside the complete count;
+- the chosen coverage reaches the driver as an internal input beside the complete count. Local prepare supplies its
+  `coverageAdmission`, status's singleton and delivery routes the pick or `--coverage`, and every hosted admission —
+  hosted request admission, the hosted reservation admission, and Errand status where it composes a hosted action —
+  supplies `complete`, since a hosted pass is complete. Pre-publication supplies none, since it learns of a hosted
+  reservation only from the driver's result; its hosted pass meets the ceiling at hosted request admission;
+- at the ceiling, while the next-pass context admits an incremental look and no complete coverage is chosen, the driver
+  returns `ready`, not `approval-required`: the composition's selection then asks after material fixes (§ 6.4), or
+  admits the delta check (§ 3.5). `coverage-required` keeps its one meaning, an inadequate chain;
+- once complete coverage is chosen there, the driver returns `approval-required`, and the pass needs the ceiling
+  override or an `additional` extra pass, so an override always binds to the complete pass that uses it, and neither a
+  fix check nor a delta check spends one. The driver refuses an override beside chosen incremental coverage, as it
+  refuses an invalid override today, with its own diagnostic code and a remedy whose command re-runs without it; with no
+  coverage chosen, it returns `ready` without applying the override;
 - `projectFixConsequence` reports a ceiling decision only when no fix check will be admissible. It runs on the first
   `arc review respond -` call, before any fix exists, when no correction scope can resolve yet
   (`buildIncrementalCorrectionScope` requires a performed response), so it tests predictively: the lane's chain to this
-  pass is adequate and the route runs a local fix check.
+  pass is adequate and `delegated-agent` is selectable on the route (§ 7.2). Respond reads both, with § 6.1's facts, from
+  one dependency its composition binds from the next-pass context (`createRespondDependencies`,
+  `runtime/respond-composition.ts`), so the provisional assessment's projection stays pure over what it returns.
 
 #### 5.4 No extra-pass decision for a fix check
 
@@ -717,9 +760,11 @@ not coverage, so a fix check could spend it. It keeps its shape and becomes a co
   on the attempt's `local` or `hosted` binding), with a remedy naming the complete pass or the authorization's
   withdrawal (`conditionalNextPassWithdrawal`).
 
-When a fix check comes first, the complete pass that follows takes a ceiling override at the driver's
-`approval-required` if it is past the ceiling, so each decision sits beside the head it binds instead of surviving later
-fix rounds.
+An authorization stays pending until an admission's ceiling override names it, and only the binding and its
+withdrawal read it. When a fix check comes first, it names none, so the authorization lapses once the fix check moves
+`logicalPass` past the authorization's `nextPass`, and the complete pass that follows takes a ceiling override at the
+driver's `approval-required` if it is past the ceiling, so each decision sits beside the head it binds instead of
+surviving later fix rounds.
 
 #### 5.5 Presentation
 
@@ -757,8 +802,9 @@ Text that renders them, or counts every pass, changes:
   still spends one logical pass", the workflow twin of the local selection text, and its "inherited completed standard
   passes still count toward the ceiling"; and every step that surfaces a ceiling override's or an additional pass's
   consequence, which renders it as the complete pass it admits;
-- method text: `review-triage`'s pass line and its example prompt ("standard pass 2"), and `standard-review`'s "counts
-  as one standard-review pass";
+- method text: `review-triage`'s pass line and its example prompt ("standard pass 2"), with that prompt's copy in
+  `strategy-session-operations.md` § Disposition-Approval Release, and `standard-review`'s "counts as one
+  standard-review pass";
 - the `arc-config.yml` ceiling comment in both copies (§ 13).
 
 ### 6. The next-pass offer
@@ -796,7 +842,11 @@ The emitted offer keeps three layers apart:
       respond refuses a result without findings, `respond-command.ts`), and each look's verified material count from its
       disposition records (`listDispositionRecords`, `core/ports.ts`) plus the proposed set, marked provisional.
 
-  One derivation computes them, and three surfaces carry them: the offer's text (§ 6.3), the report (§ 10.4), and the
+  One derivation computes them, into one typed shape, from lane progress, the lineage's disposition records, the
+  next-pass context (§ 4), whose incremental fact is whether the chain is proven, and Git: each fix round's range is
+  its performed response's heads (`originatingHeadSha..producedHeadSha`, `LaneResponsePerformanceSchema`,
+  `core/operation-state-schema.ts`), tied to its disposition set by `dispositionSetId`, and a locus's leading path
+  token is read as the file it cites. Three surfaces carry them: the offer's text (§ 6.3), the report (§ 10.4), and the
   lane read (§ 9.4).
 - **Judgment — the agent's, labeled advisory.** It applies once the fix checks have converged, and chooses what follows
   them: recommend another complete pass while complete passes still find new defect classes in code earlier passes read,
@@ -848,12 +898,15 @@ there the arm states the recommendation and the limit, and the complete pass run
 #### 6.3 The text
 
 The emitted text states the allowed steps once, in plain words, before the considerations; gives each consideration its
-reason and the condition under which it favors an option; and ends by asking for the recommendation.
-`localCoverageInteractionText` (`local-review-coverage-selection.ts`) already has the bounds-plus-considerations shape
-inside local prepare, which an Errand's local pass reaches too (`runtime/local-prepare-composition.ts`). The work-unit
-path's selection prompt (`hosted-reservation-discharge.ts`) has no considerations, so the text is new there. It replaces
-that prompt, which today names a `--json` flag that `review status` rejects (`cli.ts`) and always names `--work-unit`,
-whatever route reached status.
+reason and the condition under which it favors an option; and ends by asking for the recommendation. The considerations
+are § 6.1's facts, one each with its value; the new-design signals and the trend weigh the pass after the fix checks
+converge, never one in place of the fix check (§ 10.2). `localCoverageInteractionText`
+(`local-review-coverage-selection.ts`) already has the bounds-plus-considerations shape inside local prepare, which an
+Errand's local pass reaches too (`runtime/local-prepare-composition.ts`). The work-unit path's selection prompt
+(`hosted-reservation-discharge.ts`) has no considerations, so the text is new there. It replaces that prompt, which
+today names a `--json` flag that `review status` rejects (`cli.ts`) and always names `--work-unit`, whatever route
+reached status. The discharge has no route, so it emits the text with no command, and status's route composition appends
+the argv that re-runs status by the route that reached it, as its refusal's remedy does (§ 7.3).
 
 #### 6.4 One question per moment, each asked once
 
@@ -888,7 +941,8 @@ No workflow names `coverage-required`, `select-coverage`, or `run-review` today.
 recommendation, takes the Owner's pick, and re-runs with it. A selection admits only a listed choice
 (`resolveLocalReviewCoverageSelection`, `selectReviewCoverageChoice`); where status today re-emits the selection
 silently because `--source` and `--coverage` match no choice (`status-composition.ts`), it refuses instead, naming the
-listed choices. The resolve envelope keeps its shape, and nothing new is stored.
+listed choices; a lone `--coverage` that matches exactly one listed choice selects it. The resolve envelope keeps its
+shape, and nothing new is stored.
 
 This carries adversarial review's re-inspection test to code lanes, and gives code review the cap recommendation
 `adversarial-review` already states.
@@ -933,7 +987,9 @@ fact reaches both:
   re-examination by stopping, where a surface takes the stop, not by choosing another source (§ 8.1, § 8.3). Where a
   delta check is admissible the driver likewise refuses a forced source other than `delegated-agent`, with a remedy
   naming the delta check: the delta check is the next pass, honoring another source there would need a stored choice,
-  and a hosted complete pass follows it where § 3.5's fixed order reaches one (§ 3.5);
+  and a hosted complete pass follows it where § 3.5's fixed order reaches one (§ 3.5). Each refusal is the existing
+  `unavailable / stop`, with a diagnostic code of its own, so the resolve envelope keeps its shape, and the remedy is
+  attached where each surface reports it;
 - **the work-unit coverage offer,** which `coverageSelectionChoices` builds from the discharge's configured
   `reservation.sources` (`hosted-reservation-discharge.ts`): after an unconverged pass the discharge passes it
   `delegated-agent` alone, so the offer never lists a choice the driver would refuse. Where the discharge requests a
@@ -950,9 +1006,15 @@ choosing the fresh resolve's source (`resolveEvidenceBoundReviewPolicyContinuati
 
 - **the binding list** stays terminal-first on the Errand, so a terminal from a source no longer configured still binds
   (`validateConfiguredAttempts`);
-- **the selection list** is always the configured list, which the restriction narrows. After a converged pass the fresh
+- **the selection list** is the configured list — on hosted request admission's Errand branch, the requested provider's
+  suffix of it (`configuredSourceSuffix`), as today — which the restriction narrows. After a converged pass the fresh
   resolve therefore takes the configured order, and a hosted source can run the complete pass, except where a delta
   check is admissible (§ 3.5).
+
+At a head that already holds a review, Errand status composes the hosted action for the driver's `ready` as it does at
+a new head (`readErrandRoutedObligation`, `errandHostedRequestObligation`), so the complete pass after a converged look
+at the same head reaches a hosted source by rank; today, for a `ready` there, it returns `review-required` with no
+action.
 
 #### 7.3 Without `delegated-agent` configured
 
@@ -965,6 +1027,10 @@ or a remedy naming a local pass that cannot run; an empty offer would also fail 
 
 - add `delegated-agent` to the list;
 - or take the Owner's stop (§ 8.1), disclosed as resting on fixes no reviewer re-examined.
+
+No command adds a source, so the remedy's text names both and its command re-runs the call. Status carries the stop
+as a refusal holding the driver's diagnostic code and that one remedy, which re-runs status; where the surface takes no
+stop, its text names only the first.
 
 On the published singleton after publication and in `deliver-stack`'s member review only the first remedy applies,
 since neither takes a terminus (§ 8.3). Without `delegated-agent` no delta check is admissible either (§ 3.5), so a
@@ -988,12 +1054,15 @@ that proof returns `review-required` or `unavailable`, and no fix check after a 
 could prove. Under `incremental` that would be a regression: today the Errand's hosted correction proves the leg
 (`confirmErrandCorrectionPredecessor`, `status-errand.ts`).
 
-Every one of these confirmations therefore proves a leg that holds a fix by the performed-response test, before a pull
-request and after, so respond's predictive consequence (§ 5.3) and the next pass's admission read the same chain: at an
-unchanged diff base, the predecessor's approved response was performed from its head and produced the current head
-(`readLaneResponsePerformance`, `lane-progress.ts`). `confirmErrandCorrectionPredecessor` already composes that test for
-the Errand's status — the diff base through `sharesCorrectionBase`, the response through `fixProducedHead` — so it
-outlives the hosted correction § 7.9 deletes.
+Every one of these confirmations therefore proves a leg that holds a fix by the performed-response test, through the
+chain proof § 4 shares, before a pull request and after, so respond's predictive consequence (§ 5.3) and the next pass's
+admission read the same chain: at an unchanged diff base, the predecessor's approved response was performed from its
+head and produced the current head (`readLaneResponsePerformance`, `lane-progress.ts`). Where a confirmation also
+serves a carry (`confirmPriorProducerApplicability`, `pre-publication-composition.ts`), the chain proof enters through
+its chain role alone. `confirmErrandCorrectionPredecessor` already composes that test for the Errand's status — the
+diff base through `sharesCorrectionBase`, the response through `fixProducedHead` — so it outlives the hosted correction
+§ 7.9 deletes. Hosted request admission's Errand branch (`handlers/review.ts`), Errand status's resolve at a new head,
+and pre-publication's current leg have no confirmation today and take the chain proof alone.
 
 On a Candidate a record commit follows the fix: `persistCandidateResponse` (`respond-command.ts`) records the fix commit
 as the produced head and stages the Candidate record, which `prepare-work-unit` commits next. There the test also
@@ -1006,8 +1075,8 @@ reviewable change and passes. The pre-publication path proves a correction the s
 does not serve. Each leg is tested against the head that follows it, since the coverage chain re-confirms every earlier
 leg on each round (`resolveCoverageChain`, `incremental-coverage-basis.ts`). A leg that holds a fix and fails the test
 breaks the chain (§ 7.8). A leg after a converged look whose head no response produced proves instead by § 3.5's range
-proof, in the confirmations § 3.5 names, which resolve a correction scope or re-confirm a chain; a consumer that
-carries an earlier review to the current head never accepts it.
+proof, the chain proof's `range-proven` result, which only the resolution of a correction scope and a chain's
+re-confirmation accept; a consumer that carries an earlier review to the current head never accepts it.
 
 #### 7.5 The published singleton's local pass
 
@@ -1018,10 +1087,14 @@ Today the driver's `ready / local-prepare` for a published singleton becomes a b
 hosted pass, so the singleton route instead names an ordinary `arc review local prepare -` request with no member
 selector, which reviews the work-unit branch (`LocalPrepareRequestSchema`, `runtime/local-prepare.ts`), and
 `integrate-work-unit` gains an arm for it in place of `run-review`. The status projection that names it is stored
-nowhere. Local prepare resolves the Candidate lineage from the submission boundary (`resolveLineage`,
-`runtime/local-prepare-composition.ts`), the lineage under which the singleton's discharge reads lane progress
-(`hosted-reservation-discharge.ts`), so the local pass continues the singleton's lane, and it asks the coverage question
-itself (§ 6.4).
+nowhere; it names the request's target, the lineage boundary, and the reservation's obligation, and the agent supplies
+`evaluatorIdentity`, as on delivery. Local prepare resolves the Candidate lineage from the submission boundary
+(`resolveLineage`, `runtime/local-prepare-composition.ts`), the lineage under which the singleton's discharge reads lane
+progress (`hosted-reservation-discharge.ts`), so the local pass continues the singleton's lane, and it asks the coverage
+question itself (§ 6.4). With no `deliveryAdmission`, local prepare routes the obligation from the caller's routing
+facts, while the discharge binds terminals to the reservation's (`resolveTerminalPolicy`), so where a hosted reservation
+binds the submission boundary local prepare takes the obligation from it, as `validateDeliveryAdmission` binds it for
+delivery, and refuses routing facts that route elsewhere.
 
 Three readers change, each of which today takes a local result only with a `deliveryAdmission`:
 
@@ -1088,8 +1161,8 @@ delivery route, end at `coverage-unsupported` (`status.ts`); `integrate-work-uni
 `status-unavailable` on a hosted source and, on a local one, at a bare `review-required` that drops the coverage
 (`composeSingletonRequest`).
 
-**The bounded check.** At either stop, before the Owner chooses, the agent runs one fresh local check over what the
-movement changed in the reviewed change:
+**The bounded check.** At either stop, before the Owner chooses, the agent has a fresh-context local evaluator run one
+check over what the movement changed in the reviewed change:
 
 - a merge's conflict resolution against Git's automatic merge, as `git log --remerge-diff` shows it, or a rewrite's
   interdiff, as `git range-diff` shows it;
@@ -1097,7 +1170,10 @@ movement changed in the reviewed change:
 - dependencies across the two sides — a rename or removal on one side that the other still uses.
 
 It carries that context explicitly, since the reviewer remembers nothing of the earlier pass, and its findings are shown
-beside `assess-evidence-applicability`'s `supplemental | fresh` recommendation. Its instructions join that method, which
+beside `assess-evidence-applicability`'s `supplemental | fresh` recommendation, whose return contract stays as it is.
+It runs only at these two review stops, not at `run-errand`'s merge step or on a verification residual, which the method
+also serves. `supplemental` recommends `covered`, or `targeted-check` at the reconcile; `fresh` recommends
+`review-required`, or `changed` at the reconcile. Its instructions join that method, which
 fires at both stops: `deliver-stack`'s member-rewrite stop fires it today, and `integrate-work-unit`'s pre-reconcile
 route, which says it does not, gains the fire-point. The check is not a pass: it takes no lane attempt, counts against
 no ceiling, and stores nothing the stop does not already record. It does not run where the applicability check stops
@@ -1206,11 +1282,14 @@ The read side stays. CodeRabbit's observer keeps recognizing `@coderabbitai revi
 generation (`requestCommandCoverage`, `earlierRequestGenerationsSettled`, `nextRequestBoundary`,
 `commandReplyCompleted`). The stored-record readers stay too (`lane-attempt-validation.ts`,
 `hosts/local/review-result-reader.ts`, `recordHostedAwaitAttempt`), with `HostedCoverageEvidenceSchema`
-(`hosted/await.ts`) parseable, because a stored operation record may already hold one. A hand-typed
-`@coderabbitai review` therefore stays what it is today: a competing request generation that ARC recognizes, that can
-fail ARC's own request with `provider-request-generation-overlap`, and that never counts as a pass. CodeRabbit's
-automatic incremental reviews no longer move its baseline off an ARC predecessor head
-(`provider-incremental-range-mismatch`); an automatic review at a requested head can still be absorbed into ARC's
+(`hosted/await.ts`) parseable, because a stored operation record may already hold one. CodeRabbit's
+`COMMANDS.incremental` stays for those reads; only `request()`'s incremental arm goes. A terminal CodeRabbit incremental
+result requires that evidence (`validateHostedTerminalCoverage`, `hosted/await.ts`), which only the deleted writer
+produced, so an incremental request already in flight ends as a terminal failure with a remedy naming the complete pass
+or the local fix check. A hand-typed `@coderabbitai review` therefore stays what it is today: a competing request
+generation that ARC recognizes, that can fail ARC's own request with `provider-request-generation-overlap`, and that
+never counts as a pass. CodeRabbit's automatic incremental reviews no longer move its baseline off an ARC predecessor
+head (`provider-incremental-range-mismatch`); an automatic review at a requested head can still be absorbed into ARC's
 complete pass by the observer's filter, and this repository pins them off (`.coderabbit.yaml`). Help text that calls
 coverage hosted changes with it (`cli.ts`'s "Requested hosted coverage"); the type names that say hosted
 (`HostedReviewCoverage`) stay with the stored schema.
@@ -1280,7 +1359,9 @@ terminus at `coverage-required` once any response the terminal pass requires is 
 the complete pass. The surfaces that offer or carry the stop follow:
 
 - the delivery path binds its terminus offer only on other states (`status.ts`), and counts a pending coverage selection
-  as an intervention (`isDeliveryReviewMemberDischargedByOwnerTerminus`);
+  as an intervention (`isDeliveryReviewMemberDischargedByOwnerTerminus`). After a converged fix check status names the
+  complete pass (§ 6.4), whose request already carries the offer, so status's `coverage-required` arises only after
+  material fixes; the offer it binds there is disclosed as resting on fixes no reviewer re-examined;
 - pre-publication obtains a terminus only from the driver's `owner-accepted` state (`pre-publication-procedure.ts`);
 - `run-errand` admits the Owner's stop only from `ready` or `approval-required`.
 
@@ -1319,9 +1400,11 @@ it must re-examine (`localReviewerInstructions`, `scripts/review-gate/core/local
 The pointers are composed at prepare into `reviewerInstructions` — the string the local review operation already stores
 (`LocalReviewStateSchema`, `core/operation-state-schema.ts`) and replay reuses (`runtime/local-prepare.ts`) — as an
 incremental pass's required findings already are. The string's content changes; no shape does, and the source descriptor
-is untouched.
+is untouched. The pointers reach the preparation beside its guidance, in the instruction input that carries a delta
+check's basis (§ 3.5), which is never persisted.
 
-They list the lineage's verified findings approved as `fix`, by locus and the disposition's title, which new proposals
+They list the lineage's verified findings approved as `fix`, from every lane, read as the lane read reads the
+lineage's records (§ 9.4), by locus and the disposition's title, which new proposals
 require (`respond-command.ts`) and older stored items may lack; the finding's `sourceLabel` lives on the normalized
 finding (`finding-records.ts`), not the disposition, so some pointers carry a locus only. Deferred findings are still
 live, so they are not "previously fixed", and rejected ones are withheld.
@@ -1334,14 +1417,28 @@ what it reports (§ 7.10), so a pointer list could become the search boundary §
 
 #### 9.4 The lane read: rejections for triage, facts for the agent
 
-`review-triage` gains a check of new findings against the lineage's rejections, asking whether each reason still holds,
-so no verdict enters the evaluator's context. No command supplies those rejections today, so the check would rest on
-conversation memory. A read-only CLI read, the lane read, gives triage the lineage's rejected findings — each one's
-locus, title, and rejection reason — composed from the stored disposition records for an Errand claim's, a Candidate's,
-or a delivery member's lineage (`LaneSubjectLineageSchema`'s three kinds, `core/lane-admission.ts`). It also returns
-§ 6.1's facts for that lane, a delivery member's counted against its own ceiling as status already counts them
-(`DeliveryReviewMemberProgressSchema`, `status.ts`), from the derivation the report renders them from (§ 10.4), for the
-agent's stop after a clean fix check and at the ceiling (§ 6.2). It rides no stored envelope and stores nothing.
+`review-triage` gains a check of new findings against the lineage's rejections, so no verdict enters the evaluator's
+context: while it verifies new findings against source, the primary agent asks of each rejection whether its reason
+still holds against current source. No command supplies those rejections today, so the check would rest on conversation
+memory. It applies to a lane's findings, not to a review run outside any lane, such as `verify-work-unit`'s author
+check.
+
+A read-only CLI read, the lane read (`arc review lane read -`), supplies them. Its request names nothing the agent does
+not hold — `{ schemaVersion: 1, memberHeadObjectId? }` — and it resolves the subject as local prepare does: the vehicle
+from the checkout's live context, with an optional member selector (`resolveLocalReviewVehicle`,
+`hosts/local/review-authority.ts`), then the lineage, an Errand claim's, a Candidate's, or a delivery member's
+(`LaneSubjectLineageSchema`'s three kinds, `core/lane-admission.ts`), through one resolver both share. A Candidate's read
+covers the Candidates its lane progress inherits from (`readCandidateInheritedLaneProgress`). Where no subject resolves,
+or the member selector does not authenticate, it refuses with the resolver's reason (`LocalReviewAuthorityError`) and a
+remedy naming the checkout or member head to use.
+
+Its result carries the lineage; the lineage's rejected findings from the stored disposition records, from every lane,
+each with its finding identity, locus, title where stored, its `rationale` as the reason, and its `sourceVerification`,
+so an observation that did not hold at source reads as one (`DispositionReportItemSchema`,
+`core/disposition-records.ts`); § 6.1's facts for the standard lane, a delivery member's counted against its own ceiling
+as status already counts them (`DeliveryReviewMemberProgressSchema`, `status.ts`), from the derivation the report renders
+them from (§ 10.4); and the last look's coverage and outcome, for the agent's stop after a clean fix check and at the
+ceiling (§ 6.2). It rides no stored envelope and stores nothing.
 
 ### 10. One pass model
 
@@ -1359,16 +1456,16 @@ The two families name one set of concepts twice:
 | —                           | `full-final`, whose behavior drifted (§ 2) |
 
 A new shared method, `review-model`, defines one model — pass, fix check, cap, convergence, re-inspection test, fold
-tags, cadence, and the loop reading (§ 10.3) — and the family's map: § 11's layers, its three operations, and where
-every review method sits. Each operation holds its type's defaults: a planning artifact is small, so a complete pass
-every time stays cheap there; a large code change takes complete passes on a cadence with fix checks between. Records
-stay separate by design; an adversarial pass keeps its own record shape (`review/adversarial-pass`).
+tags, cadence, and the loop reading (§ 10.3) — and the family's map: § 11's layers, its three review-type methods, and
+where every review method sits. Each review-type method holds its type's defaults: a planning artifact is small, so a
+complete pass every time stays cheap there; a large code change takes complete passes on a cadence with fix checks
+between. Records stay separate by design; an adversarial pass keeps its own record shape (`review/adversarial-pass`).
 
-`review-model` is declared by § 11's three operations, `adversarial-review`, `review-triage`, and `review-response`, at
-their fire-points. Every reader reads the model at a review operation, so a fire-point declaration fits better than a
-strategy and adds nothing to the always-loaded set. Every constraint — a fix check runs only with approval, a cap never
-authorizes, a recommendation is not authorization — stays at its fire site. The method takes an `init-recipe.json`
-disposition, a Configurable-list entry, and audit reachability, or it reaches no project.
+`review-model` is declared by § 11's three review-type methods, `adversarial-review`, `review-triage`, and
+`review-response`, at their fire-points. Every reader reads the model where a review runs, so a fire-point declaration
+fits better than a strategy and adds nothing to the always-loaded set. Every constraint — a fix check runs only with
+approval, a cap never authorizes, a recommendation is not authorization — stays at its fire site. The method takes an
+`init-recipe.json` disposition, a Configurable-list entry, and audit reachability, or it reaches no project.
 
 #### 10.2 A fix check and a successor pass are separate decisions
 
@@ -1407,13 +1504,16 @@ Every review report — an adversarial pass, a fix-check round, and a code-revie
   findings by grade;
 - **a table of `#`, `Grade`, `Finding`, and `Action`,** so a row reads as a sentence and the two columns the approver
   scans sit at its edges. A fix carries its tag in the action, `FIX (new design)` or `FIX (local correction)`; nothing
-  else takes one. The new-design rows are the ones that take a proportionality read, weigh toward a full pass, and feed
-  sustained non-convergence, so that is where the approver looks. The table has no verdict column: a graded finding is
-  confirmed, and `—` marks one not supported. The rest of today's verdict cell (`renderVerdict`,
-  `core/disposition-report.ts`) moves to the finding's section — the reviewer's grade where it differs, and code
-  review's gating — except that a `record-only` finding stays marked in its grade cell, since blocking is the default;
-- **the order:** as today, code review's blocking findings first, then grade, with unsupported findings last; within a
-  grade, new-design fixes lead, then the source's order;
+  else takes one. The tag is the agent's reading of what the fix implies, never an approved judgment. The new-design
+  rows are the ones that take a proportionality read, weigh toward a full pass, and feed sustained non-convergence, so
+  that is where the approver looks. The table has no verdict column: a graded finding is confirmed, and `—` marks one
+  not supported. The rest of today's verdict cell (`renderVerdict`, `core/disposition-report.ts`) moves to the finding's
+  section — the reviewer's grade where it differs, and code review's gating — except that a `record-only` finding stays
+  marked in its grade cell, since blocking is the default;
+- **the order:** as today, code review's blocking findings first, then grade, with unsupported findings last, then the
+  source's order. Each finding's label is assigned in that order, so it is the same in every render of one set, the
+  evidence block's included; the display then puts new-design fixes first within a grade wherever tags are given, each
+  keeping its label;
 - **one section per finding,** in table order: its heading; a status line that mirrors the row and adds the verdict
   (`🟠 major · Confirmed · FIX (new design)`); then `**Finding:**`, `**Fails:**`, `**Action:**`, and `**Detail:**`.
   `**Finding:**` replaces `disposition-report`'s `**Issue:**`, so the field and the table's column share a name;
@@ -1445,11 +1545,13 @@ Every review report — an adversarial pass, a fix-check round, and a code-revie
       where the stage has no level above (§ 10.5).
 
 The reading is labeled advisory, the same split as § 6.1's facts and judgment. In planning review the counts come from
-the pass record, which keeps each finding's origin and each fold's tag. Code review stores neither, so there:
+the pass record, which keeps each finding's origin and each fold's tag. Code review stores no origin, and keeps a fix's
+tag only as an advisory note (§ 10.4), so there:
 
 - the material trend is § 6.1's computed fact: lane progress orders and labels the looks, and the disposition records
   count them (`verifiedSeverity`, `core/disposition-records.ts`);
-- new design is read from § 6.1's per-round signals beside the current round's tags;
+- new design is read from § 6.1's per-round signals beside the stored tags of earlier rounds and the current round's; a
+  tag is the proposal's forecast, and the signals are what the round was;
 - origin is the agent's reading of whether a finding falls in an earlier round's fix range;
 - `sustained non-convergence` points to stopping for the Owner's decision on whether the spec's design needs
   `amend-design`, which is how a code-time finding reaches the design record; the re-entry offer belongs to planning
@@ -1464,17 +1566,33 @@ round render them.
 In code review the CLI renders the report (`renderDispositionReport`), and the workflows emit it verbatim
 (`prepare-work-unit`, `integrate-work-unit`), so all of it comes through the CLI. The CLI renders the header from its
 provisional assessment, and one Decisions block from the approval, the open questions, and § 6.1's bounded offers. The
-agent's parts reach it as render-only inputs on the first `arc review respond -` call: one tag per fix, one `**Fails:**`
-anchor per finding, the successor-pass recommendation, and the origin counts with the reading and its rationale; the CLI
-renders the trend from § 6.1's fact. The CLI renders them and persists them nowhere. They sit on the request beside
-`proposal` (`RespondProposalRequestSchema`, `respond-command.ts`), the tags and anchors keyed by finding identity, never
-inside `AuthorDispositionSchema`: `prepareDispositionProposal` spreads each proposed finding into the disposition set
-stored at approval, so anything placed there would be stored. A local result's findings hold no rubric field
-(`ReviewFindingContentSchema`, `core/finding-records.ts`), so the anchor travels in the reviewer's own report and
-reaches the CLI only this way. The approved call and the settlement replay render the report too
-(`renderDispositionReport`, `respond-command.ts`), with no render-only inputs; they take a reduced shape: a header
-naming the approved set, the table and sections with a plain `FIX` and no `**Fails:**`, and no Decisions block or loop
-reading.
+agent's parts reach it on the first `arc review respond -` call as one `report` object beside `proposal`
+(`RespondProposalRequestSchema`, `respond-command.ts`), keyed by finding identity:
+
+- `tags`, `new-design` or `local-correction`, exactly one per fix;
+- `fails`, the `**Fails:**` anchor — a rubric item, or `none` with its reason — exactly one per finding;
+- `successorRecommendation`;
+- `origin`, the counts by where the findings came from and the new-design fixes among them;
+- `reading`, one of § 10.3's four, with its rationale.
+
+A missing, extra, or duplicate key is refused with a remedy naming the identities. The CLI renders the trend from
+§ 6.1's fact. None of it sits inside `AuthorDispositionSchema`: `prepareDispositionProposal` spreads each proposed
+finding into the disposition set, whose digest the approval binds (`dispositionSetId`, `ApprovedDispositionSetSchema`,
+`core/disposition-records.ts`), so anything placed there would be approved and stored with the set.
+
+The tags alone are kept, as an advisory note outside that identity. The approved call (`RespondApprovedRequestSchema`)
+carries them again, checked against the approved set's fixes the same way, and stores them on the record's lineage node
+beside the approved set (`ApprovedDispositionLineageNodeSchema`, `core/advisory-records.ts`), as an optional field, so a
+record without them still parses. Only that call writes them, at the response's first write, and no later advance of the
+record changes them. A tag can be disputed or wrong with no consequence: nothing re-proposes or re-approves for it, and
+the report presents it as the agent's reading. The other inputs render on the first call and are stored nowhere.
+
+A local result's findings carry no text (`ReviewFindingContentSchema`, `core/finding-records.ts`); the reviewer's own
+report, which the result's `evidenceUrlOrId` references, gives a `Fails:` line with each finding, and the agent lifts it
+into `fails`. The approved call, the verified-fix call, and the settlement replay render the report too
+(`renderDispositionReport`, `respond-command.ts`), reading the stored tags; they take a reduced shape: a header naming
+the approved set, the table and sections ordered and tagged as the proposal was, and no `**Fails:**`, Decisions block,
+or loop reading.
 
 #### 10.5 Re-entry where there is no level above
 
@@ -1485,11 +1603,15 @@ unit's own draft review (§ The rule today), while the signal still calls for a 
 
 - **return to shaping** for the named locus. Accepting it ends the review loop with the exit gate's existing
   `re-entered` stop reason; the locus is worked through the stage's own authoring loop — in `draft-design`, the
-  facilitated shaping step, from the problem and its alternatives rather than a patch per finding; readiness re-runs;
-  and the stage's adversarial offer starts a fresh loop with a fresh cap. The pass record keeps the ended loop's passes
-  and findings, and they reach the new loop's first pass as context. Sustained non-convergence means the agent is
-  writing design in folds for approval, which `draft-design`'s rule that the agent does not produce a finished design
-  for sign-off rules out. At `generate-tasks` it is a return to grounding the named surface;
+  facilitated shaping step, from the problem and its alternatives rather than a patch per finding; in `create-spec`, its
+  discovery step over the named section at the resolved form; readiness re-runs, which in `create-spec` is spec-review
+  over that section; and the stage's adversarial offer starts a fresh loop with a fresh cap. The pass record keeps the
+  ended loop's passes and findings, and its findings, not its folds, reach the new loop's first pass as
+  `prior-findings`, labeled as the ended loop's and given as context rather than the search frontier — the one exception
+  to `adversarial-review`'s rule that pass one takes none, which guards against inheriting the primary's focus and does
+  not reach findings fresh reviewers raised. Sustained non-convergence means the agent is writing design in folds for
+  approval, which `draft-design`'s rule that the agent does not produce a finished design for sign-off rules out. At
+  `generate-tasks` it is a return to grounding the named surface;
 - **the `Class` ratchet to `Novel`,** when the read finds the design must be invented rather than composed;
 - **`assess-boundary-fit`,** when the design written in folds spans concerns that could stand apart, as the exit gate
   already offers.
@@ -1508,16 +1630,16 @@ Human review is out of band, follows once agentic review has closed (ADR-034), a
 These change to state the model, in the package's `arc/` source and then the `.arc/` copies: `adversarial-review` (its
 fix-check round recommendation, its re-inspection test, its exit gate's re-entry offer, and its report schema's `fails`
 field), `resolve-planning-depth`'s § Mid-stage re-entry, `review-triage`, `review-response`, `classify-review-risk`'s
-"What the call changes", `disposition-report`'s report shape, and § 11's operations.
+"What the call changes", `disposition-report`'s report shape, and § 11's review-type methods.
 
 ### 11. The review family
 
-#### 11.1 Sites, operations, and checks
+#### 11.1 Sites, review-type methods, and checks
 
 Every review type has three kinds of thing, and no method names the middle one today, so a type exists only as a pattern
 its call sites repeat:
 
-| Type         | Sites (lifecycle workflows)                                               | Operation             | Checks                                                                                                                     |
+| Type         | Sites (lifecycle workflows)                                               | Method                | Checks                                                                                                                     |
 | ------------ | ------------------------------------------------------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | Planning     | `draft-design`, `create-spec`, `generate-tasks`, `amend-design`           | `planning-review`     | `assess-draft-readiness`, `assess-design-proportionality`, `design-audit`, `source-grounding`, `spec-review`, `task-audit` |
 | Code         | `run-errand`, `prepare-work-unit`, `integrate-work-unit`, `deliver-stack` | `code-review`         | `implementation-audit`, under `code-review-standard`'s satisfying standard                                                 |
@@ -1525,59 +1647,79 @@ its call sites repeat:
 
 - **A site** is a lifecycle workflow: its stops, gates, and state, including what is not review — `verify-work-unit`
   also runs the merge gate and attests the Candidate.
-- **An operation** is the review type a site calls. Each runs author checks, then an independent pass, then findings
-  handling: planning runs `spec-review`, grounding, and readiness before `adversarial-review`; code runs `self-review`
-  before the frontline and standard lanes; verification runs the author's criteria walk before its independent
-  companion. An ad-hoc request reaches the operation too, since a workflow is only where review occurs
-  (`strategy-knowledge-evolution` Principle 3). An operation dispatches on what the CLI computes and holds no sequencing
+- **A review-type method** is what a site calls for its review. Each runs the author checks its site runs at the stage
+  gate, then an independent pass, then findings handling. Planning runs the checks its artifact selects before
+  `adversarial-review`: readiness for a draft (`assess-draft-readiness`), the proportionality re-run and `spec-review`
+  for a spec, and `spec-review` over an amendment's footprint; a task list takes none, since `generate-tasks` audits
+  each phase in its own loop. Code runs `code-review-author` before the frontline and standard lanes, and verification
+  runs the author's criteria walk before its independent companion. An ad-hoc request reaches the method too, since a
+  workflow is only where review occurs (`strategy-knowledge-evolution` Principle 3), so each method's When line names
+  its trigger rather than its sites. A review-type method dispatches on what the CLI computes and holds no sequencing
   the CLI owns (`strategy-procedure-evolution` Principles 1 and 2), and it takes `adversarial-review`'s contract shape:
-  a When line, a Signature, a Contract, named inputs, and a return schema.
+  a When line, a Signature, a Contract, named inputs, and a return schema. A site calls `planning-review` and
+  `verification-review` with a YAML callsite keyed by the method's name, as `adversarial-review`'s callsites are.
+  "Operation" keeps the sense the code sites' prose already gives it, a stored CLI operation
+  (`core/operation-state-schema.ts`), and never names this layer.
 - **A check** is rubric content that runs in the author's context or goes to an independent evaluator as its rubric;
   independence is where a check runs, not a property of the check.
-- **Vehicles, findings handling, and routing serve the operations:** `adversarial-review` (advisory, fresh context) and
-  the review gate's lanes, `code-review-frontline` (advisory) and `code-review-standard` (satisfying) (§ 12);
-  `review-triage`, `review-response`, and `disposition-report`; and `classify-review-risk` and `review-chunking`.
+- **Vehicles, findings handling, and routing serve the review-type methods:** `adversarial-review` (advisory, fresh
+  context) and the review gate's lanes, `code-review-frontline` (advisory) and `code-review-standard` (satisfying)
+  (§ 12); `review-triage`, `review-response`, and `disposition-report`; and `classify-review-risk` and
+  `review-chunking`.
 
-Sites call the operation, never its checks. A site that wants evidence and no review calls the check directly:
-`deliver-stack`'s review-fix verification and `amend-design`'s closing criteria delta (§ 11.4), and
-`decompose-work-unit`, which runs `spec-review` over the specifications it authors or retains. Ad-hoc doors reach an
-operation or a check: `arc-design-audit` and `arc-task-audit` run a check standalone, and `arc-amend-design` opens
-`amend-design`, all under `.internal/skills` with their harness copies under `.claude/skills`. Two methods sit beside
-the three operations: `self-review` is code review's author check, and `assess-evidence-applicability` is the judgment
-at a moved target's applicability stops, with the bounded check that informs it (§ 7.7).
+At the stage gate a site calls its type's method, never its checks. A site keeps the checks it runs inside its own
+authoring loop — `generate-tasks`' per-phase `task-audit`, the `spec-review` after each batch of specification edits —
+and declares them. A site that wants evidence and no review calls the check directly: `deliver-stack`'s review-fix
+verification and `amend-design`'s closing criteria delta (§ 11.4), and `decompose-work-unit`, which runs `spec-review`
+over the specifications it authors or retains. Ad-hoc doors reach a review-type method or a check: `arc-design-audit`
+and `arc-task-audit` run a check standalone, and `arc-amend-design` opens `amend-design`, all under `.internal/skills`
+with their harness copies under `.claude/skills`. Two methods sit beside the three review-type methods:
+`code-review-author` is code review's author check, stated once in `code-review` § Author check (§ 11.3), and
+`assess-evidence-applicability` is the judgment at a moved target's applicability stops, with the bounded check that
+informs it (§ 7.7).
 
-Declarations follow the operations: a site declares the operation it calls, and an operation declares the checks,
-vehicles, findings methods, and `review-model` it fires. Methods' "Workflow:" callouts name their real callers.
-`review-model` lists the three operations and places every review method in its layer, and the methods index
+Declarations follow the review-type methods: a site declares the method it calls, and a review-type method declares the
+checks, vehicles, findings methods, and `review-model` it fires. Methods' "Workflow:" callouts name their real callers.
+`review-model` lists the three review-type methods and places every review method in its layer, and the methods index
 (`system/methods/README.md`) groups them.
 
-Each operation is a new method file, so, like `review-model` (§ 10.1), it takes an `init-recipe.json` disposition, a
-`CONFIGURABLE_FILES` entry (`lib/classification.ts`) with its line in `strategy-package-project-sync.md`'s Configurable
-inventory, and the regenerated manifest, or it reaches no project; its sites' declarations keep it reachable for the
-method-trigger audit (`audit-method-triggers.ts`). `drain-inbox` is no site: it enters code review through
-`run-errand`'s reviewed-lane settlement, which it cites, so its citation follows that settlement wherever the rewiring
-puts it.
+A review step is in exactly one place when its text is stated in one method or workflow section and every other site
+that runs it cites that section by a reference link carrying the heading's fragment. The link audit, a commit-gate check
+(`lint:arc:links`, `audit-links.ts`), refuses a fragment that names no heading in its target, so renaming a cited
+heading fails at commit; a prose `§` citation alone is checked by nothing.
+
+Each review-type method is a new method file, so, like `review-model` (§ 10.1), it takes an `init-recipe.json`
+disposition, a `CONFIGURABLE_FILES` entry (`lib/classification.ts`) with its line in
+`strategy-package-project-sync.md`'s Configurable inventory, and the regenerated manifest, or it reaches no project; its
+sites' declarations keep it reachable for the method-trigger audit (`audit-method-triggers.ts`). `drain-inbox` is no
+site: it enters code review through `run-errand`'s reviewed-lane settlement, which it cites, so its citation follows
+that settlement wherever the rewiring puts it.
 
 #### 11.2 `planning-review`
 
-A new operation. `draft-design`, `create-spec`, and `generate-tasks` carry its block nearly verbatim today: the offer
+A new method. `draft-design`, `create-spec`, and `generate-tasks` carry its block nearly verbatim today: the offer
 callout, the orientation block, the authored-partition note, the fix-check sentence, the pass-record paragraph, and the
-post-settle re-read. The site passes its artifact, which selects the rubric, the artifacts, the `Class`-scaled offer,
-and the pass cap. `amend-design` passes its depth instead, since an amendment scales by depth rather than `Class`, and
-gains the offer callout, signature block, and pass cap it lacks today: depth sets the offer (none at `low`, neutral at
-`medium`, recommended at `high`), and `Class` sets the pass cap, as at the other sites. The offer aligns at every stage
-gate — recommend at `Heavy` and `Novel`, neutral at `Light` — where `draft-design` recommends only at `Novel` today. A
-`Heavy` draft is where its design is written, which is where a fresh attack pays: this work unit's own `Heavy` draft,
-reviewed on the Owner's call, drew a critical and five majors on its first pass (`notes-review-coverage-cadence.md`
-§ Planning review of this work unit). The post-settle re-read runs as the last step before each site's commit.
+post-settle re-read. The site calls it with a YAML callsite keyed by `planning-review` and passes its artifact, which
+selects the author checks (§ 11.1), the rubric, the artifacts, the `Class`-scaled offer, and the pass cap.
+`amend-design` passes its depth instead, since an amendment scales by depth rather than `Class`, and gains the offer
+callout, signature block, and pass cap it lacks today: depth sets the offer (none at `low`, neutral at `medium`,
+recommended at `high`), and `Class` sets the pass cap, as at the other sites. At `draft-design`, `create-spec`, and
+`generate-tasks`, the offer aligns — recommend at `Heavy` and `Novel`, neutral at `Light` — where `draft-design`
+recommends only at `Novel` today. A `Heavy` draft is where its design is written, which is where a fresh attack pays:
+this work unit's own `Heavy` draft, reviewed on the Owner's call, drew a critical and five majors on its first pass
+(`notes-review-coverage-cadence.md` § Planning review of this work unit). The post-settle re-read runs as the last step
+before each site's commit.
 
 #### 11.3 `code-review`
 
-A new operation, as shared procedures rather than one sequence. Each site drives review through its own CLI command and
+A new method, as shared procedures rather than one sequence. Each site drives review through its own CLI command and
 state vocabulary — `arc review resolve` for an Errand, `arc review pre-publication` before publication, the integration
 boundary's `nextAction`, and `arc review status --target` for a stack member — with its own early stop and fix
 verification, which the CLI owns. What the sites share, and clone today, moves here:
 
+- **the author check:** `code-review-author` over the aggregate diff, its findings through triage as a non-producer
+  report. `verify-work-unit` runs it before its merge gate, so its fixes land before verification's evidence, and
+  `prepare-work-unit` runs it when pre-publication returns `run-self-review` (§ 11.5); both cite this section;
 - **the findings round:** triage, the disposition report, complete-set approval, response, fix, verification, commit,
   the verified-fix replay, push, settlement, and re-entry. The replay — the exact approved request replayed with
   `verifiedFix` once the fix is committed (`respondToResolvedReviewCommand`, `respond-command.ts`;
@@ -1587,17 +1729,20 @@ verification, which the CLI owns. What the sites share, and clone today, moves h
 - **the common rules:** convergence (§ 2), the coverage selection arm (§ 6.5), the chunk gate (§ 3.3), the ceiling
   override (§ 5), and the stop line (§ 8).
 
-Each site keeps a thin dispatch on its own command whose arms call in. The operation is one method with named sections
-that a dispatch arm cites by anchor, as workflows already cite `adversarial-review` § Pass record. § 2–9's cadence and
+Each site keeps a thin dispatch on its own command whose arms call in. `code-review` is one method with named sections
+that a dispatch arm cites by a reference link carrying the section's heading fragment (§ 11.1), as workflows already
+cite `adversarial-review` § Pass record. Each section reads on its own: it opens with a one-line signature — when it
+fires, what it takes, and what it leaves — and leans on no text above it. § 2–9's cadence and
 source selection are its defaults. It keeps the common name for a review of the whole change set, design intent
 included: `implementation-audit` reviews "how a change realizes its intent".
 
 #### 11.4 `verification-review(scope)`
 
-A new operation, at delivery-member and work-unit scope. `validate-criteria` becomes its pure check: criterion binding,
-the three-state model, immutability, and evidence. It is today the one check that declares its own vehicle
-(`arc.methods: adversarial-review`, with § Adversarial companion); the companion offer moves up into the operation,
-stated once with `validate-criteria`'s current posture, and `verify-work-unit` and `process-task-loop` stop restating
+A new method, at delivery-member and work-unit scope. `validate-criteria` becomes its pure check: criterion binding, the
+three-state model, immutability, and evidence. It is today the one check that declares its own vehicle
+(`arc.methods: adversarial-review`, with § Adversarial companion); the companion offer moves up into
+`verification-review`, stated once with `validate-criteria`'s current posture, and `verify-work-unit` and
+`process-task-loop` call it with a YAML callsite keyed by `verification-review`, passing their scope, and stop restating
 it. Each of the companion's findings names the criterion it fails (§ 10.3's `**Fails:**`), so a finding outside the
 criteria reads as such rather than as a criterion gap.
 
@@ -1620,7 +1765,10 @@ Each confirmed against source:
   `run-errand`, which runs frontline.
 - `prepare-work-unit` has `review-response` compose the proposal; everywhere else, and in both methods, `review-triage`
   does.
-- `create-spec` calls its `spec-review` pass "self-review", the name of another method, in five places.
+- `create-spec` calls its `spec-review` pass "self-review", which reads as code review's author check, in five places.
+- `adversarial-review` § Pass record says a planning pass "creates no lane-progress record, code-review operation,
+  Candidate, policy binding, or receipt", meaning a stored review-gate operation; beside a method named `code-review`
+  the phrase reads as that method, so the sentence says which it means.
 - Declarations that nothing fires, and fire-points nothing declares: `integrate-work-unit` declares `adversarial-review`
   and `implementation-audit` and fires neither; `run-errand` declares `implementation-audit` and never fires it;
   `prepare-work-unit` declares `self-review` and never runs it; `verify-work-unit` and `process-task-loop` fire
@@ -1632,7 +1780,7 @@ Each confirmed against source:
   names it, before the push (§ 11.3).
 - Pre-publication emits `run-self-review` while self-review is pending (`pre-publication-procedure.ts`), and the handler
   re-enters with self-review settled without checking that it ran (`handlers/review.ts`). No workflow arm handles the
-  action, so `prepare-work-unit`'s dispatch gains one that runs `self-review` before re-entry.
+  action, so `prepare-work-unit`'s dispatch gains one that runs `code-review`'s author check before re-entry (§ 11.3).
 - `verify-work-unit` and `process-task-loop` restate `validate-criteria`'s companion callout with "decline keeps the
   primary report" where the method says "decline proceeds normally"; § 11.4 states it once.
 - `draft-design` places its post-settle re-read after the text describing what follows its commit, and `generate-tasks`
@@ -1659,13 +1807,15 @@ Each confirmed against source:
 - **The lane vocabulary** keeps its names: `review.standard_*` and `review.frontline_*`, `arc review frontline`, "the
   standard lane", and the review gate's TypeScript modules named `standard-review*.ts`.
 
-#### 12.2 Two renames
+#### 12.2 Three renames
 
 The methods `frontline-review` and `standard-review` become `code-review-frontline` and `code-review-standard`. As
 method names they read as peers of the review types, though they are code review's advisory and satisfying lanes; the
-prefix groups them under `code-review`, and segment 4's rewiring already touches their call sites. The rename is a code
-change as well as prose, though it needs no migration, and it is all-or-nothing, because several checks tie a method
-file's name to other places:
+prefix groups them under `code-review`, and segment 4's rewiring already touches their call sites. `self-review`
+becomes `code-review-author`: its name says who runs the pass but not what it covers, and ARC uses the phrase in plain
+prose for other passes, as `create-spec` does for its `spec-review` pass (§ 11.5), while the new name places it as code
+review's author check (§ 11.1). Each rename is a code change as well as prose, though none needs a migration, and each
+is all-or-nothing, because several checks tie a method file's name to other places:
 
 - `name` must equal the file's basename, and `active` is allowed only when the basename is an activation-registry key
   (`lib/frontmatter/method.ts`);
@@ -1679,28 +1829,32 @@ file's name to other places:
 So these move with the files, in both copies:
 
 - each method file's `name`, title, and `.override` and `.default` section headings;
-- the activation-registry key (`lib/method-activation-registry.ts`) and its caller's key (`resolveMethodActivation`,
-  `scripts/review-gate/policy/activity.ts`);
+- the activation-registry keys (`lib/method-activation-registry.ts`) and their caller's keys (`resolveMethodActivation`,
+  `scripts/review-gate/policy/activity.ts`), with the activation diagnostics built from each name;
 - `CONFIGURABLE_FILES` (`lib/classification.ts`) and `strategy-package-project-sync.md`'s Configurable inventory;
 - `init-recipe.json`'s `include_files` entries, and the tracked generated manifest
   (`.arc/system/.internal/manifest.json`), regenerated rather than hand-edited;
 - `.arc/system/arc-checks.yml`'s table-format inputs;
 - `related:` and `arc.methods:` entries (`adversarial-review`, `review-chunking`, `deliver-stack`, `run-errand`,
-  `prepare-work-unit`, `integrate-work-unit`), as § 11.1's declarations leave them;
-- prose naming the methods: `review-chunking`, the methods `README.md`, `AGENT-BRIEF.ARC.md`,
-  `strategy-session-operations.md`'s method table, and `strategy-configurability-architecture.md`'s package-default
-  line;
+  `prepare-work-unit`, `integrate-work-unit`, `verify-work-unit`), as § 11.1's declarations leave them;
+- prose naming the methods: `review-chunking`, `review-triage`, `design-audit`, `verify-work-unit`, `prepare-work-unit`,
+  `integrate-external-content`, the `arc-design-audit` skill and its harness copy, the methods `README.md`,
+  `AGENT-BRIEF.ARC.md`, `strategy-session-operations.md`'s method table, and
+  `strategy-configurability-architecture.md`'s package-default line, while a plain-English "self-review" that names no
+  method stays;
 - the tests that pin any of these — framework sync, init and update, the PR-lifecycle and legacy-sweep integration
   tests, the frontmatter, neutrality, trigger-audit, method-file, activity, assurance, and planning-grooming unit tests,
   the pre-publication frontline-skip integration test and the Candidate lineage suite, which write `frontline-review.md`
-  to set activation, and the init end-to-end test, which pins both method names.
+  to set activation, the pre-publication workflow, review-fix release, and review-gate workflow integration tests and an
+  author self-review triage fixture, which read `self-review.md`, and the init end-to-end test, which pins the method
+  names.
 
 This repository's Configurable `.arc/` copy of `frontline-review.md` carries `active: true` where the package default is
 `false`, and moves under the new name with that value. `docs/` is left as it is.
 
 #### 12.3 Literals that keep a renamed name
 
-Every stored or schema literal and published schema ID that carries either name stays, since each is a stored shape or a
+Every stored or schema literal and published schema ID that carries an old name stays, since each is a stored shape or a
 published contract:
 
 - the requirement kind `"standard-review"` (`core/contracts.ts`, `core/gate-contract-v2.ts`,
@@ -1714,8 +1868,12 @@ published contract:
   (`standard-review-guidance.ts`), and the schema ID `standard-review-obligation-projection`
   (`standard-review-projection-schema.ts`);
 - the `standard-review/v1` source qualifier (`local-review-policy.ts`, `runtime/local-prepare-composition.ts`);
-- the `frontlineReview` method-activity field of the published `review-method-activity` schema
+- the `frontlineReview` and `selfReview` method-activity fields of the published `review-method-activity` schema
   (`policy/assurance-schema.ts`);
+- the author check's routing and pre-publication literals: the `authorSelfReview` fields of the routing decision and the
+  project promotion (`policy/routing-schema.ts`, `policy/project-promotion-schema.ts`), the `self-review-inactive`
+  reason (`policy/routing-schema.ts`), the `run-self-review` boundary action (`integration-boundary-locus.ts`), and
+  `arc review pre-publication`'s `--self-review settled` option (`cli.ts`);
 - the rubric line in `AGENTS.md` and `.coderabbit.yaml`, and the method text "The baseline version is
   `standard-review/v1`", which tests pin;
 - the published schema IDs the tests pin, and every stored record that holds these literals.
@@ -1771,8 +1929,9 @@ published contract:
   agent's judgment is labeled advisory (§ 6.1).
 - **A coverage selection emitted on every path.** It had no subject for an Errand before its pull request, and asked the
   Owner twice where local prepare also asks; one question per moment reuses the two surfaces that exist (§ 6.4).
-- **Stored rework or origin tags.** Observable per-round signals and the agent's reading suffice for an advisory loop
-  reading; a stored tag adds a record shape for an input nothing decides from.
+- **Additional stored rework state or origin tags.** Observable per-round signals and the agent's reading suffice for
+  an advisory loop reading. The optional fix-tag note (§ 10.4) preserves report ordering and tags outside the approved
+  set's identity; it drives no decision.
 - **A supplemental incremental pass, or a counted check, at a base merge.** No correction scope exists for a movement
   that is not an approved fix, so a supplemental pass cannot run, and a counted check that needs no stop would mark its
   scope in a stored record. The bounded check at the existing stops informs the Owner's choice with neither (§ 7.7).
@@ -1793,27 +1952,33 @@ published contract:
   check on an Errand and in pre-publication (§ 3.5). What it costs the Owner is one local look there, and on the
   published singleton under `incremental` the hosted complete pass today's review-applicability stop reaches, short of
   re-rooting the Candidate, since its discharge takes no additional-pass authorization.
-- **A strategy home for the model.** Every reader reads the model at a review operation, so a fire-point declaration
+- **A strategy home for the model.** Every reader reads the model where a review runs, so a fire-point declaration
   adheres better than an index entry — about 85–95% against 60–75% in `analysis-load-set-scoping`'s adherence bands —
   and adds nothing to the always-loaded set. A strategy can carry the family's rationale and point to the method.
 - **One code-review sequence instead of shared procedures.** The four sites drive review through four CLI commands with
   different state vocabularies, early stops, and fix verification, so one sequence would re-own sequencing the CLI owns.
   Shared sections cited by anchor remove the clones without that.
 - **Other names.** `adversarial-review`'s identity contract makes the stance part of what it is ("The reviewer tries to
-  break the artifact against the supplied rubric"), which the standard rubric does not frame, and beside the operations
-  it reads as a vehicle: `planning-review` runs it with `design-audit`. `advisory-review` names its real line against
-  the gate, authority, but collides with `frontline-review`'s "advisory pre-publication review" and reads as optional;
-  `independent-review` and `fresh-review` name properties the gate's local passes share.
-- **The review family as a separate change.** It could follow on its own, but its operations carry this change's cadence
-  and model, and the other segments already edit the same review fire-points; landing together rewires them once.
+  break the artifact against the supplied rubric"), which the standard rubric does not frame, and beside the review-type
+  methods it reads as a vehicle: `planning-review` runs it with `design-audit`. `advisory-review` names its real line
+  against the gate, authority, but collides with `frontline-review`'s "advisory pre-publication review" and reads as
+  optional; `independent-review` and `fresh-review` name properties the gate's local passes share.
+- **Other names for the author check and the layer.** `author-review` would read as a peer of the review types, as the
+  old lane names did, and keeping `self-review` keeps a name that says who runs the pass, not what it covers.
+  "Operation" for the layer would share a word with the stored CLI operation the code sites already name
+  (`prepare-work-unit`'s "Retain any returned operation ID"), and `adversarial-review` § Pass record's "code-review
+  operation" would name both.
+- **The review family as a separate change.** It could follow on its own, but its review-type methods carry this
+  change's cadence and model, and the other segments already edit the same review fire-points; landing together rewires
+  them once.
 
 ## Cross-cutting Considerations
 
-- **Storage and compatibility.** Nothing new is stored (§ 1.3). Stored records keep parsing: hosted records holding
-  incremental coverage, `HostedCoverageEvidenceSchema`, the boundary's resolve envelopes, and every stored literal
-  carrying a renamed method's name (§ 12.3). In-flight reviews keep their incremental basis, since the routed
-  requirement does not change (§ 2.1). ARC is pre-release, so the renames add no alias or migration reader
-  (`DEV-RULES.PROJECT` § Engineering Standards).
+- **Storage and compatibility.** Nothing new is stored but a fix's optional advisory tag (§ 1.3, § 10.4), which a record
+  without it still parses. Stored records keep parsing: hosted records holding incremental coverage,
+  `HostedCoverageEvidenceSchema`, the boundary's resolve envelopes, and every stored literal carrying a renamed method's
+  name (§ 12.3). In-flight reviews keep their incremental basis, since the routed requirement does not change (§ 2.1).
+  ARC is pre-release, so the renames add no alias or migration reader (`DEV-RULES.PROJECT` § Engineering Standards).
 - **Trust and authority.** Bounds bind the agent, never the Owner (§ 8.1). ARC never records a pass that cannot
   re-examine a fix as one that did: a hosted source after an unconverged pass is refused, forced or offered, and the
   Owner waives re-examination only by stopping, which is disclosed, and only where a surface takes the stop (§ 8.3).
@@ -1894,19 +2059,22 @@ published contract:
     recipe disposition, Configurable entry, and fire-point declarations; `adversarial-review` § Fold verification states
     that a following pass is never a reason to decline a fix check; and an adversarial pass, a fix-check round, and a
     code-review findings round render § 10.3's shape, with `fails` in `adversarial-review`'s report schema and the
-    render-only inputs persisted nowhere; and `resolve-planning-depth` § Mid-stage re-entry and `adversarial-review`'s
-    exit gate offer § 10.5's top-level shape where the signal's own stage is at `high`, with no offer to re-enter higher
-    there (§ 10).
+    render-only inputs persisted nowhere but each fix's tag, kept as an advisory note outside the approved set's
+    identity, and each finding's label the same in every render of one set; and `resolve-planning-depth` § Mid-stage
+    re-entry and `adversarial-review`'s exit gate offer § 10.5's top-level shape where the signal's own stage is at
+    `high`, with no offer to re-enter higher there (§ 10).
 13. **Each review step is in exactly one place.** A step inventory re-derived on the then-current base before landing
-    shows every review step from before in exactly one place after; the three operations exist in both copies with
-    their recipe dispositions and Configurable entries, and every site in § 11.1 calls its operation; and every item in
-    § 11.5 is fixed (§ 11).
-14. **The renames are complete, and nothing stored moved.** No `frontline-review.md` or `standard-review.md` remains in
-    either copy; the activation key, Configurable lists, recipe, generated manifest, `arc-checks.yml`, and every § 12.2
-    reference follow; every § 12.3 literal is unchanged; and `npm run -s lint:md`, both type checks, and the test tiers
-    pass (§ 12).
-15. **Nothing new is stored.** No stored schema under the review gate, the store, or the operation records gains a
-    field, kind, or literal; § 4's driver inputs ride only the driver's internal request (§ 1.3).
+    shows every review step from before in exactly one place after; the three review-type methods exist in both copies
+    with their recipe dispositions and Configurable entries, and every site in § 11.1 calls its type's method; and every
+    item in § 11.5 is fixed (§ 11).
+14. **The renames are complete, and nothing stored moved.** No `frontline-review.md`, `standard-review.md`, or
+    `self-review.md` remains in either copy; the activation keys, Configurable lists, recipe, generated manifest,
+    `arc-checks.yml`, and every § 12.2 reference follow; every § 12.3 literal is unchanged; and `npm run -s lint:md`,
+    both type checks, and the test tiers pass (§ 12).
+15. **One stored addition.** No stored schema under the review gate, the store, or the operation records gains a field,
+    kind, or literal but the optional fix-tag note on the disposition record's lineage node, outside the approved set's
+    identity and written once by the approved respond call (§ 10.4); § 4's driver inputs ride only the driver's internal
+    request (§ 1.3).
 16. **A plain commit after convergence takes a delta check.** On an Errand before and after its pull request, in
     pre-publication once the Candidate checkpoint advances the same Candidate, and on the published singleton: after a
     converged look and a commit at the same base with no merge commit in range, the next pass under `incremental` is a

@@ -1,8 +1,8 @@
 # Notes: review-coverage-cadence
 
 What eight complete standard passes over one large `sensitive` change set found, and where each later finding sat
-relative to the fixes before it; the prior-art sources; the hosted-review probes; the review call-site inventory; and
-the neighbors task generation and execution meet.
+relative to the fixes before it; the prior-art sources; the hosted-review probes; the review call-site inventory; the
+chain confirmations; the changes to pre-commitment text; and the neighbors task generation and execution meet.
 
 ## Source
 
@@ -359,7 +359,8 @@ All six defects were still in the code at CR3: four untouched and two behind fix
 ## Review call sites
 
 A read-only inventory of `packages/arc-framework/arc/system/` on 2026-10-16, made to shape the review family (spec
-§ 11). Line numbers drift; the implementation re-derives it on the then-current base as segment 4's before-inventory.
+§ 11). Line numbers drift; the implementation re-derives it on the then-current base as segment 4's before-inventory, as
+a table: each step, where it is stated today, its home section after the rewiring, and the sites that reach it.
 Spot-checked against source: the `deliver-stack` and `integrate-work-unit` frontline contradiction, the cloned
 "frontline admission", the `prepare-work-unit` composer wording, `amend-design`'s offer form, and the `draft-design` and
 `create-spec` postures.
@@ -402,6 +403,50 @@ Run 2026-10-16 on this work unit's branch: `changeset resolve`, given a correcti
 commits verbatim (`resolveMemberCoordinates`, `hosts/local/repository-target.ts`), so a fix check's measure needs no new
 field (spec § 3.3).
 
+## Chain confirmations
+
+The confirmations a correction scope, a chain re-confirmation, or a carry passes through, by call site, as the
+generate-tasks grounding audit read them. Each keeps its call site and today's grounds; its chain role takes the shared
+chain proof (Task 1.1.b - `tasks-review-coverage-cadence.md`), and its carry role never does. Paths are relative to
+`scripts/review-gate/`.
+
+- **`confirmErrandFixResponseApplicability`** (`policy/local-review-coverage-selection.ts`) — local prepare's Errand
+  leg before its pull request. Chain and current leg.
+- **`confirmPrivateCandidateCorrectionBasis`** (`policy/local-review-coverage-selection.ts`) — local prepare's and
+  pre-publication's private Candidate leg, a historical leg included. Chain and current leg.
+- **`confirmNonDeliveryIncrementalApplicability`** (`policy/local-review-coverage-selection.ts`) — after a pull
+  request: local prepare (`createLocalContributionConfirmation`, `runtime/local-prepare-composition.ts`), the
+  `arc review resolve -` handler, and respond; before one, the handler's private Candidate leg and respond's Errand leg
+  (`resolveRespondPolicyTarget`), where it returns `unavailable`. Chain; also the carry, through
+  `confirmPriorProducerApplicability`.
+- **`confirmNoPullRequestCandidatePriorProducer`** (`policy/pre-publication-composition.ts`) — respond's private
+  Candidate chain. Chain; also the carry, through `confirmPriorProducerApplicability`.
+- **`confirmPriorProducerApplicability`** (`policy/pre-publication-composition.ts`) — pre-publication's
+  `applicableHistoricalAttempt` (`policy/pre-publication-request.ts`) and, once a change request is open,
+  pre-publication's `confirmIncrementalApplicability`. Carry and chain in one function, so the chain proof enters
+  through `confirmIncrementalApplicability`, never here.
+- **`confirmIncrementalPredecessorApplicability`** (`policy/hosted-reservation-support.ts`) — the discharge's chain,
+  hosted request admission's Candidate branch (`handlers/review.ts`), `status-singleton.ts`, and
+  `status-composition.ts`'s delivery route. Chain. It reads the earlier attempt through `projectEarlierReviewApplicability`
+  and reports `unavailable` for a local predecessor with no `deliveryAdmission`.
+- **The discharge's `confirmCurrentApplicability` closure** (`createHostedReservationDischargeReader`,
+  `policy/hosted-reservation-discharge.ts`) — the current leg, falling back to the earlier read
+  (`incrementalApplicabilityFromEarlierRead`).
+- **`confirmErrandCorrectionPredecessor`** (`status-errand.ts`) — Errand status's chain; the current-head closure
+  beside it lives in `resolveErrandHostedCorrection`, which Task 1.8.a deletes.
+- **`confirmDeliveryMemberIncrementalApplicability`** (`policy/local-review-coverage-selection.ts`) — a delivery
+  member's leg. Chain; it keeps delivery's fix-response proof and never takes the range proof.
+- **No confirmation today** — hosted request admission's Errand branch (`handlers/review.ts`), which falls back to the
+  same-head check in `deriveVerifiedTerminalSignal`; `nextErrandPassObligation` (`status-errand.ts`); and
+  pre-publication's current leg. The chain proof with no site grounds is their confirmation.
+
+The consumers that carry an earlier attempt from its own head to the current head, which never take the chain proof's
+range-proof result: pre-publication's `applicableHistoricalAttempt`; the discharge's `cleanApplicable` and
+`settledApplicable`, which read the `retain-prior-attempt` mark `projectEarlierReviewApplicability`
+(`policy/earlier-review-applicability.ts`) sets; hosted request admission's `applicabilityAction` (`handlers/review.ts`),
+which reads the same mark; and Errand status's `readCarriedErrandReview`, which calls
+`projectGitReviewContributionApplicability` directly.
+
 ## Planning review of this work unit
 
 The work unit was `Heavy`, and `draft-design` recommends its adversarial offer only at `Novel`; the review ran on the
@@ -415,6 +460,20 @@ Owner's call, 2026-10-16, with fold verification on.
   new design again: the exit gate's sustained non-convergence. The loop ended `re-entered` by returning the two loci to
   the stage's facilitated shaping step, which no method names as a re-entry response; a fresh loop then ran, and its
   fix-check rounds converged.
+
+## Changes to pre-commitment text
+
+Each changed text written before the work, on the Owner's decision during this work unit's generate-tasks. The fix tag's
+change to Goal 9 and Success Criteria 15 is under § Coordination.
+
+- **Code review's author check is renamed (2026-10-17).** `self-review` names who runs the pass, not what it covers, and
+  ARC uses the phrase in plain prose for other passes. The Owner chose `code-review-author`, beside
+  `code-review-frontline` and `code-review-standard` (spec § 12.2), so Success Criteria 14 now names `self-review.md`
+  among the files that no longer remain. Its stored and published literals stay (§ 12.3).
+- **A site calls its review type's method, not an operation (2026-10-17).** A forward-compatibility check against
+  `strategy-procedure-evolution` Principle 7 found "operation" already naming a stored CLI operation in the code sites'
+  own prose and in `adversarial-review` § Pass record. Goal 8 and Success Criteria 13 changed their wording from
+  "operation" to "method", with the same meaning (spec § 11.1).
 
 ## Caveats
 
@@ -454,8 +513,8 @@ keep the matching record from its side.
       `maxPasses`, never on the command request its snapshot stores.
     - A hosted outcome never carries incremental coverage, and `HostedCoverageEvidenceSchema` stays parseable for the
       stored record that holds one.
-    - The report's render-only inputs, the `**Fails:**` anchor among them, ride beside `proposal` and are never stored;
-      it persists only the approved disposition set.
+    - The report's render-only inputs, the `**Fails:**` anchor among them, ride beside `proposal` and are never stored,
+      except each fix's tag (below).
     - The delta check writes the record a fix check writes and cites no extra-pass decision, so none of its checks
       tells the two apart.
     - The fix-check chain accepts a later Candidate head with the fix head's subject digest, an allowance its deletion
@@ -465,18 +524,31 @@ keep the matching record from its side.
       (`CandidatePolicyReviewBoundarySchema.policy`, `CandidateFixBoundarySchema.policy`) and recomputes them through
       the same derivation.
 - **A stored shape goes there.** If implementation finds it needs a new stored record or field, that shape is
-  `seam-delivery-review`'s, since it owns the review gate's storage register row; it does not land here.
+  `seam-delivery-review`'s, since it owns the review gate's storage register row; it does not land here. The one
+  agreed exception is below.
+- **The fix tag (2026-10-17).** At this work unit's generate-tasks, keeping each finding's report label in canonical
+  order while new-design fixes still lead within a grade led the Owner to keep each fix's tag as a stored advisory note
+  rather than render-only (spec § 10.4), which changed Goal 9 and Success Criteria 15 from "nothing new is stored" to
+  one stored addition. `seam-delivery-review`'s session judged the field to pass its storage rule, and the Owner
+  accepted the arrangement there: this work unit adds the optional field to today's lineage node
+  (`ApprovedDispositionLineageNodeSchema`) and lands first, and `seam-delivery-review` carries it in `review/evidence`
+  § 6.2, its § 6.5 write check, its § 6.6 composed read, and its import (§ 11.2), amending before its Task 1.4 and
+  re-checking against what lands here at its Task 3.7 pause. It relies on two things, and its next session is told if
+  either changes:
+    - the field is optional and approval never binds it, so it sits outside `dispositionSet` and its ID;
+    - only the approved `arc review respond -` call writes it, at that response's first write, never afterwards.
 
 ### Already routed
 
 Each went out as a `USER-INBOX § Work Unit` capture with `WU_Target` and `_Shapes:_`. Do not route them again from task
 generation or execution.
 
-- `review-orchestration-right-sizing` — its review-lane doctrine home points at `review-model` and the operations
-  rather than minting the pass model.
-- `composable-workflows` — review's operations as worked instances of its procedure library and procedure/check split.
+- `review-orchestration-right-sizing` — its review-lane doctrine home points at `review-model` and the review-type
+  methods rather than minting the pass model.
+- `composable-workflows` — the review-type methods as worked instances of its procedure library and procedure/check
+  split.
 - One typed driver across code review's four site commands (`WU_Target: TBD`).
-- `docs-content-sweep` — the code-review lane renames in the docs site.
+- `docs-content-sweep` — the code-review method renames in the docs site.
 - A recorded base-merge review check that carries review without a stop, and a typed base reconcile between review fix
   rounds for overlapping drift (both `WU_Target: TBD`).
 - `delivery-rebuild-continuity` — a typed mark of a held review correction on the continuation's stops, and whether a
