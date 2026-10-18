@@ -7,6 +7,7 @@ import { validateApprovedDispositionRecordForResult } from "../core/review-resul
 import type { ReviewResult } from "../core/review-result.js";
 import { resolveIncrementalCorrectionScope, type IncrementalPredecessorApplicability } from "./incremental-coverage-basis.js";
 import { confirmPerformedResponse, type PerformedResponseProofInput } from "./performed-response-proof.js";
+import { confirmDeliveryCorrectionLeg } from "./delivery-correction-proof.js";
 import { readIncrementalPredecessorResponseEvidence } from "./review-policy-evidence.js";
 import type { StandardReviewObligationProjection } from "./standard-review-projection-schema.js";
 import type { ReviewResultReader } from "../core/ports.js";
@@ -31,12 +32,12 @@ async function approvedFindings(input: Pick<PerformedResponseProofInput, "predec
   ).approvedDisposition.dispositionSet.findings;
 }
 
-/** Preserve a site's grounds while proving any change-set fix through the response that produced it. */
+/** Preserve a site's grounds while proving fixes through the subject's performed-response proof. */
 export async function confirmReviewCorrectionLeg(input: PerformedResponseProofInput & {
   readonly confirmGrounds?: () => Promise<IncrementalPredecessorApplicability>;
 }): Promise<IncrementalPredecessorApplicability> {
   const grounds = await input.confirmGrounds?.().catch(() => "unavailable" as const) ?? "unavailable";
-  if (input.predecessor.target.kind !== "change-set") return grounds;
+  if (input.predecessor.target.kind !== "change-set") return confirmDeliveryCorrectionLeg(input, grounds);
   const findings = await approvedFindings(input);
   if (findings?.some(finding => finding.disposition === "fix") !== true) return grounds;
   return confirmPerformedResponse(input);

@@ -2,6 +2,7 @@
 
 import { createLocalPrepareDependencies } from "../../src/scripts/review-gate/runtime/local-prepare-composition.js";
 import { localPrepareAdmissionRemedy } from "../../src/scripts/review-gate/runtime/review-policy-remedy.js";
+import { createRespondDependencies } from "../../src/scripts/review-gate/runtime/respond-composition.js";
 import { createLocalAttestDependencies } from "../../src/scripts/review-gate/runtime/local-attest-composition.js";
 import { prepareLocalReview } from "../../src/scripts/review-gate/runtime/local-prepare.js";
 import { attestLocalReviewCommand } from "../../src/scripts/review-gate/runtime/local-attest-command.js";
@@ -108,6 +109,7 @@ interface FixedErrandOptions {
   readonly maxPasses?: number;
   readonly sources?: readonly string[];
   readonly hostedAdmission?: boolean;
+  readonly routine?: boolean;
 }
 
 /** One Errand whose first hosted pass found one verified finding, fixed by an approved commit. */
@@ -158,7 +160,7 @@ async function fixedErrand(options: FixedErrandOptions = {}) {
   const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
   const standardReview = {
     obligation: "required" as const,
-    reasons: ["sensitive-change-set" as const, "frontline-inactive" as const],
+    reasons: [options.routine === true ? "routine-code" as const : "sensitive-change-set" as const, "frontline-inactive" as const],
     rubricVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
     rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
     retrigger: options.retrigger ?? "incremental",
@@ -325,8 +327,8 @@ async function localFixCheck(errand: FixedErrand) {
   const dependencies = createLocalPrepareDependencies({ cwd: errand.root, exec: errand.exec });
   await handleReviewLocalPrepare("-", { ...boundary,
     readText: async () => JSON.stringify({ schemaVersion: 1, evaluatorIdentity: "independent-reviewer",
-      routingFacts: { contentKind: "code-bearing", reviewRisk: "sensitive", changeDeterminacy: "atomic",
-        ownership: "self", surfaceAuthority: "ordinary" },
+      routingFacts: { contentKind: "code-bearing", reviewRisk: errand.standardReview.retrigger === "incremental" ? "routine" : "sensitive",
+        changeDeterminacy: "ordinary", ownership: "self", surfaceAuthority: "ordinary" },
       coverageAdmission: { requestedCoverage: "incremental", correctionScope: errand.expectedScope } }),
     prepare: input => prepareLocalReview(input, dependencies),
   });
@@ -342,9 +344,10 @@ async function localFixCheck(errand: FixedErrand) {
   });
   expect(exitCodes, output.join("")).toEqual([]);
   expect(JSON.parse(output.join(""))).toMatchObject({ state: "attested-current" });
+  return createRepositoryReviewResultReader(errand.publisher).readResult(prepared.payload.operationId as string);
 }
 
-async function requestHostedSuccessor(errand: FixedErrand) {
+async function withErrandHost<T>(errand: FixedErrand, open: boolean, run: () => Promise<T>): Promise<T> {
   const root = errand.root;
   const remote = join(root, ".arc-fixture", "origin.git");
   const bin = join(root, ".arc-fixture", "bin");
@@ -361,7 +364,7 @@ async function requestHostedSuccessor(errand: FixedErrand) {
   const script = join(bin, "gh");
   await writeFile(script, ["#!/bin/sh", 'case "$1:$2" in',
     `repo:view) printf '%s\\n' '{"nameWithOwner":"owner/repo"}' ;;`,
-    `pr:list) printf '%s\\n' '${JSON.stringify([candidate])}' ;;`,
+    `pr:list) printf '%s\\n' '${JSON.stringify(open ? [candidate] : [])}' ;;`,
     `api:user) printf '%s\\n' '{"id":1}' ;;`,
     `api:repos/owner/repo/pulls/42) printf '%s\\n' '{"head":{"sha":"${errand.statusTarget.headSha}"}}' ;;`,
     `api:repos/owner/repo/issues/42/comments) printf '%s\\n' '${JSON.stringify(comment)}' ;;`,
@@ -371,16 +374,22 @@ async function requestHostedSuccessor(errand: FixedErrand) {
   process.env.PATH = `${bin}${delimiter}${priorPath ?? ""}`;
   process.chdir(root);
   try {
+    return await run();
+  } finally {
+    process.chdir(priorCwd);
+    if (priorPath === undefined) delete process.env.PATH; else process.env.PATH = priorPath;
+  }
+}
+
+async function requestHostedSuccessor(errand: FixedErrand) {
+  return withErrandHost(errand, true, async () => {
     const output: string[] = []; const exitCodes: number[] = [];
     await handleReviewHostedRequest("-", { readText: async () => JSON.stringify({ schemaVersion: 1,
       target: { repository: "owner/repo", pullRequest: 42, headSha: errand.statusTarget.headSha },
       provider: "codex-pr", coverage: "complete", vehicle: { kind: "errand", standardReview: errand.standardReview } }),
       write: text => output.push(text), setExitCode: code => exitCodes.push(code) });
     return { result: JSON.parse(output.join("")), exitCodes };
-  } finally {
-    process.chdir(priorCwd);
-    if (priorPath === undefined) delete process.env.PATH; else process.env.PATH = priorPath;
-  }
+  });
 }
 
 function admitCorrection(
@@ -521,6 +530,36 @@ describe("ordinary resolve next-pass records", () => {
     });
     expect({ exitCodes, result: JSON.parse(output.join("")) }).toMatchObject({ exitCodes: [],
       result: { state: "ready", nextAction: "hosted-request", payload: { sourceId: "coderabbit-pr", pass: 3 } } });
+  });
+
+  it.each((["resolve", "respond", "local-prepare"] as const).flatMap(surface =>
+    [false, true].map(open => ({ surface, open }))))("re-binds an incremental hosted-fix leg at $surface with open PR=$open", async ({ surface, open }) => {
+    const errand = await fixedErrand({ retrigger: "incremental", routine: true,
+      sources: ["codex-pr", "delegated-agent"], maxPasses: 4, hostedAdmission: true });
+    const result = await localFixCheck(errand);
+    await withErrandHost(errand, open, async () => {
+    const policyRequest = responsePolicyRequestFixture({ headSha: result.target.headSha, pullRequest: open ? 42 : null,
+      repository: surface === "respond" && !open ? `local/${result.repositoryId}` : "owner/repo", sourceId: "delegated-agent", reviewOperationId: result.producerId,
+      completedPasses: 2, standardReview: errand.standardReview });
+    const request = { ...policyRequest, attempts: [{ sourceId: "delegated-agent", outcome: "clean" as const, reviewOperationId: result.producerId }] };
+    if (surface === "respond") {
+      await expect(createRespondDependencies({ cwd: errand.root, exec: errand.exec }).resolvePolicy(request, result.target))
+        .resolves.toMatchObject({ state: "pass-complete", payload: { verifiedTerminalSignal: { coverageAdequate: true } } });
+    } else if (surface === "local-prepare") {
+      await expect(createLocalPrepareDependencies({ cwd: errand.root, exec: errand.exec }).validatePolicyAdmission({
+        repositoryId: result.repositoryId, target: result.target, lineage: result.admission.lineage,
+        standardReview: errand.standardReview, completedPasses: 2,
+        attempts: [{ sourceId: "delegated-agent", outcome: "clean", reviewOperationId: result.producerId }],
+        terminalResponsePerformed: false,
+      })).rejects.toMatchObject({ state: "pass-complete" });
+    } else {
+      const output: string[] = []; const exitCodes: number[] = [];
+      await handleReviewResolve("-", { resolveRoot: () => errand.root, readText: async () => JSON.stringify(request),
+        write: text => output.push(text), setExitCode: code => exitCodes.push(code) });
+      expect({ exitCodes, result: JSON.parse(output.join("")) }).toMatchObject({ exitCodes: [],
+        result: { state: "pass-complete", payload: { verifiedTerminalSignal: { coverageAdequate: true } } } });
+    }
+    });
   });
 
   it.each([["delegated-agent", "codex-pr"], ["codex-pr", "delegated-agent"]])(

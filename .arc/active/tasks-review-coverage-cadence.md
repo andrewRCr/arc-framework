@@ -146,26 +146,11 @@ The confirmation map is in `notes-review-coverage-cadence.md` § Chain confirmat
   leg on each round (`resolveCoverageChain`, `incremental-coverage-basis.ts`). The confirmations, their callers, and
   which also serve a carry are mapped in `notes-review-coverage-cadence.md` § Chain confirmations.
 
-    - `[ ]` **1.6.a Route the chain confirmations through the chain proof**
-        - Once a pull request opens, four callers prove a leg by contribution applicability alone, which returns
-          `review-required` or `unavailable` once a fix changes reviewed code: local prepare's
-          `createLocalContributionConfirmation`, the handler's, and respond's, each through
-          `confirmNonDeliveryIncrementalApplicability` (`local-review-coverage-selection.ts`), and pre-publication's
-          chain confirmation (`confirmIncrementalApplicability`, `pre-publication-composition.ts`) — never
-          `confirmPriorProducerApplicability`, which also serves `applicableHistoricalAttempt`'s carry.
-        - Before it: the handler's private Candidate leg (`confirmNonDeliveryIncrementalApplicability`, unavailable
-          without a pull request), respond's (`confirmNoPullRequestCandidatePriorProducer`, which refuses once the
-          reviewed target changed), and respond's Errand leg, which `resolveRespondPolicyTarget` sends to
-          `confirmNonDeliveryIncrementalApplicability` with no pull request.
-        - Build `test-first` (one behavior at a time):
-            - After a hosted pass at an open pull request, a local fix check's leg proves at each caller.
-            - A private Candidate's fix leg and a pre-pull-request Errand's prove in the handler and in respond.
-            - Under `incremental`, an Errand's correction after a hosted pass still proves, as its hosted correction
-              did.
-            - Pre-publication's historical-attempt carry is unchanged.
-            - A delivery member's fix check with findings re-binds its chain at respond (`respond-composition.ts`) and in
-              pre-publication's private member confirmation; where it does not, those confirmations take delivery's
-              fix-response proof.
+    - `[x]` **1.6.a Route the chain confirmations through the chain proof**
+        - Local prepare, resolve, respond, and pre-publication retain their contribution grounds and prove fix legs
+          through the shared response proof. Delivery uses its exact member fix response and lane performance.
+        - Real-record regressions cover Errands before and after publication, private and open-PR Candidates, and
+          delivery fix checks with deferred minor findings. Pre-publication's historical carry stays unchanged.
 
     - `[ ]` **1.6.b Prove the singleton's local fix leg in the discharge's confirmations**
         - `confirmIncrementalPredecessorApplicability` (`hosted-reservation-support.ts`) and the

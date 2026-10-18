@@ -1,4 +1,5 @@
 /** Machine-readable review workflow handlers. */
+import { confirmReviewCorrectionLeg } from "../scripts/review-gate/policy/review-next-pass.js";
 
 import { readResolveNextPassContext, readHostedErrandNextPassContext } from "./review-next-pass-context.js";
 import { resolveEvidenceBoundReviewPolicyContinuation } from "../scripts/review-gate/policy/review-policy-evidence.js";
@@ -1633,6 +1634,7 @@ function createResolveContributionConfirmation(input: {
   root: string;
   exec: GitExec;
   request: ReviewPolicyCommandRequest;
+  baseRef: string;
   dispositionStore: LocalApprovedDispositionRecordStore;
   readResponsePerformance: NonNullable<EvidenceBoundReviewPolicyDependencies["readResponsePerformance"]>;
 }): NonNullable<EvidenceBoundReviewPolicyDependencies["confirmIncrementalApplicability"]> {
@@ -1654,32 +1656,37 @@ function createResolveContributionConfirmation(input: {
         }
         return confirmation.target;
     };
-    if (request.target.pullRequest === null
-      && current.admission.lineage.kind === "head-bound"
-      && current.admission.lineage.vehicleKind === "errand") {
-      const live = await readLocalReviewLiveContext({ exec, cwd: root }).catch(() => null);
-      return confirmErrandFixResponseApplicability({
+    const confirmGrounds = async () => {
+      if (request.target.pullRequest === null
+        && current.admission.lineage.kind === "head-bound"
+        && current.admission.lineage.vehicleKind === "errand") {
+        const live = await readLocalReviewLiveContext({ exec, cwd: root }).catch(() => null);
+        return confirmErrandFixResponseApplicability({
+          predecessor,
+          currentTarget: current.target,
+          currentLineage: current.admission.lineage,
+          currentClaimId: live?.context.errand?.claimId === current.admission.lineage.vehicleIdentity
+            ? live.context.errand.claimId : null,
+          currentResult: current,
+          observeTarget,
+          dispositionStore,
+          readResponsePerformance,
+        });
+      }
+      return confirmNonDeliveryIncrementalApplicability({
         predecessor,
         currentTarget: current.target,
         currentLineage: current.admission.lineage,
-        currentClaimId: live?.context.errand?.claimId === current.admission.lineage.vehicleIdentity
-          ? live.context.errand.claimId : null,
-        currentResult: current,
+        repository: request.target.repository,
+        pullRequest: request.target.pullRequest,
+        candidate,
+        exec: createRawGitExec(root),
         observeTarget,
-        dispositionStore,
-        readResponsePerformance,
       });
-    }
-    return confirmNonDeliveryIncrementalApplicability({
-      predecessor,
-      currentTarget: current.target,
-      currentLineage: current.admission.lineage,
-      repository: request.target.repository,
-      pullRequest: request.target.pullRequest,
-      candidate,
-      exec: createRawGitExec(root),
-      observeTarget,
-    });
+    };
+    return confirmReviewCorrectionLeg({ predecessor, currentTarget: current.target,
+      currentLineage: current.admission.lineage, currentResult: current, dispositionStore, readResponsePerformance,
+      candidateProof: { candidate, cwd: root, exec, baseRef: input.baseRef, observeTarget }, confirmGrounds });
   };
 }
 
@@ -1717,7 +1724,7 @@ async function resolveConfiguredReviewPolicy(
     dispositionStore,
     readResponsePerformance,
     confirmIncrementalApplicability: createResolveContributionConfirmation({
-      root, exec, request, dispositionStore, readResponsePerformance,
+      root, exec, request, dispositionStore, readResponsePerformance, baseRef: settings["branch.base"],
     }),
     confirmTarget: async (attemptedTarget) => {
       const confirmation = await confirmLocalReviewTarget({

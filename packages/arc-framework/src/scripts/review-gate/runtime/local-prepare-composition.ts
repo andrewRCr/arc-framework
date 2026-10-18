@@ -1,5 +1,5 @@
 /** Production adapters for the local review prepare command. */
-import { deriveReviewNextPassContextFromAttempts } from "../policy/review-next-pass.js";
+import { confirmReviewCorrectionLeg, deriveReviewNextPassContextFromAttempts } from "../policy/review-next-pass.js";
 
 
 import { createCandidateResponseHeadContinuationReader } from "./candidate-response-head-continuation.js";
@@ -199,18 +199,15 @@ function createLocalContributionConfirmation(input: {
   policyTarget: { repository: string; pullRequest: number | null };
   candidate: CandidateManagedRecordV1 | null;
 }) {
-  return async (
+  const observeTarget = () => deriveLocalReviewTarget({
+    ...input.context.input, baseRef: input.baseRef, repositoryId: input.repositoryId,
+  });
+  const confirmGrounds = async (
     predecessor: ReviewResult,
     currentTarget: ReviewTarget,
     currentLineage: LaneSubjectLineage,
     currentResult?: ReviewResult,
   ) => {
-    const observeTarget = () => deriveLocalReviewTarget({
-      exec: input.context.input.exec,
-      cwd: input.context.input.cwd,
-      baseRef: input.baseRef,
-      repositoryId: input.repositoryId,
-    });
     if (input.policyTarget.pullRequest === null && currentLineage.kind === "head-bound"
       && currentLineage.vehicleKind === "errand") {
       const live = await readLocalReviewLiveContext(input.context.input).catch(() => null);
@@ -253,6 +250,15 @@ function createLocalContributionConfirmation(input: {
       observeTarget,
     });
   };
+  return (predecessor: ReviewResult, currentTarget: ReviewTarget, currentLineage: LaneSubjectLineage,
+    currentResult?: ReviewResult) => confirmReviewCorrectionLeg({
+    predecessor, currentTarget, currentLineage, currentResult,
+    dispositionStore: input.context.dispositionStore,
+    readResponsePerformance: result => readLaneResponsePerformance(input.context.operationStore, result),
+    candidateProof: { candidate: input.candidate, ...input.context.input, baseRef: input.baseRef, observeTarget },
+    confirmGrounds: () => confirmGrounds(predecessor, currentTarget, currentLineage, currentResult),
+  });
+
 }
 
 async function validateLocalPolicyAdmission(
