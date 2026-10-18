@@ -8,6 +8,9 @@ import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/li
 import { computeDefaultCaptureSet } from "../../../src/lib/git/default-capture-set.js";
 import { makeGitProcessError, scriptGitExec, scriptRawGitExec } from "../../helpers/git-exec-fake.js";
 import type { PromoteFloor, PromotionFrameReceipt } from "../../../src/lib/errand/promote.js";
+import { createMemoryRemote } from "../../helpers/store/sync.js";
+import { ReferenceBackend } from "../../helpers/store/reference-backend.js";
+import type { StoreRecord } from "../../../src/lib/store/read.js";
 const sha = "1".repeat(40), claimId = "a".repeat(32);
 async function fixture(floor: PromoteFloor = "derivation", failCut = false, inbox = false, sourceOwner: string | null = "test-user") {
   const harness = createLifecycleHarness(), owner = OwnerIdentitySchema.parse({ type: "work-item", name: "errand-source" });
@@ -33,6 +36,62 @@ async function fixture(floor: PromoteFloor = "derivation", failCut = false, inbo
     settleInbox: async (frame) => frame, settleOccupancy: async (frame) => frame } });
   return { ...harness, primary, description, fake, steps, run, options, source: identity };
 }
+async function disputePrimary(f: Awaited<ReturnType<typeof fixture>>) {
+  const remote = createMemoryRemote(); f.store.context.publication.remote = remote;
+  lifecycleSuccess(await f.store.sync());
+  const other = new ReferenceBackend({ state: remote.state, registry: f.store.context.registry });
+  for (const [store, digit] of [[f.store, "2"], [other, "3"]] as const) {
+    const record = lifecycleSuccess(await store.read({ reference: f.primary.reference }));
+    const links = { ...record.links, branches: record.links!.branches!.map((link) => ({ ...link,
+      excluded: [...link.excluded, { repository: "repo", sha: digit.repeat(40) }] })) };
+    lifecycleSuccess(await store.write({ action: "put", reference: record.reference, expected: record.version,
+      content: record.content, placement: { kind: "active" }, links,
+      provenance: { verb: "test", lifecycleAction: "update" } }));
+  }
+  lifecycleSuccess(await f.store.sync());
+  const disputed = lifecycleSuccess(await f.store.read({ reference: f.primary.reference }));
+  expect(disputed.conflicts.length).toBeGreaterThan(0); return disputed;
+}
+async function resolvePrimary(f: Awaited<ReturnType<typeof fixture>>, disputed: StoreRecord) {
+  lifecycleSuccess(await f.store.write({ action: "put", reference: disputed.reference, expected: disputed.version,
+    content: disputed.content, placement: { kind: "active" }, links: disputed.links, resolves: disputed.conflicts,
+    provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
+}
+it.each([false, true])("withholds promotion authority from a disputed primary, interrupted=%s", async (interrupted) => {
+  const f = await fixture("derivation", interrupted);
+  if (interrupted) expect(await f.run()).toMatchObject({ outcome: "error" });
+  const disputed = await disputePrimary(f), before = lifecycleSuccess(await f.store.version());
+  const result = await f.run();
+  expect(result).toMatchObject({ outcome: "refused", recommendedPromptText: expect.stringMatching(/resolve.*retry/isu) });
+  for (const reference of disputed.conflicts) expect(JSON.stringify(result)).toContain(JSON.stringify(reference).replaceAll('"', '\\"'));
+  expect(lifecycleSuccess(await f.store.version())).toBe(before);
+  expect(lifecycleSuccess(await f.store.read({ reference: f.primary.reference }))).toEqual(disputed);
+  await resolvePrimary(f, disputed);
+  expect(await f.run()).toMatchObject({ outcome: interrupted ? "idempotent" : "applied" });
+  const history = lifecycleSuccess(await f.store.history({ reference: f.primary.reference }));
+  expect(history.find((entry) => "verb" in entry.provenance && entry.provenance.verb === "errand-promote")?.provenance)
+    .toMatchObject({ codeHead: sha });
+});
+it("withholds marker settlement when the promotion primary becomes disputed after the role write", async () => {
+  const f = await fixture(), exec = f.options.exec;
+  const state: { disputed?: StoreRecord; settled: boolean } = { settled: false };
+  f.options.exec = async (command, args, options) => {
+    const result = await exec(command, args, options);
+    if (args[0] === "switch" && state.disputed === undefined) state.disputed = await disputePrimary(f);
+    return result;
+  };
+  const run = () => promoteOrdinaryErrand({ ...f.options, protection: "full", dependencies: { ...f.steps,
+    settleInbox: async (frame) => frame,
+    settleOccupancy: async (frame) => { state.settled = true; return frame; } } });
+  const result = await run();
+  expect(result).toMatchObject({ outcome: "refused", recommendedPromptText: expect.stringMatching(/resolve.*retry/isu) });
+  expect(state.settled).toBe(false);
+  const disputed = state.disputed; if (disputed === undefined) throw new Error("Missing conflict");
+  expect(lifecycleSuccess(await f.store.read({ reference: f.primary.reference }))).toEqual(disputed);
+  await resolvePrimary(f, disputed);
+  expect(await run()).toMatchObject({ outcome: "idempotent" });
+  expect(state.settled).toBe(true);
+});
 it("requires the source owner while retaining a separately selected target owner", async () => {
   const f = await fixture(), before = lifecycleSuccess(await f.store.version());
   f.options.identity = "bob"; f.options.owner = "new-owner";

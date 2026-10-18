@@ -58,7 +58,9 @@ async function readPrimary(options: StorePromotionOptions): Promise<{ kind: "rea
   if (lookup.status === "refused") return lookup.refusal.code === "not-found" ? { kind: "ready", record: null }
     : { kind: "refused", reason: lookup.refusal.condition };
   const read = await options.store.read({ reference: lookup.result.reference });
-  return read.status === "refused" ? { kind: "refused", reason: read.refusal.condition } : { kind: "ready", record: read.result };
+  if (read.status === "refused") return { kind: "refused", reason: read.refusal.condition };
+  const conflict = primaryConflict(read.result);
+  return conflict === undefined ? { kind: "ready", record: read.result } : { kind: "refused", reason: conflict };
 }
 async function replace(input: StorePromotionOptions, source: OrdinaryErrandRecord, basis: StoreRecord): Promise<PromotionFrameResult> {
   const checkout = await input.checkout(source, "replaceFrame");
@@ -82,7 +84,13 @@ async function replace(input: StorePromotionOptions, source: OrdinaryErrandRecor
   await options.exec("git", ["switch", branch], { cwd: options.cwd });
   const meta = await options.store.read({ reference });
   if (meta.status === "refused") return refused(meta.refusal.condition);
+  const conflict = primaryConflict(meta.result);
+  if (conflict !== undefined) return refused(conflict);
   return receipt(options, meta.result, source, branch, "applied");
+}
+function primaryConflict(record: StoreRecord): string | undefined {
+  return record.conflicts.length === 0 ? undefined
+    : `The promotion primary has unresolved conflicts: ${record.conflicts.map((reference) => JSON.stringify(reference)).join(", ")}. Resolve the named conflict records, then retry this promotion.`;
 }
 function promotionMeta(options: StorePromotionOptions, source: OrdinaryErrandRecord): string {
   return renderMetaFile(options.name, { owner: options.owner, state: options.floor === "derivation" ? "Planning" : "Active",
