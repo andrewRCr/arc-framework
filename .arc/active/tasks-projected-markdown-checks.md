@@ -209,19 +209,14 @@ failures follow their specified handling, and exempt ceremonies acquire no redun
   staging. In-place/resumed initialization checks reconciled metadata, and both routing protection arms check each
   routing commit. Rendered all three workflows without adding requests to spawned scaffolds or base advancement.
 
-### `[ ]` **4.4 Check handoff and activation edits — D5.1–D5.3**
+### `[x]` **4.4 Check handoff and activation edits — D5.1–D5.3**
 
 - _Goal:_ Handoff checks its own edited meta before committing while preserving unfinished-work continuity, and
   activation requests feedback exactly when its ceremony carries authored spec or task text.
 
-- _Note:_ See `notes-projected-markdown-checks.md` § Ceremony coverage, rows 8–9.
-
-    - In package `session-lifecycle/session-handoff.template.md`, request increment after staging and meta lint,
-      before the handoff commit; preserve the explicit later SESSION-NOTES lint.
-    - State that failures in unfinished work go into remaining-work notes without a fix-now/defer stop, while a
-      failure in the handoff's own meta edit is corrected before its commit.
-    - In `work-unit-lifecycle/activate-work-unit.md` Step 3, request increment before the commit only when a fold
-      includes spec/task prose edits; render the installed handoff and activation workflows.
+- _Outcome:_ Handoff requests feedback after staged-meta lint, corrects its own meta failures before committing,
+  and records unfinished-work failures without another approval stop. Activation checks only authored fold prose;
+  both rendered workflows preserve existing commit routing and the later explicit session-notes lint.
 
 ### `[ ]` **4.5 Check integration fixes and preserve completion feedback — D5.1–D5.2**
 
