@@ -1,6 +1,6 @@
 import { confirmReviewCorrectionLeg } from "../../src/scripts/review-gate/policy/review-next-pass.js";
 import { deriveLocalReviewTarget } from "../../src/scripts/review-gate/hosts/local/repository-target.js";
-/** The hosted pass an Errand head offers after an approved fix, and the correction its admission accepts. */
+/** Errand local fix checks, complete hosted successors, and historical correction evidence. */
 
 import { createLocalPrepareDependencies } from "../../src/scripts/review-gate/runtime/local-prepare-composition.js";
 import { localPrepareAdmissionRemedy } from "../../src/scripts/review-gate/runtime/review-policy-remedy.js";
@@ -53,11 +53,8 @@ import {
 } from "../../src/scripts/review-gate/lane-progress.js";
 import { responsePolicyRequestFixture } from "../fixtures/review-response-policy.js";
 import {
-  assertErrandHostedCorrectionRequest,
   readErrandRoutedObligation,
 } from "../../src/scripts/review-gate/status-errand.js";
-import { RoutedReviewObligationSchema } from "../../src/scripts/review-gate/status.js";
-import { HostedErrandCorrectionError } from "../../src/scripts/review-gate/runtime/review-policy-remedy.js";
 import { STANDARD_REVIEW_RUBRIC_IDENTITY } from
   "../../src/scripts/review-gate/policy/standard-review.js";
 import { makeGitExec } from "../helpers/integration.js";
@@ -384,132 +381,49 @@ async function withErrandHost<T>(errand: FixedErrand, open: boolean, run: () => 
   }
 }
 
+async function performHostedRequest(errand: FixedErrand, coverage: "complete" | "incremental" = "complete") {
+  const output: string[] = []; const exitCodes: number[] = [];
+  await handleReviewHostedRequest("-", { readText: async () => JSON.stringify({ schemaVersion: 1,
+    target: { repository: "owner/repo", pullRequest: 42, headSha: errand.statusTarget.headSha },
+    provider: "codex-pr", coverage, ...(coverage === "incremental" ? { correctionScope: errand.expectedScope } : {}),
+    vehicle: { kind: "errand", standardReview: errand.standardReview } }),
+    write: text => output.push(text), setExitCode: code => exitCodes.push(code) });
+  return { result: JSON.parse(output.join("")), exitCodes };
+}
+
 async function requestHostedSuccessor(errand: FixedErrand) {
-  return withErrandHost(errand, true, async () => {
-    const output: string[] = []; const exitCodes: number[] = [];
-    await handleReviewHostedRequest("-", { readText: async () => JSON.stringify({ schemaVersion: 1,
-      target: { repository: "owner/repo", pullRequest: 42, headSha: errand.statusTarget.headSha },
-      provider: "codex-pr", coverage: "complete", vehicle: { kind: "errand", standardReview: errand.standardReview } }),
-      write: text => output.push(text), setExitCode: code => exitCodes.push(code) });
-    return { result: JSON.parse(output.join("")), exitCodes };
-  });
+  return withErrandHost(errand, true, () => performHostedRequest(errand));
 }
 
-function admitCorrection(
-  errand: FixedErrand,
-  request: { coverage: "complete" } | { coverage: "incremental"; correctionScope: FixedErrand["expectedScope"] },
-  provider: "coderabbit-pr" | "codex-pr" = errand.provider,
-) {
-  return errand.readAttempts().then((attempts) => assertErrandHostedCorrectionRequest({
-    publisher: errand.publisher,
-    store: errand.store,
-    errand: errand.errand,
-    request: {
-      target: { repository: "owner/repo", pullRequest: 42, headSha: errand.statusTarget.headSha },
-      provider,
-      ...request,
-    },
-    standardReview: errand.standardReview,
-    attempts,
-    reviewTarget: errand.fixedReviewTarget,
-    statusTarget: errand.statusTarget,
-  }));
-}
-
-describe("Errand hosted correction pass", () => {
-  it.each([
-    { severity: "major" as const, findings: 1 },
-    { severity: "minor" as const, findings: 0 },
-  ])("offers CodeRabbit the fix range after a $severity finding with $findings required findings",
-    async ({ severity }) => {
-      const errand = await fixedErrand({ severity });
-      const offer = await errand.readStatus();
-
-      expect(offer).toEqual({
-        state: "review-required",
-        scope: "errand",
-        detail: expect.stringMatching(
-          new RegExp(`1 of 2 configured.*\`coderabbit-pr\` reviews only the fix since ${
-            errand.expectedScope.predecessorHeadSha.slice(0, 12)}`, "u"),
-        ),
-        action: {
-          schemaVersion: 1,
-          target: { repository: "owner/repo", pullRequest: 42, headSha: errand.statusTarget.headSha },
-          provider: "coderabbit-pr",
-          coverage: "incremental",
-          correctionScope: errand.expectedScope,
-          vehicle: { kind: "errand", standardReview: errand.standardReview },
-        },
-      });
-      expect(RoutedReviewObligationSchema.parse(offer)).toEqual(offer);
-      await expect(admitCorrection(errand, { coverage: "incremental", correctionScope: errand.expectedScope }))
-        .resolves.toBeUndefined();
-      await expect(admitCorrection(errand, { coverage: "complete" })).resolves.toBeUndefined();
-
-      if (offer?.state !== "review-required" || !("action" in offer) || offer.action.correctionScope === undefined) {
-        throw new Error("the offer must carry its correction scope");
-      }
-      await errand.recordCorrectionPass(offer.action.correctionScope);
-      await expect(errand.readStatus()).resolves.toEqual({
-        state: "settled",
-        detail: "The exact Errand standard-review lane is settled by verified convergence.",
-      });
-    });
-
-  it("refuses an incremental request whose scope differs from the offered one", async () => {
-    const errand = await fixedErrand();
-    const drifted = { ...errand.expectedScope, requiredFindings: [] };
-
-    const refusal = admitCorrection(errand, { coverage: "incremental", correctionScope: drifted });
-    await expect(refusal).rejects.toBeInstanceOf(HostedErrandCorrectionError);
-    await expect(refusal).rejects.toMatchObject({
-      code: "invalid-input",
-      statusTarget: errand.statusTarget,
-      message: expect.stringContaining("differs from the correction scope the lane offers"),
-    });
+describe("Errand local correction cadence", () => {
+  it("names local prepare after a hosted material fix", async () => {
+    const errand = await fixedErrand({ provider: "codex-pr", sources: ["codex-pr", "delegated-agent"] });
+    await expect(errand.readStatus()).resolves.toMatchObject({ state: "review-required",
+      detail: expect.stringContaining("arc review local prepare") });
   });
-
-  it.each([
-    { name: "a provider without native incremental review", options: { provider: "codex-pr" as const },
-      reason: "`codex-pr` has no native incremental review" },
-    { name: "a fix with no recorded performance", options: { responsePerformed: false },
-      reason: "no performed fix leads from the earlier pass to this head" },
-    { name: "routing that requires a full final review", options: { retrigger: "full-final" as const },
-      reason: "routing requires a complete review (full-final)" },
-  ])("offers complete coverage after $name", async ({ options, reason }) => {
-    const errand = await fixedErrand(options);
-    const offer = await errand.readStatus();
-
-    expect(offer).toMatchObject({
-      state: "review-required",
-      scope: "errand",
-      detail: expect.stringContaining(`The next pass reviews complete coverage: ${reason}.`),
-      action: { provider: errand.provider, coverage: "complete" },
-    });
-    expect(offer).not.toHaveProperty("action.correctionScope");
-    await expect(admitCorrection(errand, { coverage: "incremental", correctionScope: errand.expectedScope }))
-      .rejects.toMatchObject({ code: "invalid-input", message: expect.stringContaining(reason) });
-    await expect(admitCorrection(errand, { coverage: "complete" })).resolves.toBeUndefined();
+  it("offers a hosted complete pass after a converged minor response", async () => {
+    const errand = await fixedErrand({ provider: "codex-pr", severity: "minor", retrigger: "full-final",
+      sources: ["codex-pr", "delegated-agent"] });
+    await expect(errand.readStatus()).resolves.toMatchObject({ state: "review-required", scope: "errand",
+      action: { provider: "codex-pr", coverage: "complete" } });
   });
-
-  it("offers complete coverage when the change request's base ref is unknown", async () => {
-    const errand = await fixedErrand();
-
-    await expect(errand.readStatus(false)).resolves.toMatchObject({
-      scope: "errand",
-      detail: expect.stringContaining("the current diff base is unknown"),
-      action: { provider: "coderabbit-pr", coverage: "complete" },
-    });
+  it("offers the ranked hosted complete successor at a head with a converged fix check", async () => {
+    const errand = await fixedErrand({ provider: "codex-pr", retrigger: "full-final", maxPasses: 4,
+      sources: ["codex-pr", "delegated-agent"], hostedAdmission: true });
+    await localFixCheck(errand);
+    await expect(errand.readStatus()).resolves.toMatchObject({ state: "review-required", scope: "errand",
+      action: { provider: "codex-pr", coverage: "complete", target: { headSha: errand.statusTarget.headSha } } });
   });
-
-  it("refuses CodeRabbit an incremental pass over a fix another source reviewed", async () => {
-    const errand = await fixedErrand({ provider: "codex-pr" });
-
-    await expect(admitCorrection(
-      errand, { coverage: "incremental", correctionScope: errand.expectedScope }, "coderabbit-pr",
-    )).rejects.toMatchObject({
-      code: "invalid-input",
-      message: expect.stringContaining("the earlier pass was a `codex-pr` review"),
+  it("refuses hand-composed hosted incremental coverage, then admits the complete successor after a local fix check", async () => {
+    const errand = await fixedErrand({ provider: "codex-pr", retrigger: "full-final", maxPasses: 4,
+      sources: ["codex-pr", "delegated-agent"], hostedAdmission: true });
+    await withErrandHost(errand, true, async () => {
+      const refusal = await performHostedRequest(errand, "incremental");
+      expect(refusal).toMatchObject({ exitCodes: [1], result: { error: { code: "invalid-input" },
+        remedy: { text: expect.stringMatching(/local fix check/u) } } });
+      await localFixCheck(errand);
+      await expect(performHostedRequest(errand)).resolves.toMatchObject({ exitCodes: [],
+        result: { state: "requested", handle: { requestedCoverage: "complete", admission: { logicalPass: 3 } } } });
     });
   });
 });

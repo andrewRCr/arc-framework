@@ -13,7 +13,7 @@ import {
   resolveReviewPolicy,
 } from "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
 import {
-  HostedErrandCorrectionError,
+  HostedIncrementalCoverageError,
   HostedReviewAdmissionError,
   StaleLaneAttemptsError,
   hostedRequestAdmissionRemedy,
@@ -125,16 +125,12 @@ describe("hostedRequestAdmissionRemedy", () => {
     expect(hostedRequestAdmissionRemedy(new Error(approvalRequired.message))).toBeUndefined();
   });
 
-  it("sends an Errand correction mismatch to the review status that offers the admissible request", () => {
-    const mismatch = new HostedErrandCorrectionError("codex-pr has no native incremental review", statusTarget);
-
-    expect(mismatch).toMatchObject({
-      code: "invalid-input",
-      message: expect.stringContaining("codex-pr has no native incremental review"),
-    });
-    expect(hostedRequestAdmissionRemedy(mismatch)).toEqual({
-      invariant: expect.stringContaining("only the correction its lane offers at that head"),
-      text: expect.stringMatching(/submit its offered request unchanged: `arc review status --target /u),
+  it("names the local fix check for refused hosted incremental coverage", () => {
+    const refusal = new HostedIncrementalCoverageError(statusTarget);
+    expect(refusal).toMatchObject({ code: "invalid-input", message: expect.stringContaining("unsupported") });
+    expect(hostedRequestAdmissionRemedy(refusal)).toMatchObject({
+      invariant: expect.stringContaining("fix checks run locally"),
+      text: expect.stringContaining("local fix check through arc review local prepare"),
       argv: ["arc", "review", "status", "--target", JSON.stringify(statusTarget)],
     });
   });

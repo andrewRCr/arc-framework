@@ -179,31 +179,14 @@ The confirmation map is in `notes-review-coverage-cadence.md` § Chain confirmat
   request, the complete pass after a converged look at a head that already holds a review reaches a hosted source by
   rank, and respond's predictions — the next pass's coverage and the fix consequence — follow the rule.
 
-    - `[ ]` **1.8.a Remove the Errand's hosted correction**
-        - Delete `resolveErrandHostedCorrection` and `assertErrandHostedCorrectionRequest` (`status-errand.ts`) and
-          `HostedErrandCorrectionError` with its remedy (`runtime/review-policy-remedy.ts`), with their callers.
-          `errandHostedRequestObligation` offers complete coverage only, and Errand status names local prepare for the
-          next local pass.
-        - At a head that already holds a review, `readErrandRoutedObligation` answers the driver's
-          `ready / hosted-request` from `resolveErrandLaneAtHead` with `errandHostedRequestObligation`'s action, as
-          `nextErrandPassObligation` does at a new head, rather than `review-required` with no action, so the complete
-          pass after a converged look there reaches a hosted source by rank.
-        - On hosted request admission's Errand branch (`handlers/review.ts`), whose only coverage check is
-          `assertErrandHostedCorrectionRequest`, an outright refusal of incremental coverage replaces it, with a remedy
-          naming the local fix check. Its earlier-head predecessor read (`selectErrandCorrectionPredecessor`) moves
-          to the context derivation in Task 1.1.e, so deleting the correction does not discard that producer.
-        - The tests and text that pin the correction go with it: `review-status-errand-correction.test.ts`'s
-          hosted-correction suite, the hosted-correction case in `review-policy-remedy.test.ts`, and that module's
-          documentation.
-        - Build `test-first` (one behavior at a time):
-            - After a hosted Errand pass with a material fix, Errand status names a local pass through local prepare,
-              not a hosted incremental request.
-            - A hosted Errand request after a converged pass is complete.
-            - At a head that already holds a converged fix check, Errand status returns the hosted complete pass's action
-              for the driver's `ready / hosted-request`.
-            - A hand-composed incremental Errand hosted request is refused with the remedy.
-            - A hand-composed complete Errand hosted request at the head produced by a material fix is refused with
-              Task 1.5.b's code and remedy naming the local pass.
+    - `[x]` **1.8.a Remove the Errand's hosted correction**
+        - Removed hosted correction resolution, admission, and its obsolete remedy. Hosted Errand requests now take
+          complete coverage only; direct incremental requests refuse before capacity with the local fix-check remedy.
+        - Status names ordinary local prepare after material fixes and returns the ranked hosted complete action at a
+          head with a converged fix check. Historical incremental records remain readable under `incremental`.
+        - Both Errand integration suites pass, including direct complete-request refusal after material fixes and
+          successful hosted continuation after the local check. Legacy fixtures now supply configured sources and
+          repository-derived context; malformed identity refuses and succeeds after repair.
 
     - `[ ]` **1.8.b Predict the Errand's next-pass coverage by the rule**
         - `errandNextPassCoverage` (`respond-command.ts`) takes whether the look fixed a material finding. It returns

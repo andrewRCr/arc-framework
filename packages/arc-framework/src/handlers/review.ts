@@ -363,6 +363,7 @@ import {
 import { uncommittedVerifiedFixRemedy } from "../scripts/review-gate/runtime/respond-remedy.js";
 import {
   HostedReviewAdmissionError,
+  HostedIncrementalCoverageError,
   StaleLaneAttemptsError,
   hostedRequestAdmissionRemedy,
   localPrepareAdmissionRemedy,
@@ -424,7 +425,6 @@ import {
   ReviewStatusWrongRouteError,
   resolveReviewStatusForWorkUnit,
 } from "../scripts/review-gate/status-composition.js";
-import { assertErrandHostedCorrectionRequest } from "../scripts/review-gate/status-errand.js";
 import { spineRemedy } from "../scripts/integration/spine-refusal.js";
 import {
   ReviewStatusCommandResultSchema,
@@ -3752,20 +3752,7 @@ async function executeDefaultHostedRequest(
           });
           return;
         }
-        await assertErrandHostedCorrectionRequest({
-          publisher,
-          store: context.store,
-          errand: {
-            slug: context.errandBinding.key,
-            claimId: context.errandBinding.claimId,
-            branch: context.errandBinding.branch,
-          },
-          request,
-          standardReview,
-          attempts: progress?.attempts ?? [],
-          reviewTarget: context.reviewTarget,
-          statusTarget: context.statusTarget,
-        });
+        if (request.coverage === "incremental") throw new HostedIncrementalCoverageError(context.statusTarget);
         const currentAttempts = progress?.attempts.filter((attempt): attempt is typeof attempt & {
           outcome: Exclude<typeof attempt.outcome, "pending">;
         } => attempt.headSha === request.target.headSha && attempt.outcome !== "pending") ?? [];
