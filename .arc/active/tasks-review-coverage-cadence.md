@@ -832,32 +832,24 @@ approved report, and the replay; a fix's tag only orders the display, and is kep
 approved set. Method, workflow, and template text changes in the package's `arc/` source first, then in the `.arc/`
 copy.
 
-### `[ ]` **6.1 Add the `review-model` method — § 10.1**
+### `[x]` **6.1 Add the `review-model` method — § 10.1**
 
 - _Goal:_ One method defines the pass model both review families use — pass, fix check, cap, convergence, the
   re-inspection test, fold tags, cadence, and the loop reading — and reaches every project through its fire-point
   declarations.
 
-- _Note:_ 6.1.a and 6.1.b land in one commit, since the method-trigger audit (`lint:arc:triggers`, a commit gate) fails
-  a method no workflow declaration reaches.
+    - `[x]` **6.1.a Write the method**
+        - `review-model` defines complete passes, incremental rounds, convergence, permission, tags, re-inspection,
+          cadence, and separate family records in both copies. Direct consumers load it at marked fire-points;
+          their existing approval constraints remain at the invocation sites.
 
-    - `[ ]` **6.1.a Write the method**
-        - In the package's `arc/system/methods/`, then the `.arc/` copy, in the shipped register. It states the model
-          and keeps every constraint at its fire site: a fix check runs only with approval, a cap never authorizes,
-          and a recommendation is not authorization. Records stay separate by design; an adversarial pass keeps its
-          own record shape. Task 7.5.b adds the family map.
+    - `[x]` **6.1.b Make it reach every project**
+        - Registered the Configurable core method in the recipe, classifier, inventory, table inputs, relationship
+          index, and generated manifest entry. Init, update, sync, and all PM/team recipe configurations exercise
+          the installed method; the delivery correction E2E now expects the required local coverage choice.
 
-    - `[ ]` **6.1.b Make it reach every project**
-        - Its registration: an `init-recipe.json` disposition; a `CONFIGURABLE_FILES` entry (`lib/classification.ts`);
-          its line in `strategy-package-project-sync.md`'s Configurable inventory and that list's count; its `.arc/`
-          copy among the `format:tables` check's inputs (`arc-checks.yml`), which name each method copy; its row in the
-          methods `README.md` relationship table, in both copies; the init, update, and sync tests that enumerate the
-          methods (`__tests__/unit/init.test.ts`, `__tests__/integration/init.test.ts`, `__tests__/e2e/init.e2e.test.ts`,
-          `__tests__/integration/update.test.ts`, `__tests__/integration/framework-sync.test.ts`); and the regenerated
-          manifest (`.arc/system/.internal/manifest.json`).
-        - `adversarial-review`, `review-triage`, and `review-response` declare it at their fire-points; Task 7.5.a adds
-          the three review-type methods' declarations. The method-trigger audit (`audit-method-triggers.ts`) finds it
-          reachable.
+- _Outcome:_ Every project installs the shared method, and the three current review consumers declare and invoke it
+  at their fire-points. The method and its registration form one reachable installation change.
 
 ### `[ ]` **6.2 Make a fix check and a successor pass separate decisions — § 10.2**
 

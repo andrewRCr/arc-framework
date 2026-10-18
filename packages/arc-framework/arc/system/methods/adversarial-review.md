@@ -3,6 +3,7 @@ name: adversarial-review
 description: Fresh-context adversarial review mechanism for planning and verification fire-points.
 arc:
   methods:
+    - review-model
     - source-grounding
     - assess-design-proportionality
     - disposition-report
@@ -42,6 +43,8 @@ override-active: false
 [No override configured]
 
 ## adversarial-review.default
+
+Apply [review-model][review-model] before running or assessing this review.
 
 Adversarial review is the mechanism that runs a supplied rubric from outside the primary's working context. It is
 not itself a rubric: each fire-point supplies the artifact-specific questions, artifacts, and interpretation.
@@ -640,3 +643,5 @@ the same source verification, disposition, and exit-gate rules as a standard pas
 [resolve-planning-depth]: resolve-planning-depth.md
 [assess-boundary-fit]: assess-boundary-fit.md
 [mutation-guard]: ../rules/DEV-RULES.ARC.md#review-finding-mutation-guard
+
+[review-model]: review-model.md

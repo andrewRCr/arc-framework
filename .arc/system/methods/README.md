@@ -51,6 +51,7 @@ when populating any `.override` section. Methods not listed here are independent
 | standard-review               | adversarial-review, implementation-audit, review-chunking, review-triage               | Satisfying standard, mechanism, and lens             |
 | review-chunking               | frontline-review, standard-review                                                      | Bounded review-scope consumers                       |
 | self-review                   | review-triage                                                                          | Uses review-triage for findings                      |
+| review-model                  | adversarial-review, review-triage, review-response                                     | Shared passes, rounds, convergence, and cadence      |
 | review-response               | review-triage                                                                          | Consumes approved finding dispositions               |
 | review-triage                 | disposition-report                                                                     | Renders code-review findings in its shape            |
 | disposition-report            | review-triage, adversarial-review                                                      | Shared finding-set presentation                      |

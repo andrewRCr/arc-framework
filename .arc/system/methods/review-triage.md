@@ -3,6 +3,7 @@ name: review-triage
 description: Source-verified severity and disposition contract for review findings
 arc:
   methods:
+    - review-model
     - disposition-report
 related:
   - disposition-report
@@ -24,6 +25,8 @@ override-active: false
 [No override configured]
 
 ## review-triage.default
+
+Apply [review-model][review-model] before running or assessing this review.
 
 Process the complete finding set in three ordered legs.
 
@@ -172,3 +175,5 @@ context footer from `self-review`; its report-local labels do not create a produ
 [deliver-stack]: ../workflows/arc/supplemental/deliver-stack.md
 [run-errand]: ../workflows/arc/supplemental/run-errand.md
 [review-increment-invariant]: ../rules/DEV-RULES.ARC.md#review-increment-invariant
+
+[review-model]: review-model.md

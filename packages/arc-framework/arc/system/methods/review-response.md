@@ -1,6 +1,9 @@
 ---
 name: review-response
 description: Provider-neutral author response contract for normalized review findings
+arc:
+  methods:
+    - review-model
 related:
   - review-triage
 override-active: false
@@ -23,6 +26,8 @@ override-active: false
 [No override configured]
 
 ## review-response.default
+
+Apply [review-model][review-model] before running or assessing this review.
 
 The caller supplies:
 
@@ -154,3 +159,5 @@ capability or satisfy a carrier-native review requirement.
 [amend-design]: ../workflows/arc/supplemental/amend-design.md
 [amend-design-gate]: ../workflows/arc/supplemental/amend-design.md#entry-gate
 [review-increment-invariant]: ../rules/DEV-RULES.ARC.md#review-increment-invariant
+
+[review-model]: review-model.md
