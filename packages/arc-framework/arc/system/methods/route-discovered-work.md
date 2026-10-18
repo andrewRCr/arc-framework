@@ -170,9 +170,9 @@ A hold names one work unit, never a group of owners.
 | Cascade at draft close            | `hold <other>`, `new-stub`, `errand`, `capture`, `dismiss`                                                 | Captures reach the Owner at the drain |
 
 Each Owner stop shows the outcome, `_Shapes:_`, any pair, the coupled target's horizon advisory, and any wait named
-by the binding before a write. Cascade has no new stop and captures its routes. Its `errand`, and the fast path's,
-Errand route-to-home's, and owner's-pass deferred `errand`, are `§ Errand` captures. The drain's deferred `errand`
-takes its homeless-atomic route.
+by the binding before a write. Cascade sweeps what was not routed when raised; it has no new stop and captures its
+routes. Its `errand`, and the fast path's, Errand route-to-home's, and owner's-pass deferred `errand`, are `§ Errand`
+captures. The drain's deferred `errand` takes its homeless-atomic route.
 
 **Unclear Errand line:** at a door with an Owner stop, return both `errand` and the work-unit candidate with the four
 record answers; the Owner picks there. Cascade instead returns `capture` for the drain to decide.

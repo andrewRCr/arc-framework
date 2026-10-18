@@ -499,6 +499,29 @@ Attach every round's set to the entry of the pass whose fixes it checks; it crea
 groomed before it starts has no workspace yet: its commit-body summary line remains its only record, and it does
 not keep the new entry fields. Its kept versions still serve the fix check's diff.
 
+### Bounded orchestration and reuse
+
+For a chunked pass, assign each source responsibility to a chunk and name the cross-boundary questions for seams.
+Share neutral scope maps and artifact-neutral orientation; justify overlapping source inspection by a dependency,
+criterion, changed contract, or unresolved question. A seam consumes bounded conclusions and evidence pointers,
+consulting original source where its question requires it. Do not require every parent to re-read all descendant
+reports or file bodies.
+
+Preserve completed coverage of unchanged material within the same exact target, rubric, and pass. Reopen it for a
+concrete gap, contradiction, or affected boundary; bookkeeping changes alone do not require another source review.
+This reuse does not replace an authorized successor pass, an independent repair check, or a separate review rubric.
+
+Decomposition must reduce the remaining attention burden, including its parents'. If a reviewer cannot complete its
+scope, retain its findings and precise gap; change the assignment rather than repeating it unchanged. If further
+splitting only grows reconciliation or no bounded assignment can cover the residual, report incomplete coverage,
+the unresolved source questions, and a finite continuation proposal before expanding again. Partial work never
+becomes a clean result or a met criterion by exhausting effort.
+
+Use the existing reports and coverage facts. Do not make recursive audits of reviewers' attention accounts,
+preread/parent-GO handshakes, or a new private controller, schema family, or fixture suite prerequisites to ordinary
+review. Propose any genuinely necessary new machinery separately. Validate findings against source and spot-check
+no-finding accounts proportionately; do not independently prove every ledger entry.
+
 ### Authored-partition carrier mode
 
 When a large target already has a stable authored partition — delivery-plan members, review chunks, criteria groups,
@@ -519,18 +542,19 @@ which remains reserved for Novel fan-out with disjoint responsibility and AND-co
 
 ### Bounded chunk-series carrier mode
 
-When `review-chunking` invokes the bounded chunk-series carrier mode, the carrier runs fresh bounded contexts
-serially as sequential attention isolation within one logical pass. The carrier keeps a stable evaluator profile and
-complete rubric across every closure chunk and the seam; only the current scope and its explicit external or
-pre-existing annotations vary.
+When `review-chunking` invokes the bounded chunk-series carrier mode, the carrier runs fresh bounded contexts with
+dependency-based scheduling within one logical pass. Run ready independent scopes concurrently when supported;
+wait only where a seam or aggregate consumes unfinished reports. Keep a stable evaluator profile and complete rubric
+across every closure chunk and the seam; only the current scope and its explicit external or pre-existing annotations
+vary. Apply § Bounded orchestration and reuse throughout the pass.
 
 The carrier orchestration owns exact-target identity, partition, and coverage state outside those contexts. Each
 chunk or seam report has no standalone authority. A fresh non-author aggregate context consumes the complete report
 series and coverage facts, inspects targeted source loci as needed, and emits the caller role's one whole-target
 result. Evaluator-call count does not change pass accounting.
 
-This mode is distinct from Novel partitioned fan-out: the series isolates attention across dependent scopes inside
-one review responsibility, rather than assigning orthogonal responsibilities to parallel evaluators.
+This mode is distinct from Novel partitioned fan-out: chunks isolate attention inside one review responsibility.
+Concurrent scheduling does not assign the orthogonal responsibilities or AND-convergence semantics of Novel fan-out.
 
 ### Context provisioning
 
