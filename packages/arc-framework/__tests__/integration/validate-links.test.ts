@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve, dirname } from "node:path";
+import { join, resolve, dirname, delimiter } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
@@ -24,9 +24,10 @@ const SCRIPT_PATH = resolve(
 async function runScript(
   cwd: string,
   args: string[],
+  env: NodeJS.ProcessEnv = process.env,
 ): Promise<{ code: number; stderr: string; stdout: string }> {
   try {
-    const { stdout, stderr } = await execFileAsync(SCRIPT_PATH, args, { cwd });
+    const { stdout, stderr } = await execFileAsync(SCRIPT_PATH, args, { cwd, env });
     return { code: 0, stdout, stderr };
   } catch (err) {
     const e = err as { code?: number; stderr?: string; stdout?: string };
@@ -53,6 +54,38 @@ describe("validate-links.sh", () => {
 
   afterAll(async () => {
     await rm(tmp, { recursive: true, force: true });
+  });
+
+  it.skipIf(process.platform === "win32").each([
+    { name: "tracked", content: "[guide](/guide.md)", code: 0, diagnostic: "" },
+    { name: "movable", content: "[record](.arc/active/meta-example.md)", code: 1, diagnostic: "link to movable artifact" },
+    { name: "ignored", content: "[private](.arc/user/alice/private.md)", code: 1, diagnostic: "link to ignored ARC path" },
+  ])("canonicalizes a Git drive-form root for $name links", async ({ name, content, code, diagnostic }) => {
+    const cwd = join(tmp, `case-drive-root-${name}`);
+    const root = join(cwd, "C:", "repo");
+    const bin = join(cwd, "bin");
+    await mkdir(root, { recursive: true });
+    await mkdir(bin);
+    await execFileAsync("git", ["init", "-q"], { cwd: root });
+    await writeFixture(root, ".gitignore", ".arc/user/\n");
+    await writeFixture(root, "guide.md", "# Guide\n");
+    await writeFixture(root, ".arc/active/meta-example.md", "# Record\n");
+    await writeFixture(root, ".arc/user/alice/private.md", "# Private\n");
+    await writeFixture(root, "source.md", `${content}\n`);
+    const realGit = (await execFileAsync("bash", ["-c", "command -v git"])).stdout.trim();
+    await writeFile(join(bin, "git"), `#!/usr/bin/env bash
+if [ "$1" = rev-parse ] && [ "$2" = --show-toplevel ]; then
+    printf '%s\\n' 'C:/repo'
+else
+    exec "$ARC_LINK_TEST_GIT" "$@"
+fi
+`, { mode: 0o755 });
+    const result = await runScript(cwd, ["C:/repo/source.md"], {
+      ...process.env, PATH: `${bin}${delimiter}${process.env.PATH ?? ""}`, ARC_LINK_TEST_GIT: realGit,
+    });
+    expect(result.code, result.stderr).toBe(code);
+    expect(result.stderr).toContain(diagnostic);
+    if (code === 0) expect(result.stderr).toBe("");
   });
 
   it("refuses normalized movable targets, present or absent, before existence checks", async () => {

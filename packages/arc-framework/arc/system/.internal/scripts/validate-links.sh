@@ -267,6 +267,7 @@ fi
 
 has_repository=1
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || { repo_root=$(pwd -P); has_repository=0; }
+repo_root=$(cd "$repo_root" && pwd -P)
 repo_root=$(normalize_path "$repo_root")
 
 for file in "$@"; do
