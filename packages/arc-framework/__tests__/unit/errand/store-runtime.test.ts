@@ -2,12 +2,16 @@
 import { SlugSchema, ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
 import { expect, it, vi } from "vitest";
 import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
-import { readStoreErrand, transitionStoreErrand } from "../../../src/lib/errand/store-runtime.js";
+import { readStoreErrand, transitionStoreErrand, transformStoreErrand } from "../../../src/lib/errand/store-runtime.js";
+import { ordinaryErrandTransform } from "../../../src/lib/errand/identity-transitions.js";
+import { createMemoryRemote } from "../../helpers/store/sync.js";
+import { ReferenceBackend } from "../../helpers/store/reference-backend.js";
 import { TransientIdentityRecordV3Schema } from "../../../src/lib/errand/identity-record.js";
 import { OwnerIdentitySchema, recordReferences } from "../../../src/lib/store/identity.js";
 import { createStoreSyncPort } from "../../../src/lib/store/operational-sync.js";
 import { authorizeOrdinaryErrandResume } from "../../../src/lib/errand/open-runtime.js";
 import { scriptGitExec } from "../../helpers/git-exec-fake.js";
+import { linkOrdinaryErrandAtRuntime } from "../../../src/lib/errand/link-runtime.js";
 const timestamp = "2026-10-14T00:00:00Z";
 function record() {
   const parsed = TransientIdentityRecordV3Schema.parse({ version: 3, kind: "errand", purpose: "errand", slug: "fix-it", claimId: "a".repeat(32),
@@ -16,6 +20,79 @@ function record() {
   if (parsed.kind !== "errand" || parsed.purpose !== "errand") throw new Error("Expected ordinary Errand");
   return parsed;
 }
+it("refuses idempotent late-link settlement when a genuine stale-write reread retains an unresolved primary conflict", async () => {
+  const h = createLifecycleHarness(), options = { store: h.store, identity: "alice", projectId: async () => "repo" };
+  const opened = await transitionStoreErrand(options, { kind: "create", record: record() });
+  if (opened.kind !== "applied" || opened.value === null) throw new Error("Expected an ordinary Errand");
+  const previous = opened.value, remote = createMemoryRemote(); h.store.context.publication.remote = remote;
+  lifecycleSuccess(await h.store.sync());
+  const writer = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
+  const batch = h.store.batch.bind(h.store);
+  const observed: { refusal?: string } = {};
+  h.store.batch = async (input) => {
+    const target = input.writes[0]; if (target?.action !== "put") throw new Error("Expected an identity put");
+    const local = lifecycleSuccess(await h.store.read({ reference: target.reference }));
+    const other = lifecycleSuccess(await writer.read({ reference: target.reference }));
+    lifecycleSuccess(await h.store.write({ action: "put", reference: local.reference, expected: local.version,
+      content: JSON.stringify({ ...previous, intent: "Competing concern" }), placement: { kind: "active" }, links: local.links,
+      provenance: { verb: "save", lifecycleAction: "update" } }));
+    lifecycleSuccess(await writer.write({ action: "put", reference: other.reference, expected: other.version,
+      content: target.content, placement: target.placement, links: target.links, provenance: { verb: "errand-link", lifecycleAction: "update" } }));
+    lifecycleSuccess(await h.store.sync());
+    const result = await batch(input);
+    if (result.status === "refused") observed.refusal = result.refusal.code;
+    return result;
+  };
+  const perform = () => linkOrdinaryErrandAtRuntime({ ...options, slug: previous.slug,
+    inbox: { title: "personal:12345678", sourceDigest: `sha256:${"b".repeat(64)}`, executeBound: false }, updatedAt: "2026-10-15T00:00:00Z",
+    exec: async () => { throw new Error("Unexpected Git"); }, execInput: async () => { throw new Error("Unexpected input"); } });
+  const result = await perform();
+  expect(observed.refusal).toBe("version-conflict");
+  const found = lifecycleSuccess(await h.store.lookup({ kind: "slug", slug: SlugSchema.parse(previous.slug) }));
+  const disputed = lifecycleSuccess(await h.store.read({ reference: found.reference }));
+  expect(disputed.conflicts.length).toBeGreaterThan(0);
+  expect(result).toMatchObject({ outcome: "refused", recommendedPromptText: expect.stringMatching(/resolve.*retry/isu) });
+  for (const reference of disputed.conflicts) expect(result.recommendedPromptText).toContain(JSON.stringify(reference));
+  lifecycleSuccess(await h.store.write({ action: "put", reference: disputed.reference, expected: disputed.version,
+    content: disputed.content, placement: { kind: "active" }, links: disputed.links, resolves: disputed.conflicts,
+    provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
+  expect(await perform()).toMatchObject({ outcome: "idempotent" });
+});
+
+it.each(["read", "transition", "transform"] as const)("withholds %s authority for a conflicted Errand and continues after resolution", async operation => {
+  const h = createLifecycleHarness(), options = { store: h.store, identity: "alice", projectId: async () => "project-id" };
+  const opened = await transitionStoreErrand(options, { kind: "create", record: record() });
+  if (opened.kind !== "applied" || opened.value === null) throw new Error("Expected an ordinary Errand");
+  const previous = opened.value;
+  const found = lifecycleSuccess(await h.store.lookup({ kind: "claim", claim: { kind: "errand", slug: previous.slug, claimId: previous.claimId } }));
+  const initial = lifecycleSuccess(await h.store.read({ reference: found.reference }));
+  const remote = createMemoryRemote(); h.store.context.publication.remote = remote;
+  const writer = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
+  lifecycleSuccess(await writer.write({ action: "put", reference: initial.reference, expected: null, placement: { kind: "active" },
+    content: JSON.stringify({ ...previous, intent: "Concurrent intent" }), links: initial.links,
+    provenance: { verb: "errand-open", lifecycleAction: "create" } }));
+  lifecycleSuccess(await h.store.sync());
+  const disputed = lifecycleSuccess(await h.store.read({ reference: initial.reference }));
+  expect(disputed.conflicts.length).toBeGreaterThan(0);
+  const selected = TransientIdentityRecordV3Schema.parse(JSON.parse(disputed.content));
+  if (selected.kind !== "errand" || selected.purpose !== "errand") throw new Error("Expected an ordinary retained Errand side");
+  const request = { kind: "link" as const, previous: selected, originEntry: "personal:12345678",
+    originEntrySourceDigest: `sha256:${"b".repeat(64)}` as const, updatedAt: "2026-10-15T00:00:00Z" };
+  const perform = () => operation === "read" ? readStoreErrand(options, previous.slug, previous.claimId)
+    : operation === "transition" ? transitionStoreErrand(options, request)
+      : transformStoreErrand(options, selected, ordinaryErrandTransform(request));
+  const version = lifecycleSuccess(await h.store.version()), refused = await perform();
+  expect(refused).toMatchObject({ kind: "refused" });
+  if (refused.kind !== "refused") throw new Error("Expected conflicted Errand refusal");
+  for (const conflict of disputed.conflicts) expect(refused.reason).toContain(JSON.stringify(conflict));
+  expect(refused.reason).toMatch(/resolve.*retry/iu);
+  expect(lifecycleSuccess(await h.store.version())).toBe(version);
+  expect(lifecycleSuccess(await h.store.read({ reference: disputed.reference }))).toEqual(disputed);
+  lifecycleSuccess(await h.store.write({ action: "put", reference: disputed.reference, expected: disputed.version,
+    content: disputed.content, placement: { kind: "active" }, links: disputed.links, resolves: disputed.conflicts,
+    provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
+  expect(await perform()).toMatchObject({ kind: operation === "read" ? "ready" : "applied" });
+});
 it("creates an owned active Errand with its repository-qualified branch and companion in one batch", async () => {
   const h = createLifecycleHarness(), batch = vi.spyOn(h.store, "batch");
   const owner = OwnerIdentitySchema.parse({ type: "work-item", name: "fix-it" });

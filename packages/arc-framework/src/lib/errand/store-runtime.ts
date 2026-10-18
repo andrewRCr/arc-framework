@@ -75,7 +75,11 @@ async function readBasis(options: ErrandStoreOptions, slug: string, claimId?: st
     : { kind: "refused", reason: formatRefusal(found.refusal) };
   const read = await options.store.read({ reference: found.result.reference });
   if (read.status === "refused") return { kind: "refused", reason: formatRefusal(read.refusal) };
-  const saved = read.result;
+  return decodeBasis(read.result, slug, options.identity, completed);
+}
+function decodeBasis(saved: StoreRecord, slug: string, identity: string, completed: boolean): Basis {
+  const conflict = errandConflict(saved);
+  if (conflict !== null) return conflict;
   if (saved.reference.kind !== "work-item/record") return { kind: "refused", reason: `The slug ${slug} belongs to a work unit; choose another Errand slug.` };
   if (saved.placement?.kind !== "active" && !(completed && saved.placement?.kind === "completed")) return { kind: "ready", saved: null, record: null };
   const decoded = deserializeTransientIdentityRecord(saved.content, saved.reference.owner.name);
@@ -84,7 +88,7 @@ async function readBasis(options: ErrandStoreOptions, slug: string, claimId?: st
   }
   const record = decoded.record;
   if (record.owner === undefined) return { kind: "refused", reason: `Malformed Errand record ${slug}: owner is missing. Repair its owner, then retry.` };
-  if (record.owner !== options.identity) return { kind: "refused", reason: `Errand ${slug} is owned by ${record.owner}. Choose another slug for a new Errand.` };
+  if (record.owner !== identity) return { kind: "refused", reason: `Errand ${slug} is owned by ${record.owner}. Choose another slug for a new Errand.` };
   return { kind: "ready", saved, record };
 }
 async function applyTransform(options: ErrandStoreOptions, slug: string, basis: Extract<Basis, { kind: "ready" }>,
@@ -100,12 +104,22 @@ async function applyTransform(options: ErrandStoreOptions, slug: string, basis: 
   const written = await options.store.batch({ writes: [mutation, ...(options.companionWrites ?? [])],
     provenance: { verb: options.provenanceVerb ?? "errand", lifecycleAction: retirement === undefined ? "update" : "retire" } });
   if (written.status === "ok") return { kind: "applied", value: decision.value, tip: "store" };
-  if (written.refusal.code === "version-conflict") {
-    const reread = await options.store.read({ reference });
-    if (reread.status === "ok" && agrees(reread.result, content, placement.kind, links)) return { kind: "idempotent", value: decision.value, tip: null };
-    return { kind: "refused", reason: `Identity '${slug}' changed before the requested transition` };
-  }
+  if (written.refusal.code === "version-conflict") return rereadExpectedMutation(options.store, slug,
+    { reference, content, placement: placement.kind, links }, decision.value);
   return { kind: "refused", reason: formatRefusal(written.refusal) };
+}
+async function rereadExpectedMutation(store: Store, slug: string,
+  expected: { reference: StoreRecord["reference"]; content: string; placement: string; links: Links | undefined },
+  value: OrdinaryErrandRecord | null): Promise<IdentityTransactionOutcome<OrdinaryErrandRecord | null>> {
+  const reread = await store.read({ reference: expected.reference });
+  const conflict = reread.status === "ok" ? errandConflict(reread.result) : null;
+  if (conflict !== null) return conflict;
+  if (reread.status === "ok" && agrees(reread.result, expected.content, expected.placement, expected.links)) return { kind: "idempotent", value, tip: null };
+  return { kind: "refused", reason: `Identity '${slug}' changed before the requested transition` };
+}
+function errandConflict(saved: StoreRecord): Extract<Basis, { kind: "refused" }> | null {
+  return saved.conflicts.length === 0 ? null : { kind: "refused", reason:
+    `The Errand primary has unresolved conflicts: ${saved.conflicts.map(reference => JSON.stringify(reference)).join(", ")}. Resolve the named conflict records, then retry the Errand command.` };
 }
 function transactionFailure(failure: Extract<Basis, { kind: "refused" | "error" }>): IdentityTransactionOutcome<never> {
   return failure.kind === "error" ? { ...failure, stage: "basis" } : failure;
