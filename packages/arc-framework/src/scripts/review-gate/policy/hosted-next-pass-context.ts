@@ -18,6 +18,7 @@ export async function deriveHostedNextPassContext(input: {
   readonly progress?: readonly LaneProgressProjection[];
   readonly predecessorId?: string;
   readonly standardReview: StandardReviewObligationProjection;
+  readonly configuredSources: readonly string[];
   readonly evidence: Pick<EvidenceBoundReviewPolicyDependencies,
     "resultReader" | "dispositionStore" | "readResponsePerformance" | "confirmIncrementalApplicability">;
   readonly candidate?: CandidateManagedRecordV1;
@@ -37,6 +38,8 @@ export async function deriveHostedNextPassContext(input: {
     currentLineage: input.lineage ?? predecessor?.admission.lineage ?? { kind: "head-bound", vehicleKind: "review-target",
       vehicleIdentity: input.target.targetId, headSha: input.target.headSha },
     standardReview: input.standardReview, resultReader: input.evidence.resultReader,
+    rangeProof: { cwd: input.cwd, exec: input.exec },
+    deltaAdmission: { sources: input.configuredSources, surface: "ordinary" },
     dispositionStore: input.evidence.dispositionStore,
     readResponsePerformance: input.evidence.readResponsePerformance ?? (() => Promise.resolve(null)),
     confirmApplicability: input.evidence.confirmIncrementalApplicability,

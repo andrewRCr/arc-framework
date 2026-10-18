@@ -6,6 +6,24 @@ import { coverageSelectionChoices, type HostedReservationDischarge, type Increme
 import type { IncrementalReviewScope } from "../core/incremental-review-scope.js";
 import type { DeliveryReviewMemberVehicle } from "../../../lib/delivery/review-vehicle.js";
 import { reviewStatusRouteCommand, type ReviewStatusRoute } from "../status-route.js";
+import type { StandardReviewObligationProjection } from "./standard-review-projection-schema.js";
+
+/** Request a singleton's proven delta without retaining the earlier review or its source selection. */
+export function projectHostedDeltaCheck(input: {
+  readonly sources: readonly string[];
+  readonly retrigger: StandardReviewObligationProjection["retrigger"];
+  readonly nextPassContext?: ReviewNextPassContext;
+  readonly currentHeadSha: string;
+  readonly vehicle?: DeliveryReviewMemberVehicle;
+}): HostedReservationDischarge | null {
+  const context = input.nextPassContext;
+  if (input.vehicle !== undefined || input.retrigger !== "incremental" || context?.convergence !== "converged"
+    || context.responseDue || context.incremental?.basis !== "delta-check"
+    || context.incremental.scope.headSha !== input.currentHeadSha || !input.sources.includes("delegated-agent")) return null;
+  return { discharged: false, nextSource: "delegated-agent", requestCoverage: "incremental",
+    correctionScope: context.incremental.scope,
+    detail: "The plain commit requires a local delta check of its proven range." };
+}
 
 /** Compose a status-owned choice only for the shared next-pass context's exact proven fix scope. */
 export function projectHostedCorrectionCoverageSelection(input: {

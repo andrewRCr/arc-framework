@@ -45,6 +45,8 @@ import { createPrePublicationCompositionDependencies } from "../../src/scripts/r
 import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "../../src/scripts/review-gate/policy/standard-review.js";
 import { approvedRecord } from "../fixtures/review-response-proof.js";
 import { makeGitExec } from "../helpers/integration.js";
+import { createIntegrationCheckpointDependencies } from "../../src/scripts/integration/checkpoint-composition.js";
+import { handleCandidateApplicabilityResolve } from "../../src/handlers/candidate.js";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
 
 const roots: string[] = [];
@@ -319,6 +321,90 @@ async function publishedSingletonFix() {
 }
 
 describe("pre-publication correction confirmation", () => {
+  it("keeps a moved delivery member at its applicability stop without a delta check", async () => {
+    const fixture = await candidateFix(false, true);
+    const { cwd, exec, git, current, base, candidate } = fixture;
+    if (current.kind !== "hosted" || current.vehicle === undefined || candidate === null) throw new Error("expected member review");
+    await writeFile(join(cwd, "source.ts"), "export const value = 3;\n");
+    await git("commit", "-am", "move reviewed member");
+    const headSha = await git("rev-parse", "HEAD");
+    const vehicle = { ...current.vehicle, head: headSha };
+    const { obligation, reasons, rubricVersion, rubricDigest, retrigger, count } = current.requirement;
+    const reservation = createStandardReviewReservation({ candidateId: candidate.attestation.candidateId,
+      sourceId: "coderabbit-pr", sources: ["coderabbit-pr", "delegated-agent"],
+      target: { kind: "delivery", repository: "owner/repo", workUnitId: vehicle.workUnitId, planId: vehicle.planId },
+      obligation: { obligation, reasons, rubricVersion, rubricDigest, retrigger, count } });
+    const discharge = createHostedReservationDischargeReader({ cwd, exec,
+      delivery: { resolveDischargeTargets: async () => ({ status: "resolved", targets: [{ ...vehicle,
+        position: 1, memberCount: 1, chunkKey: vehicle.deliverableId, title: "Member", ref: "refs/heads/feat/example",
+        providerId: "github", changeRequestId: "42", base, head: headSha }] }) },
+      host: { readRequest: async (repository, binding) => ({ status: "observed", request: { binding, repository,
+        headRepository: repository, headRef: "feat/example", headSha, baseRef: "main", state: "open", draft: false } }) },
+    });
+    const result = await discharge({ reservation, baseRevision: base, approvedHead: headSha, vehicle, candidate,
+      changeRequest: { repository: "owner/repo", pullRequest: 42 } });
+    expect(result).toMatchObject({ discharged: false, nextSource: null, applicability: { state: "decision-required" } });
+    expect(result.correctionScope).toBeUndefined();
+  });
+
+  it.each([false, true])("keeps the published singleton's plain-commit cadence with full-final=%s", async fullFinal => {
+    const fixture = await candidateFix(true, false, true, false, fullFinal);
+    const { cwd, exec, git, current, base } = fixture;
+    if (current.kind === "frontline" || fixture.candidate === null) throw new Error("expected Candidate review");
+    await writeFile(join(cwd, "source.ts"), "export const value = 3;\n");
+    await git("commit", "-am", "plain successor after convergence");
+    const checkpoint = createIntegrationCheckpointDependencies({ cwd, exec });
+    const decision = await checkpoint.readCandidate("example", base);
+    if (decision === null || !("state" in decision) || decision.state !== "decision-required") {
+      throw new Error("expected Candidate applicability decision");
+    }
+    const selector = await checkpoint.composeCandidateApplicabilityResolutionSelector("example", decision);
+    const selected = await runHandlerAt(cwd, () => handleCandidateApplicabilityResolve("example", "-", undefined, {
+      readText: async () => JSON.stringify({ ...selector, selectedBy: "andrew", choice: "covered" }),
+    }));
+    expect(selected.exitCode, selected.stderr || selected.stdout).toBe(0);
+    expect(JSON.parse(selected.stdout)).toMatchObject({ state: "resolved", nextAction: "commit-selection" });
+    await git("commit", "-m", "record applicability selection");
+    const candidate = (await readCandidateRecordVersioned(cwd, "example")).record;
+    if (candidate === null) throw new Error("expected advanced Candidate");
+    const { obligation, reasons, rubricVersion, rubricDigest, retrigger, count } = current.requirement;
+    const reservation = createStandardReviewReservation({ candidateId: candidate.attestation.candidateId,
+      sourceId: "codex-pr", sources: ["codex-pr", "delegated-agent"],
+      target: { kind: "pinned-head", repository: "owner/repo", headSha: current.target.headSha },
+      obligation: { obligation, reasons, rubricVersion, rubricDigest, retrigger, count } });
+    const headSha = await git("rev-parse", "HEAD");
+    const discharge = createHostedReservationDischargeReader({ cwd, exec, host: {
+      readRequest: async (repository, binding) => ({ status: "observed", request: { binding, repository,
+        headRepository: repository, headRef: "feat/example", headSha, baseRef: "main", state: "open", draft: false } }),
+    } });
+    const args = { reservation, baseRevision: base, approvedHead: headSha,
+      changeRequest: { repository: "owner/repo", pullRequest: 42 }, candidate };
+    await expect(discharge.confirmCurrentIncrementalApplicability(args, current)).resolves.toBe("range-proven");
+    const required = await discharge(args);
+    if (fullFinal) {
+      expect(required).toMatchObject({ discharged: false, nextSource: null,
+        applicability: { state: "decision-required" } });
+      expect(required.correctionScope).toBeUndefined();
+      return;
+    }
+    expect(required)
+      .toMatchObject({ discharged: false, nextSource: "delegated-agent", requestCoverage: "incremental",
+        correctionScope: { predecessorProducerId: current.producerId, predecessorHeadSha: current.target.headSha, headSha } });
+    const output: string[] = []; const exits: number[] = [];
+    await handleReviewLocalPrepare("-", { resolveRoot: () => cwd,
+      readText: async () => JSON.stringify({ schemaVersion: 1, evaluatorIdentity: "independent-reviewer",
+        routingFacts: { contentKind: "code-bearing", reviewRisk: "routine", changeDeterminacy: "ordinary",
+          ownership: "self", surfaceAuthority: "ordinary" } }),
+      prepare: input => prepareLocalReview(input, createLocalPrepareDependencies({ cwd, exec })),
+      write: text => output.push(text), setExitCode: code => exits.push(code) });
+    expect(exits, output.join("")).toEqual([]);
+    const prepared = LocalPrepareEnvelopeSchema.parse(JSON.parse(output.join("")));
+    if (prepared.state !== "ready") throw new Error("expected singleton delta preparation");
+    expect(prepared.payload.reviewerPayload.correctionScope?.predecessorProducerId).toBe(current.producerId);
+    await inProcessReview.attest(cwd, localReviewResult(prepared.payload, "singleton-delta", []));
+    await expect(discharge(args)).resolves.toMatchObject({ discharged: true, nextSource: null });
+  });
+
   it("proves an open-PR Candidate fix leg without carrying the earlier review", async () => {
     const { dependencies, predecessor, current } = await candidateFix();
     const target = { repository: "owner/repo", pullRequest: 42, headSha: current.target.headSha };

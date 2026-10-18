@@ -1,6 +1,5 @@
 /** Shared support for hosted-review reservation discharge. */
-import { confirmReviewCorrectionLeg } from "./review-next-pass.js";
-import type { PerformedResponseProofInput } from "./performed-response-proof.js";
+import { confirmReviewCorrectionLeg, type ReviewCorrectionLegInput } from "./review-next-pass.js";
 import { deriveHostedReviewTarget } from "./hosted-review-target.js";
 
 import type { ReviewStatusRoute } from "../status-route.js";
@@ -52,6 +51,16 @@ export type EarlierApplicableAttempt = Extract<
   EarlierHostedAttemptApplicabilityRead,
   { status: "complete" }
 >["attempts"][number];
+
+/** Refuse inconsistent current and retained terminal evidence for the same logical pass. */
+export function projectConflictingHostedTerminalPass(
+  latest: ProjectedLaneAttempt | undefined, retained: readonly EarlierApplicableAttempt[],
+): HostedReservationDischarge | null {
+  return latest !== undefined && retained.some(attempt => attempt.logicalPass === latest.logicalPass
+    && (attempt.attemptId !== latest.attemptId || attempt.outcome !== latest.outcome))
+    ? { discharged: false, detail: "The latest logical pass contains conflicting current and retained terminal review evidence.",
+      nextSource: null } : null;
+}
 
 function isCompleteCleanCoverage(attempt: EarlierApplicableAttempt): boolean {
   return attempt.outcome === "clean"
@@ -163,7 +172,7 @@ export async function confirmIncrementalPredecessorApplicability(input: {
   readonly readEarlierAttemptApplicability?: (
     sourceId: string,
   ) => Promise<EarlierHostedAttemptApplicabilityRead>;
-} & Pick<PerformedResponseProofInput, "dispositionStore" | "readResponsePerformance" | "candidateProof">): Promise<IncrementalPredecessorApplicability> {
+} & Pick<ReviewCorrectionLegInput, "dispositionStore" | "readResponsePerformance" | "candidateProof" | "rangeProof">): Promise<IncrementalPredecessorApplicability> {
   const { predecessor, current } = input;
   const scope = current.admission.correctionScope;
   if (scope === undefined

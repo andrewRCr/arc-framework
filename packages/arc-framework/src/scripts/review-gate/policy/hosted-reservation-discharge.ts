@@ -1,5 +1,5 @@
 /** Discharge evidence for a hosted-review reservation carried across publication. */
-import { confirmHostedCurrentCorrection } from "./hosted-correction-proof.js";
+import { composeHostedCorrectionProof, confirmHostedCurrentCorrection } from "./hosted-correction-proof.js";
 import { createHostedApplicabilityContext } from "./hosted-applicability-context.js";
 import { deriveHostedReviewTarget } from "./hosted-review-target.js";
 import { deriveHostedNextPassContext } from "./hosted-next-pass-context.js";
@@ -46,7 +46,7 @@ import {
   resolveIncrementalCorrectionScope as resolveVerifiedIncrementalCorrectionScope,
   type IncrementalPredecessorApplicability,
 } from "./incremental-coverage-basis.js";
-import { projectHostedConvergedComplete, projectHostedCorrectionCoverageSelection, projectHostedCorrectionDefault } from "./hosted-coverage-selection.js";
+import { projectHostedConvergedComplete, projectHostedCorrectionCoverageSelection, projectHostedCorrectionDefault, projectHostedDeltaCheck } from "./hosted-coverage-selection.js";
 import type { ReviewNextPassContext } from "./review-next-pass-schema.js";
 import type { ReviewStatusRoute } from "../status-route.js";
 
@@ -62,6 +62,7 @@ import {
   HostedReservationRequestAttempt,
   PendingFindingRoute,
   projectPendingFindings,
+  projectConflictingHostedTerminalPass,
   projectSelectedOwnerDischarge,
   selectedOwnerCleanAttempt,
   retainedOwnerCleanAttempt,
@@ -246,12 +247,8 @@ export async function projectHostedReservationDischarge(input: {
       : input.requireEarlierApplicabilityEvidence === true;
     return earlier?.status === "complete" ? earlier.attempts.length > 0 : earlier?.status === "not-found" && !required;
   });
-  if (latestTerminal !== undefined && retainedTerminals.some((attempt) =>
-    attempt.logicalPass === latestTerminal.logicalPass
-      && (attempt.attemptId !== latestTerminal.attemptId || attempt.outcome !== latestTerminal.outcome))) return {
-    discharged: false, detail: "The latest logical pass contains conflicting current and retained terminal review evidence.",
-    nextSource: null,
-  };
+  const terminalConflict = projectConflictingHostedTerminalPass(latestTerminal, retainedTerminals);
+  if (terminalConflict !== null) return terminalConflict;
   const retainedFindingsBeforeRequest = async (): Promise<HostedReservationDischarge | null> => {
     if (input.readEarlierAttemptApplicability === undefined) return null;
     const routes: PendingFindingRoute[] = [];
@@ -406,6 +403,10 @@ export async function projectHostedReservationDischarge(input: {
   if (currentTerminalIsLatest && selectedClean !== undefined && selectedCleanValidated) {
     return projectSelectedOwnerDischarge(selectedClean, await retainedFindingsBeforeRequest());
   }
+  const delta = projectHostedDeltaCheck({ sources: reservation.sources, retrigger: reservation.obligation.retrigger,
+    nextPassContext: input.nextPassContext, currentHeadSha: target.headSha, vehicle: target.vehicle });
+  if (delta !== null) return await retainedFindingsBeforeRequest() ?? { ...delta, completedPasses, requestAttempts: [],
+    ...(input.invocation === undefined ? {} : { invocation: input.invocation }) };
   const orderedLogicalPass = Math.max(latestTerminal?.logicalPass ?? 0, retainedTerminalLogicalPass) || activeLogicalPass;
   for (const sourceId of requestSources) {
     const orderedSourceAttempts = currentAttemptHistory.filter((attempt) => (
@@ -613,13 +614,9 @@ export function createHostedReservationDischargeReader(input: {
     createHostedApplicabilityContext({ ...input, store, dispositions, repositoryId, rawExec, args });
 
   const correctionProof = (args: Pick<HostedReservationDischargeReaderArgs,
-    "candidate" | "approvedHead" | "baseRevision" | "vehicle">, target: ReviewResult["target"]) => ({
-    dispositionStore: dispositions,
-    readResponsePerformance: (result: ReviewResult) => readLaneResponsePerformance(store, result),
-    candidateProof: { candidate: args.candidate ?? null, ...input, baseRef: target.baseRef,
-      observeTarget: () => deriveHostedReviewTarget({ ...input, currentRepositoryId: target.repositoryId,
-        approvedHeadSha: args.approvedHead, baseRevision: args.baseRevision, vehicle: args.vehicle }) },
-  });
+    "candidate" | "approvedHead" | "baseRevision" | "vehicle">, target: ReviewResult["target"]) =>
+    composeHostedCorrectionProof({ ...input, dispositionStore: dispositions,
+      readResponsePerformance: result => readLaneResponsePerformance(store, result) }, args, target);
 
   const readTarget = async ({
     reservation,
@@ -758,6 +755,7 @@ export function createHostedReservationDischargeReader(input: {
       });
     };
     const nextPassInputs = { target: currentTarget, lineage, standardReview: reservation.obligation,
+      configuredSources: reservation.sources,
       evidence: { resultReader, dispositionStore: dispositions, readResponsePerformance, confirmIncrementalApplicability },
       candidate, cwd: input.cwd, exec: input.exec, observeTarget: observeCurrentTarget,
       confirmCurrentApplicability: (predecessor: ReviewResult, target: ReviewResult["target"]) => confirmHostedCurrentCorrection({

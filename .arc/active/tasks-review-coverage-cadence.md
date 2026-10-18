@@ -550,29 +550,10 @@ the range proof. Workflow text changes in the package's `arc/` source first, the
   invocation recovered from an earlier pass; under `full-final` the stop is unchanged, and status refuses a `--coverage`
   it cannot carry to the singleton's local pass.
 
-    - `[ ]` **3.7.a Leave the stop branch for the delta check**
-        - Today the discharge stops at `projectEarlierReviewApplicability` (`earlier-review-applicability.ts`) before
-          coverage or the ceiling is read: `decision-required` maps to `stop` (`reviewApplicabilityConsumerAction`), and
-          status composes `resolve-review-applicability` from the discharge's `applicability` (`status.ts`). Where the
-          earlier terminal converged and the range proof holds, the discharge instead requests `delegated-agent` —
-          whichever stop the plain commit's classification would raise, `decision-required` or an unbounded or
-          unavailable one, since the delta check reviews the range itself — with the correction scope its
-          `confirmCurrentApplicability` resolves.
-        - The discharge's confirmations (`confirmCurrentApplicability`, `confirmIncrementalPredecessorApplicability`)
-          test the range proof directly through the chain proof, never through the earlier-attempt read that maps a
-          retained attempt to `applicable` (`incrementalApplicabilityFromEarlierRead`). The request carries no invocation
-          recovered from an earlier attempt (`retainedOwnerCleanAttempt`, `hosted-reservation-support.ts`) and no source
-          list cut from one (`configuredSourceSuffix`, `hosted-reservation-admission.ts`); the earlier attempt is never
-          retained, and `covered` is not offered for a plain commit.
-        - A converged delta check settles the lane, since the discharge takes no additional-pass authorization
-          (`HostedReservationDischargeReaderArgs`); under `full-final` the stop is unchanged.
-        - Build `test-first` (one behavior at a time):
-            - Under `incremental`, a plain commit after a converged look requests a `delegated-agent` delta check, a
-              commit whose residual is unbounded included.
-            - A converged delta check discharges the singleton.
-            - An earlier pass's forced hosted source neither reaches the driver nor drops `delegated-agent`.
-            - Under `full-final`, the review-applicability stop returns.
-            - A moved delivery member still meets the review-applicability stop with no delta check.
+    - `[x]` **3.7.a Leave the stop branch for the delta check**
+        - Singleton discharge requests the proven local delta across bounded, unbounded, and unavailable residual
+          classifications, using the full source list and no recovered invocation. Current and historical checks bind
+          the shared range proof directly; the delta closes its lane while `full-final` and delivery keep their stops.
 
     - `[ ]` **3.7.b Refuse a `--coverage` status cannot carry**
         - Where status routes the singleton to its local prepare request (Task 2.5.a), it refuses a supplied
