@@ -3,14 +3,20 @@
   "slug": "guard-verification-review",
   "claimId": "e1479167afd1afd2994a0709f7533ad3",
   "createdAt": "2026-10-18T19:43:54.755Z",
-  "updatedAt": "2026-10-18T19:43:54.755Z",
+  "updatedAt": "2026-10-18T21:24:07.602Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Resolve verification scale before independent review, allow ready chunk concurrency, and prevent recursive orchestration and redundant rereview while preserving exact targets and honest incomplete results.",
   "branch": "chore/guard-verification-review",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/guard-verification-review",
+    "headSha": "7711e3c2b87f0fb042a341406f51b4229573db9e"
+  }
 }
