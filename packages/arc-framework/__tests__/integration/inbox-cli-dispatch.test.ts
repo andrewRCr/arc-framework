@@ -152,9 +152,9 @@ it("mints a text description and links a project capture beside it from register
   const h = await lifecycleFixture("full");
   expect(await invokeRegistered(h, ["errand", "open", "cli-linked", "--intent", "Free typed text", "--json"])).toMatchObject({ result: { outcome: "applied", identity: { origin: "description", originEntry: null } } });
   const initial = await listInbox({ list: "cli-linked" }, h.h.context);
-  expect(initial).toMatchObject({ entries: [{ title: "Free typed text", id: expect.stringMatching(/^[a-f0-9]{8}$/u) }] });
+  expect(initial).toMatchObject({ entries: [{ title: "cli-linked", raw: expect.stringContaining("Free typed text"), id: expect.stringMatching(/^[a-f0-9]{8}$/u) }] });
   expect(await invokeRegistered(h, ["errand", "link", "cli-linked", "--from-inbox", "project:12345678", "--json"])).toMatchObject({ result: { outcome: "applied", identity: { originEntry: "project:12345678", originEntrySourceDigest: null } } });
-  expect(await listInbox({ list: "cli-linked" }, h.h.context)).toMatchObject({ entries: [{ title: "Free typed text" }, { id: "12345678", fields: { Created: "2026-01-01" } }] });
+  expect(await listInbox({ list: "cli-linked" }, h.h.context)).toMatchObject({ entries: [{ title: "cli-linked", raw: expect.stringContaining("Free typed text") }, { id: "12345678", fields: { Created: "2026-01-01" } }] });
   expect(await listInbox({ list: "project" }, h.h.context)).toMatchObject({ entries: [] });
   expect((await h.exec("git", ["branch", "--show-current"])).stdout.trim()).toBe("chore/cli-linked");
   expect((await h.exec("git", ["rev-parse", "HEAD"])).stdout).toBe(h.before);
@@ -201,4 +201,33 @@ it("closes an unchanged full Errand without removing a later inbox entry of the 
   expect((await h.exec("git", ["rev-parse", "HEAD"])).stdout).toBe(h.before);
   const ref = success(await h.h.context.store.lookup({ kind: "slug", slug: SlugSchema.parse("cli-close") }));
   expect(success(await h.h.context.store.read({ reference: ref.reference }))).toMatchObject({ placement: { kind: "completed" } });
+}, 30000);
+
+it.each(["full", "partial"] as const)("preserves the queue remedy and resumable evidence during %s close refusal, then retries", async protection => {
+  const h = await lifecycleFixture(protection), slug = "queue-refusal";
+  await addBareRemote(h.cwd);
+  await h.exec("git", ["push", "-u", "origin", "main"]);
+  expect(await invokeRegistered(h, ["errand", "open", slug, "--from-inbox", "project:12345678", "--json"]))
+    .toMatchObject({ result: { outcome: "applied" } });
+  const branch = (await h.exec("git", ["branch", "--show-current"])).stdout;
+  const beforeRefusal = await h.h.context.store.version();
+  const read = h.h.context.store.read.bind(h.h.context.store);
+  let broken = true;
+  h.h.context.store.read = input => broken && input.reference.kind === "personal/errand-queue"
+    ? Promise.resolve({ status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: "personal",
+      condition: "Execution queue is unavailable.", remedy: { text: "Restore the queue namespace and retry close." } } }) : read(input);
+  const refused = await invokeRegistered(h, ["errand", "close", slug, "--json"]);
+  expect(JSON.stringify(refused.result)).toContain("Execution queue is unavailable.");
+  expect(JSON.stringify(refused.result)).toContain("Restore the queue namespace and retry close.");
+  expect(await readWorktreeMarker(h.cwd)).toMatchObject({ kind: "present" });
+  expect((await h.exec("git", ["branch", "--show-current"])).stdout).toBe(branch);
+  if (protection === "full") {
+    expect(await h.h.context.store.version()).toEqual(beforeRefusal);
+    const selected = success(await h.h.context.store.lookup({ kind: "slug", slug: SlugSchema.parse(slug) }));
+    expect(success(await read({ reference: selected.reference }))).toMatchObject({ fields: { state: "open" } });
+  }
+  broken = false;
+  const retried = await invokeRegistered(h, ["errand", "close", slug, "--json"]);
+  expect(retried, JSON.stringify(retried.result)).toMatchObject({ result: { outcome: "applied" } });
+  expect(await readWorktreeMarker(h.cwd)).toEqual({ kind: "absent" });
 }, 30000);

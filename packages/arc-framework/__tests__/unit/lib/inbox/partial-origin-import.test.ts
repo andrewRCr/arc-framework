@@ -56,3 +56,22 @@ it.each(["\n", "\r\n"])("retains ambiguous historical titles without removing ei
   expect(success(await h.context.store.version())).toBe(before);
   expect(await listInbox({ list: "personal" }, h.context)).toMatchObject({ entries: [{ title: "Outer **inner** tail" }, { title: "Outer **other** ending" }] });
 });
+
+it.each(["capture", "queue"])("retains the provider condition and remedy when partial %s settlement refuses, then retries", async boundary => {
+  const h = createInboxHarness(); await h.inbox("personal");
+  const listed = await listInbox({ list: "personal" }, h.context);
+  if (listed.state === "refused" || !listed.entries[0]) throw new Error("No partial capture");
+  const row = listed.entries[0], read = h.context.store.read.bind(h.context.store);
+  let broken = true;
+  h.context.store.read = input => broken && input.reference.kind === (boundary === "capture" ? "personal/inbox" : "personal/errand-queue")
+    ? Promise.resolve({ status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: "personal",
+      condition: "Capture state needs repair.", remedy: { text: "Restore the personal namespace, then retry this close." } } }) : read(input);
+  const binding = { originEntry: boundary === "capture" ? `personal:${row.id}` : null,
+    originEntryVersion: row.version, parentCheckoutPath: null };
+  const before = success(await h.context.store.version());
+  expect(await settleStorePartialCapture(binding, h.context)).toMatchObject({ outcome: { kind: "refused",
+    reason: "Capture state needs repair. Restore the personal namespace, then retry this close." } });
+  expect(success(await h.context.store.version())).toBe(before);
+  broken = false;
+  expect(await settleStorePartialCapture(binding, h.context)).toMatchObject({ outcome: { kind: boundary === "capture" ? "applied" : "idempotent" } });
+});

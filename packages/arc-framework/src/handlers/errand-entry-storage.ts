@@ -63,9 +63,9 @@ export async function prepareHandlerErrandReturn(slug: string, protection: "full
  */
 export async function settleStorePartialCapture(binding: { originEntry: string | null; originEntryVersion?: string; originEntrySourceDigest?: string; parentCheckoutPath: string | null }, context: InboxContext, legacyDigest: (content: string, title: string, expectedDigest?: string) => string = legacyInboxEntryDigest) {
   const removed = await removePartialOrigin(binding, context, legacyDigest);
-  if (removed.status === "refused") return { outcome: { kind: "refused" as const, reason: removed.refusal.condition }, disposition: "retained" as const, offer: null };
+  if (removed.status === "refused") return { outcome: { kind: "refused" as const, reason: `${removed.refusal.condition} ${removed.refusal.remedy.text}` }, disposition: "retained" as const, offer: null };
   const offer = await resolveQueueExecutionOffer(context, binding.parentCheckoutPath);
-  if (offer.status === "refused") return { outcome: { kind: "refused" as const, reason: offer.refusal.condition }, disposition: removed.result.disposition, offer: null };
+  if (offer.status === "refused") return { outcome: { kind: "refused" as const, reason: `${offer.refusal.condition} ${offer.refusal.remedy.text}` }, disposition: removed.result.disposition, offer: null };
   return { outcome: { kind: removed.result.disposition === "removed" ? "applied" as const : "idempotent" as const, nextOffer: offer.result.nextOffer }, disposition: removed.result.disposition, offer: offer.result };
 }
 

@@ -15,6 +15,7 @@
 
 import { runStoreErrandOverlap } from "../lib/errand/store-overlap.js";
 import { resolveQueueExecutionOffer, QueueOfferProblemSchema, type QueueExecutionOffer } from "../lib/inbox/offer.js";
+import { formatErrandQueueReport } from "./errand-queue-report.js";
 import { prepareHandlerErrandAdoption, completePartialQueueDrop, prepareHandlerErrandReturn, settleStorePartialCapture, reportPriorErrand } from "./errand-entry-storage.js";
 import { prepareErrandReturn } from "../lib/inbox/errand-return.js";
 import { restoreErrandInboxOrigin, type ErrandInboxOrigin } from "../lib/errand/inbox-origin.js";
@@ -283,7 +284,7 @@ export function formatErrandNextResult(
   }
   return {
     stream: result.state === "refused" ? "stderr" : "stdout",
-    text: result.recommendedPromptText,
+    text: formatErrandQueueReport(result),
     exitCode: result.state === "refused" ? 1 : 0,
   };
 }
@@ -370,7 +371,7 @@ function formatTerminalResult(
   const success = result.outcome === "applied" || result.outcome === "idempotent";
   return {
     stream: json || success ? "stdout" : "stderr",
-    text: json ? `${JSON.stringify(result)}\n` : result.recommendedPromptText,
+    text: json ? `${JSON.stringify(result)}\n` : formatErrandQueueReport(result),
     exitCode: success ? 0 : 1,
   };
 }
@@ -1450,12 +1451,16 @@ async function runErrandCloseHandler(
         readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec }),
         confirmForeignGeneration: opts.confirmForeignGeneration,
         onAuthority: (authority) => { observedAuthority = authority; },
+        ...(store.capabilities.stateOffBranch ? { prepareInbox: async (parentCheckoutPath: string | null) => {
+          const offer = await resolveQueueExecutionOffer(inboxContext, parentCheckoutPath);
+          if (offer.status === "refused") return { kind: "refused" as const, reason: `${offer.refusal.condition} ${offer.refusal.remedy.text}` };
+          queueReport.value = offer.result;
+          return { kind: "ready" as const };
+        } } : {}),
         removeInbox: async (record, parentCheckoutPath, settlementCheckoutPath) => {
           if (store.capabilities.stateOffBranch) {
-            const offer = await resolveQueueExecutionOffer(inboxContext, parentCheckoutPath);
-            if (offer.status === "refused") return { kind: "refused", reason: offer.refusal.condition };
-            queueReport.value = offer.result;
-            return { kind: "absent", nextOffer: offer.result.nextOffer };
+            if (queueReport.value === null) return { kind: "error", message: "The close queue offer was not prepared before cleanup." };
+            return { kind: "absent", nextOffer: queueReport.value.nextOffer };
           }
 
           const inboxCwd = settlementCheckoutPath ?? parentCheckoutPath ?? cwd;

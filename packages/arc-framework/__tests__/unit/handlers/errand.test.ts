@@ -8,8 +8,22 @@ import {
   formatErrandNextResult,
 } from "../../../src/handlers/errand.js";
 import { createErrandTerminalResult } from "../../../src/lib/errand/terminal-result.js";
+import { digestBytes } from "../../../src/lib/kernel/canonical/canonical-json.js";
+
+const queueProblems = {
+  leftOut: [{ inbox: "personal" as const, id: "12345678", reason: "The capture moved.", remedy: { text: "Select its current home." } }],
+  skipped: [{ inbox: "project" as const, id: "87654321", reason: "The entry has a conflict.", remedy: { text: "Resolve the disputed prose." } }],
+};
+const problemText = "Left out personal:12345678: The capture moved. Select its current home.\n"
+  + "Skipped project:87654321: The entry has a conflict. Resolve the disputed prose.";
 
 describe("arc errand next result", () => {
+  it.each([false, true])("renders qualified queue problems with an available offer=%s and preserves JSON", available => {
+    const result = buildErrandNextResult({ kind: "resolved", ...queueProblems,
+      nextOffer: available ? { kind: "errand", key: "personal:11111111", parentCheckoutPath: null } : null });
+    expect(formatErrandNextResult(result, false).text).toBe(`${result.recommendedPromptText}\n${problemText}`);
+    expect(JSON.parse(formatErrandNextResult(result, true).text)).toEqual(result);
+  });
   it("preserves the queue provider's repair without substituting a legacy inbox instruction", () => {
     const result = buildErrandNextResult({ kind: "refused", reason: "Queue record is conflicted", remedy: "Resolve the queue record, then retry." });
     expect(result).toMatchObject({ state: "refused", remedy: "Resolve the queue record, then retry." });
@@ -111,6 +125,14 @@ describe("buildErrandCheckJsonEnvelope", () => {
 });
 
 describe("formatErrandCloseResult", () => {
+  it("renders close queue problems while preserving the complete machine result", () => {
+    const result = createErrandTerminalResult({ outcome: "applied", operation: "errand-close", ...queueProblems,
+      subject: { kind: "partial-errand", slug: "finished", claimId: null }, generation: digestBytes(Buffer.from("partial marker")), checkoutPath: "/repo",
+      parentCheckoutPath: null, settlement: { kind: "capture", disposition: "removed", originEntry: "project:11111111" },
+      nextOffer: null, recommendedPromptText: "Closed the Errand." });
+    expect(formatErrandCloseResult(result, false)).toEqual({ stream: "stdout", exitCode: 0, text: `Closed the Errand.\n${problemText}` });
+    expect(JSON.parse(formatErrandCloseResult(result, true).text)).toEqual(result);
+  });
   it("renders the same validated result as human narration and JSON", () => {
     const result = createErrandTerminalResult({
       outcome: "refused",

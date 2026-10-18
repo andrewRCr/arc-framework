@@ -51,6 +51,10 @@ export interface CloseOrdinaryErrandRuntimeOptions extends ErrandRuntimeStorageO
   readonly readFrame: () => Promise<DerivedLocusFrame>;
   readonly confirmForeignGeneration?: string;
   readonly onAuthority?: (authority: Awaited<ReturnType<typeof authorizeErrandTerminal>>) => void;
+  /** Read-only inbox readiness after authority, before checkout or ref cleanup. */
+  readonly prepareInbox?: (parentCheckoutPath: string | null) => Promise<
+    { kind: "ready" } | Extract<CloseInboxResult, { kind: "refused" | "error" }>
+  >;
   readonly removeInbox: (
     record: OrdinaryErrandRecord,
     parentCheckoutPath: string | null,
@@ -236,6 +240,9 @@ async function readCloseOccupancy(
   if (primaryCheckoutPath === null) {
     return { kind: "refused", reason: "checkout-missing", message: "Primary checkout is unavailable." };
   }
+  const inbox = await options.prepareInbox?.(authority.parentCheckoutPath);
+  if (inbox?.kind === "refused") return { kind: "refused", reason: "identity-conflict", message: inbox.reason };
+  if (inbox?.kind === "error") return inbox;
   return {
     kind: "clear",
     settle: async (): Promise<CloseLocusSettlementResult> => {
