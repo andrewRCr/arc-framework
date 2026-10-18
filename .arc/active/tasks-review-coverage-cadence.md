@@ -543,7 +543,7 @@ the range proof. Workflow text changes in the package's `arc/` source first, the
   changed roots keep complete coverage. Pre-publication and respond re-confirm delta chains, and the exact
   additional-pass authorization survives convergence. `prepare-work-unit` names the delta and complete alternative.
 
-### `[ ]` **3.7 Request the delta check from the published singleton's discharge under `incremental` — § 3.5**
+### `[x]` **3.7 Request the delta check from the published singleton's discharge under `incremental` — § 3.5**
 
 - _Goal:_ Under `incremental`, the published singleton's discharge requests a delta check instead of the
   review-applicability stop when the earlier terminal converged and the range proof holds, carrying no source or
@@ -560,9 +560,9 @@ the range proof. Workflow text changes in the package's `arc/` source first, the
           status scope in its retry and naming local prepare's `coverageAdmission`. Omitted coverage keeps the local
           prepare action; the admission predicate is shared with action composition.
 
-    - `[ ]` **3.7.c Say so in `integrate-work-unit`**
-        - The singleton route names the delta check under `incremental` and the local complete pass as the Owner's
-          lighter alternative to re-rooting the Candidate.
+    - `[x]` **3.7.c Say so in `integrate-work-unit`**
+        - The singleton's local action names the incremental delta check and its closure, keeps the full-final
+          applicability stop, and offers a local complete pass as the lighter alternative to re-rooting.
 
 ## **Phase 4:** The next-pass offer, the lane read, and a complete pass's pointers
 

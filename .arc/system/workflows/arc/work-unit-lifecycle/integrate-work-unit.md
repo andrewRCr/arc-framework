@@ -266,6 +266,10 @@ Keep the returned member head and driver admission through preparation.
 `evaluatorIdentity` and the work-unit `routingFacts`, then submit that request to `arc review local prepare -`.
 Local prepare binds the Candidate lineage and reserved obligation from the submission boundary.
 
+Under `incremental`, a plain commit after convergence routes the singleton to the local delta check of its proven
+range; a converged delta check settles its lane. Under `full-final`, follow the returned review-applicability stop.
+Offer a local complete pass as the Owner's lighter alternative to re-rooting the Candidate.
+
 For local prepare's `coverage-required / select-coverage`, render `payload.coverageSelectionAction.interactionText`
 verbatim and recommend a listed choice.
 
