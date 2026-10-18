@@ -22,7 +22,7 @@ function input(convergence: "converged" | "unconverged") {
 describe("shared local coverage context", () => {
   it("admits complete after a converged fix check despite an earlier-head predecessor hint", () => {
     expect(resolveLocalReviewCoverageSelection(input("converged")))
-      .toEqual({ state: "ready", coverageSelected: false });
+      .toEqual({ state: "ready", coverageSelected: false, coverageAdmission: { requestedCoverage: "complete" } });
   });
   it("offers the proven fix check under full-final beside a complete pass", () => {
     const base = input("unconverged");
@@ -39,4 +39,15 @@ describe("shared local coverage context", () => {
     expect(resolveLocalReviewCoverageSelection(input("unconverged")))
       .toMatchObject({ state: "coverage-required", action: { choices: [{ requestedCoverage: "complete" }] } });
   });
+});
+
+it.each([false, true])("admits a delta check by default and honors explicit complete=%s", explicitComplete => {
+  const base = input("converged");
+  const scope = { schemaVersion: 1 as const, predecessorProducerId: "earlier-clean-producer",
+    predecessorHeadSha: "e".repeat(40), basisHeadSha: "e".repeat(40), headSha: target.headSha, requiredFindings: [] };
+  expect(resolveLocalReviewCoverageSelection({ ...base,
+    nextPassContext: { ...base.nextPassContext, incremental: { basis: "delta-check", scope } },
+    ...(explicitComplete ? { coverageAdmission: { requestedCoverage: "complete" as const } } : {}),
+  })).toEqual({ state: "ready", coverageSelected: false, coverageAdmission: explicitComplete
+    ? { requestedCoverage: "complete" } : { requestedCoverage: "incremental", correctionScope: scope } });
 });

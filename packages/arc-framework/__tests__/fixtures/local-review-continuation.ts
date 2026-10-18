@@ -1,3 +1,4 @@
+import type { LocalReviewCoverageAdmission } from "../../src/scripts/review-gate/core/local-review-coverage.js";
 import { withReviewNextPassContext } from "./review-next-pass.js";
 /** Producer-derived local retry histories and exact receipt reads. */
 
@@ -18,7 +19,7 @@ export async function createLocalContinuationFixture(scopeMode: "whole-target" |
     ? { state: "current", target }
     : { state: "stale-target", attemptedTarget: attempted, currentTarget: target };
   fixture.dependencies.validatePolicyAdmission = async ({ standardReview, completedPasses, attempts, judgment }) => ({
-    state: "ready",
+    state: "ready", coverageAdmission: { requestedCoverage: "complete" },
     pass: assertStandardReviewExecutionAdmission(withReviewNextPassContext({
       target: { repository: "owner/repository", pullRequest: null, headSha: target.headSha },
       frontlineActive: false, standardReview, completedPasses, attempts,
@@ -35,8 +36,8 @@ export async function createLocalContinuationFixture(scopeMode: "whole-target" |
     } as const,
     policyJudgment: { scopeMode },
   };
-  async function prepare(): Promise<LocalReviewState> {
-    const prepared = await prepareLocalReview(input, fixture.dependencies);
+  async function prepare(coverageAdmission?: LocalReviewCoverageAdmission): Promise<LocalReviewState> {
+    const prepared = await prepareLocalReview({ ...input, ...(coverageAdmission === undefined ? {} : { coverageAdmission }) }, fixture.dependencies);
     const state = fixture.published();
     if (prepared.state !== "ready" || state?.kind !== "local-review") throw new Error("local admission not ready");
     return state;
@@ -47,6 +48,12 @@ export async function createLocalContinuationFixture(scopeMode: "whole-target" |
     void _targetId;
     target = createReviewTarget({ ...coordinates, diffBaseSha: seed.repeat(40), diffBaseTree: seed.repeat(40) });
     return prepare();
+  }
+  async function moveHead(seed = "e", coverageAdmission?: LocalReviewCoverageAdmission): Promise<LocalReviewState> {
+    const { targetId: ignored, ...coordinates } = target;
+    void ignored;
+    target = createReviewTarget({ ...coordinates, headSha: seed.repeat(40), headTree: seed.repeat(40) });
+    return prepare(coverageAdmission);
   }
   async function conclude(state: LocalReviewState, result: "clean" | "findings" | "failed") {
     const receipt = createReviewReceipt({
@@ -81,5 +88,5 @@ export async function createLocalContinuationFixture(scopeMode: "whole-target" |
       appendOutcome: async () => { throw new Error("unexpected frontline outcome"); },
     },
   });
-  return { ...fixture, original, moveBase, prepare, conclude, resultReader, currentTarget: () => target };
+  return { ...fixture, input, original, moveBase, moveHead, prepare, conclude, resultReader, currentTarget: () => target };
 }

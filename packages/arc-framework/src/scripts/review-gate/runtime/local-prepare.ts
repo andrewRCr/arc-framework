@@ -203,7 +203,8 @@ export interface LocalPrepareDependencies {
     coverageAdmission?: LocalReviewCoverageAdmission;
     judgment?: ReviewLaneJudgment;
   }): Promise<
-    | { readonly state: "ready"; readonly pass: number; readonly incrementalBasis?: "fix-check" | "delta-check" }
+    | { readonly state: "ready"; readonly pass: number; readonly coverageAdmission: LocalReviewCoverageAdmission;
+        readonly incrementalBasis?: "fix-check" | "delta-check" }
     | {
         readonly state: "coverage-required";
         readonly action: LocalReviewCoverageSelectionAction;
@@ -270,29 +271,31 @@ function requireSharedLogicalPassCoverage(
   }
 }
 
-async function selectLocalReplayAttempt(input: PendingLocalReplayInput) {
-  const owner = await readLaneProgressOwner(input.dependencies.operationStore, {
-    lane: "standard",
-    repositoryId: input.repositoryId,
-    headSha: input.target.headSha,
-    lineage: input.lineage,
-  });
-  const pending = selectPendingLocalReplayAttempt(
-    owner?.attempts.filter((attempt) => attempt.local?.target.targetId === input.target.targetId) ?? [],
-    input.scopeMode, input.coverageAdmission,
-  );
-  if (pending.error !== null) throw new LocalPrepareCommandError(pending.error);
-  const completed = owner?.attempts
-    .filter((attempt) => completedReplayAttemptMatches(attempt, input))
-    .sort((left, right) => right.logicalPass - left.logicalPass) ?? [];
-  const selected = pending.attempt ?? completed[0] ?? null;
-  requireSharedLogicalPassCoverage(
-    owner?.attempts ?? [], selected?.logicalPass, input.coverageAdmission,
-  );
-  return selected;
+function replayAttemptCoverage(input: PendingLocalReplayInput,
+  attempt: LocalLaneAttempt | undefined): LocalReviewCoverageAdmission {
+  return input.request.coverageAdmission === undefined && input.request.deliveryAdmission === undefined
+    && attempt?.local !== undefined ? localAttemptCoverageAdmission(attempt.local) : input.coverageAdmission;
 }
 
-type LocalReplayAttempt = NonNullable<Awaited<ReturnType<typeof selectLocalReplayAttempt>>>;
+async function selectLocalReplayAttempt(input: PendingLocalReplayInput) {
+  const owner = await readLaneProgressOwner(input.dependencies.operationStore, {
+    lane: "standard", repositoryId: input.repositoryId, headSha: input.target.headSha, lineage: input.lineage,
+  });
+  const attempts = owner?.attempts.filter(attempt => attempt.local?.target.targetId === input.target.targetId) ?? [];
+  const pendingCoverage = replayAttemptCoverage(input, attempts.find(attempt => attempt.outcome === "pending"));
+  const pending = selectPendingLocalReplayAttempt(attempts, input.scopeMode, pendingCoverage);
+  if (pending.error !== null) throw new LocalPrepareCommandError(pending.error);
+  const completed = attempts.filter(attempt => completedReplayAttemptMatches(attempt,
+    { ...input, coverageAdmission: replayAttemptCoverage(input, attempt) }))
+    .sort((left, right) => right.logicalPass - left.logicalPass);
+  const attempt = pending.attempt ?? completed[0];
+  if (attempt === undefined) return null;
+  const coverageAdmission = replayAttemptCoverage(input, attempt);
+  requireSharedLogicalPassCoverage(owner?.attempts ?? [], attempt.logicalPass, coverageAdmission);
+  return { attempt, coverageAdmission };
+}
+
+type LocalReplayAttempt = NonNullable<Awaited<ReturnType<typeof selectLocalReplayAttempt>>>["attempt"];
 
 function replayIdentityMatches(
   state: LocalReviewState,
@@ -318,9 +321,11 @@ function replayContextMatches(state: LocalReviewState, input: PendingLocalReplay
     && canonicalize(state.deliveryAdmission ?? null) === canonicalize(input.request.deliveryAdmission ?? null);
 }
 
-async function replayPendingLocalAdmission(input: PendingLocalReplayInput): Promise<z.infer<typeof LocalPrepareEnvelopeSchema> | null> {
-  const attempt = await selectLocalReplayAttempt(input);
-  if (attempt === null) return null;
+async function replayPendingLocalAdmission(supplied: PendingLocalReplayInput): Promise<z.infer<typeof LocalPrepareEnvelopeSchema> | null> {
+  const selected = await selectLocalReplayAttempt(supplied);
+  if (selected === null) return null;
+  const { attempt } = selected;
+  const input = { ...supplied, coverageAdmission: selected.coverageAdmission };
   const binding = attempt.local;
   if (binding === undefined) {
     throw new LocalPrepareCommandError("local pending admission is incomplete");
@@ -504,7 +509,8 @@ async function resolveSettlementPolicyAdmission(
 ) {
   const { request, dependencies, repositoryId, target, lineage, projection } = input;
   if (request.deliveryAdmission !== undefined) {
-    return { state: "ready" as const, pass: request.deliveryAdmission.pass, incrementalBasis: undefined };
+    return { state: "ready" as const, pass: request.deliveryAdmission.pass,
+      coverageAdmission: input.coverageAdmission, incrementalBasis: undefined };
   }
   const policyAttempts = currentAttempts.filter((attempt) => (
     retryingLocalAttempt === undefined
@@ -736,7 +742,7 @@ function currentLocalPolicyAttempts(owner: LocalLaneOwner | null, target: Review
 
 async function settleLocalPreparation(input: LocalAdmissionSettlementInput) {
   const {
-    request, dependencies, repositoryId, target, lineage, scopeMode, coverageAdmission,
+    request, dependencies, repositoryId, target, lineage, scopeMode,
     cleanupTtlMs, admittedProjection, projection, requirement, policy, authority,
   } = input;
     const concurrentReplay = await replayPendingLocalAdmission({
@@ -746,7 +752,7 @@ async function settleLocalPreparation(input: LocalAdmissionSettlementInput) {
       target,
       lineage,
       scopeMode,
-      coverageAdmission,
+      coverageAdmission: input.coverageAdmission,
       cleanupTtlMs,
     });
     if (concurrentReplay !== null) {
@@ -777,13 +783,15 @@ async function settleLocalPreparation(input: LocalAdmissionSettlementInput) {
     if (policyAdmission.state === "coverage-required") {
       return { state: "coverage-required" as const, action: policyAdmission.action };
     }
+    const coverageAdmission = policyAdmission.coverageAdmission;
+    const selectedInput = { ...input, coverageAdmission, incrementalBasis: policyAdmission.incrementalBasis };
     const logicalPass = policyAdmission.pass;
     requireSharedLogicalPassCoverage(owner?.attempts ?? [], logicalPass, coverageAdmission);
     if (retryingLocalAttempt !== undefined
       && logicalPass !== retryingLocalAttempt.logicalPass) {
       throw new LocalPrepareCommandError("local review retry changed its admitted logical pass");
     }
-    const retryGeneration = nextLocalRetryGeneration(owner, logicalPass, input);
+    const retryGeneration = nextLocalRetryGeneration(owner, logicalPass, selectedInput);
     const admissionInput = {
       target,
       requirement,
@@ -800,8 +808,8 @@ async function settleLocalPreparation(input: LocalAdmissionSettlementInput) {
         ? {}
         : { deliveryAdmission: request.deliveryAdmission }),
     };
-    const admitted = await admitLocalPreparation({ ...input, incrementalBasis: policyAdmission.incrementalBasis }, admissionInput);
-    await recordPreparedLocalAdmission(input, admitted, ownerVersion);
+    const admitted = await admitLocalPreparation(selectedInput, admissionInput);
+    await recordPreparedLocalAdmission(selectedInput, admitted, ownerVersion);
     return admitted;
 }
 

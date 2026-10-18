@@ -52,7 +52,7 @@ describe("local review member preparation", () => {
         consumedPass: true,
         now: "2026-08-06T16:00:00Z",
       });
-      const validatePolicyAdmission = vi.fn(async () => ({ state: "ready" as const, pass: 2 }));
+      const validatePolicyAdmission = vi.fn(async () => ({ state: "ready" as const, pass: 2, coverageAdmission: { requestedCoverage: "complete" as const } }));
       const dependencies = {
         ...context.dependencies,
         resolveSupersessionAncestors: async () => [{
@@ -290,7 +290,7 @@ describe("local review member preparation", () => {
         headSha: state.target.headSha, headTree: state.target.headTree,
       });
       context.deriveTarget.mockResolvedValue(changedTarget);
-      context.validatePolicyAdmission.mockResolvedValue({ state: "ready", pass: 2 });
+      context.validatePolicyAdmission.mockResolvedValue({ state: "ready", pass: 2, coverageAdmission: { requestedCoverage: "complete" as const } });
       const fresh = await prepareLocalReview(request, context.dependencies);
       expect(fresh).toMatchObject({
         state: "ready",
@@ -329,7 +329,7 @@ describe("local review member preparation", () => {
         completedPasses: 1,
         nextPass: 2,
       };
-      context.validatePolicyAdmission.mockResolvedValueOnce({ state: "ready", pass: 2 });
+      context.validatePolicyAdmission.mockResolvedValueOnce({ state: "ready", pass: 2, coverageAdmission: { requestedCoverage: "complete" as const } });
       const second = await prepareLocalReview({
         ...request, policyJudgment: { additionalPassAuthorization: approval },
       }, context.dependencies);
@@ -366,7 +366,7 @@ describe("local review member preparation", () => {
       }, context.dependencies)).resolves.toMatchObject({
         state: "review-complete", payload: { operationId: second.payload.operationId },
       });
-      context.validatePolicyAdmission.mockResolvedValueOnce({ state: "ready", pass: 3 });
+      context.validatePolicyAdmission.mockResolvedValueOnce({ state: "ready", pass: 3, coverageAdmission: { requestedCoverage: "complete" as const } });
       const third = await prepareLocalReview({
         ...request,
         policyJudgment: { additionalPassAuthorization: {
@@ -468,7 +468,7 @@ describe("local review member preparation", () => {
       };
       context.validatePolicyAdmission.mockImplementation(async ({ completedPasses }) => {
         if (completedPasses > 0) throw new Error("review pass already completed");
-        return { state: "ready", pass: 1 };
+        return { state: "ready", pass: 1, coverageAdmission: { requestedCoverage: "complete" as const } };
       });
 
       await expect(prepareLocalReview(request, context.dependencies))
@@ -872,7 +872,7 @@ describe("local review member preparation", () => {
           completedPasses,
           attempts,
           judgment,
-        }) => ({ state: "ready", pass: assertStandardReviewExecutionAdmission(withReviewNextPassContext({
+        }) => ({ state: "ready", coverageAdmission: { requestedCoverage: "complete" }, pass: assertStandardReviewExecutionAdmission(withReviewNextPassContext({
           target: {
             repository: "owner/repository",
             pullRequest: null,
@@ -994,7 +994,7 @@ describe("local review member preparation", () => {
           attemptId: state.operationId,
           now: "2026-08-06T18:01:00Z",
         });
-        context.validatePolicyAdmission.mockResolvedValueOnce({ state: "ready", pass: 2 });
+        context.validatePolicyAdmission.mockResolvedValueOnce({ state: "ready", pass: 2, coverageAdmission: { requestedCoverage: "complete" as const } });
 
         const next = await prepareLocalReview(request, context.dependencies);
 
@@ -1063,7 +1063,7 @@ describe("local review member preparation", () => {
           producedHeadSha: state.target.headSha,
           now: "2026-08-06T18:01:00Z",
         });
-        context.validatePolicyAdmission.mockResolvedValueOnce({ state: "ready", pass: 2 });
+        context.validatePolicyAdmission.mockResolvedValueOnce({ state: "ready", pass: 2, coverageAdmission: { requestedCoverage: "complete" as const } });
 
         const authorizedRequest = {
           ...request,
@@ -1256,7 +1256,7 @@ describe("local review member preparation", () => {
         diagnostics: [] as [],
       }),
       validatePolicySelection: () => undefined,
-      validatePolicyAdmission: async () => ({ state: "ready" as const, pass: 1 }),
+      validatePolicyAdmission: async () => ({ state: "ready" as const, pass: 1, coverageAdmission: { requestedCoverage: "complete" as const } }),
       readReservedWorkUnitObligation: async () => undefined,
       validateDeliveryAdmission: async () => undefined,
       operationStore: {
@@ -1394,7 +1394,7 @@ describe("local review member preparation", () => {
           diagnostics: [] as [],
         }),
         validatePolicySelection: () => undefined,
-        validatePolicyAdmission: async () => ({ state: "ready" as const, pass: 1 }),
+        validatePolicyAdmission: async () => ({ state: "ready" as const, pass: 1, coverageAdmission: { requestedCoverage: "complete" as const } }),
         readReservedWorkUnitObligation: async () => undefined,
         validateDeliveryAdmission: async () => undefined,
         operationStore: {

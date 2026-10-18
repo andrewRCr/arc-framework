@@ -488,29 +488,16 @@ the range proof. Workflow text changes in the package's `arc/` source first, the
           retain range coverage, clean rules, carried findings, and the three inspection axes while omitting repair
           closure. Source, scope, coverage-admission, and operation-state schemas are unchanged.
 
-### `[ ]` **3.3 Run the delta check on `delegated-agent`, admitted without a selection — § 3.5, § 7.2**
+### `[x]` **3.3 Run the delta check on `delegated-agent`, admitted without a selection — § 3.5, § 7.2**
 
 - _Goal:_ Where a delta check is admissible, the driver selects `delegated-agent` whatever the configured rank and
   reserves no hosted source, refuses any other forced source with a remedy naming the delta check, and local prepare
   admits it without a selection, while complete coverage supplied in local prepare's request runs a local complete
   pass instead.
 
-    - `resolveReviewPolicy`'s restriction (Task 1.5.a) also applies when the context admits a delta check; a forced
-      source other than `delegated-agent` resolves to `unavailable / stop` with a diagnostic code of its own and a remedy
-      naming the delta check, in Task 1.5.b's form.
-    - Local prepare fixes its coverage default in `resolveLocalPreparationContext` (`runtime/local-prepare.ts`) before
-      any predecessor is read, and replay checks against it. The selection's `ready` result
-      (`resolveLocalReviewCoverageSelection`) instead returns the admitted coverage and scope, which
-      `settleLocalPreparation` and its replay (`replayContextMatches`, `requireSharedLogicalPassCoverage`) adopt, so
-      with no coverage supplied local prepare admits the delta check where one is admissible. Complete coverage supplied
-      in `coverageAdmission` runs a local complete pass with no correction scope (`LocalReviewCoverageAdmissionSchema`
-      refuses one), counted against the ceiling.
-    - Build `test-first` (one behavior at a time):
-        - With a hosted source ranked first, an admissible delta check runs on `delegated-agent` with no hosted-first
-          reservation.
-        - A forced hosted source is refused with the delta-check remedy.
-        - Local prepare with no coverage supplied admits the delta check; with complete supplied, a local complete pass.
-        - A replayed prepare after a delta check adopts the admitted coverage.
+- _Outcome:_ The driver selects `delegated-agent` for an admissible delta check and refuses other forced sources with
+  a delta-specific remedy. Local coverage selection returns its admitted scope; preparation and replay adopt it when
+  coverage is omitted, while an explicit complete choice publishes a complete local pass.
 
 ### `[ ]` **3.4 Keep the range proof out of every consumer that carries an earlier attempt — § 3.5**
 

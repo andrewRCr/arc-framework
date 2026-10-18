@@ -671,7 +671,7 @@ describe("local review coverage selection", () => {
     await expect(resolveWithEvidence({
       ...common,
       coverageAdmission: incremental,
-    }, dependencies(predecessor))).resolves.toEqual({ state: "ready", coverageSelected: false });
+    }, dependencies(predecessor))).resolves.toEqual({ state: "ready", coverageSelected: false, coverageAdmission: incremental });
     await expect(resolveWithEvidence({
       ...common,
       coverageAdmission: {
@@ -964,9 +964,9 @@ describe("full-final local correction coverage", () => {
   it("admits complete coverage after a converged Errand look without a choice", async () => {
     const predecessor = completeLocalResult(owner, fullFinal);
     const offered = await resolveWithEvidence(input(fullFinal), dependencies(predecessor));
-    expect(offered).toEqual({ state: "ready", coverageSelected: false });
+    expect(offered).toEqual({ state: "ready", coverageSelected: false, coverageAdmission: { requestedCoverage: "complete" } });
     await expect(resolveWithEvidence({ ...input(fullFinal), coverageAdmission: { requestedCoverage: "complete" } },
-      dependencies(predecessor))).resolves.toEqual({ state: "ready", coverageSelected: false });
+      dependencies(predecessor))).resolves.toEqual({ state: "ready", coverageSelected: false, coverageAdmission: { requestedCoverage: "complete" } });
   });
 
   it("rejects an incremental choice that no longer matches full-final routing", async () => {

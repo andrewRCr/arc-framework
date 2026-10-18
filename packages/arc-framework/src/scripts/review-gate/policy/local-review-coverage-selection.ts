@@ -48,7 +48,8 @@ import type { StandardReviewObligationProjection } from
 export { confirmPrivateCandidateCorrectionBasis } from "./candidate-correction-proof.js";
 
 export type LocalReviewCoverageSelectionResolution =
-  | { readonly state: "ready"; readonly coverageSelected: boolean }
+  | { readonly state: "ready"; readonly coverageSelected: boolean;
+      readonly coverageAdmission: LocalReviewCoverageAdmission }
   | {
       readonly state: "coverage-required";
       readonly action: LocalReviewCoverageSelectionAction;
@@ -343,7 +344,17 @@ function withoutCorrectionSelection(coverageAdmission: LocalReviewCoverageAdmiss
   if (coverageAdmission?.requestedCoverage === "incremental") {
     throw new Error("Incremental local review coverage requires a current correction selection.");
   }
-  return { state: "ready", coverageSelected: false };
+  return { state: "ready", coverageSelected: false, coverageAdmission: { requestedCoverage: "complete" } };
+}
+
+function admitDeltaCoverage(scope: NonNullable<LocalReviewCoverageAdmission["correctionScope"]>,
+  supplied: LocalReviewCoverageAdmission | undefined, coverageSelected: boolean): LocalReviewCoverageSelectionResolution {
+  const incremental = { requestedCoverage: "incremental" as const, correctionScope: scope };
+  const coverageAdmission = supplied ?? incremental;
+  if (![incremental, { requestedCoverage: "complete" }].some(choice => canonicalize(choice) === canonicalize(coverageAdmission))) {
+    throw new Error("Local review coverage selection does not match a current offered choice.");
+  }
+  return { state: "ready", coverageSelected, coverageAdmission };
 }
 
 /**
@@ -365,12 +376,17 @@ export function resolveLocalReviewCoverageSelection(input: {
     return withoutCorrectionSelection(input.coverageAdmission);
   }
   const { nextPassContext } = input;
+  if (nextPassContext.incremental?.basis === "delta-check") {
+    return admitDeltaCoverage(nextPassContext.incremental.scope, input.coverageAdmission,
+      input.policy.state === "coverage-required");
+  }
   if (input.standardReview.retrigger === "full-final" && nextPassContext.convergence === "converged"
     && !nextPassContext.responseDue) {
     if (input.coverageAdmission?.requestedCoverage === "incremental") {
       throw new Error("Local review coverage selection does not match a current offered choice.");
     }
-    return { state: "ready", coverageSelected: input.policy.state === "coverage-required" };
+    return { state: "ready", coverageSelected: input.policy.state === "coverage-required",
+      coverageAdmission: input.coverageAdmission ?? { requestedCoverage: "complete" } };
   }
   const terminal = input.policy.payload.attemptedSources.at(-1);
   const predecessorOperationId = input.policy.state === "coverage-required"
@@ -395,5 +411,6 @@ export function resolveLocalReviewCoverageSelection(input: {
   if (!choices.some(choice => canonicalize(choice) === canonicalize(input.coverageAdmission))) {
     throw new Error("Local review coverage selection does not match a current offered choice.");
   }
-  return { state: "ready", coverageSelected: input.policy.state === "coverage-required" };
+  return { state: "ready", coverageSelected: input.policy.state === "coverage-required",
+    coverageAdmission: input.coverageAdmission };
 }

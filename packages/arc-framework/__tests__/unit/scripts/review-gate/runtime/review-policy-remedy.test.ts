@@ -154,6 +154,18 @@ describe("localPrepareAdmissionRemedy", () => {
     });
   });
 
+  it("names the local delta check when a forced hosted source is refused", () => {
+    const request = ReviewPolicyCommandRequestSchema.parse({ ...policyRequest, completedPasses: 1,
+      invocation: { mode: "force", sourceId: "codex-pr" } });
+    const resolution = resolveReviewPolicy({ ...request, sources: ["codex-pr", "delegated-agent"], maxPasses: 4,
+      nextPassContext: { convergence: "converged", responseDue: false, incremental: { basis: "delta-check", scope: {
+        schemaVersion: 1, predecessorProducerId: "local/complete", predecessorHeadSha: "b".repeat(40),
+        basisHeadSha: "b".repeat(40), headSha: target.headSha, requiredFindings: [],
+      } } } });
+    expect(localPrepareAdmissionRemedy(new ReviewDriverAdmissionError("refused", resolution, request)))
+      .toMatchObject({ text: expect.stringMatching(/delta check.*delegated-agent/iu) });
+  });
+
   it("names nothing when the refusing guard composed no request", () => {
     expect(localPrepareAdmissionRemedy(approvalRequired)).toBeUndefined();
   });

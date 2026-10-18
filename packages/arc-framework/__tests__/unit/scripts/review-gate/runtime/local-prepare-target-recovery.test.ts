@@ -60,7 +60,7 @@ function scenario(member = false, headBound = false, maxPasses = 2) {
   }
   fixture.dependencies.validatePolicyAdmission = async ({
     standardReview, completedPasses, attempts, judgment,
-  }) => ({ state: "ready", pass: assertStandardReviewExecutionAdmission(withReviewNextPassContext({
+  }) => ({ state: "ready", coverageAdmission: { requestedCoverage: "complete" }, pass: assertStandardReviewExecutionAdmission(withReviewNextPassContext({
     target: { repository: "owner/repository", pullRequest: null, headSha: current.target.headSha },
     frontlineActive: false, standardReview, completedPasses, attempts,
     sources: ["delegated-agent"], maxPasses, expectedSourceId: "delegated-agent",
@@ -101,7 +101,7 @@ async function conditionalScenario() {
     producedHeadSha: producer.target.headSha, now: context.dependencies.now(),
   });
   // The lane publication below enforces the recorded authorization; the policy decision admits its named pass.
-  context.validatePolicyAdmission.mockResolvedValue({ state: "ready", pass: 2 });
+  context.validatePolicyAdmission.mockResolvedValue({ state: "ready", pass: 2, coverageAdmission: { requestedCoverage: "complete" as const } });
   context.dependencies.validatePolicyAdmission = context.validatePolicyAdmission as typeof context.dependencies.validatePolicyAdmission;
   const authorized = { ...context.input, policyJudgment: { ceilingOverride: {
     exhaustedPassCount: 1, nextPass: 2, conditionalPassAuthorizationId: captured.authorizationId,

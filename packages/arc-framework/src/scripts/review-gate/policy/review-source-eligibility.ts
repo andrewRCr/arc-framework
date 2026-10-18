@@ -44,6 +44,17 @@ const LOCAL_FIX_REVIEW_DIAGNOSTIC = {
   message: "The pass after material fixes must run locally on delegated-agent to re-examine the repairs.",
 };
 
+function selectDeltaReviewSources(configured: readonly string[], forced: string | undefined) {
+  const reason = { code: "delta-check-local-review-required",
+    message: "The delta check must run locally on delegated-agent to review the proven range." };
+  if (!configured.includes("delegated-agent")) return { sources: [], refusal: {
+    code: "delta-check-local-source-unconfigured",
+    message: "The delta check requires delegated-agent, which review.standard_sources omits.",
+  } };
+  if (forced !== undefined && forced !== "delegated-agent") return { sources: [], refusal: reason };
+  return { sources: ["delegated-agent"], refusal: null, reason };
+}
+
 /** Select fresh-pass candidates without changing the list that binds recorded attempts. */
 export function selectReviewSources(request: Pick<ReviewPolicyRequest,
   "lane" | "invocation" | "sources" | "selectionSources" | "configuredSources" | "nextPassContext">): {
@@ -55,6 +66,9 @@ export function selectReviewSources(request: Pick<ReviewPolicyRequest,
     ? request.invocation.sourceId : undefined;
   const selection = request.selectionSources ?? request.sources;
   const configured = request.configuredSources ?? selection;
+  if (request.lane === "standard" && request.nextPassContext?.incremental?.basis === "delta-check") {
+    return selectDeltaReviewSources(configured, forced);
+  }
   if (request.lane === "standard" && request.nextPassContext?.convergence === "unconverged") {
     if (!configured.includes("delegated-agent")) {
       return { sources: [], refusal: {

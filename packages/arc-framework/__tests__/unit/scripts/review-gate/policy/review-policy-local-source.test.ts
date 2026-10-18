@@ -35,3 +35,28 @@ describe("local review after material fixes", () => {
       diagnostics: expect.arrayContaining([expect.objectContaining({ code: "material-fix-local-source-unconfigured" })]) });
   });
 });
+
+function deltaRequest(pullRequest: number | null = 42) {
+  const base = request("converged", pullRequest);
+  const scope = { schemaVersion: 1 as const, predecessorProducerId: "local/complete",
+    predecessorHeadSha: "b".repeat(40), basisHeadSha: "b".repeat(40), headSha: base.target.headSha, requiredFindings: [] };
+  return { ...base, nextPassContext: { ...base.nextPassContext, incremental: { basis: "delta-check" as const, scope } } };
+}
+
+it.each([null, 42])("selects the local delta check with pull request %s before reserving a hosted source", pullRequest => {
+  expect(resolveReviewPolicy(deltaRequest(pullRequest))).toMatchObject({ state: "ready", nextAction: "local-prepare",
+    payload: { sourceId: "delegated-agent", pass: 2 } });
+});
+
+it("refuses a forced hosted source with a delta-check diagnostic", () => {
+  expect(resolveReviewPolicy({ ...deltaRequest(), invocation: { mode: "force", sourceId: "codex-pr" } }))
+    .toMatchObject({ state: "unavailable", nextAction: "stop", diagnostics: expect.arrayContaining([
+      expect.objectContaining({ code: "delta-check-local-review-required", message: expect.stringMatching(/delta check/iu) }),
+    ]) });
+});
+
+it("selects a delta check from the complete configuration despite a historical provider suffix", () => {
+  expect(resolveReviewPolicy({ ...deltaRequest(), sources: ["codex-pr"], selectionSources: ["codex-pr"],
+    configuredSources: ["delegated-agent", "codex-pr"] })).toMatchObject({ state: "ready", nextAction: "local-prepare",
+    payload: { sourceId: "delegated-agent" } });
+});

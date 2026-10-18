@@ -87,6 +87,13 @@ const STATUS_ROUTE: LaneReadRoute = {
 };
 
 function localSourceCorrection(error: ReviewDriverAdmissionError, allowsOwnerStop: boolean): string | null {
+  if (error.diagnostics.some(({ code }) => code === "delta-check-local-source-unconfigured")) {
+    return "Add delegated-agent to review.standard_sources so the delta check can run locally; re-run this command";
+  }
+  if (error.diagnostics.some(({ code }) => code === "delta-check-local-review-required")) {
+    return "Run the delta check locally on delegated-agent through arc review local prepare; "
+      + "supply complete coverage there to run a local complete pass instead";
+  }
   if (error.diagnostics.some(({ code }) => code === "material-fix-local-source-unconfigured")) {
     return "Add delegated-agent to review.standard_sources"
       + (allowsOwnerStop ? ", or take the Owner's stop disclosed as resting on fixes no reviewer re-examined" : "")
