@@ -318,6 +318,15 @@ The source-less form retains the automatic chunked route.
 
 Dispatch only on `nextAction`.
 
+Before dispatching `review-hosted-request` or `review-local-prepare` on a `full-final` standard lane, run
+`arc review lane read -` with its request derived from `arc review lane read --schema`, supplying the selected member's
+exact `targetRef.headSha` as `memberHeadObjectId`. Follow a refusal's remedy. When `payload.lastLook` has
+`coverage: incremental` and `outcome: clean`, use `payload.facts` for advisory judgment: recommend another complete pass
+while new defect classes keep appearing in previously read code or a fix round introduced new design; otherwise
+recommend stopping. Prefer a different source for a successor pass. State the recommendation, its reasons, and what
+would change it. This member-target route takes no Owner terminus: state that limit and run the admitted complete pass.
+A complete pass never replaces a required fix check.
+
 `select-coverage` renders `coverageSelectionAction.interactionText` verbatim and gives a recommendation among its
 listed choices.
 

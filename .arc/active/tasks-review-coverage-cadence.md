@@ -664,8 +664,10 @@ rejections. Method and workflow text changes in the package's `arc/` source firs
           the work-unit delivery route offers its exact member terminus when stopping is recommended. The published
           singleton states its limit and continues complete review, preserving prior exact successor decisions.
 
-    - `[ ]` **4.6.d `deliver-stack`'s member review**
-        - It takes no terminus, so the arm states the recommendation and the limit, and the complete pass runs.
+    - `[x]` **4.6.d `deliver-stack`'s member review**
+        - Member review reads the selected head's lane facts before either request action. A clean fix check prompts
+          advisory successor judgment; the workflow states that its target route takes no Owner terminus and follows
+          the admitted complete pass without replacing repair verification.
 
     - `[ ]` **4.6.e Recommend from the same read at the ceiling**
         - At the ceiling each arm stops and recommends another pass or stopping, with its rationale, as
