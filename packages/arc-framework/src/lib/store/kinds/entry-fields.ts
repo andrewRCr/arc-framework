@@ -26,6 +26,7 @@ export function managedFieldValue(raw: string, field: string): string | undefine
  * @returns Its value if present.
  */
 export function readEntryField(raw: string, field: string): string | undefined {
+  if (field === "Shapes") return readShapes(raw);
   if (field === "WU_Target") {
     for (const line of raw.split("\n")) {
       const match = TARGET_LINE.exec(line.trimEnd());
@@ -33,9 +34,18 @@ export function readEntryField(raw: string, field: string): string | undefined {
       if (value !== undefined) return value.trim();
     }
   }
-  const managed = managedFieldValue(raw, field);
-  if (managed !== undefined) return managed;
-  return field === "Shapes" ? /^- _Shapes:_\s*(.+)$/mu.exec(raw)?.[1]?.trim() : undefined;
+  return managedFieldValue(raw, field);
+}
+
+function readShapes(raw: string): string | undefined {
+  const value = /^- _Shapes:_[ \t]*([^\r\n]*)/mu.exec(raw)?.[1]?.trim();
+  if (!value || /^`+$/u.test(value)) return undefined;
+  const fence = /^`+/u.exec(value)?.[0];
+  if (fence === undefined || !value.endsWith(fence)) return value;
+  const body = value.slice(fence.length, -fence.length);
+  if (body.includes(fence)) return value;
+  if (fence.length === 1) return body;
+  return body.startsWith(" ") && body.endsWith(" ") ? body.slice(1, -1) : value;
 }
 /** Return the slug named by a top-level target line, excluding TBD and prose.
  * @param line - One unindented capture line.
@@ -87,8 +97,15 @@ export function writeEntryFields(raw: string, changes: Readonly<Record<string, s
   const disposition = fields.Disposition === undefined ? [] : ["", `- _Disposition:_ \`${fields.Disposition}\``, ""];
   const managed = Object.entries(fields).filter(([field, value]) => field !== "Disposition" && value !== undefined)
     .sort(([a], [b]) => Number(a === "Id") - Number(b === "Id"))
-    .map(([field, value]) => `- _${field}:_ \`${value}\``);
+    .map(([field, value]) => fieldBullet(field, value));
   return [kept.header, ...disposition, ...managed].join(newline) + (body.length ? `${newline}${newline}${body.join("\n")}` : "");
+}
+
+function fieldBullet(field: string, value: string | undefined): string {
+  if (field !== "Shapes" || value === undefined || !value.includes("`")) return `- _${field}:_ \`${value}\``;
+  const longest = Math.max(...[...value.matchAll(/`+/gu)].map(match => match[0].length));
+  const fence = "`".repeat(longest + 1);
+  return `- _${field}:_ ${fence} ${value} ${fence}`;
 }
 
 function attachTrailingEntryComments(header: string, body: string, newline: string): { header: string; body: string } {
@@ -168,6 +185,7 @@ export function entryVersion(entry: { section: string; bytes: string }): string 
  * @returns Whether the shared grammar admits it.
  */
 export function validEntryFieldValue(field: string, value: string): boolean {
+  if (field === "Shapes") return !/[\r\n]/u.test(value) && value.trim().length > 0;
   if (["Id", "Cites"].includes(field)) return /^[0-9a-f]{8}$/u.test(value);
   if (field === "Created") return /^\d{4}-\d{2}-\d{2}$/u.test(value);
   if (["Hold", "Remind"].includes(field)) return value === "true";
