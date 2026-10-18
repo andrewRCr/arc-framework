@@ -326,7 +326,7 @@ first, then in the `.arc/` copy by targeted edit.
           and replay its command in the same scope. The resulting admission bypasses a second coverage question in
           local prepare; refusal dispatch preserves the supplied reason, detail, and structured remedy.
 
-### `[ ]` **2.5 Run the published singleton's local pass through local prepare — § 7.5**
+### `[x]` **2.5 Run the published singleton's local pass through local prepare — § 7.5**
 
 - _Goal:_ After an unconverged hosted pass, the published singleton's next pass runs as an ordinary local prepare over
   the work-unit branch, bound to the reservation's obligation and continuing the singleton's lane, and the discharge
@@ -356,11 +356,9 @@ first, then in the `.arc/` copy by targeted edit.
           reduction, and response. Both routes distinguish a converged fix check from complete full-final replay and
           carry additional-pass authority only after a converged complete pass.
 
-    - `[ ]` **2.5.f Drive the singleton's lane end to end**
-        - Build `test-first` (one behavior at a time):
-            - After a hosted pass with a material fix: a local fix check through local prepare, a converged fix check, and
-              a hosted complete pass by rank closing the lane.
-            - A base move after an unchecked fix makes the next pass a local complete one.
+    - `[x]` **2.5.f Drive the singleton's lane end to end**
+        - Real Git and production handlers carry hosted material findings through an offered ordinary local fix check
+          to ranked hosted complete closure. A base move after an unchecked fix offers only local complete coverage.
 
 ### `[ ]` **2.6 Offer and carry the Owner's stop at `coverage-required` on the work-unit path — § 8.2**
 

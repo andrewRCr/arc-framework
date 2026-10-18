@@ -3,18 +3,23 @@ import { assertEvidenceBoundCandidateHostedReservationPolicyAdmission } from "..
 import { readLaneProgressOwner, readLaneResponsePerformance } from "../../src/scripts/review-gate/lane-progress.js";
 import { LocalPrepareEnvelopeSchema } from "../../src/scripts/review-gate/core/review-command-envelope.js";
 import type { LocalReviewCoverageAdmission } from "../../src/scripts/review-gate/core/local-review-coverage.js";
+import { readConfigSettings } from "../../src/lib/config/status-reader.js";
+import { composePublishedSingletonReview } from "../../src/scripts/review-gate/status-singleton.js";
+import { resolveReviewStatus } from "../../src/scripts/review-gate/status.js";
+import { runHandlerAt } from "../helpers/handler.js";
+import { HostedRequestResultSchema } from "../../src/scripts/review-gate/hosted/request.js";
 import { projectStandardReviewObligation } from "../../src/scripts/review-gate/policy/standard-review-projection.js";
 import { resolveReviewRouting } from "../../src/scripts/review-gate/policy/routing.js";
 import { deriveLocalReviewTargetFromCoordinates } from "../../src/scripts/review-gate/hosts/local/repository-target.js";
 import { createHostedReservationDischargeReader } from "../../src/scripts/review-gate/policy/hosted-reservation-discharge.js";
 import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
-import { mkdir, writeFile } from "node:fs/promises";
+import { chmod, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { GitExec } from "../../src/lib/git/exec.js";
-import { writeSubmissionBoundary } from "../../src/lib/work-unit/submission-boundary-store.js";
-import { createStandardReviewReservation, IntegrationBoundaryLocusSchema } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
-import { handleReviewLocalPrepare, handleReviewResolve } from "../../src/handlers/review.js";
+import { readSubmissionBoundaryVersioned, writeSubmissionBoundary } from "../../src/lib/work-unit/submission-boundary-store.js";
+import { createStandardReviewReservation, IntegrationBoundaryLocusSchema, projectPublicationBoundary } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { handleReviewHostedRequest, handleReviewHostedAwait, handleReviewLocalPrepare, handleReviewResolve } from "../../src/handlers/review.js";
 import { createRespondDependencies } from "../../src/scripts/review-gate/runtime/respond-composition.js";
 import { createLocalPrepareDependencies } from "../../src/scripts/review-gate/runtime/local-prepare-composition.js";
 import { prepareLocalReview } from "../../src/scripts/review-gate/runtime/local-prepare.js";
@@ -22,7 +27,7 @@ import { responsePolicyRequestFixture } from "../fixtures/review-response-policy
 import { inProcessReview, localReviewResult, type PreparedLocalReview } from "../helpers/in-process-review.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
-import { createCandidateAttestation, createCandidateReviewResponseEvidence } from "../../src/lib/work-unit/candidate-attestation.js";
+import { CandidateReviewApplicabilitySelectionV1Schema, createCandidateAttestation, createCandidateReviewResponseEvidence } from "../../src/lib/work-unit/candidate-attestation.js";
 import { readCandidateRecordVersioned, writeCandidateRecord } from "../../src/lib/work-unit/candidate-record-store.js";
 import { collectGitCandidateSubject } from "../../src/lib/work-unit/git-candidate-subject.js";
 import { ApprovedDispositionRecordSchema } from "../../src/scripts/review-gate/core/advisory-records.js";
@@ -245,6 +250,74 @@ async function candidateFix(local = false, member = false, hostedFirst = false, 
     dependencies: createPrePublicationCompositionDependencies({ cwd, exec }) };
 }
 
+async function singletonHost(cwd: string, git: (...args: string[]) => Promise<string>) {
+  const bin = join(cwd, await git("rev-parse", "--git-common-dir"), "fixture-host");
+  await mkdir(bin, { recursive: true });
+  const requestTime = "2026-10-18T06:00:00Z";
+  const requestArtifact = { node_id: "closing-request", html_url: "https://example.test/closing-request",
+    user: { id: 123 }, body: "@codex review", created_at: requestTime, updated_at: requestTime };
+  const script = join(bin, "gh");
+  await writeFile(script, ["#!/bin/sh", 'head=$(git rev-parse HEAD)', 'base=$(git rev-parse main)',
+    'case "$1:$2" in',
+    `repo:view) printf '%s\n' '{"nameWithOwner":"owner/repo"}' ;;`,
+    `api:user) printf '%s\n' '{"id":123}' ;;`,
+    `pr:list) printf '[{"number":42,"url":"https://example.test/pull/42","state":"OPEN","baseRefName":"main","headRefName":"feat/example","headRefOid":"%s"}]\n' "$head" ;;`,
+    `api:repos/owner/repo/pulls/42) printf '{"number":42,"state":"open","merged":false,"draft":false,"head":{"ref":"feat/example","sha":"%s","repo":{"full_name":"owner/repo"}},"base":{"ref":"main","sha":"%s","repo":{"full_name":"owner/repo"}}}\n' "$head" "$base" ;;`,
+    `api:repos/owner/repo/issues/42/comments) printf '%s\n' '${JSON.stringify(requestArtifact)}' ;;`,
+    `api:repos/owner/repo/issues/42/comments\\?*) if test -f '${join(bin, "result.json")}'; then cat '${join(bin, "result.json")}'; else printf '%s\n' '[[]]'; fi ;;`,
+    `api:repos/owner/repo/pulls/42/reviews\\?*) printf '%s\n' '[[]]' ;;`,
+    `api:graphql) printf '%s\n' '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}}}' ;;`,
+    '*) echo "unexpected host invocation: $*" >&2; exit 1 ;;', "esac", ""].join("\n"));
+  await chmod(script, 0o755);
+  const withHost = async <T>(action: () => Promise<T>): Promise<T> => {
+    const previous = process.env.PATH;
+    process.env.PATH = `${bin}:${previous ?? ""}`;
+    try { return await action(); } finally { if (previous === undefined) delete process.env.PATH; else process.env.PATH = previous; }
+  };
+  return { bin, withHost };
+}
+
+async function publishedSingletonFix() {
+  const fixture = await candidateFix(true, false, true, true, true);
+  const { cwd, exec, git, predecessor, candidate } = fixture;
+  if (candidate === null || predecessor.kind !== "hosted") throw new Error("expected hosted Candidate predecessor");
+  const requirement = predecessor.requirement;
+  const reservation = createStandardReviewReservation({ candidateId: candidate.attestation.candidateId,
+    sourceId: "codex-pr", sources: ["codex-pr", "delegated-agent"],
+    target: { kind: "pinned-head", repository: "owner/repo", headSha: await git("rev-parse", "HEAD") },
+    obligation: { obligation: requirement.obligation, reasons: requirement.reasons,
+      rubricVersion: requirement.rubricVersion, rubricDigest: requirement.rubricDigest,
+      retrigger: requirement.retrigger, count: requirement.count } });
+  const boundary = await readSubmissionBoundaryVersioned(cwd, "example");
+  await writeSubmissionBoundary(cwd, projectPublicationBoundary({ workUnit: "example", branch: "feat/example",
+    candidateId: candidate.attestation.candidateId, candidateSubjectDigest: candidate.subject.subjectDigest,
+    reservation, changeRequest: { repository: "owner/repo", pullRequest: 42 } }), boundary.version);
+  await writeFile(join(cwd, ".arc/active/meta-example.md"), makeMetaFixture("example", {
+    state: "Integrating", currentWorkflow: "integrate-work-unit", owner: "andrew", branch: "feat/example",
+    workClass: "Light", taskList: "tasks-example.md" }));
+  await git("add", "."); await git("commit", "-m", "record published boundary");
+  await git("push", "origin", "main", "feat/example");
+  const host = await singletonHost(cwd, git);
+  const status = async () => {
+    const headSha = await git("rev-parse", "HEAD");
+    const target = { repository: "owner/repo", headRef: "feat/example", headSha };
+    const live = await readCandidateRecordVersioned(cwd, "example");
+    if (live.record === null || live.version === null) throw new Error("expected Candidate record");
+    const routedObligation = await composePublishedSingletonReview({ cwd, exec,
+      statusRoute: { kind: "target", target }, settings: (await readConfigSettings(cwd)).settings,
+      reservation, record: live.record, recordVersion: live.version, baseRevision: await git("rev-parse", "main"),
+      workUnit: "example", target: { repository: "owner/repo", pullRequest: 42, headSha },
+      readDischarge: createHostedReservationDischargeReader({ cwd, exec, host: {
+        readRequest: async (repository, binding) => ({ status: "observed", request: { binding, repository,
+          headRepository: repository, headRef: "feat/example", headSha: await git("rev-parse", "HEAD"),
+          baseRef: "main", state: "open", draft: false } }),
+      } }) });
+    return resolveReviewStatus({ target }, { observe: async () => ({ actualHeadSha: headSha,
+      currentBaseOid: await git("rev-parse", "main"), baseContained: true, requiredChecks: "green", routedObligation }) });
+  };
+  return { ...fixture, reservation, status, ...host };
+}
+
 describe("pre-publication correction confirmation", () => {
   it("proves an open-PR Candidate fix leg without carrying the earlier review", async () => {
     const { dependencies, predecessor, current } = await candidateFix();
@@ -324,6 +397,91 @@ describe("pre-publication correction confirmation", () => {
       nextPassContext: { convergence: "unconverged", responseDue: false, incremental: null } });
     expect(result).not.toHaveProperty("coverageSelectionAction");
   });
+
+  it("prepares a singleton local complete pass after a base move following an unchecked fix", async () => {
+    const fixture = await publishedSingletonFix();
+    const { git, cwd } = fixture;
+    await git("switch", "-c", "fixture-base", fixture.base);
+    await writeFile(join(cwd, "base-change.ts"), "export const baseChange = true;\n");
+    await git("add", "."); await git("commit", "-m", "advance base");
+    await git("branch", "-f", "main", await git("rev-parse", "HEAD"));
+    await git("switch", "feat/example"); await git("merge", "--no-edit", "fixture-base");
+    await git("push", "origin", "main", "feat/example");
+    await fixture.withHost(async () => {
+      const local = await fixture.status();
+      expect(local, JSON.stringify(local)).toMatchObject({ nextAction: "review-singleton-local-prepare" });
+      if (local.nextAction !== "review-singleton-local-prepare") throw new Error("expected ordinary local request");
+      const request = { ...local.action.request, evaluatorIdentity: "independent-reviewer",
+        routingFacts: { contentKind: "code-bearing", reviewRisk: "sensitive", changeDeterminacy: "ordinary",
+          ownership: "self", surfaceAuthority: "ordinary" } };
+      const offer = LocalPrepareEnvelopeSchema.parse(await inProcessReview.prepare(cwd, request));
+      expect(offer).toMatchObject({ state: "coverage-required", payload: {
+        coverageSelectionAction: { choices: [{ requestedCoverage: "complete" }] } } });
+      if (offer.state !== "coverage-required") throw new Error("expected current coverage choice");
+      expect(offer.payload.coverageSelectionAction.choices).toEqual([{ requestedCoverage: "complete" }]);
+      const prepared = LocalPrepareEnvelopeSchema.parse(await inProcessReview.prepare(cwd,
+        { ...request, coverageAdmission: offer.payload.coverageSelectionAction.choices[0] }));
+      expect(prepared).toMatchObject({ state: "ready" });
+      if (prepared.state !== "ready") throw new Error("expected complete local review");
+      const result = await inProcessReview.attest(cwd, localReviewResult(prepared.payload, "singleton-complete-after-base", []));
+      expect(result).toMatchObject({ state: "attested-current" });
+    });
+  }, 60_000);
+
+  it("closes a published singleton with a local fix check and ranked hosted complete review", async () => {
+    const fixture = await publishedSingletonFix();
+    await fixture.withHost(async () => {
+      let local = await fixture.status();
+      if (local.nextAction === "resolve-review-applicability") {
+        const live = await readCandidateRecordVersioned(fixture.cwd, "example");
+        if (live.record === null) throw new Error("expected Candidate");
+        const offer = local.selectionAction;
+      if (offer.kind !== "review-applicability-selection") throw new Error("expected one source selection");
+        const selection = CandidateReviewApplicabilitySelectionV1Schema.parse({ transitionKind: "review-applicability-selection",
+          schemaVersion: 1, semanticsVersion: "candidate-attestation/v1", candidateId: offer.candidateId,
+          selector: offer.projection.selector, projectionDigest: offer.projection.projectionDigest,
+          residualDigest: offer.projection.residualDigest, selectedBy: "andrew", selectedAt: "2026-10-18T00:03:00Z",
+          choice: "review-required" });
+        await writeCandidateRecord(fixture.cwd, "example", { ...live.record,
+          transitions: [...live.record.transitions, selection] }, live.version);
+        await fixture.git("add", "."); await fixture.git("commit", "-m", "select fresh review for fixed contribution");
+        await fixture.git("push", "origin", "feat/example");
+        local = await fixture.status();
+      }
+      expect(local, JSON.stringify(local)).toMatchObject({ nextAction: "review-singleton-local-prepare" });
+      if (local.nextAction !== "review-singleton-local-prepare") throw new Error("expected ordinary local request");
+      const request = { ...local.action.request, evaluatorIdentity: "independent-reviewer",
+        routingFacts: { contentKind: "code-bearing", reviewRisk: "sensitive", changeDeterminacy: "ordinary",
+          ownership: "self", surfaceAuthority: "ordinary" } };
+      const offer = LocalPrepareEnvelopeSchema.parse(await inProcessReview.prepare(fixture.cwd, request));
+      expect(offer).toMatchObject({ state: "coverage-required" });
+      if (offer.state !== "coverage-required") throw new Error("expected local coverage choice");
+      const coverageAdmission = offer.payload.coverageSelectionAction.choices.find(choice => choice.requestedCoverage === "incremental");
+      if (coverageAdmission === undefined) throw new Error("expected local fix check");
+      const prepared = LocalPrepareEnvelopeSchema.parse(await inProcessReview.prepare(fixture.cwd, { ...request, coverageAdmission }));
+      if (prepared.state !== "ready") throw new Error("expected prepared fix check");
+      await inProcessReview.attest(fixture.cwd, localReviewResult(prepared.payload, "singleton-fix-check", []));
+      const closing = await fixture.status();
+      expect(closing).toMatchObject({ nextAction: "review-hosted-request", action: { provider: "codex-pr", coverage: "complete" } });
+      if (closing.nextAction !== "review-hosted-request") throw new Error("expected ranked complete pass");
+      const requested = await runHandlerAt(fixture.cwd, () => handleReviewHostedRequest("-", {
+        readText: async () => JSON.stringify(closing.action) }));
+      expect(requested.exitCode, requested.stdout + requested.stderr).toBe(0);
+      const requestResult = HostedRequestResultSchema.parse(JSON.parse(requested.stdout));
+      expect(requestResult).toMatchObject({ state: "requested", handle: { provider: "codex-pr",
+        requestedCoverage: "complete", admission: { logicalPass: 3 } } });
+      if (requestResult.nextAction !== "await") throw new Error("expected hosted await action");
+      await writeFile(join(fixture.bin, "result.json"), JSON.stringify([[{ node_id: "singleton-closing-clean",
+        html_url: "https://example.test/closing-clean", user: { id: 199175422 }, performed_via_github_app: { id: 1144995 },
+        body: `Codex Review: didn't find any major issues\nReviewed commit: ${closing.action.target.headSha}`,
+        created_at: "2026-10-18T06:01:00Z", updated_at: "2026-10-18T06:01:00Z" }]]));
+      const awaited = await runHandlerAt(fixture.cwd, () => handleReviewHostedAwait("-", {
+        readText: async () => JSON.stringify(requestResult.action) }));
+      expect(awaited.exitCode, awaited.stdout + awaited.stderr).toBe(0);
+      expect(JSON.parse(awaited.stdout)).toMatchObject({ state: "clean", nextAction: "complete" });
+      await expect(fixture.status()).resolves.toMatchObject({ routedObligation: { state: "settled" } });
+    });
+  }, 60_000);
 
   it("reads a published singleton's ordinary local fix check as its latest terminal", async () => {
     const { cwd, exec, current, base, candidate } = await candidateFix(true, false, true, false, true);
