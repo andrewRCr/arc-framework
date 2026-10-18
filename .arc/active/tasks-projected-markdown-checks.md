@@ -218,25 +218,14 @@ failures follow their specified handling, and exempt ceremonies acquire no redun
   and records unfinished-work failures without another approval stop. Activation checks only authored fold prose;
   both rendered workflows preserve existing commit routing and the later explicit session-notes lint.
 
-### `[ ]` **4.5 Check integration fixes and preserve completion feedback — D5.1–D5.2**
+### `[x]` **4.5 Check integration fixes and preserve completion feedback — D5.1–D5.2**
 
 - _Goal:_ Integration's existing completion check remains in place, and review fixes and hand-authored repairs within
   the checked corpus receive feedback before commit or reconcile retry, with completed-only repairs exempt.
 
-- _Note:_ See `notes-projected-markdown-checks.md` § Ceremony coverage, rows 10–13 and 18.
-
-    - In package `work-unit-lifecycle/integrate-work-unit.md`, retain Step 7's current increment request.
-    - Before an approved review-fix commit, request increment feedback when the fix includes authored state text the
-      checks read. Cover ordinary corrections and spec-changing amendments through this one caller-owned request,
-      retaining all existing gate requests and review-response approval machinery.
-    - Add a request before the merged-PR guard's missing Completion/Release Notes repair commit; before a composition
-      correction commit after an integration-interlock redirect, beside affected gates; and after a hand correction
-      in Step 10's pending reconcile arm, before retry. Apply D5.1's exclusions at every repair site: add no request
-      for an edit confined to completed files, and do not widen the selection or project checks to admit those files.
-    - Render the installed workflow and inspect each branch independently, preserving all existing commit routing,
-      gate reruns, and exact-head integration stops. Applied reconcile and record-only paths remain exempt.
-    - Verify both archive cadences: active-meta repairs under `manual` receive feedback when eligible, while repairs
-      confined to the archived meta under `with-integration`, or after a manual archive, remain exempt.
+- _Outcome:_ Eligible review fixes, missing-product repairs, pending-reconcile corrections, and composition
+  corrections now request increment feedback before their commit or retry. Completed-only repairs stay exempt
+  under either archive cadence; the rendered workflow retains Step 7, gate requests, and exact-head approval routing.
 
 ### `[ ]` **4.6 Check publication fixes, resumption, and deactivation corrections — D5.1–D5.2**
 
