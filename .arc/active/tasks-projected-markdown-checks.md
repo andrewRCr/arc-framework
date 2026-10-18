@@ -31,14 +31,9 @@ admits unchanged historical violations and valid corrections, and leaves existin
     - Add a cross-kind module under `packages/arc-framework/src/lib/store/kinds/`; consume `WriteCheckInput` and return
       `BrokenRule` values from `lib/store/write-check.ts`, without filesystem or backend-specific reads.
 
-    - `[ ]` **1.2.a Read Markdown links and full references with source locations**
-        - Use `fromMarkdown`, `gfm`, and `gfmFromMarkdown`, as `audit-links.ts`'s `parse` does; keep the parser
-          independent of the script entry point and ensure the extensions join the CLI bundle.
-        - Build `test-first` (one behavior at a time):
-            - Links, images, and definitions expose their URLs; external and anchor-only targets are exempt.
-            - Full references are read only within source spans of text nodes, with CommonMark label normalization;
-              escaped brackets, code, HTML, destinations, footnotes, and formatting-split references are not read.
-            - Collapsed and shortcut references are exempt; removing a definition exposes its remaining full usage.
+    - `[x]` **1.2.a Read Markdown links and full references with source locations**
+        - A GFM reader extracts URLs and undefined full references from source text spans, preserving stored
+          positions, CommonMark label matching, and the parser's code, HTML, destination, and formatting boundaries.
 
     - `[ ]` **1.2.b Resolve targets by record family and key**
         - Resolve fixed-path records through `resolveArcPath` and the personal document's managed key; treat every
