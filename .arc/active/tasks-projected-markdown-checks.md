@@ -200,19 +200,14 @@ failures follow their specified handling, and exempt ceremonies acquire no redun
   later authored edits. Amendment captures check grounded text before commit; task and review arms reuse their
   caller-owned increment request. Rendered counterparts retain descriptor lint and existing release controls.
 
-### `[ ]` **4.3 Check decomposition, initialization, and inbox routing — D5.1–D5.2**
+### `[x]` **4.3 Check decomposition, initialization, and inbox routing — D5.1–D5.2**
 
 - _Goal:_ Authored decomposition, initialization, and routing text receives feedback before the release that carries
   it, under both existing protection postures where routing differs.
 
-- _Note:_ See `notes-projected-markdown-checks.md` § Ceremony coverage, rows 5–7.
-
-    - In package `work-unit-lifecycle/decompose-work-unit.md`, request increment before the distribution interlock
-      and before finish-release commit over owner reconciliation written after apply approval.
-    - In `planning/init-work-unit.md`, request it before the init commit for the in-place and resumed paths; do not
-      add it to the spawned/graduate command's self-committing scaffold.
-    - In `supplemental/drain-inbox.md` § 5, request it before the grooming routing commit under full protection and
-      before each direct routing commit under partial protection; render all three installed counterparts.
+- _Outcome:_ Distribution checks precede approval; finish-release feedback follows owner reconciliation and
+  staging. In-place/resumed initialization checks reconciled metadata, and both routing protection arms check each
+  routing commit. Rendered all three workflows without adding requests to spawned scaffolds or base advancement.
 
 ### `[ ]` **4.4 Check handoff and activation edits — D5.1–D5.3**
 

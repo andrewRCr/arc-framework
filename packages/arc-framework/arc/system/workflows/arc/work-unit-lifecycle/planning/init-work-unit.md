@@ -220,6 +220,8 @@ Remaining fields take their field-model defaults.
 prior session, not from backlog initialization), do not recreate it. Reconcile **Branch**, **Design**,
 **Current Workflow**, and **Next Action** as in Path B; preserve other field values.
 
+Run `arc check increment` over the reconciled meta before this in-place or resumed init commit.
+
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`. Under Path A, stage the relocation moves
 > `arc start` performed (meta + draft-doc + companions) together with the meta-file reconcile edits as a
