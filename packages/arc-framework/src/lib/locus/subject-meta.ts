@@ -347,13 +347,17 @@ export async function projectCheckoutSubjectMeta(options: {
     candidateRenewalRequired: requireExactDurableBoundary,
     deliveryCorrection,
   });
-  const cohortDocPath = options.workUnit !== undefined && options.store !== undefined
+  const storedCohort = options.workUnit !== undefined && options.store !== undefined
     ? await readStoreCohortDoc(options.store, record.cohort)
-    : await resolveActiveCohortDocPath({
+    : null;
+  if (storedCohort?.kind === "conflicted") {
+    return { kind: "unresolved", code: "subject-unresolved", message: storedCohort.message, metaPath: expectedPath };
+  }
+  const cohortDocPath = storedCohort === null ? await resolveActiveCohortDocPath({
     cwd: options.cwd,
     activeMetaPath: expectedPath,
     fs: options.io,
-  });
+  }) : storedCohort.path;
   return {
     kind: "resolved",
     metaPath: expectedPath,
@@ -454,16 +458,20 @@ function projectWorkUnitStage(input: {
   return null;
 }
 
-async function readStoreCohortDoc(store: Store, cohort: string | null): Promise<string | null> {
-  if (cohort === null) return null;
+type StoreCohortDocument = { kind: "read"; path: string | null } | { kind: "conflicted"; message: string };
+
+async function readStoreCohortDoc(store: Store, cohort: string | null): Promise<StoreCohortDocument> {
+  if (cohort === null) return { kind: "read", path: null };
   const name = cohort.split("/").at(-1);
   const reference = recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name }));
   const read = await store.read({ reference });
   if (read.status === "refused") {
-    if (read.refusal.code === "not-found") return null;
+    if (read.refusal.code === "not-found") return { kind: "read", path: null };
     throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
   }
-  return cohortDocumentPath(read.result);
+  if (read.result.conflicts.length > 0) return { kind: "conflicted", message:
+    `The cohort document has unresolved conflicts: ${read.result.conflicts.map(reference => JSON.stringify(reference)).join(", ")}. Resolve the named conflict records, then retry session entry.` };
+  return { kind: "read", path: cohortDocumentPath(read.result) };
 }
 
 type StoreTaskCursor = { kind: "read"; path: string | null; cursor: TaskListCursorFileResult | null }
