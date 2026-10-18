@@ -215,7 +215,9 @@ review.frontline_sources: []
 # Hosted sources run complete passes first or after a converged look.
 review.standard_sources: []
 
-# Positive safe-integer pass ceilings. An exceptional extra pass requires explicit approval.
+# Positive safe-integer ceilings. Frontline counts completed frontline passes.
+# Standard counts complete passes; fix checks and delta checks run outside its ceiling.
+# Exceeding either ceiling requires explicit approval for the named pass.
 review.frontline_max_passes: 2
 review.standard_max_passes: 2
 

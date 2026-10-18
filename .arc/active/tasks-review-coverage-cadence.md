@@ -776,7 +776,7 @@ complete pass. Workflow, method, and configuration text changes in the package's
   leaves authority bound; after its terminal result advances the attempt count, that authority cannot admit the
   complete successor. Frontline binding retains its existing behavior.
 
-### `[ ]` **5.6 Show a pass as a complete pass against the ceiling, and a fix check as a round — § 5.5, § 13**
+### `[x]` **5.6 Show a pass as a complete pass against the ceiling, and a fix check as a round — § 5.5, § 13**
 
 - _Goal:_ Everything the Owner reads shows a pass as a counted complete pass against the ceiling and a fix check in
   rounds since the last complete pass, each with its result, and never shows an attempt number as a pass; typed fields
@@ -792,10 +792,9 @@ complete pass. Workflow, method, and configuration text changes in the package's
           conditional authority. Ceiling offers use lane facts; triage and its approval example name complete passes
           or fix-check rounds. Aggregate review counts toward the standard ceiling only with complete coverage.
 
-    - `[ ]` **5.6.c Change the ceiling comment in `arc-config.yml`**
-        - The shared comment over `review.frontline_max_passes` and `review.standard_max_passes`, in both copies, states
-          that the standard ceiling counts complete passes, with fix checks outside it, and that the frontline ceiling is
-          unchanged.
+    - `[x]` **5.6.c Change the ceiling comment in `arc-config.yml`**
+        - Both comments define the standard ceiling as complete passes, with fix and delta checks outside it, and
+          retain the frontline ceiling's completed-pass accounting and explicit approval beyond either ceiling.
 
 ### `[ ]` **5.7 Fix checks at the ceiling** — validate exit criterion at segment scope
 
