@@ -29,9 +29,7 @@ export const CODEX_HOSTED_REGISTRATION = {
   id: "codex-pr",
   commands: {
     complete: COMMAND,
-    incremental: COMMAND,
   },
-  correctionReview: "complete-upgrade",
   identities: { appId: APP_ID, botUserId: BOT_USER_ID },
 } as const;
 
@@ -106,6 +104,8 @@ export class CodexHostedAdapter implements HostedReviewAdapter, HostedReviewObse
     target: HostedTarget,
     coverage: HostedReviewCoverage,
   ): Promise<HostedRequestOutcome> {
+    if (coverage === "incremental") return { kind: "terminal-failure",
+      reason: "Hosted incremental review is unavailable. Run a local fix check on delegated-agent or request a complete hosted pass." };
     let actorIdentity: string;
     try {
       if (await this.github.readHead(target) !== target.headSha) {
@@ -117,7 +117,7 @@ export class CodexHostedAdapter implements HostedReviewAdapter, HostedReviewObse
       if (outcome !== null) return outcome;
       throw error;
     }
-    const command = CODEX_HOSTED_REGISTRATION.commands[coverage];
+    const command = CODEX_HOSTED_REGISTRATION.commands.complete;
     const result = await this.github.createIssueComment(target, command);
     if (result.kind !== "created") return result;
     if (result.actorIdentity !== actorIdentity || result.body !== command) {

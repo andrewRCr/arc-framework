@@ -4,7 +4,7 @@ import { projectDeliveryReviewCursor } from "./status-delivery-cursor.js";
 import { projectDeliveryTerminusOffer, type DeliveryTerminusOfferBinding } from "./status-terminus-offer.js";
 import { SingletonLocalPrepareActionSchema, projectSingletonLocalPrepareAction } from "./singleton-local-prepare-action.js";
 import type { StandardReviewObligationProjection } from "./policy/standard-review-projection-schema.js";
-import { projectReviewDriverRefusal, ReviewDriverRefusalReasonSchema, ReviewDriverRefusalSchema } from "./status-driver-refusal.js";
+import { projectHostedIncrementalRefusal, projectReviewDriverRefusal, ReviewDriverRefusalReasonSchema, ReviewDriverRefusalSchema } from "./status-driver-refusal.js";
 import type { ReviewStatusRoute } from "./status-route.js";
 import { z } from "zod";
 
@@ -32,7 +32,6 @@ import {
 } from "../integration/spine-refusal.js";
 import { GitObjectIdSchema } from "./core/gate-contract-v2-schema.js";
 import type { IncrementalReviewScope } from "./core/incremental-review-scope.js";
-import { hostedProviderAdmitsCoverage } from "./hosted/correction-review-capability.js";
 import {
   HostedProviderIdSchema,
   HostedReviewCoverageSchema,
@@ -690,7 +689,8 @@ function composeSingletonRequest(
     return { state: "blocked", detail: "The standard-review driver did not admit the reserved singleton source." };
   }
   const provider = HostedProviderIdSchema.safeParse(request.sourceId);
-  if (!provider.success || !hostedProviderAdmitsCoverage(provider.data, request.coverage, request.correctionScope)) {
+  if (request.coverage === "incremental") return projectHostedIncrementalRefusal(route);
+  if (!provider.success) {
     return { state: "blocked", detail: "The reserved singleton source cannot preserve the requested coverage." };
   }
   return RoutedReviewObligationSchema.parse({
@@ -702,8 +702,6 @@ function composeSingletonRequest(
       target: request.target,
       provider: provider.data,
       coverage: request.coverage,
-      ...(request.coverage !== "incremental" || request.correctionScope === undefined
-        ? {} : { correctionScope: request.correctionScope }),
       ceilingOverride: request.ceilingOverride,
       additionalPassAuthorization: request.additionalPassAuthorization,
       ...(request.invocation === undefined ? {} : { invocation: request.invocation }),
@@ -961,11 +959,9 @@ export function composeDeliveryReviewObligation(input: {
       detail: `The next reserved source \`${discharge.nextSource}\` is not a hosted request provider.`,
     };
   }
-  if (!hostedProviderAdmitsCoverage(provider.data, requestCoverage, discharge.correctionScope)) {
+  if (requestCoverage === "incremental") {
     return RoutedReviewObligationSchema.parse({
-      state: "blocked",
-      reason: "coverage-unsupported",
-      detail: "The selected hosted review carrier cannot preserve the admitted correction scope.",
+      ...projectHostedIncrementalRefusal(input.statusRoute ?? { kind: "work-unit", workUnitId: target.vehicle.workUnitId }),
       conjunction: { kind: "delivery", status: "outstanding", members },
     });
   }
@@ -982,9 +978,6 @@ export function composeDeliveryReviewObligation(input: {
       }),
       provider: provider.data,
       coverage: requestCoverage,
-      ...(requestCoverage !== "incremental" || discharge.correctionScope === undefined
-        ? {}
-        : { correctionScope: discharge.correctionScope }),
       vehicle: target.vehicle,
       ...(input.requestInvocation === undefined ? {} : { invocation: input.requestInvocation }),
       ...(discharge.requestCeilingOverride === undefined

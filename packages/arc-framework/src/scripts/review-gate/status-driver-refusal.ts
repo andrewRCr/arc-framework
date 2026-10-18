@@ -5,7 +5,7 @@ import type { ReviewResolveEnvelope } from "./policy/review-policy-driver.js";
 import { reviewStatusRouteArgv, type ReviewStatusRoute } from "./status-route.js";
 
 export const ReviewDriverRefusalReasonSchema = z.enum([
-  "material-fix-local-review-required", "material-fix-local-source-unconfigured",
+  "material-fix-local-review-required", "material-fix-local-source-unconfigured", "hosted-incremental-unsupported",
 ]);
 export const ReviewDriverRefusalSchema = z.strictObject({
   state: z.literal("blocked"), reason: ReviewDriverRefusalReasonSchema,
@@ -38,8 +38,18 @@ export function projectReviewSourceRefusal(input: {
     ? "Add delegated-agent to review.standard_sources"
       + (input.allowOwnerStop === true ? ", or take the Owner's stop accepting that the fixes have not been re-examined" : "")
       + ", then re-run status"
-    : "Re-run the next pass on delegated-agent to re-examine the repairs";
+    : reason === "hosted-incremental-unsupported"
+      ? "Run the local fix check on delegated-agent, then re-run status"
+      : "Re-run the next pass on delegated-agent to re-examine the repairs";
   return ReviewDriverRefusalSchema.parse({ state: "blocked", reason, detail: diagnostic.message,
     remedy: spineRemedy(diagnostic.message, correction,
       [...reviewStatusRouteArgv(input.route), ...(unconfigured ? [] : ["--source", "delegated-agent"])]) });
+}
+
+/** Refuse hosted incremental dispatch while preserving the caller's exact local retry route. */
+export function projectHostedIncrementalRefusal(route: ReviewStatusRoute): z.infer<typeof ReviewDriverRefusalSchema> {
+  const refusal = projectReviewSourceRefusal({ route, diagnostic: { code: "hosted-incremental-unsupported",
+    message: "Hosted review requests use complete coverage; fix checks run locally." } });
+  if (refusal === null) throw new Error("Hosted incremental refusal is missing its registered diagnostic.");
+  return refusal;
 }

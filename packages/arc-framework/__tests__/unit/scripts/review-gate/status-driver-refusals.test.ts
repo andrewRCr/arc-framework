@@ -56,3 +56,30 @@ it.each(["delivery work-unit", "delivery target", "singleton"].flatMap(surface =
       expect(result.remedy.text).toContain("not been re-examined");
     } else expect(result.remedy.text).not.toContain("Owner's stop");
 });
+
+it.each(["delivery work-unit", "delivery target", "singleton"])(
+  "refuses hosted incremental coverage through %s with a local retry", async surface => {
+    const statusRoute = surface === "delivery work-unit" ? { kind: "work-unit" as const, workUnitId: "example" }
+      : { kind: "target" as const, target };
+    const admission = resolveReviewPolicy({ schemaVersion: 1, target: handle.target, lane: "standard", standardReview,
+      sources: ["codex-pr", "delegated-agent"], maxPasses: 4, completedPasses: 0, attempts: [],
+      nextPassContext: { convergence: "none", responseDue: false, incremental: null } });
+    const discharge = { discharged: false, detail: "Review is required.", nextSource: "codex-pr",
+      requestCoverage: "incremental" as const };
+    const obligation = surface.startsWith("delivery") ? composeDeliveryReviewObligation({ statusRoute,
+      targets: [{ ...handle.target, vehicle, position: 1, memberCount: 1, chunkKey: "first", title: "First member" }],
+      discharges: [{ ...discharge, requestAdmission: admission, completedPasses: 0, completePasses: 0,
+        passCeiling: 4, attemptHistory: [] }],
+    }) : composeSingletonReviewObligation({ statusRoute, discharge,
+      applicabilityContext: { workUnitId: vehicle.workUnitId, expectedRecordVersion: canonicalDigest({ version: 1 }),
+        candidateId: canonicalDigest({ candidate: 1 }) },
+      request: { target: handle.target, admission, sourceId: "codex-pr", coverage: "incremental" },
+    });
+    const result = await resolveReviewStatus({ target }, { observe: async () => ({ actualHeadSha: target.headSha,
+      currentBaseOid: "b".repeat(40), baseContained: true, requiredChecks: "green", routedObligation: obligation }) });
+    expect(result).toMatchObject({ state: "blocked", reason: "hosted-incremental-unsupported", remedy: {
+      text: expect.stringContaining("local fix check"), argv: ["arc", "review", "status",
+        ...(statusRoute.kind === "work-unit" ? ["--work-unit", "example"] : ["--target", JSON.stringify(target)]),
+        "--source", "delegated-agent"],
+    } });
+  });

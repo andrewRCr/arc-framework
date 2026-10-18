@@ -3577,6 +3577,7 @@ async function executeDefaultHostedRequest(
         admitCapacity: true,
         ...(request.invocation === undefined ? {} : { invocation: request.invocation }),
       });
+      if (request.coverage === "incremental") throw new HostedIncrementalCoverageError(context.statusTarget);
       const supersessionAncestors = await hostedCandidateSupersessionAncestors({
         root,
         exec,
@@ -3752,7 +3753,6 @@ async function executeDefaultHostedRequest(
           });
           return;
         }
-        if (request.coverage === "incremental") throw new HostedIncrementalCoverageError(context.statusTarget);
         const currentAttempts = progress?.attempts.filter((attempt): attempt is typeof attempt & {
           outcome: Exclude<typeof attempt.outcome, "pending">;
         } => attempt.headSha === request.target.headSha && attempt.outcome !== "pending") ?? [];

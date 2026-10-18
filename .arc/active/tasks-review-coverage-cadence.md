@@ -383,56 +383,31 @@ first, then in the `.arc/` copy by targeted edit.
           settles its member with the source list unchanged; configuring the local source resumes the original route.
           Integration's refusal dispatch consumes the offered stop through the existing acceptance procedure.
 
-### `[ ]` **2.7 Remove hosted incremental review — § 7.9, § 7.10**
+### `[x]` **2.7 Remove hosted incremental review — § 7.9, § 7.10**
 
 - _Goal:_ ARC never requests hosted incremental review: its writers are gone, every hosted admission and both hosted
   status routes refuse incremental coverage with a remedy naming the local fix check, a stored hosted record holding
   incremental coverage still parses and replays, and a request already in flight ends with a remedy.
 
-- **Additional Context:** `notes-review-coverage-cadence.md` § Codex probe and § CodeRabbit probe
+    - `[x]` **2.7.a Delete the hosted incremental writers**
+        - Hosted adapters refuse incremental requests before GitHub access and issue only bare complete commands.
+          Correction capabilities, native range production, and hosted incremental choices are removed; local choices
+          and CodeRabbit's request-generation readers remain.
 
-    - `[ ]` **2.7.a Delete the hosted incremental writers**
-        - The correction-review capability (`hostedProviderAdmitsCoverage` and `hostedProviderReviewsIncrementally`,
-          `hosted/correction-review-capability.ts`, and `correctionReview` in both registrations), with its users in
-          `status.ts`, `hosted-reservation-admission.ts`, and `hosted-reservation-support.ts`; the Errand's users go in
-          Task 1.8.
-        - CodeRabbit's incremental request — `request()`'s incremental arm — and its range-evidence writer
-          (`nativeIncrementalCoverageEvidence`, `hosted/coderabbit.ts`). `COMMANDS.incremental` stays, since
-          `requestCommandCoverage` and `nextRequestBoundary` read it.
-        - Codex's `commands.incremental` and the incremental arm of its `request()` (`hosted/codex.ts`), and
-          `coverageSelectionChoices`' hosted incremental choice, whose hosted complete choice stays.
+    - `[x]` **2.7.b Refuse incremental hosted coverage at every admission**
+        - Admission permits hosted complete coverage only. Fresh requests refuse incremental coverage through one
+          typed remedy before capacity checks; retained request replays remain readable. Delivery and singleton status
+          preserve the original route and name the local fix-check retry; complete requests still execute after refusal.
 
-    - `[ ]` **2.7.b Refuse incremental hosted coverage at every admission**
-        - `assertHostedCoverageAdmission` (`hosted-reservation-admission.ts`) refuses incremental coverage outright where
-          the capability check stood, since the request schema (`hosted/request.ts`) and stored records
-          (`requestedCoverage`, `core/operation-state-schema.ts`) keep parsing it. It covers `authorizeCapacity`'s
-          delivery-member and Candidate branches; the Errand branch's refusal is Task 1.8.a's. The singleton and delivery
-          routes in `status.ts` that compose a hosted action refuse it the same way, with a remedy naming the local fix
-          check, carried as Task 2.4.d carries a refusal.
-        - Build `test-first` (one behavior at a time):
-            - A hand-composed incremental hosted request is refused in each `authorizeCapacity` branch with the remedy.
-            - Status's singleton and delivery routes refuse an incremental request on a hosted source.
+    - `[x]` **2.7.c Keep the read side, and end a request already in flight**
+        - Incremental CodeRabbit terminals without native evidence now end with a complete-pass or local-fix-check
+          remedy, consuming no pass and sealing no evidence. Existing incremental records still parse and replay;
+          command-generation attribution and competing handwritten incremental requests retain their refusal behavior.
 
-    - `[ ]` **2.7.c Keep the read side, and end a request already in flight**
-        - CodeRabbit's observer keeps recognizing `@coderabbitai review` and its reply as a request generation
-          (`requestCommandCoverage`, `earlierRequestGenerationsSettled`, `nextRequestBoundary`, `commandReplyCompleted`);
-          the stored-record readers (`lane-attempt-validation.ts`, `hosts/local/review-result-reader.ts`,
-          `recordHostedAwaitAttempt`) and `HostedCoverageEvidenceSchema` (`hosted/await.ts`) stay.
-        - `validateHostedTerminalCoverage` (`hosted/await.ts`) requires coverage evidence on a CodeRabbit incremental
-          terminal, which only the deleted writer produced, so an incremental request acknowledged before the change
-          ends as a terminal failure with a remedy naming the complete pass or the local fix check.
-        - Build `test-first` (one behavior at a time):
-            - A stored hosted record with incremental coverage parses and replays.
-            - A hand-typed `@coderabbitai review` stays a competing request generation that can fail ARC's request with
-              `provider-request-generation-overlap` and never counts as a pass.
-            - An incremental CodeRabbit request in flight ends with the remedy.
-
-    - `[ ]` **2.7.d Update the help and the overview**
-        - `cli.ts`'s "Requested hosted coverage" help changes; `HostedReviewCoverage` and the other type names stay with
-          the stored schema. `integrate-work-unit`'s "only the explicit supplemental route below returns incremental
-          coverage" goes with Task 2.8's removal.
-        - `TECHNICAL-OVERVIEW.md` § Self-Hosting Review Gate, a project document, states that fix checks run locally
-          and hosted sources run complete passes; its "standard-review stream" stays.
+    - `[x]` **2.7.d Update the help and the overview**
+        - Status help distinguishes review coverage from hosted complete-only coverage. The project overview names
+          local fix checks, converged fixes before hosted complete passes, and bare provider commands; stored type names
+          and the standard-review stream remain intact.
 
 ### `[ ]` **2.8 Run the bounded check at both applicability stops — § 7.7**
 

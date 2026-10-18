@@ -13,7 +13,6 @@ import {
 import { canonicalize } from "../../../lib/kernel/index.js";
 import type { ReviewOperationStateSnapshot } from "../core/ports.js";
 import type { IncrementalReviewScope } from "../core/incremental-review-scope.js";
-import { hostedProviderAdmitsCoverage } from "../hosted/correction-review-capability.js";
 import {
   HostedProviderIdSchema, type HostedRequestEnvelope, type HostedReviewCoverage,
 } from "../hosted/request.js";
@@ -388,11 +387,10 @@ function assertHostedPolicyResolution(
 function assertHostedCoverageAdmission(
   provider: string,
   coverage: "complete" | "incremental",
-  correctionScope?: IncrementalReviewScope,
 ): void {
   const recognized = HostedProviderIdSchema.safeParse(provider);
-  if (recognized.success && !hostedProviderAdmitsCoverage(recognized.data, coverage, correctionScope)) {
-    throw new Error(`Hosted review source \`${provider}\` cannot carry an exact correction scope.`);
+  if (recognized.success && coverage === "incremental") {
+    throw new Error(`Hosted review source \`${provider}\` accepts complete coverage only; run the local fix check on delegated-agent.`);
   }
 }
 
@@ -414,7 +412,7 @@ export function assertHostedReservationPolicyAdmission(input: {
   readonly ceilingOverride?: ReviewPolicyCommandRequest["ceilingOverride"];
   readonly additionalPassAuthorization?: ReviewPolicyCommandRequest["additionalPassAuthorization"];
 }): void {
-  assertHostedCoverageAdmission(input.provider, input.coverage, input.correctionScope);
+  assertHostedCoverageAdmission(input.provider, input.coverage);
   const resolution = resolveHostedReservationPolicy(input);
   assertHostedPolicyResolution(resolution, input.provider);
 }
@@ -430,7 +428,7 @@ export async function assertEvidenceBoundHostedReservationPolicyAdmission(
   input: Parameters<typeof assertHostedReservationPolicyAdmission>[0],
   dependencies: HostedReservationEvidenceDependencies,
 ): Promise<void> {
-  assertHostedCoverageAdmission(input.provider, input.coverage, input.correctionScope);
+  assertHostedCoverageAdmission(input.provider, input.coverage);
   assertHostedPolicyResolution(
     await resolveEvidenceBoundHostedReservationPolicy({
       ...input,
@@ -445,7 +443,7 @@ export async function assertEvidenceBoundHostedReservationPolicyAdmission(
 function assertCandidateHostedReservationPosition(
   input: Parameters<typeof assertCandidateHostedReservationPolicyAdmission>[0],
 ): void {
-  assertHostedCoverageAdmission(input.provider, input.coverage, input.correctionScope);
+  assertHostedCoverageAdmission(input.provider, input.coverage);
   if (input.coverage === "incremental"
     && canonicalize(input.correctionScope ?? null)
       !== canonicalize(input.discharge.correctionScope ?? null)) {

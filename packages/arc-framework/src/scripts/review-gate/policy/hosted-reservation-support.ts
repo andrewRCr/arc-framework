@@ -31,14 +31,12 @@ import type { HostedFindingsResponsePlan } from "../core/response-plan-schema.js
 import type { ReviewResult } from "../core/review-result.js";
 import type { HostedAwaitEnvelope } from "../hosted/await.js";
 import {
-  HostedProviderIdSchema,
   hostedRequestHandleMatchesProgress,
   type HostedReviewCoverage,
   type HostedRequestEnvelope,
   type HostedAdmission,
   type HostedRequestHandle,
 } from "../hosted/request.js";
-import { hostedProviderAdmitsCoverage } from "../hosted/correction-review-capability.js";
 import { laneSubjectOwnerMatches, type LaneSubjectLineage } from "../core/lane-admission.js";
 import type { IncrementalReviewScope } from "../core/incremental-review-scope.js";
 import {
@@ -524,14 +522,7 @@ export function coverageSelectionChoices(
         ? [complete]
         : [{ sourceId, coverage: "incremental" }, complete];
     }
-    const provider = HostedProviderIdSchema.safeParse(sourceId);
-    return provider.success && hostedProviderAdmitsCoverage(
-      provider.data,
-      "incremental",
-      correctionScope,
-    )
-      ? [{ sourceId, coverage: "incremental" }, complete]
-      : [complete];
+    return [complete];
   });
 }
 

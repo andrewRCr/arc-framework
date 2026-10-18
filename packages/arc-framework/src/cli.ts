@@ -1960,7 +1960,7 @@ reviewCmd
   .option("--work-unit <slug>", "Resolve the live stacked-delivery review continuation")
   .option("--ceiling-override <override>", "Exact JSON consequence approving one additional review pass")
   .option("--additional-pass <authorization>", "Exact JSON Owner authorization for review after convergence")
-  .option("--coverage <coverage>", "Requested hosted coverage (complete or incremental)")
+  .option("--coverage <coverage>", "Requested review coverage (complete or incremental; hosted sources require complete)")
   .option("--source <source-id>", "Explicit standard-review source for this work-unit status invocation")
   .addOption(new Option("--json").hideHelp())
   .on("option:json", rejectUnsupportedReviewOutputJson)

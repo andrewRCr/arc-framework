@@ -323,7 +323,7 @@ describe("Candidate hosted reservation admission", () => {
       coverage: "incremental",
       maxPasses: 2,
       logicalPass: 1,
-    }))).toThrow(/cannot carry an exact correction scope/u);
+    }))).toThrow(/local fix check on delegated-agent/u);
   });
 
   it("excludes prior-head terminals when rechecking Candidate capacity at the pass ceiling", () => {

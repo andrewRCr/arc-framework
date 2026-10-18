@@ -4203,6 +4203,17 @@ describe("hosted review fan-out lifecycle", () => {
     });
     if (status.nextAction !== "review-hosted-request") throw new Error("expected hosted request");
 
+    const refused = await requestThroughProductionHandler(harness, fakeBin, {
+      ...status.action, coverage: "incremental", correctionScope: {
+        schemaVersion: 1, predecessorProducerId: "prior-review", predecessorHeadSha: "a".repeat(40),
+        basisHeadSha: "a".repeat(40), headSha: status.action.target.headSha, requiredFindings: [],
+      },
+    });
+    expect(refused).toMatchObject({ exitCodes: [1], output: {
+      error: { code: "invalid-input" }, remedy: { text: expect.stringContaining("local fix check") },
+    } });
+    await expect(readFile(providerCalled, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+
     const first = await requestThroughProductionHandler(harness, fakeBin, status.action);
     expect(first.exitCodes, JSON.stringify(first.output)).toEqual([]);
     const requested = HostedRequestResultSchema.parse(first.output);

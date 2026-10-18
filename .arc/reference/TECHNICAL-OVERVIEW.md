@@ -129,8 +129,10 @@ canonical commit/push path under workflow guidance. Off-workflow commits use raw
 Self-hosting integration runs one configured review loop through the shipped `arc review` command tree. Frontline
 sources run independently through `frontline resolve` and `frontline run`. The standard-review stream resolves one
 ordered source per pass: `delegated-agent` uses the local prepare/attest/resume boundary, while `coderabbit-pr` and
-`codex-pr` use the hosted request/await/settle boundary. Chunking and source resolution return typed actions, so the
-workflow dispatches mechanics without reconstructing provider state or asking which source to try next.
+`codex-pr` use the hosted request/await/settle boundary. Fix checks run locally on `delegated-agent`; hosted sources
+run complete passes with bare provider commands. After material fixes, a local fix check converges before another
+hosted pass. Chunking and source resolution return typed actions, so the workflow dispatches mechanics without
+reconstructing provider state or asking which source to try next.
 
 The CLI owns deterministic mechanics: immutable target and guidance bindings, ordered safe fallback, bounded
 awaiting, result normalization, and thread settlement. The operating agent owns bounded judgment about finding

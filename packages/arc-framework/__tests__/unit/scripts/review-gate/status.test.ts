@@ -1741,7 +1741,7 @@ describe("review status", () => {
     })).not.toHaveProperty("localAction.correctionScope");
   });
 
-  it("requires an exact scope before dispatching native CodeRabbit correction coverage", async () => {
+  it("refuses hosted incremental coverage even with an exact correction scope", async () => {
     const correctionScope = {
       schemaVersion: 1 as const,
       predecessorProducerId: "hosted/attempt-1",
@@ -1764,18 +1764,18 @@ describe("review status", () => {
 
     expect(coderabbit).toMatchObject({
       state: "blocked",
-      reason: "coverage-unsupported",
+      reason: "hosted-incremental-unsupported",
       conjunction: { members: [{ state: "outstanding" }] },
     });
     await expect(resolveReviewStatus({ target }, port({ routedObligation: coderabbit }))).resolves.toMatchObject({
       state: "blocked",
-      reason: "coverage-unsupported",
+      reason: "hosted-incremental-unsupported",
       remedy: {
-        invariant: "The selected review carrier cannot preserve the admitted correction scope.",
-        text: expect.stringContaining("Re-run with complete coverage"),
+        invariant: "Hosted review requests use complete coverage; fix checks run locally.",
+        text: expect.stringContaining("local fix check"),
         argv: [
           "arc", "review", "status", "--work-unit", "example",
-          "--coverage", "complete",
+          "--source", "delegated-agent",
         ],
       },
     });
@@ -1792,12 +1792,8 @@ describe("review status", () => {
       })],
       requestCoverage: "incremental",
     })).toMatchObject({
-      state: "review-required",
-      action: {
-        provider: "coderabbit-pr",
-        coverage: "incremental",
-        correctionScope,
-      },
+      state: "blocked",
+      reason: "hosted-incremental-unsupported",
     });
 
     expect(composeDeliveryReviewObligation({
@@ -1812,8 +1808,8 @@ describe("review status", () => {
       })],
       requestCoverage: "incremental",
     })).toMatchObject({
-      state: "review-required",
-      action: { provider: "codex-pr", coverage: "incremental", correctionScope },
+      state: "blocked",
+      reason: "hosted-incremental-unsupported",
     });
   });
 

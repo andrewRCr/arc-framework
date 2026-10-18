@@ -8,6 +8,7 @@ import { type LaneProgressState, type ReviewOperationState } from "../../../../s
 import { createReviewRequirement, createReviewTarget } from "../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 
 import { bindHostedAttemptDisposition, captureConditionalNextPassAuthorization, hostedLaneAttemptId, invalidateConditionalNextPassAuthorization, laneProgressOperationId, acknowledgeHostedRequest, recordHostedAwaitAttempt, recordHostedRequestAdmission, recordHostedRequestConclusion, readHostedAwaitReplay, readHostedRequestAdmissionReplay, recordLaneAttempt, resolveHostedAwaitResult, HostedAwaitEndedError, recordLaneResponsePerformance, settleLaneAttempt, settleHostedAttemptFinding, supersedeHostedAttemptDisposition } from "../../../../src/scripts/review-gate/lane-progress.js";
+import { awaitHostedReview } from "../../../../src/scripts/review-gate/hosted/await.js";
 import { createHostedAdmission, type HostedRequestEnvelope, type HostedRequestHandle } from "../../../../src/scripts/review-gate/hosted/request.js";
 
 
@@ -838,6 +839,35 @@ describe("hosted await lane recording", () => {
     expect(failure).toMatchObject({ code: "invalid-input", outcome: "rate-limited" });
     expect(String((failure as Error).message)).toContain("already ended as rate-limited");
   });
+
+  it.each(["clean", "findings"] as const)(
+    "ends an in-flight incremental %s without spending a pass or sealing evidence", async kind => {
+      const store = createStore();
+      const incremental = createHostedHandleFixture({ requestedCoverage: "incremental",
+        target: deliveryHandle.target, vehicle: deliveryVehicle, artifact: deliveryHandle.artifact,
+        correctionScope: correctionScope(deliveryHandle.target.headSha) });
+      await seedAcknowledgedRequest(store, incremental);
+      const observed = await resolveHostedAwaitResult(store, {
+        repositoryId: "repo-1", handle: incremental, now: () => "2026-08-15T11:01:00Z",
+        observe: () => awaitHostedReview({ schemaVersion: 1, handle: incremental, timeoutMs: 100, pollIntervalMs: 100 }, {
+          attentionAfterMs: 60_000,
+          clock: { now: () => Date.parse(incremental.artifact.createdAt), sleep: async () => undefined },
+          observers: [{ id: "coderabbit-pr", readHead: async () => incremental.target.headSha,
+            observe: async () => kind === "clean" ? { kind, reviewUrl: "https://example.test/review" } : {
+              kind, reviewUrl: "https://example.test/review", findings: [{ findingId: "finding-1",
+                origin: "review-thread", commentId: "comment-2", threadId: "thread-1", settlement: "reply-and-resolve",
+                severity: "major", locus: "src/a.ts:1", url: "https://example.test/finding", sourceOrdinal: 1 }],
+            } }],
+        }),
+      });
+      expect(observed.result).toMatchObject({ state: "terminal-failure", nextAction: "stop",
+        reason: expect.stringContaining("local fix check") });
+      expect(observed.progress).toMatchObject({ completedPasses: 0, attempts: [{ outcome: "terminal-failure",
+        terminalProducer: false, hosted: { effectiveCoverage: null,
+          requestFailureReason: expect.stringContaining("complete hosted pass") } }] });
+      expect(observed.hostedResultId).toBeNull();
+      expect(observed.progress.attempts[0]?.hosted).not.toHaveProperty("sealedResult");
+    });
 
   it("counts an incremental verdict once while retaining its coverage", async () => {
     const store = createStore();

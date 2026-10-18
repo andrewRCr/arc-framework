@@ -203,6 +203,16 @@ function requestHandle(coverage: HostedReviewCoverage = "incremental"): HostedRe
 }
 
 describe("CodeRabbit hosted adapter", () => {
+  it("refuses incremental requests before contacting GitHub", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readHead: () => Promise.reject(new Error("unexpected hosted access")),
+    }));
+    await expect(adapter.request(target, "incremental")).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: "Hosted incremental review is unavailable. Run a local fix check on delegated-agent or request a complete hosted pass.",
+    });
+  });
+
   it.each([
     ["readHead", "rate-limited"],
     ["currentActorIdentity", "transient-unavailable"],
@@ -275,7 +285,7 @@ describe("CodeRabbit hosted adapter", () => {
     }
   });
 
-  it("accepts a terminal incremental finding sequence with the admitted native range", async () => {
+  it("observes a legacy incremental finding sequence without producing range evidence", async () => {
     const adapter = new CodeRabbitHostedAdapter(port({
       readReviews: () => Promise.resolve([review({
         state: "changes-requested",
@@ -288,13 +298,6 @@ describe("CodeRabbit hosted adapter", () => {
     await expect(adapter.observe(requestHandle("incremental"))).resolves.toMatchObject({
       kind: "findings",
       findings: [{ severity: "major", locus: "src/a.ts:7" }],
-      coverageEvidence: {
-        status: "established",
-        requestArtifactId: "IC_REQUEST",
-        baselineSha: "b".repeat(40),
-        headSha: HEAD,
-        providerGeneration: { artifactId: "IC_SUMMARY" },
-      },
     });
   });
 
@@ -479,62 +482,6 @@ Full review finished.`,
     }));
 
     await expect(adapter.observe(requestHandle("incremental"))).resolves.toMatchObject({ kind: "clean" });
-  });
-
-  it.each([
-    {
-      name: "mismatched baseline",
-      comments: [summaryComment(HEAD, {
-        body: `<!-- recent_review_start -->
-
-Reviewing files that changed between ${"c".repeat(40)} and ${HEAD}.
-
-<!-- recent_review_end -->`,
-      })],
-      reason: "provider-incremental-range-mismatch",
-    },
-    {
-      name: "missing range",
-      comments: [summaryComment(HEAD, {
-        body: `<!-- recent_review_start -->
-
-Review complete.
-
-<!-- recent_review_end -->`,
-      })],
-      reason: "provider-incremental-range-missing",
-    },
-    {
-      name: "untrusted range",
-      comments: [summaryComment(HEAD, { appId: "999" })],
-      reason: "provider-incremental-range-missing",
-    },
-    {
-      name: "ambiguous ranges",
-      comments: [summaryComment(HEAD, {
-        body: `<!-- recent_review_start -->
-
-Reviewing files that changed between ${"b".repeat(40)} and ${HEAD}.
-Reviewing files that changed between ${"c".repeat(40)} and ${HEAD}.
-
-<!-- recent_review_end -->`,
-      })],
-      reason: "provider-incremental-range-ambiguous",
-    },
-  ])("retains a terminal result without crediting $name", async ({ comments, reason }) => {
-    const adapter = new CodeRabbitHostedAdapter(port({
-      readReviews: () => Promise.resolve([review()]),
-      readIssueComments: () => Promise.resolve([requestComment("incremental"), ...comments]),
-    }));
-
-    await expect(adapter.observe(requestHandle("incremental"))).resolves.toMatchObject({
-      kind: "clean",
-      coverageEvidence: {
-        status: "unestablished",
-        requestArtifactId: "IC_REQUEST",
-        reason,
-      },
-    });
   });
 
   it("fails closed when a different request command shares the admitted artifact timestamp", async () => {
@@ -792,7 +739,7 @@ Full review finished.`,
     await expect(adapter.observe(requestHandle())).resolves.toEqual({ kind: "pending" });
   });
 
-  it("records unestablished coverage for a mismatched reviewed head", async () => {
+  it("observes a legacy incremental completion without producing range evidence", async () => {
     const adapter = new CodeRabbitHostedAdapter(port({
       readIssueComments: () => Promise.resolve([
         requestComment("incremental"), summaryComment("c".repeat(40)), commandReply(),
@@ -801,10 +748,6 @@ Full review finished.`,
     }));
     await expect(adapter.observe(requestHandle())).resolves.toMatchObject({
       kind: "clean",
-      coverageEvidence: {
-        status: "unestablished",
-        reason: "provider-incremental-range-mismatch",
-      },
     });
   });
 
@@ -1017,7 +960,6 @@ The later approval is a completion marker, not a replacement result.
 
   it.each([
     ["complete", "@coderabbitai full review"],
-    ["incremental", "@coderabbitai review"],
   ] as const)("maps %s coverage to the provider command", async (coverage, command) => {
     let posted = "";
     const adapter = new CodeRabbitHostedAdapter(port({
