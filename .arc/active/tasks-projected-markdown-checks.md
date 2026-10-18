@@ -274,21 +274,15 @@ and an unavailable selection causes no write before a successful retry after rep
   Node glob matching with the shared Git matcher; dot-directory exclusions and case-sensitive paths agree with
   canonical configuration. Default Git selection and indexed underwrap certification retain their existing paths.
 
-### `[ ]` **5.2 Declare the three selection checks and prove input agreement — D6.1–D6.2**
+### `[x]` **5.2 Declare the three selection checks and prove input agreement — D6.1–D6.2**
 
 - _Goal:_ The three project checks admit only paths their scripts accept and remain ungated feedback declarations,
   with existing tracked-corpus checks retaining their selection and reuse behavior.
 
-    - Add the three D6.1 declarations to project `.arc/system/arc-checks.yml`, using the specified argv commands.
-      Mirror `MARKDOWN_SELECTION.ignores` as negative markdownlint inputs, retain the existing underwrap exclusions
-      plus `!**/.venv*`, and apply the audit's ARC/template/archive exclusions.
-    - Build `test-first` (one behavior at a time):
-        - Feed each script's admission predicate every fixture its declaration inputs admit, covering each exclusion
-          class, nested personal basenames, case, and a `.venv`-prefixed filename as well as a directory.
-        - No admitted operand is refused before lint, all three declarations resolve to selection with no gate, and
-          existing gated checks and CI membership are unchanged.
-    - Exercise declarations through `CheckDeclarationSchema` and the actual shared matcher, not a second test-only
-      interpretation of globs; keep the project-owned declaration out of framework synchronization.
+- _Outcome:_ Added markdownlint, underwrap, and link-audit selection declarations with the specified argv and
+  ungated defaults. The real Git matcher and each script's admission predicate agree across the exclusion/case
+  matrix, including nested personal basenames and `.venv` filenames. ARC-qualified template exclusions preserve
+  the audit corpus under observed `ls-files` behavior; existing gate and CI declarations remain unchanged.
 
 ### `[ ]` **5.3 Prove the actual Markdown tool recipes over projected files — D6.1**
 

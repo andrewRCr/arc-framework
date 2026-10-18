@@ -202,6 +202,20 @@ applied reconcile, decomposition base advancement, integration records/boundarie
 their original paths. Completed-only cohort Closeout remains outside the corpus. `run-errand` still checks every
 pass and approved fix; the task-loop template still selects increment or segment at its existing boundary.
 
+### Repository declaration admission
+
+The twenty-one-path matrix in `integration/markdown-selection-admission.test.ts` reads the actual project YAML,
+parses `CheckDeclarationSchema`, uses `matchPathList`, and compares each admitted set with the script's real admission
+predicate. It includes every exclusion class, dot directories, nested personal basenames, case variants, and `.venv`
+as a filename. The distinct markdownlint and underwrap policies remain intentional: markdownlint admits a
+`.venv-probe.md` filename but excludes nested personal WORKING-MEMORY/USER-INBOX basenames; underwrap does the inverse.
+
+A real Git probe found `ls-files` with positive `.arc/**/*.md` and exclusions `**/*.template.md` / `**/template-*.md`
+returned those templates on Git 2.55.0. Qualifying the exclusions as `.arc/**/*.template.md` and
+`.arc/**/template-*.md` excludes them and preserves the intended audit domain. The declaration uses those qualified
+forms; the shared matcher retains native Git semantics. Increment/segment feedback and gate exclusion remain covered
+by the existing mode tests; this matrix also checks the actual project entries' ungated defaults and gate exclusion.
+
 ## Fixer grounding
 
 `validateExplicitMarkdownPaths` already has `allowIgnoredPaths`, a named set bypassing Git membership while retaining
