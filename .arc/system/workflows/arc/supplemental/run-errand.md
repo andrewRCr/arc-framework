@@ -266,14 +266,21 @@ remote base all name the same exact head. Any tracked change continues through t
 
    A look converges when clean or when its approved dispositions fix no confirmed `critical` or `major` finding. Under
    `full-final`, only a converged complete pass replays as complete; a converged fix check still requires the complete
-   pass. Under that policy, additional-pass authorization follows a converged complete pass. If the Owner explicitly
-   authorizes another named standard pass, carry the exact target, preceding producer, completed-pass count, and next
-   ordinal as `additionalPassAuthorization` through `arc review resolve -`.
-   Carry the full authorization on hosted admission, or its targetless fields under
-   `policyJudgment.additionalPassAuthorization` on local preparation. For an open PR,
-   `arc review status --target <targetRef> --additional-pass '<authorization>'` reports the outstanding review. A fresh
-   decision is required for each later pass; the same decision covers a named above-ceiling pass. A later material
-   result enters the ordinary response route.
+   pass. Under that policy, additional-pass authorization follows a converged complete pass.
+
+   After a plain commit following a converged look, follow the driver's local delta check without a coverage question.
+   Under `incremental` it runs before and after the PR and closes the lane on convergence. Under `full-final` it runs
+   only with an open PR, followed by a complete pass; before the PR, the complete pass runs directly. For a local
+   complete pass instead, supply `coverageAdmission: { requestedCoverage: "complete" }` in ordinary local prepare,
+   with no correction scope. For a hosted complete pass, finish the delta check first: `full-final` reaches it by
+   configured rank; `incremental` requires an authorized additional pass after convergence.
+
+   If the Owner explicitly authorizes another named standard pass, carry the exact target, preceding producer,
+   completed-pass count, and next ordinal as `additionalPassAuthorization` through `arc review resolve -`. Carry the
+   full authorization on hosted admission, or its targetless fields under `policyJudgment.additionalPassAuthorization`
+   on local preparation. For an open PR, `arc review status --target <targetRef> --additional-pass '<authorization>'`
+   reports the outstanding review. A fresh decision is required for each later pass; the same decision covers a named
+   above-ceiling pass. A later material result enters the ordinary response route.
 
    Resolve frontline, then the pre-PR standard lane. Follow only the driver's typed `state` / `nextAction`:
 
@@ -413,10 +420,10 @@ remote base all name the same exact head. Any tracked change continues through t
    `arc review status --target <targetRef>` with any ceiling override or additional-pass authorization the driver call
    carried. When it returns `review-required / review-hosted-request` with an `action` naming the selected provider,
    pass that action unchanged to `arc review hosted request -`. A hosted source runs only the lane's first pass or the
-   complete pass after a converged look, with `coverage: complete`; fix checks run locally. Status offers no request for
-   a head with no recorded review, so for the Errand's first pass, hand it the driver result's own `action` unchanged
-   instead. When neither result carries an `action`, stop: neither verb recognized this checkout as the Errand's
-   subject.
+   complete pass after a converged look, with `coverage: complete`; fix checks and delta checks run locally. Status
+   offers no request for a head with no recorded review, so for the Errand's first pass, hand it the driver result's own
+   `action` unchanged instead. When neither result carries an `action`, stop: neither verb recognized this checkout as
+   the Errand's subject.
 
    - `requested / await` — pass the returned `action` unchanged to `arc review hosted await -`; omitted timing uses
      the project's configured bounded-call defaults.

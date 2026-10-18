@@ -509,7 +509,7 @@ the range proof. Workflow text changes in the package's `arc/` source first, the
   descendant at the earlier-read and Errand review stops, admits a delta attempt at its own head, and preserves a
   mechanically carried attempt whose own chain includes a delta leg. Equal-subject carry remains applicable.
 
-### `[ ]` **3.5 Run the delta check on an Errand, before and after its pull request — § 3.5**
+### `[x]` **3.5 Run the delta check on an Errand, before and after its pull request — § 3.5**
 
 - _Goal:_ On an Errand, a plain commit after a converged look takes a delta check before and after its pull request
   under `incremental`, closing the lane when it converges; under `full-final` it runs only with a pull request open and
@@ -527,9 +527,10 @@ the range proof. Workflow text changes in the package's `arc/` source first, the
           additional hosted pass, and preserves that authorization in status's request. Full-final takes a delta then
           the ranked complete successor with an open PR, and a complete pass directly before publication.
 
-    - `[ ]` **3.5.c Say so in `run-errand`**
-        - The workflow names the delta check after a plain commit and the Owner's outcomes in order: a local complete
-          pass at once through `coverageAdmission`, then a hosted complete pass where the order reaches one.
+    - `[x]` **3.5.c Say so in `run-errand`**
+        - The workflow names the delta check after a plain commit and its retrigger-specific closure. It gives the
+          local complete alternative through explicit coverageAdmission first, then the hosted successor by rank or
+          additional-pass authorization. Package source and installed workflow agree.
 
 ### `[ ]` **3.6 Run the delta check in pre-publication once the Candidate checkpoint advances the same Candidate — § 3.5**
 
