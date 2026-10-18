@@ -321,8 +321,8 @@ function missingHistoricalResultObligation(input: {
   const override = input.ceilingOverride;
   if (override === undefined) {
     return { state: "approval-required", scope: "errand",
-      detail: "The Errand claim has exhausted its standard-review pass ceiling; the historical "
-        + "producer result is unavailable, and another pass needs an exact one-pass Owner override.",
+      detail: "The Errand claim has exhausted its complete standard-review pass ceiling; the historical "
+        + "producer result is unavailable, and another complete pass needs an exact one-pass Owner override.",
       consequence };
   }
   if (canonicalize(override.target) !== canonicalize(consequence.target)
@@ -333,7 +333,7 @@ function missingHistoricalResultObligation(input: {
   }
   return { state: "review-required",
     detail: "The exact ceiling override was supplied, but the historical review producer is unavailable; "
-      + "execution admission must verify the next pass." };
+      + "execution admission must verify the next complete pass." };
 }
 
 /** Whether one attempt completed the current standard-review rubric for the exact change request. */
@@ -672,10 +672,10 @@ async function nextErrandPassObligation(input: {
   const refusal = projectReviewDriverRefusal({ policy, route: { kind: "target", target: input.statusTarget },
     allowOwnerStop: true });
   if (refusal !== null) return refusal;
-  const count = `${completedPasses} of ${configured.maxPasses} configured standard-review passes`;
+  const count = `${input.completePasses} of ${configured.maxPasses} configured complete standard-review passes`;
   if (policy.state === "approval-required") {
     return { state: "approval-required", scope: "errand",
-      detail: `This Errand claim has used ${count}; another pass needs an exact one-pass Owner override.`,
+      detail: `This Errand claim has used ${count}; another complete pass needs an exact one-pass Owner override.`,
       consequence: policy.payload.consequence };
   }
   if (policy.state === "invalid-override" || policy.state === "blocked"
@@ -905,8 +905,8 @@ export async function readErrandRoutedObligation(input: {
     if (refusal !== null) return refusal;
     if (policy.state === "approval-required") {
       return { state: "approval-required", scope: "errand",
-        detail: `This Errand claim has used ${progress.completedPasses} standard-review passes; `
-          + "another pass needs an exact one-pass Owner override.",
+        detail: `This Errand claim has used ${progress.completePasses} complete standard-review passes; `
+          + "another complete pass needs an exact one-pass Owner override.",
         consequence: policy.payload.consequence };
     }
     if (policy.state === "invalid-override") {

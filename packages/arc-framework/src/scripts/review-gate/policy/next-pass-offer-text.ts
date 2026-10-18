@@ -9,11 +9,31 @@ function sizeText(size: Size | null): string {
 }
 function signalText(signal: boolean | null): string { return signal === null ? "unknown" : signal ? "yes" : "no"; }
 
+function materialTrendText(facts: NextPassFacts): string {
+  let completePass = 0;
+  let round = 0;
+  const positions = new Map<string, string>();
+  return facts.materialTrend.map(look => {
+    let position = positions.get(look.producerId);
+    if (position === undefined) {
+      if (look.coverage === "complete") {
+        completePass += 1;
+        round = 0;
+        position = `complete pass ${completePass} of ${facts.ceiling}`;
+      } else {
+        round += 1;
+        position = `fix check, round ${round} since pass ${completePass}`;
+      }
+      positions.set(look.producerId, position);
+    }
+    return `${position}: ${look.outcome}, ${look.materialCount ?? "unknown"} material${look.provisional ? " (provisional)" : ""}`;
+  }).join("; ");
+}
+
 /** Render each observation with its limits and the decision it can inform. */
 export function nextPassConsiderations(facts: NextPassFacts): readonly string[] {
-  const checks = facts.fixChecksSinceLastComplete.map(look => `${look.logicalPass}: ${look.outcome}`).join(", ");
-  const trend = facts.materialTrend.map(look => `${look.coverage === "complete" ? "complete pass" : "fix check"} `
-    + `${look.logicalPass}: ${look.outcome}, ${look.materialCount ?? "unknown"} material${look.provisional ? " (provisional)" : ""}`).join("; ");
+  const checks = facts.fixChecksSinceLastComplete.map((look, index) => `round ${index + 1}: ${look.outcome}`).join(", ");
+  const trend = materialTrendText(facts);
   return [
     `Complete passes: ${facts.completePasses} of ${facts.ceiling}. A complete pass spends this budget; a fix check does not. `
       + "A tight budget favors verifying repairs in a fix check, preserving complete passes for a successor look when the defect signal justifies one. "

@@ -1,3 +1,4 @@
+import { nextPassConsiderations } from "../../../../../src/scripts/review-gate/policy/next-pass-offer-text.js";
 /** Local coverage choices consume the shared next-look facts. */
 import { nextPassFactsFixture } from "../../../../fixtures/next-pass-facts.js";
 import { describe, expect, it } from "vitest";
@@ -84,8 +85,8 @@ it("renders each fact with the decision it informs and asks for an advisory reco
   expect(text).toContain("Round 1, paths outside cited loci: no");
   expect(text).toContain("Round 2, paths outside cited loci: yes");
   expect(text).toContain("Round 2, added files: yes");
-  expect(text).toContain("complete pass 1: findings, 2 material");
-  expect(text).toContain("fix check 2: findings, 1 material");
+  expect(text).toContain("complete pass 1 of 4: findings, 2 material");
+  expect(text).toContain("fix check, round 1 since pass 1: findings, 1 material");
   expect(text).toContain("a smaller fix range favors a fix check");
   expect(text).toContain("after fix checks converge");
   expect(text).toContain("advisory");
@@ -103,4 +104,21 @@ it("names only the complete pass when the chain fails and asks the agent to chec
   expect(offered.action.interactionText).toContain("Correction chain: unproven");
   expect(offered.action.interactionText).toContain("Fix range: unavailable");
   expect(offered.action.interactionText).toMatch(/What do you recommend, why, and what would change your recommendation\?$/u);
+});
+
+it("numbers complete passes and repair rounds independently in the offered trend", () => {
+  const facts = nextPassFactsFixture();
+  const complete = { producerId: "complete-2", logicalPass: 4, coverage: "complete" as const,
+    outcome: "findings", materialCount: 1, provisional: false };
+  const check = { producerId: "fix-check-3", logicalPass: 5, coverage: "fix-check" as const,
+    outcome: "clean", materialCount: 0, provisional: false };
+  const text = nextPassConsiderations({ ...facts, completePasses: 2, fixChecksSinceLastComplete: [check],
+    materialTrend: [...facts.materialTrend, { ...facts.materialTrend[1]!, producerId: "fix-check-2", logicalPass: 3 },
+      complete, check, { ...check, provisional: true }] }).join("\n");
+  expect(text).toContain("complete pass 2 of 4: findings");
+  expect(text).toContain("fix check, round 2 since pass 1: findings");
+  expect(text).toContain("fix check, round 1 since pass 2: clean");
+  expect(text).toContain("round 1: clean");
+  expect(text).not.toContain("complete pass 4");
+  expect(text).not.toContain("round 2 since pass 2");
 });

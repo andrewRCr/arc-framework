@@ -36,7 +36,9 @@ describe("provisional ceiling facts", () => {
 });
 
 
-it.each(["complete", "incremental"] as const)("projects %s coverage from the complete count", coverage => {
+it.each((["complete", "incremental"] as const).flatMap(coverage =>
+  [true, false].map(chainAdequate => ({ coverage, chainAdequate, ceiling: chainAdequate ? 2 : 3 }))))(
+  "projects $coverage coverage from the complete count with adequate chain=$chainAdequate", ({ coverage, chainAdequate, ceiling }) => {
   const original = findingsHostedResult(["major"]);
   const logicalPass = coverage === "complete" ? 5 : 6;
   const result = { ...original, admission: { ...original.admission, logicalPass,
@@ -44,10 +46,19 @@ it.each(["complete", "incremental"] as const)("projects %s coverage from the com
     ...(coverage === "incremental" ? { correctionScope: { schemaVersion: 1 as const,
       predecessorProducerId: "complete-look-five", predecessorHeadSha: "b".repeat(40),
       basisHeadSha: "b".repeat(40), headSha: original.target.headSha, requiredFindings: [] } } : {}) } };
-  const approved = approvedRecord(result, [{ sourceVerification: "verified", verifiedSeverity: "major", disposition: "defer" }]);
+  const approved = approvedRecord(result, [{ sourceVerification: "verified", verifiedSeverity: "major", disposition: "fix" }]);
   const proposal = proposeDispositionSet(approved.approvedDispositionLineage[0]!.approvedDisposition.dispositionSet);
   const projected = projectProvisionalPassAssessment({ proposal, result, lane: "standard", admittedLogicalPass: logicalPass,
-    configuredMaxPasses: 2,
-    standardFacts: provisionalPassFactsFixture({ completePasses: 2, ceiling: 2 }) });
-  expect(projected).toMatchObject({ admittedLogicalPass: logicalPass, ceilingPassCount: 2, capPosition: "at-ceiling" });
+    configuredMaxPasses: ceiling,
+    standardFacts: provisionalPassFactsFixture({ completePasses: 2, ceiling, chainAdequate,
+      fixChecksSinceLastComplete: coverage === "complete" ? [] : [3, 4, 5, 6].map(pass => ({
+        producerId: pass === 6 ? result.producerId : `fix-check-${pass}`, logicalPass: pass,
+        coverage: "fix-check", outcome: "findings" })) }) });
+  expect(projected).toMatchObject({ admittedLogicalPass: logicalPass, ceilingPassCount: 2,
+    capPosition: chainAdequate ? "at-ceiling" : "below-ceiling" });
+  expect(projected.summaryText).toContain(coverage === "complete"
+    ? `Standard complete pass 2 of ${ceiling}` : "Standard fix check, round 4 since pass 2");
+  expect(projected.summaryText).not.toContain(`pass ${logicalPass} of`);
+  expect(projected.summaryText).toContain(!chainAdequate ? "needs standard complete pass 3 of 3"
+    : coverage === "complete" ? "needs a fix check, round 1 since pass 2" : "needs a fix check, round 5 since pass 2");
 });

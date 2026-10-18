@@ -19,22 +19,26 @@ function fixConsequenceText(
   consequence: ProvisionalFixConsequence,
   lane: "frontline" | "standard",
   nextPass: string,
+  nextFixCheck: string,
 ): string {
   switch (consequence.kind) {
     case "no-fix":
       return "";
     case "lane-closes":
-      return ` Approving a FIX moves the head without another ${lane} pass.`;
+      return ` Approving a FIX moves the head without another ${lane === "standard" ? "standard complete" : lane} pass.`;
     case "next-pass": {
-      const coverage = consequence.coverage === null ? ""
+      if (lane === "standard" && consequence.coverage === "incremental-when-proven") {
+        return ` Approving a FIX moves the head, which needs ${nextFixCheck}, where its chain is proven.`;
+      }
+      const coverage = lane === "standard" || consequence.coverage === null ? ""
         : consequence.coverage === "complete" ? ", with complete coverage"
           : ", covering only the fix where its chain is proven";
-      return ` Approving a FIX moves the head, which needs ${lane} pass ${nextPass}${coverage}.`;
+      return ` Approving a FIX moves the head, which needs ${nextPass}${coverage}.`;
     }
     case "ceiling-decision":
-      return " Approving a FIX moves the head, and another pass needs a ceiling decision.";
+      return ` Approving a FIX moves the head, and another ${lane === "standard" ? "complete pass" : "pass"} needs a ceiling decision.`;
     case "decided-at-fixed-head":
-      return " Approving a FIX moves the head; review status there decides whether another pass is needed.";
+      return " Approving a FIX moves the head; review status there decides whether another complete pass is needed.";
   }
 }
 
@@ -51,6 +55,23 @@ function proposedReviewSignal(proposal: ProposedDispositionSet) {
     }
   }
   return { confirmedFindingCount, maxConfirmedSeverity, materialFix: fixesMaterialFinding(proposal.dispositionSet.findings) };
+}
+
+function fixCheckRound(result: ReviewResult, facts: NextPassFacts): number {
+  if (result.admission.effectiveCoverage !== "incremental") return 0;
+  const round = facts.fixChecksSinceLastComplete.findIndex(look => look.producerId === result.producerId) + 1;
+  if (round === 0) throw new Error("The current fix check is missing from the lane's review facts.");
+  return round;
+}
+
+function standardPositionText(result: ReviewResult, facts: NextPassFacts, ceiling: number): string {
+  if (result.admission.effectiveCoverage === "complete") {
+    return `Standard complete pass ${facts.completePasses} of ${ceiling}`;
+  }
+  if (result.admission.effectiveCoverage === null) {
+    return `Standard review with unproven coverage; ${facts.completePasses} complete passes of ${ceiling}`;
+  }
+  return `Standard fix check, round ${fixCheckRound(result, facts)} since pass ${facts.completePasses}`;
 }
 
 /** Project a proposal against repository-derived standard facts or the recorded frontline ordinal. */
@@ -91,9 +112,12 @@ export function projectProvisionalPassAssessment(input: {
   const consequenceText = fixConsequenceText(
     fixConsequence,
     input.lane,
-    `${input.admittedLogicalPass + 1} of ${input.configuredMaxPasses}`,
+    `${input.lane === "standard" ? "standard complete" : "frontline"} pass ${ceilingPassCount + 1} of ${input.configuredMaxPasses}`,
+    input.standardFacts === undefined ? "" : `a fix check, round ${fixCheckRound(input.result, input.standardFacts.facts) + 1} since pass ${ceilingPassCount}`,
   );
-  const laneText = input.lane === "standard" ? "Standard" : "Frontline";
+  const reviewText = input.lane === "standard" && input.standardFacts !== undefined
+    ? standardPositionText(input.result, input.standardFacts.facts, input.configuredMaxPasses)
+    : `Frontline pass ${input.admittedLogicalPass} of ${input.configuredMaxPasses}`;
   return ProvisionalPassAssessmentSchema.parse({
     status: "provisional",
     lane: input.lane,
@@ -105,7 +129,7 @@ export function projectProvisionalPassAssessment(input: {
     fixConsequence,
     potentialStopReason,
     nextPassAuthority: "none",
-    summaryText: `${laneText} pass ${input.admittedLogicalPass} of ${input.configuredMaxPasses}${positionText}. `
+    summaryText: `${reviewText}${positionText}. `
       + `${signalText}${consequenceText}`,
   });
 }

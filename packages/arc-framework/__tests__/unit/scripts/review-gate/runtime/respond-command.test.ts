@@ -1236,13 +1236,13 @@ describe("review response command", () => {
   it.each([
     { logicalPass: 2, maxPasses: 2, severity: "major" as const, disposition: "fix" as const,
       capPosition: "at-ceiling", stopReason: null, consequence: { kind: "next-pass", coverage: "incremental-when-proven" },
-      consequenceText: " Approving a FIX moves the head, which needs standard pass 3 of 2, covering only the fix where its chain is proven." },
+      consequenceText: " Approving a FIX moves the head, which needs a fix check, round 1 since pass 2, where its chain is proven." },
     { logicalPass: 1, maxPasses: 3, severity: "major" as const, disposition: "fix" as const,
       capPosition: "below-ceiling", stopReason: null, consequence: { kind: "next-pass", coverage: "incremental-when-proven" },
-      consequenceText: " Approving a FIX moves the head, which needs standard pass 2 of 3, covering only the fix where its chain is proven." },
+      consequenceText: " Approving a FIX moves the head, which needs a fix check, round 1 since pass 1, where its chain is proven." },
     { logicalPass: 2, maxPasses: 2, severity: "minor" as const, disposition: "fix" as const,
       capPosition: "at-ceiling", stopReason: null, consequence: { kind: "decided-at-fixed-head" },
-      consequenceText: " Approving a FIX moves the head; review status there decides whether another pass is needed." },
+      consequenceText: " Approving a FIX moves the head; review status there decides whether another complete pass is needed." },
     { logicalPass: 2, maxPasses: 2, severity: "major" as const, disposition: "defer" as const,
       capPosition: "at-ceiling", stopReason: null, consequence: { kind: "no-fix" }, consequenceText: "" },
   ])("reports a provisional standard pass assessment at pass $logicalPass of $maxPasses for a $severity "
@@ -1300,11 +1300,11 @@ describe("review response command", () => {
     ];
     const symbol = { minor: "🟡", major: "🟠", critical: "🔴" }[severity];
     expect(assessment.summaryText).toBe(
-      `Standard pass ${logicalPass} of ${maxPasses}${position}. 1 confirmed finding, highest ${symbol} ${severity}.`
+      `Standard complete pass ${logicalPass} of ${maxPasses}${position}. 1 confirmed finding, highest ${symbol} ${severity}.`
         + consequenceText,
     );
     expect(response.payload.dispositionReportText).toContain("### F1 — ");
-    expect(response.payload.dispositionReportText).not.toContain("Standard pass");
+    expect(response.payload.dispositionReportText).not.toContain("Standard complete pass");
   });
 
   const errandLineage = {
@@ -1351,34 +1351,34 @@ describe("review response command", () => {
   it.each([
     { name: "a full-final local Errand's minor fix", build: () => localErrandCase(1), severity: "minor" as const,
       consequence: { kind: "next-pass", coverage: "complete" },
-      text: "Standard pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
-        + "needs standard pass 2 of 2, with complete coverage." },
+      text: "Standard complete pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
+        + "needs standard complete pass 2 of 2." },
     { name: "a local Errand's minor fix at the ceiling", build: () => localErrandCase(2), severity: "minor" as const,
       consequence: { kind: "ceiling-decision" },
-      text: "Standard pass 2 of 2 (limit reached). 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the "
-        + "head, and another pass needs a ceiling decision." },
+      text: "Standard complete pass 2 of 2 (limit reached). 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the "
+        + "head, and another complete pass needs a ceiling decision." },
     { name: "a codex-pr Errand review's incremental minor fix", build: () => hostedErrandCase("codex-pr", "incremental"),
       severity: "minor" as const, consequence: { kind: "next-pass", coverage: "incremental-when-proven" },
-      text: "Standard pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
-        + "needs standard pass 2 of 2, covering only the fix where its chain is proven." },
+      text: "Standard complete pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
+        + "needs a fix check, round 1 since pass 1, where its chain is proven." },
     { name: "a full-final hosted Errand review's material fix", build: () => hostedErrandCase("coderabbit-pr", "full-final"),
       severity: "major" as const, consequence: { kind: "next-pass", coverage: "incremental-when-proven" },
-      text: "Standard pass 1 of 2. 1 confirmed finding, highest 🟠 major. Approving a FIX moves the head, which "
-        + "needs standard pass 2 of 2, covering only the fix where its chain is proven." },
+      text: "Standard complete pass 1 of 2. 1 confirmed finding, highest 🟠 major. Approving a FIX moves the head, which "
+        + "needs a fix check, round 1 since pass 1, where its chain is proven." },
     { name: "a full-final coderabbit-pr Errand review's fix",
       build: () => hostedErrandCase("coderabbit-pr", "full-final"),
       severity: "minor" as const, consequence: { kind: "next-pass", coverage: "complete" },
-      text: "Standard pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
-        + "needs standard pass 2 of 2, with complete coverage." },
+      text: "Standard complete pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
+        + "needs standard complete pass 2 of 2." },
     { name: "a coderabbit-pr Errand review's fix once that source is removed",
       build: () => hostedErrandCase("coderabbit-pr", "incremental"), configuredSources: ["codex-pr", "delegated-agent"],
       severity: "minor" as const, consequence: { kind: "next-pass", coverage: "incremental-when-proven" },
-      text: "Standard pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
-        + "needs standard pass 2 of 2, covering only the fix where its chain is proven." },
+      text: "Standard complete pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
+        + "needs a fix check, round 1 since pass 1, where its chain is proven." },
     { name: "a delivery member's minor fix", build: () => hostedCase(memberVehicle), severity: "minor" as const,
       consequence: { kind: "lane-closes" },
-      text: "Standard pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head without "
-        + "another standard pass." },
+      text: "Standard complete pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head without "
+        + "another standard complete pass." },
     { name: "a frontline minor fix", build: () => frontlineCase(), severity: "minor" as const,
       consequence: { kind: "lane-closes" },
       text: "Frontline pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head without "

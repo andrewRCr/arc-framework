@@ -713,7 +713,8 @@ describe("ordinary resolve next-pass records", () => {
   it("requires approval for a hosted complete request while a minor-fix incremental check is admissible", async () => {
     const errand = await fixedErrand({ provider: "codex-pr", severity: "minor", retrigger: "incremental", routine: true,
       maxPasses: 1, sources: ["codex-pr", "delegated-agent"], hostedAdmission: true });
-    await expect(errand.readStatus()).resolves.toMatchObject({ state: "approval-required" });
+    await expect(errand.readStatus()).resolves.toMatchObject({ state: "approval-required",
+      detail: expect.stringContaining("1 of 1 configured complete standard-review passes") });
     await withErrandHost(errand, true, async () => {
       expect(await performHostedRequest(errand)).toMatchObject({ exitCodes: [1], result: {
         error: { code: "invalid-input" }, remedy: { text: expect.stringContaining("--ceiling-override") },
@@ -741,7 +742,8 @@ describe("ordinary resolve next-pass records", () => {
       expect(await resolveErrandReview(errand, checked, open ? 42 : null)).toMatchObject({ exitCodes: [], result: {
         state: "approval-required", payload: { consequence: { exhaustedPassCount: 2, nextPass: 3 } },
       } });
-      if (open) expect(await errand.readStatus()).toMatchObject({ state: "approval-required" });
+      if (open) expect(await errand.readStatus()).toMatchObject({ state: "approval-required",
+        detail: expect.stringContaining("used 1 complete standard-review passes") });
     });
   });
 

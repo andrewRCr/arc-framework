@@ -4,8 +4,8 @@
  * A producer spends review capacity only on the action the standard-review driver currently admits, so a request
  * the driver no longer admits refuses before anything is spent; re-reading the lane names what it admits instead,
  * including when the lane is complete or the next pass needs an Owner decision. A lane's attempts belong to the
- * head they reviewed, so re-resolving at a new head while still carrying them refuses; the passes they completed
- * carry forward as the count, and dropping the attempts reaches the ordinary resolution. Hosted requests take
+ * head they reviewed, so re-resolving at a new head while still carrying them refuses; concluded attempts
+ * carry forward in the logical count, and dropping the attempts reaches the ordinary resolution. Hosted requests take
  * complete coverage; the local fix check re-examines an approved fix before another hosted complete pass.
  *
  * @module
@@ -23,8 +23,8 @@ const RESOLVE_ARGV = ["arc", "review", "resolve", "-"] as const;
 
 const ADMISSION_INVARIANT = "Review capacity is spent only on the action the standard-review driver currently admits.";
 
-const ATTEMPTS_INVARIANT = "A lane's attempts belong to the exact head they reviewed; passes completed at an "
-  + "earlier head carry forward only as the completed-pass count.";
+const ATTEMPTS_INVARIANT = "A lane's attempts belong to the exact head they reviewed; attempts concluded at an "
+  + "earlier head carry forward only as the logical attempt count.";
 
 /** A lane re-resolved at the checkout's current head while still carrying attempts reviewed at an earlier head. */
 export class StaleLaneAttemptsError extends Error {
@@ -140,7 +140,7 @@ function admissionCorrection(error: ReviewDriverAdmissionError, route: LaneReadR
       + `carried as ${route.additionalPass}. To confirm, ${route.action}`;
   }
   if (error.state === "approval-required") {
-    return "Another pass exceeds the configured ceiling and needs the Owner's one-pass override, carried as "
+    return "Another complete pass exceeds the configured ceiling and needs the Owner's one-pass override, carried as "
       + `${route.ceilingOverride}. For its exact consequence, ${route.action}`;
   }
   if (error.state === "invalid-override") {

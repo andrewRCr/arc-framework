@@ -334,11 +334,11 @@ export async function confirmErrandFixResponseApplicability(
 function localCoverageInteractionText(incrementalOffered: boolean, facts: NextPassFacts): string {
   const bounds = incrementalOffered
     ? "A local fix check is offered first to verify the approved fixes. "
-      + "A local complete pass is also admitted, but does not replace the fix check. "
+      + "A local complete pass is also offered, subject to its ceiling, but does not replace the fix check. "
     : "Only a local complete pass is admitted because the fix-check chain is not proven. "
       + "Check why the approved response, subject lineage, or live base and target do not prove the fix-check chain. ";
   return bounds + "After the Owner approves a listed coverage admission, re-run `arc review local prepare`. "
-    + "This choice grants no next-pass authority.\n"
+    + "Only a complete pass counts toward the ceiling; fix checks run outside it. This choice grants no next-pass authority.\n"
     + nextPassConsiderations(facts).map(text => `- ${text}`).join("\n") + "\n"
     + "Give an advisory recommendation for the admitted next step. "
     + "Decide on any successor complete pass only after fix checks converge. "

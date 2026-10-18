@@ -782,16 +782,10 @@ complete pass. Workflow, method, and configuration text changes in the package's
   rounds since the last complete pass, each with its result, and never shows an attempt number as a pass; typed fields
   that carry the attempt number keep their shape and meaning.
 
-    - `[ ]` **5.6.a Change the CLI text**
-        - The response summary's "pass N of M" and next-pass number (`projectProvisionalPassAssessment`) and
-          `fixConsequenceText`'s "needs standard pass N"; Errand status's "N of M configured standard-review passes",
-          "used N standard-review passes", and `missingHistoricalResultObligation`'s ceiling text; the local selection
-          text's "Either consumes one pass"; `hostedPassHold`'s "hosted pass N"; and `review-policy-remedy.ts`'s
-          "Another pass exceeds the configured ceiling".
-        - The round number comes from Task 4.1's facts, which respond reads through Task 5.3.a's port.
-        - Build `test-first` (one behavior at a time):
-            - A summary after a fix check reads "fix check, round N since pass M" and a complete pass reads
-              "complete pass N of M".
+    - `[x]` **5.6.a Change the CLI text**
+        - Response summaries use counted complete passes and fix-check rounds from lane facts, with successors
+          numbered in the same terms. Errand status uses the complete count; offers, trend labels, hosted failure
+          holds, and ceiling remedies distinguish complete-pass spend from repair checks and attempt identities.
 
     - `[ ]` **5.6.b Change the workflow and method text**
         - "A completed attempt consumes that pass" (`run-errand`, `integrate-work-unit`); "durable lane progress
