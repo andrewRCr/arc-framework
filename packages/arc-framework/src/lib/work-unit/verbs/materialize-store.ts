@@ -18,6 +18,7 @@ import type { Store } from "../../store/contract.js";
 import type { StoreRecord } from "../../store/read.js";
 import type { LifecycleEntry } from "../../store/lifecycle-index.js";
 import type { ReconcileWorkUnitWorktreeOp } from "../mutators/reconcile-work-unit-worktree.js";
+import type { GuardResult } from "../lifecycle-executor.js";
 
 type Bound = MaterializeContext & { cwd: string; exec: GitExec };
 /** List candidates with one locus query per owned in-flight work unit. */
@@ -55,6 +56,8 @@ export async function runStoreMaterialize(ctx: MaterializeContext, params: Mater
       const holder = held.get(name) ?? null;
       return { status: "rejected", reason: holder === null ? `${params.name} is not an owned in-flight materialize candidate. Candidates: ${candidates.map((item) => item.reference.owner.name).join(", ") || "[none]"}.` : `${params.name} is already held in checkout ${holder}; work there, or run arc locus release ${name} there before materializing elsewhere.` };
     }
+    const occupancy = await materializationOccupancy(bound, name, params.inPlace === true);
+    if (!occupancy.ok) return { status: "rejected", reason: occupancy.message, remedy: occupancy.remedy };
     const chosen = selectWorkBranchLink(read.result, { repository: await ctx.projectId?.() });
     if (chosen.kind === "ambiguous") return { status: "rejected", reason: chosen.reason };
     const branch = chosen.kind === "none" ? null : workBranchName(chosen.link.ref);
@@ -113,10 +116,7 @@ async function claimMaterialization(ctx: Bound & { store: Store }, request: {
   primary: StoreRecord; operation: ReconcileWorkUnitWorktreeOp; branch: string | null; inPlace: boolean;
 }): Promise<MaterializeResult> {
   const { primary, operation, branch, inPlace } = request;
-  const occupancy = ctx.guardValidators?.["worktree-occupancy"];
-  if (occupancy === undefined) return { status: "rejected", reason: "guard `worktree-occupancy` is not wired." };
-  const allowed = await occupancy({ index: new Map(), slug: primary.reference.owner.name, position: null,
-    inputs: { worktreeOp: operation, materializesCurrentCheckout: inPlace }, store: ctx.store });
+  const allowed = await materializationOccupancy(ctx, primary.reference.owner.name, inPlace, operation);
   if (!allowed.ok) return { status: "rejected", reason: allowed.message, remedy: allowed.remedy };
   const valid = await revalidateLifecycleRecords(ctx.store, [primary]);
   if (valid.status === "refused") return { status: "rejected", reason: valid.refusal.condition, refusal: valid.refusal };
@@ -124,4 +124,12 @@ async function claimMaterialization(ctx: Bound & { store: Store }, request: {
   if (result.mutation !== "spawn") throw new Error("Materialize returned no checkout placement");
   return { status: "materialized", branch, inPlace, worktreePath: result.worktreePath,
     advisories: result.postCreateNotice === undefined ? [] : [result.postCreateNotice] };
+}
+
+async function materializationOccupancy(ctx: Bound, name: string, inPlace: boolean,
+  operation?: ReconcileWorkUnitWorktreeOp): Promise<GuardResult> {
+  const occupancy = ctx.guardValidators?.["worktree-occupancy"];
+  if (occupancy === undefined) return { ok: false, message: "guard `worktree-occupancy` is not wired." };
+  return occupancy({ index: new Map(), slug: name, position: null,
+    inputs: { ...(operation === undefined ? {} : { worktreeOp: operation }), materializesCurrentCheckout: inPlace }, store: ctx.store });
 }
