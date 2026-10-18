@@ -282,11 +282,12 @@ At `N == M`, a non-converged pass reports `cap-exhausted`; stop before another e
 pass completes normally and reports that its allowance is exhausted. Neither outcome bypasses completeness for the
 current pass, and cap exhaustion resolves no material finding.
 
-**Re-inspection test.** Recommend another full pass when the folds changed the artifact so much that the last
-pass's assessment no longer holds. Otherwise, the caller's response check verifies the rework — the fix check where
-one is offered. This is a recommendation input, never a trigger or authorization; the share of majors landing in a
-previous pass's fixes may inform its cost-and-signal rationale, except where it marks sustained non-convergence
-(below): there the re-entry offer comes before another pass.
+**Re-inspection test.** After fix-check rounds converge, recommend another complete pass when the folds changed the
+artifact so much that the last complete assessment no longer holds. Otherwise, the caller's response check verifies
+rework where it stands. The test decides whether a complete pass follows the fix checks, never whether it replaces
+them. This is a recommendation input, never a trigger or authorization; the share of majors landing in earlier fixes
+may inform its cost-and-signal rationale, except under sustained non-convergence (below): there the re-entry offer
+comes before another pass.
 
 **Severity beside fold tags.** With fold verification on, severity and the fold tags answer different questions.
 Severity decides whether a fix needs a successor look: an approved fix of a confirmed `critical` or `major` withholds
@@ -455,17 +456,20 @@ fresh-session pass takes its runner label by the same rule.
 checks the previous round's repairs and the rules they rest on, runs only with Owner approval, and is declinable;
 there is no round cap. The primary recommends, and the Owner decides:
 
-- First round: read the fold tags with the same turn's successor decision. Recommend the fix check when any fold is
-  new design or no full pass will follow; recommend declining when all folds are local corrections and a full pass
-  will follow. Propose both decisions together so the Owner settles both.
-- Later rounds: recommend another round when the exit gate's convergence rule, read over the previous round's
-  result and approved dispositions, would withhold convergence; recommend stopping otherwise.
+- First round: recommend the fix check whenever the pass's approved fixes include a verified material finding,
+  whatever follows. Recommend declining only on the fixes' own merits: minor-only repairs, or an accepted re-entry or
+  pending rewrite that will supersede them. Propose the fix check and the successor decision together as separate asks.
+- Later rounds: recommend another round whenever the last round's approved fixes include a verified material finding;
+  recommend stopping only on those same merits. Tags inform the recommendation without changing materiality.
 
-These readings guide recommendations only, never the outer pass's signal or a gate. At any round, the exit gate's
-re-inspection test may recommend a full pass instead. Every round's findings and repairs join the applied response
-given to the next pass in `prior-findings`, as context rather than its search frontier. The next outer pass covers
-the last round's repairs; after the last pass, the post-settle coherence re-read does, once the rounds converge or
-the Owner stops them with the residual named.
+A following pass, approved or under the cap, is never a reason to decline. Fix-check rounds converge before the
+successor pass launches. The re-inspection test decides whether a complete pass follows them, never whether one
+replaces them; no recommendation authorizes either activity.
+
+Every round's findings and repairs join the next pass's `prior-findings` as context, not its search frontier or evidence
+that the repairs were checked. A complete pass searches the whole artifact for undiscovered defects; it does not
+replace the rounds' verification. After the last look, the post-settle coherence re-read covers the final repair
+residual once rounds converge or the Owner stops them with that residual named.
 
 **Kept reviewed versions.** At each pass's launch and each round's launch, copy every present planning artifact of
 the work unit — draft, spec, task list, notes — since folds can extend beyond the reviewed set. Keep the copies under

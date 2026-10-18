@@ -851,18 +851,15 @@ copy.
 - _Outcome:_ Every project installs the shared method, and the three current review consumers declare and invoke it
   at their fire-points. The method and its registration form one reachable installation change.
 
-### `[ ]` **6.2 Make a fix check and a successor pass separate decisions — § 10.2**
+### `[x]` **6.2 Make a fix check and a successor pass separate decisions — § 10.2**
 
 - _Goal:_ `review-model` and `adversarial-review` § Fold verification state that a fix check is recommended, with
   another round, whenever the last look's approved fixes include a material one, is declined only on the fixes' own
   merits, and is never traded for a following pass, approved or under the cap.
 
-    - The four places `adversarial-review` teaches the trade change: the first-round rule recommending decline "when all
-      folds are local corrections and a full pass will follow"; "the exit gate's re-inspection test may recommend a full
-      pass instead"; repairs joining the next pass's `prior-findings`, which read as coverage; and "the next outer pass
-      covers the last round's repairs".
-    - The method says in words that a following pass is never a reason to decline; fix-check rounds converge before the
-      successor pass launches, and the re-inspection test decides whether one follows, never whether it replaces them.
+- _Outcome:_ The fold-verification recommendation applies materiality to the last look's approved fixes in every
+  round. Successor approval or unused capacity never supports declining a check; rounds converge first, and
+  `prior-findings` supplies context rather than evidence of repair verification.
 
 ### `[ ]` **6.3 Render every review report in one shape — § 10.3**
 
