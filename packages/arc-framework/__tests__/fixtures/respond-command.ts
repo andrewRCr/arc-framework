@@ -456,7 +456,7 @@ export function dependencies(records: ReturnType<typeof fixture>) {
             confirmedFindingCount: 1,
             maxConfirmedSeverity: "major",
             materialFix: true,
-            effectiveCoverage: "complete" as const, coverageAdequate: true,
+            coverageAdequate: true,
           },
           postResponseAction: "resolve-next-pass",
         },

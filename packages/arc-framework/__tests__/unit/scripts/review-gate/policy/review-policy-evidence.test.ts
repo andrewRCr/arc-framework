@@ -346,7 +346,7 @@ describe("evidence-bound review policy", () => {
           confirmedFindingCount: 0,
           maxConfirmedSeverity: null,
           materialFix: false,
-          effectiveCoverage: "complete" as const, coverageAdequate: true,
+          coverageAdequate: true,
         },
       },
     });
@@ -439,7 +439,7 @@ describe("evidence-bound review policy", () => {
           verifiedTerminalSignal: {
             reviewOperationId: result.producerId,
             confirmedFindingCount: material ? 1 : 0,
-            effectiveCoverage: "complete" as const, coverageAdequate: true,
+            coverageAdequate: true,
           },
         },
       });
@@ -988,7 +988,7 @@ describe("evidence-bound review policy", () => {
           confirmedFindingCount: 2,
           maxConfirmedSeverity: "major",
           materialFix: true,
-          effectiveCoverage: "complete" as const, coverageAdequate: true,
+          coverageAdequate: true,
         },
       },
     });

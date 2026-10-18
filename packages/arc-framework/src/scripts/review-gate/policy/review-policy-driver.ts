@@ -11,6 +11,7 @@ import { CompletedReviewPassCountSchema, ReviewPassSchema } from "../core/review
 import { ReviewScopeModeSchema } from "../core/review-primitives.js";
 import {
   VerifiedTerminalReviewSignalSchema,
+  InternalVerifiedTerminalReviewSignalSchema,
   type VerifiedTerminalReviewSignal,
 } from "../core/review-convergence.js";
 import {
@@ -302,7 +303,7 @@ export const ReviewPolicyRequestSchema = z.strictObject({
   /** Full configured policy where the selection order is a provider suffix. */
   configuredSources: z.array(ReviewSourceIdSchema).readonly().optional(),
   maxPasses: ReviewPassSchema,
-  verifiedTerminalSignal: VerifiedTerminalReviewSignalSchema.optional(),
+  verifiedTerminalSignal: InternalVerifiedTerminalReviewSignalSchema.optional(),
   nextPassContext: ReviewNextPassContextSchema.optional(),
   chosenCoverage: z.enum(["complete", "incremental"]).optional(),
   /** Repository-proven settlement of the terminal findings response; never a command input. */
@@ -566,6 +567,11 @@ export type ReviewResolveEnvelope = z.infer<typeof ReviewResolveEnvelopeSchema>;
 
 type ReviewDiagnostic = ReviewResolveEnvelope["diagnostics"][number];
 
+function projectTerminalSignal(signal: NonNullable<ReviewPolicyRequest["verifiedTerminalSignal"]>): VerifiedTerminalReviewSignal {
+  const { reviewOperationId, confirmedFindingCount, maxConfirmedSeverity, materialFix, coverageAdequate } = signal;
+  return { reviewOperationId, confirmedFindingCount, maxConfirmedSeverity, materialFix, coverageAdequate };
+}
+
 function resolveEnvelope(
   body: Omit<ReviewResolveEnvelope, "schemaVersion" | "mode" | "diagnostics">,
   diagnostics: readonly ReviewDiagnostic[] = [],
@@ -806,7 +812,7 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
           completedPasses: request.completedPasses,
           consumedPass: true,
           attemptedSources: request.attempts,
-          verifiedTerminalSignal: signal,
+          verifiedTerminalSignal: projectTerminalSignal(signal),
           responseRequired: request.nextPassContext?.responseDue ?? lastAttempt.outcome === "findings",
         },
       });
@@ -824,7 +830,7 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
           completedPasses: request.completedPasses,
           consumedPass: true,
           attemptedSources: request.attempts,
-          verifiedTerminalSignal: signal,
+          verifiedTerminalSignal: projectTerminalSignal(signal),
           postResponseAction: "resolve-next-pass",
         },
       });
@@ -842,7 +848,7 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
           completedPasses: request.completedPasses,
           consumedPass: true,
           attemptedSources: request.attempts,
-          verifiedTerminalSignal: signal,
+          verifiedTerminalSignal: projectTerminalSignal(signal),
         },
       });
     }

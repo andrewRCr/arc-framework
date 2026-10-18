@@ -2073,7 +2073,7 @@ describe("review response command", () => {
           confirmedFindingCount: 1,
           maxConfirmedSeverity: "major" as const,
           materialFix: true,
-          effectiveCoverage: "complete" as const, coverageAdequate: true,
+          coverageAdequate: true,
         },
         postResponseAction: "resolve-next-pass" as const,
       },

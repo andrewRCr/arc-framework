@@ -16,6 +16,7 @@ import { StandardReviewGuidanceProjectionSchema } from
   "../../../../src/scripts/review-gate/policy/standard-review-guidance.js";
 import { deriveStandardReviewRubricIdentity } from "../../../../src/scripts/review-gate/policy/standard-review.js";
 import { StandardReviewContractSchema } from "../../../../src/scripts/review-gate/policy/standard-review-schema.js";
+import { ReviewResolveEnvelopeSchema, resolveReviewPolicy } from "../../../../src/scripts/review-gate/policy/review-policy-driver.js";
 
 // Captured from public target, requirement, routing, outcome, reservation, and guidance constructors.
 const records = JSON.parse(readFileSync(resolve(import.meta.dirname,
@@ -30,6 +31,7 @@ const schemas = [
   ["routing", ReviewRoutingDecisionSchema],
   ["promotion", ProjectRoutingPromotionSchema],
   ["author-action", RunSelfReviewActionSchema],
+  ["boundary-resolve", ReviewResolveEnvelopeSchema],
 ] as const;
 
 describe("retained review contracts", () => {
@@ -48,6 +50,28 @@ describe("retained review contracts", () => {
       target: reservation.target,
       obligation: reservation.obligation,
     })).toEqual(reservation);
+  });
+
+  it.each([
+    { outcome: "clean", coverageAdequate: true, materialFix: false, state: "pass-complete" },
+    { outcome: "findings", coverageAdequate: true, materialFix: true, state: "findings" },
+    { outcome: "clean", coverageAdequate: false, materialFix: false, state: "coverage-required" },
+  ])("keeps terminal coverage internal in the $state boundary policy", ({ outcome, coverageAdequate, materialFix, state }) => {
+    const reservation = StandardReviewReservationV1Schema.parse(records.reservation);
+    const result = resolveReviewPolicy({ schemaVersion: 1, lane: "standard", frontlineActive: false,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: "a".repeat(40) },
+      standardReview: reservation.obligation, sources: ["delegated-agent"], maxPasses: 2, completedPasses: 1,
+      attempts: [{ sourceId: "delegated-agent", outcome, reviewOperationId: "retained-review" }],
+      nextPassContext: { completePasses: 1, convergence: materialFix ? "unconverged" : "converged",
+        responseDue: materialFix, incremental: null },
+      verifiedTerminalSignal: { reviewOperationId: "retained-review", confirmedFindingCount: materialFix ? 1 : 0,
+        maxConfirmedSeverity: materialFix ? "major" : null, materialFix, coverageAdequate,
+        effectiveCoverage: coverageAdequate ? "complete" : "incremental" },
+    });
+    expect(result.state).toBe(state);
+    expect(result.payload).toHaveProperty("verifiedTerminalSignal");
+    expect(result.payload).not.toHaveProperty("verifiedTerminalSignal.effectiveCoverage");
+    if (state === "pass-complete") expect(result).toEqual(records["boundary-resolve"]);
   });
 
   it("keeps the published review schema identifiers", () => {

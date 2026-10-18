@@ -218,5 +218,34 @@
     "kind": "run-self-review",
     "command": "arc review pre-publication example --self-review settled",
     "interactionText": "Run the aggregate author check."
+  },
+  "boundary-resolve": {
+    "schemaVersion": 1,
+    "mode": "review-resolve",
+    "diagnostics": [],
+    "state": "pass-complete",
+    "nextAction": "none",
+    "payload": {
+      "lane": "standard",
+      "scope": "whole-target",
+      "sourceId": "delegated-agent",
+      "pass": 1,
+      "completedPasses": 1,
+      "consumedPass": true,
+      "attemptedSources": [
+        {
+          "sourceId": "delegated-agent",
+          "outcome": "clean",
+          "reviewOperationId": "retained-review"
+        }
+      ],
+      "verifiedTerminalSignal": {
+        "reviewOperationId": "retained-review",
+        "confirmedFindingCount": 0,
+        "maxConfirmedSeverity": null,
+        "materialFix": false,
+        "coverageAdequate": true
+      }
+    }
   }
 }

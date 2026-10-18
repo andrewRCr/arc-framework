@@ -16,7 +16,7 @@ import type { ReviewScopeMode, ReviewSeverity } from "../core/review-primitives.
 import {
   fixesMaterialFinding,
   isMaterialSeverity,
-  type VerifiedTerminalReviewSignal,
+  type InternalVerifiedTerminalReviewSignal,
 } from "../core/review-convergence.js";
 import type { LaneResponsePerformance } from "../core/operation-state-schema.js";
 import {
@@ -326,7 +326,7 @@ async function deriveVerifiedTerminalSignal(
     "resultReader" | "dispositionStore" | "confirmIncrementalApplicability" | "readResponsePerformance"
       | "allowUnapprovedFindings"
   >,
-): Promise<VerifiedTerminalReviewSignal> {
+): Promise<InternalVerifiedTerminalReviewSignal> {
   const coverageAdequate = result.kind !== "frontline" && result.requirement.retrigger === "full-final"
     ? result.admission.effectiveCoverage === "complete"
     : (await resolveIncrementalCoverageBasis(result, {
