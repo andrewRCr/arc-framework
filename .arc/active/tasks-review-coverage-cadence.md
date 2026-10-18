@@ -246,21 +246,12 @@ first, then in the `.arc/` copy by targeted edit.
   `coverage-required` as an unsettled standard state, `prepare-work-unit` dispatches it and local prepare's selection,
   and the scope the chunk gate chose reaches local prepare as it already reaches the procedure's `--lanes`.
 
-    - `[ ]` **2.1.a Re-resolve after a converged look, and pin `coverage-required` as unsettled**
-        - The procedure resolves the bound request directly (`resolveReviewPolicy`, `pre-publication-procedure.ts`) and
-          never reaches the continuation, so the lane composition (`composePrePublicationReviewRequest`) applies Task
-          1.2.b's split itself: after a converged look whose response is settled, it hands the procedure the fresh
-          successor request the continuation builds — `attempts` emptied, the configured `sources` and `maxPasses`, and
-          the next-pass context — so the complete pass resolves by rank, reserved for a hosted source ranked first before
-          publication (`awaiting-change-request`).
-        - `isSettledStandard` already excludes `coverage-required` and the procedure forwards it; a pending response goes
-          to `pendingResponseEnvelope` with `policy` attached.
-        - Build `test-first` (one behavior at a time):
-            - A clean converged fix check under `full-final` resolves to `awaiting-change-request` with a hosted source
-              ranked first, and to `ready / local-prepare` with `delegated-agent` first.
-            - A converged fix check with minor fixes unperformed surfaces `coverage-required` with `responseRequired`
-              true, and resolves the complete pass once they are performed.
-            - An unconverged fix check surfaces `coverage-required` at `candidate-fix-pending`, its response due.
+    - `[x]` **2.1.a Re-resolve after a converged look, and pin `coverage-required` as unsettled**
+        - Standard composition now uses the shared continuation binder. Converged fix checks admit complete review by
+          configured rank; hosted-first review reserves the publication target. Unperformed minor and material responses
+          retain the response route and its coverage policy; performed material responses retain the unsettled stop.
+        - Four cadence cases cover both source ranks and response precedence. The rank cases failed before the change;
+          reconstructing the response flag demonstrated the inherited response-due assertions fail before restoration.
 
     - `[ ]` **2.1.b Add `prepare-work-unit`'s arms**
         - The pre-publication policy dispatch keys on `policy.state`. An unperformed response reaches

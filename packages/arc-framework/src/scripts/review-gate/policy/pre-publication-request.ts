@@ -41,6 +41,7 @@ import {
   type ReviewLaneJudgment,
 } from "./review-policy-driver.js";
 import {
+  bindReviewPolicyContinuationEvidence,
   bindReviewPolicyEvidence,
   readIncrementalPredecessorResponseEvidence,
   ReviewProducerScopeMismatchError,
@@ -843,7 +844,9 @@ export async function composePrePublicationReviewRequest(
         : dependencies.confirmPriorProducerApplicability(input.workUnit, predecessor, exactTarget, currentLineage, policyTarget),
       candidateProof: await dependencies.readCandidateCorrectionProof?.(input.workUnit),
     });
-    return bindReviewPolicyEvidence(policyInput, { ...evidenceDependencies, nextPassContext });
+    return bindReviewPolicyContinuationEvidence(policyInput, {
+      terminalResponsePerformed: evidenceDependencies.terminalResponseSettled,
+    }, { ...evidenceDependencies, nextPassContext });
   };
   const withCeilingOverride = <Request extends Awaited<ReturnType<typeof composeLane>>>(
     lane: ReviewLane,

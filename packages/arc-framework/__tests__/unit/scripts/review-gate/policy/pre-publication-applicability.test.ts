@@ -321,9 +321,13 @@ describe("pre-publication current contribution applicability", () => {
     );
     expect(composition.status === "refused" ? composition.reason : "").toBe("");
     expect(composition.status === "composed" && composition.request.standard).toMatchObject({
-      verifiedTerminalSignal: { coverageAdequate: false },
+      attempts: [],
+      completedPasses: 2,
     });
-
+    if (composition.status !== "composed") throw new Error(composition.reason);
+    expect(resolveReviewPolicy(composition.request.standard)).toMatchObject({
+      state: "approval-required", nextAction: "obtain-ceiling-override",
+    });
   });
 
   it("routes a same-head old-base clean terminal through current applicability", async () => {
