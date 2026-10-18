@@ -15,8 +15,8 @@ export function linearReviewRangeProof(before: string, after: string) {
   ]).exec };
 }
 
-export async function createLocalDeltaFixture(workClass: "Light" | "Heavy" = "Heavy") {
-  const fixture = await createLocalContinuationFixture("whole-target", workClass);
+export async function createLocalDeltaFixture(workClass: "Light" | "Heavy" = "Heavy", maxPasses = 2) {
+  const fixture = await createLocalContinuationFixture("whole-target", workClass, undefined, maxPasses);
   await fixture.conclude(fixture.original, "clean");
   const predecessor = await fixture.resultReader.readResult(fixture.original.operationId);
   fixture.dependencies.validatePolicyAdmission = async (input): ReturnType<LocalPrepareDependencies["validatePolicyAdmission"]> => {
@@ -34,7 +34,7 @@ export async function createLocalDeltaFixture(workClass: "Light" | "Heavy" = "He
       target: { repository: "owner/repository", pullRequest: null, headSha: input.target.headSha },
       lane: "standard" as const, standardReview: input.standardReview, completedPasses: input.completedPasses,
       attempts: input.attempts };
-    const dependencies = { sources: ["delegated-agent"], maxPasses: 2, nextPassContext,
+    const dependencies = { sources: ["delegated-agent"], maxPasses, nextPassContext,
       resultReader: fixture.resultReader, dispositionStore, confirmTarget: async () => input.target };
     const policy = await resolveEvidenceBoundReviewPolicyContinuation(request, { terminalResponsePerformed: false }, dependencies);
     const selection = resolveLocalReviewCoverageSelection({ policy, target: input.target, sourceId: "delegated-agent",

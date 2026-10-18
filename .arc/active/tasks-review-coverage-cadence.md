@@ -579,33 +579,16 @@ _Design decisions:_ One typed facts shape, derived once, is what the offer text,
 The lane read resolves its subject from the checkout as local prepare does, and the reviewer never receives its
 rejections. Method and workflow text changes in the package's `arc/` source first, then in the `.arc/` copy.
 
-### `[ ]` **4.1 Derive the next-pass offer's facts once — § 6.1**
+### `[x]` **4.1 Derive the next-pass offer's facts once — § 6.1**
 
 - _Goal:_ One derivation computes the offer's facts from lane progress and disposition records — complete passes
   against the ceiling, fix-check rounds since the last complete pass and their results, the fix range's size against the
   target, whether the chain is proven, each round's two new-design signals, and the material trend — for the offer text,
   the report, and the lane read alike.
 
-- _Note:_ Until Phase 5 the ceiling still counts every pass, so the facts report complete passes against the configured
-  ceiling; Task 5.1 makes this derivation one of the readers that take the shared complete count.
-
-    - A new module, with one typed result schema the three surfaces render (Tasks 4.2, 4.3, 6.4). It takes lane
-      progress, the lineage's disposition records (`listDispositionRecords`, `core/ports.ts`), the next-pass context
-      (Task 1.1.b), whose incremental fact is whether the chain is proven, and a Git exec bound to the checkout.
-    - The material trend lists the lane's looks in order, each labeled a complete pass or a fix check by
-      `effectiveCoverage` — a clean look included, though it writes no disposition record — with each look's verified
-      material count from its disposition records and the proposed set marked provisional. A delta check reads as a fix
-      check, since nothing stored tells them apart.
-    - Each fix round's range is its performed response's heads (`originatingHeadSha..producedHeadSha`,
-      `LaneResponsePerformanceSchema`, `core/operation-state-schema.ts`), tied to its disposition set by
-      `dispositionSetId`. The new-design signals are computed per round — a round that changes a file no approved
-      `fix` item's locus names, and a round that adds files — reading a locus's leading path token as the file it cites,
-      a heuristic, since no record ties a fix to a finding.
-    - Build `test-first` (one behavior at a time):
-        - Complete passes and rounds since the last complete pass count from lane progress.
-        - The material trend labels each look and marks the proposed set provisional.
-        - A round touching a file outside its cited loci, or adding a file, raises its signal.
-        - The chain reads as proven exactly when the next-pass context admits an incremental look.
+- _Outcome:_ `deriveNextPassFacts` returns one typed, unstored shape for complete counts, fix-check results since the
+  last complete look, verified material trends and provisional counts, proven-chain range sizes, and each performed
+  round's path signals. Historical rounds join their exact approved sets; unavailable Git reads remain unknown.
 
 ### `[ ]` **4.2 Add the lane read — § 9.4**
 

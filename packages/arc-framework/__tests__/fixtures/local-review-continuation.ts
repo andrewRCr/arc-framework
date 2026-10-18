@@ -4,6 +4,7 @@ import { withReviewNextPassContext } from "./review-next-pass.js";
 
 import { createLocalReviewPreparationFixture } from "./local-review-preparation.js";
 import { createReviewReceipt, createReviewTarget } from "../../src/scripts/review-gate/core/gate-contract-v2.js";
+import type { ReviewTarget } from "../../src/scripts/review-gate/core/gate-contract-v2-schema.js";
 import type { LocalReviewState } from "../../src/scripts/review-gate/core/operation-state-schema.js";
 import { LocalReviewResultReader } from "../../src/scripts/review-gate/hosts/local/review-result-reader.js";
 import { recordLocalReceiptConclusion } from "../../src/scripts/review-gate/lane-progress.js";
@@ -11,11 +12,11 @@ import { assertStandardReviewExecutionAdmission } from "../../src/scripts/review
 import { prepareLocalReview } from "../../src/scripts/review-gate/runtime/local-prepare.js";
 
 export async function createLocalContinuationFixture(scopeMode: "whole-target" | "chunked" = "whole-target",
-  workClass: "Light" | "Heavy" = "Heavy") {
+  workClass: "Light" | "Heavy" = "Heavy", initialTarget?: ReviewTarget, maxPasses = 2) {
   const fixture = createLocalReviewPreparationFixture();
   fixture.dependencies.composeAssurance = async () => ({ ...await fixture.composeAssurance(),
     assurance: { workContext: "work-unit", workClass } });
-  let target = fixture.changeSetTarget;
+  let target = initialTarget ?? fixture.changeSetTarget;
   const receipts: ReturnType<typeof createReviewReceipt>[] = [];
   fixture.deriveTarget.mockImplementation(async () => target);
   fixture.dependencies.confirmTarget = async (attempted) => attempted.targetId === target.targetId
@@ -26,7 +27,7 @@ export async function createLocalContinuationFixture(scopeMode: "whole-target" |
     pass: assertStandardReviewExecutionAdmission(withReviewNextPassContext({
       target: { repository: "owner/repository", pullRequest: null, headSha: target.headSha },
       frontlineActive: false, standardReview, completedPasses, attempts,
-      sources: ["delegated-agent"], maxPasses: 2,
+      sources: ["delegated-agent"], maxPasses,
       expectedSourceId: "delegated-agent", expectedNextAction: "local-prepare",
       judgment: { ...judgment, invocation: { mode: "force", sourceId: "delegated-agent" } },
     })).payload.pass,
