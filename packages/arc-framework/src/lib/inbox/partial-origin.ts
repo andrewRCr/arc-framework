@@ -2,8 +2,10 @@
 import { resolveEntryList } from "./lists.js";
 import { rowsInList } from "./listing.js";
 import { removeInboxEntry, type EntryRemoval } from "./removal.js";
-import type { InboxContext, InboxOutcome } from "./types.js";
+import type { InboxContext, InboxOutcome, InboxRow } from "./types.js";
 import { entryConflictRefusal } from "./conflicts.js";
+import { maskComments } from "../store/concurrency/entries.js";
+import { matchInboxEntryTitle } from "../store/kinds/entry-fields.js";
 /** Remove a partial origin using its original source basis, retaining unmatched legacy captures.
  * @param binding - Exact authority origin; legacy digest comes from the selected marker.
  * @param context - Current identity and store.
@@ -17,12 +19,19 @@ export async function removePartialOrigin(binding: { originEntry: string | null;
   if (inbox.status === "refused") return inbox;
   const rows = rowsInList(inbox.result);
   if (rows.status === "refused") return rows;
-  const row = rows.result.find(entry => entry.title === binding.originEntry);
+  const candidates = legacyOriginCandidates(rows.result, binding.originEntry);
+  const row = candidates.length === 1 ? candidates[0] : undefined;
   const conflict = await entryConflictRefusal(inbox.result, row?.id, context);
   if (conflict !== null) return conflict;
+  if (candidates.length > 1) return { status: "ok", result: { disposition: "retained" } };
   if (row === undefined) return { status: "ok", result: { disposition: "absent" } };
   let matches = false;
   try { matches = legacyDigest?.(inbox.result.saved?.content ?? "", binding.originEntry, binding.originEntrySourceDigest) === binding.originEntrySourceDigest; } catch { /* An unresolvable legacy binding retains its capture. */ }
   return matches ? removeInboxEntry({ list: "personal", id: row.id, expectedVersion: row.version }, context)
     : { status: "ok", result: { disposition: "retained", foundVersion: row.version } };
+}
+
+function legacyOriginCandidates(rows: readonly InboxRow[], title: string): InboxRow[] {
+  return rows.filter(entry => entry.title === title
+    || matchInboxEntryTitle(maskComments(entry.raw).split("\n")[0] ?? "") === title.trim());
 }
