@@ -82,6 +82,27 @@ async function conflictedPrimary(publish = true) {
   return { ...h, initial, sync, resolve };
 }
 
+it("reports a detached pending rename through the enclosing sweep, withholding a stale HEAD until repaired", async () => {
+  const h = createLifecycleHarness();
+  await h.seedMeta("new-name", { state: "Planning", currentWorkflow: "draft-design" });
+  const pending = { oldSlug: "old-name", newSlug: "new-name", branch: null, head, from: checkout.path, to: "/new-checkout" };
+  const original = await options(h.store);
+  const input = await withDerivedRows({ ...original, readMarker: async () => ({ kind: "present", marker: {
+    spawnedByArc: true, wuName: "new-name", createdFor: { kind: "work-unit", name: "new-name" },
+    spawningIdentity: "test-user", createdAt: "2026-10-14T00:00:00Z", renameMovePending: pending,
+  } }) });
+  const result = await runStaleWorktreeSweep(input);
+  expect(result.renameMoves).toEqual([{ ...pending, remedy: {
+    argv: ["git", "worktree", "move", "-f", "-f", checkout.path, pending.to],
+    text: expect.stringContaining("from outside the checkout"),
+  }, actions: [expect.objectContaining({ argv: ["git", "worktree", "move", "-f", "-f", checkout.path, pending.to] })] }]);
+  expect(result.worktrees).toEqual([]);
+  expect(StaleWorktreeSweepResultSchema.safeParse(result).success).toBe(true);
+  const stale = await withDerivedRows({ ...input, scanWorktrees: async () => ({ ok: true, worktrees: [{ ...checkout, head: "c".repeat(40) }] }) });
+  expect((await runStaleWorktreeSweep(stale)).renameMoves).toEqual([]);
+  expect((await runStaleWorktreeSweep(input)).renameMoves).toEqual(result.renameMoves);
+});
+
 it("withholds conflicted lifecycle and cleanup authority after sync and restores the resolved Planning record", async () => {
   const h = await conflictedPrimary(), disputed = lifecycleSuccess(await h.store.read({ reference: h.initial.reference }));
   expect(disputed.conflicts).toHaveLength(1);

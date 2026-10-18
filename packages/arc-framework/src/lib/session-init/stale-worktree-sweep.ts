@@ -311,13 +311,14 @@ export async function runStaleWorktreeSweep(
   const renameMoves: RenameMoveResidue[] = [];
   const branchedMarkers = new Map<string, WorktreeMarkerReadResult>();
   for (const entry of cleanupTopology) {
-    if (entry.detached || entry.branch === null) continue;
+    const branched = !entry.detached && entry.branch !== null;
+    if (!branched && !options.store?.capabilities.stateOffBranch) continue;
     let marker: WorktreeMarkerReadResult;
     try {
       marker = await readMarker(entry.path);
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
-      warnings.push(`Could not read branched worktree marker at ${entry.path}: ${detail}`);
+      warnings.push(`Could not read ${branched ? "branched" : "detached"} worktree marker at ${entry.path}: ${detail}`);
       continue;
     }
     if (
@@ -330,7 +331,7 @@ export async function runStaleWorktreeSweep(
     ) {
       continue;
     }
-    branchedMarkers.set(entry.path, marker);
+    if (branched) branchedMarkers.set(entry.path, marker);
     const projected = projectRenameMoveRemedy(entry, marker, scan.worktrees);
     if (projected !== null) renameMoves.push(projected);
   }
