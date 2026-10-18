@@ -7,6 +7,7 @@ import { projectHostedReservationDischarge } from "../../../../../src/scripts/re
 import { createStandardReviewReservation } from "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { createHostedHandleFixture, createHostedTerminalAttemptFixture } from "../../../../fixtures/hosted-review.js";
 import { hostedLaneAttemptId } from "../../../../../src/scripts/review-gate/hosted/request.js";
+import { resolveEvidenceBoundSingletonHostedReservationPolicy } from "../../../../../src/scripts/review-gate/policy/hosted-reservation-admission.js";
 import { resolveReviewPolicy } from "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
 
 const vehicle = DeliveryReviewMemberVehicleSchema.parse({ kind: "delivery-member",
@@ -122,7 +123,17 @@ describe("converged fix-check continuation", () => {
             applicability: "retain-prior-attempt" }] },
         resolveTerminalPolicy: resolveTerminal, resolveEarlierTerminalPolicy: resolveTerminal,
       });
-      expect(result).toMatchObject({ discharged: false, nextSource: "codex-pr", requestCoverage: "complete" });
+      if (!member) {
+        await expect(resolveEvidenceBoundSingletonHostedReservationPolicy({ reservation: reserved,
+          discharge: { ...result, nextPassContext }, target: incremental.target, maxPasses: 4 }, {
+          resultReader: { readResult: async () => { throw new Error("No terminal binding is needed for fresh admission."); } },
+          dispositionStore: { readDispositionRecord: async () => null,
+            appendDispositionRecord: async () => { throw new Error("Admission does not write disposition records."); } },
+          confirmTarget: async target => target,
+        })).resolves.toMatchObject({ state: "ready", nextAction: "hosted-request", payload: { sourceId: "codex-pr", pass: 2 } });
+      }
+      expect(result).toMatchObject({ discharged: false, nextSource: "codex-pr", requestCoverage: "complete",
+        completedPasses: 1, requestAttempts: [] });
       expect(result).not.toHaveProperty("coverageSelectionAction");
     });
 });

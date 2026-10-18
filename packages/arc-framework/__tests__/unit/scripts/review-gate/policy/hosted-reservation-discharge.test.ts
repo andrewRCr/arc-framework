@@ -1503,7 +1503,7 @@ describe("hosted reservation discharge", () => {
     expect(result).toEqual({
       discharged: false,
       detail: "The terminal review producer did not establish convergence (coverage-required/select-coverage).",
-      nextSource: null,
+      nextSource: null, completedPasses: 1, requestAttempts: [],
     });
   });
 

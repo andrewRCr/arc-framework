@@ -166,8 +166,9 @@ export async function projectHostedReservationDischarge(input: {
   }
   let requestCoverage: HostedReviewCoverage | null = currentRequestCoverage;
   const requestAttempts: HostedReservationRequestAttempt[] = [];
+  let retainedTerminalLogicalPass = 0;
   const requestContext = () => ({
-    requestAttempts, completedPasses,
+    requestAttempts, completedPasses: Math.max(completedPasses, retainedTerminalLogicalPass),
     ...(requestInvocation === undefined ? {} : { invocation: requestInvocation }),
     ...(requestCoverage === null ? {} : { requestCoverage }),
   });
@@ -216,7 +217,6 @@ export async function projectHostedReservationDischarge(input: {
   if (requestInvocation !== undefined) {
     requestSources = configuredSourceSuffix(reservation.sources, requestInvocation.sourceId);
   }
-  let retainedTerminalLogicalPass = 0;
   let retainedTerminals: EarlierApplicableAttempt[] = [];
   if (input.readEarlierAttemptApplicability !== undefined) {
     retainedTerminals = reservation.sources.flatMap((sourceId) => {
@@ -338,6 +338,7 @@ export async function projectHostedReservationDischarge(input: {
             discharged: false,
             detail: `The terminal review producer did not establish convergence (${policy.state}/${policy.nextAction}).`,
             nextSource: null,
+            ...requestContext(),
             ...projectHostedCorrectionDefault({ sources: reservation.sources,
               nextPassContext: input.nextPassContext, selection: coverageSelectionAction }),
             ...projectHostedConvergedComplete({ sources: reservation.sources,
@@ -392,6 +393,7 @@ export async function projectHostedReservationDischarge(input: {
       detail: `The retained terminal review producer did not establish convergence `
         + `(${policy.state}/${policy.nextAction}).`,
       nextSource: null,
+      ...requestContext(),
       ...context,
       ...projectHostedConvergedComplete({ sources: reservation.sources,
         nextPassContext: input.nextPassContext, policyState: policy.state }),

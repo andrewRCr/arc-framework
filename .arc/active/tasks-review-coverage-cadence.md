@@ -308,7 +308,8 @@ first, then in the `.arc/` copy by targeted edit.
     - `[x]` **2.4.b Admit the complete pass with no selection after a converged look**
         - Current and retained `coverage-required` terminals now continue to complete coverage by configured source
           rank when the shared context is converged and the response is settled. Delivery and singleton regressions
-          cover both terminal sites without a coverage selection.
+          cover both terminal sites without a coverage selection. Each continuation carries its completed-pass count
+          and request-attempt context through production admission.
 
     - `[x]` **2.4.c Refuse a pick that matches no listed choice**
         - Selection distinguishes pending, selected, and refused choices. A unique coverage-only pick is admitted;
