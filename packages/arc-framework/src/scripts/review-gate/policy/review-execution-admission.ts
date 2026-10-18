@@ -17,6 +17,7 @@ interface StandardExecutionInput {
   readonly frontlineActive: boolean;
   readonly standardReview: ReviewPolicyRequest["standardReview"];
   readonly nextPassContext?: ReviewPolicyRequest["nextPassContext"];
+  readonly chosenCoverage?: ReviewPolicyRequest["chosenCoverage"];
   readonly completedPasses: number;
   readonly attempts: ReviewPolicyCommandRequest["attempts"];
   readonly sources: readonly string[];
@@ -146,6 +147,7 @@ export function assertStandardReviewExecutionAdmission(
     standardReview: input.standardReview,
     completedPasses: input.completedPasses,
     nextPassContext: input.nextPassContext,
+    chosenCoverage: input.chosenCoverage,
     attempts: input.attempts,
     sources: input.sources,
     maxPasses: input.maxPasses,

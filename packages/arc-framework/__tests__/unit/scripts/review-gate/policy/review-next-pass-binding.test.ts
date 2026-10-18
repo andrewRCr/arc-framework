@@ -26,6 +26,21 @@ function fixture(findings = false) {
 }
 
 describe("next-pass evidence binding", () => {
+  it("carries chosen coverage through terminal, fresh, and additional evidence binding", async () => {
+    const clean = fixture();
+    expect(await bindReviewPolicyEvidence(clean.request, { ...clean.dependencies, chosenCoverage: "complete" }))
+      .toMatchObject({ chosenCoverage: "complete" });
+    const material = fixture(true);
+    expect(await bindReviewPolicyContinuationEvidence(material.request, { terminalResponsePerformed: true },
+      { ...material.dependencies, chosenCoverage: "incremental" })).toMatchObject({ attempts: [], chosenCoverage: "incremental" });
+    expect(await bindReviewPolicyContinuationEvidence({ ...clean.request,
+      additionalPassAuthorization: { target: clean.request.target, lane: "standard",
+        precedingProducerId: clean.result.producerId, completedPasses: 1, nextPass: 2 } },
+    { terminalResponsePerformed: false }, { ...clean.dependencies, chosenCoverage: "complete" }))
+      .toMatchObject({ chosenCoverage: "complete" });
+    assertSchemaRefuses(ReviewPolicyCommandRequestSchema, { ...clean.request, chosenCoverage: "incremental" });
+  });
+
   it("requires the complete-pass count inside standard next-pass facts", () => {
     const { request, dependencies } = fixture();
     const internal = { ...request, attempts: [], completedPasses: 0, sources: dependencies.sources,

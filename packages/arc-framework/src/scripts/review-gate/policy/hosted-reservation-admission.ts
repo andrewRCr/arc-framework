@@ -222,6 +222,7 @@ export function resolveHostedReservationPolicy(input: {
   readonly target: { readonly repository: string; readonly pullRequest: number; readonly headSha: string };
   readonly vehicle: DeliveryReviewMemberVehicle;
   readonly nextPassContext?: ReviewPolicyRequest["nextPassContext"];
+  readonly chosenCoverage?: HostedReviewCoverage;
   readonly maxPasses: number;
   readonly requestAttempts?: ReviewPolicyCommandRequest["attempts"];
   readonly invocation?: ReviewPolicyCommandRequest["invocation"];
@@ -252,6 +253,7 @@ export function resolveHostedReservationPolicy(input: {
       sources: input.reservation.sources,
       maxPasses: input.maxPasses,
       nextPassContext: input.nextPassContext,
+      chosenCoverage: input.chosenCoverage,
       completedPasses: progress.completedPasses,
       attempts,
       ...(input.invocation === undefined ? {} : { invocation: input.invocation }),
@@ -323,6 +325,7 @@ export async function resolveEvidenceBoundHostedReservationPolicy(
     ...dependencies,
     selectionSources: input.reservation.sources,
     nextPassContext,
+    chosenCoverage: input.chosenCoverage,
   });
   return { status: "resolved", policy };
 }
@@ -341,6 +344,7 @@ export async function resolveEvidenceBoundSingletonHostedReservationPolicy(
     readonly target: { readonly repository: string; readonly pullRequest: number; readonly headSha: string };
     readonly maxPasses: number;
     readonly coverageSelected?: boolean;
+    readonly chosenCoverage?: HostedReviewCoverage;
     readonly invocation?: HostedRequestEnvelope["invocation"];
     readonly ceilingOverride?: ReviewPolicyCommandRequest["ceilingOverride"];
     readonly additionalPassAuthorization?: ReviewPolicyCommandRequest["additionalPassAuthorization"];
@@ -369,6 +373,7 @@ export async function resolveEvidenceBoundSingletonHostedReservationPolicy(
     ...dependencies,
     selectionSources: input.reservation.sources,
     nextPassContext: input.discharge.nextPassContext ?? dependencies.nextPassContext,
+    chosenCoverage: input.chosenCoverage,
   });
 }
 
@@ -412,7 +417,7 @@ export function assertHostedReservationPolicyAdmission(input: {
   readonly additionalPassAuthorization?: ReviewPolicyCommandRequest["additionalPassAuthorization"];
 }): void {
   assertHostedCoverageAdmission(input.provider, input.coverage);
-  const resolution = resolveHostedReservationPolicy(input);
+  const resolution = resolveHostedReservationPolicy({ ...input, chosenCoverage: "complete" });
   assertHostedPolicyResolution(resolution, input.provider);
 }
 
@@ -431,6 +436,7 @@ export async function assertEvidenceBoundHostedReservationPolicyAdmission(
   assertHostedPolicyResolution(
     await resolveEvidenceBoundHostedReservationPolicy({
       ...input,
+      chosenCoverage: "complete",
       ...(input.invocation?.mode === "force" && input.invocation.sourceId === input.provider
         ? { coverageSelection: { sourceId: input.provider, coverage: input.coverage } }
         : {}),
@@ -550,6 +556,7 @@ export function assertCandidateHostedReservationPolicyAdmission(input: {
     throw new Error("Hosted Candidate request progress names a source outside the reservation.");
   }
   const admission = assertStandardReviewExecutionAdmission({
+    chosenCoverage: "complete",
     nextPassContext: input.nextPassContext,
     target: input.target,
     frontlineActive: false,
@@ -738,6 +745,7 @@ export async function assertEvidenceBoundCandidateHostedReservationPolicyAdmissi
     ...dependencies,
     selectionSources: input.reservation.sources,
     nextPassContext: input.discharge.nextPassContext ?? dependencies.nextPassContext,
+    chosenCoverage: "complete",
   });
   assertHostedPolicyResolution({ status: "resolved", policy }, input.provider);
   if (!("pass" in policy.payload) || policy.payload.pass !== input.logicalPass) {

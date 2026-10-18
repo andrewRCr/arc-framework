@@ -710,6 +710,41 @@ describe("Errand local correction cadence", () => {
 
 
 describe("ordinary resolve next-pass records", () => {
+  it("requires approval for a hosted complete request while a minor-fix incremental check is admissible", async () => {
+    const errand = await fixedErrand({ provider: "codex-pr", severity: "minor", retrigger: "incremental", routine: true,
+      maxPasses: 1, sources: ["codex-pr", "delegated-agent"], hostedAdmission: true });
+    await expect(errand.readStatus()).resolves.toMatchObject({ state: "approval-required" });
+    await withErrandHost(errand, true, async () => {
+      expect(await performHostedRequest(errand)).toMatchObject({ exitCodes: [1], result: {
+        error: { code: "invalid-input" }, remedy: { text: expect.stringContaining("--ceiling-override") },
+      } });
+      expect(await prepareErrandLocal(errand, { requestedCoverage: "incremental", correctionScope: errand.expectedScope }))
+        .toMatchObject({ state: "ready", payload: { request: { logicalPass: 2 }, reviewerPayload: { correctionScope: errand.expectedScope } } });
+    });
+  });
+
+  it.each([false, true])("keeps local fix checks outside the ceiling with open PR=%s", async (open) => {
+    const errand = await fixedErrand({ provider: "codex-pr", retrigger: "full-final", maxPasses: 1,
+      sources: ["codex-pr", "delegated-agent"], hostedAdmission: true });
+    await withErrandHost(errand, open, async () => {
+      const output: string[] = []; const exitCodes: number[] = [];
+      await handleReviewLocalPrepare("-", { resolveRoot: () => errand.root,
+        readText: async () => JSON.stringify({ schemaVersion: 1, evaluatorIdentity: "independent-reviewer",
+          routingFacts: { contentKind: "code-bearing", reviewRisk: "sensitive", changeDeterminacy: "ordinary",
+            ownership: "self", surfaceAuthority: "ordinary" }, coverageAdmission: { requestedCoverage: "complete" } }),
+        prepare: input => prepareLocalReview(input, createLocalPrepareDependencies({ cwd: errand.root, exec: errand.exec })),
+        write: text => output.push(text), setExitCode: code => exitCodes.push(code) });
+      expect({ exitCodes, result: JSON.parse(output.join("")) }).toMatchObject({ exitCodes: [1], result: {
+        error: { code: "invalid-input" }, remedy: { text: expect.stringContaining("ceilingOverride") },
+      } });
+      const checked = await localFixCheck(errand);
+      expect(await resolveErrandReview(errand, checked, open ? 42 : null)).toMatchObject({ exitCodes: [], result: {
+        state: "approval-required", payload: { consequence: { exhaustedPassCount: 2, nextPass: 3 } },
+      } });
+      if (open) expect(await errand.readStatus()).toMatchObject({ state: "approval-required" });
+    });
+  });
+
   it("resolves a clean full-final fix check directly to its complete successor", async () => {
     const errand = await fixedErrand({ retrigger: "full-final", maxPasses: 3 });
     await errand.recordCorrectionPass(errand.expectedScope);

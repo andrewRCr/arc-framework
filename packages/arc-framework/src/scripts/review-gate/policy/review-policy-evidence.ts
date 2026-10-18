@@ -42,6 +42,7 @@ export interface EvidenceBoundReviewPolicyDependencies {
   readonly configuredSources?: readonly string[];
   readonly maxPasses: number;
   readonly nextPassContext?: ReviewNextPassContext;
+  readonly chosenCoverage?: ReviewPolicyRequest["chosenCoverage"];
   readonly resultReader: ReviewResultReader;
   readonly dispositionStore: ApprovedDispositionRecordStore;
   readonly confirmTarget: (attemptedTarget: ReviewResult["target"])
@@ -389,11 +390,12 @@ async function deriveVerifiedTerminalSignal(
 /** The repository-proven subject facts the owning composition supplied, as reducer request fields. */
 function provenSubjectFacts(
   dependencies: EvidenceBoundReviewPolicyDependencies,
-): Pick<ReviewPolicyRequest, "frontlinePhaseClosed" | "errandVehicle" | "nextPassContext" | "selectionSources" | "configuredSources"> {
+): Pick<ReviewPolicyRequest, "frontlinePhaseClosed" | "errandVehicle" | "nextPassContext" | "selectionSources" | "configuredSources" | "chosenCoverage"> {
   return {
     ...(dependencies.selectionSources === undefined ? {} : { selectionSources: dependencies.selectionSources }),
     ...(dependencies.configuredSources === undefined ? {} : { configuredSources: dependencies.configuredSources }),
     ...(dependencies.nextPassContext === undefined ? {} : { nextPassContext: dependencies.nextPassContext }),
+    ...(dependencies.chosenCoverage === undefined ? {} : { chosenCoverage: dependencies.chosenCoverage }),
     ...(dependencies.frontlinePhaseClosed === true ? { frontlinePhaseClosed: true } : {}),
     ...(dependencies.errandVehicle === true ? { errandVehicle: true } : {}),
   };

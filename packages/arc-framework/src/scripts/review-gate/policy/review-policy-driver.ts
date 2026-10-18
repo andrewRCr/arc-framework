@@ -177,6 +177,7 @@ const InvalidOverrideReasonSchema = z.enum([
   "pass-count-mismatch",
   "next-pass-mismatch",
   "ceiling-not-exhausted",
+  "incremental-coverage",
   "preceding-producer-mismatch",
   "pass-not-converged",
 ]);
@@ -303,6 +304,7 @@ export const ReviewPolicyRequestSchema = z.strictObject({
   maxPasses: ReviewPassSchema,
   verifiedTerminalSignal: VerifiedTerminalReviewSignalSchema.optional(),
   nextPassContext: ReviewNextPassContextSchema.optional(),
+  chosenCoverage: z.enum(["complete", "incremental"]).optional(),
   /** Repository-proven settlement of the terminal findings response; never a command input. */
   terminalResponseSettled: z.literal(true).optional(),
   /** Repository-proven closure of the subject's opening frontline phase; the standard lane ignores it. */
@@ -744,9 +746,9 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
       message: `The review ceiling override is invalid: ${invalidOverrideReason}.`,
     }]);
   }
-  const ceilingOverrideApplied = request.ceilingOverride !== undefined
+  const ceilingOverrideApplied = !incrementalNextPass(request) && (request.ceilingOverride !== undefined
     || (request.additionalPassAuthorization !== undefined
-      && ceilingPassCount(request) >= request.maxPasses);
+      && ceilingPassCount(request) >= request.maxPasses));
   if (lastAttempt?.outcome === "partial" && scope === "chunked") {
     return resolveEnvelope({
       state: "chunk-pending",
@@ -847,7 +849,7 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
   }
   if (request.terminus !== undefined) return ownerAcceptedEnvelope(request, scope);
   if (ceilingPassCount(request) >= request.maxPasses
-    && !ceilingOverrideApplied) {
+    && !incrementalNextPass(request) && !ceilingOverrideApplied) {
     return resolveEnvelope({
       state: "approval-required",
       nextAction: "obtain-ceiling-override",
@@ -992,6 +994,10 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
   }, diagnostics);
 }
 
+function incrementalNextPass(request: ReviewPolicyRequest): boolean {
+  return request.lane === "standard" && request.nextPassContext?.incremental != null && request.chosenCoverage !== "complete";
+}
+
 function ceilingPassCount(request: ReviewPolicyRequest): number {
   return request.lane === "standard" ? request.nextPassContext?.completePasses ?? 0 : request.completedPasses;
 }
@@ -1003,6 +1009,7 @@ function resolveInvalidOverrideReason(
   if (override === undefined) return null;
   if (!sameTarget(override.target, request.target)) return "target-mismatch";
   if (override.lane !== request.lane) return "lane-mismatch";
+  if (request.lane === "standard" && request.chosenCoverage === "incremental") return "incremental-coverage";
   const lastAttempt = lastEligibleAttempt(request);
   const scope = request.scopeSelection?.mode ?? "whole-target";
   const terminalPassRecorded = lastAttempt !== undefined

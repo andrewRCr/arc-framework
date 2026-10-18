@@ -747,38 +747,24 @@ complete pass. Workflow, method, and configuration text changes in the package's
           before testing the ceiling. Material fixes with either ground unavailable retain the complete-pass decision;
           the projection takes both grounds from respond's repository port.
 
-### `[ ]` **5.4 Decide the ceiling after coverage is chosen — § 5.3**
+### `[x]` **5.4 Decide the ceiling after coverage is chosen — § 5.3**
 
 - _Goal:_ At the ceiling, a lane whose next step is a fix check or a delta check gets that step with no override, and
   only a complete pass past the ceiling needs the ceiling override or an `additional` extra pass, so an override always
   binds to the complete pass that uses it.
 
-    - `[ ]` **5.4.a Return `ready` at the ceiling while an incremental look is admissible**
-        - The chosen coverage reaches the driver as an internal input beside the complete count. At the ceiling, when
-          the context admits an incremental look and no complete coverage is chosen, the driver returns `ready`, and the
-          composition's existing selection asks (§ 6.4) or admits a delta check; once `complete` is chosen it returns
-          `approval-required`. `coverage-required` keeps its one meaning, an inadequate chain.
-        - A ceiling override beside chosen incremental coverage is refused, as an invalid override is today, with its
-          own diagnostic code and a remedy whose argv re-runs without it; with no coverage chosen the driver returns
-          `ready` without applying it.
-        - Build `test-first` (one behavior at a time):
-            - At the ceiling after material fixes, the driver returns `ready`, not `approval-required`.
-            - With `complete` chosen there, it returns `approval-required`, and an override or an extra pass admits it.
-            - An override beside a fix check's coverage is refused with the remedy, and the re-run without it is admitted.
+    - `[x]` **5.4.a Return `ready` at the ceiling while an incremental look is admissible**
+        - The internal chosen coverage gates complete-pass ceiling admission and override application. Proven
+          incremental looks remain ready; an override beside chosen incremental coverage refuses with its own code.
+          Resolve and local-prepare remedies remove the override and retain the selected incremental scope.
 
-    - `[ ]` **5.4.b Supply the chosen coverage in each composition**
-        - Local prepare passes its `coverageAdmission` (`runtime/local-prepare-composition.ts`). The hosted reservation
-          admission (`hosted-reservation-admission.ts`) takes the chosen coverage its callers supply: status's delivery
-          and singleton routes pass the pick or `--coverage` (`status-composition.ts`'s delivery `requestAdmission`;
-          `status-singleton.ts`'s `resolveSingletonRequest`), and hosted request admission (the `authorizeCapacity`
-          closure, `handlers/review.ts`) passes `complete`.
-        - Errand status (`nextErrandPassObligation`) first resolves without chosen coverage; if that yields
-          `ready / hosted-request`, it resolves again with `complete` before composing the hosted action.
-          Pre-publication passes none, since it learns of a hosted reservation only from the driver's result; its
-          hosted pass meets the ceiling at hosted request admission.
-        - Build `test-first` (one behavior at a time):
-            - Each composition at the ceiling admits a fix check with no override.
-            - A hosted admission at the ceiling meets `approval-required`.
+    - `[x]` **5.4.b Supply the chosen coverage in each composition**
+        - Local prepare checks the submitted choice and rechecks resolved coverage. Delivery and singleton status
+          forward the selected coverage; hosted capacity always checks complete coverage. Errand status re-resolves
+          a hosted action as complete before offering it, while pre-publication retains its unchosen continuation.
+
+- _Outcome:_ Real capped member, singleton, and Errand routes admit fix checks without an override and require
+  approval for chosen complete coverage. Errand hosted requests enforce that boundary again before capacity spend.
 
 ### `[ ]` **5.5 Bind a conditional next-pass authorization only to a complete pass — § 5.4**
 

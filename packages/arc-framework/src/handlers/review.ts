@@ -3743,8 +3743,7 @@ async function executeDefaultHostedRequest(
         }, {
           terminalResponsePerformed: latestAttempt?.outcome === "settled-findings",
         }, {
-          sourceId: request.provider,
-          nextAction: "hosted-request",
+          sourceId: request.provider, nextAction: "hosted-request",
         }, {
           sources: latestAttempt?.terminalProducer === true
             ? [latestAttempt.sourceId, ...sources.filter(source => source !== latestAttempt.sourceId)] : sources,
@@ -3753,6 +3752,7 @@ async function executeDefaultHostedRequest(
           maxPasses: policy.maxPasses,
           resultReader,
           nextPassContext,
+          chosenCoverage: "complete",
           dispositionStore,
           confirmIncrementalApplicability: (predecessor, current) => confirmReviewCorrectionLeg({
             predecessor, currentTarget: current.target, currentLineage: current.admission.lineage, currentResult: current,

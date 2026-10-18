@@ -106,7 +106,33 @@ function localSourceCorrection(error: ReviewDriverAdmissionError, allowsOwnerSto
   return null;
 }
 
+function incrementalOverride(error: ReviewDriverAdmissionError): boolean {
+  return error.state === "invalid-override" && error.reason === "incremental-coverage";
+}
+
+function withoutCeilingOverride(request: unknown): unknown {
+  if (typeof request !== "object" || request === null || Array.isArray(request)) return request;
+  const corrected: Record<string, unknown> = { ...request };
+  delete corrected.ceilingOverride;
+  for (const field of ["policyJudgment", "deliveryAdmission"]) {
+    const nested = corrected[field];
+    if (typeof nested === "object" && nested !== null && !Array.isArray(nested)) {
+      const selection: Record<string, unknown> = { ...nested };
+      delete selection.ceilingOverride;
+      corrected[field] = selection;
+    }
+  }
+  return corrected;
+}
+
+function incrementalOverrideRemedy(request: unknown, argv: readonly string[]): SpineRemedy {
+  return spineRemedy(ADMISSION_INVARIANT,
+    "Ceiling overrides authorize complete coverage only; rerun the incremental fix check or delta check without the override",
+    argv, withoutCeilingOverride(request));
+}
+
 function admissionCorrection(error: ReviewDriverAdmissionError, route: LaneReadRoute, allowsOwnerStop = true): string {
+  if (incrementalOverride(error)) return "Ceiling overrides authorize complete coverage only; rerun without the override";
   const local = localSourceCorrection(error, allowsOwnerStop);
   if (local !== null) return local;
   if (error.state === "pass-complete") {
@@ -144,6 +170,7 @@ export function staleLaneAttemptsRemedy(error: unknown, request: unknown): Spine
 
 /** Return a corrected terminal input replay, or the existing stale-attempt recovery route. */
 export function reviewResolveRemedy(error: unknown, request: unknown): SpineRemedy | undefined {
+  if (error instanceof ReviewDriverAdmissionError && incrementalOverride(error)) return incrementalOverrideRemedy(request, RESOLVE_ARGV);
   if (error instanceof ReviewDriverAdmissionError && localSourceCorrection(error, true) !== null) {
     return spineRemedy(ADMISSION_INVARIANT, admissionCorrection(error, RESOLVE_ROUTE), RESOLVE_ARGV, request);
   }
@@ -156,15 +183,16 @@ export function reviewResolveRemedy(error: unknown, request: unknown): SpineReme
   );
 }
 
-/** Surface a source-selection stop through command error guidance without changing stored policy envelopes. */
+/** Surface a recoverable source or coverage selection stop through command error guidance. */
 export function requireReviewSourceSelection(
   resolution: unknown,
   request: ReviewPolicyCommandRequest,
 ): unknown {
   const parsed = ReviewResolveEnvelopeSchema.safeParse(resolution);
   if (!parsed.success) return resolution;
-  const error = new ReviewDriverAdmissionError("The next review pass requires a local source.", parsed.data, request);
-  if (parsed.data.state === "unavailable" && localSourceCorrection(error, true) !== null) throw error;
+  const error = new ReviewDriverAdmissionError(parsed.data.state === "invalid-override"
+    ? "The chosen coverage cannot use this ceiling override." : "The next review pass requires a local source.", parsed.data, request);
+  if (incrementalOverride(error) || (parsed.data.state === "unavailable" && localSourceCorrection(error, true) !== null)) throw error;
   return resolution;
 }
 
@@ -195,7 +223,12 @@ export function reviewResolveError(error: unknown, request: unknown): unknown {
  * @returns The remedy re-resolving the exact policy request the driver evaluated; otherwise `undefined`.
  */
 export function localPrepareAdmissionRemedy(error: unknown, submittedRequest?: unknown): SpineRemedy | undefined {
-  if (!(error instanceof ReviewDriverAdmissionError) || error.request === null) return undefined;
+  if (!(error instanceof ReviewDriverAdmissionError)) return undefined;
+  if (submittedRequest !== undefined && incrementalOverride(error)) {
+    return incrementalOverrideRemedy(submittedRequest, ["arc", "review", "local", "prepare", "-"]);
+  }
+  if (error.request === null) return undefined;
+  if (incrementalOverride(error)) return incrementalOverrideRemedy(error.request, RESOLVE_ARGV);
   if (submittedRequest !== undefined && localSourceCorrection(error, true) !== null) {
     return spineRemedy(ADMISSION_INVARIANT, admissionCorrection(error, RESOLVE_ROUTE),
       ["arc", "review", "local", "prepare", "-"], submittedRequest);

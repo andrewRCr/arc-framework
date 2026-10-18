@@ -18,6 +18,23 @@ async function reduceCleanReview(harness: FanOutHarness, operationId: string) {
     .toMatchObject({ state: "advisory-complete", nextAction: "none" });
 }
 
+it("requires complete-pass approval at the ceiling while admitting the member fix check", async () => {
+  const { harness, correctedTarget, local } = await createFixedLocalMemberReview(1);
+  const complete = await statusThroughHandler(harness, correctedTarget, undefined, "complete", "delegated-agent");
+  expect(complete, JSON.stringify(complete)).toMatchObject({ state: "approval-required", nextAction: "obtain-ceiling-override" });
+  const selected = await statusThroughHandler(harness, correctedTarget, undefined, "incremental", "delegated-agent");
+  expect(selected, JSON.stringify(selected)).toMatchObject({ nextAction: "review-local-prepare", action: {
+    requestedCoverage: "incremental", pass: 2,
+    correctionScope: { predecessorProducerId: local.prepared.payload.operationId },
+  } });
+  if (selected.nextAction !== "review-local-prepare") throw new Error("expected the member fix check");
+  const check = await completeLocalReviewThroughHandlers(harness, selected.action);
+  await reduceCleanReview(harness, check.prepared.payload.operationId);
+  expect(await statusThroughHandler(harness, correctedTarget)).toMatchObject({
+    state: "approval-required", nextAction: "obtain-ceiling-override",
+  });
+}, 60_000);
+
 it("keeps a clean member fix check open until complete review and excludes a later plain commit from delta checks", async () => {
   const { harness, correctedTarget, local } = await createFixedLocalMemberReview(4);
   const selected = await statusThroughHandler(harness, correctedTarget, undefined, "incremental", "delegated-agent");

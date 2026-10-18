@@ -652,7 +652,7 @@ async function nextErrandPassObligation(input: {
       cwd: input.cwd, exec: input.exec, predecessor, current, store, dispositionStore, errand: input.errand,
     }),
   });
-  const policy = await resolveEvidenceBoundReviewPolicyContinuation({
+  const resolvePolicy = (chosenCoverage?: "complete") => resolveEvidenceBoundReviewPolicyContinuation({
     ...(input.sourceId === undefined ? {} : { invocation: { mode: "force" as const, sourceId: input.sourceId } }),
     schemaVersion: 1, target: input.policyTarget, lane: "standard", frontlineActive: false,
     standardReview: projectStandardReview(input.result),
@@ -662,11 +662,13 @@ async function nextErrandPassObligation(input: {
       : { additionalPassAuthorization: input.additionalPassAuthorization }),
   }, { terminalResponsePerformed: false }, {
     sources: configured.sources,
-    maxPasses: configured.maxPasses, nextPassContext, resultReader: input.resultReader,
+    maxPasses: configured.maxPasses, nextPassContext, chosenCoverage, resultReader: input.resultReader,
     dispositionStore,
     readResponsePerformance: (producer) => readLaneResponsePerformance(store, producer),
     confirmTarget: (current) => Promise.resolve(current),
   });
+  let policy = await resolvePolicy();
+  if (policy.state === "ready" && policy.nextAction === "hosted-request") policy = await resolvePolicy("complete");
   const refusal = projectReviewDriverRefusal({ policy, route: { kind: "target", target: input.statusTarget },
     allowOwnerStop: true });
   if (refusal !== null) return refusal;

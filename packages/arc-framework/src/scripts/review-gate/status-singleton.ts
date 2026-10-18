@@ -106,6 +106,7 @@ async function resolveSingletonRequest(
     target: input.target,
     maxPasses: policy.maxPasses,
     coverageSelected: input.judgment?.coverage !== undefined,
+    chosenCoverage: input.judgment?.coverage,
     ceilingOverride: input.judgment?.ceilingOverride,
     additionalPassAuthorization: input.judgment?.additionalPassAuthorization,
     ...(invocation === undefined ? {} : { invocation }),

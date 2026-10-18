@@ -207,7 +207,8 @@ async function validateLocalPolicyAdmission(
         candidateProof: { candidate, cwd: context.input.cwd, baseRef: settings["branch.base"], exec: context.input.exec,
           observeTarget: () => deriveLocalReviewTarget({ ...context.input, repositoryId, baseRef: settings["branch.base"] }) },
       });
-      const policyDependencies = { ...evidenceDependencies, selectionSources: evidenceDependencies.sources, nextPassContext };
+      const policyDependencies = { ...evidenceDependencies, selectionSources: evidenceDependencies.sources, nextPassContext,
+        chosenCoverage: coverageAdmission?.requestedCoverage };
       const unresolved = await resolveEvidenceBoundReviewPolicyContinuation(policyRequest, {
         terminalResponsePerformed,
       }, policyDependencies);
@@ -228,7 +229,7 @@ async function validateLocalPolicyAdmission(
       }, {
         sourceId: "delegated-agent",
         nextAction: "local-prepare",
-      }, policyDependencies);
+      }, { ...policyDependencies, chosenCoverage: coverage.coverageAdmission.requestedCoverage });
       return { state: "ready", pass: resolution.payload.pass, coverageAdmission: coverage.coverageAdmission,
         incrementalBasis: nextPassContext.incremental?.basis };
 }

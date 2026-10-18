@@ -726,7 +726,7 @@ export async function readRoutedObligation(
             headSha: firstTarget.headSha,
           },
           vehicle: firstTarget.vehicle,
-          maxPasses: policy.maxPasses,
+          maxPasses: policy.maxPasses, chosenCoverage: selectedCoverage?.coverage ?? judgment?.coverage,
           ...(rawFirstOutstanding?.requestAttempts === undefined
             ? {}
             : { requestAttempts: rawFirstOutstanding.requestAttempts }),
