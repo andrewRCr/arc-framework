@@ -17,7 +17,8 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Merge `origin/main` into the branch (merge, not rebase), then begin generate-tasks
+- **Next Action:** generate-tasks Finalize — land adversarial pass 2's approved fixes (F1–F5), run their fix check, then
+  finalize the task list
 
 - **PR URL:** [none]
 - **Completed:** [none]
