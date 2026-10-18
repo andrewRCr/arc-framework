@@ -42,11 +42,12 @@ export interface DerivedLocusStateProbeOptions {
 /** A frame and the operational anchor used for its record projections. */
 export interface DerivedLocusStateSnapshot { frame: DerivedLocusFrame; stateVersion: StateVersion | null }
 
-/** Capture an off-branch read snapshot before acquiring the frame, preserving legacy reads and refused-version fallback. */
-export async function readDerivedLocusStateSnapshot(options: DerivedLocusStateProbeOptions): Promise<DerivedLocusStateSnapshot> {
+/** Capture the frame's operational anchor, using the caller's version-refusal policy when supplied. */
+export async function readDerivedLocusStateSnapshot(options: DerivedLocusStateProbeOptions,
+  readVersion?: (store: Store) => Promise<StateVersion>): Promise<DerivedLocusStateSnapshot> {
   const store = options.store ?? createStore(createDefaultStorePorts({ checkoutRoot: options.cwd, exec: options.exec }));
-  const version = store.capabilities.stateOffBranch ? await store.version() : null;
-  const stateVersion = version?.status === "ok" ? version.result : null;
+  const stateVersion = !store.capabilities.stateOffBranch ? null : readVersion === undefined
+    ? await store.version().then(version => version.status === "ok" ? version.result : null) : await readVersion(store);
   const selected = stateVersion === null ? store : storeAtVersion(store, stateVersion);
   const frame = await runDerivedLocusStateProbe({ ...options, store: selected });
   return { frame, stateVersion };

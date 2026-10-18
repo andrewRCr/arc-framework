@@ -7,6 +7,7 @@ import { readStateHistory, StateHistoryRefusal } from "../handoff/state-history.
 import { CompactionSeedSchema } from "../compaction-seed/schema.js";
 import { identifyWorkUnitArtifactPath } from "../layout/index.js";
 import { resolveRecoveryParentContext, type RecoveryLocusFrame } from "./locus-context.js";
+import type { StateVersion } from "../store/identity.js";
 
 type RecoveryBasisProbe = Pick<RecoveryAuditProbeState, "recoveryFrame" | "loadSet" | "taskCursor">
   & Partial<Pick<RecoveryAuditProbeState, "derivedLocusState">>;
@@ -17,10 +18,11 @@ export interface RecoveryStateBasis { seed: CompactionSeed; rebuilt: boolean }
  * @param input - Seed, fresh recovery subject, selected store and history synchronization.
  * @returns Seed used in memory by this audit; never writes the original seed.
  */
-export async function resolveRecoveryStateBasis(input: { seed: CompactionSeed; recover: RecoveryBasisProbe; store: Store; sync?: StoreSyncPort }): Promise<RecoveryStateBasis> {
+export async function resolveRecoveryStateBasis(input: { seed: CompactionSeed; recover: RecoveryBasisProbe; store: Store; sync?: StoreSyncPort; currentStateVersion?: StateVersion | null }): Promise<RecoveryStateBasis> {
   const { seed, store, recover } = input;
   if (!store.capabilities.stateOffBranch) return { seed, rebuilt: false };
-  const current = await readStateHistory(() => store.version(), input.sync);
+  const current = input.currentStateVersion === undefined ? await readStateHistory(() => store.version(), input.sync) : input.currentStateVersion;
+  if (current === null) throw new Error("Recovery has no operational snapshot anchor. Repair state availability and retry recovery.");
   if (seed.stateVersion !== null) {
     const from = seed.stateVersion;
     try {

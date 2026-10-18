@@ -13,8 +13,11 @@ import { runPassiveWorktreeInspection } from "../lib/git/worktree-sync.js";
 import { resolveWorktreeIdentity } from "../lib/git/worktree-identity.js";
 import { resolveReleaseRouting } from "../lib/release/routing.js";
 import type { ReleaseRoutingValue } from "../lib/release/routing.js";
-import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
+import { readDerivedLocusStateSnapshot } from "./derived-locus-state-probe.js";
 import type { Store } from "../lib/store/contract.js";
+import type { StateVersion } from "../lib/store/identity.js";
+import type { StoreSyncPort } from "../lib/store/operational-sync.js";
+import { readStateHistory } from "../lib/handoff/state-history.js";
 
 export interface RecoverStatusProbeOptions {
   cwd: string;
@@ -23,25 +26,40 @@ export interface RecoverStatusProbeOptions {
   execInput: GitExecInput;
   readFile: (path: string) => Promise<string>;
   store?: Store;
+  sync?: StoreSyncPort;
+}
+
+/** Recovery consumes the anchor captured with its derived frame, never a later version. */
+export interface RecoverStatusProbes extends SessionRecoverProbes {
+  stateVersion(identity: string): Promise<StateVersion | null>;
 }
 
 /** Build the recover-mode probe bundle, sharing settings resolution across probes. */
 export function createRecoverStatusProbes(
   options: RecoverStatusProbeOptions,
-): SessionRecoverProbes {
+): RecoverStatusProbes {
   const { cwd, dirty, exec, execInput, readFile } = options;
   const resolvedSettingsP = resolveAllSettings({ cwd, exec, readFile });
-  return {
-    derivedLocusState: async (identity) => {
+  const snapshots = new Map<string, ReturnType<typeof readDerivedLocusStateSnapshot>>();
+  const snapshot = (identity: string): ReturnType<typeof readDerivedLocusStateSnapshot> => {
+    let pending = snapshots.get(identity);
+    if (pending !== undefined) return pending;
+    pending = (async () => {
       const resolved = await resolvedSettingsP;
-      return runDerivedLocusStateProbe({
+      return readDerivedLocusStateSnapshot({
         cwd,
         identity,
         baseBranch: resolved.settings["branch.base"],
         exec,
         ...(options.store === undefined ? {} : { store: options.store }),
-      });
-    },
+      }, store => readStateHistory(() => store.version(), options.sync));
+    })();
+    snapshots.set(identity, pending);
+    return pending;
+  };
+  return {
+    derivedLocusState: async identity => (await snapshot(identity)).frame,
+    stateVersion: async identity => (await snapshot(identity)).stateVersion,
     worktree: async () => {
       const resolved = await resolvedSettingsP;
       const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";

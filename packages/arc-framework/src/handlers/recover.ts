@@ -185,6 +185,7 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?
     execInput: recoveryGitExecInput,
     readFile: io.readFile,
     store,
+    ...(selected.sync === undefined ? {} : { sync: selected.sync }),
   });
   const recover = await runRecoverStatus({
     identity,
@@ -216,8 +217,11 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?
   ]);
 
   let stateBasis;
+  let currentStateVersion;
   try {
+    currentStateVersion = store.capabilities.stateOffBranch ? await probes.stateVersion(identity) : null;
     stateBasis = await resolveRecoveryStateBasis({ seed: parsedSeed.seed, recover, store,
+      currentStateVersion,
       ...(selected.sync === undefined ? {} : { sync: selected.sync }) });
   } catch (error) {
     writeReport({ mode: "recover-audit", seedPath, seed: seedSummary(parsedSeed.seed), recover,
@@ -244,6 +248,7 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?
       taskListPath,
       store,
       stateVersion: stateBasis.seed.stateVersion,
+      currentStateVersion,
       ...(selected.sync === undefined ? {} : { sync: selected.sync }),
     }),
   });
