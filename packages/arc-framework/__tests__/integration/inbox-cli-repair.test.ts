@@ -363,7 +363,11 @@ it("refuses a full abandon collision, carries the survivor by its named repair, 
   expect(await readWorktreeMarker(f.cwd)).toMatchObject({ kind: "present", marker: { createdFor: { kind: "errand", slug: "collision" } } });
   expect(refused.stdout + refused.stderr).toContain("Survivor concern"); expect(refused.stdout + refused.stderr).toContain("Concern");
   const survivor = (await cliRows(f, "project"))[0]; if (!survivor) throw new Error("No survivor");
-  const args = ["route", survivor.id, "--from", "project", "--expected-version", survivor.version, "--to", "collision"];
+  const returning = await resolveEntryList("collision", f.h.context);
+  const uid = returning.status === "ok" && returning.result.primary?.reference.owner.type === "work-item"
+    ? returning.result.primary.reference.owner.uid : undefined;
+  if (uid === undefined) throw new Error("Returning Errand generation required");
+  const args = ["route", survivor.id, "--from", "project", "--expected-version", survivor.version, "--to", uid];
   expect(refused.stdout + refused.stderr).toContain(`arc ${args.join(" ")}`);
   expect(await repairCli(f, args)).toMatchObject({ result: { state: "routed", carried: "cited" } });
   expect(await cliRows(f, "project")).toEqual([]);
