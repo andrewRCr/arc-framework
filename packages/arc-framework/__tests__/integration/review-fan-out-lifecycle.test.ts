@@ -1178,6 +1178,7 @@ async function completeLocalReviewThroughHandlers(
   harness: FanOutHarness,
   deliveryAdmission: DeliveryLocalReviewAdmission,
   result: "clean" | "findings" | "failed" = "clean",
+  productionHostBin?: string,
 ) {
   const basePrepare = createLocalPrepareDependencies({ exec: harness.exec, cwd: harness.root });
   const memberLookup = new RepositoryDeliveryMemberLookup({ cwd: harness.root, exec: harness.exec });
@@ -1215,7 +1216,7 @@ async function completeLocalReviewThroughHandlers(
       guidance: projectLocalReviewGuidance(),
       diagnostics: [] as const,
     }),
-    validateDeliveryAdmission: async (admission: DeliveryLocalReviewAdmission) => {
+    validateDeliveryAdmission: productionHostBin === undefined ? async (admission: DeliveryLocalReviewAdmission) => {
       const current = await statusThroughHandler(
         harness,
         admission.statusTarget,
@@ -1235,6 +1236,14 @@ async function completeLocalReviewThroughHandlers(
         retrigger: "full-final" as const,
         count: 1 as const,
       };
+    } : async (admission: DeliveryLocalReviewAdmission) => {
+      const previousPath = process.env.PATH;
+      process.env.PATH = `${productionHostBin}:${previousPath ?? ""}`;
+      try { return await basePrepare.validateDeliveryAdmission(admission); }
+      finally {
+        if (previousPath === undefined) delete process.env.PATH;
+        else process.env.PATH = previousPath;
+      }
     },
   };
   const prepareOutput: string[] = [];
@@ -1458,6 +1467,7 @@ async function installHostedRequestTestHost(
     data: {
       repository: {
         pullRequest: {
+          reviewDecision: null,
           reviewThreads: {
             nodes: terminalOutcome === "clean" ? [] : [{
               id: "PRRT_finding", isResolved: false, comments: {
@@ -1486,6 +1496,9 @@ async function installHostedRequestTestHost(
     "      *) printf '%s\\n' '[]' ;;",
     "    esac",
     "    ;;",
+    "  pr:checks) printf '%s\\n' '[]' ;;",
+    "  api:repos/owner/repository/branches/main) printf '%s\\n' '{\"protected\":false}' ;;",
+    "  api:--paginate) printf '%s\\n' '[[]]' ;;",
     "  api:repos/owner/repository/pulls/41)",
     `    printf '%s\\n' '${observedRequest(
       41,
@@ -2846,15 +2859,17 @@ describe("hosted review fan-out lifecycle", () => {
     expectedCount,
     expectedMaximum,
   }) => {
-    const harness = await createHarness(["delegated-agent"]);
+    const harness = await createHarness(["codex-pr", "delegated-agent"]);
+    const { fakeBin } = await installHostedRequestTestHost(harness);
+    await git(harness.root, ["config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*"]);
     const statusTarget = {
       repository,
       headRef: "delivery/delivery-plan-record/first",
       headSha: harness.oldFirst,
     };
-    const initial = await statusThroughHandler(harness, statusTarget);
+    const initial = await statusThroughHandler(harness, statusTarget, undefined, "complete", "delegated-agent");
     if (initial.nextAction !== "review-local-prepare") throw new Error("expected local review admission");
-    await completeLocalReviewThroughHandlers(harness, initial.action, "findings");
+    await completeLocalReviewThroughHandlers(harness, initial.action, "findings", fakeBin);
 
     const pendingResume = await statusThroughHandler(harness, statusTarget);
     expect(pendingResume).toMatchObject({

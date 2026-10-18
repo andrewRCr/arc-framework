@@ -283,22 +283,15 @@ first, then in the `.arc/` copy by targeted edit.
         - Delivery workflows use status's post-choice measure as their exact check after head movement, without a
           second whole-member measure. Retained private whole-member selections serve complete review only.
 
-### `[ ]` **2.3 Pass a delivery admission's source through local prepare's re-check — § 7.6**
+### `[x]` **2.3 Pass a delivery admission's source through local prepare's re-check — § 7.6**
 
 - _Goal:_ A delivery admission chosen with `--source delegated-agent`, or with a forced local source, survives local
   prepare's real re-check instead of coming back as `coverage-required`.
 
-- _Note:_ A sibling-sweep fix outside the finding's cited file meets delivery's authoring rebind; see
-  `notes-review-coverage-cadence.md` § Execution caution.
-
-    - `validateDeliveryAdmission` (`runtime/local-prepare-composition.ts`) re-runs status with the admission's coverage
-      but not its source, and the status port reads the source only from the request (`createReviewStatusPort`,
-      `status-composition.ts`), so `selectReviewCoverageChoice` matches nothing; the re-check passes the admission's
-      source.
-    - Build `test-first` (one behavior at a time):
-        - A test runs the real re-check with a source-bearing admission and admits it; today's integration test
-          replaces the re-check (`review-fan-out-lifecycle.test.ts`) and `delivery-position-suite.ts` admits no
-          selected source.
+- The production re-check now forwards the admission's source in the status request, beside its coverage. Two existing
+  real-Git response cases choose a forced local source behind a hosted source and use the production validator; their
+  fixture supplies actual base tracking and host check-policy observations. Removing source forwarding makes both
+  cases fail, and the restored implementation passes through attestation and response settlement.
 
 ### `[ ]` **2.4 Ask the work-unit coverage question once, and refuse a choice it did not list — § 6.4, § 6.5, § 7.3**
 

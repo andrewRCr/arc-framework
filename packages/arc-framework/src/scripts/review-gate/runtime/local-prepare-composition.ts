@@ -539,7 +539,8 @@ export function createLocalPrepareDependencies(input: {
         ...(admission.additionalPassAuthorization === undefined ? {}
           : { additionalPassAuthorization: admission.additionalPassAuthorization }),
         coverage: admission.requestedCoverage,
-      }, createReviewStatusPort({ ...input, sourceId: admission.sourceId }));
+        sourceId: admission.sourceId,
+      }, createReviewStatusPort(input));
       if (current.nextAction !== "review-local-prepare"
         || canonicalize(current.action) !== canonicalize(admission)) {
         throw new Error("Local delivery-member review no longer has exact driver admission.");
