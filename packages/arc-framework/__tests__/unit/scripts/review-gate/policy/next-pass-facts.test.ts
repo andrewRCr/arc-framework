@@ -54,7 +54,7 @@ it.each([true, false])("reports the proven chain and its range against the targe
   const root = await fixture.resultReader.readResult(fixture.original.operationId);
   if (root.kind === "frontline") throw new Error("expected standard review");
   const { obligation, reasons, rubricVersion, rubricDigest, retrigger, count } = root.requirement;
-  const nextPassContext = await deriveReviewNextPassContext({ completePasses: 1, predecessor: root, currentTarget: fixture.currentTarget(),
+  const nextPassContext = await deriveReviewNextPassContext({ completePasses: 1, completedPasses: root.admission.logicalPass, predecessor: root, currentTarget: fixture.currentTarget(),
     currentLineage: root.admission.lineage, standardReview: { obligation, reasons, rubricVersion, rubricDigest, retrigger, count },
     resultReader: fixture.resultReader, dispositionStore: { readDispositionRecord: async () => null,
       appendDispositionRecord: async () => { throw new Error("Read-only context"); } }, readResponsePerformance: async () => null,

@@ -30,6 +30,7 @@ export interface ReviewNextPassInput extends Omit<ReviewCorrectionLegInput, "pre
     readonly surface: "ordinary" | "pre-publication" | "open-pr-errand";
   };
   readonly completePasses: number;
+  readonly completedPasses: number;
   readonly predecessor: ReviewResult | null;
   readonly currentTarget: PerformedResponseProofInput["currentTarget"] | null;
   readonly standardReview: StandardReviewObligationProjection;
@@ -77,7 +78,8 @@ function samePolicy(predecessor: ReviewResult, input: ReviewNextPassInput,
   currentTarget: PerformedResponseProofInput["currentTarget"]): boolean {
   if (predecessor.kind === "frontline") return false;
   const { obligation, reasons, rubricVersion, rubricDigest, retrigger, count } = predecessor.requirement;
-  return predecessor.repositoryId === currentTarget.repositoryId
+  return predecessor.admission.logicalPass === input.completedPasses
+    && predecessor.repositoryId === currentTarget.repositoryId
     && laneSubjectOwnerMatches(predecessor.admission.lineage, input.currentLineage)
     && canonicalize({ obligation, reasons: [...reasons].sort(), rubricVersion, rubricDigest, retrigger, count })
       === canonicalize({ ...input.standardReview, reasons: [...input.standardReview.reasons].sort() });

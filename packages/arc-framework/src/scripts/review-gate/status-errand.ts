@@ -386,7 +386,7 @@ async function resolveErrandLaneAtHead(input: {
   const requirement = result.requirement;
   const dispositionStore = new LocalApprovedDispositionRecordStore(input.publisher);
   const nextPassContext = await deriveReviewNextPassContext({
-    completePasses: input.completePasses,
+    completePasses: input.completePasses, completedPasses: input.completedPasses,
     predecessor: result, currentTarget: result.target, currentLineage: result.admission.lineage,
     rangeProof: { cwd: input.cwd, exec: input.exec },
     deltaAdmission: { sources: configured.sources, surface: "open-pr-errand" },
@@ -642,7 +642,7 @@ async function nextErrandPassObligation(input: {
     repositoryId: input.result.repositoryId, ...input.currentBase,
   });
   const nextPassContext = await deriveReviewNextPassContext({
-    completePasses: input.completePasses,
+    completePasses: input.completePasses, completedPasses: input.completedPasses,
     predecessor: input.result, currentTarget, currentLineage: input.result.admission.lineage,
     rangeProof: { cwd: input.cwd, exec: input.exec },
     deltaAdmission: { sources: configured.sources, surface: "open-pr-errand" },

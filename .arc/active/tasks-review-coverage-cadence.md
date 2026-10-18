@@ -715,7 +715,7 @@ complete pass. Workflow, method, and configuration text changes in the package's
   projection share `countCompleteLogicalPasses`; resolve, admission, respond, and lane facts carry the same count,
   including validated Candidate ancestors. Interleaved histories retain their logical attempt numbering.
 
-### `[ ]` **5.2 Compare against the ceiling by complete count, and bind attempts by `logicalPass` — § 5.2**
+### `[x]` **5.2 Compare against the ceiling by complete count, and bind attempts by `logicalPass` — § 5.2**
 
 - _Goal:_ Every comparison against `review.standard_max_passes`, and every decision whether an override is needed, reads
   the complete count, while every site that numbers or binds an attempt keeps `logicalPass` and `validatePassCounts`
@@ -726,23 +726,10 @@ complete pass. Workflow, method, and configuration text changes in the package's
           Terminal evidence retains its own coverage so override validation subtracts only a complete terminal;
           override coordinates continue to bind logical attempts.
 
-    - `[ ]` **5.2.b Keep `logicalPass` where an attempt is numbered or bound**
-        - The driver's numbering (`completedPasses + 1`, a terminal state's `pass`, the consequence's
-          `exhaustedPassCount` and `nextPass`); `buildLaneAttempt` and `buildNextLaneProgress` (`lane-progress.ts`);
-          `recordHostedRequestAdmission` and `readHostedRequestAdmissionReplay` (`lane-progress-hosted-request.ts`);
-          local prepare's numbering; `validateTerminalResult`, `correctedTerminalRequest`, and
-          `compatibleTerminalGrants` (`review-policy-evidence.ts`); `validateApprovedResponsePolicyBinding`
-          (`respond-command.ts`); the next-pass context's predecessor match (Task 1.1.b), which replaces
-          `resolveOfferedCorrectionScope`'s own (Task 1.3.b); `requireCaptureProducer`,
-          `bindConditionalPendingAdmission`, `validateAuthorizations`, and `ConditionalPassAuthorizationSchema`'s
-          `nextPass` refinement; `invalidAdditionalPassReason`, `withCeilingOverride`,
-          `verifyCandidateAdditionalPassPredecessor`, and `RespondApprovedRequestSchema`'s `exhaustedPassCount`; the
-          terminus binding (`isDeliveryReviewMemberDischargedByOwnerTerminus`) and `completedPassesAtAdmission`
-          (`hosts/local/hosted-request-owner-index.ts`).
-        - `exhaustedPassCount` keeps its stored meaning, the producing attempt's `logicalPass`.
-        - Build `test-first` (one behavior at a time):
-            - Fix checks advance `logicalPass`, and `validatePassCounts` accepts a lane that interleaves them with
-              complete passes.
+    - `[x]` **5.2.b Keep `logicalPass` where an attempt is numbered or bound**
+        - Audited numbering and authorization, terminal, terminus, and owner-index bindings against logical counts.
+          Shared context now checks the predecessor's logical attempt against the finished count; lane readers carry
+          both counts independently. Interleaved schema-backed histories retain one outcome per logical attempt.
 
 ### `[ ]` **5.3 Report respond's ceiling position and consequence from the complete count — § 5.2, § 5.3**
 

@@ -94,7 +94,7 @@ it.each(([undefined, "complete", "incremental"] as const).flatMap(coverage =>
       "review.standard_sources: [delegated-agent]\nreview.standard_max_passes: 4\n");
     const localReservation = createStandardReviewReservation({ candidateId: attestation.candidateId,
       sourceId: "delegated-agent", sources: ["delegated-agent"], target: reservation.target, obligation: standardReview });
-    const freshContext = await deriveReviewNextPassContext({ completePasses: 0, predecessor: null, currentTarget: handle.admission.reviewTarget,
+    const freshContext = await deriveReviewNextPassContext({ completePasses: 0, completedPasses: 0, predecessor: null, currentTarget: handle.admission.reviewTarget,
       currentLineage: handle.admission.lineage, standardReview,
       resultReader: { readResult: async () => { throw new Error("No predecessor exists."); } },
       dispositionStore: { readDispositionRecord: async () => null,

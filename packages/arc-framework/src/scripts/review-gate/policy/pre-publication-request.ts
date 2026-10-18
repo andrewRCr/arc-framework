@@ -847,7 +847,7 @@ export async function composePrePublicationReviewRequest(
     if (lane === "frontline") return bindReviewPolicyEvidence(policyInput, evidenceDependencies);
     const currentLineage = lineage ?? { kind: "candidate" as const, candidateId: candidate.candidateId };
     const nextPassContext = await deriveReviewNextPassContextFromAttempts({
-      attempts: policyInput.attempts, ...standardNextPassProgress(rawProgress),
+      attempts: policyInput.attempts, completedPasses: policyInput.completedPasses, ...standardNextPassProgress(rawProgress),
       currentTarget: exactTarget, currentLineage, standardReview,
       resultReader: dependencies.resultReader, dispositionStore: dependencies.dispositionStore,
       readResponsePerformance: evidenceDependencies.readResponsePerformance,

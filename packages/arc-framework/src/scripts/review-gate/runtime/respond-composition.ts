@@ -1,5 +1,5 @@
 /** Production assembly for approved review dispositions. */
-import { readStandardCompletePassCount } from "./lane-complete-pass-count.js";
+import { readStandardPassCounts } from "./lane-pass-counts.js";
 import { confirmReviewCorrectionLeg, deriveReviewNextPassContext } from "../policy/review-next-pass.js";
 import type { EvidenceBoundReviewPolicyDependencies } from "../policy/review-policy-evidence.js";
 import type { ReviewPolicyCommandRequest } from "../policy/review-policy-driver.js";
@@ -413,10 +413,10 @@ async function readRespondPolicyNextPassContext(context: {
   const selected = predecessor === null ? null : await readRespondCandidate(input, predecessor);
   const lineage = predecessor?.admission.lineage ?? { kind: "head-bound" as const, vehicleKind: "review-target" as const,
     vehicleIdentity: confirmedProducerTarget.targetId, headSha: confirmedProducerTarget.headSha };
-  const completePasses = await readStandardCompletePassCount({ ...input, store: prepare.operationStore,
+  const { completePasses } = await readStandardPassCounts({ ...input, store: prepare.operationStore,
     repositoryId: confirmedProducerTarget.repositoryId, headSha: confirmedProducerTarget.headSha,
     lineage, candidate: selected?.record });
-  return deriveReviewNextPassContext({ predecessor, completePasses,
+  return deriveReviewNextPassContext({ predecessor, completePasses, completedPasses: request.completedPasses,
     currentTarget: confirmedProducerTarget,
     currentLineage: lineage,
     standardReview: request.standardReview, resultReader: policyDependencies.resultReader,

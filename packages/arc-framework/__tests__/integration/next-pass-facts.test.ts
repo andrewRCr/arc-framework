@@ -39,7 +39,7 @@ it("measures the fix separately from the contribution and observes files added o
   const target = createReviewTarget({ ...coordinates, headSha: await git("rev-parse", "HEAD"),
     headTree: await git("rev-parse", "HEAD^{tree}") });
   const { obligation, reasons, rubricVersion, rubricDigest, retrigger, count } = root.requirement;
-  const nextPassContext = await deriveReviewNextPassContext({ completePasses: 1, predecessor: root, currentTarget: target,
+  const nextPassContext = await deriveReviewNextPassContext({ completePasses: 1, completedPasses: root.admission.logicalPass, predecessor: root, currentTarget: target,
     currentLineage: root.admission.lineage, standardReview: { obligation, reasons, rubricVersion, rubricDigest, retrigger, count },
     resultReader: fixture.resultReader, dispositionStore: { readDispositionRecord: async () => null,
       appendDispositionRecord: async () => { throw new Error("Read-only context"); } }, readResponsePerformance: async () => null,

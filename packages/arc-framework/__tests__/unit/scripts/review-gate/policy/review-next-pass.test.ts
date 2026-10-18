@@ -30,6 +30,7 @@ function input(predecessor: ReviewResult | null, severity: "major" | "minor" = "
   const { obligation, reasons, rubricVersion, rubricDigest, count } = result.requirement;
   return {
     completePasses: predecessor === null ? 0 : 1,
+    completedPasses: predecessor?.admission.logicalPass ?? 0,
     deltaAdmission: { sources: ["delegated-agent"], surface: "ordinary" },
     predecessor, currentTarget, currentLineage: result.admission.lineage,
     standardReview: { obligation, reasons, rubricVersion, rubricDigest, retrigger, count },
@@ -311,4 +312,13 @@ describe("next-pass context", () => {
       .toEqual({ completePasses: 1, convergence: "unconverged", responseDue: false, incremental: null });
   });
 
+});
+
+
+it("binds a correction predecessor to the finished logical attempt rather than the complete count", async () => {
+  const request = input(findingsHostedResult(["major"]));
+  const matching = { ...request, completedPasses: request.predecessor!.admission.logicalPass, completePasses: 1 };
+  expect((await deriveReviewNextPassContext(matching)).incremental?.basis).toBe("fix-check");
+  expect((await deriveReviewNextPassContext({ ...matching, completedPasses: matching.completedPasses + 1 })).incremental)
+    .toBeNull();
 });

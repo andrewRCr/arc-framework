@@ -303,7 +303,7 @@ export async function resolveEvidenceBoundHostedReservationPolicy(
   const latestCurrentAttempt = [...progress.attemptHistory].reverse().find((attempt) => (
     attempt.headSha === input.target.headSha
   ));
-  const nextPassContext = await deriveReviewNextPassContextFromAttempts({ attempts, completePasses: progress.completePasses,
+  const nextPassContext = await deriveReviewNextPassContextFromAttempts({ attempts, completedPasses: progress.completedPasses, completePasses: progress.completePasses,
     predecessorOperationId: progress.predecessorProducerId,
     currentTarget: input.currentReviewTarget ?? null,
     currentLineage: { kind: "delivery-member", planId: input.vehicle.planId,
@@ -624,7 +624,7 @@ async function verifyCandidateAdditionalPassPredecessor(
   if (completePasses === undefined) {
     throw new Error("Additional review requires repository-derived complete-pass counts. Re-read the exact lane and retry.");
   }
-  const nextPassContext = await deriveReviewNextPassContextFromAttempts({ attempts: predecessorRequest.attempts, completePasses,
+  const nextPassContext = await deriveReviewNextPassContextFromAttempts({ attempts: predecessorRequest.attempts, completePasses, completedPasses,
     currentTarget: producer.target, currentLineage: producer.admission.lineage,
     standardReview: input.reservation.obligation, resultReader: dependencies.resultReader,
     dispositionStore: dependencies.dispositionStore,

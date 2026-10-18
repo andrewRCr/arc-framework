@@ -13,11 +13,12 @@ import type { StandardReviewObligationProjection } from "./standard-review-proje
 
 /** Read the latest completed look in one subject's projected span and derive its next scope. */
 export async function deriveHostedNextPassContext(input: {
-  readonly readCompletePassCount: (lineage: LaneSubjectLineage) => Promise<number>;
+  readonly readPassCounts: (lineage: LaneSubjectLineage) => Promise<{ completePasses: number; completedPasses: number }>;
   readonly target: ReviewTarget;
   readonly lineage?: LaneSubjectLineage;
   readonly progress?: readonly LaneProgressProjection[];
   readonly predecessorId?: string;
+  readonly completedPasses?: number;
   readonly standardReview: StandardReviewObligationProjection;
   readonly configuredSources: readonly string[];
   readonly evidence: Pick<EvidenceBoundReviewPolicyDependencies,
@@ -37,8 +38,8 @@ export async function deriveHostedNextPassContext(input: {
   const confirmCurrent = input.confirmCurrentApplicability;
   const lineage = input.lineage ?? predecessor?.admission.lineage ?? { kind: "head-bound" as const,
     vehicleKind: "review-target" as const, vehicleIdentity: input.target.targetId, headSha: input.target.headSha };
-  const completePasses = await input.readCompletePassCount(lineage);
-  return deriveReviewNextPassContext({ predecessor, completePasses, currentTarget: input.target, currentLineage: lineage,
+  const { completePasses, completedPasses } = await input.readPassCounts(lineage);
+  return deriveReviewNextPassContext({ predecessor, completePasses, completedPasses: input.completedPasses ?? completedPasses, currentTarget: input.target, currentLineage: lineage,
     standardReview: input.standardReview, resultReader: input.evidence.resultReader,
     rangeProof: { cwd: input.cwd, exec: input.exec },
     deltaAdmission: { sources: input.configuredSources, surface: "ordinary" },

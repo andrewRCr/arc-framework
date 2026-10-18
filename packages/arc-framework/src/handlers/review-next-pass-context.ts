@@ -86,7 +86,7 @@ export async function readResolveNextPassContext(input: {
   const earlier = selectErrandCorrectionPredecessor(owner?.attempts ?? [], target.headSha) ?? inheritedTerminal;
   const predecessor = terminalResult ?? (earlier === undefined
     ? null : await resultReader.readResult(earlier.attemptId));
-  return deriveReviewNextPassContext({ predecessor,
+  return deriveReviewNextPassContext({ predecessor, completedPasses: request.completedPasses,
     completePasses: countCompleteLogicalPasses(owner?.attempts ?? []) + (inherited?.inheritedCompletePasses ?? 0),
     currentTarget: target, currentLineage: lineage,
     standardReview: request.standardReview, resultReader, dispositionStore, rangeProof: { cwd: root, exec },
@@ -113,7 +113,7 @@ export async function readHostedErrandNextPassContext(input: {
   const attempts = input.progress?.attempts.filter(attempt => attempt.headSha === input.target.headSha
     && attempt.outcome !== "pending") ?? [];
   const earlier = selectErrandCorrectionPredecessor(input.progress?.attempts ?? [], input.target.headSha);
-  return deriveReviewNextPassContextFromAttempts({ attempts: attempts.map(projectReviewPolicyAttempt),
+  return deriveReviewNextPassContextFromAttempts({ attempts: attempts.map(projectReviewPolicyAttempt), completedPasses: input.progress?.completedPasses ?? 0,
     completePasses: countCompleteLogicalPasses(input.progress?.attempts ?? []),
     rangeProof: { cwd: input.cwd, exec: input.exec },
     deltaAdmission: { sources: input.configuredSources, surface: "open-pr-errand" },

@@ -54,7 +54,8 @@ async function readNextContext(input: LaneReadBoundary & {
   const context = { input, dispositionStore: input.dispositionStore, operationStore: input.operationStore };
   const confirm = createLocalContributionConfirmation({ context, repositoryId: input.target.repositoryId,
     baseRef: input.target.baseRef, policyTarget, candidate });
-  return deriveReviewNextPassContext({ predecessor, completePasses, currentTarget: input.target, currentLineage: input.lineage,
+  return deriveReviewNextPassContext({ predecessor, completePasses,
+    completedPasses: input.progress.filter(owner => owner.lane === "standard").reduce((sum, owner) => sum + owner.completedPasses, 0), currentTarget: input.target, currentLineage: input.lineage,
     standardReview, resultReader, dispositionStore: input.dispositionStore, rangeProof: input,
     readResponsePerformance: result => readLaneResponsePerformance(input.operationStore, result),
     confirmApplicability: (before, current) => confirm(before, current.target, current.admission.lineage, current),
