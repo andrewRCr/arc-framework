@@ -21,22 +21,12 @@ derivations live in modules of their own, since the compositions and the driver 
 The confirmation map is in `notes-review-coverage-cadence.md` § Chain confirmations, and the invariants
 `seam-delivery-review` builds on in § Coordination; none changes here.
 
-### `[ ]` **1.1 Derive the next-pass context and require it on the driver's standard-lane request — § 4**
+### `[x]` **1.1 Derive the next-pass context and require it on the driver's standard-lane request — § 4**
 
 - _Goal:_ Every composition that builds the policy driver's standard-lane request derives the predecessor's
   convergence and the next look's admissible incremental basis from stored records, through one helper and one chain
   proof, including whether the predecessor's response is due; the driver refuses a standard-lane request that
   lacks the context.
-
-- _Context:_ The context rides only the driver's internal request (`ReviewPolicyRequestSchema`), never the command
-  request (`ReviewPolicyCommandRequestSchema`), which each approved disposition's lineage node stores
-  (`ApprovedDispositionLineageNodeSchema.responsePolicyRequest`, `core/advisory-records.ts`). The complete count, § 4's
-  first fact, joins in Task 5.1; the delta-check basis joins in Task 3.1.
-
-- _Shape:_ The context holds `convergence` — `none`, `converged`, `pending`, or `unconverged` — `responseDue`, and
-  `incremental`, either `null` or a `basis` (`fix-check`) with its correction `scope`. Task 5.1 adds `completePasses`,
-  and Task 3.1 a `delta-check` basis. It reaches the binders as a field of `EvidenceBoundReviewPolicyDependencies` and
-  the driver as an internal request field.
 
     - `[x]` **1.1.a Build the performed-response test**
         - Added the shared change-set response proof over validated approval and lane performance at an unchanged
@@ -50,53 +40,15 @@ The confirmation map is in `notes-review-coverage-cadence.md` § Chain confirmat
         - Bound the internal standard-lane context through terminal, fresh, and additional-pass requests; frontline
           rejects it and the stored command schema remains unchanged. Extracted source eligibility from the driver.
 
-    - `[ ]` **1.1.d Derive it in Errand status and the `arc review resolve -` handler**
-        - Errand status (`status-errand.ts`): `resolveErrandLaneAtHead`, whose callers `readErrandRoutedObligation` and
-          `readCarriedErrandReview` read lane progress, and `nextErrandPassObligation`, through
-          `readUnreviewedErrandHead`. Neither has a current-head confirmation today, so each takes the chain proof.
-        - `resolveConfiguredReviewPolicy` (`handlers/review.ts`), which serves an Errand's main resolve and the ordinary
-          singleton's continuation, resolves the standard lane through `resolveEvidenceBoundReviewPolicyContinuation`
-          instead of `resolveEvidenceBoundReviewPolicy`, so a converged look re-resolves to its successor there too; a
-          frontline resolve, which the handler also serves, stays on `resolveEvidenceBoundReviewPolicy`. It reads the
-          lane progress of the terminal producer's lineage (`admission.lineage`), else of the live checkout as it
-          already resolves it (`readLocalReviewLiveContext`, `readIndexedHostedReviewErrand`, and `resolveActiveWu` with
-          `readCandidateRecord`), with a Candidate's supersession ancestors (`readCandidateInheritedLaneProgress`).
-        - Tests extend `review-status-errand.test.ts` and `review-terminal-attempt.test.ts`.
-        - Build `test-first` (one behavior at a time):
-            - After a material fix and after a converged look, each site passes the context the helper derives from the
-              same records, for a same-head terminal, an earlier-head producer, and a superseded Candidate.
-            - The handler re-resolves a clean converged fix check to its successor rather than returning
-              `coverage-required`.
-            - A frontline resolve through the handler is unchanged.
+    - `[x]` **1.1.d Derive it in Errand status and the `arc review resolve -` handler**
+        - Errand status and ordinary resolve derive context from the terminal owner or live claim/Candidate history,
+          including supersession ancestors. Standard resolve uses the continuation; a clean full-final fix check
+          reaches its complete successor, while frontline retains direct evidence binding.
 
-    - `[ ]` **1.1.e Derive it in the work-unit compositions**
-        - Hosted request admission: the `authorizeCapacity` closure in `executeDefaultHostedRequest`
-          (`handlers/review.ts`), in its delivery-member, Candidate, and Errand branches. The Errand branch binds the
-          terminal with no chain confirmation today and takes the chain proof. At a fixed head with no same-head
-          terminal, it supplies the earlier-head producer from its claim-wide `progress` through
-          `selectErrandCorrectionPredecessor` (`status-errand.ts`).
-        - Local prepare: `validateLocalPolicyAdmission` (`runtime/local-prepare-composition.ts`), fed by
-          `resolveSettlementPolicyAdmission` (`runtime/local-prepare.ts`); a delivery admission bypasses the driver there
-          and carries status's pick.
-        - The discharge, for the singleton and a delivery member (`resolveTerminalPolicy` and
-          `resolveEarlierTerminalPolicy` in `createHostedReservationDischargeReader`, `hosted-reservation-discharge.ts`),
-          and the hosted reservation admission — `resolveEvidenceBoundHostedReservationPolicy`,
-          `resolveEvidenceBoundSingletonHostedReservationPolicy`, `verifyCandidateAdditionalPassPredecessor`, and
-          `assertEvidenceBoundCandidateHostedReservationPolicyAdmission` (`hosted-reservation-admission.ts`) — whose
-          callers are `status-composition.ts`'s delivery route, `status-singleton.ts`'s `resolveSingletonRequest`, and
-          the handler's hosted request. The member admission derives the context from its snapshot
-          (`projectHostedReservationPolicyProgress`); the singleton admission takes it from the discharge.
-        - Pre-publication's lane composition (`composePrePublicationReviewRequest`, `pre-publication-request.ts`, with
-          `pre-publication-composition.ts`'s bindings). Its current leg takes the chain proof, and the context survives
-          `applyCarriedStandardReviewReservation`, `applyCarriedOwnerAcceptedTerminus`, the composition's own
-          `safeParse`, and `PrePublicationReviewRequestSchema`'s parse before `projectPrePublicationReview` resolves the
-          standard lane.
-        - Respond: the `resolvePolicy` closure in `createRespondDependencies` (`runtime/respond-composition.ts`).
-        - `scripts/integration/checkpoint-composition.ts` reaches the driver only through the discharge and is not a
-          composition.
-        - Build `test-first` (one behavior at a time):
-            - After a material fix and after a converged look, each composition passes the context the helper derives
-              from the same records.
+    - `[x]` **1.1.e Derive it in the work-unit compositions**
+        - Wired shared context into hosted Errand/member/Candidate admission, reservation discharge, local prepare,
+          pre-publication, and respond. Fresh hosted target and applicability modules preserve the existing proof
+          grounds; historical producers remain available across head movement.
 
     - `[x]` **1.1.f Require the context on the standard lane**
         - Standard internal requests now refuse missing next-pass facts; frontline rejects them. Direct reducer and
@@ -109,49 +61,14 @@ The confirmation map is in `notes-review-coverage-cadence.md` § Chain confirmat
   admits the complete pass with no selection, and an unconverged look surfaces `coverage-required`; `incremental`
   adequacy is unchanged.
 
-    - `[ ]` **1.2.a Report coverage adequate under `full-final` only for a complete terminal**
-        - `deriveVerifiedTerminalSignal` (`review-policy-evidence.ts`) reports `coverageAdequate` under `full-final`
-          only when the terminal attempt's own `effectiveCoverage` is `complete`; under `incremental` the coverage chain
-          (`resolveIncrementalCoverageBasis`) decides as today. A frontline result carries no `requirement` and keeps
-          today's signal. `sensitive` keeps its stored `retrigger`, so `compatibleStandardPolicy` and in-flight
-          incremental bases are unaffected.
-        - A complete pass the applicability check carries to the final head still counts, the Owner's `covered`
-          included: it becomes the `owner-covered` authority (`reviewApplicabilityConsumerAction`,
-          `review-applicability-authority.ts`), and the discharge keeps that attempt as the terminal.
-        - _Note:_ The signal's other readers follow it: `convergedSignal` (`review-additional-pass.ts`) refuses an
-          additional-pass authorization after a fix check under `full-final` as `pass-not-converged`, since the lane has
-          not completed; `verifyCandidateAdditionalPassPredecessor` and `readCarriedErrandReview` require `pass-complete`.
-        - Build `test-first` (one behavior at a time):
-            - A converged fix check under `full-final` resolves to `coverage-required`, not `pass-complete`.
-            - An unconverged fix check under `full-final` also resolves to `coverage-required`, its response still
-              due before the next pass.
-            - A clean complete pass at the settled head completes the lane; so does one whose approved fixes are
-              minor on the work-unit path.
-            - An `owner-covered` carried complete pass completes the lane.
-            - Under `incremental` a converged fix check over an adequate chain completes the lane as today.
-            - Under `full-final` an additional-pass authorization after a converged fix check is refused, and the
-              complete pass that follows needs none below the ceiling.
+    - `[x]` **1.2.a Report coverage adequate under `full-final` only for a complete terminal**
+        - Full-final adequacy now requires the terminal's own complete coverage. Fix checks retain the coverage stop,
+          and elective-pass authority refuses them; incremental policy retains its adequate-chain rule.
 
-    - `[ ]` **1.2.b Re-resolve to the complete pass after a converged look**
-        - The continuation (`continuationChoice`, `resolveEvidenceBoundReviewPolicyContinuation`) splits on the
-          context's convergence. After a converged look, once the terminal's response is performed, it re-resolves as if
-          complete were selected, the source coming from the configured rank as Task 1.5 narrows it. After an
-          unconverged look it surfaces `coverage-required`. The split is one decision, which pre-publication's lane
-          composition also applies (Task 2.1.a).
-        - `coverage-required`'s `responseRequired` reads the context's `responseDue` (`review-policy-driver.ts`) and is
-          true only while the terminal's response is due, so a workflow arm can tell the two apart. Today it reads only
-          the last attempt's outcome, into which `projectReviewPolicyAttempt` (`review-policy-attempt.ts`) folds
-          `settled-findings`.
-        - Build `test-first` (one behavior at a time):
-            - A clean converged fix check re-resolves to `ready` for a complete pass on the configured first source.
-            - A fix check with minor fixes unperformed reads `pending` and stays at `coverage-required` with
-              `responseRequired` true; once they are performed it re-resolves to the complete pass.
-            - An unconverged look surfaces `coverage-required` with `responseRequired` true until its response is
-              performed and false after.
-            - An unconverged look with coverage selected and its response performed still resolves to the fresh
-              successor.
-            - After a complete pass's material fix is performed, the continuation's fresh successor keeps a supplied
-              ceiling override, and the discharge names the next source.
+    - `[x]` **1.2.b Re-resolve to the complete pass after a converged look**
+        - Continuation uses shared convergence and response state: converged full-final looks open the complete
+          successor automatically, while unconverged looks retain the coverage stop until a choice. Its response flag
+          now reports durable response state, and fresh successors retain caller authority.
 
     - `[ ]` **1.2.c Admit the complete pass in local prepare without a selection after a converged look**
         - `resolveLocalReviewCoverageSelection` (`local-review-coverage-selection.ts`) takes the context's predecessor,

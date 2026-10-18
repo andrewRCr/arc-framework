@@ -1,5 +1,6 @@
 /** The hosted pass an Errand head offers after an approved fix, and the correction its admission accepts. */
 
+import { handleReviewResolve } from "../../src/handlers/review.js";
 import { readResolveNextPassContext } from "../../src/handlers/review-next-pass-context.js";
 import { createRepositoryReviewResultReader } from "../../src/scripts/review-gate/hosts/local/review-result-reader-composition.js";
 import { execFile } from "node:child_process";
@@ -98,6 +99,7 @@ interface FixedErrandOptions {
   readonly severity?: "major" | "minor";
   readonly retrigger?: "incremental" | "full-final";
   readonly responsePerformed?: boolean;
+  readonly maxPasses?: number;
 }
 
 /** One Errand whose first hosted pass found one verified finding, fixed by an approved commit. */
@@ -125,7 +127,7 @@ async function fixedErrand(options: FixedErrandOptions = {}) {
   await git(root, ["switch", "-c", branch]);
   await mkdir(join(root, ".arc/system"), { recursive: true });
   await writeFile(join(root, ".arc/system/arc-config.yml"),
-    "review.standard_sources: [coderabbit-pr, codex-pr]\nreview.standard_max_passes: 2\n", "utf8");
+    `review.standard_sources: [coderabbit-pr, codex-pr]\nreview.standard_max_passes: ${options.maxPasses ?? 2}\n`, "utf8");
   await writeFile(join(root, "change.txt"), "reviewed change\n", "utf8");
   await git(root, ["add", "change.txt", ".arc/system/arc-config.yml"]);
   await git(root, ["commit", "-m", "reviewed change"]);
@@ -420,6 +422,25 @@ describe("Errand hosted correction pass", () => {
 
 
 describe("ordinary resolve next-pass records", () => {
+  it("resolves a clean full-final fix check directly to its complete successor", async () => {
+    const errand = await fixedErrand({ retrigger: "full-final", maxPasses: 3 });
+    await errand.recordCorrectionPass(errand.expectedScope);
+    const terminal = (await errand.readAttempts()).at(-1);
+    if (terminal === undefined) throw new Error("expected correction terminal");
+    const policyRequest = responsePolicyRequestFixture({ headSha: errand.statusTarget.headSha, pullRequest: 42,
+      repository: "owner/repo", sourceId: errand.provider, reviewOperationId: terminal.attemptId,
+      completedPasses: 2, standardReview: errand.standardReview });
+    const output: string[] = [];
+    const exitCodes: number[] = [];
+    await handleReviewResolve("-", { resolveRoot: () => errand.root,
+      readText: async () => JSON.stringify({ ...policyRequest,
+        attempts: [{ sourceId: errand.provider, outcome: "clean", reviewOperationId: terminal.attemptId }] }),
+      write: text => output.push(text), setExitCode: code => exitCodes.push(code),
+    });
+    expect({ exitCodes, result: JSON.parse(output.join("")) }).toMatchObject({ exitCodes: [],
+      result: { state: "ready", nextAction: "hosted-request", payload: { sourceId: "coderabbit-pr", pass: 3 } } });
+  });
+
   it.each(["major", "minor"] as const)("derives the earlier-head %s response from the Errand claim", async severity => {
     const errand = await fixedErrand({ severity, retrigger: "full-final" });
     const request = responsePolicyRequestFixture({ headSha: errand.statusTarget.headSha, pullRequest: 42,

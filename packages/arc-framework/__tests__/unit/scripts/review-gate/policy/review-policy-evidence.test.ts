@@ -212,6 +212,16 @@ function approvedLocalRecord(
   });
 }
 
+function incrementalPolicy(result: ReviewResult): ReviewResult {
+  if (result.kind === "frontline") throw new Error("expected standard producer");
+  const { obligation, reasons, rubricVersion, rubricDigest, count } = result.requirement;
+  const requirement = createReviewRequirement({ target: result.target,
+    projection: { obligation, reasons, rubricVersion, rubricDigest, count, retrigger: "incremental" },
+    acceptableSources: result.requirement.acceptableSources, initialAdmission: result.requirement.initialAdmission });
+  if (requirement === null) throw new Error("expected requirement");
+  return { ...result, requirement, admission: { ...result.admission, policyVersion: requirement.policyVersion } };
+}
+
 function dependencies(
   result: ReviewResult,
   disposition = null as ReturnType<typeof approvedRecord> | null,
@@ -966,6 +976,7 @@ describe("evidence-bound review policy", () => {
       standardReview: { ...standardReview, retrigger: "incremental" },
     }, {
       ...dependencies(result, record),
+      nextPassContext: { convergence: "unconverged" as const, responseDue: true, incremental: null },
       sources: ["codex-pr"],
       maxPasses: 2,
     })).resolves.toMatchObject({
@@ -988,6 +999,7 @@ describe("evidence-bound review policy", () => {
     };
     const evidence = {
       ...dependencies(result, record),
+      nextPassContext: { convergence: "unconverged" as const, responseDue: true, incremental: null },
       sources: ["codex-pr"],
       maxPasses: 2,
       readResponsePerformance: async () => performedFix(result, record),
@@ -1110,8 +1122,9 @@ describe("evidence-bound review policy", () => {
   });
 
   it("derives adequate incremental coverage from an explicit applicable complete predecessor", async () => {
-    const predecessor = cleanHostedResult();
-    const current = cleanHostedResult();
+    const incrementalReview = { ...standardReview, retrigger: "incremental" as const };
+    const predecessor = incrementalPolicy(cleanHostedResult());
+    const current = incrementalPolicy(cleanHostedResult());
     if (current.kind !== "hosted") throw new Error("expected hosted result");
     const incrementalTarget = createReviewTarget({
       schemaVersion: current.target.schemaVersion,
@@ -1126,7 +1139,7 @@ describe("evidence-bound review policy", () => {
     });
     const incrementalRequirement = createReviewRequirement({
       target: incrementalTarget,
-      projection: standardReview,
+      projection: incrementalReview,
       acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
       initialAdmission: "automatic",
     });
@@ -1159,6 +1172,7 @@ describe("evidence-bound review policy", () => {
 
     await expect(resolveEvidenceBoundReviewPolicy({
       ...cleanRequest(incremental),
+      standardReview: incrementalReview,
       target: { ...policyTarget, headSha: incremental.target.headSha },
       completedPasses: 2,
     }, {
@@ -1174,7 +1188,8 @@ describe("evidence-bound review policy", () => {
   });
 
   it("recognizes an exact same-head predecessor without external applicability evidence", async () => {
-    const predecessor = cleanHostedResult();
+    const incrementalReview = { ...standardReview, retrigger: "incremental" as const };
+    const predecessor = incrementalPolicy(cleanHostedResult());
     const incremental: ReviewResult = {
       ...predecessor,
       producerId: "hosted/attempt-same-head",
@@ -1200,6 +1215,7 @@ describe("evidence-bound review policy", () => {
 
     await expect(resolveEvidenceBoundReviewPolicy({
       ...cleanRequest(incremental),
+      standardReview: incrementalReview,
       completedPasses: 2,
     }, {
       ...evidence,

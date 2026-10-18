@@ -207,7 +207,7 @@ function dependencies(
 }
 
 describe("pre-publication current contribution applicability", () => {
-  it("asks contribution authority for a same-owner delivery predecessor", async () => {
+  it("keeps a full-final member fix check incomplete despite an earlier complete pass", async () => {
     const priorMember = deliveryMemberTarget({
       deliverableCharacter: "1", baseCharacter: "2", headCharacter: "3",
     });
@@ -323,11 +323,7 @@ describe("pre-publication current contribution applicability", () => {
     expect(composition.status === "composed" && composition.request.standard).toMatchObject({
       verifiedTerminalSignal: { coverageAdequate: false },
     });
-    expect(confirmIncrementalApplicability).toHaveBeenCalledWith(
-      "example", expect.objectContaining({ producerId: predecessor.producerId }),
-      expect.objectContaining({ producerId: current.producerId }),
-      expect.anything(),
-    );
+
   });
 
   it("routes a same-head old-base clean terminal through current applicability", async () => {

@@ -323,7 +323,9 @@ async function deriveVerifiedTerminalSignal(
       | "allowUnapprovedFindings"
   >,
 ): Promise<VerifiedTerminalReviewSignal> {
-  const coverage = await resolveIncrementalCoverageBasis(result, {
+  const coverageAdequate = result.kind !== "frontline" && result.requirement.retrigger === "full-final"
+    ? result.admission.effectiveCoverage === "complete"
+    : (await resolveIncrementalCoverageBasis(result, {
     resultReader: dependencies.resultReader,
     confirmApplicability: dependencies.confirmIncrementalApplicability
       ?? ((predecessor, current) => Promise.resolve(
@@ -334,8 +336,7 @@ async function deriveVerifiedTerminalSignal(
       dependencies.dispositionStore,
       dependencies.readResponsePerformance,
     ),
-  });
-  const coverageAdequate = coverage.status === "adequate";
+  })).status === "adequate";
   if (result.originalOutcome === "clean") {
     return {
       reviewOperationId: operationId,
@@ -478,18 +479,23 @@ async function responsePerformedForTerminal(
   return evidence.status === "performed";
 }
 
-function continuationChoice(input: {
+/** Choose the terminal or its next pass from verified coverage and response state. */
+export function continuationChoice(input: {
   terminal: ReviewResolveEnvelope;
   additionalPass: ReviewResolveEnvelope | null;
   terminalOutcome?: string;
   currentResponsePerformed: boolean;
   coverageSelected: boolean;
+  nextPassContext?: ReviewNextPassContext;
+  retrigger?: "none" | "full-final" | "incremental";
 }): "terminal" | "additional" | "fresh" {
   const { terminal, additionalPass, terminalOutcome, currentResponsePerformed, coverageSelected } = input;
   if (additionalPass !== null && terminal.state === "pass-complete"
     && (terminalOutcome === "clean" || currentResponsePerformed)) return "additional";
   if (terminal.state === "findings" && currentResponsePerformed) return "fresh";
-  if (terminal.state === "coverage-required" && coverageSelected
+  const completeSuccessor = input.retrigger === "full-final"
+    && input.nextPassContext?.convergence === "converged" && !input.nextPassContext.responseDue;
+  if (terminal.state === "coverage-required" && (coverageSelected || completeSuccessor)
     && (!terminal.payload.responseRequired || currentResponsePerformed)) return "fresh";
   return "terminal";
 }
@@ -554,6 +560,7 @@ export async function bindReviewPolicyContinuationEvidence(
   const choice = continuationChoice({
     terminal, additionalPass, terminalOutcome: terminalAttempt?.outcome,
     currentResponsePerformed, coverageSelected: response.coverageSelected === true,
+    nextPassContext: dependencies.nextPassContext, retrigger: request.standardReview.retrigger,
   });
   if (choice === "terminal") return boundTerminal;
   if (choice === "additional" && additionalPass !== null) return {

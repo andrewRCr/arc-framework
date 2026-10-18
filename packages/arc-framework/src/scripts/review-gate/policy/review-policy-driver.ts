@@ -766,7 +766,7 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
           consumedPass: true,
           attemptedSources: request.attempts,
           verifiedTerminalSignal: signal,
-          responseRequired: lastAttempt.outcome === "findings",
+          responseRequired: request.nextPassContext?.responseDue ?? lastAttempt.outcome === "findings",
         },
       });
     }

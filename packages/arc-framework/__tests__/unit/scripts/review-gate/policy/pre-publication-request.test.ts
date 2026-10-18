@@ -1473,7 +1473,7 @@ describe("composePrePublicationReviewRequest", () => {
     expect(composition.status === "composed" && composition.request.standard).toMatchObject({
       completedPasses: 2,
       nextPassContext: { convergence: "converged", responseDue: false, incremental: null },
-      verifiedTerminalSignal: { coverageAdequate: true },
+      verifiedTerminalSignal: { coverageAdequate: false },
     });
   });
 
