@@ -732,6 +732,16 @@ export async function createFixedLocalMemberReview(maxPasses?: number) {
     const initial = await statusThroughHandler(harness, statusTarget);
     if (initial.nextAction !== "review-local-prepare") throw new Error("expected local admission");
     const local = await completeLocalReviewThroughHandlers(harness, initial.action, "findings");
+    return fixLocalMemberReview(harness, statusTarget, local);
+}
+
+/** Approve and perform one material local member repair through its actual response protocol. */
+export async function fixLocalMemberReview(
+  harness: FanOutHarness,
+  statusTarget: Parameters<typeof statusThroughHandler>[1],
+  local: Awaited<ReturnType<typeof completeLocalReviewThroughHandlers>>,
+  fixContent = "fixed local finding\n",
+) {
     const pending = await statusThroughHandler(harness, statusTarget);
     if (pending.nextAction !== "review-local-resume") throw new Error("expected local resumption");
     const resumed = await resumeLocalThroughHandler(harness, pending.action);
@@ -772,7 +782,7 @@ export async function createFixedLocalMemberReview(maxPasses?: number) {
     });
 
     await git(harness.root, ["checkout", "delivery/delivery-plan-record/first"]);
-    await writeFile(join(harness.root, "first.txt"), "fixed local finding\n", "utf8");
+    await writeFile(join(harness.root, "first.txt"), fixContent, "utf8");
     await git(harness.root, ["add", "first.txt"]);
     await git(harness.root, ["commit", "-m", "fix local member finding"]);
     const fixedHead = await git(harness.root, ["rev-parse", "HEAD"]);
@@ -807,5 +817,5 @@ export async function createFixedLocalMemberReview(maxPasses?: number) {
       repository, headRef: "delivery/delivery-plan-record/first", headSha: fixedHead,
     };
     await selectReviewRequiredUntilRouted(harness, correctedTarget, "covered");
-    return { harness, correctedTarget, local, fixedHead };
+    return { harness, correctedTarget, local, fixedHead, assessment: proposal.payload.provisionalPassAssessment };
 }

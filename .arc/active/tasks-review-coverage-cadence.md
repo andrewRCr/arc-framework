@@ -737,6 +737,8 @@ complete pass. Workflow, method, and configuration text changes in the package's
   once the admitted attempt finishes, and reports a ceiling decision only when no fix check will be admissible, so a
   fix check neither moves the position nor triggers the decision.
 
+    - _Amended in:_ 5.R (A2)
+
     - `[x]` **5.3.a Give respond the facts, and the position its count**
         - Respond reads lane facts, current-chain adequacy, and local-source selectability through one repository port.
           The pure assessment projects `ceilingPassCount` from complete standard looks or the recorded frontline pass;
@@ -795,6 +797,17 @@ complete pass. Workflow, method, and configuration text changes in the package's
     - `[x]` **5.6.c Change the ceiling comment in `arc-config.yml`**
         - Both comments define the standard ceiling as complete passes, with fix and delta checks outside it, and
           retain the frontline ceiling's completed-pass accounting and explicit approval beyond either ceiling.
+
+### `[x]` **5.R Preserve historical member fix-chain proof in respond — A2**
+
+- _Goal:_ Respond confirms historical delivery-member correction legs through their approved, performed fix-response
+  proof, so a material fix check predicts the admissible next round outside the complete-pass ceiling (A2).
+
+**Additional Context:** `notes-review-coverage-cadence.md` § A2 — Historical member fix-chain proof.
+
+- _Outcome:_ Historical member legs reach the exact stored fix-response proof before live-head grounds can refuse
+  them. The capped member scenario predicts and runs three material fix-check rounds, then requires approval for
+  the complete successor; missing proof and changed-target refusals remain in the shared validator.
 
 ### `[ ]` **5.7 Fix checks at the ceiling** — validate exit criterion at segment scope
 

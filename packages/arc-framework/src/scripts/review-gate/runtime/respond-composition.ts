@@ -343,11 +343,10 @@ function createRespondPolicyConfirmation(context: {
       && policyTarget.pullRequest === request.target.pullRequest;
     const lineage = current.admission.lineage;
     if (current.target.kind === "delivery-member" && lineage.kind === "delivery-member") {
-      if (!targetMatches) return "unavailable";
       return confirmReviewCorrectionLeg({ predecessor, currentTarget: current.target,
         currentLineage: lineage, currentResult: current, dispositionStore: context.dispositionStore,
         readResponsePerformance: context.readResponsePerformance,
-        confirmGrounds: () => confirmRespondDeliveryMemberApplicability({
+        confirmGrounds: () => !targetMatches ? Promise.resolve("unavailable" as const) : confirmRespondDeliveryMemberApplicability({
         repository: input,
         predecessor,
         current,

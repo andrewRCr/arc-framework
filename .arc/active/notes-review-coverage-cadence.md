@@ -563,3 +563,16 @@ Delivery's authoring rebind refuses a review fix that lands outside the finding'
 (`authoring-rebind-finding-path-missing`, `handlers/delivery-execution.ts`). A sibling sweep produces exactly such
 fixes, so a test that lands a sibling-sweep fix on a delivery member can hit it. The spec leaves that admission
 unchanged, and `review-orchestration-right-sizing` holds the concern.
+
+## A2 — Historical member fix-chain proof
+
+`createRespondPolicyConfirmation` rejects a historical local member result when `resolveRespondPolicyTarget` cannot
+match its old head to the live PR. That return precedes `confirmReviewCorrectionLeg`, although
+`confirmDeliveryCorrectionLeg` already validates the exact approved member response, consumption, lineage, unchanged
+base, and performed head. The repeated material-round scenario exposes the premature refusal in
+`readRespondProvisionalPassFacts`; the same confirmation also serves `resolveRespondPolicy`.
+
+The correction retains the live match as ordinary contribution grounds and lets the existing stored fix-response
+proof decide a historical fix leg. No new proof or authority is introduced. The affected statement is § 5.3's
+predictive chain adequacy, with the chain-proof contract in § 4 unchanged. Earlier phase scenarios remain valid;
+Task 5.7 adds the repeated material look that exercises an older incremental leg and closes A2 on its rerun.
