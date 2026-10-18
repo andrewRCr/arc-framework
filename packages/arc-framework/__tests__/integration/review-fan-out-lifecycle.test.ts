@@ -1,7 +1,11 @@
 /** Executable hosted-review progression across delivery-member targets. */
 
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { access, chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
+import { CLI_PATH } from "../helpers/cli-spawn.js";
+import { quoteShellArgument } from "../../src/lib/release/commit-message-retry.js";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -2963,7 +2967,7 @@ describe("hosted review fan-out lifecycle", () => {
     });
   });
 
-  it("admits hosted delivery-member review after a changed-head performed local fix", async () => {
+  it("offers executable local choices after a changed-head performed local fix", async () => {
     const harness = await createHarness(["delegated-agent", "coderabbit-pr"]);
     const statusTarget = {
       repository, headRef: "delivery/delivery-plan-record/first", headSha: harness.oldFirst,
@@ -3046,24 +3050,32 @@ describe("hosted review fan-out lifecycle", () => {
       repository, headRef: "delivery/delivery-plan-record/first", headSha: fixedHead,
     };
     await selectReviewRequiredUntilRouted(harness, correctedTarget, "covered");
-    const hosted = await statusThroughHandler(
-      harness, correctedTarget, undefined, "incremental", "coderabbit-pr",
-    );
-    expect(hosted).toMatchObject({
-      nextAction: "review-hosted-request",
-      action: {
-        target: { headSha: fixedHead }, provider: "coderabbit-pr", coverage: "incremental",
-        correctionScope: { predecessorProducerId: local.prepared.payload.operationId },
-      },
+    await expect(statusThroughHandler(harness, correctedTarget)).resolves.toMatchObject({
+      state: "coverage-required", nextAction: "select-coverage", coverageSelectionAction: { choices: [
+        { sourceId: "delegated-agent", coverage: "incremental" }, { sourceId: "delegated-agent", coverage: "complete" },
+      ] },
     });
-    if (hosted.nextAction !== "review-hosted-request") throw new Error("expected hosted continuation");
-    const { fakeBin, providerCalled } = await installHostedRequestTestHost(
-      harness, undefined, "prior-top", fixedHead,
-    );
-    const request = await requestThroughProductionHandler(harness, fakeBin, hosted.action);
-    expect(request.exitCodes, JSON.stringify(request.output)).toEqual([]);
-    expect(request.output).toMatchObject({ state: "requested", nextAction: "await" });
-    await expect(readFile(providerCalled, "utf8")).resolves.toBe("request\n");
+    const { fakeBin } = await installHostedRequestTestHost(harness, undefined, "prior-top", fixedHead);
+    await git(harness.root, ["config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*"]);
+    const arc = join(fakeBin, "arc");
+    await writeFile(arc, `#!/bin/sh\nexec ${quoteShellArgument(process.execPath)} ${quoteShellArgument(CLI_PATH)} "$@"\n`);
+    await chmod(arc, 0o755);
+    const run = promisify(execFile);
+    const env = { ...process.env, PATH: `${fakeBin}${delimiter}${process.env.PATH ?? ""}`, FORCE_COLOR: "" };
+    for (const route of [["--target", JSON.stringify(correctedTarget)], ["--work-unit", harness.plan.workUnitId]]) {
+      const offered = await run(process.execPath, [CLI_PATH, "review", "status", ...route], { cwd: harness.root, env });
+      const selection = ReviewStatusCommandResultSchema.parse(JSON.parse(offered.stdout));
+      expect(selection).toMatchObject({ state: "coverage-required", nextAction: "select-coverage" });
+      if (selection.state !== "coverage-required") throw new Error("expected the exact status coverage offer");
+      const command = [...selection.coverageSelectionAction.interactionText.matchAll(/`(arc review status[^`]+)`/gu)]
+        .map(match => match[1]).find(value => value?.endsWith("--coverage incremental"));
+      if (command === undefined) throw new Error("expected an executable fix-check command");
+      const selected = await run("sh", ["-c", command], { cwd: harness.root, env });
+      expect(ReviewStatusCommandResultSchema.parse(JSON.parse(selected.stdout))).toMatchObject({
+        nextAction: "review-local-prepare", action: { sourceId: "delegated-agent", requestedCoverage: "incremental",
+          correctionScope: { predecessorProducerId: local.prepared.payload.operationId } },
+      });
+    }
   });
 
   it("responds to changed-head incremental findings after a performed prior fix", async () => {

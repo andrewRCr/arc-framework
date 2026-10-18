@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { writeSubmissionBoundary } from "../../src/lib/work-unit/submission-boundary-store.js";
-import { IntegrationBoundaryLocusSchema } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { createStandardReviewReservation, IntegrationBoundaryLocusSchema } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { handleReviewLocalPrepare, handleReviewResolve } from "../../src/handlers/review.js";
 import { createRespondDependencies } from "../../src/scripts/review-gate/runtime/respond-composition.js";
 import { createLocalPrepareDependencies } from "../../src/scripts/review-gate/runtime/local-prepare-composition.js";
@@ -38,7 +38,7 @@ import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js"
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => removeGitBackedDir(root))); });
-async function candidateFix(local = false, member = false, hostedFirst = false) {
+async function candidateFix(local = false, member = false, hostedFirst = false, unchecked = false) {
   const cwd = await createTempRepoCore({ prefix: "arc-pre-publication-correction-", identity: "andrew" });
   roots.push(cwd);
   const realExec = makeGitExec(cwd);
@@ -200,8 +200,8 @@ async function candidateFix(local = false, member = false, hostedFirst = false) 
       attemptId: first.producerId, dispositionSetId: record.currentDispositionSetId,
       producedHeadSha: fixed.revision, now: "2026-10-18T00:01:20Z" });
   }
-  let current = await review(2, member);
-  if (member) {
+  let current = unchecked ? first : await review(2, member);
+  if (member && !unchecked) {
     const settlement = approvedRecord(current, [{ sourceVerification: "verified", verifiedSeverity: "minor", disposition: "defer" }]);
     await dispositions.appendDispositionRecord(settlement);
     if (current.kind !== "hosted") throw new Error("expected hosted member result");
@@ -273,6 +273,33 @@ describe("pre-publication correction confirmation", () => {
       .confirmCurrentIncrementalApplicability(args, predecessor)).resolves.not.toBe("applicable");
     await expect(dependencies.confirmIncrementalApplicability("example", predecessor, { ...current, target },
       { repository: "owner/repo", pullRequest: null, headSha })).resolves.not.toBe("applicable");
+  });
+
+  it("requires a local complete pass after a base move following an unchecked material fix", async () => {
+    const { cwd, exec, git, base, candidate, predecessor } = await candidateFix(false, true, false, true);
+    if (predecessor.kind === "frontline") throw new Error("expected standard result");
+    const lineage = predecessor.admission.lineage;
+    if (lineage.kind !== "delivery-member" || candidate === null) throw new Error("expected delivery Candidate");
+    const reservation = createStandardReviewReservation({ candidateId: candidate.attestation.candidateId,
+      sourceId: "coderabbit-pr", sources: ["coderabbit-pr", "delegated-agent"],
+      target: { kind: "delivery", repository: "owner/repo", planId: lineage.planId, workUnitId: lineage.workUnitId },
+      obligation: { obligation: predecessor.requirement.obligation, reasons: predecessor.requirement.reasons,
+        rubricVersion: predecessor.requirement.rubricVersion, rubricDigest: predecessor.requirement.rubricDigest,
+        retrigger: predecessor.requirement.retrigger, count: 1 } });
+    await git("switch", "-c", "fixture-base", base);
+    await writeFile(join(cwd, "base-change.ts"), "export const baseChange = true;\n");
+    await git("add", "."); await git("commit", "-m", "advance base");
+    const movedBase = await git("rev-parse", "HEAD");
+    await git("branch", "-f", "main", movedBase);
+    await git("switch", "feat/example"); await git("merge", "--no-edit", "fixture-base");
+    const headSha = await git("rev-parse", "HEAD");
+    const result = await createHostedReservationDischargeReader({ cwd, exec })({ reservation,
+      baseRevision: movedBase, approvedHead: headSha, changeRequest: { repository: "owner/repo", pullRequest: 42 },
+      candidate, vehicle: { ...lineage, head: headSha },
+      statusRoute: { kind: "target", target: { repository: "owner/repo", headRef: "feat/example", headSha } } });
+    expect(result).toMatchObject({ discharged: false, nextSource: "delegated-agent", requestCoverage: "complete",
+      nextPassContext: { convergence: "unconverged", responseDue: false, incremental: null } });
+    expect(result).not.toHaveProperty("coverageSelectionAction");
   });
 
   it.each(["historical", "current"] as const)("proves the singleton's local fix leg in discharge's %s confirmation", async surface => {

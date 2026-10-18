@@ -2,6 +2,7 @@
 import { deriveHostedReviewTarget } from "./policy/hosted-review-target.js";
 
 
+import type { ReviewStatusRoute } from "./status-route.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { workUnitPathTreatmentContext } from "../../lib/base-drift/current-adapters.js";
 import type { DeliveryHostPort } from "../../lib/delivery/host.js";
@@ -338,6 +339,7 @@ export async function readRoutedObligation(
   judgment?: ReviewStatusPolicyJudgment,
   host: Pick<DeliveryHostPort, "readRequest"> = new GhDeliveryHostPort(hostedGhRunner),
   options: {
+    readonly statusRoute?: ReviewStatusRoute;
     readonly baseMovement?: BaseMovementObservation | null;
     readonly remote?: string;
     readonly changeRequestCandidate?: Pick<ChangeRequestCandidate, "baseRefName" | "url">;
@@ -617,6 +619,7 @@ export async function readRoutedObligation(
         },
         vehicle: memberTarget.vehicle,
         candidate: record,
+        statusRoute: options.statusRoute ?? { kind: "target", target },
       })));
       const publisher = new RepositoryGitCommonStatePublisher(exec, cwd);
       const store = new LocalReviewOperationStateStore(publisher);
@@ -693,7 +696,8 @@ export async function readRoutedObligation(
         ));
       }
       const firstTarget = deliveryTargets[firstOutstandingIndex];
-      if (firstOutstanding?.nextSource !== null
+      if (firstOutstanding?.coverageSelectionAction === undefined
+        && firstOutstanding?.nextSource !== null
         && firstOutstanding?.nextSource !== undefined
         && firstTarget !== undefined) {
         const scopeSelection = await resolveDeliveryMemberScopeSelection({
@@ -783,6 +787,7 @@ export async function readRoutedObligation(
       return { state: "blocked", detail: "The singleton Candidate diff base is unavailable." };
     }
     return await composePublishedSingletonReview({
+      statusRoute: options.statusRoute ?? { kind: "target", target },
       cwd, exec, settings, reservation, record, workUnit,
       recordVersion: versionedRecord.version,
       baseRevision: singletonDiffBase,
@@ -1011,6 +1016,7 @@ export async function resolveReviewStatusForWorkUnit(input: {
     {
       ...(input.remote === undefined ? {} : { remote: input.remote }),
       rawExec,
+      statusRoute: { kind: "work-unit", workUnitId },
       captureTerminalAdvance: (advance) => {
         terminalAdvance = advance;
       },

@@ -300,22 +300,10 @@ first, then in the `.arc/` copy by targeted edit.
   status refuses a `--source` and `--coverage` pair that matches no listed choice, and a driver refusal reaches the
   agent with its remedy.
 
-    - `[ ]` **2.4.a Emit the discharge's selection after material fixes**
-        - The discharge (`hosted-reservation-discharge.ts`) builds the selection (`ReviewCoverageSelectionActionSchema`)
-          whenever a correction scope resolves after material fixes: where the ordered-source loop returns the next
-          source with `correctionContext()`, which a complete pass's material-fix terminal reaches, and at the two
-          existing `coverage-required` sites — the current-terminal branch and `retainedTerminalPolicyStop` — which an
-          unconverged fix check reaches under `full-final`. Today it builds one only at `coverage-required` and status
-          otherwise defaults to complete (`status.ts`). `coverageSelectionChoices` (`hosted-reservation-support.ts`)
-          receives `delegated-agent` alone. Where the chain fails, the complete default stands.
-        - The selection's prompt names the route that reached status and no `--json`, which `review status` rejects
-          (`cli.ts`); today it always names `--work-unit`. Task 4.3.b adds its considerations.
-        - Build `test-first` (one behavior at a time):
-            - After a complete pass with material fixes, status offers a `delegated-agent` fix check and a local complete
-              pass.
-            - Where the chain fails after material fixes, status emits no selection and admits a local complete pass.
-            - After a base move that follows an unchecked fix, a delivery member's next pass is a local complete one.
-            - The prompt's command runs as written on the `--work-unit` route and on `deliver-stack`'s `--target` route.
+    - `[x]` **2.4.a Emit the discharge's selection after material fixes**
+        - The discharge offers only local fix-check and complete choices for a proven correction, preserving the
+          original work-unit or exact-target status route in executable commands. An unproved chain, including a base
+          move after an unchecked material fix, routes to local complete coverage without a selection.
 
     - `[ ]` **2.4.b Admit the complete pass with no selection after a converged look**
         - At the two `coverage-required` sites, the discharge admits complete coverage without emitting a selection when

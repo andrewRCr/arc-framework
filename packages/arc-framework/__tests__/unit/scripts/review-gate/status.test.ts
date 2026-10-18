@@ -537,6 +537,7 @@ describe("review status", () => {
     }, { confirmIncrementalApplicability: async () => "applicable" as const,
       confirmCurrentIncrementalApplicability: async () => "applicable" as const });
     const obligation = await composePublishedSingletonReview({
+      statusRoute: { kind: "target", target },
       cwd: "/repo",
       exec: (() => Promise.reject(new Error("unexpected Git read"))) as never,
       settings: {} as never,

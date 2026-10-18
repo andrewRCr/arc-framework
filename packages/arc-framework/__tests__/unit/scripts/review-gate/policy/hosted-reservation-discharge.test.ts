@@ -1403,7 +1403,7 @@ describe("hosted reservation discharge", () => {
     });
   });
 
-  it("routes unproved provider-native coverage to the typed complete-coverage selection", async () => {
+  it("keeps unproved provider-native coverage outstanding without inventing a coverage offer", async () => {
     const vehicle = DeliveryReviewMemberVehicleSchema.parse({
       kind: "delivery-member",
       planId: PLAN_ID,
@@ -1451,18 +1451,9 @@ describe("hosted reservation discharge", () => {
       discharged: false,
       nextSource: null,
       detail: expect.stringContaining("coverage-required/select-coverage"),
-      coverageSelectionAction: {
-        schemaVersion: 1,
-        kind: "review-coverage-selection",
-        workUnitId: "delivery",
-        sourceId: "coderabbit-pr",
-        pass: 1,
-        completedPasses: 1,
-        consumedPass: true,
-        choices: [{ sourceId: "coderabbit-pr", coverage: "complete" }],
-        interactionText: expect.stringContaining("--coverage"),
-      },
+
     });
+    expect(result).not.toHaveProperty("coverageSelectionAction");
   });
 
   it("preserves an incremental terminal result as coverage-required policy evidence", async () => {
@@ -2302,7 +2293,7 @@ describe("hosted reservation discharge", () => {
     });
   });
 
-  it("routes retained incremental evidence with an inadequate chain to coverage selection", async () => {
+  it("retains an inadequate earlier incremental look without a new fix-check scope", async () => {
     const vehicle = DeliveryReviewMemberVehicleSchema.parse({
       kind: "delivery-member",
       planId: PLAN_ID,
@@ -2310,14 +2301,6 @@ describe("hosted reservation discharge", () => {
       workUnitId: "delivery",
       head: oid("b"),
     });
-    const correctionScope = {
-      schemaVersion: 1 as const,
-      predecessorProducerId: "attempt-coderabbit-pr",
-      predecessorHeadSha: oid("a"),
-      basisHeadSha: oid("a"),
-      headSha: oid("b"),
-      requiredFindings: [],
-    };
     const result = await projectHostedReservationDischarge({
       reservation: reservation("coderabbit-pr", ["coderabbit-pr"]),
       span: [oid("b")],
@@ -2333,7 +2316,6 @@ describe("hosted reservation discharge", () => {
           applicability: "retain-prior-attempt",
         })],
       }),
-      resolveIncrementalCorrectionScope: async () => correctionScope,
     });
 
     expect(result).toMatchObject({
@@ -2341,22 +2323,10 @@ describe("hosted reservation discharge", () => {
       detail: "The retained terminal review producer did not establish convergence "
         + "(coverage-required/select-coverage).",
       nextSource: null,
-      correctionScope,
-      coverageSelectionAction: {
-        schemaVersion: 1,
-        kind: "review-coverage-selection",
-        workUnitId: "delivery",
-        sourceId: "coderabbit-pr",
-        pass: 1,
-        completedPasses: 1,
-        consumedPass: true,
-        choices: [
-          { sourceId: "coderabbit-pr", coverage: "incremental" },
-          { sourceId: "coderabbit-pr", coverage: "complete" },
-        ],
-        interactionText: expect.stringContaining("--coverage"),
-      },
+
     });
+    expect(result).not.toHaveProperty("coverageSelectionAction");
+    expect(result).not.toHaveProperty("correctionScope");
   });
 
   it("routes an applicable prior findings attempt back to its exact response plan", async () => {

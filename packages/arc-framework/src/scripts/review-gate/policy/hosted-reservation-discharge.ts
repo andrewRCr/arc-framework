@@ -46,7 +46,9 @@ import {
   resolveIncrementalCorrectionScope as resolveVerifiedIncrementalCorrectionScope,
   type IncrementalPredecessorApplicability,
 } from "./incremental-coverage-basis.js";
-import { ReviewCoverageSelectionActionSchema } from "./review-coverage-selection.js";
+import { projectHostedCorrectionCoverageSelection, projectHostedCorrectionDefault } from "./hosted-coverage-selection.js";
+import type { ReviewNextPassContext } from "./review-next-pass-schema.js";
+import type { ReviewStatusRoute } from "../status-route.js";
 
 import {
   ProjectedLaneAttempt,
@@ -68,7 +70,6 @@ import {
   HostedReservationDischarge,
   HostedReservationDischargeReaderArgs,
   HostedReservationDischargeReader,
-  coverageSelectionChoices,
   oneRequestedCoverage,
   requestedCoverageOf,
   applicabilityEquivalenceKey,
@@ -96,6 +97,8 @@ export * from "./hosted-reservation-support.js";
  */
 export async function projectHostedReservationDischarge(input: {
   reservation: StandardReviewReservationV1 | null;
+  nextPassContext?: ReviewNextPassContext;
+  statusRoute?: ReviewStatusRoute;
   invocation?: HostedRequestEnvelope["invocation"];
   span: readonly string[];
   target: {
@@ -327,27 +330,16 @@ export async function projectHostedReservationDischarge(input: {
             && input.resolveIncrementalCorrectionScope !== undefined
             ? await input.resolveIncrementalCorrectionScope(correctionCandidate, target.headSha)
             : null;
-          const coverageSelectionAction = policy.state === "coverage-required" && target.vehicle !== undefined
-            ? ReviewCoverageSelectionActionSchema.parse({
-                schemaVersion: 1,
-                kind: "review-coverage-selection",
-                workUnitId: target.vehicle.workUnitId,
-                sourceId: policy.payload.sourceId,
-                pass: policy.payload.pass,
-                completedPasses: policy.payload.completedPasses,
-                consumedPass: policy.payload.consumedPass,
-                choices: coverageSelectionChoices(
-                  reservation.sources,
-                  correctionScope ?? undefined,
-                ),
-                interactionText: "Select one listed source and coverage pair, then re-run `arc review status "
-                  + `--work-unit ${target.vehicle.workUnitId} --source <sourceId> --coverage <coverage> --json\`.`,
-              })
-            : undefined;
+          const coverageSelectionAction = correctionCandidate === null ? undefined
+            : projectHostedCorrectionCoverageSelection({ sources: reservation.sources,
+              nextPassContext: input.nextPassContext, scope: correctionScope ?? undefined,
+              predecessor: correctionCandidate, completedPasses, vehicle: target.vehicle, statusRoute: input.statusRoute });
           return {
             discharged: false,
             detail: `The terminal review producer did not establish convergence (${policy.state}/${policy.nextAction}).`,
             nextSource: null,
+            ...projectHostedCorrectionDefault({ sources: reservation.sources,
+              nextPassContext: input.nextPassContext, selection: coverageSelectionAction }),
             ...(correctionScope === null ? {} : { correctionScope }),
             ...(coverageSelectionAction === undefined ? {} : { coverageSelectionAction }),
           };
@@ -359,8 +351,11 @@ export async function projectHostedReservationDischarge(input: {
       if (retainedSafeUnavailableAttempt(sourceId, sourceAttempts) === null) break;
     }
   }
-  const correctionContext = async (): Promise<{ correctionScope?: IncrementalReviewScope }> => {
-    if (input.resolveIncrementalCorrectionScope === undefined) return {};
+  const correctionContext = async (): Promise<Partial<Pick<HostedReservationDischarge,
+    "correctionScope" | "coverageSelectionAction" | "nextSource" | "requestCoverage">>> => {
+    const defaultCoverage = (selection?: HostedReservationDischarge["coverageSelectionAction"]) =>
+      projectHostedCorrectionDefault({ sources: reservation.sources, nextPassContext: input.nextPassContext, selection });
+    if (input.resolveIncrementalCorrectionScope === undefined) return defaultCoverage();
     let candidate = latestCurrentCorrectionCandidate;
     if (candidate === null) {
       const candidates = reservation.sources.flatMap((sourceId) => {
@@ -377,35 +372,25 @@ export async function projectHostedReservationDischarge(input: {
         || left.attemptId.localeCompare(right.attemptId));
       candidate = candidates[0] ?? null;
     }
-    if (candidate === null) return {};
+    if (candidate === null) return defaultCoverage();
     const correctionScope = await input.resolveIncrementalCorrectionScope(candidate, target.headSha);
-    return correctionScope === null ? {} : { correctionScope };
+    if (correctionScope === null) return defaultCoverage();
+    const coverageSelectionAction = projectHostedCorrectionCoverageSelection({ sources: reservation.sources,
+      nextPassContext: input.nextPassContext, scope: correctionScope, predecessor: candidate,
+      completedPasses, vehicle: target.vehicle, statusRoute: input.statusRoute });
+    return { correctionScope, ...(coverageSelectionAction === undefined ? {} : { coverageSelectionAction }),
+      ...defaultCoverage(coverageSelectionAction) };
   };
   const retainedTerminalPolicyStop = async (
     policy: ReviewResolveEnvelope,
   ): Promise<HostedReservationDischarge> => {
     const context = policy.state === "coverage-required" ? await correctionContext() : {};
-    const coverageSelectionAction = policy.state === "coverage-required" && target.vehicle !== undefined
-      ? ReviewCoverageSelectionActionSchema.parse({
-          schemaVersion: 1,
-          kind: "review-coverage-selection",
-          workUnitId: target.vehicle.workUnitId,
-          sourceId: policy.payload.sourceId,
-          pass: policy.payload.pass,
-          completedPasses: policy.payload.completedPasses,
-          consumedPass: policy.payload.consumedPass,
-          choices: coverageSelectionChoices(reservation.sources, context.correctionScope),
-          interactionText: "Select one listed source and coverage pair, then re-run `arc review status "
-            + `--work-unit ${target.vehicle.workUnitId} --source <sourceId> --coverage <coverage> --json\`.`,
-        })
-      : undefined;
     return {
       discharged: false,
       detail: `The retained terminal review producer did not establish convergence `
         + `(${policy.state}/${policy.nextAction}).`,
       nextSource: null,
       ...context,
-      ...(coverageSelectionAction === undefined ? {} : { coverageSelectionAction }),
     };
   };
   if (currentTerminalIsLatest && selectedClean !== undefined && selectedCleanValidated) {
@@ -472,6 +457,13 @@ export async function projectHostedReservationDischarge(input: {
       const stoppedAttempts = standardAttempts.filter(({ applicability }) => applicability === "stop");
       const stopped = stoppedAttempts[0];
       if (stopped !== undefined) {
+        const completeCorrection = projectHostedCorrectionDefault({ sources: reservation.sources,
+          nextPassContext: input.nextPassContext });
+        if (input.nextPassContext?.incremental === null && completeCorrection.nextSource !== undefined) {
+          return await retainedFindingsBeforeRequest() ?? { discharged: false,
+            detail: "The unchecked material fix requires a local complete review at the current base.",
+            nextSource: null, ...requestContext(), ...completeCorrection };
+        }
         const equivalenceKey = stopped.projection === undefined
           ? null
           : applicabilityEquivalenceKey(stopped.projection);
@@ -627,6 +619,7 @@ export function createHostedReservationDischargeReader(input: {
     changeRequest,
     vehicle,
     candidate,
+    statusRoute,
   }: Omit<HostedReservationDischargeReaderArgs, "workUnitId">): Promise<HostedReservationDischarge> => {
     if (reservation === null) {
       const unreachableTerminalPolicy = (): Promise<ReviewResolveEnvelope> => Promise.reject(
@@ -770,8 +763,10 @@ export function createHostedReservationDischargeReader(input: {
       progressByHead.set(headSha, progress);
       return progress;
     };
+    const nextPassContext = await deriveHostedNextPassContext({ ...nextPassInputs,
+      progress: await Promise.all(span.map(readProgress)) });
     const discharge = await projectHostedReservationDischarge({
-      reservation,
+      reservation, nextPassContext, statusRoute,
       ...(invocation === undefined ? {} : { invocation }),
       span,
       target: changeRequest === null
@@ -849,8 +844,6 @@ export function createHostedReservationDischargeReader(input: {
             ),
           }),
     });
-    const nextPassContext = await deriveHostedNextPassContext({ ...nextPassInputs,
-      progress: await Promise.all([...progressByHead.values()]) });
     return { ...discharge, nextPassContext };
   };
 
@@ -892,6 +885,7 @@ export function createHostedReservationDischargeReader(input: {
       },
       ...(resolvedTarget.vehicle === undefined ? {} : { vehicle: resolvedTarget.vehicle }),
       ...(target.candidate === undefined ? {} : { candidate: target.candidate }),
+      ...(target.statusRoute === undefined ? {} : { statusRoute: target.statusRoute }),
     })));
     if (!allHostedReservationTargetsDischarged(discharges)) {
       const index = discharges.findIndex(({ discharged }) => !discharged);

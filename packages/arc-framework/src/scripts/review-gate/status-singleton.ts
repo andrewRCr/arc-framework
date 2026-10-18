@@ -1,5 +1,6 @@
 /** Compose the actionable review status of one published singleton Candidate. */
 
+import type { ReviewStatusRoute } from "./status-route.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import type { GitExec } from "../../lib/git/exec.js";
 import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
@@ -19,6 +20,7 @@ import { composeSingletonReviewObligation, type RoutedReviewObligation } from ".
 import type { ReviewStatusPolicyJudgment } from "./status-judgment.js";
 
 interface PublishedSingletonInput {
+  statusRoute: ReviewStatusRoute;
   cwd: string;
   exec: GitExec;
   settings: Awaited<ReturnType<typeof readConfigSettings>>["settings"];
@@ -42,6 +44,7 @@ export async function composePublishedSingletonReview(input: PublishedSingletonI
   const { target, reservation, readDischarge } = input;
   const dischargeInput = {
     reservation,
+    statusRoute: input.statusRoute,
     baseRevision: input.baseRevision,
     approvedHead: target.headSha,
     changeRequest: { repository: target.repository, pullRequest: target.pullRequest },
