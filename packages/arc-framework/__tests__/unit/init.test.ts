@@ -307,8 +307,8 @@ describe("resolveFileList — actual recipe", () => {
     expect(fileLayer(method, new Set())).toBe("core");
   });
 
-  it("ships the shared review model in every project configuration", () => {
-    const method = "system/methods/review-model.md";
+  it.each(["review-model", "planning-review"])("ships %s in every project configuration", name => {
+    const method = `system/methods/${name}.md`;
     for (const pm of ["none", "external", "arc-in-git"]) {
       for (const team of ["false", "true"]) {
         expect(resolveFileList(actualRecipe, { "pm.mode": pm, tools: "", "team.mode": team })).toContain(method);

@@ -726,6 +726,11 @@
       "classification": "Configurable",
       "layer": "core",
       "pristine_hash": "4466ed604130d158f790d6e6602ce37b48517c4a649bbdc0ba519392e2da06fa"
+    },
+    "system/methods/planning-review.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "edc5c6276c0206645609fc4bdef28cedb4e9b760af613170ebd443027a3e3053"
     }
   }
 }

@@ -12,7 +12,7 @@ arc:
     - assess-draft-readiness
     - assess-design-proportionality
     - spec-review
-    - adversarial-review
+    - planning-review
     - design-audit
 ---
 
@@ -254,48 +254,17 @@ only when nothing is on disk yet):
 
 ## Finalize — review, retire the draft, persist `Class`, commit
 
-Re-run [`assess-design-proportionality`][assess-design-proportionality] over the saved spec before self-review.
-Handle `revise` through the same in-place correction or `draft-design` re-entry routing as the discovery guard;
-the finalization boundary proceeds only on `proportionate`.
-
-Before surfacing the spec for approval, run [spec-review][spec-review] over the complete new specification or
-accessible complementary PRD/RFC set. Apply its common reader-independence and binding-completeness checks, with
-coherence and grounding scaled to the form (one minimal pass at `brief`). Fold in corrections through the existing
-iteration flow; carry anything needing a decision into the review below. A finding that reopens design is
-a derivation signal — fire the re-entry valve per [resolve-planning-depth][resolve-planning-depth] § Mid-stage
-re-entry (route it to the design, never patch it into the spec).
-
-The finalization boundary also carries an advisory adversarial fire-point — design _and_ artifact attacked from
-fresh context, distinct from the self-review above:
-
-> [!IMPORTANT]
-> `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Heavy` / `Novel`; surface a
-> neutral offer at `Light`. Offer the pass and await the call — user decides; decline proceeds normally.
+Run [planning-review's author checks][planning-author-checks] and [independent offer][planning-offer] at this
+stage gate, then its [findings and pass record][planning-findings].
 
 ```yaml
-adversarial-review:
-  rubric:          # assess-design-proportionality + design-audit + spec-review at the resolved form
-  artifacts:       # spec-{name}.md + draft-{name}.md (when one fed it) + non-exhaustive key-file pointers
-  orientation:
-    - AGENT-BRIEF.ARC
-    - AGENT-BRIEF.PROJECT
-  pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3
-  fold-verification: on
-  prior-findings:  # pass two onward; fresh-loop pass one takes ended-loop findings, not folds, as context
+planning-review:
+  artifact: spec
+  artifacts:       # spec-{name}.md + draft when present + neutral key-file pointers
+  class:           # resolved Class
+  form:            # resolved spec form
+  prior-findings:  # recorded history; fresh-loop first pass takes ended-loop findings, not folds, as context
 ```
-
-For a large target with a stable, contract-closed authored partition (segments, delivery members, or numbered spec
-sections), consider [adversarial-review § Authored-partition carrier mode][authored-partition]. Use one whole-target
-reviewer when no such partition exists or seams are dense.
-
-Beside every disposition set carrying a fix, offer the [fix check][fold-verification] to run after author grounding
-of the folds, before any successor pass or the final post-settle re-read.
-
-After each returned pass, apply the method's complete-disposition and bounded-continuation protocol, then append the
-pass to `ADVERSARIAL-PASSES.md` in the work unit's personal workspace (`.arc/user/{identity}/{name}/`, beside
-SESSION-NOTES): follow [adversarial-review § Pass record][pass-record] for the entry contents. Later passes take their
-`prior-findings` from it, and the commit below summarizes each pass in one body line. A stub groomed before it starts
-has no workspace yet, so that summary is its only record. This advisory evidence creates no lane-progress record.
 
 > [!IMPORTANT]
 > `workflow-interlock` — Gate 1 (review / iterate): Stop after the spec is saved and self-reviewed. Surface the
@@ -336,11 +305,9 @@ Documents).
    handoff resumes in generate-tasks. Skip otherwise (no meta file exists pre-init under non-planning-branch
    flows).
 
-**Post-settle coherence re-read** (always-on, in-context): when folds landed after the self-review —
-adversarial-pass findings, Gate 1 iteration amendments — re-fire `spec-review`'s coherence slice over the
-settled spec as the last step before the commit below.
-
 After substeps 1-3, stage all edits — spec save (Write and save), draft deletion + `notes-*` migration, meta update.
+
+Run [planning-review's post-settle reread][planning-reread] as the last step before this commit.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -378,7 +345,9 @@ Run [generate-tasks.md](generate-tasks.md) when ready — it consumes this spec 
 [init-work-unit]: work-unit-lifecycle/planning/init-work-unit.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [source-grounding]: ../../methods/source-grounding.md
-[pass-record]: ../../methods/adversarial-review.md#pass-record
 [route-discovered-work]: ../../methods/route-discovered-work.md
-[authored-partition]: ../../methods/adversarial-review.md#authored-partition-carrier-mode
-[fold-verification]: ../../methods/adversarial-review.md#fold-verification
+
+[planning-author-checks]: ../../methods/planning-review.md#author-checks
+[planning-offer]: ../../methods/planning-review.md#independent-offer
+[planning-findings]: ../../methods/planning-review.md#findings-and-pass-record
+[planning-reread]: ../../methods/planning-review.md#post-settle-reread

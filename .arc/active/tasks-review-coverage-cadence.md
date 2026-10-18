@@ -950,23 +950,15 @@ package's `arc/` source first, then in the `.arc/` copy.
 - _Note:_ 7.2.a and 7.2.b land in one commit, since the method-trigger audit (`lint:arc:triggers`, a commit gate) fails
   a method no workflow declares; 7.2.c can follow on its own.
 
-    - `[ ]` **7.2.a Write the method**
-        - `adversarial-review`'s contract shape: a When line naming its trigger — reviewing a planning artifact at its
-          stage gate — rather than its sites, a Signature, a Contract, named inputs, and a return schema. Its
-          registration is the one Task 6.1.b lists.
-        - It runs the author checks its site runs right before the offer today, selected by the artifact: readiness for
-          a draft (`assess-draft-readiness`), the proportionality re-run and `spec-review` for a spec, and `spec-review`
-          over the footprint for an amendment; a task list takes none, since `generate-tasks` audits each phase in its
-          own loop. Checks inside a site's authoring loop stay with the site, which declares them.
-        - Then the offer callout, the orientation block, the authored-partition note, the fix-check sentence, the
-          pass-record paragraph, and the post-settle re-read; the artifact also selects the rubric, the artifacts, the
-          `Class`-scaled offer, and the pass cap.
+    - `[x]` **7.2.a Write the method**
+        - Added the artifact/depth contract, selected author checks and independent rubrics, Class cap, common
+          findings and pass record, and final reread. Registered the configurable core method for every project
+          configuration, including recipe, manifest, inventory, checks, and installation oracles.
 
-    - `[ ]` **7.2.b Call it from `draft-design`, `create-spec`, and `generate-tasks`**
-        - Each calls it with a YAML callsite keyed by `planning-review`, as `adversarial-review`'s callsites are, passing
-          its artifact; `draft-design`'s offer moves from `Novel`-only to `Heavy` and `Novel`; `draft-design`'s and
-          `generate-tasks`' misplaced re-reads go, the method running one before each commit. `generate-tasks` is a
-          `.template.md` in the package.
+    - `[x]` **7.2.b Call it from `draft-design`, `create-spec`, and `generate-tasks`**
+        - Replaced cloned stage-gate blocks with typed artifact call sites and fragment-bearing method links.
+          Heavy drafts now receive the recommended offer; each stage invokes the shared reread immediately
+          before its capture commit, including after task rendering.
 
     - `[ ]` **7.2.c Call it from `amend-design`**
         - With the same callsite, passing its depth: no offer at `low`, a neutral one at `medium`, a recommended one at

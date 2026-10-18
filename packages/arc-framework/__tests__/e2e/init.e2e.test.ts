@@ -224,7 +224,7 @@ describe("init", () => {
       "implementation-audit", "review-chunking", "self-review", "design-audit",
       "disposition-report",
       "issue-triage", "resolve-plan-segmentation", "resolve-planning-depth",
-      "review-model", "review-response", "review-triage",
+      "review-model", "planning-review", "review-response", "review-triage",
       "session-state", "source-grounding", "spec-review", "task-audit", "test-first", "testing-standards", "validate-criteria",
     ];
 

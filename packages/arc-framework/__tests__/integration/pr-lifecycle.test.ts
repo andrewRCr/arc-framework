@@ -486,31 +486,30 @@ describe("PR lifecycle and review contracts", () => {
   });
 
   it("keeps the advisory settlement protocol reachable at every direct planning and criteria caller", async () => {
-    const callers = [
-      ["system/workflows/arc/draft-design.md", "`adversarial-passes.md` in the work unit's personal workspace"],
-      ["system/workflows/arc/create-spec.md", "`adversarial-passes.md` in the work unit's personal workspace"],
-      ["system/workflows/arc/generate-tasks.template.md", "`adversarial-passes.md` in the work unit's personal workspace"],
-      ["system/methods/validate-criteria.md", "ordinary closing-task evidence"],
-    ] as const;
-
+    const callers = ["draft-design.md", "create-spec.md", "generate-tasks.template.md"];
     for (const base of [packageArc, projectArc]) {
-      for (const [packagedPath, evidenceLocus] of callers) {
-        const path = base === projectArc && packagedPath.endsWith("generate-tasks.template.md")
-          ? "system/workflows/arc/generate-tasks.md"
-          : packagedPath;
-        const content = await readFile(resolve(base, path), "utf8");
-        const normalized = content.toLowerCase().replace(/\s+/gu, " ");
-
-        expect(content).toContain("    - adversarial-review");
-        expect(content).toContain("adversarial-review:");
-        expect(normalized).toContain("apply the method's complete-disposition and bounded-continuation protocol");
-        expect(normalized).toContain(evidenceLocus);
-        if (!packagedPath.endsWith("validate-criteria.md")) {
-          expect(normalized).toContain("later passes take their `prior-findings` from it");
-          expect(normalized).toContain("a stub groomed before it starts has no workspace yet");
+      const method = await readFile(resolve(base, "system/methods/planning-review.md"), "utf8");
+      const normalized = method.toLowerCase().replace(/\s+/gu, " ");
+      expect(method).toContain("    - adversarial-review");
+      expect(method).toContain("adversarial-review:");
+      expect(normalized).toContain("complete-disposition and continuation protocol");
+      expect(normalized).toContain("`adversarial-passes.md` in the work unit's personal workspace");
+      expect(normalized).toContain("later passes take their history from that record");
+      expect(normalized).toContain("a stub groomed before it starts has no workspace");
+      expect(normalized).toContain("creates no lane-progress record");
+      for (const packagedPath of callers) {
+        const path = base === projectArc ? packagedPath.replace(".template.md", ".md") : packagedPath;
+        const content = await readFile(resolve(base, "system/workflows/arc", path), "utf8");
+        expect(content).toContain("    - planning-review");
+        expect(content).toContain("planning-review:");
+        for (const section of ["author-checks", "independent-offer", "findings-and-pass-record", "post-settle-reread"]) {
+          expect(content).toContain(`methods/planning-review.md#${section}`);
         }
-        expect(normalized).toContain("creates no lane-progress record");
+        expect(content).not.toContain("adversarial-review:");
       }
+      const criteria = await readFile(resolve(base, "system/methods/validate-criteria.md"), "utf8");
+      expect(criteria).toContain("adversarial-review:");
+      expect(criteria).toContain("ordinary closing-task evidence");
     }
 
     // An amendment's pass reads the planning passes as its prior findings.
@@ -526,6 +525,7 @@ describe("PR lifecycle and review contracts", () => {
     ) as { include_files: string[] };
     for (const path of [
       "system/methods/adversarial-review.md",
+      "system/methods/planning-review.md",
       "system/methods/validate-criteria.md",
       "system/workflows/arc/draft-design.md",
       "system/workflows/arc/create-spec.md",
