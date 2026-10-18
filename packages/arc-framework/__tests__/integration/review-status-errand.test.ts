@@ -1213,7 +1213,7 @@ describe("Errand review status", () => {
     };
     const resultReader = createRepositoryReviewResultReader(publisher);
     const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
-    const nextPassContext = await readHostedErrandNextPassContext({ progress: owner,
+    const nextPassContext = await readHostedErrandNextPassContext({ cwd: root, exec, configuredSources: ["codex-pr"], progress: owner,
       target: await deriveLocalReviewTargetFromCoordinates({ cwd: root, exec, repositoryId,
         coordinates: { kind: "change-set", baseRef: "main", diffBaseSha: base, headSha: thirdHead } }),
       lineage: { kind: "head-bound", vehicleKind: "errand", vehicleIdentity: claimId, headSha: thirdHead },

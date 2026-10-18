@@ -1686,7 +1686,7 @@ function createResolveContributionConfirmation(input: {
     };
     return confirmReviewCorrectionLeg({ predecessor, currentTarget: current.target,
       currentLineage: current.admission.lineage, currentResult: current, dispositionStore, readResponsePerformance,
-      candidateProof: { candidate, cwd: root, exec, baseRef: input.baseRef, observeTarget }, confirmGrounds });
+      rangeProof: { cwd: root, exec }, candidateProof: { candidate, cwd: root, exec, baseRef: input.baseRef, observeTarget }, confirmGrounds });
   };
 }
 
@@ -1748,7 +1748,7 @@ async function resolveConfiguredReviewPolicy(
   };
   if (request.lane === "frontline") return resolveEvidenceBoundReviewPolicy(request, dependencies);
   const nextPassContext = await readResolveNextPassContext({
-    request, root, exec, operationStore, resultReader, dispositionStore,
+    request, root, exec, operationStore, resultReader, dispositionStore, configuredSources: sources,
     confirmApplicability: dependencies.confirmIncrementalApplicability,
   });
   return resolveEvidenceBoundReviewPolicyContinuation(request, {
@@ -3763,7 +3763,8 @@ async function executeDefaultHostedRequest(
         }
         const resultReader = createRepositoryReviewResultReader(publisher);
         const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
-        const nextPassContext = await readHostedErrandNextPassContext({ progress, target: context.reviewTarget,
+        const nextPassContext = await readHostedErrandNextPassContext({ cwd: root, exec, configuredSources: policy.sources,
+          progress, target: context.reviewTarget,
           lineage: context.lineage, standardReview, operationStore: context.store, resultReader, dispositionStore });
         const latestAttempt = currentAttempts.at(-1);
         const admission = await assertEvidenceBoundReviewExecutionAdmission({
@@ -3797,6 +3798,11 @@ async function executeDefaultHostedRequest(
           resultReader,
           nextPassContext,
           dispositionStore,
+          confirmIncrementalApplicability: (predecessor, current) => confirmReviewCorrectionLeg({
+            predecessor, currentTarget: current.target, currentLineage: current.admission.lineage, currentResult: current,
+            dispositionStore, rangeProof: { cwd: root, exec },
+            readResponsePerformance: producer => readLaneResponsePerformance(context.store, producer),
+          }),
           confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),
           readResponsePerformance: (predecessor) => readLaneResponsePerformance(context.store, predecessor),
         });

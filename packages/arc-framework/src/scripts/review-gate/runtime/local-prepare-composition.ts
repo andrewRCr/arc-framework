@@ -253,7 +253,7 @@ function createLocalContributionConfirmation(input: {
   };
   return (predecessor: ReviewResult, currentTarget: ReviewTarget, currentLineage: LaneSubjectLineage,
     currentResult?: ReviewResult) => confirmReviewCorrectionLeg({
-    predecessor, currentTarget, currentLineage, currentResult,
+    predecessor, currentTarget, currentLineage, currentResult, rangeProof: input.context.input,
     dispositionStore: input.context.dispositionStore,
     readResponsePerformance: result => readLaneResponsePerformance(input.context.operationStore, result),
     candidateProof: { candidate: input.candidate, ...input.context.input, baseRef: input.baseRef, observeTarget },
@@ -311,7 +311,9 @@ async function validateLocalPolicyAdmission(
       };
       const nextPassContext = await deriveReviewNextPassContextFromAttempts({
         attempts: policyRequest.attempts, predecessorOperationId,
-        currentTarget: target, currentLineage: lineage, standardReview,
+        currentTarget: target, currentLineage: lineage, standardReview, rangeProof: context.input,
+        deltaAdmission: { sources: evidenceDependencies.sources, surface: lineage.kind === "head-bound"
+          && lineage.vehicleKind === "errand" && policyTarget.pullRequest !== null ? "open-pr-errand" : "ordinary" },
         resultReader: context.resultReader, dispositionStore: context.dispositionStore,
         readResponsePerformance: evidenceDependencies.readResponsePerformance,
         confirmApplicability: evidenceDependencies.confirmIncrementalApplicability,

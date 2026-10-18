@@ -1,4 +1,5 @@
 import type { GitExec } from "../../src/lib/git/exec.js";
+import type { ReviewAdditionalPassAuthorization } from "../../src/scripts/review-gate/policy/review-policy-driver.js";
 import type { StandardReviewObligationProjection } from "../../src/scripts/review-gate/policy/standard-review-projection-schema.js";
 import { LocalPrepareEnvelopeSchema } from "../../src/scripts/review-gate/core/review-command-envelope.js";
 import { approvedRecord } from "../fixtures/review-response-proof.js";
@@ -474,14 +475,26 @@ async function withErrandHost<T>(errand: FixedErrand, open: boolean, run: () => 
   }
 }
 
-async function performHostedRequest(errand: FixedErrand, coverage: "complete" | "incremental" = "complete") {
+async function performHostedRequest(errand: FixedErrand, coverage: "complete" | "incremental" = "complete",
+  additionalPassAuthorization?: ReviewAdditionalPassAuthorization) {
   const output: string[] = []; const exitCodes: number[] = [];
   await handleReviewHostedRequest("-", { readText: async () => JSON.stringify({ schemaVersion: 1,
     target: { repository: "owner/repo", pullRequest: 42, headSha: errand.statusTarget.headSha },
     provider: "codex-pr", coverage, ...(coverage === "incremental" ? { correctionScope: errand.expectedScope } : {}),
+    ...(additionalPassAuthorization === undefined ? {} : { additionalPassAuthorization }),
     vehicle: { kind: "errand", standardReview: errand.standardReview } }),
     write: text => output.push(text), setExitCode: code => exitCodes.push(code) });
   return { result: JSON.parse(output.join("")), exitCodes };
+}
+
+async function plainErrand(options: FixedErrandOptions = {}) {
+  const errand = await fixedErrand({ retrigger: "incremental", routine: true,
+    sources: ["codex-pr", "delegated-agent"], maxPasses: 6, hostedAdmission: true, ...options });
+  const predecessor = await localFixCheck(errand);
+  await writeFile(join(errand.root, "change.txt"), "reviewed change, fixed, then extended\n");
+  await git(errand.root, ["commit", "-am", "plain successor after convergence"]);
+  errand.statusTarget.headSha = await git(errand.root, ["rev-parse", "HEAD"]);
+  return { ...errand, predecessor };
 }
 
 async function requestHostedSuccessor(errand: FixedErrand) {
@@ -502,6 +515,106 @@ describe("Errand local correction cadence", () => {
     await expect(proveReviewDeltaRange({ predecessor: checked.target, current, convergence: "converged",
       cwd: errand.root, exec: errand.exec })).resolves.toBe(true);
     await expect(errand.readStatus()).resolves.toMatchObject({ state: "review-required" });
+  });
+
+  it.each([false, true])("admits the Errand delta range without a coverage choice with open PR=%s", async open => {
+    const errand = await plainErrand();
+    await withErrandHost(errand, open, async () => {
+      expect(await prepareErrandLocal(errand)).toMatchObject({ state: "ready", payload: {
+        reviewerPayload: { correctionScope: {
+          predecessorProducerId: errand.predecessor.producerId, predecessorHeadSha: errand.predecessor.target.headSha,
+          headSha: errand.statusTarget.headSha,
+        } }, request: { logicalPass: 3 },
+      } });
+    });
+  });
+
+  it.each([false, true])("predicts a local Errand delta from claim history with open PR=%s", async open => {
+    const errand = await plainErrand();
+    await withErrandHost(errand, open, async () => {
+      expect(await resolveErrandReview(errand, errand.predecessor, open ? 42 : null)).toMatchObject({ exitCodes: [],
+        result: { state: "ready", nextAction: "local-prepare", payload: { sourceId: "delegated-agent", pass: 3 } } });
+    });
+  });
+
+  it.each([false, true])("re-confirms a converged Errand delta in respond with open PR=%s", async open => {
+    const errand = await plainErrand();
+    await withErrandHost(errand, open, async () => {
+      const prepared = await prepareErrandLocal(errand);
+      if (prepared.state !== "ready") throw new Error("expected delta preparation");
+      const result = await attestErrandLocal(errand, prepared);
+      const request = responsePolicyRequestFixture({ headSha: result.target.headSha, pullRequest: open ? 42 : null,
+        repository: open ? "owner/repo" : `local/${result.repositoryId}`, sourceId: "delegated-agent",
+        reviewOperationId: result.producerId, completedPasses: 3, standardReview: errand.standardReview });
+      const cleanRequest = { ...request, attempts: [{ sourceId: "delegated-agent", outcome: "clean" as const,
+        reviewOperationId: result.producerId }] };
+      await expect(createRespondDependencies({ cwd: errand.root, exec: errand.exec }).resolvePolicy(cleanRequest, result.target))
+        .resolves.toMatchObject({ state: "pass-complete", payload: { verifiedTerminalSignal: { coverageAdequate: true } } });
+    });
+  });
+
+  it.each([false, true])("re-confirms a converged Errand delta in resolve with open PR=%s", async open => {
+    const errand = await plainErrand();
+    await withErrandHost(errand, open, async () => {
+      const prepared = await prepareErrandLocal(errand);
+      if (prepared.state !== "ready") throw new Error("expected delta preparation");
+      const result = await attestErrandLocal(errand, prepared);
+      expect(await resolveErrandReview(errand, result, open ? 42 : null)).toMatchObject({ exitCodes: [],
+        result: { state: "pass-complete", payload: { verifiedTerminalSignal: { coverageAdequate: true } } } });
+    });
+  });
+
+  it.each([false, true])("re-confirms a converged Errand delta in local prepare with open PR=%s", async open => {
+    const errand = await plainErrand();
+    await withErrandHost(errand, open, async () => {
+      const prepared = await prepareErrandLocal(errand);
+      if (prepared.state !== "ready") throw new Error("expected delta preparation");
+      const result = await attestErrandLocal(errand, prepared);
+      await expect(createLocalPrepareDependencies({ cwd: errand.root, exec: errand.exec }).validatePolicyAdmission({
+        repositoryId: result.repositoryId, target: result.target, lineage: result.admission.lineage,
+        standardReview: errand.standardReview, completedPasses: 3,
+        attempts: [{ sourceId: "delegated-agent", outcome: "clean", reviewOperationId: result.producerId }],
+        terminalResponsePerformed: false,
+      })).rejects.toMatchObject({ state: "pass-complete" });
+    });
+  });
+
+  it("routes an Errand plain commit to a local delta despite hosted rank", async () => {
+    const errand = await plainErrand();
+    await expect(errand.readStatus()).resolves.toMatchObject({ state: "review-required",
+      detail: expect.stringContaining("arc review local prepare") });
+  });
+
+  it("re-confirms a completed Errand delta in status", async () => {
+    const errand = await plainErrand();
+    const prepared = await prepareErrandLocal(errand);
+    if (prepared.state !== "ready") throw new Error("expected delta preparation");
+    await attestErrandLocal(errand, prepared);
+    await expect(errand.readStatus()).resolves.toMatchObject({ state: "settled" });
+  });
+
+  it("refuses hosted admission while an Errand delta check is due", async () => {
+    const errand = await plainErrand();
+    await withErrandHost(errand, true, async () => {
+      expect(await performHostedRequest(errand)).toMatchObject({ exitCodes: [1], result: {
+        remedy: { text: expect.stringContaining("delta check") },
+      } });
+    });
+  });
+
+  it("re-confirms a converged Errand delta at hosted admission", async () => {
+    const errand = await plainErrand();
+    await withErrandHost(errand, true, async () => {
+      const prepared = await prepareErrandLocal(errand);
+      if (prepared.state !== "ready") throw new Error("expected delta preparation");
+      const result = await attestErrandLocal(errand, prepared);
+      expect(result.admission.effectiveCoverage).toBe("incremental");
+      expect(await performHostedRequest(errand, "complete", {
+        target: { repository: "owner/repo", pullRequest: 42, headSha: result.target.headSha }, lane: "standard",
+        precedingProducerId: result.producerId, completedPasses: 3, nextPass: 4,
+      })).toMatchObject({ exitCodes: [],
+        result: { state: "requested", handle: { requestedCoverage: "complete", admission: { logicalPass: 4 } } } });
+    });
   });
 
   it("names local prepare after a hosted material fix", async () => {
@@ -658,7 +771,7 @@ describe("ordinary resolve next-pass records", () => {
       await git(errand.root, ["rev-parse", "HEAD^{tree}"]));
     await expect(dependencies.validatePolicyAdmission({ ...input, target: repairedTarget,
       lineage: { ...input.lineage, headSha: repairedTarget.headSha }, coverageAdmission: { requestedCoverage: "complete" },
-    })).resolves.toEqual({ state: "ready", pass: 2 });
+    })).resolves.toMatchObject({ state: "ready", pass: 2, coverageAdmission: { requestedCoverage: "complete" } });
   });
 
   it("keeps local prepare's empty-source fallback after material fixes", async () => {
@@ -673,14 +786,14 @@ describe("ordinary resolve next-pass records", () => {
       lineage: { kind: "head-bound", vehicleKind: "errand", vehicleIdentity: errand.errand.claimId, headSha: target.headSha },
       standardReview: errand.standardReview, completedPasses: 1, attempts: [], terminalResponsePerformed: false,
       predecessorOperationId: errand.firstAttemptId, coverageAdmission: { requestedCoverage: "complete" },
-    })).resolves.toEqual({ state: "ready", pass: 2 });
+    })).resolves.toMatchObject({ state: "ready", pass: 2, coverageAdmission: { requestedCoverage: "complete" } });
   });
 
   it.each(["major", "minor"] as const)("derives the earlier-head %s response from the Errand claim", async severity => {
     const errand = await fixedErrand({ severity, retrigger: "full-final" });
     const request = responsePolicyRequestFixture({ headSha: errand.statusTarget.headSha, pullRequest: 42,
       sourceId: errand.provider, reviewOperationId: errand.firstAttemptId, standardReview: errand.standardReview });
-    const context = await readResolveNextPassContext({ request: { ...request, attempts: [] }, root: errand.root,
+    const context = await readResolveNextPassContext({ configuredSources: ["coderabbit-pr", "codex-pr"], request: { ...request, attempts: [] }, root: errand.root,
       exec: errand.exec, operationStore: errand.store, dispositionStore: errand.dispositionStore,
       resultReader: createRepositoryReviewResultReader(errand.publisher) });
     expect(context).toEqual({ convergence: severity === "major" ? "unconverged" : "converged",
@@ -695,7 +808,7 @@ describe("ordinary resolve next-pass records", () => {
     if (terminal === undefined) throw new Error("expected terminal correction");
     const request = responsePolicyRequestFixture({ headSha: errand.statusTarget.headSha, pullRequest: 42,
       sourceId: errand.provider, reviewOperationId: terminal.attemptId, completedPasses: 2, standardReview: errand.standardReview });
-    const context = await readResolveNextPassContext({ request: { ...request,
+    const context = await readResolveNextPassContext({ configuredSources: ["coderabbit-pr", "codex-pr"], request: { ...request,
       attempts: [{ sourceId: errand.provider, outcome: "clean", reviewOperationId: terminal.attemptId }] }, root: errand.root,
       exec: errand.exec, operationStore: errand.store, dispositionStore: errand.dispositionStore,
       resultReader: createRepositoryReviewResultReader(errand.publisher) });
@@ -716,7 +829,7 @@ describe("full Errand cadence", () => {
     expect(checked.admission.effectiveCoverage).toBe("incremental");
     await expect(resolveErrandReview(errand, checked)).resolves.toMatchObject({ exitCodes: [],
       result: { state: "ready", nextAction: "local-prepare", payload: { pass: 3 } } });
-    const complete = await prepareErrandLocal(errand);
+    const complete = await prepareErrandLocal(errand, { requestedCoverage: "complete" });
     expect(complete).toMatchObject({ state: "ready", nextAction: "launch-review", payload: { request: { logicalPass: 3 } } });
     if (complete.state !== "ready") throw new Error("expected the complete successor without another selection");
     const terminal = await attestErrandLocal(errand, complete);

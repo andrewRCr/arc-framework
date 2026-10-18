@@ -48,6 +48,7 @@ async function readCandidateContext(root: string, exec: GitExec, workUnit: strin
 /** Read the command's exact producer lineage, including Candidate supersession owners. */
 export async function readResolveNextPassContext(input: {
   readonly request: ReviewPolicyCommandRequest;
+  readonly configuredSources: readonly string[];
   readonly confirmApplicability?: (predecessor: ReviewResult, current: ReviewResult) => Promise<IncrementalPredecessorApplicability>;
   readonly root: string;
   readonly exec: GitExec;
@@ -86,7 +87,9 @@ export async function readResolveNextPassContext(input: {
   const predecessor = terminalResult ?? (earlier === undefined
     ? null : await resultReader.readResult(earlier.attemptId));
   return deriveReviewNextPassContext({ predecessor, currentTarget: target, currentLineage: lineage,
-    standardReview: request.standardReview, resultReader, dispositionStore,
+    standardReview: request.standardReview, resultReader, dispositionStore, rangeProof: { cwd: root, exec },
+    deltaAdmission: { sources: input.configuredSources, surface: live.context.errand !== null
+      && request.target.pullRequest !== null ? "open-pr-errand" : "ordinary" },
     confirmApplicability: input.confirmApplicability,
     readResponsePerformance: result => readLaneResponsePerformance(operationStore, result),
     candidateProof: { candidate, cwd: root, baseRef: settings["branch.base"], exec, observeTarget: () => Promise.resolve(target) } });
@@ -94,6 +97,9 @@ export async function readResolveNextPassContext(input: {
 
 /** Derive hosted Errand admission from its same-head attempts or its claim-wide earlier producer. */
 export async function readHostedErrandNextPassContext(input: {
+  readonly cwd: string;
+  readonly exec: GitExec;
+  readonly configuredSources: readonly string[];
   readonly progress: LaneProgressState | null;
   readonly target: ReviewTarget;
   readonly lineage: LaneSubjectLineage;
@@ -106,6 +112,8 @@ export async function readHostedErrandNextPassContext(input: {
     && attempt.outcome !== "pending") ?? [];
   const earlier = selectErrandCorrectionPredecessor(input.progress?.attempts ?? [], input.target.headSha);
   return deriveReviewNextPassContextFromAttempts({ attempts: attempts.map(projectReviewPolicyAttempt),
+    rangeProof: { cwd: input.cwd, exec: input.exec },
+    deltaAdmission: { sources: input.configuredSources, surface: "open-pr-errand" },
     predecessorOperationId: earlier?.attemptId, currentTarget: input.target, currentLineage: input.lineage,
     standardReview: input.standardReview, resultReader: input.resultReader, dispositionStore: input.dispositionStore,
     readResponsePerformance: producer => readLaneResponsePerformance(input.operationStore, producer),

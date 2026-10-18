@@ -332,11 +332,12 @@ function createRespondPolicyConfirmation(context: {
     const policyTarget = await resolveRespondPolicyTarget(
       input, current, currentSettings["branch.base"],
     );
-    if (policyTarget === null
-      || policyTarget.repository.toLowerCase() !== request.target.repository.toLowerCase()
-      || policyTarget.pullRequest !== request.target.pullRequest) return "unavailable";
+    const targetMatches = policyTarget !== null
+      && policyTarget.repository.toLowerCase() === request.target.repository.toLowerCase()
+      && policyTarget.pullRequest === request.target.pullRequest;
     const lineage = current.admission.lineage;
     if (current.target.kind === "delivery-member" && lineage.kind === "delivery-member") {
+      if (!targetMatches) return "unavailable";
       return confirmReviewCorrectionLeg({ predecessor, currentTarget: current.target,
         currentLineage: lineage, currentResult: current, dispositionStore: context.dispositionStore,
         readResponsePerformance: context.readResponsePerformance,
@@ -360,6 +361,7 @@ function createRespondPolicyConfirmation(context: {
       repositoryId: current.target.repositoryId,
     });
     const confirmGrounds = async () => {
+      if (!targetMatches) return "unavailable" as const;
       if (policyTarget.pullRequest === null && selected !== null) {
         return confirmNoPullRequestCandidatePriorProducer({
           cwd: input.cwd,
@@ -388,6 +390,7 @@ function createRespondPolicyConfirmation(context: {
     return confirmReviewCorrectionLeg({ predecessor, currentTarget: current.target, currentLineage: lineage,
       currentResult: current, dispositionStore: context.dispositionStore,
       readResponsePerformance: context.readResponsePerformance,
+      rangeProof: input,
       candidateProof: { candidate: selected?.record ?? null, ...input,
         baseRef: currentSettings["branch.base"], observeTarget }, confirmGrounds });
   };
@@ -780,6 +783,10 @@ export function createRespondDependencies(input: {
         dispositionStore: policyDependencies.dispositionStore,
         readResponsePerformance: producer => readLaneResponsePerformance(prepare.operationStore, producer),
         confirmApplicability: confirmIncrementalApplicability,
+        rangeProof: input,
+        deltaAdmission: { sources: configured.sources, surface: predecessor?.admission.lineage.kind === "head-bound"
+          && predecessor.admission.lineage.vehicleKind === "errand" && request.target.pullRequest !== null
+          ? "open-pr-errand" : "ordinary" },
         candidateProof: { candidate: selected?.record ?? null, ...input, baseRef: currentSettings["branch.base"],
           observeTarget: () => deriveLocalReviewTarget({ ...input, baseRef: currentSettings["branch.base"],
             repositoryId: confirmedProducerTarget.repositoryId }) },

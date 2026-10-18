@@ -515,18 +515,12 @@ the range proof. Workflow text changes in the package's `arc/` source first, the
   under `incremental`, closing the lane when it converges; under `full-final` it runs only with a pull request open and
   is followed by the complete pass, and before the pull request the complete pass runs with no delta check first.
 
-    - `[ ]` **3.5.a Reach every Errand chain confirmation**
-        - Each refuses the leg today: it requires a findings predecessor (`exactErrandResponseContext`;
-          `sharesCorrectionBase`) whose fix produced the current head, and with a pull request open contribution
-          applicability returns `review-required`. The chain proof's range-proof ground reaches all of them: local
-          prepare's (`confirmErrandFixResponseApplicability` before the pull request;
-          `createLocalContributionConfirmation`, through `confirmNonDeliveryIncrementalApplicability`, after), the
-          `arc review resolve -` handler's, Errand status's chain (`confirmErrandCorrectionPredecessor`) and its
-          current-head proof (Task 1.1.d), respond's Errand chain (`runtime/respond-composition.ts`), and hosted request
-          admission's Errand branch (`handlers/review.ts`).
-        - Build `test-first` (one behavior at a time):
-            - Each confirmation admits a delta leg before and after the pull request, so respond's prediction and local
-              prepare's admission agree.
+    - `[x]` **3.5.a Reach every Errand chain confirmation**
+        - Local prepare, resolve, respond, Errand status, and hosted admission prove delta ranges through the shared
+          chain proof. Each composition supplies its configured sources and lifecycle surface; historical chain
+          re-confirmation accepts the range ground while the earlier-review carry remains unchanged.
+        - Private and open-PR preparation and chain rechecks agree; hosted admission refuses a due delta check and
+          re-confirms a converged delta before admitting an authorized additional complete pass.
 
     - `[ ]` **3.5.b Close or continue the Errand's lane by its retrigger**
         - Under `incremental` a converged delta check closes the lane; a hosted complete pass after it runs through an

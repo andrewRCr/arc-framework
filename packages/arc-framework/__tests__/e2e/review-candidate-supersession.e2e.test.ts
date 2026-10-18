@@ -315,7 +315,7 @@ describe("Candidate review usage across supersession", () => {
     await git(root, ["commit", "-m", "attest successor candidate"]);
     const publisher = new RepositoryGitCommonStatePublisher(gitExec, root);
     const previousRequest = await responsePolicyRequest(root, source);
-    const nextPassContext = await readResolveNextPassContext({ root, exec: gitExec,
+    const nextPassContext = await readResolveNextPassContext({ root, exec: gitExec, configuredSources: ["delegated-agent"],
       request: { ...previousRequest, target: { ...previousRequest.target, headSha: await git(root, ["rev-parse", "HEAD"]) }, attempts: [] },
       operationStore: new LocalReviewOperationStateStore(publisher),
       dispositionStore: new LocalApprovedDispositionRecordStore(publisher),

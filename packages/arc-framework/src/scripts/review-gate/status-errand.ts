@@ -25,7 +25,7 @@ import {
   type LanePolicyAttempt,
 } from "./lane-progress.js";
 import { createReviewTarget } from "./core/gate-contract-v2.js";
-import { deriveReviewNextPassContext } from "./policy/review-next-pass.js";
+import { confirmReviewCorrectionLeg, deriveReviewNextPassContext } from "./policy/review-next-pass.js";
 import { GitObjectIdSchema, type ReviewTarget } from "./core/gate-contract-v2-schema.js";
 import type { ReviewResult } from "./core/review-result.js";
 import type { LaneProgressState } from "./core/operation-state-schema.js";
@@ -259,6 +259,8 @@ async function fixProducedHead(input: {
 
 /** Prove each changed-head Errand correction leg before the shared coverage-chain validator accepts it. */
 async function confirmErrandCorrectionPredecessor(input: {
+  cwd: string;
+  exec: GitExec;
   predecessor: ReviewResult;
   current: ReviewResult;
   store: LocalReviewOperationStateStore;
@@ -270,8 +272,13 @@ async function confirmErrandCorrectionPredecessor(input: {
     || !await producerBelongsToErrand(current, store, errand)
     || predecessor.repositoryId !== current.repositoryId) return "unavailable";
   if (canonicalize(predecessor.target) === canonicalize(current.target)) return "applicable";
-  if (!sharesCorrectionBase(predecessor, current)) return "unavailable";
-  return confirmChangedErrandResponse(input);
+  return confirmReviewCorrectionLeg({ predecessor, currentTarget: current.target,
+    currentLineage: current.admission.lineage, currentResult: current, dispositionStore: input.dispositionStore,
+    readResponsePerformance: producer => readLaneResponsePerformance(store, producer),
+    rangeProof: { cwd: input.cwd, exec: input.exec },
+    confirmGrounds: () => sharesCorrectionBase(predecessor, current)
+      ? confirmChangedErrandResponse(input) : Promise.resolve("unavailable"),
+  });
 }
 
 function projectStandardReview(result: StandardReviewResult): StandardReviewObligationProjection {
@@ -350,6 +357,7 @@ function completesCurrentRubric(attempt: LanePolicyAttempt, pullRequest: number)
 /** Resolve one exact Errand head's standard lane from that head's terminal attempt and its result. */
 async function resolveErrandLaneAtHead(input: {
   readonly cwd: string;
+  readonly exec: GitExec;
   readonly publisher: RepositoryGitCommonStatePublisher;
   readonly store: LocalReviewOperationStateStore;
   readonly resultReader: ReviewResultReader;
@@ -376,10 +384,12 @@ async function resolveErrandLaneAtHead(input: {
   const dispositionStore = new LocalApprovedDispositionRecordStore(input.publisher);
   const nextPassContext = await deriveReviewNextPassContext({
     predecessor: result, currentTarget: result.target, currentLineage: result.admission.lineage,
+    rangeProof: { cwd: input.cwd, exec: input.exec },
+    deltaAdmission: { sources: configured.sources, surface: "open-pr-errand" },
     standardReview: projectStandardReview(result), resultReader: input.resultReader, dispositionStore,
     readResponsePerformance: producer => readLaneResponsePerformance(store, producer),
     confirmApplicability: (predecessor, current) => confirmErrandCorrectionPredecessor({
-      predecessor, current, store, dispositionStore, errand: input.errand,
+      cwd: input.cwd, exec: input.exec, predecessor, current, store, dispositionStore, errand: input.errand,
     }),
   });
   return resolveEvidenceBoundReviewPolicyContinuation({
@@ -414,7 +424,7 @@ async function resolveErrandLaneAtHead(input: {
     dispositionStore,
     readResponsePerformance: (producer) => readLaneResponsePerformance(store, producer),
     confirmIncrementalApplicability: (predecessor, current) => confirmErrandCorrectionPredecessor({
-      predecessor, current, store, dispositionStore, errand: input.errand,
+      cwd: input.cwd, exec: input.exec, predecessor, current, store, dispositionStore, errand: input.errand,
     }),
     confirmTarget: (target) => Promise.resolve(target),
   });
@@ -501,7 +511,7 @@ async function readCarriedErrandReview(input: {
     return null;
   }
   const policy = await resolveErrandLaneAtHead({
-    cwd: input.cwd, publisher: input.publisher, store: input.store, resultReader: input.resultReader,
+    cwd: input.cwd, exec: input.exec, publisher: input.publisher, store: input.store, resultReader: input.resultReader,
     errand: input.errand, policyTarget: { repository: target.repository, pullRequest, headSha: priorHead },
     completedPasses: input.completedPasses, terminal, result,
   });
@@ -590,7 +600,7 @@ async function readUnreviewedErrandHead(input: {
     if (carried !== null) return carried;
   }
   return nextErrandPassObligation({
-    publisher: input.publisher, store, resultReader, errand, policyTarget, configured, result, completedPasses,
+    cwd: input.cwd, exec: input.exec, publisher: input.publisher, store, resultReader, errand, policyTarget, configured, result, completedPasses,
     statusTarget: target, sourceId: input.sourceId,
     currentBase: await currentErrandDiffBase(input.exec, target.headSha, input.currentBaseOid, input.currentBaseRef),
     ...(input.ceilingOverride === undefined ? {} : { ceilingOverride: input.ceilingOverride }),
@@ -601,6 +611,8 @@ async function readUnreviewedErrandHead(input: {
 
 /** Report the next standard-review pass an unreviewed Errand head needs within the claim's pass ceiling. */
 async function nextErrandPassObligation(input: {
+  readonly cwd: string;
+  readonly exec: GitExec;
   readonly publisher: RepositoryGitCommonStatePublisher;
   readonly store: LocalReviewOperationStateStore;
   readonly resultReader: ReviewResultReader;
@@ -623,10 +635,12 @@ async function nextErrandPassObligation(input: {
   });
   const nextPassContext = await deriveReviewNextPassContext({
     predecessor: input.result, currentTarget, currentLineage: input.result.admission.lineage,
+    rangeProof: { cwd: input.cwd, exec: input.exec },
+    deltaAdmission: { sources: configured.sources, surface: "open-pr-errand" },
     standardReview: projectStandardReview(input.result), resultReader: input.resultReader, dispositionStore,
     readResponsePerformance: producer => readLaneResponsePerformance(store, producer),
     confirmApplicability: (predecessor, current) => confirmErrandCorrectionPredecessor({
-      predecessor, current, store, dispositionStore, errand: input.errand,
+      cwd: input.cwd, exec: input.exec, predecessor, current, store, dispositionStore, errand: input.errand,
     }),
   });
   const policy = await resolveEvidenceBoundReviewPolicyContinuation({
@@ -864,7 +878,7 @@ export async function readErrandRoutedObligation(input: {
       return blocked("The terminal review producer does not match the exact Errand claim and head.");
     }
     const policy = await resolveErrandLaneAtHead({
-      cwd: input.cwd, publisher, store, resultReader, errand: selected.record, sourceId: input.sourceId,
+      cwd: input.cwd, exec, publisher, store, resultReader, errand: selected.record, sourceId: input.sourceId,
       policyTarget: { repository: input.target.repository, pullRequest: input.pullRequest,
         headSha: input.target.headSha },
       completedPasses: progress.completedPasses, terminal, result,
