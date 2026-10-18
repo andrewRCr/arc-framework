@@ -516,9 +516,9 @@ describe("PR lifecycle and review contracts", () => {
         }
         expect(content).not.toContain("adversarial-review:");
       }
-      const criteria = await readFile(resolve(base, "system/methods/validate-criteria.md"), "utf8");
-      expect(criteria).toContain("adversarial-review:");
-      expect(criteria).toContain("ordinary closing-task evidence");
+      const verificationReview = await readFile(resolve(base, "system/methods/verification-review.md"), "utf8");
+      expect(verificationReview).toContain("adversarial-review:");
+      expect(verificationReview).toContain("ordinary closing-task evidence");
     }
 
     // The amendment passes its depth and recorded history to the same review home.

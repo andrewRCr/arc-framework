@@ -1,25 +1,21 @@
 ---
 name: validate-criteria
 description: Evidence-led success-criteria validation over an explicit member or work-unit scope.
-arc:
-  methods:
-    - adversarial-review
 related:
-  - adversarial-review
+  - verification-review
 override-active: false
 ---
 
 # Method: validate-criteria
 
-> - **Workflow:** [process-task-loop.md][process-task-loop], [verify-work-unit.md][verify-work-unit]
+> - **Workflow:** [verification-review][verification-review], [deliver-stack][deliver-stack], and
+>   [amend-design][amend-design] for evidence-only deltas.
 > - **When:** A delivery member or whole work unit reaches its criteria-validation boundary.
 >
 > - **Signature:** `validate-criteria(scope)` → criteria report
 > - **Contract:** Walk the criteria, diff, and reachable tree selected by one explicit scope; bind every immutable
 >   criterion by its exact task-list locus and criterion digest, and report its evidence, resolved state, and the
->   shared span walked; then
->   offer the same fresh-context adversarial companion at either boundary. The method gathers evidence and never
->   marks task-list criteria.
+>   shared span walked. The check gathers evidence and never marks task-list criteria.
 
 ## validate-criteria.override
 
@@ -115,7 +111,7 @@ criteria with their evidence, any criteria the amendment appended with theirs an
 the summary. Unchanged criteria are omitted, and a digest already recorded in an effective entry is never restated.
 
 Each entry carries a **per-criterion verdict** saying why it is present or absent — a judgment applied per
-criterion, not the report-level verdict the adversarial companion below returns:
+criterion; independent review has its own report-level verdict:
 
 - `carries` — the base entry still holds; this is why an unchanged criterion is absent from the delta;
 - `supplemental` — the entry is listed because evidence was added to what the base already carries; and
@@ -128,35 +124,8 @@ Locate a member's deltas through the log: each `## Amendments` row's `_Work:_` n
 closing subtask carries that delta. Never locate one positionally, and never by scanning a member's revision
 parents — either would be a second authority over the same fact.
 
-### Adversarial companion
-
-After the primary walk, offer one fresh-context pass over the same selected scope. Use the work unit's
-`Class`-scaled posture at both member and work-unit scope: recommend at `Novel`; make a neutral offer at `Light` or
-`Heavy`. Withhold the primary report and all task-list criterion markings from the fresh pass. The primary compares
-the returned report with its own walk and retains judgment over every finding.
-
-> [!IMPORTANT]
-> `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Novel`; surface a neutral
-> offer at `Light` / `Heavy`. Offer the pass and await the call — user decides; decline proceeds normally.
-
-```yaml
-adversarial-review:
-  rubric:          # the selected success-criteria slice, validated adversarially
-  artifacts:       # upstream design + task list with markings withheld + the selected diff and reachable tree
-  orientation:
-    - AGENT-BRIEF.ARC
-    - AGENT-BRIEF.PROJECT
-  pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3
-  prior-findings:  # pass two onward; omitted on pass one
-```
-
-After each returned pass, apply the method's complete-disposition and bounded-continuation protocol. Retain the
-complete source-verified finding/account/action set, `Pass N of M`, stop reason, and any conditional next-pass
-decision alongside the criteria report as ordinary closing-task evidence. This advisory evidence creates no
-lane-progress record.
-
 ---
 
 [amend-design]: ../workflows/arc/supplemental/amend-design.md
-[process-task-loop]: ../workflows/arc/process-task-loop.md
-[verify-work-unit]: ../workflows/arc/work-unit-lifecycle/verify-work-unit.md
+[verification-review]: verification-review.md
+[deliver-stack]: ../workflows/arc/supplemental/deliver-stack.md

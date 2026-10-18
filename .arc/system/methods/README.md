@@ -53,6 +53,7 @@ when populating any `.override` section. Methods not listed here are independent
 | self-review                   | review-triage                                                                          | Uses review-triage for findings                      |
 | code-review                   | self-review, frontline-review, standard-review, review-model                           | Code review dispatch procedures                      |
 | planning-review               | adversarial-review, review-model                                                       | Planning stage checks, independent offer, and reread |
+| verification-review           | validate-criteria, adversarial-review, review-model                                    | Criteria walk and independent companion              |
 | review-model                  | adversarial-review, review-triage, review-response                                     | Shared passes, rounds, convergence, and cadence      |
 | review-response               | review-triage                                                                          | Consumes approved finding dispositions               |
 | review-triage                 | disposition-report                                                                     | Renders code-review findings in its shape            |

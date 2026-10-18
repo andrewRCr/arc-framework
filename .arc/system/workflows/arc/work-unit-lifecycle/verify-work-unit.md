@@ -4,7 +4,7 @@ audience: agent
 arc:
   methods:
     - code-review
-    - validate-criteria
+    - verification-review
     - commit-footer
     - review-chunking
     - route-discovered-work
@@ -72,7 +72,7 @@ criteria shapes.
 Without a Delivery Plan:
 
 ```yaml
-validate-criteria:
+verification-review:
   scope:
     kind: work-unit
     criteria: task list's complete flat Success Criteria section
@@ -83,7 +83,7 @@ validate-criteria:
 With a Delivery Plan:
 
 ```yaml
-validate-criteria:
+verification-review:
   scope:
     kind: work-unit
     criteria:
@@ -93,27 +93,8 @@ validate-criteria:
     reachability: complete work-unit tree
 ```
 
-Without a Delivery Plan, open the upstream design/spec artifact and compare every flat criterion against actual
-outcomes in the complete diff and tree. With a Delivery Plan, the method dispositions member groups from their
-recorded reports and walks only the seam group and union coherence against the complete tree.
-
-**Method fire-point** · [`adversarial-review`][adversarial-review], declared by `validate-criteria`: After the
-primary walk for either criteria shape, load its adversarial companion.
-
-> [!IMPORTANT]
-> `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Novel`; offer neutrally at
-> `Light` / `Heavy`. Offer the pass and await the call — user decides; decline keeps the primary report.
->
-> ```yaml
-> adversarial-review:
->   rubric:          # selected work-unit Success Criteria slice
->   artifacts:       # upstream design + task list with markings withheld + complete diff and reachable tree
->   orientation:
->     - AGENT-BRIEF.ARC
->     - AGENT-BRIEF.PROJECT
->   pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3
->   prior-findings:  # pass two onward; omitted on pass one
-> ```
+Run [verification-review][verification-review] over the selected scope, including its [author criteria
+walk][verification-walk] and [independent companion][verification-companion].
 
 Consume the resulting report, then mark each criterion in the task list's Success Criteria section (see
 [task-list-formatting strategy][task-list-formatting] § Success Criteria Section for format) using the three-state
@@ -183,7 +164,9 @@ verification-task exception). Cover both:
 
 ---
 
-[adversarial-review]: ../../../methods/adversarial-review.md
+[verification-review]: ../../../methods/verification-review.md
+[verification-walk]: ../../../methods/verification-review.md#author-criteria-walk
+[verification-companion]: ../../../methods/verification-review.md#independent-companion
 [task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
 [clean]: ../supplemental/clean-work-unit.md
 [review-chunking]: ../../../methods/review-chunking.md

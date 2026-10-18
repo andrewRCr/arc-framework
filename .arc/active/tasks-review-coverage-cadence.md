@@ -984,19 +984,14 @@ package's `arc/` source first, then in the `.arc/` copy.
   and work-unit scope, `validate-criteria` becomes its pure check, and the two sites that want evidence without review
   call the check directly.
 
-- _Note:_ 7.4.a and 7.4.b land in one commit, for the trigger audit's reason in Task 7.2.
+    - `[x]` **7.4.a Write the method and reduce `validate-criteria` to its check**
+        - Registered `verification-review(scope)` with the author walk, Class-scaled companion, criterion-anchored
+          findings, and evidence return. `validate-criteria` retains immutable binding, three states, and report deltas;
+          the companion posture is stated once with decline proceeding normally.
 
-    - `[ ]` **7.4.a Write the method and reduce `validate-criteria` to its check**
-        - Its When line names its trigger, verifying a change against its success criteria, rather than its sites. Its
-          registration is the one Task 6.1.b lists.
-        - `validate-criteria` keeps criterion binding, the three-state model, immutability, and evidence; its
-          `arc.methods: adversarial-review` declaration and § Adversarial companion move up into `verification-review`,
-          stated once with `validate-criteria`'s current "decline proceeds normally" posture. Each companion finding
-          names the criterion it fails.
-
-    - `[ ]` **7.4.b Call it from `verify-work-unit` and `process-task-loop`**
-        - Each with a YAML callsite keyed by `verification-review`, passing its scope; both stop restating the companion
-          callout. `process-task-loop` is a `.template.md` in the package.
+    - `[x]` **7.4.b Call it from `verify-work-unit` and `process-task-loop`**
+        - Both boundaries pass their full scope through named YAML calls and fragment links to the walk and companion.
+          Their quality gates, unresolved stops, criterion marking, and lifecycle remain with the caller.
 
     - `[ ]` **7.4.c Call the check directly from `deliver-stack` and `amend-design`**
         - `deliver-stack`'s review-fix verification, whose exemption from the companion becomes structural, and

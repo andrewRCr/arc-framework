@@ -193,22 +193,23 @@ describe("prepublication workflow boundary", () => {
     expect(recipe.include_files).toContain("system/methods/validate-criteria.md");
   });
 
-  it("fires validate-criteria directly at work-unit and delivery-member boundaries", async () => {
+  it("routes scoped verification through the author check and independent companion", async () => {
     for (const root of ROOTS) {
-      const [verification, taskLoop, validateCriteria] = await Promise.all([
+      const [verification, taskLoop, validateCriteria, review] = await Promise.all([
         readFile(resolve(root, "system/workflows/arc/work-unit-lifecycle/verify-work-unit.md"), "utf8"),
         readFile(resolve(root, root === ROOTS[0]
           ? "system/workflows/arc/process-task-loop.template.md"
           : "system/workflows/arc/process-task-loop.md"), "utf8"),
         readFile(resolve(root, "system/methods/validate-criteria.md"), "utf8"),
+        readFile(resolve(root, "system/methods/verification-review.md"), "utf8"),
       ]);
 
-      expect(verification).toContain("    - validate-criteria");
+      expect(verification).toContain("    - verification-review");
       expect(verification).not.toContain("    - adversarial-review");
-      expect(verification).toContain("validate-criteria:\n  scope:\n    kind: work-unit");
+      expect(verification).toContain("verification-review:\n  scope:\n    kind: work-unit");
       expect(verification).toContain("Without a Delivery Plan:");
       expect(verification).toContain("criteria: task list's complete flat Success Criteria section");
-      expect(verification).toMatch(softWrappedProse("open the upstream design/spec artifact"));
+      expect(validateCriteria).toMatch(softWrappedProse("open the upstream design/spec artifact"));
       expect(verification).toContain("With a Delivery Plan:");
       expect(verification).toContain("member-groups: recorded delivery-member criteria reports");
       expect(verification).toContain("seams: task list's Cross-member seams group");
@@ -218,13 +219,25 @@ describe("prepublication workflow boundary", () => {
       expect(verification).toMatch(softWrappedProse("member-scope verification tasks"));
       expect(verification).toMatch(softWrappedProse("sole terminal work-unit verification task"));
       expect(verification).not.toMatch(softWrappedProse("without becoming additional verification tasks"));
-      expect(taskLoop).toContain("    - validate-criteria");
+      expect(taskLoop).toContain("    - verification-review");
       expect(taskLoop).not.toContain("    - adversarial-review");
-      expect(validateCriteria).toContain("arc:\n  methods:\n    - adversarial-review");
+      expect(validateCriteria).not.toContain("    - adversarial-review");
+      expect(validateCriteria).not.toContain("### Adversarial companion");
+      expect(review).toContain("    - validate-criteria");
+      expect(review).toContain("    - adversarial-review");
+      expect(review).toContain("    - review-model");
+      expect(review).toContain("validate-criteria:");
+      expect(review).toMatch(softWrappedProse("decline proceeds normally"));
+      expect(review).toMatch(softWrappedProse("Each finding names the exact criterion it fails"));
+      for (const site of [verification, taskLoop]) {
+        expect(site).not.toContain("adversarial-review:");
+        expect(site).toContain("methods/verification-review.md#author-criteria-walk");
+        expect(site).toContain("methods/verification-review.md#independent-companion");
+      }
       expect(validateCriteria).toMatch(softWrappedProse("When none is present, open the upstream design/spec artifact"));
       expect(validateCriteria).toMatch(softWrappedProse("flat Success Criteria section against actual outcomes"));
       expect(validateCriteria).toMatch(softWrappedProse("When a Delivery Plan is present"));
-      expect(validateCriteria).toMatch(softWrappedProse("offer one fresh-context pass over the same selected scope"));
+      expect(review).toMatch(softWrappedProse("offer one fresh-context pass over the same selected scope"));
       const unresolvedStop = indexOfSoftWrappedProse(verification,
         "If the combined report contains any `[ ]` criterion, stop.");
       const attestationStep = verification.indexOf("## Step 3 — Attest the Candidate");
@@ -240,9 +253,9 @@ describe("prepublication workflow boundary", () => {
         .toMatch(softWrappedProse("last task assigned to a delivery member"));
       const memberBoundarySection = taskLoop.slice(memberBoundary, reportAndStop);
       const criteriaWalk = indexOfSoftWrappedProse(memberBoundarySection, "member's criteria walk");
-      const memberValidation = memberBoundarySection.indexOf("validate-criteria:");
+      const memberValidation = memberBoundarySection.indexOf("verification-review:");
       expect(criteriaWalk).toBeGreaterThan(-1);
-      expect(memberBoundarySection).toMatch(/validate-criteria:\n\s+scope:\n\s+kind: delivery-member/u);
+      expect(memberBoundarySection).toMatch(/verification-review:\n\s+scope:\n\s+kind: delivery-member/u);
       expect(memberValidation).toBeGreaterThan(criteriaWalk);
       const unresolvedBranch = taskLoop.indexOf("**Unresolved member-report branch:**");
       const resolvedBranch = taskLoop.indexOf("**Resolved completion branch:**");

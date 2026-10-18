@@ -736,6 +736,11 @@
       "classification": "Configurable",
       "layer": "core",
       "pristine_hash": "1b0f9ad6f91fe534e2aff543f85b369e7c0fda1e71446399efe2aea75773174e"
+    },
+    "system/methods/verification-review.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "719006990c1896dc659e4ec62092778d778792d7c9af6437d9589273b9e35123"
     }
   }
 }
