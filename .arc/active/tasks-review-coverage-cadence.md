@@ -766,24 +766,15 @@ complete pass. Workflow, method, and configuration text changes in the package's
 - _Outcome:_ Real capped member, singleton, and Errand routes admit fix checks without an override and require
   approval for chosen complete coverage. Errand hosted requests enforce that boundary again before capacity spend.
 
-### `[ ]` **5.5 Bind a conditional next-pass authorization only to a complete pass — § 5.4**
+### `[x]` **5.5 Bind a conditional next-pass authorization only to a complete pass — § 5.4**
 
 - _Goal:_ A conditional next-pass authorization is offered only when a ceiling decision is reported and is spent only
   by a complete pass's admission, so no fix check or delta check spends it, and one a fix check overtakes lapses.
 
-    - `bindConditionalPendingAdmission` (`lane-progress-conditional.ts`) refuses an admission whose pending attempt
-      requests anything but `complete` coverage (`requestedCoverage`, on the attempt's `local` or `hosted` binding), with
-      a remedy naming the complete pass or the authorization's withdrawal (`conditionalNextPassWithdrawal`). Its shape is
-      unchanged.
-    - An authorization stays pending until an admission names it, and only the binding and the withdrawal read it, so
-      one a fix check overtakes lapses once the fix check moves `logicalPass` past its `nextPass`; the complete pass that
-      follows takes a ceiling override at the driver's `approval-required`.
-    - A fix check cites no extra-pass decision; its `correctionScope` names the response's result
-      (`predecessorProducerId`), as a delta check's names the converged predecessor's.
-    - Build `test-first` (one behavior at a time):
-        - A fix check admitted at the produced head leaves the conditional authorization unspent.
-        - An incremental admission naming the authorization is refused with the remedy.
-        - A complete pass's admission spends it.
+- _Outcome:_ Named standard-lane admissions require a pending complete local or hosted binding before consuming
+  conditional authority. Incremental requests name complete coverage or withdrawal as the remedy. An unnamed fix check
+  leaves authority bound; after its terminal result advances the attempt count, that authority cannot admit the
+  complete successor. Frontline binding retains its existing behavior.
 
 ### `[ ]` **5.6 Show a pass as a complete pass against the ceiling, and a fix check as a round — § 5.5, § 13**
 
