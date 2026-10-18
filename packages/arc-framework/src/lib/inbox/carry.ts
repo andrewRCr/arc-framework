@@ -1,13 +1,14 @@
 /** Carry raced source prose without overwriting the destination's managed routing context. */
 import { ENTRY_FIELDS, drawEntryId, writeEntryFields, writeRoutedFrom } from "../store/kinds/entry-fields.js";
 import { ENTRY_CONFIGS } from "../store/kinds/entry-configs.js";
-import { rejoinEntryList, splitEntryList } from "../store/concurrency/entries.js";
+import { maskComments, rejoinEntryList, splitEntryList } from "../store/concurrency/entries.js";
 import { appendEntry, entryForDestination, entryHeadingForDestination } from "./entry-text.js";
 import { mayReplaceEntry } from "./admission.js";
 import { prepareEntryMove, type EntryMoveInput, type PreparedEntryMove } from "./mover.js";
 import { listCoordinate } from "./receipts.js";
 import type { InboxContext, InboxOutcome, InboxRow } from "./types.js";
 import { entryConflictRefusal } from "./conflicts.js";
+import { failure } from "./refusals.js";
 
 /** Preserve the observed source removal and receipts while replacing or citing its held home.
  * @param input - Source entry and its proven existing destination.
@@ -16,6 +17,8 @@ import { entryConflictRefusal } from "./conflicts.js";
  * @returns One atomic survivor carry.
  */
 export async function prepareSurvivorCarry(input: EntryMoveInput, held: InboxRow, context: InboxContext): Promise<InboxOutcome<PreparedEntryMove>> {
+  if (input.section !== held.section) return failure("section-mismatch", `Entry ${held.id} is already held in ${held.section}, not ${input.section}.`,
+    `Retry the survivor carry with --section ${JSON.stringify(held.section)}.`);
   const now = context.now();
   const prepared = await prepareEntryMove(input, { ...context, now: () => now });
   if (prepared.status === "refused") return prepared;
@@ -37,8 +40,8 @@ function replacementProse(raw: string, held: InboxRow): string {
   const changes = Object.fromEntries(ENTRY_FIELDS.map((field) => [field, undefined]));
   const prose = writeRoutedFrom(writeEntryFields(raw, changes));
   const replacement = writeEntryFields(prose, held.fields);
-  const origin = held.raw.split("\n").find((line) => line.startsWith("- _Routed from:_"));
-  return origin === undefined ? replacement : replacement.replace(/^(- _Id:_.*)$/mu, `$1\n${origin}`);
+  const origin = /^- _Routed from:_[ \t]*([^\r\n]*)/mu.exec(maskComments(held.raw))?.[1]?.trimEnd();
+  return writeRoutedFrom(replacement, origin);
 }
 
 function replaceEntry(content: string, kind: EntryMoveInput["destination"]["kind"], id: string, raw: string): string {
