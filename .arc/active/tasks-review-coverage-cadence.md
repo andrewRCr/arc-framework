@@ -1013,7 +1013,7 @@ package's `arc/` source first, then in the `.arc/` copy.
         - `review-model` maps sites, three review types, checks, vehicles, findings handling, routing, and moved-target
           judgment. The methods index groups navigation by layer and identifies the pure author and criteria checks.
 
-### `[ ]` **7.6 Fix the drift between sites — § 11.5**
+### `[x]` **7.6 Fix the drift between sites — § 11.5**
 
 - _Goal:_ Every drift item § 11.5 lists, re-confirmed against source, is fixed.
 
@@ -1027,20 +1027,20 @@ package's `arc/` source first, then in the `.arc/` copy.
           its spec check; three former naming sites disappeared with the shared planning call. Adversarial pass records
           now distinguish the stored review-gate operation from the `code-review` method.
 
-    - `[ ]` **7.6.c Fix the declarations nothing fires and the fire-points nothing declares**
-        - The list in § 11.5, re-derived on the current base, folded into Task 7.5's declarations.
+    - `[x]` **7.6.c Fix the declarations nothing fires and the fire-points nothing declares**
+        - Reconfirmed the source against the drift list: Task 7.5.a removes unused workflow declarations, declares
+          authoring-loop grounding directly, routes member review through its type, and names the actual adversarial
+          consumers. The method-trigger audit accepts the resulting graph.
 
-    - `[ ]` **7.6.d Place the verified-fix replay and run the author check at `run-self-review`**
-        - `run-errand` gains the replay, and the hosted arms of `run-errand` and `integrate-work-unit` replay before they
-          push. `prepare-work-unit`'s dispatch gains an arm for pre-publication's `run-self-review`
-          (`pre-publication-procedure.ts`) that runs `code-review`'s author check before re-entry, citing it as
-          `verify-work-unit` does.
+    - `[x]` **7.6.d Place the verified-fix replay and run the author check at `run-self-review`**
+        - Task 7.3 places committed verified-fix replay before every shared push release, including Errand and hosted
+          integration paths. Pre-publication dispatch runs the shared author check before recording it settled;
+          linked content checks reject a replay moved after push.
 
-    - `[ ]` **7.6.e Fix the companion posture, the re-read placement, and the singleton's additional pass**
-        - The companion posture lands once through Task 7.4; the post-settle re-reads through Task 7.2.
-          `integrate-work-unit`'s `--additional-pass` paragraph states that the ordinary singleton's discharge takes no
-          additional-pass authorization (`HostedReservationDischargeReaderArgs`), so status returns `settled` there
-          (`composePublishedSingletonReview`).
+    - `[x]` **7.6.e Fix the companion posture, the re-read placement, and the singleton's additional pass**
+        - Task 7.4 states companion posture once; Task 7.2 places the shared reread immediately before planning commits.
+          Task 7.3 limits additional-pass authorization to delivery status and states that the ordinary singleton
+          discharge takes none and returns settled.
 
 ### `[ ]` **7.7 Rename `frontline-review`, `standard-review`, and `self-review` — § 12**
 
