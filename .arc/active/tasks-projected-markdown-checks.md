@@ -48,16 +48,14 @@ admits unchanged historical violations and valid corrections, and leaves existin
   retain each original parser, anchors, and check order, and add missing link-only registrations without duplicates.
   Reference-store writes and atomic batches refuse each link rule and accept corrected retries and historical content.
 
-### `[ ]` **1.4 Exercise record-write admission — D2** — validate exit criterion at segment scope
+### `[x]` **1.4 Exercise record-write admission — D2** — validate exit criterion at segment scope
 
 - _Goal:_ Production registration, not only direct helper calls, proves introduced-only record admission for both
   single writes and batches without depending on the future projection or ref backend.
 
-    - Run the focused link, registration, and reference-backend cases from Tasks 1.1–1.3 and request
-      `npx arc check segment`.
-    - Demonstrate a valid record, an introduced violation, a refused batch with no partial write, an unchanged old
-      violation, and a corrected retry that succeeds; confirm the normal kind-check refusal still applies.
-    - Record the executed scenario and result; make any correction in its implementation task or a revision parent.
+- _Outcome:_ Production-backed write and batch scenarios admit valid content, refuse introduced violations without
+  partial publication, preserve imported historical links, accept corrected retries, and retain metadata authority
+  refusals. The runtime bundle includes the GFM parser and both extensions.
 
 ## **Phase 2:** Refuse tracked Markdown links into movable or ignored state
 
