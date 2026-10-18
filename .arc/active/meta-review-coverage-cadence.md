@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** [none]
-- **Next Task:** Task 1.1.a — Build the performed-response test (line ~41)
-- **Blockers:** [none]
+- **Last Completed:** Task 7.8 — Every review step in exactly one place (Phase 7 complete)
+- **Next Task:** Task 8.1 — Complete verification (line ~1081)
+- **Blockers:** Content integration feedback failed: 16 cases in 4 suites; see SESSION-NOTES.md
 
-- **Next Action:** Begin Task 1.1.a — Build the performed-response test
+- **Next Action:** Diagnose the recorded content-test failures in Task 8.1, then follow `verify-work-unit.md`
 
 - **PR URL:** [none]
 - **Completed:** [none]
