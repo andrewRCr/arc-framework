@@ -737,20 +737,10 @@ complete pass. Workflow, method, and configuration text changes in the package's
   once the admitted attempt finishes, and reports a ceiling decision only when no fix check will be admissible, so a
   fix check neither moves the position nor triggers the decision.
 
-    - `[ ]` **5.3.a Give respond the facts, and the position its count**
-        - Respond's dependencies gain one port, bound in `createRespondDependencies` (`runtime/respond-composition.ts`)
-          from the next-pass context: Task 4.1's facts for the result's lane, whether the chain to this pass is adequate,
-          and whether `delegated-agent` is selectable on this route by § 7.2's list. `projectProvisionalPassAssessment`
-          (`respond-command.ts`) and `projectFixConsequence` stay pure over what it returns.
-        - `ProvisionalPassAssessmentSchema` (`core/provisional-pass-assessment.ts`) gains `ceilingPassCount` — the
-          complete count on the standard lane, `admittedLogicalPass` on the frontline lane — and `capPosition` compares
-          it with `configuredMaxPasses`. The envelope is stored nowhere.
-        - The consequence refinement: `ceiling-decision` requires a position at or above the ceiling; `next-pass` with
-          `complete` or `null` coverage requires one below it; `next-pass` with `incremental-when-proven` holds at any
-          position.
-        - Build `test-first` (one behavior at a time):
-            - A complete pass at the ceiling reports `capPosition` at the ceiling, and a fix check after it the same.
-            - The frontline lane's position is unchanged.
+    - `[x]` **5.3.a Give respond the facts, and the position its count**
+        - Respond reads lane facts, current-chain adequacy, and local-source selectability through one repository port.
+          The pure assessment projects `ceilingPassCount` from complete standard looks or the recorded frontline pass;
+          its schema admits incremental follow-up at any position while bounding complete follow-up by the ceiling.
 
     - `[ ]` **5.3.b Predict the ceiling decision**
         - `projectFixConsequence` reports a ceiling decision only when no fix check will be admissible. It runs on the

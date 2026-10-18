@@ -1,7 +1,7 @@
 /** Source-authoritative orchestration for `arc review respond`. */
 
 import { z } from "zod";
-import { projectFixConsequence } from "./fix-consequence.js";
+import { projectProvisionalPassAssessment, type ProvisionalStandardPassFacts } from "./provisional-pass-assessment.js";
 import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
 import { canonicalize, type CanonicalDigest } from "../../../lib/kernel/index.js";
@@ -43,7 +43,6 @@ import { renderDispositionEvidence, renderDispositionReport } from "../core/disp
 import { FIX_NOT_PERFORMED_INTERACTION_TEXT } from "../core/fix-not-performed-envelope.js";
 import { ReviewFindingIdentitySchema } from "../core/finding-records.js";
 import { ReviewSeveritySchema } from "../core/review-primitives.js";
-import { fixesMaterialFinding } from "../core/review-convergence.js";
 import { SeverityGatingPolicySchema } from "../core/severity-gating-policy.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import {
@@ -72,10 +71,6 @@ import {
   RespondEnvelopeSchema,
   type CandidateBoundMemberFixAuthoring,
 } from "../core/review-command-envelope.js";
-import {
-  ProvisionalPassAssessmentSchema,
-  type ProvisionalFixConsequence,
-} from "../core/provisional-pass-assessment.js";
 import {
   parseReviewSourceReference,
 } from "../core/review-source-reference.js";
@@ -375,6 +370,11 @@ export interface RespondCommandDependencies {
   ): Promise<ReviewResolveEnvelope>;
   /** Read the lane's effective current config without resolving or spending review policy. */
   readConfiguredLanePolicy(lane: "frontline" | "standard"): Promise<LanePolicyConfig>;
+  /** Read the result's own lane and predict incremental eligibility before any proposed fix is performed. */
+  readProvisionalPassFacts(input: {
+    result: ReviewResult; proposal: ProposedDispositionSet;
+    configuredSources: readonly string[]; configuredMaxPasses: number;
+  }): Promise<ProvisionalStandardPassFacts>;
   captureConditionalNextPass(input: {
     lane: "frontline" | "standard";
     repositoryId: string;
@@ -1737,89 +1737,25 @@ async function withdrawConditionalResponseAuthority(
     });
 }
 
-function fixConsequenceText(
-  consequence: ProvisionalFixConsequence,
-  lane: "frontline" | "standard",
-  nextPass: string,
-): string {
-  switch (consequence.kind) {
-    case "no-fix":
-      return "";
-    case "lane-closes":
-      return ` Approving a FIX moves the head without another ${lane} pass.`;
-    case "next-pass": {
-      const coverage = consequence.coverage === null ? ""
-        : consequence.coverage === "complete" ? ", with complete coverage"
-          : ", covering only the fix where its chain is proven";
-      return ` Approving a FIX moves the head, which needs ${lane} pass ${nextPass}${coverage}.`;
-    }
-    case "ceiling-decision":
-      return " Approving a FIX moves the head, and another pass needs a ceiling decision.";
-    case "decided-at-fixed-head":
-      return " Approving a FIX moves the head; review status there decides whether another pass is needed.";
-  }
-}
-
-function projectProvisionalPassAssessment(input: {
-  proposal: ProposedDispositionSet;
-  lane: "frontline" | "standard";
-  result: ReviewResult;
-  admittedLogicalPass: number;
-  configuredMaxPasses: number;
-  configuredSources: readonly string[];
-}): z.infer<typeof ProvisionalPassAssessmentSchema> {
-  const severityRank = { minor: 1, major: 2, critical: 3 } as const;
-  let confirmedFindingCount = 0;
-  let maxConfirmedSeverity: z.infer<typeof ReviewSeveritySchema> | null = null;
-  for (const finding of input.proposal.dispositionSet.findings) {
-    if (finding.sourceVerification !== "verified") continue;
-    confirmedFindingCount += 1;
-    if (maxConfirmedSeverity === null
-      || severityRank[finding.verifiedSeverity] > severityRank[maxConfirmedSeverity]) {
-      maxConfirmedSeverity = finding.verifiedSeverity;
-    }
-  }
-  const capPosition = input.admittedLogicalPass < input.configuredMaxPasses
-    ? "below-ceiling" as const
-    : input.admittedLogicalPass === input.configuredMaxPasses
-      ? "at-ceiling" as const
-      : "above-ceiling" as const;
-  const materialFix = fixesMaterialFinding(input.proposal.dispositionSet.findings);
-  const fixConsequence = projectFixConsequence({
-    proposal: input.proposal,
-    result: input.result,
-    configuredSources: input.configuredSources,
-    materialFix,
-    belowCeiling: capPosition === "below-ceiling",
-  });
-  const potentialStopReason = fixConsequence.kind === "ceiling-decision" ? "cap-exhausted" as const : null;
-  const proposedSignal = { confirmedFindingCount, maxConfirmedSeverity, materialFix };
-  const severitySymbol = { minor: "🟡", major: "🟠", critical: "🔴" } as const;
-  const signalText = maxConfirmedSeverity === null
-    ? "No confirmed findings."
-    : `${confirmedFindingCount} confirmed finding${confirmedFindingCount === 1 ? "" : "s"}, `
-      + `highest ${severitySymbol[maxConfirmedSeverity]} ${maxConfirmedSeverity}.`;
-  const positionText = { "below-ceiling": "", "at-ceiling": " (limit reached)", "above-ceiling": " (over the limit)" }[
-    capPosition
-  ];
-  const consequenceText = fixConsequenceText(
-    fixConsequence,
-    input.lane,
-    `${input.admittedLogicalPass + 1} of ${input.configuredMaxPasses}`,
-  );
-  const laneText = input.lane === "standard" ? "Standard" : "Frontline";
-  return ProvisionalPassAssessmentSchema.parse({
-    status: "provisional",
-    lane: input.lane,
-    admittedLogicalPass: input.admittedLogicalPass,
-    configuredMaxPasses: input.configuredMaxPasses,
-    proposedSignal,
-    capPosition,
-    fixConsequence,
-    potentialStopReason,
-    nextPassAuthority: "none",
-    summaryText: `${laneText} pass ${input.admittedLogicalPass} of ${input.configuredMaxPasses}${positionText}. `
-      + `${signalText}${consequenceText}`,
+async function readProvisionalPassAssessment(
+  result: ReviewResult, proposal: ProposedDispositionSet,
+  dependencies: Pick<RespondCommandDependencies, "readConfiguredLanePolicy" | "readProvisionalPassFacts">,
+) {
+  const lane = result.kind === "frontline" ? "frontline" : "standard";
+  const configured = await dependencies.readConfiguredLanePolicy(lane);
+  // Frontline follow-up reads the pass and ceiling its outcome recorded, not the configuration current now.
+  const passPosition = result.kind === "frontline"
+    ? { admittedLogicalPass: result.outcome.pass, configuredMaxPasses: result.outcome.maxPasses }
+    : { admittedLogicalPass: result.admission.logicalPass, configuredMaxPasses: configured.maxPasses };
+  return projectProvisionalPassAssessment({
+    proposal,
+    result,
+    lane,
+    ...passPosition,
+    configuredSources: configured.sources,
+    ...(lane === "frontline" ? {} : { standardFacts: await dependencies.readProvisionalPassFacts({
+      result, proposal, configuredSources: configured.sources, configuredMaxPasses: configured.maxPasses,
+    }) }),
   });
 }
 
@@ -1878,19 +1814,7 @@ async function prepareResponseProposal(
       }
     }
     const proposal = prepareDispositionProposal(request, source);
-    const lane = source.result.kind === "frontline" ? "frontline" : "standard";
-    const configured = await dependencies.readConfiguredLanePolicy(lane);
-    // Frontline follow-up reads the pass and ceiling its outcome recorded, not the configuration current now.
-    const passPosition = source.result.kind === "frontline"
-      ? { admittedLogicalPass: source.result.outcome.pass, configuredMaxPasses: source.result.outcome.maxPasses }
-      : { admittedLogicalPass: source.result.admission.logicalPass, configuredMaxPasses: configured.maxPasses };
-    const provisionalPassAssessment = projectProvisionalPassAssessment({
-      proposal,
-      result: source.result,
-      lane,
-      ...passPosition,
-      configuredSources: configured.sources,
-    });
+    const provisionalPassAssessment = await readProvisionalPassAssessment(source.result, proposal, dependencies);
     const reportInput = { dispositionSet: proposal.dispositionSet, producerFindings: source.findings };
     return RespondEnvelopeSchema.parse({
       schemaVersion: 1,

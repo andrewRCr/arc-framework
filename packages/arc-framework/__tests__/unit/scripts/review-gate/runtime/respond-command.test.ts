@@ -1,3 +1,4 @@
+import { provisionalPassFactsFixture } from "../../../../fixtures/provisional-pass-facts.js";
 import { describe, expect, it, vi } from "vitest";
 
 import { createHostedTerminalAttemptFixture } from "../../../../fixtures/hosted-review.js";
@@ -471,10 +472,9 @@ function dependencies(records: ReturnType<typeof fixture>) {
         },
       };
     },
-    readConfiguredLanePolicy: async (lane) => ({
-      sources: lane === "frontline" ? ["coderabbit-cli"] : ["delegated-agent"],
-      maxPasses: 2,
-    }),
+    readConfiguredLanePolicy: async lane => ({ sources: lane === "frontline" ? ["coderabbit-cli"] : ["delegated-agent"], maxPasses: 2 }),
+    readProvisionalPassFacts: async ({ result, configuredMaxPasses, configuredSources }) => provisionalPassFactsFixture({ completePasses: result.admission.logicalPass - Number(result.admission.effectiveCoverage !== "complete"),
+      ceiling: configuredMaxPasses, chainAdequate: result.admission.effectiveCoverage === "complete", delegatedAgentSelectable: configuredSources.includes("delegated-agent") }),
     captureConditionalNextPass: async (input) => ({
       authorizationId: computeConditionalPassAuthorizationId({
         ...input,
@@ -3395,7 +3395,7 @@ describe("review response command", () => {
     expect(proposal.payload.provisionalPassAssessment).toMatchObject({
       status: "provisional",
       lane: "frontline",
-      admittedLogicalPass: 1,
+      admittedLogicalPass: 1, ceilingPassCount: 1,
       configuredMaxPasses: 2,
       proposedSignal: { confirmedFindingCount: 0, maxConfirmedSeverity: null, materialFix: false },
       capPosition: "below-ceiling",
