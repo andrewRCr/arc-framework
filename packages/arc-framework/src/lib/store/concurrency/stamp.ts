@@ -45,7 +45,7 @@ function triggerEnd(lines: readonly string[]): number {
 function headingFieldsEnd(lines: readonly string[], managedFields?: readonly string[]): number {
   let position = 0;
   for (const [index, line] of lines.entries()) {
-    const key = /^\s*-\s+_(.+?):_/u.exec(line)?.[1];
+    const key = /^\s*-\s+_(.+?):_/u.exec(line)?.[1] ?? /^\s*-\s+`?(WU_Target):/u.exec(line)?.[1];
     const matches = managedFields === undefined ? /^\s*-\s+_[^_]+:_/u.test(line)
       : key !== undefined && (managedFields.includes(key) || (key === "Disposition" && lines.slice(1, index).every((prior) => prior.trim() === "")));
     if (matches) position = index;

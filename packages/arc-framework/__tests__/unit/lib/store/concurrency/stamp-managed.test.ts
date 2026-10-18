@@ -2,6 +2,14 @@ import { describe, expect, it } from "vitest";
 import { stampEntryIds } from "../../../../../src/lib/store/concurrency/stamp.js";
 
 describe("kind-managed ID placement", () => {
+  it.each(["\n", "\r\n"].flatMap(newline => ['- `WU_Target: some-unit`', '- WU_Target: some-unit (planned)']
+    .map(target => ({ newline, target }))))("stamps after the admitted legacy target $target with $newline endings", ({ newline, target }) => {
+    const config = { shape: "heading" as const, sections: ["Work Unit"], managedFields: ["Created", "WU_Target"] };
+    const content = ["## Work Unit", "", "### **Concern**", '- _Created:_ `2026-01-01`', target, "", "Unowned prose"].join(newline);
+    const stamped = stampEntryIds(content, config, () => 0);
+    expect(stamped).toContain(`${target}${newline}- _Id:_ \`00000000\`${newline}${newline}Unowned prose`);
+    expect(stampEntryIds(stamped, config, () => 0)).toBe(stamped);
+  });
   it("keeps the ID with WU_Target rather than a prose descriptor", () => {
     const config = { shape: "heading" as const, sections: ["Inbox"], managedFields: ["Created", "WU_Target"] };
     const text = '## Inbox\n\n### **Title**\n- _Created:_ `2026-01-01`\n- _WU_Target:_ `some-unit`\n\n- _Decision:_ `token` explains something\n';
