@@ -50,7 +50,11 @@ const SelectionCheckSchema = z.codec(SelectionInputSchema, z.strictObject({
   encode: check => SelectionInputSchema.parse({ ...check,
     shell: undefined, ci_only: undefined, reads_index: undefined, fixes: undefined }),
 });
-const CheckSchema = z.union([OrdinaryCheckSchema, SelectionCheckSchema]).superRefine((check, context) => {
+const CheckSchema = z.union([OrdinaryCheckSchema, SelectionCheckSchema], { error: issue => {
+  const input = issue.input;
+  if (typeof input !== "object" || input === null || !("mode" in input) || input.mode !== "selection") return undefined;
+  return issue.errors[1]?.map(problem => `${problem.path.map(String).join(".")}: ${problem.message}`).join("; ");
+} }).superRefine((check, context) => {
   if (check.shell && check.mode === "files") {
     context.addIssue({ code: "custom", path: ["mode"], message: "Shell checks require project mode." });
   }

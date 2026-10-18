@@ -837,6 +837,7 @@ design open.
 
 ## Amendments
 
-None.
+- **A1** — 2026-10-17 — task: preserve field-specific selection diagnostics through `readTypedProjectFile`.
+  _Supersedes:_ none. _Trigger:_ 3.6 segment. _Work:_ 3.R. _Revalidated:_ pending → 3.6.
 
 ---

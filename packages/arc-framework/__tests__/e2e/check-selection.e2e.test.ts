@@ -194,3 +194,41 @@ it("checks all bounded file inputs when the default merge gate cannot resolve th
   expect(JSON.parse(result.stdout).result.checks).toMatchObject([{ id: "bounded", outcome: "passed" }]);
   expect(JSON.parse(await readFile(join(root, "receipt.json"), "utf8"))).toMatchObject({ args: ["src/a.ts", "src/deleted.ts"] });
 });
+
+it("keeps unconnected selection feedback empty and excludes it from gates", async () => {
+  const root = await createDeclaredCheckRepository({ selected: { command: [process.execPath, "-e", "process.exit(19)"],
+    mode: "selection", inputs: ["**/*.md"] } });
+  repositories.push(root);
+  for (const form of [["increment"], ["segment"], ["run", "selected"]]) {
+    const result = await runArc(["check", ...form, "--json"], root);
+    expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout).result.checks).toMatchObject([
+      { id: "selected", kind: "feedback", outcome: "not selected", reason: "no files to check" },
+    ]);
+  }
+  for (const gate of ["commit", "push", "merge"]) {
+    const result = await runArc(["check", "gate", gate, "--json"], root);
+    expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout).result.checks).toEqual([]);
+  }
+});
+
+it.each([
+  ["shell", false], ["shell", true], ["fixes", false], ["ci_only", false], ["reads_index", false],
+  ["gate", "commit"], ["cache", true], ["widen", true], ["pass_paths", false],
+])("names forbidden selection %s=%j and accepts its removal", async (field, value) => {
+  const selected = { command: [process.execPath, "-e", "process.exit(19)"], mode: "selection", [field]: value };
+  const root = await createDeclaredCheckRepository({ selected });
+  repositories.push(root);
+  const refused = await runArc(["check", "run", "selected", "--json"], root);
+  expect(refused.exitCode).toBe(2);
+  const message = JSON.parse(refused.stdout).error.message;
+  expect(message).toContain(field);
+  expect(message).toContain("selection");
+  await writeFile(join(root, ".arc/system/arc-checks.yml"), JSON.stringify({ checks: {
+    selected: { command: selected.command, mode: selected.mode },
+  } }));
+  const corrected = await runArc(["check", "run", "selected", "--json"], root);
+  expect(corrected.exitCode).toBe(0);
+  expect(JSON.parse(corrected.stdout).result.checks).toMatchObject([{ outcome: "not selected", reason: "no files to check" }]);
+});
