@@ -104,8 +104,11 @@ this form**, then closes the remaining gaps. With a settled draft this is target
 exploration; without one it covers the same ground from the problem directly. The pass is discover-then-write:
 work the block for the resolved form, then write and lightly iterate (Write and save, below). If discovery
 surfaces heavier derivation than the form assumed, fire the re-entry valve per
-[resolve-planning-depth][resolve-planning-depth] § Mid-stage re-entry — re-resolve the form higher, or route to
-`draft-design` when the design direction is unshaped — rather than patch-and-limp.
+[resolve-planning-depth][resolve-planning-depth] § Mid-stage re-entry. For a form-only signal below `high`,
+re-resolve the form higher. At `high`, offer a return to discovery over the named section at the resolved form,
+the `Novel` ratchet when invention is required, or boundary assessment for separable concerns. An accepted return
+ends the loop as `re-entered`; re-run spec-review over that section, then offer a fresh loop with a fresh cap and
+the ended loop's findings as context. An unshaped design direction still routes to `draft-design`.
 
 ### Proportionality guard (all forms)
 
@@ -278,7 +281,7 @@ adversarial-review:
     - AGENT-BRIEF.PROJECT
   pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3
   fold-verification: on
-  prior-findings:  # pass two onward; omitted on pass one
+  prior-findings:  # pass two onward; fresh-loop pass one takes ended-loop findings, not folds, as context
 ```
 
 For a large target with a stable, contract-closed authored partition (segments, delivery members, or numbered spec

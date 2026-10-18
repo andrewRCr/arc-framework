@@ -100,7 +100,7 @@ adversarial-review:
     - AGENT-BRIEF.PROJECT
   pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3 (§ Exit gate)
   fold-verification: # on for planning folds; primary-side only, omitted otherwise
-  prior-findings:  # pass two onward — prior findings + applied fixes; omitted on pass one
+  prior-findings:  # pass two onward; on fresh-loop pass one only, ended-loop findings (not folds)
   authored-partition: # attention carrier only — existing contract-closed groups; omitted otherwise
   aggregate-evidence: # authored-partition aggregate only — scoped reports + complete coverage facts
   partition-map:   # partitioned pass only — named slices + ownership boundaries; omitted otherwise
@@ -108,17 +108,17 @@ adversarial-review:
 
 **Named inputs:**
 
-| Input                | Kind                  | Contents                                                       |
-| -------------------- | --------------------- | -------------------------------------------------------------- |
-| `rubric`             | per-stage             | Rubric(s) to attack, including their referents.                |
-| `artifacts`          | per-stage             | Artifact under audit plus its upstream chain.                  |
-| `orientation`        | fixed                 | Artifact-neutral briefings shared with every pass.             |
-| `pass-cap`           | `Class`-scaled        | Primary-side cap on spawned passes; not serialized.            |
-| `fold-verification`  | optional primary-side | `on` enables § Fold verification; omitted leaves it off.       |
-| `prior-findings`     | pass two onward       | Prior findings and applied fixes; omitted from the first pass. |
-| `authored-partition` | attention carrier     | Existing contract-closed groups (§ Authored-partition mode).   |
-| `aggregate-evidence` | aggregate call only   | Current scoped reports plus complete coverage facts.           |
-| `partition-map`      | partitioned pass only | Named slices + ownership boundaries (§ Novel fan-out hook).    |
+| Input                | Kind                  | Contents                                                     |
+| -------------------- | --------------------- | ------------------------------------------------------------ |
+| `rubric`             | per-stage             | Rubric(s) to attack, including their referents.              |
+| `artifacts`          | per-stage             | Artifact under audit plus its upstream chain.                |
+| `orientation`        | fixed                 | Artifact-neutral briefings shared with every pass.           |
+| `pass-cap`           | `Class`-scaled        | Primary-side cap on spawned passes; not serialized.          |
+| `fold-verification`  | optional primary-side | `on` enables § Fold verification; omitted leaves it off.     |
+| `prior-findings`     | contextual history    | Prior findings and fixes; fresh-loop exception below.        |
+| `authored-partition` | attention carrier     | Existing contract-closed groups (§ Authored-partition mode). |
+| `aggregate-evidence` | aggregate call only   | Current scoped reports plus complete coverage facts.         |
+| `partition-map`      | partitioned pass only | Named slices + ownership boundaries (§ Novel fan-out hook).  |
 
 `rubric`, `artifacts`, `orientation`, `prior-findings`, `authored-partition`, `aggregate-evidence`, and
 `partition-map` (when present) are subagent-context inputs. Serialize the inputs needed by each fresh call.
@@ -328,6 +328,14 @@ never the design holding. The re-entry and boundary offers in this gate belong t
 [amend-design][amend-design] routes the same signals through its own depth read and its ceiling, never a
 planning-workflow re-entry.
 
+**At the owning stage's `high` level.** Offer a return to shaping for the named locus, the `Class` ratchet to
+`Novel` when the design must be invented, or `assess-boundary-fit` when concerns can stand apart; never offer a
+higher level there. An accepted return ends this loop as `re-entered`. Follow
+[resolve-planning-depth's re-entry route][resolve-planning-depth]: the stage runs its own authoring or grounding
+loop and readiness again before a fresh loop with a fresh cap. Keep this loop's passes and findings in its record.
+The fresh first pass receives the ended loop's findings, not its folds, labeled as that loop's and given as context,
+not the search frontier. An unshaped derivation signal still routes upstream from `create-spec` or `generate-tasks`.
+
 **Readiness to advance.** Convergence speaks for the latest pass, not for the stage: whether a planning stage may
 close is the caller's call, and it asks whether the design holds. Once the response is complete, a stage whose folds
 are all local corrections may advance on a non-converged result, including at `cap-exhausted`; that is the design
@@ -366,7 +374,8 @@ recommendation posture and pass cap, not the meaning of material severity.
 
 **Pass two onward.** Start with a full read of the current artifact and rubric. Then use `prior-findings` and the
 primary's applied fixes to re-attack repaired loci; they are context, not the search frontier. Every pass reruns the
-full rubric over the whole artifact. Add `prior-findings` only after pass one.
+full rubric over the whole artifact. Add `prior-findings` after pass one, except for the ended-loop findings
+on a fresh first pass after an accepted return to shaping.
 
 **Final-fold residual.** After the last pass, the last fix-check round's repairs remain unattacked by a successor
 review. If no round ran, the final pass's folds remain that residual. The planning fire-points' post-settle coherence
@@ -607,10 +616,10 @@ finding needs them.
 
 The line is ground truth in, author beliefs about the artifact out.
 
-**`prior-findings` — pass two onward only.** Omit `prior-findings` on pass one. The primary's focus list and
-likely breakpoints are exactly where its blind spots can hide, so the first pass should not inherit them. For pass
-two onward, provide the prior findings and the primary's applied fixes so the fresh pass can attack the settled
-artifact and the repairs.
+**`prior-findings` — contextual history.** Omit it on pass one, except when a fresh loop follows an accepted
+return to shaping: supply the ended loop's findings, not its folds, labeled as the ended loop's and given as context
+rather than the search frontier. The primary's focus list and likely breakpoints stay excluded. For pass two onward,
+provide the prior findings and applied fixes so the fresh reviewer can attack the whole current artifact and repairs.
 
 ### Novel partitioned fan-out hook
 

@@ -895,23 +895,16 @@ copy.
   replay retain the tagged reduced report; identity refusals provide a corrected-request route. Local prompts ask
   reviewers for rubric anchors. Shared response fixtures keep the request migration outside the large test body.
 
-### `[ ]` **6.5 Offer a return to shaping where no level is higher — § 10.5**
+### `[x]` **6.5 Offer a return to shaping where no level is higher — § 10.5**
 
 - _Goal:_ Where a floor-raising signal's own stage is already at `high`, `resolve-planning-depth` § Mid-stage re-entry
   and `adversarial-review`'s exit gate offer the top-level shape — a return to shaping for the named locus, the `Class`
   ratchet to `Novel`, or `assess-boundary-fit` — and never "re-enter higher".
 
-    - A return to shaping ends the loop with the exit gate's `re-entered` stop reason; the locus goes through the stage's
-      own authoring loop — in `draft-design` the facilitated shaping step, in `create-spec` its discovery step over the
-      named section at the resolved form, at `generate-tasks` a return to grounding the named surface — then readiness
-      re-runs (in `create-spec`, spec-review over that section), and a fresh loop starts with a fresh cap.
-    - The fresh loop's first pass takes the ended loop's findings, not its folds, as `prior-findings`, labeled as the
-      ended loop's and given as context rather than the search frontier: the one exception to `adversarial-review`'s
-      rule that pass one takes none, stated there and in the `prior-findings` comment at the `draft-design`,
-      `create-spec`, and `generate-tasks` fire-points.
-    - The shape applies where the signal's stage is at `high`: `draft-design` for derivation, `create-spec` for a signal
-      about the spec's form alone, and `generate-tasks` for scale; a derivation signal at `create-spec` whose direction
-      is unshaped, or at `generate-tasks`, keeps its offer to route upstream.
+- _Outcome:_ The owning stage at `high` offers shaping, an invention ratchet, or boundary assessment. Accepted
+  shaping ends the loop, returns through that stage's authoring and readiness, and starts a fresh cap with the
+  ended loop's findings as context. All three planning call sites carry the first-pass exception; upstream
+  derivation routing and deferred Class persistence remain intact.
 
 ### `[ ]` **6.6 Align the review methods' prose to the model — § 10.6, § 10.7**
 

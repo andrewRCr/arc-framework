@@ -396,8 +396,11 @@ Don't apply edits in this step. Masked design decisions are confirmed here, not 
 
 **Re-entry valve (the loop's floor-raising back-edge):** when a finding is a floor-raising signal rather than a
 local fix, fire it per [`resolve-planning-depth`][arc-methods-rpd] § Mid-stage re-entry — a **scale** surprise
-(the grounding surface is wider than the level assumed) re-resolves `generate-tasks` higher; a **derivation**
-surprise (a masked design decision needing fresh design) routes to the spec. A merely-wrong mechanism is the
+(the grounding surface is wider than the level assumed) re-resolves `generate-tasks` higher below `high`. At
+`high`, offer a return to grounding the named surface, the `Novel` ratchet when invention is required, or boundary
+assessment for separable concerns. An accepted return ends the loop as `re-entered`; re-run the stage's grounding
+and readiness before offering a fresh loop with a fresh cap and the ended loop's findings as context. A **derivation**
+surprise (a masked design decision needing fresh design) still routes to the spec. A merely-wrong mechanism is the
 in-place case below (Revise the phase coherently → spec-propagation), not a re-entry.
 
 ### Revise the phase coherently
@@ -548,7 +551,7 @@ adversarial-review:
     - AGENT-BRIEF.PROJECT
   pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3
   fold-verification: on
-  prior-findings:  # pass two onward; omitted on pass one
+  prior-findings:  # pass two onward; fresh-loop pass one takes ended-loop findings, not folds, as context
 ```
 
 For a large target with a stable, contract-closed authored partition (segments, delivery members, or numbered spec

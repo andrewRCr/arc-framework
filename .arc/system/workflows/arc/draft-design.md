@@ -224,7 +224,7 @@ adversarial-review:
     - AGENT-BRIEF.PROJECT
   pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3
   fold-verification: on
-  prior-findings:  # pass two onward; omitted on pass one
+  prior-findings:  # pass two onward; fresh-loop pass one takes ended-loop findings, not folds, as context
 ```
 
 For a large target with a stable, contract-closed authored partition (segments, delivery members, or numbered spec
@@ -244,10 +244,12 @@ has no workspace yet, so that summary is its only record. This advisory evidence
 > `workflow-interlock`: Stop when the draft (or determinacy confirmation) is ready. Surface it for review; await
 > approval before persisting `Class` and committing the capture.
 
-**Re-entry valve (the loop's floor-raising back-edge):** if review surfaces that the design runs deeper than the
-resolved level authored, re-enter `draft-design` higher — the derivation headwater re-enters itself only — per
-[resolve-planning-depth][resolve-planning-depth] § Mid-stage re-entry: capture, ratchet, re-enter rather than
-ship a too-thin draft.
+**Re-entry valve (the loop's floor-raising back-edge):** follow
+[resolve-planning-depth's mid-stage route][resolve-planning-depth] when the design runs deeper than the resolved
+level authored. Below `high`, re-enter this derivation headwater higher. At `high`, offer a return to the facilitated
+shaping step over the named locus, from the problem and alternatives, the `Novel` ratchet when invention is required,
+or boundary assessment when concerns can stand apart. Accepting a return ends the loop as `re-entered`; re-run
+readiness after shaping, then offer a fresh loop with a fresh cap and the ended loop's findings as context.
 
 On approval, capture what the level produced and persist the resolved `Class` to the meta. The `Class` decision
 is live from the entry read — it drove this stage's depth immediately — but its `**Class:**` write lands here,
