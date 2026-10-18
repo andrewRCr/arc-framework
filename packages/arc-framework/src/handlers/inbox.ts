@@ -12,7 +12,7 @@ export interface InboxOptions { target?: string; json?: boolean }
  * @param ports - Optional service and output binding.
  */
 export async function handleInbox(list: string, options: InboxOptions, interaction?: InteractionContext, ports: InboxHandlerPorts = {}): Promise<void> {
-  const context = await openInboxRuntime("inbox", options.json === true, interaction, ports);
+  const context = await openInboxRuntime({ name: "inbox", list }, options.json === true, interaction, ports);
   if (context === null) return;
   const result = InboxResultSchema.parse(await listInbox({ list, target: options.target }, context));
   const output = inboxOutput(ports);

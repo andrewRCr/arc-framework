@@ -7,6 +7,7 @@ import { handleErrandQueue, handleErrandQueueSet } from "../../../src/handlers/e
 import { handleUserInboxList } from "../../../src/handlers/user-inbox-list.js";
 import { handleUserInboxMarkExecuteBound } from "../../../src/handlers/user.js";
 import type { InboxHandlerPorts } from "../../../src/handlers/inbox-runtime.js";
+import type { Store } from "../../../src/lib/store/contract.js";
 import { InboxResultSchema } from "../../../src/lib/inbox/types.js";
 import { RouteResultSchema } from "../../../src/lib/inbox/route.js";
 import { ErrandQueueResultSchema } from "../../../src/lib/inbox/queue.js";
@@ -16,6 +17,30 @@ function sink() {
   let stdout = "", stderr = "", exit = -1;
   return { output: { stdout: (value: string) => { stdout += value; }, stderr: (value: string) => { stderr += value; }, exit: (code: number) => { exit = code; } }, value: () => ({ stdout, stderr, exit }) };
 }
+
+it.each([
+  { name: "inbox", schema: InboxResultSchema, mode: "inbox", run: (ports: InboxHandlerPorts) => handleInbox("selected-work-item", { json: true }, undefined, ports) },
+  { name: "route", schema: RouteResultSchema, mode: "route", run: (ports: InboxHandlerPorts) => handleRoute(undefined, { to: "personal", section: "Errand" }, undefined, ports) },
+  { name: "queue listing", schema: ErrandQueueResultSchema, mode: "errand-queue", run: (ports: InboxHandlerPorts) => handleErrandQueue({ json: true }, undefined, ports) },
+  { name: "queue file", schema: ErrandQueueResultSchema, mode: "errand-queue", run: (ports: InboxHandlerPorts) => handleErrandQueueSet("/absent/request.json", undefined, ports) },
+  { name: "queue stdin", schema: ErrandQueueResultSchema, mode: "errand-queue", run: (ports: InboxHandlerPorts) => handleErrandQueueSet("-", undefined, ports) },
+])("returns the published dormant $name result before acquiring request bytes", async ({ schema, mode, run }) => {
+  const h = createInboxHarness(), out = sink();
+  const store: Store = Object.create(h.context.store) as Store;
+  Object.defineProperty(store, "capabilities", { value: { stateOffBranch: false } });
+  const before = await h.context.store.version();
+  const readFile = vi.fn(async () => { throw new Error("Dormant commands consume no file"); });
+  const readStdin = vi.fn(async () => { throw new Error("Dormant commands consume no stdin"); });
+  await run({ store, cwd: "/repo", output: out.output, readFile, readStdin });
+  const result: unknown = JSON.parse(out.value().stdout);
+  assertSchemaAccepts(schema, result);
+  expect(result).toMatchObject({ schemaVersion: 1, mode, state: "refused", code: "unsupported" });
+  if (mode === "inbox") expect(result).toMatchObject({ list: "selected-work-item" });
+  expect(out.value().exit).toBe(1);
+  expect(readFile).not.toHaveBeenCalled();
+  expect(readStdin).not.toHaveBeenCalled();
+  expect(await h.context.store.version()).toEqual(before);
+});
 
 it.each([
   { name: "inbox", mode: "inbox", state: "listed", run: (ports: InboxHandlerPorts) => handleInbox("personal", { json: true }, undefined, ports) },

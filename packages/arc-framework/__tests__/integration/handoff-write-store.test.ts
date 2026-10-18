@@ -214,7 +214,9 @@ it("refuses before the flip naming SESSION-NOTES without reading the request or 
   selected.store = store; process.chdir(h.cwd);
   try {
     await dispatchRegisteredCli(["handoff", "write", "/absent/request.json"]);
-    expect(JSON.parse(output)).toMatchObject({ status: "refused", refusal: { code: "unsupported", remedy: { text: expect.stringContaining("SESSION-NOTES") } } });
+    const result = HandoffWriteResultSchema.parse(JSON.parse(output));
+    expect(result).toMatchObject({ status: "refused", refusal: { code: "unsupported-handoff", class: "recoverable", remedy: { text: expect.stringContaining("SESSION-NOTES") } } });
+    expect(process.exitCode).toBe(1);
     expect(lifecycleSuccess(await h.store.version())).toBe(before);
   } finally { process.chdir(cwd); process.exitCode = exitCode; capture.mockRestore(); selected.store = undefined; }
 });

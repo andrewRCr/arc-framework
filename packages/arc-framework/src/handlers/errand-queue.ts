@@ -8,7 +8,7 @@ import { openInboxRuntime, readInboxCommandInput, inboxOutput, type InboxHandler
  * @param ports - Optional service/runtime binding.
  */
 export async function handleErrandQueue(options: { json?: boolean }, interaction?: InteractionContext, ports: InboxHandlerPorts = {}): Promise<void> {
-  const context = await openInboxRuntime("errand queue", options.json === true, interaction, ports);
+  const context = await openInboxRuntime({ name: "errand queue" }, options.json === true, interaction, ports);
   if (context === null) return;
   emitQueue(ErrandQueueResultSchema.parse(await listErrandQueue(context)), options.json === true, ports);
 }
@@ -18,7 +18,7 @@ export async function handleErrandQueue(options: { json?: boolean }, interaction
  * @param ports - Optional service/request/output binding.
  */
 export async function handleErrandQueueSet(file: string, interaction?: InteractionContext, ports: InboxHandlerPorts = {}): Promise<void> {
-  const context = await openInboxRuntime("errand queue set", true, interaction, ports);
+  const context = await openInboxRuntime({ name: "errand queue set" }, true, interaction, ports);
   if (context === null) return;
   let request: unknown;
   try { request = JSON.parse(await readInboxCommandInput(file, ports)); }

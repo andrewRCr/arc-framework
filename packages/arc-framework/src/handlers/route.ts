@@ -11,7 +11,7 @@ export interface RouteOptions { from?: string; expectedVersion?: string; to: str
  * @param ports - Optional store, request, identity and output binding.
  */
 export async function handleRoute(entryId: string | undefined, options: RouteOptions, interaction?: InteractionContext, ports: InboxHandlerPorts = {}): Promise<void> {
-  const context = await openInboxRuntime("route", true, interaction, ports);
+  const context = await openInboxRuntime({ name: "route" }, true, interaction, ports);
   if (context === null) return;
   let content: string | undefined;
   try { content = entryId === undefined ? await readInboxCommandInput("-", ports) : undefined; }
