@@ -701,6 +701,8 @@ export async function readRoutedObligation(
           settings,
           planId: reservation.target.planId,
           target: firstTarget,
+          coverage: firstOutstanding.requestCoverage ?? judgment?.coverage ?? "complete",
+          ...(firstOutstanding.correctionScope === undefined ? {} : { correctionScope: firstOutstanding.correctionScope }),
           ...(judgment?.sourceId === undefined ? {} : { sourceId: judgment.sourceId }),
         });
         const dischargeArgs = { reservation, baseRevision: firstTarget.baseRevision, approvedHead: firstTarget.headSha,

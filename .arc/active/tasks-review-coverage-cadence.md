@@ -267,13 +267,12 @@ first, then in the `.arc/` copy by targeted edit.
 - _Goal:_ A fix check's chunk measure counts its own range, `predecessorHeadSha..headSha`, on and off the delivery
   path, taken once the pass's coverage is known, while a complete pass and a first pass measure the whole target.
 
-    - `[ ]` **2.2.a Measure on the delivery path after the coverage choice**
-        - Status passes the chosen coverage and its correction scope to `resolveDeliveryMemberScopeSelection`
-          (`status-delivery-scope.ts`, called from `status-composition.ts`), which counts the fix range for a fix check
-          and the whole member for a complete pass; local prepare's re-check measures the same way.
-        - Build `test-first` (one behavior at a time):
-            - A fix check on a large member with a small fix range is not chunked.
-            - A complete pass on the same member measures the whole member.
+    - `[x]` **2.2.a Measure on the delivery path after the coverage choice**
+        - Status passes selected coverage and correction scope to the chunk measure. Fix checks count the predecessor
+          head through the current head; complete passes count the whole member, and missing fix ranges refuse.
+        - Three unit cases and a real-Git integration case distinguish a two-line fix from its 100-line member. Narrow
+          reconstruction demonstrated the complete-range preservation and real-Git assertions fail before restoration;
+          the fix-range and missing-scope cases failed against the original implementation.
 
     - `[ ]` **2.2.b Measure off the delivery path in the workflows**
         - `prepare-work-unit` and `integrate-work-unit`'s singleton route measure after the pick and before the call that
