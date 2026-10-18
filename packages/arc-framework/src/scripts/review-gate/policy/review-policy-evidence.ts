@@ -1,5 +1,6 @@
 /** Evidence composition for terminal review-policy attempts. */
 
+import type { ReviewNextPassContext } from "./review-next-pass-schema.js";
 import { canonicalize } from "../../../lib/kernel/index.js";
 
 import { validateReviewTarget } from "../core/gate-contract-v2.js";
@@ -38,6 +39,7 @@ import { reconcileReviewFallbackAttempts, reconcileReviewSourceInvocation } from
 export interface EvidenceBoundReviewPolicyDependencies {
   readonly sources: readonly string[];
   readonly maxPasses: number;
+  readonly nextPassContext?: ReviewNextPassContext;
   readonly resultReader: ReviewResultReader;
   readonly dispositionStore: ApprovedDispositionRecordStore;
   readonly confirmTarget: (attemptedTarget: ReviewResult["target"])
@@ -380,8 +382,9 @@ async function deriveVerifiedTerminalSignal(
 /** The repository-proven subject facts the owning composition supplied, as reducer request fields. */
 function provenSubjectFacts(
   dependencies: EvidenceBoundReviewPolicyDependencies,
-): { frontlinePhaseClosed?: true; errandVehicle?: true } {
+): { frontlinePhaseClosed?: true; errandVehicle?: true; nextPassContext?: ReviewNextPassContext } {
   return {
+    ...(dependencies.nextPassContext === undefined ? {} : { nextPassContext: dependencies.nextPassContext }),
     ...(dependencies.frontlinePhaseClosed === true ? { frontlinePhaseClosed: true } : {}),
     ...(dependencies.errandVehicle === true ? { errandVehicle: true } : {}),
   };
@@ -499,14 +502,14 @@ function continuationChoice(input: {
  * @param dependencies - Repository-bound evidence readers and configured policy.
  * @returns The terminal policy result, or the authorized successor after performed response.
  */
-export async function resolveEvidenceBoundReviewPolicyContinuation(
+export async function bindReviewPolicyContinuationEvidence(
   input: unknown,
   response: {
     readonly terminalResponsePerformed: boolean;
     readonly coverageSelected?: boolean;
   },
   dependencies: EvidenceBoundReviewPolicyDependencies,
-): Promise<ReviewResolveEnvelope> {
+): Promise<ReviewPolicyRequest> {
   const request = ReviewPolicyCommandRequestSchema.parse(input);
   const terminalOutcome = request.attempts.at(-1)?.outcome;
   const terminalRequest = terminalOutcome === "findings" || terminalOutcome === "clean"
@@ -541,7 +544,9 @@ export async function resolveEvidenceBoundReviewPolicyContinuation(
         ...boundTerminal,
         additionalPassAuthorization: request.additionalPassAuthorization,
       });
-  if (additionalPass?.state === "invalid-override") return additionalPass;
+  if (additionalPass?.state === "invalid-override") return {
+    ...boundTerminal, additionalPassAuthorization: request.additionalPassAuthorization,
+  };
   // A settled outcome alone does not prove that the current findings response was performed.
   const currentResponsePerformed = await responsePerformedForTerminal(
     terminalAttempt, response.terminalResponsePerformed, resultReader, dependencies,
@@ -550,14 +555,26 @@ export async function resolveEvidenceBoundReviewPolicyContinuation(
     terminal, additionalPass, terminalOutcome: terminalAttempt?.outcome,
     currentResponsePerformed, coverageSelected: response.coverageSelected === true,
   });
-  if (choice === "terminal") return terminal;
-  if (choice === "additional" && additionalPass !== null) return additionalPass;
-  return resolveReviewPolicy({
+  if (choice === "terminal") return boundTerminal;
+  if (choice === "additional" && additionalPass !== null) return {
+    ...boundTerminal, additionalPassAuthorization: request.additionalPassAuthorization,
+  };
+  return ReviewPolicyRequestSchema.parse({
     ...request,
     attempts: [],
     sources: dependencies.sources,
     maxPasses: dependencies.maxPasses,
+    ...provenSubjectFacts(dependencies),
   });
+}
+
+/** Resolve the evidence-bound terminal or its authorized successor through the policy reducer. */
+export async function resolveEvidenceBoundReviewPolicyContinuation(
+  input: unknown,
+  response: { readonly terminalResponsePerformed: boolean; readonly coverageSelected?: boolean },
+  dependencies: EvidenceBoundReviewPolicyDependencies,
+): Promise<ReviewResolveEnvelope> {
+  return resolveReviewPolicy(await bindReviewPolicyContinuationEvidence(input, response, dependencies));
 }
 
 /**

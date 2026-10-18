@@ -29,6 +29,9 @@ import {
 } from "./review-terminus.js";
 import { StandardReviewObligationProjectionSchema } from "./standard-review-projection-schema.js";
 import { HostedRequestEnvelopeSchema } from "../hosted/request.js";
+import { REVIEW_SOURCE_CAPABILITIES, sourceDiagnostic } from "./review-source-eligibility.js";
+export { sourceDiagnostic } from "./review-source-eligibility.js";
+import { ReviewNextPassContextSchema, validateReviewNextPassContext } from "./review-next-pass-schema.js";
 import { errandFirstPassHostedRequest } from "./review-errand-hosted-request.js";
 
 import {
@@ -295,6 +298,7 @@ export const ReviewPolicyRequestSchema = z.strictObject({
   sources: z.array(ReviewSourceIdSchema).readonly(),
   maxPasses: ReviewPassSchema,
   verifiedTerminalSignal: VerifiedTerminalReviewSignalSchema.optional(),
+  nextPassContext: ReviewNextPassContextSchema.optional(),
   /** Repository-proven settlement of the terminal findings response; never a command input. */
   terminalResponseSettled: z.literal(true).optional(),
   /** Repository-proven closure of the subject's opening frontline phase; the standard lane ignores it. */
@@ -304,6 +308,7 @@ export const ReviewPolicyRequestSchema = z.strictObject({
 }).superRefine((request, context) => {
   validateTerminalPassProgress(request, context);
   validateVerifiedTerminalSignal(request, context);
+  validateReviewNextPassContext(request, context);
   validateTerminalResponseSettlement(request, context);
   if (request.lane === "standard" && request.invocation?.mode === "skip") {
     context.addIssue({
@@ -554,41 +559,6 @@ export const ReviewResolveEnvelopeSchema = z.discriminatedUnion("state", [
 export type ReviewResolveEnvelope = z.infer<typeof ReviewResolveEnvelopeSchema>;
 
 type ReviewDiagnostic = ReviewResolveEnvelope["diagnostics"][number];
-type ReviewNextAction = Extract<ReviewResolveEnvelope, { state: "ready" }>["nextAction"];
-
-interface ReviewSourceCapability {
-  lanes: readonly ReviewPolicyRequest["lane"][];
-  scopes: readonly z.infer<typeof ReviewScopeModeSchema>[];
-  requiresPullRequest: boolean;
-  nextAction: ReviewNextAction;
-}
-
-const REVIEW_SOURCE_CAPABILITIES: Readonly<Record<string, ReviewSourceCapability>> = {
-  "coderabbit-cli": {
-    lanes: ["frontline"],
-    scopes: ["whole-target"],
-    requiresPullRequest: false,
-    nextAction: "run-frontline",
-  },
-  "coderabbit-pr": {
-    lanes: ["standard"],
-    scopes: ["whole-target"],
-    requiresPullRequest: true,
-    nextAction: "hosted-request",
-  },
-  "codex-pr": {
-    lanes: ["standard"],
-    scopes: ["whole-target"],
-    requiresPullRequest: true,
-    nextAction: "hosted-request",
-  },
-  "delegated-agent": {
-    lanes: ["standard"],
-    scopes: ["whole-target", "chunked"],
-    requiresPullRequest: false,
-    nextAction: "local-prepare",
-  },
-};
 
 function resolveEnvelope(
   body: Omit<ReviewResolveEnvelope, "schemaVersion" | "mode" | "diagnostics">,
@@ -600,29 +570,6 @@ function resolveEnvelope(
     diagnostics,
     ...body,
   });
-}
-
-/** Describe a registered source's eligibility for one lane, scope, and target. */
-export function sourceDiagnostic(
-  sourceId: string,
-  lane: ReviewPolicyRequest["lane"],
-  scope: z.infer<typeof ReviewScopeModeSchema>,
-  pullRequest: number | null,
-): ReviewDiagnostic | null {
-  const capability = REVIEW_SOURCE_CAPABILITIES[sourceId];
-  if (capability === undefined) {
-    return { code: "unknown-source", message: `Review source '${sourceId}' has no registered capability.` };
-  }
-  if (!capability.lanes.includes(lane)) {
-    return { code: "source-lane-ineligible", message: `Review source '${sourceId}' cannot satisfy the ${lane} lane.` };
-  }
-  if (!capability.scopes.includes(scope)) {
-    return { code: "source-scope-ineligible", message: `Review source '${sourceId}' cannot satisfy ${scope} scope.` };
-  }
-  if (capability.requiresPullRequest && pullRequest === null) {
-    return { code: "source-awaits-change-request", message: `Review source '${sourceId}' requires a pull request.` };
-  }
-  return null;
 }
 
 /** Skip advisory frontline when all-ineligible sources include a scope decline; an unregistered one keeps the stop. */

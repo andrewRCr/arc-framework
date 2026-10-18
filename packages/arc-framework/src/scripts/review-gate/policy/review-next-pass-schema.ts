@@ -10,3 +10,14 @@ export const ReviewNextPassContextSchema = z.strictObject({
 }).readonly();
 export type ReviewNextPassContext = z.infer<typeof ReviewNextPassContextSchema>;
 
+
+/** Refuse standard-only derived facts on the opening frontline lane. */
+export function validateReviewNextPassContext(
+  request: { readonly lane: "frontline" | "standard"; readonly nextPassContext?: ReviewNextPassContext },
+  context: z.RefinementCtx,
+): void {
+  if (request.lane === "frontline" && request.nextPassContext !== undefined) {
+    context.addIssue({ code: "custom", path: ["nextPassContext"],
+      message: "next-pass context can be applied only to the standard lane" });
+  }
+}

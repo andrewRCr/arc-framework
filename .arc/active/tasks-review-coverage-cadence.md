@@ -46,20 +46,9 @@ The confirmation map is in `notes-review-coverage-cadence.md` § Chain confirmat
         - Added shared convergence, response-due, and fix-check scope derivation. Historical and current correction
           legs retain site grounds and prove change-set fixes through the performed response; delivery keeps its proof.
 
-    - `[ ]` **1.1.c Carry the context through the driver's request and the evidence binders**
-        - `ReviewPolicyRequestSchema` (`review-policy-driver.ts`) takes the context beside `sources` and `maxPasses`;
-          a frontline request carrying it is refused, as `terminus` is off the standard lane. The command request
-          schema and `run-errand`'s hand-built request stay as they are. The driver sits at its file-length limit, so
-          the handling of its new inputs moves into a module of its own.
-        - `bindReviewPolicyEvidence`'s two parse sites (`review-policy-evidence.ts`) carry it, and so do the
-          continuation's additional-pass resolve and its fresh resolve, which today rebuilds the request as
-          `{ ...request, attempts: [], sources, maxPasses }` and drops every proven fact. On the frontline lane the
-          binders carry none.
-        - Build `test-first` (one behavior at a time):
-            - A bound terminal request, a continuation's fresh successor, and its additional-pass successor reach the
-              driver with the context the caller derived.
-            - A frontline request carrying the context is refused; one without it resolves unchanged.
-            - The command request refuses the context as an unknown field.
+    - `[x]` **1.1.c Carry the context through the driver's request and the evidence binders**
+        - Bound the internal standard-lane context through terminal, fresh, and additional-pass requests; frontline
+          rejects it and the stored command schema remains unchanged. Extracted source eligibility from the driver.
 
     - `[ ]` **1.1.d Derive it in Errand status and the `arc review resolve -` handler**
         - Errand status (`status-errand.ts`): `resolveErrandLaneAtHead`, whose callers `readErrandRoutedObligation` and
