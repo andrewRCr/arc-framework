@@ -5,7 +5,42 @@ import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store
 import { createStoreSyncPort } from "../../../../src/lib/store/operational-sync.js";
 import { recordReferences } from "../../../../src/lib/store/identity.js";
 import { renderMetaFile } from "../../../../src/lib/store/kinds/meta/writers.js";
+import { createMemoryRemote } from "../../../helpers/store/sync.js";
+import { ReferenceBackend } from "../../../helpers/store/reference-backend.js";
 afterEach(() => { vi.restoreAllMocks(); process.exitCode = undefined; });
+it("refuses a disputed named primary while preserving healthy and missing queries, then resumes after resolution", async () => {
+  const h = createLifecycleHarness(), meta = await h.seedMeta("demo", { owner: "starter", state: "Planning", currentWorkflow: "draft-design" });
+  await h.seedMeta("healthy");
+  const remote = createMemoryRemote(); h.store.context.publication.remote = remote;
+  lifecycleSuccess(await h.store.sync());
+  const other = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
+  for (const [store, owner] of [[h.store, "alice"], [other, "bob"]] as const) {
+    const prior = lifecycleSuccess(await store.read({ reference: meta.reference }));
+    lifecycleSuccess(await store.write({ action: "put", reference: prior.reference, expected: prior.version,
+      content: renderMetaFile("demo", { owner, state: "Planning", currentWorkflow: "draft-design" }), placement: { kind: "active" },
+      provenance: { verb: "test", lifecycleAction: "update" } }));
+  }
+  lifecycleSuccess(await h.store.sync());
+  const disputed = lifecycleSuccess(await h.store.read({ reference: meta.reference }));
+  expect(disputed.conflicts.length).toBeGreaterThan(0);
+  const output = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+  const query = async (slug: string) => {
+    output.mockClear();
+    await handleLifecycleStatus("/current", async () => { throw new Error("Injected ports own local reads"); }, slug, { json: true }, h.store,
+      { findHoldingCheckout: async () => "/holder", readInFlightWarnings: async () => [] });
+    return JSON.parse(String(output.mock.calls[0]?.[0])) as Record<string, unknown>;
+  };
+  expect(await query("healthy")).toMatchObject({ state: "active" });
+  expect(await query("missing")).toMatchObject({ state: "nonexistent" });
+  const result = await query("demo");
+  expect(result).toMatchObject({ status: "refused", refusal: { class: "recoverable", remedy: { text: expect.stringMatching(/resolve.*retry/isu) } } });
+  expect(result).not.toHaveProperty("owner"); expect(result).not.toHaveProperty("purpose"); expect(result).not.toHaveProperty("state");
+  for (const reference of disputed.conflicts) expect(JSON.stringify(result)).toContain(JSON.stringify(reference).replaceAll('"', '\\"'));
+  lifecycleSuccess(await h.store.write({ action: "put", reference: disputed.reference, expected: disputed.version,
+    content: disputed.content, placement: { kind: "active" }, links: disputed.links, resolves: disputed.conflicts,
+    provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
+  expect(await query("demo")).toMatchObject({ state: "planning", occupied: true, worktreePath: "/holder" });
+});
 it("adds an anchored holder, in-flight warnings and fetch reachability without changing lifecycle fields", async () => {
   const h = createLifecycleHarness(); await h.seedMeta("demo", { owner: "alice" });
   const output = vi.spyOn(process.stdout, "write").mockReturnValue(true);

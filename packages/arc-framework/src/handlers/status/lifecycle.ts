@@ -207,6 +207,12 @@ async function handleStoreLifecycleStatus(store: Store, slug: string, opts: Stat
     renderStoreQueryRefusal(record.refusal, opts);
     return;
   }
+  if (record.status === "ok" && record.result.conflicts.length > 0) {
+    renderStoreQueryRefusal({ code: "record-malformed", class: "recoverable", reference: record.result.reference,
+      rule: "lifecycle.meta-conflict", condition: `The named work-unit primary has unresolved conflicts: ${record.result.conflicts.map((reference) => JSON.stringify(reference)).join(", ")}.`,
+      remedy: { text: "Resolve the named conflict records, then retry this status query." } }, opts);
+    return;
+  }
   const query = resolveSlugQuery(view.result.index, record.status === "ok" ? record.result.reference.owner.name : slug);
   const fields = record.status === "ok" ? ParsedMetaRecordSchema.safeParse(record.result.fields) : undefined;
   const design = record.status === "ok" ? await readLifecycleDesign(store, record.result) : { content: null, warnings: [] };
