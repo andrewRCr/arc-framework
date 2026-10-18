@@ -861,7 +861,7 @@ copy.
   round. Successor approval or unused capacity never supports declining a check; rounds converge first, and
   `prior-findings` supplies context rather than evidence of repair verification.
 
-### `[ ]` **6.3 Render every review report in one shape — § 10.3**
+### `[x]` **6.3 Render every review report in one shape — § 10.3**
 
 - _Goal:_ An adversarial pass, a fix-check round, and a code-review findings round each render one shape — header line,
   a `#` / `Grade` / `Finding` / `Action` table, sections per finding with `**Fails:**`, one Decisions block, and a
@@ -878,10 +878,10 @@ copy.
           convergence. Code review distinguishes the computed trend and performed-round signals from forecast tags
           and the agent's origin reading; sustained new design calls for the Owner's amendment decision.
 
-    - `[ ]` **6.3.c Render the shape in `adversarial-review`**
-        - Its report gains the header, table, sections, Decisions block, and loop reading, new-design folds leading
-          within a grade, and its report schema gains a `fails` field per finding naming the rubric item it fails in the
-          review's own terms, `none` with its reason.
+    - `[x]` **6.3.c Render the shape in `adversarial-review`**
+        - The evaluator schema carries each finding's rubric anchor or reason for none. Primary-facing passes and
+          fix-check rounds use the shared header, tagged table, sections, Decisions block, and advisory loop reading;
+          canonical labels precede display sorting and provisional convergence waits for disposition approval.
 
 ### `[ ]` **6.4 Carry the agent's report inputs on respond, keeping only the tags, as an advisory note — § 10.4**
 

@@ -138,6 +138,7 @@ findings:
     locus:      # the specific passage, file, symbol, or diff region at issue
     evidence:   # paths + source-grounded observations
     rationale:  # why it breaks, or what two competent engineers would build differently
+    fails:      # supplied rubric item it fails, in the review's terms; none with its reason
 
 withstood:
   - # decision-relevant claim or region examined with no finding to report
@@ -238,8 +239,21 @@ reads.
 finding: fix it in place, carry it forward durably, or drop it. The primary assigns disposition only after source
 verification and obtains approval for the complete set before any finding-driven response.
 
-**Presenting the set.** Present the verified set by the [disposition-report][disposition-report] method, with a fix in
-place as `FIX`, a durable carry-forward as `DEFER`, a drop as `REJECT`, and a refuted finding as `Not supported`.
+**Presenting the set.** Render each pass and fix-check round through [disposition-report][disposition-report]: the
+header, `#` / `Grade` / `Finding` / `Action` table, one Decisions block, and a section per finding with its status,
+Finding, Fails, Action, and Detail. A fix in place is `FIX`, durable carry-forward `DEFER`, a drop `REJECT`, and a refuted
+finding `Not supported`. Assign canonical labels before displaying new-design folds first within their grade.
+
+Supply a `Pass N of M` header for a complete pass, or `Fix check, round R since pass N` for a round. State the result —
+converged, not converged, or the stop reason — and finding counts by verified grade; mark the result provisional until
+the complete disposition set is approved. Keep unsupported findings ungraded. Each Fails field names the supplied
+rubric item in its own terms, or `none` with the source-verified reason, and the primary verifies it with the finding.
+
+Put every ask in the Decisions block: complete-set approval, open questions, the fix-check offer, and the separate
+successor-pass recommendation, each with its recommendation. After the finding sections, render the material trend,
+origins, and new-design counts with one advisory [loop reading][review-model-loop] and its rationale. Planning counts
+come from the pass record, including each fix-check round, while the header and approval retain their own look's
+convergence. The same shape applies to a first pass, a successor pass, and a fix-check round.
 
 Disposition is orthogonal to severity: any severity can be fixed, carried forward, or dropped. Disposing a finding
 settles the approved response backlog; it does not rewrite what the pass surfaced. Carry-forward is therefore not a
@@ -649,3 +663,4 @@ the same source verification, disposition, and exit-gate rules as a standard pas
 [mutation-guard]: ../rules/DEV-RULES.ARC.md#review-finding-mutation-guard
 
 [review-model]: review-model.md
+[review-model-loop]: review-model.md#loop-reading
