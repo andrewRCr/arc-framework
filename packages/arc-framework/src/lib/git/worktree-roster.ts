@@ -41,8 +41,8 @@ export const WorktreeRosterStateSchema = z.union([WorkUnitStateSchema, z.literal
 export type WorktreeRosterState = z.infer<typeof WorktreeRosterStateSchema>;
 
 /**
- * One worktree-roster entry. `branch` is always populated — detached-HEAD
- * worktrees are excluded from the result entirely. Meta-derived fields
+ * One physical registration. Store-backed rows may be detached and carry
+ * authoritative placement. The legacy roster includes only branched worktrees. Meta-derived fields
  * (`identity`, `metaFilePath`, `state`, `cohort`, `class`, `priority`,
  * `dependsOn`) are absent when no meta file resolves for the worktree.
  */
@@ -50,6 +50,7 @@ export const WorktreeRosterEntrySchema = z.strictObject({
   worktreePath: z.string(),
   branch: z.string().optional(),
   workUnit: z.string().optional(),
+  placement: z.enum(["active", "backlog", "completed"]).optional(),
   identity: z.string().optional(),
   metaFilePath: z.string().optional(),
   state: WorktreeRosterStateSchema.optional(),
@@ -59,6 +60,12 @@ export const WorktreeRosterEntrySchema = z.strictObject({
   dependsOn: z.array(z.string()).readonly().optional(),
 });
 export type WorktreeRosterEntry = z.infer<typeof WorktreeRosterEntrySchema>;
+
+/** Select logical work-unit rows while excluding known inactive placement and administrative checkouts. */
+export function isInFlightWorkUnitRosterEntry(entry: WorktreeRosterEntry): boolean {
+  return (entry.workUnit !== undefined || entry.metaFilePath !== undefined)
+    && (entry.placement === undefined || entry.placement === "active");
+}
 
 /**
  * Filesystem adapter — injected for unit testability. Production callers
@@ -478,6 +485,7 @@ async function runStoreRoster(store: Store, worktrees: readonly GitWorktreePorce
       if (read.status === "refused") { warnings.push(`${worktree.path}: ${read.refusal.condition}`); return entry; }
       if (read.result.conflicts.length > 0) throw new Error(
         `The work-unit primary has unresolved conflicts: ${read.result.conflicts.map(reference => JSON.stringify(reference)).join(", ")}. Resolve the named conflict records, then retry the roster.`);
+      if (read.result.placement !== undefined) entry.placement = read.result.placement.kind;
       Object.assign(entry, storeRosterFields(ParsedMetaRecordSchema.parse(read.result.fields)));
     } catch (error) { warnings.push(`${worktree.path}: ${error instanceof Error ? error.message : String(error)}`); }
     return entry;

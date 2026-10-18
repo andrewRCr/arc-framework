@@ -63,6 +63,6 @@ it("lists detached marked Planning work with its store owner while no checkout h
       `worktree ${holder}`, `HEAD ${"b".repeat(40)}`, "detached", "", ""].join("\0") }),
     fs: { readdir: async () => [], readFile: async () => { throw new Error("No checkout metadata"); } } });
   expect(roster.entries).toEqual([{ worktreePath: cwd, branch: "main" }, { worktreePath: holder,
-    workUnit: reference.owner.name, identity: "andrew", state: "Planning", class: fields.workClass, priority: fields.priority }]);
+    workUnit: reference.owner.name, placement: "active", identity: "andrew", state: "Planning", class: fields.workClass, priority: fields.priority }]);
   expect(filterRosterByIdentity(roster, { identity: "someone-else", teamMode: true }).entries).toEqual([{ worktreePath: cwd, branch: "main" }]);
 });

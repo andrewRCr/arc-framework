@@ -12,7 +12,7 @@
 
 import { validateClass } from "../kernel/schema/vocabulary.js";
 import { classComposition, type ClassComposition } from "../status/class-composition.js";
-import type { WorktreeRosterEntry } from "../git/worktree-roster.js";
+import { isInFlightWorkUnitRosterEntry, type WorktreeRosterEntry } from "../git/worktree-roster.js";
 
 /**
  * Tally the resolved `Class` composition over the in-flight roster slice.
@@ -28,8 +28,10 @@ import type { WorktreeRosterEntry } from "../git/worktree-roster.js";
 export function resolveInFlightComposition(
   entries: readonly WorktreeRosterEntry[],
 ): ClassComposition | null {
-  if (entries.length === 0) return null;
-  const rows = entries.map((e) => ({
+  // Legacy degraded tuples have no placement; retain their existing tally.
+  const active = entries.filter(entry => entry.placement === undefined || isInFlightWorkUnitRosterEntry(entry));
+  if (active.length === 0) return null;
+  const rows = active.map((e) => ({
     workUnit: e.workUnit ?? e.branch ?? e.worktreePath,
     class: validateClass(e.class ?? null),
   }));

@@ -14,6 +14,7 @@
 
 import {
   filterRosterByIdentity,
+  isInFlightWorkUnitRosterEntry,
   runWorktreeRoster,
   type WorktreeRosterEntry,
   type WorktreeRosterFs,
@@ -53,6 +54,6 @@ export async function runActiveRoster(
   const filtered = filterRosterByIdentity(roster, { identity, teamMode });
   // Narrow to actual work units: admin / main / meta-less checkouts carry no
   // meta file and are not in-flight work to weigh for scope overlap.
-  const entries = filtered.entries.filter((e) => e.workUnit !== undefined || e.metaFilePath !== undefined);
+  const entries = filtered.entries.filter(isInFlightWorkUnitRosterEntry);
   return { entries, warnings: filtered.warnings };
 }

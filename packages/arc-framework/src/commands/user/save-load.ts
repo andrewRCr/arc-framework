@@ -14,7 +14,7 @@ import {
   type SkipWarning,
   type SyncManifest,
 } from "../../lib/git/index.js";
-import { runWorktreeRoster } from "../../lib/git/worktree-roster.js";
+import { isInFlightWorkUnitRosterEntry, runWorktreeRoster } from "../../lib/git/worktree-roster.js";
 import { ensureDir } from "../../lib/template/index.js";
 import {
   acquireAdvisoryLock,
@@ -1134,7 +1134,7 @@ async function resolveSameMachineInFlightSubdirs(
   }
 
   for (const entry of roster.entries) {
-    if ((entry.workUnit === undefined && entry.metaFilePath === undefined) || entry.state === "Shipped") continue;
+    if (!isInFlightWorkUnitRosterEntry(entry) || entry.state === "Shipped") continue;
     const wuName = entry.workUnit ?? (entry.metaFilePath === undefined ? null : wuNameFromMetaFilePath(entry.metaFilePath));
     if (wuName !== null && candidates.has(wuName)) inFlight.add(wuName);
   }
