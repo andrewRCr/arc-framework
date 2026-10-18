@@ -1,5 +1,11 @@
 /** Store-held materialization supports released, paused and branchless work without a state write. */
 import { describe, expect, it } from "vitest";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { writeWorktreeMarker, resolveWorktreeMarkerPath } from "../../../../src/lib/git/worktree-marker.js";
+import { createLocusPorts } from "../../../../src/lib/locus/lifecycle-ports.js";
+import { makeWorktreeOccupancyGuard } from "../../../../src/lib/work-unit/lifecycle-guards.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { makeGitProcessError } from "../../../helpers/git-exec-fake.js";
 import { runMaterialize } from "../../../../src/lib/work-unit/verbs/materialize.js";
@@ -121,4 +127,41 @@ it.each(["listing", "occupancy"])("refuses handover during %s before claiming an
   expect((await h.read()).fields).toMatchObject({ owner: "successor", state: "Planning" });
   expect(await runMaterialize(h.ctx, { ...request, identity: "successor", spawningIdentity: "successor" }))
     .toMatchObject({ status: "materialized" });
+});
+
+it.each([undefined, "feat/demo"])("reports the occupied checkout before unreadable Git for branch %s and permits repair", async (branch) => {
+  const cwd = await mkdtemp(join(tmpdir(), "arc-materialize-occupancy-"));
+  try {
+    const h = await harness({ ...(branch === undefined ? {} : { branch }) });
+    await h.seedMeta("occupied", { state: "Active", owner: "starter" });
+    await writeWorktreeMarker(cwd, { spawnedByArc: false, spawningIdentity: "starter", createdAt: "2026-10-18T00:00:00Z",
+      createdFor: { kind: "work-unit", name: "occupied" } });
+    const marker = await readFile(resolveWorktreeMarkerPath(cwd), "utf8");
+    const before = lifecycleSuccess(await h.store.version());
+    const originalExec = h.ctx.exec;
+    if (originalExec === undefined) throw new Error("Git boundary required");
+    let unreadable = true;
+    const calls: string[][] = [];
+    const exec: NonNullable<ExecuteTransitionContext["exec"]> = async (command, args, options) => {
+      calls.push([...args]);
+      if (unreadable) throw makeGitProcessError({ command, args, exitCode: 128, stderr: "roster unavailable" });
+      if (args[0] === "worktree") return { stdout: `worktree ${cwd}\0HEAD ${tip}\0branch refs/heads/main\0\0` };
+      return originalExec(command, args, options);
+    };
+    h.ctx.cwd = cwd; h.ctx.exec = exec;
+    h.ctx.locusPorts = createLocusPorts({ cwd, store: h.store, exec });
+    h.ctx.guardValidators = { "worktree-occupancy": makeWorktreeOccupancyGuard({ cwd, store: h.store, identity: "starter",
+      readActiveMetaCandidates: async () => { throw new Error("Store occupancy must not read checkout metas"); } }) };
+    const request = { name: "demo", inPlace: true as const, baseBranch: "main", identity: "starter", spawningIdentity: "starter" };
+    const result = await runMaterialize(h.ctx, request);
+    expect(result).toMatchObject({ status: "rejected", reason: expect.stringContaining("arc pause occupied --reason <text>, then arc locus release occupied") });
+    expect(calls).toEqual([]);
+    expect(h.state().placement).toBeUndefined();
+    expect(lifecycleSuccess(await h.store.version())).toBe(before);
+    expect(await readFile(resolveWorktreeMarkerPath(cwd), "utf8")).toBe(marker);
+    await rm(resolveWorktreeMarkerPath(cwd)); unreadable = false;
+    expect(await runMaterialize(h.ctx, request)).toMatchObject({ status: "materialized", branch: branch ?? null, inPlace: true });
+    expect(h.state().placement).toMatchObject({ wuName: "demo", inPlace: true });
+    expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  } finally { await rm(cwd, { recursive: true, force: true }); }
 });

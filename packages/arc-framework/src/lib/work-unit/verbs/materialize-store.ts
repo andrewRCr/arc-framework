@@ -44,21 +44,21 @@ export async function runStoreMaterialize(ctx: MaterializeContext, params: Mater
   const identity = params.identity ?? params.spawningIdentity;
   if (identity === undefined) return { status: "rejected", reason: "Materialize requires the claiming identity." };
   try {
-    const held = new Map<string, string>();
-    const candidates = await listStoreMaterializable(bound, identity, held);
     const read = await readWorkUnit(ctx.store, params.name);
     if (read.status === "refused") return { status: "rejected", reason: read.refusal.condition, refusal: read.refusal };
     const name = read.result.reference.owner.name;
     if (!ownedInFlight(read.result, identity)) {
       return { status: "rejected", reason: `${name} is not owned in-flight work; refresh its ownership and lifecycle state, then retry materialize.` };
     }
+    const occupancy = await materializationOccupancy(bound, name, params.inPlace === true);
+    if (!occupancy.ok) return { status: "rejected", reason: occupancy.message, remedy: occupancy.remedy };
+    const held = new Map<string, string>();
+    const candidates = await listStoreMaterializable(bound, identity, held);
     const entry = candidates.find((item) => item.reference.owner.name === name);
     if (entry === undefined) {
       const holder = held.get(name) ?? null;
       return { status: "rejected", reason: holder === null ? `${params.name} is not an owned in-flight materialize candidate. Candidates: ${candidates.map((item) => item.reference.owner.name).join(", ") || "[none]"}.` : workUnitMarkerExit(holder, name, read.result, identity) };
     }
-    const occupancy = await materializationOccupancy(bound, name, params.inPlace === true);
-    if (!occupancy.ok) return { status: "rejected", reason: occupancy.message, remedy: occupancy.remedy };
     const chosen = selectWorkBranchLink(read.result, { repository: await ctx.projectId?.() });
     if (chosen.kind === "ambiguous") return { status: "rejected", reason: chosen.reason };
     const branch = chosen.kind === "none" ? null : workBranchName(chosen.link.ref);
