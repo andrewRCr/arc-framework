@@ -1,7 +1,8 @@
 /** Check-level policy over established changed-input observations. */
 import { expect, it } from "vitest";
 import { CheckDeclarationSchema } from "../../../../src/lib/checks/declaration.js";
-import { selectCheckInputs } from "../../../../src/lib/checks/selection.js";
+import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
+import { resolveCheckSelection, selectCheckInputs } from "../../../../src/lib/checks/selection.js";
 import type { CheckRequest } from "../../../../src/lib/checks/request.js";
 const changedPath = { path: "src/a.ts", status: "M" as const, oldMode: "100644", newMode: "100644", oldBlob: "a".repeat(40), newBlob: "b".repeat(40) };
 function selected({ own, widened = false, widen = true, ciOnly = false, request = { form: { kind: "gate", gate: "commit" } }, all = false }: {
@@ -40,4 +41,22 @@ it("bounds opt-out file checks at a default merge gate", () => {
   expect(selected({ own: "unchanged", all: true, widen: false, request })).toEqual({ status: "not selected", reason: "inputs unchanged" });
   expect(selected({ own: "unresolved", all: true, widen: false, request })).toEqual({ status: "selected" });
   expect(selected({ own: "unchanged", all: true, widen: false, request: { ...request, scope: { kind: "all" } } })).toEqual({ status: "selected" });
+});
+
+it("keeps selection inputs outside Git coverage and widening", async () => {
+  const git = scriptGitExec([{ match: { prefix: ["diff"] }, responses: [({ args }) => ({
+    stdout: args.includes(":(glob)src/**") ? "" : `:100644 100644 ${"a".repeat(40)} ${"b".repeat(40)} M\0state.md\0`,
+  })] }]).exec;
+  const io = { git, gitInput: async () => "c".repeat(40) };
+  const ordinary = { command: ["lint"], mode: "files", inputs: ["src/**"] };
+  const request: CheckRequest = { form: { kind: "increment" } };
+  const resolved = { scope: { kind: "changed" as const }, base: "a".repeat(40), tree: "b".repeat(40) };
+  const baseline = await resolveCheckSelection(io, "/repo", CheckDeclarationSchema.parse({ checks: { ordinary } }),
+    request, resolved, "checks.yml");
+  const extended = await resolveCheckSelection(io, "/repo", CheckDeclarationSchema.parse({ checks: {
+    ordinary, selected: { command: ["lint"], mode: "selection", inputs: ["**"] },
+  } }), request, resolved, "checks.yml");
+  expect(baseline.widened).toBe(true);
+  expect(extended).toEqual(baseline);
+  expect(extended.own.has("selected")).toBe(false);
 });

@@ -34,9 +34,12 @@ function quote(argument: string): string {
  * @returns A check command or the guarded Git operation
  */
 export function checkRetryCommand(input: {
-  id: string; request: CheckRequest; resolved: ResolvedCheckRequest; widenedFiles: boolean;
+  id: string; request: CheckRequest; resolved: ResolvedCheckRequest; widenedFiles: boolean; selection?: boolean;
 }): string {
   const { id, request, resolved, widenedFiles } = input;
+  if (input.selection && (request.form.kind === "increment" || request.form.kind === "segment")) {
+    return ["arc", "check", "run", id, "--changed"].map(quote).join(" ");
+  }
   if (widenedFiles && request.form.kind === "pre-commit") return "git commit";
   if (widenedFiles && request.form.kind === "pre-push") return "git push";
   const args = widenedFiles ? originalArguments(request) : ["run", id, ...scopeArguments(resolved.scope, resolved.base)];

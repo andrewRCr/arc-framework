@@ -125,56 +125,23 @@ and recovered selections produce their specified outcomes, while every gate excl
   repository-format empty-blob identity without writing objects. Failures preserve their reason as unavailable;
   real-Git coverage confirms cleanup, ambient-policy isolation, and successful retries.
 
-### `[ ]` **3.3 Resolve projected scopes independently of Git changes — D4.2–D4.3, D4.6**
+### `[x]` **3.3 Resolve projected scopes independently of Git changes — D4.2–D4.3, D4.6**
 
 - _Goal:_ One stable projected selection supplies each request's intended scope without selecting or widening any
   Git-backed check, and an unconnected provider yields the specified empty success.
 
-- _Note:_ See `notes-projected-markdown-checks.md` § Check-runner grounding for scope and supplier boundaries.
+- _Outcome:_ One injected provider read supplies each request’s projected scope, with thrown reads preserved as
+  unavailable. Named directories intersect the provider list, Git input coverage excludes selection declarations,
+  and public increment, segment, and named handlers accept a narrow provider override.
 
-    - Add `readProjectedSelection(root, { changed })` in `lib/checks/` with the exact success/unavailable union from
-      D4.6; initially return empty success unless the supplier interface has already landed, then connect there only.
-    - Inject the provider through `DeclaredCheckDependencies` and wire it in `handlers/check/run-cli.ts`; resolve it
-      once per request with requested selection checks, sharing the result and mapping reader errors to unavailable.
-      Thread an optional selection-reader dependency override through the public check handlers for in-process
-      command tests, following `handleSchemaInstall`'s existing override pattern; retain real repository/process I/O.
-    - Exclude selection entries from `resolveCheckSelection`'s own-input map and widening coverage in
-      `lib/checks/selection.ts`. Filter projected paths independently using Task 3.2's matcher.
-      Keep an unavailable match distinct from an empty match and from the request-wide selection-reader result.
-    - Build `test-first` (one behavior at a time):
-        - Increment and segment request changed paths regardless of their Git coordinates; a named run with no scope
-          or `--all` requests the whole selection; explicit paths intersect it; other scopes request changed paths.
-        - Preserve named-directory selectors' existing descendant semantics, intersected with the selection, and
-          relative operands for a check's `root`; `--ci` does not suppress a selection check.
-        - Declarations and `global_inputs` never make selection entries contribute to Git coverage or widening, and
-          adding a selection declaration leaves existing files/project selections unchanged.
-        - The provider is not read for requests containing no selection check. Unit-test the empty fallback and
-          extend `unit/lib/checks/selection.test.ts` and `unit/handlers/check/run.test.ts`.
-
-### `[ ]` **3.4 Execute projected paths without tree evidence or reuse — D4.4**
+### `[x]` **3.4 Execute projected paths without tree evidence or reuse — D4.4**
 
 - _Goal:_ Projected checks execute over live selected files on every request and preserve accurate empty, failed,
   unavailable, retry, and dry-run reporting without borrowing Git-tree evidence.
 
-    - Extend `runRequestedCheck` and its execution path in `handlers/check/run.ts`, `checkArgumentBatches`,
-      `CheckForecast`/`resolveCheckForecast`, and `checkRetryCommand` to carry selection mode throughout execution.
-    - Keep `readCheckDivergence`, `readRangeMergedInPaths`, and Git content context on the ordinary check paths only;
-      use null keys through `resolveCheckKey`'s uncached path and never record or reuse selection passes.
-    - Build `test-first` (one behavior at a time):
-        - Commands receive literal paths in bounded batches relative to `root`; repeats execute again and successful
-          outcomes are `not-recordable`, even when ordinary checks in the same request reuse their passes.
-        - Empty filtered paths report `not selected`/`no files to check`; failed feedback exits 1; an unavailable or
-          thrown provider gives every affected check `couldn't run` with its reason and request exit 2.
-        - A successful provider followed by unavailable matching reports the affected check as `couldn't run`,
-          preserving its reason and retry remedy; ordinary checks finish and retain their results, including with
-          `--serial`, and request exit 2 reflects the missing result.
-        - No selection-specific divergence, merged-in, key, runtime-input, or pass-store read occurs; unrelated checks
-          still execute with their usual evidence when selection is unavailable.
-        - Increment/segment remedies are `arc check run <id> --changed`; named-run remedies retain their original
-          scope; dry-run resolves and forecasts the same batches without executing the command.
-        - Restoring an unavailable provider permits the same request to run successfully. Extend runner, batching,
-          forecast, remedies, and report test homes rather than introducing a second check runner.
-        - Restoring failed matching also permits the same request to succeed without changing its selection scope.
+- _Outcome:_ Projected paths rejoin the existing batched executor with no tree content context or divergence
+  read. Uncached passes remain not-recordable; failed and unavailable feedback retains scope-correct retry commands,
+  ordinary serial results survive matcher failures, and dry runs forecast the same bounded literal arguments.
 
 ### `[ ]` **3.5 Publish mode help and regenerate the declaration schema — D4.5, D7.1**
 
