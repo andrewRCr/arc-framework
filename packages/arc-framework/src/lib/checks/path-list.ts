@@ -29,7 +29,8 @@ export async function matchPathList(io: PathListMatchIO, root: string, paths: re
         .toString("utf8").trim();
       if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(blob)) throw new Error("Git returned an invalid empty-blob identity.");
       const entries = [...new Set(paths)].map(path => `100644 ${blob}\t${path}\0`).join("");
-      await io.git(["update-index", "--add", "-z", "--index-info"], { ...options, input: Buffer.from(entries) });
+      // Inherited split-index cleanup can expire backing files belonging to the real index.
+      await io.git(["update-index", "--no-split-index", "--add", "-z", "--index-info"], { ...options, input: Buffer.from(entries) });
       const result = await io.git(["ls-files", "-z", "--", ...inputPathspecs(inputs)], options);
       const output = Buffer.from(result.stdout).toString("utf8");
       return { status: "ok", paths: output.split("\0").filter(Boolean) };

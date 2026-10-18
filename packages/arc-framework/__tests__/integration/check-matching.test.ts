@@ -1,6 +1,6 @@
 /** Input matching against real Git trees and pathspec semantics. */
 import { afterEach, expect, it, vi } from "vitest";
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import type { RawGitExec } from "../../src/lib/git/exec.js";
 import { matchPathList } from "../../src/lib/checks/path-list.js";
@@ -117,22 +117,37 @@ it("admits an empty supplied list", async () => {
   expect(await matchPathList({ git: raw }, cwd, [], ["**"])).toEqual({ status: "ok", paths: [] });
 });
 
-it.each(["sha1", "sha256"])("keeps the %s real index and object store unchanged and removes scratch", async format => {
+it.each(
+  ["sha1", "sha256"].flatMap(format => [false, true].map(splitIndex => ({ format, splitIndex }))),
+)("keeps the $format real index and object store unchanged and removes scratch (splitIndex=$splitIndex)", async ({ format, splitIndex }) => {
   const { cwd } = await fixture();
   // Convert the empty fixture before it holds objects for the second object format.
   if (format === "sha256") {
     await rm(join(cwd, ".git"), { recursive: true, force: true });
     await raw(["init", "--object-format=sha256"], { cwd });
   }
+  await raw(["config", "core.splitIndex", String(splitIndex)], { cwd });
+  await raw(["config", "splitIndex.sharedIndexExpire", "2.weeks.ago"], { cwd });
   await raw(["add", "root.ts"], { cwd });
   const index = await readFile(join(cwd, ".git/index"));
+  const config = await readFile(join(cwd, ".git/config"));
+  const staged = await raw(["ls-files", "--stage", "-z"], { cwd });
+  const gitFiles = (await readdir(join(cwd, ".git"))).sort();
   const objects = await readdir(join(cwd, ".git/objects"), { recursive: true });
+  if (splitIndex) {
+    const shared = gitFiles.filter(name => name.startsWith("sharedindex."));
+    expect(shared.length).toBeGreaterThan(0);
+    for (const name of shared) await utimes(join(cwd, ".git", name), new Date("2020-01-01"), new Date("2020-01-01"));
+  }
   const scratch = await mkdtemp(join(tmpdir(), "arc-match-parent-"));
   repositories.push(scratch);
   const createDirectory = (prefix: string) => mkdtemp(join(scratch, prefix.split(/[\\/]/u).at(-1) ?? "index-"));
   expect(await matchPathList({ git: raw, createDirectory }, cwd, explicitPaths, ["**"]))
     .toEqual({ status: "ok", paths: [...explicitPaths].sort() });
   expect(await readFile(join(cwd, ".git/index"))).toEqual(index);
+  expect(await readFile(join(cwd, ".git/config"))).toEqual(config);
+  expect((await readdir(join(cwd, ".git"))).sort()).toEqual(gitFiles);
+  expect((await raw(["ls-files", "--stage", "-z"], { cwd })).stdout).toEqual(staged.stdout);
   expect(await readdir(join(cwd, ".git/objects"), { recursive: true })).toEqual(objects);
   expect(await readdir(scratch)).toEqual([]);
 });
