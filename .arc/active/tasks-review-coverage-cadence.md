@@ -787,16 +787,10 @@ complete pass. Workflow, method, and configuration text changes in the package's
           numbered in the same terms. Errand status uses the complete count; offers, trend labels, hosted failure
           holds, and ceiling remedies distinguish complete-pass spend from repair checks and attempt identities.
 
-    - `[ ]` **5.6.b Change the workflow and method text**
-        - "A completed attempt consumes that pass" (`run-errand`, `integrate-work-unit`); "durable lane progress
-          consumes the admitted pass" (`integrate-work-unit`, `deliver-stack`); `prepare-work-unit`'s "An incremental
-          choice still spends one logical pass" and "inherited completed standard passes still count toward the
-          ceiling"; every step that surfaces a ceiling override's or an additional pass's consequence; `review-triage`'s
-          pass line and its example prompt, with the prompt's copy in `strategy-session-operations.md`
-          § Disposition-Approval Release, in both copies; and `standard-review`'s "counts as one standard-review pass" —
-          with the tests that pin them: `review-fix-release.test.ts`'s assertion on the example prompt,
-          `review-gate-workflows.test.ts`'s assertions on the pass-line paragraph wherever the rewrite reaches them, and
-          `pr-lifecycle.test.ts`'s on the pass phrase.
+    - `[x]` **5.6.b Change the workflow and method text**
+        - Both copies distinguish logical attempts from complete-pass spend, including inherited counts and
+          conditional authority. Ceiling offers use lane facts; triage and its approval example name complete passes
+          or fix-check rounds. Aggregate review counts toward the standard ceiling only with complete coverage.
 
     - `[ ]` **5.6.c Change the ceiling comment in `arc-config.yml`**
         - The shared comment over `review.frontline_max_passes` and `review.standard_max_passes`, in both copies, states

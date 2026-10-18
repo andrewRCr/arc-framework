@@ -50,9 +50,9 @@ facts plus the structured chunk and seam reports. It may inspect targeted source
 chunk body wholesale, then emits one aggregate whole-target standard-review result.
 
 Hosted and whole-target-only local carriers are ineligible for chunked mode. Evaluator separation, exact-target
-identity, and the ordinary completion authority boundary remain unchanged. The aggregate invocation counts as one
-standard-review pass; evaluator-call count does not affect pass accounting, and no partial report or evaluator call
-can settle the obligation.
+identity, and the ordinary completion authority boundary remain unchanged. The completed aggregate invocation concludes
+one logical attempt and counts toward the standard ceiling only with complete coverage; evaluator-call count does not
+affect that accounting, and no partial report or evaluator call can settle the obligation.
 
 ### Carrier delivery boundary
 

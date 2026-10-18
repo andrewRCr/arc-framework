@@ -71,10 +71,11 @@ a distinct `owner-accepted / none` conclusion; it never means clean, converged, 
 Owner's decision is the authorization, so do not ask for a second confirmation while the exact Candidate remains
 current.
 
-For a singleton Candidate lineage, frontline is an opening phase. Its configured allowance applies while that phase
-is open. An accepted initial skip or durable standard admission closes it; changed heads and validated Candidate
-supersession do not reopen it. Follow the typed pre-publication continuation across a re-root: inherited completed
-standard passes still count toward the ceiling, while older producer evidence remains bound to its original target.
+For a singleton Candidate lineage, frontline is an opening phase. Its configured allowance applies while that phase is
+open. An accepted initial skip or durable standard admission closes it; changed heads and validated Candidate
+supersession do not reopen it. Follow the typed pre-publication continuation across a re-root: inherited complete
+standard-review passes still count toward the ceiling, while older producer evidence remains bound to its original
+target.
 
 A standard look converges when it is clean or its approved dispositions fix no confirmed `critical` or `major`
 finding. Under `full-final`, only a converged complete pass replays as complete; a converged fix check still requires
@@ -86,11 +87,11 @@ the local delta check without a coverage question. It closes the standard lane o
 For a local complete pass instead, supply `coverageAdmission: { requestedCoverage: "complete" }` with no correction
 scope. An additional hosted pass after an incremental delta converges takes the authorization below.
 
-If the Owner explicitly authorizes another named standard pass after a converged complete pass under
-`full-final`, or after convergence under `incremental`, carry its exact head, preceding producer, completed-pass count,
-and next ordinal as `lanes.standard.additionalPassAuthorization` in `--lanes`. This admits that pass only; each further
-pass needs a fresh decision. If it is above the configured ceiling, the same explicit decision covers the named ceiling
-override. A later material result follows the ordinary response route.
+If the Owner explicitly authorizes another named complete standard pass after a converged complete pass under
+`full-final`, or after convergence under `incremental`, carry its exact head, preceding producer, logical
+completed-attempt count, and next ordinal as `lanes.standard.additionalPassAuthorization` in `--lanes`. This admits that
+complete pass only; each further complete pass needs a fresh decision. If it is above the configured ceiling, the same
+explicit decision covers the named ceiling override. A later material result follows the ordinary response route.
 
 Supply `--change-set`, `--lanes`, and `--self-review` on the initial invocation and whenever the procedure explicitly
 requests new author judgment. After every lane operation, re-enter through the envelope's typed pre-publication
@@ -191,10 +192,10 @@ through `candidate-publish-ready`; the publication transition in Step 3 is the s
   as above. Otherwise invoke ordinary `arc review local prepare -` for the next pass and its coverage question.
 - `findings / respond` — enter the disposition protocol below.
 - `approval-required / obtain-ceiling-override` — for the standard lane, run the lane read with the same subject and
-  member selector as above; follow any refusal's remedy. From `payload.facts`, recommend another pass or stopping,
-  with the expected fresh signal, cost, and what would change the recommendation. The ceiling bounds autonomous
-  spending, not advice. Surface the exact consequence and `Approve (or redirect)?`; the recommendation grants no pass
-  authority.
+  member selector as above; follow any refusal's remedy. From `payload.facts`, show `completePasses` against `ceiling`
+  and the `fixChecksSinceLastComplete` rounds; recommend another complete pass or stopping, with the expected fresh
+  signal, cost, and what would change the recommendation. The ceiling bounds autonomous spending, not advice. Surface
+  the exact complete-pass consequence and `Approve (or redirect)?`; the recommendation grants no pass authority.
 - `chunk-pending / continue-chunks` — continue the selected local chunk series.
 - `stale-target / select-scope` — rerun chunking against the current target.
 - `blocked | unavailable | invalid-override / stop` — surface diagnostics and stop.
@@ -203,8 +204,9 @@ When local prepare returns `coverage-required / select-coverage`, show
 `payload.coverageSelectionAction.interactionText`, its listed choices, and a recommendation grounded in the latest
 confirmed signal and exact correction. Re-invoke the same request with the listed choice as `coverageAdmission` after
 measuring its range and carrying the selected scope as `policyJudgment.scopeMode`; dispatch the returned state again. An
-incremental choice still spends one logical pass; do not infer coverage from a finding count or combine the choice with
-the Owner's next-pass authorization. Launch and attest only from `ready / launch-review`.
+incremental choice advances the logical attempt number without spending a complete pass against the ceiling; do not
+infer coverage from a finding count or combine the choice with the Owner's next-pass authorization. Launch and attest
+only from `ready / launch-review`.
 
 Dispatch local operations only through public typed actions. The evaluator submits status, result, findings, and
 run identity to `arc review local attest -`; runtime-owned bindings come from the immutable operation. Resume with
@@ -240,21 +242,22 @@ arc review respond -
 
 Follow only its returned action and use [`review-response`][review-response] to perform the approved response. A
 `ready-to-fix` authorization carries `approvedVerification`; preserve it through re-entry and the changed-target
-continuation. The scope does not select fewer checks here. Approved fixes request `arc check gate commit`,
-commit atomically, and produce a new target. The `verifiedFix` replay attests the approved scope as performed, so before
-it a `focused` scope also requests `arc check gate push --range --force` and a `full` scope
-`arc check gate merge --force` over that target; the Candidate's convergence verification repeats it. Disclose review
-applicability from the exact delta: `targeted` for confidently narrow non-interacting record or lifecycle changes,
-`focused` for a bounded interaction, and `full` for behavioral, authority, contract, materially interacting, or
-uncertain changes. Clearance never carries. If the response carries `conditionalPassAuthorizationId`, retain its
-returned `payload.policyRequest` unchanged; the next pre-publication admission projects its exact ceiling override
-into the selected lane request. A `ready-to-fix / apply-fix` response carrying `payload.authoring` binds a
-Candidate-bound private-member fix. Author only in its exact `authoring.checkoutPath`, `authoring.ref`, and
-`authoring.head`; a missing or different locus stops before mutation. Never author this fix in the disposable member
-checkout. After the fix commit, re-invoke the exact approved `arc review respond -` request with `verifiedFix`
-carrying the approved applicability and verification evidence. Require `candidate-advanced / continue-review` or
-idempotent `candidate-current / continue-review`, then commit its staged Candidate response as `taskCommit` under
-the same approved increment before any Candidate-currentness or delivery-preparation read.
+continuation. The scope does not select fewer checks here. Approved fixes request `arc check gate commit`, commit
+atomically, and produce a new target. The `verifiedFix` replay attests the approved scope as performed, so before it a
+`focused` scope also requests `arc check gate push --range --force` and a `full` scope `arc check gate merge --force`
+over that target; the Candidate's convergence verification repeats it. Disclose review applicability from the exact
+delta: `targeted` for confidently narrow non-interacting record or lifecycle changes, `focused` for a bounded
+interaction, and `full` for behavioral, authority, contract, materially interacting, or uncertain changes. Clearance
+never carries. If the response carries `conditionalPassAuthorizationId`, retain its returned `payload.policyRequest`
+unchanged; the next pre-publication admission projects its exact ceiling override into the selected lane request. On the
+standard lane it admits only a complete pass; fix checks and delta checks cite and spend none. A `ready-to-fix /
+apply-fix` response carrying `payload.authoring` binds a Candidate-bound private-member fix. Author only in its exact
+`authoring.checkoutPath`, `authoring.ref`, and `authoring.head`; a missing or different locus stops before mutation.
+Never author this fix in the disposable member checkout. After the fix commit, re-invoke the exact approved `arc review
+respond -` request with `verifiedFix` carrying the approved applicability and verification evidence. Require
+`candidate-advanced / continue-review` or idempotent `candidate-current / continue-review`, then commit its staged
+Candidate response as `taskCommit` under the same approved increment before any Candidate-currentness or
+delivery-preparation read.
 
 > [!CAUTION]
 > `commit-interlock` release — commit the approved fixes as `taskCommit`:

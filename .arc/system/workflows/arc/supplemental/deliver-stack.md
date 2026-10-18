@@ -341,10 +341,11 @@ ask the coverage question again.
 and follow its exact command after the stated repair or Owner decision.
 
 At `obtain-ceiling-override`, run the lane read with the same exact member-head selector as above; follow any refusal's
-remedy. From `payload.facts`, recommend another pass or stopping, with the expected fresh signal, cost, and what would
-change the recommendation. The ceiling bounds autonomous spending, not advice; the recommendation grants no pass
-authority. Render the exact `consequence` and stop without requesting. Only explicit approval of that exact consequence
-admits one additional pass; on approval, re-enter the same target with the returned consequence serialized unchanged:
+remedy. From `payload.facts`, show `completePasses` against `ceiling` and the `fixChecksSinceLastComplete` rounds;
+recommend another complete pass or stopping, with the expected fresh signal, cost, and what would change the
+recommendation. The ceiling bounds autonomous spending, not advice; the recommendation grants no pass authority. Render
+the exact `consequence` and stop without requesting. Only explicit approval of that exact consequence admits one
+additional complete pass; on approval, re-enter the same target with the returned consequence serialized unchanged:
 
 ```bash
 arc review status --target '{targetRef}' --ceiling-override '{consequence}'
@@ -364,8 +365,9 @@ arc review local prepare -
 ```
 
 Follow the typed local launch, attest, reduce, and findings-response sequence. Do not rerun source selection or
-substitute the current checkout head for the returned member head. After the local attempt concludes, re-enter
-through `arc review status`; durable lane progress consumes the admitted pass.
+substitute the current checkout head for the returned member head. After the local attempt concludes, re-enter through
+`arc review status`; durable lane progress records the completed attempt; complete coverage alone counts toward the
+standard ceiling.
 
 `review-local-resume` means pass the returned action unchanged to:
 
@@ -398,11 +400,12 @@ Follow only its returned action and use [`review-response`][review-response] to 
 resumes the retained attempt and never requests another hosted review. Preserve the `ready-to-fix` authorization's
 `approvedVerification` through re-entry and changed-target continuation; it does not select fewer checks here. Execute
 any returned hosted settlement plan through the existing phase-ordered settlement path below, passing its
-`payload.hostedSettlementPlan.actorIdentity` unchanged, then re-enter through `arc review status`.
-Retain any returned `payload.policyRequest` carrying `conditionalPassAuthorizationId` unchanged and pass its exact
-ceiling override into the named hosted, local, or frontline admission; never reconstruct the authorization ID.
-After a member fix, require `delivery-member-advanced` or idempotent `delivery-member-current` and pass
-`payload.hostedFixTarget` unchanged as the after-fix settlement's `fixTarget`; never reconstruct it from the checkout.
+`payload.hostedSettlementPlan.actorIdentity` unchanged, then re-enter through `arc review status`. Retain any returned
+`payload.policyRequest` carrying `conditionalPassAuthorizationId` unchanged and pass its exact ceiling override into the
+named complete standard-review or frontline admission; fix checks and delta checks cite and spend none. Never
+reconstruct the authorization ID. After a member fix, require `delivery-member-advanced` or idempotent
+`delivery-member-current` and pass `payload.hostedFixTarget` unchanged as the after-fix settlement's `fixTarget`; never
+reconstruct it from the checkout.
 
 On `requested / await`, pass the returned `action` unchanged to:
 

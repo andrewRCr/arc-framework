@@ -203,12 +203,12 @@ local prepare; do not ask the coverage question again. Accepted member termini f
 below on explicit acceptance. Otherwise stop, preserve the structured remedy, and follow its exact command after repair.
 
 At `obtain-ceiling-override`, run the lane read with the same subject and member selector as above; follow any refusal's
-remedy. From `payload.facts`, recommend another pass or stopping, with the expected fresh signal, cost, and what would
-change the recommendation. The ceiling bounds autonomous spending, not advice; the recommendation grants no pass
-authority. Render the exact `consequence` and, when present for a delivery member, the exact
-`terminusAction.offer.interactionText`, then stops without requesting. Only explicit approval of the consequence admits
-one additional pass; on approval, re-enter the same status scope with the returned consequence serialized unchanged.
-For a delivery, use:
+remedy. From `payload.facts`, show `completePasses` against `ceiling` and the `fixChecksSinceLastComplete` rounds;
+recommend another complete pass or stopping, with the expected fresh signal, cost, and what would change the
+recommendation. The ceiling bounds autonomous spending, not advice; the recommendation grants no pass authority. Render
+the exact `consequence` and, when present for a delivery member, the exact `terminusAction.offer.interactionText`, then
+stops without requesting. Only explicit approval of the consequence admits one additional complete pass; on approval,
+re-enter the same status scope with the returned consequence serialized unchanged. For a delivery, use:
 
 ```bash
 arc review status --work-unit '{integrationBoundary.nextAction.workUnitId}' --ceiling-override '{consequence}'
@@ -227,11 +227,11 @@ for that choice; otherwise, absent explicit acceptance, execute the returned rev
 After a converged standard result — a clean pass, or one whose approved dispositions fix no confirmed `critical` or
 `major` finding — status replay remains complete under `full-final` only when that pass has complete coverage. A
 converged fix check continues to the ranked complete pass. On both delivery and singleton routes, an explicit Owner
-decision for another named pass after a converged complete pass under `full-final`, or after convergence under
+decision for another named complete pass after a converged complete pass under `full-final`, or after convergence under
 `incremental`, is carried as exact JSON with `--additional-pass` on the same status scope. The authorization names the
-current target, preceding producer, completed-pass count, and next ordinal; each later pass needs a fresh decision.
-Above the configured ceiling, that same decision covers the named pass without a second approval. A later material
-result re-enters the ordinary response route.
+current target, preceding producer, logical completed-attempt count, and next ordinal; each later complete pass needs a
+fresh decision. Above the configured ceiling, that same decision covers the named complete pass without a second
+approval. A later material result re-enters the ordinary response route.
 
 On the delivery route, status measures the selected pass after its coverage choice; that is the exact chunk check. Read
 its returned scope selection without running another whole-member measure at the moved head.
@@ -303,11 +303,12 @@ Add the selected choice unchanged as `coverageAdmission` to the same request. Co
 above, then re-enter local prepare with that request.
 
 For either local action, follow the typed local launch, attest, reduce, and findings-response sequence. After the local
-attempt concludes, re-enter the same `arc review status` scope; durable lane progress consumes the admitted pass.
+attempt concludes, re-enter the same `arc review status` scope; durable lane progress records the completed attempt;
+complete coverage alone counts toward the standard ceiling.
 
-When `action.scopeSelection.mode` is `chunked`, apply [`review-chunking`][review-chunking] to the prepared exact
-target: run contract-closed chunks, the dedicated seam, and a fresh aggregate evaluator against the returned review
-root and rubric. Attest only the aggregate result; partial chunk or seam reports never consume the admitted pass.
+When `action.scopeSelection.mode` is `chunked`, apply [`review-chunking`][review-chunking] to the prepared exact target:
+run contract-closed chunks, the dedicated seam, and a fresh aggregate evaluator against the returned review root and
+rubric. Attest only the aggregate result; partial chunk or seam reports never conclude the admitted attempt.
 
 `review-local-resume` means pass the returned action unchanged to:
 
@@ -341,8 +342,8 @@ resumes the retained attempt and never requests another hosted review. Preserve 
 `approvedVerification` through re-entry and changed-target continuation; it does not select fewer checks here. Execute
 any returned hosted settlement plan through the phase-ordered settlement path below, including its description upkeep
 after a pushed fix, then re-enter through `arc review status`. Retain any returned `payload.policyRequest` carrying
-`conditionalPassAuthorizationId` unchanged and pass its exact ceiling override into the named hosted, local, or
-frontline admission; never reconstruct the authorization ID.
+`conditionalPassAuthorizationId` unchanged and pass its exact ceiling override into the named complete standard-review
+or frontline admission; fix checks and delta checks cite and spend none. Never reconstruct the authorization ID.
 
 `delivery-correction-required / continue-delivery-correction` is the delivery-owned member fix route. Execute any
 before-fix settlement first, then pass `payload.correctionAction` unchanged. Author only after the driver returns
@@ -411,11 +412,11 @@ observation found, re-enter the action through hosted await until it concludes a
 findings join the same push. At `pending / inspect-or-extend`, push only on explicit Owner direction, which gives up
 that result.
 
-Hosted delivery-member request and await operations persist their admitted pass in durable lane progress. Re-enter
-through status after each concluded result; do not reconstruct `completedPasses` or route the public member back
-through private policy. For the ordinary singleton continuation, retain `policy.payload.pass` as the authorizing
-completed-pass input. A completed attempt consumes that pass; pending chunk series and non-pass outcomes retain the
-prior count.
+Hosted delivery-member request and await operations persist their admitted attempt in durable lane progress. Re-enter
+through status after each concluded result; do not reconstruct `completedPasses` or route the public member back through
+private policy. For the ordinary singleton continuation, retain `policy.payload.pass` as the authorizing
+`completedPasses` input. A completed review advances that logical coordinate; pending chunk series and non-pass outcomes
+retain the prior count. Only complete coverage counts toward the standard ceiling; fix checks run outside it.
 
 - `clean / complete` — a delivery member re-enters status; an ordinary singleton feeds the returned `attempt`
   unchanged to `arc review resolve -`. Its `reviewOperationId` identifies the producer, while `hostedResultId`

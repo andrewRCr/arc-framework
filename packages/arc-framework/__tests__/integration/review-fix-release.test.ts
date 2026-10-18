@@ -36,7 +36,7 @@ describe("review-fix round release", () => {
     const triage = shipped("system/methods/review-triage.md");
     const response = shipped("system/methods/review-response.md");
 
-    expect(triage).toMatch(softWrappedProse("Approve: 3 fixes → verify → commit → push → settle 2 threads → standard pass 2?"));
+    expect(triage).toMatch(softWrappedProse("Approve: 3 fixes → verify → commit → push → settle 2 threads → local fix check, round 1 since pass 1?"));
     expect(triage).toMatch(softWrappedProse("as information, not a gate"));
     expect(triage).toMatch(softWrappedProse(
       "Disposition approval and next-pass authorization stay distinct decisions, though one prompt may ask both",

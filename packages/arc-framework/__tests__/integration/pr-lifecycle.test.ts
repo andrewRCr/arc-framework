@@ -335,7 +335,7 @@ describe("PR lifecycle and review contracts", () => {
       expect(normalizedStandard).toContain("fresh non-author aggregate context");
       expect(normalizedStandard).toContain("one aggregate whole-target standard-review result");
       expect(normalizedStandard).toContain("Hosted and whole-target-only local carriers are ineligible");
-      expect(normalizedStandard).toContain("counts as one standard-review pass");
+      expect(normalizedStandard).toContain("counts toward the standard ceiling only with complete coverage");
       expect(normalizedStandard).toContain("no partial report or evaluator call can settle the obligation");
       expect(normalizedAdversarial).toContain("bounded chunk-series carrier mode");
       expect(normalizedAdversarial).toContain("sequential attention isolation within one logical pass");

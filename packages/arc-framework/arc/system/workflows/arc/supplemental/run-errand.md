@@ -275,12 +275,13 @@ remote base all name the same exact head. Any tracked change continues through t
    with no correction scope. For a hosted complete pass, finish the delta check first: `full-final` reaches it by
    configured rank; `incremental` requires an authorized additional pass after convergence.
 
-   If the Owner explicitly authorizes another named standard pass, carry the exact target, preceding producer,
-   completed-pass count, and next ordinal as `additionalPassAuthorization` through `arc review resolve -`. Carry the
-   full authorization on hosted admission, or its targetless fields under `policyJudgment.additionalPassAuthorization`
-   on local preparation. For an open PR, `arc review status --target <targetRef> --additional-pass '<authorization>'`
-   reports the outstanding review. A fresh decision is required for each later pass; the same decision covers a named
-   above-ceiling pass. A later material result enters the ordinary response route.
+   If the Owner explicitly authorizes another named complete standard pass, carry the exact target, preceding producer,
+   logical completed-attempt count, and next ordinal as `additionalPassAuthorization` through `arc review resolve -`.
+   Carry the full authorization on hosted admission, or its targetless fields under
+   `policyJudgment.additionalPassAuthorization` on local preparation. For an open PR, `arc review status --target
+   <targetRef> --additional-pass '<authorization>'` reports the outstanding review. A fresh decision is required for
+   each later complete pass; the same decision covers a named complete pass above the ceiling. A later material result
+   enters the ordinary response route.
 
    **Clean-fix-check successor.** Before dispatching `ready / hosted-request` or `ready / local-prepare` on a
    `full-final` standard lane, run `arc review lane read -` with its request derived from `arc review lane read --schema`.
@@ -328,9 +329,10 @@ remote base all name the same exact head. Any tracked change continues through t
      re-entry and changed-target continuation; it does not select fewer checks here. Retain any returned
      `payload.policyRequest` carrying `conditionalPassAuthorizationId` unchanged for the named next-pass admission.
    - `approval-required / obtain-ceiling-override` — for the standard lane, run `arc review lane read -` with its
-     schema-derived request and follow any refusal's remedy. From `payload.facts`, recommend another pass or stopping,
-     with the expected fresh signal, cost, and what would change the recommendation. The ceiling bounds autonomous
-     spending, not advice. Surface the exact one-pass consequence and `Approve (or redirect)?`; return only exact
+     schema-derived request and follow any refusal's remedy. From `payload.facts`, show `completePasses` against
+     `ceiling` and the `fixChecksSinceLastComplete` rounds; recommend another complete pass or stopping, with the
+     expected fresh signal, cost, and what would change the recommendation. The ceiling bounds autonomous spending, not
+     advice. Surface the exact consequence for one complete pass and `Approve (or redirect)?`; return only exact
      approval to the same target/lane call. The recommendation grants no pass authority.
    - `stale-target / select-scope` — recompose the exact target, bind its whole-target scope, and rerun the driver.
    - `blocked | unavailable | invalid-override / stop` — surface the typed diagnostics and stop.
@@ -473,9 +475,10 @@ remote base all name the same exact head. Any tracked change continues through t
    result first, so its findings join the same push. At `pending / inspect-or-extend`, push only on explicit Owner
    direction, which gives up that result.
 
-   Before feeding any `clean`, `findings`, or `settled-findings` attempt to the driver, set `completedPasses` to
-   the `pass` from the driver envelope that authorized it. A completed attempt consumes that pass; pending chunk
-   series and non-pass outcomes retain the prior count.
+   Before feeding any `clean`, `findings`, or `settled-findings` attempt to the driver, set `completedPasses` to the
+   `pass` from the driver envelope that authorized it. A completed review advances that logical coordinate; pending
+   chunk series and non-pass outcomes retain the prior count. Only complete coverage counts toward the standard ceiling;
+   fix checks run outside it.
 
    - `clean / complete` — feed the returned `attempt` unchanged to `arc review resolve -`; its
      `reviewOperationId` identifies the producer, while `hostedResultId` identifies the result content.
@@ -517,21 +520,20 @@ remote base all name the same exact head. Any tracked change continues through t
      for the current head. A `settlement: not-applicable` finding appears in neither phase and remains triage-only:
      never invoke `hosted settle`, post a reply or compensating summary comment, or resolve anything for it. Retain any
      returned `payload.policyRequest` carrying `conditionalPassAuthorizationId` unchanged and pass its exact ceiling
-     override into the named hosted, local, or frontline admission; never reconstruct the authorization ID. On
-     `head-pending / retry`, surface `remedy.text` and end this foreground attempt. A later re-entry passes
-     `remedy.stdin` unchanged through `remedy.argv`. On re-entry, re-invoke the exact settlement request.
-     `already-settled / complete` advances the durable attempt only after the verb verifies the exact approved reply,
-     actor, comment, and resolved thread with no host mutation; every stop state remains a stop. After the required
-     phases complete, follow the approved response continuation and, after a fix, the verified-fix response continuation
-     through the owning status or resolve action. A hosted response that settles with no fix returns
-     `settled | already-settled / continue-review`; continue from its `payload.policy` when present. Do not feed the
-     same findings to the driver again. If the Owner declined the pass the fix triggers, resolve the lane at the new
-     head as usual and, from `ready / local-prepare`, present the Owner-directed review stop offer below instead of
-     requesting the pass.
-   - `rate-limited | transient-unavailable / try-next-source` — feed that safe outcome to the same driver call; it
-     may select the next configured source without consuming the pass.
-   - Any ambiguous delivery, stale target, malformed output, source failure, or terminal failure stops. Never replay
-     an uncertain request.
+     override into the named complete standard-review or frontline admission; fix checks and delta checks cite and spend
+     none. Never reconstruct the authorization ID. On `head-pending / retry`, surface `remedy.text` and end this
+     foreground attempt. A later re-entry passes `remedy.stdin` unchanged through `remedy.argv`. On re-entry, re-invoke
+     the exact settlement request. `already-settled / complete` advances the durable attempt only after the verb
+     verifies the exact approved reply, actor, comment, and resolved thread with no host mutation; every stop state
+     remains a stop. After the required phases complete, follow the approved response continuation and, after a fix, the
+     verified-fix response continuation through the owning status or resolve action. A hosted response that settles with
+     no fix returns `settled | already-settled / continue-review`; continue from its `payload.policy` when present. Do
+     not feed the same findings to the driver again. If the Owner declined the pass the fix triggers, resolve the lane
+     at the new head as usual and, from `ready / local-prepare`, present the Owner-directed review stop offer below
+     instead of requesting the pass. - `rate-limited | transient-unavailable / try-next-source` — feed that safe outcome
+     to the same driver call; it may select the next configured source without consuming the pass. - Any ambiguous
+     delivery, stale target, malformed output, source failure, or terminal failure stops. Never replay an uncertain
+     request.
 
    **Owner-directed review stop (open PR only).** When the Owner explicitly asks to end further standard-review
    spending, declines at a disposition turn the pass a fix triggers, or redirects an `approval-required /

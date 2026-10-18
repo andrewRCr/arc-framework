@@ -121,19 +121,20 @@ and references beside the report-local `F` labels, and escapes only the characte
 Markdown, plus `|` in a table cell.
 
 For a findings proposal, present the CLI's `provisionalPassAssessment.summaryText` beside the verbatim disposition
-report in the same turn. It is the pass line — the lane, admitted pass, configured ceiling, confirmed-finding signal,
-and what approving a `FIX` does: the head moves, and the line names the pass the fixed head then needs with its
-expected coverage, or says the lane closes, another pass needs a ceiling decision, or review status at that head
-decides. It states where review stands and is provisional until verified response and coverage resolve the next
-action. Follow it with the agent's recommendation to stop or to request a named next pass, from the expected signal
-and cost. Every decision the approver is asked to make carries that recommendation. When the pass line says a fix
-triggers another pass, the recommendation also covers that pass, as spend the approver may decline. A decline leaves
-the disposition approval unchanged; the governing caller honors it at the new head through its Owner review stop (an
-Errand's Owner-directed review stop, a work unit's Owner-accepted terminus), confirmed there once before any pass is
+report in the same turn. It is the pass line — the lane, confirmed-finding signal, and what approving a `FIX` does. The
+standard lane shows `complete pass N of M` or `fix check, round N since pass M`; frontline retains its admitted pass and
+configured ceiling. For the standard lane: the head moves, and the line names the fix check or complete pass the fixed
+head then needs, or says the lane closes, another complete pass needs a ceiling decision, or review status at that head
+decides. It states where review stands and is provisional until verified response and coverage resolve the next action.
+Follow it with the agent's recommendation to stop or to request a named next pass, from the expected signal and cost.
+Every decision the approver is asked to make carries that recommendation. When the pass line says a fix requires a fix
+check or complete pass, the recommendation also covers that activity, as spend the approver may decline. A decline
+leaves the disposition approval unchanged; the governing caller honors it at the new head through its Owner review stop
+(an Errand's Owner-directed review stop, a work unit's Owner-accepted terminus), confirmed there once before any pass is
 dispatched. Disposition approval and next-pass authorization stay distinct decisions, though one prompt may ask both:
-the approver may approve the set and decline the pass. A disposition approval alone never grants a pass above the
-ceiling; follow the typed policy continuation and obtain explicit approval for the named activity and pass if it
-returns `approval-required / obtain-ceiling-override`.
+the approver may approve the set and decline the pass. Disposition approval alone never overrides either lane's ceiling;
+follow the typed policy continuation and obtain explicit approval for the named activity and pass if it returns
+`approval-required / obtain-ceiling-override`.
 
 Obtain complete-set approval over the report and canonical identity before the caller's second `arc review respond -`
 invocation. Approval records the exact target, producer result, policy/rubric context, proposing actor, verification
@@ -141,13 +142,13 @@ scope, complete dispositions, approving actor, and approval time. Conversational
 Any changed finding, judgment, scope, disposition, narrative, target, or newly surfaced mismatch requires a new
 proposal and approval. A partial approval may never be widened, and no path may apply an individual fix early.
 
-For a set with a `fix`, the complete-set approval is the fix round's structured gate
-([DEV-RULES.ARC § Review-Increment Invariant][review-increment-invariant]). Close the report with a prompt that names
-what approval releases under the caller's `arc.commitInterlock` and `arc.pushInterlock` settings, and only that — for
-example `Approve: 3 fixes → verify → commit → push → settle 2 threads → standard pass 2?`. After the round, report the
-fix, its commit, the settled threads, and the next pass as information, not a gate. The round returns to the approver
-when the performed fix exceeds the approved scope, a verification or gate failure is not a deterministic same-concern
-correction, host state is ambiguous, or a new finding arrives.
+For a set with a `fix`, the complete-set approval is the fix round's structured gate ([DEV-RULES.ARC § Review-Increment
+Invariant][review-increment-invariant]). Close the report with a prompt that names what approval releases under the
+caller's `arc.commitInterlock` and `arc.pushInterlock` settings, and only that — for example `Approve: 3 fixes → verify
+→ commit → push → settle 2 threads → local fix check, round 1 since pass 1?`. After the round, report the fix, its
+commit, the settled threads, and the next pass as information, not a gate. The round returns to the approver when the
+performed fix exceeds the approved scope, a verification or gate failure is not a deterministic same-concern correction,
+host state is ambiguous, or a new finding arrives.
 
 Author self-review remains a non-producer path. Identify its standalone report as author self-review and compose it in
 the [disposition-report][disposition-report] shape, giving each verdict its gating as the command does. Omit rather than
