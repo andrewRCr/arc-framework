@@ -1,5 +1,6 @@
 /** Ordered admission for a hosted-review reservation carried across publication. */
 import { deriveReviewNextPassContextFromAttempts } from "./review-next-pass.js";
+import type { LocalReviewState } from "../core/operation-state-schema.js";
 import type { ReviewResult } from "../core/review-result.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import type { IncrementalPredecessorApplicability } from "./incremental-coverage-basis.js";
@@ -469,7 +470,11 @@ function candidateCapacityAttemptMatchesTarget(
   target: Parameters<typeof assertCandidateHostedReservationPolicyAdmission>[0]["target"],
 ): boolean {
   if (attempt.headSha !== target.headSha) return false;
-  const boundTarget = attempt.hosted?.target ?? attempt.local?.deliveryAdmission?.target;
+  const local = attempt.local;
+  if (local?.deliveryAdmission === undefined && local?.vehicle?.kind === "work-unit"
+    && local.target?.kind === "change-set" && local.target.headSha === target.headSha
+    && attempt.sourceId === "delegated-agent") return true;
+  const boundTarget = attempt.hosted?.target ?? local?.deliveryAdmission?.target;
   return boundTarget !== undefined
     && boundTarget.repository.toLowerCase() === target.repository.toLowerCase()
     && boundTarget.pullRequest === target.pullRequest
@@ -496,7 +501,8 @@ export function assertCandidateHostedReservationPolicyAdmission(input: {
         readonly pullRequest: number;
         readonly headSha: string;
       } };
-      readonly local?: { readonly deliveryAdmission?: { readonly target: {
+      readonly local?: { readonly vehicle?: LocalReviewState["vehicle"]; readonly target?: ReviewTarget;
+        readonly deliveryAdmission?: { readonly target: {
         readonly repository: string;
         readonly pullRequest: number;
         readonly headSha: string;

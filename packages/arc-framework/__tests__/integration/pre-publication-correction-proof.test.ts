@@ -1,4 +1,10 @@
 /** Candidate chain confirmation through production pre-publication dependencies and real records. */
+import { assertEvidenceBoundCandidateHostedReservationPolicyAdmission } from "../../src/scripts/review-gate/policy/hosted-reservation-admission.js";
+import { readLaneProgressOwner, readLaneResponsePerformance } from "../../src/scripts/review-gate/lane-progress.js";
+import { LocalPrepareEnvelopeSchema } from "../../src/scripts/review-gate/core/review-command-envelope.js";
+import type { LocalReviewCoverageAdmission } from "../../src/scripts/review-gate/core/local-review-coverage.js";
+import { projectStandardReviewObligation } from "../../src/scripts/review-gate/policy/standard-review-projection.js";
+import { resolveReviewRouting } from "../../src/scripts/review-gate/policy/routing.js";
 import { deriveLocalReviewTargetFromCoordinates } from "../../src/scripts/review-gate/hosts/local/repository-target.js";
 import { createHostedReservationDischargeReader } from "../../src/scripts/review-gate/policy/hosted-reservation-discharge.js";
 import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
@@ -38,7 +44,7 @@ import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js"
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => removeGitBackedDir(root))); });
-async function candidateFix(local = false, member = false, hostedFirst = false, unchecked = false) {
+async function candidateFix(local = false, member = false, hostedFirst = false, unchecked = false, fullFinal = false) {
   const cwd = await createTempRepoCore({ prefix: "arc-pre-publication-correction-", identity: "andrew" });
   roots.push(cwd);
   const realExec = makeGitExec(cwd);
@@ -87,18 +93,35 @@ async function candidateFix(local = false, member = false, hostedFirst = false, 
     deliverableId: canonicalDigest({ member: 1 }), workUnitId: SlugSchema.parse("example") };
   const lineage = member ? memberIdentity : { kind: "candidate" as const, candidateId: candidate.attestation.candidateId };
   const provider = member ? "coderabbit-pr" as const : "codex-pr" as const;
-  const projection = { obligation: "required" as const, reasons: local || member ? ["routine-code", "frontline-inactive"] as const : ["sensitive-change-set"] as const,
+  const ordinaryProjection = { obligation: "required" as const, reasons: (local && !fullFinal) || member ? ["routine-code", "frontline-inactive"] as const : ["sensitive-change-set"] as const,
     rubricVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version, rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
-    retrigger: local || member ? "incremental" as const : "full-final" as const, count: 1 as const };
+    retrigger: (local && !fullFinal) || member ? "incremental" as const : "full-final" as const, count: 1 as const };
+  const localDependencies = createLocalPrepareDependencies({ cwd, exec });
+  const { authority } = await localDependencies.resolveAuthority("independent-reviewer");
+  const assurance = await localDependencies.composeAssurance(authority);
+  if (assurance.status !== "resolved") throw new Error("expected work-unit assurance");
+  const projection = fullFinal ? projectStandardReviewObligation(resolveReviewRouting({ schemaVersion: 1,
+    changeSetState: "known", contentKind: "code-bearing", reviewRisk: "sensitive", changeDeterminacy: "ordinary",
+    ownership: "self", surfaceAuthority: "ordinary", assurance: assurance.assurance, activity: assurance.activity }).decision)
+    : ordinaryProjection;
   const review = async (pass: number, findings: boolean) => {
     if (local && (!hostedFirst || pass > 1)) {
       const output: string[] = []; const exitCodes: number[] = [];
       const headSha = await git("rev-parse", "HEAD");
+      let coverageAdmission: LocalReviewCoverageAdmission | undefined;
+      if (fullFinal && pass > 1) {
+        const offered = LocalPrepareEnvelopeSchema.parse(await inProcessReview.prepare(cwd, { schemaVersion: 1, evaluatorIdentity: "independent-reviewer",
+          routingFacts: { contentKind: "code-bearing", reviewRisk: "sensitive", changeDeterminacy: "ordinary",
+            ownership: "self", surfaceAuthority: "ordinary" } }));
+        if (offered.state !== "coverage-required") throw new Error("expected local coverage choices");
+        coverageAdmission = offered.payload.coverageSelectionAction.choices.find(choice => choice.requestedCoverage === "incremental");
+        if (coverageAdmission === undefined) throw new Error("expected a proved fix-check choice");
+      }
       await handleReviewLocalPrepare("-", { resolveRoot: () => cwd,
         readText: async () => JSON.stringify({ schemaVersion: 1, evaluatorIdentity: "independent-reviewer",
-          routingFacts: { contentKind: "code-bearing", reviewRisk: "routine", changeDeterminacy: "ordinary",
+          routingFacts: { contentKind: "code-bearing", reviewRisk: fullFinal ? "sensitive" : "routine", changeDeterminacy: "ordinary",
             ownership: "self", surfaceAuthority: "ordinary" },
-          ...(pass === 1 ? {} : { coverageAdmission: { requestedCoverage: "incremental", correctionScope: {
+          ...(coverageAdmission !== undefined ? { coverageAdmission } : pass === 1 ? {} : { coverageAdmission: { requestedCoverage: "incremental", correctionScope: {
             schemaVersion: 1, predecessorProducerId: firstProducerId, predecessorHeadSha: firstHead,
             basisHeadSha: firstHead, headSha,
             requiredFindings: [{ producerId: firstProducerId, findingId: "finding-1", locus: "source.ts:1" }] } } }),
@@ -301,6 +324,40 @@ describe("pre-publication correction confirmation", () => {
       nextPassContext: { convergence: "unconverged", responseDue: false, incremental: null } });
     expect(result).not.toHaveProperty("coverageSelectionAction");
   });
+
+  it("reads a published singleton's ordinary local fix check as its latest terminal", async () => {
+    const { cwd, exec, current, base, candidate } = await candidateFix(true, false, true, false, true);
+    if (candidate === null || current.kind !== "attested-local") throw new Error("expected Candidate local result");
+    const reservation = createStandardReviewReservation({ candidateId: candidate.attestation.candidateId,
+      sourceId: "codex-pr", sources: ["codex-pr", "delegated-agent"],
+      target: { kind: "pinned-head", repository: "owner/repo", headSha: current.target.headSha },
+      obligation: { obligation: current.requirement.obligation, reasons: current.requirement.reasons,
+        rubricVersion: current.requirement.rubricVersion, rubricDigest: current.requirement.rubricDigest,
+        retrigger: current.requirement.retrigger, count: current.requirement.count } });
+    const result = await createHostedReservationDischargeReader({ cwd, exec })({ reservation,
+      baseRevision: base, approvedHead: current.target.headSha, changeRequest: { repository: "owner/repo", pullRequest: 42 },
+      candidate });
+    expect(result).toMatchObject({ discharged: false, terminalPolicyState: "coverage-required",
+      completedPasses: 2, nextSource: "codex-pr", requestCoverage: "complete",
+      nextPassContext: { convergence: "converged", responseDue: false } });
+    const publisher = new RepositoryGitCommonStatePublisher(exec, cwd);
+    const store = new LocalReviewOperationStateStore(publisher);
+    const progress = await readLaneProgressOwner(store, { lane: "standard", repositoryId: current.repositoryId,
+      lineage: current.admission.lineage, headSha: current.target.headSha });
+    if (progress === null) throw new Error("expected Candidate lane progress");
+    const args = { reservation, baseRevision: base, approvedHead: current.target.headSha,
+      changeRequest: { repository: "owner/repo", pullRequest: 42 }, candidate };
+    await expect(assertEvidenceBoundCandidateHostedReservationPolicyAdmission({ reservation, discharge: result,
+      progress, target: { repository: "owner/repo", pullRequest: 42, headSha: current.target.headSha },
+      provider: "codex-pr", coverage: "complete", maxPasses: 4, logicalPass: 3 }, {
+      resultReader: createRepositoryReviewResultReader(publisher), dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+      confirmTarget: async target => deriveLocalReviewTargetFromCoordinates({ cwd, exec, repositoryId: current.repositoryId,
+        coordinates: { kind: target.kind, baseRef: target.baseRef, diffBaseSha: target.diffBaseSha, headSha: target.headSha } }),
+      readResponsePerformance: predecessor => readLaneResponsePerformance(store, predecessor),
+      confirmIncrementalApplicability: (predecessor, terminal) =>
+        createHostedReservationDischargeReader({ cwd, exec }).confirmIncrementalApplicability(args, predecessor, terminal),
+    })).resolves.toBeUndefined();
+  }, 60_000);
 
   it.each(["historical", "current"] as const)("proves the singleton's local fix leg in discharge's %s confirmation", async surface => {
     const fixture = await candidateFix(true, false, true);

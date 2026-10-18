@@ -302,7 +302,9 @@ export async function projectHostedReservationDischarge(input: {
     const admittedLocalTerminal = [...currentAttemptHistory].reverse().find((attempt) => (
       attempt.logicalPass === latestTerminal.logicalPass
       && (attempt.outcome === "clean" || attempt.outcome === "settled-findings")
-      && attempt.local?.deliveryAdmission !== undefined
+      && attempt.local !== undefined
+      && (attempt.local.deliveryAdmission !== undefined
+        || (target.vehicle === undefined && attempt.local.vehicle.kind === "work-unit"))
     ));
     for (const sourceId of selectedClean === undefined ? reservation.sources : [selectedClean.sourceId]) {
       const sourceAttempts = currentAttemptHistory.filter((attempt) => (

@@ -346,20 +346,10 @@ first, then in the `.arc/` copy by targeted edit.
         - Current and retained terminal discharges carry their policy state. Singleton status routes only settled
           coverage-required results to ordinary local prepare, preserving source refusals and other null-source routes.
 
-    - `[ ]` **2.5.d Read a vehicle-less local result in the discharge and hosted request admission**
-        - On a subject with no vehicle, four readers accept a local result in the same lineage as `delegated-agent`
-          without a `deliveryAdmission`: `admittedLocalTerminal` (`hosted-reservation-discharge.ts`),
-          `confirmIncrementalPredecessorApplicability` (`hosted-reservation-support.ts`), `queryEarlierReviewAttempts`
-          (`earlier-review-attempts.ts`), which counts the lineage's local passes from before the pull request as
-          `readLaneProgressAcrossLineage` does and takes the pull request from its own selector, and
-          `candidateCapacityAttemptMatchesTarget` (`hosted-reservation-admission.ts`), which feeds the singleton's hosted
-          request admission (`assertEvidenceBoundCandidateHostedReservationPolicyAdmission`).
-        - Build `test-first` (one behavior at a time):
-            - The discharge reads a singleton's local fix check as its terminal and names `delegated-agent` as its
-              source.
-            - A local attempt at an earlier head, before or after the pull request, is found by the earlier-attempt
-              query.
-            - After a converged singleton local fix check, the hosted complete pass by rank is admitted at request time.
+    - `[x]` **2.5.d Read a vehicle-less local result in the discharge and hosted request admission**
+        - Ordinary Candidate local terminals and pending attempts participate in discharge and hosted capacity.
+          Earlier-attempt queries retain local history without a PR coordinate; the shared predecessor confirmation
+          already names local producers as delegated-agent. Real records prove fix-check convergence and ranked admission.
 
     - `[ ]` **2.5.e Dispatch it from `integrate-work-unit`**
         - An arm for the local prepare request replaces status's `run-review` result, which no workflow dispatches; the
