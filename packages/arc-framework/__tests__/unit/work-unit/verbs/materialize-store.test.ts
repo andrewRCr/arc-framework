@@ -11,9 +11,9 @@ import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 
 const tip = "a".repeat(40);
-async function harness(options: { branch?: string; remoteOnly?: boolean; offline?: boolean; noBase?: boolean; held?: boolean; paused?: boolean } = {}) {
+async function harness(options: { branch?: string; remoteOnly?: boolean; offline?: boolean; noBase?: boolean; held?: boolean; paused?: boolean; state?: "Planning" | "Active" | "Integrating" } = {}) {
   const h = createLifecycleHarness();
-  let meta = await h.seedMeta("demo", { state: "Planning", owner: "starter", currentWorkflow: "draft-design" }, { kind: "active" }, options.branch === undefined ? undefined : { branches: [{ repository: "repo", ref: options.branch, linkedAs: "created", excluded: [] }] });
+  let meta = await h.seedMeta("demo", { state: options.state ?? "Planning", owner: "starter", currentWorkflow: options.state === "Integrating" ? "integrate-work-unit" : options.state === "Active" ? "process-task-loop" : "draft-design" }, { kind: "active" }, options.branch === undefined ? undefined : { branches: [{ repository: "repo", ref: options.branch, linkedAs: "created", excluded: [] }] });
   if (options.paused) {
     const content = writeMetaPause(meta.content, { pausedBy: SlugSchema.parse("starter"), since: "2026-10-14T00:00:00Z", reason: "wait", waitsOn: null, resumeNotes: null, open: false });
     await h.store.write({ ...recordPut(meta, { content }), provenance: { verb: "fixture", lifecycleAction: "pause" } });
@@ -67,10 +67,17 @@ describe("store materialize", () => {
     expect(h.state().placement).toMatchObject({ inPlace: true, preserveHead: true });
     expect(h.state().fetches).toEqual([]); expect((await h.read()).version).toEqual(h.meta.version);
   });
-  it("names an existing holding checkout instead of creating another claim", async () => {
-    const h = await harness({ held: true });
-    expect(await runMaterialize(h.ctx, params)).toMatchObject({ status: "rejected", reason: expect.stringContaining("/holding") });
+  it.each(["Planning", "Active", "Integrating"] as const)("gives the held %s checkout an eligible exit", async state => {
+    const h = await harness({ held: true, state });
+    const result = await runMaterialize(h.ctx, params);
+    expect(result).toMatchObject({ status: "rejected", reason: expect.stringContaining("/holding") });
+    if (result.status !== "rejected") throw new Error("The checkout must remain held");
+    if (state === "Integrating") {
+      expect(result.reason).toContain("finish integration, then run arc teardown demo");
+      expect(result.reason).not.toContain("arc pause");
+    } else expect(result.reason).toContain("arc pause demo --reason <text>, then arc locus release demo");
     expect(h.state().placement).toBeUndefined(); expect(h.state().fetches).toEqual([]);
+    expect(await h.read()).toEqual(h.meta);
   });
   it("refuses branchless spawn without any base tip", async () => {
     const h = await harness({ noBase: true });

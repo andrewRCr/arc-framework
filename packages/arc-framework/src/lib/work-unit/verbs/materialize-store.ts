@@ -12,6 +12,7 @@ import { selectWorkBranchLink, workBranchName } from "../../store/lifecycle-bran
 import { readLifecycleView } from "../../store/lifecycle-view.js";
 import { requireCompleteInventory } from "../../store/lifecycle-storage.js";
 import { readWorkUnit } from "../../store/lifecycle-write.js";
+import { workUnitMarkerExit } from "../../locus/marker-occupancy.js";
 import { findWorkUnitHoldingCheckout } from "./unshared-work.js";
 import type { MaterializeContext, MaterializeParams, MaterializeResult } from "./materialize.js";
 import type { Store } from "../../store/contract.js";
@@ -54,7 +55,7 @@ export async function runStoreMaterialize(ctx: MaterializeContext, params: Mater
     const entry = candidates.find((item) => item.reference.owner.name === name);
     if (entry === undefined) {
       const holder = held.get(name) ?? null;
-      return { status: "rejected", reason: holder === null ? `${params.name} is not an owned in-flight materialize candidate. Candidates: ${candidates.map((item) => item.reference.owner.name).join(", ") || "[none]"}.` : `${params.name} is already held in checkout ${holder}; work there, or run arc locus release ${name} there before materializing elsewhere.` };
+      return { status: "rejected", reason: holder === null ? `${params.name} is not an owned in-flight materialize candidate. Candidates: ${candidates.map((item) => item.reference.owner.name).join(", ") || "[none]"}.` : workUnitMarkerExit(holder, name, read.result, identity) };
     }
     const occupancy = await materializationOccupancy(bound, name, params.inPlace === true);
     if (!occupancy.ok) return { status: "rejected", reason: occupancy.message, remedy: occupancy.remedy };
