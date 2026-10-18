@@ -614,6 +614,24 @@ function frontlineScopeDecline(
   }, diagnostics);
 }
 
+function ownerAcceptedEnvelope(
+  request: ReviewPolicyRequest,
+  scope: z.infer<typeof ReviewScopeModeSchema>,
+): ReviewResolveEnvelope {
+  return resolveEnvelope({
+    state: "owner-accepted",
+    nextAction: "none",
+    payload: {
+      lane: "standard",
+      scope,
+      completedPasses: request.completedPasses,
+      consumedPass: false,
+      attemptedSources: request.attempts,
+      terminus: request.terminus,
+    },
+  });
+}
+
 /**
  * Resolve the next allowed action for one review lane without executing a source or persisting state.
  *
@@ -771,6 +789,9 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
     if (signal === undefined) {
       throw new Error("terminal attempt requires a verified terminal signal");
     }
+    if (!signal.coverageAdequate && request.terminus !== undefined && request.nextPassContext?.responseDue === false) {
+      return ownerAcceptedEnvelope(request, scope);
+    }
     if (!signal.coverageAdequate) {
       return resolveEnvelope({
         state: "coverage-required",
@@ -824,20 +845,7 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
       });
     }
   }
-  if (request.terminus !== undefined) {
-    return resolveEnvelope({
-      state: "owner-accepted",
-      nextAction: "none",
-      payload: {
-        lane: "standard",
-        scope,
-        completedPasses: request.completedPasses,
-        consumedPass: false,
-        attemptedSources: request.attempts,
-        terminus: request.terminus,
-      },
-    });
-  }
+  if (request.terminus !== undefined) return ownerAcceptedEnvelope(request, scope);
   if (request.completedPasses >= request.maxPasses
     && !ceilingOverrideApplied) {
     return resolveEnvelope({

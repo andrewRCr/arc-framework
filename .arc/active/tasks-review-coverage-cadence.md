@@ -164,21 +164,14 @@ The confirmation map is in `notes-review-coverage-cadence.md` § Chain confirmat
         - Real-Git Errand, Candidate, and member merges break fix legs; shared delivery applicability still carries a
           settled response through a mechanical base move. Ordinary contribution retention stays unchanged.
 
-### `[ ]` **1.7 Honor the Owner's terminus at `coverage-required` — § 8.2**
+### `[x]` **1.7 Honor the Owner's terminus at `coverage-required` — § 8.2**
 
 - _Goal:_ A supplied Owner-accepted terminus takes effect at `coverage-required` once any response the terminal pass
   requires is performed, before the composition admits the next pass.
 
-    - `resolveReviewPolicy` returns `coverage-required` before it reads a supplied terminus today; on that branch the
-      terminus check moves ahead of it once the context's `responseDue` is false (Task 1.1).
-      `run-errand`'s arm is Task 1.9; the delivery and pre-publication surfaces are
-      Task 2.6.
-    - Build `test-first` (one behavior at a time):
-        - A terminus after a clean converged fix check resolves to `owner-accepted`.
-        - A terminus after an unconverged look whose response is performed resolves to `owner-accepted`, the stop
-          § 7.3's second remedy names.
-        - A terminus while the terminal's required response is unperformed leaves `coverage-required`, response first.
-        - The frontline lane still refuses a terminus.
+- A supplied standard-lane terminus now resolves to `owner-accepted` before the coverage branch when the terminal's
+  response is settled. Outstanding responses retain `coverage-required`; frontline still refuses a terminus.
+- Direct reducer regressions cover clean and unconverged fix checks at the ceiling, pending responses, and frontline.
 
 ### `[ ]` **1.8 Retire the Errand's hosted correction and predict its next pass by the rule — § 2.5, § 7.2, § 7.9**
 
