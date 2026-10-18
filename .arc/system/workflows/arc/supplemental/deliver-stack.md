@@ -94,8 +94,9 @@ member closeout. Dispatch only on the typed result:
   result stop before gate execution.
 
 No member push-gate request starts until every exact member target has a closed result and disposition. Retain each
-exact-target selection for the calling pre-publication review. This recheck governs the current materialization only;
-later target movement requires another exact check.
+exact-target selection for the calling pre-publication complete review. A fix check instead measures its own range after
+coverage is chosen. This recheck governs the current materialization only; after later target movement, status's measure
+of the selected pass is the next exact check.
 
 ```bash
 arc delivery eligibility prepare -
@@ -299,12 +300,13 @@ review evidence exists. Resolve its exact open change request and pass the resol
 arc review status --target '{targetRef}'
 ```
 
-No review carrier may run while the latest exact-target `consider-chunks / select-review-scope` result is unresolved.
-A selected bounded-review route closes through `scope-selected`; an explicit capable whole-target choice closes the
-attention disposition while retaining `consider-chunks`. Require the returned review action to carry either the
-exact-target chunked scope selection or, for the whole-target route, the exact-target forced hosted invocation selected
-by the Owner. A missing or stale selection returns to the owning route rather than editing the action or invoking a
-carrier.
+Status measures the selected pass once coverage is chosen. Use that result as the exact chunk check at a moved head;
+never run an additional whole-member measure for a fix check. No review carrier may run while its latest exact-target
+`consider-chunks / select-review-scope` result is unresolved. A selected bounded-review route closes through
+`scope-selected`; an explicit capable whole-target choice closes the attention disposition while retaining
+`consider-chunks`. Require the returned review action to carry either the exact-target chunked scope selection or, for
+the whole-target route, the exact-target forced hosted invocation selected by the Owner. A missing or stale selection
+returns to the owning route rather than editing the action or invoking a carrier.
 
 After the Owner selects the whole-target route, re-enter the same exact target with that configured hosted source:
 

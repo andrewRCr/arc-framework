@@ -193,11 +193,22 @@ JSON with `--additional-pass` on the same status scope. The authorization names 
 completed-pass count, and next ordinal; each later pass needs a fresh decision. Above the configured ceiling, that same
 decision covers the named pass without a second approval. A later material result re-enters the ordinary response route.
 
-No review carrier may run while the latest exact-target `consider-chunks / select-review-scope` result is unresolved.
-A selected bounded-review route closes through `scope-selected`; an explicit capable whole-target choice closes the
-attention disposition while retaining `consider-chunks`. Require the status action to carry either the exact-target
-chunked scope selection or, for the whole-target route, the exact-target forced hosted invocation selected by the
-Owner. A missing or stale selection stops before either hosted or local invocation.
+On the delivery route, status measures the selected pass after its coverage choice; that is the exact chunk check. Read
+its returned scope selection without running another whole-member measure at the moved head.
+
+On the singleton route, measure the current change set with `arc review changeset resolve -` once coverage is known and
+before invoking its carrier. Supply `{ kind: "change-set", baseRef, diffBaseSha, headSha }` for the work-unit branch and
+any selection bound to that exact range. A first or complete pass measures the whole contribution. For a fix check, use
+`diffBaseSha: correctionScope.predecessorHeadSha` and the current `headSha`; the chunk gate binds that fix range. When
+local prepare offers coverage, measure after the listed pick and before the call carrying `coverageAdmission`. Apply
+[`review-chunking`][review-chunking] when the resolver requests a scope choice, then carry the selected scope into local
+prepare as `policyJudgment.scopeMode`.
+
+No review carrier may run while the latest exact-target `consider-chunks / select-review-scope` result is unresolved. A
+selected bounded-review route closes through `scope-selected`; an explicit capable whole-target choice closes the
+attention disposition while retaining `consider-chunks`. On delivery, require the status action to carry either the
+exact-target chunked scope selection or, for the whole-target route, the exact-target forced hosted invocation selected
+by the Owner. A missing or stale selection stops before either hosted or local invocation.
 
 When the Owner accepts any returned delivery-member terminus, add `judgment: { "mode": "owner-accepted" }` to
 `terminusAction` and pass the resulting envelope unchanged to:

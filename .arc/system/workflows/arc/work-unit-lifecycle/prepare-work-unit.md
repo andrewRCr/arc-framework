@@ -102,12 +102,18 @@ The envelope's `target` is the exact target every exact-target operation below b
 means the checkout could not compose one; resolve the returned advisory before invoking any operation. The lane
 `target` inside `policy` routes lanes and does not identify a review.
 
-Before invoking or rendering review attention for each new target, read the latest planning decision prose for the
+Measure the range the next pass reviews once its coverage is known. A first or complete pass uses the envelope's whole
+`target`. For a local coverage offer, take the listed choice before measuring and before re-invoking local prepare with
+that choice. A fix check uses the envelope's `{ kind, baseRef, headSha }` with
+`diffBaseSha: correctionScope.predecessorHeadSha`; its chunk gate binds that fix range, not the whole contribution.
+After a private member is rematerialized, its retained whole-member selection serves only complete review; measure a fix
+check's range afresh.
+
+Before invoking or rendering review attention for each new review range, read the latest planning decision prose for the
 selected `assess-boundary-fit` outcome and its evidence basis. A recorded `stays one WU` decision stays silent while
-evidence is semantically unchanged; invocation, elapsed time, and restatement are not material deltas. Otherwise
-invoke `arc review changeset resolve -` with the envelope's `target` projected to
-`{ kind, baseRef, diffBaseSha, headSha }` and any exact-target `scopeSelection` projected the same way, then
-dispatch only on its typed state/action pair:
+evidence is semantically unchanged; invocation, elapsed time, and restatement are not material deltas. Otherwise invoke
+`arc review changeset resolve -` with that review range's `{ kind, baseRef, diffBaseSha, headSha }` and any selection
+bound to that exact range as `scopeSelection`, then dispatch only on its typed state/action pair:
 
 - `disabled / none`, `below-threshold / continue-review`, `scope-selected / continue-review`, or
   `evidence-unavailable / continue-review` — continue without attention text.
@@ -165,11 +171,12 @@ through `candidate-publish-ready`; the publication transition in Step 3 is the s
 - `stale-target / select-scope` — rerun chunking against the current target.
 - `blocked | unavailable | invalid-override / stop` — surface diagnostics and stop.
 
-When local prepare returns `coverage-required / select-coverage`, show `payload.coverageSelectionAction.interactionText`,
-its listed choices, and a recommendation grounded in the latest confirmed signal and exact correction. Re-invoke the
-same request with the listed choice as `coverageAdmission` and dispatch the returned state again. An incremental choice
-still spends one logical pass; do not infer coverage from a finding count or combine the choice with the Owner's
-next-pass authorization. Launch and attest only from `ready / launch-review`.
+When local prepare returns `coverage-required / select-coverage`, show
+`payload.coverageSelectionAction.interactionText`, its listed choices, and a recommendation grounded in the latest
+confirmed signal and exact correction. Re-invoke the same request with the listed choice as `coverageAdmission` after
+measuring its range and carrying the selected scope as `policyJudgment.scopeMode`; dispatch the returned state again. An
+incremental choice still spends one logical pass; do not infer coverage from a finding count or combine the choice with
+the Owner's next-pass authorization. Launch and attest only from `ready / launch-review`.
 
 Dispatch local operations only through public typed actions. The evaluator submits status, result, findings, and
 run identity to `arc review local attest -`; runtime-owned bindings come from the immutable operation. Resume with

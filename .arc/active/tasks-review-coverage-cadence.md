@@ -262,7 +262,7 @@ first, then in the `.arc/` copy by targeted edit.
         - The local-prepare arm carries the chunk gate's selection as `policyJudgment.scopeMode` and preserves it in
           procedure re-entry. Authoritative and installed workflow copies match.
 
-### `[ ]` **2.2 Measure a fix check's chunks over its own range — § 3.3**
+### `[x]` **2.2 Measure a fix check's chunks over its own range — § 3.3**
 
 - _Goal:_ A fix check's chunk measure counts its own range, `predecessorHeadSha..headSha`, on and off the delivery
   path, taken once the pass's coverage is known, while a complete pass and a first pass measure the whole target.
@@ -274,19 +274,14 @@ first, then in the `.arc/` copy by targeted edit.
           reconstruction demonstrated the complete-range preservation and real-Git assertions fail before restoration;
           the fix-range and missing-scope cases failed against the original implementation.
 
-    - `[ ]` **2.2.b Measure off the delivery path in the workflows**
-        - `prepare-work-unit` and `integrate-work-unit`'s singleton route measure after the pick and before the call that
-          carries it: for a fix check, `arc review changeset resolve -` names the correction scope's
-          `predecessorHeadSha` as `diffBaseSha` (`resolveMemberCoordinates` takes the commits verbatim), and the gate's
-          exact target is that range. `integrate-work-unit`'s singleton route gains the measure its chunk gate refers
-          to.
-        - A pre-publication fix check after materialization takes the fix-range measure; `deliver-stack`'s retained
-          whole-member selection serves only a complete pass.
+    - `[x]` **2.2.b Measure off the delivery path in the workflows**
+        - Pre-publication and singleton integration measure after coverage selection and before the call carrying it.
+          Fix checks bind the chunk gate to their predecessor-to-head range; first and complete passes use the whole
+          target. Chosen scope rides into local prepare, and rematerialized private fix checks measure afresh.
 
-    - `[ ]` **2.2.c State status's measure as `deliver-stack`'s exact check**
-        - `deliver-stack`'s "requires another exact check" sentence names status's measure as that check, and the chunk
-          gate in `deliver-stack` and in `integrate-work-unit`'s delivery route reads one measure, taken after the
-          coverage choice.
+    - `[x]` **2.2.c State status's measure as `deliver-stack`'s exact check**
+        - Delivery workflows use status's post-choice measure as their exact check after head movement, without a
+          second whole-member measure. Retained private whole-member selections serve complete review only.
 
 ### `[ ]` **2.3 Pass a delivery admission's source through local prepare's re-check — § 7.6**
 
