@@ -1,8 +1,8 @@
 # Metadata: review-coverage-cadence
 
-| **State**  | **Owner** | **Branch**                     | **Class** | **Priority** |
-| ---------- | --------- | ------------------------------ | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/review-coverage-cadence` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**                     | **Class** | **Priority** |
+| --------- | --------- | ------------------------------ | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/review-coverage-cadence` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,12 +12,12 @@
 - **Task List:** `tasks-review-coverage-cadence.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** `process-task-loop`
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Task 1.1.a — Build the performed-response test (line ~41)
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1.a — Build the performed-response test
 
 - **PR URL:** [none]
 - **Completed:** [none]
