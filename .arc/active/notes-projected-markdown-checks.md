@@ -10,6 +10,7 @@
 - [Ceremony coverage](#ceremony-coverage)
 - [Fixer grounding](#fixer-grounding)
 - [Verification evidence](#verification-evidence)
+- [Private standard review](#private-standard-review)
 
 ## Suppliers
 
@@ -434,5 +435,34 @@ criteria:
     state: "[x]"
 summary: 22 met; 0 superseded; 0 unresolved. Ready for Candidate preparation.
 ```
+
+## Private standard review
+
+Standard pass 1 of 2 reviewed `94d0ee7e187026a9bddc8a695f50a5e1b11af9d1` through
+`3216f82c14aa859eaff795cdcf3344630882c42c`, target
+`sha256:0665fef50225eda1310dda24c0422e975b6ed8a9bdd5972dc42db9f08ab82ce4`. Six fresh closure reviews covered all
+102 changed files, with shared changed declarations included in consuming closures, followed by a dedicated seam
+review and a fresh non-author aggregate. The complete union had no missing or extra paths. Every scope considered
+the standard rubric's five dimensions and repository contract coherence.
+
+The aggregate returned two minor findings. Source verification confirmed both; the approved disposition set is
+`sha256:9f33182adebf3824145246e9f03f5540ddda37b92d528335cf30749e160b9dae`, with full verification and both findings
+marked `fix`. The source is the attested local producer
+`local-936a1a4b5a1a084f0da72c5d57f6c52fb012234cacab1ef465875d4403dc50f5`.
+
+- **F1 — draft text after readiness feedback.** `draft-design.md` repeated feedback only when its final reread
+  itself changed text. A review amendment after the first request could therefore commit without fresh feedback.
+  The repeat condition now covers any draft text changed since the first request, including review amendments.
+- **F2 — generic integration review fixes.** `integrate-work-unit.md` placed feedback only inside its hosted
+  findings branch. The conditional request now sits with the common review-fix verification instructions and
+  covers both local and hosted fixes once, preserving gates and the completed-only exemption.
+
+These findings qualify the ceremony coverage recorded at verification: the follow-up repairs the two missed paths
+under the existing design. The source sweep also checked the sibling draft/spec/task capture sites and preparation's
+review-fix route; no further instance was found. Both fixes preserve the original goals and criteria. Package and
+installed workflow bytes match, `render:framework` reports both unchanged, and the exact diff has no whitespace errors.
+
+The singleton landing bridge applies: land one work-unit branch with the meta Integrating under `.arc/active/`,
+compose Completion Notes before landing, then archive through a separate post-merge PR and tear down after it merges.
 
 ---

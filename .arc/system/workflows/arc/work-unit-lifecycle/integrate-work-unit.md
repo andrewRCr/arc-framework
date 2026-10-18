@@ -356,8 +356,6 @@ prior count.
   with `fixTarget: null`, and require every result to complete before any approved fix changes the head. Then apply and
   verify the approved fixes, then commit and push them:
 
-  When a fix includes authored state text the checks read, run `arc check increment` before the fix commit.
-
   > [!CAUTION]
   > `commit-interlock` release — commit the approved fixes as `taskCommit`:
 
@@ -427,6 +425,9 @@ Pass the returned action unchanged; it carries `coverage: incremental`. After th
 re-enter status without the coverage option so the still-required complete lane remains executable. If the adapter
 reports `effectiveCoverage: complete`, accept the broader review and disclose the upgrade. Stop only when the pass
 needs new authority, material cost, or resolution of genuine uncertainty.
+
+Before any review-fix commit, run `arc check increment` when the fix includes authored state text the checks read;
+completed-only repairs remain exempt.
 
 Request `arc check gate commit` after every review-driven change. Before an approved fix's `verifiedFix` replay,
 which attests the approved scope as performed, a `focused` scope also requests `arc check gate push --range --force`

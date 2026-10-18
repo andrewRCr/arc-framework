@@ -281,7 +281,8 @@ fast-forward it, and remove the local grooming branch if it is still present.
 adversarial-pass findings, review amendments — re-read the settled draft for coherence (the readiness bar's
 coherence check, re-fired) as the last step before the capture commit.
 
-If that re-read changes the draft's text, run `arc check increment` again before the capture commit.
+If draft text changed after the first request, including review amendments or this re-read, run `arc check increment`
+again before the capture commit.
 
 What is staged sets the commit shape: a `medium` / `high` path bundles the `draft-*` with the meta `Class` +
 `Design` writes; a `low` path that produced no draft writes only the meta, landing as a dedicated `chore(arc):`
