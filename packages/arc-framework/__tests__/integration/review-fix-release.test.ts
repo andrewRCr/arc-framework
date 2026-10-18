@@ -63,7 +63,7 @@ describe("review-fix round release", () => {
       expect(method).toContain("[review-increment-invariant]: ");
       expect(caller).not.toContain("the fix round's structured gate");
     }
-    const author = shipped("system/methods/self-review.md");
+    const author = shipped("system/methods/code-review-author.md");
     expect(author).toContain("code-review.md#author-check");
     expect(author).not.toContain("structured gate");
   });
@@ -80,7 +80,7 @@ describe("review-fix round release", () => {
       "system/workflows/arc/supplemental/run-errand.md",
       "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
       "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md",
-      "system/methods/self-review.md",
+      "system/methods/code-review-author.md",
     ]) expect(occurrences(shipped(path), commit), path).toBe(0);
     expect(prepare).toMatch(softWrappedProse("Commit its staged Candidate response as `taskCommit`"));
     expect(authoring).toMatch(softWrappedProse("and review-fix commits a complete-set disposition approval releases"));

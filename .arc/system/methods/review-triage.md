@@ -173,7 +173,8 @@ audience-visible record supplied by the caller. For a producer-backed fix commit
 `Review disposition set: <identity>` and summarizes each included finding as
 `<identity>: <verified severity or not-supported> / <disposition> — <rationale>`; the approved set remains the
 authority when a channel has a richer durable record. For author self-review, use the canonical `(code review)`
-context footer from `self-review`; its report-local labels do not create a producer disposition-set identity.
+context footer from [code-review's author check][code-author-check]; its report-local labels do not create a producer
+disposition-set identity.
 
 ---
 
@@ -181,5 +182,6 @@ context footer from `self-review`; its report-local labels do not create a produ
 [review-increment-invariant]: ../rules/DEV-RULES.ARC.md#review-increment-invariant
 
 [review-model]: review-model.md
+[code-author-check]: code-review.md#author-check
 
 [loop-reading]: review-model.md#loop-reading

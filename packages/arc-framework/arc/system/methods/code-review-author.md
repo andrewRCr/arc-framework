@@ -1,5 +1,5 @@
 ---
-name: self-review
+name: code-review-author
 description: Local author-side aggregate diff preflight — generic and composable
 related:
   - code-review
@@ -7,7 +7,7 @@ active: true
 override-active: false
 ---
 
-# Method: self-review
+# Method: code-review-author
 
 > - **Workflow:** [code-review's author check][author-check]
 > - **When:** When a workflow or skill invokes local diff preflight — notably before opening a change request
@@ -18,11 +18,11 @@ override-active: false
 >   merge safety.
 > - **Related:** [code-review](code-review.md) — owns findings handling and the author-fix gate
 
-## self-review.override
+## code-review-author.override
 
 [No override configured]
 
-## self-review.default
+## code-review-author.default
 
 Lightweight author-side diff preflight. It catches issues that only emerge at the aggregate level; it invokes no
 external review provider by default and authors no independent evidence.

@@ -6,8 +6,8 @@ override-active: false
 
 # Method: implementation-audit
 
-> - **Workflow:** [code-review](code-review.md), [frontline-review](frontline-review.md), and
->   [standard-review](standard-review.md).
+> - **Workflow:** [code-review](code-review.md), [code-review-frontline](code-review-frontline.md), and
+>   [code-review-standard](code-review-standard.md).
 > - **When:** A review activity evaluates a completed change
 >
 > - **Contract:** Evaluate the complete requested change against all five dimensions below. Report every actionable

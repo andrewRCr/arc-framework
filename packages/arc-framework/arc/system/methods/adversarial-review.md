@@ -13,10 +13,10 @@ related:
   - source-grounding
   - assess-design-proportionality
   - disposition-report
-  - frontline-review
+  - code-review-frontline
   - implementation-audit
   - review-chunking
-  - standard-review
+  - code-review-standard
   - validate-criteria
 override-active: false
 ---
@@ -24,7 +24,7 @@ override-active: false
 # Method: adversarial-review
 
 > - **Workflow:** [planning-review](planning-review.md), [verification-review](verification-review.md),
->   [frontline-review](frontline-review.md), and [standard-review](standard-review.md).
+>   [code-review-frontline](code-review-frontline.md), and [code-review-standard](code-review-standard.md).
 > - **When:** A stage boundary runs its readiness, finalization, task-generation, or work-unit verification gate
 >   and has a supplied rubric to attack.
 >

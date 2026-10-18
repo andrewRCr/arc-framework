@@ -1042,57 +1042,31 @@ package's `arc/` source first, then in the `.arc/` copy.
           Task 7.3 limits additional-pass authorization to delivery status and states that the ordinary singleton
           discharge takes none and returns settled.
 
-### `[ ]` **7.7 Rename `frontline-review`, `standard-review`, and `self-review` — § 12**
+### `[x]` **7.7 Rename `frontline-review`, `standard-review`, and `self-review` — § 12**
 
 - _Goal:_ The methods are `code-review-frontline`, `code-review-standard`, and `code-review-author` everywhere a method
   name is read — files, activation keys, classification, recipe, manifest, checks, declarations, prose, and tests — in
   both copies, while the lane vocabulary and every stored or schema literal and published schema ID that carries an old
   name stay.
 
-    - `[ ]` **7.7.a Move the method files and their keys**
-        - Each file's `name`, title, and `.override` and `.default` headings, in both copies; the activation-registry
-          keys (`lib/method-activation-registry.ts`) and their caller's (`resolveMethodActivation`,
-          `scripts/review-gate/policy/activity.ts`); `CONFIGURABLE_FILES` and the strategy's Configurable inventory;
-          `init-recipe.json`'s `include_files` and the regenerated manifest; and `.arc/system/arc-checks.yml`'s
-          table-format inputs. The activation diagnostics, built from the name as `method.<name>.*`
-          (`lib/method-activation.ts`), move with it. The checks that tie a name to its file —
-          `lib/frontmatter/method.ts`, `lib/method-activation.ts`, `validate-package-neutrality.ts`,
-          `audit-method-triggers.ts`, and `hosts/local/method-files.ts` — pass.
-        - _Note:_ No alias or migration, under the pre-release posture; this repository's `.arc/` copy of
-          `frontline-review.md` moves with its `active: true`.
+    - `[x]` **7.7.a Move the method files and their keys**
+        - Moved all three files in both copies with their activation keys, classification, recipe, manifest, and table
+          inputs. The project frontline activation remains true; package defaults and renamed diagnostics retain their
+          behavior without aliases or migrations.
 
-    - `[ ]` **7.7.b Move the references**
-        - `related:` and `arc.methods:` entries as Task 7.5 leaves them, and the prose that names a method: `code-review`,
-          `review-model`, `review-chunking`, `review-triage`, `design-audit`, `verify-work-unit`, `prepare-work-unit`,
-          `integrate-external-content`, the `arc-design-audit` skill and its harness copy, the methods `README.md`,
-          `AGENT-BRIEF.ARC.md`, `strategy-session-operations.md`'s method table, and
-          `strategy-configurability-architecture.md`'s package-default line. A plain-English "self-review" that names no
-          method stays, and `docs/` stays as it is.
+    - `[x]` **7.7.b Move the references**
+        - Moved method declarations, links, headings, index groups, strategy tables, briefings, and the audit skill's
+          method references. Author findings point to the shared caller's footer procedure; plain review prose and
+          lane vocabulary remain unchanged.
 
-    - `[ ]` **7.7.c Move the tests that pin a name**
-        - The nineteen files that pin a method's file, registry key, or `method.<name>.*` diagnostic, each a `.test.ts`
-          unless named in full:
-            - under `__tests__/integration/`: `framework-sync`, `init`, `update`, `pr-lifecycle`,
-              `pre-publication-frontline-policy-skip`, `prepublication-workflow`, `review-fix-release`,
-              `review-gate-legacy-sweep`, and `review-gate-workflows`;
-            - under `__tests__/unit/`: `frontmatter/method`, `scripts/audit-method-triggers`,
-              `scripts/validate-package-neutrality`, and, under `scripts/review-gate/`, `hosts/local/method-files`,
-              `planning-grooming-command`, `policy/activity`, and `policy/assurance`;
-            - `__tests__/e2e/init.e2e.test.ts`, `__tests__/helpers/candidate-lineage-suite.ts`, and
-              `__tests__/fixtures/review-triage/author-self-review/exercise.md`.
-        - The tests that pin a kept literal, and those using "self-review" as a test-local label, stay as they are.
+    - `[x]` **7.7.c Move the tests that pin a name**
+        - Updated method paths, fixture names, activation keys, and diagnostics across installation, carrier, and
+          content tests, including the extracted code-review contracts. Sorted diagnostics follow the new names.
 
-    - `[ ]` **7.7.d Keep every literal § 12.3 lists, and the lane vocabulary**
-        - The requirement kind `"standard-review"` and its blocker code, `frontline-review/v1`,
-          `standard-review-reservation/v1` and `arc.standard-review.reservation/v1`, the rubric literals and schema IDs,
-          the `standard-review/v1` source qualifier, the `frontlineReview` and `selfReview` method-activity fields, the
-          `authorSelfReview` routing and promotion fields, the `self-review-inactive` reason, the `run-self-review`
-          boundary action, `arc review pre-publication`'s `--self-review settled` option, the rubric line in `AGENTS.md`
-          and `.coderabbit.yaml`, and the method text "The baseline version is `standard-review/v1`".
-        - The lane vocabulary: `review.standard_*` and `review.frontline_*`, `arc review frontline`, "the standard lane",
-          and the review gate's `standard-review*.ts` modules.
-        - Build `test-first` (one behavior at a time):
-            - A stored record holding each kept literal parses after the rename.
+    - `[x]` **7.7.d Keep every literal § 12.3 lists, and the lane vocabulary**
+        - Frozen public-producer records parse with the original requirement, rubric, frontline, reservation,
+          guidance, activity, routing, promotion, and author-action literals. Identity preimages and published schema
+          IDs remain bound; narrow negative controls reject renamed contracts and IDs.
 
 ### `[ ]` **7.8 Every review step in exactly one place** — validate exit criterion at segment scope
 

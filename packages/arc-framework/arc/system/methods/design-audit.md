@@ -77,8 +77,8 @@ The two methods divide labor along the artifact/design line and compose rather t
 
 - [`spec-review`][spec-review] verifies the **artifact** — the just-written spec is coherent, complete, and its
   claims about shipped behavior hold at source. It deliberately disclaims re-litigating the design.
-- `design-audit` validates the **design** — the thing self-review disclaims. When a `spec-review` pass surfaces a
-  finding that _reopens design_ (a masked decision, an unsettled fundamental), this rubric is that route's
+- `design-audit` validates the **design** — the thing `code-review-author` disclaims. When a `spec-review` pass surfaces
+  a finding that _reopens design_ (a masked decision, an unsettled fundamental), this rubric is that route's
   destination: the reopened question is re-validated here, never papered over in the artifact.
 
 Run `spec-review` to certify the record; run `design-audit` to certify the decisions it records. Neither subsumes

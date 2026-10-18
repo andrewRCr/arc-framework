@@ -4,9 +4,9 @@ description: Shared procedures for reviewing a change set through its caller's t
 arc:
   methods:
     - review-model
-    - self-review
-    - frontline-review
-    - standard-review
+    - code-review-author
+    - code-review-frontline
+    - code-review-standard
     - implementation-audit
     - review-triage
     - review-response
@@ -47,18 +47,18 @@ verb's result unchanged, producer and disposition references when present, and a
 adds no stored operation or synthetic lane state. Each section below is an independent entrypoint. Apply
 [review-model][review-model] when using any entrypoint.
 
-The CLI carries [frontline-review][frontline-review] and [standard-review][standard-review] to their selected lanes;
-[implementation-audit][implementation-audit] is the intent-and-implementation rubric, not an alternative lane.
-Follow the selected action rather than manually invoking both lanes.
+The CLI carries [code-review-frontline][code-review-frontline] and [code-review-standard][code-review-standard] to their
+selected lanes; [implementation-audit][implementation-audit] is the intent-and-implementation rubric, not an alternative
+lane. Follow the selected action rather than manually invoking both lanes.
 
 ### Author check
 
 **Signature:** Before verification or at `run-self-review`, take the aggregate diff and effective author activity;
 leave a completed author check or its explicit inactive result before the caller advances.
 
-If [self-review][self-review] is effectively active, execute it over the aggregate diff against the base branch.
-Run its findings through [review-triage][review-triage] as a standalone non-producer report and obtain complete-set
-approval before applying fixes. That approval is the author fix round's structured gate under
+If [code-review-author][code-review-author] is effectively active, execute it over the aggregate diff against the base
+branch. Run its findings through [review-triage][review-triage] as a standalone non-producer report and obtain
+complete-set approval before applying fixes. That approval is the author fix round's structured gate under
 [DEV-RULES.ARC's review-increment invariant][review-increment-invariant]. Apply and verify only approved fixes and
 request `arc check increment` once over them. Do not invoke the producer-backed response command or fabricate a
 producer, receipt, or lane result. Commit with the caller's canonical `(code review)` context, reserving lifecycle
@@ -382,9 +382,9 @@ coordinates cannot be recovered.
 [verify-work-unit]: ../workflows/arc/work-unit-lifecycle/verify-work-unit.md
 [review-model]: review-model.md
 [convergence]: review-model.md#convergence-and-permission
-[self-review]: self-review.md
-[frontline-review]: frontline-review.md
-[standard-review]: standard-review.md
+[code-review-author]: code-review-author.md
+[code-review-frontline]: code-review-frontline.md
+[code-review-standard]: code-review-standard.md
 [implementation-audit]: implementation-audit.md
 [review-triage]: review-triage.md
 [review-response]: review-response.md

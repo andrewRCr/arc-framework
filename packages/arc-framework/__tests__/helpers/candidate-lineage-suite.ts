@@ -349,7 +349,7 @@ async function fixture(options: {
   const root = await copyPreparedRepository(initializedTemplate, initializedShape);
   roots.push(root);
   if (options.frontlineReviewActive === true) {
-    const frontlineMethod = join(root, ".arc", "system", "methods", "frontline-review.md");
+    const frontlineMethod = join(root, ".arc", "system", "methods", "code-review-frontline.md");
     await writeFile(
       frontlineMethod,
       (await readFile(frontlineMethod, "utf8")).replace("active: false", "active: true"),

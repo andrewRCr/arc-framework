@@ -271,7 +271,7 @@ describe("PR lifecycle and review contracts", () => {
 
   it("keeps self-review author-side and provider-neutral", async () => {
     for (const base of [packageArc, projectArc]) {
-      const method = await readFile(resolve(base, "system/methods/self-review.md"), "utf8");
+      const method = await readFile(resolve(base, "system/methods/code-review-author.md"), "utf8");
       expect(method).toContain("author-side");
       expect(method).toContain("not peer/independent review evidence");
       expect(method).toContain("**Correctness**");
@@ -297,8 +297,8 @@ describe("PR lifecycle and review contracts", () => {
 
   it("separates frontline advice from satisfying standard review", async () => {
     for (const base of [packageArc, projectArc]) {
-      const frontline = await readFile(resolve(base, "system/methods/frontline-review.md"), "utf8");
-      const independent = await readFile(resolve(base, "system/methods/standard-review.md"), "utf8");
+      const frontline = await readFile(resolve(base, "system/methods/code-review-frontline.md"), "utf8");
+      const independent = await readFile(resolve(base, "system/methods/code-review-standard.md"), "utf8");
       expect(frontline).toContain("active: false");
       expect(frontline).toContain("advisory pre-publication");
       expect(frontline).toContain("cannot satisfy");
@@ -316,7 +316,7 @@ describe("PR lifecycle and review contracts", () => {
 
   it("composes frontline chunking as one bounded advisory pass", async () => {
     for (const base of [packageArc, projectArc]) {
-      const method = await readFile(resolve(base, "system/methods/frontline-review.md"), "utf8");
+      const method = await readFile(resolve(base, "system/methods/code-review-frontline.md"), "utf8");
       const normalized = method.replace(/\s+/gu, " ");
       expect(method).toContain("review-chunking");
       expect(normalized).toContain("one curated-scope-capable local carrier orchestration");
@@ -332,7 +332,7 @@ describe("PR lifecycle and review contracts", () => {
 
   it("composes standard review chunking as one complete local-carrier pass", async () => {
     for (const base of [packageArc, projectArc]) {
-      const standard = await readFile(resolve(base, "system/methods/standard-review.md"), "utf8");
+      const standard = await readFile(resolve(base, "system/methods/code-review-standard.md"), "utf8");
       const adversarial = await readFile(resolve(base, "system/methods/adversarial-review.md"), "utf8");
       const normalizedStandard = standard.replace(/\s+/gu, " ");
       const normalizedAdversarial = adversarial.replace(/\s+/gu, " ");
@@ -360,9 +360,9 @@ describe("PR lifecycle and review contracts", () => {
         resolve(base, "reference/strategies/arc/strategy-session-operations.md"),
         "utf8",
       );
-      const selfReview = await readFile(resolve(base, "system/methods/self-review.md"), "utf8");
-      const frontline = await readFile(resolve(base, "system/methods/frontline-review.md"), "utf8");
-      const independent = await readFile(resolve(base, "system/methods/standard-review.md"), "utf8");
+      const selfReview = await readFile(resolve(base, "system/methods/code-review-author.md"), "utf8");
+      const frontline = await readFile(resolve(base, "system/methods/code-review-frontline.md"), "utf8");
+      const independent = await readFile(resolve(base, "system/methods/code-review-standard.md"), "utf8");
       const guidance = `${brief}\n${strategy}\n${selfReview}\n${frontline}\n${independent}`
         .replace(/\s+/gu, " ");
 
@@ -389,7 +389,7 @@ describe("PR lifecycle and review contracts", () => {
 
   it("documents the native reviewer-guidance adapter boundary", async () => {
     for (const base of [packageArc, projectArc]) {
-      const method = await readFile(resolve(base, "system/methods/standard-review.md"), "utf8");
+      const method = await readFile(resolve(base, "system/methods/code-review-standard.md"), "utf8");
       const strategy = await readFile(
         resolve(base, "reference/strategies/arc/strategy-configurability-architecture.md"),
         "utf8",
@@ -414,8 +414,8 @@ describe("PR lifecycle and review contracts", () => {
       expect(normalized).toContain("reviewer never edits the target");
       expect(normalized).toContain("only an authorized adapter may attest a completed exact target");
       expect(method).toContain("implementation-audit");
-      expect(method).toContain("frontline-review");
-      expect(method).toContain("standard-review");
+      expect(method).toContain("code-review-frontline");
+      expect(method).toContain("code-review-standard");
     }
   });
 

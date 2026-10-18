@@ -18,10 +18,10 @@ it is independent of `override-active` (whether an override is populated) and `o
 Unregistered methods must omit `active`. Missing or malformed project activation emits a diagnostic and falls back
 to the registered package default.
 
-| Activatable method | Package default | Activity                                            |
-| ------------------ | --------------- | --------------------------------------------------- |
-| self-review        | code-review     | Pure author check; shared caller owns findings      |
-| frontline-review   | `false`         | Advisory distinct-context review before PR creation |
+| Activatable method    | Package default | Activity                                            |
+| --------------------- | --------------- | --------------------------------------------------- |
+| code-review-author    | `true`          | Author-side aggregate diff preflight                |
+| code-review-frontline | `false`         | Advisory distinct-context review before PR creation |
 
 **Loading model:** Method defaults and overrides always load on-demand at their fire-points. Session-init does not
 read methods; the `override-active` frontmatter field is consumed by the framework-repo CI audit, docs generation,
@@ -43,9 +43,9 @@ configurability model, see [Configurability Architecture Strategy][config-arch].
   [assess-design-proportionality](assess-design-proportionality.md), [source-grounding](source-grounding.md),
   [spec-review](spec-review.md), [task-audit](task-audit.md), [design-audit](design-audit.md),
   [implementation-audit](implementation-audit.md), [validate-criteria](validate-criteria.md), and
-  [self-review](self-review.md), code review's author check.
-- **Vehicles:** [adversarial-review](adversarial-review.md), [frontline-review](frontline-review.md), and
-  [standard-review](standard-review.md).
+  [code-review-author](code-review-author.md), code review's author check.
+- **Vehicles:** [adversarial-review](adversarial-review.md), [code-review-frontline](code-review-frontline.md), and
+  [code-review-standard](code-review-standard.md).
 - **Findings:** [review-triage](review-triage.md), [review-response](review-response.md), and
   [disposition-report](disposition-report.md).
 - **Routing:** [classify-review-risk](classify-review-risk.md), [review-chunking](review-chunking.md), and
@@ -65,11 +65,11 @@ when populating any `.override` section. Methods not listed here are independent
 | commit-format                 | commit-footer, pull-request-format                                                     | Both govern the commit message                       |
 | pull-request-format           | commit-format                                                                          | Title grammar and decision content                   |
 | commit-footer                 | commit-format                                                                          | Both govern the commit message                       |
-| frontline-review              | adversarial-review, implementation-audit, review-chunking, review-triage               | Advisory review mechanism, scope, and lens           |
-| standard-review               | adversarial-review, implementation-audit, review-chunking, review-triage               | Satisfying standard, mechanism, and lens             |
-| review-chunking               | frontline-review, standard-review                                                      | Bounded review-scope consumers                       |
-| self-review                   | code-review                                                                            | Pure author check; shared caller owns findings       |
-| code-review                   | self-review, frontline-review, standard-review, review-model                           | Code review dispatch procedures                      |
+| code-review-frontline         | adversarial-review, implementation-audit, review-chunking, review-triage               | Advisory review mechanism, scope, and lens           |
+| code-review-standard          | adversarial-review, implementation-audit, review-chunking, review-triage               | Satisfying standard, mechanism, and lens             |
+| review-chunking               | code-review-frontline, code-review-standard                                            | Bounded review-scope consumers                       |
+| code-review-author            | code-review                                                                            | Pure author check; shared caller owns findings       |
+| code-review                   | code-review-author, code-review-frontline, code-review-standard, review-model          | Code review dispatch procedures                      |
 | planning-review               | adversarial-review, review-model                                                       | Planning stage checks, independent offer, and reread |
 | verification-review           | validate-criteria, adversarial-review, review-model                                    | Criteria walk and independent companion              |
 | review-model                  | adversarial-review, review-triage, review-response                                     | Shared passes, rounds, convergence, and cadence      |

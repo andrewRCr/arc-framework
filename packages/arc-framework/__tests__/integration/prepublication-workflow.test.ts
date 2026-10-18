@@ -366,7 +366,7 @@ describe("prepublication workflow boundary", () => {
       expect(preparation).toContain("For `run-self-review`, run [code-review's author check]");
       const method = await readFile(resolve(root, "system/methods/code-review.md"), "utf8");
       const author = codeReviewSection(verification, "author-check", method);
-      expect(author).toContain("aggregate diff against the base branch");
+      expect(author).toMatch(softWrappedProse("aggregate diff against the base branch"));
       expect(author).toContain("standalone non-producer report");
       expect(author).toContain("Do not invoke the producer-backed response command");
       expect(integration).not.toMatch(softWrappedProse("After settlement, clean the WU content"));
@@ -406,7 +406,7 @@ describe("prepublication workflow boundary", () => {
     for (const root of ROOTS) {
       const [footer, selfReview] = await Promise.all([
         readFile(resolve(root, "system/methods/commit-footer.md"), "utf8"),
-        readFile(resolve(root, "system/methods/self-review.md"), "utf8"),
+        readFile(resolve(root, "system/methods/code-review-author.md"), "utf8"),
       ]);
 
       expect(footer).toContain("meta-[name].md (prepublication)");

@@ -1,5 +1,5 @@
 ---
-name: standard-review
+name: code-review-standard
 description: Satisfying standard for non-author review of one complete exact change set
 arc:
   methods:
@@ -13,7 +13,7 @@ related:
 override-active: false
 ---
 
-# Method: standard-review
+# Method: code-review-standard
 
 > - **Workflow:** [code-review](code-review.md).
 > - **When:** A review obligation requires satisfying non-author analysis
@@ -22,11 +22,11 @@ override-active: false
 >   project context, applies the bound rubric, and returns a result eligible for exact-target attestation only when
 >   the standard below is complete. The activity grants no mutation, disposition, or closure authority.
 
-## standard-review.override
+## code-review-standard.override
 
 [No override configured]
 
-## standard-review.default
+## code-review-standard.default
 
 The baseline version is `standard-review/v1`. Its semantic identity is owned by the registered typed contract
 and derived digest; editorial guidance in this method is not a second identity authority.

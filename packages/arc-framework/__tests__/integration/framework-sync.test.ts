@@ -172,8 +172,8 @@ describe("framework sync (self-hosting drift check)", () => {
       "system/methods/source-grounding.md",
       "system/methods/spec-review.md",
       "system/methods/task-audit.md",
-      "system/methods/self-review.md",
-      "system/methods/standard-review.md",
+      "system/methods/code-review-author.md",
+      "system/methods/code-review-standard.md",
       "system/methods/implementation-audit.md",
       "system/methods/review-chunking.md",
       "system/methods/review-model.md",
@@ -197,7 +197,7 @@ describe("framework sync (self-hosting drift check)", () => {
   });
 
   it("keeps frontline activation project-specific without changing its method contract", async () => {
-    const path = "system/methods/frontline-review.md";
+    const path = "system/methods/code-review-frontline.md";
     const [packaged, project] = await Promise.all([
       readFile(join(PKG_ARC_DIR, path), "utf8"),
       readFile(join(ARC_DIR, path), "utf8"),
@@ -209,7 +209,7 @@ describe("framework sync (self-hosting drift check)", () => {
   });
 
   it("keeps the frontline chunking attachment reference-only and whole-target", async () => {
-    const method = await readFile(join(PKG_ARC_DIR, "system/methods/frontline-review.md"), "utf8");
+    const method = await readFile(join(PKG_ARC_DIR, "system/methods/code-review-frontline.md"), "utf8");
     expect(method.match(/review-chunking/gu)?.length).toBeGreaterThanOrEqual(2);
     expect(method).toContain("canonical target, partition, and coverage state");
     expect(method).toContain("one aggregate whole-target frontline result");
@@ -217,7 +217,7 @@ describe("framework sync (self-hosting drift check)", () => {
   });
 
   it("keeps standard chunking bounded to one exact-target carrier orchestration", async () => {
-    const standard = await readFile(join(PKG_ARC_DIR, "system/methods/standard-review.md"), "utf8");
+    const standard = await readFile(join(PKG_ARC_DIR, "system/methods/code-review-standard.md"), "utf8");
     const adversarial = await readFile(join(PKG_ARC_DIR, "system/methods/adversarial-review.md"), "utf8");
     const guidance = `${standard}\n${adversarial}`;
 

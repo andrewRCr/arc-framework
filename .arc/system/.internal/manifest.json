@@ -342,16 +342,6 @@
       "layer": "core",
       "pristine_hash": "955dc4f0d1aa7acfb4a06f59d6a141188ad92751282ff4860c2c9d2668094db7"
     },
-    "system/methods/frontline-review.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "b4a84b38e89cd656496cb71fb5fd603f1b8308ed4876fc6efdf80f107e248f9e"
-    },
-    "system/methods/standard-review.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "162388c85491798a40364bbe1808678bb76209ab611500f1fe37643f87933343"
-    },
     "system/methods/implementation-audit.md": {
       "classification": "Configurable",
       "layer": "core",
@@ -361,11 +351,6 @@
       "classification": "Configurable",
       "layer": "core",
       "pristine_hash": "ef9b2c8546ab5319d2484eb0896b90e1ed65fe7aba262bfa6a7a258bcdc8fe8f"
-    },
-    "system/methods/self-review.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "59210b9981a39b588f4dbb5c62593cd8c1f455e61e95b3387af16df13e52d40b"
     },
     "system/methods/issue-triage.md": {
       "classification": "Configurable",
@@ -741,6 +726,21 @@
       "classification": "Configurable",
       "layer": "core",
       "pristine_hash": "719006990c1896dc659e4ec62092778d778792d7c9af6437d9589273b9e35123"
+    },
+    "system/methods/code-review-frontline.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "f4153c74b9820aea7d9c18b62324dabca4e0fc8c349c75d47f61d6b5d3501a18"
+    },
+    "system/methods/code-review-standard.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "44b9ba2414169104ce91104c9793391151b39c7f28dc97262efdcc1e1bcb750a"
+    },
+    "system/methods/code-review-author.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "a780f8a3bbe2f837ccc9ad4f75b2fec49e662ac88ff5af94ae11bb3756bb57f0"
     }
   }
 }

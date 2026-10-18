@@ -1,5 +1,5 @@
 ---
-name: frontline-review
+name: code-review-frontline
 description: Advisory pre-publication review that shapes a change before standard review
 arc:
   methods:
@@ -10,11 +10,11 @@ related:
   - implementation-audit
   - review-chunking
   - review-triage
-active: false
+active: true
 override-active: false
 ---
 
-# Method: frontline-review
+# Method: code-review-frontline
 
 > - **Workflow:** [code-review](code-review.md).
 > - **When:** A caller elects to review an exact change before publishing it to a downstream independent evaluator
@@ -24,11 +24,11 @@ override-active: false
 >   review cannot satisfy an standard-review obligation, produce satisfying evidence, or authorize mutation.
 >   As agent-side ergonomics, it does not structurally enforce merge safety.
 
-## frontline-review.override
+## code-review-frontline.override
 
 [No override configured]
 
-## frontline-review.default
+## code-review-frontline.default
 
 Review the complete exact target from source and governing project context. Exclude author conclusions, suspected
 weak spots, preferred fixes, and self-verification claims from the evaluator's first-pass context.

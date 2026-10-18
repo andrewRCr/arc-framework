@@ -32,11 +32,11 @@ checks:
       - .arc/system/methods/commit-footer.md
       - .arc/system/methods/commit-format.md
       - .arc/system/methods/design-audit.md
-      - .arc/system/methods/frontline-review.md
-      - .arc/system/methods/standard-review.md
+      - .arc/system/methods/code-review-frontline.md
+      - .arc/system/methods/code-review-standard.md
       - .arc/system/methods/implementation-audit.md
       - .arc/system/methods/review-chunking.md
-      - .arc/system/methods/self-review.md
+      - .arc/system/methods/code-review-author.md
       - .arc/system/methods/issue-triage.md
       - .arc/system/methods/resolve-plan-segmentation.md
       - .arc/system/methods/resolve-planning-depth.md

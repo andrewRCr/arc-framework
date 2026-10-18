@@ -373,7 +373,7 @@ describe("shared code-review workflow contracts", () => {
 
   it("keeps author self-review on the direct non-producer triage path", async () => {
     const [selfReview, verification, method] = await Promise.all([
-      readRepositoryFile("packages/arc-framework/arc/system/methods/self-review.md"),
+      readRepositoryFile("packages/arc-framework/arc/system/methods/code-review-author.md"),
       readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/verify-work-unit.md"),
       readCodeMethod(),
     ]);
