@@ -1078,68 +1078,73 @@ package's `arc/` source first, then in the `.arc/` copy.
 
 ## **Phase 8:** Verification
 
-### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Nineteen selected merge checks passed, including full build, lint, both type checks, 16,136 unit
+  tests and 3,862 integration tests. Whole-branch content feedback passed; three CI-only checks were not selected locally.
+- _Success criteria:_ All nineteen met. `notes-review-coverage-cadence.md` retains exact criterion digests, the verified
+  span, source/test evidence, and the qualified six-context companion report with its three approved minor fixes.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` A `full-final` lane does not close on a fix check: on an Errand before and after its pull request, in
+- `[x]` A `full-final` lane does not close on a fix check: on an Errand before and after its pull request, in
   pre-publication, on the published singleton, and on a delivery member, the pass after a material fix offers a local
   fix check with a local complete pass also listed, a converged fix check resolves to `coverage-required`, the complete
   pass that follows at the same head is admitted with no selection, and a complete pass at the settled head with no
   material fix completes the lane; `incremental` adequacy is unchanged.
 
-- `[ ]` No hosted source runs the pass after an unconverged one: the driver selects `delegated-agent`, refuses a forced
+- `[x]` No hosted source runs the pass after an unconverged one: the driver selects `delegated-agent`, refuses a forced
   hosted source with a remedy naming the local pass, and the work-unit offer lists only `delegated-agent`; without
   `delegated-agent` configured the lane stops with both remedies; after a converged pass the configured rank picks the
   source.
 
-- `[ ]` A delta check runs on `delegated-agent` whatever the rank, with no hosted-first reservation; while one is
+- `[x]` A delta check runs on `delegated-agent` whatever the rank, with no hosted-first reservation; while one is
   admissible a forced hosted source is refused with a remedy naming it; complete coverage supplied in local prepare's
   request runs a local complete pass with no correction scope; without `delegated-agent` configured none is admitted.
 
-- `[ ]` No incremental hosted request runs: hosted admission and both `status.ts` hosted routes refuse incremental
+- `[x]` No incremental hosted request runs: hosted admission and both `status.ts` hosted routes refuse incremental
   coverage with a remedy naming the local fix check, the hosted incremental writers are gone, and a stored hosted record
   with incremental coverage still parses and replays.
 
-- `[ ]` The fix-check chain proves on either side of the pull request — by the performed-response test at every
+- `[x]` The fix-check chain proves on either side of the pull request — by the performed-response test at every
   confirmation, after a hosted pass at an open pull request, and on a Candidate whose record commit follows the fix —
   and breaks on a base move after an unchecked fix on every path, delivery included; no incremental pass is admitted
   after a clean predecessor except a delta check by its range proof.
 
-- `[ ]` The published singleton runs its local pass: its route names an ordinary local prepare request in place of
+- `[x]` The published singleton runs its local pass: its route names an ordinary local prepare request in place of
   `run-review` and handles `coverage-required`, its discharge reads the local terminal, its source, and earlier local
   attempts with no `deliveryAdmission`, and a delivery admission chosen with `--source delegated-agent` survives local
   prepare's real re-check.
 
-- `[ ]` The ceiling counts complete passes: a lane at the ceiling runs a fix check with no override; a complete pass
+- `[x]` The ceiling counts complete passes: a lane at the ceiling runs a fix check with no override; a complete pass
   past the ceiling requires an override or an extra pass that no fix check spends; a conditional next-pass
   authorization binds only to a complete pass's admission; `logicalPass` numbers every finished attempt and
   `validatePassCounts` holds; and no text the Owner reads shows an attempt number as a pass.
 
-- `[ ]` Each coverage question is asked once: off the delivery path local prepare asks after material fixes; on it status
+- `[x]` Each coverage question is asked once: off the delivery path local prepare asks after material fixes; on it status
   asks and local prepare does not ask again; after a converged look under `full-final` nothing asks; and status refuses
   an unlisted `--source` and `--coverage` pair, and a `--coverage` where it routes the singleton to a local pass.
 
-- `[ ]` The Owner's stop is reachable at `coverage-required` once the terminal's response is performed, on the delivery
+- `[x]` The Owner's stop is reachable at `coverage-required` once the terminal's response is performed, on the delivery
   path's work-unit route, in pre-publication, and in `run-errand`.
 
-- `[ ]` A fix check is chunked by its own range on and off the delivery path; `prepare-work-unit` and
+- `[x]` A fix check is chunked by its own range on and off the delivery path; `prepare-work-unit` and
   `integrate-work-unit`'s singleton route carry the chosen scope into local prepare and `--lanes`; and a complete pass
   after a fix check at the same head resolves with its own scope.
 
-- `[ ]` A complete pass receives pointers and no verdicts, and the lane read serves triage and the agent's stop: triage
+- `[x]` A complete pass receives pointers and no verdicts, and the lane read serves triage and the agent's stop: triage
   reads the lineage's rejected findings and their reasons from the lane read; after a clean fix check under `full-final`,
   each workflow's arm runs the read before the complete pass is dispatched — before publication where pre-publication's
   envelope carries a hosted-first `reservation` — and offers the Owner's stop when the judgment recommends stopping,
   while `deliver-stack`'s member review and the published singleton report the limit instead.
 
-- `[ ]` The bounded check runs at both applicability stops, with `assess-evidence-applicability` fired at
+- `[x]` The bounded check runs at both applicability stops, with `assess-evidence-applicability` fired at
   `integrate-work-unit`'s pre-reconcile stop; the `--coverage incremental` supplemental arms are gone; and the arms that
   land a fix the check prompts follow its route outside and inside a bound delivery.
 
-- `[ ]` The shared model is in one method, and every report renders it: `review-model` exists in both copies with its
+- `[x]` The shared model is in one method, and every report renders it: `review-model` exists in both copies with its
   recipe disposition, Configurable entry, and fire-point declarations; `adversarial-review` § Fold verification says a
   following pass is never a reason to decline a fix check; an adversarial pass, a fix-check round, and a code-review
   findings round render one report shape, with `fails` in `adversarial-review`'s report schema, the render-only inputs
@@ -1147,20 +1152,20 @@ package's `arc/` source first, then in the `.arc/` copy.
   label the same in every render of one set; and the top-level re-entry shape is offered where the signal's own stage is
   at `high`, with no offer to re-enter higher there.
 
-- `[ ]` Each review step is in exactly one place: the after-inventory matches the before-inventory step for step; the
+- `[x]` Each review step is in exactly one place: the after-inventory matches the before-inventory step for step; the
   three review-type methods exist in both copies with their recipe dispositions and Configurable entries, and every site
   calls its type's method; and every § 11.5 drift item is fixed.
 
-- `[ ]` The renames are complete and nothing stored moved: no `frontline-review.md`, `standard-review.md`, or
+- `[x]` The renames are complete and nothing stored moved: no `frontline-review.md`, `standard-review.md`, or
   `self-review.md` remains in either copy; the activation keys, Configurable lists, recipe, generated manifest,
   `arc-checks.yml`, and every reference follow; and every § 12.3 literal is unchanged.
 
-- `[ ]` One stored addition: no stored schema under the review gate, the store, or the operation records gains a field,
+- `[x]` One stored addition: no stored schema under the review gate, the store, or the operation records gains a field,
   kind, or literal but the optional fix-tag note on the disposition record's lineage node, outside the approved set's
   identity and written once by the approved respond call, and the next-pass context rides only the driver's internal
   request.
 
-- `[ ]` A plain commit after convergence takes a delta check: on an Errand before and after its pull request, in
+- `[x]` A plain commit after convergence takes a delta check: on an Errand before and after its pull request, in
   pre-publication once the Candidate checkpoint advances the same Candidate, and on the published singleton, the next
   pass under `incremental` after a converged look and a linear commit at the same base is a local incremental look on
   `delegated-agent`, scoped from the converged head, outside the ceiling, admitted without a selection, and closing the
@@ -1170,7 +1175,7 @@ package's `arc/` source first, then in the `.arc/` copy.
   next-pass arm, while the published singleton returns the review-applicability stop; the converged look's own head, a
   moved base, a merge commit in range, or a re-rooted Candidate admits none; and the attempt it writes is a fix check's.
 
-- `[ ]` All quality gates pass (tests, linting, type checking), with content integration tests run over the whole
+- `[x]` All quality gates pass (tests, linting, type checking), with content integration tests run over the whole
   branch before its first push
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration

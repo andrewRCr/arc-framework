@@ -4,6 +4,26 @@ What eight complete standard passes over one large `sensitive` change set found,
 relative to the fixes before it; the prior-art sources; the hosted-review probes; the review call-site inventory; the
 chain confirmations; the changes to pre-commitment text; and the neighbors task generation and execution meet.
 
+## Contents
+
+- [Source](#source)
+- [Method](#method)
+- [Results](#results)
+- [Every fixed finding, passes 2–8](#every-fixed-finding-passes-28)
+- [Rejected findings](#rejected-findings)
+- [Prior art sources](#prior-art-sources)
+- [Codex probe](#codex-probe)
+- [CodeRabbit probe](#coderabbit-probe)
+- [Review call sites](#review-call-sites)
+- [Fix-range measure probe](#fix-range-measure-probe)
+- [Chain confirmations](#chain-confirmations)
+- [Planning review of this work unit](#planning-review-of-this-work-unit)
+- [Changes to pre-commitment text](#changes-to-pre-commitment-text)
+- [Caveats](#caveats)
+- [Coordination](#coordination)
+- [A2 — Historical member fix-chain proof](#a2--historical-member-fix-chain-proof)
+- [Verification evidence](#verification-evidence)
+
 ## Source
 
 - **Change set:** `feat/seam-lifecycle` against `main` at diff base `51483edc4`; 326 files, 15,664 insertions and
@@ -536,7 +556,7 @@ field (spec § 3.3).
 ## Chain confirmations
 
 The confirmations a correction scope, a chain re-confirmation, or a carry passes through, by call site, as the
-generate-tasks grounding audit read them. Each keeps its call site and today's grounds; its chain role takes the shared
+generate-tasks grounding audit read them. Each keeps its call site and then-current grounds; its chain role takes the shared
 chain proof (Task 1.1.b - `tasks-review-coverage-cadence.md`), and its carry role never does. Paths are relative to
 `scripts/review-gate/`.
 
@@ -696,13 +716,242 @@ unchanged, and `review-orchestration-right-sizing` holds the concern.
 
 ## A2 — Historical member fix-chain proof
 
-`createRespondPolicyConfirmation` rejects a historical local member result when `resolveRespondPolicyTarget` cannot
-match its old head to the live PR. That return precedes `confirmReviewCorrectionLeg`, although
-`confirmDeliveryCorrectionLeg` already validates the exact approved member response, consumption, lineage, unchanged
-base, and performed head. The repeated material-round scenario exposes the premature refusal in
-`readRespondProvisionalPassFacts`; the same confirmation also serves `resolveRespondPolicy`.
+The task audit found that `createRespondPolicyConfirmation` rejected a historical local member result when
+`resolveRespondPolicyTarget` could not match its old head to the live PR. That return preceded
+`confirmReviewCorrectionLeg`, although `confirmDeliveryCorrectionLeg` already validated the exact approved member
+response, consumption, lineage, unchanged base, and performed head. The repeated material-round scenario exposed the
+refusal in `readRespondProvisionalPassFacts`; the same confirmation also serves `resolveRespondPolicy`.
 
 The correction retains the live match as ordinary contribution grounds and lets the existing stored fix-response
 proof decide a historical fix leg. No new proof or authority is introduced. The affected statement is § 5.3's
 predictive chain adequacy, with the chain-proof contract in § 4 unchanged. Earlier phase scenarios remain valid;
-Task 5.7 adds the repeated material look that exercises an older incremental leg and closes A2 on its rerun.
+Task 5.7's rerun exercised the older incremental leg through three material fix-check rounds and closed A2.
+
+## Verification evidence
+
+The terminal author walk uses the complete flat Success Criteria section. Criterion identity removes the root
+bullet and checkbox, folds continuation whitespace, and retains the immutable inline text. Paths below are relative
+to the review-gate source and test roots named in each entry; method/workflow names resolve in the shipped source
+and installed counterpart. The code span includes all approved corrections; the notes consolidation is its staged
+documentation supplement.
+
+```yaml
+criteria-slice: tasks-review-coverage-cadence.md > Success Criteria
+span:
+  diff:
+    base: e8ac534c5b0ca6fc42d2f523e483f2550f497897
+    head: 7e6f5c6883baaef0532d08db7b927825772edc4c
+  reachability:
+    tree: 8164a954daf8e5bd5073346799c0dfc26f75d4dc
+    staged-supplement: notes-review-coverage-cadence.md consolidation
+  boundary-order-deviation: null
+criteria:
+  - locus: Success Criteria > 1
+    criterion-digest: sha256:6a4fe428a5254960b0198173204d572f6592d0b196ae541680446b3100ec00a9
+    evidence: >-
+      policy/review-policy-evidence.ts:deriveVerifiedTerminalSignal;
+      policy/review-next-pass.ts:deriveReviewNextPassContext
+      integration/review-status-errand-correction.test.ts:full Errand cadence;
+      integration/pre-publication-correction-proof.test.ts:private and published singleton cadence;
+      integration/review-member-full-final.test.ts:clean check to complete successor
+    state: "[x]"
+  - locus: Success Criteria > 2
+    criterion-digest: sha256:e57782526425e40a301ed1cd6c38daacb92a4ad9a74edba6cb885a48c51896ca
+    evidence: >-
+      policy/review-source-eligibility.ts:selectReviewSources;
+      policy/review-policy-driver.ts:resolveReviewPolicy
+      integration/review-status-errand-correction.test.ts:source refusal/configuration repair/ranked successor;
+      unit/scripts/review-gate/policy/hosted-reservation-cadence.test.ts; review-policy-ceiling-count regression
+      proves source refusal before spend and valid local override recovery.
+    state: "[x]"
+  - locus: Success Criteria > 3
+    criterion-digest: sha256:0aa97845224828b079f160a40dc30b261eca468c0c1684294b4e1e8f0bd585b0
+    evidence: >-
+      policy/review-next-pass.ts:incrementalBasis; policy/review-source-eligibility.ts;
+      runtime/local-prepare-composition.ts
+      integration/review-status-errand-correction.test.ts:plain-commit delta and forced-hosted refusal;
+      integration/pre-publication-delta.test.ts:Candidate delta and explicit complete; status-driver-refusals
+      and real Errand status regression preserve delta diagnostics and local/configuration recovery.
+    state: "[x]"
+  - locus: Success Criteria > 4
+    criterion-digest: sha256:c1590bb4054822d58074671111c1009556992de0f172a438b5b373eac9e3d734
+    evidence: >-
+      hosted/codex.ts; hosted/coderabbit.ts; status.ts:composeSingletonRequest and
+      composeDeliveryReviewObligation
+      integration/review-fan-out-lifecycle.test.ts:both hosted incremental refusals and retained historical
+      producer; unit/scripts/review-gate/review-retained-contracts.test.ts
+    state: "[x]"
+  - locus: Success Criteria > 5
+    criterion-digest: sha256:dec24f2266c3fcaf0e38ada66f4f468242e75b98c2f851a1f6d8a9d39c236137
+    evidence: >-
+      policy/performed-response-proof.ts; policy/candidate-correction-proof.ts;
+      policy/delivery-correction-proof.ts; policy/review-delta-range-proof.ts
+      integration/performed-response-proof.test.ts;
+      integration/pre-publication-correction-proof.test.ts:record-commit/unchecked-base-move matrix;
+      integration/review-status-errand-correction.test.ts:base-move matrix
+    state: "[x]"
+  - locus: Success Criteria > 6
+    criterion-digest: sha256:20ab2354d24f38a0da170842646f793f129610ad3fcbf5ec4cef7ed50f3cea9a
+    evidence: >-
+      singleton-local-prepare-action.ts; status-singleton.ts; runtime/local-reserved-obligation.ts;
+      policy/hosted-reservation-discharge.ts
+      integration/review-singleton-local-prepare.test.ts:routing refusal and repair;
+      integration/pre-publication-correction-proof.test.ts:ordinary local singleton terminal;
+      integration/review-fan-out-lifecycle.test.ts:real member admission recheck
+    state: "[x]"
+  - locus: Success Criteria > 7
+    criterion-digest: sha256:9293653f7425c6d807cd9101fc350abd4fa9105c9e0948cecca31b72f13e59f1
+    evidence: >-
+      lane-progress.ts:countCompleteLogicalPasses; lane-progress-conditional.ts:requireCompletePendingCoverage;
+      policy/review-policy-driver.ts:ceilingPassCount
+      unit/scripts/review-gate/policy/review-policy-ceiling-count.test.ts;
+      integration/review-member-full-final.test.ts:repeated rounds outside ceiling;
+      integration/review-fan-out-lifecycle.test.ts:Candidate ceiling and five complete passes
+    state: "[x]"
+  - locus: Success Criteria > 8
+    criterion-digest: sha256:9fa0d95de753be170155feabdfb45aa4358531dc6a39d617654a77d733e7c4a7
+    evidence: >-
+      policy/local-review-coverage-selection.ts; status-composition.ts; status-driver-refusal.ts; shared
+      code-review Coverage selection
+      unit/scripts/review-gate/policy/local-review-coverage-selection-context.test.ts;
+      unit/scripts/review-gate/status-singleton-coverage.test.ts; integration/review-member-full-final.test.ts
+    state: "[x]"
+  - locus: Success Criteria > 9
+    criterion-digest: sha256:cec921cdd1837f0214103d38b5a59e2fe0d6e13422ef7ab2f097cded74c60860
+    evidence: >-
+      policy/review-policy-driver.ts:ownerAcceptedEnvelope; status-terminus-offer.ts; shared code-review Stop
+      line; run-errand stop continuation
+      unit/scripts/review-gate/policy/coverage-required-terminus.test.ts;
+      unit/scripts/review-gate/status-coverage-terminus.test.ts;
+      unit/scripts/review-gate/policy/pre-publication-procedure.test.ts
+    state: "[x]"
+  - locus: Success Criteria > 10
+    criterion-digest: sha256:b0da38440f31a2bccc3209fddd1790fd14b572ec6560348a3062208ea859b079
+    evidence: >-
+      status-delivery-scope.ts; policy/review-policy-evidence.ts:bindReviewPolicyContinuationEvidence;
+      code-review Chunk gate; prepare/integrate scope continuations
+      integration/review-delivery-scope.test.ts;
+      unit/scripts/review-gate/policy/review-policy-evidence.test.ts:fresh scope after fix check;
+      integration/review-fan-out-workflows.test.ts
+    state: "[x]"
+  - locus: Success Criteria > 11
+    criterion-digest: sha256:73e0970fb4e204ab8e6b6139b8539d5a53359a858c5e94cc9320e2e419e4b8f6
+    evidence: >-
+      core/fixed-finding-pointers.ts; runtime/lane-read-composition.ts; lane-read.ts; code-review Successor
+      decision; prepare/integrate/run-errand/deliver-stack fragment callsites
+      integration/review-lane-read.test.ts:rejection reasons and inherited Candidate history;
+      unit/scripts/review-gate/core/fixed-finding-pointers.test.ts;
+      integration/review-gate-workflows-code-review.test.ts
+    state: "[x]"
+  - locus: Success Criteria > 12
+    criterion-digest: sha256:a159687fe299be9e886f165946ac1bbc2750c8d658a4290b5a36769f1e7c5932
+    evidence: >-
+      assess-evidence-applicability method; integrate-work-unit pre-reconcile and post-reconcile applicability
+      stops; code-review findings continuation
+      integration/evidence-applicability-workflows.test.ts; integration/evidence-applicability-doctrine.test.ts;
+      integration/review-gate-workflows-code-review.test.ts; integration/review-fix-release.test.ts
+    state: "[x]"
+  - locus: Success Criteria > 13
+    criterion-digest: sha256:5f9be9084cb645fee5337f756af2b16ecb8964de409c0c53ae908a3934466abe
+    evidence: >-
+      review-model, adversarial-review, disposition-report and review-triage methods;
+      core/review-report-inputs.ts; runtime/response-report.ts; core/advisory-records.ts; mirrored approval
+      wording distinguishes review families at 7e6f5c688.
+      unit/scripts/review-gate/runtime/respond-command-report.test.ts:stable labels/tags/render-only
+      non-persistence; integration/scripts/review-gate/core/disposition-report.test.ts; framework-sync contracts
+    state: "[x]"
+  - locus: Success Criteria > 14
+    criterion-digest: sha256:f40180ed178eaf23d60a52acdc60d98b0262d2614a0394cae20cfe37e8ee6157
+    evidence: >-
+      notes-review-coverage-cadence.md:43-row before/after inventories;
+      planning-review/code-review/verification-review methods and exact fragment-bearing lifecycle callsites
+      integration/review-gate-workflows-code-review.test.ts; integration/prepublication-workflow.test.ts;
+      integration/review-fix-release.test.ts; unit/scripts/audit-method-triggers.test.ts
+    state: "[x]"
+  - locus: Success Criteria > 15
+    criterion-digest: sha256:a3e2ac5aff2f4b5252bd1fa1cf96c84165a74ecd1e91f3c7ed3fbc0041df1c3f
+    evidence: >-
+      lib/method-activation-registry.ts; lib/classification.ts; init-recipe.json; generated manifest; preserved
+      schema/rubric/activity literals
+      unit/scripts/review-gate/review-retained-contracts.test.ts;
+      unit/handlers/review-producer-reference.test.ts; integration/framework-sync.test.ts; init/update and
+      legacy-sweep contracts
+    state: "[x]"
+  - locus: Success Criteria > 16
+    criterion-digest: sha256:d9abf71e1198673cb898f0ac3565d4ecf60aac59528a3bba6736eb9938ad338a
+    evidence: >-
+      core/advisory-records.ts:optional advisoryFixTags only; core/review-convergence.ts:internal coverage
+      evidence separated from persisted signal; command request excludes nextPassContext
+      unit/scripts/review-gate/review-retained-contracts.test.ts:frozen old boundary and terminal projection;
+      unit/scripts/review-gate/policy/review-next-pass-binding.test.ts;
+      unit/scripts/review-gate/runtime/respond-command-report.test.ts
+    state: "[x]"
+  - locus: Success Criteria > 17
+    criterion-digest: sha256:f69e559b781537e92fbf50d798e3bfa18cd650161701f4be2e0be1a16ece4ea4
+    evidence: >-
+      policy/review-delta-range-proof.ts; policy/review-next-pass.ts:incrementalBasis; Candidate checkpoint and
+      singleton/Errand composition; carry paths require their existing proof
+      integration/pre-publication-delta.test.ts; integration/pre-publication-correction-proof.test.ts:published
+      singleton plain commit and delivery exclusion;
+      integration/review-status-errand-correction.test.ts:pre/post-PR matrix;
+      unit/scripts/review-gate/policy/review-delta-range-proof.test.ts
+    state: "[x]"
+  - locus: Success Criteria > 18
+    criterion-digest: sha256:3859dc7df00c8ab7bc44ce9ececb6f9f71c2d3bac77095690b6f391791f3d6d0
+    evidence: >-
+      ARC declared merge gate and whole-branch content feedback
+      Final merge gate:19 selected checks passed;3 CI-only checks not selected. Unit16136 passed/549 skipped;
+      integration3862 passed/650 skipped. Whole-branch content feedback3861 passed/651 skipped. Full build, lint
+      and both type checks passed.
+    state: "[x]"
+  - locus: Success Criteria > 19
+    criterion-digest: sha256:6e3400fca90dcb0c0f525a97a0a95374806d40ee0e68fea7e2323786a1b6f82f
+    evidence: >-
+      Implementation complete at exact code head; subsequent Candidate preparation, private review and
+      exact-head integration authorization remain their own workflow boundaries
+      All implementation criteria met, no essential deferred scope or open implementation finding. Candidate
+      preparation and private review are the next lifecycle boundary; publication and exact-head integration
+      authorization remain later.
+    state: "[x]"
+summary: 19 met; 0 superseded; 0 unresolved
+```
+
+### Independent companion
+
+Pass 1 of 2 reviewed `e8ac534c5b0ca6fc42d2f523e483f2550f497897` through `7d859c5dacda9a67407193e7d81649efad680014`, plus
+the staged notes consolidation. Five source chunks and one fresh seam/aggregate context covered the assigned 328-path
+union. The aggregate closed eleven disclosed test/fixture gaps, checked moved-helper provenance, matched the 43-row
+before/after inventory, and found the nineteen extracted review tests at their new callsite-oriented home. The review
+used six evaluator contexts and ended after about thirteen minutes, without further decomposition or private control
+machinery.
+
+Three confirmed minor findings originated in the original artifact; each approved correction was a local correction:
+
+- **F1 — FIX:** source refusal now precedes ceiling approval, after response and terminus precedence. Two regression
+  cases failed on the former result and passed with eligible-source repair plus exact ceiling authorization.
+- **F2 — FIX:** status retains both delta source diagnostics and their local/configuration remedies. Public singleton
+  status and the real Errand flow failed before correction and passed with a successful local retry.
+- **F3 — FIX:** both shared-model copies distinguish adversarial named-pass approval from code review's existing
+  disposition and ceiling authority. Conditional successor and fix-check permission remain separate.
+
+The complete disposition set and commits were approved; the optional independent fix check was declined on the
+minor-only corrections' merits. No additional complete criteria pass was recommended or launched, and no conditional
+successor authorization existed. Corrective commits: `4da5e3b72` and `7e6f5c688`. The author re-walk includes their
+complete delta and its executable regressions; this is not a second independent pass.
+
+The independent report considered all nineteen criteria but did not establish quality-gate completion or integration
+readiness from author claims. Historical planning/research narrative in active or retired artifacts was not
+independently reviewed. Its result is qualified rather than a clean whole-target code-review result; it creates no
+producer or satisfying lane evidence. Primary verification closes on the source, test, and check witnesses below.
+
+### Quality evidence
+
+- `npx arc check gate merge --force` passed all nineteen selected checks at code head `7e6f5c688`:
+  full build, lint, both type checks, unit tests (16,136 passed; 549 skipped), integration tests (3,862 passed;
+  650 skipped), and contract checks. Three CI-only checks (`test:e2e`, `test:portability`, and
+  `test:portability:macos`) were not selected locally and remain owned by CI.
+- Whole-branch content feedback over base `e8ac534c5b0ca6fc42d2f523e483f2550f497897` passed 3,861 tests with 651 skips
+  before the final minor corrections; the final merge gate then reran the complete integration tier over those fixes.
+- The source/fixture repairs and persisted-envelope compatibility corrections landed in `76665f92c` and `7d859c5da`.
+  The companion's minor corrections landed in `4da5e3b72` and `7e6f5c688`. Targeted red/green regressions, both type
+  checks, the increment request, and related-unit feedback closed the approved fix rounds.

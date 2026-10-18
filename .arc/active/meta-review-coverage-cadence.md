@@ -11,13 +11,14 @@
 - **Design:** `spec-review-coverage-cadence.md`
 - **Task List:** `tasks-review-coverage-cadence.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:c32c34fa2597519e5513da26f9e5f480e651644171e9bff373c7efb6393e1ad1`
 
-- **Current Workflow:** `process-task-loop`
-- **Last Completed:** Task 7.8 — Every review step in exactly one place (Phase 7 complete)
-- **Next Task:** Task 8.1 — Complete verification (line ~1081)
-- **Blockers:** Content integration feedback failed: 16 cases in 4 suites; see SESSION-NOTES.md
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 8.1 — Complete verification
+- **Next Task:** [none]
+- **Blockers:** [none]
 
-- **Next Action:** Diagnose the recorded content-test failures in Task 8.1, then follow `verify-work-unit.md`
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]
