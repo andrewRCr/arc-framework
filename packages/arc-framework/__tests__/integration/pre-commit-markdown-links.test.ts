@@ -1,7 +1,7 @@
 /** Full-hook coverage for literal staged Markdown filenames and link restrictions. */
 
 import { execa } from "execa";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -35,7 +35,7 @@ describe.each(hookPaths)("literal Markdown filenames through %s", (hookPath) => 
     await Promise.all(fixtures.splice(0).map((root) => cleanupTempDir(root)));
   });
 
-  it.each(filenameCases)("rejects forbidden links in $source to $target and accepts a corrected retry", async ({ source, target, reason }) => {
+  async function fixture() {
     const root = await createTempRepo("arc-pre-commit-links-");
     fixtures.push(root);
     await writeRepoFile(root, ".arc/system/arc-config.yml", [
@@ -44,14 +44,18 @@ describe.each(hookPaths)("literal Markdown filenames through %s", (hookPath) => 
     await writeRepoFile(root, ".gitignore", ".arc/user/*\n");
     await writeRepoFile(root, ".arc/user/README.md", "# Tracked user documentation\n");
     await execa("git", ["add", "-f", ".arc/user/README.md"], { cwd: root });
+    const env = { ...process.env, PATH: await restrictedGitPath(root), FORCE_COLOR: undefined, NO_COLOR: "1" };
+    const runHook = () => execa("bash", [resolve(repoRoot, hookPath)], { cwd: root, env, reject: false });
+    return { root, runHook };
+  }
+
+  it.each(filenameCases)("rejects forbidden links in $source to $target and accepts a corrected retry", async ({ source, target, reason }) => {
+    const { root, runHook } = await fixture();
     await writeRepoFile(root, ".arc/active/meta-example.md", "# Record\n");
     await writeRepoFile(root, ".arc/user/alice/private.md", "# Private\n");
     await writeRepoFile(root, "sourcea.md", "# Unrelated wildcard match\n");
     await writeRepoFile(root, source, `[record](${target})\n`);
     await execa("git", ["add", "--", source], { cwd: root });
-    const env = { ...process.env, PATH: await restrictedGitPath(root), FORCE_COLOR: undefined, NO_COLOR: "1" };
-    const runHook = () => execa("bash", [resolve(repoRoot, hookPath)], { cwd: root, env, reject: false });
-
     const refused = await runHook();
     expect(refused.exitCode, refused.stdout).toBe(1);
     expect(refused.stdout).toContain(reason);
@@ -63,5 +67,28 @@ describe.each(hookPaths)("literal Markdown filenames through %s", (hookPath) => 
     expect(corrected.exitCode, corrected.stdout).toBe(0);
     expect(corrected.stdout).toContain("Pre-commit checks PASSED");
     expect(corrected.stdout).not.toContain("Markdown link resolution failed");
+  });
+
+  it.each(["corrected", "missing", "invalid"] as const)("reads the staged source with a %s worktree version", async worktree => {
+    const { root, runHook } = await fixture();
+    const source = "nested/source with spaces.md";
+    const forbidden = "[record](/.arc/active/meta-example.md)\n";
+    const valid = "[users](/.arc/user/README.md)\n";
+    const invalidStaged = worktree !== "invalid";
+    await writeRepoFile(root, source, invalidStaged ? forbidden : valid);
+    await execa("git", ["add", "--", source], { cwd: root });
+    if (worktree === "missing") await rm(join(root, "nested"), { recursive: true });
+    else await writeRepoFile(root, source, worktree === "corrected" ? valid : forbidden);
+
+    const result = await runHook();
+    expect(result.exitCode, result.stdout).toBe(invalidStaged ? 1 : 0);
+    if (invalidStaged) {
+      expect(result.stdout).toContain(`${source}: link to movable artifact`);
+      await writeRepoFile(root, source, valid);
+      await execa("git", ["add", "--", source], { cwd: root });
+      const corrected = await runHook();
+      expect(corrected.exitCode, corrected.stdout).toBe(0);
+      expect(corrected.stdout).toContain("Pre-commit checks PASSED");
+    } else expect(result.stdout).toContain("Pre-commit checks PASSED");
   });
 });

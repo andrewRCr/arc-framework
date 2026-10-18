@@ -42,6 +42,20 @@ describe("validate-links.sh", () => {
     });
   });
 
+  it.each([validateLinksScript, join(repoRoot, ".arc/system/.internal/scripts/validate-links.sh")])(
+    "requires indexed source content and recovers after staging: %s", async script => {
+      tmpDir = await mkdtemp(join(tmpdir(), "arc-validate-staged-source-"));
+      await execFileAsync("git", ["init", "-q"], { cwd: tmpDir });
+      await writeFile(join(tmpDir, "source.md"), "A valid source.\n");
+      await expect(execFileAsync("bash", [script, "--staged", "source.md"], { cwd: tmpDir })).rejects.toMatchObject({
+        code: 1, stderr: expect.stringContaining("could not read staged Markdown; restage the file and retry"),
+      });
+      await execFileAsync("git", ["add", "source.md"], { cwd: tmpDir });
+      await expect(execFileAsync("bash", [script, "--staged", "source.md"], { cwd: tmpDir }))
+        .resolves.toMatchObject({ stderr: "" });
+    },
+  );
+
   it("ships the same executable target rules as the installed validator", async () => {
     const installed = join(repoRoot, ".arc/system/.internal/scripts/validate-links.sh");
     expect(await readFile(validateLinksScript, "utf8")).toBe(await readFile(installed, "utf8"));

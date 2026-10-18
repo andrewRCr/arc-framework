@@ -429,7 +429,7 @@ while IFS= read -r -d '' file; do
 done < <(git diff --cached --name-only -z --diff-filter=ACMR)
 
 if [ "${#link_candidates[@]}" -gt 0 ]; then
-    if ! link_output=$(bash "$(dirname "$0")/../scripts/validate-links.sh" "${link_candidates[@]}" 2>&1); then
+    if ! link_output=$(bash "$(dirname "$0")/../scripts/validate-links.sh" --staged "${link_candidates[@]}" 2>&1); then
         echo -e "${RED}Error: Markdown link resolution failed:${NC}"
         echo "$link_output" | sed 's/^/   /'
         echo ""

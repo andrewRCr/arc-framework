@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# Validate markdown link targets in staged files.
+# Validate Markdown link targets in worktree files or staged source content.
 # Location: .arc/system/.internal/scripts/validate-links.sh
 #
 # Usage:
-#   .arc/system/.internal/scripts/validate-links.sh file1.md file2.md ...
+#   .arc/system/.internal/scripts/validate-links.sh [--staged] file1.md file2.md ...
+#   --staged reads repository-relative source operands from the Git index.
+#   Without it, source operands read the worktree, including ignored selections.
 #
 # Checks each markdown file for:
 # - Inline links     [text](target)    — target resolves to an existing file
@@ -27,9 +29,9 @@
 # - Movable artifact targets and ignored ARC targets are refused
 #
 # Non-markdown files passed as args are skipped silently.
-# Missing source files are skipped silently (covers deletions during staging).
+# Missing worktree sources are skipped silently; staged sources need no worktree file.
 #
-# Exit codes: 0 = all links resolve, 1 = broken or undefined reference found.
+# Exit codes: 0 = all links resolve, 1 = link violation or staged source read failure.
 
 set -eu
 
@@ -106,7 +108,7 @@ sanitize() {
             }
             print
         }
-    ' "$1"
+    ' "$@"
 }
 
 # Determine if a file is a movable artifact: a work unit's or cohort's record
@@ -198,7 +200,7 @@ validate_target() {
 # Validate a single markdown file.
 validate_file() {
     local source_file="$1"
-    [ -f "$source_file" ] || return 0
+    if [ "$staged" = 0 ] && [ ! -f "$source_file" ]; then return 0; fi
     case "$source_file" in *.md) ;; *) return 0 ;; esac
 
     # Skip template source files. Their links use post-install-relative
@@ -220,13 +222,22 @@ validate_file() {
     esac
 
     local source_dir
-    source_dir=$(cd "$(dirname "$source_file")" && pwd -P)
+    local sanitized
+    if [ "$staged" = 1 ]; then
+        source_dir=$(normalize_path "$repo_root/$(dirname "$source_file")")
+        local staged_content
+        if ! staged_content=$(git show ":$source_file" 2>/dev/null); then
+            diagnostic "$source_file: could not read staged Markdown; restage the file and retry"
+            return 0
+        fi
+        sanitized=$(printf '%s\n' "$staged_content" | sanitize)
+    else
+        source_dir=$(cd "$(dirname "$source_file")" && pwd -P)
+        sanitized=$(sanitize "$source_file")
+    fi
 
     local movable=0
     is_movable "$source_dir/$basename" && movable=1
-
-    local sanitized
-    sanitized=$(sanitize "$source_file")
 
     # Reference definitions: "[key]: value" at start of line.
     local defs
@@ -261,6 +272,8 @@ validate_file() {
 }
 
 # Main
+staged=0
+if [ "${1:-}" = --staged ]; then staged=1; shift; fi
 if [ $# -eq 0 ]; then
     exit 0
 fi
