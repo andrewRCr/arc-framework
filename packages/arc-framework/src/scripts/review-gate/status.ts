@@ -1,5 +1,7 @@
 /** Exact-target review, check, and base-status reduction. */
 
+import { projectReviewDriverRefusal, ReviewDriverRefusalReasonSchema, ReviewDriverRefusalSchema } from "./status-driver-refusal.js";
+import type { ReviewStatusRoute } from "./status-route.js";
 import { z } from "zod";
 
 import {
@@ -285,6 +287,8 @@ export const RoutedReviewObligationSchema = z.union([
     detail: z.string().min(1),
     prePublicationAction: PrePublicationContinuationSchema,
   }),
+  ReviewDriverRefusalSchema,
+  ReviewDriverRefusalSchema.extend({ conjunction: DeliveryReviewConjunctionSchema }),
   RoutedReviewCoverageRefusalSchema,
   RoutedReviewCoverageRequiredSchema,
   z.strictObject({
@@ -623,6 +627,7 @@ interface SingletonReviewRequest {
 
 /** Preserve the typed review intervention projected for one ordinary change-request target. */
 export function composeSingletonReviewObligation(input: {
+  readonly statusRoute?: ReviewStatusRoute;
   readonly discharge: ReviewDischargeIntervention & { readonly discharged: boolean };
   readonly applicabilityContext: ReviewApplicabilityContext;
   readonly request?: SingletonReviewRequest;
@@ -635,14 +640,18 @@ export function composeSingletonReviewObligation(input: {
   }
   const intervention = composeReviewDischargeIntervention(input.discharge, input.applicabilityContext);
   if (intervention !== null) return intervention;
-  if (input.request !== undefined) return composeSingletonRequest(input.request, input.discharge);
+  if (input.request !== undefined) return composeSingletonRequest(input.request, input.discharge,
+    input.statusRoute ?? { kind: "work-unit", workUnitId: input.applicabilityContext.workUnitId });
   return { state: "review-required", detail: input.discharge.detail };
 }
 
 function composeSingletonRequest(
   request: SingletonReviewRequest,
   discharge: ReviewDischargeIntervention,
+  route: ReviewStatusRoute,
 ): RoutedReviewObligation {
+  const refusal = projectReviewDriverRefusal({ policy: request.admission, route });
+  if (refusal !== null) return refusal;
   if (request.admission.state === "approval-required") {
     return RoutedReviewObligationSchema.parse({
       state: "approval-required",
@@ -690,6 +699,7 @@ function composeSingletonRequest(
  * @returns Settled conjunction, first-outstanding hosted action, or a contained blocked result.
  */
 export function composeDeliveryReviewObligation(input: {
+  readonly statusRoute?: ReviewStatusRoute;
   targets: readonly {
     repository: string;
     pullRequest: number;
@@ -821,6 +831,13 @@ export function composeDeliveryReviewObligation(input: {
       conjunction: { kind: "delivery", status: "outstanding", members },
       consequence: discharge.requestAdmission.payload.consequence,
     });
+  }
+  if (target !== undefined && discharge?.requestAdmission !== undefined) {
+    const statusRoute = input.statusRoute ?? { kind: "work-unit" as const, workUnitId: target.vehicle.workUnitId };
+    const refusal = projectReviewDriverRefusal({ policy: discharge.requestAdmission, route: statusRoute,
+      allowOwnerStop: statusRoute.kind === "work-unit" });
+    if (refusal !== null) return RoutedReviewObligationSchema.parse({ ...refusal,
+      conjunction: { kind: "delivery", status: "outstanding", members } });
   }
   if (target === undefined || discharge === undefined || discharge.nextSource === null) {
     return {
@@ -1148,6 +1165,10 @@ const ReviewStatusCoverageRequiredSchema = z.strictObject({
   nextAction: z.literal("select-coverage"),
   coverageSelectionAction: ReviewCoverageSelectionActionSchema,
 });
+const ReviewStatusDriverRefusalSchema = z.strictObject({
+  ...ReviewStatusBaseShape, state: z.literal("blocked"), nextAction: z.literal("stop"),
+  reason: ReviewDriverRefusalReasonSchema, detail: z.string().min(1), remedy: SpineRemedySchema,
+});
 export type ReviewStatusResult =
   | z.infer<typeof ReviewStatusSettledSchema>
   | z.infer<typeof ReviewStatusMemberDischargedSchema>
@@ -1168,6 +1189,7 @@ export type ReviewStatusResult =
   | z.infer<typeof ReviewStatusBaseMovedSchema>
   | z.infer<typeof ReviewStatusCoverageRefusalSchema>
   | z.infer<typeof ReviewStatusCoverageRequiredSchema>
+  | z.infer<typeof ReviewStatusDriverRefusalSchema>
   | z.infer<typeof ReviewStatusBlockedSchema>;
 const ReviewStatusResultSchemaInternal: z.ZodType<ReviewStatusResult> = z.union([
   ReviewStatusSettledSchema,
@@ -1189,6 +1211,7 @@ const ReviewStatusResultSchemaInternal: z.ZodType<ReviewStatusResult> = z.union(
   ReviewStatusBaseMovedSchema,
   ReviewStatusCoverageRefusalSchema,
   ReviewStatusCoverageRequiredSchema,
+  ReviewStatusDriverRefusalSchema,
   ReviewStatusBlockedSchema,
 ]);
 export const ReviewStatusResultSchema: z.ZodType<ReviewStatusResult> = ReviewStatusResultSchemaInternal;
@@ -1532,6 +1555,10 @@ export async function resolveReviewStatus(
       nextAction: "select-coverage",
       coverageSelectionAction: base.routedObligation.coverageSelectionAction,
     });
+  }
+  if (base.routedObligation.state === "blocked" && "remedy" in base.routedObligation) {
+    return { ...base, state: "blocked", nextAction: "stop", reason: base.routedObligation.reason,
+      detail: base.routedObligation.detail, remedy: base.routedObligation.remedy };
   }
   if (base.currentBaseOid === null) {
     return {

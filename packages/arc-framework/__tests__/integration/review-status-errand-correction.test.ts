@@ -281,8 +281,9 @@ async function fixedErrand(options: FixedErrandOptions = {}) {
     root, exec, dispositionStore, firstAttemptId, publisher, store, provider, standardReview, statusTarget, reviewTargetAt,
     errand: { slug, claimId, branch },
     fixedReviewTarget: reviewTargetAt(fixedHead, fixedTree),
-    readStatus: (withBaseRef = true) => readErrandRoutedObligation({
+    readStatus: (withBaseRef = true, sourceId?: string) => readErrandRoutedObligation({
       cwd: root, exec, rawExec, target: statusTarget, pullRequest: 42, currentBaseOid: base,
+      ...(sourceId === undefined ? {} : { sourceId }),
       ...(withBaseRef
         ? { changeRequestCandidate: { baseRefName: "main", url: "https://github.com/owner/repo/pull/42" } }
         : {}),
@@ -490,6 +491,21 @@ describe("Errand local correction cadence", () => {
   it("names local prepare after a hosted material fix", async () => {
     const errand = await fixedErrand({ provider: "codex-pr", sources: ["codex-pr", "delegated-agent"] });
     await expect(errand.readStatus()).resolves.toMatchObject({ state: "review-required",
+      detail: expect.stringContaining("arc review local prepare") });
+  });
+  it.each([true, false])("keeps the Errand status source refusal and retry, local source configured=%s", async configured => {
+    const errand = await fixedErrand({ provider: "codex-pr",
+      sources: configured ? ["codex-pr", "delegated-agent"] : ["codex-pr"] });
+    const refusal = await errand.readStatus(true, configured ? "codex-pr" : undefined);
+    expect(refusal).toMatchObject({ state: "blocked",
+      reason: configured ? "material-fix-local-review-required" : "material-fix-local-source-unconfigured",
+      remedy: { argv: ["arc", "review", "status", "--target", JSON.stringify(errand.statusTarget),
+        ...(configured ? ["--source", "delegated-agent"] : [])] } });
+    if (!configured) {
+      await writeFile(join(errand.root, ".arc/system/arc-config.yml"),
+        "review.standard_sources: [codex-pr, delegated-agent]\nreview.standard_max_passes: 2\n");
+    }
+    await expect(errand.readStatus(true, "delegated-agent")).resolves.toMatchObject({ state: "review-required",
       detail: expect.stringContaining("arc review local prepare") });
   });
   it("offers a hosted complete pass after a converged minor response", async () => {

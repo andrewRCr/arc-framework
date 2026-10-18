@@ -316,19 +316,10 @@ first, then in the `.arc/` copy by targeted edit.
           unmatched or ambiguous picks name the allowed pairs. Refusals retain the member conjunction so work-unit
           status keeps the exact offered member rather than falling back to the terminal member.
 
-    - `[ ]` **2.4.d Carry a driver refusal and its remedy through status**
-        - Today a driver's non-ready admission becomes generic blocked text (`status.ts`), a thrown error becomes blocked
-          detail (`status-composition.ts`), and a singleton `blocked` result maps to `status-unavailable` with a retry
-          remedy. Status's refusal instead carries the driver's diagnostic code (Tasks 1.5.b, 1.5.c) and one remedy
-          (`SpineRemedy`, `integration/spine-refusal.ts`) whose argv re-runs status, with `--source delegated-agent`
-          where that is the fix.
-        - The remedy text names each option the route allows: on the delivery work-unit route both of § 7.3's remedies;
-          on the published singleton and in `deliver-stack`'s member review only adding `delegated-agent`, since neither
-          takes a terminus.
-        - Build `test-first` (one behavior at a time):
-            - A forced hosted source after a material fix is refused on each status route with the code and the remedy.
-            - With `delegated-agent` unlisted, the delivery work-unit route names both remedies and the singleton names
-              one.
+    - `[x]` **2.4.d Carry a driver refusal and its remedy through status**
+        - Typed refusals preserve the driver's code and one retry for the original route. Missing-source guidance
+          includes Owner acceptance only on supported surfaces; singleton and member-target routes name configuration
+          repair alone. Errand status now honors source selection and carries the same diagnostic and retry.
 
     - `[ ]` **2.4.e Add status's selection arm to `deliver-stack` and `integrate-work-unit`'s delivery route**
         - Each shows the choices with their text and a recommendation, takes the Owner's pick, and re-runs status with

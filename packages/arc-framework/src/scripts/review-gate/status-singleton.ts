@@ -62,6 +62,7 @@ export async function composePublishedSingletonReview(input: PublishedSingletonI
     ? await resolveSingletonRequest(input, discharge, dischargeInput)
     : undefined;
   return composeSingletonReviewObligation({
+    statusRoute: input.statusRoute,
     discharge,
     applicabilityContext,
     ...(request === undefined ? {} : { request }),

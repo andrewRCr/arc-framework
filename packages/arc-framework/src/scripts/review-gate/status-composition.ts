@@ -360,6 +360,7 @@ export async function readRoutedObligation(
     rawExec,
     target,
     pullRequest,
+    ...(judgment?.sourceId === undefined ? {} : { sourceId: judgment.sourceId }),
     ...(judgment?.ceilingOverride === undefined ? {}
       : { ceilingOverride: judgment.ceilingOverride }),
     ...(judgment?.additionalPassAuthorization === undefined ? {}
@@ -697,10 +698,11 @@ export async function readRoutedObligation(
         ));
       }
       const firstTarget = deliveryTargets[firstOutstandingIndex];
-      if (firstOutstanding?.coverageSelectionAction === undefined
-        && firstOutstanding?.nextSource !== null
-        && firstOutstanding?.nextSource !== undefined
-        && firstTarget !== undefined) {
+      const forcedSourceWithOffer = judgment?.sourceId !== undefined && judgment.sourceId !== "delegated-agent"
+        && firstOutstanding?.coverageSelectionAction !== undefined;
+      if (firstOutstanding !== undefined && firstTarget !== undefined && coverageSelection?.state !== "refused"
+        && (firstOutstanding.coverageSelectionAction === undefined || forcedSourceWithOffer)
+        && (firstOutstanding.nextSource !== null || forcedSourceWithOffer)) {
         const scopeSelection = await resolveDeliveryMemberScopeSelection({
           rawExec,
           settings,
@@ -756,6 +758,7 @@ export async function readRoutedObligation(
           ? discharge
           : {
               ...discharge,
+              ...(admission.policy.state === "unavailable" ? { coverageSelectionAction: undefined } : {}),
               ...(admission.policy.state === "ready"
                 ? { nextSource: admission.policy.payload.sourceId }
                 : {}),
@@ -769,6 +772,7 @@ export async function readRoutedObligation(
             });
       }
       return composeDeliveryReviewObligation({
+        statusRoute: options.statusRoute ?? { kind: "target", target },
         targets: deliveryTargets,
         discharges: composedDischarges,
         ...(judgment?.coverage === undefined ? {} : { requestCoverage: judgment.coverage }),

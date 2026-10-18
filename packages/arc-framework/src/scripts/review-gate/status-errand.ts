@@ -1,5 +1,6 @@
 /** Positive Errand identity and exact-head lane progress for review status. */
 
+import { projectReviewDriverRefusal } from "./status-driver-refusal.js";
 import { readTransientIdentitySnapshot } from "../../lib/errand/identity-snapshot.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { resolveChangeRequestLifecycleConfiguration } from "../../lib/errand/change-request-lifecycle.js";
@@ -359,6 +360,7 @@ async function resolveErrandLaneAtHead(input: {
   readonly result: StandardReviewResult;
   readonly ceilingOverride?: ReviewCeilingOverride;
   readonly additionalPassAuthorization?: ReviewAdditionalPassAuthorization;
+  readonly sourceId?: string;
 }): Promise<ReviewResolveEnvelope> {
   const { store, terminal, result, policyTarget } = input;
   const settings = (await readConfigSettings(input.cwd)).settings;
@@ -381,6 +383,7 @@ async function resolveErrandLaneAtHead(input: {
     }),
   });
   return resolveEvidenceBoundReviewPolicyContinuation({
+    ...(input.sourceId === undefined ? {} : { invocation: { mode: "force" as const, sourceId: input.sourceId } }),
     schemaVersion: 1,
     target: policyTarget,
     lane: "standard",
@@ -541,6 +544,7 @@ async function readUnreviewedErrandHead(input: {
   baseMovement?: BaseMovementObservation | null;
   ceilingOverride?: ReviewCeilingOverride;
   additionalPassAuthorization?: ReviewAdditionalPassAuthorization;
+  readonly sourceId?: string;
 }): Promise<RoutedReviewObligation> {
   const { store, repositoryId, errand, target, completedPasses } = input;
   const owner = await readLaneProgressOwner(store, {
@@ -587,6 +591,7 @@ async function readUnreviewedErrandHead(input: {
   }
   return nextErrandPassObligation({
     publisher: input.publisher, store, resultReader, errand, policyTarget, configured, result, completedPasses,
+    statusTarget: target, sourceId: input.sourceId,
     currentBase: await currentErrandDiffBase(input.exec, target.headSha, input.currentBaseOid, input.currentBaseRef),
     ...(input.ceilingOverride === undefined ? {} : { ceilingOverride: input.ceilingOverride }),
     ...(input.additionalPassAuthorization === undefined ? {}
@@ -607,6 +612,8 @@ async function nextErrandPassObligation(input: {
   readonly currentBase: Awaited<ReturnType<typeof currentErrandDiffBase>>;
   readonly ceilingOverride?: ReviewCeilingOverride;
   readonly additionalPassAuthorization?: ReviewAdditionalPassAuthorization;
+  readonly sourceId?: string;
+  readonly statusTarget: ExactErrandStatusTarget;
 }): Promise<RoutedReviewObligation> {
   const { store, configured, completedPasses } = input;
   const dispositionStore = new LocalApprovedDispositionRecordStore(input.publisher);
@@ -623,6 +630,7 @@ async function nextErrandPassObligation(input: {
     }),
   });
   const policy = await resolveEvidenceBoundReviewPolicyContinuation({
+    ...(input.sourceId === undefined ? {} : { invocation: { mode: "force" as const, sourceId: input.sourceId } }),
     schemaVersion: 1, target: input.policyTarget, lane: "standard", frontlineActive: false,
     standardReview: projectStandardReview(input.result),
     completedPasses, attempts: [],
@@ -636,6 +644,9 @@ async function nextErrandPassObligation(input: {
     readResponsePerformance: (producer) => readLaneResponsePerformance(store, producer),
     confirmTarget: (current) => Promise.resolve(current),
   });
+  const refusal = projectReviewDriverRefusal({ policy, route: { kind: "target", target: input.statusTarget },
+    allowOwnerStop: true });
+  if (refusal !== null) return refusal;
   const count = `${completedPasses} of ${configured.maxPasses} configured standard-review passes`;
   if (policy.state === "approval-required") {
     return { state: "approval-required", scope: "errand",
@@ -702,6 +713,7 @@ export async function readErrandRoutedObligation(input: {
   readonly baseMovement?: BaseMovementObservation | null;
   readonly ceilingOverride?: ReviewCeilingOverride;
   readonly additionalPassAuthorization?: ReviewAdditionalPassAuthorization;
+  readonly sourceId?: string;
 }): Promise<RoutedReviewObligation | null> {
   // The branch vocabulary only avoids an impossible identity read; the record still grants authority.
   if (!isErrandBranchType(input.target.headRef.split("/", 1)[0] ?? "")) return null;
@@ -757,7 +769,7 @@ export async function readErrandRoutedObligation(input: {
     if (progress.attempts.length === 0 && progress.completedPasses > 0) {
       const continuation = await readUnreviewedErrandHead({
         cwd: input.cwd, exec, rawExec: input.rawExec, publisher, store, repositoryId, errand: selected.record,
-        target: input.target, pullRequest: input.pullRequest,
+        target: input.target, pullRequest: input.pullRequest, sourceId: input.sourceId,
         completedPasses: progress.completedPasses,
         ...(input.currentBaseOid === undefined ? {} : { currentBaseOid: input.currentBaseOid }),
         ...(input.changeRequestCandidate === undefined ? {}
@@ -852,7 +864,7 @@ export async function readErrandRoutedObligation(input: {
       return blocked("The terminal review producer does not match the exact Errand claim and head.");
     }
     const policy = await resolveErrandLaneAtHead({
-      cwd: input.cwd, publisher, store, resultReader, errand: selected.record,
+      cwd: input.cwd, publisher, store, resultReader, errand: selected.record, sourceId: input.sourceId,
       policyTarget: { repository: input.target.repository, pullRequest: input.pullRequest,
         headSha: input.target.headSha },
       completedPasses: progress.completedPasses, terminal, result,
@@ -863,6 +875,9 @@ export async function readErrandRoutedObligation(input: {
     if (!await branchAtHead(exec, input.target.headRef, input.remote ?? "origin", input.target.headSha)) {
       return blocked("The Errand identity's branch moved during review status composition.");
     }
+    const refusal = projectReviewDriverRefusal({ policy, route: { kind: "target", target: input.target },
+      allowOwnerStop: true });
+    if (refusal !== null) return refusal;
     if (policy.state === "approval-required") {
       return { state: "approval-required", scope: "errand",
         detail: `This Errand claim has used ${progress.completedPasses} standard-review passes; `

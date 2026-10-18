@@ -3076,6 +3076,10 @@ describe("hosted review fan-out lifecycle", () => {
         expect(JSON.parse(refused.stdout)).toMatchObject({ state: "blocked",
           detail: expect.stringContaining("delegated-agent / complete") });
       }
+      const forcedHosted = await run(process.execPath, [CLI_PATH, "review", "status", ...route, "--source", "coderabbit-pr"],
+        { cwd: harness.root, env });
+      expect(JSON.parse(forcedHosted.stdout)).toMatchObject({ state: "blocked", reason: "material-fix-local-review-required",
+        remedy: { argv: ["arc", "review", "status", ...route, "--source", "delegated-agent"] } });
       const loneCoverage = await run(process.execPath, [CLI_PATH, "review", "status", ...route, "--coverage", "complete"],
         { cwd: harness.root, env });
       expect(JSON.parse(loneCoverage.stdout)).toMatchObject({ nextAction: "review-local-prepare",
