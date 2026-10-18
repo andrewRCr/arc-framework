@@ -91,8 +91,8 @@ class InFlightProjection {
   private addTransient(saved: import("../store/read.js").StoreRecord, acquisition: Extract<StoreIdentityAcquisition, { kind: "complete" }>, errandsOnly: boolean): void {
     const slug = errandsOnly ? saved.reference.owner.name : typeof saved.reference.key === "string" ? saved.reference.key : "";
     const record = acquisition.decoded.get(slug);
-    if (record === undefined || record.branch === null) return;
-    const branch = errandsOnly ? this.branchFor(saved, record.branch) : record.branch;
+    if (record === undefined) return;
+    const branch = errandsOnly ? this.branchFor(saved, record.branch) : record.branch ?? undefined;
     const kind = record.kind === "groom" ? "groom" : record.purpose === "housekeep-routing" ? "housekeep" : "errand";
     const { path, marks } = this.transientLocation(kind, slug, record.claimId);
     const owner = record.kind === "errand" && record.purpose === "errand" ? record.owner : this.options.identity;
