@@ -1017,10 +1017,10 @@ package's `arc/` source first, then in the `.arc/` copy.
 
 - _Goal:_ Every drift item § 11.5 lists, re-confirmed against source, is fixed.
 
-    - `[ ]` **7.6.a Remove the contradictory frontline and ceiling-override text**
-        - `deliver-stack`'s "Apply `frontline-review`, then `standard-review` or `implementation-audit` as applicable"
-          goes; `integrate-work-unit` and `deliver-stack` stop passing a ceiling override into "the named hosted, local,
-          or frontline admission", which stays in `run-errand`.
+    - `[x]` **7.6.a Remove the contradictory frontline and ceiling-override text**
+        - Member review has no frontline invocation, and integration/member status carry ceiling consequences only
+          through their supported routes. The Errand retains its explicit hosted, local, and frontline admissions;
+          shared ceiling handling grants no unsupported caller capability.
 
     - `[ ]` **7.6.b Fix the composer and naming drift**
         - `prepare-work-unit` has `review-triage` compose the proposal, as everywhere else; `create-spec` stops calling

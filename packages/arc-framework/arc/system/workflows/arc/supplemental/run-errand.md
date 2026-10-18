@@ -296,7 +296,8 @@ remote base all name the same exact head. Any tracked change continues through t
    - `findings / respond` — apply [code-review's findings round][code-findings-round] with the exact producer and
      this Errand's verification/context. Complete its committed verified-fix replay before any push.
    - `approval-required / obtain-ceiling-override` — apply [code-review's ceiling override][code-ceiling-override]
-     with this exact target/lane call and the available Errand stop continuation.
+     with this exact target/lane call and the available Errand stop continuation. The Errand carries an approved
+     consequence into its named hosted, local, or frontline admission.
    - `stale-target / select-scope` — recompose the exact target, bind its whole-target scope, and rerun the driver.
    - `blocked | unavailable | invalid-override / stop` — surface the typed diagnostics and stop.
 
