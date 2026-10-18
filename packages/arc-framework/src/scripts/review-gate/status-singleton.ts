@@ -1,7 +1,7 @@
 /** Compose the actionable review status of one published singleton Candidate. */
 
 import { selectReviewSources } from "./policy/review-source-eligibility.js";
-import { projectReviewSourceRefusal } from "./status-driver-refusal.js";
+import { projectSingletonLocalCoverageRefusal, projectReviewSourceRefusal } from "./status-driver-refusal.js";
 import type { ReviewStatusRoute } from "./status-route.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import type { GitExec } from "../../lib/git/exec.js";
@@ -72,6 +72,9 @@ export async function composePublishedSingletonReview(input: PublishedSingletonI
   const request = !discharge.discharged && discharge.nextSource !== null
     ? await resolveSingletonRequest(input, discharge, dischargeInput)
     : undefined;
+  const coverageRefusal = projectSingletonLocalCoverageRefusal({ route: input.statusRoute,
+    coverage: input.judgment?.coverage, request, terminalPolicyState: discharge.terminalPolicyState });
+  if (coverageRefusal !== null) return coverageRefusal;
   return composeSingletonReviewObligation({
     statusRoute: input.statusRoute,
     discharge,

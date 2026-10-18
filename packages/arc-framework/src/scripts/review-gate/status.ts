@@ -2,7 +2,7 @@
 
 import { projectDeliveryReviewCursor } from "./status-delivery-cursor.js";
 import { projectDeliveryTerminusOffer, type DeliveryTerminusOfferBinding } from "./status-terminus-offer.js";
-import { SingletonLocalPrepareActionSchema, projectSingletonLocalPrepareAction } from "./singleton-local-prepare-action.js";
+import { singletonNeedsLocalPrepare, SingletonLocalPrepareActionSchema, projectSingletonLocalPrepareAction } from "./singleton-local-prepare-action.js";
 import type { StandardReviewObligationProjection } from "./policy/standard-review-projection-schema.js";
 import { projectHostedIncrementalRefusal, projectReviewDriverRefusal, ReviewDriverRefusalReasonSchema, ReviewDriverRefusalSchema } from "./status-driver-refusal.js";
 import type { ReviewStatusRoute } from "./status-route.js";
@@ -674,9 +674,7 @@ function composeSingletonRequest(
   if (discharge.requestCoverage !== undefined && discharge.requestCoverage !== request.coverage) {
     return { state: "blocked", detail: "The singleton review coverage differs from the active pass." };
   }
-  if ((request.admission.state === "ready" && request.admission.nextAction === "local-prepare")
-    || (request.admission.state === "coverage-required" && discharge.terminalPolicyState === "coverage-required"
-      && request.sourceId === "delegated-agent")) {
+  if (singletonNeedsLocalPrepare(request, discharge.terminalPolicyState)) {
     if (request.standardReview === undefined) return { state: "blocked",
       detail: "The singleton local-prepare action is missing its reserved obligation." };
     return RoutedReviewObligationSchema.parse({ state: "review-required", scope: "singleton", detail: discharge.detail,

@@ -2,7 +2,7 @@
 import { z } from "zod";
 import { CanonicalDigestSchema, SlugSchema } from "../../lib/kernel/index.js";
 import { HostedTargetSchema, type HostedRequestEnvelope } from "./hosted/request.js";
-import { ReviewLaneJudgmentSchema } from "./policy/review-policy-driver.js";
+import { ReviewLaneJudgmentSchema, type ReviewResolveEnvelope } from "./policy/review-policy-driver.js";
 import { StandardReviewObligationProjectionSchema, type StandardReviewObligationProjection } from "./policy/standard-review-projection-schema.js";
 
 export const SingletonLocalPrepareActionSchema = z.strictObject({
@@ -12,6 +12,16 @@ export const SingletonLocalPrepareActionSchema = z.strictObject({
   request: z.strictObject({ schemaVersion: z.literal(1), policyJudgment: ReviewLaneJudgmentSchema.optional() }),
 });
 export type SingletonLocalPrepareAction = z.infer<typeof SingletonLocalPrepareActionSchema>;
+
+/** Identify the admitted ordinary local route before composing its prepare request. */
+export function singletonNeedsLocalPrepare(input: {
+  readonly admission: ReviewResolveEnvelope;
+  readonly sourceId: string;
+}, terminalPolicyState?: ReviewResolveEnvelope["state"]): boolean {
+  return (input.admission.state === "ready" && input.admission.nextAction === "local-prepare")
+    || (input.admission.state === "coverage-required" && terminalPolicyState === "coverage-required"
+      && input.sourceId === "delegated-agent");
+}
 
 /** Compose ordinary prepare input while keeping the exact target and Candidate boundary visible. */
 export function projectSingletonLocalPrepareAction(input: {

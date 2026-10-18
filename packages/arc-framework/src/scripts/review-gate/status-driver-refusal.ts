@@ -2,10 +2,11 @@
 import { z } from "zod";
 import { SpineRemedySchema, spineRemedy } from "../integration/spine-refusal.js";
 import type { ReviewResolveEnvelope } from "./policy/review-policy-driver.js";
+import { singletonNeedsLocalPrepare } from "./singleton-local-prepare-action.js";
 import { reviewStatusRouteArgv, type ReviewStatusRoute } from "./status-route.js";
 
 export const ReviewDriverRefusalReasonSchema = z.enum([
-  "material-fix-local-review-required", "material-fix-local-source-unconfigured", "hosted-incremental-unsupported",
+  "material-fix-local-review-required", "material-fix-local-source-unconfigured", "hosted-incremental-unsupported", "singleton-local-coverage-required",
 ]);
 export const ReviewDriverRefusalSchema = z.strictObject({
   state: z.literal("blocked"), reason: ReviewDriverRefusalReasonSchema,
@@ -52,4 +53,20 @@ export function projectHostedIncrementalRefusal(route: ReviewStatusRoute): z.inf
     message: "Hosted review requests use complete coverage; fix checks run locally." } });
   if (refusal === null) throw new Error("Hosted incremental refusal is missing its registered diagnostic.");
   return refusal;
+}
+
+/** Keep singleton coverage choices on the local prepare admission that can preserve them. */
+export function projectSingletonLocalCoverageRefusal(input: {
+  readonly route: ReviewStatusRoute;
+  readonly coverage?: "complete" | "incremental";
+  readonly request?: Parameters<typeof singletonNeedsLocalPrepare>[0];
+  readonly terminalPolicyState?: ReviewResolveEnvelope["state"];
+}): z.infer<typeof ReviewDriverRefusalSchema> | null {
+  if (input.coverage === undefined || input.request === undefined
+    || !singletonNeedsLocalPrepare(input.request, input.terminalPolicyState)) return null;
+  const detail = "Review status cannot carry --coverage to the singleton's ordinary local prepare request.";
+  return ReviewDriverRefusalSchema.parse({ state: "blocked", reason: "singleton-local-coverage-required", detail,
+    remedy: spineRemedy(detail,
+      "Re-run status without --coverage, then select local prepare's offered choice through coverageAdmission",
+      reviewStatusRouteArgv(input.route)) });
 }

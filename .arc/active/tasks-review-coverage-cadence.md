@@ -555,12 +555,10 @@ the range proof. Workflow text changes in the package's `arc/` source first, the
           classifications, using the full source list and no recovered invocation. Current and historical checks bind
           the shared range proof directly; the delta closes its lane while `full-final` and delivery keep their stops.
 
-    - `[ ]` **3.7.b Refuse a `--coverage` status cannot carry**
-        - Where status routes the singleton to its local prepare request (Task 2.5.a), it refuses a supplied
-          `--coverage` (`resolveSingletonRequest`'s coverage, `status-singleton.ts`) with a remedy naming local prepare's
-          `coverageAdmission`, rather than dropping it.
-        - Build `test-first` (one behavior at a time):
-            - A supplied `--coverage` on the singleton's local route is refused with the remedy.
+    - `[x]` **3.7.b Refuse a `--coverage` status cannot carry**
+        - Singleton status refuses explicit coverage on fresh and settled local prepare routes, preserving the public
+          status scope in its retry and naming local prepare's `coverageAdmission`. Omitted coverage keeps the local
+          prepare action; the admission predicate is shared with action composition.
 
     - `[ ]` **3.7.c Say so in `integrate-work-unit`**
         - The singleton route names the delta check under `incremental` and the local complete pass as the Owner's
