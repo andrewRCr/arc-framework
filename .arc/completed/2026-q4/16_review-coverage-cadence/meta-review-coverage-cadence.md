@@ -1,8 +1,8 @@
 # Metadata: review-coverage-cadence
 
-| **State**     | **Owner** | **Branch**                     | **Class** | **Priority** |
-| ------------- | --------- | ------------------------------ | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/review-coverage-cadence` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -13,15 +13,15 @@
 - **Review Rubric:** [none]
 - **Candidate:** `sha256:c32c34fa2597519e5513da26f9e5f480e651644171e9bff373c7efb6393e1ad1`
 
-- **Current Workflow:** `integrate-work-unit`
+- **Current Workflow:** [none]
 - **Last Completed:** Task 8.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
+- **Next Action:** —
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/1038>
+- **Completed:** 2026-10-18
 
 ---
 
