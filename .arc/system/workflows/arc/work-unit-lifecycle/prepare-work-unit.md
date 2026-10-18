@@ -146,6 +146,22 @@ source and obtain any approval still required; continue an existing approved res
 Re-enter pre-publication only after durable response completion. The pass conclusion does not authorize publication
 while this response remains pending.
 
+**After a clean fix check.** On a `full-final` standard lane, before `ready / local-prepare`, run
+`arc review lane read -` with its request derived from `arc review lane read --schema`. Also run this check when a
+non-null `reservation` appears at `candidate-convergence-verification-pending` or `candidate-publish-ready`, before
+`run-convergence-verification` or `publish-candidate`. For a delivery-member target, supply its exact `target.headSha` as
+`memberHeadObjectId`. Follow a refusal's remedy. When `payload.lastLook` has `coverage: incremental` and `outcome: clean`,
+use `payload.facts` for advisory judgment: recommend another complete pass while new defect classes keep appearing in
+previously read code or a fix round introduced new design; otherwise recommend stopping. Prefer a different source for
+a successor pass. State the recommendation, its reasons, and what would change it. Honor an existing Owner decision for
+this exact successor across unchanged re-entry. Otherwise, when recommending stopping, offer the Work Unit Owner's
+accepted-risk terminus before continuing. On acceptance, re-enter the procedure with
+`lanes.standard.terminus: { mode: "owner-accepted" }` in `--lanes`; on a choice to continue review, follow the original
+action. A complete pass never replaces a required fix check.
+
+The non-null `reservation` is the driver's `awaiting-change-request / open-change-request` continuation. Retain the
+hosted-first reservation when continuing review and follow the envelope through `candidate-publish-ready`.
+
 A null `policy` means no lane operation is open — follow the envelope's `nextAction.kind`, one of
 `run-self-review`, `run-convergence-verification`, or `publish-candidate`. Otherwise follow only the `policy`
 state/action pair:
@@ -160,8 +176,6 @@ through `candidate-publish-ready`; the publication transition in Step 3 is the s
 
 - `skipped | no-op | pass-complete / none` — lane complete.
 - `owner-accepted / none` — standard lane complete by the Work Unit Owner's explicit accepted-risk decision.
-- `awaiting-change-request / open-change-request` — retain the hosted-first reservation and complete at
-  `candidate-publish-ready`.
 - `ready / run-frontline` — submit the envelope's `nextAction.request` as JSON stdin to `nextAction.command` and
   retain both `nextAction.authorizationRequest` and `nextAction.resumeCommand`. On
   `offered / obtain-authorization`, surface the exact one-pass consequence and ask `Approve (or redirect)?`; only

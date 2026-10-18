@@ -654,14 +654,10 @@ rejections. Method and workflow text changes in the package's `arc/` source firs
           successor judgment; a stop recommendation offers exact Owner risk acceptance at the open PR. Before the PR,
           the workflow states the limit and continues the complete pass without creating a terminus.
 
-    - `[ ]` **4.6.b `prepare-work-unit` at `ready` and at the hosted-first reservation**
-        - The driver's `awaiting-change-request` reserves the complete pass for a hosted source, and pre-publication
-          shows it as a non-null `reservation` at `candidate-convergence-verification-pending` or
-          `candidate-publish-ready`, before `run-convergence-verification` or `publish-candidate`
-          (`projectPrePublicationReview`). The arm keys on that `reservation`, and the `awaiting-change-request /
-          open-change-request` row, under a policy dispatch a null `policy` never reaches, moves there.
-        - Before publication the stop rides `lanes.standard.terminus: { mode: "owner-accepted" }`, which the driver
-          reads before it reserves a hosted source and the boundary carries through publication.
+    - `[x]` **4.6.b `prepare-work-unit` at `ready` and at the hosted-first reservation**
+        - The lane read precedes local preparation and a hosted-first reservation's convergence or publication action.
+          Clean fix checks prompt advisory successor judgment, with explicit Owner acceptance carried through the
+          existing terminus. Reservation dispatch now precedes the null-policy arm and preserves unchanged decisions.
 
     - `[ ]` **4.6.c `integrate-work-unit` at `continue-pre-publication-review`, the delivery route, and the singleton**
         - The delivery work-unit route offers the stop; the published singleton takes no new terminus, so the arm states
