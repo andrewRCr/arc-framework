@@ -26,7 +26,7 @@ const OrdinaryCheckSchema = z.strictObject({
 });
 const SelectionFields = {
   ...SharedFields,
-  mode: z.literal("selection").describe("selection receives editable projected Markdown paths as feedback."),
+  mode: z.literal("selection").describe("selection receives editable projected Markdown paths as feedback with cache and widen false. Increment and segment use changed paths; named runs use the whole selection unless --paths or --changed, --staged, or --range narrows it."),
   gate: z.never({ error: "selection cannot declare gate: no gate reads projected state." }).optional(),
   cache: z.literal(false, { error: "selection cannot enable cache: nothing keys its content." }).default(false),
   widen: z.literal(false, { error: "selection cannot enable widen: Git changes do not describe state changes." }).default(false),

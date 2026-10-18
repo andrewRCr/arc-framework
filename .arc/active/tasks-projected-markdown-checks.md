@@ -143,17 +143,14 @@ and recovered selections produce their specified outcomes, while every gate excl
   read. Uncached passes remain not-recordable; failed and unavailable feedback retains scope-correct retry commands,
   ordinary serial results survive matcher failures, and dry runs forecast the same bounded literal arguments.
 
-### `[ ]` **3.5 Publish mode help and regenerate the declaration schema — D4.5, D7.1**
+### `[x]` **3.5 Publish mode help and regenerate the declaration schema — D4.5, D7.1**
 
 - _Goal:_ CLI users and editor validation see the actual mode defaults, restrictions, request composition, and
   full-versus-changed scope behavior.
 
-    - Update the `check run`, `check increment`, and `check segment` descriptions in `src/cli.ts`, and describe the
-      modes in `registerCheckDeclarationSchemas`' source schema metadata.
-    - After building the source, run `npx arc schema install --json` and review the regenerated declaration JSON.
-      `writeEditorDocuments` writes checkout-local ignored schemas; commit the schema source and tests, not that output.
-    - Verify generated declaration validation/default descriptions and CLI help against the runtime cases from
-      Tasks 3.1–3.4; retain the same schema version/migration posture unless existing tooling requires otherwise.
+- _Outcome:_ Built CLI help explains selection composition and full, named, and changed scopes. Regenerated the
+  checkout-local declaration schema and inspected its mode descriptions, false cache/widen defaults, and forbidden
+  authored shell field; schema version and migration posture remain unchanged.
 
 ### `[ ]` **3.6 Exercise selection feedback through the command boundary — D4** — validate exit criterion at segment scope
 

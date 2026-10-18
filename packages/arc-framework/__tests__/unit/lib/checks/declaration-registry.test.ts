@@ -32,3 +32,14 @@ it("projects strict structural fields while leaving cross-field rules to runtime
   expect(validate(runtimeInvalid)).toBe(true);
   expect(CheckDeclarationSchema.safeParse(runtimeInvalid).success).toBe(false);
 });
+
+it("documents selection scope and enforces its authored restrictions in the editor schema", () => {
+  const document = foldKernelSchemaClosure(projectKernelSchemas("input", createProductionSchemaRegistry()), "check-declaration");
+  const validate = new Ajv2020({ strict: true, validateFormats: false }).compile(document);
+  expect(validate({ checks: { selected: { command: ["lint"], mode: "selection" } } })).toBe(true);
+  for (const field of ["gate", "shell", "fixes", "reads_index", "ci_only", "cache", "widen", "pass_paths"]) {
+    const value = field === "gate" ? "commit" : field === "pass_paths" ? false : true;
+    expect(validate({ checks: { selected: { command: ["lint"], mode: "selection", [field]: value } } })).toBe(false);
+  }
+  expect(JSON.stringify(document)).toContain("--changed");
+});
