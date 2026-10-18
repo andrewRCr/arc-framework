@@ -21,37 +21,23 @@ admits unchanged historical violations and valid corrections, and leaves existin
 - _Outcome:_ Shared lifecycle and personal roots and normalized recognition now export through the layout API;
   identity recognition uses `SlugSchema`, preserving the tracked user README and prefix boundaries.
 
-### `[ ]` **1.2 Check introduced Markdown link violations — D2.1–D2.3, D2.5**
+### `[x]` **1.2 Check introduced Markdown link violations — D2.1–D2.3, D2.5**
 
 - _Goal:_ A checkout-independent check returns one actionable `BrokenRule` per newly broken link rule, with all
   new occurrences located in stored content, while unrelated edits to historical violations remain admissible.
-
-- _Note:_ See `notes-projected-markdown-checks.md` § Record-check grounding for key and parser boundaries.
-
-    - Add a cross-kind module under `packages/arc-framework/src/lib/store/kinds/`; consume `WriteCheckInput` and return
-      `BrokenRule` values from `lib/store/write-check.ts`, without filesystem or backend-specific reads.
 
     - `[x]` **1.2.a Read Markdown links and full references with source locations**
         - A GFM reader extracts URLs and undefined full references from source text spans, preserving stored
           positions, CommonMark label matching, and the parser's code, HTML, destination, and formatting boundaries.
 
-    - `[ ]` **1.2.b Resolve targets by record family and key**
-        - Resolve fixed-path records through `resolveArcPath` and the personal document's managed key; treat every
-          work-item and cohort record as movable, independently of a checkout's placement.
-        - Build `test-first` (one behavior at a time):
-            - Relative links from movable records, and normalized targets under any projected root, are violations;
-              root-absolute tracked targets and fixed-path relative targets outside those roots remain admissible.
-            - Query and fragment removal, percent decoding, trailing separators, and dot segments follow the spec.
-            - Conventional companions and paired-spec halves are Markdown; path-keyed companions and personal
-              documents with non-`.md` keys are admitted unchecked.
+    - `[x]` **1.2.b Resolve targets by record family and key**
+        - Movable records refuse relative links; fixed personal and project-inbox targets resolve through layout.
+          Decoding and normalization identify projection roots, while keyed non-Markdown content stays unchecked.
 
-    - `[ ]` **1.2.c Refuse only increased violation counts**
-        - Build `test-first` (one behavior at a time):
-            - Compare counts by rule and URL, normalized target, or normalized label, rather than by line; moved
-              occurrences and untouched old links pass, while a duplicate occurrence or replacement violation fails.
-            - Creation checks every violation; removal passes; malformed prior fields do not hide prior content.
-            - Group new occurrences by rule with their URL or label and line/column in `next`, and emit the three
-              specified remedies naming the correction and retry.
+    - `[x]` **1.2.c Refuse only increased violation counts**
+        - The write check compares rule/key occurrence counts against prior content independently of parsed fields.
+          Each increased key reports all its next-content locations, grouped by rule with the specified retry remedy;
+          removals, unchanged historical violations, and corrections remain admissible for every writer.
 
 ### `[ ]` **1.3 Compose link rules into every covered kind — D2.4, D2.6**
 
