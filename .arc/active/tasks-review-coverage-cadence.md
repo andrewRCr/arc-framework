@@ -659,9 +659,10 @@ rejections. Method and workflow text changes in the package's `arc/` source firs
           Clean fix checks prompt advisory successor judgment, with explicit Owner acceptance carried through the
           existing terminus. Reservation dispatch now precedes the null-policy arm and preserves unchanged decisions.
 
-    - `[ ]` **4.6.c `integrate-work-unit` at `continue-pre-publication-review`, the delivery route, and the singleton**
-        - The delivery work-unit route offers the stop; the published singleton takes no new terminus, so the arm states
-          the recommendation and the limit there.
+    - `[x]` **4.6.c `integrate-work-unit` at `continue-pre-publication-review`, the delivery route, and the singleton**
+        - The private continuation uses preparation's clean-fix-check protocol. Public ready actions read lane facts;
+          the work-unit delivery route offers its exact member terminus when stopping is recommended. The published
+          singleton states its limit and continues complete review, preserving prior exact successor decisions.
 
     - `[ ]` **4.6.d `deliver-stack`'s member review**
         - It takes no terminus, so the arm states the recommendation and the limit, and the complete pass runs.

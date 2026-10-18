@@ -158,8 +158,10 @@ must match the current Candidate and carries the ordered sources and exact oblig
   status selects `review-hosted-request`. Do not repeat settled frontline review or build a provider request from
   pre-publication policy fields.
 - `continue-pre-publication-review` remains the singleton continuation while a pre-publication action is still
-  owed. Invoke `integrationBoundary.nextAction.command`; after it settles and the exact PR is open, re-enter the
-  singleton status route above.
+  owed. Invoke `integrationBoundary.nextAction.command` and apply [Prepare Work Unit](prepare-work-unit.md) § 2's
+  check after a clean fix check, including a non-null hosted-first reservation before convergence verification or
+  publication. That private continuation carries explicit acceptance through `lanes.standard.terminus`. After it
+  settles and the exact PR is open, re-enter the singleton status route above.
 
 Every other boundary action stops. Dispatch only on `nextAction` from the status result; `continue-pre-publication`
 carries the boundary's own pre-publication `action`, so handle it as that boundary action, never as a review request.
@@ -167,6 +169,23 @@ carries the boundary's own pre-publication `action`, so handle it as that bounda
 Throughout this iteration, **re-enter status** means preserve the same status scope: execute the WU-scoped boundary
 command again for a delivery, or use the exact `targetRef` command for an ordinary singleton. Append an authorized
 judgment option; never narrow a delivery-status action to an agent-reconstructed member target.
+
+Before dispatching `review-hosted-request`, `review-local-prepare`, or `review-singleton-local-prepare` on a `full-final`
+standard lane, run `arc review lane read -` with its request derived from `arc review lane read --schema`. For the
+selected delivery member, supply `deliveryCursor.currentMember.target.headSha` as `memberHeadObjectId`; the singleton
+uses the checkout's Candidate. Follow a refusal's remedy. When `payload.lastLook` has `coverage: incremental` and
+`outcome: clean`, use `payload.facts` for advisory judgment: recommend another complete pass while new defect classes
+keep appearing in previously read code or a fix round introduced new design; otherwise recommend stopping. Prefer a
+different source for a successor pass. State the recommendation, its reasons, and what would change it. Honor an
+existing Owner decision for this exact successor across unchanged re-entry. Otherwise, on the work-unit delivery route,
+a stop recommendation renders `terminusAction.offer.interactionText` before source dispatch and uses the acceptance
+procedure below. On the published singleton, state that it takes no new Owner terminus, then run the complete pass.
+A complete pass never replaces a required fix check.
+
+> [!IMPORTANT]
+> `workflow-interlock`: On the work-unit delivery route, when recommending stopping after a clean fix check, stop
+> before dispatching its complete successor. Await explicit acceptance of the exact offered member terminus or the
+> Owner's choice to continue that pass; retain an existing decision on unchanged re-entry.
 
 `select-coverage` renders `coverageSelectionAction.interactionText` verbatim and gives a recommendation among its
 listed choices. On the work-unit delivery route, also surface `terminusAction.offer.interactionText` when supplied and
@@ -199,8 +218,8 @@ arc review status --target '{targetRef}' --ceiling-override '{consequence}'
 ```
 
 A `review-hosted-request` or `review-local-prepare` result may also carry `terminusAction` after an earlier complete
-pass. Surface it as an optional Owner alternative without turning it into a stop; absent explicit acceptance,
-execute the returned review action unchanged.
+pass. Surface it as an optional Owner alternative. The clean-fix-check recommendation above determines whether to stop
+for that choice; otherwise, absent explicit acceptance, execute the returned review action unchanged.
 
 After a converged standard result — a clean pass, or one whose approved dispositions fix no confirmed `critical` or
 `major` finding — status replay remains complete under `full-final` only when that pass has complete coverage. A
