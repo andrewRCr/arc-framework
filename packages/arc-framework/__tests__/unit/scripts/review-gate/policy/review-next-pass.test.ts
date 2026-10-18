@@ -2,7 +2,8 @@
 import { describe, expect, it } from "vitest";
 import { findingsHostedResult, cleanHostedResult, approvedRecord, performedFix } from "../../../../fixtures/review-response-proof.js";
 import { createReviewTarget, createReviewRequirement } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
-import { deriveReviewNextPassContext, type ReviewNextPassInput } from "../../../../../src/scripts/review-gate/policy/review-next-pass.js";
+import { confirmReviewCorrectionLeg, deriveReviewNextPassContext, type ReviewNextPassInput } from "../../../../../src/scripts/review-gate/policy/review-next-pass.js";
+import { scriptGitExec } from "../../../../helpers/git-exec-fake.js";
 import type { ReviewResult } from "../../../../../src/scripts/review-gate/core/review-result.js";
 
 function input(predecessor: ReviewResult | null, severity: "major" | "minor" = "major", performed = true,
@@ -35,6 +36,54 @@ function input(predecessor: ReviewResult | null, severity: "major" | "minor" = "
       : { ...performedFix(result, record), producedHeadSha: currentTarget.headSha },
   };
 }
+
+function rangeProof(request: ReviewNextPassInput & { currentTarget: ReviewResult["target"] }) {
+  const predecessor = request.predecessor;
+  if (predecessor === null) throw new Error("expected a predecessor");
+  const current = request.currentTarget;
+  return { cwd: "/checkout", exec: scriptGitExec([
+    { match: ["rev-parse", "--verify", `${predecessor.target.headSha}^{commit}`],
+      responses: [{ stdout: predecessor.target.headSha }] },
+    { match: ["rev-parse", "--verify", `${current.headSha}^{commit}`], responses: [{ stdout: current.headSha }] },
+    { match: ["merge-base", "--is-ancestor", predecessor.target.headSha, current.headSha], responses: [{ stdout: "" }] },
+    { match: ["rev-list", "--first-parent", "--merges", "--parents", `${predecessor.target.headSha}..${current.headSha}`],
+      responses: [{ stdout: "" }] },
+  ]).exec };
+}
+
+it("reports a converged linear leg as range-proven when ordinary grounds require review", async () => {
+  const request = input(cleanHostedResult(), "minor", true, "incremental");
+  if (request.predecessor === null) throw new Error("expected predecessor");
+  await expect(confirmReviewCorrectionLeg({ ...request, predecessor: request.predecessor,
+    rangeProof: rangeProof(request), confirmGrounds: async () => "review-required",
+  })).resolves.toBe("range-proven");
+});
+
+it.each(["site grounds", "performed response"] as const)("keeps %s ahead of a valid range proof", async kind => {
+  const request = input(kind === "site grounds" ? cleanHostedResult() : findingsHostedResult(["minor"]),
+    "minor", true, "incremental");
+  if (request.predecessor === null) throw new Error("expected predecessor");
+  await expect(confirmReviewCorrectionLeg({ ...request, predecessor: request.predecessor,
+    rangeProof: rangeProof(request),
+    confirmGrounds: async () => kind === "site grounds" ? "applicable" : "review-required",
+  })).resolves.toBe("applicable");
+});
+
+it("resolves a range-proven correction scope with a delta basis", async () => {
+  const request = input(findingsHostedResult(["minor"]), "minor", true, "incremental");
+  const context = await deriveReviewNextPassContext({ ...request, rangeProof: rangeProof(request),
+    readResponsePerformance: async result => {
+      const performance = await request.readResponsePerformance(result);
+      return performance === null ? null : { ...performance, producedHeadSha: "f".repeat(40) };
+    },
+    confirmCurrentApplicability: async () => "review-required",
+  });
+  expect(context).toMatchObject({ convergence: "converged", responseDue: false, incremental: {
+    basis: "delta-check", scope: { predecessorProducerId: request.predecessor!.producerId,
+      predecessorHeadSha: request.predecessor!.target.headSha, basisHeadSha: request.predecessor!.target.headSha,
+      headSha: request.currentTarget.headSha },
+  } });
+});
 
 describe("next-pass context", () => {
   it.each([

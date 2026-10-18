@@ -455,7 +455,7 @@ result, and every consumer that carries an earlier attempt to the current head, 
 confirmation reports its ground; the context's `incremental.basis` reads `delta-check` when the current leg's ground is
 the range proof. Workflow text changes in the package's `arc/` source first, then in the `.arc/` copy.
 
-### `[ ]` **3.1 Prove a plain commit's range from Git, and report it as its own result — § 3.5**
+### `[x]` **3.1 Prove a plain commit's range from Git, and report it as its own result — § 3.5**
 
 - _Goal:_ A commit after a converged look has a range proof whenever its base ref, diff base, and diff-base tree equal
   the predecessor's and its head descends from the converged head with no merge commit between, and the chain proof
@@ -467,22 +467,10 @@ the range proof. Workflow text changes in the package's `arc/` source first, the
           in the Git range. It uses the existing ancestry and merge readers bound to the checkout and fails closed on
           unreadable evidence; real Git distinguishes linear commits from merged contribution.
 
-    - `[ ]` **3.1.b Add it to the chain proof as its own result**
-        - The chain proof tests any ground the site's confirmation accepts today — among them an equal subject digest
-          (`noPullRequestCandidatePriorApplicability`, `pre-publication-composition.ts`), exact-target equality,
-          contribution applicability (`projectGitReviewContributionApplicability`), mechanical carry
-          (`projectMechanicalReviewApplicabilityCarry`), a recorded Candidate selection
-          (`candidateReviewApplicabilitySelections`), the earlier-attempt read (`incrementalApplicabilityFromEarlierRead`),
-          and delivery's contribution proof — then the performed-response test, and returns `range-proven` only when none
-          holds.
-        - `IncrementalPredecessorApplicability` (`incremental-coverage-basis.ts`) gains the result.
-          `resolveIncrementalCorrectionScope` and `resolveCoverageChain` accept it, and every other check of a
-          confirmation's result fails closed on it. The current leg's result sets the context's basis to `delta-check`;
-          nothing stores it. `confirmDeliveryMemberIncrementalApplicability` never takes the range proof.
-        - Build `test-first` (one behavior at a time):
-            - A leg that holds today keeps its ground when the range proof would also hold.
-            - A leg only the range proof supports returns `range-proven` and resolves a correction scope.
-            - An existing consumer that checks for `applicable` treats `range-proven` as not applicable.
+    - `[x]` **3.1.b Add it to the chain proof as its own result**
+        - The shared chain proof preserves existing grounds and performed-response proof before trying the range proof.
+          Only correction scopes and chain re-confirmation accept `range-proven`; the current leg gives the context its
+          transient `delta-check` basis. Delivery keeps its contribution proof, and historical carry rejects the new result.
 
 ### `[ ]` **3.2 Admit a delta check's scope, recorded as a fix check's attempt — § 3.5**
 

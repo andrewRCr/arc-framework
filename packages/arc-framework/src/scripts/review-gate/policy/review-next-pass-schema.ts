@@ -6,7 +6,7 @@ import { IncrementalReviewScopeSchema } from "../core/incremental-review-scope.j
 export const ReviewNextPassContextSchema = z.strictObject({
   convergence: z.enum(["none", "converged", "pending", "unconverged"]),
   responseDue: z.boolean(),
-  incremental: z.strictObject({ basis: z.literal("fix-check"), scope: IncrementalReviewScopeSchema }).nullable(),
+  incremental: z.strictObject({ basis: z.enum(["fix-check", "delta-check"]), scope: IncrementalReviewScopeSchema }).nullable(),
 }).readonly();
 export type ReviewNextPassContext = z.infer<typeof ReviewNextPassContextSchema>;
 

@@ -14,6 +14,7 @@ import {
   type ReviewLane,
   type TargetRead,
 } from "../../../../../src/scripts/review-gate/policy/pre-publication-request.js";
+import type { IncrementalPredecessorApplicability } from "../../../../../src/scripts/review-gate/policy/incremental-coverage-basis.js";
 import type { LaneProgressProjection } from "../../../../../src/scripts/review-gate/lane-progress.js";
 import {
   createReviewRequest,
@@ -346,7 +347,7 @@ describe("pre-publication current contribution applicability", () => {
       diffBaseTree: "8".repeat(40),
     });
     const confirmPriorProducerApplicability = vi.fn(async () => "review-required" as
-      "applicable" | "review-required" | "unavailable");
+      IncrementalPredecessorApplicability);
     const deps = dependencies({
       resolveTarget: async () => ({
         status: "resolved", target: { repository: "arc-framework/example", pullRequest: 42, headSha: HEAD },
@@ -375,18 +376,16 @@ describe("pre-publication current contribution applicability", () => {
     expect(resolveReviewPolicy(withReviewNextPassContext(required.request.standard))).toMatchObject({
       state: "ready", nextAction: "hosted-request",
     });
-    expect(confirmPriorProducerApplicability).toHaveBeenCalledWith(
-      "example", prior, currentTarget,
-      { kind: "candidate", candidateId: CANDIDATE_ID },
-      expect.anything(),
-    );
-
-    confirmPriorProducerApplicability.mockResolvedValue("unavailable");
-    const unavailable = await composePrePublicationReviewRequest(
-      { workUnit: "example", selfReview: "settled" }, deps,
-    );
-    expect(unavailable.status === "composed" && resolveReviewPolicy(withReviewNextPassContext(unavailable.request.standard)))
-      .toMatchObject({ state: "ready", nextAction: "hosted-request" });
+    for (const refusal of ["unavailable", "range-proven"] as const) {
+      confirmPriorProducerApplicability.mockResolvedValue(refusal);
+      const refused = await composePrePublicationReviewRequest(
+        { workUnit: "example", selfReview: "settled" }, deps,
+      );
+      expect(refused.status === "composed" && refused.request.standard).toMatchObject({ attempts: [] });
+      expect(refused.status === "composed" && refused.request.standard.verifiedTerminalSignal).toBeUndefined();
+      expect(refused.status === "composed" && resolveReviewPolicy(withReviewNextPassContext(refused.request.standard)))
+        .toMatchObject({ state: "ready", nextAction: "hosted-request" });
+    }
 
     confirmPriorProducerApplicability.mockResolvedValue("applicable");
     const retained = await composePrePublicationReviewRequest(

@@ -20,6 +20,7 @@ export type IncrementalPredecessorResponseEvidence =
 /** Current-target applicability result for one immutable predecessor producer. */
 export type IncrementalPredecessorApplicability =
   | "applicable"
+  | "range-proven"
   | "review-required"
   | "unavailable";
 
@@ -91,6 +92,10 @@ export function buildIncrementalCorrectionScope(input: {
   });
 }
 
+function correctionLegHolds(applicability: IncrementalPredecessorApplicability): boolean {
+  return applicability === "applicable" || applicability === "range-proven";
+}
+
 /**
  * Build the next correction scope only after the predecessor's complete coverage chain validates.
  *
@@ -108,7 +113,7 @@ export async function resolveIncrementalCorrectionScope(input: {
     input.predecessor,
     input.currentHeadSha,
   ).catch(() => "unavailable" as const);
-  if (applicability !== "applicable") return null;
+  if (!correctionLegHolds(applicability)) return null;
   const response = await dependencies.readResponseEvidence(input.predecessor).catch(() => null);
   return response === null ? null : buildIncrementalCorrectionScope({
     ...input,
@@ -251,7 +256,7 @@ async function resolveCoverageChain(
     if (predecessorFailure !== null) return predecessorFailure;
     const applicability = await dependencies.confirmApplicability(predecessor, result)
       .catch(() => "unavailable" as const);
-    if (applicability !== "applicable") {
+    if (!correctionLegHolds(applicability)) {
       return inadequate(
         applicability === "review-required" ? "applicability-required" : "applicability-unavailable",
         { producerId: predecessor.producerId },

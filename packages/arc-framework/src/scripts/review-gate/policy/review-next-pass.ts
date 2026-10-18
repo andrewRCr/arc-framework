@@ -1,5 +1,6 @@
 /** Shared derivation of convergence and admissible correction coverage for the next look. */
 import { canonicalize } from "../../../lib/kernel/index.js";
+import type { GitExec } from "../../../lib/git/exec.js";
 import { currentApprovedDispositionNode } from "../core/advisory-records.js";
 import { laneSubjectOwnerMatches } from "../core/lane-admission.js";
 import { fixesMaterialFinding } from "../core/review-convergence.js";
@@ -8,6 +9,7 @@ import type { ReviewResult } from "../core/review-result.js";
 import { resolveIncrementalCorrectionScope, type IncrementalPredecessorApplicability } from "./incremental-coverage-basis.js";
 import { confirmPerformedResponse, type PerformedResponseProofInput } from "./performed-response-proof.js";
 import { confirmDeliveryCorrectionLeg } from "./delivery-correction-proof.js";
+import { proveReviewDeltaRange } from "./review-delta-range-proof.js";
 import { readIncrementalPredecessorResponseEvidence } from "./review-policy-evidence.js";
 import type { StandardReviewObligationProjection } from "./standard-review-projection-schema.js";
 import type { ReviewResultReader } from "../core/ports.js";
@@ -15,8 +17,13 @@ import type { ReviewResultReader } from "../core/ports.js";
 import { type ReviewNextPassContext } from "./review-next-pass-schema.js";
 export { ReviewNextPassContextSchema, type ReviewNextPassContext } from "./review-next-pass-schema.js";
 
+/** Record evidence and optional checkout-bound Git proof for a correction-chain leg. */
+export interface ReviewCorrectionLegInput extends PerformedResponseProofInput {
+  readonly rangeProof?: { readonly cwd: string; readonly exec: GitExec };
+}
+
 /** Current target and record readers shared by convergence and correction-chain confirmation. */
-export interface ReviewNextPassInput extends Omit<PerformedResponseProofInput, "predecessor" | "currentResult" | "currentTarget"> {
+export interface ReviewNextPassInput extends Omit<ReviewCorrectionLegInput, "predecessor" | "currentResult" | "currentTarget"> {
   readonly predecessor: ReviewResult | null;
   readonly currentTarget: PerformedResponseProofInput["currentTarget"] | null;
   readonly standardReview: StandardReviewObligationProjection;
@@ -32,15 +39,32 @@ async function approvedFindings(input: Pick<PerformedResponseProofInput, "predec
   ).approvedDisposition.dispositionSet.findings;
 }
 
+async function predecessorFacts(input: Pick<PerformedResponseProofInput,
+  "predecessor" | "dispositionStore" | "readResponsePerformance"
+>): Promise<Pick<ReviewNextPassContext, "convergence" | "responseDue">> {
+  const { predecessor } = input;
+  const response = await readIncrementalPredecessorResponseEvidence(
+    predecessor, input.dispositionStore, input.readResponsePerformance,
+  );
+  const findings = predecessor.originalOutcome === "clean" ? [] : await approvedFindings(input);
+  const convergence = findings !== null && fixesMaterialFinding(findings) ? "unconverged"
+    : response.status === "performed" ? "converged" : "pending";
+  return { convergence, responseDue: predecessor.originalOutcome === "findings" && response.status !== "performed" };
+}
+
 /** Preserve a site's grounds while proving fixes through the subject's performed-response proof. */
-export async function confirmReviewCorrectionLeg(input: PerformedResponseProofInput & {
+export async function confirmReviewCorrectionLeg(input: ReviewCorrectionLegInput & {
   readonly confirmGrounds?: () => Promise<IncrementalPredecessorApplicability>;
 }): Promise<IncrementalPredecessorApplicability> {
   const grounds = await input.confirmGrounds?.().catch(() => "unavailable" as const) ?? "unavailable";
   if (input.predecessor.target.kind !== "change-set") return confirmDeliveryCorrectionLeg(input, grounds);
   const findings = await approvedFindings(input);
-  if (findings?.some(finding => finding.disposition === "fix") !== true) return grounds;
-  return confirmPerformedResponse(input);
+  const existing = findings?.some(finding => finding.disposition === "fix") === true
+    ? await confirmPerformedResponse(input) : grounds;
+  if (existing === "applicable" || input.rangeProof === undefined) return existing;
+  const { convergence } = await predecessorFacts(input);
+  return await proveReviewDeltaRange({ ...input.rangeProof, predecessor: input.predecessor.target,
+    current: input.currentTarget, convergence }) ? "range-proven" : existing;
 }
 
 function samePolicy(predecessor: ReviewResult, input: ReviewNextPassInput,
@@ -60,16 +84,13 @@ export async function deriveReviewNextPassContext(input: ReviewNextPassInput): P
   const readResponseEvidence = (result: ReviewResult) => readIncrementalPredecessorResponseEvidence(
     result, input.dispositionStore, input.readResponsePerformance,
   );
-  const response = await readResponseEvidence(predecessor);
-  const findings = predecessor.originalOutcome === "clean" ? [] : await approvedFindings({ ...input, predecessor });
-  const convergence = findings !== null && fixesMaterialFinding(findings) ? "unconverged"
-    : response.status === "performed" ? "converged" : "pending";
-  const responseDue = predecessor.originalOutcome === "findings" && response.status !== "performed";
+  const { convergence, responseDue } = await predecessorFacts({ ...input, predecessor });
   if (currentTarget === null || !samePolicy(predecessor, input, currentTarget)
     || (input.standardReview.retrigger === "full-final" && convergence !== "unconverged")) {
     return { convergence, responseDue, incremental: null };
   }
   const { confirmApplicability, confirmCurrentApplicability } = input;
+  const currentLeg: { ground: IncrementalPredecessorApplicability } = { ground: "unavailable" };
   const scope = await resolveIncrementalCorrectionScope({ predecessor, currentHeadSha: currentTarget.headSha }, {
     resultReader: input.resultReader,
     readResponseEvidence,
@@ -79,13 +100,18 @@ export async function deriveReviewNextPassContext(input: ReviewNextPassInput): P
       confirmGrounds: confirmApplicability === undefined ? undefined
         : () => confirmApplicability(earlier, current),
     }),
-    confirmCurrentApplicability: earlier => confirmReviewCorrectionLeg({
-      ...input, predecessor: earlier, currentTarget,
-      confirmGrounds: confirmCurrentApplicability === undefined ? undefined
-        : () => confirmCurrentApplicability(earlier),
-    }),
+    confirmCurrentApplicability: async earlier => {
+      const ground = await confirmReviewCorrectionLeg({
+        ...input, predecessor: earlier, currentTarget,
+        confirmGrounds: confirmCurrentApplicability === undefined ? undefined
+          : () => confirmCurrentApplicability(earlier),
+      });
+      currentLeg.ground = ground;
+      return ground;
+    },
   });
-  return { convergence, responseDue, incremental: scope === null ? null : { basis: "fix-check", scope } };
+  return { convergence, responseDue, incremental: scope === null ? null
+    : { basis: currentLeg.ground === "range-proven" ? "delta-check" : "fix-check", scope } };
 }
 
 /** Select a referenced terminal or an owning composition's earlier-head producer before deriving the next look. */
