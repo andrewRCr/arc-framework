@@ -522,6 +522,7 @@ async function resolveErrandLaneAtHead(input: {
     }),
   }, { terminalResponsePerformed: terminal.outcome === "settled-findings" }, {
     sources: [terminal.sourceId, ...configured.sources.filter((source) => source !== terminal.sourceId)],
+    selectionSources: configured.sources,
     maxPasses: configured.maxPasses,
     nextPassContext,
     resultReader: input.resultReader,
@@ -722,7 +723,7 @@ async function nextErrandPassObligation(input: {
   readonly configured: { readonly sources: readonly string[]; readonly maxPasses: number };
   readonly result: StandardReviewResult;
   readonly completedPasses: number;
-  /** The source that reviewed the earlier head, which the next pass asks first. */
+  /** The source that reviewed the earlier head. */
   readonly sourceId: string;
   readonly currentBase: Awaited<ReturnType<typeof currentErrandDiffBase>>;
   readonly ceilingOverride?: ReviewCeilingOverride;
@@ -750,9 +751,7 @@ async function nextErrandPassObligation(input: {
     ...(input.additionalPassAuthorization === undefined ? {}
       : { additionalPassAuthorization: input.additionalPassAuthorization }),
   }, { terminalResponsePerformed: false }, {
-    sources: configured.sources.includes(input.sourceId)
-      ? [input.sourceId, ...configured.sources.filter((source) => source !== input.sourceId)]
-      : [...configured.sources],
+    sources: configured.sources,
     maxPasses: configured.maxPasses, nextPassContext, resultReader: input.resultReader,
     dispositionStore,
     readResponsePerformance: (producer) => readLaneResponsePerformance(store, producer),

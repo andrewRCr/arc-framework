@@ -38,6 +38,8 @@ import { reconcileReviewFallbackAttempts, reconcileReviewSourceInvocation } from
 /** Trusted inputs needed to bind one command request to immutable producer evidence. */
 export interface EvidenceBoundReviewPolicyDependencies {
   readonly sources: readonly string[];
+  readonly selectionSources?: readonly string[];
+  readonly configuredSources?: readonly string[];
   readonly maxPasses: number;
   readonly nextPassContext?: ReviewNextPassContext;
   readonly resultReader: ReviewResultReader;
@@ -384,8 +386,10 @@ async function deriveVerifiedTerminalSignal(
 /** The repository-proven subject facts the owning composition supplied, as reducer request fields. */
 function provenSubjectFacts(
   dependencies: EvidenceBoundReviewPolicyDependencies,
-): { frontlinePhaseClosed?: true; errandVehicle?: true; nextPassContext?: ReviewNextPassContext } {
+): Pick<ReviewPolicyRequest, "frontlinePhaseClosed" | "errandVehicle" | "nextPassContext" | "selectionSources" | "configuredSources"> {
   return {
+    ...(dependencies.selectionSources === undefined ? {} : { selectionSources: dependencies.selectionSources }),
+    ...(dependencies.configuredSources === undefined ? {} : { configuredSources: dependencies.configuredSources }),
     ...(dependencies.nextPassContext === undefined ? {} : { nextPassContext: dependencies.nextPassContext }),
     ...(dependencies.frontlinePhaseClosed === true ? { frontlinePhaseClosed: true } : {}),
     ...(dependencies.errandVehicle === true ? { errandVehicle: true } : {}),

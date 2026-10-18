@@ -296,6 +296,10 @@ function validateConfiguredAttempts(
 export const ReviewPolicyRequestSchema = z.strictObject({
   ...ReviewPolicyRequestBaseShape,
   sources: z.array(ReviewSourceIdSchema).readonly(),
+  /** Fresh-pass selection order, independently of historical terminal binding. */
+  selectionSources: z.array(ReviewSourceIdSchema).readonly().optional(),
+  /** Full configured policy where the selection order is a provider suffix. */
+  configuredSources: z.array(ReviewSourceIdSchema).readonly().optional(),
   maxPasses: ReviewPassSchema,
   verifiedTerminalSignal: VerifiedTerminalReviewSignalSchema.optional(),
   nextPassContext: ReviewNextPassContextSchema.optional(),
@@ -891,7 +895,7 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
     sourceDiagnostic(sourceId, request.lane, scope, request.target.pullRequest),
   ]));
   const ineligibleSources = effectiveSources.filter((sourceId) => sourceDiagnostics.get(sourceId) !== null);
-  const diagnostics = [...sourceDiagnostics.values()].filter(
+  const diagnostics = [...sourceDiagnostics.values(), selection.reason ?? null].filter(
     (diagnostic): diagnostic is ReviewDiagnostic => diagnostic !== null,
   );
   const safelyAttempted = new Set(request.attempts

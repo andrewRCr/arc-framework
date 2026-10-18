@@ -104,7 +104,7 @@ The confirmation map is in `notes-review-coverage-cadence.md` § Chain confirmat
 - _Outcome:_ Continuation binds the cached terminal under its recorded scope, then applies the caller's scope to
   fresh and authorized additional successors. Direct evidence binding retains its scope-mismatch refusal.
 
-### `[ ]` **1.5 Run the pass after an unconverged look on `delegated-agent` — § 7.1, § 7.2, § 7.3**
+### `[x]` **1.5 Run the pass after an unconverged look on `delegated-agent` — § 7.1, § 7.2, § 7.3**
 
 - _Goal:_ After a look whose approved fixes include a material one, the next pass runs on `delegated-agent` whichever
   coverage it takes — selected before any hosted-first reservation, a forced hosted source refused with a remedy naming
@@ -116,62 +116,25 @@ The confirmation map is in `notes-review-coverage-cadence.md` § Chain confirmat
           reservation, preserving the source list that binds recorded attempts and restoring configured rank after
           convergence. Forced hosted and missing-local-source selections carry distinct refusal diagnostics.
 
-    - `[ ]` **1.5.b Refuse a forced hosted source after an unconverged look**
-        - A forced source (`invocation.mode === "force"`) naming a hosted source after an unconverged look resolves to
-          the existing `unavailable / stop`, as an ineligible forced source does today, with a diagnostic code of its
-          own. Diagnostic codes are free strings, so the resolve envelope pre-publication's boundary stores
-          (`CandidatePolicyReviewBoundarySchema`) keeps its shape.
-        - The remedy layer (`runtime/review-policy-remedy.ts`) maps the code to a remedy naming the local pass at
-          `arc review resolve -`, local prepare, and the hosted request; status's routes carry it in Task 2.4.d.
-        - Build `test-first` (one behavior at a time):
-            - A forced hosted source after a material fix resolves to `unavailable / stop` with the code, and each
-              surface returns the remedy; a forced `delegated-agent` runs.
+    - `[x]` **1.5.b Refuse a forced hosted source after an unconverged look**
+        - Resolve, local prepare, and hosted admission preserve the material-fix diagnostic and name the required
+          local pass, without changing the stored resolve envelope. A forced local source remains admissible.
 
-    - `[ ]` **1.5.c Stop where the configured list omits `delegated-agent`**
-        - A project listing sources without `delegated-agent` cannot run the pass after an unconverged one, so the
-          driver stops there, testing the configured list rather than a suffix, with a diagnostic code of its own. The
-          test reads the configured list as its own input: a caller whose lists are cut from a suffix, hosted request
-          admission's Errand branch, passes its configured list (`policy.sources`) for it. Local prepare's default
-          forced `delegated-agent` (`runtime/local-prepare-composition.ts`) is not applied where the list omits it, so
-          the schema's "explicit selection must name a configured standard-review source" does not preempt the stop. An
-          empty list still falls back to `delegated-agent` in local prepare.
-        - The remedy's text names both remedies — add `delegated-agent` to `review.standard_sources`, or take the
-          Owner's stop, disclosed as resting on fixes no reviewer re-examined — and its argv re-runs the command. The
-          Owner's stop is named only where a surface takes one.
-        - Build `test-first` (one behavior at a time):
-            - With `delegated-agent` unlisted, the pass after an unconverged one stops with the code and both remedies,
-              in local prepare as at the driver.
-            - With an empty list, local prepare still runs the pass on `delegated-agent`.
-            - On hosted request admission's Errand branch, with `delegated-agent` ranked ahead of the provider, a request
-              after an unconverged look is refused with Task 1.5.b's code and remedy naming the local pass, whether the
-              restricted selection lands on `delegated-agent` or finds none in the provider's suffix; it does not name
-              the remedy to add `delegated-agent`.
+    - `[x]` **1.5.c Stop where the configured list omits `delegated-agent`**
+        - Selection checks the full configured list independently of a hosted provider's suffix. Missing local sources
+          name configuration repair and, on supported surfaces, the Owner's stop with the unchecked-fix disclosure.
+          Local prepare avoids an invalid default force and retains its empty-list fallback; configuration repair can
+          resume admission.
 
-    - `[ ]` **1.5.d Split the continuation's binding list from its selection list**
-        - `resolveEvidenceBoundReviewPolicyContinuation` takes the list that binds the terminal and the list the fresh
-          resolve selects from as two inputs, the selection list defaulting to the binding list. The Errand's binding
-          list stays terminal-first (`resolveErrandLaneAtHead`), so a terminal from a source no longer configured still
-          binds; its selection list is the configured list, narrowed by Task 1.5.a.
-        - Its other callers — local prepare's two continuation calls, respond's `retainedSources`, and the hosted
-          reservation admission's — pass the configured list for selection. Hosted request admission's Errand branch,
-          whose `sources` is the provider's suffix of the configured list (`configuredSourceSuffix`), binds
-          terminal-first, the terminal's source ahead of that suffix, so a local fix check's terminal still binds when
-          `delegated-agent` ranks ahead of the provider, and selects from that suffix, as it does today, which starts at
-          the provider the request names.
-        - `nextErrandPassObligation` (`status-errand.ts`) stops putting the earlier head's source first.
-        - Build `test-first` (one behavior at a time):
-            - An Errand terminal from a source no longer configured still binds.
-            - After a converged Errand pass the fresh resolve takes the configured order, not terminal-first.
-            - With `delegated-agent` ranked ahead of the provider, hosted request admission's Errand branch binds a
-              local fix check's terminal and, after a converged one, admits the provider's complete pass.
-            - After a converged local fix check at the same head, with the provider ranked first, hosted request
-              admission's Errand branch admits the provider's complete pass.
+    - `[x]` **1.5.d Split the continuation's binding list from its selection list**
+        - Evidence binding carries independent selection and full-configuration lists. Errand terminal binding stays
+          terminal-first while fresh and additional passes use configured order or the requested provider's suffix;
+          earlier-head sources no longer receive priority. Production hosted admission accepts the complete successor
+          of a converged local fix check with either source order.
 
-    - `[ ]` **1.5.e Name `delegated-agent` as the fix-check source in `arc-config.yml`**
-        - The standard-sources comment, in both copies, names `delegated-agent` as the source of fix checks, without
-          which the lane stops after an unconverged pass. Targeted edits to each copy; the project's values stay.
-        - _Note:_ `initial-setup/01_verify-and-configure.md` also explains the standard sources; align it where it says
-          which source runs which pass.
+    - `[x]` **1.5.e Name `delegated-agent` as the fix-check source in `arc-config.yml`**
+        - Both standard-source comments and initial setup identify the local fix-check source and hosted complete-pass
+          cadence; the project's configured source values remain intact.
 
 ### `[ ]` **1.6 Prove a fix's leg at every chain confirmation, and break the chain on a base move — § 7.4, § 7.8**
 

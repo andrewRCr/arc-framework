@@ -367,6 +367,7 @@ import {
   localPrepareAdmissionRemedy,
   reviewResolveError,
   reviewResolveRemedy,
+  requireReviewSourceSelection,
 } from "../scripts/review-gate/runtime/review-policy-remedy.js";
 import { ReviewDriverAdmissionError } from "../scripts/review-gate/policy/review-execution-admission.js";
 import { createReduceDependencies } from "../scripts/review-gate/runtime/reduce-composition.js";
@@ -2006,7 +2007,8 @@ export async function handleReviewResolve(
     execute: (request, root) => dependencies.resolve(
       ReviewPolicyCommandRequestSchema.parse(request),
       root,
-    ).catch((error: unknown) => { throw reviewResolveError(error, request); }),
+    ).then(result => requireReviewSourceSelection(result, ReviewPolicyCommandRequestSchema.parse(request)))
+      .catch((error: unknown) => { throw reviewResolveError(error, request); }),
     remedyFor: reviewResolveRemedy,
   });
 }
@@ -3040,6 +3042,8 @@ function repositoryPrecondition(reason: LocalTargetInvalidReason) {
 }
 
 function reviewCommandDiagnostics(error: unknown, message: string) {
+  if (error instanceof ReviewDriverAdmissionError) return error.diagnostics;
+  if (error instanceof HostedReviewAdmissionError) return error.admission.diagnostics;
   if (error instanceof LocalTargetDerivationError) {
     return [{ code: "repository-precondition" as const, message, precondition: repositoryPrecondition(error.reason) }];
   }
@@ -3791,7 +3795,10 @@ async function executeDefaultHostedRequest(
           sourceId: request.provider,
           nextAction: "hosted-request",
         }, {
-          sources,
+          sources: latestAttempt?.terminalProducer === true
+            ? [latestAttempt.sourceId, ...sources.filter(source => source !== latestAttempt.sourceId)] : sources,
+          selectionSources: sources,
+          configuredSources: policy.sources,
           maxPasses: policy.maxPasses,
           resultReader,
           nextPassContext,
@@ -3869,7 +3876,7 @@ async function executeDefaultHostedRequest(
             if (error instanceof HostedRequestOwnerCollision) return { state: "ambiguous-delivery" };
             // The open change request's status re-reads what the driver admits instead.
             if (error instanceof ReviewDriverAdmissionError) {
-              throw new HostedReviewAdmissionError(error, context.statusTarget);
+              throw new HostedReviewAdmissionError(error, context.statusTarget, context.errandBinding !== null);
             }
             throw error;
           }

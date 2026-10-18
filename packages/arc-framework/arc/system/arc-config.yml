@@ -211,6 +211,8 @@ review.frontline_sources: []
 
 # Ordered sources for ordinary review. Empty disables the standard-review lane.
 # Built-ins: delegated-agent, coderabbit-pr, codex-pr.
+# delegated-agent runs fix checks; without it the lane stops after a pass approves material fixes.
+# Hosted sources run complete passes first or after a converged look.
 review.standard_sources: []
 
 # Positive safe-integer pass ceilings. An exceptional extra pass requires explicit approval.

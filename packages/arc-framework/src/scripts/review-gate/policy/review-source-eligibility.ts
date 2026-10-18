@@ -39,29 +39,40 @@ export const REVIEW_SOURCE_CAPABILITIES: Readonly<Record<string, ReviewSourceCap
   },
 };
 
+const LOCAL_FIX_REVIEW_DIAGNOSTIC = {
+  code: "material-fix-local-review-required",
+  message: "The pass after material fixes must run locally on delegated-agent to re-examine the repairs.",
+};
+
 /** Select fresh-pass candidates without changing the list that binds recorded attempts. */
 export function selectReviewSources(request: ReviewPolicyRequest): {
   sources: readonly string[];
   refusal: ReviewDiagnostic | null;
+  reason?: ReviewDiagnostic;
 } {
   const forced = request.lane === "standard" && request.invocation?.mode === "force"
     ? request.invocation.sourceId : undefined;
+  const selection = request.selectionSources ?? request.sources;
+  const configured = request.configuredSources ?? selection;
   if (request.lane === "standard" && request.nextPassContext?.convergence === "unconverged") {
-    if (!request.sources.includes("delegated-agent")) {
+    if (!configured.includes("delegated-agent")) {
       return { sources: [], refusal: {
         code: "material-fix-local-source-unconfigured",
         message: "The pass after material fixes requires delegated-agent, which review.standard_sources omits.",
       } };
     }
-    if (forced !== undefined && forced !== "delegated-agent") {
-      return { sources: [], refusal: {
-        code: "material-fix-local-review-required",
-        message: "The pass after material fixes must run locally on delegated-agent to re-examine the repairs.",
-      } };
+    if ((forced !== undefined && forced !== "delegated-agent") || !selection.includes("delegated-agent")) {
+      return { sources: [], refusal: LOCAL_FIX_REVIEW_DIAGNOSTIC };
     }
-    return { sources: ["delegated-agent"], refusal: null };
+    return { sources: ["delegated-agent"], refusal: null, reason: LOCAL_FIX_REVIEW_DIAGNOSTIC };
   }
-  return { sources: request.sources.slice(forced === undefined ? 0 : request.sources.indexOf(forced)), refusal: null };
+  if (forced !== undefined && !selection.includes(forced)) {
+    return { sources: [], refusal: {
+      code: "selected-source-ineligible",
+      message: `Explicitly selected review source '${forced}' is outside the current selection policy.`,
+    } };
+  }
+  return { sources: selection.slice(forced === undefined ? 0 : selection.indexOf(forced)), refusal: null };
 }
 
 /** Describe a registered source's eligibility for one lane, scope, and target. */

@@ -322,6 +322,7 @@ export async function resolveEvidenceBoundHostedReservationPolicy(
     sources: input.reservation.sources,
     maxPasses: input.maxPasses,
     ...dependencies,
+    selectionSources: input.reservation.sources,
     nextPassContext,
   });
   return { status: "resolved", policy };
@@ -367,6 +368,7 @@ export async function resolveEvidenceBoundSingletonHostedReservationPolicy(
     sources: input.reservation.sources,
     maxPasses: input.maxPasses,
     ...dependencies,
+    selectionSources: input.reservation.sources,
     nextPassContext: input.discharge.nextPassContext ?? dependencies.nextPassContext,
   });
 }
@@ -626,6 +628,7 @@ async function verifyCandidateAdditionalPassPredecessor(
     sources: input.reservation.sources,
     maxPasses: input.maxPasses,
     ...dependencies,
+    selectionSources: input.reservation.sources,
     nextPassContext,
   };
   const terminalPolicy = await resolveEvidenceBoundReviewPolicyContinuation(
@@ -724,6 +727,7 @@ export async function assertEvidenceBoundCandidateHostedReservationPolicyAdmissi
     sources: input.reservation.sources,
     maxPasses: input.maxPasses,
     ...dependencies,
+    selectionSources: input.reservation.sources,
     nextPassContext: input.discharge.nextPassContext ?? dependencies.nextPassContext,
   });
   assertHostedPolicyResolution({ status: "resolved", policy }, input.provider);

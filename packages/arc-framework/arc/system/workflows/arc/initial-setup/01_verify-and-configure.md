@@ -207,7 +207,9 @@ These choices are independently selectable and default off. Configure only the l
 - **Frontline sources** — set the ordered `review.frontline_sources` list for optional pre-publication review.
   Each developer may add local sources with `git config --add arc.frontlineSources <source-id>`.
 - **Standard-review sources** — set the ordered `review.standard_sources` list for ordinary review. Hosted
-  sources require their provider and repository integration to be available.
+  sources require their provider and repository integration to be available. Include `delegated-agent` for fix
+  checks; without it the lane stops after a pass approves material fixes. Hosted sources run complete passes first
+  or after a converged look.
 - **Planning auto-merge lane** — under `branch.protection: full`, run the [Set
   Up the Auto-Merge Gate workflow][setup-merge-gate] to add `ci-ok`, planning-path CODEOWNERS, and native
   auto-merge. ARC-managed PR workflows require the canonical classifier's exact-head `planning` result before
@@ -318,7 +320,7 @@ These repository choices remain independently selectable and default off:
 - **Frontline sources** — review the ordered `review.frontline_sources` list and any developer-local
   `arc.frontlineSources` additions.
 - **Standard-review sources** — review the ordered `review.standard_sources` list and confirm each provider is
-  available.
+  available. Include `delegated-agent` for fix checks so the lane can continue after material fixes.
 - **Planning auto-merge lane** — under full protection, run [Set Up the Auto-Merge Gate][setup-merge-gate].
 - **Draft-state merge lock** — set `merge.lock: draft` (or leave `none`) for draft-PR structural hold; use
   existing `arc merge lock` verbs. See [Auto-Merge Lane][work-org-auto-merge] for the draft-lock model.

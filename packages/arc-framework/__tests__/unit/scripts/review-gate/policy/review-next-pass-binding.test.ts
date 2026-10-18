@@ -57,6 +57,29 @@ describe("next-pass evidence binding", () => {
     expect(resolveReviewPolicy(bound)).toMatchObject({ state: "ready", payload: { pass: 2 } });
   });
 
+  it("tests the full configured list when hosted admission selects from a suffix", async () => {
+    const { request, dependencies } = fixture(true);
+    const bound = await bindReviewPolicyContinuationEvidence(request, { terminalResponsePerformed: true }, {
+      ...dependencies, sources: ["codex-pr"], selectionSources: ["codex-pr"],
+      configuredSources: ["delegated-agent", "codex-pr"],
+    });
+    expect(resolveReviewPolicy(bound)).toMatchObject({ state: "unavailable", diagnostics: [
+      expect.objectContaining({ code: "material-fix-local-review-required" }),
+    ] });
+  });
+
+  it("refuses a forced historical source omitted from fresh selection", async () => {
+    const { request, dependencies } = fixture();
+    const bound = await bindReviewPolicyContinuationEvidence({ ...request,
+      invocation: { mode: "force", sourceId: "codex-pr" },
+      additionalPassAuthorization: { target: request.target, lane: "standard",
+        precedingProducerId: request.attempts[0]!.reviewOperationId, completedPasses: 1, nextPass: 2 },
+    }, { terminalResponsePerformed: false }, { ...dependencies, selectionSources: ["delegated-agent"] });
+    expect(resolveReviewPolicy(bound)).toMatchObject({ state: "unavailable", diagnostics: [
+      expect.objectContaining({ code: "selected-source-ineligible" }),
+    ] });
+  });
+
   it("refuses internal context on frontline and command requests", () => {
     const { request, dependencies } = fixture();
     const opening = { ...request, target: { ...request.target, pullRequest: null }, attempts: [], completedPasses: 0 };

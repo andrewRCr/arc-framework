@@ -775,6 +775,26 @@ describe("evidence-bound review policy", () => {
     })).resolves.toMatchObject({ state: "ready", nextAction: "local-prepare", payload: { pass: 3, scope: "whole-target" } });
   });
 
+  it.each(["fresh", "additional"] as const)("binds a removed local terminal and selects the configured hosted %s successor", async mode => {
+    const projection: StandardReviewObligationProjection = { ...standardReview,
+      retrigger: mode === "additional" ? "incremental" : "full-final" };
+    const root = chunkedLocalAggregateResult({ projection, clean: true });
+    const result = chunkedLocalAggregateResult({ projection, logicalPass: 2, clean: true,
+      correctionScope: { schemaVersion: 1, predecessorProducerId: root.producerId,
+        predecessorHeadSha: root.target.headSha, basisHeadSha: root.target.headSha,
+        headSha: root.target.headSha, requiredFindings: [] } });
+    const request = { ...cleanRequest(result), completedPasses: 2, standardReview: projection,
+      attempts: [{ sourceId: "delegated-agent", outcome: "clean", reviewOperationId: result.producerId, chunkSeriesComplete: true }],
+      scopeSelection: { mode: "whole-target", target: policyTarget },
+      ...(mode === "additional" ? { additionalPassAuthorization: { target: policyTarget, lane: "standard",
+        precedingProducerId: result.producerId, completedPasses: 2, nextPass: 3 } } : {}) };
+    await expect(resolveEvidenceBoundReviewPolicyContinuation(request, { terminalResponsePerformed: false }, {
+      ...dependencies(result), sources: ["delegated-agent", "codex-pr"], selectionSources: ["codex-pr"], maxPasses: 4,
+      nextPassContext: { convergence: "converged", responseDue: false, incremental: null },
+      resultReader: { readResult: async producerId => producerId === root.producerId ? root : result },
+    })).resolves.toMatchObject({ state: "ready", nextAction: "hosted-request", payload: { sourceId: "codex-pr", pass: 3 } });
+  });
+
   it("exposes a validated terminal producer's exact scope mismatch", async () => {
     const wholeTarget = cleanHostedResult();
     const chunked: ReviewResult = {

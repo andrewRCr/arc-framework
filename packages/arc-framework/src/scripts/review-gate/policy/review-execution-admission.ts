@@ -33,6 +33,7 @@ export class ReviewDriverAdmissionError extends Error {
   readonly code = "invalid-input" as const;
   readonly state: ReviewResolveEnvelope["state"];
   readonly nextAction: ReviewResolveEnvelope["nextAction"];
+  readonly diagnostics: ReviewResolveEnvelope["diagnostics"];
   /** Why the driver refused a supplied override, when that is its answer. */
   readonly reason: string | null;
   /** The policy request the driver evaluated, when the refusing producer composed one. */
@@ -43,6 +44,7 @@ export class ReviewDriverAdmissionError extends Error {
     this.name = "ReviewDriverAdmissionError";
     this.state = resolution.state;
     this.nextAction = resolution.nextAction;
+    this.diagnostics = resolution.diagnostics;
     this.reason = resolution.state === "invalid-override" ? resolution.payload.reason : null;
     this.request = request ?? null;
   }

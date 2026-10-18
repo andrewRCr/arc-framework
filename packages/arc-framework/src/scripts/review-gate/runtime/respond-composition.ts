@@ -770,7 +770,7 @@ export function createRespondDependencies(input: {
             repositoryId: confirmedProducerTarget.repositoryId }) },
       });
       return resolveEvidenceBoundReviewPolicyContinuation(request, { terminalResponsePerformed: false },
-        { ...policyDependencies, nextPassContext });
+        { ...policyDependencies, selectionSources: configured.sources, nextPassContext });
     },
     captureConditionalNextPass: async (authorization) => {
       const captured = await captureConditionalNextPassAuthorization(prepare.operationStore, {

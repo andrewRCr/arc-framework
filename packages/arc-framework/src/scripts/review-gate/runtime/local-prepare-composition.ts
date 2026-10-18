@@ -145,8 +145,11 @@ async function resolveLocalPolicyTarget(
 function createLocalPolicyRequest(
   request: Parameters<LocalPrepareDependencies["validatePolicyAdmission"]>[0],
   policyTarget: { repository: string; pullRequest: number | null; headSha: string },
+  sources: readonly string[],
 ) {
   const { standardReview, completedPasses, attempts, judgment } = request;
+  const invocation = judgment?.invocation ?? (sources.length === 0 || sources.includes("delegated-agent")
+    ? { mode: "force" as const, sourceId: "delegated-agent" } : undefined);
       const policyRequest = {
         schemaVersion: 1,
         target: policyTarget,
@@ -158,10 +161,7 @@ function createLocalPolicyRequest(
         ...(judgment?.scopeMode === undefined
           ? {}
           : { scopeSelection: { mode: judgment.scopeMode, target: policyTarget } }),
-        invocation: judgment?.invocation ?? {
-          mode: "force",
-          sourceId: "delegated-agent",
-        },
+        ...(invocation === undefined ? {} : { invocation }),
         ...(judgment?.ceilingOverride === undefined
           ? {}
           : {
@@ -282,7 +282,7 @@ async function validateLocalPolicyAdmission(
       const policyTarget = await resolveLocalPolicyTarget(
         context.input, repositoryId, target, settings["branch.base"],
       );
-      const policyRequest = createLocalPolicyRequest(request, policyTarget);
+      const policyRequest = createLocalPolicyRequest(request, policyTarget, policy.sources);
       const candidate = lineage.kind === "candidate" && workUnitId !== undefined
         ? await readCandidateRecord(context.input.cwd, workUnitId)
         : null;
@@ -312,7 +312,7 @@ async function validateLocalPolicyAdmission(
         candidateProof: { candidate, cwd: context.input.cwd, baseRef: settings["branch.base"], exec: context.input.exec,
           observeTarget: () => deriveLocalReviewTarget({ ...context.input, repositoryId, baseRef: settings["branch.base"] }) },
       });
-      const policyDependencies = { ...evidenceDependencies, nextPassContext };
+      const policyDependencies = { ...evidenceDependencies, selectionSources: evidenceDependencies.sources, nextPassContext };
       const unresolved = await resolveEvidenceBoundReviewPolicyContinuation(policyRequest, {
         terminalResponsePerformed,
       }, policyDependencies);

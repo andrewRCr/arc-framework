@@ -15,7 +15,7 @@ import { spineRemedy, type SpineRemedy } from "../../integration/spine-refusal.j
 import type { ChangeRequestTargetRef } from "../change-request.js";
 import { ReviewDriverAdmissionError } from "../policy/review-execution-admission.js";
 import { LocalReviewResultReaderError } from "../hosts/local/review-result-reader.js";
-import { ReviewPolicyCommandRequestSchema } from "../policy/review-policy-driver.js";
+import { ReviewPolicyCommandRequestSchema, ReviewResolveEnvelopeSchema, type ReviewPolicyCommandRequest } from "../policy/review-policy-driver.js";
 
 import { ReviewTerminalAttemptInputError } from "../policy/review-policy-evidence.js";
 
@@ -47,7 +47,8 @@ export class HostedReviewAdmissionError extends Error {
   readonly admission: ReviewDriverAdmissionError;
   readonly statusTarget: ChangeRequestTargetRef;
 
-  constructor(admission: ReviewDriverAdmissionError, statusTarget: ChangeRequestTargetRef) {
+  constructor(admission: ReviewDriverAdmissionError, statusTarget: ChangeRequestTargetRef,
+    readonly allowsOwnerStop = false) {
     super(admission.message);
     this.name = "HostedReviewAdmissionError";
     this.admission = admission;
@@ -88,7 +89,22 @@ const STATUS_ROUTE: LaneReadRoute = {
   ceilingOverride: "`--ceiling-override`",
 };
 
-function admissionCorrection(error: ReviewDriverAdmissionError, route: LaneReadRoute): string {
+function localSourceCorrection(error: ReviewDriverAdmissionError, allowsOwnerStop: boolean): string | null {
+  if (error.diagnostics.some(({ code }) => code === "material-fix-local-source-unconfigured")) {
+    return "Add delegated-agent to review.standard_sources"
+      + (allowsOwnerStop ? ", or take the Owner's stop disclosed as resting on fixes no reviewer re-examined" : "")
+      + "; re-run this command after the chosen remedy";
+  }
+  if (error.diagnostics.some(({ code }) => code === "material-fix-local-review-required")) {
+    return "Run the next pass locally on delegated-agent to re-examine the material fixes; "
+      + "use arc review local prepare rather than forcing a hosted source";
+  }
+  return null;
+}
+
+function admissionCorrection(error: ReviewDriverAdmissionError, route: LaneReadRoute, allowsOwnerStop = true): string {
+  const local = localSourceCorrection(error, allowsOwnerStop);
+  if (local !== null) return local;
   if (error.state === "pass-complete") {
     return "The lane is complete for this head; another pass needs the Owner's additional-pass authorization, "
       + `carried as ${route.additionalPass}. To confirm, ${route.action}`;
@@ -124,6 +140,9 @@ export function staleLaneAttemptsRemedy(error: unknown, request: unknown): Spine
 
 /** Return a corrected terminal input replay, or the existing stale-attempt recovery route. */
 export function reviewResolveRemedy(error: unknown, request: unknown): SpineRemedy | undefined {
+  if (error instanceof ReviewDriverAdmissionError && localSourceCorrection(error, true) !== null) {
+    return spineRemedy(ADMISSION_INVARIANT, admissionCorrection(error, RESOLVE_ROUTE), RESOLVE_ARGV, request);
+  }
   if (!(error instanceof ReviewTerminalAttemptInputError)) return staleLaneAttemptsRemedy(error, request);
   return spineRemedy(
     "Terminal attempt progress must match its immutable producer's admitted pass, lane, source, outcome, scope, and policy.",
@@ -131,6 +150,18 @@ export function reviewResolveRemedy(error: unknown, request: unknown): SpineReme
     RESOLVE_ARGV,
     error.correctedRequest,
   );
+}
+
+/** Surface a source-selection stop through command error guidance without changing stored policy envelopes. */
+export function requireReviewSourceSelection(
+  resolution: unknown,
+  request: ReviewPolicyCommandRequest,
+): unknown {
+  const parsed = ReviewResolveEnvelopeSchema.safeParse(resolution);
+  if (!parsed.success) return resolution;
+  const error = new ReviewDriverAdmissionError("The next review pass requires a local source.", parsed.data, request);
+  if (parsed.data.state === "unavailable" && localSourceCorrection(error, true) !== null) throw error;
+  return resolution;
 }
 
 /**
@@ -159,8 +190,12 @@ export function reviewResolveError(error: unknown, request: unknown): unknown {
  * @param error - The failure local preparation raised.
  * @returns The remedy re-resolving the exact policy request the driver evaluated; otherwise `undefined`.
  */
-export function localPrepareAdmissionRemedy(error: unknown): SpineRemedy | undefined {
+export function localPrepareAdmissionRemedy(error: unknown, submittedRequest?: unknown): SpineRemedy | undefined {
   if (!(error instanceof ReviewDriverAdmissionError) || error.request === null) return undefined;
+  if (submittedRequest !== undefined && localSourceCorrection(error, true) !== null) {
+    return spineRemedy(ADMISSION_INVARIANT, admissionCorrection(error, RESOLVE_ROUTE),
+      ["arc", "review", "local", "prepare", "-"], submittedRequest);
+  }
   return spineRemedy(ADMISSION_INVARIANT, admissionCorrection(error, RESOLVE_ROUTE), RESOLVE_ARGV, error.request);
 }
 
@@ -176,7 +211,7 @@ export function hostedRequestAdmissionRemedy(error: unknown): SpineRemedy | unde
       + "request unchanged", ["arc", "review", "status", "--target", JSON.stringify(error.statusTarget)]);
   }
   if (!(error instanceof HostedReviewAdmissionError)) return undefined;
-  return spineRemedy(ADMISSION_INVARIANT, admissionCorrection(error.admission, STATUS_ROUTE), [
+  return spineRemedy(ADMISSION_INVARIANT, admissionCorrection(error.admission, STATUS_ROUTE, error.allowsOwnerStop), [
     "arc", "review", "status", "--target", JSON.stringify(error.statusTarget),
   ]);
 }

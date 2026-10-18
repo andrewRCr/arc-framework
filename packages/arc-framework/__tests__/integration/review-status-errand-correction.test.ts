@@ -1,11 +1,16 @@
 /** The hosted pass an Errand head offers after an approved fix, and the correction its admission accepts. */
 
-import { handleReviewResolve } from "../../src/handlers/review.js";
+import { createLocalPrepareDependencies } from "../../src/scripts/review-gate/runtime/local-prepare-composition.js";
+import { localPrepareAdmissionRemedy } from "../../src/scripts/review-gate/runtime/review-policy-remedy.js";
+import { createLocalAttestDependencies } from "../../src/scripts/review-gate/runtime/local-attest-composition.js";
+import { prepareLocalReview } from "../../src/scripts/review-gate/runtime/local-prepare.js";
+import { attestLocalReviewCommand } from "../../src/scripts/review-gate/runtime/local-attest-command.js";
+import { handleReviewLocalPrepare, handleReviewLocalAttest, handleReviewHostedRequest, handleReviewResolve } from "../../src/handlers/review.js";
 import { readResolveNextPassContext } from "../../src/handlers/review-next-pass-context.js";
 import { createRepositoryReviewResultReader } from "../../src/scripts/review-gate/hosts/local/review-result-reader-composition.js";
 import { execFile } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { chmod, mkdir, writeFile } from "node:fs/promises";
+import { delimiter, join } from "node:path";
 import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -14,6 +19,7 @@ import {
   serializeTransientIdentityRecord,
   TransientIdentityRecordV3Schema,
 } from "../../src/lib/errand/identity-record.js";
+import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { createRawGitExec } from "../../src/lib/io-context.js";
 import { ApprovedDispositionRecordSchema } from "../../src/scripts/review-gate/core/advisory-records.js";
@@ -100,13 +106,15 @@ interface FixedErrandOptions {
   readonly retrigger?: "incremental" | "full-final";
   readonly responsePerformed?: boolean;
   readonly maxPasses?: number;
+  readonly sources?: readonly string[];
+  readonly hostedAdmission?: boolean;
 }
 
 /** One Errand whose first hosted pass found one verified finding, fixed by an approved commit. */
 async function fixedErrand(options: FixedErrandOptions = {}) {
   const provider = options.provider ?? "coderabbit-pr";
   const severity = options.severity ?? "major";
-  const root = await createTempRepoCore({ prefix: "arc-review-errand-correction-", identity: "andrew" });
+  let root = await createTempRepoCore({ prefix: "arc-review-errand-correction-", identity: "andrew" });
   roots.push(root);
   await git(root, ["commit", "--allow-empty", "-m", "base"]);
   const slug = "correction-errand";
@@ -124,10 +132,19 @@ async function fixedErrand(options: FixedErrandOptions = {}) {
   await git(root, ["update-ref", "refs/arc/user/andrew/errands", "HEAD"]);
   const base = await git(root, ["rev-parse", "HEAD"]);
   const baseTree = await git(root, ["rev-parse", "HEAD^{tree}"]);
-  await git(root, ["switch", "-c", branch]);
+  if (options.hostedAdmission === true) {
+    const checkout = `${root}-errand`;
+    await git(root, ["worktree", "add", "-b", branch, checkout, "HEAD"]);
+    roots.push(checkout);
+    root = checkout;
+    await writeFile(join(await git(root, ["rev-parse", "--git-common-dir"]), "info", "exclude"),
+      ".arc/system/.internal/\n", { flag: "a" });
+    await writeWorktreeMarker(root, { spawnedByArc: true, createdFor: { kind: "errand", slug, claimId },
+      spawningIdentity: "andrew", createdAt: record.createdAt, provisioning: "ready" });
+  } else await git(root, ["switch", "-c", branch]);
   await mkdir(join(root, ".arc/system"), { recursive: true });
   await writeFile(join(root, ".arc/system/arc-config.yml"),
-    `review.standard_sources: [coderabbit-pr, codex-pr]\nreview.standard_max_passes: ${options.maxPasses ?? 2}\n`, "utf8");
+    `review.standard_sources: [${(options.sources ?? ["coderabbit-pr", "codex-pr"]).join(", ")}]\nreview.standard_max_passes: ${options.maxPasses ?? 2}\n`, "utf8");
   await writeFile(join(root, "change.txt"), "reviewed change\n", "utf8");
   await git(root, ["add", "change.txt", ".arc/system/arc-config.yml"]);
   await git(root, ["commit", "-m", "reviewed change"]);
@@ -141,7 +158,7 @@ async function fixedErrand(options: FixedErrandOptions = {}) {
   const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
   const standardReview = {
     obligation: "required" as const,
-    reasons: ["sensitive-change-set" as const],
+    reasons: ["sensitive-change-set" as const, "frontline-inactive" as const],
     rubricVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
     rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
     retrigger: options.retrigger ?? "incremental",
@@ -255,7 +272,7 @@ async function fixedErrand(options: FixedErrandOptions = {}) {
     vehicleIdentity: claimId, headSha: fixedHead };
   const statusTarget = { repository: "owner/repo", headRef: branch, headSha: fixedHead };
   return {
-    root, exec, dispositionStore, firstAttemptId, publisher, store, provider, standardReview, statusTarget,
+    root, exec, dispositionStore, firstAttemptId, publisher, store, provider, standardReview, statusTarget, reviewTargetAt,
     errand: { slug, claimId, branch },
     fixedReviewTarget: reviewTargetAt(fixedHead, fixedTree),
     readStatus: (withBaseRef = true) => readErrandRoutedObligation({
@@ -300,6 +317,71 @@ async function fixedErrand(options: FixedErrandOptions = {}) {
 }
 
 type FixedErrand = Awaited<ReturnType<typeof fixedErrand>>;
+
+async function localFixCheck(errand: FixedErrand) {
+  const output: string[] = []; const exitCodes: number[] = [];
+  const boundary = { resolveRoot: () => errand.root,
+    write: (text: string) => output.push(text), setExitCode: (code: number) => exitCodes.push(code) };
+  const dependencies = createLocalPrepareDependencies({ cwd: errand.root, exec: errand.exec });
+  await handleReviewLocalPrepare("-", { ...boundary,
+    readText: async () => JSON.stringify({ schemaVersion: 1, evaluatorIdentity: "independent-reviewer",
+      routingFacts: { contentKind: "code-bearing", reviewRisk: "sensitive", changeDeterminacy: "atomic",
+        ownership: "self", surfaceAuthority: "ordinary" },
+      coverageAdmission: { requestedCoverage: "incremental", correctionScope: errand.expectedScope } }),
+    prepare: input => prepareLocalReview(input, dependencies),
+  });
+  expect(exitCodes, output.join("")).toEqual([]);
+  const prepared = JSON.parse(output.join(""));
+  expect(prepared).toMatchObject({ state: "ready", payload: { request: { logicalPass: 2 } } });
+  output.length = 0;
+  await handleReviewLocalAttest("-", { ...boundary,
+    readText: async () => JSON.stringify({ schemaVersion: 1, operationId: prepared.payload.operationId,
+      result: { status: "complete", result: "clean", evaluatorIdentity: "independent-reviewer",
+        reviewRunId: "local-fix-check", applicabilityId: null, findings: [] } }),
+    attest: input => attestLocalReviewCommand(input, createLocalAttestDependencies({ cwd: errand.root, exec: errand.exec })),
+  });
+  expect(exitCodes, output.join("")).toEqual([]);
+  expect(JSON.parse(output.join(""))).toMatchObject({ state: "attested-current" });
+}
+
+async function requestHostedSuccessor(errand: FixedErrand) {
+  const root = errand.root;
+  const remote = join(root, ".arc-fixture", "origin.git");
+  const bin = join(root, ".arc-fixture", "bin");
+  await mkdir(bin, { recursive: true });
+  await writeFile(join(await git(root, ["rev-parse", "--git-common-dir"]), "info", "exclude"), ".arc-fixture/\n", { flag: "a" });
+  await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+  await git(root, ["remote", "add", "origin", "git@github.com:owner/repo.git"]);
+  await git(root, ["config", `url.${remote}.insteadOf`, "git@github.com:owner/repo.git"]);
+  await git(root, ["push", "origin", "main", errand.errand.branch]);
+  const candidate = { number: 42, url: "https://github.com/owner/repo/pull/42", state: "OPEN",
+    baseRefName: "main", headRefName: errand.errand.branch, headRefOid: errand.statusTarget.headSha };
+  const comment = { node_id: "request-successor", html_url: "https://example.test/request-successor", user: { id: 1 },
+    body: "@codex review", created_at: "2026-10-18T00:00:00Z", updated_at: "2026-10-18T00:00:00Z" };
+  const script = join(bin, "gh");
+  await writeFile(script, ["#!/bin/sh", 'case "$1:$2" in',
+    `repo:view) printf '%s\\n' '{"nameWithOwner":"owner/repo"}' ;;`,
+    `pr:list) printf '%s\\n' '${JSON.stringify([candidate])}' ;;`,
+    `api:user) printf '%s\\n' '{"id":1}' ;;`,
+    `api:repos/owner/repo/pulls/42) printf '%s\\n' '{"head":{"sha":"${errand.statusTarget.headSha}"}}' ;;`,
+    `api:repos/owner/repo/issues/42/comments) printf '%s\\n' '${JSON.stringify(comment)}' ;;`,
+    '*) echo "unexpected host invocation: $*" >&2; exit 1 ;;', "esac", ""].join("\n"));
+  await chmod(script, 0o755);
+  const priorPath = process.env.PATH; const priorCwd = process.cwd();
+  process.env.PATH = `${bin}${delimiter}${priorPath ?? ""}`;
+  process.chdir(root);
+  try {
+    const output: string[] = []; const exitCodes: number[] = [];
+    await handleReviewHostedRequest("-", { readText: async () => JSON.stringify({ schemaVersion: 1,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: errand.statusTarget.headSha },
+      provider: "codex-pr", coverage: "complete", vehicle: { kind: "errand", standardReview: errand.standardReview } }),
+      write: text => output.push(text), setExitCode: code => exitCodes.push(code) });
+    return { result: JSON.parse(output.join("")), exitCodes };
+  } finally {
+    process.chdir(priorCwd);
+    if (priorPath === undefined) delete process.env.PATH; else process.env.PATH = priorPath;
+  }
+}
 
 function admitCorrection(
   errand: FixedErrand,
@@ -439,6 +521,64 @@ describe("ordinary resolve next-pass records", () => {
     });
     expect({ exitCodes, result: JSON.parse(output.join("")) }).toMatchObject({ exitCodes: [],
       result: { state: "ready", nextAction: "hosted-request", payload: { sourceId: "coderabbit-pr", pass: 3 } } });
+  });
+
+  it.each([["delegated-agent", "codex-pr"], ["codex-pr", "delegated-agent"]])(
+    "admits a hosted complete successor of a converged local fix check with sources %s", async (...sources) => {
+      const errand = await fixedErrand({ retrigger: "full-final", maxPasses: 4, sources, hostedAdmission: true });
+      await localFixCheck(errand);
+      expect(await requestHostedSuccessor(errand)).toMatchObject({ exitCodes: [],
+        result: { state: "requested", handle: { provider: "codex-pr", admission: { logicalPass: 3 } } } });
+    });
+
+  it.each([["delegated-agent", "codex-pr"], ["codex-pr", "delegated-agent"]])(
+    "refuses hosted admission after material fixes with the local-pass remedy and sources %s", async (...sources) => {
+      const errand = await fixedErrand({ retrigger: "full-final", maxPasses: 4, sources, hostedAdmission: true });
+      const response = await requestHostedSuccessor(errand);
+      expect(response).toMatchObject({ exitCodes: [1], result: {
+        error: { code: "invalid-input" }, diagnostics: [expect.objectContaining({ code: "material-fix-local-review-required" })],
+        remedy: { text: expect.stringContaining("delegated-agent") },
+      } });
+      expect(response.result.remedy.text).not.toContain("Add delegated-agent");
+    });
+
+  it("stops local prepare on an omitted local source and retries after configuration repair", async () => {
+    const errand = await fixedErrand({ retrigger: "full-final" });
+    const dependencies = createLocalPrepareDependencies({ cwd: errand.root, exec: errand.exec });
+    const input = { repositoryId: errand.fixedReviewTarget.repositoryId, target: errand.fixedReviewTarget,
+      lineage: { kind: "head-bound" as const, vehicleKind: "errand" as const,
+        vehicleIdentity: errand.errand.claimId, headSha: errand.fixedReviewTarget.headSha },
+      standardReview: errand.standardReview, completedPasses: 1, attempts: [], terminalResponsePerformed: false,
+      predecessorOperationId: errand.firstAttemptId };
+    const error = await dependencies.validatePolicyAdmission(input).catch(error => error as unknown);
+    expect(error).toMatchObject({ state: "unavailable", diagnostics: [
+      expect.objectContaining({ code: "material-fix-local-source-unconfigured" }),
+    ] });
+    expect(localPrepareAdmissionRemedy(error)?.text).toContain("no reviewer re-examined");
+    await writeFile(join(errand.root, ".arc/system/arc-config.yml"),
+      "review.standard_sources: [coderabbit-pr, codex-pr, delegated-agent]\n", "utf8");
+    await git(errand.root, ["add", ".arc/system/arc-config.yml"]);
+    await git(errand.root, ["commit", "-m", "configure local reviewer"]);
+    const repairedTarget = errand.reviewTargetAt(await git(errand.root, ["rev-parse", "HEAD"]),
+      await git(errand.root, ["rev-parse", "HEAD^{tree}"]));
+    await expect(dependencies.validatePolicyAdmission({ ...input, target: repairedTarget,
+      lineage: { ...input.lineage, headSha: repairedTarget.headSha }, coverageAdmission: { requestedCoverage: "complete" },
+    })).resolves.toEqual({ state: "ready", pass: 2 });
+  });
+
+  it("keeps local prepare's empty-source fallback after material fixes", async () => {
+    const errand = await fixedErrand({ retrigger: "full-final" });
+    await writeFile(join(errand.root, ".arc/system/arc-config.yml"), "review.standard_sources: []\n", "utf8");
+    await git(errand.root, ["add", ".arc/system/arc-config.yml"]);
+    await git(errand.root, ["commit", "-m", "use local fallback"]);
+    const target = errand.reviewTargetAt(await git(errand.root, ["rev-parse", "HEAD"]),
+      await git(errand.root, ["rev-parse", "HEAD^{tree}"]));
+    await expect(createLocalPrepareDependencies({ cwd: errand.root, exec: errand.exec }).validatePolicyAdmission({
+      repositoryId: target.repositoryId, target,
+      lineage: { kind: "head-bound", vehicleKind: "errand", vehicleIdentity: errand.errand.claimId, headSha: target.headSha },
+      standardReview: errand.standardReview, completedPasses: 1, attempts: [], terminalResponsePerformed: false,
+      predecessorOperationId: errand.firstAttemptId, coverageAdmission: { requestedCoverage: "complete" },
+    })).resolves.toEqual({ state: "ready", pass: 2 });
   });
 
   it.each(["major", "minor"] as const)("derives the earlier-head %s response from the Errand claim", async severity => {
