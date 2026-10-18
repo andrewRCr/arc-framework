@@ -10,6 +10,7 @@ import type { EvidenceBoundReviewPolicyDependencies } from "../scripts/review-ga
 
 import { createCandidateResponseHeadContinuationReader } from
   "../scripts/review-gate/runtime/candidate-response-head-continuation.js";
+import { deriveReviewChunkingSubject } from "../scripts/review-gate/policy/review-chunking-subject.js";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { z, ZodError, type ZodType } from "zod";
@@ -2795,8 +2796,10 @@ function defaultReviewChunkingResolveDependencies(context: InteractionContext): 
       const derive = (coordinates: ReviewChunkingResolveRequest["target"]) =>
         deriveLocalReviewTargetFromCoordinates({ exec, cwd: root, repositoryId, coordinates });
       return ReviewChunkingResolveCommandRequestSchema.parse({
-        ...request,
-        target: await derive(request.target),
+        schemaVersion: request.schemaVersion,
+        target: await deriveReviewChunkingSubject({
+          exec, raw: createRawGitExec(root), cwd: root, repositoryId, request,
+        }),
         ...(request.scopeSelection === undefined
           ? {}
           : {

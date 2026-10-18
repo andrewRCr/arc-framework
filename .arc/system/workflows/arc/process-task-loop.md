@@ -198,6 +198,23 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
      deltas][criteria-deltas] — with a completion note citing the subtask that recorded the delta, and dispatches to
      item 4's resolved completion branch. The key is a fact on the task being executed, never list-wide state.
 
+     Before a fresh member criteria walk or its first independent reviewer, invoke `arc review changeset resolve -`
+     over the bounded member diff, including local edits, using `validate-criteria` § Verification subject for its
+     exact coordinates. Dispatch on the resolver's typed state/action pair:
+
+     - `disabled / none`, `below-threshold / continue-review`, or `scope-selected / continue-review` — continue.
+     - `consider-chunks / select-review-scope` — render `recommendedActionText`, then apply
+       [`review-chunking`][review-chunking]. Select bounded scopes or an explicit capable whole-target route before
+       launch; keep the selected criteria and verification rubric unchanged.
+     - `delivery-bound / continue-review` — use the bound scopes as seeds, assess this member's attention burden
+       under `review-chunking`, and resolve uncovered verification scope before launch.
+     - `evidence-unavailable / continue-review`, command failure, or an unsupported result — preserve the diagnostic
+       and resolve the missing measurement or scope evidence before launch; never treat it as below threshold.
+
+     Retain the target, state, metrics when supplied, and scope disposition with the criteria evidence. Reuse an
+     unchanged exact-subject result. This check leaves the independent companion's offer intact; the committed-span
+     check below still closes the member's final span.
+
      ```yaml
      verification-review:
        scope:

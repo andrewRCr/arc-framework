@@ -34,6 +34,13 @@ Do not widen or reconstruct one coordinate independently of the others. At membe
 inspect the bounded diff and reachable tree, and resolve each criterion in the selected member group against
 source-grounded evidence.
 
+Direct inspection toward whether the selected criteria and governing spec contract are fulfilled, including required
+failure and recovery behavior. Tie each reviewer assignment and seam question to that verification purpose. Read
+whole files and follow dependencies when needed to answer it; do not add an independent general code-quality rubric
+or an exhaustive file-body reading requirement. Report concrete incidental defects through the ordinary findings
+and approval protocol; their discovery does not widen every remaining assignment. Criteria-review evidence does not
+satisfy the separate standard-review obligation.
+
 At work-unit scope, first inspect whether the task list contains a Delivery Plan. When none is present, open the
 upstream design/spec artifact, inspect the complete work-unit diff and reachable tree, and resolve every criterion
 in the flat Success Criteria section against actual outcomes. When a Delivery Plan is present, disposition each
@@ -123,6 +130,19 @@ the amendment is `[~]` citing the log row's id and carries no verdict.
 Locate a member's deltas through the log: each `## Amendments` row's `_Work:_` names the corrective parent whose
 closing subtask carries that delta. Never locate one positionally, and never by scanning a member's revision
 parents — either would be a second authority over the same fact.
+
+### Verification subject
+
+For the caller's pre-walk `arc review changeset resolve -`, use the selected diff's actual baseline: the member's
+bounded base or the work unit's merge base. A committed subject uses its exact commit coordinates. For local content,
+anchor `target.headSha` to current HEAD and supply `localSubject: index` or `localSubject: worktree` to include the
+index or staged, unstaged, and non-ignored untracked content respectively. Use `kind: change-set` for local sizing
+with that bounded diff base; a snapshot has no published delivery-member binding. Never measure HEAD alone when
+verifying local edits.
+
+The local mode snapshots through a private index without staging files or moving refs. Retain the returned exact
+target and use its snapshot as the reviewed subject; refresh sizing and scope selection when that subject changes.
+Any `scopeSelection` must name that returned target, rather than the HEAD used to anchor the snapshot.
 
 ---
 

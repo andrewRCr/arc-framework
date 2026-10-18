@@ -347,7 +347,8 @@ describe("PR lifecycle and review contracts", () => {
       expect(normalizedStandard).toContain("counts toward the standard ceiling only with complete coverage");
       expect(normalizedStandard).toContain("no partial report or evaluator call can settle the obligation");
       expect(normalizedAdversarial).toContain("bounded chunk-series carrier mode");
-      expect(normalizedAdversarial).toContain("sequential attention isolation within one logical pass");
+      expect(normalizedAdversarial).toContain("dependency-based scheduling within one logical pass");
+      expect(normalizedAdversarial).toContain("Run ready independent scopes concurrently when supported");
       expect(normalizedAdversarial).toContain("stable evaluator profile and complete rubric");
       expect(normalizedAdversarial).toContain("no standalone authority");
     }
