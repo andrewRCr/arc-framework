@@ -326,16 +326,14 @@ and an unavailable selection causes no write before a successful retry after rep
           precede `batchCheckPaths`; literal operands appear once across bounded invocations, and earlier nonzero
           statuses survive later successes. Empty unions start no tool; projected-only corpora remain fixable.
 
-### `[ ]` **5.5 Document feedback declarations and literal tool inputs — D7.2**
+### `[x]` **5.5 Document feedback declarations and literal tool inputs — D7.2**
 
 - _Goal:_ Projects can declare their own Markdown feedback over editable state and configure tools to honor the
   supplied paths without confusing local feedback with gate evidence.
 
-    - Update package `reference/strategies/arc/strategy-quality-gates.md` and render its installed counterpart.
-    - Explain Git/index enumeration versus disk globs, per-clone excludes, and literal operands with tool glob/ignore
-      filtering disabled; show `validate-links.sh` declared as an ungated selection check over `**/*.md`.
-    - Explain changed-since-save increment/segment feedback, named whole-selection runs, and on-demand fixing in
-      adopter-facing terms. Keep the flip notice's authoring/publication with its supplier and avoid internal WU refs.
+- _Outcome:_ The quality-gates strategy explains why per-clone Git exclusions do not constrain disk globbing, how
+  to verify literal tool inputs, and how changed and whole-selection feedback differ. Its ungated shipped-validator
+  example preserves record-write authority, existing gate evidence, and on-demand fixing.
 
 ### `[ ]` **5.6 Exercise repository feedback and fixing together — D6** — validate exit criterion at segment scope
 
