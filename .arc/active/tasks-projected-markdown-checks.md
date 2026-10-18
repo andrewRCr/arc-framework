@@ -306,49 +306,25 @@ and an unavailable selection causes no write before a successful retry after rep
   special-character names and case variants; unchanged, protected, conflict, archive, and private files stay outside
   that request. Tool-specific exclusions remain distinct from the supplied corpus; no projection machinery was added.
 
-### `[ ]` **5.4 Replace glob fixing with the exact lint corpus — D6.3**
+### `[x]` **5.4 Replace glob fixing with the exact lint corpus — D6.3**
 
 - _Goal:_ Both fix commands mutate exactly the current lint corpus, report any listed path unsafe to write, and
   leave every file untouched when selection acquisition fails.
 
-- _Note:_ See `notes-projected-markdown-checks.md` § Fixer grounding for selection and mutation authority.
+    - `[x]` **5.4.a Resolve the exact lint corpus before mutation**
+        - `resolveMarkdownFixCorpus` acquires the full projected list, combines present Git worktree Markdown, and
+          applies shared exclusions and deduplication. Only `markdown.empty-selection` contributes an empty Git set;
+          other Git failures and unavailable/thrown provider reads retain their reason and recover after repair.
 
-    - Add the shared fixer script under `src/scripts/` and switch root `lint:md:fix` and `lint:md:fix:file` to it;
-      reuse `readProjectedSelection`, Task 3.2's matcher, and `loadWorktreeMarkdownConfigurations`.
+    - `[x]` **5.4.b Apply mutation authority and constrain explicit fixing**
+        - The shared script validates all explicit membership before write authority and worktree configuration.
+          Only supplier paths bypass ignored membership; unsafe listed paths are reported and skipped. Real file
+          mutations and the CLI refusal/retry cover ignored state, literal subsets, and untouched exclusions.
 
-    - `[ ]` **5.4.a Resolve the exact lint corpus before mutation**
-        - Build `test-first` (one behavior at a time):
-            - Union present worktree paths from `enumerateTrackedMarkdownPaths` with the full projected selection,
-              excluding `MARKDOWN_SELECTION.ignores`; deduplicate, omit absent tracked entries, and keep literals.
-            - Treat only the enumerator's `markdown.empty-selection` as an empty Git contribution: a projected-only
-              corpus still fixes normally; other enumeration failures remain failures, and a wholly empty union
-              reports nothing to fix without invoking the tool with no path operands.
-            - Selection unavailable or thrown acquisition refuses with its reason before any tool or file write;
-              repairing the provider makes the same command succeed.
-
-    - `[ ]` **5.4.b Apply mutation authority and constrain explicit fixing**
-        - Validate paths with `validateExplicitMarkdownPaths` using `operation: "mutate"`; allow ignored membership
-          only for selection paths. Report and skip unsafe listed paths, including symlinks a lint read may follow.
-        - Build `test-first` (one behavior at a time):
-            - Full fixing rewrites the authorized union alone, reports skipped paths, and invokes markdownlint-cli2
-              with literal operands and `--fix --no-globs` after loading validated configuration.
-            - Explicit fixing first refuses any operand outside the union, naming the exclusion reason, and never
-              widens into a glob; valid explicit subsets are fixed without touching other union members.
-            - Cover special-character names, ignored state, ordinary tracked and untracked nonignored Markdown,
-              exclusions, Git administration, and no-write refusal followed by successful recovery.
-
-    - `[ ]` **5.4.c Execute the validated corpus in bounded literal batches**
-        - Resolve the entire selection, validate every explicit operand's membership, finish write-authority checks,
-          and validate worktree configuration before the first mutating invocation.
-        - Reuse `batchCheckPaths` from `lib/checks/batching.ts`, budgeting the actual platform command and fixed flags
-          plus the literal `:path` arguments. Keep each admitted path in exactly one batch and retain nonzero results.
-        - Build `test-first` (one behavior at a time):
-            - A corpus exceeding the Windows argument budget produces bounded invocations whose operands cover
-              every admitted path exactly once, leave excluded files untouched, and preserve literal filenames.
-            - Nonzero results from any batch make the overall command nonzero; the whole-list and explicit-subset
-              commands share this behavior rather than silently returning a later successful batch's status.
-            - Invalid explicit membership or configuration prevents all mutating invocations, even when the valid
-              operands alone would already fill a batch; an unbatchable command/path fails before any writes.
+    - `[x]` **5.4.c Execute the validated corpus in bounded literal batches**
+        - Both root recipes use the shared fixer. Complete membership, write authority, and configuration checks
+          precede `batchCheckPaths`; literal operands appear once across bounded invocations, and earlier nonzero
+          statuses survive later successes. Empty unions start no tool; projected-only corpora remain fixable.
 
 ### `[ ]` **5.5 Document feedback declarations and literal tool inputs — D7.2**
 
