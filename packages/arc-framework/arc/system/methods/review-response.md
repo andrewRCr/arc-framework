@@ -69,6 +69,16 @@ approved response or edit its disposition set. Only `conditional-authority-withd
 `payload.replayed` distinguishing an exact replay. A stale-disposition, foreign, consumed, or superseded refusal
 stops. Withdrawal preserves the invalidated capture as audit evidence and can never create authority for another pass.
 
+The proposal's separate `report` inputs render the agent's rubric anchors and loop reading without entering the
+approved set. The first approved call repeats the fix `tags`; it stores only those advisory tags beside the set,
+outside its identity. Later advances preserve them unchanged. Approved, verified-fix, and settlement reports read
+them and use the reduced shape: approved-set header, tagged table and sections, without Fails, Decisions, or loop
+reading. A record without stored tags renders in canonical order.
+
+A fix-check round and a successor complete pass are separate decisions under [review-model][review-model]. Never
+decline a repair check because a complete pass follows. Human review follows closed agentic review out of band and
+is never a pass.
+
 ### Correct an approved disposition before response performance
 
 New source evidence or fix verification may disprove an approved judgment while its fix increment is still
@@ -77,9 +87,11 @@ repair Git-common state directly.
 
 1. **Proposal call:** resubmit the original `source`, add `supersedes.predecessorDispositionSetId`, and list only the
    authorized dirty paths in `supersedes.expectedFixPaths`. Supply a fresh, complete `proposal` covering every source
-   finding. Only `awaiting-approval` yields the canonical successor proposal and report for fresh human approval.
+   finding, with the separate `report` inputs from [review-triage][review-triage]. Only `awaiting-approval` yields
+   the canonical successor proposal and report for fresh human approval.
 2. **Approval call:** resubmit that same `source` and `supersedes`, add the ordinary `policyRequest`, and supply the
-   exact freshly approved successor as `dispositions`. If another conditional next pass is approved, supply its fresh
+   exact freshly approved successor as `dispositions` and its advisory fix `tags` again. If another conditional
+   complete pass is approved, supply its fresh
    `conditionalNextPassAuthorization`; predecessor authority never transfers implicitly.
 
 On success, consume `payload.supersession` as the transition receipt. `status: published | replayed` distinguishes a
@@ -101,7 +113,9 @@ When building the disposition set, copy `reportedSeverity` and optional `reporte
 supplies explicit nullable `verifiedSeverity` and optional `verifiedNit`. Derive gating only from the verified lane plus
 project policy: `critical` and `major` are blocking, a verified nit is record-only, and an ordinary verified `minor`
 uses `minorGating`. A `not-supported` finding has no ARC grade, must be rejected, and remains record-only. Keep every
-finding in the set. A blocking recurrence requests another round; a record-only finding does not. Carrier-native
+finding in the set. Convergence follows the approved verified material fixes, independently of gating: a fix check
+checks those repairs, and `full-final` also requires a complete pass after the rounds converge. Fix and delta checks
+are outside the complete-pass ceiling; a conditional next-pass authorization names only its complete pass. Carrier-native
 requested changes and required conversations remain independent blockers outside this planner, so ARC's record-only
 result cannot weaken host authority.
 
@@ -161,3 +175,5 @@ capability or satisfy a carrier-native review requirement.
 [review-increment-invariant]: ../rules/DEV-RULES.ARC.md#review-increment-invariant
 
 [review-model]: review-model.md
+
+[review-triage]: review-triage.md

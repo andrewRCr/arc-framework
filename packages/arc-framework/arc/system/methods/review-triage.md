@@ -94,6 +94,14 @@ governing caller. The command resolves the durable producer, applies the input p
 `payload.dispositionEvidenceText`. The returned `payload.proposal` does not repeat the input-only
 `severityGatingPolicy`; its exact canonical finding gates and `policyVersion` are part of the approval binding.
 
+Supply the separate `report` beside `proposal`: one `tags` entry per fix (`new-design` or `local-correction`),
+one `fails` anchor per finding, the `successorRecommendation`, origin counts, and one of
+[review-model's loop readings][loop-reading] with its rationale. Key tags and anchors by finding identity. Lift a
+local reviewer's `Fails:` line from its referenced report; for a hosted source, supply the rubric anchor while
+verifying it, as the agent's reading. Use the supplied rubric's item names, or `none` with a reason. These judgments
+are advisory and outside the canonical set's identity. The approved call carries the same tags again; only those tags
+are stored, as an immutable advisory note beside the set. Verified-fix and settlement replays read that note.
+
 Author each finding's narrative so the report stands without the raw review:
 
 - `title` — the issue in a phrase; it names the finding in the decision table and heads its section.
@@ -118,26 +126,28 @@ durable disposition record holds them. A code-review report adds three things to
 - F{ordinal} · <locus> · <native label, when available> · source #{sourceOrdinal} · <originating reference> · verified at <ARC source-verification references>
 ```
 
-The command orders findings blocking before record-only, then by ARC grade, with a nit after other minor findings and
-unsupported findings last, keeping canonical order among equals. It retains producer-native labels, capture ordinals,
-and references beside the report-local `F` labels, and escapes only the characters that would otherwise open inline
-Markdown, plus `|` in a table cell.
+The command assigns stable `F` labels in canonical grade and gating order before ordering the display by fix tag.
+Labels remain the same in the proposal, approved report, and replay. Tags forecast what a fix implies; they are the
+agent's reading, never an approved judgment. Keep them distinct from observed fix-round signals. Producer-native
+labels, capture ordinals, and references remain beside the report-local labels.
 
-For a findings proposal, present the CLI's `provisionalPassAssessment.summaryText` beside the verbatim disposition
-report in the same turn. It is the pass line — the lane, confirmed-finding signal, and what approving a `FIX` does. The
-standard lane shows `complete pass N of M` or `fix check, round N since pass M`; frontline retains its admitted pass and
-configured ceiling. For the standard lane: the head moves, and the line names the fix check or complete pass the fixed
-head then needs, or says the lane closes, another complete pass needs a ceiling decision, or review status at that head
-decides. It states where review stands and is provisional until verified response and coverage resolve the next action.
-Follow it with the agent's recommendation to stop or to request a named next pass, from the expected signal and cost.
-Every decision the approver is asked to make carries that recommendation. When the pass line says a fix requires a fix
-check or complete pass, the recommendation also covers that activity, as spend the approver may decline. A decline
-leaves the disposition approval unchanged; the governing caller honors it at the new head through its Owner review stop
-(an Errand's Owner-directed review stop, a work unit's Owner-accepted terminus), confirmed there once before any pass is
-dispatched. Disposition approval and next-pass authorization stay distinct decisions, though one prompt may ask both:
-the approver may approve the set and decline the pass. Disposition approval alone never overrides either lane's ceiling;
-follow the typed policy continuation and obtain explicit approval for the named activity and pass if it returns
-`approval-required / obtain-ceiling-override`.
+The report's provisional header names the lane's position and signal: standard `complete pass N of M` or `fix check,
+round N since pass M`, with frontline's recorded pass and ceiling. When a fix moves the head, the line names the fix
+check or complete pass the fixed head then needs. Its single Decisions block carries complete-set approval, open
+questions, bounded offers, and the agent's successor recommendation. Supply a clear recommendation for each decision
+from expected signal and cost, including at the ceiling. When the pass line says a fix requires a fix check or complete
+pass, the recommendation also covers that activity, as spend the approver may decline. Emit the composed report without
+adding a second pass line or Decisions block. The loop reading combines the CLI's trend with the agent's origin counts
+and reading; it is advice, never admission or convergence evidence.
+
+A fix check verifies repairs and a complete pass looks for what remains undiscovered. Recommend the fix check on the
+approved fixes' merits, even when a complete pass follows. Converge the rounds before a successor complete pass;
+`full-final` stays open after a clean fix check, while incremental closure requires the policy's proved chain.
+Disposition approval and each next activity's authorization remain distinct, even when one prompt asks both. A decline
+leaves the approved set unchanged; the governing caller honors the Owner's stop at the new head (an Errand's
+Owner-directed review stop or a work unit's Owner-accepted terminus), confirmed there once before any pass is
+dispatched. Follow `approval-required / obtain-ceiling-override` for a complete pass beyond the ceiling. Fix and delta
+checks spend no complete-pass allowance and neither consume nor inherit a conditional complete-pass authorization.
 
 Obtain complete-set approval over the report and canonical identity before the caller's second `arc review respond -`
 invocation. Approval records the exact target, producer result, policy/rubric context, proposing actor, verification
@@ -177,3 +187,5 @@ context footer from `self-review`; its report-local labels do not create a produ
 [review-increment-invariant]: ../rules/DEV-RULES.ARC.md#review-increment-invariant
 
 [review-model]: review-model.md
+
+[loop-reading]: review-model.md#loop-reading

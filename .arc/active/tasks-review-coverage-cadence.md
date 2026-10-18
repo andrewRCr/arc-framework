@@ -906,12 +906,14 @@ copy.
   ended loop's findings as context. All three planning call sites carry the first-pass exception; upstream
   derivation routing and deferred Class persistence remain intact.
 
-### `[ ]` **6.6 Align the review methods' prose to the model — § 10.6, § 10.7**
+### `[x]` **6.6 Align the review methods' prose to the model — § 10.6, § 10.7**
 
 - _Goal:_ `review-triage`, `review-response`, and `classify-review-risk`'s "What the call changes" state the model
   where they touch it, and the family says that human review follows out of band and is never a pass.
 
-    - Package source first, then the `.arc/` copies.
+- _Outcome:_ Triage and response carry the advisory report inputs and immutable tag note, distinct repair-check
+  and successor decisions, and complete-pass accounting. Risk guidance describes fix checks before full-final
+  closure; response guidance places human review outside the agentic pass model.
 
 ## **Phase 7:** The review family and the renames
 
