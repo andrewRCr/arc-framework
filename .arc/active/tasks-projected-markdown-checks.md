@@ -116,28 +116,14 @@ and recovered selections produce their specified outcomes, while every gate excl
   including false flags. Increment and segment include selection feedback in declaration order; gates and hooks
   exclude it, and both input and output JSON Schema projections remain representable.
 
-### `[ ]` **3.2 Match explicit path lists with Git pathspecs — D4.2**
+### `[x]` **3.2 Match explicit path lists with Git pathspecs — D4.2**
 
 - _Goal:_ A supplied path list is filtered exactly as tracked Git pathspec inputs would filter it, without touching
   the checkout's real index, writing objects, or inheriting ambient pathspec policy.
 
-- _Note:_ See `notes-projected-markdown-checks.md` § Check-runner grounding for the existing Git execution seam.
-
-    - Export `inputPathspecs` from `lib/checks/matching.ts` and add the explicit-list matcher using a disposable index,
-      `git update-index --add --index-info`, and `git ls-files -z` with those same pathspecs.
-    - Use `RawGitExec` for stdin bytes, alternate-index selection, and environment removal; wire its production
-      executor at the consumer boundary. Derive the repository's empty-blob ID without `-w`, and clean up in `finally`.
-    - Return matched-path success as `{ status: "ok", paths }`, or `{ status: "unavailable", reason }` when temporary
-      index preparation or Git matching fails. Preserve the underlying reason instead of letting a rejection escape
-      the per-check execution path.
-    - Build `test-first` (one behavior at a time):
-        - Real Git agrees for every declared input pattern, positive/excluded combinations, dot-directories, case,
-          whitespace, newline and pathspec-looking filenames, and empty path/input lists.
-        - SHA-1 and supported SHA-256 repositories use the right identity; alternate-index creation and failure leave
-          the real index and object store unchanged, and temporary files are removed on either outcome.
-        - Temporary-index creation, population, and pathspec-read failures return unavailable with their reason;
-          restoring the failed dependency allows the same match to succeed.
-        - Ambient `GIT_*_PATHSPECS` settings cannot change explicit matching. Extend `integration/check-matching.test.ts`.
+- _Outcome:_ `matchPathList` uses a disposable index, shared Git glob pathspecs, NUL-framed paths, and the
+  repository-format empty-blob identity without writing objects. Failures preserve their reason as unavailable;
+  real-Git coverage confirms cleanup, ambient-policy isolation, and successful retries.
 
 ### `[ ]` **3.3 Resolve projected scopes independently of Git changes — D4.2–D4.3, D4.6**
 

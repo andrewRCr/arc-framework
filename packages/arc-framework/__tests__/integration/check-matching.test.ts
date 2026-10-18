@@ -1,9 +1,12 @@
 /** Input matching against real Git trees and pathspec semantics. */
 import { afterEach, expect, it, vi } from "vitest";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import type { RawGitExec } from "../../src/lib/git/exec.js";
+import { matchPathList } from "../../src/lib/checks/path-list.js";
 import { dirname, join } from "node:path";
 import { createTempRepoCore, removeGitBackedDirs } from "../helpers/temp-repo.js";
-import { createExecaGitExec, createExecaGitExecInput } from "../../src/lib/git/process-executor.js";
+import { createExecaGitExec, createExecaGitExecInput, createExecaRawGitExec } from "../../src/lib/git/process-executor.js";
 import { stagedWorktreeTree } from "../../src/lib/checks/tree.js";
 import { matchTreeInputs, selectChangedInputs } from "../../src/lib/checks/matching.js";
 
@@ -90,4 +93,78 @@ it("interprets a leading exclamation mark as an exclusion", async () => {
   expect(result.status).toBe("known");
   if (result.status !== "known") throw new Error("Tree matching failed");
   expect(result.paths.map(entry => entry.path).sort()).toEqual(["root.ts", "other/c.ts", "CAPS.ts", "name\n.ts"].sort());
+});
+
+const explicitPaths = [...files, ".arc/active/current/meta-unit.md", ".arc/user/alice/USER-INBOX.md",
+  ".arc/completed/meta-old.md", "space name.md", "[literal].md", ":(glob)*.md"];
+const raw = createExecaRawGitExec();
+
+it.each([
+  { inputs: ["**"], expected: explicitPaths },
+  { inputs: ["**/*.md", "!.arc/completed/**"], expected: explicitPaths.slice(6).filter(path => !path.includes("completed")) },
+  { inputs: ["src/**", "!src/deep/**"], expected: ["src/a.ts"] },
+  { inputs: ["caps.ts"], expected: [] },
+  { inputs: ["CAPS.ts"], expected: ["CAPS.ts"] },
+  { inputs: ["*.md"], expected: ["space name.md", "[literal].md", ":(glob)*.md"] },
+  { inputs: [], expected: [] },
+])("matches an explicit list with $inputs", async ({ inputs, expected }) => {
+  const { cwd } = await fixture();
+  expect(await matchPathList({ git: raw }, cwd, explicitPaths, inputs)).toEqual({ status: "ok", paths: [...expected].sort() });
+});
+
+it("admits an empty supplied list", async () => {
+  const { cwd } = await fixture();
+  expect(await matchPathList({ git: raw }, cwd, [], ["**"])).toEqual({ status: "ok", paths: [] });
+});
+
+it.each(["sha1", "sha256"])("keeps the %s real index and object store unchanged and removes scratch", async format => {
+  const { cwd } = await fixture();
+  // Convert the empty fixture before it holds objects for the second object format.
+  if (format === "sha256") {
+    await rm(join(cwd, ".git"), { recursive: true, force: true });
+    await raw(["init", "--object-format=sha256"], { cwd });
+  }
+  await raw(["add", "root.ts"], { cwd });
+  const index = await readFile(join(cwd, ".git/index"));
+  const objects = await readdir(join(cwd, ".git/objects"), { recursive: true });
+  const scratch = await mkdtemp(join(tmpdir(), "arc-match-parent-"));
+  repositories.push(scratch);
+  const createDirectory = (prefix: string) => mkdtemp(join(scratch, prefix.split(/[\\/]/u).at(-1) ?? "index-"));
+  expect(await matchPathList({ git: raw, createDirectory }, cwd, explicitPaths, ["**"]))
+    .toEqual({ status: "ok", paths: [...explicitPaths].sort() });
+  expect(await readFile(join(cwd, ".git/index"))).toEqual(index);
+  expect(await readdir(join(cwd, ".git/objects"), { recursive: true })).toEqual(objects);
+  expect(await readdir(scratch)).toEqual([]);
+});
+
+it.each(["create", "update-index", "ls-files"])("reports %s failure and succeeds after repair", async step => {
+  const { cwd } = await fixture();
+  await raw(["add", "root.ts"], { cwd });
+  const index = await readFile(join(cwd, ".git/index"));
+  const objects = await readdir(join(cwd, ".git/objects"), { recursive: true });
+  const scratch = await mkdtemp(join(tmpdir(), "arc-match-failure-"));
+  repositories.push(scratch);
+  let fail = true;
+  const git: RawGitExec = (args, options) => {
+    if (fail && args[0] === step) return Promise.reject(new Error(`injected ${step} failure`));
+    return raw(args, options);
+  };
+  const createDirectory = (prefix: string) => fail && step === "create"
+    ? Promise.reject(new Error("injected create failure")) : mkdtemp(join(scratch, prefix.split(/[\\/]/u).at(-1) ?? "index-"));
+  expect(await matchPathList({ git, createDirectory }, cwd, explicitPaths, ["**"]))
+    .toEqual({ status: "unavailable", reason: expect.stringContaining(`injected ${step} failure`) });
+  expect(await readdir(scratch)).toEqual([]);
+  expect(await readFile(join(cwd, ".git/index"))).toEqual(index);
+  expect(await readdir(join(cwd, ".git/objects"), { recursive: true })).toEqual(objects);
+  fail = false;
+  expect(await matchPathList({ git, createDirectory }, cwd, explicitPaths, ["**"]))
+    .toEqual({ status: "ok", paths: [...explicitPaths].sort() });
+  expect(await readdir(scratch)).toEqual([]);
+});
+
+it("ignores conflicting ambient pathspec policy for explicit lists", async () => {
+  const { cwd } = await fixture();
+  for (const name of ["GIT_LITERAL_PATHSPECS", "GIT_GLOB_PATHSPECS", "GIT_NOGLOB_PATHSPECS", "GIT_ICASE_PATHSPECS"]) vi.stubEnv(name, "1");
+  expect(await matchPathList({ git: raw }, cwd, explicitPaths, ["**/*.md", "!.arc/completed/**"]))
+    .toEqual({ status: "ok", paths: explicitPaths.slice(6).filter(path => !path.includes("completed")).sort() });
 });
