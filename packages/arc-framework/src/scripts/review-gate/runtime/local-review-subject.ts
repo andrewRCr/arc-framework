@@ -10,8 +10,8 @@ import type { LocalPrepareDependencies } from "./local-prepare.js";
 
 /** Existing Candidate record and validated inheritance reads supplied by the repository adapter. */
 export interface LocalReviewCandidateReader {
-  read(workUnitId: string): Promise<CandidateManagedRecordV1 | null>;
-  readSupersessionAncestors(workUnitId: string, candidateId: string): Promise<readonly CandidateSupersessionAncestor[]>;
+  readonly read: (workUnitId: string) => Promise<CandidateManagedRecordV1 | null>;
+  readonly readSupersessionAncestors: (workUnitId: string, candidateId: string) => Promise<readonly CandidateSupersessionAncestor[]>;
 }
 
 /** Bind the same authenticated subject resolver to prepare and read-only commands. */

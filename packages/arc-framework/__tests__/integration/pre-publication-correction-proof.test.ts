@@ -121,6 +121,9 @@ async function candidateFix(local = false, member = false, hostedFirst = false, 
           routingFacts: { contentKind: "code-bearing", reviewRisk: "sensitive", changeDeterminacy: "ordinary",
             ownership: "self", surfaceAuthority: "ordinary" } }));
         if (offered.state !== "coverage-required") throw new Error("expected local coverage choices");
+        expect(offered.payload.coverageSelectionAction.interactionText).toContain("Complete passes: 1 of 4");
+        expect(offered.payload.coverageSelectionAction.interactionText).toContain("Correction chain: proven");
+        expect(offered.payload.coverageSelectionAction.interactionText).toContain("Round 1, paths outside cited loci:");
         coverageAdmission = offered.payload.coverageSelectionAction.choices.find(choice => choice.requestedCoverage === "incremental");
         if (coverageAdmission === undefined) throw new Error("expected a proved fix-check choice");
       }

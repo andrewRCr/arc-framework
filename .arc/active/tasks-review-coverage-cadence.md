@@ -607,19 +607,10 @@ rejections. Method and workflow text changes in the package's `arc/` source firs
   and the condition under which it favors an option, and ends by asking for the recommendation — in local prepare and on
   the work-unit path alike.
 
-    - `[ ]` **4.3.a Rewrite local prepare's selection text**
-        - `localCoverageInteractionText` (`local-review-coverage-selection.ts`) takes Task 4.1's facts, which local
-          prepare's composition derives and passes into the selection's input (`resolveLocalReviewCoverageSelection`).
-          After material fixes it states the fix check first, the local complete pass still admitted and not a
-          replacement for it; where the chain fails, the complete pass alone, with its instruction to check why.
-        - Then one consideration per fact — complete passes against the ceiling, the range's size against the target,
-          each round's new-design signals, and the material trend — each with its value, why it matters, and which
-          option it favors. The new-design signals and the trend weigh the pass after the fix checks converge, never one
-          in place of the fix check (§ 10.2).
-        - Build `test-first` (one behavior at a time):
-            - After material fixes the text lists the fix check first and says a complete pass does not replace it.
-            - Each fact renders as a consideration with the option it favors.
-            - Where the chain fails, the text names the complete pass and asks the agent to check why.
+    - `[x]` **4.3.a Rewrite local prepare's selection text**
+        - Local prepare derives shared facts through the lane read's history adapter and renders bounds before
+          considerations. The fix check comes first; a complete pass stays separate, and a failed chain names complete
+          alone with a prompt to check why. Each fact supplies its value and decision condition before advisory judgment.
 
     - `[ ]` **4.3.b Replace the work-unit path's selection prompt**
         - The discharge's prompt (`hosted-reservation-discharge.ts`) has no considerations, names a `--json` flag that

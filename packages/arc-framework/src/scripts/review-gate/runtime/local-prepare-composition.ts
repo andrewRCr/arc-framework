@@ -1,5 +1,8 @@
 /** Production adapters for the local review prepare command. */
 import { resolveLocalPolicyTarget, createLocalContributionConfirmation } from "./local-correction-context.js";
+import { readReviewLaneHistory } from "./lane-history.js";
+import { deriveNextPassFacts } from "../policy/next-pass-facts.js";
+import { createRawGitExec } from "../../../lib/io-context.js";
 import { createLocalReviewSubjectResolver, type LocalReviewCandidateReader } from "./local-review-subject.js";
 import { readLocalDeltaAdmissionSurface, readReservedWorkUnitObligation } from "./local-reserved-obligation.js";
 import { deriveReviewNextPassContextFromAttempts } from "../policy/review-next-pass.js";
@@ -207,8 +210,13 @@ async function validateLocalPolicyAdmission(
       const unresolved = await resolveEvidenceBoundReviewPolicyContinuation(policyRequest, {
         terminalResponsePerformed,
       }, policyDependencies);
+      const history = await readReviewLaneHistory({ store: context.operationStore,
+        dispositionStore: context.dispositionStore, repositoryId, headSha: target.headSha, lineage, workUnitId,
+        resolveSupersessionAncestors: createLocalReviewCandidateReader(context.input).readSupersessionAncestors });
+      const facts = await deriveNextPassFacts({ ...history, nextPassContext, target, ceiling: policy.maxPasses,
+        exec: createRawGitExec(context.input.cwd) });
       const coverage = resolveLocalReviewCoverageSelection({
-        policy: unresolved, target, sourceId: "delegated-agent", standardReview, nextPassContext,
+        policy: unresolved, target, sourceId: "delegated-agent", standardReview, nextPassContext, facts,
         ...(predecessorOperationId === undefined ? {} : { predecessorOperationId }),
         ...(coverageAdmission === undefined ? {} : { coverageAdmission }),
       });

@@ -1,4 +1,5 @@
 /** Local delta admission adopts resolved coverage before publishing and replaying it. */
+import { deriveNextPassFacts } from "../../src/scripts/review-gate/policy/next-pass-facts.js";
 import { createLocalContinuationFixture } from "./local-review-continuation.js";
 import { scriptGitExec } from "../helpers/git-exec-fake.js";
 import { deriveReviewNextPassContext } from "../../src/scripts/review-gate/policy/review-next-pass.js";
@@ -37,8 +38,11 @@ export async function createLocalDeltaFixture(workClass: "Light" | "Heavy" = "He
     const dependencies = { sources: ["delegated-agent"], maxPasses, nextPassContext,
       resultReader: fixture.resultReader, dispositionStore, confirmTarget: async () => input.target };
     const policy = await resolveEvidenceBoundReviewPolicyContinuation(request, { terminalResponsePerformed: false }, dependencies);
+    const owner = fixture.laneProgress();
+    const facts = await deriveNextPassFacts({ progress: owner === null ? [] : [owner], dispositions: [], nextPassContext,
+      target: input.target, ceiling: maxPasses, exec: async () => { throw new Error("Git statistics unavailable"); } });
     const selection = resolveLocalReviewCoverageSelection({ policy, target: input.target, sourceId: "delegated-agent",
-      standardReview: input.standardReview, nextPassContext, predecessorOperationId: predecessor.producerId,
+      standardReview: input.standardReview, nextPassContext, facts, predecessorOperationId: predecessor.producerId,
       coverageAdmission: input.coverageAdmission });
     if (selection.state !== "ready") return selection;
     const ready = await assertEvidenceBoundReviewExecutionAdmission(request,

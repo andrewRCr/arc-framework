@@ -1,7 +1,6 @@
 /** Read-only facts shared by next-pass offers, lane reads, and response reports. */
 import { NextPassFactsSchema, type NextPassFacts } from "./next-pass-facts-schema.js";
 export { NextPassFactsSchema, type NextPassFacts } from "./next-pass-facts-schema.js";
-import { affectedPaths, resolveChangeSet } from "../../../lib/change-facts.js";
 import { resolveChangeStats } from "../../../lib/change-stats.js";
 import { countCompleteLogicalPasses } from "../lane-progress.js";
 import type { RawGitExec } from "../../../lib/git/exec.js";
@@ -48,6 +47,7 @@ function leadingPath(locus: string): string {
 async function roundSignals(performance: LaneResponsePerformance,
   findings: readonly DispositionReportItem[] | undefined, exec: RawGitExec) {
   if (performance.originatingHeadSha === performance.producedHeadSha) return { outsideCitedLoci: false, addedFiles: false };
+  const { affectedPaths, resolveChangeSet } = await import("../../../lib/change-facts.js");
   const changes = await resolveChangeSet(exec, performance.originatingHeadSha, performance.producedHeadSha);
   if (changes.changeSet !== "known") return { outsideCitedLoci: null, addedFiles: null };
   const cited = new Set(findings?.filter(finding => finding.disposition === "fix").map(finding => leadingPath(finding.locus)));

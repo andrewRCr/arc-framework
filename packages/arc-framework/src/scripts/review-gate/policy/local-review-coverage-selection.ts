@@ -42,6 +42,8 @@ import {
 } from "./review-policy-evidence.js";
 import type { ReviewResolveEnvelope } from "./review-policy-driver.js";
 import type { ReviewNextPassContext } from "./review-next-pass-schema.js";
+import { nextPassConsiderations } from "./next-pass-offer-text.js";
+import type { NextPassFacts } from "./next-pass-facts-schema.js";
 import type { StandardReviewObligationProjection } from
   "./standard-review-projection-schema.js";
 
@@ -329,15 +331,18 @@ export async function confirmErrandFixResponseApplicability(
   }
 }
 
-function localCoverageInteractionText(incrementalOffered: boolean): string {
-  if (!incrementalOffered) {
-    return "Only complete coverage is proven. If incremental was expected, check the approved response, "
-      + "Candidate lineage, and live base/target; otherwise select complete and re-run "
-      + "`arc review local prepare`.";
-  }
-  return "Select one listed coverage admission and re-run `arc review local prepare`. "
-    + "Consider the latest confirmed signal and correction scope when recommending incremental or complete "
-    + "coverage. Either consumes one pass; this choice grants no next-pass authority.";
+function localCoverageInteractionText(incrementalOffered: boolean, facts: NextPassFacts): string {
+  const bounds = incrementalOffered
+    ? "A local fix check is offered first to verify the approved fixes. "
+      + "A local complete pass is also admitted, but does not replace the fix check. "
+    : "Only a local complete pass is admitted because the fix-check chain is not proven. "
+      + "Check why the approved response, subject lineage, or live base and target do not prove the fix-check chain. ";
+  return bounds + "After the Owner approves a listed coverage admission, re-run `arc review local prepare`. "
+    + "This choice grants no next-pass authority.\n"
+    + nextPassConsiderations(facts).map(text => `- ${text}`).join("\n") + "\n"
+    + "Give an advisory recommendation for the admitted next step. "
+    + "Decide on any successor complete pass only after fix checks converge. "
+    + "What do you recommend, why, and what would change your recommendation?";
 }
 
 function withoutCorrectionSelection(coverageAdmission: LocalReviewCoverageAdmission | undefined): LocalReviewCoverageSelectionResolution {
@@ -369,6 +374,7 @@ export function resolveLocalReviewCoverageSelection(input: {
   readonly sourceId: string;
   readonly standardReview: StandardReviewObligationProjection;
   readonly nextPassContext: ReviewNextPassContext;
+  readonly facts: NextPassFacts;
   readonly predecessorOperationId?: string;
   readonly coverageAdmission?: LocalReviewCoverageAdmission;
 }): LocalReviewCoverageSelectionResolution {
@@ -405,7 +411,7 @@ export function resolveLocalReviewCoverageSelection(input: {
   const action = LocalReviewCoverageSelectionActionSchema.parse({
     schemaVersion: 1, kind: "local-review-coverage-selection", sourceId: input.sourceId,
     target: input.target, pass: input.policy.payload.pass, completedPasses, consumedPass: true, choices,
-    interactionText: localCoverageInteractionText(correctionScope !== null),
+    interactionText: localCoverageInteractionText(correctionScope !== null, input.facts),
   });
   if (input.coverageAdmission === undefined) return { state: "coverage-required", action };
   if (!choices.some(choice => canonicalize(choice) === canonicalize(input.coverageAdmission))) {

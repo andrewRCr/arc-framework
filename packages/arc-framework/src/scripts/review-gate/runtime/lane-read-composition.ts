@@ -16,32 +16,18 @@ import { LocalReviewAuthorityError } from "../hosts/local/review-authority.js";
 import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-store.js";
 import { LocalApprovedDispositionRecordStore } from "../hosts/local/disposition-record-store.js";
 import { createReadOnlyRepositoryReviewResultReader } from "../hosts/local/review-result-reader-composition.js";
-import { readLaneProgressOwner, readCandidateInheritedLaneProgress, readLaneResponsePerformance } from "../lane-progress.js";
+import { readLaneResponsePerformance } from "../lane-progress.js";
 import { deriveReviewNextPassContext } from "../policy/review-next-pass.js";
 import type { ReviewNextPassContext } from "../policy/review-next-pass-schema.js";
 import { parseReviewSourceIds } from "../hosts/local/frontline-source-preferences.js";
 import { projectReviewLaneRead, type ReviewLaneReadRequest, type ReviewLaneReadEnvelope } from "../lane-read.js";
 import { createLocalReviewSubjectResolver } from "./local-review-subject.js";
 import { resolveLocalPolicyTarget, createLocalContributionConfirmation } from "./local-correction-context.js";
+import { readReviewLaneHistory } from "./lane-history.js";
 import { readLocalDeltaAdmissionSurface } from "./local-reserved-obligation.js";
 
 interface LaneReadBoundary {
   readonly cwd: string; readonly exec: GitExec;
-}
-
-async function readHistory(input: {
-  resolver: ReturnType<typeof createLocalReviewSubjectResolver>; store: LocalReviewOperationStateStore;
-  repositoryId: string; headSha: string; lineage: LaneSubjectLineage; workUnitId?: string;
-}) {
-  const ancestors = input.lineage.kind === "candidate" && input.workUnitId !== undefined
-    ? await input.resolver.resolveSupersessionAncestors(input.workUnitId, input.lineage.candidateId) : [];
-  const inheritedLineages = [...ancestors].reverse().map(ancestor => ({ kind: "candidate" as const, candidateId: ancestor.candidateId }));
-  const lanes = await Promise.all((["frontline", "standard"] as const).map(async lane => {
-    const inherited = await readCandidateInheritedLaneProgress(input.store, { ...input, lane, ancestors });
-    const current = await readLaneProgressOwner(input.store, { ...input, lane });
-    return [...inherited.ancestorOwners].reverse().map(({ owner }) => owner).concat(current);
-  }));
-  return { inheritedLineages, progress: lanes.flat().filter((owner): owner is LaneProgressState => owner !== null) };
 }
 
 async function readNextContext(input: LaneReadBoundary & {
@@ -91,18 +77,15 @@ async function readResolvedLane(request: ReviewLaneReadRequest, input: LaneReadB
   const repositoryId = await readRepositoryIdentity(publisher);
   const operationStore = new LocalReviewOperationStateStore(publisher);
   const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
-  const history = repositoryId === null ? { progress: [], inheritedLineages: [] }
-    : await readHistory({ resolver, store: operationStore, repositoryId, headSha: coordinates.headSha, lineage, workUnitId });
-  const producerIds = new Set(history.progress.flatMap(owner => owner.attempts.map(attempt => attempt.attemptId)));
-  // Read records individually: namespace snapshots acquire publication locks, even for an empty namespace.
-  const records = await Promise.all([...producerIds].map(id => dispositionStore.readDispositionRecord(id)));
-  const dispositions = records.filter(record => record !== null);
+  const history = repositoryId === null ? { progress: [], inheritedLineages: [], dispositions: [] }
+    : await readReviewLaneHistory({ resolveSupersessionAncestors: resolver.resolveSupersessionAncestors,
+      store: operationStore, dispositionStore, repositoryId, headSha: coordinates.headSha, lineage, workUnitId });
   const target = repositoryId === null ? null : createReviewTarget({ schemaVersion: 2,
     semanticsVersion: "review-gate/v2", repositoryId, ...coordinates });
   const nextPassContext = target === null ? { convergence: "none" as const, responseDue: false, incremental: null }
     : await readNextContext({ ...input, ...history, target, lineage, workUnitId, candidateReader,
       sources: parseReviewSourceIds(settings["review.standard_sources"]), operationStore, dispositionStore, publisher });
-  return projectReviewLaneRead({ ...history, lineage, dispositions, nextPassContext, target: coordinates,
+  return projectReviewLaneRead({ ...history, lineage, nextPassContext, target: coordinates,
     ceiling: Number(settings["review.standard_max_passes"]), exec: createRawGitExec(input.cwd) });
 }
 

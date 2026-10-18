@@ -1,3 +1,4 @@
+import { nextPassFactsFixture } from "../../../../fixtures/next-pass-facts.js";
 import { approvedRecord, performedFix } from "../../../../fixtures/review-response-proof.js";
 import { firstReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
 import { withReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
@@ -204,7 +205,7 @@ function dependencies(predecessor: ReviewResult, producedHeadSha = objectId("c")
 }
 
 async function resolveWithEvidence(
-  input: Omit<Parameters<typeof resolveLocalReviewCoverageSelection>[0], "nextPassContext"> & { lineage: LaneSubjectLineage },
+  input: Omit<Parameters<typeof resolveLocalReviewCoverageSelection>[0], "nextPassContext" | "facts"> & { lineage: LaneSubjectLineage },
   proof: Pick<ReviewNextPassInput, "resultReader" | "dispositionStore"> & {
     readResponsePerformance?: ReviewNextPassInput["readResponsePerformance"];
     confirmIncrementalApplicability?: ReviewNextPassInput["confirmApplicability"];
@@ -224,7 +225,10 @@ async function resolveWithEvidence(
     confirmCurrentApplicability: proof.confirmCurrentApplicability === undefined ? undefined
       : predecessor => proof.confirmCurrentApplicability!(predecessor, input.target),
   });
-  return resolveLocalReviewCoverageSelection({ ...input, nextPassContext });
+  const facts = nextPassFactsFixture();
+  facts.chainProven = nextPassContext.incremental !== null;
+  if (!facts.chainProven) facts.rangeSize.fix = null;
+  return resolveLocalReviewCoverageSelection({ ...input, nextPassContext, facts });
 }
 
 function readyPolicy(headSha: string, projection: StandardReviewObligationProjection = standardReview) {
