@@ -1,8 +1,8 @@
 # Metadata: review-coverage-cadence
 
-| **State** | **Owner** | **Branch**                     | **Class** | **Priority** |
-| --------- | --------- | ------------------------------ | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/review-coverage-cadence` | `Heavy`   | `P1`         |
+| **State**     | **Owner** | **Branch**                     | **Class** | **Priority** |
+| ------------- | --------- | ------------------------------ | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/review-coverage-cadence` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 - **Candidate:** `sha256:c32c34fa2597519e5513da26f9e5f480e651644171e9bff373c7efb6393e1ad1`
 
-- **Current Workflow:** `prepare-work-unit`
+- **Current Workflow:** `integrate-work-unit`
 - **Last Completed:** Task 8.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run or resume the typed pre-publication review procedure.
+- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
 
 - **PR URL:** [none]
 - **Completed:** [none]
