@@ -249,11 +249,16 @@ Where another work unit's open task edits a file or contract this change shares 
   `handleStoreLifecycleStatus`. Whichever lands second takes each conflict.
 - **The projection:** Task 5.4.c - `tasks-storage-projection.md` gives the work-item path function
   (`workItemArtifactPath`) a checkout-root input, resolves `workUnitMetaPath`'s, `lifecycleRecordPath`'s, and
-  `lifecycleArtifactPath`'s active arms through it, and updates every caller. That reaches `readLifecycleView`'s entry
-  mapping (`lib/store/lifecycle-view.ts`), which this change exports as the slug query's index builder (§ 4 of the
-  spec); the two functions whose meta parameter Task 1.2.a narrows; the reconcile's `lifecycleRecordPath` keying in
-  `store-reconcile-context.ts`, which Task 3.3.a extracts from; and the path calls Tasks 7.1 and 7.3 make. Whichever
-  lands second takes each conflict.
+  `lifecycleArtifactPath`'s active arms through it, and updates every caller. Its proposal of 2026-10-18, pending its
+  pre-activation amendment, also makes the four asynchronous and has the path function return a path relative to the
+  checkout root. That reaches `readLifecycleView`'s entry mapping (`lib/store/lifecycle-view.ts`), which this change
+  exports as the slug query's index builder (Task 4.4); `readLifecycleDesign`'s call of `lifecycleRecordPath`
+  (`lib/store/lifecycle-design.ts`), which Task 1.2.a replaces with a match on artifact file names; the reconcile's
+  `lifecycleRecordPath` keying in `store-reconcile-context.ts`, which Task 3.3.a extracts from; and the path calls Tasks
+  7.1 and 7.3 make, which join a relative path to the checkout root before testing that the file exists. Whichever lands
+  second takes each conflict. The file-name match relies on the projection keeping today's artifact file names under
+  `active/current/` and `active/in-flight/<slug>/` (`spec-storage-projection.md` § 10.1 changes only the folder), a
+  reliance it has recorded and will flag before changing.
 - **Locus:** Task 2.8.a - `tasks-seam-locus.md`, done, gives the session-notes resolver its arm from the flip, which
   this change's `arc view` arm does not call (§ 6.4 of the spec). Its exact locus import inventory
   (`locus-dormant-foundation-contract.test.ts`) registers every importer, `import type` included, of seven dormant

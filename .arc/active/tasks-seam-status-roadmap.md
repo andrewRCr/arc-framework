@@ -77,18 +77,20 @@ symbols to re-ground when that change ships.
     - `[ ]` **1.2.a Export the design selection over a meta shape**
 
         - Extract `readLifecycleDesign`'s choice (`lib/store/lifecycle-design.ts`) into a pure exported function over a
-          meta (`Pick<StoreRecord, "reference" | "fields" | "placement">`, which a `LifecycleEntry` satisfies) and its
-          candidate records: for each name the meta's `Design` field lists, in order, the spec, draft, or companion whose
-          projected path's file name is that name, the first such with a parsed purpose (`fields.purpose !== null`,
-          narrowed through `ParsedDesignRecordSchema`), else the first found. `readLifecycleDesign` calls it after its
-          own listing and returns the record it selects beside its content and warnings;
-          `unit/lib/store/lifecycle-record-path.test.ts` follows.
-        - Narrow `lifecycleRecordPath` (`lib/store/lifecycle-record-path.ts`) and `workUnitMetaPath`
-          (`lib/store/lifecycle-write.ts`) to the same meta shape, a change of types alone.
+          meta (`Pick<StoreRecord, "reference" | "fields">`, which a `LifecycleEntry` satisfies) and its candidate
+          records: for each name the meta's `Design` field lists, in order, the spec, draft, or companion whose artifact
+          file name is that name, the first such with a parsed purpose (`fields.purpose !== null`, narrowed through
+          `ParsedDesignRecordSchema`), else the first found. `readLifecycleDesign` calls it after its own listing and
+          returns the record it selects beside its content and warnings; `unit/lib/store/lifecycle-record-path.test.ts`
+          follows.
+        - A candidate's file name is `workUnitArtifactName(slug, kind)` (`lib/store/lifecycle-write.ts`) for a spec or
+          draft and `companionArtifactName(slug, key)` (`lib/store/companion-name.ts`) for a companion with a name key,
+          from the meta's slug; a companion without a name key matches no name, as today. The function calls no path
+          function, so it stays synchronous whatever their signatures become.
         - Build `test-first` (one behavior at a time):
             - the first listed `Design` name with a purpose wins over a later one, and the first found is the fallback
             - a record whose parsed purpose is `""` or `"—"` still counts as having one, as today
-            - a companion design is matched by its path beside the meta
+            - a companion design is matched by its file name, either half of a paired spec among them
             - a `LifecycleEntry` serves as the meta
             - `readLifecycleDesign` returns the record it selects, and none where no design is found
 
@@ -523,7 +525,8 @@ first; the flags' help text stays until the cutover rewrites it.
     - Build the state read's index from Task 3.1's standing entries through the builder `readLifecycleView` uses
       (`buildLifecycleIndexFromRecords` over its entries), extracted and exported from `lib/store/lifecycle-view.ts`:
       that function's module is a raw state helper, which only `lib/store/` imports without raising a
-      `store-raw-state` count, and the arm already holds its one.
+      `store-raw-state` count, and the arm already holds its one. The builder takes `lifecycleArtifactPath`'s signature
+      as it stands when this lands, awaiting it where the projection's change has made it asynchronous.
     - `readDerivedSlugPosition` and `projectScopeWindow` (`lib/status/slug-position.ts`) take the arm's checkout path
       field only to decide whether to read the roster, and the record's pause; a failed roster read's warning joins the
       arm's warnings. The pull uses Task 4.1's text.

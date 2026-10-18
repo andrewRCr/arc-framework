@@ -197,9 +197,8 @@ reviewed in chunks and carries no delivery plan.
 - **The fixes:** `handlers/identity-pointers.ts`, `lib/status/project-oracle-context.ts`,
   `scripts/review-gate/hosts/local/live-context.ts`, the identity messages (`lib/status/user-view.ts`,
   `handlers/recover.ts`, `commands/status/result-composition.ts`, `commands/status/format.ts`),
-  `strategy-session-operations.md` in the package source and its synced copy, `lib/store/lifecycle-design.ts` with the
-  meta parameter of `lib/store/lifecycle-record-path.ts` and `lib/store/lifecycle-write.ts`'s `workUnitMetaPath`
-  (§ 8.2), and a conformance test for `lib/layout/schema.ts`'s work-unit kind list.
+  `strategy-session-operations.md` in the package source and its synced copy, `lib/store/lifecycle-design.ts` (§ 8.2),
+  and a conformance test for `lib/layout/schema.ts`'s work-unit kind list.
 
 #### 1.3 Order and shared files
 
@@ -210,10 +209,9 @@ arm, before this change's purpose and state reads and derived position), `handle
 query's pull, through which every status mode then pulls under `--fetch`, § 2.4), `handlers/status/store-session.ts`
 (the setting parser, § 2.3), `lib/session-init/store-user-pull.ts` (the pull's orientation, § 2.4),
 `handlers/recover.ts`, `commands/status/format.ts`, `handlers/view.ts` and `lib/view-artifact.ts` (the session context,
-the default target, and the session-notes resolver's arms from the flip, § 6), `lib/store/lifecycle-index.ts` (the
-entry's `links`, beside which this change adds `aliases`), and `lib/store/lifecycle-record-path.ts`
-(`cohortDocumentPath`, beside which this change narrows `lifecycleRecordPath`'s meta parameter). Two files are shared
-with the delivery-and-review change, and whichever lands second takes the conflict:
+the default target, and the session-notes resolver's arms from the flip, § 6), and `lib/store/lifecycle-index.ts` (the
+entry's `links`, beside which this change adds `aliases`). Two files are shared with the delivery-and-review change, and
+whichever lands second takes the conflict:
 
 - `handlers/status/lifecycle.ts`, where that change moves the slug query's operational-boundary read;
 - `scripts/review-gate/hosts/local/live-context.ts`, where that change edits the local host for the flip.
@@ -223,9 +221,9 @@ The ref backend's binding of the synchronization port also lands after the locus
 status renders the port's results under `--fetch` (§ 2.4), and `lib/session-init/store-user-pull.ts`, and whichever
 lands second takes the conflict. The projection's change, which gives the work-item path function,
 `lifecycleRecordPath`, `workUnitMetaPath`, and `lifecycleArtifactPath` a checkout-root input and updates their callers,
-also lands in either order with this one. It shares `lib/store/lifecycle-record-path.ts` and
-`lib/store/lifecycle-write.ts` (whose meta parameter this change narrows, § 8.2), `lib/store/lifecycle-view.ts` (§ 4),
-and `lib/work-unit/store-reconcile-context.ts` (§ 2.2), and the arms from the flip call those path functions (§ 6.3);
+also lands in either order with this one. It shares `lib/store/lifecycle-design.ts`, whose design selection this change
+makes match artifact names rather than paths (§ 8.2), `lib/store/lifecycle-view.ts` (§ 4), and
+`lib/work-unit/store-reconcile-context.ts` (§ 2.2), and the arms from the flip call those path functions (§ 6.3);
 whichever lands second takes the conflict.
 
 The review chunks run in this order: the fixes (§ 8), of which the identity fix is the only change observable before the
@@ -749,12 +747,16 @@ content to choose one (`readDesignPurpose`), and the slug query's arm parses the
 first-sentence extractor serves both, so the slug query and the project view report the same purpose.
 
 `readLifecycleDesign`'s choice — for each name the meta's `Design` field lists, in order, the spec, draft, or companion
-whose projected path ends in that name, the first such record with a purpose, or else the first found — becomes a pure
+whose artifact file name is that name, the first such record with a purpose, or else the first found — becomes a pure
 exported function over a meta and its candidate records, which `readLifecycleDesign` calls after its own listing and the
-project view's acquisition calls over its per-kind listings (§ 2.1). Its meta is the meta's `reference`, `fields`, and
-`placement`, which a `StoreRecord` and a `LifecycleEntry` both carry, and `lifecycleRecordPath`
-(`lib/store/lifecycle-record-path.ts`) and `workUnitMetaPath` (`lib/store/lifecycle-write.ts`), which read only those
-three, narrow their meta parameter to the same shape, a change of types alone. The extractor is
+project view's acquisition calls over its per-kind listings (§ 2.1). Its meta is the meta's `reference` and `fields`,
+which a `StoreRecord` and a `LifecycleEntry` both carry. A candidate's file name comes from its kind, its name key, and
+the meta's slug alone: `workUnitArtifactName` (`lib/store/lifecycle-write.ts`) for a spec or draft, and
+`companionArtifactName` (`lib/store/companion-name.ts`) for a companion keyed by name, either half of a paired spec
+among them. These are the file names of the paths `lifecycleRecordPath` (`lib/store/lifecycle-record-path.ts`) gives
+today, which joins them to the meta's folder wherever it sits, so the choice selects what it selects today. The choice
+reads no path, so it stays synchronous and independent of placement whatever the path functions' signatures become; it
+expects a work unit's artifact file names to stay independent of the folder that holds them. The extractor is
 `extractWorkUnitPurpose`'s first-sentence step, made a function over the purpose field, which `extractWorkUnitPurpose`
 keeps calling, so its in-repo callers (`selectWorkUnitDesign`, `readWorkUnitPurpose`) return what they return today. The
 callers that change, `readLifecycleDesign` and the slug query's purpose read, run only in an arm from the flip
