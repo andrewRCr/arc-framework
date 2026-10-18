@@ -896,4 +896,22 @@ Store arms. Failed merge inventory reports its condition, repair and retry, gran
 built CLI can exercise the pre-flip path in a disposable Git repository. Store-backed successful built-CLI release
 checks remain unexecuted until the flip; reference-Store and handler evidence does not stand in for them.
 
+## A26: Terminal subjects after primary removal
+
+The superseded § 2.1 premise was: “Over the store both are placement `completed`, as is a work unit retired by a cut
+or an abandonment”. `runStoreAbandon` and the remove-artifacts lifecycle executor remove the primary while retaining
+terminal lineage. The former matrix retained a Shipped primary beside that lineage, so it did not represent those
+postimages. The correction uses actual primary removal with UID-bearing origin and retired branch snapshots.
+
+`readTerminalWorkUnitLineage` supplies the shared narrow observation for locus and physical roster only after primary
+`not-found`. A terminal evidence arm carries no primary record, metadata, branch or placement. The physical roster
+retains its marker association and carries optional `retired: true`; active selection and the class tally exclude that
+positive fact without changing unknown/degraded legacy tuples. The marker carries a name, not a UID, so unique Store
+lineage lookup remains the generation boundary, and ambiguity never selects a generation in client code.
+
+This determinate correction changes no terminal writer or marker format. Original task/spec criteria remain unchanged;
+specification Criterion 29 checks the amended contract. The matrix exercises reader, registered CLI-generated session
+entry and recovery over the reference Store and real Git. It does not establish a successful flipped built CLI; that
+release check remains unexecuted.
+
 ---

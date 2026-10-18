@@ -77,7 +77,7 @@ export function projectDerivedCheckoutRow(options: {
     archivedMeta,
     markerSubject: markerWorkUnit,
     completed: options.completed,
-  }) : options.workUnit.kind === "present" ? options.workUnit.lifecycle : options.workUnit;
+  }) : options.workUnit.kind === "present" || options.workUnit.kind === "terminal" ? options.workUnit.lifecycle : options.workUnit;
   const identityAuthority = projectIdentityAuthority(options.identities, markerTransient);
   const derived = deriveCheckoutRole({
     topology: projectCheckoutAuthorityTopology(options.checkout),
@@ -108,7 +108,7 @@ export function projectDerivedCheckoutRow(options: {
     origin: markerDetails.origin,
     identity,
     context: null,
-    lifecycleLocation: options.workUnit?.kind === "present"
+    lifecycleLocation: options.workUnit?.kind === "terminal" ? null : options.workUnit?.kind === "present"
       ? options.workUnit.record.placement?.kind === "completed" ? "completed" : options.workUnit.record.placement?.kind === "active" ? "active" : "parked"
       : options.activeMeta.kind === "present"
       ? options.activeMeta.location

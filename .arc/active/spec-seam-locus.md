@@ -437,11 +437,24 @@ only files beneath it.
   rows' JSON (`derivedLocusState`, `arc locus --json`), whose full schema, the derived frame's, admits it (§ 4.2), and
   in the rename transaction's whole-record comparisons (`rename-worktree-transaction.ts`), which still hold, both reads
   observing the same folder. It lands before the flip (§ 1.4).
-- **A completed work unit reads in one of two frames.** Today a marker naming a work unit whose archived meta is on
-  the checkout's `HEAD` derives an integration frame, and one in base's completed index a retired frame
-  (`projectWorkUnitLifecycle`, `lib/locus/derived-lifecycle-evidence.ts`). Over the store both are placement
-  `completed`, as is a work unit retired by a cut or an abandonment, so from the flip the frame reads what the archive
-  cadence allows:
+- **A terminal work unit whose primary was removed reads retired (A26).** A cut or abandonment removes its primary
+  and leaves terminal lineage. Only a primary claim's `not-found` takes this arm: `readTerminalWorkUnitLineage` resolves
+  one lineage record for the marker's literal name, validates its work-item owner, matching origin name and any origin
+  UID, and requires unconflicted abandon or decompose authority. A distinct terminal evidence arm carries the retired
+  lifecycle under either archive cadence, without primary fields, branch, context, or fabricated placement. The marker
+  carries a name rather than a UID, so the Store's unique lineage resolution supplies generation authority; ambiguity
+  refuses. Unknown or rename-only absence remains unresolved. Conflicts name their exact record references with repair
+  and retry; a repaired read restores the retired frame.
+    - The physical roster uses the same resolver only after primary `not-found`, retaining `workUnit` and marking
+      `retired: true`, with no primary placement or metadata. Logical roster selection, Integrating enumeration, notes
+      protection and the class tally exclude this positive terminal fact. Unknown or failed reads keep their warnings
+      and existing degraded behavior. The roster's `retired` field is optional and admits only `true`; its absence
+      supplies no terminal conclusion.
+- **A completed work unit with a retained primary reads in one of two frames.** Today a marker naming a work unit whose
+  archived meta is on the checkout's `HEAD` derives an integration frame, and one in base's completed index a retired
+  frame (`projectWorkUnitLifecycle`, `lib/locus/derived-lifecycle-evidence.ts`). Over the store both are placement
+  `completed`; cuts and abandonments use the separate terminal arm above. From the flip the completed-primary frame
+  reads what the archive cadence allows (A26):
     - **Under `archive.cadence: manual`** archival follows the merge, and from the flip it is a store write rather than
       a change of its own awaiting merge, so a completed work unit derives the retired frame.
     - **Under `with-integration`** archival precedes the merge (§ 3.7). A completed work unit derives the retired frame
@@ -964,7 +977,8 @@ and readiness require an archived meta before merge (`readLifecycleSummary`,
 `scripts/integration/checkpoint-composition.ts`; `evaluateArchivedWorkUnit`, `scripts/review-gate/readiness.ts`), and
 merge refuses unless that lifecycle position holds (`scripts/integration/merge.ts`). None of it is this change's, and
 locus depends on none of it: over the store it keeps an arbitrary missing or ambiguous subject fail-closed whether or
-not the interval remains, and it tells the interval from retirement as § 2.1 states: by the archive cadence, and under
+not the interval remains. Exact terminal lineage after primary removal derives retired under either cadence (A26).
+For a retained completed primary it tells the interval from retirement as § 2.1 states: by the archive cadence, and under
 `with-integration` by the landing-commit link, a lineage record retiring the work unit, or its checkout's `HEAD` landed
 in base. Tests cover, under each cadence, a restart after archive and before merge, merge before teardown, a merge made
 outside ARC by merge commit and by squash, a work unit retired by a cut or an abandonment, a partial teardown, and
@@ -2623,6 +2637,12 @@ close.
     `git cherry` reports no unmatched patch. A failed merge inventory reports repair and retry without granting
     cleanup. Once the merge is preserved in base, the ordinary offer returns. Rebased linear patches remain eligible.
 
+29. **Terminal subjects need no retained primary (A26).** Actual abandon and cut postimages remove the primary and
+    preserve exact terminal lineage. Under both archive cadences, reader, session entry and recovery report retired
+    without a primary context. Unknown, ambiguous or conflicted absence remains unresolved; exact conflict references
+    carry repair and retry, and repair restores retirement. The physical roster retains association with a positive
+    terminal flag, without fabricated placement or metadata, while logical roster and class consumers exclude it.
+
 ## Open Questions
 
 None blocks starting. The expected contracts in § 16 each state what holds until their change lands, and none leaves
@@ -2683,5 +2703,8 @@ this design open.
 
 - **A25** — 2026-10-18 — design: orphan force-delete offers require preserved merge history. _Supersedes:_ § 12.4.
   _Trigger:_ F8 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A26** — 2026-10-18 — design: exact terminal lineage resolves removed work-unit primaries. _Supersedes:_ § 2.1; § 3.7.
+  _Trigger:_ F16 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

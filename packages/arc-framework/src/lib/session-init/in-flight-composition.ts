@@ -29,7 +29,7 @@ export function resolveInFlightComposition(
   entries: readonly WorktreeRosterEntry[],
 ): ClassComposition | null {
   // Legacy degraded tuples have no placement; retain their existing tally.
-  const active = entries.filter(entry => entry.placement === undefined || isInFlightWorkUnitRosterEntry(entry));
+  const active = entries.filter(entry => entry.retired !== true && (entry.placement === undefined || isInFlightWorkUnitRosterEntry(entry)));
   if (active.length === 0) return null;
   const rows = active.map((e) => ({
     workUnit: e.workUnit ?? e.branch ?? e.worktreePath,

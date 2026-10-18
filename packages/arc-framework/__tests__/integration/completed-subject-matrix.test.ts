@@ -11,7 +11,7 @@ import { completedSubjectFixture, type CompletedSubjectScenario } from "../helpe
 import { dispatchRegisteredCli } from "../helpers/registered-cli.js";
 import { runDerivedLocusStateProbe } from "../../src/handlers/derived-locus-state-probe.js";
 import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
-import { recordPut } from "../../src/lib/store/lifecycle-write.js";
+import { recordPut, batchLifecycleWrites } from "../../src/lib/store/lifecycle-write.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { LineageRecordSchema, writeLineageRecord } from "../../src/lib/store/kinds/lineage/index.js";
@@ -51,8 +51,13 @@ async function applyScenario(h: Awaited<ReturnType<typeof completedSubjectFixtur
     const lineage = LineageRecordSchema.parse({ schemaVersion: 2, origin: { name: h.record.reference.owner.name,
       ...("uid" in h.record.reference.owner ? { uid: h.record.reference.owner.uid } : {}) },
       kind: scenario === "cut" ? "decompose" : "abandon", successors: scenario === "cut" ? [{ name: "successor" }] : [], incoming: [],
+      retiredBranches: h.record.links?.branches ?? [],
       ...(scenario === "cut" ? { outgoing: [] } : {}) });
-    await h.seed(recordReferences["lineage/transition"](h.record.reference.owner), writeLineageRecord(lineage));
+    if (scenario === "cut") await h.seedMeta("successor");
+    lifecycleSuccess(await batchLifecycleWrites(h.store, [
+      { action: "remove", reference: h.record.reference, expected: h.record.version },
+      { action: "put", reference: recordReferences["lineage/transition"](h.record.reference.owner), expected: null, content: writeLineageRecord(lineage) },
+    ], { verb: scenario === "cut" ? "decompose" : "abandon", lifecycleAction: scenario === "cut" ? "decompose" : "abandon" }));
   }
   if (scenario === "partial-teardown") {
     const marker = await readWorktreeMarkerGeneration(h.cwd);
@@ -68,7 +73,7 @@ async function applyScenario(h: Awaited<ReturnType<typeof completedSubjectFixtur
 const scenarios: readonly CompletedSubjectScenario[] = ["archive-restart", "arc-landing", "merge-commit", "multi-commit-squash", "cut", "abandon", "partial-teardown", "missing", "ambiguous"];
 it.each((["manual", "with-integration"] as const).flatMap(cadence => scenarios.map(scenario => ({ cadence, scenario }))))(
   "$cadence/$scenario agrees across actual reader, entry and recovery", async ({ cadence, scenario }) => {
-    const h = await completedSubjectFixture(cadence);
+    const h = await completedSubjectFixture(cadence, scenario === "cut" || scenario === "abandon");
     const unresolved = scenario === "missing" || scenario === "ambiguous" || scenario === "partial-teardown";
     if (unresolved) {
       const seeded = await invoke(h, ["status", "--session-init", "--write-compaction-seed", "--json"]);

@@ -20,6 +20,7 @@ import { createReferenceFixture } from "../../helpers/store/reference-fixture.js
 import { seed, success, testProvenance } from "../../helpers/store/suite-tools.js";
 import { deriveStoreInFlight } from "../../../src/lib/git/in-flight-store.js";
 import { scriptGitExec } from "../../helpers/git-exec-fake.js";
+import { batchLifecycleWrites } from "../../../src/lib/store/lifecycle-write.js";
 
 async function fixture() {
   const fixture = createReferenceFixture({}, { "cohort/document": { parser: parseCohortDocument },
@@ -222,18 +223,23 @@ it("projects an independently completed cohort from its own later quarter and cl
   expect((await frame(h.io)).active?.context.cohortDocPath).toMatch(/^\.arc\/completed\/2027-q1\/\d+a_cohort-leaf\/cohort-leaf\.md$/u);
 });
 
-it.each(["abandon", "decompose"] as const)("derives terminal %s lineage as retired without a landing link", async kind => {
+it.each((["manual", "with-integration"] as const).flatMap(cadence => (["abandon", "decompose"] as const).map(kind => ({ cadence, kind }))))(
+  "$cadence derives terminal $kind lineage after primary removal", async ({ cadence, kind }) => {
   const h = await fixture();
-  await changeMeta(h, { state: "Shipped", currentWorkflow: null }, undefined, true);
-  h.io.archiveCadence = "with-integration";
+  h.io.archiveCadence = cadence;
   const record = success(await h.fixture.store.read({ reference: h.reference }));
   const origin = { name: record.reference.owner.name, ...("uid" in record.reference.owner ? { uid: record.reference.owner.uid } : {}) };
   const successors = kind === "abandon" ? [] : [{ name: SlugSchema.parse("successor") }];
-  const content = writeLineageRecord({ schemaVersion: 2, kind, origin, successors, incoming: [],
+  const content = writeLineageRecord({ schemaVersion: 2, kind, origin, successors, incoming: [], retiredBranches: record.links?.branches ?? [],
     ...(kind === "decompose" ? { outgoing: [] } : {}) });
-  success(await h.fixture.store.write({ action: "put", reference: recordReferences["lineage/transition"](record.reference.owner),
-    expected: null, content, provenance: testProvenance }));
+  if (kind === "decompose") success(await h.fixture.store.write({ action: "put", expected: null,
+    reference: recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: "successor" })),
+    content: JSON.stringify(parseMetaRecord(makeMetaFixture("successor", { state: "Planning", currentWorkflow: "draft-design" }))),
+    placement: { kind: "active" }, provenance: testProvenance }));
+  success(await batchLifecycleWrites(h.fixture.store, [{ action: "remove", reference: record.reference, expected: record.version },
+    { action: "put", reference: recordReferences["lineage/transition"](record.reference.owner), expected: null, content }], { verb: kind, lifecycleAction: kind }));
   expect((await frame(h.io)).roster[0]?.kind).toBe("retired");
+  expect((await frame(h.io)).active).toBeNull();
 });
 
 it("withholds terminal role from disputed lineage even when a completed primary remains", async () => {

@@ -1,11 +1,8 @@
 /**
- * Worktree roster — enumerates `git worktree list` and resolves each
- * worktree's per-checkout WU meta file into a structured entry.
- *
- * The result is one dataset describing every branched worktree: those
- * with a meta file (WU worktrees) and those without (admin / main
- * checkouts). Callers filter on `metaFilePath` to select between views.
- * Detached-HEAD worktrees are excluded — no branch identity to act on.
+ * Physical worktree registrations and their work-unit lifecycle facts.
+ * Store-backed rows retain detached checkouts, marker associations and
+ * authenticated terminal lineage. The legacy arm retains branched rows
+ * and resolves their per-checkout metadata.
  *
  * @module
  */
@@ -17,6 +14,7 @@ import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
 import { decodeWorktreeMarkerOwnership, readWorktreeMarkerGeneration } from "./worktree-marker.js";
 import { SlugSchema } from "../kernel/index.js";
 import { lstat } from "node:fs/promises";
+import { readTerminalWorkUnitLineage } from "../locus/store-terminal-work-unit.js";
 
 import { validateState } from "../kernel/schema/vocabulary.js";
 import { z } from "zod";
@@ -51,6 +49,7 @@ export const WorktreeRosterEntrySchema = z.strictObject({
   branch: z.string().optional(),
   workUnit: z.string().optional(),
   placement: z.enum(["active", "backlog", "completed"]).optional(),
+  retired: z.literal(true).optional(),
   identity: z.string().optional(),
   metaFilePath: z.string().optional(),
   state: WorktreeRosterStateSchema.optional(),
@@ -63,7 +62,7 @@ export type WorktreeRosterEntry = z.infer<typeof WorktreeRosterEntrySchema>;
 
 /** Select logical work-unit rows while excluding known inactive placement and administrative checkouts. */
 export function isInFlightWorkUnitRosterEntry(entry: WorktreeRosterEntry): boolean {
-  return (entry.workUnit !== undefined || entry.metaFilePath !== undefined)
+  return entry.retired !== true && (entry.workUnit !== undefined || entry.metaFilePath !== undefined)
     && (entry.placement === undefined || entry.placement === "active");
 }
 
@@ -480,7 +479,13 @@ async function runStoreRoster(store: Store, worktrees: readonly GitWorktreePorce
       if (ownership.kind !== "current" || ownership.subject.kind !== "work-unit") return entry;
       entry.workUnit = ownership.subject.name;
       const lookup = await store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse(entry.workUnit) } });
-      if (lookup.status === "refused") { warnings.push(`${worktree.path}: ${lookup.refusal.condition}`); return entry; }
+      if (lookup.status === "refused") {
+        if (lookup.refusal.code === "not-found" && await readTerminalWorkUnitLineage(store, entry.workUnit) !== null) {
+          entry.retired = true;
+          return entry;
+        }
+        warnings.push(`${worktree.path}: ${lookup.refusal.condition} ${lookup.refusal.remedy.text}`); return entry;
+      }
       const read = await store.read({ reference: lookup.result.reference });
       if (read.status === "refused") { warnings.push(`${worktree.path}: ${read.refusal.condition}`); return entry; }
       if (read.result.conflicts.length > 0) throw new Error(

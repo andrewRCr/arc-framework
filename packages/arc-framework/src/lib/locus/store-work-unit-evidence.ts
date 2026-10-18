@@ -10,11 +10,13 @@ import { selectWorkBranchLink, workBranchName } from "../store/lifecycle-branch.
 import { createProjectIdentityReader } from "../store/project-identity.js";
 import { parseLineageRecord } from "../store/kinds/lineage/parser.js";
 import type { DerivedWorkUnitSubject, WorkUnitLifecycleProjection } from "./role-derivation.js";
+import { readTerminalWorkUnitLineage } from "./store-terminal-work-unit.js";
 
 /** A complete subject observation retains the exact record for context projection. */
 export type StoreWorkUnitEvidence =
   | { kind: "absent" }
   | { kind: "unreadable"; reason: string; missingRecord?: boolean; code?: "subject-unresolved" }
+  | { kind: "terminal"; subject: DerivedWorkUnitSubject; lifecycle: WorkUnitLifecycleProjection }
   | { kind: "present"; subject: DerivedWorkUnitSubject; record: StoreRecord;
       fields: ParsedMetaRecord; branch: string | null; lifecycle: WorkUnitLifecycleProjection };
 interface StoreWorkUnitInput {
@@ -26,6 +28,7 @@ interface StoreWorkUnitInput {
 export async function readStoreWorkUnitEvidence(input: StoreWorkUnitInput): Promise<StoreWorkUnitEvidence> {
   try {
     const record = await readClaimedWorkUnit(input.store, input.slug);
+    if (record === null) return await readRemovedWorkUnit(input);
     const fields = ParsedMetaRecordSchema.parse(record.fields);
     WorkUnitStateSchema.parse(fields.state);
     const branch = await readWorkUnitBranch(input, record);
@@ -41,15 +44,23 @@ export async function readStoreWorkUnitEvidence(input: StoreWorkUnitInput): Prom
     ...(error instanceof MissingWorkUnitRecord ? { missingRecord: true } : {}),
     ...((error instanceof SubjectBranchUnavailable || error instanceof SubjectClaimUnavailable) ? { code: "subject-unresolved" as const } : {}) }; }
 }
-async function readClaimedWorkUnit(store: Store, slug: string): Promise<StoreRecord> {
+async function readClaimedWorkUnit(store: Store, slug: string): Promise<StoreRecord | null> {
   const result = await store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse(slug) } });
-  if (result.status === "refused" && result.refusal.code === "not-found") throw new MissingWorkUnitRecord(`${result.refusal.condition} ${result.refusal.remedy.text}`);
+  if (result.status === "refused" && result.refusal.code === "not-found") return null;
   if (result.status === "refused" && result.refusal.code === "ambiguous-match") throw new SubjectClaimUnavailable(`${result.refusal.condition} ${result.refusal.remedy.text}`);
   const lookup = unwrap(result);
   if (lookup.reference.kind !== "work-item/meta") throw new Error("The marker claim resolved to a non-work-unit record.");
   const record = unwrap(await store.read({ reference: lookup.reference }));
   if (record.conflicts.length > 0) throw new Error("The marker's work-unit record has unresolved conflicts.");
   return record;
+}
+async function readRemovedWorkUnit(input: StoreWorkUnitInput): Promise<StoreWorkUnitEvidence> {
+  let lineage: StoreRecord | null;
+  try { lineage = await readTerminalWorkUnitLineage(input.store, input.slug); }
+  catch (error) { throw new SubjectClaimUnavailable(error instanceof Error ? error.message : String(error), { cause: error }); }
+  if (lineage === null) throw new MissingWorkUnitRecord(`Work unit '${input.slug}' has no primary or authenticated terminal lineage. Restore its record or repair the marker's subject, then retry.`);
+  const subject = { kind: "work-unit" as const, key: lineage.reference.owner.name };
+  return { kind: "terminal", subject, lifecycle: { kind: "present", subject, state: "retired", expectedTopology: {} } };
 }
 async function readWorkUnitBranch(input: StoreWorkUnitInput, record: StoreRecord): Promise<string | null> {
   try {

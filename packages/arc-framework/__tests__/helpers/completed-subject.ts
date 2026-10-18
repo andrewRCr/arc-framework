@@ -10,7 +10,7 @@ import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/ident
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 
-export async function completedSubjectFixture(cadence: "manual" | "with-integration") {
+export async function completedSubjectFixture(cadence: "manual" | "with-integration", terminal = false) {
   const cwd = await createTempRepo();
   onTestFinished(() => cleanupTempDir(cwd));
   expect((await runArc(["init", "--yes", "--name", "test-project"], cwd)).exitCode).toBe(0);
@@ -38,7 +38,8 @@ export async function completedSubjectFixture(cadence: "manual" | "with-integrat
   h.store.environment.identity = "test-user";
   const repository = randomUUID();
   await h.seed(recordReferences["project-registry/identity"](OwnerIdentitySchema.parse({ type: "project", name: "test-project", uid: repository })), "{}");
-  const record = await h.seedMeta("completed-unit", { state: "Shipped", currentWorkflow: null }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
+  const record = await h.seedMeta("completed-unit", terminal ? { state: "Active", currentWorkflow: "process-task-loop" } : { state: "Shipped", currentWorkflow: null },
+    terminal ? { kind: "active" } : { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
     { branches: [{ repository, ref: "feat/completed-unit", linkedAs: "created", excluded: [] }] });
   return { ...h, cwd, exec, repository, record, head: (await exec("git", ["rev-parse", "HEAD"])).stdout.trim() };
 }
