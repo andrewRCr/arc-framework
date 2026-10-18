@@ -310,16 +310,10 @@ first, then in the `.arc/` copy by targeted edit.
           rank when the shared context is converged and the response is settled. Delivery and singleton regressions
           cover both terminal sites without a coverage selection.
 
-    - `[ ]` **2.4.c Refuse a pick that matches no listed choice**
-        - Status re-emits the selection silently when `--source` and `--coverage` match no choice, in
-          `status-composition.ts` and in `composeDeliveryReviewObligation` (`status.ts`); both refuse instead, naming the
-          listed choices (`selectReviewCoverageChoice`). A lone `--coverage` that matches exactly one listed choice
-          selects it, which keeps the existing `--coverage complete` remedy working. Status's `--source` naming a hosted
-          source on the singleton (`resolveSingletonRequest`) meets Task 1.5.b's refusal.
-        - Build `test-first` (one behavior at a time):
-            - With no pair supplied, the selection is emitted.
-            - A listed pair is admitted, and a lone `--coverage` matching one listed choice selects it.
-            - An unlisted pair, or a lone `--coverage` matching none, is refused with the listed choices named.
+    - `[x]` **2.4.c Refuse a pick that matches no listed choice**
+        - Selection distinguishes pending, selected, and refused choices. A unique coverage-only pick is admitted;
+          unmatched or ambiguous picks name the allowed pairs. Refusals retain the member conjunction so work-unit
+          status keeps the exact offered member rather than falling back to the terminal member.
 
     - `[ ]` **2.4.d Carry a driver refusal and its remedy through status**
         - Today a driver's non-ready admission becomes generic blocked text (`status.ts`), a thrown error becomes blocked

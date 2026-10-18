@@ -249,13 +249,13 @@ export const DeliveryLocalResumeActionSchema = z.strictObject({
   operationId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u),
 });
 
-const RoutedReviewCoverageUnsupportedSchema = z.strictObject({
+const RoutedReviewCoverageRefusalSchema = z.strictObject({
   state: z.literal("blocked"),
-  reason: z.literal("coverage-unsupported"),
+  reason: z.enum(["coverage-unsupported", "coverage-selection-invalid"]),
   detail: z.string().min(1),
   conjunction: DeliveryReviewConjunctionSchema.refine(
     (conjunction) => conjunction.status === "outstanding",
-    "unsupported delivery review coverage requires an outstanding conjunction",
+    "a delivery review coverage refusal requires an outstanding conjunction",
   ),
 });
 const RoutedReviewCoverageRequiredSchema = z.strictObject({
@@ -285,7 +285,7 @@ export const RoutedReviewObligationSchema = z.union([
     detail: z.string().min(1),
     prePublicationAction: PrePublicationContinuationSchema,
   }),
-  RoutedReviewCoverageUnsupportedSchema,
+  RoutedReviewCoverageRefusalSchema,
   RoutedReviewCoverageRequiredSchema,
   z.strictObject({
     state: z.literal("settled"),
@@ -787,12 +787,17 @@ export function composeDeliveryReviewObligation(input: {
   }
   const target = input.targets[firstOutstandingIndex];
   let discharge = effectiveDischarges[firstOutstandingIndex];
-  const selectedCoverage = discharge?.coverageSelectionAction === undefined
+  const coverageSelection = discharge?.coverageSelectionAction === undefined
     ? null
     : selectReviewCoverageChoice(discharge.coverageSelectionAction, {
         sourceId: input.requestInvocation?.sourceId,
         coverage: input.requestCoverage,
       });
+  if (coverageSelection?.state === "refused") return RoutedReviewObligationSchema.parse({
+    state: "blocked", reason: "coverage-selection-invalid", detail: coverageSelection.detail,
+    conjunction: { kind: "delivery", status: "outstanding", members },
+  });
+  const selectedCoverage = coverageSelection?.state === "selected" ? coverageSelection.choice : null;
   if (discharge !== undefined && selectedCoverage !== null) {
     discharge = {
       ...discharge,
@@ -1119,16 +1124,16 @@ const ReviewStatusBlockedSchema = z.strictObject({
   detail: z.string().trim().min(1),
   remedy: SpineRemedySchema,
 });
-const ReviewStatusCoverageUnsupportedSchema = z.strictObject({
+const ReviewStatusCoverageRefusalSchema = z.strictObject({
   ...ReviewStatusBaseShape,
-  routedObligation: RoutedReviewCoverageUnsupportedSchema,
+  routedObligation: RoutedReviewCoverageRefusalSchema,
   deliveryCursor: DeliveryReviewCursorSchema.refine(
     (cursor) => cursor.status === "outstanding" && cursor.currentMember !== null,
-    "unsupported delivery review coverage requires an outstanding delivery cursor",
+    "a delivery review coverage refusal requires an outstanding delivery cursor",
   ),
   state: z.literal("blocked"),
   nextAction: z.literal("stop"),
-  reason: z.literal("coverage-unsupported"),
+  reason: z.enum(["coverage-unsupported", "coverage-selection-invalid"]),
   detail: z.string().trim().min(1),
   remedy: SpineRemedySchema,
 });
@@ -1161,7 +1166,7 @@ export type ReviewStatusResult =
   | z.infer<typeof ReviewStatusApplicabilityConflictSchema>
   | z.infer<typeof ReviewStatusChecksPendingSchema>
   | z.infer<typeof ReviewStatusBaseMovedSchema>
-  | z.infer<typeof ReviewStatusCoverageUnsupportedSchema>
+  | z.infer<typeof ReviewStatusCoverageRefusalSchema>
   | z.infer<typeof ReviewStatusCoverageRequiredSchema>
   | z.infer<typeof ReviewStatusBlockedSchema>;
 const ReviewStatusResultSchemaInternal: z.ZodType<ReviewStatusResult> = z.union([
@@ -1182,7 +1187,7 @@ const ReviewStatusResultSchemaInternal: z.ZodType<ReviewStatusResult> = z.union(
   ReviewStatusApplicabilityConflictSchema,
   ReviewStatusChecksPendingSchema,
   ReviewStatusBaseMovedSchema,
-  ReviewStatusCoverageUnsupportedSchema,
+  ReviewStatusCoverageRefusalSchema,
   ReviewStatusCoverageRequiredSchema,
   ReviewStatusBlockedSchema,
 ]);
@@ -1539,9 +1544,8 @@ export async function resolveReviewStatus(
     };
   }
   if (base.routedObligation.state === "blocked") {
-    const coverageUnsupported = "reason" in base.routedObligation;
-    if (coverageUnsupported && currentMember !== null && conjunction !== undefined) {
-      return ReviewStatusCoverageUnsupportedSchema.parse({
+    if ("reason" in base.routedObligation && currentMember !== null && conjunction !== undefined) {
+      return ReviewStatusCoverageRefusalSchema.parse({
         ...base,
         deliveryCursor: {
           status: conjunction.status,
@@ -1551,9 +1555,10 @@ export async function resolveReviewStatus(
         },
         state: "blocked",
         nextAction: "stop",
-        reason: "coverage-unsupported",
+        reason: base.routedObligation.reason,
         detail: base.routedObligation.detail,
-        remedy: spineRemedy(
+        remedy: base.routedObligation.reason === "coverage-selection-invalid" ? reviewStatusRetryRemedy(request.target)
+          : spineRemedy(
           "The selected review carrier cannot preserve the admitted correction scope.",
           "Re-run with complete coverage",
           [

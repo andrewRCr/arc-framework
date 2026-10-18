@@ -3070,6 +3070,16 @@ describe("hosted review fan-out lifecycle", () => {
       const command = [...selection.coverageSelectionAction.interactionText.matchAll(/`(arc review status[^`]+)`/gu)]
         .map(match => match[1]).find(value => value?.endsWith("--coverage incremental"));
       if (command === undefined) throw new Error("expected an executable fix-check command");
+      for (const invalid of [["--source", "coderabbit-pr", "--coverage", "incremental"]]) {
+        const refused = await run(process.execPath, [CLI_PATH, "review", "status", ...route, ...invalid],
+          { cwd: harness.root, env });
+        expect(JSON.parse(refused.stdout)).toMatchObject({ state: "blocked",
+          detail: expect.stringContaining("delegated-agent / complete") });
+      }
+      const loneCoverage = await run(process.execPath, [CLI_PATH, "review", "status", ...route, "--coverage", "complete"],
+        { cwd: harness.root, env });
+      expect(JSON.parse(loneCoverage.stdout)).toMatchObject({ nextAction: "review-local-prepare",
+        action: { sourceId: "delegated-agent", requestedCoverage: "complete" } });
       const selected = await run("sh", ["-c", command], { cwd: harness.root, env });
       expect(ReviewStatusCommandResultSchema.parse(JSON.parse(selected.stdout))).toMatchObject({
         nextAction: "review-local-prepare", action: { sourceId: "delegated-agent", requestedCoverage: "incremental",

@@ -677,12 +677,13 @@ export async function readRoutedObligation(
       const rawFirstOutstanding = discharges[firstOutstandingIndex];
       let firstOutstanding: Parameters<typeof composeDeliveryReviewObligation>[0]["discharges"][number] | undefined =
         composedDischarges[firstOutstandingIndex];
-      const selectedCoverage = firstOutstanding?.coverageSelectionAction === undefined
+      const coverageSelection = firstOutstanding?.coverageSelectionAction === undefined
         ? null
         : selectReviewCoverageChoice(firstOutstanding.coverageSelectionAction, {
             sourceId: judgment?.sourceId,
             coverage: judgment?.coverage,
           });
+      const selectedCoverage = coverageSelection?.state === "selected" ? coverageSelection.choice : null;
       if (firstOutstanding !== undefined && selectedCoverage !== null) {
         firstOutstanding = {
           ...firstOutstanding,

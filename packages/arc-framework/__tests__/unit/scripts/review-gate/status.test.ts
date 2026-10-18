@@ -1867,7 +1867,7 @@ describe("review status", () => {
     });
   });
 
-  it("consumes an exact coverage choice into the next admitted request", () => {
+  it.each(["pair", "coverage"] as const)("consumes a listed %s choice into the next admitted request", selection => {
     const coverageSelectionAction = {
       schemaVersion: 1 as const,
       kind: "review-coverage-selection" as const,
@@ -1890,15 +1890,31 @@ describe("review status", () => {
         requestAdmission: readyAdmission("coderabbit-pr"),
       })],
       requestCoverage: "complete",
-      requestInvocation: { mode: "force", sourceId: "coderabbit-pr" },
+      ...(selection === "pair" ? { requestInvocation: { mode: "force" as const, sourceId: "coderabbit-pr" } } : {}),
     })).toMatchObject({
       state: "review-required",
       action: {
         provider: "coderabbit-pr",
         coverage: "complete",
-        invocation: { mode: "force", sourceId: "coderabbit-pr" },
+        ...(selection === "pair" ? { invocation: { mode: "force", sourceId: "coderabbit-pr" } } : {}),
       },
     });
+  });
+
+  it.each(["unlisted pair", "unlisted coverage", "ambiguous coverage"])("refuses %s and names the listed coverage choices", selection => {
+    const obligation = composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({ discharged: false, detail: "Choose a local review.", nextSource: null,
+        coverageSelectionAction: { schemaVersion: 1, kind: "review-coverage-selection", workUnitId: memberVehicle.workUnitId,
+          sourceId: "coderabbit-pr", pass: 1, completedPasses: 1, consumedPass: true,
+          choices: [{ sourceId: "delegated-agent", coverage: "complete" },
+            ...(selection === "ambiguous coverage" ? [{ sourceId: "codex-pr", coverage: "complete" as const }] : [])],
+          interactionText: "Choose one complete pass." } })],
+      requestCoverage: selection === "ambiguous coverage" ? "complete" : "incremental",
+      ...(selection === "unlisted pair" ? { requestInvocation: { mode: "force" as const, sourceId: "coderabbit-pr" } } : {}),
+    });
+    expect(obligation).toMatchObject({ state: "blocked", detail: expect.stringContaining("delegated-agent / complete") });
+    expect(obligation).not.toHaveProperty("coverageSelectionAction");
   });
 
   it("refuses a chunked selection whose exact member target has moved", () => {

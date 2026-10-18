@@ -27,16 +27,23 @@ export const ReviewCoverageSelectionActionSchema = z.strictObject({
 });
 export type ReviewCoverageSelectionAction = z.infer<typeof ReviewCoverageSelectionActionSchema>;
 
-/** Resolve one explicit source-and-coverage pair against the offered choices. */
+/** A missing choice leaves the offer pending; an explicit unmatched choice carries the allowed pairs. */
+export type ReviewCoverageSelectionResult = { readonly state: "offered" }
+  | { readonly state: "selected"; readonly choice: ReviewCoverageSelectionChoice }
+  | { readonly state: "refused"; readonly detail: string };
+
+/** Resolve a listed pair, or an unambiguous coverage-only choice, without silently repeating an invalid pick. */
 export function selectReviewCoverageChoice(
   action: ReviewCoverageSelectionAction,
   selection: {
     readonly sourceId?: string;
     readonly coverage?: z.infer<typeof HostedReviewCoverageSchema>;
   },
-): ReviewCoverageSelectionChoice | null {
-  if (selection.sourceId === undefined || selection.coverage === undefined) return null;
-  return action.choices.find((choice) => (
-    choice.sourceId === selection.sourceId && choice.coverage === selection.coverage
-  )) ?? null;
+): ReviewCoverageSelectionResult {
+  if (selection.coverage === undefined) return { state: "offered" };
+  const matches = action.choices.filter(choice => choice.coverage === selection.coverage
+    && (selection.sourceId === undefined || choice.sourceId === selection.sourceId));
+  if (matches.length === 1 && matches[0] !== undefined) return { state: "selected", choice: matches[0] };
+  return { state: "refused", detail: "Select exactly one listed source and coverage choice: "
+    + action.choices.map(choice => `${choice.sourceId} / ${choice.coverage}`).join(", ") + "." };
 }
