@@ -163,21 +163,15 @@ and recovered selections produce their specified outcomes, while every gate excl
   reader. Built-CLI refusals name each forbidden field and recover after removal; ordinary declaration validation
   and generated schema projections retain their existing behavior.
 
-### `[ ]` **3.6 Exercise selection feedback through the command boundary — D4** — validate exit criterion at segment scope
+### `[x]` **3.6 Exercise selection feedback through the command boundary — D4** — validate exit criterion at segment scope
 
 - _Goal:_ The command orchestration proves feedback over real ignored-file content, all scope variants, and recovery,
   while pre-flip empty selection and existing gates remain usable.
 
-    - Exercise the public check handlers with Task 3.3's injected provider and real temporary projected files; run an
-      actual process over their operands and assert the presented command result, not only a helper result.
-    - Cover increment and segment changed-only feedback, named-run whole and path scopes, repeated uncached runs,
-      empty fallback, unavailable failure followed by successful retry, and dry-run no-execution behavior.
-    - Include successful selection acquisition followed by matcher failure alongside an ordinary check, asserting
-      both presented results, exit 2, the selection check's retry remedy, and successful recovery on the same request.
-    - Run existing gate and Git-backed check regression cases plus `npx arc check segment`; retain no production
-      environment switch or fake projection index solely to let tests inject the selection.
-    - Built-CLI subprocess E2Es cover the empty production provider, invalid declarations, and gate exclusion;
-      nonempty selection runs through the in-process command boundary until the projection connects.
+- _Outcome:_ Public handlers execute real ignored-file content over changed, full, named, and staged/range scopes.
+  Repeats remain uncached while ordinary passes reuse; provider and temporary-index failures preserve other results
+  and recover on retry. Real process batches preserve a large literal list; dry runs and the empty adapter execute
+  nothing, and built CLI cases retain gate exclusion and field-specific declaration refusals after A1.
 
 ## **Phase 4:** Request feedback at the enumerated ceremony boundaries
 
