@@ -54,9 +54,10 @@ export function buildIncrementalCorrectionScope(input: {
   readonly predecessor: ReviewResult;
   readonly currentHeadSha: string;
   readonly response: IncrementalPredecessorResponseEvidence;
+  readonly applicability?: IncrementalPredecessorApplicability;
 }): IncrementalReviewScope | null {
   const { predecessor, response } = input;
-  if (predecessor.kind === "frontline" || response.status !== "performed" || !response.hasFix) return null;
+  if (predecessor.kind === "frontline" || response.status !== "performed" || (!response.hasFix && input.applicability !== "range-proven")) return null;
   const predecessorScope = predecessor.admission.correctionScope;
   const basisHeadSha = predecessor.admission.effectiveCoverage === "complete"
     ? predecessor.target.headSha
@@ -117,7 +118,7 @@ export async function resolveIncrementalCorrectionScope(input: {
   const response = await dependencies.readResponseEvidence(input.predecessor).catch(() => null);
   return response === null ? null : buildIncrementalCorrectionScope({
     ...input,
-    response,
+    response, applicability,
   });
 }
 

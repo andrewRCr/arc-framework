@@ -24,6 +24,11 @@ export interface ReviewCorrectionLegInput extends PerformedResponseProofInput {
 
 /** Current target and record readers shared by convergence and correction-chain confirmation. */
 export interface ReviewNextPassInput extends Omit<ReviewCorrectionLegInput, "predecessor" | "currentResult" | "currentTarget"> {
+  /** Caller-owned source and lifecycle admission; omission keeps delta checks unavailable. */
+  readonly deltaAdmission?: {
+    readonly sources: readonly string[];
+    readonly surface: "ordinary" | "pre-publication" | "open-pr-errand";
+  };
   readonly predecessor: ReviewResult | null;
   readonly currentTarget: PerformedResponseProofInput["currentTarget"] | null;
   readonly standardReview: StandardReviewObligationProjection;
@@ -77,6 +82,17 @@ function samePolicy(predecessor: ReviewResult, input: ReviewNextPassInput,
       === canonicalize({ ...input.standardReview, reasons: [...input.standardReview.reasons].sort() });
 }
 
+function incrementalBasis(input: ReviewNextPassInput, ground: IncrementalPredecessorApplicability,
+  convergence: ReviewNextPassContext["convergence"]): "fix-check" | "delta-check" | null {
+  if (ground !== "range-proven") {
+    return input.standardReview.retrigger === "full-final" && convergence !== "unconverged" ? null : "fix-check";
+  }
+  const admission = input.deltaAdmission;
+  if (input.currentTarget?.kind !== "change-set" || input.currentLineage.kind === "delivery-member"
+    || admission === undefined || !admission.sources.includes("delegated-agent")) return null;
+  return input.standardReview.retrigger === "incremental" || admission.surface !== "ordinary" ? "delta-check" : null;
+}
+
 /** Derive the predecessor's convergence, response obligation, and exact next correction scope. */
 export async function deriveReviewNextPassContext(input: ReviewNextPassInput): Promise<ReviewNextPassContext> {
   const { predecessor, currentTarget } = input;
@@ -85,8 +101,7 @@ export async function deriveReviewNextPassContext(input: ReviewNextPassInput): P
     result, input.dispositionStore, input.readResponsePerformance,
   );
   const { convergence, responseDue } = await predecessorFacts({ ...input, predecessor });
-  if (currentTarget === null || !samePolicy(predecessor, input, currentTarget)
-    || (input.standardReview.retrigger === "full-final" && convergence !== "unconverged")) {
+  if (currentTarget === null || !samePolicy(predecessor, input, currentTarget)) {
     return { convergence, responseDue, incremental: null };
   }
   const { confirmApplicability, confirmCurrentApplicability } = input;
@@ -110,8 +125,8 @@ export async function deriveReviewNextPassContext(input: ReviewNextPassInput): P
       return ground;
     },
   });
-  return { convergence, responseDue, incremental: scope === null ? null
-    : { basis: currentLeg.ground === "range-proven" ? "delta-check" : "fix-check", scope } };
+  const basis = incrementalBasis(input, currentLeg.ground, convergence);
+  return { convergence, responseDue, incremental: scope === null || basis === null ? null : { basis, scope } };
 }
 
 /** Select a referenced terminal or an owning composition's earlier-head producer before deriving the next look. */

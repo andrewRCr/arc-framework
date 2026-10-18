@@ -478,24 +478,10 @@ the range proof. Workflow text changes in the package's `arc/` source first, the
   range proof, carrying the predecessor's required findings, and the coverage chain re-confirms that leg on every later
   round; the attempt and its instructions are a fix check's, less the closure axis.
 
-    - `[ ]` **3.2.a Resolve the delta check's scope**
-        - `buildIncrementalCorrectionScope`'s bound (Task 1.3.a) gains its sibling: a scope from the converged
-          predecessor's head, with its required findings, when the current leg's result is `range-proven`.
-          `resolveCoverageChain` re-confirms a delta leg on every later round. The attempt's record is the incremental
-          attempt a fix check writes (`IncrementalReviewScopeSchema`, `LocalReviewCoverageAdmissionSchema`).
-        - The next-pass context admits a delta check only where `delegated-agent` can run — listed, or the list empty and
-          local prepare falling back to it — never on a delivery member, and under `full-final` only on an Errand with an
-          open pull request and in pre-publication.
-        - _Note:_ A plain commit whose leg holds on a ground of today's — an Errand's commit after its pull request that
-          touches only non-reviewable paths, through contribution applicability — gets no delta scope, since its
-          predecessor's response fixed nothing. It relies on `readCarriedErrandReview`'s carry, and a complete pass runs
-          where that fails.
-        - Build `test-first` (one behavior at a time):
-            - A proven range after a converged look resolves a scope from its head with its required findings.
-            - A later fix check over a delta leg resolves an adequate chain.
-            - With `delegated-agent` unlisted, no delta check is admissible; nor is one on a delivery member.
-            - Under `full-final`, a delta check is admissible on an Errand with an open pull request and in
-              pre-publication only.
+    - `[x]` **3.2.a Resolve the delta check's scope**
+        - Range-proven scopes accept converged clean and no-fix predecessors and retain their required findings. Later
+          fix checks re-prove every delta leg from Git. Delta admission requires a local source and excludes delivery;
+          under `full-final`, only pre-publication and an Errand with an open pull request qualify.
 
     - `[ ]` **3.2.b Give the delta check its instructions**
         - The context's basis reaches `publishLocalReviewPreparation` (`core/local-prepare.ts`) beside `guidance` in its

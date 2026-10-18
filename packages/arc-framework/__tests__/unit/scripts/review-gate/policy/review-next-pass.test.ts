@@ -1,15 +1,17 @@
 /** Shared next-look facts from immutable producers and approved responses. */
 import { describe, expect, it } from "vitest";
 import { findingsHostedResult, cleanHostedResult, approvedRecord, performedFix } from "../../../../fixtures/review-response-proof.js";
-import { createReviewTarget, createReviewRequirement } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import { createReviewTarget, createReviewRequirement, createReviewRequest } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { confirmReviewCorrectionLeg, deriveReviewNextPassContext, type ReviewNextPassInput } from "../../../../../src/scripts/review-gate/policy/review-next-pass.js";
 import { scriptGitExec } from "../../../../helpers/git-exec-fake.js";
+import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
+import type { IncrementalReviewScope } from "../../../../../src/scripts/review-gate/core/incremental-review-scope.js";
 import type { ReviewResult } from "../../../../../src/scripts/review-gate/core/review-result.js";
 
 function input(predecessor: ReviewResult | null, severity: "major" | "minor" = "major", performed = true,
   retrigger: "full-final" | "incremental" = "full-final"): ReviewNextPassInput & { currentTarget: ReviewResult["target"] } {
   let result = predecessor ?? cleanHostedResult();
-  if (result.kind !== "hosted") throw new Error("expected hosted producer");
+  if (result.kind === "frontline") throw new Error("expected standard producer");
   if (result.requirement.retrigger !== retrigger) {
     const { obligation, reasons, rubricVersion, rubricDigest, count } = result.requirement;
     const requirement = createReviewRequirement({ target: result.target,
@@ -27,6 +29,7 @@ function input(predecessor: ReviewResult | null, severity: "major" | "minor" = "
   }]) : null;
   const { obligation, reasons, rubricVersion, rubricDigest, count } = result.requirement;
   return {
+    deltaAdmission: { sources: ["delegated-agent"], surface: "ordinary" },
     predecessor, currentTarget, currentLineage: result.admission.lineage,
     standardReview: { obligation, reasons, rubricVersion, rubricDigest, retrigger, count },
     resultReader: { readResult: async () => { throw new Error("no earlier producer"); } },
@@ -35,6 +38,32 @@ function input(predecessor: ReviewResult | null, severity: "major" | "minor" = "
     readResponsePerformance: async () => record === null || !performed ? null
       : { ...performedFix(result, record), producedHeadSha: currentTarget.headSha },
   };
+}
+
+function localCorrectionResult(predecessor: ReviewResult, scope: IncrementalReviewScope): ReviewResult {
+  if (predecessor.kind === "frontline") throw new Error("expected standard producer");
+  const { targetId: ignored, ...coordinates } = predecessor.target;
+  void ignored;
+  const target = createReviewTarget({ ...coordinates, headSha: scope.headSha, headTree: "1".repeat(40) });
+  const { obligation, reasons, rubricVersion, rubricDigest, retrigger, count } = predecessor.requirement;
+  const requirement = createReviewRequirement({ target,
+    projection: { obligation, reasons, rubricVersion, rubricDigest, retrigger, count },
+    acceptableSources: [{ sourceKind: "agent", qualifier: "standard-review/v1" }], initialAdmission: "automatic" });
+  if (requirement === null) throw new Error("expected requirement");
+  const request = createReviewRequest(target, { schemaVersion: 2, semanticsVersion: "review-gate/v2",
+    repositoryId: target.repositoryId, targetId: target.targetId, requirementId: requirement.requirementId,
+    carrier: { kind: "local-change-set", adapterId: "delegated-agent", changeRequestId: null },
+    authorIdentity: "author", evaluatorIdentity: "delegated-agent", lineageId: canonicalDigest(predecessor.admission.lineage),
+    logicalPass: 2, generation: 0, requestMechanism: "subagent" });
+  return { kind: "attested-local", producerId: "local/delta", repositoryId: target.repositoryId, target,
+    sourceIdentity: "delegated-agent", originalOutcome: "findings",
+    findings: [{ findingId: "finding-1", severity: "major", locus: "src/delta.ts:1",
+      evidenceUrlOrId: "local:finding-1", sourceOrdinal: 1 }], resultDigest: canonicalDigest({ request, scope }),
+    admission: { lineage: predecessor.admission.lineage, logicalPass: 2, retryGeneration: 0,
+      requestedCoverage: "incremental", effectiveCoverage: "incremental", scopeMode: "whole-target",
+      policyVersion: requirement.policyVersion, correctionScope: scope },
+    vehicle: { kind: "work-unit", identity: "example" }, requirement, request,
+    receiptRef: "receipts/local-delta", localSourceRef: "sources/local-delta" };
 }
 
 function rangeProof(request: ReviewNextPassInput & { currentTarget: ReviewResult["target"] }) {
@@ -83,6 +112,81 @@ it("resolves a range-proven correction scope with a delta basis", async () => {
       predecessorHeadSha: request.predecessor!.target.headSha, basisHeadSha: request.predecessor!.target.headSha,
       headSha: request.currentTarget.headSha },
   } });
+});
+
+it("resolves a clean predecessor's range without inventing a fix", async () => {
+  const request = input(cleanHostedResult(), "minor", true, "incremental");
+  expect((await deriveReviewNextPassContext({ ...request, rangeProof: rangeProof(request),
+    confirmCurrentApplicability: async () => "review-required",
+  })).incremental).toEqual({ basis: "delta-check", scope: {
+    schemaVersion: 1, predecessorProducerId: request.predecessor!.producerId,
+    predecessorHeadSha: request.predecessor!.target.headSha, basisHeadSha: request.predecessor!.target.headSha,
+    headSha: request.currentTarget.headSha, requiredFindings: [],
+  } });
+});
+
+it.each([
+  ["incremental", "ordinary", ["codex-pr", "delegated-agent"], true],
+  ["incremental", "ordinary", ["codex-pr"], false],
+  ["incremental", "ordinary", [], false],
+  ["full-final", "ordinary", ["delegated-agent"], false],
+  ["full-final", "pre-publication", ["delegated-agent"], true],
+  ["full-final", "open-pr-errand", ["delegated-agent"], true],
+  ["full-final", "pre-publication", ["codex-pr"], false],
+] as const)("bounds delta admission under %s at %s with %j", async (retrigger, surface, sources, admitted) => {
+  const request = input(cleanHostedResult(), "minor", true, retrigger);
+  const context = await deriveReviewNextPassContext({ ...request,
+    deltaAdmission: { sources, surface }, rangeProof: rangeProof(request),
+    confirmCurrentApplicability: async () => "review-required",
+  });
+  expect(context.incremental?.basis ?? null).toBe(admitted ? "delta-check" : null);
+});
+
+it("re-proves a delta leg when a later material fix extends the local coverage chain", async () => {
+  const raw = cleanHostedResult();
+  const first = input({ ...raw, admission: { ...raw.admission,
+    lineage: { kind: "candidate", candidateId: canonicalDigest({ candidate: "example" }) } } },
+    "minor", true, "incremental");
+  const root = first.predecessor!;
+  const range = rangeProof(first);
+  const delta = await deriveReviewNextPassContext({ ...first, rangeProof: range,
+    confirmCurrentApplicability: async () => "review-required" });
+  if (delta.incremental === null) throw new Error("expected delta scope");
+  const middle = localCorrectionResult(root, delta.incremental.scope);
+  const second = input(middle, "major", true, "incremental");
+  const { targetId: ignored, ...coordinates } = second.currentTarget;
+  void ignored;
+  const currentTarget = createReviewTarget({ ...coordinates, headSha: "f".repeat(40) });
+  const record = approvedRecord(middle, [{ sourceVerification: "verified", verifiedSeverity: "major", disposition: "fix" }]);
+  const contextInput = { ...second, currentTarget, rangeProof: range,
+    resultReader: { readResult: async () => root },
+    dispositionStore: { ...second.dispositionStore,
+      readDispositionRecord: async (producer: string) => producer === middle.producerId ? record : null },
+    readResponsePerformance: async () => ({ ...performedFix(middle, record), producedHeadSha: currentTarget.headSha }),
+    confirmApplicability: async () => "review-required" as const,
+  };
+  expect((await deriveReviewNextPassContext(contextInput)).incremental).toMatchObject({
+    basis: "fix-check", scope: { basisHeadSha: root.target.headSha, predecessorProducerId: middle.producerId,
+      predecessorHeadSha: middle.target.headSha, headSha: currentTarget.headSha,
+      requiredFindings: [{ producerId: middle.producerId, findingId: "finding-1", locus: "src/delta.ts:1" }] },
+  });
+  expect((await deriveReviewNextPassContext({ ...contextInput,
+    rangeProof: { cwd: "/checkout", exec: scriptGitExec([]).exec },
+  })).incremental).toBeNull();
+});
+
+it("carries deferred material findings into a converged no-fix delta scope", async () => {
+  const request = input(findingsHostedResult(["major"]), "major", true, "incremental");
+  const record = approvedRecord(request.predecessor!, [{
+    sourceVerification: "verified", verifiedSeverity: "major", disposition: "defer",
+  }]);
+  const context = await deriveReviewNextPassContext({ ...request, rangeProof: rangeProof(request),
+    dispositionStore: { ...request.dispositionStore, readDispositionRecord: async () => record },
+    readResponsePerformance: async () => null, confirmCurrentApplicability: async () => "review-required",
+  });
+  expect(context).toMatchObject({ convergence: "converged", incremental: { basis: "delta-check", scope: {
+    requiredFindings: [{ producerId: request.predecessor!.producerId, findingId: "finding-1", locus: "src/example.ts:1" }],
+  } } });
 });
 
 describe("next-pass context", () => {

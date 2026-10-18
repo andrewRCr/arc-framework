@@ -1,4 +1,5 @@
 /** A delivery correction leg needs the member response that produced its exact target. */
+import { scriptGitExec } from "../../../../helpers/git-exec-fake.js";
 import { SlugSchema } from "../../../../../src/lib/kernel/schema/slug.js";
 import { describe, expect, it } from "vitest";
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
@@ -44,6 +45,23 @@ function readers(input: ReturnType<typeof fixture>) {
   readResponsePerformance: async () => input.performance };
 }
 describe("delivery correction response proof", () => {
+  it("never treats a clean member's linear range as a correction proof", async () => {
+    const input = fixture();
+    const predecessor = { ...input.predecessor, originalOutcome: "clean" as const, findings: [],
+      resultDigest: canonicalDigest({ clean: input.predecessor.producerId }) };
+    const before = predecessor.target.headSha;
+    const after = input.currentTarget.headSha;
+    const rangeProof = { cwd: "/checkout", exec: scriptGitExec([
+      { match: ["rev-parse", "--verify", `${before}^{commit}`], responses: [{ stdout: before }] },
+      { match: ["rev-parse", "--verify", `${after}^{commit}`], responses: [{ stdout: after }] },
+      { match: ["merge-base", "--is-ancestor", before, after], responses: [{ stdout: "" }] },
+      { match: ["rev-list", "--first-parent", "--merges", "--parents", `${before}..${after}`], responses: [{ stdout: "" }] },
+    ]).exec };
+    await expect(confirmReviewCorrectionLeg({ ...input, predecessor, ...readers(input), rangeProof,
+      dispositionStore: { ...readers(input).dispositionStore, readDispositionRecord: async () => null },
+      confirmGrounds: async () => "review-required",
+    })).resolves.toBe("review-required");
+  });
   it("proves an exact performed member fix when contribution alone requires review", async () => {
     const input = fixture();
     await expect(confirmReviewCorrectionLeg({ ...input, ...readers(input), confirmGrounds: async () => "review-required" }))
