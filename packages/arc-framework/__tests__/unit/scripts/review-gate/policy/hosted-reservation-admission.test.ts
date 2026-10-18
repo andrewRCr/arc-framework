@@ -1,3 +1,4 @@
+import { firstReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
 import { withReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
 /** Unit coverage for ordered hosted-review admission. */
 
@@ -1160,6 +1161,7 @@ describe("hosted reservation admission", () => {
 
   it("rechecks the member pass ceiling immediately before hosted capacity is spent", () => {
     const input = {
+      nextPassContext: { ...firstReviewNextPassContext, completePasses: 1 },
       reservation: deliveryReservation,
       snapshot: memberProgressSnapshot(),
       repositoryId: "repo-1",

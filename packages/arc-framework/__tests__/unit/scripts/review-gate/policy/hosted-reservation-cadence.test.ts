@@ -85,7 +85,7 @@ describe("delivery material-response coverage", () => {
         nextPassContext: input.nextPassContext,
         attempts: [{ sourceId: "codex-pr", outcome: "findings", reviewOperationId: attemptId }],
         verifiedTerminalSignal: { reviewOperationId: attemptId, confirmedFindingCount: 1,
-          maxConfirmedSeverity: "major", materialFix: true, coverageAdequate: false },
+          maxConfirmedSeverity: "major", materialFix: true, effectiveCoverage: "incremental" as const, coverageAdequate: false },
       }),
     });
     expect(result).toMatchObject({ discharged: false, nextSource: "delegated-agent", requestCoverage: "complete" });
@@ -112,7 +112,7 @@ describe("converged fix-check continuation", () => {
         completedPasses: 1, nextPassContext,
         attempts: [{ sourceId: "codex-pr", outcome: "clean", reviewOperationId: terminal.attemptId }],
         verifiedTerminalSignal: { reviewOperationId: terminal.attemptId, confirmedFindingCount: 0,
-          maxConfirmedSeverity: null, materialFix: false, coverageAdequate: false } });
+          maxConfirmedSeverity: null, materialFix: false, effectiveCoverage: "incremental" as const, coverageAdequate: false } });
       const result = await projectHostedReservationDischarge({ reservation: reserved, nextPassContext,
         span: [incremental.target.headSha],
         target: { ...incremental.target, ...(member ? { vehicle } : {}) },

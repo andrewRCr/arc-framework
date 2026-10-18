@@ -882,7 +882,7 @@ export function composeDeliveryReviewObligation(input: {
     };
   }
   const additionalPassCoversCeiling = discharge.requestAdditionalPassAuthorization !== undefined
-    && discharge.completedPasses >= discharge.passCeiling;
+    && discharge.completePasses >= discharge.passCeiling;
   const authorizedCeiling = discharge.requestCeilingOverride !== undefined || additionalPassCoversCeiling;
   if (discharge.requestAdmission.payload.ceilingOverrideApplied !== authorizedCeiling) {
     return {

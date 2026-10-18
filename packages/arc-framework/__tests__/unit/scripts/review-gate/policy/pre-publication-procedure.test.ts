@@ -627,7 +627,7 @@ describe("projectPrePublicationReview", () => {
         confirmedFindingCount: 0,
         maxConfirmedSeverity: null,
         materialFix: false,
-        coverageAdequate: true,
+        effectiveCoverage: "complete" as const, coverageAdequate: true,
       },
     };
     const input = {
@@ -665,7 +665,7 @@ describe("projectPrePublicationReview", () => {
         confirmedFindingCount: 1,
         maxConfirmedSeverity: "minor",
         materialFix: false,
-        coverageAdequate: true,
+        effectiveCoverage: "complete" as const, coverageAdequate: true,
       },
     };
     const pending = projectPrePublicationReview({
@@ -707,7 +707,7 @@ describe("projectPrePublicationReview", () => {
         confirmedFindingCount: 1,
         maxConfirmedSeverity: "major",
         materialFix: true,
-        coverageAdequate: true,
+        effectiveCoverage: "complete" as const, coverageAdequate: true,
       },
       terminalResponseSettled: true,
     };
@@ -733,7 +733,7 @@ describe("projectPrePublicationReview", () => {
         confirmedFindingCount: 1,
         maxConfirmedSeverity: "minor",
         materialFix: false,
-        coverageAdequate: true,
+        effectiveCoverage: "complete" as const, coverageAdequate: true,
       },
     };
     const pending = projectPrePublicationReview({
@@ -954,7 +954,7 @@ describe("projectPrePublicationReview", () => {
           confirmedFindingCount: 0,
           maxConfirmedSeverity: null,
           materialFix: false,
-          coverageAdequate: true,
+          effectiveCoverage: "complete" as const, coverageAdequate: true,
         },
       },
       standard: {
@@ -1015,7 +1015,7 @@ describe("projectPrePublicationReview", () => {
         attempts: [{ sourceId: "delegated-agent", outcome: "clean", reviewOperationId: "local/fix-check" }],
         nextPassContext: { completePasses: 1, convergence: "converged", responseDue: false, incremental: null },
         verifiedTerminalSignal: { reviewOperationId: "local/fix-check", confirmedFindingCount: 0,
-          maxConfirmedSeverity: null, materialFix: false, coverageAdequate: false },
+          maxConfirmedSeverity: null, materialFix: false, effectiveCoverage: "incremental" as const, coverageAdequate: false },
         terminus: ownerAcceptedTerminus,
       },
     }, postAttestContinuation);
@@ -1128,7 +1128,7 @@ describe("projectPrePublicationReview", () => {
           confirmedFindingCount: 0,
           maxConfirmedSeverity: null,
           materialFix: false,
-          coverageAdequate: true,
+          effectiveCoverage: "complete" as const, coverageAdequate: true,
         },
       },
     }, postAttestContinuation);
@@ -1157,7 +1157,7 @@ describe("projectPrePublicationReview", () => {
           confirmedFindingCount: 1,
           maxConfirmedSeverity: "major",
           materialFix: true,
-          coverageAdequate: true,
+          effectiveCoverage: "complete" as const, coverageAdequate: true,
         },
       },
     }, postAttestContinuation);

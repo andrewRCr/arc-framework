@@ -896,7 +896,7 @@ describe("earlier review attempt query", () => {
         confirmedFindingCount: attempt.outcome === "clean" ? 0 : 1,
         maxConfirmedSeverity: attempt.outcome === "clean" ? null : "major",
         materialFix: attempt.outcome !== "clean",
-        coverageAdequate: true,
+        effectiveCoverage: "complete" as const, coverageAdequate: true,
       },
     }));
     const discharge = async (

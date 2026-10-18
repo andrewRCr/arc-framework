@@ -391,6 +391,8 @@ async function defaultTerminalPolicy(
       confirmedFindingCount: outcome === "clean" ? 0 : 1,
       maxConfirmedSeverity: outcome === "clean" ? null : "major",
       materialFix: outcome !== "clean",
+      effectiveCoverage: "effectiveCoverage" in attempt ? attempt.effectiveCoverage
+        : attempt.local?.effectiveCoverage ?? attempt.hosted?.effectiveCoverage ?? null,
       coverageAdequate,
     },
   }));
@@ -1168,7 +1170,7 @@ describe("hosted reservation discharge", () => {
           confirmedFindingCount: 1,
           maxConfirmedSeverity: "minor",
           materialFix: false,
-          coverageAdequate: true,
+          effectiveCoverage: "complete" as const, coverageAdequate: true,
         },
       })),
     });
@@ -1309,7 +1311,7 @@ describe("hosted reservation discharge", () => {
           confirmedFindingCount: 1,
           maxConfirmedSeverity: "major",
           materialFix: true,
-          coverageAdequate: true,
+          effectiveCoverage: "complete" as const, coverageAdequate: true,
         },
       })),
     });
@@ -1353,7 +1355,7 @@ describe("hosted reservation discharge", () => {
           confirmedFindingCount: 0,
           maxConfirmedSeverity: null,
           materialFix: false,
-          coverageAdequate: true,
+          effectiveCoverage: "complete" as const, coverageAdequate: true,
         },
       })),
     });
@@ -1495,7 +1497,7 @@ describe("hosted reservation discharge", () => {
           confirmedFindingCount: 0,
           maxConfirmedSeverity: null,
           materialFix: false,
-          coverageAdequate: false,
+          effectiveCoverage: "incremental" as const, coverageAdequate: false,
         },
       })),
     });
@@ -2264,7 +2266,7 @@ describe("hosted reservation discharge", () => {
         confirmedFindingCount: 0,
         maxConfirmedSeverity: null,
         materialFix: false,
-        coverageAdequate: true,
+        effectiveCoverage: "incremental" as const, coverageAdequate: true,
       },
     }));
     const result = await projectHostedReservationDischarge({

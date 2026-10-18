@@ -346,6 +346,7 @@ async function deriveVerifiedTerminalSignal(
       confirmedFindingCount: 0,
       maxConfirmedSeverity: null,
       materialFix: false,
+      effectiveCoverage: result.admission.effectiveCoverage,
       coverageAdequate,
     };
   }
@@ -359,6 +360,7 @@ async function deriveVerifiedTerminalSignal(
         confirmedFindingCount: 0,
         maxConfirmedSeverity: null,
         materialFix: false,
+        effectiveCoverage: result.admission.effectiveCoverage,
         coverageAdequate,
       };
     }
@@ -379,6 +381,7 @@ async function deriveVerifiedTerminalSignal(
     confirmedFindingCount,
     maxConfirmedSeverity,
     materialFix: fixesMaterialFinding(findings),
+    effectiveCoverage: result.admission.effectiveCoverage,
     coverageAdequate,
   };
 }

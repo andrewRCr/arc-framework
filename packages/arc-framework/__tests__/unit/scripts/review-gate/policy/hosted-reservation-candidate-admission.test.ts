@@ -329,6 +329,7 @@ describe("Candidate hosted reservation admission", () => {
   it("excludes prior-head terminals when rechecking Candidate capacity at the pass ceiling", () => {
     const target = { repository: "owner/repo", pullRequest: 42, headSha: CURRENT_HEAD };
     const input = {
+      nextPassContext: { ...firstReviewNextPassContext, completePasses: 2 },
       reservation,
       discharge: {
         discharged: false,
@@ -385,7 +386,7 @@ describe("Candidate hosted reservation admission", () => {
     };
 
     await expect(assertEvidenceBoundCandidateHostedReservationPolicyAdmission(input, {
-      nextPassContext: firstReviewNextPassContext,
+      nextPassContext: { ...firstReviewNextPassContext, completePasses: input.progress.completedPasses },
       resultReader: { readResult: () => Promise.reject(new Error("past pass must not be read")) },
       dispositionStore: {
         readDispositionRecord: () => Promise.resolve(null),
@@ -410,7 +411,7 @@ describe("Candidate hosted reservation admission", () => {
       },
     };
     const dependencies = {
-      nextPassContext: firstReviewNextPassContext,
+      nextPassContext: { ...firstReviewNextPassContext, completePasses: input.progress.completedPasses },
       resultReader: { readResult: async () => predecessor.result },
       dispositionStore: {
         readDispositionRecord: async () => predecessor.disposition,
@@ -464,7 +465,7 @@ describe("Candidate hosted reservation admission", () => {
         },
       };
       const dependencies = {
-        nextPassContext: firstReviewNextPassContext,
+        nextPassContext: { ...firstReviewNextPassContext, completePasses: input.progress.completedPasses },
         resultReader: { readResult: async () => predecessor.result },
         dispositionStore: {
           readDispositionRecord: async () => predecessor.disposition,
@@ -526,7 +527,7 @@ describe("Candidate hosted reservation admission", () => {
 
     expect(() => assertCandidateHostedReservationPolicyAdmission(withReviewNextPassContext(input))).not.toThrow();
     await expect(assertEvidenceBoundCandidateHostedReservationPolicyAdmission(input, {
-      nextPassContext: firstReviewNextPassContext,
+      nextPassContext: { ...firstReviewNextPassContext, completePasses: input.progress.completedPasses },
       resultReader: {
         readResult: () => Promise.reject(new Error("no terminal producer expected")),
       },

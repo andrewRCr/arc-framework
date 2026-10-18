@@ -666,9 +666,10 @@ function candidateContinuationRequest(
   attempts: ReviewPolicyCommandRequest["attempts"],
   completedPasses: number,
   verifiedSettledPredecessor: boolean,
+  completePasses: number,
 ): ReviewPolicyCommandRequest {
   const ceilingOverride = input.ceilingOverride
-    ?? (verifiedSettledPredecessor && completedPasses >= input.maxPasses
+    ?? (verifiedSettledPredecessor && completePasses >= input.maxPasses
       ? {
           target: input.target,
           lane: "standard" as const,
@@ -728,6 +729,7 @@ export async function assertEvidenceBoundCandidateHostedReservationPolicyAdmissi
   const latest = completed.at(-1);
   const policy = await resolveEvidenceBoundReviewPolicyContinuation(candidateContinuationRequest(
     input, attempts, completedPasses, verifiedSettledPredecessor,
+    (input.discharge.nextPassContext ?? dependencies.nextPassContext)?.completePasses ?? 0,
   ), {
     terminalResponsePerformed: latest?.outcome === "settled-findings",
   }, {

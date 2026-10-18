@@ -346,7 +346,7 @@ describe("evidence-bound review policy", () => {
           confirmedFindingCount: 0,
           maxConfirmedSeverity: null,
           materialFix: false,
-          coverageAdequate: true,
+          effectiveCoverage: "complete" as const, coverageAdequate: true,
         },
       },
     });
@@ -439,7 +439,7 @@ describe("evidence-bound review policy", () => {
           verifiedTerminalSignal: {
             reviewOperationId: result.producerId,
             confirmedFindingCount: material ? 1 : 0,
-            coverageAdequate: true,
+            effectiveCoverage: "complete" as const, coverageAdequate: true,
           },
         },
       });
@@ -988,7 +988,7 @@ describe("evidence-bound review policy", () => {
           confirmedFindingCount: 2,
           maxConfirmedSeverity: "major",
           materialFix: true,
-          coverageAdequate: true,
+          effectiveCoverage: "complete" as const, coverageAdequate: true,
         },
       },
     });
@@ -1117,7 +1117,7 @@ describe("evidence-bound review policy", () => {
     });
   });
 
-  it("applies an exhausted-ceiling override after inadequate clean coverage is selected", async () => {
+  it("admits a complete successor below the ceiling after inadequate clean coverage is selected", async () => {
     const original = cleanHostedResult();
     if (original.kind !== "hosted") throw new Error("expected hosted result");
     const requirement = createReviewRequirement({
@@ -1140,12 +1140,7 @@ describe("evidence-bound review policy", () => {
     const request = {
       ...cleanRequest(result),
       standardReview: { ...standardReview, retrigger: "incremental" as const },
-      ceilingOverride: {
-        target: policyTarget,
-        lane: "standard" as const,
-        exhaustedPassCount: 1,
-        nextPass: 2,
-      },
+
     };
     const evidence = {
       ...dependencies(result),
@@ -1165,7 +1160,7 @@ describe("evidence-bound review policy", () => {
       coverageSelected: true,
     }, evidence)).resolves.toMatchObject({
       state: "ready",
-      payload: { pass: 2, sourceId: "codex-pr", ceilingOverrideApplied: true },
+      payload: { pass: 2, sourceId: "codex-pr", ceilingOverrideApplied: false },
     });
   });
 

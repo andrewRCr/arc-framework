@@ -79,7 +79,7 @@ async function discharge(attempts: readonly EarlierApplicableAttempt[], invocati
         confirmedFindingCount: 0,
         maxConfirmedSeverity: null,
         materialFix: false,
-        coverageAdequate: attempt.effectiveCoverage === "complete",
+        effectiveCoverage: attempt.effectiveCoverage, coverageAdequate: attempt.effectiveCoverage === "complete",
       },
     })),
   });

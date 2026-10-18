@@ -38,7 +38,7 @@ function coveragePolicy(sources: readonly string[] = reservation.sources) {
     attempts: [{ sourceId: sources.includes("codex-pr") ? "codex-pr" : "delegated-agent",
       outcome: "findings", reviewOperationId: "earlier-fix-check" }],
     verifiedTerminalSignal: { reviewOperationId: "earlier-fix-check", confirmedFindingCount: 1,
-      maxConfirmedSeverity: "major", materialFix: true, coverageAdequate: false } });
+      maxConfirmedSeverity: "major", materialFix: true, effectiveCoverage: "incremental" as const, coverageAdequate: false } });
   expect(policy).toMatchObject({ state: "coverage-required" });
   return policy;
 }

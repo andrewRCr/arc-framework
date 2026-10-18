@@ -48,6 +48,7 @@ export const VerifiedTerminalReviewSignalSchema = z.strictObject({
   maxConfirmedSeverity: ReviewSeveritySchema.nullable(),
   /** Whether the approved dispositions fix a material finding, which alone requires another pass. */
   materialFix: z.boolean(),
+  effectiveCoverage: z.enum(["complete", "incremental"]).nullable(),
   coverageAdequate: z.boolean(),
 }).superRefine((signal, context) => {
   if ((signal.confirmedFindingCount === 0) !== (signal.maxConfirmedSeverity === null)) {

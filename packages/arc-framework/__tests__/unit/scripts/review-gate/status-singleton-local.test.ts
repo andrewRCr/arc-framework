@@ -27,7 +27,7 @@ function localObligation(includeObligation = true, authority?: "ceiling" | "addi
     ...(invocation === undefined ? {} : { invocation }),
     ...(additionalPassAuthorization === undefined ? {} : { additionalPassAuthorization,
       verifiedTerminalSignal: { reviewOperationId: producerId, confirmedFindingCount: 0, maxConfirmedSeverity: null,
-        materialFix: false, coverageAdequate: true } }),
+        materialFix: false, effectiveCoverage: "complete" as const, coverageAdequate: true } }),
     ...(ceilingOverride === undefined ? {} : { ceilingOverride }),
     nextPassContext: { completePasses: 1, convergence: elective ? "converged" : "unconverged", responseDue: false, incremental: null } });
   expect(admission).toMatchObject({ state: "ready", nextAction: "local-prepare" });

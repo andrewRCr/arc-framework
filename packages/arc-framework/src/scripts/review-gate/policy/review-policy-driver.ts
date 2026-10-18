@@ -746,7 +746,7 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
   }
   const ceilingOverrideApplied = request.ceilingOverride !== undefined
     || (request.additionalPassAuthorization !== undefined
-      && request.completedPasses >= request.maxPasses);
+      && ceilingPassCount(request) >= request.maxPasses);
   if (lastAttempt?.outcome === "partial" && scope === "chunked") {
     return resolveEnvelope({
       state: "chunk-pending",
@@ -846,7 +846,7 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
     }
   }
   if (request.terminus !== undefined) return ownerAcceptedEnvelope(request, scope);
-  if (request.completedPasses >= request.maxPasses
+  if (ceilingPassCount(request) >= request.maxPasses
     && !ceilingOverrideApplied) {
     return resolveEnvelope({
       state: "approval-required",
@@ -992,6 +992,10 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
   }, diagnostics);
 }
 
+function ceilingPassCount(request: ReviewPolicyRequest): number {
+  return request.lane === "standard" ? request.nextPassContext?.completePasses ?? 0 : request.completedPasses;
+}
+
 function resolveInvalidOverrideReason(
   request: ReviewPolicyRequest,
 ): InvalidOverrideReason | null {
@@ -1007,7 +1011,9 @@ function resolveInvalidOverrideReason(
   const overrideBasePasses = request.completedPasses - (terminalPassRecorded ? 1 : 0);
   if (override.exhaustedPassCount !== overrideBasePasses) return "pass-count-mismatch";
   if (override.nextPass !== overrideBasePasses + 1) return "next-pass-mismatch";
-  if (overrideBasePasses < request.maxPasses) return "ceiling-not-exhausted";
+  const terminalComplete = terminalPassRecorded
+    && (request.lane === "frontline" || request.verifiedTerminalSignal?.effectiveCoverage === "complete");
+  if (ceilingPassCount(request) - (terminalComplete ? 1 : 0) < request.maxPasses) return "ceiling-not-exhausted";
   return null;
 }
 

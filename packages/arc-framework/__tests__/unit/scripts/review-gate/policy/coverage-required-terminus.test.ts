@@ -13,7 +13,7 @@ function request(outcome: "clean" | "findings", responseDue: boolean) {
     completedPasses: 2, maxPasses: 2,
     attempts: [{ sourceId: "delegated-agent", outcome, reviewOperationId: "local/fix-check" }],
     verifiedTerminalSignal: { reviewOperationId: "local/fix-check", confirmedFindingCount: outcome === "clean" ? 0 : 1,
-      maxConfirmedSeverity: outcome === "clean" ? null : "major", materialFix: outcome === "findings", coverageAdequate: false },
+      maxConfirmedSeverity: outcome === "clean" ? null : "major", materialFix: outcome === "findings", effectiveCoverage: "incremental" as const, coverageAdequate: false },
     nextPassContext: { completePasses: 1, convergence: outcome === "clean" ? "converged" : "unconverged", responseDue, incremental: null },
     terminus: { schemaVersion: 1, semanticsVersion: "review-terminus/v1", kind: "owner-accepted", lane: "standard",
       acceptedBy: "andrew", completedPasses: 2 },

@@ -78,7 +78,7 @@ const passComplete = new ReviewDriverAdmissionError("refused", resolveReviewPoli
     confirmedFindingCount: 0,
     maxConfirmedSeverity: null,
     materialFix: false,
-    coverageAdequate: true,
+    effectiveCoverage: "complete" as const, coverageAdequate: true,
   },
 })));
 

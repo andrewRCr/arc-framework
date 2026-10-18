@@ -55,7 +55,7 @@ async function resolve(submitted: unknown, fault?: (result: ReviewResult) => Rev
   await handleReviewResolve("-", {
     resolveRoot: () => "/trusted-repository", readText: async () => JSON.stringify(submitted),
     resolve: parsed => resolveEvidenceBoundReviewPolicy(parsed, {
-      ...(parsed.lane === "standard" ? { nextPassContext: firstReviewNextPassContext } : {}),
+      ...(parsed.lane === "standard" ? { nextPassContext: { ...firstReviewNextPassContext, completePasses: 2 } } : {}),
       sources, maxPasses,
       resultReader: { readResult: async id => { const result = await reader.readResult(id); return fault?.(result) ?? result; } },
       confirmTarget: async () => target,

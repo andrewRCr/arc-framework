@@ -33,7 +33,7 @@ const terminalPolicy = resolveReviewPolicy({ schemaVersion: 1, target: handle.ta
   sources: ["codex-pr", "delegated-agent"], maxPasses: 4, completedPasses: 1, nextPassContext,
   attempts: [{ sourceId: "codex-pr", outcome: "findings", reviewOperationId: hostedLaneAttemptId(handle) }],
   verifiedTerminalSignal: { reviewOperationId: hostedLaneAttemptId(handle), confirmedFindingCount: 1,
-    maxConfirmedSeverity: "major", materialFix: true, coverageAdequate: false } });
+    maxConfirmedSeverity: "major", materialFix: true, effectiveCoverage: "incremental" as const, coverageAdequate: false } });
 const coverageSelectionAction = projectHostedCorrectionCoverageSelection({ sources: ["codex-pr", "delegated-agent"],
   nextPassContext, scope, predecessor: { attemptId: hostedLaneAttemptId(handle), logicalPass: 1, sourceId: "codex-pr",
     outcome: "settled-findings" }, completedPasses: 1, vehicle });

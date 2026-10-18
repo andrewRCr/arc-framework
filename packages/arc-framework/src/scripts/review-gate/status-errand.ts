@@ -307,10 +307,11 @@ export function selectErrandCorrectionPredecessor(attempts: readonly LaneAttempt
 function missingHistoricalResultObligation(input: {
   readonly policyTarget: { readonly repository: string; readonly pullRequest: number; readonly headSha: string };
   readonly completedPasses: number;
+  readonly completePasses: number;
   readonly maxPasses: number;
   readonly ceilingOverride?: ReviewCeilingOverride;
 }): RoutedReviewObligation {
-  if (input.completedPasses < input.maxPasses) {
+  if (input.completePasses < input.maxPasses) {
     return { state: "review-required", detail: "The exact Errand standard-review lane is not settled." };
   }
   const consequence = {
@@ -587,6 +588,7 @@ async function readUnreviewedErrandHead(input: {
   });
   if (result === null) {
     return missingHistoricalResultObligation({ policyTarget, completedPasses,
+      completePasses: countCompleteLogicalPasses(owner.attempts),
       maxPasses: configured.maxPasses, ceilingOverride: input.ceilingOverride });
   }
   if (result.kind === "frontline" || result.repositoryId !== repositoryId

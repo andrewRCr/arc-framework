@@ -87,7 +87,7 @@ describe("resolveReviewPolicy", () => {
       }],
       verifiedTerminalSignal: {
         reviewOperationId: "local/material-1", confirmedFindingCount: 1,
-        maxConfirmedSeverity: "major" as const, materialFix: true, coverageAdequate: true,
+        maxConfirmedSeverity: "major" as const, materialFix: true, effectiveCoverage: "complete" as const, coverageAdequate: true,
       },
     };
     expect(resolveReviewPolicy(withReviewNextPassContext(prior))).toMatchObject({ state: "findings", nextAction: "respond" });
@@ -161,7 +161,7 @@ describe("resolveReviewPolicy", () => {
         confirmedFindingCount: 0,
         maxConfirmedSeverity: null,
         materialFix: false,
-        coverageAdequate: true,
+        effectiveCoverage: "complete" as const, coverageAdequate: true,
       },
     }))).toMatchObject({
       state: "pass-complete",
@@ -703,7 +703,7 @@ describe("resolveReviewPolicy", () => {
         confirmedFindingCount: 1,
         maxConfirmedSeverity: "major",
         materialFix: true,
-        coverageAdequate: true,
+        effectiveCoverage: "complete" as const, coverageAdequate: true,
       },
     } as const;
     expect(resolveReviewPolicy(withReviewNextPassContext(request))).toMatchObject({
@@ -758,7 +758,7 @@ describe("resolveReviewPolicy", () => {
         confirmedFindingCount: attempt.outcome === "clean" ? 0 : 1,
         maxConfirmedSeverity: attempt.outcome === "clean" ? null : "major",
         materialFix: attempt.outcome !== "clean",
-        coverageAdequate: true,
+        effectiveCoverage: "complete" as const, coverageAdequate: true,
       },
       ...(scopeSelection === undefined ? {} : { scopeSelection }),
     }))).toThrow(/completedPasses must include the completed terminal pass/u);
@@ -836,7 +836,7 @@ describe("resolveReviewPolicy", () => {
         confirmedFindingCount: 0,
         maxConfirmedSeverity: null,
         materialFix: false,
-        coverageAdequate: true,
+        effectiveCoverage: "complete" as const, coverageAdequate: true,
       },
     }))).toMatchObject({
       state: "pass-complete",
@@ -864,7 +864,7 @@ describe("resolveReviewPolicy", () => {
         confirmedFindingCount: 0,
         maxConfirmedSeverity: null,
         materialFix: false,
-        coverageAdequate: true,
+        effectiveCoverage: "complete" as const, coverageAdequate: true,
       },
     };
     const additionalPassAuthorization = {
@@ -912,7 +912,7 @@ describe("resolveReviewPolicy", () => {
         reviewOperationId: "local/material-3" }],
       verifiedTerminalSignal: {
         reviewOperationId: "local/material-3", confirmedFindingCount: 1,
-        maxConfirmedSeverity: "major" as const, materialFix: true, coverageAdequate: true,
+        maxConfirmedSeverity: "major" as const, materialFix: true, effectiveCoverage: "complete" as const, coverageAdequate: true,
       },
     };
     expect(resolveReviewPolicy(withReviewNextPassContext(material))).toMatchObject({ state: "findings", nextAction: "respond" });
@@ -986,7 +986,7 @@ describe("resolveReviewPolicy", () => {
         confirmedFindingCount: 0,
         maxConfirmedSeverity: null,
         materialFix: false,
-        coverageAdequate: true,
+        effectiveCoverage: "complete" as const, coverageAdequate: true,
       },
       ceilingOverride: approval.payload.consequence,
     }))).toMatchObject({
@@ -1052,7 +1052,7 @@ describe("resolveReviewPolicy", () => {
         confirmedFindingCount: 1,
         maxConfirmedSeverity: "major",
         materialFix: true,
-        coverageAdequate: true,
+        effectiveCoverage: "complete" as const, coverageAdequate: true,
       },
       terminus: {
         schemaVersion: 1,
@@ -1247,7 +1247,7 @@ describe("resolveReviewPolicy", () => {
         confirmedFindingCount: 1,
         maxConfirmedSeverity: "major",
         materialFix: true,
-        coverageAdequate: true,
+        effectiveCoverage: "complete" as const, coverageAdequate: true,
       },
       frontlineActive,
       ...(invocation === undefined ? {} : { invocation }),

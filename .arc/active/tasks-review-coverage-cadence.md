@@ -721,20 +721,10 @@ complete pass. Workflow, method, and configuration text changes in the package's
   the complete count, while every site that numbers or binds an attempt keeps `logicalPass` and `validatePassCounts`
   still holds one finished outcome per logical pass.
 
-    - `[ ]` **5.2.a Move the ceiling comparisons to the complete count**
-        - The driver's `approval-required` and `ceilingOverrideApplied`, whose additional-pass arm also compares the
-          ceiling; `resolveInvalidOverrideReason` (`review-policy-driver.ts`); `missingHistoricalResultObligation`
-          (`status-errand.ts`), which also binds the next pass's number; `composeDeliveryReviewObligation` (`status.ts`);
-          and `candidateContinuationRequest` (`hosted-reservation-admission.ts`), which synthesizes an override at the
-          ceiling. Respond's ceiling reads are Task 5.3's.
-        - `resolveInvalidOverrideReason` splits its one base, `completedPasses` less a recorded terminal: an override's
-          `exhaustedPassCount` and `nextPass` still bind that `logicalPass` base, and `ceiling-not-exhausted` compares
-          the complete count, less the terminal only when the terminal is a complete pass.
-        - Build `test-first` (one behavior at a time):
-            - A lane with two complete passes and three fix checks under a ceiling of two is at the ceiling, not past it.
-            - An override binds attempt numbers by `logicalPass` while its ceiling test reads the complete count.
-            - An override after a fix check terminal is not refused as `ceiling-not-exhausted` when the complete count
-              is at the ceiling.
+    - `[x]` **5.2.a Move the ceiling comparisons to the complete count**
+        - Driver, Errand history, delivery consistency, and Candidate continuation compare the complete count.
+          Terminal evidence retains its own coverage so override validation subtracts only a complete terminal;
+          override coordinates continue to bind logical attempts.
 
     - `[ ]` **5.2.b Keep `logicalPass` where an attempt is numbered or bound**
         - The driver's numbering (`completedPasses + 1`, a terminal state's `pass`, the consequence's

@@ -3661,7 +3661,7 @@ describe("handleReviewPrePublication", () => {
           confirmedFindingCount: 1,
           maxConfirmedSeverity: "major" as const,
           materialFix: true,
-          coverageAdequate: true,
+          effectiveCoverage: "complete" as const, coverageAdequate: true,
         },
       },
     };
@@ -3710,7 +3710,7 @@ describe("handleReviewPrePublication", () => {
           confirmedFindingCount: 1,
           maxConfirmedSeverity: "minor" as const,
           materialFix: false,
-          coverageAdequate: true,
+          effectiveCoverage: "complete" as const, coverageAdequate: true,
         },
       },
       pendingResponse: { frontline: null, standard: { kind: "attested-local", receiptRef: "minor-source" } },
@@ -3769,7 +3769,7 @@ describe("handleReviewPrePublication", () => {
           confirmedFindingCount: 1,
           maxConfirmedSeverity: "major" as const,
           materialFix: true,
-          coverageAdequate: true,
+          effectiveCoverage: "complete" as const, coverageAdequate: true,
         },
       },
       pendingResponse: { frontline: null, standard: {

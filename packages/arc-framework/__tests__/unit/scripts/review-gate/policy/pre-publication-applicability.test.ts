@@ -327,7 +327,7 @@ describe("pre-publication current contribution applicability", () => {
     });
     if (composition.status !== "composed") throw new Error(composition.reason);
     expect(resolveReviewPolicy(composition.request.standard)).toMatchObject({
-      state: "approval-required", nextAction: "obtain-ceiling-override",
+      state: "ready", nextAction: "local-prepare", payload: { pass: 3 },
     });
   });
 
