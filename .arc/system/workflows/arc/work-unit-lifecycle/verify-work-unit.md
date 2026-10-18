@@ -69,6 +69,23 @@ Request `arc check gate merge --force` before the final local attestation.
 
 ## Step 2 — Validate Success Criteria at Work-Unit Scope
 
+Before the criteria walk or its first independent reviewer, invoke `arc review changeset resolve -` over the complete
+work-unit diff, including local edits, using `validate-criteria` § Verification subject for its exact coordinates.
+This also applies without a Delivery Plan. Dispatch on the resolver's typed state/action pair:
+
+- `disabled / none`, `below-threshold / continue-review`, or `scope-selected / continue-review` — continue.
+- `consider-chunks / select-review-scope` — render `recommendedActionText`, then apply
+  [`review-chunking`][review-chunking]. Select bounded scopes or an explicit capable whole-target route before launch.
+  Keep the selected criteria and verification rubric unchanged.
+- `delivery-bound / continue-review` — use the bound member scopes as seeds, assess the selected member or seam's
+  attention burden under `review-chunking`, and resolve any uncovered verification scope before launch.
+- `evidence-unavailable / continue-review`, command failure, or an unsupported result — preserve the diagnostic and
+  resolve the missing measurement or scope evidence before launch; never treat it as below threshold.
+
+Retain the returned target, state, metrics when supplied, and scope disposition with the criteria report. Reuse an
+unchanged exact-subject result. This check creates no review evidence and leaves the independent companion's offer
+intact; the committed member-close and post-materialization checks retain their own boundaries.
+
 Inspect the task list for a Delivery Plan, then run the criteria walk at work-unit scope with exactly one of these
 criteria shapes.
 
