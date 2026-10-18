@@ -1,4 +1,8 @@
 /** Production assembly for approved review dispositions. */
+import { deriveReviewNextPassContext } from "../policy/review-next-pass.js";
+import type { EvidenceBoundReviewPolicyDependencies } from "../policy/review-policy-evidence.js";
+import type { ReviewPolicyCommandRequest } from "../policy/review-policy-driver.js";
+
 
 import { createCandidateResponseHeadContinuationReader, confirmCandidateResponseHeadContinuation } from "./candidate-response-head-continuation.js";
 import { readFile } from "node:fs/promises";
@@ -305,6 +309,75 @@ async function observePinnedCorrectionMember(input: {
   } catch {
     return null;
   }
+}
+
+/** Bind the existing contribution grounds used by response policy. */
+function createRespondPolicyConfirmation(context: {
+  repository: { exec: GitExec; cwd: string };
+  request: ReviewPolicyCommandRequest;
+  currentSettings: Awaited<ReturnType<typeof readConfigSettings>>["settings"];
+  rawGit: RawGitExec;
+  deliveryMembers: RepositoryDeliveryMemberLookup;
+  privateDeliveryTargets: ReturnType<typeof createPreBindingDeliveryReviewTargetDependencies>;
+}): NonNullable<EvidenceBoundReviewPolicyDependencies["confirmIncrementalApplicability"]> {
+  const { repository: input, request, currentSettings, rawGit, deliveryMembers, privateDeliveryTargets } = context;
+  return async (predecessor, current) => {
+        if (current.target.kind === "delivery-member"
+          && canonicalize(predecessor.target) === canonicalize(current.target)) {
+          return confirmIncrementalPredecessorApplicability({ predecessor, current });
+        }
+        const policyTarget = await resolveRespondPolicyTarget(
+          input, current, currentSettings["branch.base"],
+        );
+        if (policyTarget === null
+          || policyTarget.repository.toLowerCase() !== request.target.repository.toLowerCase()
+          || policyTarget.pullRequest !== request.target.pullRequest) return "unavailable";
+        const lineage = current.admission.lineage;
+        if (current.target.kind === "delivery-member" && lineage.kind === "delivery-member") {
+          return confirmRespondDeliveryMemberApplicability({
+            repository: input,
+            predecessor,
+            current,
+            lineage,
+            pullRequest: policyTarget.pullRequest,
+            baseRef: currentSettings["branch.base"],
+            rawGit,
+            deliveryMembers,
+            privateDeliveryTargets,
+          });
+        }
+        const selected = await readRespondCandidate(input, current);
+        const observeTarget = () => deriveLocalReviewTarget({
+          exec: input.exec,
+          cwd: input.cwd,
+          baseRef: currentSettings["branch.base"],
+          repositoryId: current.target.repositoryId,
+        });
+        if (policyTarget.pullRequest === null && selected !== null) {
+          return confirmNoPullRequestCandidatePriorProducer({
+            cwd: input.cwd,
+            workUnit: selected.workUnit,
+            baseBranch: currentSettings["branch.base"],
+            candidate: selected.record,
+            predecessor,
+            currentTarget: current.target,
+            currentLineage: lineage,
+            exec: input.exec,
+            rawExec: rawGit,
+            observeTarget,
+          });
+        }
+        return confirmNonDeliveryIncrementalApplicability({
+          predecessor,
+          currentTarget: current.target,
+          currentLineage: lineage,
+          repository: policyTarget.repository,
+          pullRequest: policyTarget.pullRequest,
+          candidate: selected?.record ?? null,
+          exec: rawGit,
+          observeTarget,
+        });
+  };
 }
 
 /** Bind respond to repository-common records and trusted local/runtime identities. */
@@ -657,69 +730,10 @@ export function createRespondDependencies(input: {
       const retainedSources = configured.sources.length === 0
         ? [...new Set(request.attempts.map(({ sourceId }) => sourceId))]
         : configured.sources;
-      const confirmIncrementalApplicability = async (
-        predecessor: ReviewResult,
-        current: ReviewResult,
-      ) => {
-        if (current.target.kind === "delivery-member"
-          && canonicalize(predecessor.target) === canonicalize(current.target)) {
-          return confirmIncrementalPredecessorApplicability({ predecessor, current });
-        }
-        const policyTarget = await resolveRespondPolicyTarget(
-          input, current, currentSettings["branch.base"],
-        );
-        if (policyTarget === null
-          || policyTarget.repository.toLowerCase() !== request.target.repository.toLowerCase()
-          || policyTarget.pullRequest !== request.target.pullRequest) return "unavailable";
-        const lineage = current.admission.lineage;
-        if (current.target.kind === "delivery-member" && lineage.kind === "delivery-member") {
-          return confirmRespondDeliveryMemberApplicability({
-            repository: input,
-            predecessor,
-            current,
-            lineage,
-            pullRequest: policyTarget.pullRequest,
-            baseRef: currentSettings["branch.base"],
-            rawGit,
-            deliveryMembers,
-            privateDeliveryTargets,
-          });
-        }
-        const selected = await readRespondCandidate(input, current);
-        const observeTarget = () => deriveLocalReviewTarget({
-          exec: input.exec,
-          cwd: input.cwd,
-          baseRef: currentSettings["branch.base"],
-          repositoryId: current.target.repositoryId,
-        });
-        if (policyTarget.pullRequest === null && selected !== null) {
-          return confirmNoPullRequestCandidatePriorProducer({
-            cwd: input.cwd,
-            workUnit: selected.workUnit,
-            baseBranch: currentSettings["branch.base"],
-            candidate: selected.record,
-            predecessor,
-            currentTarget: current.target,
-            currentLineage: lineage,
-            exec: input.exec,
-            rawExec: rawGit,
-            observeTarget,
-          });
-        }
-        return confirmNonDeliveryIncrementalApplicability({
-          predecessor,
-          currentTarget: current.target,
-          currentLineage: lineage,
-          repository: policyTarget.repository,
-          pullRequest: policyTarget.pullRequest,
-          candidate: selected?.record ?? null,
-          exec: rawGit,
-          observeTarget,
-        });
-      };
-      return resolveEvidenceBoundReviewPolicyContinuation(request, {
-        terminalResponsePerformed: false,
-      }, {
+      const confirmIncrementalApplicability = createRespondPolicyConfirmation({
+        repository: input, request, currentSettings, rawGit, deliveryMembers, privateDeliveryTargets,
+      });
+      const policyDependencies: EvidenceBoundReviewPolicyDependencies = {
         ...configured,
         sources: retainedSources,
         resultReader: createRepositoryReviewResultReader(publisher),
@@ -735,7 +749,28 @@ export function createRespondDependencies(input: {
           }
           return Promise.resolve(confirmedProducerTarget);
         },
+      };
+      if (request.lane === "frontline") return resolveEvidenceBoundReviewPolicyContinuation(request, {
+        terminalResponsePerformed: false,
+      }, policyDependencies);
+      const terminal = request.attempts.at(-1);
+      const predecessor = terminal?.outcome === "clean" || terminal?.outcome === "findings"
+        ? await policyDependencies.resultReader.readResult(terminal.reviewOperationId) : null;
+      const selected = predecessor === null ? null : await readRespondCandidate(input, predecessor);
+      const nextPassContext = await deriveReviewNextPassContext({ predecessor,
+        currentTarget: confirmedProducerTarget,
+        currentLineage: predecessor?.admission.lineage ?? { kind: "head-bound", vehicleKind: "review-target",
+          vehicleIdentity: confirmedProducerTarget.targetId, headSha: confirmedProducerTarget.headSha },
+        standardReview: request.standardReview, resultReader: policyDependencies.resultReader,
+        dispositionStore: policyDependencies.dispositionStore,
+        readResponsePerformance: producer => readLaneResponsePerformance(prepare.operationStore, producer),
+        confirmApplicability: confirmIncrementalApplicability,
+        candidateProof: { candidate: selected?.record ?? null, ...input, baseRef: currentSettings["branch.base"],
+          observeTarget: () => deriveLocalReviewTarget({ ...input, baseRef: currentSettings["branch.base"],
+            repositoryId: confirmedProducerTarget.repositoryId }) },
       });
+      return resolveEvidenceBoundReviewPolicyContinuation(request, { terminalResponsePerformed: false },
+        { ...policyDependencies, nextPassContext });
     },
     captureConditionalNextPass: async (authorization) => {
       const captured = await captureConditionalNextPassAuthorization(prepare.operationStore, {

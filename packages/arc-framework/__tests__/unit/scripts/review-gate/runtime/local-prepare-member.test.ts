@@ -1,3 +1,4 @@
+import { withReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
 import { describe, expect, it, vi } from "vitest";
 import { createLocalReviewPreparationFixture as fixture, createDeliveryLocalReviewAdmission as deliveryAdmission, LOCAL_REVIEW_DELIVERABLE_ID as DELIVERABLE_ID, LOCAL_REVIEW_PLAN_ID as PLAN_ID } from "../../../../fixtures/local-review-preparation.js";
 
@@ -871,7 +872,7 @@ describe("local review member preparation", () => {
           completedPasses,
           attempts,
           judgment,
-        }) => ({ state: "ready", pass: assertStandardReviewExecutionAdmission({
+        }) => ({ state: "ready", pass: assertStandardReviewExecutionAdmission(withReviewNextPassContext({
           target: {
             repository: "owner/repository",
             pullRequest: null,
@@ -889,7 +890,7 @@ describe("local review member preparation", () => {
             ...judgment,
             invocation: { mode: "force", sourceId: "delegated-agent" },
           },
-        }).payload.pass });
+        })).payload.pass });
         const dependencies = { ...context.dependencies, validatePolicyAdmission };
         const first = await prepareLocalReview(request, dependencies);
         const state = context.published();

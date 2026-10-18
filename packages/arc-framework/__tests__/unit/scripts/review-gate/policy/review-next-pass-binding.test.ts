@@ -25,6 +25,14 @@ function fixture(findings = false) {
 }
 
 describe("next-pass evidence binding", () => {
+  it("refuses a standard internal request without repository-derived next-pass facts", () => {
+    const { request, dependencies } = fixture();
+    const internal = { ...request, attempts: [], completedPasses: 0, sources: dependencies.sources,
+      maxPasses: dependencies.maxPasses };
+    assertSchemaRefuses(ReviewPolicyRequestSchema, internal, ["nextPassContext"]);
+    assertSchemaAccepts(ReviewPolicyRequestSchema, { ...internal, nextPassContext: dependencies.nextPassContext });
+  });
+
   it("carries context on both binding paths", async () => {
     const { request, dependencies } = fixture();
     expect(await bindReviewPolicyEvidence(request, dependencies)).toMatchObject({ nextPassContext: dependencies.nextPassContext });

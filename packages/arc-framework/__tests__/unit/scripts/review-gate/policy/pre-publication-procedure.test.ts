@@ -596,6 +596,7 @@ function request(overrides: Record<string, unknown> = {}) {
       schemaVersion: 1,
       target,
       lane: "standard",
+      nextPassContext: { convergence: "none", responseDue: false, incremental: null },
       standardReview,
       sources: ["codex-pr", "delegated-agent"],
       completedPasses: 0,

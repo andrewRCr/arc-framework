@@ -1,5 +1,7 @@
 /** The hosted pass an Errand head offers after an approved fix, and the correction its admission accepts. */
 
+import { readResolveNextPassContext } from "../../src/handlers/review-next-pass-context.js";
+import { createRepositoryReviewResultReader } from "../../src/scripts/review-gate/hosts/local/review-result-reader-composition.js";
 import { execFile } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -125,7 +127,7 @@ async function fixedErrand(options: FixedErrandOptions = {}) {
   await writeFile(join(root, ".arc/system/arc-config.yml"),
     "review.standard_sources: [coderabbit-pr, codex-pr]\nreview.standard_max_passes: 2\n", "utf8");
   await writeFile(join(root, "change.txt"), "reviewed change\n", "utf8");
-  await git(root, ["add", "change.txt"]);
+  await git(root, ["add", "change.txt", ".arc/system/arc-config.yml"]);
   await git(root, ["commit", "-m", "reviewed change"]);
   const firstHead = await git(root, ["rev-parse", "HEAD"]);
   const firstTree = await git(root, ["rev-parse", "HEAD^{tree}"]);
@@ -251,7 +253,7 @@ async function fixedErrand(options: FixedErrandOptions = {}) {
     vehicleIdentity: claimId, headSha: fixedHead };
   const statusTarget = { repository: "owner/repo", headRef: branch, headSha: fixedHead };
   return {
-    publisher, store, provider, standardReview, statusTarget,
+    root, exec, dispositionStore, firstAttemptId, publisher, store, provider, standardReview, statusTarget,
     errand: { slug, claimId, branch },
     fixedReviewTarget: reviewTargetAt(fixedHead, fixedTree),
     readStatus: (withBaseRef = true) => readErrandRoutedObligation({
@@ -413,5 +415,34 @@ describe("Errand hosted correction pass", () => {
       code: "invalid-input",
       message: expect.stringContaining("the earlier pass was a `codex-pr` review"),
     });
+  });
+});
+
+
+describe("ordinary resolve next-pass records", () => {
+  it.each(["major", "minor"] as const)("derives the earlier-head %s response from the Errand claim", async severity => {
+    const errand = await fixedErrand({ severity, retrigger: "full-final" });
+    const request = responsePolicyRequestFixture({ headSha: errand.statusTarget.headSha, pullRequest: 42,
+      sourceId: errand.provider, reviewOperationId: errand.firstAttemptId, standardReview: errand.standardReview });
+    const context = await readResolveNextPassContext({ request: { ...request, attempts: [] }, root: errand.root,
+      exec: errand.exec, operationStore: errand.store, dispositionStore: errand.dispositionStore,
+      resultReader: createRepositoryReviewResultReader(errand.publisher) });
+    expect(context).toEqual({ convergence: severity === "major" ? "unconverged" : "converged",
+      responseDue: false, incremental: severity === "major" ? { basis: "fix-check", scope: errand.expectedScope } : null });
+  });
+
+  it("reads a same-head clean terminal instead of the earlier material response", async () => {
+    const errand = await fixedErrand();
+    await errand.recordCorrectionPass(errand.expectedScope);
+    const attempts = await errand.readAttempts();
+    const terminal = attempts.at(-1);
+    if (terminal === undefined) throw new Error("expected terminal correction");
+    const request = responsePolicyRequestFixture({ headSha: errand.statusTarget.headSha, pullRequest: 42,
+      sourceId: errand.provider, reviewOperationId: terminal.attemptId, completedPasses: 2, standardReview: errand.standardReview });
+    const context = await readResolveNextPassContext({ request: { ...request,
+      attempts: [{ sourceId: errand.provider, outcome: "clean", reviewOperationId: terminal.attemptId }] }, root: errand.root,
+      exec: errand.exec, operationStore: errand.store, dispositionStore: errand.dispositionStore,
+      resultReader: createRepositoryReviewResultReader(errand.publisher) });
+    expect(context).toEqual({ convergence: "converged", responseDue: false, incremental: null });
   });
 });

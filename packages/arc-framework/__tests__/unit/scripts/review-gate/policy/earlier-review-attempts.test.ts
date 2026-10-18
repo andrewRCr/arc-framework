@@ -1,3 +1,4 @@
+import { withReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
 /** Storage-neutral discovery of exact earlier hosted review attempts. */
 
 import { describe, expect, it } from "vitest";
@@ -874,7 +875,7 @@ describe("earlier review attempt query", () => {
       readonly logicalPass: number;
       readonly sourceId: string;
       readonly outcome: string;
-    }) => resolveReviewPolicy({
+    }) => resolveReviewPolicy(withReviewNextPassContext({
       schemaVersion: 1,
       target: { repository: "owner/repository", pullRequest: 42, headSha: oid("c") },
       lane: "standard",
@@ -894,7 +895,7 @@ describe("earlier review attempt query", () => {
         materialFix: attempt.outcome !== "clean",
         coverageAdequate: true,
       },
-    });
+    }));
     const discharge = async (
       states: readonly ReturnType<typeof laneState>[],
       projectApplicability = mechanicalApplicability,

@@ -1,4 +1,6 @@
 /** Production composition for exact-target review status. */
+import { deriveHostedReviewTarget } from "./policy/hosted-review-target.js";
+
 
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { workUnitPathTreatmentContext } from "../../lib/base-drift/current-adapters.js";
@@ -701,10 +703,15 @@ export async function readRoutedObligation(
           target: firstTarget,
           ...(judgment?.sourceId === undefined ? {} : { sourceId: judgment.sourceId }),
         });
+        const dischargeArgs = { reservation, baseRevision: firstTarget.baseRevision, approvedHead: firstTarget.headSha,
+          changeRequest: { repository: firstTarget.repository, pullRequest: firstTarget.pullRequest },
+          vehicle: firstTarget.vehicle, candidate: record };
         const admission = await resolveEvidenceBoundHostedReservationPolicy({
           reservation,
           snapshot,
           repositoryId,
+          currentReviewTarget: await deriveHostedReviewTarget({ cwd, exec, currentRepositoryId: repositoryId,
+            approvedHeadSha: firstTarget.headSha, baseRevision: firstTarget.baseRevision, vehicle: firstTarget.vehicle }),
           target: {
             repository: firstTarget.repository,
             pullRequest: firstTarget.pullRequest,
@@ -730,19 +737,10 @@ export async function readRoutedObligation(
           dispositionStore,
           readResponsePerformance: (predecessor) => readLaneResponsePerformance(store, predecessor),
           confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),
-          confirmIncrementalApplicability: (predecessor, current) => (
-            readDischarge.confirmIncrementalApplicability({
-              reservation,
-              baseRevision: firstTarget.baseRevision,
-              approvedHead: firstTarget.headSha,
-              changeRequest: {
-                repository: firstTarget.repository,
-                pullRequest: firstTarget.pullRequest,
-              },
-              vehicle: firstTarget.vehicle,
-              candidate: record,
-            }, predecessor, current)
-          ),
+          confirmIncrementalApplicability: (predecessor, current) =>
+            readDischarge.confirmIncrementalApplicability(dischargeArgs, predecessor, current),
+          confirmCurrentApplicability: predecessor =>
+            readDischarge.confirmCurrentIncrementalApplicability(dischargeArgs, predecessor),
         });
         if (admission.status === "unavailable") {
           return { state: "blocked", detail: admission.detail };

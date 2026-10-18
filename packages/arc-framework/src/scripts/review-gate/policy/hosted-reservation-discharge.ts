@@ -1,4 +1,8 @@
 /** Discharge evidence for a hosted-review reservation carried across publication. */
+import { confirmHostedCurrentCorrection } from "./hosted-correction-proof.js";
+import { createHostedApplicabilityContext } from "./hosted-applicability-context.js";
+import { deriveHostedReviewTarget } from "./hosted-review-target.js";
+import { deriveHostedNextPassContext } from "./hosted-next-pass-context.js";
 
 import type { DeliveryReviewMemberVehicle } from "../../../lib/delivery/review-vehicle.js";
 import { canonicalize } from "../../../lib/kernel/canonical/canonical-json.js";
@@ -8,7 +12,6 @@ import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state
 import type { GitExec } from "../../../lib/git/index.js";
 import type { RawGitExec } from "../../../lib/git/exec.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
-import { readGitCandidateTargetBase } from "../../../lib/work-unit/git-candidate-effective-target.js";
 import type { DeliveryDischargeTargetLookup } from "../core/delivery-member-lookup.js";
 import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import { LocalApprovedDispositionRecordStore } from
@@ -31,7 +34,6 @@ import { configuredSourceSuffix } from "./hosted-reservation-admission.js";
 import { bindReviewSourceReference } from "../core/review-source-reference.js";
 import {
   candidateExpectsEarlierReviewAttempt,
-  projectEarlierReviewApplicability,
 } from "./earlier-review-applicability.js";
 import type { ReviewResolveEnvelope } from "./review-policy-driver.js";
 import { projectReviewPolicyAttempt } from "./review-policy-driver.js";
@@ -50,9 +52,7 @@ import {
   ProjectedLaneAttempt,
   EarlierApplicableAttempt,
   IncrementalCorrectionScopeCandidate,
-  incrementalApplicabilityFromEarlierRead,
   confirmIncrementalPredecessorApplicability,
-  confirmExactCurrentCorrectionPredecessor,
   isCompleteStandardVerdict,
   terminalPolicyOutcome,
   currentCorrectionScopeCandidate,
@@ -607,103 +607,8 @@ export function createHostedReservationDischargeReader(input: {
   };
   const rawExec = input.rawExec ?? createRawGitExec(input.cwd);
 
-  const createApplicabilityContext = async ({
-    baseRevision,
-    approvedHead,
-    changeRequest,
-    vehicle,
-    candidate,
-  }: Omit<HostedReservationDischargeReaderArgs, "workUnitId" | "reservation">) => {
-    const currentRepositoryId = await repositoryId();
-    const lineage = vehicle !== undefined
-      ? {
-          kind: "delivery-member" as const,
-          planId: vehicle.planId,
-          deliverableId: vehicle.deliverableId,
-          workUnitId: vehicle.workUnitId,
-        }
-      : candidate === undefined
-        ? undefined
-        : { kind: "candidate" as const, candidateId: candidate.attestation.candidateId };
-    const snapshot = candidate === undefined || changeRequest === null
-      ? null
-      : store.readOperationSnapshot();
-    const observeEndpoints = async (): Promise<{ readonly head: string; readonly base: string }> => {
-      if (changeRequest === null || input.host === undefined) {
-        throw new Error("Fresh hosted-review endpoints are unavailable.");
-      }
-      if (vehicle !== undefined) {
-        if (input.delivery === undefined) {
-          throw new Error("Fresh delivery-member endpoints are unavailable.");
-        }
-        const resolved = await input.delivery.resolveDischargeTargets(vehicle.workUnitId);
-        const matching = resolved.status !== "resolved"
-          ? []
-          : resolved.targets.filter((target) => (
-              target.planId === vehicle.planId
-              && target.deliverableId === vehicle.deliverableId
-              && target.workUnitId === vehicle.workUnitId
-              && target.changeRequestId === String(changeRequest.pullRequest)
-            ));
-        const current = matching.length === 1 ? matching[0] : undefined;
-        if (current === undefined) throw new Error("Fresh delivery-member endpoints are ambiguous.");
-        const observed = await input.host.readRequest(changeRequest.repository, {
-          providerId: current.providerId,
-          changeRequestId: current.changeRequestId,
-        });
-        if (observed.status !== "observed"
-          || observed.request.repository.toLowerCase() !== changeRequest.repository.toLowerCase()) {
-          throw new Error("Fresh delivery-member request coordinates are unavailable.");
-        }
-        return { head: observed.request.headSha, base: current.base };
-      }
-      const observed = await input.host.readRequest(changeRequest.repository, {
-        providerId: "github",
-        changeRequestId: String(changeRequest.pullRequest),
-      });
-      if (observed.status !== "observed"
-        || observed.request.repository.toLowerCase() !== changeRequest.repository.toLowerCase()) {
-        throw new Error("Fresh hosted-review request coordinates are unavailable.");
-      }
-      const observedBase = await readGitCandidateTargetBase({
-        cwd: input.cwd,
-        revision: observed.request.headSha,
-        baseBranch: observed.request.baseRef,
-        ...(input.remote === undefined ? {} : { remote: input.remote }),
-        exec: input.exec,
-      });
-      if (observedBase.status !== "resolved") throw new Error(observedBase.detail);
-      return { head: observed.request.headSha, base: observedBase.base };
-    };
-    const readEarlierAttemptApplicability = snapshot === null
-      || changeRequest === null
-      || candidate === undefined
-      || lineage === undefined
-      ? undefined
-      : async (sourceId: string): Promise<EarlierHostedAttemptApplicabilityRead> => (
-          projectEarlierReviewApplicability({
-            query: {
-              schemaVersion: 1,
-              repositoryId: currentRepositoryId,
-              repository: changeRequest.repository,
-              pullRequest: changeRequest.pullRequest,
-              currentHead: approvedHead,
-              currentBase: baseRevision,
-              lane: "standard",
-              sourceId,
-              lineage,
-              ...(vehicle === undefined ? {} : { currentVehicle: vehicle }),
-            },
-            currentBase: baseRevision,
-            snapshot: await snapshot,
-            candidate,
-            exec: rawExec,
-            observeEndpoints,
-            readDispositionRecord: (attemptId) => dispositions.readDispositionRecord(attemptId),
-          })
-        );
-    return { currentRepositoryId, lineage, readEarlierAttemptApplicability };
-  };
+  const createApplicabilityContext = (args: Omit<HostedReservationDischargeReaderArgs, "workUnitId" | "reservation">) =>
+    createHostedApplicabilityContext({ ...input, store, dispositions, repositoryId, rawExec, args });
 
   const readTarget = async ({
     reservation,
@@ -757,6 +662,10 @@ export function createHostedReservationDischargeReader(input: {
       current,
       readEarlierAttemptApplicability,
     });
+    const observeCurrentTarget = () => deriveHostedReviewTarget({ ...input, currentRepositoryId,
+      approvedHeadSha: approvedHead, baseRevision, vehicle });
+    const currentTarget = await observeCurrentTarget();
+    const readResponsePerformance = (predecessor: ReviewResult) => readLaneResponsePerformance(store, predecessor);
     const resolveTerminalPolicy = async (terminal: {
       readonly attemptId: string;
       readonly logicalPass: number;
@@ -774,6 +683,8 @@ export function createHostedReservationDischargeReader(input: {
         pullRequest: changeRequest.pullRequest,
         headSha: terminal.producerTarget.headSha,
       };
+      const nextPassContext = await deriveHostedNextPassContext({ ...nextPassInputs,
+        predecessorId: terminal.attemptId, target: terminal.producerTarget });
       return resolveEvidenceBoundReviewPolicy({
         schemaVersion: 1,
         target: policyTarget,
@@ -793,6 +704,7 @@ export function createHostedReservationDischargeReader(input: {
           : { scopeSelection: { mode: terminal.scopeMode, target: policyTarget } }),
       }, {
         sources: reservation.sources,
+        nextPassContext,
         maxPasses: await maxPasses(),
         resultReader,
         dispositionStore: dispositions,
@@ -825,33 +737,28 @@ export function createHostedReservationDischargeReader(input: {
           (result) => readLaneResponsePerformance(store, result),
         ),
         confirmApplicability: confirmIncrementalApplicability,
-        confirmCurrentApplicability: async (candidate, headSha) => {
-          if (await confirmExactCurrentCorrectionPredecessor({
-            predecessor: candidate,
-            currentHeadSha: headSha,
-            approvedHeadSha: approvedHead,
-            baseRevision,
-            currentRepositoryId,
-            currentLineage: lineage,
-            ...(vehicle === undefined ? {} : { vehicle }),
-            exec: input.exec,
-            cwd: input.cwd,
-          })) return "applicable";
-          const sourceId = candidate.kind === "hosted"
-            ? candidate.sourceIdentity
-            : candidate.kind === "attested-local"
-              ? "delegated-agent"
-              : undefined;
-          if (sourceId === undefined || readEarlierAttemptApplicability === undefined) return "unavailable";
-          return incrementalApplicabilityFromEarlierRead({
-            producerId: candidate.producerId,
-            producerTarget: candidate.target,
-            earlier: await readEarlierAttemptApplicability(sourceId),
-          });
-        },
+        confirmCurrentApplicability: (predecessor, currentHeadSha) => confirmHostedCurrentCorrection({
+          predecessor, currentHeadSha, approvedHeadSha: approvedHead, baseRevision,
+          currentRepositoryId, currentLineage: lineage, vehicle, ...input, readEarlierAttemptApplicability,
+        }),
       });
     };
-    return projectHostedReservationDischarge({
+    const nextPassInputs = { target: currentTarget, lineage, standardReview: reservation.obligation,
+      evidence: { resultReader, dispositionStore: dispositions, readResponsePerformance, confirmIncrementalApplicability },
+      candidate, cwd: input.cwd, exec: input.exec, observeTarget: observeCurrentTarget,
+      confirmCurrentApplicability: (predecessor: ReviewResult, target: ReviewResult["target"]) => confirmHostedCurrentCorrection({
+        predecessor, currentHeadSha: target.headSha, approvedHeadSha: approvedHead, baseRevision,
+        currentRepositoryId, currentLineage: lineage, vehicle, ...input, readEarlierAttemptApplicability,
+      }) };
+    const progressByHead = new Map<string, Promise<LaneProgressProjection>>();
+    const readProgress = (headSha: string) => {
+      let progress = progressByHead.get(headSha);
+      progress ??= readLaneProgressAcrossLineage(store, { lane: "standard", repositoryId: currentRepositoryId,
+        headSha, lineageHeadShas: [], ...(lineage === undefined ? {} : { lineage }) });
+      progressByHead.set(headSha, progress);
+      return progress;
+    };
+    const discharge = await projectHostedReservationDischarge({
       reservation,
       ...(invocation === undefined ? {} : { invocation }),
       span,
@@ -861,13 +768,7 @@ export function createHostedReservationDischargeReader(input: {
             ...changeRequest, headSha: approvedHead, baseRevision,
             ...(vehicle === undefined ? {} : { vehicle }),
           },
-      readLaneProgress: (headSha) => readLaneProgressAcrossLineage(store, {
-        lane: "standard",
-        repositoryId: currentRepositoryId,
-        headSha,
-        lineageHeadShas: [],
-        ...(lineage === undefined ? {} : { lineage }),
-      }),
+      readLaneProgress: readProgress,
       bindCurrentAttemptRef: (attemptId) => bindReviewSourceReference({
         kind: "hosted",
         operationId: laneProgressOperationId({
@@ -936,6 +837,9 @@ export function createHostedReservationDischargeReader(input: {
             ),
           }),
     });
+    const nextPassContext = await deriveHostedNextPassContext({ ...nextPassInputs,
+      progress: await Promise.all([...progressByHead.values()]) });
+    return { ...discharge, nextPassContext };
   };
 
   const reader = async ({ workUnitId, ...target }: HostedReservationDischargeReaderArgs) => {
@@ -1007,6 +911,12 @@ export function createHostedReservationDischargeReader(input: {
           };
   };
   return Object.assign(reader, {
+    confirmCurrentIncrementalApplicability: async (args: HostedReservationDischargeReaderArgs, predecessor: ReviewResult) => {
+      const { currentRepositoryId, lineage, readEarlierAttemptApplicability } = await createApplicabilityContext(args);
+      return confirmHostedCurrentCorrection({ ...input, predecessor, currentHeadSha: args.approvedHead,
+        approvedHeadSha: args.approvedHead, baseRevision: args.baseRevision, currentRepositoryId,
+        currentLineage: lineage, vehicle: args.vehicle, readEarlierAttemptApplicability });
+    },
     confirmIncrementalApplicability: async (
       args: HostedReservationDischargeReaderArgs,
       predecessor: ReviewResult,

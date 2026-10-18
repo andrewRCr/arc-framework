@@ -1,3 +1,5 @@
+import { firstReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
+import { withReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
 /** Unit coverage for typed non-delivery local review coverage recovery. */
 
 import { describe, expect, it, vi } from "vitest";
@@ -197,7 +199,7 @@ function dependencies(predecessor: ReviewResult): {
 }
 
 function readyPolicy(headSha: string, projection: StandardReviewObligationProjection = standardReview) {
-  return resolveReviewPolicy({
+  return resolveReviewPolicy(withReviewNextPassContext({
     schemaVersion: 1,
     target: { repository: "local/repo-1", pullRequest: null, headSha },
     lane: "standard",
@@ -208,7 +210,7 @@ function readyPolicy(headSha: string, projection: StandardReviewObligationProjec
     sources: ["delegated-agent"],
     maxPasses: 2,
     invocation: { mode: "force", sourceId: "delegated-agent" },
-  });
+  }));
 }
 
 describe("local review coverage selection", () => {
@@ -755,6 +757,7 @@ describe("local review coverage selection", () => {
     }, {
       sources: ["delegated-agent"],
       maxPasses: 3,
+      nextPassContext: firstReviewNextPassContext,
       resultReader: {
         readResult: async (producerId) => producerId === predecessor.producerId
           ? predecessor
@@ -826,7 +829,7 @@ describe("local review coverage selection", () => {
       || (earlier.producerId === middle.producerId && later.producerId === "errand-current")
         ? "applicable" as const : "unavailable" as const
     );
-    const policy = resolveReviewPolicy({
+    const policy = resolveReviewPolicy(withReviewNextPassContext({
       schemaVersion: 1,
       target: { repository: "local/repo-1", pullRequest: null, headSha: currentTarget.headSha },
       lane: "standard",
@@ -837,7 +840,7 @@ describe("local review coverage selection", () => {
       sources: ["delegated-agent"],
       maxPasses: 3,
       invocation: { mode: "force", sourceId: "delegated-agent" },
-    });
+    }));
     const offered = await resolveLocalReviewCoverageSelection({
       policy, target: currentTarget, sourceId: "delegated-agent",
       lineage: { ...owner, headSha: currentTarget.headSha }, standardReview,
@@ -875,6 +878,7 @@ describe("local review coverage selection", () => {
       attempts: [{ sourceId: "delegated-agent", outcome: "clean", reviewOperationId: current.producerId }],
     }, {
       sources: ["delegated-agent"], maxPasses: 3,
+      nextPassContext: firstReviewNextPassContext,
       resultReader: { readResult: async (producerId) => producerId === current.producerId
         ? current : reader.readResult(producerId) },
       dispositionStore: dependencies(first).dispositionStore,

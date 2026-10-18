@@ -8,19 +8,12 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import { responsePolicyRequestFixture } from "../../../../fixtures/review-response-policy.js";
+import { approvedRecord as approvedResponseRecord } from "../../../../fixtures/review-response-proof.js";
 
 import { canonicalDigest, CanonicalDigestSchema } from "../../../../../src/lib/kernel/index.js";
 import { SlugSchema } from "../../../../../src/lib/kernel/schema/slug.js";
-import { ApprovedDispositionRecordSchema } from
-  "../../../../../src/scripts/review-gate/core/advisory-records.js";
 import { createFrontlineAdmission } from
   "../../../../../src/scripts/review-gate/core/frontline-admission.js";
-import {
-  approveDispositionState,
-  createDispositionSet,
-  proposeDispositionSet,
-} from "../../../../../src/scripts/review-gate/core/dispositions.js";
 import {
   applyCarriedOwnerAcceptedTerminus,
   applyCarriedStandardReviewReservation,
@@ -39,8 +32,6 @@ import {
 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import type { ReviewResult } from
   "../../../../../src/scripts/review-gate/core/review-result.js";
-import { bindReviewSourceReference } from
-  "../../../../../src/scripts/review-gate/core/review-source-reference.js";
 import {
   ReviewOperationStateSchema,
   type ReviewOperationState,
@@ -261,71 +252,9 @@ function hostedFindingsResult(
 }
 
 function approvedRecord(result: ReviewResult) {
-  if (result.kind !== "hosted") throw new Error("expected hosted result");
-  const finding = result.findings[0];
-  if (finding === undefined) throw new Error("expected finding");
-  const set = createDispositionSet({
-    schemaVersion: 2,
-    semanticsVersion: "review-gate/v2",
-    targetId: result.target.targetId,
-    producerId: result.producerId,
-    resultDigest: result.resultDigest,
-    policyVersion: result.admission.policyVersion,
-    rubricVersion: result.requirement.rubricVersion,
-    rubricDigest: result.requirement.rubricDigest,
-    proposedBy: "arc-cli/0.1.0",
-    proposedVerification: "full",
-    findings: [{
-      findingId: finding.findingId,
-      sourceIdentity: result.sourceIdentity,
-      locus: finding.locus,
-      verificationRefs: [`source:${finding.locus}`],
-      reportedSeverity: finding.severity,
-      sourceVerification: "verified",
-      verifiedSeverity: "minor",
-      rationale: "The source check established this disposition.",
-      recommendation: "Record the approved response.",
-      disposition: "fix",
-      openQuestions: [],
-    }],
-  });
-  const approvedDisposition = approveDispositionState({
-    proposed: proposeDispositionSet(set),
-    approvedBy: "andrew",
-    approvedAt: "2026-09-09T20:00:00Z",
-  });
-  return ApprovedDispositionRecordSchema.parse({
-    schemaVersion: 1,
-    semanticsVersion: "review-advisory/v1",
-    repositoryId: result.repositoryId,
-    operationId: result.producerId,
-    candidate: null,
-    errand: null,
-    deliveryMember: null,
-    source: {
-      kind: "hosted",
-      attemptRef: bindReviewSourceReference({
-        kind: "hosted",
-        operationId: result.laneOperationId,
-        durableRef: result.producerId,
-      }),
-      hostedResultId: result.resultDigest,
-    },
-    currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
-    approvedDispositionLineage: [{
-      approvedDisposition,
-      responsePolicyRequest: responsePolicyRequestFixture({
-        headSha: result.target.headSha,
-        sourceId: result.sourceIdentity,
-        reviewOperationId: result.producerId,
-      }),
-      fixAuthorization: null,
-      errandFixResponse: null,
-      deliveryMemberFixResponse: null,
-      predecessorDispositionSetId: null,
-      successorDispositionSetId: null,
-    }],
-  });
+  return approvedResponseRecord(result, [{
+    sourceVerification: "verified", verifiedSeverity: "minor", disposition: "fix",
+  }]);
 }
 
 function evidenceDependencies(results: readonly ReviewResult[]) {
@@ -1410,6 +1339,7 @@ describe("composePrePublicationReviewRequest", () => {
     });
     expect(composition.status === "composed" && composition.request.standard).toMatchObject({
       completedPasses: 1,
+      nextPassContext: { convergence: "pending", responseDue: true, incremental: null },
       attempts: [{ sourceId: "codex-pr", outcome: "findings" }],
     });
     expect(composition.status === "composed" && composition.request.pendingResponse.standard)
@@ -1542,6 +1472,7 @@ describe("composePrePublicationReviewRequest", () => {
 
     expect(composition.status === "composed" && composition.request.standard).toMatchObject({
       completedPasses: 2,
+      nextPassContext: { convergence: "converged", responseDue: false, incremental: null },
       verifiedTerminalSignal: { coverageAdequate: true },
     });
   });

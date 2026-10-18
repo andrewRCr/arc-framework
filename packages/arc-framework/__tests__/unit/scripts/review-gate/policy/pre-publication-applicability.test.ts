@@ -1,3 +1,4 @@
+import { withReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
 /** Current-contribution applicability in pre-publication policy composition. */
 
 import { describe, expect, it, vi } from "vitest";
@@ -371,7 +372,7 @@ describe("pre-publication current contribution applicability", () => {
     if (required.status !== "composed") return;
     expect(required.request.standard.attempts).toEqual([]);
     expect(required.request.standard.verifiedTerminalSignal).toBeUndefined();
-    expect(resolveReviewPolicy(required.request.standard)).toMatchObject({
+    expect(resolveReviewPolicy(withReviewNextPassContext(required.request.standard))).toMatchObject({
       state: "ready", nextAction: "hosted-request",
     });
     expect(confirmPriorProducerApplicability).toHaveBeenCalledWith(
@@ -384,7 +385,7 @@ describe("pre-publication current contribution applicability", () => {
     const unavailable = await composePrePublicationReviewRequest(
       { workUnit: "example", selfReview: "settled" }, deps,
     );
-    expect(unavailable.status === "composed" && resolveReviewPolicy(unavailable.request.standard))
+    expect(unavailable.status === "composed" && resolveReviewPolicy(withReviewNextPassContext(unavailable.request.standard)))
       .toMatchObject({ state: "ready", nextAction: "hosted-request" });
 
     confirmPriorProducerApplicability.mockResolvedValue("applicable");

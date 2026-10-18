@@ -1,4 +1,8 @@
 /** Ordered admission for a hosted-review reservation carried across publication. */
+import { deriveReviewNextPassContextFromAttempts } from "./review-next-pass.js";
+import type { ReviewResult } from "../core/review-result.js";
+import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
+import type { IncrementalPredecessorApplicability } from "./incremental-coverage-basis.js";
 
 import {
   sameDeliveryReviewMemberIdentity,
@@ -16,6 +20,7 @@ import {
   projectReviewPolicyAttempt,
   resolveReviewPolicy,
   type ReviewPolicyCommandRequest,
+  type ReviewPolicyRequest,
   type ReviewResolveEnvelope,
 } from "./review-policy-driver.js";
 import { assertStandardReviewExecutionAdmission, requireDriverAdmission } from "./review-execution-admission.js";
@@ -59,6 +64,7 @@ export type HostedReservationPolicyProgress =
     readonly completePasses: number;
     readonly attempts: ReviewPolicyCommandRequest["attempts"];
     readonly attemptHistory: readonly HostedReservationPolicyAttemptProgress[];
+    readonly predecessorProducerId?: string;
   }
   | { readonly status: "unavailable"; readonly detail: string };
 
@@ -77,8 +83,8 @@ type EvidenceBoundHostedReservationPolicyInput = HostedReservationPolicyInput & 
 type HostedReservationEvidenceDependencies = Pick<
   EvidenceBoundReviewPolicyDependencies,
   "resultReader" | "dispositionStore" | "confirmTarget" | "confirmIncrementalApplicability"
-    | "readResponsePerformance"
->;
+    | "readResponsePerformance" | "nextPassContext"
+> & { readonly confirmCurrentApplicability?: (predecessor: ReviewResult) => Promise<IncrementalPredecessorApplicability> };
 
 /** Project driver-grade progress for one delivery member across exact head movement. */
 export function projectHostedReservationPolicyProgress(input: {
@@ -96,6 +102,7 @@ export function projectHostedReservationPolicyProgress(input: {
   if (input.vehicle.head !== input.target.headSha) {
     return { status: "unavailable", detail: "The delivery-member vehicle does not identify the current target head." };
   }
+  let predecessor: { attemptId: string; logicalPass: number } | undefined;
   const completedLogicalPasses = new Set<number>();
   const completeLogicalPasses = new Set<number>();
   const historyTimeline: Array<{
@@ -156,6 +163,9 @@ export function projectHostedReservationPolicyProgress(input: {
         && (attempt.outcome === "clean"
         || attempt.outcome === "findings"
         || attempt.outcome === "settled-findings")) {
+        if (predecessor === undefined || attempt.logicalPass > predecessor.logicalPass) {
+          predecessor = { attemptId: attempt.attemptId, logicalPass: attempt.logicalPass };
+        }
         completedLogicalPasses.add(attempt.logicalPass);
         if (local?.effectiveCoverage === "complete" || hosted?.effectiveCoverage === "complete") {
           completeLogicalPasses.add(attempt.logicalPass);
@@ -200,6 +210,7 @@ export function projectHostedReservationPolicyProgress(input: {
     completePasses: completeLogicalPasses.size,
     attempts,
     attemptHistory,
+    ...(predecessor === undefined ? {} : { predecessorProducerId: predecessor.attemptId }),
   };
 }
 
@@ -208,8 +219,10 @@ export function resolveHostedReservationPolicy(input: {
   readonly reservation: StandardReviewReservationV1;
   readonly snapshot: ReviewOperationStateSnapshot;
   readonly repositoryId: string;
+  readonly currentReviewTarget?: ReviewTarget;
   readonly target: { readonly repository: string; readonly pullRequest: number; readonly headSha: string };
   readonly vehicle: DeliveryReviewMemberVehicle;
+  readonly nextPassContext?: ReviewPolicyRequest["nextPassContext"];
   readonly maxPasses: number;
   readonly requestAttempts?: ReviewPolicyCommandRequest["attempts"];
   readonly invocation?: ReviewPolicyCommandRequest["invocation"];
@@ -239,6 +252,7 @@ export function resolveHostedReservationPolicy(input: {
       standardReview: input.reservation.obligation,
       sources: input.reservation.sources,
       maxPasses: input.maxPasses,
+      nextPassContext: input.nextPassContext,
       completedPasses: progress.completedPasses,
       attempts,
       ...(input.invocation === undefined ? {} : { invocation: input.invocation }),
@@ -290,6 +304,17 @@ export async function resolveEvidenceBoundHostedReservationPolicy(
   const latestCurrentAttempt = [...progress.attemptHistory].reverse().find((attempt) => (
     attempt.headSha === input.target.headSha
   ));
+  const nextPassContext = await deriveReviewNextPassContextFromAttempts({ attempts,
+    predecessorOperationId: progress.predecessorProducerId,
+    currentTarget: input.currentReviewTarget ?? null,
+    currentLineage: { kind: "delivery-member", planId: input.vehicle.planId,
+      deliverableId: input.vehicle.deliverableId, workUnitId: input.vehicle.workUnitId },
+    standardReview: input.reservation.obligation, resultReader: dependencies.resultReader,
+    dispositionStore: dependencies.dispositionStore,
+    readResponsePerformance: dependencies.readResponsePerformance ?? (() => Promise.resolve(null)),
+    confirmApplicability: dependencies.confirmIncrementalApplicability,
+    confirmCurrentApplicability: dependencies.confirmCurrentApplicability,
+  });
   const policy = await resolveEvidenceBoundReviewPolicyContinuation(request, {
     terminalResponsePerformed: latestCurrentAttempt?.outcome === "settled-findings",
     coverageSelected: input.coverageSelection !== undefined,
@@ -297,6 +322,7 @@ export async function resolveEvidenceBoundHostedReservationPolicy(
     sources: input.reservation.sources,
     maxPasses: input.maxPasses,
     ...dependencies,
+    nextPassContext,
   });
   return { status: "resolved", policy };
 }
@@ -341,6 +367,7 @@ export async function resolveEvidenceBoundSingletonHostedReservationPolicy(
     sources: input.reservation.sources,
     maxPasses: input.maxPasses,
     ...dependencies,
+    nextPassContext: input.discharge.nextPassContext ?? dependencies.nextPassContext,
   });
 }
 
@@ -371,11 +398,13 @@ export function assertHostedReservationPolicyAdmission(input: {
   readonly reservation: StandardReviewReservationV1;
   readonly snapshot: ReviewOperationStateSnapshot;
   readonly repositoryId: string;
+  readonly currentReviewTarget?: ReviewTarget;
   readonly target: { readonly repository: string; readonly pullRequest: number; readonly headSha: string };
   readonly vehicle: DeliveryReviewMemberVehicle;
   readonly provider: string;
   readonly coverage: "complete" | "incremental";
   readonly correctionScope?: IncrementalReviewScope;
+  readonly nextPassContext?: ReviewPolicyRequest["nextPassContext"];
   readonly maxPasses: number;
   readonly requestAttempts?: ReviewPolicyCommandRequest["attempts"];
   readonly invocation?: ReviewPolicyCommandRequest["invocation"];
@@ -476,6 +505,7 @@ export function assertCandidateHostedReservationPolicyAdmission(input: {
   readonly provider: string;
   readonly coverage: "complete" | "incremental";
   readonly correctionScope?: IncrementalReviewScope;
+  readonly nextPassContext?: ReviewPolicyRequest["nextPassContext"];
   readonly maxPasses: number;
   readonly logicalPass: number;
   /** Completed passes on explicitly validated superseded Candidate owners. */
@@ -515,6 +545,7 @@ export function assertCandidateHostedReservationPolicyAdmission(input: {
     throw new Error("Hosted Candidate request progress names a source outside the reservation.");
   }
   const admission = assertStandardReviewExecutionAdmission({
+    nextPassContext: input.nextPassContext,
     target: input.target,
     frontlineActive: false,
     standardReview: input.reservation.obligation,
@@ -583,10 +614,19 @@ async function verifyCandidateAdditionalPassPredecessor(
   const predecessorResponse = {
     terminalResponsePerformed: predecessor.outcome === "settled-findings",
   };
+  const producer = await dependencies.resultReader.readResult(predecessor.attemptId);
+  const nextPassContext = await deriveReviewNextPassContextFromAttempts({ attempts: predecessorRequest.attempts,
+    currentTarget: producer.target, currentLineage: producer.admission.lineage,
+    standardReview: input.reservation.obligation, resultReader: dependencies.resultReader,
+    dispositionStore: dependencies.dispositionStore,
+    readResponsePerformance: dependencies.readResponsePerformance ?? (() => Promise.resolve(null)),
+    confirmApplicability: dependencies.confirmIncrementalApplicability,
+  });
   const predecessorDependencies = {
     sources: input.reservation.sources,
     maxPasses: input.maxPasses,
     ...dependencies,
+    nextPassContext,
   };
   const terminalPolicy = await resolveEvidenceBoundReviewPolicyContinuation(
     predecessorRequest, predecessorResponse, predecessorDependencies,
@@ -684,6 +724,7 @@ export async function assertEvidenceBoundCandidateHostedReservationPolicyAdmissi
     sources: input.reservation.sources,
     maxPasses: input.maxPasses,
     ...dependencies,
+    nextPassContext: input.discharge.nextPassContext ?? dependencies.nextPassContext,
   });
   assertHostedPolicyResolution({ status: "resolved", policy }, input.provider);
   if (!("pass" in policy.payload) || policy.payload.pass !== input.logicalPass) {

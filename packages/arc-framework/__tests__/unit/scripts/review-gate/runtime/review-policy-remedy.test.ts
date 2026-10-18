@@ -1,3 +1,4 @@
+import { withReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
 /** Recovery guidance for review-policy refusals. */
 
 import { describe, expect, it } from "vitest";
@@ -60,13 +61,13 @@ function refusal(admit: () => unknown): ReviewDriverAdmissionError {
   throw new Error("expected the driver to refuse admission");
 }
 
-const approvalRequired = refusal(() => assertStandardReviewExecutionAdmission({ ...lane, completedPasses: 2 }));
-const invalidOverride = refusal(() => assertStandardReviewExecutionAdmission({
+const approvalRequired = refusal(() => assertStandardReviewExecutionAdmission(withReviewNextPassContext({ ...lane, completedPasses: 2 })));
+const invalidOverride = refusal(() => assertStandardReviewExecutionAdmission(withReviewNextPassContext({
   ...lane,
   completedPasses: 3,
   judgment: { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 } },
-}));
-const passComplete = new ReviewDriverAdmissionError("refused", resolveReviewPolicy({
+})));
+const passComplete = new ReviewDriverAdmissionError("refused", resolveReviewPolicy(withReviewNextPassContext({
   ...policyRequest,
   completedPasses: 1,
   attempts: [{ sourceId: "codex-pr", outcome: "clean", reviewOperationId: "hosted/attempt-1" }],
@@ -79,7 +80,7 @@ const passComplete = new ReviewDriverAdmissionError("refused", resolveReviewPoli
     materialFix: false,
     coverageAdequate: true,
   },
-}));
+})));
 
 describe("driver admission refusals", () => {
   it("carry the driver's answer and no request where the guard composed none", () => {
@@ -97,11 +98,11 @@ describe("driver admission refusals", () => {
   });
 
   it("type a source the driver does not select next as the same refusal", () => {
-    expect(refusal(() => assertStandardReviewExecutionAdmission({
+    expect(refusal(() => assertStandardReviewExecutionAdmission(withReviewNextPassContext({
       ...lane,
       completedPasses: 0,
       expectedSourceId: "delegated-agent",
-    }))).toMatchObject({ state: "ready", nextAction: "hosted-request", message: /not driver-admissible/u });
+    })))).toMatchObject({ state: "ready", nextAction: "hosted-request", message: /not driver-admissible/u });
   });
 });
 
@@ -141,11 +142,11 @@ describe("hostedRequestAdmissionRemedy", () => {
 
 describe("localPrepareAdmissionRemedy", () => {
   it("re-resolves the exact policy request the driver evaluated", () => {
-    const evaluated = new ReviewDriverAdmissionError("refused", resolveReviewPolicy({
+    const evaluated = new ReviewDriverAdmissionError("refused", resolveReviewPolicy(withReviewNextPassContext({
       ...policyRequest,
       sources: ["delegated-agent"],
       maxPasses: 2,
-    }), policyRequest);
+    })), policyRequest);
 
     expect(localPrepareAdmissionRemedy(evaluated)).toEqual({
       invariant: expect.stringContaining("currently admits"),

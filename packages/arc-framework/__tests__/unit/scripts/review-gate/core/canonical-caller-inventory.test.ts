@@ -70,6 +70,7 @@ describe("review-gate canonical serializer inventory", () => {
       "policy/pre-publication-request.ts",
       "policy/review-applicability-authority.ts",
       "policy/review-applicability-resolution.ts",
+      "policy/review-next-pass.ts",
       "policy/review-policy-evidence.ts",
       "policy/standard-review-guidance.ts",
       "policy/standard-review-schema.ts",

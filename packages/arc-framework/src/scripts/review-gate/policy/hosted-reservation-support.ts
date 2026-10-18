@@ -1,4 +1,7 @@
 /** Shared support for hosted-review reservation discharge. */
+import { deriveHostedReviewTarget } from "./hosted-review-target.js";
+
+import type { ReviewNextPassContext } from "./review-next-pass-schema.js";
 
 import {
   DeliveryReviewMemberVehicleSchema,
@@ -6,7 +9,6 @@ import {
   type DeliveryReviewMemberVehicle,
 } from "../../../lib/delivery/review-vehicle.js";
 import { canonicalize } from "../../../lib/kernel/canonical/canonical-json.js";
-import { readConfigSettings } from "../../../lib/config/status-reader.js";
 import type { DeliveryHostChangeRequest, DeliveryHostPort } from "../../../lib/delivery/host.js";
 import type { GitExec } from "../../../lib/git/index.js";
 import type { CandidateManagedRecordV1 } from "../../../lib/work-unit/candidate-attestation.js";
@@ -35,8 +37,6 @@ import {
 } from "../hosted/request.js";
 import { hostedProviderAdmitsCoverage } from "../hosted/correction-review-capability.js";
 import { laneSubjectOwnerMatches, type LaneSubjectLineage } from "../core/lane-admission.js";
-import { deriveLocalReviewTargetFromCoordinates } from
-  "../hosts/local/repository-target.js";
 import type { IncrementalReviewScope } from "../core/incremental-review-scope.js";
 import {
   type IncrementalPredecessorApplicability,
@@ -207,18 +207,7 @@ export async function confirmExactCurrentCorrectionPredecessor(input: {
   if (input.currentHeadSha !== input.approvedHeadSha
     || input.predecessor.target.headSha !== input.currentHeadSha) return false;
   try {
-    const { settings } = await readConfigSettings(input.cwd);
-    const currentTarget = await deriveLocalReviewTargetFromCoordinates({
-      exec: input.exec,
-      cwd: input.cwd,
-      repositoryId: input.currentRepositoryId,
-      coordinates: {
-        kind: input.vehicle === undefined ? "change-set" : "delivery-member",
-        baseRef: settings["branch.base"],
-        diffBaseSha: input.baseRevision,
-        headSha: input.currentHeadSha,
-      },
-    });
+    const currentTarget = await deriveHostedReviewTarget({ ...input, approvedHeadSha: input.currentHeadSha });
     return exactCurrentCorrectionPredecessorMatches({
       predecessor: input.predecessor,
       currentTarget,
@@ -463,6 +452,7 @@ export function retainedSafeUnavailableAttempt(
 
 /** Whether the reserved hosted review has produced a verdict, with the evidence for that reading. */
 export interface HostedReservationDischarge {
+  nextPassContext?: ReviewNextPassContext;
   discharged: boolean;
   detail: string;
   nextSource: string | null;
@@ -495,6 +485,10 @@ export interface HostedReservationDischargeReaderArgs {
 
 /** Discharge projection plus its fresh predecessor-applicability boundary. */
 export interface HostedReservationDischargeReader {
+  confirmCurrentIncrementalApplicability(
+    args: HostedReservationDischargeReaderArgs,
+    predecessor: ReviewResult,
+  ): Promise<IncrementalPredecessorApplicability>;
   (args: HostedReservationDischargeReaderArgs): Promise<HostedReservationDischarge>;
   confirmIncrementalApplicability(
     args: HostedReservationDischargeReaderArgs,

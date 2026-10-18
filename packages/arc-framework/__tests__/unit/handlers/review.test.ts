@@ -1,3 +1,4 @@
+import { withReviewNextPassContext } from "../../fixtures/review-next-pass.js";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -1969,7 +1970,7 @@ describe("handleReviewLocalPrepare", () => {
     });
     const refusal = new ReviewDriverAdmissionError(
       "Review capacity lacks standard-review driver admission (approval-required/obtain-ceiling-override).",
-      resolveReviewPolicy({ ...policyRequest, sources: ["delegated-agent"], maxPasses: 2 }),
+      resolveReviewPolicy(withReviewNextPassContext({ ...policyRequest, sources: ["delegated-agent"], maxPasses: 2 })),
       policyRequest,
     );
 
@@ -2398,6 +2399,7 @@ describe("handleReviewPrePublication", () => {
     schemaVersion: 1 as const,
     target,
     lane: name,
+    ...(name === "standard" ? { nextPassContext: { convergence: "none" as const, responseDue: false, incremental: null } } : {}),
     frontlineActive: false,
     standardReview,
     completedPasses: 0,

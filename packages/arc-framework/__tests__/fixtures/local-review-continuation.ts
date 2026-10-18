@@ -1,3 +1,4 @@
+import { withReviewNextPassContext } from "./review-next-pass.js";
 /** Producer-derived local retry histories and exact receipt reads. */
 
 import { createLocalReviewPreparationFixture } from "./local-review-preparation.js";
@@ -18,13 +19,13 @@ export async function createLocalContinuationFixture(scopeMode: "whole-target" |
     : { state: "stale-target", attemptedTarget: attempted, currentTarget: target };
   fixture.dependencies.validatePolicyAdmission = async ({ standardReview, completedPasses, attempts, judgment }) => ({
     state: "ready",
-    pass: assertStandardReviewExecutionAdmission({
+    pass: assertStandardReviewExecutionAdmission(withReviewNextPassContext({
       target: { repository: "owner/repository", pullRequest: null, headSha: target.headSha },
       frontlineActive: false, standardReview, completedPasses, attempts,
       sources: ["delegated-agent"], maxPasses: 2,
       expectedSourceId: "delegated-agent", expectedNextAction: "local-prepare",
       judgment: { ...judgment, invocation: { mode: "force", sourceId: "delegated-agent" } },
-    }).payload.pass,
+    })).payload.pass,
   });
   const input = {
     schemaVersion: 1 as const, evaluatorIdentity: "evaluator-1",

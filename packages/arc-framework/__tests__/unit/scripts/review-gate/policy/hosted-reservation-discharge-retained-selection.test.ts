@@ -1,3 +1,4 @@
+import { withReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
 /** Retained admitted source authority with reservation-wide settlement. */
 
 import { describe, expect, it } from "vitest";
@@ -64,7 +65,7 @@ async function discharge(attempts: readonly EarlierApplicableAttempt[], invocati
       return matching.length === 0 ? { status: "not-found" } : { status: "complete", attempts: matching };
     },
     resolveTerminalPolicy: async () => { throw new Error("no current producer"); },
-    resolveEarlierTerminalPolicy: async (attempt) => resolveReviewPolicy({
+    resolveEarlierTerminalPolicy: async (attempt) => resolveReviewPolicy(withReviewNextPassContext({
       schemaVersion: 1,
       target: handle.target,
       lane: "standard",
@@ -80,7 +81,7 @@ async function discharge(attempts: readonly EarlierApplicableAttempt[], invocati
         materialFix: false,
         coverageAdequate: attempt.effectiveCoverage === "complete",
       },
-    }),
+    })),
   });
 }
 

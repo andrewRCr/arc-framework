@@ -23,6 +23,8 @@ import {
   readLaneResponsePerformance,
   type LanePolicyAttempt,
 } from "./lane-progress.js";
+import { createReviewTarget } from "./core/gate-contract-v2.js";
+import { deriveReviewNextPassContext } from "./policy/review-next-pass.js";
 import { GitObjectIdSchema, type ReviewTarget } from "./core/gate-contract-v2-schema.js";
 import type { ReviewResult } from "./core/review-result.js";
 import type { IncrementalReviewScope } from "./core/incremental-review-scope.js";
@@ -302,7 +304,7 @@ function sameStandardReview(
  *
  * @returns That attempt, or null when this head already has a completed review or no earlier one exists.
  */
-function selectErrandCorrectionPredecessor(attempts: readonly LaneAttempt[], headSha: string): LaneAttempt | null {
+export function selectErrandCorrectionPredecessor(attempts: readonly LaneAttempt[], headSha: string): LaneAttempt | null {
   const completed = attempts.filter((attempt) => attempt.terminalProducer
     && (attempt.outcome === "clean" || attempt.outcome === "findings" || attempt.outcome === "settled-findings"));
   if (completed.some((attempt) => attempt.headSha === headSha)) return null;
@@ -488,6 +490,14 @@ async function resolveErrandLaneAtHead(input: {
   });
   const requirement = result.requirement;
   const dispositionStore = new LocalApprovedDispositionRecordStore(input.publisher);
+  const nextPassContext = await deriveReviewNextPassContext({
+    predecessor: result, currentTarget: result.target, currentLineage: result.admission.lineage,
+    standardReview: projectStandardReview(result), resultReader: input.resultReader, dispositionStore,
+    readResponsePerformance: producer => readLaneResponsePerformance(store, producer),
+    confirmApplicability: (predecessor, current) => confirmErrandCorrectionPredecessor({
+      predecessor, current, store, dispositionStore, errand: input.errand,
+    }),
+  });
   return resolveEvidenceBoundReviewPolicyContinuation({
     schemaVersion: 1,
     target: policyTarget,
@@ -513,6 +523,7 @@ async function resolveErrandLaneAtHead(input: {
   }, { terminalResponsePerformed: terminal.outcome === "settled-findings" }, {
     sources: [terminal.sourceId, ...configured.sources.filter((source) => source !== terminal.sourceId)],
     maxPasses: configured.maxPasses,
+    nextPassContext,
     resultReader: input.resultReader,
     dispositionStore,
     readResponsePerformance: (producer) => readLaneResponsePerformance(store, producer),
@@ -621,10 +632,13 @@ async function currentErrandDiffBase(
   headSha: string,
   baseOid: string | undefined,
   baseRef: string | undefined,
-): Promise<{ readonly baseRef: string; readonly diffBaseSha: string } | null> {
+): Promise<Pick<ReviewTarget, "baseRef" | "diffBaseSha" | "diffBaseTree" | "headSha" | "headTree"> | null> {
   if (baseOid === undefined || baseRef === undefined) return null;
   const diffBase = await resolveSoleMergeBase({ exec, leftRevision: headSha, rightRevision: baseOid });
-  return diffBase.status === "resolved" ? { baseRef, diffBaseSha: diffBase.mergeBase } : null;
+  if (diffBase.status !== "resolved") return null;
+  const tree = async (revision: string) => (await exec("git", ["rev-parse", "--verify", `${revision}^{tree}`])).stdout.trim();
+  return { baseRef, diffBaseSha: diffBase.mergeBase, headSha,
+    diffBaseTree: await tree(diffBase.mergeBase), headTree: await tree(headSha) };
 }
 
 /** Carry one claim's spent passes into the status of a new, unreviewed head. */
@@ -710,11 +724,24 @@ async function nextErrandPassObligation(input: {
   readonly completedPasses: number;
   /** The source that reviewed the earlier head, which the next pass asks first. */
   readonly sourceId: string;
-  readonly currentBase: { readonly baseRef: string; readonly diffBaseSha: string } | null;
+  readonly currentBase: Awaited<ReturnType<typeof currentErrandDiffBase>>;
   readonly ceilingOverride?: ReviewCeilingOverride;
   readonly additionalPassAuthorization?: ReviewAdditionalPassAuthorization;
 }): Promise<RoutedReviewObligation> {
   const { store, configured, completedPasses } = input;
+  const dispositionStore = new LocalApprovedDispositionRecordStore(input.publisher);
+  const currentTarget = input.currentBase === null ? null : createReviewTarget({
+    schemaVersion: 2, semanticsVersion: "review-gate/v2", kind: "change-set",
+    repositoryId: input.result.repositoryId, ...input.currentBase,
+  });
+  const nextPassContext = await deriveReviewNextPassContext({
+    predecessor: input.result, currentTarget, currentLineage: input.result.admission.lineage,
+    standardReview: projectStandardReview(input.result), resultReader: input.resultReader, dispositionStore,
+    readResponsePerformance: producer => readLaneResponsePerformance(store, producer),
+    confirmApplicability: (predecessor, current) => confirmErrandCorrectionPredecessor({
+      predecessor, current, store, dispositionStore, errand: input.errand,
+    }),
+  });
   const policy = await resolveEvidenceBoundReviewPolicyContinuation({
     schemaVersion: 1, target: input.policyTarget, lane: "standard", frontlineActive: false,
     standardReview: projectStandardReview(input.result),
@@ -726,8 +753,8 @@ async function nextErrandPassObligation(input: {
     sources: configured.sources.includes(input.sourceId)
       ? [input.sourceId, ...configured.sources.filter((source) => source !== input.sourceId)]
       : [...configured.sources],
-    maxPasses: configured.maxPasses, resultReader: input.resultReader,
-    dispositionStore: new LocalApprovedDispositionRecordStore(input.publisher),
+    maxPasses: configured.maxPasses, nextPassContext, resultReader: input.resultReader,
+    dispositionStore,
     readResponsePerformance: (producer) => readLaneResponsePerformance(store, producer),
     confirmTarget: (current) => Promise.resolve(current),
   });

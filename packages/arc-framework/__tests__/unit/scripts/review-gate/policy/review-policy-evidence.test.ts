@@ -1,3 +1,4 @@
+import { firstReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
 import { describe, expect, it, vi } from "vitest";
 import { cleanHostedResult, findingsHostedResult, approvedRecord, performedFix } from "../../../../fixtures/review-response-proof.js";
 
@@ -227,6 +228,7 @@ function dependencies(
   };
   return {
     resultReader,
+    ...(result.kind === "frontline" ? {} : { nextPassContext: firstReviewNextPassContext }),
     dispositionStore,
     confirmTarget: vi.fn(async () => currentTarget),
   };
@@ -526,7 +528,7 @@ describe("evidence-bound review policy", () => {
       schemaVersion: 1 as const, target: { ...policyTarget, pullRequest: null }, lane: "frontline" as const,
       standardReview, completedPasses: 0, attempts: [], frontlineActive: true,
     };
-    const evidence = { ...dependencies(result), sources: ["coderabbit-cli"], maxPasses: 2 };
+    const evidence = { ...dependencies(result), nextPassContext: undefined, sources: ["coderabbit-cli"], maxPasses: 2 };
     await expect(resolveEvidenceBoundReviewPolicy(opening, evidence))
       .resolves.toMatchObject({ state: "ready", nextAction: "run-frontline" });
     await expect(resolveEvidenceBoundReviewPolicy(opening, { ...evidence, frontlinePhaseClosed: true }))

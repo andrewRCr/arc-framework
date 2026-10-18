@@ -1,3 +1,4 @@
+import { withReviewNextPassContext } from "../../../fixtures/review-next-pass.js";
 /** Exact-target review status reduction. */
 
 import { describe, expect, it } from "vitest";
@@ -134,7 +135,7 @@ function readyAdmission(
   admissionTarget = hostedAction.target,
   completedPasses = 0,
 ) {
-  return resolveReviewPolicy({
+  return resolveReviewPolicy(withReviewNextPassContext({
     schemaVersion: 1,
     target: admissionTarget,
     lane: "standard",
@@ -150,7 +151,7 @@ function readyAdmission(
     maxPasses: 2,
     completedPasses,
     attempts: [],
-  });
+  }));
 }
 
 function reviewApplicabilityDecision(priorAttemptId = "attempt-prior") {
@@ -533,7 +534,8 @@ describe("review status", () => {
         nextSource: null,
         applicability: projection,
       };
-    }, { confirmIncrementalApplicability: async () => "applicable" as const });
+    }, { confirmIncrementalApplicability: async () => "applicable" as const,
+      confirmCurrentIncrementalApplicability: async () => "applicable" as const });
     const obligation = await composePublishedSingletonReview({
       cwd: "/repo",
       exec: (() => Promise.reject(new Error("unexpected Git read"))) as never,
@@ -768,7 +770,7 @@ describe("review status", () => {
   });
 
   it("routes the driver's exact member-pass ceiling consequence without another request", async () => {
-    const policy = resolveReviewPolicy({
+    const policy = resolveReviewPolicy(withReviewNextPassContext({
       schemaVersion: 1,
       target: hostedAction.target,
       lane: "standard",
@@ -784,7 +786,7 @@ describe("review status", () => {
       maxPasses: 2,
       completedPasses: 2,
       attempts: [],
-    });
+    }));
     const obligation = composeDeliveryReviewObligation({
       targets: [deliveryTarget(hostedAction.target)],
       discharges: [deliveryDischarge({
@@ -851,7 +853,7 @@ describe("review status", () => {
   });
 
   it("binds a ceiling stop to one submit-ready exact member terminus offer", async () => {
-    const policy = resolveReviewPolicy({
+    const policy = resolveReviewPolicy(withReviewNextPassContext({
       schemaVersion: 1,
       target: hostedAction.target,
       lane: "standard",
@@ -867,7 +869,7 @@ describe("review status", () => {
       maxPasses: 2,
       completedPasses: 2,
       attempts: [],
-    });
+    }));
     const obligation = composeDeliveryReviewObligation({
       targets: [deliveryTarget(hostedAction.target)],
       discharges: [deliveryDischarge({
@@ -1009,7 +1011,7 @@ describe("review status", () => {
   });
 
   it("offers the exact member terminus beside delegated local preparation after one complete pass", async () => {
-    const policy = resolveReviewPolicy({
+    const policy = resolveReviewPolicy(withReviewNextPassContext({
       schemaVersion: 1,
       target: hostedAction.target,
       lane: "standard",
@@ -1025,7 +1027,7 @@ describe("review status", () => {
       maxPasses: 2,
       completedPasses: 1,
       attempts: [],
-    });
+    }));
     const obligation = composeDeliveryReviewObligation({
       targets: [deliveryTarget(hostedAction.target)],
       discharges: [deliveryDischarge({
@@ -1536,7 +1538,7 @@ describe("review status", () => {
   });
 
   it("routes the driver's delegated-agent fallback for the exact outstanding member", async () => {
-    const policy = resolveReviewPolicy({
+    const policy = resolveReviewPolicy(withReviewNextPassContext({
       schemaVersion: 1,
       target: hostedAction.target,
       lane: "standard",
@@ -1552,7 +1554,7 @@ describe("review status", () => {
       maxPasses: 2,
       completedPasses: 0,
       attempts: [],
-    });
+    }));
     const obligation = composeDeliveryReviewObligation({
       targets: [deliveryTarget(hostedAction.target)],
       discharges: [deliveryDischarge({
@@ -1589,7 +1591,7 @@ describe("review status", () => {
       mode: "chunked" as const,
       target: hostedAction.target,
     };
-    const policy = resolveReviewPolicy({
+    const policy = resolveReviewPolicy(withReviewNextPassContext({
       schemaVersion: 1,
       target: hostedAction.target,
       lane: "standard",
@@ -1606,7 +1608,7 @@ describe("review status", () => {
       completedPasses: 0,
       attempts: [],
       scopeSelection,
-    });
+    }));
     const obligation = composeDeliveryReviewObligation({
       targets: [deliveryTarget(hostedAction.target)],
       discharges: [deliveryDischarge({
@@ -1640,7 +1642,7 @@ describe("review status", () => {
       exhaustedPassCount: 3,
       nextPass: 4,
     };
-    const policy = resolveReviewPolicy({
+    const policy = resolveReviewPolicy(withReviewNextPassContext({
       schemaVersion: 1,
       target: hostedAction.target,
       lane: "standard",
@@ -1658,7 +1660,7 @@ describe("review status", () => {
       attempts: [],
       scopeSelection,
       ceilingOverride,
-    });
+    }));
     const discharge = deliveryDischarge({
       discharged: false,
       detail: "The oversized member requires chunked local review.",
@@ -2001,7 +2003,7 @@ describe("review status", () => {
       exhaustedPassCount: 2,
       nextPass: 3,
     };
-    const policy = resolveReviewPolicy({
+    const policy = resolveReviewPolicy(withReviewNextPassContext({
       schemaVersion: 1,
       target: hostedAction.target,
       lane: "standard",
@@ -2018,7 +2020,7 @@ describe("review status", () => {
       completedPasses: 2,
       attempts: [],
       ceilingOverride,
-    });
+    }));
     const obligation = composeDeliveryReviewObligation({
       targets: [deliveryTarget(hostedAction.target)],
       discharges: [deliveryDischarge({
@@ -2046,7 +2048,7 @@ describe("review status", () => {
       exhaustedPassCount: 2,
       nextPass: 3,
     };
-    const policy = resolveReviewPolicy({
+    const policy = resolveReviewPolicy(withReviewNextPassContext({
       schemaVersion: 1,
       target: hostedAction.target,
       lane: "standard",
@@ -2063,7 +2065,7 @@ describe("review status", () => {
       completedPasses: 2,
       attempts: [],
       ceilingOverride,
-    });
+    }));
     const obligation = composeDeliveryReviewObligation({
       targets: [deliveryTarget(hostedAction.target)],
       discharges: [deliveryDischarge({

@@ -1,5 +1,9 @@
 /** Machine-readable review workflow handlers. */
 
+import { readResolveNextPassContext, readHostedErrandNextPassContext } from "./review-next-pass-context.js";
+import { resolveEvidenceBoundReviewPolicyContinuation } from "../scripts/review-gate/policy/review-policy-evidence.js";
+import type { EvidenceBoundReviewPolicyDependencies } from "../scripts/review-gate/policy/review-policy-evidence.js";
+
 import { createCandidateResponseHeadContinuationReader } from
   "../scripts/review-gate/runtime/candidate-response-head-continuation.js";
 import { readFile } from "node:fs/promises";
@@ -1624,6 +1628,60 @@ function defaultReviewResolveDependencies(exec: GitExec): ReviewResolveHandlerDe
   };
 }
 
+function createResolveContributionConfirmation(input: {
+  root: string;
+  exec: GitExec;
+  request: ReviewPolicyCommandRequest;
+  dispositionStore: LocalApprovedDispositionRecordStore;
+  readResponsePerformance: NonNullable<EvidenceBoundReviewPolicyDependencies["readResponsePerformance"]>;
+}): NonNullable<EvidenceBoundReviewPolicyDependencies["confirmIncrementalApplicability"]> {
+  const { root, exec, request, dispositionStore, readResponsePerformance } = input;
+  return async (predecessor, current) => {
+    const active = await resolveActiveWu({ cwd: root });
+    const candidate = current.admission.lineage.kind === "candidate"
+      && active.status === "resolved" && active.name !== ""
+      ? await readCandidateRecord(root, active.name)
+      : null;
+    const observeTarget = async () => {
+        const confirmation = await confirmLocalReviewTarget({
+          exec,
+          cwd: root,
+          attemptedTarget: current.target,
+        });
+        if (confirmation.state !== "current") {
+          throw new Error("review producer target no longer matches the current exact target");
+        }
+        return confirmation.target;
+    };
+    if (request.target.pullRequest === null
+      && current.admission.lineage.kind === "head-bound"
+      && current.admission.lineage.vehicleKind === "errand") {
+      const live = await readLocalReviewLiveContext({ exec, cwd: root }).catch(() => null);
+      return confirmErrandFixResponseApplicability({
+        predecessor,
+        currentTarget: current.target,
+        currentLineage: current.admission.lineage,
+        currentClaimId: live?.context.errand?.claimId === current.admission.lineage.vehicleIdentity
+          ? live.context.errand.claimId : null,
+        currentResult: current,
+        observeTarget,
+        dispositionStore,
+        readResponsePerformance,
+      });
+    }
+    return confirmNonDeliveryIncrementalApplicability({
+      predecessor,
+      currentTarget: current.target,
+      currentLineage: current.admission.lineage,
+      repository: request.target.repository,
+      pullRequest: request.target.pullRequest,
+      candidate,
+      exec: createRawGitExec(root),
+      observeTarget,
+    });
+  };
+}
+
 async function resolveConfiguredReviewPolicy(
   request: ReviewPolicyCommandRequest,
   root: string,
@@ -1649,7 +1707,7 @@ async function resolveConfiguredReviewPolicy(
     root, exec, publisher, operationStore, resultReader, dispositionStore,
   });
   const errandVehicle = await errandStandardVehicle(request, { root, exec });
-  return resolveEvidenceBoundReviewPolicy(request, {
+  const dependencies: EvidenceBoundReviewPolicyDependencies = {
     sources,
     maxPasses,
     ...(phaseClosed ? { frontlinePhaseClosed: true } : {}),
@@ -1657,50 +1715,9 @@ async function resolveConfiguredReviewPolicy(
     resultReader,
     dispositionStore,
     readResponsePerformance,
-    confirmIncrementalApplicability: async (predecessor, current) => {
-      const active = await resolveActiveWu({ cwd: root });
-      const candidate = current.admission.lineage.kind === "candidate"
-        && active.status === "resolved" && active.name !== ""
-        ? await readCandidateRecord(root, active.name)
-        : null;
-      const observeTarget = async () => {
-          const confirmation = await confirmLocalReviewTarget({
-            exec,
-            cwd: root,
-            attemptedTarget: current.target,
-          });
-          if (confirmation.state !== "current") {
-            throw new Error("review producer target no longer matches the current exact target");
-          }
-          return confirmation.target;
-      };
-      if (request.target.pullRequest === null
-        && current.admission.lineage.kind === "head-bound"
-        && current.admission.lineage.vehicleKind === "errand") {
-        const live = await readLocalReviewLiveContext({ exec, cwd: root }).catch(() => null);
-        return confirmErrandFixResponseApplicability({
-          predecessor,
-          currentTarget: current.target,
-          currentLineage: current.admission.lineage,
-          currentClaimId: live?.context.errand?.claimId === current.admission.lineage.vehicleIdentity
-            ? live.context.errand.claimId : null,
-          currentResult: current,
-          observeTarget,
-          dispositionStore,
-          readResponsePerformance,
-        });
-      }
-      return confirmNonDeliveryIncrementalApplicability({
-        predecessor,
-        currentTarget: current.target,
-        currentLineage: current.admission.lineage,
-        repository: request.target.repository,
-        pullRequest: request.target.pullRequest,
-        candidate,
-        exec: createRawGitExec(root),
-        observeTarget,
-      });
-    },
+    confirmIncrementalApplicability: createResolveContributionConfirmation({
+      root, exec, request, dispositionStore, readResponsePerformance,
+    }),
     confirmTarget: async (attemptedTarget) => {
       const confirmation = await confirmLocalReviewTarget({
         exec,
@@ -1720,7 +1737,15 @@ async function resolveConfiguredReviewPolicy(
       }
       return confirmation.target;
     },
+  };
+  if (request.lane === "frontline") return resolveEvidenceBoundReviewPolicy(request, dependencies);
+  const nextPassContext = await readResolveNextPassContext({
+    request, root, exec, operationStore, resultReader, dispositionStore,
+    confirmApplicability: dependencies.confirmIncrementalApplicability,
   });
+  return resolveEvidenceBoundReviewPolicyContinuation(request, {
+    terminalResponsePerformed: !nextPassContext.responseDue,
+  }, { ...dependencies, nextPassContext });
 }
 
 export interface ReviewReadinessHandlerDependencies {
@@ -3597,6 +3622,7 @@ async function executeDefaultHostedRequest(
             reservation: context.reservation,
             snapshot: await context.store.readOperationSnapshot(),
             repositoryId: context.repositoryId,
+            currentReviewTarget: context.reviewTarget,
             target: request.target,
             vehicle: deliveryVehicle,
             provider: request.provider,
@@ -3619,6 +3645,8 @@ async function executeDefaultHostedRequest(
             dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
             confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),
             readResponsePerformance: (predecessor) => readLaneResponsePerformance(context.store, predecessor),
+            confirmCurrentApplicability: predecessor =>
+              dischargeReader.confirmCurrentIncrementalApplicability(dischargeInput, predecessor),
             confirmIncrementalApplicability: (predecessor, current) => (
               dischargeReader.confirmIncrementalApplicability(
                 dischargeInput,
@@ -3735,6 +3763,10 @@ async function executeDefaultHostedRequest(
         )) === true) {
           throw new Error("Hosted review capacity is already held by a pending request.");
         }
+        const resultReader = createRepositoryReviewResultReader(publisher);
+        const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
+        const nextPassContext = await readHostedErrandNextPassContext({ progress, target: context.reviewTarget,
+          lineage: context.lineage, standardReview, operationStore: context.store, resultReader, dispositionStore });
         const latestAttempt = currentAttempts.at(-1);
         const admission = await assertEvidenceBoundReviewExecutionAdmission({
           target: request.target,
@@ -3761,8 +3793,9 @@ async function executeDefaultHostedRequest(
         }, {
           sources,
           maxPasses: policy.maxPasses,
-          resultReader: createRepositoryReviewResultReader(publisher),
-          dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+          resultReader,
+          nextPassContext,
+          dispositionStore,
           confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),
           readResponsePerformance: (predecessor) => readLaneResponsePerformance(context.store, predecessor),
         });

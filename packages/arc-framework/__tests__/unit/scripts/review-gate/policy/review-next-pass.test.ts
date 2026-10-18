@@ -6,7 +6,7 @@ import { deriveReviewNextPassContext, type ReviewNextPassInput } from "../../../
 import type { ReviewResult } from "../../../../../src/scripts/review-gate/core/review-result.js";
 
 function input(predecessor: ReviewResult | null, severity: "major" | "minor" = "major", performed = true,
-  retrigger: "full-final" | "incremental" = "full-final"): ReviewNextPassInput {
+  retrigger: "full-final" | "incremental" = "full-final"): ReviewNextPassInput & { currentTarget: ReviewResult["target"] } {
   let result = predecessor ?? cleanHostedResult();
   if (result.kind !== "hosted") throw new Error("expected hosted producer");
   if (result.requirement.retrigger !== retrigger) {
@@ -137,6 +137,12 @@ describe("next-pass context", () => {
       readResponsePerformance: async result => result.producerId === root.producerId ? null
         : request.readResponsePerformance(result),
     })).incremental).toBeNull();
+  });
+
+  it("retains response facts but offers no range when the current Git target is unavailable", async () => {
+    const request = input(findingsHostedResult(["major"]));
+    expect(await deriveReviewNextPassContext({ ...request, currentTarget: null }))
+      .toEqual({ convergence: "unconverged", responseDue: false, incremental: null });
   });
 
 });

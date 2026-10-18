@@ -1,3 +1,4 @@
+import { withReviewNextPassContext } from "../../../fixtures/review-next-pass.js";
 /** Delivery landing admission from exact-target review observations. */
 
 import { describe, expect, it } from "vitest";
@@ -88,7 +89,7 @@ function deliveryObligation(secondDischarged: boolean) {
   }));
   const second = targets[1];
   if (second === undefined) throw new Error("missing second member");
-  const requestAdmission = secondDischarged ? undefined : resolveReviewPolicy({
+  const requestAdmission = secondDischarged ? undefined : resolveReviewPolicy(withReviewNextPassContext({
     schemaVersion: 1,
     target: { repository: second.repository, pullRequest: second.pullRequest, headSha: second.headSha },
     lane: "standard",
@@ -104,7 +105,7 @@ function deliveryObligation(secondDischarged: boolean) {
     maxPasses: 2,
     completedPasses: 0,
     attempts: [],
-  });
+  }));
   return composeDeliveryReviewObligation({
     targets,
     discharges: [{

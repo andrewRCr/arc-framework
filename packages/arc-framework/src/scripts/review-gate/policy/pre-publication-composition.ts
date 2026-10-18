@@ -546,6 +546,10 @@ export function createPrePublicationCompositionDependencies(input: {
     resultReader,
     dispositionStore,
     readResponsePerformance: (predecessor) => readLaneResponsePerformance(store, predecessor),
+    readCandidateCorrectionProof: async (workUnit) => ({
+      candidate: await readCandidateRecord(input.cwd, SlugSchema.parse(workUnit)),
+      cwd: input.cwd, exec: input.exec, baseRef: (await settings())["branch.base"], observeTarget,
+    }),
     confirmIncrementalApplicability: async (workUnit, predecessor, current, policyTarget) => {
       if (policyTarget.pullRequest === null && current.admission.lineage.kind === "candidate") {
         return confirmPrivateCandidateCorrectionBasis({

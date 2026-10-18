@@ -1,3 +1,4 @@
+import { withReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
 import { describe, expect, it } from "vitest";
 
 import { createLocalReviewPreparationFixture, createDeliveryLocalReviewAdmission } from
@@ -59,13 +60,13 @@ function scenario(member = false, headBound = false, maxPasses = 2) {
   }
   fixture.dependencies.validatePolicyAdmission = async ({
     standardReview, completedPasses, attempts, judgment,
-  }) => ({ state: "ready", pass: assertStandardReviewExecutionAdmission({
+  }) => ({ state: "ready", pass: assertStandardReviewExecutionAdmission(withReviewNextPassContext({
     target: { repository: "owner/repository", pullRequest: null, headSha: current.target.headSha },
     frontlineActive: false, standardReview, completedPasses, attempts,
     sources: ["delegated-agent"], maxPasses, expectedSourceId: "delegated-agent",
     expectedNextAction: "local-prepare",
     judgment: { ...judgment, invocation: { mode: "force", sourceId: "delegated-agent" } },
-  }).payload.pass });
+  })).payload.pass });
   const input = member ? {
     ...request,
     memberHeadObjectId: current.target.headSha,

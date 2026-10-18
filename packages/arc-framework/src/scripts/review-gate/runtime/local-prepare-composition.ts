@@ -1,4 +1,6 @@
 /** Production adapters for the local review prepare command. */
+import { deriveReviewNextPassContextFromAttempts } from "../policy/review-next-pass.js";
+
 
 import { createCandidateResponseHeadContinuationReader } from "./candidate-response-head-continuation.js";
 import { readFile } from "node:fs/promises";
@@ -287,7 +289,7 @@ async function validateLocalPolicyAdmission(
       const confirmContribution = createLocalContributionConfirmation({
         context, repositoryId, baseRef: settings["branch.base"], policyTarget, candidate,
       });
-      const policyDependencies = {
+      const evidenceDependencies = {
         sources: policy.sources.length === 0 ? ["delegated-agent"] : policy.sources,
         maxPasses: policy.maxPasses,
         resultReader: context.resultReader,
@@ -300,6 +302,17 @@ async function validateLocalPolicyAdmission(
           confirmContribution(predecessor, current.target, current.admission.lineage, current),
         confirmTarget: (attemptedTarget: ReviewTarget) => Promise.resolve(attemptedTarget),
       };
+      const nextPassContext = await deriveReviewNextPassContextFromAttempts({
+        attempts: policyRequest.attempts, predecessorOperationId,
+        currentTarget: target, currentLineage: lineage, standardReview,
+        resultReader: context.resultReader, dispositionStore: context.dispositionStore,
+        readResponsePerformance: evidenceDependencies.readResponsePerformance,
+        confirmApplicability: evidenceDependencies.confirmIncrementalApplicability,
+        confirmCurrentApplicability: predecessor => confirmContribution(predecessor, target, lineage),
+        candidateProof: { candidate, cwd: context.input.cwd, baseRef: settings["branch.base"], exec: context.input.exec,
+          observeTarget: () => deriveLocalReviewTarget({ ...context.input, repositoryId, baseRef: settings["branch.base"] }) },
+      });
+      const policyDependencies = { ...evidenceDependencies, nextPassContext };
       const unresolved = await resolveEvidenceBoundReviewPolicyContinuation(policyRequest, {
         terminalResponsePerformed,
       }, policyDependencies);

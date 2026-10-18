@@ -16,6 +16,10 @@ export function validateReviewNextPassContext(
   request: { readonly lane: "frontline" | "standard"; readonly nextPassContext?: ReviewNextPassContext },
   context: z.RefinementCtx,
 ): void {
+  if (request.lane === "standard" && request.nextPassContext === undefined) {
+    context.addIssue({ code: "custom", path: ["nextPassContext"],
+      message: "standard review requires repository-derived next-pass context" });
+  }
   if (request.lane === "frontline" && request.nextPassContext !== undefined) {
     context.addIssue({ code: "custom", path: ["nextPassContext"],
       message: "next-pass context can be applied only to the standard lane" });

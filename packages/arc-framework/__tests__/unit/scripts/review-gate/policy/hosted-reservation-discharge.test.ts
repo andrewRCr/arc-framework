@@ -1,3 +1,4 @@
+import { withReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
 /** Unit coverage for hosted-review reservation discharge. */
 
 import { makeGitProcessError } from "../../../../helpers/git-exec-fake.js";
@@ -376,7 +377,7 @@ async function defaultTerminalPolicy(
   const coverageAdequate = "effectiveCoverage" in attempt
     ? attempt.effectiveCoverage === "complete"
     : attempt.local?.effectiveCoverage === "complete" || attempt.hosted?.effectiveCoverage === "complete";
-  return resolveReviewPolicy({
+  return resolveReviewPolicy(withReviewNextPassContext({
     schemaVersion: 1,
     target: target(oid("a")),
     lane: "standard",
@@ -392,7 +393,7 @@ async function defaultTerminalPolicy(
       materialFix: outcome !== "clean",
       coverageAdequate,
     },
-  });
+  }));
 }
 
 function projectHostedReservationDischarge(
@@ -1147,7 +1148,7 @@ describe("hosted reservation discharge", () => {
       readLaneProgress: progress({}),
       readEarlierAttemptApplicability: async () => ({ status: "complete", attempts: [prior] }),
       requireEarlierApplicabilityEvidence: true,
-      resolveEarlierTerminalPolicy: async () => resolveReviewPolicy({
+      resolveEarlierTerminalPolicy: async () => resolveReviewPolicy(withReviewNextPassContext({
         schemaVersion: 1,
         target: target(oid("a")),
         lane: "standard",
@@ -1167,7 +1168,7 @@ describe("hosted reservation discharge", () => {
           materialFix: false,
           coverageAdequate: true,
         },
-      }),
+      })),
     });
 
     expect(result).toEqual({
@@ -1288,7 +1289,7 @@ describe("hosted reservation discharge", () => {
           attempts: [settled],
         },
       }),
-      resolveTerminalPolicy: async () => resolveReviewPolicy({
+      resolveTerminalPolicy: async () => resolveReviewPolicy(withReviewNextPassContext({
         schemaVersion: 1,
         target: target(headSha),
         lane: "standard",
@@ -1308,7 +1309,7 @@ describe("hosted reservation discharge", () => {
           materialFix: true,
           coverageAdequate: true,
         },
-      }),
+      })),
     });
 
     expect(result).toMatchObject({
@@ -1332,7 +1333,7 @@ describe("hosted reservation discharge", () => {
           attempts: [settled],
         },
       }),
-      resolveTerminalPolicy: async () => resolveReviewPolicy({
+      resolveTerminalPolicy: async () => resolveReviewPolicy(withReviewNextPassContext({
         schemaVersion: 1,
         target: target(headSha),
         lane: "standard",
@@ -1352,7 +1353,7 @@ describe("hosted reservation discharge", () => {
           materialFix: false,
           coverageAdequate: true,
         },
-      }),
+      })),
     });
 
     expect(result).toEqual({
@@ -1483,7 +1484,7 @@ describe("hosted reservation discharge", () => {
           attempts: [incremental],
         },
       }),
-      resolveTerminalPolicy: async () => resolveReviewPolicy({
+      resolveTerminalPolicy: async () => resolveReviewPolicy(withReviewNextPassContext({
         schemaVersion: 1,
         target: target(headSha),
         lane: "standard",
@@ -1503,7 +1504,7 @@ describe("hosted reservation discharge", () => {
           materialFix: false,
           coverageAdequate: false,
         },
-      }),
+      })),
     });
 
     expect(result).toEqual({
@@ -2040,7 +2041,7 @@ describe("hosted reservation discharge", () => {
         completePasses: 0,
         passCeiling: 2,
         attemptHistory: [],
-        requestAdmission: resolveReviewPolicy({
+        requestAdmission: resolveReviewPolicy(withReviewNextPassContext({
           schemaVersion: 1,
           target: secondTarget,
           lane: "standard",
@@ -2049,7 +2050,7 @@ describe("hosted reservation discharge", () => {
           maxPasses: 2,
           completedPasses: 0,
           attempts: [],
-        }),
+        })),
       }],
     });
 
@@ -2251,7 +2252,7 @@ describe("hosted reservation discharge", () => {
   it.each(["clean", "settled-findings"] as const)(
     "admits retained incremental %s evidence to complete-chain policy validation",
     async (terminalOutcome) => {
-    const resolveEarlierTerminalPolicy = async (terminal: TerminalPolicyAttempt) => resolveReviewPolicy({
+    const resolveEarlierTerminalPolicy = async (terminal: TerminalPolicyAttempt) => resolveReviewPolicy(withReviewNextPassContext({
       schemaVersion: 1,
       target: target(oid("b")),
       lane: "standard",
@@ -2271,7 +2272,7 @@ describe("hosted reservation discharge", () => {
         materialFix: false,
         coverageAdequate: true,
       },
-    });
+    }));
     const result = await projectHostedReservationDischarge({
       reservation: reservation("coderabbit-pr", ["coderabbit-pr"]),
       span: [oid("b")],

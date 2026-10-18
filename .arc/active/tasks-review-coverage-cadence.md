@@ -98,19 +98,9 @@ The confirmation map is in `notes-review-coverage-cadence.md` § Chain confirmat
             - After a material fix and after a converged look, each composition passes the context the helper derives
               from the same records.
 
-    - `[ ]` **1.1.f Require the context on the standard lane**
-        - With every composition deriving it, the driver's internal request requires the context on the standard lane
-          and refuses a request without it rather than reading it as today's behavior. A test fixture builds the context
-          for the driver's direct test callers, among them `review-policy-driver.test.ts`, `status.test.ts`, and
-          `hosted-reservation-discharge.test.ts`.
-        - The two test-only driver wrappers, `assertStandardReviewExecutionAdmission` (`review-execution-admission.ts`)
-          and `resolveHostedReservationPolicy` (`hosted-reservation-admission.ts`), take the same input, as do their
-          entry points `assertHostedReservationPolicyAdmission` and `assertCandidateHostedReservationPolicyAdmission`
-          and `__tests__/fixtures/local-review-continuation.ts`. Frontline's direct calls stay as they are:
-          `acceptedSingletonFrontlineSkip` (`handlers/review.ts`), the member frontline resolve in
-          `composePrePublicationReviewRequest`, and the procedure's frontline resolve in `projectPrePublicationReview`.
-        - Build `test-first` (one behavior at a time):
-            - A standard-lane internal request without the context is refused.
+    - `[x]` **1.1.f Require the context on the standard lane**
+        - Standard internal requests now refuse missing next-pass facts; frontline rejects them. Direct reducer and
+          admission fixtures supply explicit internal context, while command requests retain their stored shape.
 
 ### `[ ]` **1.2 Close a `full-final` lane only on a complete pass at the settled head — § 2.1, § 2.2, § 2.3**
 

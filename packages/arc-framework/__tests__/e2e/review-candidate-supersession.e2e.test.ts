@@ -1,5 +1,8 @@
 /** Real-CLI regression for review pass accounting across an explicit Candidate supersession. */
 
+import { readResolveNextPassContext } from "../../src/handlers/review-next-pass-context.js";
+import { LocalApprovedDispositionRecordStore } from "../../src/scripts/review-gate/hosts/local/disposition-record-store.js";
+import { createRepositoryReviewResultReader } from "../../src/scripts/review-gate/hosts/local/review-result-reader-composition.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -310,6 +313,16 @@ describe("Candidate review usage across supersession", () => {
     expect(JSON.parse(resumed.stdout)).toMatchObject({ status: "attested", operation: "re-root" });
     expect((await readCandidateRecord(root, "example"))?.attestation.supersedes).toBe(oldCandidateId);
     await git(root, ["commit", "-m", "attest successor candidate"]);
+    const publisher = new RepositoryGitCommonStatePublisher(gitExec, root);
+    const previousRequest = await responsePolicyRequest(root, source);
+    const nextPassContext = await readResolveNextPassContext({ root, exec: gitExec,
+      request: { ...previousRequest, target: { ...previousRequest.target, headSha: await git(root, ["rev-parse", "HEAD"]) }, attempts: [] },
+      operationStore: new LocalReviewOperationStateStore(publisher),
+      dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+      resultReader: createRepositoryReviewResultReader(publisher),
+    });
+    expect(nextPassContext).toEqual({ convergence: "unconverged", responseDue: false, incremental: null });
+
     await git(root, ["remote", "add", "origin", OFFLINE_ORIGIN]);
     const continuation = await runArc([
       "review", "pre-publication", "example", "--self-review", "settled",
