@@ -191,22 +191,14 @@ failures follow their specified handling, and exempt ceremonies acquire no redun
   specification finalization requests it before Gate 1 and after later notes/prose edits. Rendered both workflows;
   the low Class-only path and both specification approvals retain their existing boundaries.
 
-### `[ ]` **4.2 Check task generation and design amendments — D5.1–D5.2**
+### `[x]` **4.2 Check task generation and design amendments — D5.1–D5.2**
 
 - _Goal:_ Task generation and amendment captures request state feedback at the boundary carrying their authored
   text, with task and review-site amendments sharing their caller's feedback request.
 
-- _Note:_ See `notes-projected-markdown-checks.md` § Ceremony coverage, rows 3–4.
-
-    - In package `generate-tasks.template.md`, request `arc check increment` after the final post-settle coherence
-      reread, immediately before the pre-save interlock, so adversarial folds and delivery rendering are included.
-      Repeat if later authored text changes before commit; keep descriptor lint and segment-verification instructions.
-    - In `supplemental/amend-design.md`, request increment feedback after grounding before the capture commit.
-      Task and review sites use their caller's increment request before the shared commit, without adding a duplicate.
-    - Preserve the task arm's existing increment and use Tasks 4.5–4.6's review-fix requests for review-site amendments;
-      render both installed workflows and inspect each capture/task/review branch in its full surrounding step.
-    - Verify a fold or delivery rendering that changes the plan after an earlier check: the final request must read
-      the changed plan before approval, rather than reuse an earlier report as coverage of the later text.
+- _Outcome:_ Task generation checks the final settled list immediately before approval and repeats only after
+  later authored edits. Amendment captures check grounded text before commit; task and review arms reuse their
+  caller-owned increment request. Rendered counterparts retain descriptor lint and existing release controls.
 
 ### `[ ]` **4.3 Check decomposition, initialization, and inbox routing — D5.1–D5.2**
 

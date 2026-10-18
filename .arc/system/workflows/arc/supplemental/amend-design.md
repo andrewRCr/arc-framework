@@ -274,6 +274,8 @@ released at the stop where the Owner authorized it, so the point-in-time design 
 Write the `Class` ratchet with `arc finalize amend-design --class <Class>` rather than editing the meta by hand:
 the capture is a planning ceremony and that verb performs the write with no lifecycle guard.
 
+Run `arc check increment` over the amendment's authored text before the capture commit.
+
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
 
@@ -285,10 +287,11 @@ Context: spec-{name}.md (planning)
 
 On the **task arm** nothing in the record's body changes — the row is the one write, and a record rather than
 pre-commitment text — so the row and the revision tasks ride the increment's task commit and reach the ordinary
-completion report.
+completion report. Use the task's existing increment request before that shared commit.
 
 At the **review site** there is no separate capture commit: on the spec-changing arms the row and the body edit
 ride the review-fix increment's single commit, approved with the disposition set.
+Use the caller's increment request over authored state text before that shared commit; add no duplicate request here.
 
 Under a bound delivery plan the capture and its plan revision land together, before corrective work, on every arm
 (§ Under a bound delivery plan).

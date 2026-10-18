@@ -592,6 +592,8 @@ Never patch the machine-owned snapshot or publish stale authoring state.
 **Post-settle coherence re-read** (always-on, in-context): after renderer replacement and any adversarial folds,
 re-fire the Final suite-coherence pass over the settled task list.
 
+Run `arc check increment` over the settled task list and report its result at the pre-save approval.
+
 > [!IMPORTANT]
 > `workflow-interlock`: Stop after the pre-save checklist passes. Surface the task list location for review;
 > await direction before the meta update and commit.
@@ -601,6 +603,8 @@ re-fire the Final suite-coherence pass over the settled task list.
 to write the resolved `**Class:**`, derived `**Task List:**`, and terminal `**Next Action:**` through the field
 model in one call. generate-tasks is the planning terminus, so no stage advance or boundary sentinel; `activate`
 sets `Current Workflow` to `process-task-loop`. Bundle this write with the task list in the ceremony commit.
+
+If authored text changed after that request, run `arc check increment` again before the commit.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
