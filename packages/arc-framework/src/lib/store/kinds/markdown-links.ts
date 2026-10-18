@@ -26,10 +26,30 @@ function normalizeLabel(label: string): string {
   return label.replace(/[\t\n\r ]+/g, " ").replace(/^ | $/g, "").toLowerCase().toUpperCase();
 }
 
-function escaped(source: string, offset: number): boolean {
-  let count = 0;
-  while (offset > 0 && source[--offset] === "\\") count++;
-  return count % 2 === 1;
+function referenceLabelEnd(span: string, start: number): number | undefined {
+  for (let offset = start; offset < span.length; offset++) {
+    if (span[offset] === "\\") { offset++; continue; }
+    if (span[offset] === "[") return undefined;
+    if (span[offset] === "]") return offset;
+  }
+  return undefined;
+}
+
+function fullReferences(span: string): { label: string; offset: number }[] {
+  const openings: number[] = [];
+  const references: { label: string; offset: number }[] = [];
+  for (let offset = 0; offset < span.length; offset++) {
+    if (span[offset] === "\\") { offset++; continue; }
+    if (span[offset] === "[") { openings.push(offset); continue; }
+    if (span[offset] !== "]") continue;
+    const start = openings.pop();
+    if (start === undefined || span[offset + 1] !== "[") continue;
+    const end = referenceLabelEnd(span, offset + 2);
+    if (end === undefined) continue;
+    references.push({ label: span.slice(offset + 2, end), offset: start });
+    offset = end;
+  }
+  return references;
 }
 
 function readReferences(content: string, node: MarkdownNode, definitions: ReadonlySet<string>): MarkdownLinkOccurrence[] {
@@ -38,11 +58,10 @@ function readReferences(content: string, node: MarkdownNode, definitions: Readon
   if (node.type !== "text" || start === undefined || end === undefined) return [];
   const span = content.slice(start, end);
   const references: MarkdownLinkOccurrence[] = [];
-  for (const match of span.matchAll(/\[([^\]]+)\]\[([^\]]+)\]/g)) {
-    if (escaped(span, match.index)) continue;
-    const value = normalizeLabel(match[2] ?? "");
-    if (definitions.has(value)) continue;
-    const before = content.slice(0, start + match.index).split(/\r\n|\r|\n/);
+  for (const reference of fullReferences(span)) {
+    const value = normalizeLabel(reference.label);
+    if (value === "" || definitions.has(value)) continue;
+    const before = content.slice(0, start + reference.offset).split(/\r\n|\r|\n/);
     references.push({ value, line: before.length, column: (before.at(-1)?.length ?? 0) + 1 });
   }
   return references;

@@ -26,6 +26,23 @@ describe("stored Markdown links", () => {
     ]);
     expect(readMarkdownLinks("[x][ϴ]\n\n[θ]: /README.md\n").undefinedReferences).toEqual([]);
   });
+  it.each([String.raw`[a\]b][missing]`, "[a[b]c][missing]"])(
+    "reads complete bracketed reference text and its source location: %s", reference => {
+      expect(readMarkdownLinks(`Prefix ${reference}\n${reference}`).undefinedReferences).toEqual([
+        { value: "MISSING", line: 1, column: 8 },
+        { value: "MISSING", line: 2, column: 1 },
+      ]);
+      expect(readMarkdownLinks(`${reference}\n\n[missing]: /README.md`).undefinedReferences).toEqual([]);
+    },
+  );
+  it("retains escaped closing brackets in complete reference labels", () => {
+    expect(readMarkdownLinks(String.raw`[x][a\]old] [x][a\]new]`).undefinedReferences).toEqual([
+      { value: String.raw`A\]OLD`, line: 1, column: 1 },
+      { value: String.raw`A\]NEW`, line: 1, column: 13 },
+    ]);
+    expect(readMarkdownLinks(String.raw`[x][a\]new]` + "\n\n" + String.raw`[a\]new]: /README.md`)
+      .undefinedReferences).toEqual([]);
+  });
   it.each([
     "`[x][code]`", "```md\n[x][fence]\n```", "    [x][indented]",
     '<div data-value="[x][html]">', '[link]("[x][destination]")',

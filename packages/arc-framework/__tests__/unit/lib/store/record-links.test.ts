@@ -117,6 +117,22 @@ describe("introduced record link rules", () => {
     expect(rules[0]?.condition).toContain("new.md");
     expect(rules[0]?.condition).not.toContain("old.md");
   });
+  it("distinguishes complete escaped reference labels from historical violations", async () => {
+    const rules = await checkRecordLinks(write(String.raw`[x][a\]new]`, String.raw`[x][a\]old]`));
+    expect(rules).toHaveLength(1);
+    expect(rules[0]).toMatchObject({ rule: "links.undefined-reference" });
+    expect(rules[0]?.condition).toContain(JSON.stringify(String.raw`A\]NEW`));
+    expect(rules[0]?.condition).not.toContain("OLD");
+    expect(await checkRecordLinks(write("New prose\n" + String.raw`[x][a\]old]`, String.raw`[x][a\]old]`)))
+      .toEqual([]);
+  });
+  it("counts repeated bracketed references and reports all locations of the breaking label", async () => {
+    const reference = "[a[b]c][missing]";
+    const rules = await checkRecordLinks(write(`${reference}\n${reference}`, reference));
+    expect(rules).toHaveLength(1);
+    expect(rules[0]?.condition).toContain('"MISSING" at line 1, column 1');
+    expect(rules[0]?.condition).toContain('"MISSING" at line 2, column 1');
+  });
   it("finds the newly undefined usage when its definition is removed", async () => {
     const rules = await checkRecordLinks(write("[x][known]", "[x][known]\n\n[known]: /README.md"));
     expect(rules).toEqual([expect.objectContaining({ rule: "links.undefined-reference" })]);

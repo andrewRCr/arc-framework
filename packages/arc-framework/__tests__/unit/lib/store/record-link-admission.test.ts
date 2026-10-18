@@ -43,6 +43,26 @@ describe("record link admission", () => {
       { action: "put", reference: notes, expected: null, content: "`relative.md`" },
     ], provenance })).toMatchObject({ status: "ok" });
   });
+  it.each(["write", "batch"] as const)("refuses bracketed undefined references through %s and permits corrected retry", async method => {
+    for (const content of [String.raw`[a\]b][missing]`, "[a[b]c][missing]"]) {
+      const { store, notes, meta } = await fixture();
+      const draft = recordReferences["work-item/draft"](meta.reference.owner);
+      const perform = (next: string) => method === "write"
+        ? store.write({ action: "put", reference: notes, expected: null, content: next, provenance })
+        : store.batch({ writes: [
+          { action: "put", reference: draft, expected: null, content: "Valid draft." },
+          { action: "put", reference: notes, expected: null, content: next },
+        ], provenance });
+      expect(await perform(content)).toMatchObject({
+        status: "refused", refusal: { code: "record-malformed", rule: "links.undefined-reference",
+          condition: expect.stringContaining('"MISSING" at line 1, column 1'),
+          remedy: { text: expect.stringContaining("save again") } },
+      });
+      expect(await store.read({ reference: notes })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+      expect(await store.read({ reference: draft })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+      expect(await perform(`${content}\n\n[missing]: /README.md`)).toMatchObject({ status: "ok" });
+    }
+  });
   it("admits unrelated edits to imported historical violations", async () => {
     const { store, notes } = await fixture();
     const importer = new ReferenceBackend({ state: store.state });
