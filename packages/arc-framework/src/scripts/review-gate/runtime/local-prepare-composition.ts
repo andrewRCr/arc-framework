@@ -336,7 +336,7 @@ async function validateLocalPolicyAdmission(
         sourceId: "delegated-agent",
         nextAction: "local-prepare",
       }, policyDependencies);
-      return { state: "ready", pass: resolution.payload.pass };
+      return { state: "ready", pass: resolution.payload.pass, incrementalBasis: nextPassContext.incremental?.basis };
 }
 
 /** Bind local prepare to the current repository, managed methods, and Git-common stores. */

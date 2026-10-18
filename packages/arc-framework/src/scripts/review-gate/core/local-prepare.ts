@@ -49,6 +49,7 @@ export function createLocalReviewSourcePayload(
 function localReviewerInstructions(
   guidance: LocalReviewGuidance,
   source: LocalReviewSource,
+  incrementalBasis?: "fix-check" | "delta-check",
 ): string {
   const scope = source.correctionScope;
   if (scope === undefined) return guidance.reviewerInstructions;
@@ -65,7 +66,8 @@ function localReviewerInstructions(
     + `${scope.predecessorHeadSha}..${scope.headSha}: review that range completely, and apply the coverage and `
     + `clean rules to it. The changes from ${scope.basisHeadSha} to ${scope.predecessorHeadSha} were covered by the `
     + `earlier passes in this review's recorded coverage chain; do not re-review them. ${findings} `
-    + "Apply four fix-check axes to every repair. Closure: establish that the reported defect is resolved. "
+    + (incrementalBasis === "delta-check" ? "Apply three inspection axes to the reviewed range. "
+      : "Apply four fix-check axes to every repair. Closure: establish that the reported defect is resolved. ")
     + "Behavioral grounding: verify the repaired behavior with source and executable evidence, rather than edit shape alone. "
     + "Propagation and completeness: perform a sibling sweep for the same defect across the complete change set "
     + "and check every affected path. New failure: inspect the repair for introduced regressions and failure paths.";
@@ -89,6 +91,7 @@ export async function publishLocalReviewPreparation(
     now(): string;
     cleanupTtlMs: number;
     guidance: LocalReviewGuidance;
+    incrementalBasis?: "fix-check" | "delta-check";
   },
 ): Promise<LocalReviewPreparation> {
   const source = LocalReviewSourceSchema.parse(sourceInput);
@@ -130,7 +133,7 @@ export async function publishLocalReviewPreparation(
     sourceDigest: source.sourceDigest,
     guidance: dependencies.guidance.projection,
     guidanceDigest: dependencies.guidance.guidanceDigest,
-    reviewerInstructions: localReviewerInstructions(dependencies.guidance, source),
+    reviewerInstructions: localReviewerInstructions(dependencies.guidance, source, dependencies.incrementalBasis),
     target: admission.target,
     requirement: admission.requirement,
     request: admission.carrier.request,

@@ -472,7 +472,7 @@ the range proof. Workflow text changes in the package's `arc/` source first, the
           Only correction scopes and chain re-confirmation accept `range-proven`; the current leg gives the context its
           transient `delta-check` basis. Delivery keeps its contribution proof, and historical carry rejects the new result.
 
-### `[ ]` **3.2 Admit a delta check's scope, recorded as a fix check's attempt — § 3.5**
+### `[x]` **3.2 Admit a delta check's scope, recorded as a fix check's attempt — § 3.5**
 
 - _Goal:_ After a converged predecessor whose head no response produced, a correction scope resolves only with its
   range proof, carrying the predecessor's required findings, and the coverage chain re-confirms that leg on every later
@@ -483,16 +483,10 @@ the range proof. Workflow text changes in the package's `arc/` source first, the
           fix checks re-prove every delta leg from Git. Delta admission requires a local source and excludes delivery;
           under `full-final`, only pre-publication and an Errand with an open pull request qualify.
 
-    - `[ ]` **3.2.b Give the delta check its instructions**
-        - The context's basis reaches `publishLocalReviewPreparation` (`core/local-prepare.ts`) beside `guidance` in its
-          dependencies, an instruction input that is never persisted, since nothing stored tells a delta check from a
-          fix check. `localReviewerInstructions` gives a delta check the incremental prompt — the whole range reviewed,
-          the clean rules applied — and the required findings' re-examination, without the closure axis, which needs a
-          fix to close.
-        - Build `test-first` (one behavior at a time):
-            - A delta check's instructions omit the closure axis and keep the other three.
-            - `LocalReviewSourceSchema`, `IncrementalReviewScopeSchema`, `LocalReviewCoverageAdmissionSchema`, and the
-              operation-state schema are unchanged.
+    - `[x]` **3.2.b Give the delta check its instructions**
+        - Local preparation carries the current basis beside its guidance without persisting a marker. Delta instructions
+          retain range coverage, clean rules, carried findings, and the three inspection axes while omitting repair
+          closure. Source, scope, coverage-admission, and operation-state schemas are unchanged.
 
 ### `[ ]` **3.3 Run the delta check on `delegated-agent`, admitted without a selection — § 3.5, § 7.2**
 

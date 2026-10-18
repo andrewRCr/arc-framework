@@ -203,7 +203,7 @@ export interface LocalPrepareDependencies {
     coverageAdmission?: LocalReviewCoverageAdmission;
     judgment?: ReviewLaneJudgment;
   }): Promise<
-    | { readonly state: "ready"; readonly pass: number }
+    | { readonly state: "ready"; readonly pass: number; readonly incrementalBasis?: "fix-check" | "delta-check" }
     | {
         readonly state: "coverage-required";
         readonly action: LocalReviewCoverageSelectionAction;
@@ -462,6 +462,7 @@ async function replayReadyLocalAdmission(
 }
 
 interface LocalAdmissionSettlementInput {
+  incrementalBasis?: "fix-check" | "delta-check";
   request: LocalPrepareRequest;
   dependencies: LocalPrepareDependencies;
   repositoryId: string;
@@ -503,7 +504,7 @@ async function resolveSettlementPolicyAdmission(
 ) {
   const { request, dependencies, repositoryId, target, lineage, projection } = input;
   if (request.deliveryAdmission !== undefined) {
-    return { state: "ready" as const, pass: request.deliveryAdmission.pass };
+    return { state: "ready" as const, pass: request.deliveryAdmission.pass, incrementalBasis: undefined };
   }
   const policyAttempts = currentAttempts.filter((attempt) => (
     retryingLocalAttempt === undefined
@@ -685,7 +686,7 @@ async function admitLocalPreparation(
             materialize: (candidate) => dependencies.materialize(candidate),
             now: () => dependencies.now(),
             cleanupTtlMs,
-            guidance: assurance.guidance,
+            guidance: assurance.guidance, incrementalBasis: input.incrementalBasis,
           },
         );
         admitted = { state: "prepared", resolution, preparation };
@@ -799,7 +800,7 @@ async function settleLocalPreparation(input: LocalAdmissionSettlementInput) {
         ? {}
         : { deliveryAdmission: request.deliveryAdmission }),
     };
-    const admitted = await admitLocalPreparation(input, admissionInput);
+    const admitted = await admitLocalPreparation({ ...input, incrementalBasis: policyAdmission.incrementalBasis }, admissionInput);
     await recordPreparedLocalAdmission(input, admitted, ownerVersion);
     return admitted;
 }
