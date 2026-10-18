@@ -55,6 +55,65 @@ describe("validate-links.sh", () => {
     await rm(tmp, { recursive: true, force: true });
   });
 
+  it("refuses normalized movable targets, present or absent, before existence checks", async () => {
+    const dir = join(tmp, "case-movable-targets");
+    await mkdir(dir, { recursive: true });
+    await execFileAsync("git", ["init", "-q"], { cwd: dir });
+    for (const path of [".arc/active/meta-one.md", ".arc/backlog/planned/topic/draft-topic.md", ".arc/completed/old/cohort-group.md"]) {
+      await writeFixture(dir, path, "# Target\n");
+    }
+    await writeFixture(dir, "README.md", [
+      "[active](.arc/active/meta-one.md)",
+      "[backlog](/.arc/backlog/planned/topic/draft-topic.md)",
+      "[completed](.arc/reference/../completed/old/cohort-group.md)",
+      "[missing](/.arc/active/./meta-missing.md)",
+      "[encoded](/.arc/%61ctive/meta-one.md)",
+    ].join("\n"));
+    const result = await runScript(dir, ["README.md"]);
+    expect(result.code).toBe(1);
+    expect(result.stderr.match(/link to movable artifact/g)).toHaveLength(5);
+    expect(result.stderr).toContain("README.md: link to movable artifact -> .arc/active/meta-one.md");
+    expect(result.stderr).not.toContain("broken link");
+  });
+
+  it("refuses ignored ARC targets and accepts the tracked personal README on corrected retry", async () => {
+    const dir = join(tmp, "case-ignored-targets");
+    await mkdir(dir, { recursive: true });
+    await execFileAsync("git", ["init", "-q"], { cwd: dir });
+    await writeFixture(dir, ".gitignore", ".arc/user/*\n");
+    await writeFixture(dir, ".git/info/exclude", ".arc/active/\n");
+    await writeFixture(dir, ".arc/user/alice/private.md", "# Private\n");
+    await writeFixture(dir, ".arc/user/README.md", "# Tracked user documentation\n");
+    await writeFixture(dir, ".arc/active/current/README.md", "# Projected\n");
+    await execFileAsync("git", ["add", "-f", ".arc/user/README.md"], { cwd: dir });
+    await writeFixture(dir, "README.md", "[private](.arc/user/alice/private.md)\n[projected](/.arc/active/current/README.md)\n");
+    const failed = await runScript(dir, ["README.md"]);
+    expect(failed.code).toBe(1);
+    expect(failed.stderr.match(/link to ignored ARC path/g)).toHaveLength(2);
+    await writeFixture(dir, "README.md", "[users](/.arc/user/README.md)\n");
+    expect(await runScript(dir, ["README.md"])).toMatchObject({ code: 0, stderr: "" });
+  });
+
+  it("resolves root-absolute tracked files, directories, and template counterparts from nested cwd", async () => {
+    const dir = join(tmp, "case-repository-root");
+    await mkdir(dir, { recursive: true });
+    await execFileAsync("git", ["init", "-q"], { cwd: dir });
+    await writeFixture(dir, "docs/guide.md", "# Guide\n");
+    await writeFixture(dir, "rendered.template.md", "# Template\n");
+    await writeFixture(dir, "nested/source.md", "[guide](/docs/./guide.md) [folder](/docs/) [template](/rendered.md)\n");
+    expect(await runScript(join(dir, "nested"), ["source.md"])).toMatchObject({ code: 0, stderr: "" });
+  });
+
+  it("keeps root-prefix lookalikes and ordinary lifecycle README targets legal", async () => {
+    const dir = join(tmp, "case-target-boundaries");
+    await mkdir(dir, { recursive: true });
+    await execFileAsync("git", ["init", "-q"], { cwd: dir });
+    await writeFixture(dir, ".arc/active-other/meta-one.md", "# Lookalike\n");
+    await writeFixture(dir, ".arc/active/README.md", "# Active\n");
+    await writeFixture(dir, "README.md", "[lookalike](.arc/active-other/meta-one.md) [readme](.arc/active/README.md)\n");
+    expect(await runScript(dir, ["README.md"])).toMatchObject({ code: 0, stderr: "" });
+  });
+
   it("passes a valid inline link to an existing file", async () => {
     const dir = join(tmp, "case-inline-valid");
     await writeFixture(dir, "target.md", "# Target\n");

@@ -429,8 +429,8 @@ if [ -n "$link_candidates" ]; then
         echo -e "${RED}Error: Markdown link resolution failed:${NC}"
         echo "$link_output" | sed 's/^/   /'
         echo ""
-        echo "   Fix the link targets in the files listed above; in a movable artifact, name the target by its"
-        echo "   backticked filename instead of linking it."
+        echo "   Fix the link targets in the files listed above. For a movable artifact or an ignored ARC target,"
+        echo "   use its backticked filename; links from movable artifacts also use backticked filenames."
         errors=$((errors + 1))
     fi
 fi

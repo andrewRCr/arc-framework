@@ -66,29 +66,14 @@ _Mode:_ `slice` — a staged tracked file and the link audit agree on the new ta
 _Exit criterion:_ Real Git fixtures prove both restrictions, repository-root absolute resolution, and the tracked
 user README exception; the complete tracked link audit passes after the two named corpus corrections.
 
-### `[ ]` **2.1 Enforce normalized target rules in the shipped hook — D3.1–D3.2**
+### `[x]` **2.1 Enforce normalized target rules in the shipped hook — D3.1–D3.2**
 
 - _Goal:_ The shipped staged-file check refuses movable and ignored ARC targets before existence fallback, and
   interprets leading-slash targets from the repository root consistently across supported shells.
 
-- _Note:_ See `notes-projected-markdown-checks.md` § Framework synchronization for the non-Markdown counterparts.
-
-    - Update package `arc/system/.internal/scripts/validate-links.sh` at `validate_target`, retaining the source skips
-      and current `is_movable` source rule; target recognition additionally includes completed movable artifacts.
-    - Normalize repository-relative targets without GNU-only `realpath` flags, then apply movable-target recognition
-      and `git check-ignore` for ARC targets. Keep external, anchor-only, template-counterpart, and reference behavior.
-    - Update package `arc/system/.internal/githooks/pre-commit`'s `CHECK[markdown-links]` advice with the filename
-      correction. Keep all shipped commands in their ordinary `arc` register.
-    - Apply the matching targeted edits to installed `.arc/system/.internal/scripts/validate-links.sh` and
-      `.arc/system/.internal/githooks/pre-commit`, preserving executable modes. Verify paired-file agreement before
-      the installed-script cases pass; these non-Markdown files are outside `render:framework`'s accepted operands.
-    - Build `test-first` (one behavior at a time):
-        - Extend both `__tests__/integration/validate-links.test.ts` and `integration/scripts/validate-links.test.ts`
-          as appropriate, using real temporary repositories for ignore rules and repository-root discovery.
-        - Relative and root-absolute movable targets fail even when present; ignored ARC targets fail even when
-          present; a tracked user README passes despite broad personal ignore rules.
-        - Dot segments, directories, missing targets, source skip rules, existing relative-from-movable refusal,
-          undefined references, and portable root-absolute resolution retain their intended behavior.
+- _Outcome:_ The shipped and installed validators normalize targets lexically, resolve leading slashes at the
+  repository root, and refuse movable or Git-ignored ARC targets before existence fallback. Real Git scenarios
+  retain the tracked user README exception, source skips, and corrected retries; hook advice names filename references.
 
 ### `[ ]` **2.2 Audit the same targets and accept named paths — D3.3**
 

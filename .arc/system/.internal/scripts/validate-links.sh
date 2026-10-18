@@ -23,7 +23,8 @@
 # Resolution rules:
 # - Relative paths resolve from the source file's directory, not cwd
 # - Anchor fragments (file.md#anchor) are stripped before the file-existence check
-# - Absolute paths (starting with /) are used as-is
+# - Absolute paths (starting with /) resolve from the repository root
+# - Movable artifact targets and ignored ARC targets are refused
 #
 # Non-markdown files passed as args are skipped silently.
 # Missing source files are skipped silently (covers deletions during staging).
@@ -48,9 +49,48 @@ is_external() {
     esac
 }
 
-# Strip anchor fragment from a target. "file.md#anchor" -> "file.md".
+# Strip query and fragment suffixes before resolving a target path.
 strip_anchor() {
-    echo "${1%%#*}"
+    local path="${1%%#*}"
+    printf '%s\n' "${path%%\?*}"
+}
+
+# Normalize absolute paths lexically, including paths that do not exist.
+normalize_path() {
+    printf '%s\n' "$1" | awk '
+        {
+            count = split($0, parts, "/"); depth = 0
+            for (i = 1; i <= count; i++) {
+                if (parts[i] == "" || parts[i] == ".") continue
+                if (parts[i] == "..") { if (depth > 0) depth--; continue }
+                stack[++depth] = parts[i]
+            }
+            result = ""
+            for (i = 1; i <= depth; i++) result = result "/" stack[i]
+            print result == "" ? "/" : result
+        }
+    '
+}
+
+# Decode percent bytes once; preserve malformed escapes for existence feedback.
+decode_path() {
+    local rest="$1" decoded="" byte
+    while [[ "$rest" =~ ^([^%]*)%([[:xdigit:]]{2})(.*)$ ]]; do
+        decoded+="${BASH_REMATCH[1]}"
+        printf -v byte '%b' "\x${BASH_REMATCH[2]}"
+        decoded+="$byte"
+        rest="${BASH_REMATCH[3]}"
+    done
+    printf '%s\n' "$decoded$rest"
+}
+
+# Recognize movable targets across every lifecycle directory.
+is_movable_target() {
+    case "$1" in
+        .arc/active/*|.arc/backlog/*|.arc/completed/*) ;;
+        *) return 1 ;;
+    esac
+    [[ "$(basename "$1")" =~ ^[a-z]+-.+\.md$ ]]
 }
 
 # Sanitize markdown content: drop fenced code blocks, mask inline code spans.
@@ -96,9 +136,13 @@ validate_target() {
     # Anchor-only link — self-reference, no file to check.
     case "$target" in \#*) return 0 ;; esac
 
+    local file_part
+    file_part=$(decode_path "$(strip_anchor "$target")")
+    [ -z "$file_part" ] && return 0
+
     # A relative link from a movable artifact breaks on its next relocation.
     if [ "$movable" = 1 ]; then
-        case "$target" in
+        case "$file_part" in
             /*) ;;
             *)
                 diagnostic "$source_file: relative link in movable artifact -> $target"
@@ -107,14 +151,32 @@ validate_target() {
         esac
     fi
 
-    local file_part
-    file_part=$(strip_anchor "$target")
-    [ -z "$file_part" ] && return 0
-
     local resolved
     case "$file_part" in
-        /*) resolved="$file_part" ;;
+        /*) resolved="${repo_root}/${file_part#/}" ;;
         *)  resolved="${source_dir}/${file_part}" ;;
+    esac
+    resolved=$(normalize_path "$resolved")
+
+    case "$resolved" in
+        "$repo_root"/.arc/*)
+            local relative="${resolved#"$repo_root"/}"
+            if is_movable_target "$relative"; then
+                diagnostic "$source_file: link to movable artifact -> $target"
+                return 0
+            fi
+            if [ "$has_repository" = 1 ]; then
+                local ignored_status=0
+                git -C "$repo_root" check-ignore -q -- "$relative" || ignored_status=$?
+                if [ "$ignored_status" = 0 ]; then
+                    diagnostic "$source_file: link to ignored ARC path -> $target"
+                    return 0
+                elif [ "$ignored_status" != 1 ]; then
+                    diagnostic "$source_file: cannot inspect ARC target ignore rules -> $target"
+                    return 0
+                fi
+            fi
+            ;;
     esac
 
     if [ ! -e "$resolved" ]; then
@@ -158,10 +220,10 @@ validate_file() {
     esac
 
     local source_dir
-    source_dir=$(dirname "$source_file")
+    source_dir=$(cd "$(dirname "$source_file")" && pwd -P)
 
     local movable=0
-    is_movable "$source_file" && movable=1
+    is_movable "$source_dir/$basename" && movable=1
 
     local sanitized
     sanitized=$(sanitize "$source_file")
@@ -202,6 +264,10 @@ validate_file() {
 if [ $# -eq 0 ]; then
     exit 0
 fi
+
+has_repository=1
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || { repo_root=$(pwd -P); has_repository=0; }
+repo_root=$(normalize_path "$repo_root")
 
 for file in "$@"; do
     validate_file "$file"
