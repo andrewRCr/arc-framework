@@ -3,7 +3,7 @@ import type { Mutation } from "../store/write.js";
 import { RecordVersionSchema, sameReference } from "../store/identity.js";
 import { resolveEntryList, resolveWorkItemList, failure, type ResolvedEntryList } from "./lists.js";
 import { rowsInList } from "./listing.js";
-import { latestRoutingReceipt, listCoordinate } from "./receipts.js";
+import { latestRoutingReceipt, listCoordinate, sameRoutingList } from "./receipts.js";
 import { openErrandHolding } from "./errand-home.js";
 import { prepareEntryMove } from "./mover.js";
 import type { InboxContext, InboxOutcome, InboxRow } from "./types.js";
@@ -65,7 +65,16 @@ async function returnToDestination(entry: InboxRow, source: ResolvedEntryList, d
   const held = rowsInList(destination);
   if (held.status === "refused") return held;
   const duplicate = held.result.find(row => row.id === entry.id);
-  if (duplicate !== undefined) return failure("id-clash", `Return entry ${entry.title} (${entry.id}) clashes with ${duplicate.title} in ${destination.selector}.`, `Carry the survivor with arc route ${entry.id} --from ${destination.selector} --expected-version ${duplicate.version} --to ${source.selector}, then retry the abandon.`);
+  if (duplicate !== undefined) {
+    const receipt = await latestRoutingReceipt(entry.id, listCoordinate(destination), context);
+    if (receipt.status === "refused") return receipt;
+    const survivor = sameRoutingList(receipt.result?.source ?? null, listCoordinate(destination))
+      && sameRoutingList(receipt.result?.destination ?? null, listCoordinate(source));
+    const remedy = survivor
+      ? `Carry the survivor with arc route ${entry.id} --from ${destination.selector} --expected-version ${duplicate.version} --to ${listCoordinate(source).list}, then retry the abandon.`
+      : `Insert a copy of the inbox entry without _Id:_ to stamp a fresh identity, then remove its original ID ${duplicate.id} at listed version ${duplicate.version} from ${destination.selector}; retry the abandon.`;
+    return failure("id-clash", `Return entry ${entry.title} (${entry.id}) clashes with ${duplicate.title} in ${destination.selector}.`, remedy);
+  }
   const section = previousSection ?? (destination.inbox === "project" ? "Inbox" : "Errand");
   const prepared = await prepareEntryMove({ source, destination, entry, section, preserveCreated: original }, context);
   return prepared.status === "refused" ? prepared : { status: "ok", result: { kind: "move", destination, writes: prepared.result.writes } };
