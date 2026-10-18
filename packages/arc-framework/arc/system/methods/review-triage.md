@@ -12,8 +12,7 @@ override-active: false
 
 # Method: review-triage
 
-> - **Workflow:** [prepare-work-unit.md][prepare-work-unit], [integrate-work-unit.md][integrate-work-unit],
->   [verify-work-unit.md][verify-work-unit], [deliver-stack.md][deliver-stack], [run-errand.md][run-errand]
+> - **Workflow:** [code-review](code-review.md), including its non-producer author check.
 > - **When:** Agent processes findings from any code review
 >
 > - **Contract:** For every finding, verify it independently against source, record severity and disposition, and
@@ -179,11 +178,6 @@ context footer from `self-review`; its report-local labels do not create a produ
 ---
 
 [disposition-report]: disposition-report.md
-[integrate-work-unit]: ../workflows/arc/work-unit-lifecycle/integrate-work-unit.md
-[prepare-work-unit]: ../workflows/arc/work-unit-lifecycle/prepare-work-unit.md
-[verify-work-unit]: ../workflows/arc/work-unit-lifecycle/verify-work-unit.md
-[deliver-stack]: ../workflows/arc/supplemental/deliver-stack.md
-[run-errand]: ../workflows/arc/supplemental/run-errand.md
 [review-increment-invariant]: ../rules/DEV-RULES.ARC.md#review-increment-invariant
 
 [review-model]: review-model.md

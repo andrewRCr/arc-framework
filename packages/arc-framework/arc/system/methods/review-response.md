@@ -11,8 +11,7 @@ override-active: false
 
 # Method: review-response
 
-> - **Workflow:** [prepare-work-unit.md][prepare-work-unit], [integrate-work-unit.md][integrate-work-unit],
->   [deliver-stack.md][deliver-stack], [run-errand.md][run-errand]
+> - **Workflow:** [code-review](code-review.md).
 > - **When:** A local or hosted review returns normalized findings
 >
 > - **Contract:** Given an exact review target, normalized findings, effective routing result, and caller
@@ -166,10 +165,6 @@ capability or satisfy a carrier-native review requirement.
 
 ---
 
-[integrate-work-unit]: ../workflows/arc/work-unit-lifecycle/integrate-work-unit.md
-[prepare-work-unit]: ../workflows/arc/work-unit-lifecycle/prepare-work-unit.md
-[deliver-stack]: ../workflows/arc/supplemental/deliver-stack.md
-[run-errand]: ../workflows/arc/supplemental/run-errand.md
 [amend-design]: ../workflows/arc/supplemental/amend-design.md
 [amend-design-gate]: ../workflows/arc/supplemental/amend-design.md#entry-gate
 [review-increment-invariant]: ../rules/DEV-RULES.ARC.md#review-increment-invariant

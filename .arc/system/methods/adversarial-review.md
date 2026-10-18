@@ -23,11 +23,8 @@ override-active: false
 
 # Method: adversarial-review
 
-> - **Workflow:** [draft-design.md][draft-design], [create-spec.md][create-spec],
->   [generate-tasks.md][generate-tasks], [amend-design.md][amend-design],
->   [process-task-loop.md][process-task-loop],
->   [verify-work-unit.md][verify-work-unit],
->   [prepare-work-unit.md][prepare-work-unit], [integrate-work-unit.md][integrate-work-unit]
+> - **Workflow:** [planning-review](planning-review.md), [verification-review](verification-review.md),
+>   [frontline-review](frontline-review.md), and [standard-review](standard-review.md).
 > - **When:** A stage boundary runs its readiness, finalization, task-generation, or work-unit verification gate
 >   and has a supplied rubric to attack.
 >
@@ -331,7 +328,6 @@ planning-workflow re-entry.
 **At the owning stage's `high` level.** Offer a return to shaping for the named locus, the `Class` ratchet to
 `Novel` when the design must be invented, or `assess-boundary-fit` when concerns can stand apart; never offer a
 higher level there. An accepted return ends this loop as `re-entered`. Follow
-[resolve-planning-depth's re-entry route][resolve-planning-depth]: the stage runs its own authoring or grounding
 loop and readiness again before a fresh loop with a fresh cap. Keep this loop's passes and findings in its record.
 The fresh first pass receives the ended loop's findings, not its folds, labeled as that loop's and given as context,
 not the search frontier. An unshaped derivation signal still routes upstream from `create-spec` or `generate-tasks`.
@@ -654,13 +650,6 @@ the same source verification, disposition, and exit-gate rules as a standard pas
 
 ---
 
-[draft-design]: ../workflows/arc/draft-design.md
-[create-spec]: ../workflows/arc/create-spec.md
-[generate-tasks]: ../workflows/arc/generate-tasks.md
-[process-task-loop]: ../workflows/arc/process-task-loop.md
-[verify-work-unit]: ../workflows/arc/work-unit-lifecycle/verify-work-unit.md
-[integrate-work-unit]: ../workflows/arc/work-unit-lifecycle/integrate-work-unit.md
-[prepare-work-unit]: ../workflows/arc/work-unit-lifecycle/prepare-work-unit.md
 [sub-agent-scope]: ../rules/DEV-RULES.ARC.md#sub-agent-scope
 [planning-review]: ../../reference/strategies/arc/strategy-work-planning.md#review-at-planning-boundaries
 [amend-design]: ../workflows/arc/supplemental/amend-design.md

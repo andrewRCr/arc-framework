@@ -12,6 +12,8 @@ arc:
     - task-audit
     - spec-review
     - planning-review
+    - source-grounding
+    - verification-review
 ---
 
 # Workflow: Generate Task List
@@ -274,7 +276,8 @@ Use the provisional coverage to emit the delivery-aware task shape:
   authority.
 - End each member's task range with a member-scope verification parent assigned to that member and carrying the exact
   `— validate criteria at member scope` suffix. Its Goal is the member-scope criteria walk through
-  `validate-criteria`; it stays distinct from the sole terminal work-unit verification task and adds no phase.
+  [verification-review][verification-review]; it stays distinct from the sole terminal work-unit verification task and
+  adds no phase.
 - Group Success Criteria beneath the member headings, followed by `### Cross-member seams`. Assign each criterion
   to the earliest boundary that can see its evidence; criteria with no visible member boundary go to the seam group.
 
@@ -630,6 +633,7 @@ Activation can be deferred if planning ahead. Activate when implementation is ab
 [init-work-unit]: work-unit-lifecycle/planning/init-work-unit.md
 [activate-work-unit]: work-unit-lifecycle/activate-work-unit.md
 [source-grounding]: ../../methods/source-grounding.md
+[verification-review]: ../../methods/verification-review.md#author-criteria-walk
 
 [planning-author-checks]: ../../methods/planning-review.md#author-checks
 [planning-offer]: ../../methods/planning-review.md#independent-offer

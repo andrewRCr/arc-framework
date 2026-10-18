@@ -12,7 +12,6 @@ arc:
     - assess-draft-readiness
     - planning-review
     - assess-design-proportionality
-    - design-audit
     - source-grounding
 ---
 

@@ -9,6 +9,7 @@ arc:
     - task-audit
     - spec-review
     - planning-review
+    - source-grounding
     - validate-criteria
 ---
 

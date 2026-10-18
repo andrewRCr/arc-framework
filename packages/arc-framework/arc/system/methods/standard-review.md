@@ -1,6 +1,10 @@
 ---
 name: standard-review
 description: Satisfying standard for non-author review of one complete exact change set
+arc:
+  methods:
+    - adversarial-review
+    - implementation-audit
 related:
   - adversarial-review
   - implementation-audit
@@ -11,6 +15,7 @@ override-active: false
 
 # Method: standard-review
 
+> - **Workflow:** [code-review](code-review.md).
 > - **When:** A review obligation requires satisfying non-author analysis
 >
 > - **Contract:** A non-author evaluator reviews the complete exact requested change set from source and governing

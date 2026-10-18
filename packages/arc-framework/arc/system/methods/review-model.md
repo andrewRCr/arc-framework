@@ -10,8 +10,9 @@ override-active: false
 
 # Method: review-model
 
-> - **Workflow:** Called through [adversarial-review][adversarial-review], [review-triage][review-triage], and
->   [review-response][review-response] where a review runs.
+> - **Workflow:** [planning-review](planning-review.md), [code-review](code-review.md),
+>   [verification-review](verification-review.md), [adversarial-review][adversarial-review],
+>   [review-triage][review-triage], and [review-response][review-response].
 > - **When:** Running a pass, checking its fixes, or reading the resulting review loop.
 >
 > - **Contract:** Distinguish complete passes from fix-check rounds, keep approvals separate from recommendations,

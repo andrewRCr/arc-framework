@@ -5,7 +5,6 @@ arc:
   methods:
     - code-review
     - classify-review-risk
-    - review-chunking
     - commit-footer
 ---
 

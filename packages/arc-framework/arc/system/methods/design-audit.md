@@ -6,7 +6,8 @@ override-active: false
 
 # Method: design-audit
 
-> - **Workflow:** [draft-design.md][draft-design], [create-spec.md][create-spec]
+> - **Workflow:** [planning-review](planning-review.md) and the
+>   [standalone design audit](../.internal/skills/arc-design-audit/SKILL.md).
 > - **When:** A planning boundary validates a settled design — draft readiness or spec finalization, where the
 >   `adversarial-review` mechanism runs this rubric — or an ad-hoc standalone re-check re-validates a design whose
 >   world may have moved, via the [`arc-design-audit` door][arc-design-audit-skill].
@@ -108,8 +109,6 @@ draft or spec grooming — not around it via downstream patches.
 
 ---
 
-[draft-design]: ../workflows/arc/draft-design.md
-[create-spec]: ../workflows/arc/create-spec.md
 [assess-design-proportionality]: assess-design-proportionality.md
 [spec-review]: spec-review.md
 [adversarial-review]: adversarial-review.md

@@ -1004,12 +1004,10 @@ package's `arc/` source first, then in the `.arc/` copy.
   findings methods, and `review-model` it fires; methods' "Workflow:" callouts name their real callers; and
   `review-model` and the methods index map the family.
 
-    - `[ ]` **7.5.a Set the declarations and callouts**
-        - At the stage gate a site calls its type's method, never its checks. A site keeps declaring the checks it runs
-          inside its own authoring loop, and `deliver-stack`'s and `amend-design`'s direct check calls and
-          `decompose-work-unit`'s `spec-review` stay as they are. Ad-hoc doors — `arc-design-audit`, `arc-task-audit`,
-          and `arc-amend-design` under `.internal/skills`, with their harness copies under `.claude/skills` — reach a
-          review-type method or a check. The method-trigger audit (`audit-method-triggers.ts`) passes.
+    - `[x]` **7.5.a Set the declarations and callouts**
+        - Declarations now follow direct consumers: the planning authoring loops retain their checks, code and
+          verification boundaries call their review methods, and lane methods declare their own evaluator and rubric.
+          Caller callouts name those consumers; standalone audit doors and evidence-only checks remain reachable.
 
     - `[ ]` **7.5.b Map the family**
         - `review-model` lists the three review-type methods and places every review method in its layer — sites, the

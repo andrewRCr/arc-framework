@@ -13,7 +13,7 @@ arc:
     - assess-design-proportionality
     - spec-review
     - planning-review
-    - design-audit
+    - source-grounding
 ---
 
 # Workflow: Create Spec

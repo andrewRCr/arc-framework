@@ -1,6 +1,10 @@
 ---
 name: frontline-review
 description: Advisory pre-publication review that shapes a change before standard review
+arc:
+  methods:
+    - adversarial-review
+    - implementation-audit
 related:
   - adversarial-review
   - implementation-audit
@@ -12,6 +16,7 @@ override-active: false
 
 # Method: frontline-review
 
+> - **Workflow:** [code-review](code-review.md).
 > - **When:** A caller elects to review an exact change before publishing it to a downstream independent evaluator
 >
 > - **Contract:** Run an advisory pre-publication review from fresh context using `adversarial-review` with the

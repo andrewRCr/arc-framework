@@ -5,7 +5,6 @@ arc:
   methods:
     - code-review
     - assess-evidence-applicability
-    - adversarial-review
     - review-chunking
     - commit-footer
     - pull-request-format
