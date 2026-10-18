@@ -370,11 +370,9 @@ first, then in the `.arc/` copy by targeted edit.
           termini preempt coverage choices and coverage-required null sources; converged fix checks retain the offer
           beside ranked complete requests. Offer projection lives outside the status reducer.
 
-    - `[ ]` **2.6.b Pin pre-publication's terminus at `coverage-required`**
-        - `pre-publication-procedure.ts` already takes a terminus from the driver's `owner-accepted`; after Task 1.7 the
-          test passes with no change to the procedure.
-        - Build `test-first` (one behavior at a time):
-            - A supplied terminus after a clean converged fix check settles pre-publication's standard lane.
+    - `[x]` **2.6.b Pin pre-publication's terminus at `coverage-required`**
+        - A clean converged fix check with supplied Owner acceptance projects publication readiness, retains the
+          accepted terminus, and clears the reservation without claiming complete review coverage.
 
     - `[ ]` **2.6.c Offer the stop in `prepare-work-unit` and `integrate-work-unit`'s delivery route**
         - Each `coverage-required` arm offers the stop once the response is performed. The published singleton takes no

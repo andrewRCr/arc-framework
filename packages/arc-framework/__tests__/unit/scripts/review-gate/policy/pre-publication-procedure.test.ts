@@ -1004,6 +1004,25 @@ describe("projectPrePublicationReview", () => {
     });
   });
 
+  it("carries Owner acceptance after a clean converged fix check into publication", () => {
+    const base = request({ selfReview: "settled" });
+    const result = projectPrePublicationReview({
+      ...base,
+      frontline: { ...(base.frontline as Record<string, unknown>), frontlineActive: false, sources: [] },
+      standard: {
+        ...(base.standard as Record<string, unknown>),
+        completedPasses: ownerAcceptedTerminus.completedPasses,
+        attempts: [{ sourceId: "delegated-agent", outcome: "clean", reviewOperationId: "local/fix-check" }],
+        nextPassContext: { convergence: "converged", responseDue: false, incremental: null },
+        verifiedTerminalSignal: { reviewOperationId: "local/fix-check", confirmedFindingCount: 0,
+          maxConfirmedSeverity: null, materialFix: false, coverageAdequate: false },
+        terminus: ownerAcceptedTerminus,
+      },
+    }, postAttestContinuation);
+    expect(result).toMatchObject({ locus: "candidate-publish-ready", policy: null, reservation: null,
+      terminus: ownerAcceptedTerminus, nextAction: { kind: "publish-candidate" } });
+  });
+
   it("projects Owner acceptance as publish-ready without claiming a clean or converged policy result", () => {
     const base = request({ selfReview: "settled" });
     const result = projectPrePublicationReview({
