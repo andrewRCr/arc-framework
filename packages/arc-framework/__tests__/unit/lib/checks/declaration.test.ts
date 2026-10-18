@@ -36,7 +36,7 @@ describe("selection declarations", () => {
   it("projects authored restrictions and resolved defaults into JSON Schema", () => {
     const schema = z.toJSONSchema(CheckDeclarationSchema, { io: "input" });
     expect(JSON.stringify(schema)).toContain('"selection"');
-    expect(schema).toMatchObject({ properties: { checks: { additionalProperties: { anyOf: expect.arrayContaining([
+    expect(schema).toMatchObject({ properties: { checks: { additionalProperties: { oneOf: expect.arrayContaining([
       expect.objectContaining({ properties: expect.objectContaining({
         mode: expect.objectContaining({ const: "selection" }), cache: { type: "boolean", const: false, default: false },
         shell: { not: {} },
@@ -47,6 +47,18 @@ describe("selection declarations", () => {
 });
 
 describe("check declaration fields", () => {
+  it.each([
+    { check: { command: 7 }, path: ["checks", "verify", "command"], message: "Invalid input" },
+    { check: { command: ["lint"], unexpected: true }, path: ["checks", "verify"], message: "unexpected" },
+    { check: { command: ["lint"], shards: { count: 2, argument: "{index}", unexpected: true } },
+      path: ["checks", "verify", "shards"], message: "unexpected" },
+  ])("retains ordinary field diagnostics at $path", ({ check, path, message }) => {
+    const result = CheckDeclarationSchema.safeParse({ checks: { verify: check } });
+    expect(result.success).toBe(false);
+    if (result.success) throw new Error("Expected a declaration refusal");
+    expect(result.error.issues).toContainEqual(expect.objectContaining({ path, message: expect.stringContaining(message) }));
+  });
+
   it("accepts typed commands, global inputs, and shard configuration", () => {
     expect(CheckDeclarationSchema.parse(illustrative)).toMatchObject(illustrative);
   });

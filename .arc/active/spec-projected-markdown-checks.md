@@ -843,4 +843,7 @@ design open.
 - **A2** — 2026-10-17 — task: install the resumption and deactivation ceremonies through `resolveFileList`.
   _Supersedes:_ none. _Trigger:_ 4.6 must-stop. _Work:_ 4.6.R. _Revalidated:_ 4.7.
 
+- **A3** — 2026-10-17 — task: preserve ordinary diagnostics through `CheckDeclarationSchema`'s mode dispatch.
+  _Supersedes:_ none. _Trigger:_ 5.2 must-stop. _Work:_ 3.R2. _Revalidated:_ pending → 5.6.
+
 ---

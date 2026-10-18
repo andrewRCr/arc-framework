@@ -113,6 +113,7 @@ and recovered selections produce their specified outcomes, while every gate excl
   changes membership or defaults when the new mode is added.
 
     - _Amended in:_ 3.R (A1)
+    - _Amended in:_ 3.R2 (A3)
 
 - _Outcome:_ Mode-specific authored schemas preserve omitted defaults while refusing forbidden explicit fields,
   including false flags. Increment and segment include selection feedback in declaration order; gates and hooks
@@ -159,9 +160,20 @@ and recovered selections produce their specified outcomes, while every gate excl
 - _Goal:_ Correct Task 3.1’s diagnostic projection so a declaration refusal presented by the command names the
   forbidden selection field and its reason, as required by A1.
 
+    - _Amended in:_ 3.R2 (A3)
+
 - _Outcome:_ The selection union issue now carries its branch’s field and reason through the structured-file
   reader. Built-CLI refusals name each forbidden field and recover after removal; ordinary declaration validation
   and generated schema projections retain their existing behavior.
+
+### `[x]` **3.R2 Preserve ordinary declaration diagnostics — D4.1 (A3)**
+
+- _Goal:_ A3 restores ordinary declaration field paths and unknown-key diagnostics without changing their accepted
+  inputs or defaults, while preserving selection refusals and editor-schema validation.
+
+- _Outcome:_ Mode-discriminated validation preserves ordinary field paths and unknown-key messages while retaining
+  the omitted project default and selection restrictions. Input/output editor schemas expose exclusive branches;
+  the three failing CLI scenarios now pass alongside selection and installed-schema coverage.
 
 ### `[x]` **3.6 Exercise selection feedback through the command boundary — D4** — validate exit criterion at segment scope
 

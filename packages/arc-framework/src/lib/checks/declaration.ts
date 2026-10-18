@@ -15,7 +15,7 @@ const OrdinaryCheckSchema = z.strictObject({
   ...SharedFields,
   shell: z.boolean().default(false),
   gate: z.enum(["commit", "push", "merge"]).optional(),
-  mode: z.enum(["files", "project"]).default("project")
+  mode: z.enum(["files", "project"]).optional().default("project")
     .describe("files receives selected tracked paths; project runs once over its declared inputs."),
   pass_paths: z.boolean().default(true),
   widen: z.boolean().default(true),
@@ -50,11 +50,7 @@ const SelectionCheckSchema = z.codec(SelectionInputSchema, z.strictObject({
   encode: check => SelectionInputSchema.parse({ ...check,
     shell: undefined, ci_only: undefined, reads_index: undefined, fixes: undefined }),
 });
-const CheckSchema = z.union([OrdinaryCheckSchema, SelectionCheckSchema], { error: issue => {
-  const input = issue.input;
-  if (typeof input !== "object" || input === null || !("mode" in input) || input.mode !== "selection") return undefined;
-  return issue.errors[1]?.map(problem => `${problem.path.map(String).join(".")}: ${problem.message}`).join("; ");
-} }).superRefine((check, context) => {
+const CheckSchema = z.discriminatedUnion("mode", [OrdinaryCheckSchema, SelectionCheckSchema]).superRefine((check, context) => {
   if (check.shell && check.mode === "files") {
     context.addIssue({ code: "custom", path: ["mode"], message: "Shell checks require project mode." });
   }
