@@ -296,20 +296,15 @@ and an unavailable selection causes no write before a successful retry after rep
   matrix, including nested personal basenames and `.venv` filenames. ARC-qualified template exclusions preserve
   the audit corpus under observed `ls-files` behavior; existing gate and CI declarations remain unchanged.
 
-### `[ ]` **5.3 Prove the actual Markdown tool recipes over projected files — D6.1**
+### `[x]` **5.3 Prove the actual Markdown tool recipes over projected files — D6.1**
 
 - _Goal:_ Real markdownlint, underwrap, and link-audit processes report their known findings in every admitted
   projected fixture and never inspect unchanged or excluded members of the selection.
 
-    - Build `test-first` (one behavior at a time):
-        - Give `runDeclaredRequest` an injected changed selection and execute each actual D6.1 command over temporary
-          ignored files; assert feedback findings for every admitted path, not merely that the process started.
-        - Include new and nested projected paths, literal special-character filenames, a contrasting unchanged file,
-          and excluded personal/archive/conflict/protected cases represented by the supplier selection fixture.
-        - Test the actual markdownlint configuration and literal argv together; disable tool-side selection behavior
-          where necessary so a tool cannot silently drop an admitted operand or glob beyond it.
-    - Keep the fixture's supplier list distinct from tool exclusions. Do not implement the projection's index,
-      change-mark, conflict, or ownership machinery in this work unit.
+- _Outcome:_ The public increment handler runs the actual three npm recipes and root configuration over ignored
+  files from a changed supplier list. Every admitted file reports its known finding, including nested and literal
+  special-character names and case variants; unchanged, protected, conflict, archive, and private files stay outside
+  that request. Tool-specific exclusions remain distinct from the supplied corpus; no projection machinery was added.
 
 ### `[ ]` **5.4 Replace glob fixing with the exact lint corpus — D6.3**
 
