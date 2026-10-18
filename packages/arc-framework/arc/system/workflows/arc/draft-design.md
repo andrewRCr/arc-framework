@@ -240,6 +240,8 @@ SESSION-NOTES): follow [adversarial-review § Pass record][pass-record] for the 
 `prior-findings` from it, and the commit below summarizes each pass in one body line. A stub groomed before it starts
 has no workspace yet, so that summary is its only record. This advisory evidence creates no lane-progress record.
 
+On a draft-producing path, run `arc check increment` before readiness approval and report its result.
+
 > [!IMPORTANT]
 > `workflow-interlock`: Stop when the draft (or determinacy confirmation) is ready. Surface it for review; await
 > approval before persisting `Class` and committing the capture.
@@ -278,6 +280,8 @@ fast-forward it, and remove the local grooming branch if it is still present.
 **Post-settle coherence re-read** (always-on, in-context): when folds landed after the readiness read —
 adversarial-pass findings, review amendments — re-read the settled draft for coherence (the readiness bar's
 coherence check, re-fired) as the last step before the capture commit.
+
+If that re-read changes the draft's text, run `arc check increment` again before the capture commit.
 
 What is staged sets the commit shape: a `medium` / `high` path bundles the `draft-*` with the meta `Class` +
 `Design` writes; a `low` path that produced no draft writes only the meta, landing as a dedicated `chore(arc):`

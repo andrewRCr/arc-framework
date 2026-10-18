@@ -182,19 +182,14 @@ _Mode:_ `replication` — exhaust the ceremony inventory using the same incremen
 _Exit criterion:_ All eighteen inventory rows have their required request placement, repeated writes and handoff
 failures follow their specified handling, and exempt ceremonies acquire no redundant request.
 
-### `[ ]` **4.1 Check draft and specification capture — D5.1–D5.2**
+### `[x]` **4.1 Check draft and specification capture — D5.1–D5.2**
 
 - _Goal:_ Draft and specification authors see feedback before their existing approval gates and after later prose
   edits, without redundant requests for unchanged or rendered-field-only captures.
 
-- _Note:_ See `notes-projected-markdown-checks.md` § Ceremony coverage for the authoritative row-to-task map.
-
-    - In package `arc/system/workflows/arc/draft-design.md`, request `arc check increment` before the readiness
-      interlock and again before capture only if the post-settle reread changes text; exempt the Class-only low path.
-    - In `create-spec.md`, request it before Gate 1 and again before the final commit over notes migration and
-      post-Gate-2 edits. Preserve every existing review, lint, and approval step.
-    - Render the two installed counterparts through `render:framework`; verify source and installed placement and
-      the after-stop text scenario against ceremony rows 1–2.
+- _Outcome:_ Draft capture requests feedback before readiness and conditionally after changed post-settle text;
+  specification finalization requests it before Gate 1 and after later notes/prose edits. Rendered both workflows;
+  the low Class-only path and both specification approvals retain their existing boundaries.
 
 ### `[ ]` **4.2 Check task generation and design amendments — D5.1–D5.2**
 

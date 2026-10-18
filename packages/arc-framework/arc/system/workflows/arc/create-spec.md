@@ -294,6 +294,8 @@ SESSION-NOTES): follow [adversarial-review § Pass record][pass-record] for the 
 `prior-findings` from it, and the commit below summarizes each pass in one body line. A stub groomed before it starts
 has no workspace yet, so that summary is its only record. This advisory evidence creates no lane-progress record.
 
+Run `arc check increment` over the saved specification and report its result at Gate 1.
+
 > [!IMPORTANT]
 > `workflow-interlock` — Gate 1 (review / iterate): Stop after the spec is saved and self-reviewed. Surface the
 > spec location and the self-review findings for a full read and feedback. Iteration loops here against the saved
@@ -338,6 +340,9 @@ adversarial-pass findings, Gate 1 iteration amendments — re-fire `spec-review`
 settled spec as the last step before the commit below.
 
 After substeps 1-3, stage all edits — spec save (Write and save), draft deletion + `notes-*` migration, meta update.
+
+When notes migration or later authored-text edits changed files after the first request, run `arc check increment`
+again before the commit.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
