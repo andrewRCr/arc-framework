@@ -152,14 +152,11 @@ The confirmation map is in `notes-review-coverage-cadence.md` § Chain confirmat
         - Real-record regressions cover Errands before and after publication, private and open-PR Candidates, and
           delivery fix checks with deferred minor findings. Pre-publication's historical carry stays unchanged.
 
-    - `[ ]` **1.6.b Prove the singleton's local fix leg in the discharge's confirmations**
-        - `confirmIncrementalPredecessorApplicability` (`hosted-reservation-support.ts`) and the
-          `confirmCurrentApplicability` closure field of `createHostedReservationDischargeReader` take the chain proof,
-          where `projectEarlierReviewApplicability`'s fix-response test is delivery-only
-          (`verifiedDeliveryMemberFixResponse`, `earlier-review-applicability.ts`). The singleton's local pass end to end
-          needs Phase 2's route (Task 2.5).
-        - Build `test-first` (one behavior at a time):
-            - After a hosted singleton pass with a material fix, the fix leg proves in both confirmations.
+    - `[x]` **1.6.b Prove the singleton's local fix leg in the discharge's confirmations**
+        - Historical and current discharge confirmations now take the shared response proof with Candidate authority
+          and real record readers. Local predecessors use `delegated-agent` without requiring a delivery admission.
+        - Both production-reader boundaries prove the hosted material fix followed by a local fix check, including
+          the Candidate's record-only commit. Full singleton routing remains Task 2.5.
 
     - `[ ]` **1.6.c Break the chain on a base move after an unchecked fix**
         - On a change-set target the chain proof breaks it by construction, since the performed-response test needs an

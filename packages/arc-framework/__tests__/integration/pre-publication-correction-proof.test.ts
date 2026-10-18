@@ -1,4 +1,5 @@
 /** Candidate chain confirmation through production pre-publication dependencies and real records. */
+import { createHostedReservationDischargeReader } from "../../src/scripts/review-gate/policy/hosted-reservation-discharge.js";
 import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -36,7 +37,7 @@ import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js"
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => removeGitBackedDir(root))); });
-async function candidateFix(local = false, member = false) {
+async function candidateFix(local = false, member = false, hostedFirst = false) {
   const cwd = await createTempRepoCore({ prefix: "arc-pre-publication-correction-", identity: "andrew" });
   roots.push(cwd);
   const realExec = makeGitExec(cwd);
@@ -89,7 +90,7 @@ async function candidateFix(local = false, member = false) {
     rubricVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version, rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
     retrigger: local || member ? "incremental" as const : "full-final" as const, count: 1 as const };
   const review = async (pass: number, findings: boolean) => {
-    if (local) {
+    if (local && (!hostedFirst || pass > 1)) {
       const output: string[] = []; const exitCodes: number[] = [];
       const headSha = await git("rev-parse", "HEAD");
       await handleReviewLocalPrepare("-", { resolveRoot: () => cwd,
@@ -216,7 +217,7 @@ async function candidateFix(local = false, member = false) {
   await git("init", "--bare", remote);
   await git("remote", "add", "origin", "git@github.com:owner/repo.git");
   await git("config", `url.${remote}.insteadOf`, "git@github.com:owner/repo.git");
-  return { cwd, exec, git, predecessor: await reader.readResult(first.producerId), current,
+  return { cwd, exec, git, base, candidate: (await readCandidateRecordVersioned(cwd, "example")).record, predecessor: await reader.readResult(first.producerId), current,
     dependencies: createPrePublicationCompositionDependencies({ cwd, exec }) };
 }
 
@@ -249,6 +250,18 @@ describe("pre-publication correction confirmation", () => {
       expect({ exitCodes, result: JSON.parse(output.join("")) }).toMatchObject({ exitCodes: [],
         result: { state: "pass-complete", payload: { verifiedTerminalSignal: { coverageAdequate: true } } } });
     }
+  });
+
+  it.each(["historical", "current"] as const)("proves the singleton's local fix leg in discharge's %s confirmation", async surface => {
+    const fixture = await candidateFix(true, false, true);
+    const { cwd, exec, predecessor, current, base, candidate } = fixture;
+    if (candidate === null) throw new Error("missing Candidate");
+    const discharge = createHostedReservationDischargeReader({ cwd, exec });
+    const args = { reservation: null, baseRevision: base, approvedHead: current.target.headSha,
+      changeRequest: { repository: "owner/repo", pullRequest: 42 }, candidate };
+    await expect(surface === "historical"
+      ? discharge.confirmIncrementalApplicability(args, predecessor, current)
+      : discharge.confirmCurrentIncrementalApplicability(args, predecessor)).resolves.toBe("applicable");
   });
 
   it.each(["pre-publication", "respond"] as const)("re-binds a delivery member's fix check with findings at %s", async surface => {

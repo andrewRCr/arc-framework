@@ -610,6 +610,15 @@ export function createHostedReservationDischargeReader(input: {
   const createApplicabilityContext = (args: Omit<HostedReservationDischargeReaderArgs, "workUnitId" | "reservation">) =>
     createHostedApplicabilityContext({ ...input, store, dispositions, repositoryId, rawExec, args });
 
+  const correctionProof = (args: Pick<HostedReservationDischargeReaderArgs,
+    "candidate" | "approvedHead" | "baseRevision" | "vehicle">, target: ReviewResult["target"]) => ({
+    dispositionStore: dispositions,
+    readResponsePerformance: (result: ReviewResult) => readLaneResponsePerformance(store, result),
+    candidateProof: { candidate: args.candidate ?? null, ...input, baseRef: target.baseRef,
+      observeTarget: () => deriveHostedReviewTarget({ ...input, currentRepositoryId: target.repositoryId,
+        approvedHeadSha: args.approvedHead, baseRevision: args.baseRevision, vehicle: args.vehicle }) },
+  });
+
   const readTarget = async ({
     reservation,
     invocation,
@@ -661,6 +670,7 @@ export function createHostedReservationDischargeReader(input: {
       predecessor,
       current,
       readEarlierAttemptApplicability,
+      ...correctionProof({ baseRevision, approvedHead, vehicle, candidate }, current.target),
     });
     const observeCurrentTarget = () => deriveHostedReviewTarget({ ...input, currentRepositoryId,
       approvedHeadSha: approvedHead, baseRevision, vehicle });
@@ -740,6 +750,7 @@ export function createHostedReservationDischargeReader(input: {
         confirmCurrentApplicability: (predecessor, currentHeadSha) => confirmHostedCurrentCorrection({
           predecessor, currentHeadSha, approvedHeadSha: approvedHead, baseRevision,
           currentRepositoryId, currentLineage: lineage, vehicle, ...input, readEarlierAttemptApplicability,
+          ...correctionProof({ baseRevision, approvedHead, vehicle, candidate }, currentTarget),
         }),
       });
     };
@@ -749,6 +760,7 @@ export function createHostedReservationDischargeReader(input: {
       confirmCurrentApplicability: (predecessor: ReviewResult, target: ReviewResult["target"]) => confirmHostedCurrentCorrection({
         predecessor, currentHeadSha: target.headSha, approvedHeadSha: approvedHead, baseRevision,
         currentRepositoryId, currentLineage: lineage, vehicle, ...input, readEarlierAttemptApplicability,
+        ...correctionProof({ baseRevision, approvedHead, vehicle, candidate }, target),
       }) };
     const progressByHead = new Map<string, Promise<LaneProgressProjection>>();
     const readProgress = (headSha: string) => {
@@ -913,7 +925,9 @@ export function createHostedReservationDischargeReader(input: {
   return Object.assign(reader, {
     confirmCurrentIncrementalApplicability: async (args: HostedReservationDischargeReaderArgs, predecessor: ReviewResult) => {
       const { currentRepositoryId, lineage, readEarlierAttemptApplicability } = await createApplicabilityContext(args);
-      return confirmHostedCurrentCorrection({ ...input, predecessor, currentHeadSha: args.approvedHead,
+      const target = await deriveHostedReviewTarget({ ...input, currentRepositoryId,
+        approvedHeadSha: args.approvedHead, baseRevision: args.baseRevision, vehicle: args.vehicle });
+      return confirmHostedCurrentCorrection({ ...correctionProof(args, target), ...input, predecessor, currentHeadSha: args.approvedHead,
         approvedHeadSha: args.approvedHead, baseRevision: args.baseRevision, currentRepositoryId,
         currentLineage: lineage, vehicle: args.vehicle, readEarlierAttemptApplicability });
     },
@@ -934,6 +948,7 @@ export function createHostedReservationDischargeReader(input: {
         predecessor,
         current,
         readEarlierAttemptApplicability,
+        ...correctionProof(args, current.target),
       });
     },
   });

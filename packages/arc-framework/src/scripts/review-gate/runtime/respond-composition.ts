@@ -326,10 +326,8 @@ function createRespondPolicyConfirmation(context: {
   return async (predecessor, current) => {
     if (current.target.kind === "delivery-member"
       && canonicalize(predecessor.target) === canonicalize(current.target)) {
-      return confirmReviewCorrectionLeg({ predecessor, currentTarget: current.target,
-        currentLineage: current.admission.lineage, currentResult: current,
-        dispositionStore: context.dispositionStore, readResponsePerformance: context.readResponsePerformance,
-        confirmGrounds: () => confirmIncrementalPredecessorApplicability({ predecessor, current }) });
+      return confirmIncrementalPredecessorApplicability({ predecessor, current,
+        dispositionStore: context.dispositionStore, readResponsePerformance: context.readResponsePerformance });
     }
     const policyTarget = await resolveRespondPolicyTarget(
       input, current, currentSettings["branch.base"],

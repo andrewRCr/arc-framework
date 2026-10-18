@@ -2876,6 +2876,8 @@ describe("hosted reservation discharge", () => {
     });
 
     await expect(confirmIncrementalPredecessorApplicability({
+      dispositionStore: { readDispositionRecord: async () => null, appendDispositionRecord: async () => { throw new Error("read-only proof"); } },
+      readResponsePerformance: async () => null,
       predecessor: complete,
       current,
       readEarlierAttemptApplicability: async () => ({
@@ -2930,6 +2932,8 @@ describe("hosted reservation discharge", () => {
       })],
     }));
     await expect(confirmIncrementalPredecessorApplicability({
+      dispositionStore: { readDispositionRecord: async () => null, appendDispositionRecord: async () => { throw new Error("read-only proof"); } },
+      readResponsePerformance: async () => null,
       predecessor,
       current: { ...current, target: changedTarget },
       readEarlierAttemptApplicability,
@@ -2991,6 +2995,8 @@ describe("hosted reservation discharge", () => {
     });
     const applicability = (predecessor: ReviewResult, result: ReviewResult) =>
       confirmIncrementalPredecessorApplicability({
+      dispositionStore: { readDispositionRecord: async () => null, appendDispositionRecord: async () => { throw new Error("read-only proof"); } },
+      readResponsePerformance: async () => null,
         predecessor,
         current: result,
         readEarlierAttemptApplicability: async () => ({

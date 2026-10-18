@@ -1,4 +1,6 @@
 /** Shared support for hosted-review reservation discharge. */
+import { confirmReviewCorrectionLeg } from "./review-next-pass.js";
+import type { PerformedResponseProofInput } from "./performed-response-proof.js";
 import { deriveHostedReviewTarget } from "./hosted-review-target.js";
 
 import type { ReviewNextPassContext } from "./review-next-pass-schema.js";
@@ -156,7 +158,7 @@ export async function confirmIncrementalPredecessorApplicability(input: {
   readonly readEarlierAttemptApplicability?: (
     sourceId: string,
   ) => Promise<EarlierHostedAttemptApplicabilityRead>;
-}): Promise<IncrementalPredecessorApplicability> {
+} & Pick<PerformedResponseProofInput, "dispositionStore" | "readResponsePerformance" | "candidateProof">): Promise<IncrementalPredecessorApplicability> {
   const { predecessor, current } = input;
   const scope = current.admission.correctionScope;
   if (scope === undefined
@@ -165,18 +167,22 @@ export async function confirmIncrementalPredecessorApplicability(input: {
     return "unavailable";
   }
   if (predecessor.repositoryId !== current.repositoryId) return "unavailable";
-  if (canonicalize(predecessor.target) === canonicalize(current.target)) return "applicable";
-  const sourceId = predecessor.kind === "hosted"
-    ? predecessor.sourceIdentity
-    : predecessor.kind === "attested-local"
-      ? predecessor.deliveryAdmission?.sourceId
-      : undefined;
-  if (sourceId === undefined || input.readEarlierAttemptApplicability === undefined) return "unavailable";
-  return incrementalApplicabilityFromEarlierRead({
-    producerId: predecessor.producerId,
-    producerTarget: predecessor.target,
-    earlier: await input.readEarlierAttemptApplicability(sourceId),
-  });
+  const confirmGrounds = async () => {
+    if (canonicalize(predecessor.target) === canonicalize(current.target)) return "applicable";
+    const sourceId = predecessor.kind === "hosted"
+      ? predecessor.sourceIdentity
+      : predecessor.kind === "attested-local"
+        ? "delegated-agent"
+        : undefined;
+    if (sourceId === undefined || input.readEarlierAttemptApplicability === undefined) return "unavailable";
+    return incrementalApplicabilityFromEarlierRead({
+      producerId: predecessor.producerId,
+      producerTarget: predecessor.target,
+      earlier: await input.readEarlierAttemptApplicability(sourceId),
+    });
+  };
+  return confirmReviewCorrectionLeg({ ...input, currentTarget: current.target,
+    currentLineage: current.admission.lineage, currentResult: current, confirmGrounds });
 }
 
 /** Retain a current-head correction predecessor only for its exact live review target and owner. */
