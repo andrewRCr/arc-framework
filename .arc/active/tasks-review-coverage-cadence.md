@@ -932,16 +932,14 @@ cites that section by a reference link with the heading's fragment, which `lint:
 alone. "Operation" stays the word for a stored CLI operation. Method, workflow, and template text changes in the
 package's `arc/` source first, then in the `.arc/` copy.
 
-### `[ ]` **7.1 Re-derive the review step inventory on the current base — § 11**
+### `[x]` **7.1 Re-derive the review step inventory on the current base — § 11**
 
 - _Goal:_ A before-inventory of every review step at every site, taken on the then-current base, gives the segment
   something to measure the rewiring against.
 
-- **Additional Context:** `notes-review-coverage-cadence.md` § Review call sites
-
-    - Re-derive it in `notes-review-coverage-cadence.md` § Review call sites against `packages/arc-framework/arc/system/`,
-      including the arms Phases 1–6 added, as a table: the step; where it is stated today, each restatement by site and
-      locus; its home section after the rewiring; and the sites that reach it.
+- _Outcome:_ `notes-review-coverage-cadence.md` § Review call sites records the before-inventory at `87b355ceb`,
+  with every site restatement, proposed home, and reaching sites, including the new coverage and delta-check arms.
+  It distinguishes shared review from authoring-loop checks and lifecycle steps that remain at their sites.
 
 ### `[ ]` **7.2 Add `planning-review`, and call it from the four planning sites — § 11.2**
 
