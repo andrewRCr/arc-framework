@@ -157,6 +157,51 @@ selected closed-vocabulary Class; moves/deletions; rendered ROADMAP; spawned/gra
 cohort Closeout; ordinary rendered transitions; applied reconcile; integration records, boundaries, attestations, and
 base merge. Existing `run-errand` and `process-task-loop` increments remain sufficient for their own paths.
 
+### Ceremony inventory result
+
+Read each containing source step and its rendered counterpart. Row identities and package paths are in Ceremony
+coverage above; the corresponding `.arc/` path drops the package prefix and template suffix. Framework-sync covers
+the recipe-derived counterparts, including the two A2 installs. These are placement findings, not an agent eval.
+
+| Row | Source locus                         | Placement result in source and rendered step                                      |
+| --- | ------------------------------------ | --------------------------------------------------------------------------------- |
+| 1   | Capture the draft, lines 243 and 284 | Before readiness; repeat after a changed final reread; low exempt.                |
+| 2   | Finalize, lines 297 and 344          | Before Gate 1; repeat after notes migration or later text; Gate 2 retained.       |
+| 3   | Finalize, lines 595 and 607          | After final coherence reread; repeat for later text before commit.                |
+| 4   | Capture commit, lines 277–297        | Grounding precedes capture; task/review callers supply their one request.         |
+| 5   | Steps 5 and 7, lines 132 and 302     | Before distribution approval in both modes; after finish reconciliation.          |
+| 6   | Step 4, line 223                     | After in-place/resumed authored reconciliation; spawned scaffolds skip Step 4.    |
+| 7   | Route, lines 212 and 264             | Each grooming-lane commit and each partial-protection direct commit.              |
+| 8   | Active-WU format, line 230           | After staged-meta lint; fix own edit, note unfinished failures; later notes lint. |
+| 9   | Step 3, line 105                     | Before activation commit only when a fold edits spec/task prose.                  |
+| 10  | Step 7, line 519                     | Existing completion-content request retained before commit.                       |
+| 11  | Merged-PR guard, line 102            | Before eligible repair commit; completed-only repairs exempt.                     |
+| 12  | Step 10 redirect, line 748           | Before eligible correction commit; affected gates/routing still follow.           |
+| 13  | Step 10 pending, line 576            | After checked authored correction, before retry; completed-only exempt.           |
+| 14  | Schedule publication, line 253       | After hand correction, before publish retry; retain-advisories arm intact.        |
+| 15  | Step 5 pending, line 138             | After hand correction, before retry; clean/applied and retain arms unchanged.     |
+| 16  | Case C, line 220                     | Before committing reversed fields for the PR; Case A transitions unchanged.       |
+| 17  | Review iteration, line 219           | One caller request before either ordinary or amendment fix; gates retained.       |
+| 18  | Review iteration, line 359           | One caller request before either fix kind; commit/push/merge gates retained.      |
+
+The public-handler disposable probe used the production check handlers with the existing declared-check repository
+fixture, real Git, and a real file-reading child process. Preparation and integration each exercised an active
+notes-only correction and a spec-plus-notes amendment: bad live text returned failed feedback, and the corrected
+same paths passed on retry without recordable evidence. A task-list edit after an earlier pass failed on the next
+request and passed after correction. Completed-only input was not selected. Existing handler integration scenarios
+also cover empty and unavailable selections and successful retry; Phase 5 exercises the actual project recipes.
+
+Read integration Step 8 beside the guard and redirect: `with-integration` archives before later corrections, while
+`manual` leaves the meta active. The edited-file condition and completed-only exemption apply in both; no check or
+supplier exclusion was widened. Handoff retains staged-meta lint and the later explicit SESSION-NOTES lint, and its
+own-edit versus unfinished-work failure handling remains distinct.
+
+The branch diff adds no requests to exempt-only workflow files. Within the edited workflows, closed-vocabulary
+Class, rendered free-text options, moves/deletions, ROADMAP output, spawned/graduate scaffolds, ordinary transitions,
+applied reconcile, decomposition base advancement, integration records/boundaries/attestations, and base merge keep
+their original paths. Completed-only cohort Closeout remains outside the corpus. `run-errand` still checks every
+pass and approved fix; the task-loop template still selects increment or segment at its existing boundary.
+
 ## Fixer grounding
 
 `validateExplicitMarkdownPaths` already has `allowIgnoredPaths`, a named set bypassing Git membership while retaining

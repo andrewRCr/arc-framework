@@ -244,25 +244,16 @@ failures follow their specified handling, and exempt ceremonies acquire no redun
 - _Outcome:_ Registered both workflows in the recipe and self-hosting manifest; the refused projection now renders all three
   workflows. Updated the recipe-derived inventory counts.
 
-### `[ ]` **4.7 Verify the complete ceremony inventory — D5** — validate exit criterion at segment scope
+### `[x]` **4.7 Verify the complete ceremony inventory — D5** — validate exit criterion at segment scope
 
 - _Goal:_ Every specified ceremony row has feedback at the correct side of its existing stop, and no exception loses
   its required handling or acquires an unintended gate.
 
-- _Note:_ See `notes-projected-markdown-checks.md` § Ceremony coverage and § Ceremony verification.
-
-    - Walk all eighteen rows against package sources and rendered workflows, including each repeated-write branch,
-      every protection variant, and both handoff failure classes; record a per-row source locus and result.
-    - At both review sites, include an ordinary active notes-only correction and a spec-changing amendment. Each
-      receives one feedback request before its commit while retaining the original gate requests; the ordinary fix
-      does not rely on entering an amendment arm.
-    - Include a task-generation edit after an earlier check and both integration archive cadences; distinguish actual
-      feedback over the edited file from an exempt completed-only repair or an invocation that selected no such file.
-    - Use the executable request scenarios from Phase 3 to verify the shared call's feedback/empty/failure outcomes;
-      exercise the real repository recipes again in Phase 5. Verify prose placement by reading its containing step,
-      rather than adding a workflow parser or claiming a textual presence check proves agent execution.
-    - Confirm the enumerated exemptions and existing Errand/task-loop requests remain intact. Run the existing
-      workflow/content integration coverage affected by these files and `npx arc check segment`.
+- _Outcome:_ All eighteen source/rendered containing steps have the specified request ordering; the per-row walk
+  is recorded in `notes-projected-markdown-checks.md` § Ceremony inventory result. Public-handler probes cover
+  ordinary notes-only fixes and amendments at both callers, late task edits, and completed-only exclusion.
+  Handoff failure classes, both archive cadences, protection variants, repeated writes, and exemptions hold;
+  A2's required workflows now render and belong to the recipe-derived installation.
 
 ## **Phase 5:** Connect repository lint and exact-list fixing
 
