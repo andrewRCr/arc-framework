@@ -75,41 +75,26 @@ The confirmation map is in `notes-review-coverage-cadence.md` § Chain confirmat
           complete coverage without a selection; a material fix whose chain is unavailable retains the complete-only
           stop, including when an earlier-head producer hint is present.
 
-### `[ ]` **1.3 Admit a fix check only after a fix, and carry what a memoryless reviewer lacks — § 3.1, § 3.2**
+### `[x]` **1.3 Admit a fix check only after a fix, and carry what a memoryless reviewer lacks — § 3.1, § 3.2**
 
 - _Goal:_ A fix check — the incremental local attempt, admitted only after an approved, performed response that fixed
   something — is offered after material fixes under `full-final` as under `incremental`, and its reviewer receives the
   correction scope, the earlier material findings at their loci, the four fix-check axes, and the sibling sweep.
 
-    - `[ ]` **1.3.a Bound incremental admission to a performed fix**
-        - The bound lands in the producer, `buildIncrementalCorrectionScope` (`incremental-coverage-basis.ts`).
-          `readIncrementalPredecessorResponseEvidence` still reports a clean predecessor as performed, since the
-          coverage chain's walker consults it for every earlier link, and also reports whether the approved set holds a
-          `fix` disposition: it computes `hasFix` and today returns only the status and the material findings. The
-          producer bounds on it; the walker ignores it.
-        - Build `test-first` (one behavior at a time):
-            - A clean predecessor resolves no correction scope.
-            - A findings predecessor whose approved dispositions fix nothing resolves none.
-            - A performed fix resolves the scope with the predecessor's required findings.
-            - The coverage chain still accepts a clean earlier link.
+    - `[x]` **1.3.a Bound incremental admission to a performed fix**
+        - Response evidence now reports whether approval fixes anything. The correction-scope producer requires a
+          performed fix; clean and no-fix predecessors offer none, while the coverage-chain walker still accepts their
+          performed response state.
 
     - `[x]` **1.3.b Offer a fix check under `full-final` after a material fix**
         - Local coverage choices use the shared proven scope under both retrigger policies. A material fix under
           full-final now offers its fix check beside complete coverage; the duplicate scope derivation and routing-only
           full-final refusal were removed.
 
-    - `[ ]` **1.3.c Give the fix check's reviewer what it lacks**
-        - `localReviewerInstructions` (`core/local-prepare.ts`) keeps the correction scope and the re-examination of
-          every earlier material finding at its locus, and adds the four axes — closure, behavioral grounding,
-          propagation and completeness, and new failure — framing its existing recurrence check as the propagation axis:
-          for each re-examined finding, whether the same defect recurs elsewhere in the complete change set.
-        - The instruction text ships to every project's local reviewer, so it states what the reviewer does, with no
-          planning references. `localReviewerInstructions` is module-private, so tests go through
-          `publishLocalReviewPreparation`.
-        - Build `test-first` (one behavior at a time):
-            - Incremental instructions name the four axes and the sibling sweep beside the required findings.
-            - With no required findings, as after a minor-only fix, the axes and the sweep still read sensibly.
-            - Complete instructions are unchanged by this task.
+    - `[x]` **1.3.c Give the fix check's reviewer what it lacks**
+        - Incremental reviewer instructions retain the exact range and earlier material findings, and name closure,
+          behavioral grounding, propagation and completeness with a sibling sweep, and new failure. The axes apply
+          without earlier material findings; complete-pass guidance is unchanged.
 
 ### `[ ]` **1.4 Bind the terminal with its own scope and resolve the successor with its own — § 3.4**
 

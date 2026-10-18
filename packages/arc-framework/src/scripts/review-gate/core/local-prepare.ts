@@ -58,13 +58,17 @@ function localReviewerInstructions(
       + scope.requiredFindings
         .map(({ producerId, findingId, locus }) => `${producerId} / ${findingId} at ${locus}`)
         .join(", ")
-      + " at their original loci, including loci outside the changed lines, and check whether the defect each"
+      + " at their original loci, including loci outside the changed lines. For propagation and completeness, check whether the defect each"
       + " describes recurs elsewhere in the complete change set, beyond this pass's range.";
   return `${guidance.reviewerInstructions}\n\n`
     + `Incremental correction pass. The requested change set for this pass is `
     + `${scope.predecessorHeadSha}..${scope.headSha}: review that range completely, and apply the coverage and `
     + `clean rules to it. The changes from ${scope.basisHeadSha} to ${scope.predecessorHeadSha} were covered by the `
-    + `earlier passes in this review's recorded coverage chain; do not re-review them. ${findings}`;
+    + `earlier passes in this review's recorded coverage chain; do not re-review them. ${findings} `
+    + "Apply four fix-check axes to every repair. Closure: establish that the reported defect is resolved. "
+    + "Behavioral grounding: verify the repaired behavior with source and executable evidence, rather than edit shape alone. "
+    + "Propagation and completeness: perform a sibling sweep for the same defect across the complete change set "
+    + "and check every affected path. New failure: inspect the repair for introduced regressions and failure paths.";
 }
 
 /**

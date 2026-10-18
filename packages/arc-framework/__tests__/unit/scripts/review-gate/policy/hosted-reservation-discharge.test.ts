@@ -421,6 +421,7 @@ function hostedReviewResult(input: {
   readonly producerId: string;
   readonly headSha: string;
   readonly coverage: "complete" | "incremental";
+  readonly findingId?: string;
   readonly correctionScope?: {
     readonly predecessorProducerId: string;
     readonly predecessorHeadSha: string;
@@ -452,8 +453,9 @@ function hostedReviewResult(input: {
     repositoryId: "repo-1",
     target: reviewTarget,
     sourceIdentity: "codex-pr",
-    originalOutcome: "clean",
-    findings: [],
+    originalOutcome: input.findingId === undefined ? "clean" : "findings",
+    findings: input.findingId === undefined ? [] : [{ findingId: input.findingId, severity: "major",
+      locus: `src/${input.findingId}.ts:1`, evidenceUrlOrId: input.findingId, sourceOrdinal: 1 }],
     resultDigest: canonicalDigest({ producerId: input.producerId }),
     admission: {
       lineage: { kind: "candidate", candidateId: `sha256:${"f".repeat(64)}` },
@@ -2823,6 +2825,7 @@ describe("hosted reservation discharge", () => {
 
   it("carries an incremental predecessor's basis and transitive material instructions", () => {
     const predecessor = hostedReviewResult({
+      findingId: "finding-b",
       producerId: "hosted/incremental-b",
       headSha: oid("b"),
       coverage: "incremental",
@@ -2838,7 +2841,7 @@ describe("hosted reservation discharge", () => {
       predecessor,
       currentHeadSha: oid("c"),
       response: {
-        status: "performed",
+        status: "performed", hasFix: true,
         requiredFindings: [findingInstruction(predecessor.producerId, "finding-b")],
       },
     })).toEqual({
@@ -2936,6 +2939,7 @@ describe("hosted reservation discharge", () => {
 
   it("offers a correction from an exact current target and withholds it after a base change", async () => {
     const predecessor = hostedReviewResult({
+      findingId: "finding-1",
       producerId: "hosted/current-complete",
       headSha: oid("a"),
       coverage: "complete",
@@ -2952,7 +2956,7 @@ describe("hosted reservation discharge", () => {
       currentHeadSha: predecessor.target.headSha,
     }, {
       resultReader: { readResult: async () => predecessor },
-      readResponseEvidence: async () => ({ status: "performed" as const, requiredFindings: [] }),
+      readResponseEvidence: async () => ({ status: "performed" as const, hasFix: true, requiredFindings: [] }),
       confirmApplicability: async () => "applicable" as const,
       confirmCurrentApplicability: async (candidate) => exactCurrentCorrectionPredecessorMatches({
         predecessor: candidate,
@@ -3005,7 +3009,7 @@ describe("hosted reservation discharge", () => {
     const dependencies = {
       resultReader: { readResult: async () => complete },
       confirmApplicability: applicability,
-      readResponseEvidence: async () => ({ status: "performed" as const, requiredFindings: [] }),
+      readResponseEvidence: async () => ({ status: "performed" as const, hasFix: false, requiredFindings: [] }),
     };
     await expect(resolveIncrementalCoverageBasis(current, dependencies)).resolves.toMatchObject({
       status: "inadequate", reason: "applicability-required",

@@ -1,3 +1,4 @@
+import { approvedRecord, performedFix } from "../../../../fixtures/review-response-proof.js";
 import { firstReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
 import { withReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
 /** Unit coverage for typed non-delivery local review coverage recovery. */
@@ -16,7 +17,6 @@ import {
   createReviewTarget,
 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import type {
-  ApprovedDispositionRecordStore,
   ReviewResultReader,
 } from "../../../../../src/scripts/review-gate/core/ports.js";
 import type { LaneSubjectLineage } from
@@ -157,6 +157,14 @@ function completeLocalResult(
   };
 }
 
+function fixedLocalResult(owner: LaneSubjectLineage = lineage,
+  projection: StandardReviewObligationProjection = standardReview) {
+  const predecessor = completeLocalResult(owner, projection);
+  return { ...predecessor, originalOutcome: "findings" as const,
+    findings: [{ findingId: "finding-1", severity: "minor" as const, locus: "src/example.ts:1",
+      evidenceUrlOrId: "finding-1", sourceOrdinal: 1 }] };
+}
+
 function incrementalLocalResult(): ReviewResult {
   const predecessor = completeLocalResult();
   return {
@@ -179,23 +187,19 @@ function incrementalLocalResult(): ReviewResult {
   };
 }
 
-function dependencies(predecessor: ReviewResult): {
-  resultReader: ReviewResultReader;
-  dispositionStore: ApprovedDispositionRecordStore;
-  confirmCurrentApplicability: () => Promise<"applicable">;
-} {
+function dependencies(predecessor: ReviewResult, producedHeadSha = objectId("c")) {
+  const record = predecessor.originalOutcome === "findings" ? approvedRecord(predecessor, [{
+    sourceVerification: "verified", verifiedSeverity: "minor", disposition: "fix",
+  }]) : null;
   return {
-    resultReader: {
-      readResult: async (producerId) => {
-        if (producerId !== predecessor.producerId) throw new Error("missing result");
-        return predecessor;
-      },
-    },
-    dispositionStore: {
-      readDispositionRecord: async () => null,
-      appendDispositionRecord: async () => ({ dispositionRecordRef: "unused" }),
-    },
-    confirmCurrentApplicability: async () => "applicable",
+    resultReader: { readResult: async (producerId: string) => {
+      if (producerId !== predecessor.producerId) throw new Error("missing result");
+      return predecessor;
+    } },
+    dispositionStore: { readDispositionRecord: async () => record,
+      appendDispositionRecord: async () => ({ dispositionRecordRef: "unused" }) },
+    readResponsePerformance: async () => record === null ? null : { ...performedFix(predecessor, record), producedHeadSha },
+    confirmCurrentApplicability: async () => "applicable" as const,
   };
 }
 
@@ -475,7 +479,7 @@ describe("local review coverage selection", () => {
       headSha: objectId("a"),
     };
     const predecessor = {
-      ...completeLocalResult(errandLineage),
+      ...fixedLocalResult(errandLineage),
       originalOutcome: "findings" as const,
       vehicle: { kind: "errand" as const, identity: "repair-review-state", claimId: "claim-old" },
       request: { carrier: {
@@ -524,7 +528,7 @@ describe("local review coverage selection", () => {
       headSha: objectId("a"),
     };
     const predecessor = {
-      ...completeLocalResult(errandLineage),
+      ...fixedLocalResult(errandLineage),
       originalOutcome: "findings" as const,
       vehicle: { kind: "errand" as const, identity: "repair-review-state", claimId: "claim-old" },
       request: { carrier: {
@@ -617,7 +621,7 @@ describe("local review coverage selection", () => {
     });
   });
   it("offers an exact predecessor-backed incremental choice after the target head changes", async () => {
-    const predecessor = completeLocalResult();
+    const predecessor = fixedLocalResult();
     const currentTarget = target(objectId("c"));
 
     await expect(resolveWithEvidence({
@@ -645,7 +649,7 @@ describe("local review coverage selection", () => {
   });
 
   it("accepts only the exact offered correction admission", async () => {
-    const predecessor = completeLocalResult();
+    const predecessor = fixedLocalResult();
     const currentTarget = target(objectId("c"));
     const common = {
       policy: readyPolicy(currentTarget.headSha),
@@ -684,7 +688,7 @@ describe("local review coverage selection", () => {
       vehicleIdentity: "repair-review-state",
       headSha: objectId("a"),
     };
-    const predecessor = completeLocalResult(predecessorLineage);
+    const predecessor = fixedLocalResult(predecessorLineage);
     const currentTarget = target(objectId("c"));
 
     await expect(resolveWithEvidence({
@@ -729,7 +733,7 @@ describe("local review coverage selection", () => {
       headSha: objectId("a"),
     };
     const currentLineage = { ...predecessorLineage, headSha: objectId("c") };
-    const predecessor = completeLocalResult(predecessorLineage);
+    const predecessor = fixedLocalResult(predecessorLineage);
     if (predecessor.kind !== "attested-local") throw new Error("expected local predecessor");
     const currentTarget = target(currentLineage.headSha);
     const offered = await resolveWithEvidence({
@@ -753,6 +757,7 @@ describe("local review coverage selection", () => {
     const current: ReviewResult = {
       ...predecessor,
       producerId: "local-incremental",
+      originalOutcome: "clean", findings: [],
       target: currentTarget,
       resultDigest: digest("incremental-result"),
       admission: {
@@ -789,6 +794,7 @@ describe("local review coverage selection", () => {
           : current,
       },
       dispositionStore: dependencies(predecessor).dispositionStore,
+      readResponsePerformance: dependencies(predecessor).readResponsePerformance,
       confirmTarget: async () => currentTarget,
       confirmIncrementalApplicability: async (earlier, later) => (
         earlier.admission.lineage.kind === "head-bound"
@@ -807,7 +813,7 @@ describe("local review coverage selection", () => {
   it("offers and completes a third Errand pass over two exact correction legs", async () => {
     const owner = { kind: "head-bound" as const, vehicleKind: "errand" as const,
       vehicleIdentity: "claim-1" };
-    const first = completeLocalResult({ ...owner, headSha: objectId("a") });
+    const first = fixedLocalResult({ ...owner, headSha: objectId("a") });
     const middleTarget = target(objectId("b"));
     const currentTarget = target(objectId("c"));
     const requirementFor = (reviewTarget: typeof middleTarget) => {
@@ -849,6 +855,13 @@ describe("local review coverage selection", () => {
       if (producerId === middle.producerId) return middle;
       throw new Error("missing result");
     } };
+    const firstProof = dependencies(first, middleTarget.headSha);
+    const middleProof = dependencies(middle, currentTarget.headSha);
+    const dispositionStore = { ...firstProof.dispositionStore,
+      readDispositionRecord: async (producerId: string) => producerId === first.producerId
+        ? firstProof.dispositionStore.readDispositionRecord() : middleProof.dispositionStore.readDispositionRecord() };
+    const readResponsePerformance = async (producer: ReviewResult) => producer.producerId === first.producerId
+      ? firstProof.readResponsePerformance() : middleProof.readResponsePerformance();
     const applicable = async (earlier: ReviewResult, later: ReviewResult) => (
       (earlier.producerId === first.producerId && later.producerId === middle.producerId)
       || (earlier.producerId === middle.producerId && later.producerId === "errand-current")
@@ -872,7 +885,7 @@ describe("local review coverage selection", () => {
       predecessorOperationId: middle.producerId,
     }, {
       resultReader: reader,
-      dispositionStore: dependencies(first).dispositionStore,
+      dispositionStore, readResponsePerformance,
       confirmIncrementalApplicability: applicable,
       confirmCurrentApplicability: async () => "applicable",
     });
@@ -883,6 +896,7 @@ describe("local review coverage selection", () => {
     const current: ReviewResult = {
       ...first,
       producerId: "errand-current",
+      originalOutcome: "clean", findings: [],
       target: currentTarget,
       resultDigest: digest("errand-current"),
       admission: {
@@ -906,7 +920,7 @@ describe("local review coverage selection", () => {
       nextPassContext: firstReviewNextPassContext,
       resultReader: { readResult: async (producerId) => producerId === current.producerId
         ? current : reader.readResult(producerId) },
-      dispositionStore: dependencies(first).dispositionStore,
+      dispositionStore, readResponsePerformance,
       confirmTarget: async () => currentTarget,
       confirmIncrementalApplicability: applicable,
     })).resolves.toMatchObject({
@@ -956,11 +970,11 @@ describe("full-final local correction coverage", () => {
   });
 
   it("rejects an incremental choice that no longer matches full-final routing", async () => {
-    const prior = await resolveWithEvidence(input(standardReview), dependencies(completeLocalResult(owner)));
+    const prior = await resolveWithEvidence(input(standardReview), dependencies(fixedLocalResult(owner)));
     if (prior.state !== "coverage-required") throw new Error("Expected a prior coverage offer");
     const incremental = prior.action.choices.find(choice => choice.requestedCoverage === "incremental");
     if (incremental === undefined) throw new Error("Expected the incremental route's choice");
     await expect(resolveWithEvidence({ ...input(fullFinal), coverageAdmission: incremental },
-      dependencies(completeLocalResult(owner, fullFinal)))).rejects.toThrow("current offered choice");
+      dependencies(fixedLocalResult(owner, fullFinal)))).rejects.toThrow("current offered choice");
   });
 });

@@ -1,4 +1,4 @@
-/** Immutable hosted producers and validated approvals for response-chain tests. */
+/** Immutable producers and validated approvals for response-chain tests. */
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
 import { ApprovedDispositionRecordSchema } from "../../src/scripts/review-gate/core/advisory-records.js";
 import { approveDispositionState, createDispositionSet, proposeDispositionSet } from "../../src/scripts/review-gate/core/dispositions.js";
@@ -89,7 +89,7 @@ export function approvedRecord(
     disposition: "reject";
   })[],
 ) {
-  if (result.kind !== "hosted") throw new Error("expected hosted result");
+  if (result.kind === "frontline") throw new Error("expected standard result");
   const set = createDispositionSet({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
@@ -132,22 +132,30 @@ export function approvedRecord(
     candidate: null,
     errand: null,
     deliveryMember: null,
-    source: {
+    source: result.kind === "attested-local" ? {
+      kind: "attested-local",
+      receiptRef: bindReviewSourceReference({ kind: "attested-local", operationId: result.producerId, durableRef: result.receiptRef }),
+      localSourceRef: result.localSourceRef,
+    } : {
       kind: "hosted",
-      attemptRef: bindReviewSourceReference({
-        kind: "hosted",
-        operationId: result.laneOperationId,
-        durableRef: result.producerId,
-      }),
+      attemptRef: bindReviewSourceReference({ kind: "hosted", operationId: result.laneOperationId, durableRef: result.producerId }),
       hostedResultId: result.resultDigest,
     },
     currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
     approvedDispositionLineage: [{
       approvedDisposition,
       responsePolicyRequest: responsePolicyRequestFixture({
+        repository: result.kind === "hosted" ? result.hostedTarget.repository : `local/${result.repositoryId}`,
+        pullRequest: result.kind === "hosted" ? result.hostedTarget.pullRequest : null,
         headSha: result.target.headSha,
         sourceId: result.sourceIdentity,
         reviewOperationId: result.producerId,
+        completedPasses: result.admission.logicalPass,
+        standardReview: {
+          obligation: result.requirement.obligation, reasons: result.requirement.reasons,
+          rubricVersion: result.requirement.rubricVersion, rubricDigest: result.requirement.rubricDigest,
+          retrigger: result.requirement.retrigger, count: result.requirement.count,
+        },
       }),
       fixAuthorization: null,
       errandFixResponse: null,

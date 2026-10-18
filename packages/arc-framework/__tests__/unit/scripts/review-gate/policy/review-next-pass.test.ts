@@ -55,6 +55,18 @@ describe("next-pass context", () => {
     })).toMatchObject({ convergence: "pending", responseDue: true, incremental: null });
   });
 
+  it.each(["clean", "no-fix"] as const)("offers no fix check after a %s predecessor under incremental policy", async kind => {
+    const predecessor = kind === "clean" ? cleanHostedResult() : findingsHostedResult(["minor"]);
+    const request = input(predecessor, "minor", true, "incremental");
+    const record = kind === "clean" ? null : approvedRecord(request.predecessor!, [{
+      sourceVerification: "verified", verifiedSeverity: "minor", disposition: "defer",
+    }]);
+    expect((await deriveReviewNextPassContext({ ...request,
+      dispositionStore: { ...request.dispositionStore, readDispositionRecord: async () => record },
+      confirmCurrentApplicability: async () => "applicable",
+    })).incremental).toBeNull();
+  });
+
   it("offers a proven material-fix scope when the site's grounds refuse the changed code", async () => {
     const request = input(findingsHostedResult(["major"]));
     const context = await deriveReviewNextPassContext({ ...request,

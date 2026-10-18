@@ -173,8 +173,8 @@ describe("local prepare incremental reviewer instructions", () => {
   const predecessorHeadSha = objectId("e");
   const basisHeadSha = objectId("f");
 
-  async function preparedInstructions(requiredFindings: CorrectionScopeInput["requiredFindings"]) {
-    const records = fixture({
+  async function preparedInstructions(requiredFindings: CorrectionScopeInput["requiredFindings"] | undefined) {
+    const records = fixture(requiredFindings === undefined ? undefined : {
       schemaVersion: 1,
       predecessorProducerId: "local-predecessor",
       predecessorHeadSha,
@@ -194,6 +194,21 @@ describe("local prepare incremental reviewer instructions", () => {
     });
     return { instructions: preparation.state.reviewerInstructions, headSha: records.target.headSha };
   }
+
+  it("keeps complete-pass instructions equal to the configured rubric", async () => {
+    const { instructions } = await preparedInstructions(undefined);
+    expect(instructions).toBe(projectLocalReviewGuidance().reviewerInstructions);
+  });
+
+  it.each([false, true])("names all fix-check axes and the sibling sweep with earlier findings=%s", async carried => {
+    const { instructions } = await preparedInstructions(carried
+      ? [{ producerId: "local-predecessor", findingId: "finding-1", locus: "src/a.ts:10" }] : []);
+    expect(instructions).toMatch(/closure/iu);
+    expect(instructions).toMatch(/behavioral grounding/iu);
+    expect(instructions).toMatch(/propagation and completeness/iu);
+    expect(instructions).toMatch(/new failure/iu);
+    expect(instructions).toMatch(/sibling sweep/iu);
+  });
 
   it("defines the pass's requested change set as the predecessor-to-head range", async () => {
     const { instructions, headSha } = await preparedInstructions([]);

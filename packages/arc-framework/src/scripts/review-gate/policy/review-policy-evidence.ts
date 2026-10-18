@@ -274,11 +274,11 @@ export async function readIncrementalPredecessorResponseEvidence(
   ) => Promise<LaneResponsePerformance | null>,
 ): Promise<IncrementalPredecessorResponseEvidence> {
   if (predecessor.originalOutcome === "clean") {
-    return { status: "performed", requiredFindings: [] };
+    return { status: "performed", hasFix: false, requiredFindings: [] };
   }
   const predecessorRecord = await dispositionStore.readDispositionRecord(predecessor.producerId);
   if (predecessorRecord === null) {
-    return { status: "incomplete", requiredFindings: [] };
+    return { status: "incomplete", hasFix: false, requiredFindings: [] };
   }
   const approved = validateApprovedDispositionRecordForResult(predecessorRecord, predecessor);
   const node = currentApprovedDispositionNode(approved);
@@ -310,6 +310,7 @@ export async function readIncrementalPredecessorResponseEvidence(
     || predecessor.settled;
   return {
     status: fixPerformed && hostSettlementPerformed ? "performed" : "incomplete",
+    hasFix,
     requiredFindings,
   };
 }

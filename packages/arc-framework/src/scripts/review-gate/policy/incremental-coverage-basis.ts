@@ -14,8 +14,8 @@ import type { ReviewResult } from "../core/review-result.js";
 
 /** Response evidence needed before a predecessor may support narrower review. */
 export type IncrementalPredecessorResponseEvidence =
-  | { readonly status: "performed"; readonly requiredFindings: readonly IncrementalReviewFindingInstruction[] }
-  | { readonly status: "incomplete"; readonly requiredFindings: readonly IncrementalReviewFindingInstruction[] };
+  | { readonly status: "performed"; readonly hasFix: boolean; readonly requiredFindings: readonly IncrementalReviewFindingInstruction[] }
+  | { readonly status: "incomplete"; readonly hasFix: boolean; readonly requiredFindings: readonly IncrementalReviewFindingInstruction[] };
 
 /** Current-target applicability result for one immutable predecessor producer. */
 export type IncrementalPredecessorApplicability =
@@ -55,7 +55,7 @@ export function buildIncrementalCorrectionScope(input: {
   readonly response: IncrementalPredecessorResponseEvidence;
 }): IncrementalReviewScope | null {
   const { predecessor, response } = input;
-  if (predecessor.kind === "frontline" || response.status !== "performed") return null;
+  if (predecessor.kind === "frontline" || response.status !== "performed" || !response.hasFix) return null;
   const predecessorScope = predecessor.admission.correctionScope;
   const basisHeadSha = predecessor.admission.effectiveCoverage === "complete"
     ? predecessor.target.headSha
@@ -258,7 +258,7 @@ async function resolveCoverageChain(
       );
     }
     const response = await dependencies.readResponseEvidence(predecessor)
-      .catch(() => ({ status: "incomplete" as const, requiredFindings: [] }));
+      .catch(() => ({ status: "incomplete" as const, hasFix: false, requiredFindings: [] }));
     if (response.status !== "performed") {
       return inadequate("response-incomplete", { producerId: predecessor.producerId });
     }

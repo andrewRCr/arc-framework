@@ -282,6 +282,7 @@ describe("evidence-bound review policy", () => {
 
     await expect(readIncrementalPredecessorResponseEvidence(result, store)).resolves.toEqual({
       status: "performed",
+      hasFix: false,
       requiredFindings: [{
         producerId: result.producerId,
         findingId: "finding-1",
