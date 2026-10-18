@@ -60,7 +60,6 @@ export function projectProvisionalPassAssessment(input: {
   result: ReviewResult;
   admittedLogicalPass: number;
   configuredMaxPasses: number;
-  configuredSources: readonly string[];
   standardFacts?: ProvisionalStandardPassFacts;
 }): z.infer<typeof ProvisionalPassAssessmentSchema> {
   const proposedSignal = proposedReviewSignal(input.proposal);
@@ -75,7 +74,8 @@ export function projectProvisionalPassAssessment(input: {
   const fixConsequence = projectFixConsequence({
     proposal: input.proposal,
     result: input.result,
-    configuredSources: input.configuredSources,
+    chainAdequate: input.standardFacts?.chainAdequate ?? false,
+    delegatedAgentSelectable: input.standardFacts?.delegatedAgentSelectable ?? false,
     materialFix,
     belowCeiling: capPosition === "below-ceiling",
   });

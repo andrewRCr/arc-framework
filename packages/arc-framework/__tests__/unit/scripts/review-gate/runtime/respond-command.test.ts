@@ -1235,11 +1235,11 @@ describe("review response command", () => {
 
   it.each([
     { logicalPass: 2, maxPasses: 2, severity: "major" as const, disposition: "fix" as const,
-      capPosition: "at-ceiling", stopReason: "cap-exhausted", consequence: { kind: "ceiling-decision" },
-      consequenceText: " Approving a FIX moves the head, and another pass needs a ceiling decision." },
+      capPosition: "at-ceiling", stopReason: null, consequence: { kind: "next-pass", coverage: "incremental-when-proven" },
+      consequenceText: " Approving a FIX moves the head, which needs standard pass 3 of 2, covering only the fix where its chain is proven." },
     { logicalPass: 1, maxPasses: 3, severity: "major" as const, disposition: "fix" as const,
-      capPosition: "below-ceiling", stopReason: null, consequence: { kind: "next-pass", coverage: null },
-      consequenceText: " Approving a FIX moves the head, which needs standard pass 2 of 3." },
+      capPosition: "below-ceiling", stopReason: null, consequence: { kind: "next-pass", coverage: "incremental-when-proven" },
+      consequenceText: " Approving a FIX moves the head, which needs standard pass 2 of 3, covering only the fix where its chain is proven." },
     { logicalPass: 2, maxPasses: 2, severity: "minor" as const, disposition: "fix" as const,
       capPosition: "at-ceiling", stopReason: null, consequence: { kind: "decided-at-fixed-head" },
       consequenceText: " Approving a FIX moves the head; review status there decides whether another pass is needed." },

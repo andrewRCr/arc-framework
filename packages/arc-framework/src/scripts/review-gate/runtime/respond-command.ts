@@ -1752,7 +1752,6 @@ async function readProvisionalPassAssessment(
     result,
     lane,
     ...passPosition,
-    configuredSources: configured.sources,
     ...(lane === "frontline" ? {} : { standardFacts: await dependencies.readProvisionalPassFacts({
       result, proposal, configuredSources: configured.sources, configuredMaxPasses: configured.maxPasses,
     }) }),

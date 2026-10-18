@@ -9,7 +9,7 @@ import { approvedRecord, findingsHostedResult } from "../../../../fixtures/revie
 
 function input(options: {
   retrigger: "incremental" | "full-final"; materialFix?: boolean; local?: boolean;
-  delivery?: boolean; coverage?: "complete" | "incremental"; belowCeiling?: boolean;
+  delivery?: boolean; coverage?: "complete" | "incremental"; belowCeiling?: boolean; chainAdequate?: boolean;
 }) {
   const original = findingsHostedResult([options.materialFix ? "major" : "minor"]);
   if (original.kind !== "hosted") throw new Error("expected hosted result");
@@ -25,7 +25,7 @@ function input(options: {
     workUnitId: SlugSchema.parse("example") } : original.admission.lineage;
   const coverage = options.coverage ?? "complete";
   const result = { ...original, target, requirement, admission: { ...original.admission,
-    lineage, policyVersion: requirement.policyVersion, requestedCoverage: coverage, effectiveCoverage: coverage,
+    lineage, logicalPass: coverage === "incremental" ? 2 : 1, policyVersion: requirement.policyVersion, requestedCoverage: coverage, effectiveCoverage: coverage,
     ...(coverage === "incremental" ? { correctionScope: { schemaVersion: 1 as const,
       predecessorProducerId: "prior-producer", predecessorHeadSha: "1".repeat(40), basisHeadSha: "1".repeat(40),
       headSha: target.headSha, requiredFindings: [] } } : {}),
@@ -34,10 +34,20 @@ function input(options: {
     verifiedSeverity: options.materialFix ? "major" : "minor", disposition: "fix" }]);
   return { result, proposal: proposeDispositionSet(approved.approvedDispositionLineage[0]!.approvedDisposition.dispositionSet),
     materialFix: options.materialFix ?? false, belowCeiling: options.belowCeiling ?? true,
-    configuredSources: options.local === false ? ["codex-pr"] : ["codex-pr", "delegated-agent"] };
+    chainAdequate: options.chainAdequate ?? coverage === "complete", delegatedAgentSelectable: options.local !== false };
 }
 
 describe("proposed fix consequences", () => {
+  it.each([
+    { coverage: "complete", chainAdequate: true, local: true, consequence: { kind: "next-pass", coverage: "incremental-when-proven" } },
+    { coverage: "incremental", chainAdequate: false, local: true, consequence: { kind: "ceiling-decision" } },
+    { coverage: "complete", chainAdequate: true, local: false, consequence: { kind: "ceiling-decision" } },
+  ] as const)("predicts material fixes at the ceiling from chain=$chainAdequate and local=$local", row => {
+    const { consequence, ...options } = row;
+    expect(projectFixConsequence(input({ ...options, retrigger: "full-final", materialFix: true, belowCeiling: false })))
+      .toEqual(consequence);
+  });
+
   it.each([
     { retrigger: "full-final", materialFix: true, local: true, coverage: "incremental-when-proven" },
     { retrigger: "full-final", materialFix: false, local: true, coverage: "complete" },

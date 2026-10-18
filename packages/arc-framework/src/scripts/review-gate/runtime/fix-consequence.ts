@@ -3,21 +3,22 @@ import type { ProposedDispositionSet } from "../core/disposition-records.js";
 import type { ReviewResult } from "../core/review-result.js";
 import type { ProvisionalFixConsequence } from "../core/provisional-pass-assessment.js";
 
-/** Predict bounded local coverage only when the configured lane can run it. */
-function errandNextPassCoverage(
-  result: Exclude<ReviewResult, { kind: "frontline" }>,
-  configuredSources: readonly string[],
-  materialFix: boolean,
-): "complete" | "incremental-when-proven" {
-  return configuredSources.includes("delegated-agent") && (materialFix || result.requirement.retrigger === "incremental")
-    ? "incremental-when-proven" : "complete";
+function nextPassCoverage(
+  input: Parameters<typeof projectFixConsequence>[0], errand: boolean, convergedFixCheck: boolean,
+): Extract<ProvisionalFixConsequence, { kind: "next-pass" }>["coverage"] {
+  if (input.result.kind !== "frontline" && input.chainAdequate && input.delegatedAgentSelectable
+    && (input.materialFix || (errand && input.result.requirement.retrigger === "incremental"))) {
+    return "incremental-when-proven";
+  }
+  return errand || convergedFixCheck ? "complete" : null;
 }
 
 /** What approving the proposal's fixes does to the lane subject that owns the reviewed result's pass progress. */
 export function projectFixConsequence(input: {
   proposal: ProposedDispositionSet;
   result: ReviewResult;
-  configuredSources: readonly string[];
+  chainAdequate: boolean;
+  delegatedAgentSelectable: boolean;
   materialFix: boolean;
   belowCeiling: boolean;
 }): ProvisionalFixConsequence {
@@ -32,9 +33,8 @@ export function projectFixConsequence(input: {
     && lineage.kind === "delivery-member" && result.requirement.retrigger === "full-final"
     && result.admission.effectiveCoverage === "incremental";
   if (input.materialFix || errand || convergedFixCheck) {
-    if (!input.belowCeiling) return { kind: "ceiling-decision" };
-    const coverage = errand ? errandNextPassCoverage(result, input.configuredSources, input.materialFix)
-      : convergedFixCheck ? "complete" : null;
+    const coverage = nextPassCoverage(input, errand, convergedFixCheck);
+    if (!input.belowCeiling && coverage !== "incremental-when-proven") return { kind: "ceiling-decision" };
     return { kind: "next-pass", coverage };
   }
   return result.kind === "frontline" || lineage.kind === "delivery-member"

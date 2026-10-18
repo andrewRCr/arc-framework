@@ -47,7 +47,7 @@ it.each(["complete", "incremental"] as const)("projects %s coverage from the com
   const approved = approvedRecord(result, [{ sourceVerification: "verified", verifiedSeverity: "major", disposition: "defer" }]);
   const proposal = proposeDispositionSet(approved.approvedDispositionLineage[0]!.approvedDisposition.dispositionSet);
   const projected = projectProvisionalPassAssessment({ proposal, result, lane: "standard", admittedLogicalPass: logicalPass,
-    configuredMaxPasses: 2, configuredSources: ["delegated-agent"],
+    configuredMaxPasses: 2,
     standardFacts: provisionalPassFactsFixture({ completePasses: 2, ceiling: 2 }) });
   expect(projected).toMatchObject({ admittedLogicalPass: logicalPass, ceilingPassCount: 2, capPosition: "at-ceiling" });
 });

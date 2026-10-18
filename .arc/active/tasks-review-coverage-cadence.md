@@ -731,7 +731,7 @@ complete pass. Workflow, method, and configuration text changes in the package's
           Shared context now checks the predecessor's logical attempt against the finished count; lane readers carry
           both counts independently. Interleaved schema-backed histories retain one outcome per logical attempt.
 
-### `[ ]` **5.3 Report respond's ceiling position and consequence from the complete count — § 5.2, § 5.3**
+### `[x]` **5.3 Report respond's ceiling position and consequence from the complete count — § 5.2, § 5.3**
 
 - _Goal:_ The respond envelope's provisional assessment states the ceiling position from the passes the ceiling counts
   once the admitted attempt finishes, and reports a ceiling decision only when no fix check will be admissible, so a
@@ -742,15 +742,10 @@ complete pass. Workflow, method, and configuration text changes in the package's
           The pure assessment projects `ceilingPassCount` from complete standard looks or the recorded frontline pass;
           its schema admits incremental follow-up at any position while bounding complete follow-up by the ceiling.
 
-    - `[ ]` **5.3.b Predict the ceiling decision**
-        - `projectFixConsequence` reports a ceiling decision only when no fix check will be admissible. It runs on the
-          first `arc review respond -` call, before any fix exists and before a correction scope can resolve
-          (`buildIncrementalCorrectionScope` requires a performed response), so it tests predictively from the port:
-          the chain to this pass is adequate and `delegated-agent` is selectable.
-        - Build `test-first` (one behavior at a time):
-            - Material fixes at the ceiling with `delegated-agent` selectable report `next-pass` with
-              `incremental-when-proven`, not a ceiling decision.
-            - With the chain inadequate, or `delegated-agent` not selectable, they report a ceiling decision.
+    - `[x]` **5.3.b Predict the ceiling decision**
+        - `projectFixConsequence` predicts incremental follow-up from current-chain adequacy and local selectability
+          before testing the ceiling. Material fixes with either ground unavailable retain the complete-pass decision;
+          the projection takes both grounds from respond's repository port.
 
 ### `[ ]` **5.4 Decide the ceiling after coverage is chosen — § 5.3**
 
