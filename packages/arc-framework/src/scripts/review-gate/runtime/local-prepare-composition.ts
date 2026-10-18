@@ -316,25 +316,10 @@ async function validateLocalPolicyAdmission(
       const unresolved = await resolveEvidenceBoundReviewPolicyContinuation(policyRequest, {
         terminalResponsePerformed,
       }, policyDependencies);
-      const coverage = await resolveLocalReviewCoverageSelection({
-        policy: unresolved,
-        target,
-        sourceId: "delegated-agent",
-        lineage,
-        standardReview,
+      const coverage = resolveLocalReviewCoverageSelection({
+        policy: unresolved, target, sourceId: "delegated-agent", standardReview, nextPassContext,
         ...(predecessorOperationId === undefined ? {} : { predecessorOperationId }),
         ...(coverageAdmission === undefined ? {} : { coverageAdmission }),
-      }, {
-        resultReader: context.resultReader,
-        dispositionStore: context.dispositionStore,
-        readResponsePerformance: (predecessor) => readLaneResponsePerformance(
-          context.operationStore,
-          predecessor,
-        ),
-        confirmIncrementalApplicability: (predecessor, current) =>
-          confirmContribution(predecessor, current.target, current.admission.lineage, current),
-        confirmCurrentApplicability: (predecessor, currentTarget) =>
-          confirmContribution(predecessor, currentTarget, lineage),
       });
       if (coverage.state === "coverage-required") return coverage;
       const resolution = await assertEvidenceBoundReviewExecutionAdmission(policyRequest, {

@@ -54,7 +54,7 @@ The confirmation map is in `notes-review-coverage-cadence.md` § Chain confirmat
         - Standard internal requests now refuse missing next-pass facts; frontline rejects them. Direct reducer and
           admission fixtures supply explicit internal context, while command requests retain their stored shape.
 
-### `[ ]` **1.2 Close a `full-final` lane only on a complete pass at the settled head — § 2.1, § 2.2, § 2.3**
+### `[x]` **1.2 Close a `full-final` lane only on a complete pass at the settled head — § 2.1, § 2.2, § 2.3**
 
 - _Goal:_ Under `full-final`, the standard lane completes only on a complete pass at the final head whose approved
   dispositions fix no material finding: a converged fix check resolves to `coverage-required`, the composition then
@@ -70,15 +70,10 @@ The confirmation map is in `notes-review-coverage-cadence.md` § Chain confirmat
           successor automatically, while unconverged looks retain the coverage stop until a choice. Its response flag
           now reports durable response state, and fresh successors retain caller authority.
 
-    - `[ ]` **1.2.c Admit the complete pass in local prepare without a selection after a converged look**
-        - `resolveLocalReviewCoverageSelection` (`local-review-coverage-selection.ts`) takes the context's predecessor,
-          convergence, and scope from `validateLocalPolicyAdmission` rather than deriving its own. It returns `ready`
-          with complete coverage and emits no selection when the context reads the predecessor converged under
-          `full-final`; its one-choice stop remains only where a fix check's chain fails.
-        - Build `test-first` (one behavior at a time):
-            - After a converged same-head fix check under `full-final`, local prepare admits complete coverage with no
-              selection, even with a `predecessorOperationId` that names an earlier-head producer.
-            - Where a fix check's chain fails after material fixes, the one-choice stop still returns, naming complete.
+    - `[x]` **1.2.c Admit the complete pass in local prepare without a selection after a converged look**
+        - Local prepare consumes the shared convergence and scope directly. A converged full-final look admits
+          complete coverage without a selection; a material fix whose chain is unavailable retains the complete-only
+          stop, including when an earlier-head producer hint is present.
 
 ### `[ ]` **1.3 Admit a fix check only after a fix, and carry what a memoryless reviewer lacks — § 3.1, § 3.2**
 
@@ -98,14 +93,10 @@ The confirmation map is in `notes-review-coverage-cadence.md` § Chain confirmat
             - A performed fix resolves the scope with the predecessor's required findings.
             - The coverage chain still accepts a clean earlier link.
 
-    - `[ ]` **1.3.b Offer a fix check under `full-final` after a material fix**
-        - `resolveOfferedCorrectionScope` (`local-review-coverage-selection.ts`) takes its predecessor and scope from the
-          context instead of resolving its own, and its `retrigger === "full-final"` refusal goes;
-          `localCoverageInteractionText` loses the "This route requires complete coverage" branch. Task 4.3 rewrites the
-          text itself.
-        - Build `test-first` (one behavior at a time):
-            - After a material fix under `full-final`, local prepare offers the fix check and a local complete pass.
-            - Under `incremental` the offer is unchanged.
+    - `[x]` **1.3.b Offer a fix check under `full-final` after a material fix**
+        - Local coverage choices use the shared proven scope under both retrigger policies. A material fix under
+          full-final now offers its fix check beside complete coverage; the duplicate scope derivation and routing-only
+          full-final refusal were removed.
 
     - `[ ]` **1.3.c Give the fix check's reviewer what it lacks**
         - `localReviewerInstructions` (`core/local-prepare.ts`) keeps the correction scope and the re-examination of

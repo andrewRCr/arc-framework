@@ -22,7 +22,6 @@ import {
 } from "../core/local-review-coverage.js";
 import type {
   ApprovedDispositionRecordStore,
-  ReviewResultReader,
 } from "../core/ports.js";
 import type { LaneResponsePerformance } from "../core/operation-state-schema.js";
 import type { ReviewResult } from "../core/review-result.js";
@@ -36,13 +35,13 @@ import {
   projectMechanicalReviewApplicabilityCarry,
 } from "./mechanical-review-applicability-carry.js";
 import {
-  resolveIncrementalCorrectionScope,
   type IncrementalPredecessorApplicability,
 } from "./incremental-coverage-basis.js";
 import {
   readIncrementalPredecessorResponseEvidence,
 } from "./review-policy-evidence.js";
 import type { ReviewResolveEnvelope } from "./review-policy-driver.js";
+import type { ReviewNextPassContext } from "./review-next-pass-schema.js";
 import type { StandardReviewObligationProjection } from
   "./standard-review-projection-schema.js";
 
@@ -329,57 +328,7 @@ export async function confirmErrandFixResponseApplicability(
   }
 }
 
-async function resolveOfferedCorrectionScope(
-  input: Parameters<typeof resolveLocalReviewCoverageSelection>[0],
-  dependencies: Parameters<typeof resolveLocalReviewCoverageSelection>[1],
-  predecessorOperationId: string,
-  completedPasses: number,
-) {
-  if (input.standardReview.retrigger === "full-final") return null;
-  const predecessor = await dependencies.resultReader.readResult(predecessorOperationId).catch(() => null);
-  if (predecessor === null || predecessor.kind === "frontline"
-    || predecessor.repositoryId !== input.target.repositoryId
-    || predecessor.admission.logicalPass !== completedPasses
-    || !laneSubjectOwnerMatches(predecessor.admission.lineage, input.lineage)
-    || canonicalize({
-      obligation: predecessor.requirement.obligation,
-      reasons: [...predecessor.requirement.reasons].sort(),
-      rubricVersion: predecessor.requirement.rubricVersion,
-      rubricDigest: predecessor.requirement.rubricDigest,
-      retrigger: predecessor.requirement.retrigger,
-      count: predecessor.requirement.count,
-    }) !== canonicalize({
-      ...input.standardReview,
-      reasons: [...input.standardReview.reasons].sort(),
-    })) return null;
-  return resolveIncrementalCorrectionScope({
-    predecessor,
-    currentHeadSha: input.target.headSha,
-  }, {
-    resultReader: dependencies.resultReader,
-    readResponseEvidence: (candidate) => readIncrementalPredecessorResponseEvidence(
-      candidate,
-      dependencies.dispositionStore,
-      dependencies.readResponsePerformance,
-    ),
-    confirmApplicability: dependencies.confirmIncrementalApplicability
-      ?? ((earlier, current) => Promise.resolve(
-        laneSubjectOwnerMatches(earlier.admission.lineage, current.admission.lineage)
-          ? "applicable"
-          : "unavailable",
-      )),
-    confirmCurrentApplicability: (candidate, currentHeadSha) =>
-      currentHeadSha !== input.target.headSha
-        ? Promise.resolve("unavailable" as const)
-        : dependencies.confirmCurrentApplicability?.(candidate, input.target)
-          ?? Promise.resolve("unavailable" as const),
-  });
-}
-
-function localCoverageInteractionText(incrementalOffered: boolean, fullFinal: boolean): string {
-  if (fullFinal) {
-    return "This route requires complete coverage. Select complete and re-run `arc review local prepare`.";
-  }
+function localCoverageInteractionText(incrementalOffered: boolean): string {
   if (!incrementalOffered) {
     return "Only complete coverage is proven. If incremental was expected, check the approved response, "
       + "Candidate lineage, and live base/target; otherwise select complete and re-run "
@@ -390,84 +339,61 @@ function localCoverageInteractionText(incrementalOffered: boolean, fullFinal: bo
     + "coverage. Either consumes one pass; this choice grants no next-pass authority.";
 }
 
+function withoutCorrectionSelection(coverageAdmission: LocalReviewCoverageAdmission | undefined): LocalReviewCoverageSelectionResolution {
+  if (coverageAdmission?.requestedCoverage === "incremental") {
+    throw new Error("Incremental local review coverage requires a current correction selection.");
+  }
+  return { state: "ready", coverageSelected: false };
+}
+
 /**
  * Resolve an optional local coverage selection against current immutable predecessor evidence.
  *
  * @param input - Current policy result, local target, and optional caller-returned coverage choice.
- * @param dependencies - Immutable result and approved-response readers.
  * @returns A typed selection action, or a validated signal that policy may admit the operation.
  */
-export async function resolveLocalReviewCoverageSelection(input: {
+export function resolveLocalReviewCoverageSelection(input: {
   readonly policy: ReviewResolveEnvelope;
   readonly target: ReviewTarget;
   readonly sourceId: string;
-  readonly lineage: LaneSubjectLineage;
   readonly standardReview: StandardReviewObligationProjection;
+  readonly nextPassContext: ReviewNextPassContext;
   readonly predecessorOperationId?: string;
   readonly coverageAdmission?: LocalReviewCoverageAdmission;
-}, dependencies: {
-  readonly resultReader: ReviewResultReader;
-  readonly dispositionStore: ApprovedDispositionRecordStore;
-  readonly readResponsePerformance?: (
-    predecessor: ReviewResult,
-  ) => Promise<LaneResponsePerformance | null>;
-  readonly confirmIncrementalApplicability?: (
-    predecessor: ReviewResult,
-    current: ReviewResult,
-  ) => Promise<IncrementalPredecessorApplicability>;
-  readonly confirmCurrentApplicability?: (
-    predecessor: ReviewResult,
-    currentTarget: ReviewTarget,
-  ) => Promise<IncrementalPredecessorApplicability>;
-}): Promise<LocalReviewCoverageSelectionResolution> {
+}): LocalReviewCoverageSelectionResolution {
   if (input.policy.state !== "coverage-required" && input.policy.state !== "ready") {
-    if (input.coverageAdmission?.requestedCoverage === "incremental") {
-      throw new Error("Incremental local review coverage requires a current correction selection.");
-    }
-    return { state: "ready", coverageSelected: false };
+    return withoutCorrectionSelection(input.coverageAdmission);
   }
-
+  const { nextPassContext } = input;
+  if (input.standardReview.retrigger === "full-final" && nextPassContext.convergence === "converged"
+    && !nextPassContext.responseDue) {
+    if (input.coverageAdmission?.requestedCoverage === "incremental") {
+      throw new Error("Local review coverage selection does not match a current offered choice.");
+    }
+    return { state: "ready", coverageSelected: input.policy.state === "coverage-required" };
+  }
   const terminal = input.policy.payload.attemptedSources.at(-1);
   const predecessorOperationId = input.policy.state === "coverage-required"
-    && terminal !== undefined
-    && "reviewOperationId" in terminal
-    ? terminal.reviewOperationId
-    : input.predecessorOperationId;
-  const completedPasses = input.policy.state === "coverage-required"
-    ? input.policy.payload.completedPasses
-    : input.policy.payload.pass - 1;
-  if (predecessorOperationId === undefined) {
-    if (input.coverageAdmission?.requestedCoverage === "incremental") {
-      throw new Error("Incremental local review coverage requires a current correction selection.");
-    }
-    return { state: "ready", coverageSelected: false };
+    && terminal !== undefined && "reviewOperationId" in terminal
+    ? terminal.reviewOperationId : input.predecessorOperationId;
+  if (predecessorOperationId === undefined && nextPassContext.convergence === "none") {
+    return withoutCorrectionSelection(input.coverageAdmission);
   }
-  const correctionScope = await resolveOfferedCorrectionScope(
-    input, dependencies, predecessorOperationId, completedPasses,
-  );
+  const correctionScope = nextPassContext.incremental?.scope ?? null;
   const choices: LocalReviewCoverageAdmission[] = [
-    ...(correctionScope === null
-      ? []
-      : [{ requestedCoverage: "incremental" as const, correctionScope }]),
+    ...(correctionScope === null ? [] : [{ requestedCoverage: "incremental" as const, correctionScope }]),
     { requestedCoverage: "complete" },
   ];
+  const completedPasses = input.policy.state === "coverage-required"
+    ? input.policy.payload.completedPasses : input.policy.payload.pass - 1;
   const action = LocalReviewCoverageSelectionActionSchema.parse({
-    schemaVersion: 1,
-    kind: "local-review-coverage-selection",
-    sourceId: input.sourceId,
-    target: input.target,
-    pass: input.policy.payload.pass,
-    completedPasses,
-    consumedPass: true,
-    choices,
-    interactionText: localCoverageInteractionText(correctionScope !== null, input.standardReview.retrigger === "full-final"),
+    schemaVersion: 1, kind: "local-review-coverage-selection", sourceId: input.sourceId,
+    target: input.target, pass: input.policy.payload.pass, completedPasses, consumedPass: true, choices,
+    interactionText: localCoverageInteractionText(correctionScope !== null),
   });
   if (input.coverageAdmission === undefined) return { state: "coverage-required", action };
-  if (!choices.some((choice) => canonicalize(choice) === canonicalize(input.coverageAdmission))) {
+  if (!choices.some(choice => canonicalize(choice) === canonicalize(input.coverageAdmission))) {
     throw new Error("Local review coverage selection does not match a current offered choice.");
   }
-  return {
-    state: "ready",
-    coverageSelected: input.policy.state === "coverage-required",
-  };
+  return { state: "ready", coverageSelected: input.policy.state === "coverage-required" };
 }
