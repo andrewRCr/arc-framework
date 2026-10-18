@@ -1,25 +1,22 @@
 ---
 name: self-review
 description: Local author-side aggregate diff preflight — generic and composable
-arc:
-  methods:
-    - review-triage
 related:
-  - review-triage
+  - code-review
 active: true
 override-active: false
 ---
 
 # Method: self-review
 
-> - **Workflow:** [prepare-work-unit.md][prepare-work-unit] (primary caller)
+> - **Workflow:** [code-review's author check][author-check]
 > - **When:** When a workflow or skill invokes local diff preflight — notably before opening a change request
 >
 > - **Contract:** The authoring agent reviews its aggregate local diff for cross-cutting issues that per-task review
 >   misses. This preflight is not peer/independent review evidence and cannot satisfy a review requirement. Callers
 >   decide when to invoke it and what gating applies. As agent-side ergonomics, it does not structurally enforce
 >   merge safety.
-> - **Related:** [review-triage](review-triage.md) — use for finding classification
+> - **Related:** [code-review](code-review.md) — owns findings handling and the author-fix gate
 
 ## self-review.override
 
@@ -53,25 +50,12 @@ git diff {parent-branch}...HEAD
 aggregate change actually solve the stated problem? Check exception handling paths explicitly — AI-generated
 code systematically underperforms on error cases and edge conditions.
 
-**Process findings** using the [review-triage method](review-triage.md). Present the author self-review as the
-standalone non-producer report that method describes, and obtain complete-set approval before applying fixes. That
-approval is the fix round's structured gate and releases the fix commit where `arc.commitInterlock` allows
-([DEV-RULES.ARC § Review-Increment Invariant][review-increment-invariant]). Request `arc check increment` once over
-the approved fixes. Commit finding-driven fixes with the canonical `(code review)`
-context footer; reserve lifecycle-phase footers for ceremony commits rather than the fixes review produced.
-
-> [!CAUTION]
-> `commit-interlock` release — commit the approved fixes as `taskCommit`:
-
-```text
-<type>(<scope>): <what the approved fixes change>
-
-Context: <the caller's context> (code review)
-```
+Return the author findings to [code-review's author check][author-check] for source verification, the standalone
+non-producer report, complete-set approval, and any approved fix increment. This check creates no producer or lane
+evidence and invokes no response command.
 
 Do not reinterpret this author-side preflight as independent review evidence.
 
 ---
 
-[prepare-work-unit]: ../workflows/arc/work-unit-lifecycle/prepare-work-unit.md
-[review-increment-invariant]: ../rules/DEV-RULES.ARC.md#review-increment-invariant
+[author-check]: code-review.md#author-check

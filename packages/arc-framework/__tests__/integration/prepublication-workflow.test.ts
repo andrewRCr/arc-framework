@@ -1,3 +1,4 @@
+import { codeReviewSection } from "../helpers/code-review-section.js";
 import { readFile, readdir } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 
@@ -129,23 +130,21 @@ describe("prepublication workflow boundary", () => {
       expect(delivery.slice(locate, pushChecks))
         .toMatch(softWrappedProse("whole-target choice closes the attention disposition"));
 
-      for (const [workflow, carrierCommand] of [
-        [delivery, "arc review hosted request -"],
+      const method = await readFile(resolve(root, "system/methods/code-review.md"), "utf8");
+      for (const [workflow, carrierAction] of [
+        [delivery, "`review-hosted-request` enters"],
         [preparation, "arc review frontline run -"],
-        [integration, "arc review hosted request -"],
+        [integration, "`review-hosted-request` enters"],
       ] as const) {
-        const scopeGuard = indexOfSoftWrappedProse(workflow, "No review carrier may run while");
-        const hostedCarrier = workflow.indexOf(carrierCommand, scopeGuard);
+        const scopeGuard = workflow.indexOf("[code-chunk-gate]");
+        const carrier = workflow.indexOf(carrierAction, scopeGuard);
         expect(scopeGuard).toBeGreaterThan(-1);
-        expect(hostedCarrier).toBeGreaterThan(scopeGuard);
-        expect(workflow.slice(scopeGuard, hostedCarrier))
-          .toMatch(/exact-target(?:\s+chunked)?\s+scope\s+selection/u);
-        expect(workflow.slice(scopeGuard, hostedCarrier)).toContain("unresolved");
-        expect(workflow.slice(scopeGuard, hostedCarrier))
-          .toMatch(softWrappedProse("capable whole-target choice"));
-      }
-      for (const workflow of [delivery, integration]) {
-        expect(workflow).toMatch(softWrappedProse("exact-target forced hosted invocation"));
+        expect(carrier).toBeGreaterThan(scopeGuard);
+        const gate = codeReviewSection(workflow, "chunk-gate", method).replace(/\s+/gu, " ");
+        expect(gate).toContain("No carrier runs with unresolved exact-target attention");
+        expect(gate).toContain("explicit capable whole-target choice closes attention");
+        expect(gate).toContain("exact forced hosted whole-target invocation selected by the Owner");
+        expect(gate).toContain("A stale or missing selection returns to the owning route before any carrier");
       }
     }
   });
@@ -340,7 +339,7 @@ describe("prepublication workflow boundary", () => {
       ]);
 
       const cleanup = indexOfSoftWrappedProse(verification, "Before the Candidate exists, clean the WU content");
-      const selfReview = indexOfSoftWrappedProse(verification, "execute it against the local aggregate diff");
+      const selfReview = verification.indexOf("[code-author-check]");
       const mergeChecks = verification.indexOf("arc check gate merge --force");
       const attest = verification.indexOf("arc attest {name} --json");
       const reRoot = verification.indexOf("`blocked / establish-new-root`");
@@ -351,7 +350,12 @@ describe("prepublication workflow boundary", () => {
       expect(reRoot).toBeGreaterThan(attest);
       expect(verification).toMatch(softWrappedProse("execute its exact `continuation.argv`"));
       expect(verification).toContain("`attested / re-root`");
-      expect(preparation).not.toMatch(softWrappedProse("execute it against the local aggregate diff"));
+      expect(preparation).toContain("For `run-self-review`, run [code-review's author check]");
+      const method = await readFile(resolve(root, "system/methods/code-review.md"), "utf8");
+      const author = codeReviewSection(verification, "author-check", method);
+      expect(author).toContain("aggregate diff against the base branch");
+      expect(author).toContain("standalone non-producer report");
+      expect(author).toContain("Do not invoke the producer-backed response command");
       expect(integration).not.toMatch(softWrappedProse("After settlement, clean the WU content"));
 
       expect(indexOfSoftWrappedProse(verification, "mark the single verification task `[x]`")).toBeGreaterThan(-1);
@@ -394,8 +398,11 @@ describe("prepublication workflow boundary", () => {
 
       expect(footer).toContain("meta-[name].md (prepublication)");
       expect(footer).toContain("meta-[name].md (integration)");
-      expect(selfReview).toMatch(softWrappedProse("finding-driven fixes with the canonical `(code review)` context footer"));
-      expect(selfReview).not.toMatch(/finding-driven fixes[\s\S]{0,120}`\(prepublication\)`/u);
+      const method = await readFile(resolve(root, "system/methods/code-review.md"), "utf8");
+      expect(selfReview).toContain("code-review.md#author-check");
+      expect(method).toMatch(softWrappedProse("Commit with the caller's canonical `(code review)` context"));
+      expect(method).toMatch(softWrappedProse("reserving lifecycle footers for ceremony commits"));
+      expect(method).not.toMatch(/finding-driven fixes[\s\S]{0,120}`\(prepublication\)`/u);
     }
   });
 });

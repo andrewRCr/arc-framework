@@ -84,6 +84,7 @@ const CONFIGURABLE_FILES: ReadonlySet<string> = new Set([
   "system/methods/review-triage.md",
   "system/methods/review-model.md",
   "system/methods/planning-review.md",
+  "system/methods/code-review.md",
   "system/methods/review-response.md",
   "system/methods/session-state.md",
   "system/methods/source-grounding.md",

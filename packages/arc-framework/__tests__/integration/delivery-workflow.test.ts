@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { codeReviewSection } from "../helpers/code-review-section.js";
 import { indexOfSoftWrappedProse, softWrappedProse } from "../helpers/soft-wrapped-prose.js";
 
 import { classifyFile } from "../../src/lib/classification.js";
@@ -17,26 +18,25 @@ function section(document: string, heading: string): string {
 }
 
 function expectProducerBackedResponseOrder(content: string): void {
-  const start = content.indexOf("`respond-to-findings` uses");
-  const end = content.indexOf("On `requested / await`", start);
-  const response = content.slice(start, end);
-  const triage = response.indexOf("[`review-triage`]");
+  const response = content.replace(/\s+/gu, " ");
+  const triage = response.indexOf("[review-triage]");
   const gatingPolicy = response.indexOf("proposal.severityGatingPolicy", triage);
   const proposalCall = response.indexOf("arc review respond -", gatingPolicy);
   const report = response.indexOf("payload.dispositionReportText", proposalCall);
   const approval = response.indexOf("complete-set approval", report);
-  const approvedCall = response.indexOf("arc review respond -", proposalCall + 1);
-  const performance = response.indexOf("[`review-response`]", approvedCall);
-
-  expect(start).toBeGreaterThanOrEqual(0);
-  expect(end).toBeGreaterThan(start);
+  const approvedCall = response.indexOf("the second call", approval);
+  const performance = response.indexOf("[review-response]", approvedCall);
+  const replay = response.indexOf("Once the fix is committed");
+  const push = response.indexOf("`push-interlock`", replay);
   expect(triage).toBeGreaterThanOrEqual(0);
   expect(gatingPolicy).toBeGreaterThan(triage);
-  expect(proposalCall).toBeGreaterThan(triage);
+  expect(proposalCall).toBeGreaterThan(gatingPolicy);
   expect(report).toBeGreaterThan(proposalCall);
   expect(approval).toBeGreaterThan(report);
   expect(approvedCall).toBeGreaterThan(approval);
   expect(performance).toBeGreaterThan(approvedCall);
+  expect(replay).toBeGreaterThan(performance);
+  expect(push).toBeGreaterThan(replay);
 }
 
 describe("packaged delivery workflow", () => {
@@ -165,8 +165,10 @@ describe("packaged delivery workflow", () => {
     );
     expect(reviewSection).toMatch(/native-stack-required` never enters[\s\S]*semantic native-selection transition/iu);
     expect(nativeSection).toMatch(/delivery-member[\s\S]*planId[\s\S]*deliverableId[\s\S]*workUnitSlug/u);
-    expectProducerBackedResponseOrder(nativeSection);
-    expect(nativeSection).toMatch(/never requests another hosted review/iu);
+    expect(nativeSection).toContain("[code-findings-round]");
+    const method = await readFile(resolve(root, "packages/arc-framework/arc/system/methods/code-review.md"), "utf8");
+    expectProducerBackedResponseOrder(codeReviewSection(packaged, "findings-round", method));
+    expect(codeReviewSection(packaged, "findings-round", method)).toContain("never reapprove or replay a new producer");
     expect(reviewSection).toMatch(/review-member[\s\S]*settle exact member review authority above/iu);
     const refreshPlan = reviewSection.indexOf("arc delivery refresh plan");
     const refreshExecute = reviewSection.indexOf("arc delivery refresh execute", refreshPlan);

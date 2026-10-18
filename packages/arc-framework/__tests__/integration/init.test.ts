@@ -327,6 +327,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "resolve-planning-depth.md",
       "review-model.md",
       "planning-review.md",
+      "code-review.md",
       "review-response.md",
       "review-triage.md",
       "session-state.md",
@@ -368,7 +369,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
         "frontline-review", "standard-review", "implementation-audit", "review-chunking", "self-review",
         "design-audit", "disposition-report",
         "issue-triage", "resolve-plan-segmentation", "resolve-planning-depth",
-        "review-model", "planning-review", "review-response", "review-triage",
+        "review-model", "planning-review", "code-review", "review-response", "review-triage",
         "session-state", "source-grounding", "spec-review", "task-audit", "test-first", "testing-standards",
         "validate-criteria",
       ];

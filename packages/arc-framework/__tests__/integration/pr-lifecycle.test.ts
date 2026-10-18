@@ -1,3 +1,4 @@
+import { codeReviewSection } from "../helpers/code-review-section.js";
 import { readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 
@@ -137,13 +138,17 @@ describe("PR lifecycle and review contracts", () => {
     expect(preOpen).toBeLessThan(create);
 
     const frontlineCycle = prepare.slice(resolveFrontline, submit);
-    expect(frontlineCycle).toContain("review-response");
-    expect(frontlineCycle).toMatch(/(?:recompose|produce)\s+(?:the\s+exact|a new)\s+target/u);
+    const method = await readFile(resolve(packageArc, "system/methods/code-review.md"), "utf8");
+    const response = codeReviewSection(prepare, "findings-round", method);
+    const operation = codeReviewSection(prepare, "local-operation", method);
+    expect(frontlineCycle).toContain("[code-findings-round]");
+    expect(response).toContain("[review-response]");
+    expect(frontlineCycle).toContain("candidate-advanced / continue-review");
     expect(frontlineCycle).toContain("arc review frontline run -");
     expect(frontlineCycle).toContain("arc review local prepare -");
-    expect(frontlineCycle).toContain("arc review local attest -");
-    expect(frontlineCycle).toContain("arc review local resume -");
-    expect(frontlineCycle).toContain("public typed actions");
+    expect(operation).toContain("arc review local attest -");
+    expect(operation).toContain("arc review local resume -");
+    expect(operation).toContain("public typed result");
     expect(frontlineCycle).not.toMatch(/ReviewOperationStateStore|invalid-request/u);
     expect(frontlineCycle.replace(/\s+/gu, " ")).toContain("arc check gate commit");
   });
@@ -194,13 +199,17 @@ describe("PR lifecycle and review contracts", () => {
     expect(resolveFrontline).toBeLessThan(resolvePr);
 
     const frontlineCycle = workflow.slice(cycleStart, resolvePr);
-    expect(frontlineCycle).toContain("review-response");
+    const method = await readFile(resolve(packageArc, "system/methods/code-review.md"), "utf8");
+    const response = codeReviewSection(workflow, "findings-round", method);
+    const operation = codeReviewSection(workflow, "local-operation", method);
+    expect(frontlineCycle).toContain("[code-findings-round]");
+    expect(response).toContain("[review-response]");
     expect(frontlineCycle.replace(/\s+/gu, " ")).toContain("not a routing input");
     expect(frontlineCycle).toMatch(/(?:recompose|create)\s+(?:the\s+exact|a new)\s+target/u);
     expect(frontlineCycle).toContain("arc review frontline run -");
     expect(frontlineCycle).toContain("arc review local prepare -");
-    expect(frontlineCycle).toContain("arc review local attest -");
-    expect(frontlineCycle).toContain("arc review local resume -");
+    expect(operation).toContain("arc review local attest -");
+    expect(operation).toContain("arc review local resume -");
     expect(frontlineCycle).toContain("typed `state` / `nextAction`");
     expect(frontlineCycle).not.toMatch(/ReviewOperationStateStore|invalid-request/u);
     expect(workflow.slice(partialProtection)).not.toContain("arc review frontline resolve -");

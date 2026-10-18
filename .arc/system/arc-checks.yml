@@ -42,6 +42,7 @@ checks:
       - .arc/system/methods/resolve-planning-depth.md
       - .arc/system/methods/review-model.md
       - .arc/system/methods/planning-review.md
+      - .arc/system/methods/code-review.md
       - .arc/system/methods/review-response.md
       - .arc/system/methods/review-triage.md
       - .arc/system/methods/session-state.md

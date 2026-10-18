@@ -3,9 +3,8 @@ purpose: Execute the task list's verification phase — merge quality gate, succ
 audience: agent
 arc:
   methods:
+    - code-review
     - validate-criteria
-    - self-review
-    - review-triage
     - commit-footer
     - review-chunking
     - route-discovered-work
@@ -51,10 +50,8 @@ Before the Candidate exists, clean the WU content:
 - Apply [`clean-work-unit.md`][clean] `§ Task List Temporal-Noise Pass` when the task list carries temporal markers,
   ad-hoc inline status, or accumulated scratchpad content.
 
-If the [`self-review` method][self-review] is effectively active, execute it against the local aggregate diff vs
-the base branch. Classify findings per [`review-triage`][review-triage], present the standalone non-producer report,
-obtain approval for the complete disposition set, and commit approved fixes per [`commit-footer`][commit-footer]
-before continuing. Do not invoke the producer-backed response command or fabricate producer evidence.
+Run [code-review's author check][code-author-check] over the aggregate diff before the merge gate below.
+Its approved fixes must land before this verification's evidence is gathered.
 
 When the task list carries a Delivery Plan, inspect every member-close scale-attention result before the terminal
 merge quality gate. Each completed member must record the resolver's exact target, state, and disposition, plus metrics
@@ -189,9 +186,6 @@ verification-task exception). Cover both:
 [adversarial-review]: ../../../methods/adversarial-review.md
 [task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
 [clean]: ../supplemental/clean-work-unit.md
-[self-review]: ../../../methods/self-review.md
-[review-triage]: ../../../methods/review-triage.md
-[commit-footer]: ../../../methods/commit-footer.md
 [review-chunking]: ../../../methods/review-chunking.md
 [route-discovered-work]: ../../../methods/route-discovered-work.md
 [prepare-work-unit]: prepare-work-unit.md
@@ -199,3 +193,5 @@ verification-task exception). Cover both:
 [amend-design]: ../supplemental/amend-design.md
 [amend-design-gate]: ../supplemental/amend-design.md#entry-gate
 [process-task-loop]: ../process-task-loop.md
+
+[code-author-check]: ../../../methods/code-review.md#author-check

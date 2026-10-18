@@ -1,5 +1,6 @@
 /** Shipped workflow contracts for typed hosted-review fan-out. */
 
+import { codeReviewSection } from "../helpers/code-review-section.js";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
@@ -36,41 +37,39 @@ function reviewSection(workflow: string, start: string, end: string): string {
   return workflow.slice(startIndex, endIndex);
 }
 
-function expectTypedProgression(section: string): void {
-  const commands = [
-    "arc review status",
-    "arc review hosted request -",
-    "arc review hosted await -",
-    "arc review hosted settle -",
-  ];
-  const positions = commands.map((command) => section.indexOf(command));
-  expect(positions.every((position) => position >= 0)).toBe(true);
+function expectTypedProgression(section: string, workflow: string, method: string): void {
+  const hosted = codeReviewSection(workflow, "hosted-await-and-settlement", method);
+  const local = codeReviewSection(workflow, "local-operation", method);
+  const ceiling = codeReviewSection(workflow, "ceiling-override", method).replace(/\s+/gu, " ");
+  const commands = ["arc review hosted request -", "arc review hosted await -", "arc review hosted settle -"];
+  const positions = commands.map(command => hosted.indexOf(command));
+  expect(section).toContain("arc review status");
+  expect(positions.every(position => position >= 0)).toBe(true);
   expect(positions).toEqual([...positions].sort((left, right) => left - right));
   expect(section).toMatch(softWrappedProse("Dispatch only on `nextAction`"));
-  expect(section).toContain("review-hosted-request");
-  expect(section).toContain("review-local-prepare");
-  expect(section).toContain("review-local-resume");
+  for (const action of ["review-hosted-request", "review-local-prepare", "review-local-resume"]) {
+    expect(section).toContain(action);
+  }
   expect(section).toContain("arc review local prepare -");
-  expect(section).toContain("arc review local resume -");
+  expect(local).toContain("arc review local resume -");
   expect(section).toMatch(/action` unchanged[\s\S]*`deliveryAdmission/iu);
-  expect(section).not.toContain("memberHeadObjectId");
-  expect(section).toMatch(softWrappedPattern(/local\s+(?:attempt|operation)[\s\S]*arc review status/iu));
-  expect(section).toMatch(
-    softWrappedPattern(/obtain-ceiling-override[\s\S]*exact\s+`consequence`[\s\S]*stops?\s+without\s+requesting[\s\S]*explicit\s+approval[\s\S]*--ceiling-override/iu),
-  );
+  const preparation = section.slice(section.indexOf("`review-local-prepare` returns"),
+    section.indexOf("`respond-to-findings`"));
+  expect(preparation).not.toContain("memberHeadObjectId");
+  expect(section).toMatch(/local operation[\s\S]*(?:same status scope|arc review status)/iu);
+  expect(section).toContain("--ceiling-override");
+  expect(ceiling).toContain("Render the exact consequence");
+  expect(ceiling).toContain("then stop. Only explicit approval of that consequence admits its one complete pass");
   expect(section).toContain("resolve-review-applicability");
   expect(section).toContain("arc candidate applicability resolve");
-  expect(section).toMatch(softWrappedProse("pass the returned action unchanged"));
-  expect(section).toMatch(
-    softWrappedPattern(/requested\s+\/\s+await[\s\S]*returned\s+`action`\s+unchanged[\s\S]*pending\s+\/\s+await[\s\S]*newly\s+returned\s+`action`\s+unchanged/iu),
-  );
-  expect(section).toMatch(softWrappedPattern(/returned\s+settlement\s+plan|payload\.hostedSettlementPlan/iu));
-  expect(section).toContain("payload.hostedSettlementPlan.actorIdentity");
-  expect(section).toContain("payload.hostedFixTarget");
-  expect(section).toMatch(/delivery-member-advanced[\s\S]*delivery-member-current/iu);
+  expect(hosted).toContain("actions unchanged");
+  expect(hosted.replace(/\s+/gu, " ")).toContain("retains the newly returned `action` unchanged");
+  expect(hosted).toContain("payload.hostedSettlementPlan.actorIdentity");
+  expect(hosted).toContain("payload.hostedFixTarget");
+  expect(hosted).toMatch(/delivery-member-advanced[\s\S]*delivery-member-current/iu);
   expect(section).toMatch(softWrappedProse("typed discharge conjunction"));
   expect(section).not.toMatch(
-    softWrappedPattern(/for\s+each\s+(?:retained\s+)?member|enumerate\s+(?:the\s+)?members|priorAttemptId|priorHead|currentHead|priorBase|currentBase|projectionDigest|residualDigest/iu),
+    /for\s+each\s+(?:retained\s+)?member|enumerate\s+(?:the\s+)?members|priorAttemptId|priorHead|currentHead|priorBase|currentBase|projectionDigest|residualDigest/iu,
   );
   expect(section).not.toMatch(/arc review (?:delivery|fan-?out|member)\b/iu);
 }
@@ -84,7 +83,8 @@ describe("hosted review fan-out workflow", () => {
       "### Settle exact member review authority",
       "Only a native arm admitted",
     );
-    expectTypedProgression(section);
+    const method = await readFile(resolve(ROOT, "packages/arc-framework/arc/system/methods/code-review.md"), "utf8");
+    expectTypedProgression(section, packaged, method);
     expect(section).toMatch(softWrappedPattern(/typed\s+settled\s+variant\s+without\s+a\s+conjunction\s+is\s+also\s+authoritative/iu));
     expect(packaged.indexOf("arc delivery native land-prepare -"))
       .toBeGreaterThan(packaged.indexOf("arc review status"));
@@ -116,17 +116,19 @@ describe("hosted review fan-out workflow", () => {
       "Read `integrationBoundary.reservation`",
       "While a hosted await is live",
     );
-    expectTypedProgression(section);
-    expect(section).toMatch(
-      /scopeSelection\.mode` is `chunked`[\s\S]*review-chunking[\s\S]*fresh aggregate evaluator[\s\S]*Attest only the aggregate result[\s\S]*partial chunk or seam reports never consume/iu,
-    );
+    const method = await readFile(resolve(ROOT, "packages/arc-framework/arc/system/methods/code-review.md"), "utf8");
+    expectTypedProgression(section, packaged, method);
+    expect(section).toContain("`action.scopeSelection.mode` is `chunked`");
+    const chunk = codeReviewSection(packaged, "chunk-gate", method).replace(/\s+/gu, " ");
+    expect(chunk).toContain("contract-closed chunks, the dedicated seam, and a fresh aggregate");
+    expect(chunk).toContain("attest only the aggregate result, never partial chunks or seam reports");
     expect(section).toMatch(
       softWrappedPattern(/terminusAction[\s\S]*arc review terminus accept -[\s\S]*recorded\s+\/\s+commit-boundary[\s\S]*exact-replay\s+\/\s+continue[\s\S]*refused\s+\/\s+rerun-status/iu),
     );
     const terminusSection = reviewSection(
       section,
       "When the Owner accepts any returned delivery-member terminus",
-      "`review-hosted-request` means",
+      "`review-hosted-request` enters",
     );
     const recordedTerminus = terminusSection.indexOf("`recorded / commit-boundary`");
     const correctionResume = terminusSection.indexOf("arc delivery review-fix continue -");

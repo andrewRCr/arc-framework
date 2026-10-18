@@ -3,13 +3,10 @@ purpose: Integrate a published work unit — push, change request, hosted review
 audience: agent
 arc:
   methods:
+    - code-review
     - assess-evidence-applicability
     - adversarial-review
-    - standard-review
     - review-chunking
-    - implementation-audit
-    - review-triage
-    - review-response
     - commit-footer
     - pull-request-format
 ---
@@ -157,11 +154,11 @@ must match the current Candidate and carries the ordered sources and exact oblig
   open PR and returns the complete hosted request action; pass it unchanged to `arc review hosted request -` when
   status selects `review-hosted-request`. Do not repeat settled frontline review or build a provider request from
   pre-publication policy fields.
-- `continue-pre-publication-review` remains the singleton continuation while a pre-publication action is still
-  owed. Invoke `integrationBoundary.nextAction.command` and apply [Prepare Work Unit](prepare-work-unit.md) § 2's
-  check after a clean fix check, including a non-null hosted-first reservation before convergence verification or
-  publication. That private continuation carries explicit acceptance through `lanes.standard.terminus`. After it
-  settles and the exact PR is open, re-enter the singleton status route above.
+- `continue-pre-publication-review` remains the singleton continuation while a pre-publication action is still owed.
+  Invoke `integrationBoundary.nextAction.command` and apply [code-review's successor decision][code-successor-decision]
+  to its clean-fix-check continuation, including a hosted-first reservation before convergence verification or
+  publication. That private continuation carries explicit acceptance through `lanes.standard.terminus`. After it settles
+  and the exact PR is open, re-enter the singleton status route above.
 
 Every other boundary action stops. Dispatch only on `nextAction` from the status result; `continue-pre-publication`
 carries the boundary's own pre-publication `action`, so handle it as that boundary action, never as a review request.
@@ -170,85 +167,33 @@ Throughout this iteration, **re-enter status** means preserve the same status sc
 command again for a delivery, or use the exact `targetRef` command for an ordinary singleton. Append an authorized
 judgment option; never narrow a delivery-status action to an agent-reconstructed member target.
 
-Before dispatching `review-hosted-request`, `review-local-prepare`, or `review-singleton-local-prepare` on a `full-final`
-standard lane, run `arc review lane read -` with its request derived from `arc review lane read --schema`. For the
-selected delivery member, supply `deliveryCursor.currentMember.target.headSha` as `memberHeadObjectId`; the singleton
-uses the checkout's Candidate. Follow a refusal's remedy. When `payload.lastLook` has `coverage: incremental` and
-`outcome: clean`, use `payload.facts` for advisory judgment: recommend another complete pass while new defect classes
-keep appearing in previously read code or a fix round introduced new design; otherwise recommend stopping. Prefer a
-different source for a successor pass. State the recommendation, its reasons, and what would change it. Honor an
-existing Owner decision for this exact successor across unchanged re-entry. Otherwise, on the work-unit delivery route,
-a stop recommendation renders `terminusAction.offer.interactionText` before source dispatch and uses the acceptance
-procedure below. On the published singleton, state that it takes no new Owner terminus, then run the complete pass.
-A complete pass never replaces a required fix check.
+Before source dispatch, run [code-review's successor decision][code-successor-decision] with the returned exact
+subject; a selected delivery member uses `deliveryCursor.currentMember.target.headSha` as `memberHeadObjectId`.
+This work-unit delivery route supplies its `terminusAction`; the published singleton supplies its explicit stop limit.
 
-> [!IMPORTANT]
-> `workflow-interlock`: On the work-unit delivery route, when recommending stopping after a clean fix check, stop
-> before dispatching its complete successor. Await explicit acceptance of the exact offered member terminus or the
-> Owner's choice to continue that pass; retain an existing decision on unchanged re-entry.
-
-`select-coverage` renders `coverageSelectionAction.interactionText` verbatim and gives a recommendation among its
-listed choices. On the work-unit delivery route, also surface `terminusAction.offer.interactionText` when supplied and
-recommend whether to continue or accept that exact stop. The published singleton takes no new Owner terminus.
-
-> [!IMPORTANT]
-> `workflow-interlock`: Stop at the coverage offer. Await the Owner's listed coverage choice or explicit acceptance
-> of the offered member terminus before continuing review.
-
-For a coverage choice, re-enter with the offer's command for that pair. Carry the returned admission unchanged into
-local prepare; do not ask the coverage question again. Accepted member termini follow the acceptance procedure below.
+`select-coverage` applies [code-review's coverage selection][code-coverage-selection] to the returned offer and this
+caller's stop capability. Re-enter the same status scope through its returned command; retain the resulting admission.
 
 `stop` renders the refusal's `reason`, `detail`, and `remedy.text` verbatim. On the work-unit delivery route, a supplied
-`terminusAction` also offers the exact Owner stop; render its `offer.interactionText` and follow the acceptance procedure
-below on explicit acceptance. Otherwise stop, preserve the structured remedy, and follow its exact command after repair.
+`terminusAction` also offers the exact Owner stop; render its `offer.interactionText` and follow the acceptance
+procedure below on explicit acceptance. Otherwise stop, preserve the structured remedy, and follow its exact command
+after repair.
 
-At `obtain-ceiling-override`, run the lane read with the same subject and member selector as above; follow any refusal's
-remedy. From `payload.facts`, show `completePasses` against `ceiling` and the `fixChecksSinceLastComplete` rounds;
-recommend another complete pass or stopping, with the expected fresh signal, cost, and what would change the
-recommendation. The ceiling bounds autonomous spending, not advice; the recommendation grants no pass authority. Render
-the exact `consequence` and, when present for a delivery member, the exact `terminusAction.offer.interactionText`, then
-stops without requesting. Only explicit approval of the consequence admits one additional complete pass; on approval,
-re-enter the same status scope with the returned consequence serialized unchanged. For a delivery, use:
-
-```bash
-arc review status --work-unit '{integrationBoundary.nextAction.workUnitId}' --ceiling-override '{consequence}'
-```
-
-For an ordinary singleton, use:
-
-```bash
-arc review status --target '{targetRef}' --ceiling-override '{consequence}'
-```
+At `obtain-ceiling-override`, apply [code-review's ceiling override][code-ceiling-override] with this exact status
+scope and any supplied member terminus. Carry an approved consequence through `--ceiling-override` on the same
+WU-scoped status command for delivery, or `arc review status --target '{targetRef}'` for an ordinary singleton.
 
 A `review-hosted-request` or `review-local-prepare` result may also carry `terminusAction` after an earlier complete
 pass. Surface it as an optional Owner alternative. The clean-fix-check recommendation above determines whether to stop
 for that choice; otherwise, absent explicit acceptance, execute the returned review action unchanged.
 
-After a converged standard result — a clean pass, or one whose approved dispositions fix no confirmed `critical` or
-`major` finding — status replay remains complete under `full-final` only when that pass has complete coverage. A
-converged fix check continues to the ranked complete pass. On both delivery and singleton routes, an explicit Owner
-decision for another named complete pass after a converged complete pass under `full-final`, or after convergence under
-`incremental`, is carried as exact JSON with `--additional-pass` on the same status scope. The authorization names the
-current target, preceding producer, logical completed-attempt count, and next ordinal; each later complete pass needs a
-fresh decision. Above the configured ceiling, that same decision covers the named complete pass without a second
-approval. A later material result re-enters the ordinary response route.
+Apply [code-review's convergence procedure][code-convergence] to the concluded look and returned applicability.
+A delivery's authorized additional complete pass is exact JSON in `--additional-pass` on the same WU-scoped status
+command. The ordinary singleton's discharge takes no additional-pass authorization and status returns `settled`;
+this scope cannot launch an additional pass by supplying that option.
 
-On the delivery route, status measures the selected pass after its coverage choice; that is the exact chunk check. Read
-its returned scope selection without running another whole-member measure at the moved head.
-
-On the singleton route, measure the current change set with `arc review changeset resolve -` once coverage is known and
-before invoking its carrier. Supply `{ kind: "change-set", baseRef, diffBaseSha, headSha }` for the work-unit branch and
-any selection bound to that exact range. A first or complete pass measures the whole contribution. For a fix check, use
-`diffBaseSha: correctionScope.predecessorHeadSha` and the current `headSha`; the chunk gate binds that fix range. When
-local prepare offers coverage, measure after the listed pick and before the call carrying `coverageAdmission`. Apply
-[`review-chunking`][review-chunking] when the resolver requests a scope choice, then carry the selected scope into local
-prepare as `policyJudgment.scopeMode`.
-
-No review carrier may run while the latest exact-target `consider-chunks / select-review-scope` result is unresolved. A
-selected bounded-review route closes through `scope-selected`; an explicit capable whole-target choice closes the
-attention disposition while retaining `consider-chunks`. On delivery, require the status action to carry either the
-exact-target chunked scope selection or, for the whole-target route, the exact-target forced hosted invocation selected
-by the Owner. A missing or stale selection stops before either hosted or local invocation.
+Apply [code-review's chunk gate][code-chunk-gate] before either carrier. Delivery uses status's returned measure;
+the singleton supplies its exact change-set range and carries selected scope as `policyJudgment.scopeMode`.
 
 When the Owner accepts any returned delivery-member terminus, add `judgment: { "mode": "owner-accepted" }` to
 `terminusAction` and pass the resulting envelope unchanged to:
@@ -269,11 +214,8 @@ The procedure performs any owed terminal-coordinate rebind before returning the 
 arm does not reuse the stale offer. Every other result stops. The terminus records explicit Owner authority only;
 never report the member clean or converged from it.
 
-`review-hosted-request` means pass the returned action unchanged to:
-
-```bash
-arc review hosted request -
-```
+`review-hosted-request` enters [code-review's hosted await and settlement][code-hosted-await-and-settlement]
+with the returned action unchanged.
 
 `review-local-prepare` returns the exact standard-review driver admission. Pass its `action` unchanged as
 `deliveryAdmission` in the ordinary local prepare request:
@@ -288,62 +230,22 @@ Keep the returned member head and driver admission through preparation.
 `evaluatorIdentity` and the work-unit `routingFacts`, then submit that request to `arc review local prepare -`.
 Local prepare binds the Candidate lineage and reserved obligation from the submission boundary.
 
-Under `incremental`, a plain commit after convergence routes the singleton to the local delta check of its proven
-range; a converged delta check settles its lane. Under `full-final`, follow the returned review-applicability stop.
-Offer a local complete pass as the Owner's lighter alternative to re-rooting the Candidate.
+For the singleton's plain commit, apply [code-review's convergence procedure][code-convergence] to the returned
+delta check or review-applicability stop. If ordinary local prepare asks for coverage, apply
+[code-review's coverage selection][code-coverage-selection], completing this singleton's chunk measure before re-entry.
 
-For local prepare's `coverage-required / select-coverage`, render `payload.coverageSelectionAction.interactionText`
-verbatim and recommend a listed choice.
+When `action.scopeSelection.mode` is `chunked`, apply [code-review's chunk gate][code-chunk-gate] to the prepared
+exact target before launching the local operation.
 
-> [!IMPORTANT]
-> `workflow-interlock`: Stop at local prepare's coverage offer. Await the Owner's listed choice before submitting
-> the selected local coverage admission.
+For either local action, apply [code-review's local operation][code-local-operation], then re-enter the same status
+scope. Retain delivery's admitted member head and the singleton's exact Candidate request seed.
 
-Add the selected choice unchanged as `coverageAdmission` to the same request. Complete the singleton chunk measure
-above, then re-enter local prepare with that request.
+`review-local-resume` applies [code-review's local operation][code-local-operation] to the returned resume action,
+then re-enters this caller's same status scope.
 
-For either local action, follow the typed local launch, attest, reduce, and findings-response sequence. After the local
-attempt concludes, re-enter the same `arc review status` scope; durable lane progress records the completed attempt;
-complete coverage alone counts toward the standard ceiling.
-
-When `action.scopeSelection.mode` is `chunked`, apply [`review-chunking`][review-chunking] to the prepared exact target:
-run contract-closed chunks, the dedicated seam, and a fresh aggregate evaluator against the returned review root and
-rubric. Attest only the aggregate result; partial chunk or seam reports never conclude the admitted attempt.
-
-`review-local-resume` means pass the returned action unchanged to:
-
-```bash
-arc review local resume -
-```
-
-Follow the same typed local sequence, then re-enter through `arc review status`.
-
-`respond-to-findings` uses the returned `responsePlan`'s exact target, source, and findings. Run
-[`review-triage`][review-triage] to verify the source, compose the complete proposal with the effective policy in
-`proposal.severityGatingPolicy`, and recommend `proposal.proposedVerification`. Submit the proposal through the first
-call:
-
-```bash
-arc review respond -
-```
-
-Emit the returned `payload.dispositionReportText` verbatim unless the effective triage override changes presentation,
-then obtain complete-set approval over that exact report and canonical set. That approval is the fix round's
-structured gate: where the configured interlocks release them, the fix's commit, push, and approved settlement follow
-without another stop ([DEV-RULES.ARC § Review-Increment Invariant][review-increment-invariant]). Submit the exact
-approved set through a second call:
-
-```bash
-arc review respond -
-```
-
-Follow only its returned action and use [`review-response`][review-response] to perform the approved response. This
-resumes the retained attempt and never requests another hosted review. Preserve the `ready-to-fix` authorization's
-`approvedVerification` through re-entry and changed-target continuation; it does not select fewer checks here. Execute
-any returned hosted settlement plan through the phase-ordered settlement path below, including its description upkeep
-after a pushed fix, then re-enter through `arc review status`. Retain any returned `payload.policyRequest` carrying
-`conditionalPassAuthorizationId` unchanged and pass its exact ceiling override into the named complete standard-review
-or frontline admission; fix checks and delta checks cite and spend none. Never reconstruct the authorization ID.
+`respond-to-findings` applies [code-review's findings round][code-findings-round] to `responsePlan`'s exact target,
+source, and findings, with this caller's verification and authoring continuation below. Re-enter the same status scope
+only after the durable response completes.
 
 `delivery-correction-required / continue-delivery-correction` is the delivery-owned member fix route. Execute any
 before-fix settlement first, then pass `payload.correctionAction` unchanged. Author only after the driver returns
@@ -381,36 +283,8 @@ exact bytes before its machine-owned commit and push. `continue` retains the ear
 re-enters status and receives the ordinary hosted request action. Applicability reruns, base movement, and pending
 checks return to their typed checkpoint; `upgrade` and every `stop` remain stops.
 
-- `requested / await` — pass the returned `action` unchanged to `arc review hosted await -`; omitted timing uses the
-  project's configured bounded-call defaults.
-- `pending / await` — pass the newly returned `action` unchanged; do not build an agent polling loop.
-- `pending / inspect-or-extend` — unattended waiting reached its configured attention threshold. Retain the request
-  for the diagnostic below, then stop. Submitting `action` unchanged checks once; on explicit direction, add
-  `continueAfterAttention: true` to that action for one more bounded call. Neither path requests another review or
-  records a provider outcome.
-
-For either pending outcome, run one short exact-head diagnostic observation before continuing or stopping:
-
-```bash
-arc review checks await \
-  --repository <action.handle.target.repository> \
-  --pull-request <action.handle.target.pullRequest> \
-  --head-sha <action.handle.target.headSha> \
-  --timeout-ms 10000 \
-  --poll-interval-ms 10000
-```
-
-Surface failed required `checks` and any `diagnosticFailures`; when either is present, begin read-only diagnosis by
-inspecting every returned `failureLogs.logs[].path` before deciding the failure, and surface `failureLogs.failures` when
-retrieval is partial or unavailable. `unavailable / retry` surfaces `cause`, `detail`, current `checks`, and
-`diagnosticFailures`, retains the same hosted-review `action`, and ends this foreground attempt. `pending / await`,
-`green / complete`, and `not-required / complete` retain the same hosted-review `action`; only that action re-enters
-hosted await. `failed / stop`, stale or mismatched targets, and blocked reads stop with the action intact. This
-observation does not become review settlement, feed the review driver, move the exact head, or release the draft lock.
-Before any push that moves the reviewed head while this action is pending, including a fix for a failure this
-observation found, re-enter the action through hosted await until it concludes and handle its result first, so its
-findings join the same push. At `pending / inspect-or-extend`, push only on explicit Owner direction, which gives up
-that result.
+For `requested / await` and either pending result, apply [code-review's hosted await and
+settlement][code-hosted-await-and-settlement] with the returned action unchanged.
 
 Hosted delivery-member request and await operations persist their admitted attempt in durable lane progress. Re-enter
 through status after each concluded result; do not reconstruct `completedPasses` or route the public member back through
@@ -421,55 +295,9 @@ retain the prior count. Only complete coverage counts toward the standard ceilin
 - `clean / complete` — a delivery member re-enters status; an ordinary singleton feeds the returned `attempt`
   unchanged to `arc review resolve -`. Its `reviewOperationId` identifies the producer, while `hostedResultId`
   identifies the result content.
-- `findings / triage` — run [`review-triage`][review-triage], submit its complete proposal through the first
-  `arc review respond -` call, emit `payload.dispositionReportText`, obtain complete-set approval, submit the exact
-  approved set through the second `arc review respond -` call, and perform only its returned action through
-  [`review-response`][review-response]. That approval is the fix round's structured gate, so the steps below follow
-  without another stop where the configured interlocks release them. When the approved call returns
-  `payload.hostedSettlementPlan` for `settlement: reply-and-resolve` findings, execute its phases in order: invoke
-  `arc review hosted settle -` for every ID in the active phase, passing `payload.hostedSettlementPlan.actorIdentity`
-  unchanged as the settlement actor. Settle each `beforeFixFindingIds` entry against the unchanged originating `target`
-  with `fixTarget: null`, and require every result to complete before any approved fix changes the head. Then apply and
-  verify the approved fixes, then commit and push them:
-
-  > [!CAUTION]
-  > `commit-interlock` release — commit the approved fixes as `taskCommit`:
-
-  ```text
-  <type>(<scope>): <what the approved fixes change>
-
-  Review disposition set: <identity>
-  - <finding identity>: <verified severity> / <disposition> — <rationale>
-
-  Context: tasks-{name}.md (code review)
-  ```
-
-  > [!CAUTION]
-  > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
-
-  After an approved fix is pushed, load [pull-request-format][pull-request-format] before editing the open
-  description. Update every section and qualifying decision the fix made inaccurate. For a design link, run
-  `git diff --quiet <pinned> HEAD -- <paths>` over every linked path of a layered design, and
-  `git merge-base --is-ancestor <pinned> HEAD`. Re-pin to the current design when either test fails; diagnose command
-  errors rather than treating them as successful checks. With no design link, skip the link checks. On GitHub, use
-  `gh pr edit <n> --body-file <path>` before review re-entry. This same description upkeep applies to the terminal
-  request after a delivery-owned pushed correction; the delivery workflow performs it after the continuation returns,
-  before following its review status, delivery position, or other returned step.
-
-  Then settle every `afterFixFindingIds` entry against the originating `target` plus the changed `fixTarget` verified
-  for the current head. For a delivery member, require the post-fix response state `delivery-member-advanced` or
-  idempotent `delivery-member-current` and pass `payload.hostedFixTarget` unchanged as that `fixTarget`; never
-  reconstruct it from the checkout. A `settlement: not-applicable` finding appears in neither phase and remains
-  triage-only: never invoke `hosted settle`, post a reply or compensating summary comment, or resolve anything for it.
-  Retain any returned `payload.policyRequest` carrying `conditionalPassAuthorizationId` unchanged for the named
-  next-pass admission. On `head-pending / retry`, surface `remedy.text` and end this foreground attempt. A later
-  re-entry passes `remedy.stdin` unchanged through `remedy.argv`. On re-entry, re-invoke the exact settlement request.
-  `already-settled / complete` advances the durable attempt only after the verb verifies the exact approved reply,
-  actor, comment, and resolved thread with no host mutation; every stop state remains a stop. After the required phases
-  complete, follow the approved response continuation and, after a fix, the verified-fix response continuation through
-  the owning status or resolve action. A hosted response that settles with no fix returns
-  `settled | already-settled / continue-review`; continue from its `payload.policy` when present. Do not feed the same
-  findings to the driver again.
+- `findings / triage` — enter [code-review's findings round][code-findings-round], using this caller's required
+  verification and delivery/Candidate authoring route. Its committed verified-fix replay precedes push; use the
+  remaining [hosted settlement][code-hosted-settlement] phases before re-entering this same status/resolve route.
 - `rate-limited | transient-unavailable / try-next-source` — a delivery member re-enters status; an ordinary
   singleton feeds that safe outcome to the same driver call. The outcome does not consume the pass.
 - Any ambiguous delivery, stale target, malformed output, source failure, or terminal failure stops. Never replay
@@ -909,8 +737,6 @@ on the auto-merge lane). The workflow continues to `## Next step` normally.
 
 [review-chunking]: ../../../methods/review-chunking.md
 [assess-evidence-applicability]: ../../../methods/assess-evidence-applicability.md
-[review-triage]: ../../../methods/review-triage.md
-[review-response]: ../../../methods/review-response.md
 [commit-footer]: ../../../methods/commit-footer.md
 [pull-request-format]: ../../../methods/pull-request-format.md
 [archive-work-unit]: archive-work-unit.md
@@ -918,4 +744,13 @@ on the auto-merge lane). The workflow continues to `## Next step` normally.
 [create-spec]: ../create-spec.md
 [arc-config]: ../../../arc-config.yml
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
-[review-increment-invariant]: ../../../rules/DEV-RULES.ARC.md#review-increment-invariant
+
+[code-convergence]: ../../../methods/code-review.md#convergence
+[code-successor-decision]: ../../../methods/code-review.md#successor-decision
+[code-coverage-selection]: ../../../methods/code-review.md#coverage-selection
+[code-chunk-gate]: ../../../methods/code-review.md#chunk-gate
+[code-ceiling-override]: ../../../methods/code-review.md#ceiling-override
+[code-findings-round]: ../../../methods/code-review.md#findings-round
+[code-hosted-await-and-settlement]: ../../../methods/code-review.md#hosted-await-and-settlement
+[code-hosted-settlement]: ../../../methods/code-review.md#hosted-settlement
+[code-local-operation]: ../../../methods/code-review.md#local-operation

@@ -962,31 +962,21 @@ package's `arc/` source first, then in the `.arc/` copy.
           shared contract. The depth ladder keeps authoring at scope; the method owns the offer and Class cap,
           with the shared reread before every capture, task, or review-fix commit.
 
-### `[ ]` **7.3 Add `code-review`, and give each code site a thin dispatch — § 11.3**
+### `[x]` **7.3 Add `code-review`, and give each code site a thin dispatch — § 11.3**
 
 - _Goal:_ One `code-review` method holds, as named sections, what the code sites clone today — the author check, the
   findings round, hosted await and settlement, and the common rules — and each site keeps a thin dispatch on its own
   command whose arms cite those sections.
 
-- _Note:_ 7.3.a and 7.3.b land in one commit, for the trigger audit's reason in Task 7.2.
+    - `[x]` **7.3.a Write the method**
+        - Added the registered `code-review` method with standalone section signatures for the author check, findings,
+          hosted continuation, and common review decisions. The pure author check returns findings to its shared caller;
+          approved response resumes retain identity, and committed verified-fix replay precedes push.
 
-    - `[ ]` **7.3.a Write the method**
-        - Its When line names its trigger, reviewing a change set, rather than its sites. Each section reads on its own:
-          it opens with a one-line signature — when it fires, what it takes, and what it leaves — and leans on no text
-          above it. Its registration is the one Task 6.1.b lists.
-        - The author check: `self-review`, which Task 7.7 renames, over the aggregate diff, its findings through triage;
-          `verify-work-unit` runs it before its merge gate, so its fixes land before verification's evidence, and
-          `prepare-work-unit` runs it at pre-publication's `run-self-review` (Task 7.6.d).
-        - The findings round: triage, the disposition report, complete-set approval, response, fix, verification, commit,
-          the verified-fix replay (`respondToResolvedReviewCommand`; `reentryCommand: respond-verified-fix`) before any
-          push interlock releases, push, settlement, and re-entry. Hosted await and settlement with the checks
-          diagnostic. The common rules: convergence, the coverage selection arm, the chunk gate, the ceiling override,
-          and the stop line, with the cadence and source selection as its defaults.
-
-    - `[ ]` **7.3.b Rewire `run-errand`, `prepare-work-unit`, `integrate-work-unit`, and `deliver-stack`**
-        - Each keeps its own command, state vocabulary, early stop, and fix verification; its arms cite the method's
-          sections by reference link with the heading's fragment, and `verify-work-unit` cites the author check the same
-          way. `drain-inbox`'s citation of `run-errand`'s reviewed-lane settlement follows it wherever it lands.
+    - `[x]` **7.3.b Rewire `run-errand`, `prepare-work-unit`, `integrate-work-unit`, and `deliver-stack`**
+        - Replaced cloned review procedures with used fragment links while retaining each caller's typed command,
+          verification, and lifecycle. Verification and inbox routing reach the same homes; delivery description upkeep
+          follows pushed corrections. Content assertions resolve actual links and reject replay after push.
 
 ### `[ ]` **7.4 Add `verification-review`, and make `validate-criteria` its check — § 11.4**
 
