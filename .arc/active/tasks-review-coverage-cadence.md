@@ -617,28 +617,17 @@ rejections. Method and workflow text changes in the package's `arc/` source firs
           before considerations and advisory judgment last. Discharge emits no command; status inserts executable retry
           commands for its original work-unit or target selector, using only accepted flags.
 
-### `[ ]` **4.4 Give a complete pass pointers and withhold verdicts — § 9.1, § 9.2, § 9.3**
+### `[x]` **4.4 Give a complete pass pointers and withhold verdicts — § 9.1, § 9.2, § 9.3**
 
 - _Goal:_ A local complete pass receives the lineage's earlier fixed findings as pointers — locus and defect class,
   labeled as previously reported and fixed with the fix and its surroundings still in scope — and the instruction to
   search independently and sweep for siblings, and receives no rejection, verdict, clean status, or claim that a fix
   closed its finding; hosted requests carry none.
 
-    - `localReviewerInstructions` composes the pointers at prepare into `reviewerInstructions`, the string the local
-      review operation already stores (`LocalReviewStateSchema`, `core/operation-state-schema.ts`) and replay reuses
-      (`runtime/local-prepare.ts`); no shape changes. The pointers reach `publishLocalReviewPreparation` beside `guidance`
-      in its dependencies, in the instruction input Task 3.2.b adds, which is never persisted.
-    - The runtime reads them through Task 4.2's lineage disposition read: the verified findings approved as `fix`, from
-      every lane, by locus and the disposition's title, which older stored items may lack; the finding's `sourceLabel`
-      lives on the normalized finding (`finding-records.ts`), so some pointers carry a locus only. Deferred findings are
-      not listed; rejected ones are withheld.
-    - The withheld set also keeps everything the standard rubric withholds: author conclusions, preferred fixes,
-      self-verification claims, and suspected weak spots.
-    - Build `test-first` (one behavior at a time):
-        - A complete pass after fixed findings lists each as a pointer with its label, and lists no deferred or rejected
-          finding.
-        - Its instructions carry no verdict, clean status, or closure claim.
-        - A replayed prepare reuses the stored string.
+- _Outcome:_ Complete local reviews receive only loci and optional defect labels from both lanes' verified approved
+  fixes, through the lane read's shared history adapter. Instructions keep repairs and surroundings in scope and call
+  for independent search and sibling sweeps. The existing stored string survives replay and renewal; hosted requests
+  and stored record shapes are unchanged.
 
 ### `[ ]` **4.5 Check new findings against the lineage's rejections in triage — § 9.4**
 

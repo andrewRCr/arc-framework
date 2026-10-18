@@ -176,6 +176,7 @@ export function createLocalReviewPreparationFixture() {
     readReservedWorkUnitObligation: async () => undefined,
     validateDeliveryAdmission,
     validatePolicyAdmission,
+    readFixedFindingPointers: async () => [],
     operationStore: {
       readOperation: async (operationId: string) => (
         operations.get(operationId) ?? { version: 0, state: null }

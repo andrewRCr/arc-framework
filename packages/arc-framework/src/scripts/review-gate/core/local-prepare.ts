@@ -20,6 +20,7 @@ import {
   type LocalReviewSourcePayload,
 } from "./local-review-payload.js";
 import type { LocalReviewGuidance } from "../policy/local-review-guidance.js";
+import type { FixedFindingPointer } from "./fixed-finding-pointers.js";
 
 export interface LocalReviewPreparation {
   persistedVersion: number;
@@ -50,9 +51,15 @@ function localReviewerInstructions(
   guidance: LocalReviewGuidance,
   source: LocalReviewSource,
   incrementalBasis?: "fix-check" | "delta-check",
+  fixedFindingPointers: readonly FixedFindingPointer[] = [],
 ): string {
   const scope = source.correctionScope;
-  if (scope === undefined) return guidance.reviewerInstructions;
+  if (scope === undefined) return fixedFindingPointers.length === 0 ? guidance.reviewerInstructions
+    : [guidance.reviewerInstructions,
+      "Previously reported and fixed; the fix and the code around it stay in scope. These pointers do not bound the search. "
+        + "Search independently across the complete change set and sweep for siblings of the listed defect classes.",
+      ...fixedFindingPointers.map(pointer => `- ${pointer.locus}${pointer.title === undefined ? "" : ` — ${pointer.title}`}`),
+    ].join("\n\n");
   const findings = scope.requiredFindings.length === 0
     ? "No earlier material finding requires re-examination."
     : "Re-examine the earlier material findings "
@@ -92,6 +99,7 @@ export async function publishLocalReviewPreparation(
     cleanupTtlMs: number;
     guidance: LocalReviewGuidance;
     incrementalBasis?: "fix-check" | "delta-check";
+    fixedFindingPointers?: readonly FixedFindingPointer[];
   },
 ): Promise<LocalReviewPreparation> {
   const source = LocalReviewSourceSchema.parse(sourceInput);
@@ -133,7 +141,7 @@ export async function publishLocalReviewPreparation(
     sourceDigest: source.sourceDigest,
     guidance: dependencies.guidance.projection,
     guidanceDigest: dependencies.guidance.guidanceDigest,
-    reviewerInstructions: localReviewerInstructions(dependencies.guidance, source, dependencies.incrementalBasis),
+    reviewerInstructions: localReviewerInstructions(dependencies.guidance, source, dependencies.incrementalBasis, dependencies.fixedFindingPointers),
     target: admission.target,
     requirement: admission.requirement,
     request: admission.carrier.request,

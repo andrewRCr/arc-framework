@@ -511,6 +511,9 @@ describe("pre-publication correction confirmation", () => {
         { ...request, coverageAdmission: offer.payload.coverageSelectionAction.choices[0] }));
       expect(prepared).toMatchObject({ state: "ready" });
       if (prepared.state !== "ready") throw new Error("expected complete local review");
+      expect(prepared.payload.reviewerPayload.reviewerInstructions).toContain("Previously reported and fixed");
+      expect(prepared.payload.reviewerPayload.reviewerInstructions).toContain("source.ts:1");
+      expect(prepared.payload.reviewerPayload.reviewerInstructions).toContain("Search independently");
       const result = await inProcessReview.attest(cwd, localReviewResult(prepared.payload, "singleton-complete-after-base", []));
       expect(result).toMatchObject({ state: "attested-current" });
     });

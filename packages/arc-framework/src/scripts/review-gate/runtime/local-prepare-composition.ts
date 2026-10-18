@@ -1,6 +1,7 @@
 /** Production adapters for the local review prepare command. */
 import { resolveLocalPolicyTarget, createLocalContributionConfirmation } from "./local-correction-context.js";
 import { readReviewLaneHistory } from "./lane-history.js";
+import { projectFixedFindingPointers } from "../core/fixed-finding-pointers.js";
 import { deriveNextPassFacts } from "../policy/next-pass-facts.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
 import { createLocalReviewSubjectResolver, type LocalReviewCandidateReader } from "./local-review-subject.js";
@@ -246,6 +247,16 @@ export function createLocalReviewCandidateReader(input: { cwd: string; exec: Git
   };
 }
 
+function localHistoryDependencies(context: Parameters<typeof validateLocalPolicyAdmission>[1]):
+  Pick<LocalPrepareDependencies, "validatePolicyAdmission" | "readFixedFindingPointers"> {
+  return {
+    validatePolicyAdmission: request => validateLocalPolicyAdmission(request, context),
+    readFixedFindingPointers: async request => projectFixedFindingPointers((await readReviewLaneHistory({ ...request,
+      store: context.operationStore, dispositionStore: context.dispositionStore,
+      resolveSupersessionAncestors: createLocalReviewCandidateReader(context.input).readSupersessionAncestors })).dispositions),
+  };
+}
+
 /** Bind local prepare to the current repository, managed methods, and Git-common stores. */
 export function createLocalPrepareDependencies(input: {
   exec: GitExec;
@@ -378,9 +389,7 @@ export function createLocalPrepareDependencies(input: {
         runtimeKind: authority.attestationRuntimeKind,
       });
     },
-    validatePolicyAdmission: (request) => validateLocalPolicyAdmission(request, {
-      input, resultReader, dispositionStore, operationStore,
-    }),
+    ...localHistoryDependencies({ input, resultReader, dispositionStore, operationStore }),
     readReservedWorkUnitObligation: (vehicle, lineage) => readReservedWorkUnitObligation(input.cwd, vehicle, lineage),
     validateDeliveryAdmission: async (admission) => {
       const before = await readSubmissionBoundaryVersioned(input.cwd, admission.vehicle.workUnitId);

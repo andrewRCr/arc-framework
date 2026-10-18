@@ -704,8 +704,11 @@ describe("local review member preparation", () => {
 
       it("replays a pending admission before current policy and evaluator selection", async () => {
         const context = fixture();
+        context.dependencies.readFixedFindingPointers = async () => [{ locus: "src/original.ts:5", title: "Boundary check" }];
         const first = await prepareLocalReview(request, context.dependencies);
         if (first.state !== "ready") throw new Error("first local preparation was not ready");
+        expect(first.payload.reviewerPayload.reviewerInstructions).toContain("src/original.ts:5 — Boundary check");
+        context.dependencies.readFixedFindingPointers = async () => { throw new Error("current pointers drifted"); };
         const admittedAuthority = context.resolveAuthority.getMockImplementation();
         context.resolveAuthority.mockImplementation(async (evaluatorIdentity, memberHeadObjectId) => {
           if (evaluatorIdentity === "replacement-evaluator") {
@@ -729,6 +732,7 @@ describe("local review member preparation", () => {
           payload: {
             operationId: first.payload.operationId,
             request: { evaluatorIdentity: "evaluator-1" },
+            reviewerPayload: { reviewerInstructions: first.payload.reviewerPayload.reviewerInstructions },
           },
         });
         expect(context.composeAssurance).toHaveBeenCalledTimes(1);
@@ -1218,6 +1222,7 @@ describe("local review member preparation", () => {
       },
       withLaneOperationLock: async <T>(_input: unknown, action: () => Promise<T>) => action(),
       confirmDispositionSetCurrent: async () => true,
+      readFixedFindingPointers: async () => [],
       resolveRepositoryId: async () => target.repositoryId,
       readCurrentHeadSha: async () => target.headSha,
       resolveVehicle: async () => ({
@@ -1356,6 +1361,7 @@ describe("local review member preparation", () => {
         withLocalReviewLock: async <T>(action: () => Promise<T>) => action(),
         withLaneOperationLock: async <T>(_input: unknown, action: () => Promise<T>) => action(),
         confirmDispositionSetCurrent: async () => true,
+      readFixedFindingPointers: async () => [],
         resolveRepositoryId: async () => target.repositoryId,
         readCurrentHeadSha: async () => target.headSha,
         resolveVehicle: async () => ({

@@ -2,6 +2,7 @@
 
 import { assertReservedLocalObligation, confirmReservedLocalReplay } from "./local-reserved-obligation.js";
 import type { ConfirmResponseHeadContinuation } from "../core/response-head-continuation.js";
+import type { FixedFindingPointer } from "../core/fixed-finding-pointers.js";
 import { z } from "zod";
 
 import { canonicalize } from "../../../lib/kernel/index.js";
@@ -223,6 +224,9 @@ export interface LocalPrepareDependencies {
     dispositionSetId: string,
   ) => Promise<boolean>;
   operationStore: ReviewOperationStateStore;
+  readFixedFindingPointers(input: {
+    repositoryId: string; headSha: string; lineage: LaneSubjectLineage; workUnitId?: string;
+  }): Promise<readonly FixedFindingPointer[]>;
   sourceStore: LocalReviewSourceStore;
   readReceipts(targetId: string): Promise<ForwardReceiptLedger>;
   describeSource(
@@ -610,6 +614,13 @@ type LocalAdmitted =
   | { state: "prepared"; resolution: LocalReviewAdmissionResolution; preparation: LocalReviewPreparation }
   | { state: "completed"; operationId: string; persistedVersion: number };
 
+function readLocalPreparationPointers(input: LocalAdmissionSettlementInput): Promise<readonly FixedFindingPointer[]> {
+  if (input.coverageAdmission.requestedCoverage !== "complete") return Promise.resolve([]);
+  return input.dependencies.readFixedFindingPointers({ repositoryId: input.repositoryId,
+    headSha: input.target.headSha, lineage: input.lineage,
+    ...(input.authority.vehicle.kind === "work-unit" ? { workUnitId: input.authority.vehicle.identity } : {}) });
+}
+
 async function admitLocalPreparation(
   input: LocalAdmissionSettlementInput,
   admissionInput: LocalReviewAdmissionInput,
@@ -693,6 +704,7 @@ async function admitLocalPreparation(
             now: () => dependencies.now(),
             cleanupTtlMs,
             guidance: assurance.guidance, incrementalBasis: input.incrementalBasis,
+            fixedFindingPointers: await readLocalPreparationPointers(input),
           },
         );
         admitted = { state: "prepared", resolution, preparation };

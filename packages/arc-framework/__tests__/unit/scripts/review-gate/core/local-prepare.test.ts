@@ -174,7 +174,8 @@ describe("local prepare incremental reviewer instructions", () => {
   const basisHeadSha = objectId("f");
 
   async function preparedInstructions(requiredFindings: CorrectionScopeInput["requiredFindings"] | undefined,
-    incrementalBasis?: "fix-check" | "delta-check") {
+    incrementalBasis?: "fix-check" | "delta-check",
+    fixedFindingPointers?: readonly { locus: string; title?: string }[]) {
     const records = fixture(requiredFindings === undefined ? undefined : {
       schemaVersion: 1,
       predecessorProducerId: "local-predecessor",
@@ -191,7 +192,7 @@ describe("local prepare incremental reviewer instructions", () => {
       materialize: async () => ({ reviewRoot: records.source.materializationRef }),
       now: () => "2026-07-23T17:00:00Z",
       cleanupTtlMs: 60_000,
-      guidance: projectLocalReviewGuidance(), incrementalBasis,
+      guidance: projectLocalReviewGuidance(), incrementalBasis, fixedFindingPointers,
     });
     return { instructions: preparation.state.reviewerInstructions, headSha: records.target.headSha };
   }
@@ -199,6 +200,19 @@ describe("local prepare incremental reviewer instructions", () => {
   it("keeps complete-pass instructions equal to the configured rubric", async () => {
     const { instructions } = await preparedInstructions(undefined);
     expect(instructions).toBe(projectLocalReviewGuidance().reviewerInstructions);
+  });
+
+  it("gives complete reviewers fixed-finding pointers without a closure claim", async () => {
+    const { instructions } = await preparedInstructions(undefined, undefined, [
+      { locus: "src/a.ts:10", title: "Missing authorization check" }, { locus: "src/b.ts:20" },
+    ]);
+    expect(instructions).toContain("src/a.ts:10 — Missing authorization check");
+    expect(instructions).toContain("src/b.ts:20");
+    expect(instructions).toContain("Previously reported and fixed");
+    expect(instructions).toContain("the fix and the code around it stay in scope");
+    expect(instructions).toContain("Search independently");
+    expect(instructions).toContain("sweep for siblings");
+    expect(instructions).not.toMatch(/fix (?:is |was )?(?:verified|closed)|clean so far|converged/iu);
   });
 
   it.each([false, true])("names all fix-check axes and the sibling sweep with earlier findings=%s", async carried => {

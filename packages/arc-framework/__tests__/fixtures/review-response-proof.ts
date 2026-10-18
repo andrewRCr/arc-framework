@@ -79,7 +79,7 @@ export function cleanHostedResult(): ReviewResult {
 
 export function approvedRecord(
   result: ReviewResult,
-  judgments: readonly ({
+  judgments: readonly (({
     sourceVerification: "verified";
     verifiedSeverity: "critical" | "major" | "minor";
     disposition: "fix" | "defer" | "reject";
@@ -87,7 +87,7 @@ export function approvedRecord(
     sourceVerification: "not-supported";
     verifiedSeverity: null;
     disposition: "reject";
-  })[],
+  }) & { title?: string })[],
 ) {
   const set = createDispositionSet({
     schemaVersion: 2,
