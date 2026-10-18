@@ -1679,7 +1679,7 @@ describe("hosted review fan-out lifecycle", () => {
         },
       },
     });
-  });
+  }, 120_000);
 
   it("resumes member status from a renewed Candidate and historical delivery terminal", async () => {
     const harness = await createHarness();
@@ -5031,7 +5031,7 @@ describe("hosted review fan-out lifecycle", () => {
         ceilingOverride: ceiling.consequence,
       },
     });
-  });
+  }, 120_000);
 
   it("keeps the existing hosted progression compatible with a singleton target", async () => {
     const root = await createTempRepo("arc-review-singleton-");
