@@ -95,6 +95,13 @@ async function revalidateReleaseEligibility(ctx: LocusReleaseContext, target: st
   if (!occupancy.marker.bytes.equals(expected.bytes)) throw new Error(`Checkout ${target}'s marker generation changed during release; inspect arc locus --json, then retry against its current marker.`);
   const authority = releaseAuthority(ctx.identity, occupancy);
   if (authority !== null) throw new Error(authority);
+  if (expected.marker.spawnedByArc) {
+    const topology = await scanRegisteredWorktrees(ctx.exec);
+    if (!topology.ok) throw new Error(`${topology.message}. Run again once Git lists the worktrees.`);
+    const checkout = topology.worktrees.find(entry => resolve(entry.path) === resolve(target));
+    if (checkout === undefined || checkout.primary) throw new Error(`Checkout ${target}'s registration changed during release; inspect arc locus --json, then retry.`);
+    await requirePreservedDetachedHead(ctx.exec, checkout, ctx.baseBranch);
+  }
   await revalidateMarker(target, expected);
 }
 async function requirePreservedDetachedHead(exec: GitExec, checkout: RegisteredWorktree, baseBranch: string): Promise<void> {

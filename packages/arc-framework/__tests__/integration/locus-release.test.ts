@@ -148,6 +148,29 @@ it("preserves detached commits until a branch holds them and then removes only t
   expect((await h.exec("git", ["rev-parse", "preserved"])).stdout).toBe(head);
 }, 30_000);
 
+it("retains detached commits created during projection persistence and releases after a branch preserves them", async () => {
+  const h = await fixture();
+  const marker = await readWorktreeMarker(h.holder);
+  let head = "";
+  const slots = { ...passingProjectionRemovalSlots, persist: async () => {
+    await writeFile(join(h.holder, "work"), "commit created during persistence\n");
+    await h.exec("git", ["add", "work"], { cwd: h.holder });
+    await h.exec("git", ["commit", "-m", "Detached during persistence"], { cwd: h.holder });
+    head = (await h.exec("git", ["rev-parse", "HEAD"], { cwd: h.holder })).stdout;
+    return { kind: "persisted" as const };
+  } };
+  const refusal = await invoke({ ...h.context, projectionRemovalSlots: slots });
+  expect(refusal.result).toMatchObject({ status: "refused", reason: expect.stringContaining("git switch -c <name>") });
+  expect(refusal.result.reason).toContain(head);
+  expect(await readWorktreeMarker(h.holder)).toEqual(marker);
+  expect((await stat(h.holder)).isDirectory()).toBe(true);
+  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).toContain(h.holder);
+  await h.exec("git", ["switch", "-c", "preserved-during-persist"], { cwd: h.holder });
+  expect((await invoke(h.context)).result).toMatchObject({ status: "released", spawned: true });
+  expect(await stat(h.holder).catch(() => null)).toBeNull();
+  expect((await h.exec("git", ["rev-parse", "preserved-during-persist"])).stdout).toBe(head);
+}, 30_000);
+
 it("passes projection slots through the handler and retains a dirty anchored checkout", async () => {
   const h = await fixture();
   await writeWorktreeMarker(h.holder, { spawnedByArc: false, createdFor: { kind: "work-unit", name: "missing" },
