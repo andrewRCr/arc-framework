@@ -329,6 +329,9 @@ Today's behavior holds until the flip, but for these, each with its own test:
    claim's inbox arm and the link transition admit a `null` digest (§ 7.6). Nothing writes these forms before the flip,
    so nothing observable changes.
 8. **The three settings are declared** and show in `arc config`, with no effect (§ 14).
+9. **The two `--from-inbox` option descriptions are backend-neutral (A27):** the `errand` registrations in
+   `src/cli.ts` describe adopting or associating an inbox capture. This changes only those descriptions before the
+   flip; all flags and argument operands retain their exact spelling.
 
 Every other part of this design runs only in an arm from the flip, beside an in-repo arm keeping today's behavior.
 
@@ -2643,6 +2646,10 @@ close.
     carry repair and retry, and repair restores retirement. The physical roster retains association with a positive
     terminal flag, without fabricated placement or metadata, while logical roster and class consumers exclude it.
 
+30. **Inbox option help stays usable before the flip (A27).** The `--from-inbox` descriptions for Errand open and
+    link describe an inbox capture without a storage-surface name. Every option flag and operand keeps its existing
+    spelling, including `--from-inbox <entry-title>`. The actual built CLI renders both revised descriptions.
+
 ## Open Questions
 
 None blocks starting. The expected contracts in § 16 each state what holds until their change lands, and none leaves
@@ -2706,5 +2713,8 @@ this design open.
 
 - **A26** — 2026-10-18 — design: exact terminal lineage resolves removed work-unit primaries. _Supersedes:_ § 2.1; § 3.7.
   _Trigger:_ F16 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A27** — 2026-10-18 — design: the two inbox option descriptions use backend-neutral wording before the flip.
+  _Supersedes:_ § 1.4, exception boundary. _Trigger:_ F40 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

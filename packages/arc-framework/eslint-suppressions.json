@@ -106,7 +106,7 @@
   },
   "src/cli.ts": {
     "arc/surface-names": {
-      "count": 11
+      "count": 9
     },
     "max-lines": {
       "count": 1

@@ -914,4 +914,16 @@ specification Criterion 29 checks the amended contract. The matrix exercises rea
 entry and recovery over the reference Store and real Git. It does not establish a successful flipped built CLI; that
 release check remains unexecuted.
 
+## A27: Backend-neutral inbox option help
+
+The superseded § 1.4 boundary was: “Every other part of this design runs only in an arm from the flip, beside an
+in-repo arm keeping today's behavior.” The bounded exception changes the two `--from-inbox` descriptions on the
+`errand` open and link registrations in `src/cli.ts` to describe an inbox capture. Their flag and operand spellings
+stay exact, including `<entry-title>`. The original criteria remain unchanged; specification Criterion 30 checks
+this added exception.
+
+The two descriptions sat outside the retained legacy arms but kept storage-surface literals. Their correction
+removes those two `arc/surface-names` diagnostics; the CLI's recorded floor shrinks from eleven to nine through the
+supported whole-project pruning path. The remaining help text and retained legacy arms keep their existing scope.
+
 ---
