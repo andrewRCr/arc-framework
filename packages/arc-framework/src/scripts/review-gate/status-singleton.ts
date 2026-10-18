@@ -108,6 +108,7 @@ async function resolveSingletonRequest(
   const sourceId = admission.state === "ready" ? admission.payload.sourceId : discharge.nextSource;
   return {
     target: input.target,
+    standardReview: input.reservation.obligation,
     admission,
     sourceId,
     coverage: input.judgment?.coverage ?? discharge.requestCoverage ?? "complete",

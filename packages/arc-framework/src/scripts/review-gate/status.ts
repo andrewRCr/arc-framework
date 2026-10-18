@@ -1,5 +1,7 @@
 /** Exact-target review, check, and base-status reduction. */
 
+import { SingletonLocalPrepareActionSchema, projectSingletonLocalPrepareAction } from "./singleton-local-prepare-action.js";
+import type { StandardReviewObligationProjection } from "./policy/standard-review-projection-schema.js";
 import { projectReviewDriverRefusal, ReviewDriverRefusalReasonSchema, ReviewDriverRefusalSchema } from "./status-driver-refusal.js";
 import type { ReviewStatusRoute } from "./status-route.js";
 import { z } from "zod";
@@ -287,6 +289,8 @@ export const RoutedReviewObligationSchema = z.union([
     detail: z.string().min(1),
     prePublicationAction: PrePublicationContinuationSchema,
   }),
+  z.strictObject({ state: z.literal("review-required"), detail: z.string().min(1), scope: z.literal("singleton"),
+    singletonLocalAction: SingletonLocalPrepareActionSchema }),
   ReviewDriverRefusalSchema,
   ReviewDriverRefusalSchema.extend({ conjunction: DeliveryReviewConjunctionSchema }),
   RoutedReviewCoverageRefusalSchema,
@@ -615,6 +619,7 @@ function composeReviewDischargeIntervention(
 }
 
 interface SingletonReviewRequest {
+  readonly standardReview?: StandardReviewObligationProjection;
   readonly target: z.infer<typeof HostedTargetSchema>;
   readonly admission: ReviewResolveEnvelope;
   readonly sourceId: string;
@@ -641,7 +646,8 @@ export function composeSingletonReviewObligation(input: {
   const intervention = composeReviewDischargeIntervention(input.discharge, input.applicabilityContext);
   if (intervention !== null) return intervention;
   if (input.request !== undefined) return composeSingletonRequest(input.request, input.discharge,
-    input.statusRoute ?? { kind: "work-unit", workUnitId: input.applicabilityContext.workUnitId });
+    input.statusRoute ?? { kind: "work-unit", workUnitId: input.applicabilityContext.workUnitId },
+    input.applicabilityContext);
   return { state: "review-required", detail: input.discharge.detail };
 }
 
@@ -649,6 +655,7 @@ function composeSingletonRequest(
   request: SingletonReviewRequest,
   discharge: ReviewDischargeIntervention,
   route: ReviewStatusRoute,
+  boundary: ReviewApplicabilityContext,
 ): RoutedReviewObligation {
   const refusal = projectReviewDriverRefusal({ policy: request.admission, route });
   if (refusal !== null) return refusal;
@@ -664,7 +671,12 @@ function composeSingletonRequest(
     return { state: "blocked", detail: "The singleton review coverage differs from the active pass." };
   }
   if (request.admission.state === "ready" && request.admission.nextAction === "local-prepare") {
-    return { state: "review-required", detail: discharge.detail };
+    if (request.standardReview === undefined) return { state: "blocked",
+      detail: "The singleton local-prepare action is missing its reserved obligation." };
+    return RoutedReviewObligationSchema.parse({ state: "review-required", scope: "singleton", detail: discharge.detail,
+      singletonLocalAction: projectSingletonLocalPrepareAction({ target: request.target,
+        lineageBoundary: { workUnitId: boundary.workUnitId, candidateId: boundary.candidateId },
+        standardReview: request.standardReview, judgment: request }) });
   }
   if (request.admission.state !== "ready" || request.admission.nextAction !== "hosted-request"
     || request.admission.payload.sourceId !== request.sourceId) {
@@ -1052,6 +1064,10 @@ const ReviewStatusLocalPrepareSchema = z.strictObject({
   action: DeliveryLocalReviewAdmissionSchema,
   terminusAction: DeliveryReviewTerminusAcceptanceActionSchema.optional(),
 });
+const ReviewStatusSingletonLocalPrepareSchema = z.strictObject({
+  ...ReviewStatusBaseShape, state: z.literal("review-required"), nextAction: z.literal("review-singleton-local-prepare"),
+  action: SingletonLocalPrepareActionSchema,
+});
 const ReviewStatusLocalResumeSchema = z.strictObject({
   ...ReviewStatusBaseShape,
   state: z.literal("review-required"),
@@ -1177,6 +1193,7 @@ export type ReviewStatusResult =
   | z.infer<typeof ReviewStatusHostedRequestSchema>
   | z.infer<typeof ReviewStatusHostedAwaitSchema>
   | z.infer<typeof ReviewStatusLocalPrepareSchema>
+  | z.infer<typeof ReviewStatusSingletonLocalPrepareSchema>
   | z.infer<typeof ReviewStatusLocalResumeSchema>
   | z.infer<typeof ReviewStatusApplicabilitySelectionSchema>
   | z.infer<typeof ReviewStatusFindingsResponseSchema>
@@ -1199,6 +1216,7 @@ const ReviewStatusResultSchemaInternal: z.ZodType<ReviewStatusResult> = z.union(
   ReviewStatusHostedRequestSchema,
   ReviewStatusHostedAwaitSchema,
   ReviewStatusLocalPrepareSchema,
+  ReviewStatusSingletonLocalPrepareSchema,
   ReviewStatusLocalResumeSchema,
   ReviewStatusApplicabilitySelectionSchema,
   ReviewStatusFindingsResponseSchema,
@@ -1644,6 +1662,10 @@ export async function resolveReviewStatus(
         nextAction: "review-hosted-request",
         action: base.routedObligation.action,
       };
+    }
+    if ("singletonLocalAction" in base.routedObligation) {
+      return { ...base, state: "review-required", nextAction: "review-singleton-local-prepare",
+        action: base.routedObligation.singletonLocalAction };
     }
     if ("localAction" in base.routedObligation) {
       return {

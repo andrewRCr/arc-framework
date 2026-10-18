@@ -332,16 +332,10 @@ first, then in the `.arc/` copy by targeted edit.
   the work-unit branch, bound to the reservation's obligation and continuing the singleton's lane, and the discharge
   and hosted request admission read that local terminal, its source, and earlier local attempts.
 
-    - `[ ]` **2.5.a Name local prepare from the singleton route**
-        - `composeSingletonRequest` (`status.ts`) turns the driver's `ready / local-prepare` into a status result variant,
-          beside the delivery one (`ReviewStatusLocalPrepareSchema`), that names an ordinary `arc review local prepare -`
-          request with no member selector (`LocalPrepareRequestSchema`, `runtime/local-prepare.ts`): its target, the
-          lineage boundary, and the reservation's obligation. The agent supplies `evaluatorIdentity`, as on delivery. It
-          replaces a bare `review-required` whose `run-review` no workflow dispatches, is stored nowhere, and names local
-          prepare only when the driver selects `delegated-agent` from the reservation's sources; Task 1.5.c's stop covers
-          the rest.
-        - Build `test-first` (one behavior at a time):
-            - After a hosted singleton pass with a material fix, status names the local prepare request.
+    - `[x]` **2.5.a Name local prepare from the singleton route**
+        - Status emits `review-singleton-local-prepare` with an ordinary request seed, exact PR target, Candidate
+          boundary, and reserved obligation. The seed preserves the selected invocation and approved pass authority;
+          missing obligation metadata refuses the action.
 
     - `[ ]` **2.5.b Bind the singleton's local request to the reservation's obligation**
         - With no `deliveryAdmission`, local prepare routes the obligation from the caller's `routingFacts`, and the
