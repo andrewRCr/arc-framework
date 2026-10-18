@@ -94,6 +94,7 @@ export interface InFlightBranchProvenance {
 /** Structured warning codes emitted by the in-flight derivation. */
 export type InFlightWarningCode =
   | "branch-residue"
+  | "ref-enumeration-failed"
   | "branch-fetch-failed"
   | "errand-record-branch-missing"
   | "errand-record-read-failed"

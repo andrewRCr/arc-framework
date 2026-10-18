@@ -10,6 +10,9 @@ import type { StoreResult } from "../store/refusal.js";
 import { SessionActionsSchema } from "./actions.js";
 import { readTerminalReferenceAliases } from "../work-unit/terminal-reference-aliases.js";
 import type { StoreRecord } from "../store/read.js";
+import { storeInFlightLocationUnavailable, type StoreInFlightEntry } from "../git/in-flight-store.js";
+import { selectWorkBranchLink } from "../store/lifecycle-branch.js";
+import { createProjectIdentityReader } from "../store/project-identity.js";
 
 /** Complete paused-work payload, including each item's waiting context and repair actions. */
 export const PausedWorkResultSchema = z.strictObject({
@@ -33,6 +36,9 @@ export interface RunPausedWorkOptions {
   store: Store; identity: string; reviewAfterDays: number; now?: Date;
   findHoldingCheckout: (slug: string) => Promise<string | null>;
   markerlessCheckouts?: readonly { workUnit: string; checkoutPath: string }[];
+  inFlightEntries?: readonly StoreInFlightEntry[];
+  localRefsAvailable?: boolean;
+  projectId?: () => Promise<string>;
 }
 export function runPausedWork(): PausedWorkResult;
 export function runPausedWork(options: RunPausedWorkOptions): Promise<PausedWorkResult>;
@@ -53,18 +59,35 @@ async function readPausedWork(options: RunPausedWorkOptions): Promise<PausedWork
     const pause = MetaPauseSchema.parse(entry.fields.pause);
     const marking = await markPausedWorkItem({ slug, pause }, options);
     const holder = await options.findHoldingCheckout(slug);
-    const markerless = options.markerlessCheckouts?.find(pair => pair.workUnit === slug);
-    const action = holder !== null ? { text: `arc resume ${slug}`, argv: ["arc", "resume", slug] }
-      : markerless !== undefined ? { text: `Run arc materialize ${slug} --here from ${markerless.checkoutPath}.`,
-        argv: ["arc", "materialize", slug, "--here"], checkout: markerless.checkoutPath }
-        : { text: `arc materialize ${slug}`, argv: ["arc", "materialize", slug] };
-    const reviewActions = marking.actions.filter(review => JSON.stringify(review.argv) !== JSON.stringify(action.argv));
+    const action = await pausedWorkAction(options, slug, holder, entry);
+    const reviewActions = marking.actions.filter(review => action.argv === undefined || JSON.stringify(review.argv) !== JSON.stringify(action.argv));
     items.push({ slug: SlugSchema.parse(slug), reason: pause.reason, waitsOn: pause.waitsOn, open: pause.open,
       marks: marking.marks, ...(marking.reviewPrompt === undefined ? {} : { reviewPrompt: marking.reviewPrompt }),
       actions: [action, ...reviewActions] });
   }
   items.sort((left, right) => Buffer.compare(Buffer.from(left.slug), Buffer.from(right.slug)));
   return PausedWorkResultSchema.parse({ items });
+}
+
+async function pausedWorkAction(options: RunPausedWorkOptions, slug: string, holder: string | null,
+  record: Pick<StoreRecord, "links">): Promise<{ text: string; argv?: string[]; checkout?: string }> {
+  if (holder !== null) return { text: `arc resume ${slug}`, argv: ["arc", "resume", slug] };
+  const location = options.inFlightEntries?.find(item => item.kind === "work-unit" && item.name === slug);
+  if ((location !== undefined && storeInFlightLocationUnavailable(location)) || await unknownCurrentBranch(options, record)) {
+    return { text: `Local branch location for '${slug}' is unavailable. Repair the reported Git or checkout evidence, then retry arc status --session-init --json.` };
+  }
+  const markerless = options.markerlessCheckouts?.find(pair => pair.workUnit === slug);
+  return markerless === undefined ? { text: `arc materialize ${slug}`, argv: ["arc", "materialize", slug] }
+    : { text: `Run arc materialize ${slug} --here from ${markerless.checkoutPath}.`,
+      argv: ["arc", "materialize", slug, "--here"], checkout: markerless.checkoutPath };
+}
+
+async function unknownCurrentBranch(options: RunPausedWorkOptions, record: Pick<StoreRecord, "links">): Promise<boolean> {
+  if (options.localRefsAvailable !== false) return false;
+  const repository = await (options.projectId ?? createProjectIdentityReader(options.store))();
+  const selection = selectWorkBranchLink(record, { repository });
+  if (selection.kind === "ambiguous") throw new Error(selection.reason);
+  return selection.kind === "linked";
 }
 
 /** Marks shared by the person's session slot and the status surface for any owner. */

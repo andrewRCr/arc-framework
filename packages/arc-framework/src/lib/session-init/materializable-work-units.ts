@@ -7,9 +7,11 @@
 import { readWorkUnit } from "../store/lifecycle-write.js";
 import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
 import type { Store } from "../store/contract.js";
-import type { StoreInFlightWorkUnit, StoreInFlightEntry } from "../git/in-flight-store.js";
+import { storeInFlightLocationUnavailable, type StoreInFlightWorkUnit, type StoreInFlightEntry } from "../git/in-flight-store.js";
 import { z } from "zod";
 import { SessionActionsSchema } from "./actions.js";
+import { selectWorkBranchLink } from "../store/lifecycle-branch.js";
+import { createProjectIdentityReader } from "../store/project-identity.js";
 
 import type { InFlightEntry } from "../git/in-flight-derivation.js";
 import { RemoteFailureReasonSchema, SlugSchema } from "../kernel/index.js";
@@ -38,6 +40,8 @@ export interface FindStoreMaterializableWorkUnitsOptions extends Omit<FindMateri
   entries: readonly StoreInFlightEntry[]; store: Store;
   findHoldingCheckout: (slug: string) => Promise<string | null>;
   markerlessCheckouts?: readonly { workUnit: string; checkoutPath: string }[];
+  localRefsAvailable?: boolean;
+  projectId?: () => Promise<string>;
 }
 
 /** Runtime authority for the materializable-work-unit advisory result. */
@@ -169,7 +173,8 @@ async function findStoreMaterializableWorkUnits(options: FindStoreMaterializable
   return { candidates, ...(warnings.length === 0 ? {} : { warnings }) };
 }
 function ownedUnpausedEntry(entry: StoreInFlightWorkUnit, identity: string | null): boolean {
-  return identity !== null && entry.owner === identity && entry.state !== "Shipped" && entry.scheduling !== "paused";
+  return identity !== null && entry.owner === identity && entry.state !== "Shipped" && entry.scheduling !== "paused"
+    && !storeInFlightLocationUnavailable(entry);
 }
 async function storeMaterializableCandidate(options: FindStoreMaterializableWorkUnitsOptions, entry: StoreInFlightWorkUnit): Promise<MaterializableWorkUnit | null> {
   const read = await readWorkUnit(options.store, entry.name);
@@ -180,6 +185,12 @@ async function storeMaterializableCandidate(options: FindStoreMaterializableWork
   if (fields.pause !== null || fields.owner !== options.identity || record.placement?.kind !== "active" || !["Planning", "Active", "Integrating"].includes(fields.state ?? "")) return null;
   const name = SlugSchema.parse(record.reference.owner.name);
   if (await options.findHoldingCheckout(name) !== null) return null;
+  if (options.localRefsAvailable === false) {
+    const repository = await (options.projectId ?? createProjectIdentityReader(options.store))();
+    const selection = selectWorkBranchLink(record, { repository });
+    if (selection.kind === "ambiguous") throw new Error(selection.reason);
+    if (selection.kind === "linked") return null;
+  }
   const unmarked = options.markerlessCheckouts?.find(pair => pair.workUnit === name);
   const argv = ["arc", "materialize", name, ...(unmarked === undefined ? [] : ["--here"])];
   const text = unmarked === undefined ? argv.join(" ") : `Run ${argv.join(" ")} from ${unmarked.checkoutPath}.`;

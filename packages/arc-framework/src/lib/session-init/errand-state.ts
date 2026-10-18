@@ -22,7 +22,7 @@
 
 import type { Store } from "../store/contract.js";
 import { acquireStoreErrands, type StoreIdentityAcquisition } from "../errand/store-discovery.js";
-import type { StoreInFlightEntry } from "../git/in-flight-store.js";
+import { storeInFlightLocationUnavailable, type StoreInFlightEntry } from "../git/in-flight-store.js";
 import type { z } from "zod";
 import { ErrandStateResultSchema } from "./errand-state-schema.js";
 import type { GitExec } from "../git/exec.js";
@@ -84,6 +84,8 @@ export interface RunErrandStateOptions {
    * empty, which disables the local-presence exclusion rather than tightening it.
    */
   locallyPresentBranches?: ReadonlySet<string>;
+  /** A failed local-ref read cannot authorize an offer from a later identity acquisition. */
+  localRefsAvailable?: boolean;
   /** Supplied advertised-base prerequisites; omitted only by compatibility callers pending composition cutover. */
   baseEvidence?: CleanupBaseEvidence;
   /** Integration base branch short-name, e.g. `main`. */
@@ -136,7 +138,7 @@ export async function runErrandState(input: RunErrandStateOptions): Promise<Erra
   }
 
   const materializable = findMaterializableErrands({
-    records: options.recordsComplete ? options.records : [],
+    records: materializableRecords(options),
     remoteTips: options.remoteTips,
     locallyPresentBranches: options.locallyPresentBranches ?? new Set(),
   });
@@ -204,33 +206,27 @@ export async function runErrandState(input: RunErrandStateOptions): Promise<Erra
   };
 }
 
+function materializableRecords(options: RunErrandStateOptions): readonly TransientIdentityRecord[] {
+  if (!options.recordsComplete || options.localRefsAvailable === false) return [];
+  if (options.store?.capabilities.stateOffBranch !== true) return options.records;
+  return options.records.filter(record => !options.entries?.some(entry => entry.branch === record.branch && storeInFlightLocationUnavailable(entry)));
+}
+
 /** Resolve one Errand merge proof from supplied advertised evidence when present. */
 async function resolveErrandMerged(
   options: RunErrandStateOptions,
   entry: InFlightErrand,
 ): Promise<{ merged: boolean | null; remoteEvidence?: "pending-fetch" }> {
+  if (options.store?.capabilities.stateOffBranch === true && storeErrandLocationUnavailable(options, entry)) return { merged: null };
   const evidence = options.baseEvidence;
   if (evidence === undefined) return { merged: null };
   if (!evidence.remoteSyncEnabled || evidence.snapshot.kind === "unreachable") return { merged: null };
   const baseOid = evidence.snapshot.tips[options.baseBranch];
   if (baseOid === undefined) return { merged: null };
-  if (evidence.objectAvailability.kind !== "complete") {
-    throw new Error("Advertised Errand merge object availability could not be inspected.");
-  }
-  const baseCommitIsLocal = evidence.objectAvailability.commits[baseOid];
-  if (baseCommitIsLocal === false) return { merged: null, remoteEvidence: "pending-fetch" };
-  if (baseCommitIsLocal === undefined) {
-    throw new Error("The advertised base commit has no local availability fact.");
-  }
+  if (!errandCommitIsLocal(evidence, baseOid, "base")) return { merged: null, remoteEvidence: "pending-fetch" };
   const source = entry.remoteOnly ? options.remoteTips.get(entry.branch) : entry.branch;
   if (source === undefined) return { merged: null };
-  if (entry.remoteOnly) {
-    const sourceCommitIsLocal = evidence.objectAvailability.commits[source];
-    if (sourceCommitIsLocal === false) return { merged: null, remoteEvidence: "pending-fetch" };
-    if (sourceCommitIsLocal === undefined) {
-      throw new Error("The advertised Errand commit has no local availability fact.");
-    }
-  }
+  if (entry.remoteOnly && !errandCommitIsLocal(evidence, source, "Errand")) return { merged: null, remoteEvidence: "pending-fetch" };
   if (evidence.history.kind === "shallow") return { merged: null };
   if (evidence.history.kind !== "complete") throw new Error("Errand history completeness could not be inspected.");
   const localOnlyExec: GitExec = (command, args, execOptions) => options.exec(command, args, {
@@ -238,6 +234,17 @@ async function resolveErrandMerged(
     objectAccess: "local-only",
   });
   return { merged: await isLandedInBaseStrict(localOnlyExec, source, baseOid) };
+}
+
+function storeErrandLocationUnavailable(options: RunErrandStateOptions, entry: InFlightErrand): boolean {
+  return storeInFlightLocationUnavailable(entry) || (options.localRefsAvailable === false && entry.worktreePath === undefined);
+}
+
+function errandCommitIsLocal(evidence: CleanupBaseEvidence, oid: string, label: "base" | "Errand"): boolean {
+  if (evidence.objectAvailability.kind !== "complete") throw new Error("Advertised Errand merge object availability could not be inspected.");
+  const available = evidence.objectAvailability.commits[oid];
+  if (available === undefined) throw new Error(`The advertised ${label} commit has no local availability fact.`);
+  return available;
 }
 
 /** Committer-date timestamp for an errand, preferring the local ref when checked out here. */

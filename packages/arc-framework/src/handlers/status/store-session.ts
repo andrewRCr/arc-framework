@@ -6,7 +6,7 @@ import type { DerivedLocusFrame } from "../../lib/locus/derived-reader.js";
 import { createProjectIdentityReader } from "../../lib/store/project-identity.js";
 import { createLocusPorts } from "../../lib/locus/lifecycle-ports.js";
 import { findMarkerlessWorkUnitCheckouts } from "../../lib/locus/markerless-work-units.js";
-import { deriveStoreInFlight } from "../../lib/git/in-flight-store.js";
+import { deriveStoreInFlight, storeInFlightLocationUnavailable } from "../../lib/git/in-flight-store.js";
 import { renderInFlightWarning } from "../../lib/git/in-flight-derivation.js";
 import { runErrandState, type RunErrandStateOptions } from "../../lib/session-init/errand-state.js";
 import { acquireStoreErrands } from "../../lib/errand/store-discovery.js";
@@ -62,22 +62,29 @@ export function createStoreSessionProbes(context: StoreSessionContext) {
         records: [], recordsComplete: false, entries: snapshot?.entries ?? null,
         residue: snapshot?.residue,
         oracleWarnings: snapshot?.warnings.map(renderInFlightWarning),
-        locallyPresentBranches: new Set(snapshot?.entries.flatMap(entry => !entry.remoteOnly && entry.branch !== undefined ? [entry.branch] : [])),
+        localRefsAvailable: localRefsAvailable(snapshot),
+        locallyPresentBranches: new Set(snapshot?.entries.flatMap(entry => !entry.remoteOnly && entry.branch !== undefined
+          && (entry.worktreePath !== undefined || !storeInFlightLocationUnavailable(entry)) ? [entry.branch] : [])),
       });
     },
     getErrands: () => errands ??= acquireStoreErrands(context.store),
     materializableWorkUnits: async (): Promise<MaterializableWorkUnitDiscoveryResult> => {
       const oracle = await getOracle();
       const offer = await findMaterializableWorkUnits({ store: context.store, entries: oracle.entries,
-        identity: context.identity, findHoldingCheckout, markerlessCheckouts: await getMarkerless() });
+        identity: context.identity, findHoldingCheckout, markerlessCheckouts: await getMarkerless(),
+        localRefsAvailable: localRefsAvailable(oracle), projectId });
       return { ...offer, warnings: [...oracle.warnings.map(renderInFlightWarning), ...(offer.warnings ?? [])],
         remoteEvidence: "not-applicable", pendingBranchCount: 0, refreshRemedy: null };
     },
     inboxState: (identity: string) => readStoreInboxSlot(context, identity),
-    pausedWork: async () => context.identity === null ? { items: [] } : runPausedWork({
-      store: context.store, identity: context.identity, reviewAfterDays: positive((await context.readSettings())["pause.review_after_days"], 14),
-      findHoldingCheckout, markerlessCheckouts: await getMarkerless(),
-    }),
+    pausedWork: async () => {
+      if (context.identity === null) return { items: [] };
+      const oracle = await getOracle();
+      return runPausedWork({ store: context.store, identity: context.identity,
+        reviewAfterDays: positive((await context.readSettings())["pause.review_after_days"], 14), findHoldingCheckout,
+        markerlessCheckouts: await getMarkerless(), inFlightEntries: oracle.entries,
+        localRefsAvailable: localRefsAvailable(oracle), projectId });
+    },
     inboundBackPressure: async () => {
       const active = (await context.readFrame())?.active;
       if (active == null) return null;
@@ -101,4 +108,7 @@ async function readStoreInboxSlot(context: StoreSessionContext, identity: string
 }
 function positive(value: string | undefined, fallback: number): number {
   const number = Number(value); return Number.isSafeInteger(number) && number > 0 ? number : fallback;
+}
+function localRefsAvailable(snapshot: Awaited<ReturnType<typeof deriveStoreInFlight>> | null): boolean {
+  return snapshot !== null && !snapshot.warnings.some(warning => warning.code === "ref-enumeration-failed");
 }

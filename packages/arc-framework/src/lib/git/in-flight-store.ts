@@ -18,6 +18,10 @@ export type StoreInFlightErrand = Omit<InFlightErrand, "branch"> & { branch?: st
 export type StoreInFlightEntry = StoreInFlightWorkUnit | StoreInFlightErrand;
 /** The oracle's existing evidence shape with store-derived entries. */
 export type StoreInFlightResult = Omit<DeriveInFlightResult, "entries"> & { entries: StoreInFlightEntry[] };
+/** Whether the entry lacks a usable, unambiguous location observation. */
+export function storeInFlightLocationUnavailable(entry: Pick<StoreInFlightEntry, "marks">): boolean {
+  return entry.marks?.some(mark => mark === "indeterminate" || mark === "location-ambiguous") === true;
+}
 /** Optional lookup binds work-unit location to the locus owner's authoritative marker scan. */
 export interface DeriveStoreInFlightOptions {
   store: Store; exec: GitExec; identity: string | null; teamMode: boolean;
@@ -42,7 +46,7 @@ export async function deriveStoreInFlight(options: DeriveStoreInFlightOptions): 
   context.addResidue();
   const entries = context.entries.filter((entry) => keepOwner(entry, options));
   return { entries, warnings: context.warnings, residue: context.residue, snapshot: context.snapshot, liveRefs: {}, reachable: false,
-    ...(context.degraded ? { marks: ["degraded"] } : {}) };
+    ...(context.degraded ? { marks: refs.ok ? ["degraded"] : ["degraded", "indeterminate"] } : {}) };
 }
 class InFlightProjection {
   readonly entries: StoreInFlightEntry[] = [];
@@ -54,6 +58,7 @@ class InFlightProjection {
   degraded: boolean;
   constructor(readonly options: DeriveStoreInFlightOptions, readonly refs: Awaited<ReturnType<typeof readLocalInFlightRefSnapshot>>) {
     this.degraded = !refs.ok;
+    if (!refs.ok) this.warn("Local branch refs could not be enumerated. Inspect git for-each-ref refs/heads refs/remotes, repair the reported Git error, then retry arc active in-flight --json.", "ref-enumeration-failed");
   }
   warn(message: string, code: InFlightWarning["code"] = "meta-read-failed"): void {
     this.warnings.push({ code, rendered: message }); this.degraded = true;
@@ -68,11 +73,14 @@ class InFlightProjection {
     if (selection.kind === "ambiguous") this.warn(selection.reason);
     return selection.kind === "linked" ? selection.link.ref : undefined;
   }
-  locate(branch: string | undefined, path: string | null | undefined) {
+  locate(branch: string | undefined, path: string | null | undefined, marks?: readonly InFlightEntryMark[]) {
     const short = branch === undefined ? undefined : workBranchName(branch);
     if (short !== undefined) this.capture(short, path);
+    const locationMarks = [...new Set([...(marks ?? []),
+      ...(!this.refs.ok && short !== undefined && path == null ? ["degraded", "indeterminate"] as const : [])])];
     return { ...(short === undefined ? {} : { branch: short }), ...(path == null ? {} : { worktreePath: path }),
-      remoteOnly: short !== undefined && path == null && this.refs.refs.localHeads[short] === undefined };
+      ...(locationMarks.length === 0 ? {} : { marks: locationMarks }),
+      remoteOnly: this.refs.ok && short !== undefined && path == null && this.refs.refs.localHeads[short] === undefined };
   }
   private capture(branch: string, path: string | null | undefined): void {
     this.linked.add(branch);
@@ -96,8 +104,7 @@ class InFlightProjection {
     const kind = record.kind === "groom" ? "groom" : record.purpose === "housekeep-routing" ? "housekeep" : "errand";
     const { path, marks } = this.transientLocation(kind, slug, record.claimId);
     const owner = record.kind === "errand" && record.purpose === "errand" ? record.owner : this.options.identity;
-    this.entries.push({ kind: "errand", slug, ...this.locate(branch, path), ...optionalField("owner", owner),
-      ...(marks === undefined ? {} : { marks }) });
+    this.entries.push({ kind: "errand", slug, ...this.locate(branch, path, marks), ...optionalField("owner", owner) });
     if (branch !== undefined) this.addMissingBranch(workBranchName(branch), slug);
   }
   private transientLocation(kind: "errand" | "groom" | "housekeep", slug: string, claimId: string): { path?: string; marks?: readonly InFlightEntryMark[] } {
@@ -115,6 +122,7 @@ class InFlightProjection {
     return { path: rows[0]?.checkout.path };
   }
   private addMissingBranch(branch: string, slug: string): void {
+    if (!this.refs.ok) return;
     if (this.refs.refs.localHeads[branch] !== undefined || this.refs.refs.remoteTracking[branch] !== undefined) return;
     this.residue.push({ branch, slug, reason: "errand-record-without-branch" });
     this.warnings.push({ code: "errand-record-branch-missing", branch, rendered: `Errand record ${slug} names missing branch ${branch}; inspect its branch link and retained history.` });
@@ -140,10 +148,9 @@ async function addWorkUnits(context: InFlightProjection): Promise<void> {
 async function addWorkUnit(context: InFlightProjection, item: import("../store/lifecycle-index.js").LifecycleEntry): Promise<void> {
   const name = item.reference.owner.name, fields = item.fields;
   const { path, holder, marks } = await workUnitLocation(context, name);
-  context.entries.push({ kind: "work-unit", name, state: item.phase, ...context.locate(context.branchFor(item, holder?.checkout.branch), path), dependsOn: fields.dependsOn,
+  context.entries.push({ kind: "work-unit", name, state: item.phase, ...context.locate(context.branchFor(item, holder?.checkout.branch), path, marks), dependsOn: fields.dependsOn,
     ...optionalField("owner", fields.owner), ...optionalField("cohort", fields.cohort), ...optionalField("class", fields.workClass),
     ...optionalField("priority", fields.priority), ...(fields.pause === null ? {} : { scheduling: "paused" }),
-    ...(marks === undefined ? {} : { marks }),
     ...(fields.design.length === 0 ? {} : { design: fields.design.join(", ") }) });
 }
 async function workUnitLocation(context: InFlightProjection, name: string): Promise<{
