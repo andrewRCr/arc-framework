@@ -7,6 +7,10 @@ import { SlugSchema } from "./kernel/index.js";
 import { materializeArcPath, resolveArcPath } from "./layout/index.js";
 import { parseLineageRecord } from "./store/kinds/lineage/parser.js";
 import type { Store } from "./store/contract.js";
+import type { StoreRecord } from "./store/read.js";
+import type { LineageRecord } from "./store/kinds/lineage/schema.js";
+import { sameReference } from "./store/identity.js";
+import { readTerminalReferenceAliases } from "./work-unit/terminal-reference-aliases.js";
 
 /** Input rooted in the checkout this session enters. */
 export interface ScratchReconcileInput { cwd: string; identity: string; store: Store }
@@ -87,12 +91,54 @@ function endedAdvisory(path: string, name: string): ScratchReconcilePlan["adviso
 async function hasTerminalLineage(store: Store, origin: string): Promise<boolean> {
   const lookup = await store.lookup({ kind: "lineage", origin });
   if (lookup.status === "refused") {
-    if (lookup.refusal.code === "not-found") return false;
+    if (lookup.refusal.code === "not-found") {
+      const record = await terminalAliasRecord(store, origin);
+      return record !== null && checkedLineage(record, origin).kind !== "rename";
+    }
     throw new Error(`${lookup.refusal.condition} ${lookup.refusal.remedy.text}`);
   }
   const read = await store.read({ reference: lookup.result.reference });
   if (read.status === "refused") throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
-  const lineage = parseLineageRecord(read.result.content);
-  if (lineage === null || read.result.conflicts.length > 0) throw new Error(`Terminal lineage for '${origin}' is unresolved. Repair its record before reconciling scratch.`);
+  const lineage = checkedLineage(read.result, origin);
   return lineage.kind === "abandon" || lineage.kind === "decompose";
+}
+
+async function terminalAliasRecord(store: Store, origin: string): Promise<StoreRecord | null> {
+  const records = await terminalAliasRecords(store, origin);
+  const aliases = await readTerminalReferenceAliases(store, records);
+  if (aliases.status === "refused") throw new Error(`${aliases.refusal.condition} ${aliases.refusal.remedy.text}`);
+  const targets = aliases.result.get(origin) ?? [], target = targets[0];
+  if (targets.length > 1) throw new Error(`Ambiguous terminal history for scratch folder '${origin}': ${targets.join(", ")}. Name the intended work unit, then retry.`);
+  if (target === undefined) return null;
+  const candidates = records.filter(record => record.reference.owner.name === target), candidate = candidates[0];
+  if (candidates.length !== 1 || candidate === undefined) throw new Error(`Ambiguous terminal generation for scratch folder '${origin}'. Repair its lineage history, then retry.`);
+  const lookup = await store.lookup({ kind: "lineage", origin: target });
+  if (lookup.status === "refused") throw new Error(`${lookup.refusal.condition} ${lookup.refusal.remedy.text}`);
+  const read = await store.read({ reference: lookup.result.reference });
+  if (read.status === "refused") throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
+  if (!sameReference(lookup.result.reference, candidate.reference) || !sameReference(read.result.reference, candidate.reference)) {
+    throw new Error(`Terminal history for scratch folder '${origin}' changed. Read its lineage again and retry.`);
+  }
+  return read.result;
+}
+
+async function terminalAliasRecords(store: Store, origin: string): Promise<readonly StoreRecord[]> {
+  const listed = await store.list({ family: "lineage", kind: "lineage/transition" });
+  if (listed.status === "refused") throw new Error(`${listed.refusal.condition} ${listed.refusal.remedy.text}`);
+  const listing = listed.result;
+  if (listing.status === "absent") return [];
+  if (listing.status === "unreadable") throw new Error(`${listing.condition} ${listing.remedy.text}`);
+  if (listing.missed || listing.diagnostics.length > 0) throw new Error(`Terminal history for scratch folder '${origin}' is incomplete. ${listing.diagnostics.map(item => `${item.condition} ${item.remedy.text}`).join(" ")} Repair the lineage inventory and retry.`);
+  return listing.records.filter(record => checkedLineage(record, origin).kind !== "rename");
+}
+
+function checkedLineage(record: StoreRecord, origin: string): LineageRecord {
+  const lineage = parseLineageRecord(record.content);
+  if (record.conflicts.length > 0) throw new Error(`Terminal lineage for '${origin}' has unresolved conflicts: ${record.conflicts.map(reference => JSON.stringify(reference)).join(", ")}. Resolve the named conflict records, then retry scratch reconciliation.`);
+  if (lineage === null || record.reference.owner.type !== "work-item"
+    || lineage.origin.name !== record.reference.owner.name
+    || (lineage.origin.uid !== undefined && lineage.origin.uid !== record.reference.owner.uid)) {
+    throw new Error(`Terminal lineage for '${origin}' is unresolved. Repair its record, then retry scratch reconciliation.`);
+  }
+  return lineage;
 }
