@@ -873,12 +873,10 @@ copy.
           optional header, and one Decisions block. Labels are assigned before advisory tag sorting and stay fixed
           across the table, questions, sections, and evidence; exact-text fixtures retain grading and escaping checks.
 
-    - `[ ]` **6.3.b Define the loop reading in `review-model`**
-        - `baseline`, `converging`, `discovering` (taking precedence over `converging`), and `sustained
-          non-convergence`, each with the decision it points to. In code review, the trend is Task 4.1's fact, new design
-          is read from its signals beside the stored tags of earlier rounds and the current round's, a tag reading as
-          the proposal's forecast and the signals as what the round was, origin is the agent's reading, and sustained
-          non-convergence points to stopping for the Owner's decision on `amend-design`.
+    - `[x]` **6.3.b Define the loop reading in `review-model`**
+        - Both copies define the four advisory readings and their decisions, with discovery taking precedence over
+          convergence. Code review distinguishes the computed trend and performed-round signals from forecast tags
+          and the agent's origin reading; sustained new design calls for the Owner's amendment decision.
 
     - `[ ]` **6.3.c Render the shape in `adversarial-review`**
         - Its report gains the header, table, sections, Decisions block, and loop reading, new-design folds leading

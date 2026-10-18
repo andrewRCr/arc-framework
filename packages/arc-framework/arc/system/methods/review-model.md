@@ -82,10 +82,25 @@ approval authority.
 
 ### Loop reading
 
-Report the material trend across passes and rounds, finding origins, and new-design fixes. Give one advisory reading
-with its rationale and the next decision it suggests: `baseline`, `converging`, `discovering`, or `sustained
-non-convergence`. Discovery takes precedence over convergence; sustained new design calls for the Owner's shaping
-or amendment decision rather than another round of design through fixes.
+Report the material trend across passes and rounds (for example `P1: 6 → R1: 2`), where findings originated, and how
+many fixes introduce new design. Give one advisory reading with a one-line rationale and the decision it points to:
+
+- **`baseline`** — the first look has no trend yet; decide the fixes and their check from that look's own signal.
+- **`converging`** — material findings come from earlier folds, adjacent repair code, or siblings of a known defect
+  class; counts fall or stay flat, and fixes are mostly local corrections. This supports stopping once fix checks
+  converge.
+- **`discovering`** — new material defect classes keep appearing in code or text earlier looks already read, rather
+  than coming from folds. This supports another complete pass after fix checks. It takes precedence over `converging`
+  wherever both readings fit.
+- **`sustained non-convergence`** — most material findings originate in earlier new-design folds and need new design
+  again. Stop for the Owner's decision: planning review offers the stage's re-entry or shaping route; code review asks
+  whether the spec needs `amend-design`. Another round must not silently become design authoring.
+
+Planning review derives the counts, origins, and tags from its pass record. In code review, keep the CLI's ordered
+material trend separate from advisory interpretation: read its per-round change signals beside earlier stored tags
+and current tags. A tag forecasts what the proposed repair implies; the signals describe what the performed round
+changed. Origin counts are the agent's reading of whether findings fall in an earlier fix range. Neither a falling
+count nor a tag alone settles the loop reading, convergence, or authorization.
 
 ---
 
