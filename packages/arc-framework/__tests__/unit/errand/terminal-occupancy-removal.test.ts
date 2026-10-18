@@ -1,5 +1,5 @@
 /** Production terminal IO preserves projection policy through checkout removal. */
-import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -27,6 +27,7 @@ async function fixture(options: { dirty?: boolean; absent?: boolean; failedStatu
   let persisted = false;
   let removed = false;
   let removalAttempts = 0;
+  const gitState = { branch: "chore/repair", head };
   const generation = digestBytes(await readFile(resolveWorktreeMarkerPath(checkout)));
   const authority: Extract<ErrandTerminalAuthority, { kind: "authorized" }> = {
     kind: "authorized", authority: "current-checkout", subject, checkoutPath: checkout, parentCheckoutPath: root,
@@ -36,7 +37,7 @@ async function fixture(options: { dirty?: boolean; absent?: boolean; failedStatu
       lifecycleLocation: null, diagnostics: [], subject: { kind: "errand", key: subject.slug, claimId: subject.claimId } },
   };
   const exec: GitExec = async (_command, args) => {
-    if (args[0] === "rev-parse") return { stdout: args.includes("--abbrev-ref") ? "chore/repair" : head, stderr: "" };
+    if (args[0] === "rev-parse") return { stdout: args.includes("--abbrev-ref") ? gitState.branch : gitState.head, stderr: "" };
     if (args[0] === "status") {
       if (options.failedStatus) throw new Error("status failed");
       return { stdout: options.dirty ? " M changed\n" : "", stderr: "" };
@@ -53,12 +54,37 @@ async function fixture(options: { dirty?: boolean; absent?: boolean; failedStatu
   };
   const slots: ProjectionRemovalSlots = { ...passingProjectionRemovalSlots,
     persist: async () => { persisted = true; return { kind: "persisted" }; } };
-  return { authority, exec, slots, state: () => ({ registered, persisted, removed, removalAttempts }) };
+  return { authority, exec, slots, gitState, state: () => ({ registered, persisted, removed, removalAttempts }) };
 }
 
 describe("projection-aware terminal removal", () => {
   it("persists a clean spawned checkout before retiring its registration", async () => {
     const f = await fixture();
+    expect(await settleTerminalOccupancy({ authority: f.authority, primaryCheckoutPath: root,
+      io: createTerminalOccupancyIO(f.exec), projectionRemovalSlots: f.slots })).toMatchObject({ kind: "applied" });
+    expect(f.state()).toEqual({ registered: false, persisted: true, removed: true, removalAttempts: 1 });
+  });
+  it.each(["marker", "branch", "head"] as const)("retains a spawned checkout whose %s changes during persistence, then retries after repair", async change => {
+    const f = await fixture();
+    const markerPath = resolveWorktreeMarkerPath(checkout);
+    const originalMarker = await readFile(markerPath);
+    const slots: ProjectionRemovalSlots = { ...f.slots, persist: async () => {
+      await f.slots.persist(checkout);
+      if (change === "marker") await writeWorktreeMarker(checkout, { spawnedByArc: true, spawningIdentity: "andrew",
+        createdAt: "2026-10-02T00:00:00Z", createdFor: subject, provisioning: "ready" });
+      if (change === "branch") f.gitState.branch = "chore/replacement";
+      if (change === "head") f.gitState.head = "c".repeat(40);
+      return { kind: "persisted" };
+    } };
+    const result = await settleTerminalOccupancy({ authority: f.authority, primaryCheckoutPath: root,
+      io: createTerminalOccupancyIO(f.exec), projectionRemovalSlots: slots });
+    expect(result).toMatchObject({ kind: "refused", reason: change === "marker" ? "generation-mismatch" : "preservation-unproven",
+      message: expect.stringContaining("changed") });
+    expect(f.state()).toEqual({ registered: true, persisted: true, removed: false, removalAttempts: 0 });
+    if (change === "marker") expect(await readFile(markerPath)).not.toEqual(originalMarker);
+    await writeFile(markerPath, originalMarker);
+    f.gitState.branch = "chore/repair";
+    f.gitState.head = head;
     expect(await settleTerminalOccupancy({ authority: f.authority, primaryCheckoutPath: root,
       io: createTerminalOccupancyIO(f.exec), projectionRemovalSlots: f.slots })).toMatchObject({ kind: "applied" });
     expect(f.state()).toEqual({ registered: false, persisted: true, removed: true, removalAttempts: 1 });

@@ -9,6 +9,10 @@ import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { deserializeTransientIdentityRecord } from "../../src/lib/errand/identity-record.js";
 import { ErrandOperationResultSchema } from "../../src/lib/errand/operation-result.js";
 import { readWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
+import { passingProjectionRemovalSlots } from "../../src/lib/git/worktree-removal.js";
+import { runDerivedLocusStateProbe } from "../../src/handlers/derived-locus-state-probe.js";
+import { authorizeErrandTerminal } from "../../src/lib/errand/terminal-authority.js";
+import { createTerminalOccupancyIO, settleTerminalOccupancy } from "../../src/lib/errand/terminal-occupancy.js";
 import { parseEntryList } from "../../src/lib/store/kinds/entry-list.js";
 import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
@@ -103,6 +107,42 @@ it("refuses dirty removal, leaves after preservation repair, and rematerializes 
   expect(reopened.record.reference.owner).toEqual(initial.record.reference.owner);
   expect(reopened.identity).toMatchObject({ state: "open", claimId: initial.identity.claimId });
   expect(await readWorktreeMarker(holder)).toMatchObject({ kind: "present", marker: { spawnedByArc: true, createdFor: { kind: "errand", slug, claimId: initial.identity.claimId } } });
+}, 60_000);
+
+it("retains real Errand code committed during persistence, then leaves after preserving the new head remotely", async () => {
+  const h = await fixture(), slug = "changed-during-persist";
+  const opened = await invoke(h, h.cwd, ["errand", "open", slug, "--isolate", "--intent", "Preserve concurrent code", "--json"]);
+  const result = ErrandOperationResultSchema.parse(opened.result);
+  if (result.outcome !== "applied" || result.allocation === null) throw new Error("Expected an allocated checkout");
+  const holder = result.allocation.checkoutPath, initial = await saved(h, slug);
+  await h.exec("git", ["push", "-u", "origin", initial.identity.branch], { cwd: holder });
+  const marker = await readWorktreeMarker(holder);
+  const frame = await runDerivedLocusStateProbe({ cwd: holder, exec: h.exec, store: h.store,
+    identity: "test-user", baseBranch: "main" });
+  const authority = await authorizeErrandTerminal({ store: h.store, frame, operation: "leave",
+    subject: { kind: "errand", slug, claimId: initial.identity.claimId } });
+  if (authority.kind !== "authorized") throw new Error("Expected the entering Errand to authorize settlement");
+  const code = "Keep the commit made while persistence was awaited.\n";
+  const slots = { ...passingProjectionRemovalSlots, persist: async () => {
+    await writeFile(join(holder, "late-code.txt"), code);
+    await h.exec("git", ["add", "late-code.txt"], { cwd: holder });
+    await h.exec("git", ["commit", "-m", "Code during persistence"], { cwd: holder });
+    return { kind: "persisted" as const };
+  } };
+  const settled = await settleTerminalOccupancy({ authority, primaryCheckoutPath: h.cwd,
+    io: createTerminalOccupancyIO(h.exec), projectionRemovalSlots: slots });
+  expect(settled).toMatchObject({ kind: "refused", reason: "preservation-unproven", message: expect.stringContaining("changed") });
+  expect(await readFile(join(holder, "late-code.txt"), "utf8")).toBe(code);
+  expect(await readWorktreeMarker(holder)).toEqual(marker);
+  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).toContain(holder);
+  expect((await saved(h, slug)).record).toEqual(initial.record);
+  const head = (await h.exec("git", ["rev-parse", "HEAD"], { cwd: holder })).stdout.trim();
+  await h.exec("git", ["push", "origin", initial.identity.branch], { cwd: holder });
+  expect(await invoke(h, holder, ["errand", "leave", slug, "--state", "paused", "--json"]))
+    .toMatchObject({ result: { outcome: "applied", settlement: { kind: "identity-tail", savedHead: head } } });
+  expect(await exists(holder)).toBe(false);
+  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(holder);
+  expect((await h.exec("git", ["show", `${head}:late-code.txt`])).stdout.trim()).toBe(code.trim());
 }, 60_000);
 
 it.each(["text", "inbox"] as const)("keeps a %s description unchanged through failed resume, no-selector resume and open recovery", async origin => {

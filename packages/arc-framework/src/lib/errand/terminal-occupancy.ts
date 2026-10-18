@@ -35,7 +35,8 @@ export interface TerminalOccupancyInspection {
 export interface TerminalOccupancyIO {
   inspect(checkoutPath: string, options?: { inspectStatus: boolean }): Promise<TerminalOccupancyInspection>;
   removePrimary(checkoutPath: string, subject: ErrandTerminalSubject): Promise<"removed" | "absent" | "changed">;
-  removeSpawned(checkoutPath: string, primaryCheckoutPath: string, slots?: ProjectionRemovalSlots): Promise<WorktreeRemovalResult | { kind: "absent" }>;
+  removeSpawned(checkoutPath: string, primaryCheckoutPath: string, slots: ProjectionRemovalSlots | undefined,
+    beforeRetire: () => Promise<void>): Promise<WorktreeRemovalResult | { kind: "absent" }>;
 }
 
 export interface SettleTerminalOccupancyOptions {
@@ -80,11 +81,11 @@ export function createTerminalOccupancyIO(
       }
       return result.kind === "removed" || result.kind === "absent" ? result.kind : "changed";
     },
-    removeSpawned: async (checkoutPath, primaryWorktreePath, slots) => {
+    removeSpawned: async (checkoutPath, primaryWorktreePath, slots, beforeRetire) => {
       const { stdout } = await exec("git", ["worktree", "list", "--porcelain", "-z"], { cwd: primaryWorktreePath });
       const present = parseGitWorktreePorcelainZ(stdout).some((entry) => resolve(entry.path) === resolve(checkoutPath));
       if (!present) return { kind: "absent" };
-      return removeWorktreeCheckout({ exec, checkoutPath, primaryWorktreePath, slots });
+      return removeWorktreeCheckout({ exec, checkoutPath, primaryWorktreePath, slots, beforeRetire });
     },
   };
 }
@@ -102,22 +103,11 @@ export async function settleTerminalOccupancy(
     || row.markerGeneration === null) {
     return refused("authority-unresolved", "The authorized Errand checkout evidence is incomplete.");
   }
-  let inspection: TerminalOccupancyInspection;
   try {
-    inspection = await options.io.inspect(row.checkout.path, { inspectStatus: row.checkout.primary });
+    const refusal = await inspectOccupancy(options, row);
+    if (refusal !== null) return refusal;
   } catch (error) {
     return { kind: "error", message: errorMessage(error) };
-  }
-  if ((row.checkout.primary && inspection.dirty)
-    || inspection.branch !== row.checkout.branch
-    || inspection.head !== row.checkout.head) {
-    return refused(
-      "preservation-unproven",
-      "The Errand checkout is dirty or its exact branch/HEAD generation changed.",
-    );
-  }
-  if (inspection.markerGeneration !== row.markerGeneration) {
-    return refused("generation-mismatch", "The Errand marker generation changed before settlement.");
   }
   let removal: Awaited<ReturnType<typeof removeOccupancy>>;
   try {
@@ -133,6 +123,23 @@ export async function settleTerminalOccupancy(
   };
 }
 
+async function inspectOccupancy(options: SettleTerminalOccupancyOptions,
+  row: DerivedCheckoutRow): Promise<Extract<TerminalOccupancySettlement, { kind: "refused" }> | null> {
+  const inspection = await options.io.inspect(row.checkout.path, { inspectStatus: row.checkout.primary });
+  if ((row.checkout.primary && inspection.dirty)
+    || inspection.branch !== row.checkout.branch
+    || inspection.head !== row.checkout.head) {
+    return refused(
+      "preservation-unproven",
+      "The Errand checkout is dirty or its exact branch/HEAD generation changed. Preserve the checkout, inspect arc locus --json, then retry the Errand command.",
+    );
+  }
+  if (inspection.markerGeneration !== row.markerGeneration) {
+    return refused("generation-mismatch", "The Errand marker generation changed before settlement. Inspect arc locus --json, then retry against the current generation.");
+  }
+  return null;
+}
+
 async function removeOccupancy(
   options: SettleTerminalOccupancyOptions,
   row: DerivedCheckoutRow,
@@ -143,7 +150,12 @@ async function removeOccupancy(
       ? refused("generation-mismatch", "The Errand checkout generation changed during settlement.")
       : { kind: result };
   }
-  const result = await options.io.removeSpawned(row.checkout.path, options.primaryCheckoutPath, options.projectionRemovalSlots);
+  const revalidation: { refusal: Extract<TerminalOccupancySettlement, { kind: "refused" }> | null } = { refusal: null };
+  const result = await options.io.removeSpawned(row.checkout.path, options.primaryCheckoutPath, options.projectionRemovalSlots, async () => {
+    revalidation.refusal = await inspectOccupancy(options, row);
+    if (revalidation.refusal !== null) throw new Error(revalidation.refusal.message);
+  });
+  if (revalidation.refusal !== null) return revalidation.refusal;
   switch (result.kind) {
     case "removed": case "pruned": return { kind: "removed" };
     case "absent": return result;
