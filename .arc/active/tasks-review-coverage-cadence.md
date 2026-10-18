@@ -883,41 +883,17 @@ copy.
           fix-check rounds use the shared header, tagged table, sections, Decisions block, and advisory loop reading;
           canonical labels precede display sorting and provisional convergence waits for disposition approval.
 
-### `[ ]` **6.4 Carry the agent's report inputs on respond, keeping only the tags, as an advisory note — § 10.4**
+### `[x]` **6.4 Carry the agent's report inputs on respond, keeping only the tags, as an advisory note — § 10.4**
 
 - _Goal:_ The first `arc review respond -` call takes the agent's parts of the report — one tag per fix, one
   `**Fails:**` anchor per finding, the successor-pass recommendation, and the origin counts with the reading and its
   rationale — as inputs the CLI renders; the approved call carries the tags again and stores them beside the approved
   set, outside its identity, so the approved report and the replay order and tag the same way; nothing else is stored.
 
-    - A `report` object sits on the proposal request beside `proposal` (`RespondProposalRequestSchema`,
-      `respond-command.ts`), keyed by finding identity, never inside `AuthorDispositionSchema`, which
-      `prepareDispositionProposal` spreads into the disposition set whose digest the approval binds: `tags`
-      (`new-design` or `local-correction`, exactly one per fix), `fails` (a rubric item, or `none` with its reason,
-      exactly one per finding), `successorRecommendation`, `origin` (counts by where the findings came from, and the
-      new-design fixes among them), and `reading` (one of the four, with its rationale). A missing, extra, or duplicate
-      key is refused with a remedy naming the identities.
-    - The approved call (`RespondApprovedRequestSchema`) takes `tags` again, checked against the approved set's fixes
-      the same way, and stores them on the record's lineage node (`ApprovedDispositionLineageNodeSchema`,
-      `core/advisory-records.ts`) beside `approvedDisposition`, an optional field, so older records parse. Only that
-      call writes them, at the response's first write; no later advance of the record changes them. The verified fix
-      call and the settlement replay read them from there.
-    - The CLI renders the header from its provisional assessment, one Decisions block from the approval, the open
-      questions, and the bounded offers, and the trend from Task 4.1's fact. A tag renders as the agent's reading of
-      what the fix implies, never as an approved judgment.
-    - The local reviewer's prompt (`localReviewerInstructions`) asks for a `Fails:` line with each finding in its own
-      report, which the result's `evidenceUrlOrId` references, since a local result's findings carry no text
-      (`ReviewFindingContentSchema`, `core/finding-records.ts`); the agent lifts it into `fails`. For a hosted source
-      the agent supplies it while verifying, marked as its reading.
-    - Build `test-first` (one behavior at a time):
-        - The first call renders the tags, anchors, recommendation, and reading; nothing of them reaches the stored
-          disposition set, and its identity is the same with or without them.
-        - A fix with no tag, a tag on a non-fix, or a finding with two anchors is refused with the remedy, and the
-          corrected request succeeds.
-        - The approved call stores the tags beside the set, and the approved report and the settlement replay render
-          the header naming the approved set and the table and sections ordered and tagged as the proposal was, with
-          no `**Fails:**`, Decisions block, or loop reading.
-        - A record with no stored tags renders in canonical order.
+- _Outcome:_ Respond renders caller-owned anchors and loop judgments beside computed pass facts, keeping only
+  immutable fix tags on the approved lineage node. First approval, verified member fixes, and Candidate settlement
+  replay retain the tagged reduced report; identity refusals provide a corrected-request route. Local prompts ask
+  reviewers for rubric anchors. Shared response fixtures keep the request migration outside the large test body.
 
 ### `[ ]` **6.5 Offer a return to shaping where no level is higher — § 10.5**
 

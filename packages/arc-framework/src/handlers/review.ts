@@ -345,7 +345,7 @@ import {
   RespondRequestSchema,
   respondToReviewCommand,
 } from "../scripts/review-gate/runtime/respond-command.js";
-import { uncommittedVerifiedFixRemedy } from "../scripts/review-gate/runtime/respond-remedy.js";
+import { reviewRespondRemedy } from "../scripts/review-gate/runtime/respond-remedy.js";
 import {
   HostedReviewAdmissionError,
   HostedIncrementalCoverageError,
@@ -3205,7 +3205,7 @@ export async function handleReviewRespond(
     resultSchema: RespondEnvelopeSchema,
     dependencies,
     execute: dependencies.respond,
-    remedyFor: uncommittedVerifiedFixRemedy,
+    remedyFor: reviewRespondRemedy,
   });
 }
 

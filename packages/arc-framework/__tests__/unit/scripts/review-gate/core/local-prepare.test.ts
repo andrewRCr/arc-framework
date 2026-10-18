@@ -197,15 +197,17 @@ describe("local prepare incremental reviewer instructions", () => {
     return { instructions: preparation.state.reviewerInstructions, headSha: records.target.headSha };
   }
 
-  it("keeps complete-pass instructions equal to the configured rubric", async () => {
+  it("keeps the configured rubric and asks complete reviewers for failure anchors", async () => {
     const { instructions } = await preparedInstructions(undefined);
-    expect(instructions).toBe(projectLocalReviewGuidance().reviewerInstructions);
+    expect(instructions).toContain("Fails:");
+    expect(instructions).toContain(projectLocalReviewGuidance().reviewerInstructions);
   });
 
   it("gives complete reviewers fixed-finding pointers without a closure claim", async () => {
     const { instructions } = await preparedInstructions(undefined, undefined, [
       { locus: "src/a.ts:10", title: "Missing authorization check" }, { locus: "src/b.ts:20" },
     ]);
+    expect(instructions).toContain("Fails:");
     expect(instructions).toContain("src/a.ts:10 — Missing authorization check");
     expect(instructions).toContain("src/b.ts:20");
     expect(instructions).toContain("Previously reported and fixed");
@@ -218,6 +220,7 @@ describe("local prepare incremental reviewer instructions", () => {
   it.each([false, true])("names all fix-check axes and the sibling sweep with earlier findings=%s", async carried => {
     const { instructions } = await preparedInstructions(carried
       ? [{ producerId: "local-predecessor", findingId: "finding-1", locus: "src/a.ts:10" }] : []);
+    expect(instructions).toContain("Fails:");
     expect(instructions).toMatch(/closure/iu);
     expect(instructions).toMatch(/behavioral grounding/iu);
     expect(instructions).toMatch(/propagation and completeness/iu);

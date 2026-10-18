@@ -1,3 +1,4 @@
+import { withReviewReport } from "../fixtures/review-report-input.js";
 /** Real-CLI regression for review pass accounting across an explicit Candidate supersession. */
 
 import { readResolveNextPassContext } from "../../src/handlers/review-next-pass-context.js";
@@ -149,7 +150,7 @@ async function settleFinding(root: string, source: FindingsSource, replacement: 
       }],
     },
   };
-  const proposed = await invoke(root, ["review", "respond", "-"], baseRequest);
+  const proposed = await invoke(root, ["review", "respond", "-"], withReviewReport(baseRequest));
   expect(proposed).toMatchObject({ state: "awaiting-approval", nextAction: "obtain-approval" });
   const proposal = proposed.payload.proposal as {
     dispositionSet: { targetId: string; dispositionSetId: string };
@@ -167,14 +168,14 @@ async function settleFinding(root: string, source: FindingsSource, replacement: 
     },
   };
   const policyRequest = await responsePolicyRequest(root, source);
-  const approved = await invoke(root, ["review", "respond", "-"], {
+  const approved = await invoke(root, ["review", "respond", "-"], withReviewReport({
     schemaVersion: 1, source, policyRequest, dispositions,
-  });
+  }));
   expect(approved).toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
   await writeFile(join(root, "src", "example.ts"), `export const example = ${replacement};\n`);
   await git(root, ["add", "src/example.ts"]);
   await git(root, ["commit", "-m", `apply review fix ${replacement}`]);
-  const verified = await invoke(root, ["review", "respond", "-"], {
+  const verified = await invoke(root, ["review", "respond", "-"], withReviewReport({
     schemaVersion: 1,
     source,
     policyRequest,
@@ -183,7 +184,7 @@ async function settleFinding(root: string, source: FindingsSource, replacement: 
       applicability: "focused",
       verificationEvidenceRefs: [`verification://focused-fix-${replacement}`],
     },
-  });
+  }));
   expect(verified).toMatchObject({ state: "candidate-advanced", nextAction: "continue-review" });
   await git(root, ["commit", "-m", `record verified review response ${replacement}`]);
 }

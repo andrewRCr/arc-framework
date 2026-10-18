@@ -53,9 +53,12 @@ function localReviewerInstructions(
   incrementalBasis?: "fix-check" | "delta-check",
   fixedFindingPointers: readonly FixedFindingPointer[] = [],
 ): string {
+  const instructions = `${guidance.reviewerInstructions}\n\n`
+    + "For each finding in your report, include a Fails: line naming the supplied rubric item it fails, in the rubric's "
+    + "own terms, or none with its reason. Keep that line in the report referenced by the finding's evidence URL or ID.";
   const scope = source.correctionScope;
-  if (scope === undefined) return fixedFindingPointers.length === 0 ? guidance.reviewerInstructions
-    : [guidance.reviewerInstructions,
+  if (scope === undefined) return fixedFindingPointers.length === 0 ? instructions
+    : [instructions,
       "Previously reported and fixed; the fix and the code around it stay in scope. These pointers do not bound the search. "
         + "Search independently across the complete change set and sweep for siblings of the listed defect classes.",
       ...fixedFindingPointers.map(pointer => `- ${pointer.locus}${pointer.title === undefined ? "" : ` — ${pointer.title}`}`),
@@ -68,7 +71,7 @@ function localReviewerInstructions(
         .join(", ")
       + " at their original loci, including loci outside the changed lines. For propagation and completeness, check whether the defect each"
       + " describes recurs elsewhere in the complete change set, beyond this pass's range.";
-  return `${guidance.reviewerInstructions}\n\n`
+  return `${instructions}\n\n`
     + `Incremental correction pass. The requested change set for this pass is `
     + `${scope.predecessorHeadSha}..${scope.headSha}: review that range completely, and apply the coverage and `
     + `clean rules to it. The changes from ${scope.basisHeadSha} to ${scope.predecessorHeadSha} were covered by the `

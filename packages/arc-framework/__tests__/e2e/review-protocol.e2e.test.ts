@@ -1,3 +1,4 @@
+import { withReviewReport } from "../fixtures/review-report-input.js";
 import { delimiter, join } from "node:path";
 import {
   access,
@@ -200,7 +201,7 @@ async function approvedRejection(
   root: string,
   source: ReductionFindingsPayload["responseSource"],
 ) {
-  const prepared = await invoke(root, ["review", "respond", "-"], {
+  const prepared = await invoke(root, ["review", "respond", "-"], withReviewReport({
     schemaVersion: 1,
     source,
     proposal: {
@@ -219,7 +220,7 @@ async function approvedRejection(
         openQuestions: [],
       }],
     },
-  });
+  }));
   expect(prepared).toMatchObject({ state: "awaiting-approval", nextAction: "obtain-approval" });
   const proposal = (prepared.payload as AwaitingApprovalPayload).proposal;
   return {
@@ -381,9 +382,9 @@ describe("built review protocol", () => {
       policyRequest: await responsePolicyRequest(root, responseSource),
       dispositions: await approvedRejection(root, responseSource),
     };
-    await expect(invoke(root, ["review", "respond", "-"], request))
+    await expect(invoke(root, ["review", "respond", "-"], withReviewReport(request)))
       .resolves.toMatchObject({ state: "settled", nextAction: "reduce" });
-    await expect(invoke(root, ["review", "respond", "-"], request))
+    await expect(invoke(root, ["review", "respond", "-"], withReviewReport(request)))
       .resolves.toMatchObject({ state: "already-settled", nextAction: "reduce" });
     await expect(invoke(root, ["review", "local", "resume", "-"], {
       schemaVersion: 1,

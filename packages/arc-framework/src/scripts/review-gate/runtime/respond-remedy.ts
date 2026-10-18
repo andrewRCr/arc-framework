@@ -1,5 +1,6 @@
 /**
  * Corrective guidance for a review response refused before it could record anything.
+ * Report-input mismatches name the exact finding identities and preserve the caller's request for correction.
  *
  * A verified fix is recorded against the committed head that contains it, so a response carrying one refuses
  * until that head exists. Where the target is read from the checkout, an uncommitted fix refuses as a dirty
@@ -13,6 +14,7 @@
 
 import { spineRemedy, type SpineRemedy } from "../../integration/spine-refusal.js";
 import { LocalTargetDerivationError } from "../hosts/local/repository-target.js";
+import { ReviewReportInputError } from "../core/review-report-inputs.js";
 import { UnchangedVerifiedFixTargetError } from "./respond-command.js";
 
 const RESPOND_ARGV = ["arc", "review", "respond", "-"] as const;
@@ -35,16 +37,19 @@ function replayRequest(request: object): object {
 }
 
 /**
- * Name the continuation for a verified fix submitted before its committed head exists.
+ * Name the correction and retry for refused report inputs or an uncommitted verified fix.
  *
  * @param error - The failure the response raised.
- * @param request - The caller's request as submitted, carried as the replay's standard input without its
- *   supersession.
- * @returns The remedy when a verified-fix response refused for want of its committed fix; otherwise `undefined`.
+ * @param request - The caller's request as submitted; only verified-fix retries omit its supersession.
+ * @returns The recoverable input or committed-fix remedy, otherwise `undefined`.
  */
-export function uncommittedVerifiedFixRemedy(error: unknown, request: unknown): SpineRemedy | undefined {
+export function reviewRespondRemedy(error: unknown, request: unknown): SpineRemedy | undefined {
+  if (typeof request !== "object" || request === null) return undefined;
+  if (error instanceof ReviewReportInputError) {
+    return spineRemedy("Advisory report notes must match the canonical finding identities.",
+      error.correction, RESPOND_ARGV, request);
+  }
   const correction = correctionFor(error);
-  if (correction === undefined) return undefined;
-  if (typeof request !== "object" || request === null || !("verifiedFix" in request)) return undefined;
+  if (correction === undefined || !("verifiedFix" in request)) return undefined;
   return spineRemedy(INVARIANT, correction, RESPOND_ARGV, replayRequest(request));
 }

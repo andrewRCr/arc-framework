@@ -1,4 +1,7 @@
 /** Full-final member review keeps repair checks separate from complete-pass closure. */
+import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
+import { LocalApprovedDispositionRecordStore } from "../../src/scripts/review-gate/hosts/local/disposition-record-store.js";
+import { currentApprovedDispositionNode } from "../../src/scripts/review-gate/core/advisory-records.js";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
@@ -6,7 +9,7 @@ import { cleanupTempDir } from "../helpers/integration.js";
 import { inProcessReview } from "../helpers/in-process-review.js";
 import {
   createFixedLocalMemberReview, fixLocalMemberReview, completeLocalReviewThroughHandlers, git, roots,
-  resumeLocalThroughHandler, statusThroughHandler, type FanOutHarness,
+  respondThroughHandler, resumeLocalThroughHandler, statusThroughHandler, type FanOutHarness,
 } from "../fixtures/review-fan-out-harness.js";
 
 afterEach(async () => { await Promise.all(roots.splice(0).map(cleanupTempDir)); });
@@ -113,6 +116,8 @@ it("runs repeated member fix-check rounds outside the ceiling before an approved
   const repaired = await fixLocalMemberReview(harness, first.correctedTarget, checked, "fully fixed local finding\n");
   expect(repaired.assessment.summaryText).toContain("Standard fix check, round 1 since pass 1");
   expect(repaired.assessment.summaryText).toContain("needs a fix check, round 2 since pass 1");
+  expect(repaired.reportText).toContain("Round 1 observed signals: paths outside cited loci no, added files no");
+  expect(repaired.reportText).toContain("stored forecast tags (advisory): 0 new design, 1 local correction");
   const second = await statusThroughHandler(harness, repaired.correctedTarget, undefined, "incremental", "delegated-agent");
   expect(second).toMatchObject({ nextAction: "review-local-prepare", action: { requestedCoverage: "incremental", pass: 3,
     correctionScope: { predecessorProducerId: checked.prepared.payload.operationId } } });
@@ -143,3 +148,30 @@ it("runs repeated member fix-check rounds outside the ceiling before an approved
       progress: { completedPasses: 5, completePasses: 2, passCeiling: 1 } }, { state: "outstanding" }] } },
   });
 }, 120_000);
+
+it("retains advisory fix tags through a performed member fix and its verified replay", async () => {
+  const { harness, local } = await createFixedLocalMemberReview(4);
+  await bindPublishedMemberObservations(harness);
+  const store = new LocalApprovedDispositionRecordStore(new RepositoryGitCommonStatePublisher(harness.exec, harness.root));
+  const record = await store.readDispositionRecord(local.prepared.payload.operationId);
+  if (record === null || record.source.kind !== "attested-local") throw new Error("expected the performed local response");
+  const node = currentApprovedDispositionNode(record);
+  expect(node.advisoryFixTags).toEqual([{ findingId: "finding-local-1", tag: "local-correction" }]);
+  if (node.deliveryMemberFixResponse === null) throw new Error("expected the exact member fix proof");
+  const replay = await respondThroughHandler(harness, {
+    schemaVersion: 1, source: { kind: "attested-local", receiptRef: record.source.receiptRef },
+    policyRequest: node.responsePolicyRequest, dispositions: node.approvedDisposition,
+    verifiedFix: { applicability: node.deliveryMemberFixResponse.applicability,
+      verificationEvidenceRefs: node.deliveryMemberFixResponse.fixConsumption.verificationRefs },
+  });
+  expect(replay.state, JSON.stringify(replay)).toBe("delivery-member-current");
+  if (!("dispositionReportText" in replay.payload)) throw new Error("expected the replay report");
+  expect(replay.payload.dispositionReportText).toContain(
+    `Approved disposition set ${node.approvedDisposition.dispositionSet.dispositionSetId}`,
+  );
+  expect(replay.payload.dispositionReportText).toContain("FIX (local correction)");
+  for (const absent of ["**Fails:**", "**Decisions**", "Loop reading"]) {
+    expect(replay.payload.dispositionReportText).not.toContain(absent);
+  }
+  expect(await store.readDispositionRecord(local.prepared.payload.operationId)).toEqual(record);
+}, 60_000);

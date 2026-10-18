@@ -123,6 +123,8 @@ interface DispositionReportInput {
   producerFindings: readonly NormalizedReviewFinding[];
   headerLine?: string;
   decisions?: readonly string[];
+  includeDecisions?: boolean;
+  loopReading?: readonly string[];
   fails?: readonly { findingId: string; fails: string }[];
   tags?: readonly { findingId: string; tag: "new-design" | "local-correction" }[];
 }
@@ -171,8 +173,10 @@ export function renderDispositionReport(input: DispositionReportInput): string {
     ...TABLE_HEAD,
     ...entries.map(renderRow),
     "",
-    ...renderDecisions(entries, input.decisions),
+    ...(input.includeDecisions === false ? [] : renderDecisions(entries, input.decisions)),
     entries.map(renderSection).join("\n\n---\n\n"),
+    ...(input.loopReading === undefined ? [] : ["", "**Loop reading (advisory)**",
+      ...input.loopReading.map(line => `- ${escapeReviewFindingDisplayText(line)}`)]),
   ].join("\n");
 }
 

@@ -6,6 +6,7 @@
  * runs over the production Candidate reader rather than a hand-built record: the host-dependent reads
  * ahead of it are stubbed, the Candidate reduction it branches on is not.
  */
+import { withReviewReport } from "../fixtures/review-report-input.js";
 
 import { selectsCandidateLineageCase, type CandidateLineagePartition } from "./candidate-lineage-cases.js";
 import { makeInteractionContext } from "./interaction-context.js";
@@ -24,8 +25,7 @@ import { handleInit } from "../../src/handlers/init.js";
 import { handleAttest } from "../../src/handlers/lifecycle-delivery-review.js";
 import { handleLocus } from "../../src/handlers/locus.js";
 import {
-  handleReviewFrontlineResolve,
-  handleReviewFrontlineRun,
+  handleReviewFrontlineResolve, handleReviewFrontlineRun,
   handleReviewLocalAttest,
   handleReviewLocalPrepare,
   handleReviewPrePublication,
@@ -53,9 +53,7 @@ import {
   candidateReviewResponses,
   reduceCandidateDurableBaseline,
 } from "../../src/lib/work-unit/candidate-attestation.js";
-import {
-  resolveGitCandidateBaseRevision,
-} from "../../src/lib/work-unit/git-candidate-subject.js";
+import { resolveGitCandidateBaseRevision } from "../../src/lib/work-unit/git-candidate-subject.js";
 import {
   readSubmissionBoundaryVersioned,
   resolveSubmissionBoundaryPath,
@@ -75,15 +73,9 @@ import {
 import { responsePolicyRequest, responsePolicyRequestFixture } from "../fixtures/review-response-policy.js";
 import { parseReviewSourceReference } from "../../src/scripts/review-gate/core/review-source-reference.js";
 import { currentApprovedDispositionNode } from "../../src/scripts/review-gate/core/advisory-records.js";
-import {
-  LocalReviewOperationStateStore,
-} from "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
-import {
-  LocalApprovedDispositionRecordStore,
-} from "../../src/scripts/review-gate/hosts/local/disposition-record-store.js";
-import {
-  deriveLocalReviewTarget,
-} from "../../src/scripts/review-gate/hosts/local/repository-target.js";
+import { LocalReviewOperationStateStore } from "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
+import { LocalApprovedDispositionRecordStore } from "../../src/scripts/review-gate/hosts/local/disposition-record-store.js";
+import { deriveLocalReviewTarget } from "../../src/scripts/review-gate/hosts/local/repository-target.js";
 import {
   bindHostedAttemptDisposition,
   laneProgressOperationId,
@@ -93,31 +85,23 @@ import {
   createStandardReviewReservation,
   projectPublicationBoundary,
 } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
-import {
-  createPrePublicationCompositionDependencies,
-} from "../../src/scripts/review-gate/policy/pre-publication-composition.js";
+import { createPrePublicationCompositionDependencies } from "../../src/scripts/review-gate/policy/pre-publication-composition.js";
 import { readRoutedObligation } from "../../src/scripts/review-gate/status-composition.js";
 import {
   checkpointIntegration,
   type IntegrationCheckpointDependencies,
 } from "../../src/scripts/integration/checkpoint.js";
-import {
-  createIntegrationCheckpointDependencies,
-} from "../../src/scripts/integration/checkpoint-composition.js";
+import { createIntegrationCheckpointDependencies } from "../../src/scripts/integration/checkpoint-composition.js";
 import type {
   IntegrationCheckpointCompositionRecord,
 } from "../../src/scripts/integration/checkpoint-store.js";
-import {
-  createLineageReviewComposer,
-} from "../../src/scripts/integration/lineage-review-composition.js";
+import { createLineageReviewComposer } from "../../src/scripts/integration/lineage-review-composition.js";
 import {
   mergeIntegration,
   type IntegrationMergeDependencies,
   type IntegrationMergeTarget,
 } from "../../src/scripts/integration/merge.js";
-import {
-  createIntegrationMergeDependencies,
-} from "../../src/scripts/integration/merge-composition.js";
+import { createIntegrationMergeDependencies } from "../../src/scripts/integration/merge-composition.js";
 import { composeCanonicalSettlementPlan } from "../../src/scripts/integration/settlement-plan.js";
 import type { MergeMethodResolveResult } from "../../src/scripts/review-gate/merge-method.js";
 import { deliveryThreeMemberStackPlanForWorkUnitFixture } from "../fixtures/delivery-plan.js";
@@ -731,7 +715,7 @@ async function approvedSet(
   disposition: "fix" | "defer" = "fix",
   findingId = "finding-1",
 ) {
-  const prepared = await invoke(root, ["review", "respond", "-"], {
+  const prepared = await invoke(root, ["review", "respond", "-"], withReviewReport({
     schemaVersion: 1,
     source,
     proposal: {
@@ -752,7 +736,7 @@ async function approvedSet(
         openQuestions: [],
       }],
     },
-  });
+  }));
   expect(prepared).toMatchObject({ state: "awaiting-approval", nextAction: "obtain-approval" });
   const { proposal } = prepared.payload as unknown as ProposalPayload;
   return {
@@ -981,7 +965,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     const dirtyAuthoring = await runArcWithStdin(
       ["review", "respond", "-"],
       root,
-      `${JSON.stringify({ schemaVersion: 1, source, dispositions, policyRequest })}\n`,
+      `${JSON.stringify(withReviewReport({ schemaVersion: 1, source, dispositions, policyRequest }))}\n`,
     );
     expect(dirtyAuthoring.exitCode).not.toBe(0);
     expect(JSON.parse(dirtyAuthoring.stdout)).toMatchObject({
@@ -995,9 +979,9 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     await git(root, ["add", "unreviewed.txt"]);
     await git(root, ["commit", "-m", "unreviewed Candidate change"]);
     const changedCandidateHead = await git(root, ["rev-parse", "HEAD^{commit}"]);
-    await expect(invoke(root, ["review", "respond", "-"], {
+    await expect(invoke(root, ["review", "respond", "-"], withReviewReport({
       ...approvedRequest,
-    })).resolves.toMatchObject({
+    }))).resolves.toMatchObject({
       state: "stale-target",
       nextAction: "prepare-current-target",
       payload: {
@@ -1006,9 +990,9 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       },
     });
     await git(root, ["reset", "--hard", candidateHead]);
-    await expect(invoke(root, ["review", "respond", "-"], {
+    await expect(invoke(root, ["review", "respond", "-"], withReviewReport({
       ...approvedRequest,
-    })).resolves.toMatchObject({
+    }))).resolves.toMatchObject({
       state: "ready-to-fix",
       nextAction: "apply-fix",
       payload: {
@@ -1028,7 +1012,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     const mislocated = await runArcWithStdin(
       ["review", "respond", "-"],
       disposableMemberCheckout,
-      `${JSON.stringify({ schemaVersion: 1, source, dispositions, policyRequest })}\n`,
+      `${JSON.stringify(withReviewReport({ schemaVersion: 1, source, dispositions, policyRequest }))}\n`,
     );
     expect(mislocated.exitCode).not.toBe(0);
     expect(JSON.parse(mislocated.stdout)).toMatchObject({
@@ -1060,7 +1044,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     const unchanged = await runArcWithStdin(
       ["review", "respond", "-"],
       root,
-      `${JSON.stringify(verifiedFix)}\n`,
+      `${JSON.stringify(withReviewReport(verifiedFix))}\n`,
     );
     expect(unchanged.exitCode).not.toBe(0);
     expect(JSON.parse(unchanged.stdout)).toMatchObject({
@@ -1072,7 +1056,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     const uncommitted = await runArcWithStdin(
       ["review", "respond", "-"],
       root,
-      `${JSON.stringify(verifiedFix)}\n`,
+      `${JSON.stringify(withReviewReport(verifiedFix))}\n`,
     );
     expect(uncommitted.exitCode).not.toBe(0);
     const refusal = JSON.parse(uncommitted.stdout) as {
@@ -1090,7 +1074,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       root,
       `${JSON.stringify(refusal.remedy.stdin)}\n`,
     ))).toMatchObject({ state: "candidate-advanced", nextAction: "continue-review" });
-    await expect(invoke(root, ["review", "respond", "-"], verifiedFix))
+    await expect(invoke(root, ["review", "respond", "-"], withReviewReport(verifiedFix)))
       .resolves.toMatchObject({ state: "candidate-current", nextAction: "continue-review" });
     const advanced = await readCandidateRecord(root, "example");
     expect(candidateReviewResponses(advanced ?? { transitions: [] })).toMatchObject([{
@@ -1316,12 +1300,12 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       sourceId: "coderabbit-cli",
       reviewOperationId: parseReviewSourceReference(source.outcomeRef, "frontline").operationId,
     });
-    await expect(invoke(root, ["review", "respond", "-"], {
+    await expect(invoke(root, ["review", "respond", "-"], withReviewReport({
       schemaVersion: 1,
       source,
       dispositions,
       policyRequest,
-    })).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
+    }))).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
 
     await writeFile(join(root, "reviewed.txt"), "reviewed change, fixed\n", "utf8");
     await git(root, ["add", "reviewed.txt"]);
@@ -1335,7 +1319,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
         },
       }],
     });
-    await expect(invoke(root, ["review", "respond", "-"], {
+    await expect(invoke(root, ["review", "respond", "-"], withReviewReport({
       schemaVersion: 1,
       source,
       dispositions,
@@ -1344,7 +1328,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
         applicability: "focused",
         verificationEvidenceRefs: ["verification://focused-fix"],
       },
-    })).resolves.toMatchObject({ state: "candidate-advanced", nextAction: "continue-review" });
+    }))).resolves.toMatchObject({ state: "candidate-advanced", nextAction: "continue-review" });
     const resumed = await runArc(["review", "pre-publication", "example"], root);
     expect(resumed.exitCode, resumed.stderr || resumed.stdout).toBe(0);
     expect(JSON.parse(resumed.stdout)).toMatchObject({
@@ -1364,11 +1348,11 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     const reviewedHead = await git(root, ["rev-parse", "HEAD^{commit}"]);
     const review = await frontlineCandidateReviewToFindings(root, reviewedHead);
     const deferred = await approvedSet(root, review.source, "defer", review.findingId);
-    await expect(invoke(root, ["review", "respond", "-"], {
+    await expect(invoke(root, ["review", "respond", "-"], withReviewReport({
       schemaVersion: 1,
       source: review.source,
       dispositions: deferred,
-    })).resolves.toMatchObject({ state: "settled" });
+    }))).resolves.toMatchObject({ state: "settled" });
 
     const composed = await composeLineageReview(root, reviewedHead);
     const action = composed.actions.find(({ dispositionId }) => (
@@ -1568,11 +1552,11 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
 
     const source = await reviewToFindings(root);
     const dispositions = await approvedSet(root, source);
-    await expect(invoke(root, ["review", "respond", "-"], {
+    await expect(invoke(root, ["review", "respond", "-"], withReviewReport({
       schemaVersion: 1,
       source,
       dispositions,
-    })).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
+    }))).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
     await writeFile(
       join(root, "reviewed.txt"),
       "moved\ncommon-2\ncommon-3\ncommon-4\ncommon-5\ncommon-6\ncommon-7\ncommon-8\ncommon-9\nfixed\n",
@@ -1581,7 +1565,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     await git(root, ["add", "reviewed.txt"]);
     await git(root, ["commit", "-m", "apply approved fix"]);
 
-    await expect(invoke(root, ["review", "respond", "-"], {
+    await expect(invoke(root, ["review", "respond", "-"], withReviewReport({
       schemaVersion: 1,
       source,
       dispositions,
@@ -1589,7 +1573,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
         applicability: "focused",
         verificationEvidenceRefs: ["verification://focused-fix"],
       },
-    })).resolves.toMatchObject({ state: "candidate-advanced", nextAction: "continue-review" });
+    }))).resolves.toMatchObject({ state: "candidate-advanced", nextAction: "continue-review" });
     const record = await readCandidateRecord(root, "example");
     expect(candidateReviewResponses(record ?? { transitions: [] }).at(-1)?.oldTarget.revision).toBe(mergedHead);
     await git(root, ["commit", "-m", "record verified response"]);
@@ -1726,14 +1710,14 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
 
     const source = await reviewToFindings(root);
     const dispositions = await approvedSet(root, source);
-    await expect(invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, dispositions }))
+    await expect(invoke(root, ["review", "respond", "-"], withReviewReport({ schemaVersion: 1, source, dispositions })))
       .resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
 
     await writeFile(join(root, "reviewed.txt"), "reviewed change, fixed\n", "utf8");
     await git(root, ["add", "reviewed.txt"]);
     await git(root, ["commit", "-m", "apply approved fix"]);
 
-    const advanced = await invoke(root, ["review", "respond", "-"], {
+    const advanced = await invoke(root, ["review", "respond", "-"], withReviewReport({
       schemaVersion: 1,
       source,
       dispositions,
@@ -1741,7 +1725,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
         applicability: "focused",
         verificationEvidenceRefs: ["verification://focused-fix"],
       },
-    });
+    }));
     expect(advanced).toMatchObject({
       state: "candidate-advanced",
       nextAction: "continue-review",
@@ -1796,16 +1780,16 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     await git(root, ["commit", "-m", "verification"]);
     const source = await reviewToFindings(root);
     const dispositions = await approvedSet(root, source);
-    await invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, dispositions });
+    await invoke(root, ["review", "respond", "-"], withReviewReport({ schemaVersion: 1, source, dispositions }));
     await writeFile(join(root, "reviewed.txt"), "reviewed change, fixed\n", "utf8");
     await git(root, ["add", "reviewed.txt"]);
     await git(root, ["commit", "-m", "apply approved fix"]);
-    await invoke(root, ["review", "respond", "-"], {
+    await invoke(root, ["review", "respond", "-"], withReviewReport({
       schemaVersion: 1,
       source,
       dispositions,
       verifiedFix: { applicability: "focused", verificationEvidenceRefs: ["verification://focused-fix"] },
-    });
+    }));
 
     // Committing the response record advances the head without touching a reviewable byte, so the
     // re-attestation lands at a revision the response never named. Convergence is keyed to the
@@ -1840,11 +1824,11 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     await archiveArtifacts(root);
     expect(await git(root, ["status", "--porcelain"])).toBe("");
 
-    await expect(invoke(root, ["review", "respond", "-"], {
+    await expect(invoke(root, ["review", "respond", "-"], withReviewReport({
       schemaVersion: 1,
       source,
       dispositions,
-    })).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
+    }))).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
 
     await writeFile(join(root, "reviewed.txt"), "verified replacement root\n", "utf8");
     await git(root, ["add", "reviewed.txt"]);
@@ -1856,7 +1840,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       nextAction: { kind: "recover-owning-branch-review" },
     });
     await git(root, ["commit", "-m", "apply archived review fix"]);
-    await expect(invoke(root, ["review", "respond", "-"], {
+    await expect(invoke(root, ["review", "respond", "-"], withReviewReport({
       schemaVersion: 1,
       source,
       dispositions,
@@ -1864,7 +1848,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
         applicability: dispositions.dispositionSet.proposedVerification,
         verificationEvidenceRefs: ["verification://archived-review-fix"],
       },
-    })).resolves.toMatchObject({ state: "candidate-advanced" });
+    }))).resolves.toMatchObject({ state: "candidate-advanced" });
     await git(root, ["commit", "-m", "record archived review response"]);
     await writeFile(join(root, "reviewed.txt"), "verified replacement root with new work\n", "utf8");
     await git(root, ["add", "reviewed.txt"]);
@@ -1892,11 +1876,11 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     await writeFile(metaPath, meta.replace("| `Active`  |", "| `Shipped` |"), "utf8");
     await git(root, ["add", ".arc/active/meta-example.md"]);
     await archiveArtifacts(root);
-    await expect(invoke(root, ["review", "respond", "-"], {
+    await expect(invoke(root, ["review", "respond", "-"], withReviewReport({
       schemaVersion: 1,
       source,
       dispositions,
-    })).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
+    }))).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
 
     await writeFile(join(root, "reviewed.txt"), "reviewed change, fixed\n", "utf8");
     await git(root, ["add", "reviewed.txt"]);
@@ -1918,12 +1902,12 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
 
     const candidatePath = join(root, ".arc", "system", ".internal", "candidates", "example.json");
     const candidateBefore = await readFile(candidatePath, "utf8");
-    const response = await runArcWithStdin(["review", "respond", "-"], root, `${JSON.stringify({
+    const response = await runArcWithStdin(["review", "respond", "-"], root, `${JSON.stringify(withReviewReport({
       schemaVersion: 1,
       source,
       dispositions,
       verifiedFix: { applicability: "focused", verificationEvidenceRefs: ["verification://focused-fix"] },
-    })}\n`);
+    }))}\n`);
 
     expect(response.exitCode).not.toBe(0);
     expect(await readFile(candidatePath, "utf8")).toBe(candidateBefore);
@@ -1940,12 +1924,12 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     const responseWithForeignDirt = await runArcWithStdin(
       ["review", "respond", "-"],
       root,
-      `${JSON.stringify({
+      `${JSON.stringify(withReviewReport({
         schemaVersion: 1,
         source,
         dispositions,
         verifiedFix: { applicability: "focused", verificationEvidenceRefs: ["verification://focused-fix"] },
-      })}\n`,
+      }))}\n`,
     );
     expect(responseWithForeignDirt.exitCode).not.toBe(0);
     expect(await readFile(candidatePath, "utf8")).toBe(candidateDirty);
@@ -1973,11 +1957,11 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       verifiedFix: { applicability: "focused", verificationEvidenceRefs: ["verification://focused-fix"] },
     };
 
-    await expect(invoke(root, ["review", "respond", "-"], {
+    await expect(invoke(root, ["review", "respond", "-"], withReviewReport({
       schemaVersion: 1,
       source,
       dispositions,
-    })).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
+    }))).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
     await writeFile(join(root, "reviewed.txt"), "reviewed change, fixed\n", "utf8");
     await git(root, ["add", "reviewed.txt"]);
     await git(root, ["commit", "-m", "apply approved fix"]);
@@ -2017,7 +2001,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       const refused = await runArcWithStdin(
         ["review", "respond", "-"],
         carrier,
-        `${JSON.stringify(responseInput)}\n`,
+        `${JSON.stringify(withReviewReport(responseInput))}\n`,
       );
       expect(refused.exitCode).not.toBe(0);
       expect(await readFile(candidatePath, "utf8")).toBe(candidateBefore);
@@ -2029,7 +2013,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       await git(root, ["switch", "feat/example"]);
     }
 
-    await expect(invoke(root, ["review", "respond", "-"], responseInput)).resolves.toMatchObject({
+    await expect(invoke(root, ["review", "respond", "-"], withReviewReport(responseInput))).resolves.toMatchObject({
       state: "candidate-advanced",
     });
   }, SUBPROCESS_HEAVY_TIMEOUT);
@@ -2086,15 +2070,15 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
 
       const source = await reviewToFindings(origin);
       const dispositions = await approvedSet(origin, source);
-      await expect(invoke(origin, ["review", "respond", "-"], {
+      await expect(invoke(origin, ["review", "respond", "-"], withReviewReport({
         schemaVersion: 1,
         source,
         dispositions,
-      })).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
+      }))).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
       await writeFile(join(origin, "reviewed.txt"), "stationary reviewed fix\n", "utf8");
       await git(origin, ["add", "reviewed.txt"]);
       await git(origin, ["commit", "-m", "apply stationary reviewed fix"]);
-      await expect(invoke(origin, ["review", "respond", "-"], {
+      await expect(invoke(origin, ["review", "respond", "-"], withReviewReport({
         schemaVersion: 1,
         source,
         dispositions,
@@ -2102,7 +2086,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
           applicability: "focused",
           verificationEvidenceRefs: ["verification://stationary-fix"],
         },
-      })).resolves.toMatchObject({ state: "candidate-advanced" });
+      }))).resolves.toMatchObject({ state: "candidate-advanced" });
       await expectStationaryWorkUnitLocus(origin, operationCheckouts);
 
       const converged = await runArc([
@@ -2229,7 +2213,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       }),
     };
     const dispositions = await approvedSet(root, source);
-    await expect(invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, dispositions }))
+    await expect(invoke(root, ["review", "respond", "-"], withReviewReport({ schemaVersion: 1, source, dispositions })))
       .resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
 
     await writeFile(join(root, "reviewed.txt"), "hosted finding fixed\n", "utf8");
@@ -2251,7 +2235,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       now: "2026-08-19T12:01:00Z",
     });
 
-    await expect(invoke(root, ["review", "respond", "-"], {
+    await expect(invoke(root, ["review", "respond", "-"], withReviewReport({
       schemaVersion: 1,
       source,
       dispositions,
@@ -2259,7 +2243,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
         applicability: "focused",
         verificationEvidenceRefs: ["verification://hosted-focused-fix"],
       },
-    })).resolves.toMatchObject({ state: "candidate-advanced", nextAction: "continue-review" });
+    }))).resolves.toMatchObject({ state: "candidate-advanced", nextAction: "continue-review" });
     await git(root, ["commit", "-m", "record hosted verified response"]);
     expect((await runArc([
       "attest", "example", "--scope", "full",
@@ -2275,6 +2259,17 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       fixTarget: { headSha: approvedHead },
       request: { source },
     });
+
+    const action = composed.actions[0];
+    if (action?.channel !== "review-response") throw new Error("expected response settlement");
+    const replay = await invoke(root, ["review", "respond", "-"],
+      { ...action.request, settledFixTarget: action.fixTarget });
+    expect(replay).toMatchObject({ state: "already-settled", payload: {
+      dispositionReportText: expect.stringContaining("FIX (local correction)"),
+    } });
+    const report = (replay.payload as { dispositionReportText: string }).dispositionReportText;
+    expect(report).toContain(`Approved disposition set ${dispositions.dispositionSet.dispositionSetId}`);
+    for (const absent of ["**Fails:**", "**Decisions**", "Loop reading"]) expect(report).not.toContain(absent);
 
     const production = createIntegrationMergeDependencies({ cwd: root, exec: gitExec, workUnit: "example" });
     await expect(inRepository(root, async () => production.executeSettlement({
@@ -2373,7 +2368,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     const { root } = await settledReviewLineage();
     const source = await reviewToFindings(root);
     const deferred = await approvedSet(root, source, "defer");
-    await invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, dispositions: deferred });
+    await invoke(root, ["review", "respond", "-"], withReviewReport({ schemaVersion: 1, source, dispositions: deferred }));
     await git(root, ["commit", "--allow-empty", "-m", "submit transition"]);
     const approvedHead = await git(root, ["rev-parse", "HEAD"]);
 
@@ -2402,7 +2397,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     const { root } = await settledReviewLineage();
     const source = await reviewToFindings(root);
     const deferred = await approvedSet(root, source, "defer");
-    await invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, dispositions: deferred });
+    await invoke(root, ["review", "respond", "-"], withReviewReport({ schemaVersion: 1, source, dispositions: deferred }));
 
     // No fix means no commit or re-attestation of its own. The approved record remains durable input
     // to the post-approval plan, whose replay settles the channel at this exact head.
@@ -2430,11 +2425,11 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     // A defer-only approval first: it appends nothing to the Candidate lineage but remains checkpoint input.
     const deferSource = await reviewToFindings(root);
     const deferred = await approvedSet(root, deferSource, "defer");
-    await invoke(root, ["review", "respond", "-"], {
+    await invoke(root, ["review", "respond", "-"], withReviewReport({
       schemaVersion: 1,
       source: deferSource,
       dispositions: deferred,
-    });
+    }));
     const deferredHead = await git(root, ["rev-parse", "HEAD"]);
     // Move off the deferred review's target so the next pass reviews its own revision.
     await git(root, ["commit", "--allow-empty", "-m", "record deferred response"]);
@@ -2442,16 +2437,16 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     // Then a fix lands, moving the head the tail span would be measured from.
     const source = await reviewToFindings(root);
     const dispositions = await approvedSet(root, source);
-    await invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, dispositions });
+    await invoke(root, ["review", "respond", "-"], withReviewReport({ schemaVersion: 1, source, dispositions }));
     await writeFile(join(root, "reviewed.txt"), "reviewed change, fixed\n", "utf8");
     await git(root, ["add", "reviewed.txt"]);
     await git(root, ["commit", "-m", "apply approved fix"]);
-    await expect(invoke(root, ["review", "respond", "-"], {
+    await expect(invoke(root, ["review", "respond", "-"], withReviewReport({
       schemaVersion: 1,
       source,
       dispositions,
       verifiedFix: { applicability: "focused", verificationEvidenceRefs: ["verification://focused-fix"] },
-    })).resolves.toMatchObject({ state: "candidate-advanced" });
+    }))).resolves.toMatchObject({ state: "candidate-advanced" });
     await git(root, ["commit", "-m", "record verified response"]);
     expect((await runArc([
       "attest", "example", "--scope", "full",
@@ -2478,7 +2473,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
 
     const source = await reviewToFindings(root);
     const dispositions = await approvedSet(root, source);
-    await invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, dispositions });
+    await invoke(root, ["review", "respond", "-"], withReviewReport({ schemaVersion: 1, source, dispositions }));
     await writeFile(join(root, "reviewed.txt"), "reviewed change, fixed\n", "utf8");
     await git(root, ["add", "reviewed.txt"]);
     await git(root, ["commit", "-m", "apply approved fix"]);
@@ -2492,13 +2487,13 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
         verificationEvidenceRefs: ["verification://approved-scope-fix"],
       },
     };
-    await expect(invoke(root, ["review", "respond", "-"], request))
+    await expect(invoke(root, ["review", "respond", "-"], withReviewReport(request)))
       .resolves.toMatchObject({ state: "candidate-advanced" });
     // The append stages the record the way `attest` stages its own; the review increment commits it
     // before the lane derives another target, since target derivation requires a clean worktree.
     await git(root, ["commit", "-m", "record verified response"]);
 
-    await expect(invoke(root, ["review", "respond", "-"], request))
+    await expect(invoke(root, ["review", "respond", "-"], withReviewReport(request)))
       .resolves.toMatchObject({ state: "candidate-current", nextAction: "continue-review" });
   });
   });
@@ -2529,17 +2524,17 @@ async function settledReviewLineage(): Promise<{ root: string; approvedHead: str
 
   const source = await reviewToFindings(root);
   const dispositions = await approvedSet(root, source);
-  await invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, dispositions });
+  await invoke(root, ["review", "respond", "-"], withReviewReport({ schemaVersion: 1, source, dispositions }));
   await writeFile(join(root, "reviewed.txt"), "reviewed change, fixed\n", "utf8");
   await git(root, ["add", "reviewed.txt"]);
   await git(root, ["commit", "-m", "apply approved fix"]);
 
-  await expect(invoke(root, ["review", "respond", "-"], {
+  await expect(invoke(root, ["review", "respond", "-"], withReviewReport({
     schemaVersion: 1,
     source,
     dispositions,
     verifiedFix: { applicability: "focused", verificationEvidenceRefs: ["verification://focused-fix"] },
-  })).resolves.toMatchObject({ state: "candidate-advanced" });
+  }))).resolves.toMatchObject({ state: "candidate-advanced" });
   await git(root, ["commit", "-m", "record verified response"]);
 
   expect((await runArc([

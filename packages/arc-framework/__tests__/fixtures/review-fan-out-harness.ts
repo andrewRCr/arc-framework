@@ -1,4 +1,5 @@
 /** Real delivery review repository, publication bindings, and handler adapters shared by integration scenarios. */
+import { withReviewReport } from "./review-report-input.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect } from "vitest";
@@ -123,7 +124,7 @@ export async function respondThroughHandler(harness: FanOutHarness, request: unk
   });
   await handleReviewRespond("-", {
     resolveRoot: () => harness.root,
-    readText: async () => JSON.stringify(request),
+    readText: async () => JSON.stringify(withReviewReport(request)),
     respond: (input) => respondToReviewCommand(input, dependencies),
     write: (text) => output.push(text),
     setExitCode: (code) => exitCodes.push(code),
@@ -817,5 +818,6 @@ export async function fixLocalMemberReview(
       repository, headRef: "delivery/delivery-plan-record/first", headSha: fixedHead,
     };
     await selectReviewRequiredUntilRouted(harness, correctedTarget, "covered");
-    return { harness, correctedTarget, local, fixedHead, assessment: proposal.payload.provisionalPassAssessment };
+    return { harness, correctedTarget, local, fixedHead, assessment: proposal.payload.provisionalPassAssessment,
+      reportText: proposal.payload.dispositionReportText };
 }

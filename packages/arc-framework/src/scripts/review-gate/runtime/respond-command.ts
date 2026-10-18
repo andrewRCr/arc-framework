@@ -1,7 +1,9 @@
 /** Source-authoritative orchestration for `arc review respond`. */
+import { ReviewFixTagsSchema, ReviewReportInputSchema } from "../core/review-report-inputs.js";
+import { readApprovedResponseReport, readResponsePassAssessment, readProposedResponseReport } from "./response-report.js";
 
 import { z } from "zod";
-import { projectProvisionalPassAssessment, type ProvisionalStandardPassFacts } from "./provisional-pass-assessment.js";
+import { type ProvisionalStandardPassFacts } from "./provisional-pass-assessment.js";
 import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
 import { canonicalize, type CanonicalDigest } from "../../../lib/kernel/index.js";
@@ -23,6 +25,7 @@ import {
   DeliveryMemberReviewFixResponseSchema,
   ErrandReviewFixResponseSchema,
   currentApprovedDispositionNode,
+  createPendingResponseDispositionNode,
   isExactDeliveryMemberBindingAdvance,
   type ApprovedDispositionRecord,
   type ErrandReviewBinding,
@@ -39,7 +42,6 @@ import {
   proposeDispositionSet,
   validateDispositionState,
 } from "../core/dispositions.js";
-import { renderDispositionEvidence, renderDispositionReport } from "../core/disposition-report.js";
 import { FIX_NOT_PERFORMED_INTERACTION_TEXT } from "../core/fix-not-performed-envelope.js";
 import { ReviewFindingIdentitySchema } from "../core/finding-records.js";
 import { ReviewSeveritySchema } from "../core/review-primitives.js";
@@ -144,6 +146,7 @@ const RespondSupersessionSchema = z.strictObject({
 
 const RespondProposalRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
+  report: ReviewReportInputSchema,
   source: ReviewResponseSettlementSourceSchema,
   supersedes: RespondSupersessionSchema.optional(),
   proposal: z.strictObject({
@@ -193,6 +196,7 @@ const RespondConditionalNextPassWithdrawalRequestSchema = z.strictObject({
 });
 
 const RespondApprovedRequestSchema = ReviewResponseSettlementRequestSchema.extend({
+  tags: ReviewFixTagsSchema.optional(),
   policyRequest: ReviewPolicyCommandRequestSchema,
   supersedes: RespondSupersessionSchema.optional(),
   conditionalNextPassAuthorization: RespondConditionalNextPassAuthorizationSchema.optional(),
@@ -1737,26 +1741,6 @@ async function withdrawConditionalResponseAuthority(
     });
 }
 
-async function readProvisionalPassAssessment(
-  result: ReviewResult, proposal: ProposedDispositionSet,
-  dependencies: Pick<RespondCommandDependencies, "readConfiguredLanePolicy" | "readProvisionalPassFacts">,
-) {
-  const lane = result.kind === "frontline" ? "frontline" : "standard";
-  const configured = await dependencies.readConfiguredLanePolicy(lane);
-  // Frontline follow-up reads the pass and ceiling its outcome recorded, not the configuration current now.
-  const passPosition = result.kind === "frontline"
-    ? { admittedLogicalPass: result.outcome.pass, configuredMaxPasses: result.outcome.maxPasses }
-    : { admittedLogicalPass: result.admission.logicalPass, configuredMaxPasses: configured.maxPasses };
-  return projectProvisionalPassAssessment({
-    proposal,
-    result,
-    lane,
-    ...passPosition,
-    ...(lane === "frontline" ? {} : { standardFacts: await dependencies.readProvisionalPassFacts({
-      result, proposal, configuredSources: configured.sources, configuredMaxPasses: configured.maxPasses,
-    }) }),
-  });
-}
 
 async function prepareResponseProposal(
   request: z.infer<typeof RespondProposalRequestSchema>,
@@ -1813,8 +1797,10 @@ async function prepareResponseProposal(
       }
     }
     const proposal = prepareDispositionProposal(request, source);
-    const provisionalPassAssessment = await readProvisionalPassAssessment(source.result, proposal, dependencies);
-    const reportInput = { dispositionSet: proposal.dispositionSet, producerFindings: source.findings };
+    const { assessment: provisionalPassAssessment, standardFacts } = await readResponsePassAssessment(source.result, proposal, dependencies);
+    const report = await readProposedResponseReport({ proposal, producerFindings: source.findings, assessment: provisionalPassAssessment,
+      report: request.report, hosted: source.result.kind === "hosted", standardFacts,
+      readRecord: dependencies.dispositionStore.readDispositionRecord.bind(dependencies.dispositionStore) });
     return RespondEnvelopeSchema.parse({
       schemaVersion: 1,
       mode: "review-respond",
@@ -1825,8 +1811,7 @@ async function prepareResponseProposal(
         operationId: source.operationId,
         proposal,
         ...(supersession === undefined ? {} : { supersession }),
-        dispositionReportText: renderDispositionReport(reportInput),
-        dispositionEvidenceText: renderDispositionEvidence(reportInput),
+        ...report,
         provisionalPassAssessment,
       },
     });
@@ -2223,16 +2208,8 @@ async function settleNewApprovedResponse(
               conditionalPassAuthorizationId: expectedConditionalAuthorizationId,
             },
       });
-  const initialNode = {
-    approvedDisposition: dispositions,
-    responsePolicyRequest,
-    policyProjectionPending: true as const,
-    fixAuthorization: plan.fixAuthorization,
-    errandFixResponse: null,
-    deliveryMemberFixResponse: null,
-    predecessorDispositionSetId: null,
-    successorDispositionSetId: null,
-  };
+  const initialNode = createPendingResponseDispositionNode({ approvedDisposition: dispositions, responsePolicyRequest,
+    fixAuthorization: plan.fixAuthorization, advisoryFixTags: request.tags });
   let record: ApprovedDispositionRecord;
   let supersessionReplay = false;
   if (supersession === undefined) {
@@ -2610,10 +2587,9 @@ async function respondToResolvedReviewCommand(
       });
     }
     validateFindings(dispositions, source);
-    const dispositionReportText = renderDispositionReport({
-      dispositionSet: dispositions.dispositionSet,
-      producerFindings: source.findings,
-    });
+    const dispositionReportText = await readApprovedResponseReport({ dispositions, producerFindings: source.findings,
+      producerId: source.operationId, incomingTags: request.tags, settlementReplay: true,
+      readRecord: dependencies.dispositionStore.readDispositionRecord.bind(dependencies.dispositionStore) });
     return settleApprovedReplay(source, dispositions, dispositionReportText, dependencies);
   }
   validateActors(dispositions, source.actors);
@@ -2626,10 +2602,9 @@ async function respondToResolvedReviewCommand(
       "conditional next-pass authorizer is not the active local identity",
     );
   }
-  const dispositionReportText = renderDispositionReport({
-    dispositionSet: dispositions.dispositionSet,
-    producerFindings: source.findings,
-  });
+  const dispositionReportText = await readApprovedResponseReport({ dispositions, producerFindings: source.findings,
+    producerId: source.operationId, incomingTags: request.tags, settlementReplay: false,
+    readRecord: dependencies.dispositionStore.readDispositionRecord.bind(dependencies.dispositionStore) });
   if (verifiedFix !== undefined && changedTarget !== null) {
     return persistVerifiedReviewFix(
       source, dispositions, verifiedFix, changedTarget,

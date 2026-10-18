@@ -9,7 +9,8 @@ function sizeText(size: Size | null): string {
 }
 function signalText(signal: boolean | null): string { return signal === null ? "unknown" : signal ? "yes" : "no"; }
 
-function materialTrendText(facts: NextPassFacts): string {
+/** Render the ordered material trend with complete-pass counts and fix-check rounds. */
+export function materialTrendText(facts: NextPassFacts): string {
   let completePass = 0;
   let round = 0;
   const positions = new Map<string, string>();

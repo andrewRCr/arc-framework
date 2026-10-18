@@ -1,3 +1,4 @@
+import { withReviewReport } from "../../fixtures/review-report-input.js";
 import { withReviewNextPassContext } from "../../fixtures/review-next-pass.js";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -36,8 +37,7 @@ import {
 
 import { canonicalDigest, CanonicalDigestSchema } from "../../../src/lib/kernel/index.js";
 import { SlugSchema } from "../../../src/lib/kernel/schema/slug.js";
-import { resolveProcessInteractionContext } from
-  "../../../src/lib/command-input/interaction-context.js";
+import { resolveProcessInteractionContext } from "../../../src/lib/command-input/interaction-context.js";
 import {
   IntegrationBoundaryLocusSchema,
   projectCandidateReviewResumeBoundary,
@@ -2257,7 +2257,7 @@ describe("handleReviewRespond", () => {
 
     await handleReviewRespond("-", {
       resolveRoot: () => "/repo",
-      readText: async () => JSON.stringify(respondProposalRequest),
+      readText: async () => JSON.stringify(withReviewReport(respondProposalRequest)),
       respond,
       write,
       setExitCode: vi.fn(),

@@ -1,4 +1,5 @@
 /** Executable hosted-review progression across delivery-member targets. */
+import { withReviewReport } from "../fixtures/review-report-input.js";
 import { createFixedLocalMemberReview, type FanOutHarness, completeLocalReviewThroughHandlers, createHarness, deliveryHost, git, installCandidate, member, repository, respondThroughHandler, resumeLocalThroughHandler, roots, selectReviewRequiredUntilRouted, statusThroughHandler, targetAndRequirement, writeBoundary } from "../fixtures/review-fan-out-harness.js";
 
 import { execFile } from "node:child_process";
@@ -2635,8 +2636,7 @@ describe("hosted review fan-out lifecycle", () => {
     );
 
     const approvedRequest = {
-      schemaVersion: 1,
-      source: responseSource,
+      schemaVersion: 1, source: responseSource,
       policyRequest: { ...policyRequest, ceilingOverride },
       conditionalNextPassAuthorization: {
         authorizedBy: "andrew",
@@ -2683,7 +2683,7 @@ describe("hosted review fan-out lifecycle", () => {
       approverIdentity: "andrew",
       proposerIdentity: "arc-cli/integration-test",
     });
-    const replay = await respondToReviewCommand(approvedRequest, replayDependencies);
+    const replay = await respondToReviewCommand(withReviewReport(approvedRequest), replayDependencies);
     expect(replay).toMatchObject({
       state: "already-settled",
       nextAction: "reduce",
