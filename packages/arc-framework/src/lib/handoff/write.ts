@@ -3,7 +3,7 @@ import { describeRecordConflicts } from "../store/conflict-diagnostics.js";
 import type { Store } from "../store/contract.js";
 import type { GitExec } from "../git/exec.js";
 import { createStoreSyncPort, type StoreSyncPort } from "../store/operational-sync.js";
-import { HandoffWriteRequestSchema, type HandoffWriteResult } from "./write-schema.js";
+import { HandoffWriteRequestSchema, type HandoffWriteServiceResult } from "./write-schema.js";
 import { resolveCurrentWorkUnit } from "../store/current-work-unit.js";
 import { WritePlacementSchema } from "../store/placement.js";
 import { writeMetaStateAtHandoff, writeMetaCommitAtHandoff, writeMetaSessionType, writeMetaNextAction,
@@ -16,7 +16,7 @@ import { CommitShaSchema } from "../store/links.js";
  * @param input - Authored request and invocation-scoped runtime ports.
  * @returns A complete refusal or the landed anchors and maintenance report.
  */
-export async function runHandoffWrite(input: { cwd: string; request: unknown; store: Store; exec: GitExec; sync?: StoreSyncPort }): Promise<HandoffWriteResult> {
+export async function runHandoffWrite(input: { cwd: string; request: unknown; store: Store; exec: GitExec; sync?: StoreSyncPort }): Promise<HandoffWriteServiceResult> {
   const { store } = input;
   if (!store.capabilities.stateOffBranch) return refused("unsupported-handoff", "arc handoff write requires a store with stateOffBranch capability.", "Write SESSION-NOTES through the existing handoff workflow.");
   const request = HandoffWriteRequestSchema.safeParse(input.request);
@@ -47,7 +47,7 @@ export async function runHandoffWrite(input: { cwd: string; request: unknown; st
   return { status: "written", reference: write.result.reference, stateAtHandoff: version.result,
     commitAtHandoff: head, ...maintained };
 }
-function refused(code: "invalid-handoff-request" | "no-current-work-unit" | "git-head-unresolved" | "unsupported-handoff" | "work-unit-unreadable", condition: string, text: string): HandoffWriteResult {
+function refused(code: "invalid-handoff-request" | "no-current-work-unit" | "git-head-unresolved" | "unsupported-handoff" | "work-unit-unreadable", condition: string, text: string): HandoffWriteServiceResult {
   return { status: "refused", refusal: { code, class: "recoverable", condition, remedy: { text } } };
 }
 async function readHead(input: { cwd: string; exec: GitExec }): Promise<string | null> {

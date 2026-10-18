@@ -28,6 +28,9 @@ describe("dormant store command registrations", () => {
     expect(result.stdout + result.stderr).toContain("unsupported");
     expect(result.stdout + result.stderr).toContain(serving);
     if (schema !== undefined) expect(schema.safeParse(JSON.parse(result.stdout)).success).toBe(true);
+    if (args[0] === "handoff") expect(JSON.parse(result.stdout)).toMatchObject({
+      status: "refused", refusal: { code: "unsupported", class: "terminal" },
+    });
   });
   it("keeps locus inspection invocable without a subcommand", async () => {
     const result = await runArc(["locus", "--json"], root);

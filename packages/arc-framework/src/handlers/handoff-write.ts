@@ -8,6 +8,7 @@ import type { StoreSyncPort } from "../lib/store/operational-sync.js";
 import { createGitExec } from "../lib/io-context.js";
 import { runHandoffWrite } from "../lib/handoff/write.js";
 import { HandoffWriteResultSchema } from "../lib/handoff/write-schema.js";
+import { runDormantStoreCommand } from "../commands/store-command-support.js";
 import { requireArcProjectRoot } from "./shared.js";
 /** Write a versioned handoff request once the store capability flips.
  * @param file - File path or explicit stdin marker.
@@ -21,7 +22,7 @@ export async function handleHandoffWrite(file: string, context?: InteractionCont
   const store = selected.store ?? createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec }));
   if (!store.capabilities.stateOffBranch) {
     process.exitCode = 1;
-    const result = HandoffWriteResultSchema.parse(await runHandoffWrite({ cwd, request: undefined, store, exec }));
+    const result = HandoffWriteResultSchema.parse(runDormantStoreCommand("handoff write", store));
     process.stdout.write(`${JSON.stringify(result)}\n`);
     return;
   }

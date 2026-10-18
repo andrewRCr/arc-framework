@@ -203,7 +203,7 @@ it("takes the versioned request from explicit standard input through the registe
     expect(ParsedMetaRecordSchema.parse(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })).fields).sessionContext).toBe(request.sessionContext);
   } finally { process.chdir(cwd); process.exitCode = exitCode; capture.mockRestore(); stdin.mockRestore(); selected.store = undefined; }
 });
-it("refuses before the flip naming SESSION-NOTES without reading the request or mutating state", async () => {
+it.each(["/absent/request.json", "-"])("refuses before the flip without reading %s or mutating state", async (file) => {
   const h = await fixture();
   const store: Store = Object.create(h.store) as Store;
   Object.defineProperty(store, "capabilities", { value: { stateOffBranch: false } });
@@ -213,9 +213,9 @@ it("refuses before the flip naming SESSION-NOTES without reading the request or 
   const capture = vi.spyOn(process.stdout, "write").mockImplementation((chunk) => { output += String(chunk); return true; });
   selected.store = store; process.chdir(h.cwd);
   try {
-    await dispatchRegisteredCli(["handoff", "write", "/absent/request.json"]);
+    await dispatchRegisteredCli(["handoff", "write", file]);
     const result = HandoffWriteResultSchema.parse(JSON.parse(output));
-    expect(result).toMatchObject({ status: "refused", refusal: { code: "unsupported-handoff", class: "recoverable", remedy: { text: expect.stringContaining("SESSION-NOTES") } } });
+    expect(result).toMatchObject({ status: "refused", refusal: { code: "unsupported", class: "terminal", remedy: { text: expect.stringContaining("SESSION-NOTES") } } });
     expect(process.exitCode).toBe(1);
     expect(lifecycleSuccess(await h.store.version())).toBe(before);
   } finally { process.chdir(cwd); process.exitCode = exitCode; capture.mockRestore(); selected.store = undefined; }
