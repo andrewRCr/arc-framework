@@ -868,24 +868,10 @@ copy.
   loop reading — with the loop reading's four readings defined in `review-model`, and with each finding's label the same
   in every render of one set.
 
-    - `[ ]` **6.3.a Give `disposition-report` the shape, and render it in the CLI**
-        - One subtask, since `review-triage` tells the agent the command renders the method's shape. The method takes the
-          header line and the Decisions block as fields its caller supplies, the table, the order, and the sections —
-          heading, a status line mirroring the row with the verdict, then `**Finding:**` (replacing `**Issue:**`),
-          `**Fails:**`, `**Action:**`, and `**Detail:**`.
-        - `renderDispositionReport` (`core/disposition-report.ts`) takes the header and the Decisions block as optional
-          inputs. `reportEntries` assigns each label in canonical order — blocking first, then grade, unsupported last,
-          then the source's order — and only then sorts the display, putting new-design fixes first within a grade
-          where tags are given; the table, the open questions, the sections, and `renderDispositionEvidence` all take
-          that label.
-        - The table has no verdict column; `—` marks an unsupported finding; the rest of `renderVerdict`'s cell moves to
-          the finding's section, and a `record-only` finding stays marked in its grade cell; a fix carries
-          `FIX (new design)` or `FIX (local correction)` in its action where tags are given.
-        - Build `test-first` (one behavior at a time):
-            - A report renders the table, the order, and each section with its status line.
-            - A `record-only` finding is marked in its grade cell; an unsupported one shows `—`.
-            - With tags, a new-design fix leads its grade and keeps its canonical label, and the evidence block cites
-              the same label; without tags, the same set renders in canonical order with the same labels.
+    - `[x]` **6.3.a Give `disposition-report` the shape, and render it in the CLI**
+        - Both method copies and the renderer use the four-column table, section status and Finding/Fails fields,
+          optional header, and one Decisions block. Labels are assigned before advisory tag sorting and stay fixed
+          across the table, questions, sections, and evidence; exact-text fixtures retain grading and escaping checks.
 
     - `[ ]` **6.3.b Define the loop reading in `review-model`**
         - `baseline`, `converging`, `discovering` (taking precedence over `converging`), and `sustained

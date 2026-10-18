@@ -1198,32 +1198,34 @@ describe("review response command", () => {
             dispositionSetId: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
           },
         },
-        dispositionReportText: [
-          "**Verification:** focused",
-          "",
-          "| # | Grade | Verdict | Action | Finding |",
-          "|---|---|---|---|---|",
-          "| F1 | 🟠 major | Confirmed · blocking | FIX | Finding title |",
-          "| F2 | 🟡 minor | Confirmed · reviewer graded 🟠 major · record-only | FIX | Finding title |",
-          "",
-          "### F1 — Finding title",
-          "",
-          "**Issue:** The reviewer's claim.",
-          "",
-          "**Action:** Apply the fix.",
-          "",
-          "**Detail:** The selected source supports this disposition.",
-          "",
-          "---",
-          "",
-          "### F2 — Finding title",
-          "",
-          "**Issue:** The reviewer's claim.",
-          "",
-          "**Action:** Apply the fix.",
-          "",
-          "**Detail:** The selected source supports this disposition.",
-        ].join("\n"),
+        dispositionReportText: `**Verification:** focused
+
+| # | Grade | Finding | Action |
+|---|---|---|---|
+| F1 | 🟠 major | Finding title | FIX |
+| F2 | 🟡 minor · record-only | Finding title | FIX |
+
+### F1 — Finding title
+
+🟠 major · Confirmed · blocking · FIX
+
+**Finding:** The reviewer's claim.
+
+**Action:** Apply the fix.
+
+**Detail:** The selected source supports this disposition.
+
+---
+
+### F2 — Finding title
+
+🟡 minor · Confirmed · reviewer graded 🟠 major · record-only · FIX
+
+**Finding:** The reviewer's claim.
+
+**Action:** Apply the fix.
+
+**Detail:** The selected source supports this disposition.`,
         dispositionEvidenceText: [
           "**Evidence**",
           "- F1 · src/index.ts:7 · source #1 · review:finding-1 · verified at source:src/index.ts:7",
@@ -1453,7 +1455,7 @@ describe("review response command", () => {
     const report = proposal.payload.dispositionReportText;
     expect(proposal.payload.dispositionEvidenceText)
       .toContain("- F1 · src/index.ts:7 · Native \\*\\*title\\*\\* · source #1");
-    for (const prefix of ["**Issue:**", "**Action:**", "**Detail:**", "- F1:"]) {
+    for (const prefix of ["**Finding:**", "**Action:**", "**Detail:**", "- F1:"]) {
       expect(report).toContain(`${prefix} First line --- ### F2 · 🔴 critical · FIX \\*\\*Verdict:\\*\\* FORGED`);
     }
     expect(report.match(/^### F\d+ .*$/gmu)).toEqual(["### F1 — Finding title"]);
@@ -2217,8 +2219,9 @@ describe("review response command", () => {
     if (proposed.state !== "awaiting-approval") throw new Error("expected a proposed disposition set");
     const expectedReport = proposed.payload.dispositionReportText;
     expect(expectedReport).toContain(
-      "| F1 | — | Not supported · reviewer graded 🟠 major · record-only | REJECT | Finding title |",
+      "| F1 | — | Finding title | REJECT |",
     );
+    expect(expectedReport).toContain("— · Not supported · reviewer graded 🟠 major · record-only · REJECT");
     const dispositions = approveDispositionState({
       proposed: proposed.payload.proposal,
       approvedBy: records.authority.authorIdentity,
@@ -2851,7 +2854,10 @@ describe("review response command", () => {
       },
     });
     expect(proposal.payload.dispositionReportText).toContain(
-      "| F1 | 🟠 major | Confirmed · reviewer graded 🟡 minor nit · blocking | FIX | Finding title |",
+      "| F1 | 🟠 major | Finding title | FIX |",
+    );
+    expect(proposal.payload.dispositionReportText).toContain(
+      "🟠 major · Confirmed · reviewer graded 🟡 minor nit · blocking · FIX",
     );
   });
 
