@@ -590,35 +590,16 @@ rejections. Method and workflow text changes in the package's `arc/` source firs
   last complete look, verified material trends and provisional counts, proven-chain range sizes, and each performed
   round's path signals. Historical rounds join their exact approved sets; unavailable Git reads remain unknown.
 
-### `[ ]` **4.2 Add the lane read — § 9.4**
+### `[x]` **4.2 Add the lane read — § 9.4**
 
 - _Goal:_ A read-only CLI read returns, for the checkout's Errand claim, Candidate, or named delivery member, the
   lineage's rejected findings — each one's lane, locus, title, and reason — and Task 4.1's facts, a delivery member
   counted against its own ceiling, stores nothing, and refuses with a remedy when no subject resolves.
 
-    - `arc review lane read -`, after its `<noun> <verb>` siblings (`arc review changeset resolve -`), registered in
-      `cli.ts` with help. Its request, `{ schemaVersion: 1, memberHeadObjectId? }`, registers beside the other request
-      schemas (`request-command-schemas.ts`).
-    - It resolves the subject as local prepare does — the vehicle from the checkout's live context and an optional
-      member selector (`resolveLocalReviewVehicle`, `hosts/local/review-authority.ts`), then the lineage
-      (`resolveLineage`, `runtime/local-prepare-composition.ts`) — through one resolver both share, not a copy. A
-      Candidate's read covers the Candidates its lane progress inherits from (`readCandidateInheritedLaneProgress`).
-    - Its typed result carries the lineage; the rejections, from every lane of the lineage, each with its finding
-      identity, locus, title where stored, its `rationale` as the reason, and its `sourceVerification`, so an
-      unsupported observation reads as one (`DispositionReportItemSchema`, `core/disposition-records.ts`); Task 4.1's
-      facts for the standard lane; and the last look's coverage and outcome, or none, which the workflow arms key on.
-    - It reads the stored disposition records for the lineage's three kinds (`LaneSubjectLineageSchema`,
-      `core/lane-admission.ts`) and counts a delivery member as status already does (`DeliveryReviewMemberProgressSchema`,
-      `status.ts`).
-    - Where no subject resolves (`LocalReviewAuthorityError`'s `vehicle-unresolved`, or a member selector that does not
-      authenticate), it refuses with that reason as its code and a remedy naming the checkout or member head to use.
-    - Build `test-first` (one behavior at a time):
-        - The read returns an Errand's, a Candidate's, and a delivery member's rejections with their reasons, and a
-          frontline rejection beside a standard one.
-        - It returns the facts with the last look labeled a clean fix check after one.
-        - It writes nothing to any store.
-        - Outside a work unit's or an Errand's checkout it refuses with the remedy, and from that checkout the same
-          request succeeds; an unbound member head is refused likewise.
+- _Outcome:_ `review lane read` returns both lanes' rejections with their verification status, shared standard facts,
+  and last-look coverage for Errand claims, current or inherited Candidates, and authenticated delivery members.
+  It shares prepare's subject resolver, counts each member independently, and reads without initialization or
+  publication locks. Refusals retain the exact request and a checkout or member-head remedy.
 
 ### `[ ]` **4.3 State the next-pass offer as bounds, then considerations — § 6.3**
 

@@ -1,4 +1,7 @@
 /** Machine-readable review workflow handlers. */
+import { ReviewLaneReadRequestSchema, ReviewLaneReadEnvelopeSchema, type ReviewLaneReadRequest } from "../scripts/review-gate/lane-read-schema.js";
+import { readReviewLane } from "../scripts/review-gate/runtime/lane-read-composition.js";
+import { reviewDiscoverableCommandInputSchema } from "./review-request-schema.js";
 import { confirmReviewCorrectionLeg } from "../scripts/review-gate/policy/review-next-pass.js";
 
 import { readResolveNextPassContext, readHostedErrandNextPassContext } from "./review-next-pass-context.js";
@@ -38,7 +41,6 @@ import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
 import type { GitExec } from "../lib/git/exec.js";
 import { canonicalDigest, canonicalize, CanonicalDigestSchema, type CanonicalDigest } from "../lib/kernel/index.js";
-import { lookupKernelSchema } from "../lib/kernel/schema/generate.js";
 import { SlugSchema } from "../lib/kernel/schema/slug.js";
 import {
   readCandidateRecord,
@@ -56,20 +58,7 @@ import {
   resolveCurrentHostedReviewErrand,
 } from "./review-locus-context.js";
 import type { SpineRemedy } from "../scripts/integration/spine-refusal.js";
-import {
-  REVIEW_FRONTLINE_RESOLVE_REQUEST_SCHEMA_ID,
-  REVIEW_HOSTED_AWAIT_REQUEST_SCHEMA_ID,
-  REVIEW_HOSTED_REQUEST_REQUEST_SCHEMA_ID,
-  REVIEW_HOSTED_SETTLE_REQUEST_SCHEMA_ID,
-  REVIEW_LOCAL_ATTEST_REQUEST_SCHEMA_ID,
-  REVIEW_LOCAL_PREPARE_REQUEST_SCHEMA_ID,
-  REVIEW_LOCAL_RESUME_REQUEST_SCHEMA_ID,
-  REVIEW_READINESS_REQUEST_SCHEMA_ID,
-  REVIEW_REDUCE_REQUEST_SCHEMA_ID,
-  REVIEW_RESOLVE_REQUEST_SCHEMA_ID,
-  REVIEW_RESPOND_REQUEST_SCHEMA_ID,
-  REVIEW_TERMINUS_ACCEPT_REQUEST_SCHEMA_ID,
-} from "../scripts/review-gate/request-command-schemas.js";
+
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import {
   FrontlineResolveEnvelopeSchema,
@@ -89,25 +78,21 @@ import {
   type ReviewPrePublicationRefusalCode,
 } from "../scripts/review-gate/core/review-command-envelope.js";
 import {
-  REVIEW_CHUNKING_RESOLVE_REQUEST_SCHEMA_ID,
   ReviewChunkingResolveCommandRequestSchema,
   ReviewChunkingResolveRequestSchema,
   type ReviewChunkingResolveCommandRequest,
   type ReviewChunkingResolveRequest,
 } from "../scripts/review-gate/core/review-chunking-command-schema.js";
 import {
-  REVIEW_PLANNING_GROOMING_RESOLVE_REQUEST_SCHEMA_ID,
   ReviewPlanningGroomingResolveRequestSchema,
   type ReviewPlanningGroomingResolveRequest,
 } from "../scripts/review-gate/core/planning-grooming-command-schema.js";
 import {
-  REVIEW_FRONTLINE_RUN_REQUEST_SCHEMA_ID,
   FrontlineRunCommandRequestSchema,
   FrontlineRunRequestSchema,
   type FrontlineRunCommandRequest,
   type FrontlineRunRequest,
 } from "../scripts/review-gate/core/frontline-run-command-schema.js";
-import { createProductionSchemaRegistry } from "../production-schema-registry.js";
 import { DeliveryBindingLookup } from "../scripts/review-gate/core/delivery-binding-lookup.js";
 import { ReviewTargetSchema, type ReviewTarget } from
   "../scripts/review-gate/core/gate-contract-v2-schema.js";
@@ -457,15 +442,6 @@ function reviewCommandInputSchema(): z.ZodType<{ input: string }> {
   }).strict();
 }
 
-function reviewDiscoverableCommandInputSchema() {
-  return z.strictObject({
-    input: z.string().trim().min(1).optional(),
-    schema: z.literal(true).optional(),
-  }).refine((input) => (input.input === undefined) !== (input.schema === undefined), {
-    message: "Provide exactly one JSON request source or --schema.",
-  });
-}
-
 /** Request-source operand schema shared by the review handlers' own validation. */
 export const ReviewCommandInputSchema = reviewCommandInputSchema();
 
@@ -487,6 +463,7 @@ export const REVIEW_PUBLIC_REQUEST_SCHEMA_PATHS = [
   "review respond",
   "review hosted request",
   "review readiness",
+  "review lane read",
   "review frontline resolve",
   "review hosted settle",
   "review local prepare",
@@ -1832,6 +1809,23 @@ export async function handleReviewReadiness(
   });
 }
 
+export interface ReviewLaneReadHandlerDependencies extends ReviewHandlerBoundary {
+  read(request: ReviewLaneReadRequest, root: string): Promise<unknown>;
+}
+
+/** Emit one read-only lane result for the authenticated checkout subject. */
+export async function handleReviewLaneRead(source: string,
+  overrides: Partial<ReviewLaneReadHandlerDependencies> = {}, suppliedContext?: InteractionContext,
+): Promise<void> {
+  const context = suppliedContext ?? resolveProcessInteractionContext({ noInput: false, machineReadable: true, yes: "absent" });
+  const exec = createGitExec(context.subprocess);
+  const dependencies = { ...defaultReviewHandlerBoundary(),
+    read: (request: ReviewLaneReadRequest, root: string) => readReviewLane(request, { cwd: root, exec }), ...overrides };
+  await executeReviewHandler({ mode: "review-lane-read", source, requestSchema: ReviewLaneReadRequestSchema,
+    resultSchema: ReviewLaneReadEnvelopeSchema, dependencies,
+    execute: (request, root) => dependencies.read(ReviewLaneReadRequestSchema.parse(request), root) });
+}
+
 /** Modes carried by the review-command family and by the merge-lock family that split from it. */
 type ReviewFamilyMode = ReviewCommandMode | MergeLockCommandMode;
 
@@ -2973,47 +2967,7 @@ export async function handleReviewFrontlineRun(
   });
 }
 
-export type ReviewPublicRequestSchemaId =
-  | typeof REVIEW_CHUNKING_RESOLVE_REQUEST_SCHEMA_ID
-  | typeof REVIEW_PLANNING_GROOMING_RESOLVE_REQUEST_SCHEMA_ID
-  | typeof REVIEW_FRONTLINE_RUN_REQUEST_SCHEMA_ID
-  | typeof REVIEW_RESOLVE_REQUEST_SCHEMA_ID
-  | typeof REVIEW_HOSTED_AWAIT_REQUEST_SCHEMA_ID
-  | typeof REVIEW_REDUCE_REQUEST_SCHEMA_ID
-  | typeof REVIEW_RESPOND_REQUEST_SCHEMA_ID
-  | typeof REVIEW_HOSTED_REQUEST_REQUEST_SCHEMA_ID
-  | typeof REVIEW_READINESS_REQUEST_SCHEMA_ID
-  | typeof REVIEW_FRONTLINE_RESOLVE_REQUEST_SCHEMA_ID
-  | typeof REVIEW_HOSTED_SETTLE_REQUEST_SCHEMA_ID
-  | typeof REVIEW_LOCAL_PREPARE_REQUEST_SCHEMA_ID
-  | typeof REVIEW_LOCAL_ATTEST_REQUEST_SCHEMA_ID
-  | typeof REVIEW_LOCAL_RESUME_REQUEST_SCHEMA_ID
-  | typeof REVIEW_TERMINUS_ACCEPT_REQUEST_SCHEMA_ID;
-
-/** Emit one public request root together with only the registry documents its refs require. */
-export function handleReviewRequestSchema(
-  schemaId: ReviewPublicRequestSchemaId,
-  source?: string,
-  overrides: Pick<ReviewHandlerBoundary, "write" | "setExitCode"> = {
-    write: (text) => process.stdout.write(text),
-    setExitCode: (code) => { process.exitCode = code; },
-  },
-): void {
-  try {
-    reviewDiscoverableCommandInputSchema().parse({ input: source, schema: true });
-    const result = lookupKernelSchema(createProductionSchemaRegistry(), schemaId);
-    if (result.status === "unknown") throw new Error(`Review request schema unavailable: ${schemaId}`);
-    const schema = result.schema;
-    overrides.write(`${JSON.stringify({ rootId: schema.$id, schemas: { [schemaId]: schema } })}\n`);
-  } catch (error) {
-    overrides.write(`${JSON.stringify({
-      rootId: `urn:arc:schema:${schemaId}`,
-      schemas: {},
-      error: error instanceof Error ? error.message : String(error),
-    })}\n`);
-    overrides.setExitCode(1);
-  }
-}
+export { handleReviewRequestSchema, type ReviewPublicRequestSchemaId } from "./review-request-schema.js";
 
 export interface ReviewLocalPrepareHandlerDependencies {
   resolveRoot(cwd: string): string | null;

@@ -1,43 +1,18 @@
 /** Read-only facts shared by next-pass offers, lane reads, and response reports. */
-import { z } from "zod";
+import { NextPassFactsSchema, type NextPassFacts } from "./next-pass-facts-schema.js";
+export { NextPassFactsSchema, type NextPassFacts } from "./next-pass-facts-schema.js";
 import { affectedPaths, resolveChangeSet } from "../../../lib/change-facts.js";
 import { resolveChangeStats } from "../../../lib/change-stats.js";
 import { countCompleteLogicalPasses } from "../lane-progress.js";
 import type { RawGitExec } from "../../../lib/git/exec.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
-import { LaneResponsePerformanceSchema, type LaneProgressState, type LaneResponsePerformance } from "../core/operation-state-schema.js";
+import type { LaneProgressState, LaneResponsePerformance } from "../core/operation-state-schema.js";
 import { currentApprovedDispositionNode, type ApprovedDispositionRecord } from "../core/advisory-records.js";
 import type { DispositionReportItem, ProposedDispositionSet } from "../core/disposition-records.js";
 import type { ReviewNextPassContext } from "./review-next-pass-schema.js";
 
-const LookSchema = z.strictObject({
-  producerId: z.string().min(1), logicalPass: z.number().int().positive(),
-  coverage: z.enum(["complete", "fix-check"]), outcome: z.string().min(1),
-});
-const TrendSchema = LookSchema.extend({
-  materialCount: z.number().int().nonnegative().nullable(), provisional: z.boolean(),
-});
-const SizeSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("known"), metrics: z.strictObject({
-    lines: z.number().int().nonnegative(), files: z.number().int().nonnegative(),
-  }) }),
-  z.strictObject({ kind: z.literal("unknown"),
-    reason: z.enum(["git-failure", "invalid-range", "malformed-output", "unsafe-total"]) }),
-]);
-const RoundSchema = LaneResponsePerformanceSchema.pick({ producerId: true, dispositionSetId: true,
-  originatingHeadSha: true, producedHeadSha: true }).extend({
-  /** Heuristic: changed paths compared with each approved fix locus's leading path token. */
-  outsideCitedLoci: z.boolean().nullable(), addedFiles: z.boolean().nullable(),
-});
-export const NextPassFactsSchema = z.strictObject({
-  fixRounds: z.array(RoundSchema),
-  chainProven: z.boolean(), rangeSize: z.strictObject({ target: SizeSchema, fix: SizeSchema.nullable() }),
-  completePasses: z.number().int().nonnegative(), ceiling: z.number().int().positive(),
-  fixChecksSinceLastComplete: z.array(LookSchema), materialTrend: z.array(TrendSchema),
-});
-export type NextPassFacts = z.infer<typeof NextPassFactsSchema>;
 
-function laneLooks(progress: readonly LaneProgressState[]): z.infer<typeof LookSchema>[] {
+function laneLooks(progress: readonly LaneProgressState[]): NextPassFacts["fixChecksSinceLastComplete"][number][] {
   return progress.filter(owner => owner.lane === "standard").flatMap(owner => owner.attempts.flatMap(attempt => {
     const coverage = attempt.local?.effectiveCoverage ?? attempt.hosted?.effectiveCoverage;
     return !attempt.terminalProducer || coverage == null ? [] : [{ producerId: attempt.attemptId,
@@ -51,8 +26,8 @@ function materialCount(findings: readonly DispositionReportItem[]): number {
     && (finding.verifiedSeverity === "major" || finding.verifiedSeverity === "critical")).length;
 }
 
-function materialTrend(looks: readonly z.infer<typeof LookSchema>[],
-  records: readonly ApprovedDispositionRecord[], proposed?: ProposedDispositionSet): z.infer<typeof TrendSchema>[] {
+function materialTrend(looks: readonly NextPassFacts["fixChecksSinceLastComplete"][number][],
+  records: readonly ApprovedDispositionRecord[], proposed?: ProposedDispositionSet): NextPassFacts["materialTrend"][number][] {
   const byProducer = new Map(records.map(record => [record.operationId,
     currentApprovedDispositionNode(record).approvedDisposition.dispositionSet]));
   return looks.flatMap(look => {
@@ -81,7 +56,7 @@ async function roundSignals(performance: LaneResponsePerformance,
 }
 
 async function fixRounds(progress: readonly LaneProgressState[], records: readonly ApprovedDispositionRecord[],
-  exec: RawGitExec): Promise<z.infer<typeof RoundSchema>[]> {
+  exec: RawGitExec): Promise<NextPassFacts["fixRounds"][number][]> {
   const byProducer = new Map(records.map(record => [record.operationId, record]));
   const performances = progress.flatMap(owner => owner.attempts.flatMap(attempt => [
     ...(attempt.responsePerformanceHistory ?? []),
@@ -104,7 +79,7 @@ export async function deriveNextPassFacts(input: {
   readonly dispositions: readonly ApprovedDispositionRecord[];
   readonly proposed?: ProposedDispositionSet;
   readonly nextPassContext: ReviewNextPassContext;
-  readonly target: ReviewTarget;
+  readonly target: Pick<ReviewTarget, "diffBaseSha" | "headSha">;
   readonly ceiling: number;
   readonly exec: RawGitExec;
 }): Promise<NextPassFacts> {

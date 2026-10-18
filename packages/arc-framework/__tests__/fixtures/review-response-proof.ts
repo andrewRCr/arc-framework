@@ -89,7 +89,6 @@ export function approvedRecord(
     disposition: "reject";
   })[],
 ) {
-  if (result.kind === "frontline") throw new Error("expected standard result");
   const set = createDispositionSet({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
@@ -97,8 +96,9 @@ export function approvedRecord(
     producerId: result.producerId,
     resultDigest: result.resultDigest,
     policyVersion: result.admission.policyVersion,
-    rubricVersion: result.requirement.rubricVersion,
-    rubricDigest: result.requirement.rubricDigest,
+    ...(result.kind === "frontline" ? { frontlineBinding: { operationId: result.producerId,
+      sourceBindingId: result.sourceBindingId, outcomeDigest: result.resultDigest } } : {
+      rubricVersion: result.requirement.rubricVersion, rubricDigest: result.requirement.rubricDigest }),
     proposedBy: "arc-cli/0.1.0",
     proposedVerification: "full",
     findings: judgments.map((judgment, index) => {
@@ -132,7 +132,9 @@ export function approvedRecord(
     candidate: null,
     errand: null,
     deliveryMember: null,
-    source: result.kind === "attested-local" ? {
+    source: result.kind === "frontline" ? { kind: "frontline",
+      outcomeRef: bindReviewSourceReference({ kind: "frontline", operationId: result.producerId, durableRef: result.outcomeRef })
+    } : result.kind === "attested-local" ? {
       kind: "attested-local",
       receiptRef: bindReviewSourceReference({ kind: "attested-local", operationId: result.producerId, durableRef: result.receiptRef }),
       localSourceRef: result.localSourceRef,
@@ -151,11 +153,12 @@ export function approvedRecord(
         sourceId: result.sourceIdentity,
         reviewOperationId: result.producerId,
         completedPasses: result.admission.logicalPass,
-        standardReview: {
+        lane: result.kind === "frontline" ? "frontline" : "standard",
+        ...(result.kind === "frontline" ? {} : { standardReview: {
           obligation: result.requirement.obligation, reasons: result.requirement.reasons,
           rubricVersion: result.requirement.rubricVersion, rubricDigest: result.requirement.rubricDigest,
           retrigger: result.requirement.retrigger, count: result.requirement.count,
-        },
+        } }),
       }),
       fixAuthorization: null,
       errandFixResponse: null,
