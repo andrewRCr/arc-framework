@@ -5,7 +5,7 @@ import { DeliveryReviewMemberVehicleSchema } from "../../../../../src/lib/delive
 import type { EarlierHostedAttemptApplicabilityRead } from "../../../../../src/scripts/review-gate/policy/earlier-review-applicability.js";
 import { projectHostedReservationDischarge } from "../../../../../src/scripts/review-gate/policy/hosted-reservation-discharge.js";
 import { createStandardReviewReservation } from "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
-import { createHostedHandleFixture } from "../../../../fixtures/hosted-review.js";
+import { createHostedHandleFixture, createHostedTerminalAttemptFixture } from "../../../../fixtures/hosted-review.js";
 import { hostedLaneAttemptId } from "../../../../../src/scripts/review-gate/hosted/request.js";
 import { resolveReviewPolicy } from "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
 
@@ -86,4 +86,43 @@ describe("delivery material-response coverage", () => {
     expect(result).toMatchObject({ discharged: false, nextSource: "delegated-agent", requestCoverage: "complete" });
     expect(result).not.toHaveProperty("coverageSelectionAction");
   });
+});
+
+describe("converged fix-check continuation", () => {
+  it.each(["current delivery", "retained delivery", "current singleton", "retained singleton"])(
+    "admits ranked complete coverage without a selection for %s", async surface => {
+      const member = surface.endsWith("delivery");
+      const current = surface.startsWith("current");
+      const incremental = createHostedHandleFixture({ provider: "codex-pr", ...(member ? { vehicle } : {}),
+        requestedCoverage: "incremental", effectiveCoverage: "incremental" });
+      const terminal = createHostedTerminalAttemptFixture({ admission: incremental.admission, outcome: "clean" });
+      const nextPassContext = { convergence: "converged" as const, responseDue: false, incremental: null };
+      const reserved = createStandardReviewReservation({ candidateId: canonicalDigest({ candidate: 1 }),
+        sourceId: "codex-pr", sources: ["codex-pr", "delegated-agent"],
+        ...(member ? { target: reservation.target } : { target: { kind: "pinned-head" as const,
+          repository: incremental.target.repository, headSha: incremental.target.headSha } }),
+        obligation: reservation.obligation });
+      const resolveTerminal = async () => resolveReviewPolicy({ schemaVersion: 1, target: incremental.target,
+        lane: "standard", standardReview: reserved.obligation, sources: reserved.sources, maxPasses: 4,
+        completedPasses: 1, nextPassContext,
+        attempts: [{ sourceId: "codex-pr", outcome: "clean", reviewOperationId: terminal.attemptId }],
+        verifiedTerminalSignal: { reviewOperationId: terminal.attemptId, confirmedFindingCount: 0,
+          maxConfirmedSeverity: null, materialFix: false, coverageAdequate: false } });
+      const result = await projectHostedReservationDischarge({ reservation: reserved, nextPassContext,
+        statusRoute: { kind: "work-unit", workUnitId: "example" }, span: [incremental.target.headSha],
+        target: { ...incremental.target, ...(member ? { vehicle } : {}) },
+        readLaneProgress: async () => current ? { status: "recorded", completedPasses: 1, completePasses: 0,
+          attempts: [{ ...terminal, sourceId: "codex-pr", logicalPass: 1, outcome: "clean", scopeMode: "whole-target",
+            headSha: incremental.target.headSha, ...(member ? { vehicle } : {}) }] } : { status: "unrecorded" },
+        readEarlierAttemptApplicability: async sourceId => current || sourceId !== "codex-pr" ? { status: "not-found" }
+          : { status: "complete", attempts: [{ operationId: "earlier-lane", attemptId: terminal.attemptId,
+            sourceId, logicalPass: 1, outcome: "clean", updatedAt: "2026-10-18T00:00:00Z",
+            requestedCoverage: "incremental", effectiveCoverage: "incremental", scopeMode: "whole-target",
+            producerTarget: incremental.admission.reviewTarget, hosted: { handle: incremental, admission: incremental.admission },
+            applicability: "retain-prior-attempt" }] },
+        resolveTerminalPolicy: resolveTerminal, resolveEarlierTerminalPolicy: resolveTerminal,
+      });
+      expect(result).toMatchObject({ discharged: false, nextSource: "codex-pr", requestCoverage: "complete" });
+      expect(result).not.toHaveProperty("coverageSelectionAction");
+    });
 });

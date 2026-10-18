@@ -46,7 +46,7 @@ import {
   resolveIncrementalCorrectionScope as resolveVerifiedIncrementalCorrectionScope,
   type IncrementalPredecessorApplicability,
 } from "./incremental-coverage-basis.js";
-import { projectHostedCorrectionCoverageSelection, projectHostedCorrectionDefault } from "./hosted-coverage-selection.js";
+import { projectHostedConvergedComplete, projectHostedCorrectionCoverageSelection, projectHostedCorrectionDefault } from "./hosted-coverage-selection.js";
 import type { ReviewNextPassContext } from "./review-next-pass-schema.js";
 import type { ReviewStatusRoute } from "../status-route.js";
 
@@ -340,6 +340,8 @@ export async function projectHostedReservationDischarge(input: {
             nextSource: null,
             ...projectHostedCorrectionDefault({ sources: reservation.sources,
               nextPassContext: input.nextPassContext, selection: coverageSelectionAction }),
+            ...projectHostedConvergedComplete({ sources: reservation.sources,
+              nextPassContext: input.nextPassContext, policyState: policy.state }),
             ...(correctionScope === null ? {} : { correctionScope }),
             ...(coverageSelectionAction === undefined ? {} : { coverageSelectionAction }),
           };
@@ -391,6 +393,8 @@ export async function projectHostedReservationDischarge(input: {
         + `(${policy.state}/${policy.nextAction}).`,
       nextSource: null,
       ...context,
+      ...projectHostedConvergedComplete({ sources: reservation.sources,
+        nextPassContext: input.nextPassContext, policyState: policy.state }),
     };
   };
   if (currentTerminalIsLatest && selectedClean !== undefined && selectedCleanValidated) {

@@ -305,15 +305,10 @@ first, then in the `.arc/` copy by targeted edit.
           original work-unit or exact-target status route in executable commands. An unproved chain, including a base
           move after an unchecked material fix, routes to local complete coverage without a selection.
 
-    - `[ ]` **2.4.b Admit the complete pass with no selection after a converged look**
-        - At the two `coverage-required` sites, the discharge admits complete coverage without emitting a selection when
-          the context reads the predecessor converged under `full-final`, on a delivery member and on the singleton.
-          On the singleton today `coverage-required` returns `nextSource: null`, `resolveSingletonRequest`
-          (`status-singleton.ts`) builds no request, and the result falls to a bare `review-required` (`status.ts`).
-        - Build `test-first` (one behavior at a time):
-            - After a converged fix check on a delivery member, status emits no selection and names the complete pass by
-              rank.
-            - After a converged fix check on the singleton, status names a hosted complete pass by rank.
+    - `[x]` **2.4.b Admit the complete pass with no selection after a converged look**
+        - Current and retained `coverage-required` terminals now continue to complete coverage by configured source
+          rank when the shared context is converged and the response is settled. Delivery and singleton regressions
+          cover both terminal sites without a coverage selection.
 
     - `[ ]` **2.4.c Refuse a pick that matches no listed choice**
         - Status re-emits the selection silently when `--source` and `--coverage` match no choice, in

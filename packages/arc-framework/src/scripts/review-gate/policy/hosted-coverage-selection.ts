@@ -20,6 +20,7 @@ export function projectHostedCorrectionCoverageSelection(input: {
   const basis = input.nextPassContext?.incremental;
   const statusRoute = input.statusRoute;
   if (input.vehicle === undefined || statusRoute === undefined || input.scope === undefined
+    || input.nextPassContext?.convergence !== "unconverged" || input.nextPassContext.responseDue
     || !input.sources.includes("delegated-agent") || basis?.basis !== "fix-check"
     || canonicalize(basis.scope) !== canonicalize(input.scope)) return undefined;
   const command = (coverage: string) => reviewStatusRouteCommand(statusRoute,
@@ -32,6 +33,17 @@ export function projectHostedCorrectionCoverageSelection(input: {
     interactionText: "Select one listed source and coverage pair. For a fix check, re-run "
       + `\`${command("incremental")}\`; for a complete pass, re-run \`${command("complete")}\`.`,
   });
+}
+
+/** Continue inadequate full-final coverage with the ranked complete pass once the look has converged. */
+export function projectHostedConvergedComplete(input: {
+  readonly sources: readonly string[];
+  readonly nextPassContext?: ReviewNextPassContext;
+  readonly policyState: string;
+}): Partial<Pick<HostedReservationDischarge, "nextSource" | "requestCoverage">> {
+  return input.policyState === "coverage-required" && input.nextPassContext?.convergence === "converged"
+    && !input.nextPassContext.responseDue
+    ? { nextSource: input.sources[0] ?? null, requestCoverage: "complete" } : {};
 }
 
 /** Keep the local complete route executable when a settled material response offers no fix-check choice. */
