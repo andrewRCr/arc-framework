@@ -7,6 +7,7 @@ import { reviewStatusRouteArgv, type ReviewStatusRoute } from "./status-route.js
 
 export const ReviewDriverRefusalReasonSchema = z.enum([
   "material-fix-local-review-required", "material-fix-local-source-unconfigured", "hosted-incremental-unsupported", "singleton-local-coverage-required",
+  "delta-check-local-review-required", "delta-check-local-source-unconfigured",
 ]);
 export const ReviewDriverRefusalSchema = z.strictObject({
   state: z.literal("blocked"), reason: ReviewDriverRefusalReasonSchema,
@@ -34,8 +35,12 @@ export function projectReviewSourceRefusal(input: {
   const parsed = ReviewDriverRefusalReasonSchema.safeParse(diagnostic?.code);
   if (diagnostic === undefined || diagnostic === null || !parsed.success) return null;
   const reason = parsed.data;
-  const unconfigured = reason === "material-fix-local-source-unconfigured";
-  const correction = unconfigured
+  const delta = reason === "delta-check-local-review-required" || reason === "delta-check-local-source-unconfigured";
+  const unconfigured = reason === "material-fix-local-source-unconfigured" || reason === "delta-check-local-source-unconfigured";
+  const correction = delta
+    ? unconfigured ? "Add delegated-agent to review.standard_sources so the delta check can run locally, then re-run status"
+      : "Run the delta check locally on delegated-agent, then re-run status"
+    : unconfigured
     ? "Add delegated-agent to review.standard_sources"
       + (input.allowOwnerStop === true ? ", or take the Owner's stop accepting that the fixes have not been re-examined" : "")
       + ", then re-run status"

@@ -445,7 +445,7 @@ describe("Candidate hosted reservation admission", () => {
       progress: { completedPasses: 1, attempts: [{ ...predecessor.attempt, terminalProducer: false }] },
     }, dependencies)).rejects.toThrow(/exact latest completed terminal producer/u);
     await expect(assertEvidenceBoundCandidateHostedReservationPolicyAdmission(input, dependencies))
-      .rejects.toThrow(/approval-required\/obtain-ceiling-override/u);
+      .rejects.toThrow(/verified, completed predecessor \(unavailable\/stop\)/u);
   });
 
   it.each(["minor", "major"] as const)("admits an additional Candidate pass after exact clean or settled %s "

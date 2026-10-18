@@ -854,6 +854,8 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
     }
   }
   if (request.terminus !== undefined) return ownerAcceptedEnvelope(request, scope);
+  const selection = selectReviewSources(request);
+  if (selection.refusal !== null) return sourceSelectionRefusal(request, scope, selection.refusal);
   if (ceilingPassCount(request) >= request.maxPasses
     && !incrementalNextPass(request) && !ceilingOverrideApplied) {
     return resolveEnvelope({
@@ -876,8 +878,6 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
       message: `The ${request.lane} lane has exhausted its configured pass ceiling.`,
     }]);
   }
-  const selection = selectReviewSources(request);
-  if (selection.refusal !== null) return sourceSelectionRefusal(request, scope, selection.refusal);
   const selectedSourceId = request.lane === "standard" && request.invocation?.mode === "force"
     ? request.invocation.sourceId
     : undefined;

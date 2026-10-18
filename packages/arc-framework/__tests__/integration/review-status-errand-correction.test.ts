@@ -594,8 +594,15 @@ describe("Errand local correction cadence", () => {
     await expect(errand.readStatus()).resolves.toMatchObject({ state: "settled" });
   });
 
-  it("refuses hosted admission while an Errand delta check is due", async () => {
+  it("keeps delta source refusals and local recovery through status and hosted admission", async () => {
     const errand = await plainErrand();
+    await expect(errand.readStatus(true, "codex-pr")).resolves.toMatchObject({ state: "blocked",
+      reason: "delta-check-local-review-required", remedy: {
+        text: expect.stringContaining("delta check"),
+        argv: ["arc", "review", "status", "--target", JSON.stringify(errand.statusTarget), "--source", "delegated-agent"],
+      } });
+    await expect(errand.readStatus(true, "delegated-agent")).resolves.toMatchObject({ state: "review-required",
+      detail: expect.stringContaining("arc review local prepare") });
     await withErrandHost(errand, true, async () => {
       expect(await performHostedRequest(errand)).toMatchObject({ exitCodes: [1], result: {
         remedy: { text: expect.stringContaining("delta check") },

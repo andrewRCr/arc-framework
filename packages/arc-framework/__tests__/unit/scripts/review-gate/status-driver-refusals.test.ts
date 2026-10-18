@@ -17,6 +17,41 @@ const standardReview = { obligation: requirement.obligation, reasons: requiremen
   rubricVersion: requirement.rubricVersion, rubricDigest: requirement.rubricDigest, retrigger: requirement.retrigger,
   count: requirement.count };
 
+it.each([true, false])("preserves singleton delta refusal and local recovery, configured=%s", async configured => {
+  const request = { schemaVersion: 1, target: handle.target, lane: "standard", standardReview,
+    sources: configured ? ["codex-pr", "delegated-agent"] : ["codex-pr"], maxPasses: 4, completedPasses: 1,
+    attempts: [], invocation: { mode: "force", sourceId: "codex-pr" },
+    nextPassContext: { completePasses: 1, convergence: "converged", responseDue: false,
+      incremental: { basis: "delta-check", scope: { schemaVersion: 1, predecessorProducerId: "local/converged",
+        predecessorHeadSha: "b".repeat(40), basisHeadSha: "b".repeat(40), headSha: handle.target.headSha,
+        requiredFindings: [] } } },
+  };
+  const statusRoute = { kind: "target" as const, target };
+  const status = (admission: ReturnType<typeof resolveReviewPolicy>) => resolveReviewStatus({ target }, {
+    observe: async () => ({ actualHeadSha: target.headSha, currentBaseOid: "b".repeat(40),
+      baseContained: true, requiredChecks: "green", routedObligation: composeSingletonReviewObligation({ statusRoute,
+        discharge: { discharged: false, detail: "The delta needs local review.",
+          requestCoverage: "incremental" },
+        applicabilityContext: { workUnitId: "example", expectedRecordVersion: canonicalDigest({ version: 1 }),
+          candidateId: canonicalDigest({ candidate: 1 }) },
+        request: { target: handle.target, admission, sourceId: "delegated-agent", coverage: "incremental", standardReview },
+      }) }),
+  });
+  const refusal = await status(resolveReviewPolicy(request));
+  expect(refusal).toMatchObject({ state: "blocked",
+    reason: configured ? "delta-check-local-review-required" : "delta-check-local-source-unconfigured",
+    remedy: { argv: ["arc", "review", "status", "--target", JSON.stringify(target),
+      ...(configured ? ["--source", "delegated-agent"] : [])] } });
+  if (refusal.state !== "blocked" || !("remedy" in refusal)) throw new Error("expected delta recovery");
+  expect(refusal.remedy.text).toContain("delta check");
+  expect(refusal.remedy.text).toContain(configured ? "delegated-agent" : "review.standard_sources");
+  expect(refusal.remedy.text).not.toContain("fixes have not been re-examined");
+  await expect(status(resolveReviewPolicy({ ...request, sources: ["codex-pr", "delegated-agent"],
+    invocation: { mode: "force", sourceId: "delegated-agent" } }))).resolves.toMatchObject({
+    nextAction: "review-singleton-local-prepare",
+  });
+});
+
 it.each(["delivery work-unit", "delivery target", "singleton"].flatMap(surface =>
   [{ configured: true, sourcePending: false }, { configured: false, sourcePending: false },
     ...(surface.startsWith("delivery") ? [{ configured: true, sourcePending: true }] : [])]

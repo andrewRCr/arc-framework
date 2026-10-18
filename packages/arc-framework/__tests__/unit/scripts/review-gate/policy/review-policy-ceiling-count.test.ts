@@ -14,6 +14,23 @@ const base = {
 };
 
 describe("complete-pass ceiling", () => {
+  it.each([true, false])("reports the local-source refusal before ceiling approval, configured=%s", configured => {
+    const request = { ...base, maxPasses: 2, chosenCoverage: "complete",
+      sources: configured ? ["codex-pr", "delegated-agent"] : ["codex-pr"],
+      invocation: { mode: "force", sourceId: "codex-pr" },
+      nextPassContext: { ...base.nextPassContext, convergence: "unconverged" },
+    };
+    expect(resolveReviewPolicy(request)).toMatchObject({ state: "unavailable", diagnostics: [{
+      code: configured ? "material-fix-local-review-required" : "material-fix-local-source-unconfigured",
+    }] });
+    const repaired = { ...request, sources: ["codex-pr", "delegated-agent"],
+      invocation: { mode: "force", sourceId: "delegated-agent" } };
+    expect(resolveReviewPolicy(repaired)).toMatchObject({ state: "approval-required" });
+    expect(resolveReviewPolicy({ ...repaired,
+      ceilingOverride: { target, lane: "standard", exhaustedPassCount: 5, nextPass: 6 },
+    })).toMatchObject({ state: "ready", payload: { sourceId: "delegated-agent", ceilingOverrideApplied: true } });
+  });
+
   it("admits attempt six after two complete looks and three fix checks below the ceiling", () => {
     expect(resolveReviewPolicy(base)).toMatchObject({ state: "ready", payload: { pass: 6, ceilingOverrideApplied: false } });
     expect(resolveReviewPolicy({ ...base, maxPasses: 2 })).toMatchObject({ state: "approval-required",
