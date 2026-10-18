@@ -1,4 +1,5 @@
 /** Exact Store proof for ordinary Errand terminal and merge admission. */
+import { describeRecordConflicts } from "../store/conflict-diagnostics.js";
 import type { Store } from "../store/contract.js";
 import type { StoreRecord, ListingDiagnostic } from "../store/read.js";
 import { sameReference } from "../store/identity.js";
@@ -41,7 +42,7 @@ function validateSubject(saved: StoreRecord, reference: StoreRecord["reference"]
     || saved.reference.owner.name !== subject.slug || saved.placement?.kind !== "active") {
     return refused(`Errand ${subject.slug}: its claim does not resolve to the exact active Errand record. Repair that record's identity and placement, then retry.`);
   }
-  if (saved.conflicts.length > 0) return refused(`Errand ${subject.slug} has unresolved conflicts. Resolve its conflict records, then retry.`);
+  if (saved.conflicts.length > 0) return refused(`Errand ${subject.slug} has unresolved conflicts.${describeRecordConflicts(saved.conflicts)}`);
   const decoded = deserializeTransientIdentityRecord(saved.content, subject.slug);
   if (decoded.kind !== "valid" || decoded.record.kind !== "errand" || decoded.record.purpose !== "errand"
     || decoded.record.claimId !== subject.claimId || decoded.record.owner === undefined) {

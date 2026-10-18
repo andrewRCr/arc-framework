@@ -1,4 +1,5 @@
 /** Missing-folder repairs use the linked work item's placement and branch authority. */
+import { describeRecordConflicts } from "../store/conflict-diagnostics.js";
 import type { Store } from "../store/contract.js";
 import { createProjectIdentityReader, resolveProjectIdentity } from "../store/project-identity.js";
 import { workBranchName } from "../store/lifecycle-branch.js";
@@ -25,7 +26,7 @@ export async function readStoreMissingFolderActions(input: { store: Store; proje
     input.warnings?.push(`${read.refusal.condition} ${read.refusal.remedy.text}`); return null;
   }
   if (read.result.conflicts.length > 0) {
-    input.warnings?.push(`Work item ${read.result.reference.owner.name} has conflicting state; repair its record before cleaning up ${branch}.`);
+    input.warnings?.push(`Work item ${read.result.reference.owner.name} has conflicting state; repair its record before cleaning up ${branch}.${describeRecordConflicts(read.result.conflicts)}`);
     return null;
   }
   if (read.result.reference.kind !== "work-item/meta" || read.result.placement?.kind !== "completed") return plain();

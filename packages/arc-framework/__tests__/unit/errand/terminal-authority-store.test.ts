@@ -143,8 +143,10 @@ it("refuses an exact subject with an unresolved conflict record", async () => {
     location: { kind: "record" }, base: null, current: { value, label: { actor: "alice", time: h.record.createdAt } },
     incoming: { value: null, label: { actor: "bob", time: h.record.createdAt } } }), provenance: { verb: "merge", lifecycleAction: "capture" } });
   expect(conflict.status).toBe("ok");
-  expect(await authorizeErrandTerminal({ frame, store: h.store, operation: "close", subject: h.subject })).toMatchObject({ kind: "refused", message: expect.stringContaining("conflicts") });
-  await expect(selectCurrentErrandMergeIdentity(frame, "repair", h.store)).rejects.toThrow("Resolve its conflict records");
+  if (conflict.status !== "ok") throw new Error("Expected stored conflict fixture");
+  expect(await authorizeErrandTerminal({ frame, store: h.store, operation: "close", subject: h.subject }))
+    .toMatchObject({ kind: "refused", message: expect.stringContaining(JSON.stringify(conflict.result.reference)) });
+  await expect(selectCurrentErrandMergeIdentity(frame, "repair", h.store)).rejects.toThrow(/resolve.*retry/isu);
 });
 
 it("preserves exact foreign confirmation for an identity-only Errand with no checkout holder", async () => {

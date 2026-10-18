@@ -1,4 +1,5 @@
 /** Personal scratch follows logical work-unit names without merging people's files. */
+import { describeRecordConflicts } from "./store/conflict-diagnostics.js";
 import { lstat, readdir, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
@@ -60,7 +61,7 @@ async function planFolder(store: Store, root: string, name: string, plan: Scratc
   const read = await store.read({ reference: lookup.result.reference });
   if (read.status === "refused") throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
   const record = read.result;
-  if (record.reference.kind !== "work-item/meta" || record.conflicts.length > 0) throw new Error(`Scratch folder ${path} resolves to an unresolved work-unit record. Repair the record, then retry.`);
+  if (record.reference.kind !== "work-item/meta" || record.conflicts.length > 0) throw new Error(`Scratch folder ${path} resolves to an unresolved work-unit record. Repair the record, then retry.${describeRecordConflicts(record.conflicts)}`);
   const fields = ParsedMetaRecordSchema.parse(record.fields);
   if (record.placement?.kind === "completed" || fields.state === "Shipped") {
     plan.advisories.push(endedAdvisory(path, record.reference.owner.name));

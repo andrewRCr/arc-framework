@@ -1,4 +1,5 @@
 /** Acquire the selected work-unit generation's Candidate without a checkout projection. */
+import { describeRecordConflicts } from "../store/conflict-diagnostics.js";
 import type { Store } from "../store/contract.js";
 import { recordReferences, type OwnerIdentity } from "../store/identity.js";
 
@@ -12,7 +13,7 @@ export async function readStoreSubjectCandidate(store: Store, owner: OwnerIdenti
   const read = await store.read({ reference });
   if (read.status === "refused") throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
   if (read.result.conflicts.length > 0) {
-    throw new Error(`Candidate record for ${owner.name} has unresolved conflicts. Resolve its conflict records, then retry.`);
+    throw new Error(`Candidate record for ${owner.name} has unresolved conflicts.${describeRecordConflicts(read.result.conflicts)}`);
   }
   return read.result.content;
 }

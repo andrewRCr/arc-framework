@@ -69,13 +69,20 @@ it("refuses a conflicted selected personal record before planning edits", async 
   const { createStoreUserReferencePrepareContext } = await import("../../src/lib/user-reference-reconcile-store.js");
   const { vi } = await import("vitest");
   const h = await fixture(), read = h.store.read.bind(h.store);
-  vi.spyOn(h.store, "read").mockImplementation(async input => {
+  const conflicts = ["memory-clash-one", "memory-clash-two"].map(key => recordReferences["personal/conflict-record"](h.memory.reference.owner, key));
+  const disputed = vi.spyOn(h.store, "read").mockImplementation(async input => {
     const result = await read(input);
     return input.reference.kind === "personal/working-memory" && result.status === "ok"
-      ? { status: "ok", result: { ...result.result, conflicts: [result.result.reference] } } : result;
+      ? { status: "ok", result: { ...result.result, conflicts } } : result;
   });
-  expect(await createStoreUserReferencePrepareContext({ store: h.store, identity: "andrew", workUnit: "dependent" }))
-    .toMatchObject({ status: "refused", refusal: { code: "record-malformed", condition: expect.stringContaining("unresolved conflicts") } });
+  try {
+    const result = await createStoreUserReferencePrepareContext({ store: h.store, identity: "andrew", workUnit: "dependent" });
+    expect(result).toMatchObject({ status: "refused", refusal: { code: "record-malformed", condition: expect.stringContaining("unresolved conflicts") } });
+    if (result.status !== "refused") throw new Error("Expected conflicted personal record refusal");
+    for (const reference of conflicts) expect(result.refusal.condition).toContain(JSON.stringify(reference));
+    expect(`${result.refusal.condition} ${result.refusal.remedy.text}`).toMatch(/resolve.*retry/isu);
+  } finally { disputed.mockRestore(); }
+  expect(await createStoreUserReferencePrepareContext({ store: h.store, identity: "andrew", workUnit: "dependent" })).toMatchObject({ status: "ok" });
 });
 
 it("retains declared entry merges in the final revalidation-to-batch window", async () => {

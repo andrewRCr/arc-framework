@@ -1,4 +1,5 @@
 /** Release machine-local work-unit occupancy without changing its operational lifecycle. */
+import { describeRecordConflicts } from "../store/conflict-diagnostics.js";
 import { dirname, resolve } from "node:path";
 import { MetaPauseSchema, ParsedMetaRecordSchema } from "../active/meta-schema.js";
 import { localPathContains } from "../local-path-identity.js";
@@ -55,7 +56,7 @@ function releaseAuthority(identity: string, occupancy: Extract<Awaited<ReturnTyp
   if (ownership.kind !== "current" || ownership.subject.kind !== "work-unit" || occupancy.marker.marker.husk !== undefined) return occupancy.reason;
   if (occupancy.missingRecord) return null;
   if (occupancy.workUnit === null) return occupancy.reason;
-  if (occupancy.workUnit.conflicts.length > 0) return "The work-unit record has unresolved conflicts. Resolve them before releasing its checkout.";
+  if (occupancy.workUnit.conflicts.length > 0) return `The work-unit record has unresolved conflicts.${describeRecordConflicts(occupancy.workUnit.conflicts)}`;
   const fields = ParsedMetaRecordSchema.parse(occupancy.workUnit.fields);
   WorkUnitStateSchema.parse(fields.state);
   if (fields.owner === null) return "The work-unit owner is unavailable. Repair the owner before releasing its checkout.";

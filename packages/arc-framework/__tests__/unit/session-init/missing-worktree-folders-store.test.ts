@@ -90,6 +90,8 @@ it("withholds cleanup for a conflicted primary and restores teardown after repai
     shipped: new Set<string>(), warnings, exec, folderExists: async () => false };
   expect(await readMissingWorktreeFolders(options)).toEqual([]);
   expect(warnings.join(" ")).toMatch(/conflict.*repair/iu);
+  expect(warnings.join(" ")).toContain(JSON.stringify(conflict));
+  expect(warnings.join(" ")).toMatch(/resolve.*retry/isu);
   conflicted.mockRestore();
   expect((await readMissingWorktreeFolders(options))[0]?.actions[0]?.argv).toEqual(["arc", "teardown", "shipped"]);
 });

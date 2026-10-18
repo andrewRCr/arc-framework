@@ -1,4 +1,5 @@
 /** Marker-selected work-unit lifecycle evidence over the operational store. */
+import { describeRecordConflicts } from "../store/conflict-diagnostics.js";
 import { SlugSchema, WorkUnitStateSchema } from "../kernel/index.js";
 import { ParsedMetaRecordSchema, type ParsedMetaRecord } from "../active/meta-schema.js";
 import type { GitExec } from "../git/exec.js";
@@ -51,7 +52,7 @@ async function readClaimedWorkUnit(store: Store, slug: string): Promise<StoreRec
   const lookup = unwrap(result);
   if (lookup.reference.kind !== "work-item/meta") throw new Error("The marker claim resolved to a non-work-unit record.");
   const record = unwrap(await store.read({ reference: lookup.reference }));
-  if (record.conflicts.length > 0) throw new Error("The marker's work-unit record has unresolved conflicts.");
+  if (record.conflicts.length > 0) throw new Error(`The marker's work-unit record has unresolved conflicts.${describeRecordConflicts(record.conflicts)}`);
   return record;
 }
 async function readRemovedWorkUnit(input: StoreWorkUnitInput): Promise<StoreWorkUnitEvidence> {

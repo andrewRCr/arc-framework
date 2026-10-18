@@ -1,4 +1,5 @@
 /** One reusable record acquisition for the read-only user slot and its prepared apply command. */
+import { describeRecordConflicts } from "./store/conflict-diagnostics.js";
 import { SlugSchema } from "./kernel/index.js";
 import { resolveArcPath } from "./layout/index.js";
 import type { Store } from "./store/contract.js";
@@ -78,7 +79,7 @@ async function qualifyReferenceSurfaces(store: Store, records: readonly StoreRec
 async function readPersonal(store: Store, reference: RecordReference): Promise<StoreResult<StoreRecord | null>> {
   const read = await store.read({ reference });
   if (read.status === "refused") return read.refusal.code === "not-found" ? { status: "ok", result: null } : read;
-  if (read.result.conflicts.length > 0) return invalid(reference, `Personal record ${reference.kind} for '${reference.owner.name}' has unresolved conflicts.`);
+  if (read.result.conflicts.length > 0) return invalid(reference, `Personal record ${reference.kind} for '${reference.owner.name}' has unresolved conflicts.${describeRecordConflicts(read.result.conflicts)}`);
   const kind = reference.kind === "personal/inbox" ? "personal/inbox" : "personal/working-memory";
   const parsed = parseEntryList(read.result.content, kind);
   return parsed.success ? read : invalid(reference, parsed.error);

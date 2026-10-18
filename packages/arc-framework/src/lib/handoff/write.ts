@@ -1,4 +1,5 @@
 /** One anchored metadata write for a session's handoff decisions. */
+import { describeRecordConflicts } from "../store/conflict-diagnostics.js";
 import type { Store } from "../store/contract.js";
 import type { GitExec } from "../git/exec.js";
 import { createStoreSyncPort, type StoreSyncPort } from "../store/operational-sync.js";
@@ -29,7 +30,7 @@ export async function runHandoffWrite(input: { cwd: string; request: unknown; st
   const read = await store.read({ reference: current.candidate.reference });
   if (read.status === "refused") return read;
   const meta = read.result;
-  if (meta.conflicts.length > 0) return refused("work-unit-unreadable", "The current work unit's meta has unresolved conflicts.", "Resolve its meta conflicts and retry arc handoff write.");
+  if (meta.conflicts.length > 0) return refused("work-unit-unreadable", `The current work unit's meta has unresolved conflicts.${describeRecordConflicts(meta.conflicts)}`, "Resolve its meta conflicts and retry arc handoff write.");
   const version = await store.version();
   if (version.status === "refused") return version;
   const head = await readHead(input);

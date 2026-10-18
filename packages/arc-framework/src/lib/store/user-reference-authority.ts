@@ -1,4 +1,5 @@
 /** User-reference authority from complete primary alias projections and terminal lineage. */
+import { describeRecordConflicts } from "./conflict-diagnostics.js";
 import { SlugSchema } from "../kernel/index.js";
 import { LineageRecordSchema } from "./kinds/lineage/index.js";
 import { sameReference } from "./identity.js";
@@ -69,7 +70,7 @@ function completeRecords(result: StoreResult<ListingOutcome>, family: string): S
     `Reference authority inventory is incomplete. ${result.result.diagnostics.map(item => `${item.condition} ${item.remedy.text}`).join(" ")}`) };
   const conflicted = result.result.records.find(record => record.conflicts.length > 0);
   if (conflicted !== undefined) return malformed(conflicted, "authority.conflicts",
-    `Reference authority ${conflicted.reference.kind} for '${conflicted.reference.owner.name}' has unresolved conflicts.`);
+    `Reference authority ${conflicted.reference.kind} for '${conflicted.reference.owner.name}' has unresolved conflicts.${describeRecordConflicts(conflicted.conflicts)}`);
   return { status: "ok", result: result.result.records };
 }
 async function resolveAliases(store: Store, records: readonly StoreRecord[]): Promise<StoreResult<ReachableReferenceTransition[]>> {

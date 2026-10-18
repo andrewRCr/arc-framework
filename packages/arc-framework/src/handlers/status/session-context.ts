@@ -1,4 +1,5 @@
 /** Request-scoped personal-surface readers shared by status modes. */
+import { describeRecordConflicts } from "../../lib/store/conflict-diagnostics.js";
 
 import { OwnerIdentitySchema, recordReferences } from "../../lib/store/identity.js";
 import { parseEntryList } from "../../lib/store/kinds/entry-list.js";
@@ -87,7 +88,7 @@ export async function readUserInboxFromStore(store: Store, identity: string): Pr
     throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
   }
   if (!store.capabilities.stateOffBranch) return read.result.content;
-  if (read.result.conflicts.length > 0) throw new Error("The personal inbox has unresolved conflicts. Resolve them before routing its entries.");
+  if (read.result.conflicts.length > 0) throw new Error(`The personal inbox has unresolved conflicts.${describeRecordConflicts(read.result.conflicts)}`);
   const parsed = parseEntryList(read.result.content, "personal/inbox");
   if (!parsed.success) throw new Error(parsed.error);
   return read.result.content;
@@ -101,6 +102,6 @@ export async function readWorkingMemoryFromStore(store: Store, identity: string)
     if (read.refusal.code === "not-found") return "";
     throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
   }
-  if (read.result.conflicts.length > 0) throw new Error("Working memory has unresolved conflicts. Resolve them before reconciling its references.");
+  if (read.result.conflicts.length > 0) throw new Error(`Working memory has unresolved conflicts.${describeRecordConflicts(read.result.conflicts)}`);
   return read.result.content;
 }

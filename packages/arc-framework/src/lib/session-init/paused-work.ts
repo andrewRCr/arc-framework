@@ -1,4 +1,5 @@
 /** Per-identity pause listing and shared review marks. */
+import { describeRecordConflicts } from "../store/conflict-diagnostics.js";
 import { z } from "zod";
 import { SlugSchema } from "../kernel/index.js";
 import { listLifecycleIndex } from "../store/lifecycle-index.js";
@@ -118,13 +119,13 @@ async function waitingWorkDisposition(store: Store, slug: string): Promise<"ship
   const resolved = await store.lookup({ kind: "slug", slug: SlugSchema.parse(slug) });
   if (resolved.status === "ok") {
     const record = unwrap(await store.read({ reference: resolved.result.reference }));
-    if (record.reference.kind !== "work-item/meta" || record.conflicts.length > 0) throw new Error(`Pause prerequisite '${slug}' has no resolved work-unit record. Inspect and repair it before reviewing this pause.`);
+    if (record.reference.kind !== "work-item/meta" || record.conflicts.length > 0) throw new Error(`Pause prerequisite '${slug}' has no resolved work-unit record. Inspect and repair it before reviewing this pause.${describeRecordConflicts(record.conflicts)}`);
     return ParsedMetaRecordSchema.parse(record.fields).state === "Shipped" ? "shipped" : "live";
   }
   if (resolved.refusal.code !== "not-found") throw new Error(`${resolved.refusal.condition} ${resolved.refusal.remedy.text}`);
   const record = await terminalPrerequisiteRecord(store, slug);
   const terminal = parseLineageRecord(record.content);
-  if (terminal === null || record.conflicts.length > 0) throw new Error(`Pause prerequisite '${slug}' has unresolved terminal lineage. Inspect and repair it before reviewing this pause.`);
+  if (terminal === null || record.conflicts.length > 0) throw new Error(`Pause prerequisite '${slug}' has unresolved terminal lineage. Inspect and repair it before reviewing this pause.${describeRecordConflicts(record.conflicts)}`);
   return terminal.kind === "abandon" || terminal.kind === "decompose" ? "ended" : "live";
 }
 async function terminalPrerequisiteRecord(store: Store, slug: string): Promise<StoreRecord> {
@@ -146,7 +147,7 @@ async function terminalAliasRecords(store: Store, slug: string): Promise<readonl
   if (listing.missed || listing.diagnostics.length > 0) throw new Error(`Pause prerequisite '${slug}' has incomplete terminal lineage. ${listing.diagnostics.map(item => `${item.condition} ${item.remedy.text}`).join(" ")} Repair the lineage inventory and retry pause review.`);
   return listing.records.filter(record => {
     const terminal = parseLineageRecord(record.content);
-    if (terminal === null || record.conflicts.length > 0) throw new Error(`Pause prerequisite '${slug}' has unresolved terminal lineage for '${record.reference.owner.name}'. Resolve any conflicts or repair the lineage, then retry pause review.`);
+    if (terminal === null || record.conflicts.length > 0) throw new Error(`Pause prerequisite '${slug}' has unresolved terminal lineage for '${record.reference.owner.name}'. Resolve any conflicts or repair the lineage, then retry pause review.${describeRecordConflicts(record.conflicts)}`);
     return terminal.kind !== "rename";
   });
 }

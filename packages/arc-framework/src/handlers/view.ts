@@ -3,6 +3,7 @@
  *
  * @module
  */
+import { describeRecordConflicts } from "../lib/store/conflict-diagnostics.js";
 
 import { execFile, spawn } from "node:child_process";
 import { access, readdir } from "node:fs/promises";
@@ -322,7 +323,7 @@ export function createViewDependencies(
       if (reference === undefined) return readUtf8(path);
       const read = await store.read({ reference });
       if (read.status === "refused") throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
-      if (read.result.conflicts.length > 0) throw new Error("The work unit's session context has unresolved conflicts. Repair its meta record, then retry.");
+      if (read.result.conflicts.length > 0) throw new Error(`The work unit's session context has unresolved conflicts.${describeRecordConflicts(read.result.conflicts)}`);
       return read.result.content;
     },
     readAtRef: (ref, path) => readGitBlobEntry(cwd, ref, path, { objectAccess: "local-only" }),

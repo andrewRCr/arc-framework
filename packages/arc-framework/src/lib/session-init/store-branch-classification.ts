@@ -1,4 +1,5 @@
 /** Repository-qualified branch ownership for session cleanup; no branch-name inference. */
+import { describeRecordConflicts } from "../store/conflict-diagnostics.js";
 import type { Store } from "../store/contract.js";
 import type { StoreRecord } from "../store/read.js";
 import type { BranchLink } from "../store/links.js";
@@ -20,6 +21,6 @@ export async function resolveStoreBranch(store: Store, branch: string, projectId
   if (read.status === "refused") return { status: "unavailable", reason: `${read.refusal.condition} ${read.refusal.remedy.text}` };
   const record = read.result;
   const links = record.links?.branches?.filter(link => link.repository === project.id && workBranchName(link.ref) === workBranchName(branch)) ?? [];
-  if (record.conflicts.length > 0 || links.length !== 1 || links[0] === undefined) return { status: "unavailable", reason: `Branch ${branch} has conflicting or ambiguous linked state; repair its record and branch links, then retry.` };
+  if (record.conflicts.length > 0 || links.length !== 1 || links[0] === undefined) return { status: "unavailable", reason: `Branch ${branch} has conflicting or ambiguous linked state; repair its record and branch links, then retry.${describeRecordConflicts(record.conflicts)}` };
   return { status: "ready", record, link: links[0] };
 }

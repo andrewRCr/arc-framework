@@ -7,6 +7,7 @@
  *
  * @module
  */
+import { describeRecordConflicts } from "../store/conflict-diagnostics.js";
 
 import type { Store } from "../store/contract.js";
 import { workItemArtifactPath } from "../store/lifecycle-storage.js";
@@ -128,7 +129,7 @@ async function resolveStoreSessionContext(cwd: string, slug: string, store: Stor
     if (read.status === "refused") return { status: "error", message: `${read.refusal.condition} ${read.refusal.remedy.text}` };
     const record = read.result;
     if (record.reference.kind !== "work-item/meta" || record.conflicts.length > 0) {
-      return { status: "error", message: "The work unit's session context is unresolved. Inspect and repair its meta record, then retry." };
+      return { status: "error", message: `The work unit's session context is unresolved. Inspect and repair its meta record, then retry.${describeRecordConflicts(record.conflicts)}` };
     }
     const fields = ParsedMetaRecordSchema.parse(record.fields);
     const path = workItemArtifactPath(record.reference.owner.name, "meta", WorkUnitReadPlacementSchema.parse(record.placement), fields.cohort);

@@ -192,7 +192,10 @@ it("withholds conflicted terminal alias authority after sync and resumes after e
   const disputed = lifecycleSuccess(await f.store.read({ reference: terminal.reference }));
   expect(disputed.conflicts).toHaveLength(1);
   const item = { slug: "paused", pause: f.savedPause }, options = { store: f.store, reviewAfterDays: 14, now };
-  await expect(markPausedWorkItem(item, options)).rejects.toThrow(/unresolved terminal lineage.*resolve.*retry/isu);
+  const failure = await markPausedWorkItem(item, options).catch((error: unknown) => error);
+  expect(failure).toBeInstanceOf(Error);
+  expect(String(failure)).toMatch(/unresolved terminal lineage.*resolve.*retry/isu);
+  for (const reference of disputed.conflicts) expect(String(failure)).toContain(JSON.stringify(reference));
   for (const reference of disputed.conflicts) {
     const conflict = lifecycleSuccess(await f.store.read({ reference }));
     lifecycleSuccess(await f.store.write({ action: "remove", reference, expected: conflict.version,

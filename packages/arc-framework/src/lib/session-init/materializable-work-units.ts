@@ -3,6 +3,7 @@
  * state it offers owned, released work independently of remote presence, leaving
  * paused work to its own slot and isolating each rejected holder lookup.
  */
+import { describeRecordConflicts } from "../store/conflict-diagnostics.js";
 
 import { readWorkUnit } from "../store/lifecycle-write.js";
 import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
@@ -180,7 +181,7 @@ async function storeMaterializableCandidate(options: FindStoreMaterializableWork
   const read = await readWorkUnit(options.store, entry.name);
   if (read.status === "refused") throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
   const record = read.result;
-  if (record.conflicts.length > 0) throw new Error("Resolve the work unit's conflicting records before materializing it.");
+  if (record.conflicts.length > 0) throw new Error(`The work unit has conflicting records.${describeRecordConflicts(record.conflicts)}`);
   const fields = ParsedMetaRecordSchema.parse(record.fields);
   if (fields.pause !== null || fields.owner !== options.identity || record.placement?.kind !== "active" || !["Planning", "Active", "Integrating"].includes(fields.state ?? "")) return null;
   const name = SlugSchema.parse(record.reference.owner.name);

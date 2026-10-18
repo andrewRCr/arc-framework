@@ -1,4 +1,5 @@
 /** Current work-unit inbound pressure over operational records. */
+import { describeRecordConflicts } from "../store/conflict-diagnostics.js";
 import { inboundPendingFigures } from "../inbox/pending.js";
 import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
 import { parseEntryList } from "../store/kinds/entry-list.js";
@@ -37,7 +38,7 @@ async function readInboundBackPressure(options: RunInboundBackPressureOptions): 
   const fields = ParsedMetaRecordSchema.parse(primary.fields);
   const read = await options.store.read({ reference: recordReferences["work-item/inbound"](primary.reference.owner) });
   if (read.status === "refused" && read.refusal.code !== "not-found") throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
-  if (read.status === "ok" && read.result.conflicts.length > 0) throw new Error("The work unit's inbound list has unresolved conflicts. Resolve them before re-triage.");
+  if (read.status === "ok" && read.result.conflicts.length > 0) throw new Error(`The work unit's inbound list has unresolved conflicts.${describeRecordConflicts(read.result.conflicts)}`);
   const parsed = parseEntryList(read.status === "ok" ? read.result.content : "", "work-item/inbound");
   if (!parsed.success) throw new Error(parsed.error);
   const figures = inboundPendingFigures(parsed.data.entries, options.now ?? new Date());
