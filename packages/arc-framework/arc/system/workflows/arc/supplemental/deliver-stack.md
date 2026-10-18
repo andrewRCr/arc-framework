@@ -326,7 +326,22 @@ arc review status --target '{targetRef}' --coverage incremental
 Pass the returned action unchanged. Re-enter without `--coverage` after the supplemental attempt concludes; an
 incremental result does not settle or consume the member's required complete review.
 
-Dispatch only on `nextAction`. `obtain-ceiling-override` renders the exact `consequence` and stops without requesting.
+Dispatch only on `nextAction`.
+
+`select-coverage` renders `coverageSelectionAction.interactionText` verbatim and gives a recommendation among its
+listed choices.
+
+> [!IMPORTANT]
+> `workflow-interlock`: Stop at the coverage offer. Await the Owner's listed choice before re-entering the same
+> status scope.
+
+Re-enter with the offer's command for that pair. Carry the returned admission unchanged into local prepare; do not
+ask the coverage question again.
+
+`stop` renders the refusal's `reason`, `detail`, and `remedy.text` verbatim, then stops. Preserve the structured remedy
+and follow its exact command after the stated repair or Owner decision.
+
+`obtain-ceiling-override` renders the exact `consequence` and stops without requesting.
 Only explicit approval of that exact consequence admits one additional pass; on approval, re-enter the same target
 with the returned consequence serialized unchanged:
 

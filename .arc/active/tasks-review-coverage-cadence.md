@@ -293,7 +293,7 @@ first, then in the `.arc/` copy by targeted edit.
   fixture supplies actual base tracking and host check-policy observations. Removing source forwarding makes both
   cases fail, and the restored implementation passes through attestation and response settlement.
 
-### `[ ]` **2.4 Ask the work-unit coverage question once, and refuse a choice it did not list — § 6.4, § 6.5, § 7.3**
+### `[x]` **2.4 Ask the work-unit coverage question once, and refuse a choice it did not list — § 6.4, § 6.5, § 7.3**
 
 - _Goal:_ On the work-unit path the coverage question is asked once at each moment — status after material fixes,
   offering `delegated-agent` alone; nothing after a converged look; local prepare never again on the delivery path —
@@ -321,9 +321,10 @@ first, then in the `.arc/` copy by targeted edit.
           includes Owner acceptance only on supported surfaces; singleton and member-target routes name configuration
           repair alone. Errand status now honors source selection and carries the same diagnostic and retry.
 
-    - `[ ]` **2.4.e Add status's selection arm to `deliver-stack` and `integrate-work-unit`'s delivery route**
-        - Each shows the choices with their text and a recommendation, takes the Owner's pick, and re-runs status with
-          it, and each carries a refusal's remedy as Task 2.4.d returns it.
+    - `[x]` **2.4.e Add status's selection arm to `deliver-stack` and `integrate-work-unit`'s delivery route**
+        - Both workflow copies render the precomposed offer, recommend a listed choice, wait for the Owner's pick,
+          and replay its command in the same scope. The resulting admission bypasses a second coverage question in
+          local prepare; refusal dispatch preserves the supplied reason, detail, and structured remedy.
 
 ### `[ ]` **2.5 Run the published singleton's local pass through local prepare — § 7.5**
 

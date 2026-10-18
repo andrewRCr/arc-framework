@@ -168,6 +168,19 @@ Throughout this iteration, **re-enter status** means preserve the same status sc
 command again for a delivery, or use the exact `targetRef` command for an ordinary singleton. Append an authorized
 judgment option; never narrow a delivery-status action to an agent-reconstructed member target.
 
+`select-coverage` renders `coverageSelectionAction.interactionText` verbatim and gives a recommendation among its
+listed choices.
+
+> [!IMPORTANT]
+> `workflow-interlock`: Stop at the coverage offer. Await the Owner's listed choice before re-entering the same
+> status scope.
+
+Re-enter with the offer's command for that pair. Carry the returned admission unchanged into local prepare; do not
+ask the coverage question again.
+
+`stop` renders the refusal's `reason`, `detail`, and `remedy.text` verbatim, then stops. Preserve the structured remedy
+and follow its exact command after the stated repair or Owner decision.
+
 `obtain-ceiling-override` renders the exact `consequence` and, when present for a delivery member, the exact
 `terminusAction.offer.interactionText`, then stops without requesting. Only explicit approval of the consequence admits
 one additional pass; on approval, re-enter the same status scope with the returned consequence serialized unchanged.
