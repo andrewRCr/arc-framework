@@ -13,19 +13,13 @@ _Mode:_ `slice` — a registered record write refuses newly introduced link viol
 _Exit criterion:_ A reference backend using production registrations refuses violating `write` and `batch` calls,
 admits unchanged historical violations and valid corrections, and leaves existing kind checks intact.
 
-### `[ ]` **1.1 Declare the projected roots through layout — D2.1**
+### `[x]` **1.1 Declare the projected roots through layout — D2.1**
 
 - _Goal:_ Every consumer recognizes the same projected roots, including exact roots and valid identity roots,
   without treating the tracked user README or similarly prefixed directories as projected state.
 
-    - Add the shared root declaration and recognition helpers inside `packages/arc-framework/src/lib/layout/`, exported
-      through `lib/layout/index.ts`; reuse an equivalent declaration if the projection has supplied it by execution.
-    - Use `SlugSchema` for identity roots and keep the three lifecycle roots available independently for movable-target
-      recognition. Keep path construction inside the layout boundary enforced by `SURFACE_NAME` and `layout-private`.
-    - Build `test-first` (one behavior at a time):
-        - Exact roots, descendants, normalization boundaries, valid and invalid identity segments, the tracked
-          `.arc/user/README.md`, and prefix lookalikes have the specified classification.
-        - Extend `__tests__/unit/layout/projection.test.ts` without changing existing `resolveArcPath` outputs.
+- _Outcome:_ Shared lifecycle and personal roots and normalized recognition now export through the layout API;
+  identity recognition uses `SlugSchema`, preserving the tracked user README and prefix boundaries.
 
 ### `[ ]` **1.2 Check introduced Markdown link violations — D2.1–D2.3, D2.5**
 
