@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** [none]
-- **Next Task:** Task 1.1 — Declare the projected roots through layout (line ~16)
+- **Last Completed:** Task 5.6 — Exercise repository feedback and fixing together
+- **Next Task:** Task 6.1 — Complete verification (line ~350)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — Declare the projected roots through layout
+- **Next Action:** Begin Task 6.1 in a fresh session — load and follow `verify-work-unit.md`
 
 - **PR URL:** [none]
 - **Completed:** [none]
