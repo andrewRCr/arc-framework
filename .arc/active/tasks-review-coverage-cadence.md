@@ -240,7 +240,7 @@ pass after an unconverged one down that route (Task 2.4). Status carries a drive
 status, its text naming each option the route allows. Workflow and method text changes in the package's `arc/` source
 first, then in the `.arc/` copy by targeted edit.
 
-### `[ ]` **2.1 Resolve pre-publication's next pass by the rule, and carry the chosen scope on — § 2.2, § 2.4, § 3.3**
+### `[x]` **2.1 Resolve pre-publication's next pass by the rule, and carry the chosen scope on — § 2.2, § 2.4, § 3.3**
 
 - _Goal:_ Pre-publication re-resolves a converged look to the complete pass by rank and otherwise surfaces
   `coverage-required` as an unsettled standard state, `prepare-work-unit` dispatches it and local prepare's selection,
@@ -253,21 +253,14 @@ first, then in the `.arc/` copy by targeted edit.
         - Four cadence cases cover both source ranks and response precedence. The rank cases failed before the change;
           reconstructing the response flag demonstrated the inherited response-due assertions fail before restoration.
 
-    - `[ ]` **2.1.b Add `prepare-work-unit`'s arms**
-        - The pre-publication policy dispatch keys on `policy.state`. An unperformed response reaches
-          `candidate-fix-pending` with `arc review respond -`, whose paragraph — the policy "may already be
-          `pass-complete` or `owner-accepted`" — gains `coverage-required`. A performed one reaches
-          `candidate-review-pending`, whose command re-runs `arc review pre-publication`; its `coverage-required` arm,
-          reached after an unconverged look, sends the next pass to ordinary local prepare, and an arm for local
-          prepare's selection follows.
-        - Restate both rules: a converged result replays as complete under `full-final` only for a complete pass, and
-          additional-pass authorization follows a converged complete pass; `convergedSignal` refuses one after a fix
-          check under `full-final` (Task 1.2.a).
+    - `[x]` **2.1.b Add `prepare-work-unit`'s arms**
+        - The workflow dispatches response-due coverage to dispositions and settled coverage to ordinary local prepare.
+          Local selection shows the typed choices and recommendation, then replays the chosen admission before launch.
+          Convergence and additional-pass rules distinguish a full-final fix check from a closing complete pass.
 
-    - `[ ]` **2.1.c Carry the chosen scope into local prepare**
-        - The chunk gate's scope already rides the procedure's `--lanes`; the `ready / local-prepare` arm also carries it
-          into local prepare as `policyJudgment.scopeMode`. Today local prepare runs whole-target whatever the gate chose,
-          and the mismatch surfaces only at the next procedure call (`ReviewProducerScopeMismatchError`).
+    - `[x]` **2.1.c Carry the chosen scope into local prepare**
+        - The local-prepare arm carries the chunk gate's selection as `policyJudgment.scopeMode` and preserves it in
+          procedure re-entry. Authoritative and installed workflow copies match.
 
 ### `[ ]` **2.2 Measure a fix check's chunks over its own range — § 3.3**
 

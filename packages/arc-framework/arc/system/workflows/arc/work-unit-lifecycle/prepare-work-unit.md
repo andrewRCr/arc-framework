@@ -76,12 +76,13 @@ is open. An accepted initial skip or durable standard admission closes it; chang
 supersession do not reopen it. Follow the typed pre-publication continuation across a re-root: inherited completed
 standard passes still count toward the ceiling, while older producer evidence remains bound to its original target.
 
-A converged standard result remains converged on ordinary replay: a clean pass, or one whose approved dispositions
-fix no confirmed `critical` or `major` finding. If the Owner explicitly authorizes another named standard pass, carry
-its exact head, preceding producer, completed-pass count, and next ordinal as
-`lanes.standard.additionalPassAuthorization` in `--lanes`. This admits that pass only; each further pass needs a
-fresh decision, even after another convergence. If it is above the configured ceiling, the same explicit decision
-covers the named ceiling override. A later material result follows the ordinary response route.
+A standard look converges when it is clean or its approved dispositions fix no confirmed `critical` or `major`
+finding. Under `full-final`, only a converged complete pass replays as complete; a converged fix check still requires
+complete review. If the Owner explicitly authorizes another named standard pass after a converged complete pass under
+`full-final`, or after convergence under `incremental`, carry its exact head, preceding producer, completed-pass count,
+and next ordinal as `lanes.standard.additionalPassAuthorization` in `--lanes`. This admits that pass only; each further
+pass needs a fresh decision. If it is above the configured ceiling, the same explicit decision covers the named ceiling
+override. A later material result follows the ordinary response route.
 
 Supply `--change-set`, `--lanes`, and `--self-review` on the initial invocation and whenever the procedure explicitly
 requests new author judgment. After every lane operation, re-enter through the envelope's typed pre-publication
@@ -124,7 +125,7 @@ Re-invoke the procedure with the exact-target scope selection. A selected bounde
 retaining `consider-chunks`. A stale or missing selection stops before the frontline or standard action.
 
 At `candidate-fix-pending` with `nextAction.command: arc review respond -`, the pass may already be
-`pass-complete` or `owner-accepted`, but its current findings response is still unfinished. Use
+`pass-complete`, `owner-accepted`, or `coverage-required`, but its current findings response is still unfinished. Use
 `nextAction.responseOperationId` and `nextAction.responseSource` to resume that exact producer through the typed
 `arc review respond -` action and [`review-response`][review-response]. Reconstruct a lost proposal from this bound
 source and obtain any approval still required; continue an existing approved response from its durable disposition.
@@ -154,17 +155,21 @@ through `candidate-publish-ready`; the publication transition in Step 3 is the s
   `ready / run-frontline`, then run `arc review frontline run -` with that resolution, the target's
   `{ kind, baseRef, diffBaseSha, headSha }` projection, and `responseBinding` when the pre-publication envelope
   supplies it. Invoke the retained resume only after the frontline operation's typed protocol completes.
-- `ready / local-prepare` — invoke `arc review local prepare -`.
+- `ready / local-prepare` — invoke `arc review local prepare -`, carrying the chunk gate's selected scope as
+  `policyJudgment.scopeMode`, as well as in the procedure's `--lanes` on re-entry.
+- `coverage-required / select-coverage` — while `policy.payload.responseRequired` is true, enter the disposition
+  protocol below. Once false, invoke ordinary `arc review local prepare -` for the next pass and its coverage question.
 - `findings / respond` — enter the disposition protocol below.
 - `approval-required / obtain-ceiling-override` — surface the exact consequence and `Approve (or redirect)?`.
 - `chunk-pending / continue-chunks` — continue the selected local chunk series.
 - `stale-target / select-scope` — rerun chunking against the current target.
 - `blocked | unavailable | invalid-override / stop` — surface diagnostics and stop.
 
-When local preparation offers both complete and incremental coverage, explain which scope is proportionate from the
-latest confirmed signal and the exact correction being reviewed. An incremental choice still spends one logical pass;
-it narrows the new evaluator's target without treating the prior review as clearance for changed code. Do not infer a
-scope from a finding count, and keep the Owner's next-pass authorization separate from this choice.
+When local prepare returns `coverage-required / select-coverage`, show `payload.coverageSelectionAction.interactionText`,
+its listed choices, and a recommendation grounded in the latest confirmed signal and exact correction. Re-invoke the
+same request with the listed choice as `coverageAdmission` and dispatch the returned state again. An incremental choice
+still spends one logical pass; do not infer coverage from a finding count or combine the choice with the Owner's
+next-pass authorization. Launch and attest only from `ready / launch-review`.
 
 Dispatch local operations only through public typed actions. The evaluator submits status, result, findings, and
 run identity to `arc review local attest -`; runtime-owned bindings come from the immutable operation. Resume with
