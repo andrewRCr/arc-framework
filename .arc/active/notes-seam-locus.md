@@ -883,4 +883,17 @@ parser keep their existing contracts. This is a determinate presentation correct
 dependency, reader grammar, or lifecycle transition. Its review-fix verification covers creation, listing, rendering,
 and return; successful built-CLI execution over the flipped backend remains the release check recorded above.
 
+## A25: Preserve merge-only orphan work
+
+The superseded § 12.4 premise was: “`merged`, true when every commit landed in base by patch identity.” An empty
+`git cherry` result does not cover merge commits. The approved correction composes that patch check with a local
+reachability inventory: no merge commit may remain reachable from the orphan branch but not base. The conservative
+result may retain rewritten merges whose content was preserved; it retains the ordinary cleanup offer for rebased
+linear patches. The original task criteria remain unchanged; specification Criterion 28 checks this correction.
+
+`orphanWorkLanded` in `orphan-branch-sweep.ts` applies this rule to both entry points and their compatibility and
+Store arms. Failed merge inventory reports its condition, repair and retry, granting no cleanup action. The current
+built CLI can exercise the pre-flip path in a disposable Git repository. Store-backed successful built-CLI release
+checks remain unexecuted until the flip; reference-Store and handler evidence does not stand in for them.
+
 ---

@@ -52,6 +52,9 @@ function buildExec(
       }],
     },
     {
+      match: { prefix: ["rev-list", "--min-parents=2"] }, responses: [{ stdout: "", stderr: "" }],
+    },
+    {
       match: { predicate: () => true },
       responses: [({ args }) => {
         throw new Error(`unexpected git invocation: ${args.join(" ")}`);
@@ -230,6 +233,7 @@ describe("runOrphanBranchSweep", () => {
         return { stdout: ".arc/completed/2026-q2/01_shipped/meta-shipped.md", stderr: "" };
       }
       if (args[0] === "cherry" && args[1] === baseOid) return surviving.exec(_command, args, options);
+      if (args[0] === "rev-list" && args[3] === `^${baseOid}`) return { stdout: "", stderr: "" };
       throw new Error(`tracking-ref fallback: ${args.join(" ")}`);
     };
 
@@ -295,6 +299,7 @@ describe("analyzeOrphanBranchesSnapshot", () => {
         if (args[1] !== baseOid) throw new Error("unexpected base operand");
         return surviving.exec(_cmd, args, options);
       }
+      if (args[0] === "rev-list" && args[3] === `^${baseOid}`) return { stdout: "", stderr: "" };
       throw new Error(`unexpected git invocation: ${args.join(" ")}`);
     };
 

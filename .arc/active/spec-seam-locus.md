@@ -2063,16 +2063,20 @@ accepted edge: a move may land on a path registered to a missing or locked workt
 #### 12.4 The orphan-branch sweep
 
 The sweep (`runOrphanBranchSweep`, `lib/session-init/orphan-branch-sweep.ts`) reports each local branch whose upstream
-is gone with two verdicts: whether its work unit shipped, and `merged`, true when every commit landed in base by patch
-identity (`git cherry`, through `isLandedInBase`, or `isLandedInBaseStrict` on the local-only read,
-`lib/git/branch-containment.ts`). Session-init's text offers `arc teardown <name>` for a shipped work unit's branch and
-`git branch -d <name>` for a merged one.
+is gone with two verdicts: whether its work unit shipped, and `merged`, true only when its non-merge commits have
+landed by patch identity and no merge commit remains reachable from the branch but not base (A25). The sweep's
+`orphanWorkLanded` combines `git cherry`, through `isLandedInBase` or `isLandedInBaseStrict`, with
+`git rev-list --min-parents=2 <branch> ^<base>`. A failed merge inventory grants no cleanup action and names a repair
+and retry. This conservative check can retain a branch whose merge was rewritten even when its content was preserved.
+Session-init's text offers `arc teardown <name>` for a shipped work unit's branch and `git branch -d <name>` for a
+merged one.
 
 - **The rebuilt slot carries the action,** before the flip, from both of the sweep's paths, `runOrphanBranchSweep` and
   the snapshot analysis session-init calls (`analyzeOrphanBranchesSnapshot`): `arc teardown <name>` for a shipped work
   unit's branch, and for a merged one `git branch -D <name>`, since `git branch -d` tests reachability and so refuses a
-  rebased branch, or one squash-merged from a single commit, which the `merged` verdict admits. Session-init's offer
-  text keeps `-d` until the flip's rewrite dispatches the slot's action.
+  rebased linear branch, or one squash-merged from a single commit, which the `merged` verdict admits. The merge
+  inventory check applies to both paths before and from the flip, including their Store-backed arms. Session-init's
+  offer text keeps `-d` until the flip's rewrite dispatches the slot's action.
 - **From the flip a branch linked `adopted`** is never offered `arc teardown`, since teardown never deletes an adopted
   branch and the offer would repeat at every session start. The sweep admits a gone-upstream branch the store links,
   whatever its name, through the store's lookup of its ref (`lookup` with `LookupInputSchema`'s `ref` kind,
@@ -2428,8 +2432,10 @@ precondition on the cutover for a case one lookup at close settles.
 (`program.version`, `cli.ts`). _`--at`, `--seen`, `--entry-version`._ ARC's own compare-before-act options already read
 `--expected-head`, `--expected-base`, and their kin, as HTTP's conditional request does with `If-Match`.
 
-**`git branch -D` for a merged orphan (§ 12.4).** `git branch -d` tests reachability, so it refuses a rebased branch or
-one squash-merged from a single commit, both of which the `merged` verdict admits.
+**`git branch -D` for a merged orphan (§ 12.4).** `git branch -d` tests reachability, so it refuses a rebased linear
+branch or one squash-merged from a single commit. `git cherry` omits merge commits, so its empty result alone cannot
+prove merge-resolution work preserved. The sweep's `orphanWorkLanded` also requires no merge commit outside base's
+reachable history before admitting a force-delete action (A25).
 
 **A dead registration cleared where it blocks (§ 2.7, § 12.2, § 16).** A checkout deleted by hand leaves a registration
 that blocks a work unit's spawn only at Git's `worktree add` or checkout, by holding its path or its branch, so the
@@ -2612,6 +2618,11 @@ close.
     creation date become managed fields. Ordinary return keeps that single entry, its title, concern, and ID, with
     its creation date following § 7.5.
 
+28. **Orphan cleanup preserves merge-only work (A25).** Both sweep entry points, their compatibility and Store arms,
+    withhold a typed force-delete action when a merge commit remains outside base's reachable history, even when
+    `git cherry` reports no unmatched patch. A failed merge inventory reports repair and retry without granting
+    cleanup. Once the merge is preserved in base, the ordinary offer returns. Rebased linear patches remain eligible.
+
 ## Open Questions
 
 None blocks starting. The expected contracts in § 16 each state what holds until their change lands, and none leaves
@@ -2669,5 +2680,8 @@ this design open.
 
 - **A24** — 2026-10-18 — design: text-open concerns display literally beneath the slug. _Supersedes:_ § 7.6; § 15.1, D11.
   _Trigger:_ F9 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A25** — 2026-10-18 — design: orphan force-delete offers require preserved merge history. _Supersedes:_ § 12.4.
+  _Trigger:_ F8 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

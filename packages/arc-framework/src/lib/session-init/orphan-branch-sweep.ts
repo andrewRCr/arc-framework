@@ -14,7 +14,9 @@
  *   reap, so the offer is safe even when `merged` cannot be proven here).
  * - Otherwise, `merged` (commits landed in the integration base) gates the
  *   `git branch -D` action: patch-equivalent rebased commits need not be
- *   reachable from base, so `-d` would refuse. Unmerged orphans stay advisory.
+ *   reachable from base, so `-d` would refuse. Merge commits outside base's
+ *   history withhold that action, because patch identity omits merge work.
+ *   Unmerged orphans stay advisory.
  *
  * Excluded from the scan: bare (unprefixed) branches such as the base branch,
  * branches checked out in any worktree (the stale-worktree sweep's domain),
@@ -123,7 +125,7 @@ export async function analyzeOrphanBranchesSnapshot(
     const shippedSlug = shippedName === null ? null : SlugSchema.safeParse(shippedName);
     return {
       branch,
-      merged: await isLandedInBaseStrict(localOnlyExec, branch, baseOid),
+      merged: await orphanWorkLanded(localOnlyExec, branch, baseOid, true),
       shippedWorkUnit: shippedSlug?.success === true ? shippedSlug.data : null,
     };
   }));
@@ -186,7 +188,7 @@ export async function runOrphanBranchSweep(
     if (selected.candidates.length === 0) return { orphans: [], remoteEvidence: "not-applicable" };
     if (options.baseEvidence !== undefined) return analyzeStoreSnapshot({ ...options, ...options.baseEvidence, branches }, selected.candidates);
     const orphans = await Promise.all(selected.candidates.map(async candidate => storeOrphanReport(candidate,
-      await isLandedInBase(exec, candidate.branch, `origin/${baseBranch}`))));
+      await orphanWorkLanded(exec, candidate.branch, `origin/${baseBranch}`))));
     return { orphans, remoteEvidence: "not-applicable" };
   }
   // Without the errand-record index an errand branch is indistinguishable from
@@ -227,13 +229,24 @@ export async function runOrphanBranchSweep(
       const shippedSlug = shippedName === null ? null : SlugSchema.safeParse(shippedName);
       return {
         branch,
-        merged: await isLandedInBase(exec, branch, integrationTarget),
+        merged: await orphanWorkLanded(exec, branch, integrationTarget),
         shippedWorkUnit: shippedSlug?.success === true ? shippedSlug.data : null,
       };
     }),
   );
 
   return { orphans: orphans.map(withOrphanActions), remoteEvidence: "not-applicable" };
+}
+
+async function orphanWorkLanded(exec: GitExec, branch: string, base: string, strict = false): Promise<boolean> {
+  const patchesLanded = strict ? await isLandedInBaseStrict(exec, branch, base) : await isLandedInBase(exec, branch, base);
+  if (!patchesLanded) return false;
+  try {
+    const { stdout } = await exec("git", ["rev-list", "--min-parents=2", branch, `^${base}`]);
+    return stdout.trim() === "";
+  } catch (error) {
+    throw new Error(`Merge preservation for '${branch}' could not be inspected: ${error instanceof Error ? error.message : String(error)} Inspect git rev-list --min-parents=2 ${branch} ^${base}, repair the Git error, then retry arc status --session-init --json.`, { cause: error });
+  }
 }
 
 
@@ -264,7 +277,7 @@ async function analyzeStoreSnapshot(options: AnalyzeOrphanBranchesSnapshotOption
   if (options.history.kind !== "complete") throw new Error("Orphan history completeness could not be inspected.");
   const localOnlyExec: GitExec = (command, args, execOptions) => options.exec(command, args, { ...execOptions, objectAccess: "local-only" });
   const orphans = await Promise.all(candidates.map(async candidate => storeOrphanReport(candidate,
-    await isLandedInBaseStrict(localOnlyExec, candidate.branch, baseOid))));
+    await orphanWorkLanded(localOnlyExec, candidate.branch, baseOid, true))));
   return { ...evidence, orphans };
 }
 

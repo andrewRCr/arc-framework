@@ -6,6 +6,7 @@ import { createLifecycleHarness } from "../../../helpers/store/lifecycle-harness
 import { OwnerIdentitySchema, recordReferences } from "../../../../src/lib/store/identity.js";
 import { serializeTransientIdentityRecord, TransientIdentityRecordSchema } from "../../../../src/lib/errand/identity-record.js";
 import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
+import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
 it("finds the completed work unit and its metadata through placement alone", async () => {
   const h = createLifecycleHarness();
   await h.seedMeta("shipped", { state: "Shipped", currentWorkflow: null, completed: "2026-10-15T00:00:00Z", prUrl: "https://github.com/org/repo/pull/42" },
@@ -28,8 +29,12 @@ it("identifies an orphan's completed work unit through its qualified link", asyn
     createdAt: "2026-10-15T00:00:00Z", updatedAt: "2026-10-15T00:00:00Z", anchorStub: "unrelated", members: ["unrelated"],
     openedBaseHead: base, protection: "full", branch: "chore/groom-unrelated", state: "open", changeRequest: null,
   })));
+  const { exec } = scriptGitExec([
+    { match: { prefix: ["cherry"] }, responses: [{ stdout: "" }] },
+    { match: { prefix: ["rev-list", "--min-parents=2"] }, responses: [{ stdout: "" }] },
+  ]);
   const result = await analyzeOrphanBranchesSnapshot({ store: h.store, identity: "alice", projectId: async () => "project", branches: ["topic/unrelated-spelling"], baseBranch: "main",
     remoteSyncEnabled: true, snapshot: { kind: "available", scope: "all-heads", tips: { main: base } }, objectAvailability: { kind: "complete", commits: { [base]: true } }, history: { kind: "complete" },
-    exec: async (_command, args) => { expect(args[0]).toBe("cherry"); return { stdout: "" }; } });
+    exec });
   expect(result.orphans[0]).toMatchObject({ shippedWorkUnit: "shipped", actions: [{ argv: ["arc", "teardown", "shipped"] }] });
 });
