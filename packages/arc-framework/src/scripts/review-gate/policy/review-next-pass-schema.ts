@@ -11,12 +11,18 @@ export const ReviewNextPassContextSchema = z.strictObject({
 export type ReviewNextPassContext = z.infer<typeof ReviewNextPassContextSchema>;
 
 
-/** Refuse standard-only derived facts on the opening frontline lane. */
+/** Require next-pass facts when standard review can run, and keep them off the frontline lane. */
 export function validateReviewNextPassContext(
-  request: { readonly lane: "frontline" | "standard"; readonly nextPassContext?: ReviewNextPassContext },
+  request: {
+    readonly lane: "frontline" | "standard";
+    readonly sources: readonly string[];
+    readonly standardReview: { readonly obligation: string };
+    readonly nextPassContext?: ReviewNextPassContext;
+  },
   context: z.RefinementCtx,
 ): void {
-  if (request.lane === "standard" && request.nextPassContext === undefined) {
+  if (request.lane === "standard" && request.sources.length > 0
+    && request.standardReview.obligation !== "exempt" && request.nextPassContext === undefined) {
     context.addIssue({ code: "custom", path: ["nextPassContext"],
       message: "standard review requires repository-derived next-pass context" });
   }

@@ -1746,7 +1746,9 @@ async function resolveConfiguredReviewPolicy(
       return confirmation.target;
     },
   };
-  if (request.lane === "frontline") return resolveEvidenceBoundReviewPolicy(request, dependencies);
+  if (request.lane === "frontline" || sources.length === 0 || request.standardReview.obligation === "exempt") {
+    return resolveEvidenceBoundReviewPolicy(request, dependencies);
+  }
   const nextPassContext = await readResolveNextPassContext({
     request, root, exec, operationStore, resultReader, dispositionStore, configuredSources: sources,
     confirmApplicability: dependencies.confirmIncrementalApplicability,
