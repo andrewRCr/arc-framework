@@ -39,6 +39,31 @@ export const REVIEW_SOURCE_CAPABILITIES: Readonly<Record<string, ReviewSourceCap
   },
 };
 
+/** Select fresh-pass candidates without changing the list that binds recorded attempts. */
+export function selectReviewSources(request: ReviewPolicyRequest): {
+  sources: readonly string[];
+  refusal: ReviewDiagnostic | null;
+} {
+  const forced = request.lane === "standard" && request.invocation?.mode === "force"
+    ? request.invocation.sourceId : undefined;
+  if (request.lane === "standard" && request.nextPassContext?.convergence === "unconverged") {
+    if (!request.sources.includes("delegated-agent")) {
+      return { sources: [], refusal: {
+        code: "material-fix-local-source-unconfigured",
+        message: "The pass after material fixes requires delegated-agent, which review.standard_sources omits.",
+      } };
+    }
+    if (forced !== undefined && forced !== "delegated-agent") {
+      return { sources: [], refusal: {
+        code: "material-fix-local-review-required",
+        message: "The pass after material fixes must run locally on delegated-agent to re-examine the repairs.",
+      } };
+    }
+    return { sources: ["delegated-agent"], refusal: null };
+  }
+  return { sources: request.sources.slice(forced === undefined ? 0 : request.sources.indexOf(forced)), refusal: null };
+}
+
 /** Describe a registered source's eligibility for one lane, scope, and target. */
 export function sourceDiagnostic(
   sourceId: string,

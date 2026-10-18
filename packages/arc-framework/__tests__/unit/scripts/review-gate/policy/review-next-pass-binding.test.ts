@@ -15,7 +15,7 @@ function fixture(findings = false) {
       rubricDigest: result.kind === "frontline" ? "sha256:unused" : result.requirement.rubricDigest, retrigger: "full-final", count: 1 } });
   const nextPassContext = { convergence: findings ? "unconverged" as const : "converged" as const, responseDue: false, incremental: null };
   return { result, request: { ...request, attempts: [{ sourceId: "codex-pr", outcome: findings ? "findings" as const : "clean" as const, reviewOperationId: result.producerId }] },
-    dependencies: { sources: ["codex-pr"], maxPasses: 3, nextPassContext,
+    dependencies: { sources: ["codex-pr", "delegated-agent"], maxPasses: 3, nextPassContext,
       resultReader: { readResult: async () => result },
       dispositionStore: { readDispositionRecord: async () => record,
         appendDispositionRecord: async () => { throw new Error("read-only binding"); } },

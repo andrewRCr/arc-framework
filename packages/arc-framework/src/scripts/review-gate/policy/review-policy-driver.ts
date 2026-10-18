@@ -29,7 +29,7 @@ import {
 } from "./review-terminus.js";
 import { StandardReviewObligationProjectionSchema } from "./standard-review-projection-schema.js";
 import { HostedRequestEnvelopeSchema } from "../hosted/request.js";
-import { REVIEW_SOURCE_CAPABILITIES, sourceDiagnostic } from "./review-source-eligibility.js";
+import { REVIEW_SOURCE_CAPABILITIES, selectReviewSources, sourceDiagnostic } from "./review-source-eligibility.js";
 export { sourceDiagnostic } from "./review-source-eligibility.js";
 import { ReviewNextPassContextSchema, validateReviewNextPassContext } from "./review-next-pass-schema.js";
 import { errandFirstPassHostedRequest } from "./review-errand-hosted-request.js";
@@ -572,6 +572,20 @@ function resolveEnvelope(
   });
 }
 
+function sourceSelectionRefusal(
+  request: ReviewPolicyRequest,
+  scope: z.infer<typeof ReviewScopeModeSchema>,
+  diagnostic: ReviewDiagnostic,
+): ReviewResolveEnvelope {
+  return resolveEnvelope({
+    state: "unavailable", nextAction: "stop",
+    payload: {
+      lane: request.lane, scope, consumedPass: false,
+      attemptedSources: request.attempts, ineligibleSources: request.sources,
+    },
+  }, [diagnostic]);
+}
+
 /** Skip advisory frontline when all-ineligible sources include a scope decline; an unregistered one keeps the stop. */
 function frontlineScopeDecline(
   request: ReviewPolicyRequest,
@@ -842,11 +856,12 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
       message: `The ${request.lane} lane has exhausted its configured pass ceiling.`,
     }]);
   }
+  const selection = selectReviewSources(request);
+  if (selection.refusal !== null) return sourceSelectionRefusal(request, scope, selection.refusal);
   const selectedSourceId = request.lane === "standard" && request.invocation?.mode === "force"
     ? request.invocation.sourceId
     : undefined;
-  const selectedSourceIndex = selectedSourceId === undefined ? 0 : request.sources.indexOf(selectedSourceId);
-  const effectiveSources = request.sources.slice(selectedSourceIndex);
+  const effectiveSources = selection.sources;
   const selectedSourceDiagnostic = selectedSourceId === undefined
     ? null
     : sourceDiagnostic(selectedSourceId, request.lane, scope, request.target.pullRequest);

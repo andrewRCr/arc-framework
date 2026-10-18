@@ -111,18 +111,10 @@ The confirmation map is in `notes-review-coverage-cadence.md` § Chain confirmat
   the local pass, and a stop with both remedies where the configured list omits it — while after a converged look the
   configured rank picks the source.
 
-    - `[ ]` **1.5.a Restrict the driver's selection after an unconverged look**
-        - `resolveReviewPolicy` (`review-policy-driver.ts`) narrows its selection to `delegated-agent` when the context
-          reads the predecessor unconverged, ahead of the hosted-first reservation (`reservedHostedSource`), so a
-          restricted selection reserves no hosted source before a pull request. The restriction lands in the module
-          Task 1.1.c extracts.
-        - `sources` stays the configured list, because the continuation validates the terminal attempt against it
-          (`bindReviewPolicyEvidence`; `validateConfiguredAttempts`).
-        - Build `test-first` (one behavior at a time):
-            - After a hosted pass with a material fix, the driver selects `delegated-agent`.
-            - Before a pull request, a restricted selection reserves no hosted source.
-            - After a converged look, the configured rank picks the source and a hosted source can run the complete
-              pass.
+    - `[x]` **1.5.a Restrict the driver's selection after an unconverged look**
+        - Source selection now restricts fresh passes after material fixes to `delegated-agent` before hosted
+          reservation, preserving the source list that binds recorded attempts and restoring configured rank after
+          convergence. Forced hosted and missing-local-source selections carry distinct refusal diagnostics.
 
     - `[ ]` **1.5.b Refuse a forced hosted source after an unconverged look**
         - A forced source (`invocation.mode === "force"`) naming a hosted source after an unconverged look resolves to

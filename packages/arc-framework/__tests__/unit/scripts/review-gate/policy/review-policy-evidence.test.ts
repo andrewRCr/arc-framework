@@ -1005,7 +1005,7 @@ describe("evidence-bound review policy", () => {
     }, {
       ...dependencies(result, record),
       nextPassContext: { convergence: "unconverged" as const, responseDue: true, incremental: null },
-      sources: ["codex-pr"],
+      sources: ["codex-pr", "delegated-agent"],
       maxPasses: 2,
     })).resolves.toMatchObject({
       state: "coverage-required",
@@ -1028,7 +1028,7 @@ describe("evidence-bound review policy", () => {
     const evidence = {
       ...dependencies(result, record),
       nextPassContext: { convergence: "unconverged" as const, responseDue: true, incremental: null },
-      sources: ["codex-pr"],
+      sources: ["codex-pr", "delegated-agent"],
       maxPasses: 2,
       readResponsePerformance: async () => performedFix(result, record),
     };
@@ -1045,8 +1045,8 @@ describe("evidence-bound review policy", () => {
       coverageSelected: true,
     }, evidence)).resolves.toMatchObject({
       state: "ready",
-      nextAction: "hosted-request",
-      payload: { pass: 2, sourceId: "codex-pr" },
+      nextAction: "local-prepare",
+      payload: { pass: 2, sourceId: "delegated-agent" },
     });
   });
 
