@@ -629,15 +629,15 @@ rejections. Method and workflow text changes in the package's `arc/` source firs
   for independent search and sibling sweeps. The existing stored string survives replay and renewal; hosted requests
   and stored record shapes are unchanged.
 
-### `[ ]` **4.5 Check new findings against the lineage's rejections in triage — § 9.4**
+### `[x]` **4.5 Check new findings against the lineage's rejections in triage — § 9.4**
 
 - _Goal:_ In `review-triage`'s source verification, the primary agent checks each new finding against the lineage's
   rejections from the lane read, asking whether each rejection's reason still holds against current source, with no
   verdict entering the evaluator's context.
 
-    - Method prose in the package source, then the `.arc/` copy. The agent runs the lane read before verifying; the
-      check applies to a lane's findings, not to a review run outside any lane, such as `verify-work-unit`'s
-      self-review.
+- _Outcome:_ Triage reads the lane before source verification, checks earlier rejection reasons against current source,
+  and keeps rejection context with the primary agent. Delivery reads name the exact member head, refusals retain their
+  remedies, and author self-review outside a lane skips the read. Package and project method copies match.
 
 ### `[ ]` **4.6 Stop for the Owner after a clean fix check when the judgment recommends stopping — § 6.2, § 8.3**
 

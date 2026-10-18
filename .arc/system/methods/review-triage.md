@@ -29,6 +29,13 @@ Process the complete finding set in three ordered legs.
 
 ### 1. Verify against source
 
+Before verifying findings from a review lane, run `arc review lane read -`, deriving its request from
+`arc review lane read --schema`. For a delivery member, supply its exact head as `memberHeadObjectId`. Follow a refusal's
+remedy before continuing. Compare each new finding with the lineage's earlier rejections and check whether each
+applicable rejection's reason still holds against current source. Keep the returned rejections, reasons, and earlier
+verdicts in the primary agent's triage context; withhold them from the evaluator. Author self-review outside any lane
+does not run this read.
+
 Verify every finding against source using the primary agent's own judgment. Record whether the finding is valid and
 the evidence that supports that decision. An invalid or misunderstood finding still receives an explicit `reject`
 disposition with rationale.
