@@ -512,12 +512,15 @@ describe("PR lifecycle and review contracts", () => {
       expect(criteria).toContain("ordinary closing-task evidence");
     }
 
-    // An amendment's pass reads the planning passes as its prior findings.
+    // The amendment passes its depth and recorded history to the same review home.
     for (const base of [packageArc, projectArc]) {
       const amendment = await readFile(resolve(base, "system/workflows/arc/supplemental/amend-design.md"), "utf8");
-      expect(amendment.toLowerCase().replace(/\s+/gu, " ")).toContain(
-        "pass any prior findings recorded in the work unit's `adversarial-passes.md`",
-      );
+      expect(amendment).toContain("planning-review:");
+      expect(amendment).toContain("artifact: amendment");
+      expect(amendment).toContain("  depth:");
+      expect(amendment).toContain("  class:");
+      expect(amendment).toContain("prior-findings:  # recorded planning findings");
+      expect(amendment).toContain("methods/planning-review.md#post-settle-reread");
     }
 
     const recipe = JSON.parse(

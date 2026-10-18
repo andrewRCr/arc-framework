@@ -941,14 +941,11 @@ package's `arc/` source first, then in the `.arc/` copy.
   with every site restatement, proposed home, and reaching sites, including the new coverage and delta-check arms.
   It distinguishes shared review from authoring-loop checks and lifecycle steps that remain at their sites.
 
-### `[ ]` **7.2 Add `planning-review`, and call it from the four planning sites — § 11.2**
+### `[x]` **7.2 Add `planning-review`, and call it from the four planning sites — § 11.2**
 
 - _Goal:_ One `planning-review` method holds the stage-gate review `draft-design`, `create-spec`, and `generate-tasks`
   repeat today, and every planning site calls it with its artifact or depth: those three stages recommend the offer at
   `Heavy` and `Novel`, the amendment uses depth, and the post-settle re-read is the last step before each site's commit.
-
-- _Note:_ 7.2.a and 7.2.b land in one commit, since the method-trigger audit (`lint:arc:triggers`, a commit gate) fails
-  a method no workflow declares; 7.2.c can follow on its own.
 
     - `[x]` **7.2.a Write the method**
         - Added the artifact/depth contract, selected author checks and independent rubrics, Class cap, common
@@ -960,10 +957,10 @@ package's `arc/` source first, then in the `.arc/` copy.
           Heavy drafts now receive the recommended offer; each stage invokes the shared reread immediately
           before its capture commit, including after task rendering.
 
-    - `[ ]` **7.2.c Call it from `amend-design`**
-        - With the same callsite, passing its depth: no offer at `low`, a neutral one at `medium`, a recommended one at
-          `high`, with `Class` setting the pass cap; it gains the offer callout, signature block, and pass cap it lacks
-          today.
+    - `[x]` **7.2.c Call it from `amend-design`**
+        - The capture step passes the amendment footprint, depth, Class, and recorded planning findings to the
+          shared contract. The depth ladder keeps authoring at scope; the method owns the offer and Class cap,
+          with the shared reread before every capture, task, or review-fix commit.
 
 ### `[ ]` **7.3 Add `code-review`, and give each code site a thin dispatch — § 11.3**
 

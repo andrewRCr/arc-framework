@@ -235,14 +235,14 @@ describe("framework sync (self-hosting drift check)", () => {
   });
 
   it("declares design proportionality at every direct planning consumer", async () => {
-    const workflowPaths = [
+    const consumerPaths = [
       "system/workflows/arc/draft-design.md",
       "system/workflows/arc/create-spec.md",
       "system/workflows/arc/generate-tasks.template.md",
-      "system/workflows/arc/supplemental/amend-design.md",
+      "system/methods/planning-review.md",
     ];
 
-    for (const path of workflowPaths) {
+    for (const path of consumerPaths) {
       const content = await readFile(join(PKG_ARC_DIR, path), "utf8");
       const declarations = parseWorkflowFrontmatter(content);
       expect(declarations.parseError, `${path} frontmatter`).toBeUndefined();
