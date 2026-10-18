@@ -209,33 +209,18 @@ The confirmation map is in `notes-review-coverage-cadence.md` § Chain confirmat
 - _Context:_ Workflow text changes in the package's `arc/` source and then in the `.arc/` copy, in the shipped
   register.
 
-    - `[ ]` **1.9.a Add the `coverage-required`, `ready`, and selection arms to the resolve dispatch**
-        - On `coverage-required` the arm keys on `responseRequired`: while it is true — a converged fix check with minor
-          fixes included — the arm enters the disposition protocol; once it is false, the next pass goes to ordinary
-          local prepare, which asks the coverage question.
-        - On `ready` the arm routes `hosted-request` and `local-prepare` as the driver names them, the hosted complete
-          pass by rank after a converged look included.
-        - The selection arm shows local prepare's choices with their text and a recommendation, takes the Owner's
-          pick, and re-runs with it; a selection admits only a listed choice (`resolveLocalReviewCoverageSelection`).
+    - `[x]` **1.9.a Add the `coverage-required`, `ready`, and selection arms to the resolve dispatch**
+        - Resolve dispatch sends response-due coverage to dispositions and settled coverage to ordinary local prepare;
+          ready states follow the driver's source. Local coverage choices are shown and replayed before launch/attest.
 
-    - `[ ]` **1.9.b Admit the Owner's stop from `coverage-required`**
-        - Beside `ready` and `approval-required`, once `responseRequired` is false: the conversational stop `run-errand`
-          takes with an open pull request, which records no terminus. Before the pull request it defers as `run-errand`
-          already defers its other stops.
+    - `[x]` **1.9.b Admit the Owner's stop from `coverage-required`**
+        - Settled-response coverage admits the existing open-PR conversational risk offer; pending responses still run
+          first, and before PR creation the stop defers to the opened target. No durable terminus is recorded.
 
-    - `[ ]` **1.9.c Restate the rules the arms now follow**
-        - A converged result replays as complete under `full-final` only for a complete pass; a converged fix check
-          still requires the complete pass. The additional-pass authorization follows a converged complete pass,
-          since `convergedSignal` refuses one after a fix check under `full-final` (Task 1.2.a).
-        - The hosted arm no longer says a request after an approved fix "carries `coverage: incremental` over only the
-          fix range when that provider can": a hosted source runs only a lane's first pass or the pass after a converged
-          one, and that pass is complete.
-        - The forced invocation passed "on every policy call for that target" holds only until a look fixes a material
-          finding, after which a forced hosted source is refused.
-        - The stop offered when the Owner declines the pass a fix triggers arises from `ready / local-prepare` after a
-          material fix, not `ready / hosted-request`.
-        - The supplemental arm that asks for `effectiveCoverage: complete` and discloses the upgrade requests the
-          complete pass status offers instead.
+    - `[x]` **1.9.c Restate the rules the arms now follow**
+        - `full-final` convergence distinguishes complete passes from fix checks. Hosted requests are complete; forced
+          hosted selection ends at material fixes, whose declined successor uses the local route. Supplemental requests
+          take status's complete pass. Package and installed workflow copies match; 87 workflow contract cases pass.
 
     - `[ ]` **1.9.d Drive an Errand's `full-final` lane end to end**
         - Integration coverage beside `review-status-errand.test.ts` and `review-driver-lifecycle.test.ts`.

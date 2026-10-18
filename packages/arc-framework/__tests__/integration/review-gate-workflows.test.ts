@@ -939,7 +939,7 @@ describe("trusted review-gate workflows", () => {
     expect(compactReview).toContain("An Owner-directed review stop always selects the reviewed-lane");
     expect(compactReview).toContain("declines at a disposition turn the pass a fix triggers");
     expect(compactReview).toContain(
-      "from `ready / hosted-request`, present the Owner-directed review stop offer below instead of requesting the pass",
+      "from `ready / local-prepare`, present the Owner-directed review stop offer below instead of requesting the pass",
     );
     const preRequest = sectionBetween(packaged, "Compose the immutable policy target", "3. **Resolve the Errand PR**")
       .replace(/\s+/gu, " ");

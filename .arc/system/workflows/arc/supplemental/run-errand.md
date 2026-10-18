@@ -260,12 +260,15 @@ remote base all name the same exact head. Any tracked change continues through t
    `scopeSelection` to `{ mode: "whole-target", target: <immutable-policy-target> }`; chunk selection is not an
    Errand review action. Pass that exact whole-target selection to `arc review resolve -`.
    Configured standard-source order is the default. For an explicit Owner selection of a configured source, pass
-   `invocation: { mode: "force", sourceId: "<source-id>" }` on every policy call for that target; the resulting
-   Errand binding carries that source and its ordered fallbacks through hosted request and await.
+   `invocation: { mode: "force", sourceId: "<source-id>" }` on every policy call for that target until a look fixes a
+   material finding. Then drop a forced hosted invocation and follow the driver's local action; a forced hosted source
+   refuses. The Errand binding carries the selected source and its ordered fallbacks through hosted request and await.
 
-   A converged result replays as complete: a clean pass, or one whose approved dispositions fix no confirmed `critical`
-   or `major` finding. If the Owner explicitly authorizes another named standard pass, carry the exact target, preceding
-   producer, completed-pass count, and next ordinal as `additionalPassAuthorization` through `arc review resolve -`.
+   A look converges when clean or when its approved dispositions fix no confirmed `critical` or `major` finding. Under
+   `full-final`, only a converged complete pass replays as complete; a converged fix check still requires the complete
+   pass. Under that policy, additional-pass authorization follows a converged complete pass. If the Owner explicitly
+   authorizes another named standard pass, carry the exact target, preceding producer, completed-pass count, and next
+   ordinal as `additionalPassAuthorization` through `arc review resolve -`.
    Carry the full authorization on hosted admission, or its targetless fields under
    `policyJudgment.additionalPassAuthorization` on local preparation. For an open PR,
    `arc review status --target <targetRef> --additional-pass '<authorization>'` reports the outstanding review. A fresh
@@ -286,10 +289,19 @@ remote base all name the same exact head. Any tracked change continues through t
      `invocation` with `{ "mode": "skip" }` and re-invoke the same request. Dispatch the returned state again; only from
      `ready / run-frontline`, invoke `arc review frontline run -` with the ready resolution and the target's
      `{ kind, baseRef, diffBaseSha, headSha }` projection.
+   - `ready / hosted-request` — follow the selected provider through Step 4's hosted dispatch, including the complete
+     pass selected by configured rank after a converged look.
+   - `coverage-required / select-coverage` — while `payload.responseRequired` is true, enter the `findings / respond`
+     disposition protocol below, including when a converged fix check proposes minor fixes. Once false, invoke ordinary
+     `arc review local prepare -` for the next pass and its coverage question. If the Owner declines that pass, prepare
+     nothing: before the PR, continue to Step 3; at the open PR, offer the Owner-directed review stop below.
    - `ready / local-prepare` — if the Owner declined the pass a fix triggers, prepare nothing; continue to Step 3 and
-     offer the Owner-directed review stop at the open PR. Otherwise invoke `arc review local prepare -`; submit
-     evaluator-owned result content through `arc review local attest -`, with runtime-owned bindings injected from the
-     immutable operation.
+     offer the Owner-directed review stop at the open PR. Otherwise invoke `arc review local prepare -`. On its
+     `coverage-required / select-coverage`, show `payload.coverageSelectionAction.interactionText`, its listed choices,
+     and a recommendation. Take the Owner's pick and re-run the same prepare request with that exact listed choice as
+     `coverageAdmission`; no other choice admits. Dispatch the returned state again. Apply this selection arm whenever
+     ordinary local prepare above asks the question. Only from `ready / launch-review`, submit evaluator-owned result
+     content through `arc review local attest -`, with runtime-owned bindings injected from the immutable operation.
    - `findings / respond` — run [`review-triage`][review-triage], include the effective policy as
      `proposal.severityGatingPolicy`, submit the proposal through the first `arc review respond -` call, emit
      `payload.dispositionReportText`, obtain complete-set approval, submit the exact
@@ -395,14 +407,16 @@ remote base all name the same exact head. Any tracked change continues through t
    Bind the opened target's `scopeSelection` directly to whole-target and invoke `arc review resolve -` for each
    incomplete lane. If the Owner has directed that no further standard-review pass be spent, take the exact
    Owner-directed review stop below only from `ready / hosted-request`, `ready / local-prepare`, or
-   `approval-required / obtain-ceiling-override`; stop before source dispatch. Every other driver state retains its
-   typed action. Otherwise, on `ready / hosted-request`, read `arc review status --target <targetRef>` with any ceiling
-   override or additional-pass authorization the driver call carried. When it returns
-   `review-required / review-hosted-request` with an `action` naming the selected provider, pass that action unchanged
-   to `arc review hosted request -`: after an approved fix it carries `coverage: incremental` over only the fix range
-   when that provider can, and its `detail` names the coverage. Status offers no request for a head with no recorded
-   review, so for the Errand's first pass, hand it the driver result's own `action` unchanged instead. When neither
-   result carries an `action`, stop: neither verb recognized this checkout as the Errand's subject.
+   `approval-required / obtain-ceiling-override`, or `coverage-required / select-coverage` once
+   `payload.responseRequired` is false; stop before source dispatch. Every other driver state follows the resolve
+   dispatch above, and an unperformed response enters its disposition protocol first. On `ready / hosted-request`, read
+   `arc review status --target <targetRef>` with any ceiling override or additional-pass authorization the driver call
+   carried. When it returns `review-required / review-hosted-request` with an `action` naming the selected provider,
+   pass that action unchanged to `arc review hosted request -`. A hosted source runs only the lane's first pass or the
+   complete pass after a converged look, with `coverage: complete`; fix checks run locally. Status offers no request for
+   a head with no recorded review, so for the Errand's first pass, hand it the driver result's own `action` unchanged
+   instead. When neither result carries an `action`, stop: neither verb recognized this checkout as the Errand's
+   subject.
 
    - `requested / await` — pass the returned `action` unchanged to `arc review hosted await -`; omitted timing uses
      the project's configured bounded-call defaults.
@@ -490,7 +504,7 @@ remote base all name the same exact head. Any tracked change continues through t
      through the owning status or resolve action. A hosted response that settles with no fix returns
      `settled | already-settled / continue-review`; continue from its `payload.policy` when present. Do not feed the
      same findings to the driver again. If the Owner declined the pass the fix triggers, resolve the lane at the new
-     head as usual and, from `ready / hosted-request`, present the Owner-directed review stop offer below instead of
+     head as usual and, from `ready / local-prepare`, present the Owner-directed review stop offer below instead of
      requesting the pass.
    - `rate-limited | transient-unavailable / try-next-source` — feed that safe outcome to the same driver call; it
      may select the next configured source without consuming the pass.
@@ -500,8 +514,10 @@ remote base all name the same exact head. Any tracked change continues through t
    **Owner-directed review stop (open PR only).** When the Owner explicitly asks to end further standard-review
    spending, declines at a disposition turn the pass a fix triggers, or redirects an
    `approval-required / obtain-ceiling-override` decision, present one exact offer before treating that direction as
-   approval. Re-read `arc review status --target <targetRef>` to validate the
-   current Errand binding; `review-required` is expected, but a refusal or pending/response action stops. Name the
+   approval. A settled-response `coverage-required / select-coverage` also admits this offer; while
+   `payload.responseRequired` is true, perform the approved response first. Before PR creation defer the stop to the
+   open PR, as above. Re-read `arc review status --target <targetRef>` to validate the current Errand binding;
+   `review-required` is expected, but a refusal or pending/response action stops. Name the
    current Errand key and claim, repository and PR, base ref and OID, head SHA, at least one completed same-claim
    standard-review pass and its disposition/settlement state, the complete current PR diff, and the change since
    the last completely reviewed head. State the residual risk and that `arc review status` will remain
@@ -528,9 +544,8 @@ remote base all name the same exact head. Any tracked change continues through t
 
    After every target movement, return through the routed review action and dispatch its typed continuation. Do not
    classify movement or choose review scope from prose. When Step 6 supplies a `supplemental` recommendation, request
-   the hosted pass the review status offers; when it supplies `fresh`, repeat the complete applicable review. If an
-   adapter reports `effectiveCoverage: complete` for the supplemental request, accept the broader review and disclose
-   the upgrade. Under an Owner-directed review stop, a changed target, or a base movement the disjoint-drift condition
+   complete pass the review status offers; when it supplies `fresh`, repeat the complete applicable review. Under an
+   Owner-directed review stop, a changed target, or a base movement the disjoint-drift condition
    above does not keep, requires a new exact offer describing the changed delta and the returned review-applicability
    result; never carry the prior acceptance forward.
 
