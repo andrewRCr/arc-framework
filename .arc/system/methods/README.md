@@ -20,7 +20,7 @@ to the registered package default.
 
 | Activatable method | Package default | Activity                                            |
 | ------------------ | --------------- | --------------------------------------------------- |
-| self-review        | `true`          | Author-side aggregate diff preflight                |
+| self-review        | code-review     | Pure author check; shared caller owns findings      |
 | frontline-review   | `false`         | Advisory distinct-context review before PR creation |
 
 **Loading model:** Method defaults and overrides always load on-demand at their fire-points. Session-init does not
@@ -32,6 +32,24 @@ and [Session Operations Strategy § Method Loading][session-ops-methods].
 
 **Classification:** Configurable — preserved through three-way merge during framework updates. For the full
 configurability model, see [Configurability Architecture Strategy][config-arch].
+
+## Review family
+
+[review-model](review-model.md#review-family) defines the layers and their authority boundaries.
+
+- **Review types:** [planning-review](planning-review.md), [code-review](code-review.md), and
+  [verification-review](verification-review.md).
+- **Checks:** [assess-draft-readiness](assess-draft-readiness.md),
+  [assess-design-proportionality](assess-design-proportionality.md), [source-grounding](source-grounding.md),
+  [spec-review](spec-review.md), [task-audit](task-audit.md), [design-audit](design-audit.md),
+  [implementation-audit](implementation-audit.md), [validate-criteria](validate-criteria.md), and
+  [self-review](self-review.md), code review's author check.
+- **Vehicles:** [adversarial-review](adversarial-review.md), [frontline-review](frontline-review.md), and
+  [standard-review](standard-review.md).
+- **Findings:** [review-triage](review-triage.md), [review-response](review-response.md), and
+  [disposition-report](disposition-report.md).
+- **Routing:** [classify-review-risk](classify-review-risk.md), [review-chunking](review-chunking.md), and
+  [assess-evidence-applicability](assess-evidence-applicability.md) at a moved target.
 
 ## Related Methods
 
@@ -50,7 +68,7 @@ when populating any `.override` section. Methods not listed here are independent
 | frontline-review              | adversarial-review, implementation-audit, review-chunking, review-triage               | Advisory review mechanism, scope, and lens           |
 | standard-review               | adversarial-review, implementation-audit, review-chunking, review-triage               | Satisfying standard, mechanism, and lens             |
 | review-chunking               | frontline-review, standard-review                                                      | Bounded review-scope consumers                       |
-| self-review                   | review-triage                                                                          | Uses review-triage for findings                      |
+| self-review                   | code-review                                                                            | Pure author check; shared caller owns findings       |
 | code-review                   | self-review, frontline-review, standard-review, review-model                           | Code review dispatch procedures                      |
 | planning-review               | adversarial-review, review-model                                                       | Planning stage checks, independent offer, and reread |
 | verification-review           | validate-criteria, adversarial-review, review-model                                    | Criteria walk and independent companion              |
@@ -65,7 +83,7 @@ when populating any `.override` section. Methods not listed here are independent
 | design-audit                  | assess-design-proportionality                                                          | Broader fit and material proportionality             |
 | testing-standards             | test-first                                                                             | Planning/execution seam split                        |
 | test-first                    | testing-standards                                                                      | Planning/execution seam split                        |
-| validate-criteria             | adversarial-review                                                                     | Criteria walk and fresh-context companion            |
+| validate-criteria             | verification-review                                                                    | Pure criteria check and scoped review caller         |
 
 ---
 

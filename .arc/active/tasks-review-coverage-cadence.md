@@ -998,7 +998,7 @@ package's `arc/` source first, then in the `.arc/` copy.
           Both retain direct check declarations and their exact evidence scope, structurally bypassing the independent
           review method.
 
-### `[ ]` **7.5 Declare what each site and review-type method fires, and map the family — § 11.1**
+### `[x]` **7.5 Declare what each site and review-type method fires, and map the family — § 11.1**
 
 - _Goal:_ Every site declares the review-type method it calls and every review-type method the checks, vehicles,
   findings methods, and `review-model` it fires; methods' "Workflow:" callouts name their real callers; and
@@ -1009,11 +1009,9 @@ package's `arc/` source first, then in the `.arc/` copy.
           verification boundaries call their review methods, and lane methods declare their own evaluator and rubric.
           Caller callouts name those consumers; standalone audit doors and evidence-only checks remain reachable.
 
-    - `[ ]` **7.5.b Map the family**
-        - `review-model` lists the three review-type methods and places every review method in its layer — sites, the
-          type's method, checks, and the vehicles, findings handling, and routing that serve them — with `self-review`
-          as code review's author check and `assess-evidence-applicability` as the judgment at a moved target's stops;
-          the methods index (`system/methods/README.md`) groups them.
+    - `[x]` **7.5.b Map the family**
+        - `review-model` maps sites, three review types, checks, vehicles, findings handling, routing, and moved-target
+          judgment. The methods index groups navigation by layer and identifies the pure author and criteria checks.
 
 ### `[ ]` **7.6 Fix the drift between sites — § 11.5**
 

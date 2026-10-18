@@ -2,6 +2,9 @@
 name: review-model
 description: Shared pass, fix-check, convergence, and cadence model for agentic review
 related:
+  - planning-review
+  - code-review
+  - verification-review
   - adversarial-review
   - review-triage
   - review-response
@@ -23,6 +26,27 @@ override-active: false
 [No override configured]
 
 ## review-model.default
+
+### Review family
+
+A site owns lifecycle, quality gates, and approval stops. It calls the review-type method at its review boundary;
+the method selects checks and independent vehicles and returns evidence to the site. A check supplies a rubric or
+criteria walk; where it runs determines independence. Evidence-only callers may invoke a check directly.
+
+| Layer                     | Members                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sites                     | Planning stages and amendment capture; Errand, pre-publication, integration, and member review; work-unit and member verification boundaries                                                                                                                                                                                                                                            |
+| Review types              | [planning-review](planning-review.md), [code-review](code-review.md), [verification-review](verification-review.md)                                                                                                                                                                                                                                                                     |
+| Author checks and rubrics | [assess-draft-readiness](assess-draft-readiness.md), [assess-design-proportionality](assess-design-proportionality.md), [source-grounding](source-grounding.md), [spec-review](spec-review.md), [task-audit](task-audit.md), [design-audit](design-audit.md), [implementation-audit](implementation-audit.md), [validate-criteria](validate-criteria.md), [self-review](self-review.md) |
+| Independent vehicles      | [adversarial-review](adversarial-review.md), [frontline-review](frontline-review.md) (advisory), [standard-review](standard-review.md) (satisfying)                                                                                                                                                                                                                                     |
+| Findings handling         | [review-triage](review-triage.md), [review-response](review-response.md), [disposition-report](disposition-report.md)                                                                                                                                                                                                                                                                   |
+| Routing and scope         | [classify-review-risk](classify-review-risk.md), [review-chunking](review-chunking.md)                                                                                                                                                                                                                                                                                                  |
+| Moved-target judgment     | [assess-evidence-applicability](assess-evidence-applicability.md) at applicability stops, informed by its bounded check                                                                                                                                                                                                                                                                 |
+| Shared model              | `review-model`: passes, fix checks, convergence, cadence, and loop readings                                                                                                                                                                                                                                                                                                             |
+
+[self-review](self-review.md) is code review's author check; [code-review](code-review.md#author-check) owns its
+findings and approval procedure. Planning and verification can use the same independent vehicle without sharing code
+review's lanes or stored operation records.
 
 ### Passes and fix checks
 
