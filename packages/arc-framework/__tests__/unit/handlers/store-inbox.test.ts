@@ -1,5 +1,5 @@
 /** Production adapters run the off-branch listing, mover, and queue services with explicit input sources. */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createInboxHarness } from "../../helpers/inbox-harness.js";
 import { handleInbox } from "../../../src/handlers/inbox.js";
 import { handleRoute } from "../../../src/handlers/route.js";
@@ -7,11 +7,55 @@ import { handleErrandQueue, handleErrandQueueSet } from "../../../src/handlers/e
 import { handleUserInboxList } from "../../../src/handlers/user-inbox-list.js";
 import { handleUserInboxMarkExecuteBound } from "../../../src/handlers/user.js";
 import type { InboxHandlerPorts } from "../../../src/handlers/inbox-runtime.js";
+import { InboxResultSchema } from "../../../src/lib/inbox/types.js";
+import { RouteResultSchema } from "../../../src/lib/inbox/route.js";
+import { ErrandQueueResultSchema } from "../../../src/lib/inbox/queue.js";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 function sink() {
   let stdout = "", stderr = "", exit = -1;
   return { output: { stdout: (value: string) => { stdout += value; }, stderr: (value: string) => { stderr += value; }, exit: (code: number) => { exit = code; } }, value: () => ({ stdout, stderr, exit }) };
 }
+
+it.each([
+  { name: "inbox", mode: "inbox", state: "listed", run: (ports: InboxHandlerPorts) => handleInbox("personal", { json: true }, undefined, ports) },
+  { name: "route", mode: "route", state: "routed", run: (ports: InboxHandlerPorts) => handleRoute(undefined, { to: "personal", section: "Errand" }, undefined, ports) },
+  { name: "queue listing", mode: "errand-queue", state: "listed", run: (ports: InboxHandlerPorts) => handleErrandQueue({ json: true }, undefined, ports) },
+  { name: "queue replacement", mode: "errand-queue", state: "set", run: (ports: InboxHandlerPorts) => handleErrandQueueSet("-", undefined,
+    { ...ports, readStdin: async () => JSON.stringify({ schemaVersion: 1, members: [] }) }) },
+])("preserves executable Store remedies in $name and continues after repair", async ({ mode, state, run }) => {
+  const h = createInboxHarness(), out = sink(), read = h.context.store.read.bind(h.context.store);
+  const remedy = { text: "Inspect and repair personal state, then retry.", argv: ["arc", "store", "fetch"] };
+  const refusal = { code: "namespace-corrupt" as const, class: "terminal" as const, namespace: "personal", condition: "Personal state is unreadable.", remedy };
+  const before = await h.context.store.version();
+  let broken = true;
+  const fault = vi.spyOn(h.context.store, "read").mockImplementation(input => broken
+    ? Promise.resolve({ status: "refused", refusal }) : read(input));
+  const ports: InboxHandlerPorts = { store: h.context.store, identity: "test-user", cwd: "/repo", now: h.context.now,
+    output: out.output, readStdin: async () => "### **Captured**\n\nWork" };
+  try {
+    await run(ports);
+    expect(JSON.parse(out.value().stdout)).toMatchObject({ mode, state: "refused", reason: refusal.condition, remedy });
+    expect(out.value().exit).toBe(1);
+    expect(await h.context.store.version()).toEqual(before);
+    broken = false;
+    const repaired = sink(); await run({ ...ports, output: repaired.output });
+    expect(JSON.parse(repaired.value().stdout)).toMatchObject({ mode, state });
+    expect(repaired.value().exit).toBe(0);
+  } finally { fault.mockRestore(); }
+});
+
+it.each([
+  { schema: InboxResultSchema, mode: "inbox", list: "personal" },
+  { schema: RouteResultSchema, mode: "route" },
+  { schema: ErrandQueueResultSchema, mode: "errand-queue" },
+])("keeps $mode remedy objects strict while accepting text-only repairs", ({ schema, ...fields }) => {
+  const value = { schemaVersion: 1, state: "refused", code: "unavailable", reason: "Unavailable", ...fields };
+  assertSchemaAccepts(schema, { ...value, remedy: { text: "Repair and retry." } });
+  for (const remedy of [{ text: "" }, { text: "Repair", argv: [] }, { text: "Repair", argv: [1] }, { text: "Repair", extra: true }]) {
+    assertSchemaRefuses(schema, { ...value, remedy });
+  }
+});
 describe("store entry command adapters", () => {
   it("inserts from explicit stdin, lists its ID/version, and sets/shows the qualified queue", async () => {
     const h = createInboxHarness(); const out = sink();

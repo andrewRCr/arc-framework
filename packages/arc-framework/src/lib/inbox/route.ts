@@ -1,5 +1,6 @@
 /** Version-bound atomic entry routing over the shared mover and receipt grammar. */
 import { z } from "zod";
+import { RemedySchema } from "../store/refusal.js";
 import { SlugSchema } from "../kernel/index.js";
 import { RoutingListSchema } from "../store/kinds/routing-receipt.js";
 import type { InboxContext, InboxRefusal } from "./types.js";
@@ -11,7 +12,7 @@ export interface RouteEntryInput { entryId?: string; from?: string; expectedVers
 /** The registered route result never reports success for a refused batch. */
 export const RouteResultSchema = z.discriminatedUnion("state", [
   z.strictObject({ schemaVersion: z.literal(1), mode: z.literal("route"), state: z.enum(["routed", "already-home"]), entryId: z.string(), destination: RoutingListSchema, carried: z.enum(["replaced", "cited"]).optional() }),
-  z.strictObject({ schemaVersion: z.literal(1), mode: z.literal("route"), state: z.literal("refused"), code: z.string(), reason: z.string(), remedy: z.strictObject({ text: z.string() }), foundVersion: z.string().optional(), provenance: z.unknown().optional() }),
+  z.strictObject({ schemaVersion: z.literal(1), mode: z.literal("route"), state: z.literal("refused"), code: z.string(), reason: z.string(), remedy: RemedySchema, foundVersion: z.string().optional(), provenance: z.unknown().optional() }),
 ]);
 /** Versioned routing command result. */
 export type RouteResult = z.infer<typeof RouteResultSchema>;

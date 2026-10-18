@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { StoreSyncPort } from "../store/operational-sync.js";
 import type { Store } from "../store/contract.js";
 import type { ListingOutcome } from "../store/read.js";
-import type { StoreRefusal } from "../store/refusal.js";
+import { RemedySchema, type Remedy, type StoreRefusal } from "../store/refusal.js";
 import { RoutingListSchema } from "../store/kinds/routing-receipt.js";
 
 /** Shared runtime; time and identity belong to the caller's store binding. */
@@ -25,7 +25,7 @@ export const InboxRowSchema = z.strictObject({
 /** A row's version and raw text are exactly what observed-remove merging compares. */
 export type InboxRow = z.infer<typeof InboxRowSchema>;
 /** A named refusal preserves underlying store refusal evidence where available. */
-export interface InboxRefusal { code: string; condition: string; remedy: { text: string }; foundVersion?: string; provenance?: StoreRefusal | ListingOutcome }
+export interface InboxRefusal { code: string; condition: string; remedy: Remedy; foundVersion?: string; provenance?: StoreRefusal | ListingOutcome }
 /** Service outcomes retain refusal provenance instead of presenting incomplete data as empty. */
 export type InboxOutcome<T> = { status: "ok"; result: T } | { status: "refused"; refusal: InboxRefusal };
 /** One public listing, including the capture gates' clear/named/refused states. */
@@ -36,7 +36,7 @@ export const InboxResultSchema = z.discriminatedUnion("state", [
     retriage: z.strictObject({ text: z.string() }).optional(),
   }),
   z.strictObject({ schemaVersion: z.literal(1), mode: z.literal("inbox"), state: z.literal("refused"), list: z.string(),
-    code: z.string(), reason: z.string(), remedy: z.strictObject({ text: z.string() }), provenance: z.unknown().optional(),
+    code: z.string(), reason: z.string(), remedy: RemedySchema, provenance: z.unknown().optional(),
   }),
 ]);
 /** The complete registered listing result. */

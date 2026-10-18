@@ -1,5 +1,6 @@
 /** Whole-request Errand queue ordering over list-qualified entry references. */
 import { z } from "zod";
+import { RemedySchema } from "../store/refusal.js";
 import { readQueueState, renderQueueSet } from "./queue-storage.js";
 import { resolveEntryList } from "./lists.js";
 import { rowsInList } from "./listing.js";
@@ -15,7 +16,7 @@ export const QueueMemberSchema = QueueReferenceSchema.extend({ title: z.string()
 /** Queue listing and setter share one complete result schema. */
 export const ErrandQueueResultSchema = z.discriminatedUnion("state", [
   z.strictObject({ schemaVersion: z.literal(1), mode: z.literal("errand-queue"), state: z.enum(["listed", "set"]), members: z.array(QueueMemberSchema) }),
-  z.strictObject({ schemaVersion: z.literal(1), mode: z.literal("errand-queue"), state: z.literal("refused"), code: z.string(), reason: z.string(), remedy: z.strictObject({ text: z.string() }) }),
+  z.strictObject({ schemaVersion: z.literal(1), mode: z.literal("errand-queue"), state: z.literal("refused"), code: z.string(), reason: z.string(), remedy: RemedySchema }),
 ]);
 /** One displayed list-qualified queue member. */
 export type QueueMember = z.infer<typeof QueueMemberSchema>;
