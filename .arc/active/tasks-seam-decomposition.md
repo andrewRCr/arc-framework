@@ -72,15 +72,11 @@ under `lib/decompose/`, and the kind folder imports its decoder from there, as t
   registry and its test, `registrations.ts`, `lifecycle-rename.ts`, and the architecture-imports module and its test —
   serialize with them (§ 1.3); merge base first where any has landed.
 
-    - `[ ]` **1.3.a The shape and the mechanism**
+    - `[x]` **1.3.a The shape and the mechanism**
 
-        - `"work-item/cut-map": singleton("work-item")` in `KIND_SHAPES` (`lib/store/catalog.ts`) and `machine(unhomed)`
-          in `KIND_MECHANISMS` (`lib/store/registry.ts`), each entry placed as § 1.3 places it; the conformance suite
-          and the in-repo dispatch test enroll every registered kind on their own (`everyKind`,
-          `__tests__/helpers/store/suite-tools.ts`; `in-repo-dispatch.test.ts`), and `registry.test.ts`'s list of
-          unhomed kinds gains it.
-        - Where `storage-ref-backend` has landed, the mechanism takes its ref home at `cut-map-<uid>.json` here;
-          otherwise that change sets it (§ 18).
+        - The catalog derives a work-item singleton reference for `work-item/cut-map`; its machine mechanism is
+          single-writer, never projected, and unhomed in-repo. Automatic conformance and dispatch enrollment covers
+          the kind; the registry's unhomed inventory includes it.
 
     - `[ ]` **1.3.b The kind folder and its registration**
 

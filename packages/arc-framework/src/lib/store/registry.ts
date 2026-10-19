@@ -89,6 +89,7 @@ export const KIND_MECHANISMS = {
   "work-item/companion": prose({ substrate: "tracked", finder: "companions" }, "projection-defined"),
   "work-item/description": entry(unhomed, ENTRY_CONFIGS["work-item/description"]),
   "work-item/inbound": entry(unhomed, ENTRY_CONFIGS["work-item/inbound"]),
+  "work-item/cut-map": machine(unhomed),
   "cohort/document": prose({ substrate: "tracked", address: { kind: "cohort-document" } }, { kind: "cohort-document" }),
   "project-inbox/inbox": { ...entry({ substrate: "tracked", address: { kind: "inbox", scope: "project" } }, ENTRY_CONFIGS["project-inbox/inbox"]), projection: { kind: "inbox", scope: "project" } },
   "review/candidate": machine({ substrate: "tracked", address: { kind: "candidate-record" } }),
