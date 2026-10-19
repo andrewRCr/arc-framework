@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { importComparisonFixture } from "../helpers/store/import-comparison.js";
-import { importFixture } from "../helpers/store/import-fixture.js";
+import { importFixture, saveImportPersonal } from "../helpers/store/import-fixture.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { RecordReferenceSchema, createRefStore } from "../../src/lib/store/index.js";
 import { parseEntryList } from "../../src/lib/store/kinds/entry-list.js";
@@ -26,6 +26,7 @@ async function seed(h: Awaited<ReturnType<typeof importFixture>>, inboxContent =
   await h.git("git", ["commit", "--allow-empty", "-m", "Seed pending inbound work"]);
   const head = (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim();
   await h.git("git", ["update-ref", "refs/heads/feat/alpha", head]);
+  await saveImportPersonal(h.root);
 }
 function parsed(content: string, kind: "personal/inbox" | "personal/errand-queue" | "work-item/inbound") {
   const result = parseEntryList(content, kind);

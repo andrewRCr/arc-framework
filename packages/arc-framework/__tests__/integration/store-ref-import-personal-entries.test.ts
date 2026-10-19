@@ -7,7 +7,7 @@ import { success } from "../helpers/store/suite-tools.js";
 import { RecordReferenceSchema } from "../../src/lib/store/index.js";
 import { parseEntryList } from "../../src/lib/store/kinds/entry-list.js";
 import { ENTRY_CONFIGS, type EntryKind } from "../../src/lib/store/kinds/entry-configs.js";
-import { importFixture } from "../helpers/store/import-fixture.js";
+import { importFixture, saveImportPersonal } from "../helpers/store/import-fixture.js";
 import { createRefStore } from "../../src/lib/store/index.js";
 import { hashBlob, writeTreeCommit } from "../../src/lib/errand/ref-tree.js";
 import { serializeTransientIdentityRecord, TransientIdentityRecordSchema } from "../../src/lib/errand/identity-record.js";
@@ -34,6 +34,7 @@ describe.each(["default", "separate"] as const)("personal entry import in %s", l
       intent: "Keep this description.", origin: "description", originEntry: null, state: "open", savedHead: null, changeRequest: null });
     const io = { exec: h.ports.exec, execInput: h.ports.execInput, identity: "andrew" };
     await writeTreeCommit(io, new Map([["example", await hashBlob(io.execInput, serializeTransientIdentityRecord(record))]]), "Seed Errand", [], null);
+    await saveImportPersonal(h.root);
     expect(await h.migrate()).toMatchObject({ status: "ok" });
     const store = createRefStore(h.ports);
     const expected = { "personal/inbox": 2, "personal/working-memory": 1, "project-inbox/inbox": 2,
@@ -57,6 +58,7 @@ describe.each(["default", "separate"] as const)("personal entry import in %s", l
       await mkdir(join(fixture.root, ".arc/user/andrew"), { recursive: true });
       await writeFile(join(fixture.root, ".arc/user/andrew/USER-INBOX.md"), personal + removed + "## Work Unit\n\n### **Later**\n\nKeep this later capture.\n");
       await writeFile(join(fixture.root, ".arc/user/andrew/WORKING-MEMORY.md"), memory + removed + "---\n\nKeep this appendix.\n");
+      await saveImportPersonal(fixture.root);
     });
     for (const kind of ["personal/inbox", "personal/working-memory"] as const) {
       h.comparators.set(kind, { normalize: (expected, actual) => {

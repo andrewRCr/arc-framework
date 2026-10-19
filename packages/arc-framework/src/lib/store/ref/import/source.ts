@@ -16,7 +16,7 @@ import { appendImportLineage } from "./lineage.js";
 import type { Slug } from "../../../kernel/schema/slug.js";
 import { appendImportTransients, type ImportTransientState } from "./transient.js";
 import { moveImportPendingEntries } from "./pending-entries.js";
-import { maskComments } from "../../concurrency/entries.js";
+import { appendImportPersonal } from "./personal.js";
 import type { Links } from "../../links.js";
 import { readImportParkedSources, isParkedSourceDiagnostic, type ParkedImportSources } from "./parked-source.js";
 
@@ -50,7 +50,7 @@ export async function readImportSource(context: RefBackendContext, report: Migra
   await appendListing(context, report, result, owners, "cohort/document", undefined, head);
   await appendListing(context, report, result, owners, "project-inbox/inbox", undefined, head);
   await appendImportLineage(context, report, result, owners, head);
-  await appendPersonal(context, report, result);
+  await appendImportPersonal(context, report, result);
   await appendImportTransients(context, report, result, transients);
   moveImportPendingEntries(context.registry, result, report);
   const refs = new Set(result.flatMap(({ reference, placement }) => placement?.kind === "completed"
@@ -94,24 +94,6 @@ async function appendParkedWork(context: RefBackendContext, report: MigrateRepor
   }
 }
 
-async function appendPersonal(context: RefBackendContext, report: MigrateReport, records: ImportRecord[]): Promise<void> {
-  const source = context.importSource;
-  if (!source) throw new Error("No import source bound");
-  const listed = await source.store.list({ family: "personal" });
-  if (listed.status === "refused") { report.notices.push({ condition: listed.refusal.condition, remedy: listed.refusal.remedy }); return; }
-  if (listed.result.status === "unreadable") { report.notices.push({ condition: listed.result.condition, remedy: listed.result.remedy }); return; }
-  if (listed.result.status !== "complete") return;
-  report.notices.push(...listed.result.diagnostics.map(({ condition, remedy }) => ({ condition, remedy })));
-  for (const record of listed.result.records) {
-    if (record.reference.kind === "personal/session-context") continue;
-    const reference = record.reference.kind === "personal/document" && typeof record.reference.key === "string" ? RecordReferenceSchema.parse({ ...record.reference,
-      key: `scratch/${record.reference.key}` }) : record.reference;
-    const content = reference.kind === "personal/inbox" || reference.kind === "personal/working-memory"
-      ? withoutPersonalTombstones(record.content) : record.content;
-    records.push({ ...record, reference, content });
-  }
-}
-
 async function appendListing(context: RefBackendContext, report: MigrateReport, result: ImportRecord[], owners: Map<string, string>,
   kind: KindId, owner?: RecordReference["owner"], asOf?: ReturnType<typeof StateVersionSchema.parse>, ignoredOwners?: ReadonlySet<string>): Promise<void> {
   const source = context.importSource;
@@ -150,13 +132,4 @@ function bindOwner(record: StoreRecord, owners: Map<string, string>): ImportReco
   let uid = owners.get(key);
   if (!uid) { uid = randomUUID(); owners.set(key, uid); }
   return { ...record, reference: RecordReferenceSchema.parse({ ...record.reference, owner: { ...owner, uid } }) };
-}
-
-function withoutPersonalTombstones(content: string): string {
-  const boundaries = [...maskComments(content).matchAll(/^(?:## [^\r\n]*|---[ \t]*)\r?$/gmu)];
-  const removed = boundaries.flatMap((heading, index) => heading[0].startsWith("## Removed:")
-    ? [{ start: heading.index, end: boundaries[index + 1]?.index ?? content.length }] : []);
-  let result = content;
-  for (const { start, end } of removed.reverse()) result = result.slice(0, start) + result.slice(end);
-  return result;
 }

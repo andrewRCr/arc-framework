@@ -7,7 +7,7 @@ import { inboxEntrySourceDigest } from "../../src/lib/user-sync/inbox-writer.js"
 import { z } from "zod";
 import { serializeTransientIdentityRecord, TransientIdentityRecordSchema } from "../../src/lib/errand/identity-record.js";
 import { hashBlob, writeTreeCommit } from "../../src/lib/errand/ref-tree.js";
-import { importFixture } from "../helpers/store/import-fixture.js";
+import { importFixture, saveImportPersonal } from "../helpers/store/import-fixture.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { importComparisonFixture } from "../helpers/store/import-comparison.js";
 import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
@@ -54,6 +54,7 @@ describe.each(["default", "separate"] as const)("Errand import in %s", (layout) 
       const inbox = "# Inbox\n\n## Errand\n\n### **Captured**\n\n- _Description:_ Keep this source prose.\n\n### **Remain**\n\n- _Description:_ Keep this capture.\n";
       await mkdir(join(fixture.root, ".arc/user/andrew"), { recursive: true });
       await writeFile(join(fixture.root, ".arc/user/andrew/USER-INBOX.md"), inbox);
+      await saveImportPersonal(fixture.root);
       await seed(fixture, [ordinary,
         { ...common, kind: "errand", purpose: "errand", slug: "captured", branch: "chore/captured", intent: "Fallback",
           origin: "inbox", originEntry: "Captured", originEntrySourceDigest: inboxEntrySourceDigest(inbox, "Captured"), state: "open", savedHead: null, changeRequest: null },
@@ -179,6 +180,7 @@ describe.each(["default", "separate"] as const)("Errand import in %s", (layout) 
     const inbox = "# Inbox\n\n## Errand\n\n### **Captured**\n\n- _Description:_ Original source prose.\n\n### **Keep**\n\n- _Description:_ Unrelated capture.\n";
     await mkdir(join(h.root, ".arc/user/andrew"), { recursive: true });
     await writeFile(join(h.root, ".arc/user/andrew/USER-INBOX.md"), changed ? inbox.replace("Original source prose.", "Original source prose. Updated.") : inbox);
+    await saveImportPersonal(h.root);
     await seed(h, ["captured", "missing"].map((slug) => ({ ...common, kind: "errand", purpose: "errand", slug,
       branch: `chore/${slug}`, intent: `Fallback ${slug}`, origin: "inbox", originEntry: slug === "captured" ? "Captured" : "Gone",
       originEntrySourceDigest: slug === "captured" ? inboxEntrySourceDigest(inbox, "Captured") : null,

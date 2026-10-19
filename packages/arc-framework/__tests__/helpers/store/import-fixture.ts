@@ -4,6 +4,8 @@ import { dirname, join, resolve } from "node:path";
 import { Command, Option } from "commander";
 import { afterAll, onTestFinished } from "vitest";
 import { createTempRepoCore, removeGitBackedDir } from "../temp-repo.js";
+import { runUserSave, runUserLoad } from "../../../src/commands/user.js";
+import { makeUserIO } from "../integration.js";
 import { makeGitExec } from "../integration.js";
 import { prepareRepositoryTemplate, copyPreparedRepository, PREPARED_REMOTE_PATH, type PreparedRepositoryTemplate } from "../prepared-repository.js";
 import { makeMetaFixture } from "../meta-fixture.js";
@@ -98,4 +100,11 @@ async function invokeImport(ports: RefStorePorts, trial: boolean): Promise<Store
   await command.parseAsync(["--import", "--json", ...(trial ? ["--trial"] : [])], { from: "user" });
   if (!result) throw new Error("The migration handler produced no result");
   return result;
+}
+
+/** Explicitly reconcile fixture personal files before invoking the independent import operation. */
+export async function saveImportPersonal(root: string, load = true): Promise<void> {
+  const options = { cwd: root, io: makeUserIO(root), identity: "andrew", currentWuName: "alpha" };
+  await runUserSave(options);
+  if (load) await runUserLoad(options);
 }

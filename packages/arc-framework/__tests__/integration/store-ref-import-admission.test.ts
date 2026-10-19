@@ -3,7 +3,7 @@ import { mkdir, writeFile, unlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { MigrateReportSchema } from "../../src/lib/store/index.js";
-import { importFixture } from "../helpers/store/import-fixture.js";
+import { importFixture, saveImportPersonal } from "../helpers/store/import-fixture.js";
 import { resolveArcPath } from "../../src/lib/layout/index.js";
 import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
 
@@ -38,6 +38,7 @@ describe("import serialization admission", () => {
       await mkdir(dirname(target), { recursive: true });
       await writeFile(target, "Repaired source\n");
     }
+    if (path.endsWith("settings.env")) await saveImportPersonal(h.root);
     expect(await h.migrate()).toMatchObject({ status: "ok" });
   });
   it.each([
@@ -48,6 +49,7 @@ describe("import serialization admission", () => {
     const h = await importFixture();
     await mkdir(dirname(join(h.root, path)), { recursive: true });
     await writeFile(join(h.root, path), content);
+    if (path.endsWith("WORKING-MEMORY.md")) await saveImportPersonal(h.root, false);
     const trial = await h.migrate(true);
     expect(trial.status, JSON.stringify(trial)).toBe("ok");
     if (trial.status !== "ok") throw new Error("No trial report");
@@ -55,6 +57,7 @@ describe("import serialization admission", () => {
     expect(await h.migrate()).toMatchObject({ status: "refused", refusal: { code: "import-refused" } });
     if (repairPath) await unlink(join(h.root, path));
     await writeFile(join(h.root, repairPath ?? path), fixed ?? "Repaired companion\n");
+    if (path.endsWith("WORKING-MEMORY.md")) await saveImportPersonal(h.root);
     expect(await h.migrate()).toMatchObject({ status: "ok" });
   });
 });

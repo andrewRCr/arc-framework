@@ -1378,29 +1378,15 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
   committer time. Missing or diverged branches and invalid pause fields or prose refuse with repair guidance.
   Planning parks remain stubs, and independent comparisons allow only tip selection, Active placement, and Pause.
 
-### `[ ]` **15.6 Each person's notes snapshot — § 10.10**
+### `[x]` **15.6 Each person's notes snapshot — § 10.10**
 
 - _Goal:_ The import refuses until each person's notes snapshot and every disk copy agree, carrying from disk only what
   notes save never writes, so no personal state is lost or resurrected by the import.
 
-    - The snapshot read directly: each identity-global file merged across the recent-note window that
-      `readRecentUserNotes` lists, by `mergeCrossWuFromNotes` (`commands/user/save-load.ts`), exported for the transform
-      so the merge is a load's own; each live work unit's workspace from the newest note holding it, new code, by the
-      notes ref's history and inside a compaction snapshot by the committer date of the commit each note annotates;
-      compared as `projectManifest` compares, the two shared files without tombstones
-    - Build `test-first` (one behavior at a time):
-        - a file differing from its disk copy, by an entry removed on disk and by one only an older note holds, is listed
-          `differs`, and agrees once saved and then loaded
-        - a file the snapshot holds and no disk copy does is listed `snapshot-only` apart, and agrees once a load restores
-          it
-        - a tombstone the snapshot carries and the disk lacks is no difference
-        - a file over 256 KiB, one off notes sync's allowlist, one under `scratch/`, and one in an ended work unit's
-          workspace are listed `disk-only` and carried from disk, while an `.env` file is listed in `refused` and refuses
-          the import until removed
-        - with two live work units saved from their own checkouts, the second last, a trial from either checkout or a
-          third compares each workspace with the newest note holding it, a file changed on disk in the first agrees once
-          saved and loaded from the first's checkout, and a third live work unit's workspace no note holds is `disk-only`
-        - the import refuses until every disagreement is cleared, then lands
+- _Outcome:_ Import compares every identity's notes snapshot with every registered worktree's disk copies before
+  admission, using load's flat-file merge and workspace note history, including compacted-note ordering. Disagreements
+  block landing; disk-only sources retain their bytes through serialization checks. Machine-local files and generated
+  status stay outside both sides, and save/load or restored access reopens a refused import.
 
 ### `[ ]` **15.7 Personal state at D5's layout — § 10.12**
 
