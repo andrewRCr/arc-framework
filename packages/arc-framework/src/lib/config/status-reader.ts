@@ -1,5 +1,5 @@
 /**
- * Reader for `arc config status` — reads arc-config.yml, applies documented
+ * Configuration status and explicit tracked backing-pointer access. Reads arc-config.yml, applies documented
  * defaults for absent keys, and returns the agent-consumable settings set.
  *
  * Shared by config status and handler code that needs session-relevant config
@@ -17,6 +17,8 @@
  * @module
  */
 
+import { atomicWriteFile } from "../fs.js";
+import { renderConfigOverrides } from "../template/render.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -76,6 +78,21 @@ export async function readBackingRepository(cwd: string): Promise<string | null>
   }
   const value = parseArcConfig(content)["storage.backing_repository"] ?? "";
   return getArcConfigField("storage.backing_repository").schema.parse(value) || null;
+}
+
+/** Write the tracked backing pointer while preserving unrelated configuration text. */
+export async function writeBackingRepository(cwd: string, value: string | null): Promise<void> {
+  const path = configSettingsPath(cwd), key = "storage.backing_repository";
+  const validated = getArcConfigField(key).schema.parse(value ?? "");
+  let content = "";
+  try { content = await readFile(path, "utf8"); }
+  catch (error) {
+    if (!(typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT")) throw error;
+  }
+  const rendered = JSON.stringify(validated);
+  const next = /^storage\.backing_repository:/mu.test(content) ? renderConfigOverrides(content, { [key]: rendered })
+    : content + (content.length && !content.endsWith("\n") ? "\n" : "") + `${key}: ${rendered}\n`;
+  await atomicWriteFile(path, next);
 }
 
 function configSettingsPath(cwd: string): string {

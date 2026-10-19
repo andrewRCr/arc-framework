@@ -18,9 +18,9 @@ import { PRODUCTION_REGISTRATIONS } from "./kinds/registrations.js";
 
 /** Bind native ref-store dependencies while leaving the checkout's configuration at the caller. */
 export function createDefaultRefStorePorts(input: { checkoutRoot: string; exec?: GitExec; execInput?: GitExecInput;
-  backingRepository: RefStorePorts["backingRepository"] }): RefStorePorts {
+  backingRepository: RefStorePorts["backingRepository"]; writeBackingRepository?: RefStorePorts["writeBackingRepository"] }): RefStorePorts {
   const defaults = createDefaultStorePorts(input);
-  return { ...defaults, backingRepository: input.backingRepository,
+  return { ...defaults, backingRepository: input.backingRepository, ...input.writeBackingRepository ? { writeBackingRepository: input.writeBackingRepository } : {},
     rawExec: createExecaRawGitExec(input.checkoutRoot), sleep: { wait: signalEndedSleep, bound: signalEndedSleep },
     random: Math.random, registry: createKindRegistry(PRODUCTION_REGISTRATIONS), migrateStep: async () => {},
     actor: async (identity) => {

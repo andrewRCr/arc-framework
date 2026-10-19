@@ -25,7 +25,7 @@ export async function layoutRefs(context: RefBackendContext): Promise<Map<string
 
 /** Replace an interrupted build from fresh source refs, keeping the destination untouched. */
 export async function buildLayoutMove(code: RefBackendContext, source: RefBackendContext, store: Store,
-  record: LayoutMoveRecord, directory: string): Promise<LayoutBuild> {
+  record: LayoutMoveRecord, directory: string, layoutOnly = false): Promise<LayoutBuild> {
   await code.migrateStep?.("layout.build");
   await code.fs.removeDirectory(directory);
   // Keep the latest logical cut alive in the repository whose keepers will be transferred.
@@ -35,7 +35,7 @@ export async function buildLayoutMove(code: RefBackendContext, source: RefBacken
   const destination = record.destination === "default" ? await layoutRefs(code) : new Map<string, string>();
   const common = code.repository?.commonDir;
   if (!common) throw new Error("No common code repository selected");
-  await clearLayoutGathering(code);
+  await clearLayoutGathering(code, layoutOnly);
   await fetchLayoutObjects(code, source.repository?.gitDir ?? common, refs);
   await requireLayoutTransaction(code, [...refs].map(([ref, next]) => ({ ref: gatheringRef("source", ref), next, expected: null })));
   await code.fs.mkdir(join(common, "arc"), { recursive: true });

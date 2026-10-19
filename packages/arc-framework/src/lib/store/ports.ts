@@ -63,6 +63,8 @@ export interface RefStorePorts {
   actor: (identity: Slug) => Promise<string>;
   /** Read the invoking checkout's tracked pointer only at destination decisions. */
   backingRepository: () => Promise<string | null>;
+  /** Explicit remote migrations require a command-owned writer for the tracked pointer. */
+  writeBackingRepository?: (value: string | null) => Promise<void>;
   registry?: Readonly<Record<KindId, KindDefinition>>;
   /** One-time import source, bound by the backend composition point only when requested. */
   importSource?: { store: ReadOnlyStore; ports: StorePorts & { rawExec: RawGitExec }; baseBranch: string };

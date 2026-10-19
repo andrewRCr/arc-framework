@@ -50,7 +50,8 @@ async function mergeGroupTree(context: RefBackendContext, ref: string, local: st
   const tips = new Map([["local", local], ["incoming", incoming], ...base ? [["base", base] as const] : []]);
   const trees = await readRefTrees(context, tips);
   const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid)))]);
-  const lineage = await readLineageOwners(context, new Map([...captured, ...(scope.incoming ?? [])]));
+  // Shared merges already supplied the registry labels needed by empty retired histories.
+  const lineage = await readLineageOwners(context, captured);
   const retiredOwner = lineage.status === "ok" ? lineage.result.find((owner) => "uid" in owner && live === `refs/arc/work/${owner.uid}`) : undefined;
   const sides: SyncTreeSide[] = [];
   for (const key of ["base", "local", "incoming"]) {

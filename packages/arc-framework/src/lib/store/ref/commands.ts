@@ -6,7 +6,8 @@ import { StoreMigrateInputSchema, StoreRemoteInputSchema, type StoreMigrateInput
 import type { RefBackendContext } from "./context.js";
 import { designatedStoreLayout } from "./layout-state.js";
 import { readRefDesignation } from "./designation.js";
-import { migrationCodeContext, readLayoutMoveRecord } from "./migrate-record.js";
+import { migrationCodeContext, readMoveRecord } from "./migrate-record.js";
+import { moveRefRemote } from "./migrate-remote.js";
 import { moveRefLayout } from "./migrate-layout.js";
 import { AdvisoryLockTimeoutError } from "../../advisory-lock.js";
 import { applyRefRemoteSetting, remoteView } from "./remote-setting.js";
@@ -21,21 +22,17 @@ export async function runRefMigrate(context: RefBackendContext, store: Store, in
     return importTrackedState(context, store, parsed.data);
   });
   if (parsed.data.leaveSource) return unsupportedCommand("--leave-source is not implemented.");
-  if (parsed.data.to) {
-    const designation = await readRefDesignation(context);
-    if (!designation.pushes.length) return { status: "refused", refusal: { code: "no-state-remote", class: "recoverable",
-      condition: "This clone has no state remote to move from.", remedy: { text: "Designate a code repository remote with arc store remote <remote> push, or change the backing pointer and run arc store remote backing push, then retry --to." } } };
-    return unsupportedCommand("--to is not implemented.");
-  }
   return withMigrationLock(context, async () => {
-    const existing = await readLayoutMoveRecord(await migrationCodeContext(context));
+    const existing = await readMoveRecord(await migrationCodeContext(context));
     if (existing.status === "refused") return existing;
+    if (existing.result?.record.kind === "remote") return moveRefRemote(context, store, parsed.data.to, parsed.data.trial, { record: existing.result.record, tip: existing.result.tip });
     let finished: MigrateReport | undefined;
-    if (existing.result) {
-      const resumed = await moveRefLayout(context, store, existing.result.record.destination, existing.result.record.setting, existing.result);
+    if (existing.result?.record.kind === "layout") {
+      const resumed = await moveRefLayout(context, store, existing.result.record.destination, existing.result.record.setting, { record: existing.result.record, tip: existing.result.tip });
       if (resumed.status === "refused") return resumed;
       finished = resumed.result;
     }
+    if (parsed.data.to) return moveRefRemote(context, store, parsed.data.to, parsed.data.trial);
     const designation = await readRefDesignation(context);
     const aligned = await moveRefLayout(context, store, designatedStoreLayout(designation));
     return aligned.status === "refused" || !finished ? aligned : { status: "ok", result: combineLayoutReports(finished, aligned.result) };
@@ -50,11 +47,16 @@ export async function runRefRemote(context: RefBackendContext, store: Store, inp
   if (!input.remote || !input.role) return invalidCommand("A remote setting requires both a remote and a role.");
   const setting = { remote: input.remote, role: input.role };
   return withMigrationLock(context, async () => {
-    const existing = await readLayoutMoveRecord(await migrationCodeContext(context));
+    const existing = await readMoveRecord(await migrationCodeContext(context));
     if (existing.status === "refused") return existing;
     let completed: MigrateReport | undefined;
-    if (existing.result) {
-      const finished = await moveRefLayout(context, store, existing.result.record.destination, existing.result.record.setting, existing.result);
+    if (existing.result?.record.kind === "remote") {
+      const resumed = await moveRefRemote(context, store, undefined, false, { record: existing.result.record, tip: existing.result.tip });
+      if (resumed.status !== "ok") return resumed.status === "refused" ? resumed : invalidCommand("Finish the recorded move before setting a role.");
+      completed = resumed.result;
+    }
+    if (existing.result?.record.kind === "layout") {
+      const finished = await moveRefLayout(context, store, existing.result.record.destination, existing.result.record.setting, { record: existing.result.record, tip: existing.result.tip });
       if (finished.status === "refused") return finished;
       completed = finished.result;
     }

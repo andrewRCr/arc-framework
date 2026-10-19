@@ -34,6 +34,8 @@ export async function mergePulledRefState(context: RefBackendContext, incoming: 
 /** A copy already acquired its complete source; a pull can acquire histories as lifecycle records reveal them. */
 export interface CapturedRefMergeOptions extends RefMergeOptions {
   previous?: ReadonlyMap<string, string>;
+  /** A copy captures its isolated destination as logical state refs. */
+  capture?: () => Promise<Map<string, string>>;
   acquireHistories?: (histories: readonly HistoryRef[]) => Promise<
     { status: "complete"; notices: PullNotice[] } | Extract<LifecyclePullResult, { status: "fetch-failed" }>>;
 }
@@ -43,12 +45,12 @@ export async function mergeCapturedRefState(context: RefBackendContext, incoming
   requested: readonly HistoryRef[], options: CapturedRefMergeOptions): Promise<LifecyclePullResult> {
   const previous = options.previous ?? new Map<string, string>();
   const published = refEndPublished(context, incoming, previous);
-  let held = await readSyncRefs(context, "refs/arc/");
+  let held = await captureMergeRefs(context, options);
   const corrupt = await readCorruptArchiveBatchRefs(context, held, new Map([...previous, ...incoming]));
   const shared = new Map([...incoming].filter(([ref]) => !isItem(ref)));
   const first = await mergeRefSets(context, held, shared, options);
   if (first.status === "restart") return first;
-  let state = await readSyncRefs(context, "refs/arc/");
+  let state = await captureMergeRefs(context, options);
   const completed = await readPendingArchiveHistories(context, held, state, incoming);
   let pending = await readPendingRefEnds(context, held, state, incoming, published);
   const required = new Map([...pending, ...completed].map((item) => [item.history, item]));
@@ -83,7 +85,7 @@ export async function mergeCapturedRefState(context: RefBackendContext, incoming
   }
   const last = await mergeRefSets(context, state, items, { ...options, routes, incomingState: incoming, priorState: held });
   if (last.status === "restart") return last;
-  const doubled = await observeSyncEndedTwice(context, await readSyncRefs(context, "refs/arc/"), incoming, published);
+  const doubled = await observeSyncEndedTwice(context, await captureMergeRefs(context, options), incoming, published);
   const doubledUids = new Set(doubled.flatMap((notice) => notice.kind === "ended-twice" && "uid" in notice.item ? [notice.item.uid] : []));
   const unambiguous = [...notices, ...last.notices].filter((notice) => notice.kind !== "end-pending"
     || !("uid" in notice.item) || !doubledUids.has(notice.item.uid));
@@ -107,7 +109,7 @@ async function withdrawEndBatches(context: RefBackendContext, held: Map<string, 
     if (result.status === "restart") return { result, state };
     if (!result.changed) return { result: { status: "complete", changed, notices }, state };
     changed = true; notices.push(...result.notices);
-    state = await readSyncRefs(context, "refs/arc/"); held = state;
+    state = await captureMergeRefs(context, options); held = state;
   }
 }
 
@@ -138,4 +140,8 @@ function lifecycleRoutes(held: ReadonlyMap<string, string>, items: ReadonlyMap<s
     if (live !== ref && !held.has(ref) && held.has(live)) routes.set(ref, { ref: live, source: live, reopening: true });
   }
   return routes;
+}
+
+async function captureMergeRefs(context: RefBackendContext, options: CapturedRefMergeOptions): Promise<Map<string, string>> {
+  return options.capture ? options.capture() : readSyncRefs(context, "refs/arc/");
 }

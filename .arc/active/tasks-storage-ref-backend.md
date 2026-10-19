@@ -1499,47 +1499,36 @@ _Mode:_ `slice` through Phase 17 — closes on state moved between remotes, ever
   designation without setting a role on refusal. Replaced tracking tips adopt the fetched record, pruning leaves no
   control keeper, and repaired operations return to their normal paths.
 
-### `[ ]` **16.2 The copy — § 10.2, § 10.3, § 10.4**
+### `[x]` **16.2 The copy — § 10.2, § 10.3, § 10.4**
 
 - _Goal:_ A remote move copies the old remote's whole state, every person's identity refs and every history ref among
   it, onto the new remote in one atomic push that merges where this project's state already sits there.
 
-- **Additional Context:** `notes-storage-ref-backend.md` § The move model check
+- _Outcome:_ Complete source acquisition and isolated destination views merge through the shared lifecycle engine in
+  code-repository temporary refs without adopting unseen state locally. Captured fetch and push URLs survive designation
+  changes; strict project and forwarding checks precede publication. The record precedes the atomic leased copy, and
+  a lost lease restarts acquisition. Definitive first-run refusals clean up; interrupted or uncertain copies retain
+  their records and deleted forwarding roots for repair. Copied tips and observed heads remain pinned, and trial
+  reports include the same copy, merge, and control-ref deletion actions.
 
-    - Steps 1 and 2, the record and the copy push each a step of its own, all declared at the step port (13.1) as they
-      land here: the fetches under `refs/arc/tmp/migrate/remote/`, keyed by remote and cleared before each — the old
-      remote's by every store ref it holds (§ 3.1), every person's identity refs and every history ref among them, and
-      its forwarding record, and the new remote's registry and forwarding record by one-ref patterns — with § 6.2's
-      flags and its partial-clone check; the project check; the copy with its one registry commit, `migrate`
-      `move-remote`; the record, written before the copy push; the copy push leased on the new remote's registry tip,
-      deleting a forwarding record step 1 found there only where the old remote's registry history holds its commit; the
-      copied tips and kept heads under `refs/arc/tmp/migrate/copied/`, with any forwarding record the copy deleted, kept
-      at `refs/arc/tmp/migrate/deleted-record` past the record's end (17.4)
-    - `move.json`'s remote arm: the move's kind, each remote by its name and its URLs — `backing`'s as the store directory
-      holds it, or for a remote of the code repository the fetch and push URLs `git remote get-url` and
-      `git remote get-url --push` resolve at the move's start — and the registry commit step 2 lands
-    - Every step that reaches the old remote once the record is written — step 3's forwarding record and the read before
-      the switch, step 4's listings, re-fetches, and deletes, and a follow's deletes — goes by the record's URLs, the
-      fetch URL for reads and the push URL for pushes, never by a remote name a switch may have repointed
-    - Build `test-first` (one behavior at a time):
-        - a move with a second person's identity refs and a history ref the mover never pulled on the old remote copies
-          both to the new one
-        - a new remote holding another project's identity record or forwarding record refuses `identity-mismatch` before
-          any push, its trial alike, and stays unchanged
-        - a copy onto a new remote holding this project's state merges there through 13.1's copy, the new remote's refs
-          the local side and the old remote's the incoming, reporting a broken rule in `notices`
-        - a malformed `moved.json` on the old remote refuses the move `move-record-malformed` at step 1, and on the new
-          remote at step 2, each naming the ref, and the move passes once it is repaired
-        - `--to` from a clone whose state remote carries a forwarding record from a move it has not recorded refuses
-          `moved` before any copy, naming `arc store migrate`, the follow, and then `--to` from the remote it follows
-          to, and pushes nothing
-        - a copy losing a lease runs the move again from step 1, its record naming the commit that lands
-        - a first run whose copy push a receiver without atomic pushes or a hook refuses ends in the `store` arm's
-          terminal `refused`, leaving no record and changing nothing, while a run interrupted at the step port before
-          its copy push, its record written, and rerun against such a receiver keeps its record
-        - `--to` a remote carrying a forwarding record from outside this state's line of moves refuses `moved`, pushing
-          nothing, naming `--to` the remote the state moved to
-        - a remote move's trial report matches what the move then does
+### `[x]` **16.3 Forward, then switch — § 10.2, § 10.3**
+
+- _Goal:_ The old remote carries the forwarding record before this clone switches, so of two moves off one remote only
+  one switches, and the switch carries exactly the heads the copy holds.
+
+- _Outcome:_ Atomic forwarding leases license every switch; all seven remote directions preserve the copied tracking
+  and seen heads. Layout changes borrow the remote move’s record, the tracked pointer preserves unrelated text,
+  and resumed switches retain newer sync heads. Native worktree races cover move exclusion and redirected pushes.
+
+### `[x]` **16.4 The delete rounds — § 10.2, § 10.3**
+
+- _Goal:_ The old remote ends holding only the forwarding record, and no ref leaves it at a tip the new remote does not
+  hold.
+
+- _Outcome:_ Fresh move-version reads license leased re-copy and atomic deletion at the recorded URLs; only a final
+  forwarding-only listing releases the record. Late writes, ends, reopens, and unseen identities survive restart and
+  repair. Copies stop on unreadable merges, retirement labels come from the merged registry, and completed moves retain
+  their reports when a remote setting follows them.
 
 ### `[ ]` **16.R Migration commit modes through public callers — § 11.4 (A12)**
 
@@ -1553,82 +1542,6 @@ _Mode:_ `slice` through Phase 17 — closes on state moved between remotes, ever
           repository while another holder retains the layout lock; release that holder after the copy and before a
           later switch needs the lock, then complete the move and verify the destination's merged records
         - keep imports at the public store boundary, and close A12 against the recorded public caller evidence
-
-### `[ ]` **16.3 Forward, then switch — § 10.2, § 10.3**
-
-- _Goal:_ The old remote carries the forwarding record before this clone switches, so of two moves off one remote only
-  one switches, and the switch carries exactly the heads the copy holds.
-
-- **Additional Context:** `notes-storage-ref-backend.md` § The move model check
-
-    - Step 3 and the switch, each declared at the step port (13.1): the forwarding record and a registry commit,
-      `migrate` `forward`, in one `--atomic` push, the record leased on absence and the commit on step 1's registry tip;
-      the switch licensed by a read showing that record; the kept heads carried into `refs/arc-remotes/<new>/` and
-      `refs/arc/tmp/seen/<new>/`; the new remote's `push` before the old one's `off`, `backing` taking the new URL or
-      removed
-    - Where the destination calls for the other layout (§ 9.7), the switch is the layout move run as this move's switch
-      (13.1), under this move's lock and writing no record of its own
-    - The pointer's change left in `arc-config.yml` uncommitted, through a write the pointer port (12.2) gains here,
-      which the handlers in `commands/` bind over the config module beside its read (13.5): the key's line replaced as
-      `renderConfigOverrides` (`lib/template/render.ts`) replaces one, appended where the file has none, and a removed
-      pointer written empty, the key's default (12.1)
-    - Build `test-first` (one behavior at a time):
-        - in every direction — the code remote to a backing repository and back, between two backing repositories, and
-          to and from a fork's upstream — the clone ends with the new remote carrying `push`, the old `off`, and `backing`
-          set or removed, syncing with the new remote and reporting `move-unfinished` while its record stands
-        - the new remote's registry holds the move's own commit, its tree unchanged, which the forwarding record names,
-          and a rerun's merge descends from it
-        - a run interrupted at the step port after step 3 and rerun finds its own forwarding record and pushes no second
-          one
-        - two remote moves started at once from two worktrees: the second refuses `lock-held`, and the first finishes,
-          its switch carrying the heads its own step 1 kept
-        - a move from a code-repository remote with a `pushurl` reaches it after the switch at that push URL
-        - a sync in a second worktree of the moving clone, pulled before the switch, pushes nothing to the old remote
-          after it and repeats against the new one
-        - the pointer's change is written into a checkout's `arc-config.yml` that lacks the key, and a move off a backing
-          repository to the code remote writes it empty
-        - the report says teammates follow once the pointer's change reaches them as code
-
-### `[ ]` **16.4 The delete rounds — § 10.2, § 10.3**
-
-- _Goal:_ The old remote ends holding only the forwarding record, and no ref leaves it at a tip the new remote does not
-  hold.
-
-- **Additional Context:** `notes-storage-ref-backend.md` § The move model check
-
-    - Step 4: each round reads the new remote, which must hold the move's registry commit, then fetches both remotes'
-      store refs, re-copies whatever changed since the copy or the new remote lacks through 13.1's copy, the registry
-      always in the first round, then deletes every fetched store ref in one `--atomic` push leased on its kept tip; each
-      round declared at the step port (13.1)
-    - Build `test-first` (one behavior at a time):
-        - a teammate's write, new item, and end landing on the old remote after the copy reach the new remote, and the old
-          one ends holding only the forwarding record
-        - once its last listing finds only the forwarding record the move's record goes, and in every direction of 16.3
-          the clone's next `pull` and `push` report no state
-        - the commit step 3 left on the old remote's registry is copied to the new remote before that ref's delete
-        - a move between two backing repositories leaves the forwarding record on the old repository's URL and deletes
-          only there, the new repository keeping every ref
-        - each step of a remote move, 16.2's and 16.3's among them, interrupted at the step port and rerun completes, the
-          rerun merging onto the copy it landed
-        - a move onto a new remote holding this project's state deletes the old remote's refs in one round where no push
-          lands meanwhile
-        - a lost lease, the round's read still showing this move's record, copies the late push in the next round
-        - a move interrupted after step 3 and before its switch, a teammate's push landing on the old remote after the
-          copy, reruns, its first delete round copying that push before deleting it and its switch carrying the heads
-          kept with the copy
-        - a delete round after an item's reopen on the new remote copies no history ref back for it
-        - a delete or listing that fails keeps the record, `move-unfinished` naming the cause, and a no-target rerun
-          retries it
-        - a new remote emptied after the switch writes nothing on either remote and keeps the record, `move-unfinished`
-          naming the cause
-        - a mover that ended an item on the old remote after step 1 and syncs from the new remote before step 4 keeps the
-          item ended
-        - step 4's re-copy against a new remote whose ref another clone's push moved after the copy merges onto it,
-          reporting a broken rule in `notices`
-        - step 4's re-copy where the mover abandoned an item after its switch while a teammate's write to it landed on the
-          old remote merges the write into the history ref; where a teammate's archive landed, the archive holds, the
-          mover's abandon withdrawn and reported in `notices`; and where a teammate's abandon landed, the source's lineage
-          holds and the mover's withdrawn abandon leaves neither its lineage nor a conflict record over it
 
 ### `[ ]` **16.5 Moves that cross, end, or change the layout — § 10.3, § 10.7**
 

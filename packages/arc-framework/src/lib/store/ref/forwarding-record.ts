@@ -1,4 +1,6 @@
 /** Forwarding control records identify a departed project without retaining its state objects. */
+import { canonicalize } from "../../kernel/canonical/canonical-json.js";
+import { writeRefBlob, writeRefTree } from "./tree-write.js";
 import { z } from "zod";
 import { CommitShaSchema } from "../links.js";
 import type { StoreCommandRefusal } from "../commands.js";
@@ -35,4 +37,11 @@ export async function readForwardingRecord(context: RefBackendContext, tip: stri
 export function forwardingFollowRemedy(remote: string): Remedy {
   return { text: `State moved from ${remote}. Bring in the code carrying the tracked pointer's change, then run arc store migrate to follow it.`,
     argv: ["arc", "store", "migrate"] };
+}
+
+/** Construct a standalone control root whose only tree entry is canonical moved.json. */
+export async function writeForwardingRecord(context: RefBackendContext, record: ForwardingRecord): Promise<string> {
+  const oid = await writeRefBlob(context, canonicalize(ForwardingRecordSchema.parse(record)));
+  const tree = await writeRefTree(context, [{ path: "moved.json", mode: "100644", oid }]);
+  return (await context.exec("git", ["commit-tree", tree, "-m", "Record project state forwarding"], { cwd: context.checkoutRoot })).stdout.trim();
 }

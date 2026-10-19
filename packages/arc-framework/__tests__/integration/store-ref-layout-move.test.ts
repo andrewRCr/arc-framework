@@ -12,6 +12,7 @@ import { createReadSourceStore, createRefStore, createKindRegistry, HistoryRefSc
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
 import { createRefSyncCheckout, refSyncFixture } from "../helpers/store/ref-sync.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
+import { invokeStoreMigrate } from "../helpers/store/migrate-command.js";
 import { success } from "../helpers/store/suite-tools.js";
 
 const provenance = { verb: "start", lifecycleAction: "seed" };
@@ -550,24 +551,22 @@ it.each(["separate", "default"] as const)("detects a rewritten remote after movi
 }, 30_000);
 
 it.each([
-  [{ trial: true }, "request-invalid", "--trial"],
-  [{ trial: true, leaveSource: true, to: "next" }, "request-invalid", "--trial"],
-  [{ import: true }, "unsupported", "--import"],
-  [{ leaveSource: true }, "unsupported", "--leave-source"],
-  [{ to: "next" }, "unsupported", "--to"],
-] as const)("refuses an unavailable migration input %j with its exact reason", async (input, code, flag) => {
+  [["--trial"], "request-invalid", "--trial"],
+  [["--trial", "--leave-source", "--to", "next"], "request-invalid", "--trial"],
+  [["--leave-source"], "unsupported", "--leave-source"],
+] as const)("refuses an invalid or unavailable migration input %j with its exact reason", async (argv, code, flag) => {
   const h = await layoutFixture();
-  const result = await runStoreMigrate(h.a.ports, input);
+  const result = await invokeStoreMigrate([...argv], h.a.ports);
   expect(result).toMatchObject({ status: "refused", refusal: { code, class: "terminal", condition: expect.stringContaining(flag) } });
 });
 
 it("gives a clone with no state remote an actionable designation remedy for --to", async () => {
   const h = await layoutFixture();
   expect((await runStoreRemote(h.a.ports, { remote: "origin", role: "off" })).status).toBe("ok");
-  expect(await runStoreMigrate(h.a.ports, { to: "next" })).toMatchObject({ status: "refused", refusal: { code: "no-state-remote", class: "recoverable",
+  expect(await invokeStoreMigrate(["--to", "next"], h.a.ports)).toMatchObject({ status: "refused", refusal: { code: "no-state-remote", class: "recoverable",
     remedy: { text: expect.stringContaining("arc store remote") } } });
   expect((await runStoreRemote(h.a.ports, { remote: "origin", role: "push" })).status).toBe("ok");
-  expect(await runStoreMigrate(h.a.ports, { to: "next" })).toMatchObject({ status: "refused", refusal: { code: "unsupported" } });
+  expect(await invokeStoreMigrate(["--to", "next"], h.a.ports)).toMatchObject({ status: "refused", refusal: { code: "store", refusal: { code: "unreachable", class: "recoverable" } } });
 });
 
 it.each([false, true])("leaves refs, roles, and the physical store unchanged for an invalid trial request, leave source: %s", async (leaveSource) => {
