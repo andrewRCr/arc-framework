@@ -120,31 +120,15 @@ the measurements.
   composer. Candidates carry optional Class and pause plus a store source; paused records occupy their own tier across
   placements and leave all ordinary tiers, while planned Active records without pause remain Parked.
 
-### `[ ]` **2.3 Classify unlisted edges through supplied resolutions — § 2.2**
+### `[x]` **2.3 Classify unlisted edges through supplied resolutions — § 2.2**
 
 - _Goal:_ Given a resolution for an edge naming no listed record, the composer's classification, its default readiness,
   and its depth banding all read it, so an edge's satisfaction and its row's readiness agree, and a Blocked row bands
   below the work unit its edge resolves to while showing the edge as written.
 
-- _Shape:_ An optional input keyed by dependent and written edge. Each resolution is a standing record's slug, which the
-  edge classifies and bands against; a verdict for a listed record outside the composer's records, such as the completed
-  holder of a reused slug reached through its former slug, satisfied once that record has shipped and banded against
-  nothing, so the edge never classifies against the slug's standing holder; or an unsatisfied edge carrying the warning
-  that replaces "missing work unit", or none where its name fails closed or its match is a withheld meta, whose listing
-  diagnostic reports it (§ 2.1). Tasks 3.1 and 3.3 produce it.
-
-    - With no readiness provider, the composer derives its verdicts from its own classification;
-      `depsOnlyReadinessProvider` stays exported for callers that pass it.
-    - `blockedDepths` bands by each edge's resolved target; rows and fact rows keep the written edge.
-    - Build `test-first` (one behavior at a time):
-        - an edge resolved to a shipped listed work unit is satisfied, with no dangling warning
-        - an edge resolved to an unshipped listed work unit is unsatisfied, its row banded below that work unit and
-          showing the written slug in its row and fact row
-        - a satisfied verdict satisfies its edge while another record of that slug is unshipped, and bands nothing
-        - an unsatisfied resolution's warning replaces the dangling warning; a fail-closed one adds none
-        - the default readiness agrees with the classification when resolutions are given, and an explicit provider is
-          still used when passed
-        - with no resolutions the output matches Task 2.1's literals
+- _Outcome:_ Dependent-and-edge resolutions select listed targets, exact external verdicts, or unsatisfied edges with
+  optional diagnostics. Default readiness reuses that classification; depth follows resolved targets while rows and
+  facts retain written edges. Supplied retirement and read-failure warnings have dedicated codes.
 
 ### `[ ]` **2.4 Render the Paused tier, its marks, and the paused horizon advisory — § 2.3**
 
