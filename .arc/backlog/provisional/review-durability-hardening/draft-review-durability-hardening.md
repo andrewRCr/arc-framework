@@ -38,6 +38,26 @@
   meta (`storage-contract` C10), so a head binding no longer names what was read.
 - _Approach:_ Bind those reads to the store's version of the record (C1's state version) when this work unit plans.
 
+### `[ ]` **Re-triage the held entry on new-head invalidation against review-coverage-cadence's delta check**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Separate exact-target invalidation from applicability: re-triage against landed delta check without
+  automatic dismissal
+
+- _Observation:_ that entry, routed 2026-07-27 from a 14-line test-mock change after a clean incremental follow-up,
+  proposes carrying prior complete coverage across "demonstrably non-interacting test, record-only, or lifecycle deltas
+  with targeted verification". `review-coverage-cadence`'s spec settles the same incident class the other way: after a
+  converged look, a plain commit (one that answers no finding) takes a delta check — an incremental local look on
+  `delegated-agent` over the range the commit adds, admitted by a range proof from Git — and carrying an earlier review
+  by the kind of path a commit touches is rejected there, since a test edit can hide a regression. PR #1034's two-line
+  E2E expectation change is that spec's motivating case.
+
+- _Approach:_ at this unit's next planning iteration, re-check the entry against the landed delta check: likely
+  dismissed as resolved by it, or narrowed to whatever residual the delta check leaves (for example, a path the delta
+  check does not reach).
+
+- _Captured during:_ `review-coverage-cadence` create-spec, draft retirement audit (2026-10-17).
+
 ---
 
 ## Provenance

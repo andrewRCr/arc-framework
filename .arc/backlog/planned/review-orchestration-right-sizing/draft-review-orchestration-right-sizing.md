@@ -678,6 +678,293 @@
 - _Captured during:_ the Errand aligning Candidate fix verification with the performed-scope rule, PR #923,
   2026-10-12.
 
+### `[ ]` **Decide residual review applicability by project policy for every vehicle**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Residual applicability and project review policy
+
+- _Observation:_ whether earlier review carries to a moved subject is computed for every vehicle
+  (`reduceEvidenceApplicability`: `carries`, `supplemental`, `fresh`). Where a bounded residual remains, a work unit
+  gets an attended covered-or-review-required selection (`ReviewApplicabilitySelectionOffer`,
+  `resolveReviewApplicability`) and an Errand gets none: its review carries only when the movement merges without a
+  substantive conflict (`readCarriedErrandReview`, `status-errand.ts`, since `808c8181e`), and otherwise it asks for
+  another pass or, past the ceiling, the Owner's stop. The tools ARC sits beside ask no person: Gerrit copies a vote to
+  a new patch set by a per-label `copyCondition` over computed change kinds (`NO_CHANGE`, `NO_CODE_CHANGE`,
+  `TRIVIAL_REBASE`, `MERGE_FIRST_PARENT_UPDATE`, `REWORK`) and keeps blocking votes sticky; GitLab compares pushes by
+  `git patch-id`.
+
+- _Approach:_ a project rule, by change kind and path class, decides the residual for Errands and work units alike,
+  asking a person only where the rule says to. `seam-delivery-review` stores a decision only where a person chose; a
+  rule's verdict is derived, as the mechanical carry is (`draft-seam-delivery-review.md` § Decisions), so the rule needs
+  no stored record or schema change, and a decision is written only where the rule asks a person. Errand review records
+  reach the store at its flip.
+
+- _Evidence:_ `notes-seam-delivery-review.md` § Prior art, from a research pass that verified nothing itself.
+
+- _Captured during:_ Errand `errand-overlap-continuation`, 2026-10-10, as the Errand half; routed here at
+  `seam-delivery-review`'s owner's planning pass, 2026-10-15, which keeps the derived carry and leaves the choice to
+  pass policy.
+
+### `[ ]` **Compose `arc errand merge` and the work-unit integration checkpoint through one terminal sequence**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Settled singleton integration: shared terminal sequence
+
+- _Observation:_ both terminal paths use the shared movement planner (`composeCheckpointMovementPlan`) and applicability
+  reducer (`reduceEvidenceApplicability`), but each sequences them itself, in `errand-merge.ts` and `checkpoint.ts`.
+  That is how the Errand path came to judge review applicability before reconciling while the work-unit checkpoint
+  reconciled first, a divergence `errand-overlap-continuation` closed by hand. Nothing keeps the two orders from
+  drifting again.
+
+- _Approach:_ extract one terminal sequence — blocked plan, then reconcile, then review applicability for a direct merge
+  — with each vehicle supplying its own gates: delivery's residual containment and the Candidate selection for a work
+  unit, the base-movement reduction for an Errand.
+
+- _Routed:_ held in `seam-delivery-review`'s draft from the 2026-10-11 drain; its owner's pass (2026-10-15) found it an
+  integration-path concern, which that member leaves to its owners.
+
+- _Captured during:_ Errand `errand-overlap-continuation`, 2026-10-10.
+
+### `[ ]` **Separate machine waits from Owner decisions in review and integration**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Settled singleton integration: resumable machine waits versus Owner stops
+
+- _Observation:_ a long wait — a hosted review, CI, the final checkpoint — gives the agent no handle to poll or resume,
+  and an Owner decision is asked in conversation, then re-supplied by echoing whole offers or command strings
+  (`buildPrePublicationResumeCommand`'s `--resume` token). Established patterns keep the two apart: a long-running
+  operation returns a handle with `done`, progress, and result (Google AIP-151); a person's decision binds to one
+  pending request by a token, and the waiting work resumes on it (AWS Step Functions task tokens, Temporal updates).
+
+- _Approach:_ give each machine wait a resumable handle with a deadline and progress, and each Owner decision a typed
+  pause carrying its facts and continuation, answered by reference to the offer rather than an echo of it (the held
+  entry "Answer a review offer by reference rather than echoing it whole"). The CLI holds the wait, so the agent spends
+  no attention on it.
+
+- _Evidence:_ `notes-seam-delivery-review.md` § Prior art.
+
+- _Captured during:_ `seam-delivery-review` draft-design, the prior-art research, 2026-10-15.
+
+### `[ ]` **Measure review and integration cost from session transcripts**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Normal-path Measurement: transcript-based cost evidence
+
+- _Observation:_ no controlled study isolates CLI call count, output size, or record shape against an agent's cost.
+  Published guidance (Anthropic on writing tools for agents) and the one measured study (SWE-agent's interface
+  ablations) support compact output and guardrails at the point of action, but give no figures ARC can apply. ARC's own
+  session transcripts hold the evidence: each command, its output, and the time between.
+
+- _Approach:_ derive per-delivery figures from transcripts of real deliveries — ARC calls and repeated calls, output
+  size, Owner stops, and wall-clock time split into machine waits and attended time — before and after each right-sizing
+  change, so a change shows its effect rather than claiming it.
+
+- _Captured during:_ `seam-delivery-review` draft-design, the prior-art research, 2026-10-15.
+
+### `[ ]` **Correct the adversarial-pass verb's held entry: a pass is one record of its own shape**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Hold adversarial-pass recording verb to one call: amended D5 shape and derived coordinates
+
+- _Observation:_ the held entry restates `spec-storage-contract.md` D5 as shipped: "The records share the review gate's
+  record shapes, never its operation machinery." `spec-seam-delivery-review.md` § 13 amends D5 forward: an adversarial
+  pass is one `review/adversarial-pass` record of its own shape, a typed header plus the report as prose, rather than
+  records sharing the review gate's disposition set, approval, rubric binding, and pass-to-pass lineage, and it holds no
+  next-pass authorization (§ 7, § 13 items 3–4). The verb is `arc review adversarial record`, whose CLI derives the
+  artifact versions and the pass number (§ 7.2), so the entry's "and lineage" goes too. The one-call bound itself
+  stands.
+
+- _Approach:_ when grooming the entry, restate its observation against the amended D5 and that spec's § 7, keeping the
+  one-call bound and the measurement.
+
+- _Captured during:_ `seam-delivery-review` create-spec, 2026-10-16, at finalize.
+
+### `[ ]` **Point the review-lane doctrine home at the review family's method instead of minting the pass model**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Give review-lane doctrine a strategy home: model/method ownership and placement charter
+
+- _Observation:_ `review-coverage-cadence` put the review-pass model in a method, not a strategy: D7's `review-model`
+  holds the model's definitions (pass, fix check, cap, convergence, re-inspection test, cadence) and the review family's
+  map, and D10 adds one operation per review type — `planning-review`, `code-review`, `verification-review` — each
+  holding its type's defaults at the fire-points that read them. The entry's `_Split:_` line expects that work unit to
+  author the pass model's section and mint the strategy that holds it, which no longer happens.
+
+- _Approach:_ when grooming the entry, drop the pass-model split, and if a review-architecture strategy is still minted,
+  have it carry rationale and point to `review-model` and the three operations rather than restate them. The placement
+  charter and the rest of the doctrine stay with the entry.
+
+- _Captured during:_ `review-coverage-cadence` draft-design, 2026-10-16.
+
+### `[ ]` **Give code review one typed driver across its four site commands**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Admission, correction-loop, and terminal orchestration: one typed review driver across four sites
+
+- _Observation:_ code review runs through four CLI commands, each with its own state vocabulary: `arc review resolve`
+  for an Errand, `arc review pre-publication <wu>` before publication, the integration boundary's `nextAction` at
+  integration, and `arc review status --target` for a stack member. Their early stops and fix verification differ too.
+  `review-coverage-cadence` D10 keeps a thin dispatch per site for that reason (`notes-review-coverage-cadence.md` §
+  Review call sites).
+
+- _Approach:_ not pre-decided. One typed driver or agenda that answers "what next for this review" at any site would let
+  `code-review`'s per-site dispatch collapse. Check first which differences are locus facts the CLI can carry and which
+  are real policy differences.
+
+- _Captured during:_ `review-coverage-cadence` draft-design, 2026-10-16.
+
+### `[ ]` **Record a base-merge review check so it can carry review without a stop**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Residual coverage policy: stored base-merge check scope and targeted-check choice, after
+  seam-delivery-review
+
+- _Observation:_ `review-coverage-cadence` D6 runs one bounded local check over what a base merge changed in reviewed
+  code — the conflict resolution as `git log --remerge-diff` shows it, the residual's files, and dependencies across the
+  two sides — at the two applicability stops that already exist, and stores nothing. It informs the Owner's choice:
+  `covered` or `review-required` during review (`resolve-review-applicability`), and `covered`, `targeted-check`, or
+  `changed` at the final reconcile. Two costs stay. The Owner decides every overlapping merge at a stop, and during
+  review the stored selection reads `covered` without naming the check. A merge check that counted without a stop would
+  have to mark its scope in a stored record, since without the mark every reader recognizes it only by recomputing
+  applicability leg by leg; and a `targeted-check` choice on the review-applicability selection changes that selection's
+  stored shape.
+
+- _Approach:_ after `seam-delivery-review` lands, add the stored scope marker and the selection's `targeted-check`
+  choice in its records, then decide whether a converged check over a bounded residual may carry review without the
+  Owner's stop. The base-movement research in `notes-review-coverage-cadence.md` covers how review hosts treat the same
+  case.
+
+- _Captured during:_ `review-coverage-cadence` draft-design, 2026-10-16.
+
+- _Routing update (2026-10-19):_ Wait for seam-delivery-review to land; any future stored review shape amendment remains
+  with its record owner. No current active-spec amendment is part of this sweep.
+
+### `[ ]` **Offer a typed base reconcile between review fix rounds for overlapping drift**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Terminal reconcile timing: optional typed reconcile between fix rounds after measuring occurrence
+
+- _Observation:_ neither `integrate-work-unit` nor `run-errand` merges base during review: each leaves base mutation to
+  its terminal planner after review settles, through one typed path with overlap disclosure, `arc check new-head`, fresh
+  applicability, and exact-head approval. That path is right; its timing costs one case. With large overlapping drift
+  under `full-final`, merging before the last complete pass would let that pass review the conflict resolution at no
+  extra cost, but the last pass is known only once a fix check converges. Under `review-coverage-cadence` D6, a base
+  move in the middle of fix rounds, after a fix no pass has checked, sends the lane to a complete pass, so today the
+  Owner avoids that pass by not updating the branch from base during fix rounds.
+
+- _Approach:_ not pre-decided. A typed reconcile arm the Owner can take between fix rounds, through the same planner and
+  evidence, placed so the complete pass that follows reads the resolution. Check first how often overlapping drift
+  arrives during review.
+
+- _Captured during:_ `review-coverage-cadence` draft-design, 2026-10-16.
+
+- _Routing update (2026-10-19):_ Future optional reconcile design must preserve typed planner, disclosed overlap, new-
+  head checks, applicability and exact-head authority. No early base mutation is authorized.
+
+### `[ ]` **Mark a held review correction on the delivery continuation's stops**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Stacked correction control loop: pending-correction signal blocks review and landing
+
+- _Observation:_ under `review-coverage-cadence` D6, while a delivery is bound, a fix that the base-merge check prompts
+  lands as a correction task in the owning member's section, under a plan revision, through
+  `arc delivery review-fix continue -`. It is authored only when the continuation holds no other correction: no
+  unsettled approved review response and no pending verification (`inspectDeliveryEntry`,
+  `lib/delivery/entry-inspection.ts`). Until it lands, the member takes no pass request (`request-review`) and no
+  landing preparation (`member-discharged` or `settled` with `continue-reconcile`). Today's `review-status-required`
+  result (`handlers/delivery-execution.ts`) carries no mark of the correction the continuation holds, nor of an approved
+  fix not yet authored, and `arc delivery position` reads neither a pending response nor a pending verification, so only
+  the agent holds the member out.
+
+- _Approach:_ a typed mark on the continuation's stops naming a held correction, and a way for the continuation to learn
+  of an approved fix the check produced, since the check itself stores nothing; then status and position can refuse the
+  pass request and landing preparation themselves.
+
+- _Captured during:_ `review-coverage-cadence` draft-design, 2026-10-16.
+
+### `[ ]` **Decide whether a review fix may land before the Owner's choice at a bound applicability stop**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Stacked correction control loop: ordering the approved fix before applicability selection
+
+- _Observation:_ under `review-coverage-cadence` D6, outside a bound delivery a fix that the base-merge check prompts
+  lands first, and the Owner chooses once over the fixed head. While a delivery is bound, the fix takes the delivery's
+  correction route, so the Owner chooses first, and that choice governs only until the fix lands. The correction's
+  commit then raises a fresh stop over the fixed head, because a stored applicability selection binds its projection and
+  residual (`projectionDigest`, `residualDigest`, `review-applicability-resolution.ts`) and an earlier one is found by
+  the current head (`earlier-review-applicability.ts`), so the Owner is asked twice. Letting the first choice govern
+  past the fix would need a stored link from it to the fix.
+
+- _Approach:_ if the continuation can author and land an approved fix before the applicability choice, a bound stop asks
+  once, as outside a delivery. Check it against the correction route's ordering and what the continuation admits while
+  an applicability selection is pending.
+
+- _Captured during:_ `review-coverage-cadence` draft-design, 2026-10-16.
+
+### `[ ]` **Bound adversarial review effort and detect verification scale before the first pass**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Review effort, bounded orchestration, cross-pass reuse, and measurement; consume PR1037 safeguards as
+  baseline
+
+- _Observation:_ `seam-locus` verification Pass 5 consumed nearly 16 hours without a final aggregate or disposition
+  report. All 513 changed files and 1,732 hunks had local coverage about four hours in, but source seams and recursive
+  evidence-account audits grew the plan to 113 contexts and 22 manifests. The interval included 96 agent launches
+  (scouts/retries included), 26 parent compactions, per-reviewer preread/GO handshakes, and temporary review controls
+  with their own fixture suite. Earlier whole-target passes disclosed incomplete coverage; chunking began only after the
+  Owner intervened. At the incident, ordinary flat-criteria verification had no pre-launch scale-attention resolution,
+  although Candidate preparation already had one. The selected carrier's blanket serial rule also increased elapsed
+  time; the Owner had not requested serialization and explicitly permits concurrent independent reviewers.
+
+- _Initial approach (historical):_ check scale and select a capable review scope before the first criteria reviewer;
+  reuse shared sizing policy while correctly binding staged/working-tree subjects. Schedule independent scopes
+  concurrently, bound effort and recursive expansion within each logical pass, keep parent summaries bounded, preserve
+  completed unchanged coverage, and report substantive residuals separately from bookkeeping. Prevent an ordinary pass
+  from growing a bespoke review controller or repeated audits of attention ledgers. Effort exhaustion must yield an
+  honest incomplete report, never fabricated clean coverage or a waived criterion. Preserve exact targets, evaluator
+  separation, source verification of findings, and the distinction between criteria evidence and satisfying standard
+  review.
+
+- _Interim completion:_ **Partially addressed** by [PR #1037](https://github.com/andrewRCr/arc-framework/pull/1037),
+  merged 2026-10-18 as `94d0ee7e187026a9bddc8a695f50a5e1b11af9d1`. The `guard-verification-review` Errand fulfilled the
+  urgent interim extraction request; do not schedule those same guards again. The broader WU capture stays open.
+
+- _Shipped safeguards:_ member and work-unit verification now invoke `arc review changeset resolve` directly before the
+  criteria walk, including correctly bound index/working-tree snapshots. Ready independent chunk reviewers may run
+  concurrently. Review orchestration preserves completed unchanged coverage within a pass, uses bounded parent summaries
+  and targeted seam questions, and returns an honest partial report when decomposition stops reducing attention burden.
+  Recursive attention-ledger audits, preread/GO interlocks, and private controller/schema/fixture machinery cannot
+  become ordinary review prerequisites. Verification assignments stay focused on criteria and the governing spec
+  contract; concrete incidental defects still enter the ordinary findings and approval protocol.
+
+- _Settled scope decision:_ this was an isolated observed incident after substantial normal use. Prefer scope and
+  capacity signals over arbitrary elapsed-time limits or numeric effort budgets. Mechanical enforcement is not needed on
+  this evidence; reconsider it if recurrence establishes a pattern. Within-pass reuse does not replace independent
+  repair checks, an authorized successor pass, or the later standard-review obligation.
+
+- _Remaining for the WU:_ consolidate the final shared contract across verification, preparation, integration, and other
+  review entry points; settle correction-loop and cross-pass evidence reuse without inventing clearance; measure
+  successful normal-path cost and test whether the interim guidance prevents recurrence. Consume the shipped guards as
+  the baseline rather than redesigning or re-executing them by default. Genuinely new authority or design decisions
+  remain with the WU; stronger enforcement needs fresh evidence.
+
+- _Analysis:_ `analysis-seam-locus-verification-expansion-2026-10-18.md`. This historical, untracked identity-global
+  user document preserves the timeline, transcript identity, exact target, concrete temporary-control examples, workflow
+  gaps, interim candidates, longer-term design, and standard-review implications.
+
+- _Files:_ `verify-work-unit.md`, `validate-criteria.md`, `adversarial-review.md`, `review-chunking.md`, preparation and
+  integration review entry, delivery-member criteria closing, shared changeset sizing policy/input contract, and
+  shipped/self-hosted framework mirrors where changed.
+
+- _Captured during:_ Owner-requested analysis of `verification.SL` in the `seam-locus` worktree, 2026-10-18. The active
+  verification session and its implementation were left undisturbed; this capture does not authorize executing fixes.
+
+- _Updated during:_ Owner-requested completion reconciliation after PR #1037; original incident and proposed approach
+  retained as history, shipped safeguards and remaining scope distinguished explicitly.
+
+- _Routing update (2026-10-19):_ PR1037 already shipped the urgent verification safeguards. Route only the remaining
+  shared-contract and evidence-reuse design, retaining historical incident detail as history.
+
 ---
 
 ## Problem / Motivation
