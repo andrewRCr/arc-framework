@@ -121,27 +121,15 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
           Carried receipts retain their predecessor's exact facts, and whole imported histories may arrive performed
           and settled.
 
-### `[ ]` **1.5 Build `review/adversarial-pass` — § 7.1, § 7.3, § 7.4**
+### `[x]` **1.5 Build `review/adversarial-pass` — § 7.1, § 7.3, § 7.4**
 
 - _Goal:_ An adversarial-pass record holds a typed header and the evaluator's report as prose under the store's `pass`
   key; its parser validates the header, its artifacts as its activity gives them, and refuses two dispositions for one
   finding, and its write check refuses a key naming another activity.
 
-    - The record is JSON, as every never-projected kind is: the header fields of § 7.3 — activity, artifact versions,
-      code head where it reviewed code, rubric identity, `Pass N of M`, approver and time, any over-cap approval, the
-      stop reason, and one disposition per finding — with the report and each finding's account as prose fields.
-    - The key is `{ activity, number }` (`lib/store/identity.ts`); the activities are § 7.1's six: `draft-readiness`,
-      `spec-finalization`, `task-generation`, `design-amendment`, `verification`, and `criteria`.
-    - Each activity's header binds the artifacts § 7.1 gives it, each by its store version, and the code head where it
-      reviews code.
-    - The record holds no next-pass authorization (§ 7.3).
-    - Build `test-first` (one behavior at a time):
-        - a record for each activity parses, and one with an unknown activity refuses to parse
-        - a header binding artifacts other than its activity's, or lacking the code head where its activity reviews
-          code, refuses to parse, while a `spec-finalization` header binding a spec no draft fed parses
-        - a header missing a required field refuses to parse, and the prose fields take any text
-        - two dispositions for one finding refuse to parse
-        - a record whose key's activity differs from its header's refuses at the write check
+- _Outcome:_ Added strict activity-specific headers, opaque artifact versions, reviewed code heads, and issue-bearing
+  JSON decoding. Finding dispositions are unique; reports and accounts remain prose. The activity-key check keeps
+  global stored-pass numbering separate from the loop's ordinal, and recorded approvals grant no next-pass permission.
 
 ### `[ ]` **1.6 Build the Candidate and boundary kinds, and the readiness digest — § 8, § 9.1, § 9.2, § 9.5**
 
