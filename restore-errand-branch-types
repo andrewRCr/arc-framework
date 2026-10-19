@@ -3,14 +3,20 @@
   "slug": "restore-errand-branch-types",
   "claimId": "6ae017eddde51bf892498b08aa22ed46",
   "createdAt": "2026-10-19T12:51:42.837Z",
-  "updatedAt": "2026-10-19T12:51:42.837Z",
+  "updatedAt": "2026-10-19T13:46:07.533Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Restore ordinary Errand nature-typed branches across v3 validation, opening, and exact lifecycle re-entry as required by ADR-027.",
   "branch": "chore/restore-errand-branch-types",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/restore-errand-branch-types",
+    "headSha": "3c12e11b333d85a624b075ca66587d5f31fc0b1d"
+  }
 }
