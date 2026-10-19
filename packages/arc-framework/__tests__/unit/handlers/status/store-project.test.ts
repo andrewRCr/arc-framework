@@ -3,12 +3,15 @@ import { mkdtemp, mkdir, writeFile, readFile, readdir, rm } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
+import { Command } from "commander";
 import type { Store } from "../../../../src/lib/store/contract.js";
+import { createStoreSyncPort, type StoreSyncPort } from "../../../../src/lib/store/operational-sync.js";
 import { createSessionStatusContext } from "../../../../src/handlers/status/session-context.js";
 import { handleProjectStatus } from "../../../../src/handlers/status/views.js";
 import { StatusCommandInputSchema, type StatusCliOptions } from "../../../../src/handlers/status/input.js";
 import { MetaPauseSchema } from "../../../../src/lib/active/meta-schema.js";
-import { writeMetaPause } from "../../../../src/lib/store/kinds/meta/writers.js";
+import { writeMetaPause, writeMetaOwner } from "../../../../src/lib/store/kinds/meta/writers.js";
+import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { scriptGitExec, scriptRawGitExec } from "../../../helpers/git-exec-fake.js";
@@ -17,7 +20,12 @@ import { runHandlerAt } from "../../../helpers/handler.js";
 const folders: string[] = [];
 afterEach(async () => { vi.useRealTimers(); await Promise.all(folders.splice(0).map(path => rm(path, { recursive: true, force: true }))); });
 
-async function fixture(store: Store, reviewAfterDays = 14) {
+function fetchOptions(argv: string[]): StatusCliOptions {
+  return new Command().option("--fetch").option("--local").option("--no-fetch")
+    .parse(argv, { from: "user" }).opts<StatusCliOptions>();
+}
+
+async function fixture(store: Store, reviewAfterDays = 14, sync?: StoreSyncPort) {
   const cwd = await mkdtemp(join(tmpdir(), "arc-project-store-")); folders.push(cwd);
   await mkdir(join(cwd, ".arc/system"), { recursive: true });
   await mkdir(join(cwd, ".arc/backlog"));
@@ -32,7 +40,7 @@ async function fixture(store: Store, reviewAfterDays = 14) {
   const { exec: raw } = scriptRawGitExec([
     { match: { predicate: () => true }, responses: [{ failure: { exitCode: 128, stderr: "fatal: not a git repository" } }] },
   ]);
-  const context = await createSessionStatusContext(cwd, exec, raw, raw, undefined, { store });
+  const context = await createSessionStatusContext(cwd, exec, raw, raw, undefined, { store, sync });
   return { cwd, run: (opts: StatusCliOptions = {}) => runHandlerAt(cwd,
     () => handleProjectStatus(context, StatusCommandInputSchema.parse({ project: true, fetch: false, ...opts }))) };
 }
@@ -63,6 +71,52 @@ it("renders placement tiers and configured pause marks without writing a file", 
   expect(await readFile(join(f.cwd, "ROADMAP.md"), "utf8")).toBe("preserved view\n");
   expect(await readdir(f.cwd, { recursive: true })).toEqual(before);
   expect(lifecycleSuccess(await h.store.version())).toBe(version);
+});
+
+it.each([["--fetch"], ["--no-fetch", "--fetch"]].map(argv => ({ argv })))("pulls the bound state once before acquiring the project records for $argv", async ({ argv }) => {
+  const h = createLifecycleHarness();
+  const meta = await h.seedMeta("refreshed", { owner: "alice" });
+  const f = await fixture(h.store, 14, createStoreSyncPort({ pull: async () => {
+    lifecycleSuccess(await h.store.write({ ...recordPut(meta, { content: writeMetaOwner(meta.content, SlugSchema.parse("bob")) }),
+      provenance: { verb: "pull", lifecycleAction: "pull" } }));
+    return { status: "pulled" };
+  } }));
+  const result = await f.run({ ...fetchOptions(argv), json: true });
+  expect(result.exitCode).toBe(0);
+  expect(result.stderr).toBe("");
+  expect(JSON.parse(result.stdout).facts).toMatchObject([{ slug: "refreshed", owner: "bob" }]);
+});
+
+it("retains coded pull diagnostics in JSON and prints their text before the project view", async () => {
+  const h = createLifecycleHarness();
+  await h.seedMeta("local-work");
+  const f = await fixture(h.store, 14, createStoreSyncPort({ pull: async () => ({ status: "unreachable",
+    condition: "State remote offline.", remedy: { text: "Reconnect and retry." } }) }));
+  const result = await f.run({ fetch: true, json: true });
+  expect(JSON.parse(result.stdout).warnings).toEqual([{ code: "pull-incomplete", rendered: "State remote offline. Reconnect and retry." }]);
+  const text = await f.run({ fetch: true });
+  expect(text.stderr).toBe("warning: State remote offline. Reconnect and retry.\n");
+  expect(text.stdout).toContain("local-work");
+  expect(text.exitCode).toBe(0);
+});
+
+it.each([[], ["--local", "--fetch"], ["--fetch", "--local"], ["--fetch", "--no-fetch"]].map(argv => ({ argv })))("renders locally without invoking the bound pull for $argv", async ({ argv }) => {
+    const h = createLifecycleHarness(); await h.seedMeta("local-work");
+    const f = await fixture(h.store, 14, createStoreSyncPort({ pull: async () => { throw new Error("Local render attempted a state pull"); } }));
+    const result = await f.run({ ...fetchOptions(argv), json: true });
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout).facts).toMatchObject([{ slug: "local-work" }]);
+    expect(result.stderr).toBe("");
+  });
+
+it("renders an explicit fetch locally and quietly when the store port is unbound", async () => {
+  const h = createLifecycleHarness(); await h.seedMeta("local-work");
+  const f = await fixture(h.store);
+  const result = await f.run({ fetch: true, json: true });
+  expect(result.exitCode).toBe(0);
+  expect(JSON.parse(result.stdout).warnings).toEqual([]);
+  expect(JSON.parse(result.stdout).facts).toMatchObject([{ slug: "local-work" }]);
+  expect(result.stderr).toBe("");
 });
 
 it.each([false, true])("refuses an unreadable lifecycle listing with its repair route (json=%s)", async json => {

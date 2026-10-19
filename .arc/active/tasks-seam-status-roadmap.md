@@ -307,17 +307,15 @@ first; the flags' help text stays until the cutover rewrites it.
           condition re-read remains at Task 4.5's fresh base and verification before integration; if the binding has
           landed, this subtask runs there.
 
-### `[ ]` **4.2 Pull before the project view under `--fetch`, keeping today's flag precedence — § 2.4**
+### `[x]` **4.2 Pull before the project view under `--fetch`, keeping today's flag precedence — § 2.4**
 
 - _Goal:_ From the flip `--project` pulls through the session context's port, or the port's default where the context
   carries none, only under `--fetch` and before listing, with `--local` winning over `--fetch` and the later of `--fetch`
   and `--no-fetch` winning.
 
-    - Build `test-first` (one behavior at a time):
-        - the default render calls no pull; `--fetch` pulls once before the listing
-        - `--local --fetch` and `--fetch --local` call no pull; `--fetch --no-fetch` calls none and `--no-fetch --fetch`
-          pulls
-        - an unbound port renders locally with no warning
+- _Outcome:_ Explicit refresh uses the selected synchronization port before lifecycle acquisition, retaining coded pull
+  warnings in JSON and their text on stderr. Local/default renders do not pull; Commander flag precedence and quiet
+  unbound-port rendering are covered through the session context.
 
 ### `[ ]` **4.3 Build the status context before a slug query dispatches — § 7**
 
