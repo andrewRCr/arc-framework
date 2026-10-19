@@ -541,3 +541,46 @@
 - _Approach:_ whatever axes and states the reform settles, keep each boundary named and observable — a typed
   transition or a projected stage value, never inferred from where a file sits — so gate enforcement and the blocked
   derivation keep a target. A reform that merges or renames a boundary updates the gate vocabulary with it.
+
+### `[ ]` **Key the routing scope window on the projected verification stage once it exists**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Projected verification stage and quick-scan signal: scope-window consumer
+
+- _Observation:_ the Errand "Show a work unit's derived lifecycle position and scope window in `arc status <slug>`"
+  (`USER-INBOX § Errand`, 2026-10-17) derives the `closed` window from the task-list convention, a cursor in the
+  terminal Verification phase, because the derived frame reports verification as `task-work` until no open task remains.
+  Routing reads that window to decide whether a live work unit can still take a concern.
+
+- _Approach:_ when the stage reform lands, re-key the `gated` and `closed` derivation on the projected verification
+  stage and integration substages, and retire the convention match. Keep the window's meaning, which
+  `route-discovered-work` owns: `open` before activation, `gated` from activation, `closed` from verification on.
+
+- _Captured during:_ primary-session discussion of peer-coordination routing, 2026-10-17.
+
+### `[ ]` **Show a started work unit's derived position in the project view's In Flight rows and horizon advisory**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Existing quick-scan lifecycle-stage signal / any roster view, exposed stage distinctions, and
+  verification-stage projection; project rows/facts/horizon as consumers of that one stage contract.
+
+- _Observation:_ In Flight rows show the meta's State, which misleads for started work: `storage-projection` shows
+  Planning though its plan is finalized and waits on `seam-locus` and `storage-ref-backend`, and `seam-locus` shows
+  Active though it is on its final verification task. The Errand "Show a work unit's derived lifecycle position and
+  scope window in `arc status <slug>`" (2026-10-17) derives a scope window (open, gated, closed) from the locus reader's
+  session type, stage, and task cursor, and keeps to `arc status <slug>`. `projectHorizonAdvisory`
+  (`lib/status/project-horizon.ts`) has one caller, the project view's fact builder (`factsFor`,
+  `lib/status/project-view.ts`), so a window reaches the listing rows' advisory only if the project view passes each
+  record's window, and whatever today's arm passes, the arm from the flip must pass too. `spec-seam-status-roadmap.md`
+  gives that view no window: its records come from lifecycle's typed view, and it reads no checkout.
+
+- _Approach:_ Design the position or window once for both arms: where the project view from the flip reads it (the
+  meta's stage and the task list's cursor are store records, so it may need no checkout read), how the In Flight row and
+  its fact carry it, and the advisory's gated and closed cases beside the paused case `spec-seam-status-roadmap.md` §
+  2.3 adds, which takes precedence. Routing already reads a target's position from `arc status <slug> --json`
+  (`route-discovered-work` § Target lifecycle), so this serves the project view's own readers, session-init's discovery
+  among them.
+
+- _Captured during:_ `seam-status-roadmap` create-spec, coordination with the primary session's Errand, 2026-10-17.
+
+---

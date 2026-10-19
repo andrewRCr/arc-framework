@@ -356,6 +356,27 @@
 
 - _Captured during:_ `warm-test-cost-runs` Errand, PR #853, 2026-10-09.
 
+### `[ ]` **Answer a review offer by reference rather than echoing it whole**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Hosted await re-derivation: answer decisions by offer reference while preserving version guards
+
+- _Observation:_ the review gate's decisions answer an offer the CLI emitted by echoing it back whole — an applicability
+  selection offer, a terminus offer, a hosted action — so an agent copies nested objects out of output and into a
+  request, where a slip yields a well-formed request bound to wrong coordinates. An offer already carries the version it
+  was computed from (`expectedRecordVersion`, `expectedBoundaryVersion`), and an answer against a moved version refuses
+  while an exact replay passes (`lib/work-unit/candidate-applicability-resolution.ts`), as a reused idempotency key with
+  different parameters does (Stripe). `seam-delivery-review` keeps that guard and stores no offer identity: a decision
+  is keyed by a digest of its own content.
+
+- _Approach:_ let a decision name its offer by a reference the CLI can re-derive from current state — a digest of the
+  offer, say — refusing a mismatch, and keep the whole echo only where a caller still needs it. No stored record
+  changes: the reference is resolved at the call.
+
+- _Captured during:_ `seam-delivery-review` draft-design close, 2026-10-15.
+
+---
+
 ## Reachable Request Contracts
 
 Fourteen review verbs take `<file | ->` with help text reading only "Versioned JSON request file" — no schema, no

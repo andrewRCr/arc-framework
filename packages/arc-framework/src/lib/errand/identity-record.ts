@@ -5,6 +5,7 @@ import { randomBytes } from "node:crypto";
 import { z } from "zod";
 
 import { SlugSchema } from "../kernel/index.js";
+import { ERRAND_BRANCH_TYPES } from "./branch-type.js";
 import {
   LocusChangeRequestV1Schema,
   LocusDigestSchema,
@@ -221,7 +222,9 @@ function validateOrdinaryNamespace(
   if (value.slug.startsWith("groom-")) {
     context.addIssue({ code: "custom", path: ["slug"], message: "groom-* namespace is reserved" });
   }
-  validateErrandBranch(value, context);
+  if (!ERRAND_BRANCH_TYPES.some((type) => value.branch === `${type}/${value.slug}`)) {
+    context.addIssue({ code: "custom", path: ["branch"], message: "Branch must derive from slug and an admitted Errand type" });
+  }
 }
 
 function validateErrandBranch(

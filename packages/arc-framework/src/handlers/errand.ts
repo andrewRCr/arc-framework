@@ -63,6 +63,7 @@ import {
   openOrdinaryErrandAtRuntimeWithDisposition,
 } from "../lib/errand/open-runtime.js";
 import { ERRAND_SLUG_INPUT_REMEDY } from "../lib/errand/open.js";
+import { ERRAND_BRANCH_TYPES } from "../lib/errand/branch-type.js";
 import { linkOrdinaryErrandAtRuntime } from "../lib/errand/link-runtime.js";
 import { leaveOrdinaryErrandAtRuntime } from "../lib/errand/leave-runtime.js";
 import { prepareMaterializedBranch } from "../lib/errand/materialize-branch.js";
@@ -542,6 +543,8 @@ function formatOverlapLocation(entry: { worktreePath?: string; remoteOnly?: bool
 
 /** Options for the `arc errand open` subcommand. */
 export interface ErrandOpenOptions {
+  /** Nature-type for a new ordinary Errand branch; defaults to chore. */
+  type?: string;
   /** Free-text statement of the errand's concern; defaults to the slug. */
   intent?: string;
   /** Emit the producer-validated mutation result without human decoration. */
@@ -580,6 +583,7 @@ function titleSourceCount(value: z.infer<typeof InboxTitleSourcesSchema>): numbe
 /** Validated input for opening an errand. */
 export const ErrandOpenInputSchema = InboxTitleSourcesSchema.extend({
   slug: SlugSchema,
+  type: z.enum(ERRAND_BRANCH_TYPES).optional(),
   intent: z.string().min(1).optional(),
   json: z.boolean().optional(),
   isolate: z.boolean().optional(),
@@ -591,7 +595,7 @@ export const ErrandOpenInputSchema = InboxTitleSourcesSchema.extend({
 
 /**
  * Open an Errand through the shared identity, allocation, role, and lease
- * composition. Full protection claims `chore/<slug>` identity before occupying
+ * composition. Full protection claims the Errand identity before occupying
  * a free primary or spawned checkout; partial protection remains branch- and
  * identity-free in the free primary.
  *
@@ -729,6 +733,7 @@ async function runErrandOpenHandler(
       },
       cwd,
       slug,
+      type: input.type,
       intent: opts.intent,
       inbox,
       protection,
@@ -1849,6 +1854,7 @@ export const errandCommandInputRegistrations = [
     schema: ErrandOpenInputSchema,
     schemaFields: {
       "operand.slug": "slug",
+      "option.type": "type",
       "option.intent": "intent",
       "option.from-inbox": "fromInbox",
       "option.inbox-title-file": "inboxTitleFile",

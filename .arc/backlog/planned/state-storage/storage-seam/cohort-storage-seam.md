@@ -46,6 +46,18 @@ Each member's `Depends On` edges are the source of truth: every other member dep
   only implementation until the provider's spec is approved and asks no re-read: approving a consumer's spec against a
   provider spec not yet approved invites rework, and the re-read is cheap.
 
+### Added cutover prerequisite (2026-10-19)
+
+The six-member partition below records the original decomposition and retains its row counts. A seventh member,
+`cohort-identity-verbs`, is added for UID-selected work-item rename and cohort rename, close, and removal. It depends on
+`storage-ref-backend`; `storage-cutover` now depends on it as well as the original six. Its commands serve the backend’s
+clash remedy and the store-only cohort lifecycle from the flip.
+
+`lifecycle-slug-selection` is a separate planned P1 cutover prerequisite for canonical holder selection in lifecycle
+verbs. Both additions coordinate with the seam’s current writers and implement only after overlapping lifecycle,
+membership, and status files have landed. This amendment adds prerequisites; it does not reopen a shipped member or
+change the original members’ consumer-map partitions.
+
 ### Six members
 
 Members inherit consumer-map rows rather than redesigning their subsystem, and re-derive line-level detail when they

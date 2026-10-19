@@ -51,6 +51,41 @@ without the agent judging what it may do or the Owner being surprised.
 
 - _Captured during:_ read-only exploration session on cross-harness agent messaging, 2026-10-14.
 
+### `[ ]` **Stop before the merge prompt until a team's human review policy is met**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Merge-ready handoff and Kinds of stop: user-attested human-review completion without modelling reviewer
+  policy
+
+- _Observation:_ ARC governs agentic review only; human review is out of band and follows once agentic review has closed
+  (ADR-034). On a team, a teammate's human review would follow every agentic pass, and nothing tells the agent the
+  team's policy, so it may offer the merge before that review happens.
+
+- _Approach:_ a lightweight configured seam: the agent knows the team's human-review policy as the user states it, and
+  does not prompt for merge until the user confirms the policy is met. ARC records the confirmation, never the policy:
+  it models no reviewers, approvals, or counts. Candidate homes: `autonomy-levels` (its `merge-ready` hand-off) or an
+  integration-adjacent work unit. Related: `strategy-integration` (terminal merge authority) and ADR-031 (the draft lock
+  holds through the human-review window).
+
+- _Captured during:_ `review-coverage-cadence` draft design, 2026-10-16, while scoping the shared review pass model to
+  agentic review.
+
+### `[ ]` **Bound fix-check rounds when a level lets the agent approve review fixes**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Kinds of stop and recorded spend envelope: fix-check rounds when agent approves fixes
+
+- _Observation:_ `review-coverage-cadence` D4 counts only complete passes against the pass ceiling. Fix checks sit
+  outside it, bounded as adversarial review bounds its rounds: no round cap, each round approved, the approval riding
+  the fix round's complete-set disposition approval. D5's next-pass recommendation rides the same approval. Today the
+  Owner approves every disposition set, so every fix-check round passes an Owner stop; at a level where the agent
+  approves fixes, fix-check rounds would run with no stop and no ceiling.
+
+- _Approach:_ when grooming the grant, decide whether such a level needs a lever on fix-check rounds — a round cap, or
+  rounds counted as spend — so a long fix loop still reaches the Owner.
+
+- _Captured during:_ `review-coverage-cadence` draft-design, 2026-10-16.
+
 ---
 
 ## Grooming Status
