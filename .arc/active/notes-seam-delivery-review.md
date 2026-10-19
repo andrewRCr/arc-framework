@@ -410,6 +410,60 @@ withdraw, each from the flip reading the in-flight record beside the stored outc
   uncarried; the approving verb writes them so (Task 5.3 - `tasks-seam-delivery-review.md`), and no check can tell
   that write from the import creating a record whose response was settled before it.
 
+## A6 — Shipped locus and review-policy contracts
+
+The post-base-merge task audit at `e6869523a` found four plan defects; the complete correction set was approved on
+2026-10-19. This is a determinate, low-depth design amendment: preserve the shipped interfaces and policy rather than
+choose new ones. It lands as one review-fix increment over the planning artifacts, with no new implementation parent:
+all affected implementation tasks are still open, their Goals and checkboxes stay unchanged, and their forward
+descriptions carry the correction. The six-kind design, the in-repo behavior, and the ref-backend wait stay.
+
+### Superseded statements
+
+- § 14.4 said the Candidate owner and completed set stayed on old substrates "until the locus change gives both
+  store arms", and that "a flip-time test of any of them supplies the owner". Task 4.2 therefore prescribed an owner
+  stand-in and a dual-seeded Errand for hosted locus discovery. `resolveCandidateMutationOwner` already forwards
+  `store` and `projectId`; `resolveCompletedCandidateWorkUnits` reads completed store evidence; and
+  `acquireDerivedLocusEvidence` skips the transient identity-ref read off branch. The harness plan now requires those
+  production paths with exact marker/topology evidence. Only the independently retained Errand status vehicle read
+  still needs both substrates.
+- § 5.1 called an extra pass "one pass past the lane's pass count it was decided at", with `passCount` "in the
+  count's units", and § 5.5 made consumption depend on whether a pass counts. `ceilingPassCount` reads complete
+  coverage for the standard ceiling, but `resolveInvalidOverrideReason` and `withCeilingOverride` bind logical
+  ordinals. Complete pass 1 and fix check 2 therefore admit logical pass 3 from count 2 while the ceiling count is 1.
+  The shipped distinction was already anticipated in § 4.3 but had not propagated through this plan's decisions,
+  mapping, and writers; no change to the provider's policy is needed.
+- § 6.2's field list omitted the optional `advisoryFixTags` that `createPendingResponseDispositionNode` stores.
+  `readApprovedResponseReport` uses those tags on replay and `priorRoundReadings` reads earlier nodes, so the evidence
+  and import must retain them, including historical absence. They remain outside canonical disposition and approval
+  identity and carry no policy or convergence authority. `validateReviewFixTags` checks exact `fix` identities;
+  the existing disposition-store advance checks preserve those fields. Each evidence advance must do the same.
+- § 14.2's root inventory omitted `runDerivedLocusStateProbe`'s nested delivery and pending-fix reads. Its callbacks
+  currently call `inspectRepositoryDeliveryEntry` and `readPendingCandidateReviewFixAuthority` without the probe's
+  operational store. Wiring only the subject's direct Candidate and boundary reads leaves those branches dependent
+  on legacy files. Tasks 4.1.b, 4.6.c, 5.6.b, and 7.6 now carry the same-store wiring and production-path scenarios.
+
+### Propagation and closure
+
+The affected tasks are 1.2–1.4, 1.8, 3.3–3.4, 3.7, 4.1–4.4, 4.6, 4.9, 5.2–5.4, 5.6, 6.2, and 7.6. Added criteria in the
+spec and task list cover the mixed-count history, stored tags, production owner resolution, and both nested subject
+branches. Existing Goals, criteria, completion markers, and lifecycle state remain unchanged.
+`createLocalContributionConfirmation` must accept core read ports rather than concrete local-store types, and the five
+review callers of `resolveActiveWu` take a review-local branch lookup without changing that shared resolver's
+checkout-occupancy contract. These are explicit task-level obligations rather than session-only carry context. The
+caller sweep also finds the shipped `readResolveNextPassContext` in `handlers/review-next-pass-context.ts`, which
+resolves repository identity and opens Candidate history independently. Tasks 4.1.b and 4.3.b now pass the invocation
+store and project-ID reader through that helper and use core read ports, preserving both derived counts.
+`readReviewLane` in `rg/runtime/lane-read-composition.ts` is another new root: it constructs local operation and
+disposition stores and calls the read-only `readRepositoryIdentity`. Tasks 4.1.b, 4.3.b, and 5.6.e bind those reads to
+the invocation store and project-ID reader too, preserving its rejected-finding and next-pass projections without record
+writes. The schema import inventory is re-enumerated rather than retaining pre-landing caller counts.
+
+The amendment closes on the author-run `spec-review` coherence and source-grounding checks and the affected-task
+`task-audit` grounding floor. This closes the planning correction, not the implementation's new acceptance criteria;
+those remain open until the tasks and their segment verifiers run. Low depth omits a separate independent planning pass
+under `planning-review`; the original audit's scouts were read-only and did not author these corrections.
+
 ## Neighbors
 
 The spec names no other work unit. These are the ones its descriptive references mean, and what each owns where it
@@ -418,37 +472,15 @@ meets this one:
 - **"The lifecycle change"** — `seam-lifecycle`, merged: the pause record, the store-backed reopen (`runStoreReopen`)
   and publication this change edits, the project-ID port, and the task close verb with its copy-key match.
   Implementation builds on its landing.
-- **"The planned locus change"** — `seam-locus`, Active on 2026-10-16: the `store` option on the subject's meta read
-  (`projectCheckoutSubjectMeta`) with its read of the subject's Candidate record through it
-  (`readStoreSubjectCandidate`, its A22, at `3a684b671` on its branch), its read of the subject's branch from the link
-  (spec, § 12.1), and the reader of the landing-commit link. The subject's store read waits for that option on base
-  (Task 7.6 - `tasks-seam-delivery-review.md`), the task loop stopping there where it has not landed; it reads the
-  boundary through the same store and takes the Candidate authority from the record's `attestation.candidateId`, which
-  that change leaves to this one. It also edits `lib/locus/subject-meta.ts`, `commands/active/status.ts`, and
-  `handlers/status/lifecycle.ts`, so the two serialize there (spec, § 14.4), and reroutes the active-meta resolver's
-  body (`resolveActiveWu`), which the review gate's five calls to it do not wait for: they resolve by the work item's
-  link (spec, § 12.4; Task 4.4). The two Errand reads this change reroutes take the claim from the checkout's marker,
-  which carries it today (`claimId`, `lib/git/worktree-marker.ts`), so they wait on none of its work; its probe
-  (`runDerivedLocusStateProbe`), through which the review gate's hosted-Errand reads resolve, stays on the Errand ref
-  until that change gives it a store arm (spec, § 14.4; Task 4.2). The Candidate mutation owner projects that probe
-  until then (`resolveCandidateMutationOwner`), and its completed set reads the working tree's lifecycle index
-  (`resolveCompletedCandidateWorkUnits`); that change's spec moves both onto the store (its § 2.1, § 3.4). Respond's Candidate
-  reads and writes, `arc candidate applicability resolve`, and delivery execution's review-fix inspection and
-  acknowledgement resolve their owner through them, so this change's flip-time tests take the owner from the harness's
-  stand-in (spec, § 14.4; Tasks 4.2 and 4.6.c). Its landing is the pause before Phase 2, which merges base and
-  re-grounds each task built on its plan against the code that landed (Task 1.8 - `tasks-seam-delivery-review.md`).
-- **"A planned change to the standard lane's pass policy"** — `review-coverage-cadence`, its D4 and D11 (its spec's
-  § 3.5): an incremental pass — a fix check after an approved fix, or a delta check after a converged look, the two
-  writing the same record, which no rule here tells apart — takes a logical pass but adds nothing to the standard lane's
-  pass count, the exhausted pass count an extra pass records stays its producer's logical pass, and the supersession
-  chain carries both numbers (spec, § 4.3, § 5.5). It lands ahead of this change's Phase 4, where the task loop takes
-  its landing or the Owner's choice to proceed without it (Task 3.7 - `tasks-seam-delivery-review.md`), and the two edit
-  several of the same review-gate files, so the first base merge after it lands conflicts there: `status-errand.ts`,
-  `status-composition.ts`, `status-singleton.ts`, `runtime/respond-command.ts`, `runtime/respond-composition.ts`,
-  `runtime/local-prepare-composition.ts`, `policy/pre-publication-composition.ts`, `policy/review-policy-driver.ts`,
-  `policy/hosted-reservation-discharge.ts`, `policy/hosted-reservation-support.ts`,
-  `policy/hosted-reservation-admission.ts`, `hosted/coderabbit.ts`, `hosted/codex.ts`,
-  `hosted/correction-review-capability.ts`, and `handlers/review.ts`.
+- **"The locus change"** — `seam-locus`, shipped in PR #1042. Its store-aware subject, Candidate owner,
+  completed-owner inventory, and Errand discovery are the baseline for § 12.1, § 12.4, and § 14.4. A6 replaces the
+  provider stand-ins with production-path tests and gives the probe's nested readers the invocation store. The
+  landing pauses remain re-grounding checkpoints, with no unresolved locus availability wait.
+- **"The standard lane's pass policy"** — `review-coverage-cadence`, shipped in PR #1038. An incremental
+  fix check or delta check advances the completed logical count, while only complete coverage advances the standard
+  ceiling count. A6 carries those distinct units into decisions and preserves its optional stored fix tags outside
+  the approved set. This work unit preserves its incremental-review contract and the correction loop; any later
+  change to their shared properties still requires coordination.
 - **"The ref backend" and "the import"** — `storage-ref-backend`: the import, its trial, and its refusals, which call
   this change's mapping (spec, § 11); the history refs and the `state-unresolvable` refusal (spec, § 10.4); and the
   layout row for the review kinds. Its spec builds only `arc rename`'s retry and leaves every other caller's to its

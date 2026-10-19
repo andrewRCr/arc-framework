@@ -48,10 +48,9 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
   parser and write check refuse every record today's attempt invariants and pass-count rules refuse, and pure
   derivations give a lineage's pass count in a lane and whether a result is settled, from stored records alone.
 
-- _Note:_ The standard lane's pass policy is expected to change before this lands (§ 4.3): the next logical pass keeps
-  numbering every finished outcome, while the lane's count takes only finished outcomes at `complete` effective
-  coverage. Derive whichever count the policy defines at the time, and expect base-merge conflicts in the review-gate
-  files that change shares with this one (`notes-seam-delivery-review.md` § Neighbors).
+- _Note:_ The shipped policy separates completed logical passes, which number admissions and bind extra-pass
+  decisions, from the standard ceiling's complete-coverage count (§ 4.3). Derive both, including both inherited
+  counts, without changing that policy.
 
     - `[ ]` **1.2.a The schema, its parser, and the key**
 
@@ -167,12 +166,14 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
         - An outcome a replaced Candidate in the chain holds live — `partial`, `ambiguous-delivery`, or `findings` not
           settled — reads as outdated, counting toward none and carrying no unresolved finding (§ 8.4).
         - Build `test-first` (one behavior at a time):
-            - the count is the number of distinct logical passes among the lineage's finished outcomes in the lane
+            - the completed logical count is the number of distinct logical passes with a finished outcome in the lane
             - a stale or failed attempt counts toward none, and its retry shares its logical pass
             - a Candidate's count adds the passes its supersession chain carries
             - the next logical pass is one past the highest logical pass among finished outcomes
-            - where the policy counts complete coverage only, an incremental pass's finished outcome — a fix check's or
+            - for the standard ceiling, an incremental pass's finished outcome — a fix check's or
               a delta check's — advances the next logical pass but not the lane's count
+            - complete logical pass 1 followed by incremental logical pass 2 yields completed logical count 2,
+              complete-coverage count 1, and next logical pass 3, including when the two passes span supersession
             - the frontline lane's count is unchanged by the coverage rule
             - a local or frontline `findings` outcome reads as settled once approved evidence for its result exists
               and, where the approved set carries a fix, its performance is recorded
@@ -204,7 +205,7 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
           acknowledged `attemptId` — with the repository identity, the approved disposition set, the head the producer
           reviewed, and the producer's logical pass as the exhausted pass count (`repositoryId`, `dispositionSetId`,
           `originatingHeadSha`, `exhaustedPassCount`). Its subject is its lineage at `originatingHeadSha`, with no
-          subject digest, and its `passCount` the lane's count through the producer's logical pass, whichever writer
+          subject digest, and its `passCount` the producer's logical pass, whichever writer
           records it (§ 5.1).
         - The parser refuses an `extra-pass` whose precondition is incomplete for its kind, and an `approved-fix` one
           with no decider or whose subject's head is not its `originatingHeadSha`.
@@ -224,6 +225,8 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
               parse
             - an `approved-fix` decision's key equals `computeConditionalPassAuthorizationId` over the same inputs, a
               hosted producer named by its `hosted/` attempt ID among them
+            - with completed logical count 2 and complete-coverage count 1, every extra-pass choice binds logical
+              count 2 and admits logical pass 3; the approved-fix key keeps that producer's logical ordinal
 
     - `[ ]` **1.3.b The write check**
 
@@ -253,10 +256,13 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
     - `[ ]` **1.4.a The schema and its parser**
 
         - Fields per § 6.2: `result` (the outcome key and its result digest), `binding` (§ 6.1's five arms),
-          `dispositionSet` (`DispositionSetSchema`), `approval` (`DispositionApprovalSchema`),
-          `predecessorDispositionSetId`, `successorDispositionSetId`, `responsePolicyRequest`, `policyProjectionPending`,
-          `performance`, and `settlement`; keyed by `dispositionSetId`.
+          `dispositionSet` (`DispositionSetSchema`), `approval` (`DispositionApprovalSchema`), optional
+          `advisoryFixTags` (`ReviewFixTagsSchema`), `predecessorDispositionSetId`, `successorDispositionSetId`,
+          `responsePolicyRequest`, `policyProjectionPending`, `performance`, and `settlement`; keyed by `dispositionSetId`.
         - No fix authorization is stored: `createFixAuthorization` derives it from the approval and the set.
+        - Tags stay outside the canonical set and approval identity. Where present, `validateReviewFixTags`
+          (`rg/core/review-report-inputs.ts`) requires exactly one per `fix` finding; absence remains valid for
+          historical records (§ 6.2).
         - The parser holds § 6.5's rules a record settles alone: `validateDispositionSet` and
           `validateDispositionApproval` (`rg/core/dispositions.ts`); the per-set settlement rule that
           `HostedLaneAttemptBindingSchema`'s refinement and `validateHostedSettlementEvidence`
@@ -275,6 +281,8 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
         - Build `test-first` (one behavior at a time):
             - each binding arm parses, and none of them is a valid binding too
             - a record whose approver is its proposer refuses to parse
+            - absent tags and exactly one valid tag per `fix` finding parse; missing, extra, or duplicate tag
+              identities refuse when the field is present, and tags change neither the disposition ID nor approval
             - a disposition set whose ID does not recompute, or whose findings are out of canonical order, refuses
             - two settlement entries for one finding, an entry unlike its set's finding action, and an entry carried
               from a set other than the record's predecessor each refuse
@@ -310,6 +318,8 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
               successor may start with its predecessor's entries, each carried and otherwise identical
               (`assertHostedTransitions`)
             - an unbound record does not gain a binding later
+            - every advance preserves tags and their absence, refusing their addition, removal, or alteration; a
+              successor may have its own tags without changing its predecessor's
             - a listing that is unreadable or missed entries refuses
 
         - A hosted record's first entries are `record-only` and uncarried as the approving verb writes them
@@ -455,14 +465,17 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
 - _Goal:_ Phase 2 starts on a base carrying the planned locus change, with every task that names that change's code
   grounded in what landed rather than in its plan.
 
-    - The task loop stops here until that change has landed on base, as at any blocking dependency, then merges base.
+    - The merged base carries that landing. Verify its presence by slug and retain the source-grounding check below;
+      there is no remaining locus landing wait.
     - Re-check against the landed code each task grounded on that change before it landed: 2.4.c
       (`lib/locus/subject-meta.ts`, `commands/active/status.ts`, and the deferred list in `cli-loading-boundary.test.ts`),
-      4.2 (the Candidate mutation owner's stand-in, and the Errand seeded in its identity's ref), 4.4.a (the review
+      4.2 (the production Candidate mutation owner and store-only locus Errand discovery), 4.4.a (the review
       gate's five calls to `resolveActiveWu`), 4.4.b (the marker's `claimId`), 4.6.b, 4.6.c
       (`resolveCandidateMutationOwner`), 7.2 (`handlers/status/lifecycle.ts`), and 7.6 (the subject's `store` option and
       `readStoreSubjectCandidate`), with spec § 12.1, § 12.4, and § 14.4 and `notes-seam-delivery-review.md`
-      § Neighbors. A correction runs through `amend-design.md` before Phase 2 starts.
+      § Neighbors, including the probe's nested delivery-correction and pending-fix callbacks (4.1.b, 5.6.b, 7.6).
+      Recheck the shipped code rather than reinstating provider stand-ins. A correction runs through
+      `amend-design.md` before Phase 2 starts.
 
 ## **Phase 2:** Before the flip — Candidate and boundary callers through the store
 
@@ -644,8 +657,8 @@ retires.
           in-repo arm it keeps wherever it is given no store that reports `stateOffBranch` (7.6): it takes the resolvers
           and a pure boundary parse from `lib/store/kinds/review/`, keeping its absent-file reads as `null` and its
           work-unit and path checks.
-        - _Note:_ The planned locus change also edits `lib/locus/subject-meta.ts` and `commands/active/status.ts`; the
-          two serialize on them (§ 14.4).
+        - _Note:_ Both subject readers already carry the shipped locus changes; preserve their store-aware paths
+          while rerouting the in-repo adapters (§ 14.4).
 
     - `[ ]` **2.4.d Delivery and the path classifiers**
 
@@ -830,6 +843,8 @@ alone.
           (`errandFixResponse`, `deliveryMemberFixResponse`), merged with lane progress's response performance for that
           set, current or superseded (`responsePerformance`, `responsePerformanceHistory`)
         - a hosted set's settlement joins the attempt's settlement evidence and finding actions
+        - each node's optional tags copy exactly to its evidence record, including absence, and replay on a second
+          clone renders the stored tags without requiring the importing request's report inputs
         - a record `parseEnumeratedRecord` skips today is left behind with its reason
 
 ### `[ ]` **3.4 Map authorizations, the skip marker, termini, and the resume token's judgments to decisions — § 11.2**
@@ -847,7 +862,7 @@ alone.
           `PrePublicationLaneJudgmentsSchema`
         - a conditional pass authorization maps to an `approved-fix` decision keyed by its `authorizationId`, its
           `authorizedBy` and `capturedAt` the decider and time, its subject its lineage at `originatingHeadSha` with no
-          subject digest, its `passCount` the lane's count through the producer's logical pass, and a hosted one's
+          subject digest, its `passCount` the producer's logical pass, and a hosted one's
           producer kept as its acknowledged attempt ID
         - every attempt a consumed one admitted — its admitting attempt and the retries after it at its pass — cites it
           as `admittedBy` on its outcome, a withdrawn one gains a withdrawal decision from `withdrawnBy` and
@@ -871,6 +886,8 @@ alone.
           whose basis is the pass count the imported outcomes give its Candidate, its chain's included, counted as
           1.2.c derives the lane's count
         - two decisions with the same content map to one record
+        - a mixed complete/incremental history preserves logical exhaustion and next-pass ordinals for every mapped
+          grant, independently of the standard ceiling's complete count
 
 ### `[ ]` **3.5 Map a live work unit's Candidate versions and boundary — § 11.2**
 
@@ -918,11 +935,11 @@ alone.
 - _Goal:_ Phase 4 starts on a base carrying the planned change to the standard lane's pass policy, or on the Owner's
   decision to proceed without it, so the review gate's arms from the flip are built over the pass policy that ships.
 
-    - That change lands ahead of Phase 4, since it edits the review gate's files Phases 4–5 rewrite
-      (`notes-seam-delivery-review.md` § Neighbors). Where it has landed on base, merge base; where it has not, stop for
-      the Owner's choice: wait for it, or proceed and take its conflicts at the base merge after it lands.
-    - Once it is merged, re-check 1.2.c's count derivation against the policy that landed, and each task of Phases 4–5
-      that names a file it changed; a correction runs through `amend-design.md` before Phase 4 starts.
+    - The merged base carries that landing; no proceed-without-provider choice remains. Verify its presence by slug
+      and re-check 1.2.c's two-count derivation against `readStandardPassCounts`, `ceilingPassCount`, and
+      `resolveInvalidOverrideReason`, and each task of Phases 4–5 naming a changed file.
+    - Include optional stored tags, report replay, correction-proof port consumers, and the grant ordinals in the
+      propagation sweep. A correction runs through `amend-design.md` before Phase 4 starts.
 
 ### `[ ]` **3.8 The import's mapping** — validate exit criterion at segment scope
 
@@ -1003,6 +1020,8 @@ family's schemas are store schemas, never entries in the review gate's published
               names the cited outcome's key, and a local source's `localSourceRef`, the cited outcome's `sourceDigest`
               (§ 9.3), a hosted source's `attemptRef` unchanged; its readers' verdicts through it are 4.10's and 5.6.a's
               tests, once the result readers bind the same references
+            - the composed lineage nodes preserve each set's optional tags exactly, so approved-response replay and
+              earlier-round reports read the same stored forecasts, including historical absence
             - a write's `put` lands in the caller's batch with the batch's other writes
 
     - `[ ]` **4.1.b The composition roots**
@@ -1022,12 +1041,30 @@ family's schemas are store schemas, never entries in the review gate's published
           `status-singleton.ts`; `handlers/lifecycle-delivery-review.ts` and `handlers/delivery-execution.ts`;
           `scripts/integration/checkpoint-composition.ts`, `merge-composition.ts`, `lineage-review-composition.ts`, and
           `candidate-response-confirmation.ts`; and `lib/delivery/repository-entry.ts`.
+        - `runDerivedLocusStateProbe` (`handlers/derived-locus-state-probe.ts`) passes its store, project-ID reader,
+          and exact selected work-unit owner to its delivery-correction and pending-fix callbacks (§ 12.1). The
+          inspection and pending-fix readers use that store and the bound ports, opening no second default store.
+        - `createLocalContributionConfirmation` (`rg/runtime/local-correction-context.ts`) takes core disposition and
+          operation read ports instead of concrete local store classes, and receives this root's bound stores. Its
+          correction proofs and the new report/history readers use the same composed ports.
+        - `readResolveNextPassContext` (`handlers/review-next-pass-context.ts`) takes this invocation's store and
+          project-ID reader for repository identity, live context, and Candidate history instead of opening another
+          Candidate store. Both context helpers use composed core operation/disposition read ports rather than a
+          concrete local operation store, retaining the two pass counts.
+        - `readReviewLane` (`rg/runtime/lane-read-composition.ts`) is a read-only root too: bind its Candidate and
+          boundary readers, result reader, lane-history reads, and operation/disposition ports from this invocation's
+          store, rather than constructing local stores independently. Its core facts and rejection projections keep
+          their inputs and write no records.
         - Each root passes its store to the Candidate and boundary's typed access (2.3.b), so its reads and writes of
           them and its family writes go through one store and can share a batch.
         - Build `test-first` (one behavior at a time):
             - each root's existing tests pass unchanged over the in-repo implementation
             - a root given a store reporting `stateOffBranch: true` binds the family's ports
             - a root given a store reads the Candidate and boundary through it, opening no other
+            - the probe's two nested callbacks receive its store and exact selected owner, with no legacy-file
+              fallback off branch; 7.6 exercises each through the production subject projection
+            - ordinary next-pass context reads stored Candidate history and lane/evidence records through the same
+              injected store, never a newly opened default store, and computes both counts from a mixed history
 
 ### `[ ]` **4.2 Build the review harness over the reference backend**
 
@@ -1042,25 +1079,22 @@ family's schemas are store schemas, never entries in the review gate's published
       `in-process-review.ts`, and `multi-clone.ts`; and builds its differential mode, modelled on
       `__tests__/helpers/store/lifecycle-differential.ts`, which compares lifecycle reads over today's files with the
       store's.
-    - An Errand is seeded both in the store and in the identity's Errand ref (`lib/errand/identity-snapshot.ts`), its
-      valid entry (`transientContent`, `__tests__/helpers/store/in-repo-substrates.ts`) committed to that ref
-      (`writeTreeCommit`, `lib/errand/ref-tree.ts`): the review gate's hosted-Errand
-      reads, through the locus change's probe (`runDerivedLocusStateProbe`, `handlers/derived-locus-state-probe.ts`),
-      and Errand status's vehicle read (`readTransientIdentitySnapshot`, `rg/status-errand.ts`) stay on that ref until
-      those changes give them store arms (§ 14.4).
-    - A flip-time scenario takes the Candidate mutation owner from a stand-in for
-      `handlers/candidate-mutation-owner.ts`, which reports the seeded work unit as the owner, or lists it among the
-      completed work units: until the locus change gives them store arms, `resolveCandidateMutationOwner` projects its
-      probe and `resolveCompletedCandidateWorkUnits` reads the working tree's lifecycle index (§ 14.4), and respond's
-      Candidate reads and writes, `arc candidate applicability resolve`, and delivery execution's review-fix inspection
-      and acknowledgement resolve their owner through them.
+    - Locus and hosted-Errand discovery use store-only Errand and claim records with exact marker/topology evidence,
+      through the production `runDerivedLocusStateProbe`. Only tests of Errand status's retained ref-based vehicle
+      reader (`readTransientIdentitySnapshot`, `rg/status-errand.ts`) also seed the identity's Errand ref: commit a
+      valid `transientContent` entry with `writeTreeCommit` (§ 14.4).
+    - Flip-time scenarios use production `resolveCandidateMutationOwner` and `resolveCompletedCandidateWorkUnits`
+      (`handlers/candidate-mutation-owner.ts`), supplied the seeded store and project-ID reader. Seed the actual
+      checkout marker and topology needed to resolve active and completed owners. Respond, applicability resolution,
+      and delivery execution's review-fix inspection and acknowledgement must resolve those owners without a stand-in.
     - Two tiers. The store harness — the reference backend, the seeders, and the scripted Git runner — runs each arm's
       tests in the unit tier. `in-process-review.ts`, `multi-clone.ts`, and the differential mode build or run a real
       Git repository, so the end-to-end scenarios built on them run in the integration tier, at each segment verifier.
     - Build `test-first` (one behavior at a time):
-        - each seeded record reads back through the store, and a seeded Errand also through its identity's Errand ref
-        - with no meta file in the checkout, the owner stand-in resolves the seeded work unit as the Candidate mutation
-          owner, or lists it completed
+        - each seeded record reads back through the store, and locus discovers a seeded Errand with no identity ref;
+          the separately retained Errand status reader resolves its dual-seeded fixture
+        - with no meta file in the checkout, the production owner resolves the seeded active or completed work unit,
+          and the production completed-owner inventory lists it from the same store
         - a local review run through the harness writes its working state under the temporary common directory, never
           the repository's
         - the differential mode reports a mismatch when the two implementations derive different counts
@@ -1085,8 +1119,12 @@ family's schemas are store schemas, never entries in the review gate's published
 
     - `[ ]` **4.3.b Its callers and the refusal**
 
-        - Each of the 14 modules that calls `resolveRepositoryIdentity` passes the reader its invocation binds, its
-          lazily resolved sites (`receiptStore ??=`, `repositoryIdPromise ??=`) among them.
+        - Every module that calls `resolveRepositoryIdentity` passes the reader its invocation binds, including
+          `readResolveNextPassContext` (`handlers/review-next-pass-context.ts`) and the lazily resolved sites
+          (`receiptStore ??=`, `repositoryIdPromise ??=`). Re-enumerate direct callers rather than pinning a stale count.
+        - The read-only `readRepositoryIdentity` call in `rg/runtime/lane-read-composition.ts` also resolves through
+          the project-ID reader from the flip, minting no clone-local identity; its own refused envelope reports the
+          typed code in `payload.code`, with the port's detail and remedy (§ 2.4), without a generic error variant.
         - Each caller reports the typed error through its own failure surface (§ 2.4): review commands through their
           envelope, as `project-identity-unavailable` (`ReviewCommandErrorCodeSchema`,
           `rg/core/review-command-error-codes.ts`) with a remedy-carrying variant for each mode (`remedialErrorVariant`,
@@ -1118,6 +1156,8 @@ family's schemas are store schemas, never entries in the review gate's published
             - attest's re-root and publish refuse with the port's remedy, and the checkpoint and merge carry it in
               their refusal's detail
             - each succeeds once the clone holds it
+            - the read-only lane command refuses `project-identity-unavailable` through its existing refused envelope
+              and succeeds once the ID is available, while its in-repo absent-identity behavior stays unchanged
 
 ### `[ ]` **4.4 Resolve the checkout's work unit and Errand through the store from the flip — § 12.4**
 
@@ -1135,8 +1175,9 @@ family's schemas are store schemas, never entries in the review gate's published
           (`resolveReviewSubject`, `rg/core/review-subject.ts`) resolve the work unit by `lookup`'s `ref` arm on the
           checkout's branch or head ref, the repository the project ID, and read its meta record through the store, in
           place of `readActiveMetaCandidates`' `Branch` match with its file read and of `branchToWorkUnitSlug`.
-        - The review gate's five calls to `resolveActiveWu` (`lib/release/wu-resolution.ts`) resolve the work unit the
-          same way from the flip, since the planned locus change, which reroutes that resolver, may land later: the
+        - The review gate's five calls to `resolveActiveWu` (`lib/release/wu-resolution.ts`) switch to a review-local
+          resolver taking the root's store and project-ID reader and resolving by the same branch link from the flip.
+          Preserve the shared resolver's shipped checkout-occupancy selection (§ 12.4). The five calls are the
           incremental-applicability check (`confirmIncrementalApplicability`), hosted review progress, and the chunking
           resolve in `handlers/review.ts`, and `resolveOriginatingTop` and `resolveLifecyclePaths`
           (`createPreBindingDeliveryReviewTargetDependencies`, `rg/policy/pre-publication-composition.ts`). The
@@ -1327,7 +1368,8 @@ family's schemas are store schemas, never entries in the review gate's published
           open it, through a module it imports lazily and that joins both lists, and reads the work item's links through
           it, the project ID from the project-ID port (`projectId`) as `selectWorkBranchLink`'s `repository`; its
           in-repo arm, branched on the store's `stateOffBranch`, reads the meta's `Branch` as today.
-        - _Note:_ `commands/active/status.ts` serializes with the planned locus change's edits to it (§ 14.4).
+        - _Note:_ Build on `commands/active/status.ts`'s shipped locus projection and preserve its lazy import
+          boundary (§ 14.4).
         - Build `test-first` (one behavior at a time):
             - the store-backed publication's check reads the attested Candidate from the record with no `Candidate` in
               the meta, and a work unit attested from the flip refuses rename
@@ -1348,9 +1390,9 @@ family's schemas are store schemas, never entries in the review gate's published
         - `inspectActiveRepositoryDeliveryEntry` opens no store today: it opens the checkout's store as 4.1.b's roots
           open it, and the review-fix inspection reads through delivery execution's (4.1.b), each reading the project ID
           through the project-ID port (`projectId`) for 4.4.a's resolution by link.
-        - The completed owner itself still resolves through `resolveCandidateMutationOwner`
-          (`handlers/candidate-mutation-owner.ts`), which runs the locus change's probe (`runDerivedLocusStateProbe`)
-          until that change gives it a store arm (§ 14.4), so the tests take the owner from 4.2's stand-in.
+        - The completed owner resolves through the shipped `resolveCandidateMutationOwner` and
+          `resolveCompletedCandidateWorkUnits` (`handlers/candidate-mutation-owner.ts`), supplied the same store and
+          project-ID reader; the tests exercise production resolution through 4.2's seeded records and topology.
         - Build `test-first` (one behavior at a time):
             - from the flip `arc delivery entry inspect` reports a work unit's entry with neither its meta nor its task
               list in the checkout
@@ -1494,7 +1536,8 @@ family's schemas are store schemas, never entries in the review gate's published
               attempt (`effectiveTerminalAttempt`, `rg/policy/pre-publication-request.ts`)
             - a lineage with stored outcomes and no in-flight record on this clone reads at version 0, and an
               earlier-review query admits it
-            - the next pass and an exhausted pass count follow the derived count
+            - the next logical pass and every grant's exhausted count follow the completed logical count, while only
+              standard ceiling eligibility follows the complete-coverage count
             - a superseded Candidate's chain carries its passes into its successor's count
             - a predecessor with an attempt in flight, and one with a review response the frontline owner's performance
               does not account for, each refuse `CandidateSupersessionResolutionError`
@@ -1646,7 +1689,7 @@ review harness's differential mode (4.2), the same reviews run in-repo and from 
     - The hosted admission's pending attempt (`publishHostedPendingAdmission`) and its acknowledgement
       (`acknowledgeHostedRequest`, `rg/lane-progress-hosted-request.ts`), which write lane progress directly today,
       write the in-flight record from the flip (4.7), the acknowledgement re-keying the attempt by its handle.
-    - A hosted admission numbers its pass one past the derived count, its chain's included
+    - A hosted admission numbers its pass one past the derived completed logical count, its chain's included
       (`rg/lane-progress-hosted-request.ts`), and the owner index's `completedPassesAtAdmission`
       (`rg/hosts/local/hosted-request-owner-index.ts`) is compared with the derived count where `handlers/review.ts`
       compares it with lane progress's today.
@@ -1658,7 +1701,8 @@ review harness's differential mode (4.2), the same reviews run in-repo and from 
         - a hosted attempt the provider acknowledged writes its outcome keyed by its admission ID
         - the sealed result's digest covers the admitted attempt's binding (`computeHostedResultId`)
         - a failed request writes an outcome carrying its failure reason
-        - the next hosted pass is one past the derived count, and the owner index's admission count compares with it
+        - the next hosted pass is one past the completed logical count, and the owner index's admission count
+          compares with it, including complete pass 1 followed by incremental pass 2 admitting pass 3 at ceiling count 1
         - a hosted retry at a later head after its pass's terminal failure writes a second outcome at that pass and
           generation 0 (`hostedPassHold`), composed after the failure
         - a hosted admission while another attempt is under way at its pass, or at a pass whose outcome has finished,
@@ -1681,6 +1725,9 @@ review harness's differential mode (4.2), the same reviews run in-repo and from 
 
         - `settleNewApprovedResponse` (`rg/runtime/respond-command.ts`) writes the record, resolving the binding as
           § 6.1 states it, and decodes the result's source reference to its outcome (§ 9.3); a replay reads it again.
+        - `createPendingResponseDispositionNode` supplies optional tags at that first write, outside the approved set
+          and its identity (§ 6.2). Every replay and advance preserves them, including absence; successors record their
+          own tags without changing earlier nodes.
         - A hosted set's record is created with its first settlement entries `record-only` and uncarried, as
           `validInitialHostedDisposition` (`rg/hosts/local/operation-state-store.ts`) requires of the first binding
           today; the write check leaves this to the verb (1.4.b).
@@ -1690,6 +1737,8 @@ review harness's differential mode (4.2), the same reviews run in-repo and from 
             - a hosted set's record is created with its first entries `record-only` and uncarried
             - a response for a frontline review of a private member binds the Candidate with the member
             - a response no binding resolves writes a record with none, and a replay changes nothing
+            - supplied tags persist at approval; a replay reads them instead of incoming report tags, and a historical
+              record with no tags stays without them after performance, settlement, projection, and succession
 
     - `[ ]` **5.3.b Performance and the Candidate response**
 
@@ -1733,7 +1782,7 @@ review harness's differential mode (4.2), the same reviews run in-repo and from 
 
     - `captureConditionalNextPassAuthorization` (`rg/lane-progress-conditional.ts`), which
       `rg/runtime/respond-command.ts` reaches, writes the decision, naming the set's approver as its decider, its
-      subject the lineage at the producer's reviewed head and its `passCount` the lane's count through the producer's
+      subject the lineage at the producer's reviewed head and its `passCount` the producer's
       logical pass (1.3.a); `bindConditionalPendingAdmission`, `invalidateConditionalNextPassAuthorization`,
       `inspectConditionalNextPassInvalidation`, and `withdrawConditionalNextPassAuthorization` read and write decisions,
       and the admitted attempt's outcome cites it as `admittedBy`.
@@ -1821,6 +1870,9 @@ review harness's differential mode (4.2), the same reviews run in-repo and from 
           (`rg/policy/candidate-review-fix-continuation.ts`), which compares a local record's `localSourceRef` with its
           outcome's `sourceDigest` in place of the operation state's `sourceRef` (§ 9.3); and reduction's frontline
           source (`rg/runtime/reduce-command.ts`), which reads the current set from the succession.
+        - The locus probe's pending-fix callback passes its invocation-bound store and exact selected owner to
+          `readPendingCandidateReviewFixAuthority`, which binds its outcome/evidence reads from those ports instead
+          of constructing a legacy disposition store off branch; its production projection test is 7.6's.
         - From the flip reduction's frontline source (`reduceFrontline`) reads the attempt's outcome through the outcome
           port in place of the frontline outcome store, and binds the reduce envelope's `outcomeRef` with the outcome
           key as its durable part, comparing it with the reader's (5.6.a, § 9.3).
@@ -1856,9 +1908,13 @@ review harness's differential mode (4.2), the same reviews run in-repo and from 
         - `rg/status-composition.ts`, `rg/status-errand.ts`, and `rg/status-singleton.ts` read the family; Errand
           status's vehicle read stays on the identity's Errand ref (`readTransientIdentitySnapshot`), the cutover's to
           move (§ 14.4).
+        - `rg/runtime/lane-read-composition.ts` and its lane-history and next-pass projections read the same composed
+          outcomes, evidence, and decisions through 4.1.b's bound ports, including inherited history and stored tags.
         - Build `test-first` (one behavior at a time):
             - an Errand's and a singleton's review status reach today's verdicts from the family's records, the Errand
               seeded in the store and its identity's Errand ref (4.2)
+            - the read-only lane command renders the same rejected findings and two-count history from stored
+              records with no legacy operation, disposition, or boundary files, and leaves the store unchanged
 
 ### `[ ]` **5.7 Add `arc review adversarial record` — § 7.2**
 
@@ -2003,6 +2059,9 @@ this phase puts publication's claim and reopen's boundary write in their transit
           (`rg/policy/delivery-local-review-admission.ts`); a call relaying a judgment already recorded names that
           record (§ 5.2).
         - Each decision's basis is `null` (§ 5.1).
+        - `passCount`, `exhaustedPassCount`, and `nextPass` keep completed-logical-pass units; only a standard ceiling
+          override's eligibility reads the complete-coverage count. An incremental attempt cites no grant and does
+          not consume one; its completed logical pass still participates in later ordinal-applicability checks.
         - The resolution reads the decisions within its reach (§ 5.6) at composition, before the pure functions run, as
           `applyCarriedOwnerAcceptedTerminus` (`rg/policy/pre-publication-request.ts`) injects today's carried terminus,
           and hands them to the places that read the override today: `withCeilingOverride`
@@ -2017,6 +2076,9 @@ this phase puts publication's claim and reopen's boundary write in their transit
             - an Errand's and a delivery member's extra pass reaches only the target it was decided on, the target its
               call bound where the judgment carries none
             - a pass already used reads as spent
+            - with completed logical count 2, complete-coverage count 1, and ceiling 1, an override binds 2 and admits
+              logical pass 3; a grant using 1 refuses, and a failed attempt retries at 3 without spending another grant
+            - an incremental pass cites no extra-pass decision and never treats complete count 1 as logical count 2
             - a call relaying a judgment already recorded names that decision and writes nothing
 
     - `[ ]` **6.2.b Termini**
@@ -2254,11 +2316,10 @@ branch link, notes facts, or change-request link fails; and a read or write of a
 `state-unresolvable` pulls the named history refs and retries once, through any store this change opens; and the subject
 reads a work unit's Candidate and boundary from the store with neither file in the checkout.
 
-_Design decisions:_ Edits to `handlers/status/lifecycle.ts` serialize with the planned locus change's edits to it
-(§ 14.4). The ended-item retry (7.5) and the subject's store read (7.6) come last: the first alone needs the ref
-backend's `state-unresolvable` refusal and `pull({ history })` on base, the second the store the planned locus change
-gives the subject's meta read and its Candidate read through it, and every task before them is independent of both
-(§ 14.4).
+_Design decisions:_ Edits to `handlers/status/lifecycle.ts` build on the shipped locus changes (§ 14.4). The ended-item
+retry (7.5) and the subject's store read (7.6) remain last; only the first needs a future provider landing, the ref
+backend's `state-unresolvable` refusal and `pull({ history })` on base. The subject's store and Candidate-reader
+prerequisites have landed, and every earlier task is independent of the remaining ref-backend wait (§ 14.4).
 
 ### `[ ]` **7.1 Read the checkpoint's lifecycle through the store, and write the landing-commit link — § 12.3, § 12.4**
 
@@ -2459,22 +2520,26 @@ gives the subject's meta read and its Candidate read through it, and every task 
   authority from the Candidate record's `attestation.candidateId` and reads that record's content and the boundary
   through the store, so a work unit checked out elsewhere keeps its subject with neither file in that checkout.
 
-    - The planned locus change gives the projection the store (its `store` option) and reads the Candidate record
+    - The shipped projection takes the store (its `store` option) and reads the Candidate record
       through it where that store reports `stateOffBranch` (`readStoreSubjectCandidate`,
       `lib/locus/subject-meta-candidate.ts`), gated on the meta's `Candidate`. This task gates that read, and the
       Candidate authority the projection requires of an Integrating or a preparing work unit, on the record's
       `attestation.candidateId` in place of the meta's `Candidate`, and reads the boundary through the typed access over
-      the same store (2.3.b), where the projection reads its file (`readSubmissionBoundary`). Where that change's
-      `store` option has not landed on base when this task is reached, the task loop stops here, as 7.5 stops, for a
-      base merge that brings it.
-    - _Note:_ The subject's Integrating arm gates on `Branch` too; the planned locus change moves that read onto the
-      link (§ 12.1), so the test seeds a branch link. The two changes serialize on `lib/locus/subject-meta.ts` (§ 14.4).
+      the same store (2.3.b), where the projection reads its file (`readSubmissionBoundary`). Its store prerequisite
+      has landed; only 7.5 retains the ref-backend availability wait.
+    - The shipped subject already takes its branch from the link (§ 12.1), so the test seeds that link. Exercise
+      `runDerivedLocusStateProbe`'s production callbacks with the same store and exact selected owner: delivery
+      correction reads its stored task list and review records (4.6.a), and pending-fix authority reads its outcomes
+      and evidence (5.6.b), with no second store or off-branch fallback to legacy files.
     - Build `test-first` (one behavior at a time):
         - from the flip the subject's authority names the Candidate the record holds, with no `Candidate` in the meta
         - from the flip the subject reads the Candidate and its boundary from the store with neither file in the
           checkout
         - given no store, or one not reporting `stateOffBranch`, the subject reads both files through its injected IO
           as today
+        - through the production probe, an Integrating subject projects delivery correction with no materialized
+          task-list, Candidate, or boundary file; an Active changed target resolves pending-fix authority from its
+          stored outcome and evidence with no legacy disposition record, using the exact selected owner in each case
 
 ### `[ ]` **7.7 Delivery and integration at the flip** — validate exit criterion at segment scope
 
@@ -2562,3 +2627,20 @@ gives the subject's meta read and its Candidate read through it, and every task 
 - `[ ]` All quality gates pass (tests, linting, type checking).
 
 - `[ ]` Ready for integration.
+
+- `[ ]` Complete logical pass 1 followed by incremental logical pass 2, including across Candidate supersession,
+  yields completed logical count 2, standard ceiling count 1, and next logical pass 3. Extra-pass decisions, keys,
+  import, replay, consumption, and retry keep logical ordinals; incremental attempts cite no grant (spec, A6).
+
+- `[ ]` Optional fix tags survive approval, import, composed reads, replay, and earlier-round reporting outside
+  disposition and approval identity. Present tags cover exactly the `fix` findings, absence stays absent, and every
+  advance and successor preserves the predecessor's stored tags (spec, A6).
+
+- `[ ]` The production locus entry points resolve active and completed Candidate owners over the supplied store and
+  exact marker/topology evidence with no meta file or owner stand-in, and hosted-Errand discovery succeeds with no
+  identity-ref copy of its stored records (spec, A6).
+
+- `[ ]` Through the production probe, an Integrating subject projects delivery correction without materialized
+  task-list, Candidate, or boundary files, and an Active changed target projects pending-fix authority from stored
+  outcomes and evidence without legacy disposition records. Both use the exact selected owner and invocation store,
+  opening no default store for the subject's checkout (spec, A6).
