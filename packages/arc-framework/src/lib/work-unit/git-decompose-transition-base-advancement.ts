@@ -962,7 +962,7 @@ export async function advanceGitDecomposeTransitionBase(
   try {
     await dependencies.exec(
       "git",
-      ["merge", "--no-commit", "--no-ff", currentBaseHead],
+      ["-c", "merge.directoryRenames=false", "merge", "--no-commit", "--no-ff", currentBaseHead],
       { cwd: registration.path },
     );
   } catch {

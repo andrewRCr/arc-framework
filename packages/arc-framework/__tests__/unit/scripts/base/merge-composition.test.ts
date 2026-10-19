@@ -9,11 +9,16 @@ import { mergeExpectedBase } from "../../../../src/scripts/base/merge.js";
 
 const oid = (character: string): string => character.repeat(40);
 
+function commandArguments(args: string[]): string[] {
+  return args[0] === "-c" && args[1] === "merge.directoryRenames=false" ? args.slice(2) : args;
+}
+
 describe("base merge composition", () => {
   it("creates a merge commit only with the exact guarded divergence arguments", async () => {
     const state = { head: oid("c") };
     const ok = (stdout = ""): ExecResult => ({ stdout, stderr: "" });
-    const exec: GitExec = async (_command, args) => {
+    const exec: GitExec = async (_command, rawArgs) => {
+      const args = commandArguments(rawArgs);
       if (args[0] === "status") return ok();
       if (args[0] === "rev-parse" && args.at(-1) === "HEAD") return ok(state.head);
       if (args[0] === "rev-parse" && args.at(-1) === "MERGE_HEAD") {
@@ -39,7 +44,8 @@ describe("base merge composition", () => {
     const updates: string[][] = [];
     const resets: string[][] = [];
     const ok = (stdout = ""): ExecResult => ({ stdout, stderr: "" });
-    const exec: GitExec = async (_command, args) => {
+    const exec: GitExec = async (_command, rawArgs) => {
+      const args = commandArguments(rawArgs);
       if (args[0] === "status") return ok(state.clean ? "" : " M merged.txt");
       if (args[0] === "rev-parse" && args.at(-1) === "HEAD") return ok(state.head);
       if (args[0] === "merge") {
@@ -74,7 +80,8 @@ describe("base merge composition", () => {
     const state = { head: oid("c") };
     const mutations: string[][] = [];
     const ok = (stdout = ""): ExecResult => ({ stdout, stderr: "" });
-    const exec: GitExec = async (_command, args) => {
+    const exec: GitExec = async (_command, rawArgs) => {
+      const args = commandArguments(rawArgs);
       if (args[0] === "status") return ok();
       if (args[0] === "rev-parse" && args.at(-1) === "HEAD") return ok(state.head);
       if (args[0] === "merge") {
@@ -124,7 +131,8 @@ describe("base merge composition", () => {
   it("aborts a conflicting merge before exposing the conflict verdict", async () => {
     const state = { head: oid("c"), clean: true, merging: false };
     const ok = (stdout = ""): ExecResult => ({ stdout, stderr: "" });
-    const exec: GitExec = async (_command, args) => {
+    const exec: GitExec = async (_command, rawArgs) => {
+      const args = commandArguments(rawArgs);
       if (args[0] === "status") return ok(state.clean ? "" : "UU conflict.txt");
       if (args[0] === "rev-parse" && args.at(-1) === "HEAD") return ok(state.head);
       if (args[0] === "rev-parse" && args.at(-1) === "MERGE_HEAD") {
@@ -164,7 +172,8 @@ describe("base merge composition", () => {
       stderr: "commit hook rejected the merge",
     });
     const ok = (stdout = ""): ExecResult => ({ stdout, stderr: "" });
-    const exec: GitExec = async (_command, args) => {
+    const exec: GitExec = async (_command, rawArgs) => {
+      const args = commandArguments(rawArgs);
       if (args[0] === "status") return ok(state.clean ? "" : "merge state");
       if (args[0] === "rev-parse" && args.at(-1) === "HEAD") return ok(state.head);
       if (args[0] === "rev-parse" && args.at(-1) === "MERGE_HEAD") {
@@ -196,7 +205,8 @@ describe("base merge composition", () => {
   it("commits a determinate ROADMAP-only remedy with the exact guarded parents", async () => {
     const state = { head: oid("c"), clean: true, merging: false, remedied: false };
     const ok = (stdout = ""): ExecResult => ({ stdout, stderr: "" });
-    const exec: GitExec = async (_command, args) => {
+    const exec: GitExec = async (_command, rawArgs) => {
+      const args = commandArguments(rawArgs);
       if (args[0] === "status") return ok(state.clean ? "" : "merge state");
       if (args[0] === "rev-parse" && args.at(-1) === "HEAD") return ok(state.head);
       if (args[0] === "rev-parse" && args.at(-1) === "MERGE_HEAD") {
@@ -248,7 +258,8 @@ describe("base merge composition", () => {
   it("aborts and restores an indeterminate regenerable remedy", async () => {
     const state = { head: oid("c"), clean: true, merging: false };
     const ok = (stdout = ""): ExecResult => ({ stdout, stderr: "" });
-    const exec: GitExec = async (_command, args) => {
+    const exec: GitExec = async (_command, rawArgs) => {
+      const args = commandArguments(rawArgs);
       if (args[0] === "status") return ok(state.clean ? "" : "merge state");
       if (args[0] === "rev-parse" && args.at(-1) === "HEAD") return ok(state.head);
       if (args[0] === "rev-parse" && args.at(-1) === "MERGE_HEAD") {
@@ -286,7 +297,8 @@ describe("base merge composition", () => {
   it("refuses moved merge parents before committing a regenerated projection", async () => {
     const state = { head: oid("c"), mergeHead: oid("a"), clean: true, merging: false, remedied: false };
     const ok = (stdout = ""): ExecResult => ({ stdout, stderr: "" });
-    const exec: GitExec = async (_command, args) => {
+    const exec: GitExec = async (_command, rawArgs) => {
+      const args = commandArguments(rawArgs);
       if (args[0] === "status") return ok(state.clean ? "" : "merge state");
       if (args[0] === "rev-parse" && args.at(-1) === "HEAD") return ok(state.head);
       if (args[0] === "rev-parse" && args.at(-1) === "MERGE_HEAD") {
@@ -332,7 +344,8 @@ describe("base merge composition", () => {
 
   it("lists every path the merge changed, read without rename pairing", async () => {
     const calls: string[][] = [];
-    const exec: GitExec = async (_command, args) => {
+    const exec: GitExec = async (_command, rawArgs) => {
+      const args = commandArguments(rawArgs);
       calls.push([...args]);
       return { stdout: "package-lock.json\0docs/a file.md\0", stderr: "" };
     };

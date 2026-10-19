@@ -111,7 +111,9 @@ export function createBaseMergePort(input: {
       const before = await resolveOid(input.exec, input.cwd, "HEAD");
       if (before !== headOid) return { status: "head-moved", actualHead: before };
       try {
-        await input.exec("git", ["merge", "--no-ff", "--no-edit", baseOid], { cwd: input.cwd });
+        await input.exec("git", [
+          "-c", "merge.directoryRenames=false", "merge", "--no-ff", "--no-edit", baseOid,
+        ], { cwd: input.cwd });
         const after = await resolveOid(input.exec, input.cwd, "HEAD");
         const parents = await resolveParents(input.exec, input.cwd, after);
         if (parents.length !== 2 || parents[0] !== headOid || parents[1] !== baseOid) {
