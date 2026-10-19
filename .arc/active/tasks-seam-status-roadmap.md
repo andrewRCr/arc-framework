@@ -195,32 +195,15 @@ _Design decisions:_ The acquisition lives in new modules under `lib/status/`, re
 one renderer, built in Task 3.6: stderr `Error [<code>]: <condition> <remedy>` and, with `--json`,
 `{ status: "refused", refusal }` on stdout, exit 1.
 
-### `[ ]` **3.1 Select the entry standing for each slug, reporting each clash — § 2.1**
+### `[x]` **3.1 Select the entry standing for each slug, reporting each clash — § 2.1**
 
 - _Goal:_ From lifecycle's entries and its listing's diagnostics, one pure function returns the entry standing for each
   slug, the names that fail closed, and a `slug-clash` warning for each clash, so the composer gets one record per slug
   ranked as the store's slug lookup ranks holders.
 
-- **Additional Context:** `notes-seam-status-roadmap.md` § Phases 3 and 4 — the project view's acquisition, freshness,
-  and the slug query
-
-    - Rules: a live entry named by the slug stands, completed ones named by it left out; else, where a live entry holds
-      it as a former slug, none stands; else the one completed entry named by it, and of several the latest archived by
-      quarter, then sequence compared as a number. Several live entries named by one slug clash and none stands.
-    - A name a listing diagnostic keys `work-item/meta:<name>` fails closed, whatever the diagnostic's kind: no entry
-      stands for it and the entries named by it are left out. Lifecycle's view keys a conflicted or malformed meta so,
-      and the reference backend a meta its parser rejects. A diagnostic under any other key names no work unit, so it
-      fails no name closed; Task 3.5 warns that the view omits its record.
-    - The `slug-clash` warning names the slug and each holder's UID, owner, and location, states that the view omits
-      them, and states that renaming one holder repairs it, naming no command.
-    - Build `test-first` (one behavior at a time):
-        - a live holder stands over a completed holder of a reused slug
-        - a slug a live work unit holds as a former name has no standing entry
-        - one completed holder stands; of two, the later quarter, then the higher sequence, `100` above `99`
-        - two live holders clash, neither stands, and the warning names both, over a store double
-        - a withheld meta's name has no standing entry, and a completed holder of that name is left out
-        - a backend's parser-rejected meta keyed `work-item/meta:<name>` fails its name closed, and a diagnostic under
-          `recordKey` leaves every name's standing entry as it was
+- _Outcome:_ `selectStandingLifecycleEntries` selects current live names before aliases and completed generations,
+  orders archived holders by quarter and numeric sequence, and omits clashes with holder-specific diagnostics.
+  Name-bearing meta diagnostics withhold every namesake; record-key diagnostics leave unrelated entries intact.
 
 ### `[ ]` **3.2 Map standing entries to readiness records, purposes from one listing per design kind — § 2.1**
 
