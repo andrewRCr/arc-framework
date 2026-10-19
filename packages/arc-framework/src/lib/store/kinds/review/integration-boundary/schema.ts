@@ -6,7 +6,7 @@ export { IntegrationBoundaryLocusV2Schema, type IntegrationBoundaryLocusV2 } fro
 
 export type ReviewIntegrationBoundary = IntegrationBoundaryLocus | IntegrationBoundaryLocusV2;
 /** A present or absent boundary paired with its backend's compare-and-swap version. */
-export interface VersionedSubmissionBoundary {
-  boundary: ReviewIntegrationBoundary | null;
+export interface VersionedSubmissionBoundary<TBoundary extends ReviewIntegrationBoundary = ReviewIntegrationBoundary> {
+  boundary: TBoundary | null;
   version: string | null;
 }

@@ -22,7 +22,8 @@ import {
 } from "../../lib/git/index.js";
 import { createRawGitExec } from "../../lib/io-context.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
-import type { CanonicalDigest } from "../../lib/kernel/canonical/canonical-json.js";
+import { CanonicalDigestSchema } from "../../lib/kernel/schema/vocabulary.js";
+import type { VersionedCandidateRecord } from "../../lib/store/kinds/review/candidate/schema.js";
 import { createUserSurfaceResolver } from "../../lib/user-surfaces.js";
 import { resolveComposedLifecycleIndex } from "../../lib/work-unit/composed-lifecycle-index.js";
 import {
@@ -37,7 +38,6 @@ import {
 import {
   readCandidateRecordVersion,
   readCandidateRecordVersioned,
-  type VersionedCandidateRecord,
 } from "../../lib/work-unit/candidate-record-store.js";
 import {
   projectGitCandidateEffectiveTarget,
@@ -132,7 +132,7 @@ import { composeDeliveryCheckpointArm } from "./delivery-checkpoint.js";
 
 export interface CachedCandidate {
   record: CandidateManagedRecordV1;
-  recordVersion: CanonicalDigest;
+  recordVersion: string;
   effective: CandidateEffectiveTargetProjection;
   currentness: CandidateEffectiveCurrentnessProjection;
 }
@@ -141,11 +141,11 @@ export interface CheckpointCandidateContext {
   readRecord(workUnit: string): Promise<VersionedCandidateRecord>;
   readEffective(workUnit: string, baseRevision: string): Promise<CachedCandidate | null>;
   assertRecordVersion(workUnit: string): Promise<
-    | { readonly status: "unchanged"; readonly recordVersion: CanonicalDigest }
+    | { readonly status: "unchanged"; readonly recordVersion: string }
     | {
         readonly status: "moved";
-        readonly expectedRecordVersion: CanonicalDigest;
-        readonly observedRecordVersion: CanonicalDigest | null;
+        readonly expectedRecordVersion: string;
+        readonly observedRecordVersion: string | null;
       }
   >;
 }
@@ -153,12 +153,12 @@ export interface CheckpointCandidateContext {
 /** Bind managed Candidate bytes and explicit-base projections to one checkpoint invocation. */
 export function createCheckpointCandidateContext(input: {
   readRecord(workUnit: string): Promise<VersionedCandidateRecord>;
-  readVersion(workUnit: string): Promise<CanonicalDigest | null>;
+  readVersion(workUnit: string): Promise<string | null>;
   project(input: {
     workUnit: string;
     baseRevision: string;
     record: CandidateManagedRecordV1;
-    recordVersion: CanonicalDigest;
+    recordVersion: string;
   }): Promise<{
     effective: CandidateEffectiveTargetProjection;
     currentness: CandidateEffectiveCurrentnessProjection;
@@ -824,7 +824,7 @@ export function createIntegrationCheckpointDependencies(input: {
       }
       return {
         schemaVersion: 1,
-        expectedRecordVersion: value.recordVersion,
+        expectedRecordVersion: CanonicalDigestSchema.parse(value.recordVersion),
         candidateId: decision.candidateId,
         priorTarget,
         currentTarget,

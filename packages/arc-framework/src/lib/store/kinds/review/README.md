@@ -17,3 +17,11 @@ and join its complete production list. The repository adapter uses a separate re
 existing Candidate and boundary codecs until those records are read or written.
 
 `paths.ts` resolves Candidate and boundary record paths through the semantic layout addresses.
+
+`candidate/access.ts` and `integration-boundary/access.ts` provide typed reads and version-checked writes. Calls use
+an explicitly supplied store, or open the checkout's store with the supplied Git runner. An explicit file port,
+directly or under `fs`, retains filesystem-adapter behavior. Their prepared puts join the caller's own atomic batch.
+The shared error constructors preserve version-conflict identity across typed access and filesystem adapters.
+
+Boundary access reads and writes version-one content; its public versioned shape can select a content version through
+its type parameter. Store versions remain opaque, while repository-backed versions remain byte digests.

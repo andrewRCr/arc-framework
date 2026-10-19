@@ -3,6 +3,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
+import { CandidateRecordVersionConflictError } from "../store/kinds/review/errors.js";
 import { resolveCandidateRecordRelativePath } from "../store/kinds/review/paths.js";
 
 import { digestBytes, type CanonicalDigest } from "../kernel/canonical/canonical-json.js";
@@ -40,12 +41,7 @@ export interface VersionedCandidateRecord {
   version: CanonicalDigest | null;
 }
 
-export class CandidateRecordVersionConflictError extends Error {
-  constructor() {
-    super("Candidate record changed after it was read");
-    this.name = "CandidateRecordVersionConflictError";
-  }
-}
+export { CandidateRecordVersionConflictError };
 
 /** Read and validate one Candidate record, or return null when absent. */
 export async function readCandidateRecord(

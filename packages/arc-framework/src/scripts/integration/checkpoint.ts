@@ -1649,8 +1649,9 @@ export async function checkpointIntegration(
         coordinates,
         remedy: checkpointRemedy("composition-unavailable", request.workUnit),
         payload: {
-          expectedRecordVersion: handleResult.expectedRecordVersion,
-          observedRecordVersion: handleResult.observedRecordVersion,
+          expectedRecordVersion: CanonicalDigestSchema.parse(handleResult.expectedRecordVersion),
+          observedRecordVersion: handleResult.observedRecordVersion === null
+            ? null : CanonicalDigestSchema.parse(handleResult.observedRecordVersion),
         },
       });
     }

@@ -3,6 +3,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
+import { SubmissionBoundaryVersionConflictError } from "../store/kinds/review/errors.js";
 import { resolveSubmissionBoundaryPath } from "../store/kinds/review/paths.js";
 
 import { canonicalize, digestBytes } from "../kernel/canonical/canonical-json.js";
@@ -36,12 +37,7 @@ export interface VersionedSubmissionBoundary {
   version: string | null;
 }
 
-export class SubmissionBoundaryVersionConflictError extends Error {
-  constructor() {
-    super("Submission boundary changed after it was read");
-    this.name = "SubmissionBoundaryVersionConflictError";
-  }
-}
+export { SubmissionBoundaryVersionConflictError };
 
 /** Read one durable integration boundary, or null when none has been recorded. */
 export async function readSubmissionBoundary(

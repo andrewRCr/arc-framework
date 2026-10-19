@@ -254,41 +254,11 @@ retires.
         - Moved both pure resolvers to `lib/store/kinds/review/paths.ts`, using the layout's Candidate and boundary
           addresses. The filesystem adapters re-export them, preserving their established paths and slug validation.
 
-    - `[ ]` **2.3.b The typed access**
+    - `[x]` **2.3.b The typed access**
 
-        - Each read and write the stores export today — `readCandidateRecord`, `readCandidateRecordVersioned`,
-          `readCandidateRecordVersion`, `writeCandidateRecord`, `readSubmissionBoundary`,
-          `readSubmissionBoundaryVersioned`, and `writeSubmissionBoundary` — keeps its name, its parameters, and its
-          errors, its last parameter, today's `fs` port, taking either that port or an options object
-          (`{ store?, exec?, fs? }`), so every call and stub today's callers make stands unchanged; where the caller
-          passes no store, the call opens the checkout's store, with the caller's Git runner where it passes one
-          (`createStore(createDefaultStorePorts({ checkoutRoot, exec }))`). A caller passing its own `fs` port, as tests
-          do, reads and writes the file through that port as today.
-        - The Candidate's version (`VersionedCandidateRecord.version`, `readCandidateRecordVersion`'s return) is typed
-          `string | null`, as the boundary's version and the write's `expectedVersion` already are, since a store
-          version is the backend's own; in-repo it stays the byte digest, so a stub or fixture building a digest literal
-          stands. The checkpoint composition's internal `recordVersion` and `observedRecordVersion`
-          (`scripts/integration/checkpoint-composition.ts`) widen with it, and where the value reaches a published field
-          still typed as a digest — an applicability offer's `expectedRecordVersion` and the checkpoint's
-          `candidate-record-moved` payload, both in 4.5.a's list — it is parsed as one (`CanonicalDigestSchema`,
-          `lib/kernel/schema/vocabulary.ts`) until 4.5.a widens that field.
-        - Each write is also available as the `put` a caller adds to its own `batch`.
-        - A store `not-found` reads as `null`; `version-conflict` throws `CandidateRecordVersionConflictError` or
-          `SubmissionBoundaryVersionConflictError`, which move here and the stores re-export; a malformed record throws
-          today's parse error; any other refusal throws with its condition and remedy; a write returns the record's
-          path.
-        - Store access needs Git where today's file reads did not — a write takes the tracked lock, and a read with no
-          meta in the tree composes lifecycle — so a test running a caller outside a repository stubs the typed access.
-        - Build `test-first` (one behavior at a time):
-            - a read over the in-repo implementation returns today's record with its byte-digest version, and an absent
-              record reads as `null`
-            - a read given a store whose versions are not digests returns that store's version, and the checkpoint
-              composition compares it as it compares a digest today
-            - a malformed record throws today's parse error, and a record whose key names another work unit throws
-            - a write against a moved version throws today's conflict error and writes nothing
-            - a write returns the path today's store returns
-            - a read and a write given a store go through that store and open none, and a write's `put` lands in the
-              caller's batch
+        - Added typed Candidate and V1 boundary access for supplied/opened stores, explicit file ports, and batch puts.
+          Shared conflict errors retain adapter identity. Candidate versions and checkpoint comparisons are opaque,
+          with explicit digest parsing at the two published fields.
 
     - `[ ]` **2.3.c The Candidate history read**
 
