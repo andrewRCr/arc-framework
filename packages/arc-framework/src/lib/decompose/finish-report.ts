@@ -32,7 +32,14 @@ export const DecomposeFinishAppliedSchema = z.strictObject({ kind: z.literal("ap
   origin: CutMapMachineSchema.shape.origin, members: LineageRecordSchema.shape.successors, notices: z.array(z.string()),
   continuation: z.strictObject({ kind: z.literal("git-step"), step: z.string(), reason: z.string(), argv: z.array(z.string()).min(1) }).optional(),
 });
-/** Closed finish report for preview or successful application. */
-export const DecomposeFinishReportSchema = z.union([DecomposeRetirementPreviewSchema, DecomposeFinishAppliedSchema]);
+/** Terminal evidence that a cut has already landed, without applying any writes. */
+export const DecomposeLandedCutSchema = z.strictObject({ kind: z.literal("landed"), mode: z.literal("retirement-finish"),
+  origin: CutMapMachineSchema.shape.origin.partial({ uid: true }), members: LineageRecordSchema.shape.successors,
+});
+/** A landed cut's origin and recorded successor identities. */
+export type DecomposeLandedCut = z.infer<typeof DecomposeLandedCutSchema>;
+
+/** Closed finish report for preview, successful application, or an already landed cut. */
+export const DecomposeFinishReportSchema = z.union([DecomposeRetirementPreviewSchema, DecomposeFinishAppliedSchema, DecomposeLandedCutSchema]);
 /** Structured finish result without internal preparation or executor objects. */
 export type DecomposeFinishReport = z.infer<typeof DecomposeFinishReportSchema>;

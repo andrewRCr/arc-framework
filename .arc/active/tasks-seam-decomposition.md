@@ -384,18 +384,16 @@ that step fails; and the preview afterward reports the cut landed, naming its me
   refusals precede the comparison. Matching applies land exactly the previewed writes; batch conflicts require a fresh
   preview and approval.
 
-### `[ ]` **3.6 Report a landed cut from `--finish` — § 8.7**
+### `[x]` **3.6 Report a landed cut from `--finish` — § 8.7**
 
 - _Goal:_ `--finish` on a retirement that has landed reports it landed and names its members, found through the
   `decompose` lineage record a lineage lookup on the origin's slug finds (`{kind: "lineage", origin}`), rather than
   refusing for want of a stored map.
 
-    - The members come from the record's `successors`; an extraction's landed cut reads the origin's `history` (task
-      4.3).
-    - Build `test-first` (one behavior at a time):
-        - a landed retirement reports its members
-        - a live origin with no stored map and no lineage refuses as holding no stored map, and an abandoned one with
-          the store's refusal of its slug, which no longer resolves to a primary
+- _Outcome:_ `readDecomposeLandedRetirement` resolves terminal lineage and reports its recorded successors through
+  `runStoreDecomposeFinish`. Repeated previews and applies write nothing. A live generation takes precedence over old
+  lineage; no-map and abandoned origins retain their distinct refusals. Shared acquisition caches preserve normal-run
+  observations while the executor still revalidates against the original store.
 
 ### `[ ]` **3.7 Keep a cut's reads flat — § 8.1, Goal 7**
 

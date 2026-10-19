@@ -132,3 +132,7 @@ when physical cleanup fails. A stub with no holder or branch link needs no physi
 prepared writes, ordering the observation and mutation sets canonically. `finish-report.ts` exposes closed preview and
 application reports. `finish.ts` completes preparation and checkout admission before comparing the supplied authority;
 accepted grooming requires a fresh preview and approval, and a matching authority applies exactly the previewed writes.
+
+`landed.ts` resolves a retired origin's decomposition lineage into a landed report with its recorded successors.
+Finish selects a live primary first, so an item reusing a retired name keeps its own cut state. Abandonment is not a
+landed cut; native resolution failures retain their recovery information, and repeated finish never writes again.
