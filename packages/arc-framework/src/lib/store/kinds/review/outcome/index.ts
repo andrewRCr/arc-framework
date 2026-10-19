@@ -2,3 +2,5 @@
 export { ReviewOutcomeSchema, type ReviewOutcome } from "./schema.js";
 export { parseReviewOutcome, decodeReviewOutcome } from "./parser.js";
 export { reviewOutcomeKey } from "./key.js";
+export { checkReviewOutcome } from "./check.js";
+export { REVIEW_OUTCOME_REGISTRATION } from "./registration.js";

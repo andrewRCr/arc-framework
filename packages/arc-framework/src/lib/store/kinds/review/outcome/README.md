@@ -6,3 +6,7 @@ policy and outcome digests retain their original identities.
 
 The parser validates content, including the source's admission and coverage. The key uses a local or frontline attempt's
 identity and a hosted attempt's stable admission identity. Mutable response and settlement evidence belongs separately.
+
+The write check evaluates the whole proposed lane history for one subject owner. It refuses duplicate terminal
+producers, reused hosted admissions, local retry gaps or duplicate generations, and changed contracts under one
+extra-pass decision. Incomplete or malformed listings cannot establish admission.

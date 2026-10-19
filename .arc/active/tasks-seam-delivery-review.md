@@ -50,34 +50,12 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
           without executable paths or arguments. Shared admission validators enforce content invariants, including
           delivery lineage and coverage, and local failure receipts retain the existing lane-vocabulary mapping.
 
-    - `[ ]` **1.2.b The write check**
+    - `[x]` **1.2.b The write check**
 
-        - § 4.8's rules that read the key or other outcomes, each under a stable identifier, over the stored outcomes of
-          the written outcome's lane on its lineage's subject owner (`laneSubjectOwnerMatches`,
-          `rg/core/lane-admission.ts`), each stated over what the stored set holds so that one write and the import's
-          whole set check alike (§ 11.4).
-        - A listing the check cannot read completely refuses, naming what it could not read, as the shipped kinds'
-          checks refuse (`lib/store/kinds/rule-support.ts`).
-        - Build `test-first` (one behavior at a time):
-            - an outcome stored under a key other than the one its content gives refuses
-            - a second finished outcome at one logical pass refuses, as does an outcome above the finished one's
-              generation at its pass from the same source, scope mode, and coverage admission, while local outcomes at
-              generations 0 and 1 beside a hosted one finished at generation 0 of that pass pass
-            - a hosted admission ID used twice refuses
-            - a generation used twice within one local grouping, or within the attempts one `approved-fix` decision
-              admits, refuses
-            - two hosted outcomes at one pass and generation 0, the first a terminal failure at another head, pass, as
-              do a local and a hosted outcome at generation 0 of one pass
-            - a local outcome whose lower generations at its pass, source, scope mode, and coverage admission are not
-              all stored refuses, and generations 0, 1, and 2 written together pass
-            - outcomes one `approved-fix` decision admits with a different source, scope, or coverage, or with a gap in
-              generations, refuse
-            - an Errand's outcomes at two heads read as one owner's
-            - a listing that is unreadable or missed entries refuses
-
-        - What no record keeps stays with the in-flight record and admission: an explicit frontline retry's binding,
-          one pending attempt per pass, and no pending attempt at a pass whose outcome has finished (4.7, 5.1;
-          `notes-seam-delivery-review.md` § Rules a write check cannot see).
+        - The registered write check evaluates the whole proposed lane-owner history, rejecting duplicate terminal
+          producers or hosted admissions, late or discontinuous local generations, and altered or discontinuous retries
+          under one extra-pass decision. Unavailable and malformed listings refuse with actionable diagnostics; moving
+          Errand heads and independently numbered sources retain their existing behavior.
 
     - `[ ]` **1.2.c The pass-count and settled derivations**
 

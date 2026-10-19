@@ -10,6 +10,7 @@ import type { LaneSubjectLineage } from "../../src/scripts/review-gate/core/lane
 import type { ReviewTarget } from "../../src/scripts/review-gate/core/gate-contract-v2-schema.js";
 import type { LocalReviewAuthority } from "../../src/scripts/review-gate/core/local-review-authority.js";
 import type { LocalReviewCoverageAdmission } from "../../src/scripts/review-gate/core/local-review-coverage.js";
+import type { ReviewScopeMode } from "../../src/scripts/review-gate/core/review-primitives.js";
 import type { DeliveryLocalReviewAdmission } from "../../src/scripts/review-gate/policy/delivery-local-review-admission.js";
 import { createFrontlineFixture } from "./frontline-review.js";
 
@@ -17,7 +18,7 @@ export function hostedOutcome(options: HostedHandleFixtureInput & {
   outcome?: "clean" | "findings"; findings?: readonly HostedFinding[];
 } = {}) {
   const handle = createHostedHandleFixture(options);
-  const { attemptId, hosted } = createHostedTerminalAttemptFixture({ admission: handle.admission, outcome: options.outcome ?? "clean", findings: options.findings });
+  const { attemptId, hosted } = createHostedTerminalAttemptFixture({ admission: handle.admission, outcome: options.outcome ?? "clean", findings: options.findings, artifact: options.artifact, effectiveCoverage: options.effectiveCoverage });
   const binding = {
     admission: hosted.admission, handle: hosted.handle, target: hosted.target,
     requestedCoverage: hosted.requestedCoverage, effectiveCoverage: hosted.effectiveCoverage,
@@ -51,7 +52,7 @@ export function frontlineOutcome(options: Parameters<typeof createFrontlineFixtu
 }
 
 export function localOutcome(options: {
-  lineage?: LaneSubjectLineage; target?: ReviewTarget; logicalPass?: number; retryGeneration?: number;
+  lineage?: LaneSubjectLineage; target?: ReviewTarget; logicalPass?: number; retryGeneration?: number; scopeMode?: ReviewScopeMode;
   vehicle?: LocalReviewAuthority["vehicle"]; coverageAdmission?: LocalReviewCoverageAdmission;
   deliveryAdmission?: DeliveryLocalReviewAdmission; outcome?: "clean" | "findings" | "terminal-failure";
   findings?: NormalizedReviewFinding[];
@@ -69,7 +70,7 @@ export function localOutcome(options: {
   });
   if (requirement === null) throw new Error("expected required review");
   const lineage = options.lineage ?? { kind: "candidate" as const, candidateId: canonicalDigest({ candidate: 1 }) };
-  const admission = createLocalReviewAdmission({ target, requirement, lineage, logicalPass, retryGeneration,
+  const admission = createLocalReviewAdmission({ target, requirement, lineage, logicalPass, retryGeneration, scopeMode: options.scopeMode,
     authority: { vehicle: options.vehicle ?? { kind: "work-unit", identity: "test-work" }, authorIdentity: "author-1",
       evaluatorIdentity: "evaluator-1", attestationRuntimeKind: "arc-cli", runtimeIdentity: "arc-cli/1.0.0",
       attestationMechanism: "local-attestation" },
