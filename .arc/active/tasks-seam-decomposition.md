@@ -470,9 +470,14 @@ stored map, writing no lineage; and the preview afterward reports the cut landed
           and batch conflicts require a fresh preview. `landed-extraction.ts` reads the current UID's latest terminal
           map removal and historical member names, distinguishing discard and preserving native history failures.
 
-### `[ ]` **4.4 An extraction end to end** — validate exit criterion at segment scope
+### `[x]` **4.4 An extraction end to end** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
+
+- _Outcome:_ On freshly merged main `e6856533f`, all four started Planning placements and an Active cohort extraction
+  complete preflight, additive creation, authoring, preview and apply through the store entry points with no Git.
+  Exact terminal batches retain kept spec bytes, remove the spec keeping no units and the stored map, set or keep the
+  origin's cohort, redistribute stub edges, preserve companions and members, write no lineage, and report the cut landed.
 
 ## **Phase 5:** Discard and revision
 
