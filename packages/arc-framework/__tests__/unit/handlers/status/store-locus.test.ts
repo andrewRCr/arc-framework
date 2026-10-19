@@ -4,6 +4,8 @@ import { handleLifecycleStatus } from "../../../../src/handlers/status/lifecycle
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { createStoreSyncPort } from "../../../../src/lib/store/operational-sync.js";
 import { recordReferences } from "../../../../src/lib/store/identity.js";
+import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
+import { writeMetaDesign } from "../../../../src/lib/store/kinds/meta/writers.js";
 import { renderMetaFile } from "../../../../src/lib/store/kinds/meta/writers.js";
 import { createMemoryRemote } from "../../../helpers/store/sync.js";
 import { ReferenceBackend } from "../../../helpers/store/reference-backend.js";
@@ -114,4 +116,18 @@ it("retains remote designation choices and command in fetched status, then refre
   expect((await query()).warnings).toEqual([expect.stringMatching(/backup.*state, code-and-state.*Choose the state role.*arc store remote backup state/u)]);
   designated = true;
   expect((await query()).warnings ?? []).toEqual([]);
+});
+
+it("reports the first sentence of a companion design's parsed purpose", async () => {
+  const h = createLifecycleHarness();
+  const meta = await h.seedMeta("demo");
+  await h.seed(recordReferences["work-item/companion"](meta.reference.owner, "spec-prd"),
+    "# Product intent\n\n**Purpose:** Read `file.name` safely. Keep later context separate.\n");
+  lifecycleSuccess(await h.store.write({ ...recordPut(meta, { content: writeMetaDesign(meta.content, ["spec-demo-prd.md"]) }),
+    provenance: { verb: "repoint-design", lifecycleAction: "spec-finalized" } }));
+  const output = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+  await handleLifecycleStatus("/current", async () => { throw new Error("Injected ports own local reads"); }, "demo", { json: true }, h.store, {
+    findHoldingCheckout: async () => null, readInFlightWarnings: async () => [],
+  });
+  expect(JSON.parse(String(output.mock.calls[0]?.[0]))).toMatchObject({ purpose: "Read `file.name` safely." });
 });

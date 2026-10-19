@@ -45,43 +45,23 @@ symbols to re-ground when that change ships.
         - The identity-missing fixture unsets both configuration sources; its golden retains the absent arm with the
           actionable message. CLI coverage also carries a Git-name fallback through session-init without that arm.
 
-### `[ ]` **1.2 Read a design's parsed purpose through one selection and one extractor — § 8.2**
+### `[x]` **1.2 Read a design's parsed purpose through one selection and one extractor — § 8.2**
 
 - _Goal:_ `readLifecycleDesign` and the slug query's arm from the flip read the design record's parsed purpose through
   one exported selection and one first-sentence extractor, so the slug query and the project view report the same
   purpose while every in-repo caller returns what it returns today.
 
-    - `[ ]` **1.2.a Export the design selection over a meta shape**
+    - `[x]` **1.2.a Export the design selection over a meta shape**
 
-        - Extract `readLifecycleDesign`'s choice (`lib/store/lifecycle-design.ts`) into a pure exported function over a
-          meta (`Pick<StoreRecord, "reference" | "fields">`, which a `LifecycleEntry` satisfies) and its candidate
-          records: for each name the meta's `Design` field lists, in order, the spec, draft, or companion whose artifact
-          file name is that name, the first such with a parsed purpose (`fields.purpose !== null`, narrowed through
-          `ParsedDesignRecordSchema`), else the first found. `readLifecycleDesign` calls it after its own listing and
-          returns the record it selects beside its content and warnings; `unit/lib/store/lifecycle-record-path.test.ts`
-          follows.
-        - A candidate's file name is `workUnitArtifactName(slug, kind)` (`lib/store/lifecycle-write.ts`) for a spec or
-          draft and `companionArtifactName(slug, key)` (`lib/store/companion-name.ts`) for a companion with a name key,
-          from the meta's slug; a companion without a name key matches no name, as today. The function calls no path
-          function, so it stays synchronous whatever their signatures become.
-        - Build `test-first` (one behavior at a time):
-            - the first listed `Design` name with a purpose wins over a later one, and the first found is the fallback
-            - a record whose parsed purpose is `""` or `"—"` still counts as having one, as today
-            - a companion design is matched by its file name, either half of a paired spec among them
-            - a `LifecycleEntry` serves as the meta
-            - `readLifecycleDesign` returns the record it selects, and none where no design is found
+        - `selectLifecycleDesign` selects by artifact basename and decoded Purpose independently of placement;
+          `readLifecycleDesign` returns the selected record beside its content and diagnostics. Reference-store
+          coverage includes paired companions, fallback and empty values, and a `LifecycleEntry` input.
 
-    - `[ ]` **1.2.b One first-sentence extractor, read from the parsed field**
+    - `[x]` **1.2.b One first-sentence extractor, read from the parsed field**
 
-        - Make `extractWorkUnitPurpose`'s first-sentence step (`lib/status/work-unit-purpose.ts`) a function over a
-          purpose string, which `extractWorkUnitPurpose` keeps calling, so `selectWorkUnitDesign` and
-          `readWorkUnitPurpose` return what they return today.
-        - `handleStoreLifecycleStatus` (`handlers/status/lifecycle.ts`) reads the `fields.purpose` of the record
-          `readLifecycleDesign` returns through it rather than re-parsing content.
-        - Build `test-first` (one behavior at a time):
-            - over the reference backend, the slug query's arm reports the first sentence of a companion-designed work
-              unit's parsed purpose
-            - the in-repo extractor's existing cases pass unchanged
+        - `extractPurposeSentence` serves the Markdown wrapper and the store slug query; the query reads the selected
+          record's decoded Purpose. Companion-designed status reports its first sentence, while the existing in-repo
+          extractor cases retain their outputs.
 
 ### `[ ]` **1.3 Hold the layout's work-unit kind list to the registry — § 8.3**
 

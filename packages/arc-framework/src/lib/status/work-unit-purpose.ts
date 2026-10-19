@@ -150,7 +150,14 @@ export async function resolveWorkUnitPurposes(
  * @returns The thesis, or null when the field has no readable value.
  */
 export function extractWorkUnitPurpose(content: string): string | null {
-  const field = readDesignPurpose(content);
+  return extractPurposeSentence(readDesignPurpose(content));
+}
+
+/** Extract the opening sentence of a decoded Purpose field, preserving code spans.
+ * @param field - Nullable raw Purpose from a design record.
+ * @returns The thesis, or null for an absent, empty, or placeholder value.
+ */
+export function extractPurposeSentence(field: string | null): string | null {
   if (field === null || field === "" || field === "—") return null;
   const codeEnds = codeSpanEnds(field);
   for (let index = 0; index < field.length; index += 1) {

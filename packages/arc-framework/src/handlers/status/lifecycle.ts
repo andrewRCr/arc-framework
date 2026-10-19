@@ -16,7 +16,8 @@ import { readLifecycleView } from "../../lib/store/lifecycle-view.js";
 import { readLifecycleDesign } from "../../lib/store/lifecycle-design.js";
 import { readWorkUnit, usesOffBranchState } from "../../lib/store/lifecycle-write.js";
 import { ParsedMetaRecordSchema } from "../../lib/active/meta-schema.js";
-import { extractWorkUnitPurpose, readWorkUnitPurpose } from "../../lib/status/work-unit-purpose.js";
+import { ParsedDesignRecordSchema } from "../../lib/store/kinds/design/index.js";
+import { extractPurposeSentence, readWorkUnitPurpose } from "../../lib/status/work-unit-purpose.js";
 import {
   projectScopeWindow,
   readDerivedSlugPosition,
@@ -263,10 +264,11 @@ async function handleStoreLifecycleStatus(store: Store, slug: string, opts: Stat
   }
   const query = resolveSlugQuery(view.result.index, record.status === "ok" ? record.result.reference.owner.name : slug);
   const fields = record.status === "ok" ? ParsedMetaRecordSchema.safeParse(record.result.fields) : undefined;
-  const design = record.status === "ok" ? await readLifecycleDesign(store, record.result) : { content: null, warnings: [] };
+  const design = record.status === "ok" ? await readLifecycleDesign(store, record.result) : { record: null, content: null, warnings: [] };
   const locus = await readStoreStatusLocus({ ...local, store, slug: query.slug, fetch: false }, ports);
   const warnings = [...design.warnings, ...lifecycleListingWarnings(view.result.listing), ...locus.warnings, ...refreshWarnings];
-  const purpose = design.content === null ? null : extractWorkUnitPurpose(design.content);
+  const designFields = ParsedDesignRecordSchema.safeParse(design.record?.fields);
+  const purpose = extractPurposeSentence(designFields.success ? designFields.data.purpose : null);
   const output = { ...query, purpose, owner: fields?.success === true ? fields.data.owner : null,
     integrationBoundary: null, ...(locus.worktreePath === undefined ? {} : { worktreePath: locus.worktreePath }), ...(warnings.length === 0 ? {} : { warnings: [...new Set(warnings)] }) };
   if (opts.json) process.stdout.write(`${JSON.stringify(output)}\n`);
