@@ -1,7 +1,5 @@
 /** Repository-shared persistence for durable frontline advisory outcomes. */
 
-import { z } from "zod";
-
 import { canonicalDigest, canonicalize } from "../../../../lib/kernel/index.js";
 import {
   FrontlineOutcomeRecordSchema,
@@ -10,17 +8,7 @@ import {
 import type { FrontlineOutcomeStore } from "../../core/ports.js";
 import type { GitCommonStatePublisher } from "../../../../lib/git-common-state.js";
 
-const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
-const OUTCOME_STORE_SEMANTICS = "frontline-outcome-store/v1" as const;
-
-const FrontlineOutcomeStoreRecordSchema = z.strictObject({
-  schemaVersion: z.literal(1),
-  semanticsVersion: z.literal(OUTCOME_STORE_SEMANTICS),
-  operationId: IdentifierSchema,
-  version: z.number().int().positive(),
-  record: FrontlineOutcomeRecordSchema,
-});
-type FrontlineOutcomeStoreRecord = z.infer<typeof FrontlineOutcomeStoreRecordSchema>;
+import { OUTCOME_STORE_SEMANTICS, FrontlineOutcomeStoreRecordSchema, type FrontlineOutcomeStoreRecord } from "../../core/repository-record-schemas.js";
 
 /** Stable local-store failure that callers can handle without parsing prose. */
 export class LocalFrontlineOutcomeStoreError extends Error {

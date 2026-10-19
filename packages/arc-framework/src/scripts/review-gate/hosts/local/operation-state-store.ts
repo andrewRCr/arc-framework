@@ -1,7 +1,5 @@
 /** Repository-shared persistence for resumable, non-evidentiary review operations. */
 
-import { z } from "zod";
-
 import { canonicalDigest, canonicalize } from "../../../../lib/kernel/index.js";
 import {
   ReviewOperationStateSchema,
@@ -14,17 +12,7 @@ import type {
 } from "../../core/ports.js";
 import type { GitCommonStatePublisher } from "../../../../lib/git-common-state.js";
 
-const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
-const OPERATION_STORE_SEMANTICS = "review-operation-store/v1" as const;
-
-const ReviewOperationStoreRecordSchema = z.strictObject({
-  schemaVersion: z.literal(1),
-  semanticsVersion: z.literal(OPERATION_STORE_SEMANTICS),
-  operationId: IdentifierSchema,
-  version: z.number().int().positive(),
-  state: ReviewOperationStateSchema,
-});
-type ReviewOperationStoreRecord = z.infer<typeof ReviewOperationStoreRecordSchema>;
+import { OPERATION_STORE_SEMANTICS, ReviewOperationStoreRecordSchema, type ReviewOperationStoreRecord } from "../../core/repository-record-schemas.js";
 
 /** Stable local-store failure that callers can branch on without parsing prose. */
 export class LocalOperationStateStoreError extends Error {

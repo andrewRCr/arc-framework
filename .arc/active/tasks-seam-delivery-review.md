@@ -393,51 +393,16 @@ alone.
             - every record the mapping returns parses under its kind and passes its kind's write check over the returned
               set
 
-### `[ ]` **3.2 Map lane progress, receipts, and frontline outcomes to outcomes, and leave working state behind — § 11.2**
+### `[x]` **3.2 Map lane progress, receipts, and frontline outcomes to outcomes, and leave working state behind — § 11.2**
 
 - _Goal:_ Every attempt lane progress records but a `pending` one becomes one `review/outcome` keyed as § 4.1, joined
   with the facts today's other records hold for it, while a `pending` attempt lists its file as in flight and every
   record of working state, retired attempts, or other stores is left behind with its reason.
 
-    - A local attempt joins its `local-review` operation record, for its request, actors, policy binding, attestation,
-      `sourceDigest`, and `guidanceDigest`, and its receipt (`evidence/receipts-v2.json`), kept as recorded with its
-      findings, by `requestId`, its findings taking their ordinals by position (`rg/core/local-review-result.ts`); a
-      frontline attempt takes its admission from lane progress and joins its frontline outcome (`outcomes/`) by
-      operation ID. Before redaction, derive `sourceBindingId` from the outcome's full source and response binding
-      through `computeFrontlineSourceBindingId`, comparing any joined run state's digest, without requiring a run
-      record; a hosted attempt keeps its sealed result, its findings projected through `projectHostedFinding`
-      (`rg/hosted/await.ts`). `settled-findings` maps to `findings`.
-    - Each outcome's `lineage` is its admission's, a frontline or hosted attempt's, or its `local-review` request's, a
-      local attempt's; lane progress's own `lineage` is only its latest attempt's.
-    - `completedPasses`, `terminalProducer`, `settledFindingIds`, `attemptedSources`, and the tail pointers map to
-      nothing.
-    - Today's attempts record no end time, so the outcomes one lane-progress record maps take `endedAt` values rising
-      strictly, a millisecond apart, in the order the record holds their attempts, the last its `updatedAt`, the latest
-      time any could have ended; composed by § 4.7's order, they keep the record's order within each pass.
-    - Left behind with their reasons: sources, materializations, locks, the hosted request owner index, `local-review`
-      records, frontline run state, and review suspensions, as working state read only for the joins; a frontline
-      outcome no current attempt joins, its attempt retired; a record naming another repository ID; `quarantine/` and
-      `retired/`; and the repository ID, its value the project ID passed in.
-    - Build `test-first` (one behavior at a time):
-        - a local attempt maps to an outcome carrying its operation record's request, actors, policy binding,
-          attestation, `sourceDigest`, and `guidanceDigest`, and its receipt as recorded, its findings with ordinals by
-          position, so the result's digest recomputed from the outcome equals today's
-        - each outcome's lineage is its own attempt's — its admission's or its request's — where an Errand's
-          lane-progress record holding attempts at two heads names only the later head's lineage
-        - a local attempt that ended stale with no receipt maps from its operation record alone
-        - a frontline attempt maps carrying its lane-progress admission and its outcome record's executable identity,
-          outcome digest, original `sourceBindingId`, and findings, including a command source bound to a
-          Candidate/member response with no run record; any joined run state's source digest must agree
-        - a hosted attempt maps keyed by its admission, keeping its sealed result and projecting its findings
-        - a `settled-findings` attempt maps to a `findings` outcome
-        - the outcomes one lane-progress record maps take strictly rising `endedAt` values in its attempt order, a
-          millisecond apart, the last its `updatedAt`, a pass that fell back across two sources and a pass's retries
-          included
-        - a `pending` attempt lists its lane-progress file as in flight
-        - frontline run state, a review suspension, an orphan frontline outcome, a record under another repository ID,
-          and a file under `quarantine/` or `retired/` each list as left behind with its reason
-        - a target's ID computed with the project ID matches the one today's records name where the project ID is the
-          clone's repository ID, as the import adopts it (§ 2.4)
+- _Outcome:_ Pure source decoding and producer mappings preserve each attempt's admission lineage, local request and
+  receipt identity, sealed hosted findings, and original frontline source binding before executable redaction. Ordered
+  outcomes and complete source listings distinguish pending live lanes, ended owners, joined evidence, and discarded
+  working state; shared persistence envelopes keep repository readers and the mapping on the same source grammar.
 
 ### `[ ]` **3.3 Map approved-disposition records to evidence — § 11.2**
 

@@ -34,3 +34,8 @@ retaining Candidate versions introduced by merge commits that rename-following h
 `mapping-result.ts` resolves approved producer IDs to outcome keys while retaining the approved disposition content.
 `mapping-listing.ts` accounts for gate files, tracked record versions, and materialization folders, retaining partial
 mapping reasons and suppressing mapped references for an in-flight source.
+
+`mapping.ts` maps ended lane attempts using their original local, frontline, or hosted admissions. Source codecs share
+pure persistence envelopes with the repository stores. Joined receipt and frontline files retain their contributed
+outcome references; working state, ended owners, foreign repositories, and retired snapshots keep explicit reasons.
+A pending live attempt blocks its entire lane file, and portable outcome times preserve legacy attempt order.
