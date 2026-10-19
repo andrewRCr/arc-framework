@@ -33,15 +33,11 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
   evidence remains single-writer. All four keyed review kinds retain their unsupported in-repo persistence and absent
   listings, and reference conformance selects their create-only checks automatically.
 
-### `[ ]` **1.2 Build `review/outcome`, its key, and its derivations — § 4.1–4.3, § 4.8**
+### `[x]` **1.2 Build `review/outcome`, its key, and its derivations — § 4.1–4.3, § 4.8**
 
 - _Goal:_ An outcome record holds one ended attempt's result from any source under its attempt's stable identity, its
   parser and write check refuse every record today's attempt invariants and pass-count rules refuse, and pure
   derivations give a lineage's pass count in a lane and whether a result is settled, from stored records alone.
-
-- _Note:_ The shipped policy separates completed logical passes, which number admissions and bind extra-pass
-  decisions, from the standard ceiling's complete-coverage count (§ 4.3). Derive both, including both inherited
-  counts, without changing that policy.
 
     - `[x]` **1.2.a The schema, its parser, and the key**
 
@@ -67,38 +63,12 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
           retain command and response identities; an existing approved set still matches after portable serialization,
           while missing or malformed digests refuse and executable paths and arguments remain absent.
 
-    - `[ ]` **1.2.c The pass-count and settled derivations**
+    - `[x]` **1.2.c The pass-count and settled derivations**
 
-        - One pure function over a lineage's outcomes in one lane and the evidence whose result is one of them, with the
-          outcomes and evidence its supersession chain carries for a Candidate, returns the lane's pass count and the
-          next logical pass; an attempt finishes when its outcome is `clean` or `findings` (§ 4.3). It derives counts
-          only: the refusals `readCandidateInheritedLaneProgress` (`rg/lane-progress-supersession.ts`) raises stay with
-          its caller (4.9.b).
-        - It matches what today's writers record: `completedPasses` and `countCompleteLogicalPasses`
-          (`rg/lane-progress.ts`), and the inherited counts (`readCandidateInheritedLaneProgress`).
-        - One pure function reads a `findings` outcome as settled from its result's evidence, as § 4.2 states it, where
-          lane progress writes `settled-findings` today (`settleLaneAttempt`, `completeHostedAttemptIfReady`).
-        - An outcome a replaced Candidate in the chain holds live — `partial`, `ambiguous-delivery`, or `findings` not
-          settled — reads as outdated, counting toward none and carrying no unresolved finding (§ 8.4).
-        - Build `test-first` (one behavior at a time):
-            - the completed logical count is the number of distinct logical passes with a finished outcome in the lane
-            - a stale or failed attempt counts toward none, and its retry shares its logical pass
-            - a Candidate's count adds the passes its supersession chain carries
-            - the next logical pass is one past the highest logical pass among finished outcomes
-            - for the standard ceiling, an incremental pass's finished outcome — a fix check's or
-              a delta check's — advances the next logical pass but not the lane's count
-            - complete logical pass 1 followed by incremental logical pass 2 yields completed logical count 2,
-              complete-coverage count 1, and next logical pass 3, including when the two passes span supersession
-            - the frontline lane's count is unchanged by the coverage rule
-            - a local or frontline `findings` outcome reads as settled once approved evidence for its result exists
-              and, where the approved set carries a fix, its performance is recorded
-            - a local or frontline `findings` outcome whose approved set carries a fix reads as unsettled until that
-              performance is recorded
-            - a hosted `findings` outcome reads as settled only once that evidence's settlement covers every sealed
-              finding and, where its set carries a fix, its performance is recorded
-            - a `clean`, stale, or failed outcome never reads as settled
-            - an unsettled `findings` outcome on a replaced Candidate reads as outdated and adds nothing to its
-              successor's count, while a settled one carries its pass
+        - Pure derivations reproduce result identities, derive settlement from exact approved response evidence, and
+          keep logical and complete-coverage counts distinct across validated supersession histories. Hosted findings
+          require full settlement coverage; fixes require matching performance. Outdated predecessor outcomes do not
+          carry passes, while current unsettled findings still count as finished.
 
 ### `[ ]` **1.3 Build `review/decision`, its envelope, and its content key — § 5.1, § 5.2, § 5.4, § 5.10**
 
