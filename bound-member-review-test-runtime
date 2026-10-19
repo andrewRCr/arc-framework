@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "bound-member-review-test-runtime",
+  "claimId": "48f6fc0776fd8317775d66e798a355d7",
+  "createdAt": "2026-10-19T14:16:46.896Z",
+  "updatedAt": "2026-10-19T14:16:46.896Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Profile and repair the repeated member fix-check integration scenario that exceeds its CI deadline while preserving its review-protocol assertions.",
+  "branch": "chore/bound-member-review-test-runtime",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
