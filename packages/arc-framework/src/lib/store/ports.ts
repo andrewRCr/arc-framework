@@ -5,6 +5,7 @@ import type { Slug } from "../kernel/schema/slug.js";
 import type { KindId } from "./catalog.js";
 import type { KindDefinition } from "./registry.js";
 import type { ReadOnlyStore } from "./contract.js";
+import type { ReviewMappingInput, ReviewMappingResult } from "./ref/import/review-mapping.js";
 
 /** File types used by the lifecycle walk; symbolic links are never regular records. */
 export interface StoreDirectoryEntry {
@@ -53,7 +54,7 @@ export interface RefStorePorts {
   exec: GitExec;
   execInput: GitExecInput;
   rawExec: RawGitExec;
-  fs: StoreFileAccess & RefRepositoryFileAccess;
+  fs: StoreFileAccess & RefRepositoryFileAccess & { readBytes(path: string): Promise<Uint8Array> };
   clock: () => Date;
   sleep: RefStoreSleep;
   random: () => number;
@@ -67,6 +68,8 @@ export interface RefStorePorts {
   importSource?: { store: ReadOnlyStore; ports: StorePorts & { rawExec: RawGitExec }; baseBranch: string };
   /** Observe an explicit move step before it runs; fault tests may interrupt the operation here. */
   migrateStep?: (step: string) => Promise<void>;
+  /** Pure conversion of legacy review sources, supplied only once their mapping is available. */
+  reviewMapping?: (input: ReviewMappingInput) => ReviewMappingResult;
   /** Acquire a state ref lock or the "layout" lock in the code repository's common Git directory. */
   lock: (ref: string, waitMs?: number) => Promise<() => Promise<void>>;
 }

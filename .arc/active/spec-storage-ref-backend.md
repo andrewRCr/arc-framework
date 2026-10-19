@@ -4122,7 +4122,7 @@ open:
 ## Amendments
 
 - **A1** — 2026-10-16 — design: an archived work unit's unlanded-branch refusal names removing the branch as its exit.
-  _Supersedes:_ § 10.8 `workItems` ¶. _Trigger:_ review. _Work:_ 15.9. _Revalidated:_ pending → 15.9.
+  _Supersedes:_ § 10.8 `workItems` ¶. _Trigger:_ review. _Work:_ 15.9. _Revalidated:_ 15.9.
 
 - **A2** — 2026-10-16 — design: review import preserves claim IDs and canonical source units.
   _Supersedes:_ § 10.8 table and source accounting. _Trigger:_ door. _Work:_ 15.R. _Revalidated:_ pending → 15.10.

@@ -10,7 +10,7 @@ import { commitRefTree } from "../write-commits.js";
 import { writeRefBlob } from "../tree-write.js";
 import { prepareImportGroups } from "./groups.js";
 import { addImportArchive, type ImportQuarter } from "./archive.js";
-import { replayImportCandidate } from "./candidate.js";
+import { replayImportVersions } from "./candidate.js";
 import { expandStoredPath } from "../../stored-path.js";
 import { RecordReferenceSchema } from "../../identity.js";
 
@@ -43,18 +43,33 @@ function reconcilePersonalDestinations(records: ImportRecord[], report: MigrateR
 
 function prepareImportRecord(context: RefBackendContext, record: ImportRecord, report: MigrateReport): ImportRecord | undefined {
   const current = prepareImportContent(context, record, report);
-  if (!current || !record.versions) return current;
-  const versions: NonNullable<ImportRecord["versions"]> = [];
-  for (const version of record.versions) {
+  if (!current) return;
+  if (record.mappedVersions) {
+    const revisions = prepareImportRevisions(context, record, record.mappedVersions.map(content => ({ content })), report);
+    return revisions ? { ...current, mappedVersions: revisions.map(version => version.content) } : undefined;
+  }
+  if (!record.versions) return current;
+  const versions = prepareImportRevisions(context, record, record.versions, report);
+  return versions ? { ...current, versions } : undefined;
+}
+
+function prepareImportRevisions<T extends { content: string }>(context: RefBackendContext, record: ImportRecord,
+  revisions: readonly T[], report: MigrateReport): T[] | undefined {
+  const versions: T[] = [];
+  for (const version of revisions) {
     const prepared = prepareImportContent(context, { ...record, content: version.content }, report);
     if (!prepared) return;
     versions.push({ ...version, content: prepared.content });
   }
-  return { ...current, versions };
+  return versions;
 }
 
 function prepareImportContent(context: RefBackendContext, record: ImportRecord, report: MigrateReport): ImportRecord | undefined {
-  const refuse = (rule: string): undefined => { report.refused.push({ reference: record.reference, rule }); };
+  const refuse = (rule: string): undefined => {
+    report.refused.push({ reference: record.reference, rule: record.mappedVersions ? "review-mapping" : rule });
+    if (record.mappedVersions) report.notices.push({ condition: `Review mapping record ${JSON.stringify(record.reference)} was refused: ${rule}.`,
+      remedy: { text: "Correct the review mapping's returned record, then retry arc store migrate --import." } });
+  };
   const serialized = checkSerializationRules(record.reference, record.content);
   if (serialized) { refuse(serialized.rule); return; }
   if (checkRefKey(record.reference, context.registry)) { refuse("key"); return; }
@@ -62,6 +77,7 @@ function prepareImportContent(context: RefBackendContext, record: ImportRecord, 
   const registry = record.asFound ? { ...context.registry, [record.reference.kind]: { ...context.registry[record.reference.kind], parser: null } } : context.registry;
   const result = prepareRefPut(record.reference, null, record.content, registry);
   if (result.status === "refused") {
+    if (record.mappedVersions) { refuse(result.refusal.condition); return; }
     if (result.refusal.code === "unsupported") report.notices.push({ condition: result.refusal.condition, remedy: result.refusal.remedy });
     else report.refused.push({ reference: record.reference, rule: context.registry[record.reference.kind].merge === "entry" ? "entry-id" : "parse" });
     return;
@@ -81,7 +97,7 @@ export async function buildImportCommits(context: RefBackendContext, records: re
   const quarters = new Map<string, ImportQuarter>();
   const provenance = { verb: "migrate", lifecycleAction: "import", codeHead };
   for (const [ref, group] of groups) {
-    const parent = await replayImportCandidate(context, group, provenance, actor);
+    const parent = await replayImportVersions(context, group, provenance, actor);
     if (group.placement?.kind === "completed") { group.metadata.endBatch = batchId; group.metadata.batch = batchId; }
     group.entries.set(group.metadataPath, { path: group.metadataPath, mode: "100644", oid: await writeRefBlob(context, canonicalize(group.metadata)) });
     const tip = await commitRefTree(context, group.entries.values(), parent, provenance, group.reference, batchId, actor);

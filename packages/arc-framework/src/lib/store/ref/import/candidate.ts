@@ -1,4 +1,4 @@
-/** Read the legacy Candidate path log and replay its versions on an owner's retained history. */
+/** Read the legacy Candidate path log and replay supplied revisions on retained owner history. */
 import { randomUUID } from "node:crypto";
 import type { RefBackendContext } from "../context.js";
 import type { ImportRecord } from "./source.js";
@@ -11,6 +11,7 @@ import { refFormatKey } from "../format-key.js";
 import { canonicalize } from "../../../kernel/canonical/canonical-json.js";
 import { writeRefBlob } from "../tree-write.js";
 import { commitRefTree } from "../write-commits.js";
+import type { RefTreeEntry } from "../batch-read.js";
 
 /** Match the legacy chain reader's plain path history, bounded by the selected meta revision. */
 export async function readImportCandidateVersions(context: RefBackendContext, name: string,
@@ -30,18 +31,19 @@ export async function readImportCandidateVersions(context: RefBackendContext, na
 }
 
 /** Each source revision has its own batch; the caller appends the owner's current-files landing. */
-export async function replayImportCandidate(context: RefBackendContext, group: ImportGroup,
+export async function replayImportVersions(context: RefBackendContext, group: ImportGroup,
   provenance: BatchInput["provenance"], actor: string | undefined): Promise<string | undefined> {
-  const candidate = group.candidate;
-  if (!candidate) return;
-  const home = expandStoredPath(candidate.reference, { registry: context.registry });
-  const metadata = { formatVersion: 1, slug: candidate.reference.owner.name,
-    formats: { [refFormatKey(candidate.reference)]: context.registry[candidate.reference.kind].formatVersion } };
-  const metadataEntry = { path: home.metadataPath, mode: "100644", oid: await writeRefBlob(context, canonicalize(metadata)) };
+  const metadata = { formatVersion: 1, slug: group.reference.owner.name, formats: {} as Record<string, number> };
+  const entries = new Map<string, RefTreeEntry>();
   let parent: string | undefined;
-  for (const version of candidate.versions ?? []) {
-    const entry = { path: home.path, mode: "100644", oid: await writeRefBlob(context, version.content) };
-    parent = await commitRefTree(context, [entry, metadataEntry], parent, provenance, candidate.reference, randomUUID(), actor);
+  for (const record of group.replays) {
+    const home = expandStoredPath(record.reference, { registry: context.registry });
+    metadata.formats[refFormatKey(record.reference)] = context.registry[record.reference.kind].formatVersion;
+    for (const content of record.mappedVersions ?? record.versions?.map(version => version.content) ?? []) {
+      entries.set(home.path, { path: home.path, mode: "100644", oid: await writeRefBlob(context, content) });
+      entries.set(home.metadataPath, { path: home.metadataPath, mode: "100644", oid: await writeRefBlob(context, canonicalize(metadata)) });
+      parent = await commitRefTree(context, entries.values(), parent, provenance, record.reference, randomUUID(), actor);
+    }
   }
   return parent;
 }

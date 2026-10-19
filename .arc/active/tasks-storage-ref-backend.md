@@ -1408,50 +1408,27 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
   their kinds before any ref or identity mutation. The source inventory excludes machinery, constitution, ignored
   machine files, and counters while retaining tracked Candidate, boundary, and transition state.
 
-### `[ ]` **15.9 The review mapping's port — § 10.5, § 10.8, § 10.9**
+### `[x]` **15.9 The review mapping's port — § 10.5, § 10.8, § 10.9**
 
 - _Goal:_ Whatever mapping fills the port, the import hands it every review source of live work and lands only what it
   returns, so once the review family's mapping lands no review fact of live work is lost or carried in today's shape.
 
     - _Amended in:_ 15.R (A2)
     - _Amended in:_ 15.9.R (A20)
-    - An optional `reviewMapping` among `runStoreMigrate`'s ports, its `ReviewMappingInput` and `ReviewMappingResult`
-      types in the transform module (§ 10.8); the `arc store migrate` handler passes none until the review family's
-      mapping lands, and that mapping conforms by shape, importing nothing of the transform's
-    - The gate's folder read whole from the Git common directory, every file with its path; each live work unit's
-      Candidate versions from the path log 15.1 reads, with its commit, and its boundary record's current content
-    - The work-item table from the UIDs the import mints (A11), each entry's `live` flag as § 10.8 states it; an
-      archived work unit's landing tested with `isLandedInBaseStrict` (`lib/git/branch-containment.ts`) only where its
-      `Branch` still resolves
-    - Build `test-first` (one behavior at a time):
-        - a test mapping receives the gate's whole folder, its quarantined and retired files among them, each live work
-          unit's Candidate versions oldest first with its current boundary, and the work-item table: a work unit in
-          flight, one merged but not yet archived among them, and every Errand live, and an archived, abandoned, or cut
-          work unit not
-        - what it returns lands in place of the live work unit's Candidate and boundary records and every gate file,
-          each record at its kind's stored path and a record's contents replayed oldest first, one batch each, while a
-          completed work unit's Candidate and boundary land as found
-        - the trial's `reviewMapping` carries the listing, and an `in-flight` entry refuses the import, which lands once
-          the mapping no longer reports it
-        - a returned record a parser the test registry installs refuses, and one a serialization rule refuses, are each
-          listed in `refused` under `review-mapping`, refusing the import
-        - a gate file or Candidate version the listing omits, and one it lists twice, are listed in `notices`, refusing
-          the import
-        - an archived work unit whose branch exists unlanded in base is listed in `notices` and refuses the import,
-          which lands once the branch merges, and one whose change landed by a multi-commit squash refuses likewise and
-          lands once its branch is removed, while one whose branch is gone or merged imports as completed
 
-### `[ ]` **15.9.R Current Candidate input and coverage — § 10.8, § 14.7 (A20)**
+- _Outcome:_ The pure mapping receives byte-exact gate files, selected live review sources, minted work-item UIDs, and
+  original Errand claim IDs. Returned revisions replace live legacy review records, pass normal admission with
+  mapping-specific refusals, and replay in separate batches; completed review records remain as found. Coverage,
+  in-flight reviews, unlanded archived branches, and identity races refuse with a repair route.
+
+### `[x]` **15.9.R Current Candidate input and coverage — § 10.8, § 14.7 (A20)**
 
 - _Goal:_ Amendment A20 supplies every live selected Candidate's current bytes independently of committed history,
   accounting for its plain tracked path exactly once so an uncommitted review fact survives the mapping.
 
-    - Add `current: string | null` to each Candidate input and supply the selected record's content, null only when
-      absent; retain real commit coordinates solely for historical versions
-    - Build `test-first` (one behavior at a time):
-        - a valid newer uncommitted Candidate reads through the source store and survives a mapping's returned record
-        - current and committed sources at the same path are distinct; omitted or repeated current coverage refuses,
-          then repaired coverage lands; a boundary-only input carries null current content
+- _Outcome:_ Current Candidate bytes are supplied separately from real committed versions, including uncommitted working
+  content; boundary-only inputs carry null. Plain-path current coverage is independent of every historical source,
+  omissions and repetitions refuse through repair, and the mapped current bytes survive import.
 
 ### `[ ]` **15.R Review import claim IDs and source units — § 10.8 (A2)**
 

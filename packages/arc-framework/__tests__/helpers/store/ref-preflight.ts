@@ -7,7 +7,7 @@ export function createPreflightRefStore(registry: NonNullable<RefStorePorts["reg
   const unexpected = async (): Promise<never> => { throw new Error("Admission consulted an I/O port"); };
   const ports: RefStorePorts = {
     exec: unexpected, execInput: unexpected, rawExec: unexpected,
-    fs: { readFile: unexpected, readdir: unexpected, lstat: unexpected, mkdir: unexpected,
+    fs: { readFile: unexpected, readBytes: unexpected, readdir: unexpected, lstat: unexpected, mkdir: unexpected,
       writeFile: unexpected, exclusiveCreate: unexpected, unlink: unexpected, rename: unexpected, removeDirectory: unexpected },
     checkoutRoot: "/no-repository", identity: unexpected, backingRepository: unexpected, actor: unexpected, lock: unexpected,
     clock: () => { throw new Error("Admission consulted the clock"); },

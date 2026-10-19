@@ -12,7 +12,7 @@ import { writeRefBlob } from "../tree-write.js";
 /** One owner's current files and the exact source archive coordinate, when completed. */
 export interface ImportGroup {
   reference: RecordReference; metadata: RefMetadata; entries: Map<string, RefTreeEntry>; metadataPath: string; placement?: ReadPlacement;
-  candidate?: ImportRecord;
+  replays: ImportRecord[];
 }
 
 /** Group using live homes so multiple ended owners can later share one quarter without sharing metadata. */
@@ -24,7 +24,7 @@ export async function prepareImportGroups(context: RefBackendContext, records: r
     if (!group) {
       group = { reference: record.reference, metadata: { formatVersion: 1, formats: {},
         ...(/^refs\/arc\/(?:work|cohort)\//u.test(home.ref) ? { slug: record.reference.owner.name } : {}) },
-      entries: new Map(), metadataPath: home.metadataPath };
+      entries: new Map(), metadataPath: home.metadataPath, replays: [] };
       groups.set(home.ref, group);
     }
     group.entries.set(home.path, { path: home.path, mode: "100644", oid: await writeRefBlob(context, record.content) });
@@ -39,7 +39,7 @@ function applyImportMetadata(group: ImportGroup, record: ImportRecord, context: 
     group.metadata.lineage = { ...group.metadata.lineage, [record.reference.owner.uid]: record.reference.owner.name };
   }
   if (record.formerSlugs) group.metadata.formerSlugs = record.formerSlugs;
-  if (record.reference.kind === "review/candidate") group.candidate = record;
+  if (record.versions || record.mappedVersions) group.replays.push(record);
   if ((record.reference.kind === "work-item/meta" || record.reference.kind === "work-item/record") && record.placement) {
     group.metadata.primary = { role: record.reference.kind, placement: writePlacement(record.placement),
       ...(record.links ? { links: record.links } : {}) };

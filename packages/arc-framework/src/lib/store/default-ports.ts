@@ -11,7 +11,7 @@ import { createExecaGitExec, createExecaGitExecInput, createExecaRawGitExec } fr
 import { acquireAdvisoryLock, releaseAdvisoryLock, withAdvisoryLock } from "../advisory-lock.js";
 import { readGitDirectories } from "../git/directories.js";
 import { withTrackedWriteLock } from "./tracked-lock.js";
-import type { RefStorePorts, StorePorts, RefRepositoryFileAccess, StoreFileAccess } from "./ports.js";
+import type { RefStorePorts, StorePorts } from "./ports.js";
 import { getOrCreateMachineId } from "./machine-id.js";
 import { createKindRegistry } from "./registry.js";
 import { PRODUCTION_REGISTRATIONS } from "./kinds/registrations.js";
@@ -41,7 +41,7 @@ async function signalEndedSleep(milliseconds: number, signal: AbortSignal): Prom
  * @param input - Checkout and optional already-bound Git adapters.
  * @returns All required store ports, each policy or lock resolved only when used.
  */
-export function createDefaultStorePorts(input: { checkoutRoot: string; exec?: GitExec; execInput?: GitExecInput; identity?: Slug }): StorePorts & { fs: StoreFileAccess & RefRepositoryFileAccess } {
+export function createDefaultStorePorts(input: { checkoutRoot: string; exec?: GitExec; execInput?: GitExecInput; identity?: Slug }): StorePorts & { fs: RefStorePorts["fs"] } {
   const baseExec = input.exec ?? createExecaGitExec();
   const exec: GitExec = (command, args, options) => baseExec(command, args, { cwd: input.checkoutRoot, ...options });
   const baseInput = input.execInput ?? createExecaGitExecInput();
@@ -50,7 +50,7 @@ export function createDefaultStorePorts(input: { checkoutRoot: string; exec?: Gi
   return {
     checkoutRoot: input.checkoutRoot, exec, execInput, identity, remote: () => configuredStateRemote(exec),
     clock: () => new Date(),
-    fs: { readFile: (path) => fs.readFile(path, "utf8"),
+    fs: { readFile: (path) => fs.readFile(path, "utf8"), readBytes: (path) => fs.readFile(path),
       readdir: (path) => fs.readdir(path, { withFileTypes: true }), lstat: fs.lstat, mkdir: fs.mkdir,
       writeFile: atomicWriteFile, exclusiveCreate: atomicCreateFile,
       unlink: fs.unlink, rename: fs.rename, removeDirectory: (path) => fs.rm(path, { recursive: true, force: true }) },

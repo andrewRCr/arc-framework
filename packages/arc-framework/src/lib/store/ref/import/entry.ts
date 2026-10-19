@@ -14,7 +14,7 @@ import { publishImport } from "./finish.js";
 import { landImportRefs } from "./land.js";
 import { keepImportTransients } from "./transient-cleanup.js";
 import { prepareImportCodeLinks, qualifyImportCodeLinks } from "./code-links.js";
-import { inspectUnmappedReviewGate } from "./review-gate.js";
+import { mapImportReview } from "./review-mapping.js";
 
 /** Build a complete report before any destination ref or repository identity is published. */
 export async function importTrackedState(context: RefBackendContext, store: Store, input: StoreMigrateInput): Promise<StoreMigrateResult> {
@@ -26,16 +26,18 @@ export async function importTrackedState(context: RefBackendContext, store: Stor
   if (occupied.status === "refused") return occupied;
   if (occupied.result) return input.trial ? { status: "ok", result: report } : publishImport(context, store, report);
   await context.migrateStep?.("import.build");
-  await inspectUnmappedReviewGate(context, report);
   const codeHead = (await context.exec("git", ["rev-parse", "HEAD"], { cwd: context.checkoutRoot })).stdout.trim();
   const transients = { tips: new Map<string, string>(), notices: [] as MigrateReport["notices"] };
-  const records = prepareImportRecords(context, await readImportSource(context, report, codeHead, transients), report);
+  const proposedId = existingId ?? randomUUID();
+  const records = prepareImportRecords(context, await mapImportReview(context,
+    await readImportSource(context, report, codeHead, transients), report, proposedId), report);
   await prepareImportCodeLinks(context, records, report);
   const blocked = report.refused.length > 0 || report.notices.length > 0;
   report.notices.push(...transients.notices);
   if (existingId === null) report.notices.push({ condition: "The landing would mint the repository identity ID." });
   if (blocked) return input.trial ? { status: "ok", result: report } : importRefused(report);
-  const projectId = input.trial ? existingId ?? randomUUID() : await resolveRepositoryIdentity(publisher);
+  const projectId = input.trial ? proposedId : await resolveRepositoryIdentity(publisher, () => proposedId);
+  if (reviewIdentityChanged(context, report, proposedId, projectId)) return importRefused(report);
   qualifyImportCodeLinks(records, projectId);
   const identity = prepareImportRecords(context, [{ reference: RecordReferenceSchema.parse({ kind: "project-registry/identity", owner: { type: "project", name: "project", uid: projectId } }),
     content: JSON.stringify({ projectId }) }], report);
@@ -47,6 +49,13 @@ export async function importTrackedState(context: RefBackendContext, store: Stor
   const refs = await buildImportCommits(physical, records, codeHead, randomUUID());
   if (!await landImportRefs(physical, refs, input.trial === true, transients.tips)) return landingRace(context, store, report, projectId, input.trial === true);
   return input.trial ? { status: "ok", result: report } : publishImport(context, store, report);
+}
+
+function reviewIdentityChanged(context: RefBackendContext, report: MigrateReport, proposed: string, actual: string): boolean {
+  if (!context.reviewMapping || proposed === actual) return false;
+  report.notices.push({ condition: "The repository identity changed while the review mapping was being built.",
+    remedy: { text: "Retry arc store migrate --import against the established repository identity." } });
+  return true;
 }
 
 async function landingRace(context: RefBackendContext, store: Store, report: MigrateReport, projectId: string, trial: boolean): Promise<StoreMigrateResult> {
