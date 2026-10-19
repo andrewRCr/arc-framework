@@ -298,6 +298,9 @@ The caller retains the authorizing logical pass coordinate for ordinary resolve;
 attempts and re-enters status. Ambiguous delivery, stale targets, malformed output, source failure, and terminal
 failure stop; never replay an uncertain request.
 
+An Errand caller may route a terminal failure reporting a trusted provider completion without reviewed-commit binding
+to [Errand stop](#errand-stop). The provider operation has ended; the failure remains non-clean.
+
 #### Hosted settlement
 
 **Signature:** At an approved settlement plan or pushed-PR description update, take the exact request and any
@@ -353,15 +356,25 @@ When the Owner explicitly asks to end further standard-review spending, declines
 triggers, or redirects an `approval-required / obtain-ceiling-override` decision, or the clean-fix-check successor check
 recommends stopping, present one exact offer before treating that direction as approval. A settled-response
 `coverage-required / select-coverage` also admits this offer; while `payload.responseRequired` is true, perform the
-approved response first. Before PR creation defer the stop to the open PR. Re-read `arc review status --target
-<targetRef>` to validate the current Errand binding; `review-required` is expected, but a refusal or pending/response
-action stops. Name the current Errand key and claim, repository and PR, base ref and OID, head SHA, at least one
-completed same-claim standard-review pass and its disposition/settlement state, the complete current PR diff, and the
-change since the last completely reviewed head. State the residual risk and that `arc review status` will remain
-`review-required`: this is Owner acceptance, not a clean provider result or an ARC terminus. Stop if any review request
-is pending, a known finding lacks an approved disposition or required channel settlement, an authorized fix remains
-unfinished, the earlier reviewed head is not an ancestor of this head, or the evidence is incomplete. Ask for explicit
-acceptance of that exact residual risk; an earlier approval to fix, commit, or spend a pass does not answer this offer.
+approved response first. A `terminal-failure / stop` reporting a trusted provider completion receipt without a
+reviewed-commit binding also admits this offer. Before PR creation defer the stop to the open PR. Re-read
+`arc review status --target <targetRef>` to validate the current Errand binding; `review-required` is expected, but a
+refusal or pending/response action stops. Name the current Errand key and claim, repository and PR, base ref and OID,
+head SHA, and the complete current PR diff.
+
+For the recorded-review basis, give at least one completed same-claim standard-review pass and its
+disposition/settlement state, plus the change since the last completely reviewed head. That reviewed head must be an
+ancestor of the current head. For the unbound-completion basis, show the request handle and receipt URL, the provider's
+failure reason, and verification of the receipt's provider identity and request timing. Require the current head to
+equal the requested head. Disclose that the provider's reviewed commit remains unproved; no completed recorded pass
+is claimed, and acceptance does not increment completed passes. Do not offer this basis for a receipt identifying a
+different commit, ambiguous delivery, malformed output, or a provider operation still running.
+
+State the residual risk and that `arc review status` will remain `review-required`: this is Owner acceptance, not a
+clean provider result or an ARC terminus. Stop if any review request is pending, a known finding lacks an approved
+disposition or required channel settlement, an authorized fix remains unfinished, or required facts for the chosen
+basis are unavailable. Ask for explicit acceptance of that exact residual risk; an earlier approval to fix, commit,
+or spend a pass does not answer this offer.
 
 On acceptance, request no further standard-review pass for those exact coordinates and continue to the reviewed merge
 lane through the caller, not auto-merge. Do not submit a fabricated `clean` attempt, `terminus`, or `ceilingOverride` to

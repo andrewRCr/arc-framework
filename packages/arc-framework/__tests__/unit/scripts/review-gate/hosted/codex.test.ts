@@ -106,6 +106,23 @@ function cleanComment(body: string): HostedGitHubIssueComment {
   };
 }
 
+function unboundReceipt(): HostedGitHubIssueComment {
+  return cleanComment(`<!-- codex-review-receipt:v1 -->
+
+Codex Review: Didn't find any major issues. You're on a roll.`);
+}
+
+function requestedCodexHandle(): ReturnType<typeof createHostedHandleFixture> {
+  return createHostedHandleFixture({
+    provider: "codex-pr", target,
+    artifact: {
+      kind: "issue-comment", id: "IC_1",
+      url: "https://github.com/owner/repo/pull/42#issuecomment-1",
+      createdAt: "2026-07-23T12:00:00.000Z",
+    },
+  });
+}
+
 describe("Codex hosted adapter", () => {
   it("refuses incremental requests before contacting GitHub", async () => {
     const adapter = new CodexHostedAdapter(port({
@@ -409,6 +426,55 @@ describe("Codex hosted adapter", () => {
     }));
 
     await expect(adapter.observeHandle(target)).resolves.toMatchObject({ kind: "clean" });
+  });
+
+  it("ends the wait when a completion receipt omits the reviewed commit", async () => {
+    const receipt = unboundReceipt();
+    const adapter = new CodexHostedAdapter(port({
+      readIssueComments: () => Promise.resolve([receipt]),
+    }));
+    const result = await adapter.observe(requestedCodexHandle());
+
+    expect(result).toEqual({
+      kind: "terminal-failure",
+      reason: expect.stringContaining("without identifying the reviewed commit"),
+    });
+    if (result.kind !== "terminal-failure") throw new Error("expected a non-clean completion");
+    expect(result.reason).toContain(receipt.url);
+    expect(result.reason).toContain(HEAD);
+  });
+
+  it.each([
+    ["another actor", { actorIdentity: "someone-else" }],
+    ["another app", { appId: "someone-else" }],
+    ["an edited comment", { updatedAt: "2026-07-23T12:06:00.000Z" }],
+    ["an earlier request", {
+      createdAt: "2026-07-23T11:59:00.000Z", updatedAt: "2026-07-23T11:59:00.000Z",
+    }],
+    ["unmarked wording", { body: "Codex Review: Didn't find any major issues." }],
+  ] as const)("ignores unbound completion from %s", async (_name, overrides) => {
+    const adapter = new CodexHostedAdapter(port({
+      readIssueComments: () => Promise.resolve([{ ...unboundReceipt(), ...overrides }]),
+    }));
+
+    await expect(adapter.observe(requestedCodexHandle())).resolves.toEqual({ kind: "pending" });
+  });
+
+  it.each(["clean", "findings"] as const)("prefers exact-head %s evidence over an unbound receipt", async (kind) => {
+    const adapter = new CodexHostedAdapter(port({
+      readIssueComments: () => Promise.resolve([
+        unboundReceipt(),
+        ...(kind === "clean" ? [cleanComment(
+          `Codex Review: Didn't find any major issues.\n\nReviewed commit: \`${HEAD}\``,
+        )] : []),
+      ]),
+      ...(kind === "findings" ? {
+        readReviews: () => Promise.resolve([codexReview()]),
+        readThreads: () => Promise.resolve([findingThread()]),
+      } : {}),
+    }));
+
+    await expect(adapter.observe(requestedCodexHandle())).resolves.toMatchObject({ kind });
   });
 
   it("recognizes connected-account failure under a bold provider heading", async () => {
