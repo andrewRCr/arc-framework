@@ -57,6 +57,31 @@ function legacy(overrides: Record<string, unknown> = {}): Record<string, unknown
 }
 
 describe("v3 transient identity records", () => {
+  it.each(["feat/fix-output", "fix/another-slug", "feature/fix-output", "fix/fix-output/extra"])("refuses ordinary branch %s", (branch) => {
+    expect(deserializeTransientIdentityRecord(JSON.stringify(ordinary({ branch })), "fix-output")).toMatchObject({ kind: "malformed" });
+  });
+
+  it("keeps routing and grooming identities on their fixed chore branches", () => {
+    const values = [
+      { version: 3, kind: "errand", slug: "inbox-drain", claimId, purpose: "housekeep-routing", branch: "fix/inbox-drain",
+        state: "open", savedHead: null, changeRequest: null, createdAt: timestamp, updatedAt: timestamp },
+      { version: 3, kind: "groom", slug: "groom-alpha", claimId, anchorStub: "alpha", members: ["alpha"], openedBaseHead: head,
+        protection: "full", branch: "refactor/groom-alpha", state: "open", changeRequest: null, createdAt: timestamp, updatedAt: timestamp },
+    ];
+    for (const value of values) assertSchemaRefuses(TransientIdentityRecordSchema, value);
+  });
+  it.each(["fix", "refactor", "hotfix"])("round-trips %s branches through every ordinary lifecycle state", (type) => {
+    const branch = `${type}/fix-output`;
+    const values = [ordinary({ branch }), ordinary({ branch, state: "paused", savedHead: head }),
+      ordinary({ branch, state: "awaiting-merge", changeRequest: { ...changeRequest, headRef: branch } })];
+    for (const value of values) {
+      const decoded = deserializeTransientIdentityRecord(JSON.stringify(value), "fix-output");
+      expect(decoded.kind).toBe("valid");
+      if (decoded.kind !== "valid") throw new Error("Ordinary branch was rejected");
+      expect(deserializeTransientIdentityRecord(serializeTransientIdentityRecord(decoded.record), "fix-output")).toEqual(decoded);
+      expect(projectLocusIdentity(decoded.record)).toMatchObject({ branch, claimId });
+    }
+  });
   it.each([1, 2] as const)("rejects retired v%d identity records", (version) => {
     expect(deserializeTransientIdentityRecord(
       JSON.stringify(legacy({ version })),

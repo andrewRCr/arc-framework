@@ -174,6 +174,7 @@ describe("ordinary Errand resume authorization", () => {
 function resumeFixture(record: OrdinaryErrandRecord) {
   let basis = new Map([[record.slug, record]]);
   let provisioned = false;
+  let branch = "main";
   const row: Awaited<ReturnType<OpenOrdinaryErrandOptions["dependencies"]["readFrame"]>>["roster"][number] = {
     kind: "free-primary", subject: null,
     checkout: { folderPresent: true, path: "/repo", head: HEAD, branch: "main", detached: false, primary: true },
@@ -189,7 +190,7 @@ function resumeFixture(record: OrdinaryErrandRecord) {
         identityDiscovery: { kind: "complete", identities: [], diagnostics: [] }, active: null }),
       readIdentity: async () => ({ kind: "ready", record: basis.get(record.slug) ?? null }),
       authorizeResume: async () => authorizeOrdinaryErrandResume(
-        record.state === "paused" ? pausedExec(HEAD) : hostExec(), "main", record,
+        record.state === "paused" ? pausedExec(HEAD) : hostExec({ headRefName: record.branch }), "main", record,
       ),
       resume: async (previous, authorization, updatedAt) => {
         const decision = ordinaryErrandTransform({ kind: "resume", previous, authorization, updatedAt })(basis);
@@ -200,11 +201,12 @@ function resumeFixture(record: OrdinaryErrandRecord) {
       },
       claim: async () => { throw new Error("Resume must not mint a claim"); },
       rollbackClaim: async () => { throw new Error("Resume must not roll back a new claim"); },
-      provision: async () => {
+      provision: async (input) => {
         provisioned = true;
+        branch = input.branch ?? "main";
         return { kind: "provisioned", receipt: {
           disposition: "applied", allocation: "primary", checkoutPath: "/repo",
-          branch: { name: record.branch, created: false, head: HEAD, base: null },
+          branch: { name: input.branch, created: false, head: HEAD, base: null },
           worktree: { path: "/repo", created: false, head: HEAD },
           marker: { state: "ready", bytes: Buffer.from("ready") },
         } };
@@ -212,13 +214,33 @@ function resumeFixture(record: OrdinaryErrandRecord) {
     },
   };
   return {
-    run: async (overrides: Pick<OpenOrdinaryErrandOptions, "intent" | "inbox"> = {}) =>
+    run: async (overrides: Pick<OpenOrdinaryErrandOptions, "intent" | "inbox" | "type"> = {}) =>
       openOrdinaryErrand({ ...options, ...overrides }),
     read: () => ({ record: basis.get(record.slug), provisioned }),
+    branch: () => branch,
   };
 }
 
 describe.each([["paused", paused], ["awaiting-merge", awaiting]] as const)("%s resume continuity remedies", (_state, makeRecord) => {
+  it("preserves the recorded nature-type when no type is supplied", async () => {
+    const original = makeRecord();
+    const record = parseOrdinaryErrandRecord({ ...original, branch: "fix/fix-output",
+      ...(original.state === "awaiting-merge" ? { changeRequest: { ...original.changeRequest, headRef: "fix/fix-output" } } : {}) });
+    const fixture = resumeFixture(record);
+    expect(await fixture.run()).toMatchObject({ outcome: "applied", identity: { branch: record.branch, claimId: record.claimId } });
+    expect(fixture.branch()).toBe(record.branch);
+  });
+
+  it("refuses an explicit type change without modifying the generation and resumes after correction", async () => {
+    const fixture = resumeFixture(makeRecord());
+    const original = fixture.read();
+    const refused = await fixture.run({ type: "fix" });
+    expect(refused).toMatchObject({ outcome: "refused", reason: "identity-conflict" });
+    expect(refused.recommendedPromptText).toContain("without --type");
+    expect(fixture.read()).toEqual(original);
+    expect(await fixture.run({ type: "chore" })).toMatchObject({ outcome: "applied" });
+    expect(fixture.branch()).toBe("chore/fix-output");
+  });
   it("names the recorded intent and resumes after omitting the changed intent", async () => {
     const record = makeRecord(); const fixture = resumeFixture(record);
     const refusal = await fixture.run({ intent: "replace the intent" });
@@ -349,12 +371,20 @@ function newOpenFixture() {
     },
   };
   return {
-    run: (overrides: Partial<Pick<OpenOrdinaryErrandOptions, "slug" | "intent" | "protection" | "inbox">> = {}) =>
+    run: (overrides: Partial<Pick<OpenOrdinaryErrandOptions, "slug" | "intent" | "protection" | "inbox" | "type">> = {}) =>
       openOrdinaryErrand({ ...options, ...overrides }),
     read: () => ({ record, provisioned }),
     authority: () => authority,
   };
 }
+
+describe("ordinary Errand branch types", () => {
+  it.each(["fix", "refactor", "hotfix"] as const)("opens a new %s identity on its nature-typed branch", async (type) => {
+    const fixture = newOpenFixture();
+    expect(await fixture.run({ type })).toMatchObject({ outcome: "applied", identity: { branch: `${type}/fix-output` } });
+    expect(fixture.read()).toMatchObject({ record: { branch: `${type}/fix-output` }, provisioned: true });
+  });
+});
 
 describe("invalid ordinary Errand open input remedies", () => {
   it.each([

@@ -6,6 +6,7 @@ import type { InRepoContext } from "./context.js";
 import { transientIO, transientKind, transientReference } from "./transient-common.js";
 import { refuse, runOperation } from "./refusals.js";
 import { lookupTracked } from "./lookup.js";
+import { ERRAND_BRANCH_TYPES } from "../../errand/branch-type.js";
 
 /** Resolve transient handles or allow a tracked-only handle to continue there.
  * @param context - Backend dependencies.
@@ -50,7 +51,7 @@ function lookupBranch(input: LookupInput): string | null {
   return input.kind === "ref" ? input.ref.replace(/^refs\/heads\//u, "").replace(/^refs\/remotes\/[^/]+\//u, "") : null;
 }
 function isTransientLookup(input: LookupInput, claim: CheckoutClaim | null, branch: string | null): boolean {
-  return claim !== null || (branch !== null && branch.startsWith("chore/")) || input.kind === "slug";
+  return claim !== null || (branch !== null && ERRAND_BRANCH_TYPES.some((type) => branch.startsWith(`${type}/`))) || input.kind === "slug";
 }
 function matchesLookup(input: LookupInput, claim: CheckoutClaim | null, branch: string | null, record: TransientIdentityRecord): boolean {
   const kind = transientKind(record);

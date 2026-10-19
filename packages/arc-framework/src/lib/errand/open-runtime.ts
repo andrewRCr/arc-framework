@@ -29,10 +29,12 @@ import {
 } from "./change-request-lifecycle.js";
 import type { ErrandInboxOrigin } from "./inbox-origin.js";
 import type { ErrandOperationResult } from "./operation-result.js";
+import type { ErrandBranchType } from "./branch-type.js";
 
 export interface OpenOrdinaryErrandRuntimeOptions extends ErrandRuntimeStorageOptions {
   readonly cwd: string;
   readonly slug: string;
+  readonly type?: ErrandBranchType;
   readonly intent?: string;
   readonly inbox: ErrandInboxOrigin | null;
   readonly protection: "full" | "partial";
@@ -78,6 +80,7 @@ export async function openOrdinaryErrandAtRuntimeWithDisposition(
 ): Promise<OpenOrdinaryErrandExecution> {
   return openOrdinaryErrandWithDisposition({
     slug: options.slug,
+    type: options.type,
     intent: options.intent,
     inbox: options.inbox,
     protection: options.protection,
