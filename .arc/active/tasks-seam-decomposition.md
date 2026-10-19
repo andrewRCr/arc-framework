@@ -430,20 +430,16 @@ batch thins the origin's draft or spec to its kept units, removing a record that
 members' path under every placement but `direct-member`, which keeps it, rewrites stub dependents, and removes the
 stored map, writing no lineage; and the preview afterward reports the cut landed.
 
-### `[ ]` **4.1 Run an extraction's additive batch — § 6, § 8.6**
+### `[x]` **4.1 Run an extraction's additive batch — § 6, § 8.6**
 
 - _Goal:_ `--extract` stores an extraction's map and members from a started Planning or Active origin that survives —
   its companions staying with it, members free to depend on it, and a dependent free to keep its edge on it — through
   the additive batch a retirement uses.
 
-    - Build `test-first` (one behavior at a time):
-        - a member's seeded edge on the surviving origin passes `meta.depends-on`
-        - the origin's records are unchanged by the additive batch, its `Cohort` among them
-        - no member takes a copy of the origin's task list or notes, every companion staying with the origin
-        - a dependent keeping `[origin]` passes
-        - `--extract` from a stub origin refuses `source-shape`, and a companion sent to a member refuses
-          `companion-disposition`, each through the verb
-        - one new member under a `cohort` placement passes, the origin counted among the members
+- _Outcome:_ The shared additive batch accepts started Planning and Active extraction origins, retains their content,
+  metadata and companions, seeds member edges on the surviving origin, and admits a dependent keeping that edge. The
+  verb refuses stub extraction and redistributed companions with repair-and-retry coverage; one new cohort member
+  counts the surviving origin as its second constituent.
 
 ### `[ ]` **4.2 Thin the origin's draft or spec over records — § 8.6, § 13**
 
