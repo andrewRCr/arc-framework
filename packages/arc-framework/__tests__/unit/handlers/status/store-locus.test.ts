@@ -16,7 +16,7 @@ import { createMemoryRemote } from "../../../helpers/store/sync.js";
 import { ReferenceBackend } from "../../../helpers/store/reference-backend.js";
 async function runStatus(slug: string, opts: StatusCliOptions, store: Store, ports: StoreLifecycleStatusPorts & { sync?: StoreSyncPort } = {}) {
   const context = await createTestStatusContext({ store, sync: ports.sync });
-  return handleLifecycleStatus(context, slug, opts, ports);
+  return handleLifecycleStatus(context, slug, opts, { readRoster: async () => [], ...ports });
 }
 afterEach(() => { vi.restoreAllMocks(); process.exitCode = undefined; });
 it("refuses a disputed named primary while preserving healthy and missing queries, then resumes after resolution", async () => {

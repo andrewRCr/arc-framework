@@ -8,10 +8,12 @@ import { createLocusPorts } from "../../lib/locus/lifecycle-ports.js";
 import { createStoreSyncPort, type StoreSyncPort } from "../../lib/store/operational-sync.js";
 import { describeStorePull } from "../../lib/session-init/store-user-pull.js";
 import type { ProjectReadinessWarning } from "../../lib/status/project-view.js";
+import type { readStatusCheckoutRoster } from "./checkout-roster.js";
 /** Local and synchronization evidence can be supplied by one already-bound invocation. */
 export interface StoreLifecycleStatusPorts {
   findHoldingCheckout?: (slug: string) => Promise<string | null>;
   readInFlightWarnings?: () => Promise<string[]>;
+  readRoster?: (identity: string) => ReturnType<typeof readStatusCheckoutRoster>;
 }
 /** Refresh Store state before acquiring the lifecycle and checkout facts to render. */
 export async function pullStoreStatus(ports: { sync?: StoreSyncPort } = {}): Promise<ProjectReadinessWarning[]> {

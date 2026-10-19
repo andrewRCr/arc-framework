@@ -327,27 +327,16 @@ first; the flags' help text stays until the cutover rewrites it.
   and constructs no store. Existing store consumers use production contexts with scripted identity evidence. The
   registered CLI exercise observes the selected store's refreshed owner, with existing in-repo status coverage retained.
 
-### `[ ]` **4.4 Read the slug query's state, derived position, and scope window from the store — § 4**
+### `[x]` **4.4 Read the slug query's state, derived position, and scope window from the store — § 4**
 
 - _Goal:_ From the flip `arc status <slug>` reports the state the standing entries give, its derived position and scope
   window read as the in-repo arm reads them, and a paused work unit's null window, with the roster read through the
   derived locus probe given the arm's store and the context's identity.
 
-    - Build the state read's index from Task 3.1's standing entries through the builder `readLifecycleView` uses
-      (`buildLifecycleIndexFromRecords` over its entries), extracted and exported from `lib/store/lifecycle-view.ts`:
-      that function's module is a raw state helper, which only `lib/store/` imports without raising a
-      `store-raw-state` count, and the arm already holds its one. The builder takes `lifecycleArtifactPath`'s signature
-      as it stands when this lands, awaiting it where the projection's change has made it asynchronous.
-    - `readDerivedSlugPosition` and `projectScopeWindow` (`lib/status/slug-position.ts`) take the arm's checkout path
-      field only to decide whether to read the roster, and the record's pause; a failed roster read's warning joins the
-      arm's warnings. The pull uses Task 4.1's text.
-    - A new production or test file importing `DerivedCheckoutRow` or `DerivedLocusFrame` joins
-      `integration/locus-dormant-foundation-contract.test.ts`'s inventory.
-    - Build `test-first` (one behavior at a time):
-        - a reused slug reports its live holder's state
-        - `--json` carries `derivedPosition` and `scopeWindow` over a roster double, and text prints their lines
-        - the production roster read hands `runDerivedLocusStateProbe` the arm's store and identity
-        - a paused work unit's window is null on the `lifecycle` basis
+- _Outcome:_ Slug state uses standing entries through the shared lifecycle-view index builder. Derived position and scope
+  render in text and JSON, with pause overriding checkout scope and roster failures retaining their repair route.
+  The shared production roster adapter resolves store-only metadata and identity-scoped claims; its new imports are
+  recorded in the foundation inventory.
 
 ### `[ ]` **4.5 Freshness and the slug query** — validate exit criterion at segment scope
 

@@ -11,10 +11,11 @@ import type { StoreRefusal } from "../../lib/store/refusal.js";
 import type { LifecycleIndexOutcome } from "../../lib/store/lifecycle-index.js";
 import type { Store } from "../../lib/store/contract.js";
 import type { StoreSyncPort } from "../../lib/store/operational-sync.js";
-import { readLifecycleView } from "../../lib/store/lifecycle-view.js";
+import { readLifecycleView, buildLifecycleViewIndex } from "../../lib/store/lifecycle-view.js";
+import { selectStandingLifecycleEntries } from "../../lib/status/store-project-standing.js";
 import { readLifecycleDesign } from "../../lib/store/lifecycle-design.js";
 import { readWorkUnit, usesOffBranchState } from "../../lib/store/lifecycle-write.js";
-import { ParsedMetaRecordSchema } from "../../lib/active/meta-schema.js";
+import { MetaPauseSchema, ParsedMetaRecordSchema, type MetaPause, type ParsedMetaRecord } from "../../lib/active/meta-schema.js";
 import { ParsedDesignRecordSchema } from "../../lib/store/kinds/design/index.js";
 import { extractPurposeSentence, readWorkUnitPurpose } from "../../lib/status/work-unit-purpose.js";
 import {
@@ -23,8 +24,7 @@ import {
   type DerivedSlugPosition,
   type ScopeWindowFact,
 } from "../../lib/status/slug-position.js";
-import { readConfigSettings } from "../../lib/config/status-reader.js";
-import { runDerivedLocusStateProbe } from "../derived-locus-state-probe.js";
+import { readStatusCheckoutRoster } from "./checkout-roster.js";
 import { resolveCallerComposedLifecycleIndex } from "../../lib/work-unit/composed-lifecycle-index.js";
 import { resolveSlugQuery, type SlugStateQuery } from "../../lib/work-unit/lifecycle-query.js";
 import {
@@ -50,7 +50,7 @@ export async function handleLifecycleStatus(
 ): Promise<void> {
   const { cwd, exec, store } = context;
   if (store !== undefined && usesOffBranchState(store)) {
-    await handleStoreLifecycleStatus(store, slug, opts, { cwd, exec, sync: context.storeSync }, ports);
+    await handleStoreLifecycleStatus(store, slug, opts, { cwd, exec, identity: context.identity, sync: context.storeSync }, ports);
     return;
   }
   const json = Boolean(opts.json);
@@ -84,7 +84,7 @@ export async function handleLifecycleStatus(
     exec,
   });
   const derived = await readDerivedSlugPosition({
-    slug, worktreePath, identity, readRoster: (id) => readCheckoutRoster(cwd, exec, id),
+    slug, worktreePath, identity, readRoster: (id) => readStatusCheckoutRoster({ cwd, exec }, id),
   });
   const scopeWindow = projectScopeWindow(query.state, derived.position);
   const warnings = [
@@ -181,13 +181,6 @@ function formatDerivedStage(position: DerivedSlugPosition): string {
   ].filter((part): part is string => part !== null).join(" · ");
 }
 
-/** Bind the checkout roster read to the derived locus reader. */
-async function readCheckoutRoster(cwd: string, exec: GitExec, identity: string) {
-  const { settings } = await readConfigSettings(cwd);
-  const frame = await runDerivedLocusStateProbe({ cwd, identity, baseBranch: settings["branch.base"], exec });
-  return frame.roster;
-}
-
 async function resolveSlugOperationalBoundary(options: {
   slug: string;
   state: SlugStateQuery["state"];
@@ -241,7 +234,7 @@ async function resolveSlugOperationalBoundary(options: {
 
 /** Render lifecycle truth without composing code-ref or materialized-artifact evidence. */
 async function handleStoreLifecycleStatus(store: Store, slug: string, opts: StatusCliOptions,
-  local: { cwd: string; exec: GitExec; sync?: StoreSyncPort }, ports?: StoreLifecycleStatusPorts): Promise<void> {
+  local: { cwd: string; exec: GitExec; identity: string | null; sync?: StoreSyncPort }, ports?: StoreLifecycleStatusPorts): Promise<void> {
   const refreshWarnings = opts.fetch === true ? (await pullStoreStatus(local)).map(warning => warning.rendered) : [];
   const view = await readLifecycleView(store);
   if (view.status === "refused") {
@@ -259,21 +252,40 @@ async function handleStoreLifecycleStatus(store: Store, slug: string, opts: Stat
       remedy: { text: "Resolve the named conflict records, then retry this status query." } }, opts);
     return;
   }
-  const query = resolveSlugQuery(view.result.index, record.status === "ok" ? record.result.reference.owner.name : slug);
-  const fields = record.status === "ok" ? ParsedMetaRecordSchema.safeParse(record.result.fields) : undefined;
+  const standing = selectStandingLifecycleEntries(view.result.entries,
+    view.result.listing.status === "complete" ? view.result.listing.diagnostics : []);
+  const query = resolveSlugQuery(buildLifecycleViewIndex(standing.entries), record.status === "ok" ? record.result.reference.owner.name : slug);
+  const fields = storeQueryMetaFields(record);
   const design = record.status === "ok" ? await readLifecycleDesign(store, record.result) : { record: null, content: null, warnings: [] };
   const locus = await readStoreStatusLocus({ ...local, store, slug: query.slug }, ports);
-  const warnings = [...design.warnings, ...lifecycleListingWarnings(view.result.listing), ...locus.warnings, ...refreshWarnings];
+  const derived = await readDerivedSlugPosition({ slug: query.slug, worktreePath: locus.worktreePath, identity: local.identity,
+    readRoster: ports?.readRoster ?? (identity => readStatusCheckoutRoster({ ...local, store }, identity)) });
+  const scopeWindow = projectScopeWindow(query.state, derived.position, storeQueryPause(fields));
+  const warnings = [...design.warnings, ...lifecycleListingWarnings(view.result.listing),
+    ...standing.warnings.map(warning => warning.rendered), ...locus.warnings, ...derived.warnings, ...refreshWarnings];
   const designFields = ParsedDesignRecordSchema.safeParse(design.record?.fields);
   const purpose = extractPurposeSentence(designFields.success ? designFields.data.purpose : null);
-  const output = { ...query, purpose, owner: fields?.success === true ? fields.data.owner : null,
-    integrationBoundary: null, ...(locus.worktreePath === undefined ? {} : { worktreePath: locus.worktreePath }), ...(warnings.length === 0 ? {} : { warnings: [...new Set(warnings)] }) };
+  const output = { ...query, purpose, owner: fields?.owner ?? null,
+    integrationBoundary: null, derivedPosition: derived.position, scopeWindow,
+    ...(locus.worktreePath === undefined ? {} : { worktreePath: locus.worktreePath }), ...(warnings.length === 0 ? {} : { warnings: [...new Set(warnings)] }) };
   if (opts.json) process.stdout.write(`${JSON.stringify(output)}\n`);
   else {
     p.intro("arc status");
-    p.note(formatSlugStateQuery(query, { purpose, worktreePath: locus.worktreePath, warnings }), "Lifecycle state");
+    p.note(formatSlugStateQuery(query, { purpose, worktreePath: locus.worktreePath, warnings,
+      derivedPosition: derived.position, scopeWindow }), "Lifecycle state");
     p.outro("Done.");
   }
+}
+
+function storeQueryMetaFields(record: Awaited<ReturnType<typeof readWorkUnit>>): ParsedMetaRecord | undefined {
+  if (record.status === "refused") return undefined;
+  const parsed = ParsedMetaRecordSchema.safeParse(record.result.fields);
+  return parsed.success ? parsed.data : undefined;
+}
+
+function storeQueryPause(fields: ParsedMetaRecord | undefined): MetaPause | undefined {
+  const pause = fields?.pause;
+  return pause === null || pause === undefined ? undefined : MetaPauseSchema.parse(pause);
 }
 
 /** Retain readable query diagnostics without imposing write completeness. */
