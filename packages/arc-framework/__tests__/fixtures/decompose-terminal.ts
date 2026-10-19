@@ -11,9 +11,10 @@ import type { CutMap } from "../../src/lib/decompose/cut-map-schema.js";
 
 /** Land the production additive batch, optionally with an existing home or a surviving origin. */
 export async function createDecomposeTerminalFixture(options: {
-  withHome?: boolean; started?: boolean; extraction?: boolean; provider?: boolean; atCap?: boolean; authorMap?: (map: CutMap) => void;
+  withHome?: boolean; started?: boolean; extraction?: boolean; provider?: boolean; atCap?: boolean; draftContent?: string; authorMap?: (map: CutMap) => void;
 } = {}) {
   const h = await createDecomposeOriginFixture(options.started);
+  if (options.draftContent !== undefined) await h.handEdit(h.draft, options.draftContent);
   if (options.provider) {
     await h.seedStub("provider");
     await h.handEdit(h.primary, writeMetaDependsOn(h.primary.content, ["provider"]));

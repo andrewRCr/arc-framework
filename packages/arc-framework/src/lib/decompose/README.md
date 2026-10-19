@@ -16,6 +16,12 @@ history. `removal-records.ts` closes conflicts through their subjects' removals.
 and existing destinations left edited, binds approval to observed versions, revalidates, and applies only those writes.
 `discard-report.ts` defines its closed preview and application reports.
 
+`acquire-revision.ts` authenticates members once and derives fresh source facts without new-cut guards.
+`revision-starter.ts` emits canonical carried maps or fresh author slots beside preserved authoring. `rebind.ts`,
+`rebind-machine.ts`, and `rebind-units.ts` compare origin identity, profile, unit identity and content, repeated
+headings, and stable edge identities; renamed dependents and providers receive fresh names without losing decisions.
+`revision-starter-report.ts` closes the carried and reauthoring result shapes.
+
 `removal-guards.ts` shares started-member, nested-cut, and held-entry admission with revision. `removal-holders.ts`
 counts the surviving lifecycle state after prepared edits, `removal-edges.ts` protects dependency and pause holders,
 and `removal-cohorts.ts` keeps documents until their open work items and child cohorts leave.

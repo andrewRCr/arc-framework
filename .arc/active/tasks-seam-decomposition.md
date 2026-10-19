@@ -514,39 +514,14 @@ first place to reauthor; and a stored map conflicted by a sync resolves through 
           through the store's metadata parser and preserve incomplete-listing repairs. Each refusal admits its native
           remedy; removed groups and completed holders do not block the count.
 
-### `[ ]` **5.2 Re-bind a changed origin and emit the revision starter — § 9.4, § 9.2**
+### `[x]` **5.2 Re-bind a changed origin and emit the revision starter — § 9.4, § 9.2**
 
 - _Goal:_ `--revise` writes nothing and returns either the complete revised map over a fresh machine half, where the
   only change is to the content of units allocated `drop` or, in an extraction, kept by the origin, or to the source
   kind, or a fresh starter with the stored authoring beside it and the first place to reauthor as a reason and a locus.
-
-    - Carry `refreshV3ExtractionCutMap`'s rule (`decompose-v3-refresh.ts`) to both shapes, over a fresh preflight that
-      leaves out the members task 3.1's member test accepts and skips the two start guards task 2.2 keeps apart from the
-      derivation; an Integrating origin refuses as preflight refuses it, naming `arc reopen <origin>`, then for a
-      retirement `arc deactivate <origin>`, and adding `--discard`, and an archived one terminally.
-    - Edges compare by `edgeId` (§ 3.2): a changed edge is a different set or order of them, where today's rule
-      compares whole edge arrays, so a dependent or provider renamed since carries, the fresh machine half replacing
-      the stored one whole.
-    - A changed source kind with unchanged units carries where the revised map still passes `source-shape` (§ 3.4),
-      and otherwise reauthors at that rule's locus.
-    - The result is canonical JSON: `{status: "carried", map}`, or `{status: "reauthor", reason, locus, starter,
-      storedAuthoring}`, its reasons today's less `result-base`, which pinned Git — `source-identity` (the origin's slug
-      or UID), `planning-profile`, `source-units`, `source-unit-ambiguous`, `incoming-edges`, `outgoing-edges`, and a
-      failing decode rule's code.
-    - Build `test-first` (one behavior at a time):
-        - a changed `drop`-allocated unit, or an extraction-kept one, carries the authoring whole
-        - a renamed dependent or provider carries, as does a stub origin started since, under a shape that takes it
-        - an added or removed unit, a changed unit identity, a changed allocated unit or one under a repeated heading,
-          a changed edge set or order, or a changed origin identity or profile returns the fresh starter and its first
-          place
-        - an Integrating origin refuses, naming `arc reopen <origin>`, then for a retirement `arc deactivate <origin>`,
-          and `--discard`
-        - the derivation's refusals refuse the re-binding as at preflight: an open conflict on the origin's meta or a
-          source record, and an origin no member can be made from
-        - over task 3.7's read-counting wrapper, the starter reads the `history` of the stored map and of each item a
-          member's slug finds once, unchanged over long record histories and many unrelated work items
-        - an item that took a gone member's slug and names the origin yields its incoming edge in the fresh machine half
-        - `--revise` writes nothing
+- _Outcome:_ Added canonical revision reports over one authenticated member pass and fresh source derivation. Rebinding
+  preserves full authoring across compatible byte, kind, and renamed-edge changes, or returns the first changed binding
+  beside fresh slots; source refusals retain their repairs and birth-history reads stay flat as stored histories grow.
 
 ### `[ ]` **5.3 Apply a revision — § 9.2, § 9.3**
 
