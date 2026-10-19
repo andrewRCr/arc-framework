@@ -184,7 +184,7 @@ row to the tasks that build it.
 - _Outcome:_ `preflight.ts` composes fresh acquisition, new-cut admission, and pure machine derivation into canonical
   starter JSON. Repeated reads preserve identical bytes, every record's history, and the store state version.
 
-### `[ ]` **2.4 Bind the completed map and check it before writing — § 6, § 7**
+### `[x]` **2.4 Bind the completed map and check it before writing — § 6, § 7**
 
 - _Goal:_ `--execute` and `--extract` read the completed map once, bind it to a fresh preflight, and refuse before any
   write, naming the repair, every map whose batch the store would refuse or whose result the design forbids.
@@ -225,13 +225,10 @@ row to the tasks that build it.
           lineage and authenticated former names, and discharges satisfied providers. Protected, unmapped, ambiguous, cyclic,
           or self-dependent edges stay outside the plan for the store's slug guard.
 
-    - `[ ]` **2.4.f Purpose**
+    - `[x]` **2.4.f Purpose**
 
-        - Each Purpose is present exactly where the batch creates the document: one missing for a created document, or
-          present for an existing one, refuses, naming its addition or removal in the map.
-        - Build `test-first` (one behavior at a time):
-            - a created `cohort` document without its Purpose refuses, and a reused one with a Purpose refuses
-            - a `subcohort` placement creating its parent requires `parentPurpose`, and one reusing it refuses it
+        - `checkDecomposePurposes` requires a substantive Purpose for each new cohort document and refuses Purpose fields
+          for reused documents, with independent parent and child decisions and exact map loci for addition or removal.
 
 ### `[ ]` **2.5 Write the additive batch — § 6, § 12, § 13**
 

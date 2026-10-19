@@ -56,3 +56,6 @@ provider names taken by members require owner settlement before a fresh prefligh
 lineage recursively, discharges completed or Integrating providers, and retains each observed record version.
 `retired-lineage.ts` resolves authenticated terminal former names; protected or unresolved edges remain for the store's
 slug guard to refuse.
+
+`check-purposes.ts` requires a substantive Purpose only for newly created cohort documents, checking a subcohort's
+parent separately and directing edits to reused documents through write-back.
