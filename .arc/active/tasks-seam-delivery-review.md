@@ -70,7 +70,7 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
           require full settlement coverage; fixes require matching performance. Outdated predecessor outcomes do not
           carry passes, while current unsettled findings still count as finished.
 
-### `[ ]` **1.3 Build `review/decision`, its envelope, and its content key — § 5.1, § 5.2, § 5.4, § 5.10**
+### `[x]` **1.3 Build `review/decision`, its envelope, and its content key — § 5.1, § 5.2, § 5.4, § 5.10**
 
 - _Goal:_ A decision record carries one person's choice about an exact review subject in one envelope, keyed by a
   digest of its content so the same decision recorded twice names one record, and its parser and write check refuse an
@@ -82,22 +82,12 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
           carry their counted basis; approved-fix decisions retain the original producer and logical ordinal and reuse
           the production authorization key. Historical attribution stays nullable except for the required authorizer.
 
-    - `[ ]` **1.3.b The write check**
+    - `[x]` **1.3.b The write check**
 
-        - Build `test-first` (one behavior at a time):
-            - a decision stored under a key its envelope does not recompute refuses
-            - a withdrawal citing no decision on the same work item, or citing a withdrawal, refuses
-            - a withdrawal of an `approved-fix` extra pass refuses once a stored outcome cites it as `admittedBy`, or
-              when the withdrawer is not its decider, and passes beside an approved successor disposition set for its
-              result
-            - an `approved-fix` extra pass whose producer is no stored, finished outcome on the decision's lineage at
-              its `exhaustedPassCount` and `originatingHeadSha` refuses, as `validateAuthorizations`
-              (`rg/core/lane-progress-state-validation.ts`) refuses it today
-            - a listing that is unreadable or missed entries refuses
-
-        - A withdrawal its in-flight admission consumed, and one after a successor disposition set for its result was
-          approved, stay the withdrawing verb's refusals (5.4; `notes-seam-delivery-review.md` § Rules a write check
-          cannot see).
+        - The registered check binds content keys and approved-fix grants to stored finished producers. Withdrawals
+          require an existing decision on the same work item, the original approved-fix authorizer, and no outcome
+          citing that grant. Related listings must be complete and parseable; in-flight and successor timing remain
+          with the withdrawing verb.
 
 ### `[ ]` **1.4 Build `review/evidence` and its succession rules — § 6.2, § 6.3, § 6.5**
 
