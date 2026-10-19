@@ -189,17 +189,11 @@ row to the tasks that build it.
 - _Goal:_ `--execute` and `--extract` read the completed map once, bind it to a fresh preflight, and refuse before any
   write, naming the repair, every map whose batch the store would refuse or whose result the design forbids.
 
-    - `[ ]` **2.4.a Read and bind**
+    - `[x]` **2.4.a Read and bind**
 
-        - Decode the map (task 1.2); a version-3 map refuses, naming `--preflight`.
-        - Repeat preflight and require the map's machine half to equal the fresh one, refusing otherwise, naming
-          `--preflight` for a fresh starter.
-        - `--execute` refuses an extraction map, naming `--extract`, and `--extract` a retirement map, naming
-          `--execute`, each as a typed action carrying the map's path.
-        - Build `test-first` (one behavior at a time):
-            - each refusal fires, and the checks pass after its remedy
-            - the wrong flag's typed action carries the map's path
-            - preflight's refusals fire again here, a held entry and an open conflict among them
+        - `bindDecomposeMap` decodes completed maps, repeats fresh admission, and binds the complete machine. Unsupported
+          and stale maps name a fresh preflight; flag corrections retain the exact map operand in typed argv.
+        - Held entries, source conflicts, and a stored cut refuse again at binding and admit the same map after repair.
 
     - `[ ]` **2.4.b Names — D14**
 

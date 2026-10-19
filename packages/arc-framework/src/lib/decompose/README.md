@@ -29,3 +29,6 @@ source conflicts before requiring complete inventory so a conflicted meta retain
 
 `preflight.ts` repeats new-cut admission over fresh observations and emits a canonical starter map with author slots
 for every source and dependency decision, without changing any record or history.
+
+`bind-map.ts` decodes completed maps and compares their complete machine with freshly admitted preflight facts.
+Wrong-shape continuations carry the supplied map operand unchanged; stale and unsupported maps name a fresh preflight.

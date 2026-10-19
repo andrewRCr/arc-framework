@@ -1,7 +1,7 @@
 import { digestBytes } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { scanV3DecomposeContent } from "../../src/lib/work-unit/decompose-content.js";
 import { CutMapSchema, type CutMap } from "../../src/lib/decompose/cut-map-schema.js";
-import { cutSourceId, cutIncomingEdgeId, cutOutgoingEdgeId, cutPreflightId } from "../../src/lib/decompose/cut-map-machine.js";
+import { cutSourceId, cutIncomingEdgeId, cutOutgoingEdgeId, cutPreflightId, type CutMapMachine } from "../../src/lib/decompose/cut-map-machine.js";
 
 /** Completed record-bound map with scanner-derived source units and two of each edge. */
 export function cutMapFixture(): CutMap {
@@ -60,4 +60,18 @@ export function cutExtractionFixture(): CutMap {
 export function rebindCutFixture(value: CutMap): void {
   const { origin, sourceKind, planningProfile, sourceUnits, incomingEdges, outgoingEdges } = value.machine;
   value.machine.preflightId = cutPreflightId({ origin, sourceKind, planningProfile, sourceUnits, incomingEdges, outgoingEdges });
+}
+
+/** Complete a freshly observed machine with covered new members and explicit edge dispositions. */
+export function completeCutMapFixture(machine: CutMapMachine, extraction = false): CutMap {
+  const map = extraction ? cutExtractionFixture() : cutMapFixture();
+  map.machine = machine;
+  map.authoring.sourceAllocations = machine.sourceUnits.map(({ sourceId, sourceLocator }) => ({ sourceId,
+    ownership: "destination-owned", disposition: { kind: "target", destinationId: "member-a",
+      targetLocator: { ...sourceLocator, artifact: "draft-member-a.md" } } }));
+  map.authoring.incomingDispositions = machine.incomingEdges.map(({ edgeId }) => ({ edgeId,
+    disposition: { kind: "replace", replacementTargets: [extraction ? machine.origin.slug : "member-a"] } }));
+  map.authoring.outgoingDispositions = machine.outgoingEdges.map(({ edgeId }) => ({ edgeId,
+    disposition: { kind: "targets", targets: [extraction ? "member-a" : "member-b"] } }));
+  return map;
 }
