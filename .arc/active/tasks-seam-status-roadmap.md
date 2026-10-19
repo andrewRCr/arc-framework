@@ -373,6 +373,11 @@ one renderer, built in Task 3.6: stderr `Error [<code>]: <condition> <remedy>` a
             - a rename chain returning to a name it passed
         - Build `test-first` (one behavior at a time):
             - an edge naming a renamed work unit's former slug classifies against that work unit
+            - a multi-hop lineage rename resolves to its standing work unit, with an unsatisfied edge classified and
+              banded below that work unit and its written name preserved in the row and facts
+            - a lineage rename chain ending at an absent name warns as dangling
+            - a lineage rename cycle terminates with an unsatisfied edge and `store-read-failed`, carrying its
+              condition and remedy through the composed project result
             - an edge reaching a completed holder of a reused slug through its former slug is satisfied
             - an edge naming a decomposed origin warns with the dependent's replacements, and an unmapped dependent's warns
               naming the `Depends On` edit
@@ -645,23 +650,46 @@ were not read with no identity, and writes `{ conflicts, warnings }` with `--jso
       the remainder after three segments; Task 7.4 reuses it.
     - Each listing passes its kind, and no owner but the personal and claims families', which name the identity; with
       none they list `absent` and the view warns that those two were not read, naming `git config arc.identity <name>`.
+    - A refused `store.list` or an `unreadable` listing refuses through the shared renderer with its condition and
+      remedy. An `absent` listing is empty. A complete listing's diagnostics become warnings naming the family and
+      each omitted record's key, condition, and remedy; `missed: true` without diagnostics warns that the family is
+      incomplete, naming repair of its inventory and `arc status --conflicts` to retry. Good records remain visible.
     - Decode each record's content against `ConflictRecordSchema`; one that does not decode is omitted with a warning
       naming its token and `arc store conflict`.
     - Build `test-first` (one behavior at a time):
         - conflicts of each shape across a project, a work-item, and a personal family list with their tokens
         - with no identity, the personal and claims families are not read and the view warns
+        - with two persons' records present, personal and claims listings receive the resolved person's owner and
+          include only that person's conflicts
+        - a refused or `unreadable` family listing refuses with its condition and remedy
+        - an `absent` family listing adds no records or read-failure warning
+        - a complete listing with diagnostics shows its good records and every omission's family, key, condition,
+          and remedy; `missed` without diagnostics adds the family-incomplete warning
         - a record that does not decode is omitted with its warning
         - the token round-trips through format and parse, an ID holding `/` among them
 
 ### `[ ]` **6.3 Show the conflicts one token names — § 5**
 
-- _Goal:_ With a token, the view lists that family's conflict-record kind with no owner in the input and shows each
-  conflict whose owner type, owner name, and ID match, each owner where several do.
+- _Goal:_ With a token, the view retains the resolved person's scope for personal and claims, lists other families'
+  conflict-record kinds without an owner, and shows each matching owner without treating an incomplete read as absence.
 
-    - An unknown token refuses through the shared renderer, naming `arc status --conflicts`.
+    - Personal and claims listings use the resolved person's owner, never the token's person; without an identity the
+      token request refuses, naming `git config arc.identity <name>`. Other families list without an owner so a live
+      and a completed holder of one name both remain visible. Match the token's owner type, owner name, and ID.
+    - Apply Task 6.2's listing and decode handling to the requested family. A found match renders with its warnings;
+      with no match after a diagnostic, `missed`, or a decode failure, refuse as an incomplete read with those warnings
+      and the repair route. Only a read without omissions permits an unknown-token refusal, naming
+      `arc status --conflicts`; another person's token then matches nothing in an identity-scoped family.
     - Build `test-first` (one behavior at a time):
         - a token names a completed and a live holder's conflicts under one name, and both show
-        - an unknown token refuses naming the listing
+        - personal and claims token queries list with the resolved person's owner, showing that person's token and
+          refusing another person's as unknown after a complete read
+        - a personal or claims token request without an identity refuses naming the identity command
+        - a refused or `unreadable` listing refuses with its condition and remedy
+        - an unknown token after a complete read or an `absent` listing refuses naming the listing
+        - a match in a listing with diagnostics renders with the omission warnings
+        - no match after diagnostics, `missed` without diagnostics, or a record's decode failure refuses as incomplete
+          with the repair route, never as an unknown token
 
 ### `[ ]` **6.4 Render each conflict shape, and its `--json` result — § 5**
 
@@ -676,6 +704,8 @@ were not read with no identity, and writes `{ conflicts, warnings }` with `--jso
         - each of the three shapes renders its fields and both labels
         - a whole-record side that removed the record says so
         - `--json` carries each record with its token
+        - text and `--json` retain each listing diagnostic and the `missed` warning beside good records; failed token
+          reads retain their condition and repair route
 
 ### `[ ]` **6.5 The conflict view** — validate exit criterion at segment scope
 
@@ -853,3 +883,10 @@ its code. `notes-seam-status-roadmap.md` § Phase 7 — `arc view` records the p
   count at the final merged base.
 - `[ ]` All quality gates pass (tests, linting, type checking)
 - `[ ]` Ready for integration
+- `[ ]` Personal and claims conflict-token queries retain the resolved person's owner, never the token's person;
+  another person's token is unknown only after a complete read, and either family's token request with no identity
+  refuses naming how to set one, while other families still show each holder of a reused name (spec A1).
+- `[ ]` Conflict listings preserve refused, `unreadable`, `absent`, and complete outcomes in list and token modes:
+  failures refuse with their condition and remedy, complete listings warn for diagnostics and `missed` beside good
+  records, and no token match after omissions or a decode failure refuses as incomplete with its repair route, never
+  as unknown; text and `--json` retain those warnings (spec A2).

@@ -269,6 +269,15 @@ Where another work unit's open task edits a file or contract this change shares 
 
 ## Grounding baseline for the task list
 
+**Shipped baseline, 2026-10-19.** `main` at `efd3442b4` is merged by `852011644`, carrying the shipped locus and
+projected Markdown checks. `SessionStatusContext` still carries the injected `store` and `storeSync`, and
+`createSessionStatusContext` still accepts `operational`; `pullStoreStatus` consumes that port.
+`PullResultSchema` (`lib/store/operational-sync.ts`) still has neither `incomplete` nor notices, so Task 4.1.b's
+conditional binding check remains necessary. `deriveStoreInFlight` now emits a `ref-enumeration-failed` warning on
+failed local-ref enumeration, alongside `degraded` and `indeterminate` marks; Task 5.1 forwards the warning and adds
+its degraded-slice warning. `readDerivedLocusStateSnapshot` accepts an optional version reader; its existing one-argument
+call remains valid. The dated planning baseline below records the earlier source versions.
+
 `tasks-seam-status-roadmap.md` was grounded on 2026-10-17 against `main` at `a28e626d4` merged in memory with the local
 `feat/seam-locus` at `aeceda7dc`, 53 commits ahead of its remote and still in verification, and re-checked at
 `aabc7f17c`, whose three later commits change only `deriveStoreInFlight`'s Errand location, which the user view drops.
@@ -424,6 +433,9 @@ baseline above.
 - **User view.** `deriveStoreInFlight` returns `reachable: false`, so the arm from the flip bypasses
   `runStatusUserView`'s cache branch and passes no `writeFile`. Its degraded mark comes with a specific warning except
   for a failed read of local refs. `isMine` is module-private.
+
+  The shipped baseline above supersedes the local-ref warning exception: `deriveStoreInFlight` now warns for that
+  failure too.
 - **Conflict records.** No parser is registered for the conflict kinds, so a listing carries raw `content`: decode with
   `JSON.parse` and `ConflictRecordSchema.safeParse`, as `entryConflictReason` (`lib/inbox/conflicts.ts`) does. The ID is
   the record's reference key, not a field. A `work-item` listing with no kind refuses `unsupported` in-repo, so always
@@ -449,6 +461,10 @@ baseline above.
   (`readViewArtifactContent`, `viewArtifactDisplayLabel`, `viewArtifactFileRefusal`, all in
   `lib/view/started-artifacts.ts`); a store-content result needs its own discriminator so the ref refusal never fires
   for it.
+- **Warnings at each destination.** `runView` (`commands/view/run.ts`) dispatches `--editor` and `--path` before
+  `prepareViewDocument`; `openArtifactInEditor` and `artifactPathOutput` currently return empty stderr on success.
+  Task 7.4's artifact warnings must reach those destinations as well as content rendering. Check each destination
+  with a conflicted projected record, keeping `--path` stdout a usable path and its warning on stderr.
 - **The default target's placement.** Locus's arm of `resolveAmbientTarget` returns placement `active` and
   `taskListPath: null` for any resolved claim, reading no placement, so the arm from the flip takes only the claim's slug
   and reads the work unit as `--for` does.
@@ -469,5 +485,36 @@ baseline above.
   temporary directory or lib-level dependencies.
 - **Ratchet.** `handlers/view.ts` holds `store-raw-state` 2 and `lib/view-artifact.ts` `surface-names` 2 and
   `work-unit-paths` 2; the arms from the flip add no surface literal or work-unit address outside `lib/store/`.
+
+## A1 — Identity-scoped conflict tokens
+
+The 2026-10-19 task audit found that `listReference` (`__tests__/helpers/store/read.ts`) checks identity presence for
+identity-scoped families but does not filter owners unless its input names one. A two-person in-memory probe returned
+both owners from an ownerless `personal/conflict-record` listing and only the resolved person with an explicit owner.
+`OwnerIdentitySchema` (`lib/store/identity.ts`) gives a person no UID, so preserving that owner loses no completed
+generation. The approved correction retains the resolved-person owner in personal and claims token queries, while
+other families keep ownerless reads to retain both live and completed holders.
+
+The superseded § 5 token rule began: "With a token it lists that family's conflict-record kind the same way, with no
+owner in the input" and concluded that "the view never names the owner in the listing's input." Task 6.3's original
+Goal was:
+
+> With a token, the view lists that family's conflict-record kind with no owner in the input and shows each
+> conflict whose owner type, owner name, and ID match, each owner where several do.
+
+The approved forward amendment replaces that Goal's universal ownerless requirement with the identity exception.
+The existing Success Criteria remain intact; appended criteria make the scoped behavior independently checkable.
+
+## A2 — Conflict-listing completeness
+
+`ListingOutcomeSchema` (`lib/store/read.ts`) distinguishes `absent`, `unreadable`, and `complete`, the last carrying
+diagnostics and `missed`. `listReference` withholds a diagnosed record before returning its records, so content decoding
+cannot warn for it. The same in-memory probe produced a complete listing with an `unknown-format-version` diagnostic
+and `missed: true`, then an `unreadable` family result after its family index was marked unreadable.
+
+The approved policy follows the project view's failure distinction: failures refuse with the repair route, readable
+partial listings retain good records with omission warnings, and a token's absence is conclusive only after an
+omission-free read. A content-decode failure also prevents a no-match result from proving an unknown token. The
+correction stays inside § 5, its implementing tasks, and appended acceptance criteria; it changes no Store contract.
 
 ---

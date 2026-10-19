@@ -574,11 +574,23 @@ operational-boundary read other changes add to it (§ 12). This change alters fo
 - **With no token** it lists every open conflict of a listed item across the ten families' conflict-record kinds
   (`lib/store/catalog.ts`), each listing but the identity-scoped two given no owner in its input (`ListInputSchema`,
   `lib/store/read.ts`). An abandoned or cut item's retained conflicts reach status only as its pull's notice (§ 2.4).
-- **With a token** it lists that family's conflict-record kind the same way, with no owner in the input, and matches the
-  token's owner type, owner name, and ID itself. An owner named without its UID resolves to a single holder, the live
-  one first (`listReference`, `__tests__/helpers/store/read.ts`), which would hide a completed holder of the same name,
-  so the view never names the owner in the listing's input. Where several owners match it shows each. An unknown token
-  refuses, naming `arc status --conflicts` to list them.
+- **With a token** it lists that family's conflict-record kind with the same identity scope as the unfiltered view
+  (A1). The `personal` and `claims` listings name the resolved person as owner, never the person written in the token;
+  without an identity the request refuses, naming `git config arc.identity <name>`. Other families list with no owner
+  in the input and match the token's owner type, owner name, and ID themselves: an owner named without its UID resolves
+  to a single holder, the live one first (`listReference`, `__tests__/helpers/store/read.ts`), which would hide a
+  completed holder of the same name. Where several owners match it shows each. A token outside the resolved person's
+  identity scope matches nothing. An unknown token refuses, naming `arc status --conflicts` to list them, only after
+  its in-scope family was read without omissions.
+- **Listing failures and omissions** stay distinct from absence (A2). A refused `store.list` or an `unreadable`
+  `ListingOutcome` refuses the command through the shared renderer with its condition and remedy, in list and token
+  modes. An `absent` listing is empty. A `complete` listing's diagnostics become warnings naming the family, each
+  omitted record's key, condition, and remedy; `missed: true` with no diagnostics adds a warning that the family is
+  incomplete and asks to repair its inventory and retry `arc status --conflicts`. Good records remain visible beside
+  those warnings. `ListingOutcomeSchema` (`lib/store/read.ts`) carries these outcomes separately from record content.
+  In token mode a match may render with the warnings, but no match after a diagnostic, `missed`, or a content-decode
+  failure refuses as an incomplete read, carrying the warnings and repair route, rather than claiming an unknown
+  token. Only the requested family's omissions affect that token lookup.
 - **Each conflict shows** its token, its subject record, both sides' labels, and both sides' content: for a hunk the
   line range, the base text, and each side's content; for an entry its ID, its base section, and each side's section
   and content; for a whole record each side's value, or that the side removed it.
@@ -860,6 +872,10 @@ but `arc rename` resolves its subject by slug (§ 2.1).
 | `--conflicts` before the flip (§ 5)                                                                    | `git status`, where a tracked file's conflict shows                                 | text |
 | `--conflicts <conflict>` with an unknown token (§ 5)                                                   | `arc status --conflicts`                                                            | text |
 | `--conflicts` with no identity resolved (§ 5)                                                          | `git config arc.identity <name>`                                                    | text |
+| A refused or `unreadable` conflict listing (§ 5)                                                       | its own remedy, then `arc status --conflicts`                                       | text |
+| A complete conflict listing's diagnostic (§ 5)                                                         | the diagnostic's own remedy                                                         | text |
+| A conflict listing with `missed` and no diagnostics (§ 5)                                              | repair that family's inventory, then `arc status --conflicts`                       | text |
+| A conflict token with no match after omissions (§ 5)                                                   | the omission warnings' repair routes, then `arc status --conflicts`                 | text |
 | A record with open conflicts (§ 6.3)                                                                   | `arc status --conflicts <conflict>`, for each                                       | text |
 | A conflict record whose content does not decode (§ 5)                                                  | `arc store conflict`, which inspects and discards it                                | text |
 | An edge naming a retired origin, its dependent unmapped (§ 2.2)                                        | edit the dependent's `Depends On`                                                   | text |
@@ -1153,6 +1169,17 @@ holds until then is stated with it.
 14. **The ratchet holds:** no `store-raw-state`, `surface-names`, or `work-unit-paths` count in
     `eslint-suppressions.json` exceeds its count at the final merged base.
 15. **The quality gates pass** at every gate the project declares.
+16. **Identity-scoped conflict tokens (A1).** With two persons' conflicts in the reference backend, a token query
+    lists `personal` or `claims` with the resolved person's owner, shows only that person's matching records, and
+    refuses the other person's token as unknown after a complete read. With no identity, either family's token
+    request refuses with `git config arc.identity <name>`; the unfiltered view still lists other families with its
+    identity warning. Ownerless queries of other families still show both live and completed holders of one name.
+17. **Conflict-listing completeness (A2).** In list and token modes, refused and `unreadable` listings refuse with
+    their condition and remedy; `absent` listings are empty. Complete listings show their good records and warn for
+    every diagnostic with its family, key, condition, and remedy, and for `missed` without diagnostics. A token match
+    renders with any such warnings; no match after diagnostics, `missed`, or a decode failure refuses as an incomplete
+    read with the repair route. A complete, omission-free read alone permits an unknown-token refusal. Text and
+    `--json` retain the warnings; no partial read appears as a complete empty result.
 
 ## Open Questions
 
@@ -1161,6 +1188,9 @@ this design open.
 
 ## Amendments
 
-None.
+- **A1** — 2026-10-19 — design: token queries retain the resolved identity's scope.
+  _Supersedes:_ § 5 token rule; Task 6.3 Goal. _Trigger:_ F1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A2** — 2026-10-19 — spec-depth: conflict listings preserve failures and omissions.
+  _Supersedes:_ none. _Trigger:_ F2 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---
