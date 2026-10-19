@@ -477,20 +477,25 @@ alone.
   the retired-attempt reason and foreign records retain their identity reason; a mapped live attempt still decodes
   through the complete native schema. The repository's actual-live pass now completes without decoding unused findings.
 
-### `[ ]` **3.8 The import's mapping** — validate exit criterion at segment scope
+### `[x]` **3.8 The import's mapping** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds over this repository's review records on a freshly merged base.
 
-    - Run through the import's trial where it landed first (`arc store migrate --import --trial`), or otherwise through
-      an uncommitted harness that builds the port's input from this checkout as § 11 states it.
-    - Run the diagnostic pass through the same harness with every table row marked live, a live Errand row added for
-      each claim ID the review gate's lineages name, and the archived Candidates supplied, and record its counts by kind
-      and its left-behind reasons in the task's outcome, the Candidate versions today's reader refuses counted under
-      their reason.
-    - In the diagnostic pass, compare the supersession chain read through the mapped records of each supplied Candidate
-      whose versions all map with `readRepositoryCandidateSupersessionChain`'s, and record the result beside the counts,
-      a Candidate with a version left behind counted under that version's reason; today no live work unit holds a
-      Candidate, so this is where the chain check meets real records.
+- _Outcome:_ The uncommitted port harness ran at `02d50eef5`, merging base `e6856533f`, over 2,206 gate files,
+  272 work units, one actual Errand, and 324 archived Candidate versions. Actual live ownership left every gate file
+  behind. The diagnostic's 257 live Errand claims yielded 505 outcomes, 228 evidence records, 115 decisions, 26
+  Candidates, and 31 boundaries; every version parsed and passed its registered write checks over the complete set.
+  Independent source assertions preserved all 505 eligible ended attempts, 228 disposition sets, 41 authorizations,
+  and 27 skip markers; all 37 consumed authorizations were cited by their admitting attempts. All 22 fully mapped
+  Candidate histories matched the repository reader, including 12 ancestors; nine histories retained refused versions.
+  The listing accounted for every source once: 807 mapped, 1,753 left behind, and one pending lane in flight with no
+  records. Left-behind reasons were retired snapshots (581), join-only working state (500), older dispositions (192),
+  schema-refused Candidate versions (179), unjoined frontline outcomes (137), frontline runs (63), local operations
+  (61), chain-refused Candidate versions (20), foreign repository identity (13), quarantine (2), absent Candidate
+  ownership (2), adopted repository identity (1), an empty lane (1), and an unjoined disposition set (1). The mapped
+  receipt ledger retained its two unjoined receipts' reason. Missing ownership and that disposition refer to a
+  concurrent work unit's Candidate absent from this checkout's supplied history; pending work remains the explicit
+  quiesce exclusion. The scenario revalidated A9 and A10 without changing any Success Criteria checkbox.
 
 ## **Phase 4:** The review gate's store, proven on the local lane
 
