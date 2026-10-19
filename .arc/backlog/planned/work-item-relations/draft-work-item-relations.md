@@ -217,4 +217,22 @@ and its checks, then enforcement at each ceremony — decided after the cutover.
 | -------------------------------------------------------------- | ------- | -------------------------------------------- |
 | Qualify dependency edges with the lifecycle boundary they gate | fold    | § Decisions, D1 (gates) and D3 (enforcement) |
 
+### `[ ]` **Take a cut's provider-keyed edge handling as the input to cohort endpoints**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Open question 1, cohort endpoints, D2 task annotations, and provider-keyed edge redistribution
+
+- _Observation:_ `seam-decomposition` builds nothing for relations and adopts four rules that keep relations' change
+  local (`draft-seam-decomposition.md` § Forward compatibility with `work-item-relations`). Edges move as entries keyed
+  by provider: a dependent's edge on the origin gets the replacement targets as providers, each a copy of the entry, or
+  is dropped, and a member's seeded edge copies the origin's, so a gate and a reason ride along when the entry widens.
+  The terminal batch compares edges by provider, so a gate or reason set during authoring is grooming. Cohort documents
+  are written only through the cohort kind's writers, the at-cap fan-out block included. Redistribution never names a
+  cohort, even when the origin's name passes to its new cohort — the "shorthand for an edge on each member" answer to
+  question 1, as decomposition practices it today; if cohort endpoints are admitted, a `replace` disposition gains a
+  cohort target in the lineage kind, which is relations' change. One seam is relations' to settle: a copied `task` edge
+  whose task annotation (its D2) stays in the origin's task list.
+
+- _Captured during:_ `seam-decomposition` draft-design close, 2026-10-16.
+
 ---

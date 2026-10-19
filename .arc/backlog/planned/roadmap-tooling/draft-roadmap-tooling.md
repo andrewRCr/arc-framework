@@ -314,6 +314,19 @@
   `defe2b278dd52e42d668a3f3791dc9a80a64b51db79332444e0c2564f0cde115`.
 - _Evidence:_ `roadmap-name`; `scan-result.json#class-roadmap-name`.
 
+### `[ ]` **Re-scope the ROADMAP render standard and the `STATUS.USER` writer: no view renders as a file**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Scope: retire stored-file render/rename/STATUS.USER writer assumptions, preserve remaining helpers
+
+- _Observation:_ From the flip `seam-status-roadmap` renders `arc status --project` and `arc status --user` on demand
+  from lifecycle's typed listings and writes no ROADMAP or `STATUS.USER.md` file, with no cache
+  (`draft-seam-status-roadmap.md` § Direction; Owner, 2026-10-16). The render standard for a stored file, the rename,
+  and the `STATUS.USER` writer lose their object once no view renders as a file; the cohort and graduate helpers stand
+  on their own.
+
+- _Captured during:_ `seam-status-roadmap` draft-design close, 2026-10-16.
+
 ---
 
 ## Problem / Motivation

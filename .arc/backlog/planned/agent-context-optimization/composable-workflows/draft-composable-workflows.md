@@ -396,6 +396,27 @@
 
 - _Captured during:_ `retire-extension-points` draft close, 2026-10-13.
 
+### `[ ]` **Take review's operations as worked instances of the procedure library and the procedure/check split**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ D2 procedure library and stable anchors: consume review methods as worked procedure/check instances
+
+- _Observation:_ `review-coverage-cadence` D10 lands three review-type methods — `planning-review`, `code-review`,
+  `verification-review` — that lifecycle workflows call in one line each, written in `adversarial-review`'s contract
+  shape. It separates sites (lifecycle workflows), review-type methods (procedures the primary runs), and checks (rubric
+  content that runs in the author's context or goes to an independent evaluator), and narrows `validate-criteria` to a
+  check. It avoids "operation" for the layer, since the code sites already use it for stored CLI operations.
+  `code-review` is shared procedures with a thin dispatch per site, because each site's CLI command owns the sequence.
+  Sites cite its sections by a reference link carrying the heading's fragment, which `lint:arc:links` checks at commit,
+  and each section opens with a one-line signature and reads on its own, so a section read as a span is complete.
+
+- _Approach:_ when grooming D2 and the uniform-interface entry, consume these as the first worked instances rather than
+  re-deriving review's split; check whether the procedure/check distinction they use generalizes as stated.
+
+- _Captured during:_ `review-coverage-cadence` draft-design, 2026-10-16.
+
+---
+
 ## Problem / Motivation
 
 ARC's workflows scale across modes, tiers, and session states via **carry-and-skip**: inline conditionals

@@ -574,4 +574,172 @@
         repairs missing/conflicted state. Templates: completed-subject-matrix; recovery-state-basis/store-evidence;
         restate-store; unclosed-task-frame; recovery-unclosed-task-commits; subject-meta-candidate.
 
+### `[ ]` **Take `seam-delivery-review`'s flip-rewrite steps into the cutover's workflow rewrite**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Workflow rewrite, review-copy treatment, review import/quiesce, and deletion pass
+
+- _Observation:_ `seam-delivery-review`'s spec (`spec-seam-delivery-review.md` § 12.6 and § 14.2, on
+  `plan/seam-delivery-review` until it merges) leaves five workflow-text changes to the flip, which changes workflow
+  text once:
+    - `integrate-work-unit.md`, `prepare-work-unit.md`, and `verify-work-unit.md` drop their record-commit and
+      keep-staged steps, since from the flip delivery makes no record-only commits and its next actions name no
+      `commit-*` step (that spec's § 14.3); attest's commit step stays, for the review copy alone, which `arc attest`
+      writes and stages, as D15 keeps one for any ceremony that changes tracked files (that spec's § 12.5);
+    - the adversarial-review method's fire-points record a pass through that member's one-call verb,
+      `arc review adversarial record`, rather than appending to `ADVERSARIAL-PASSES.md`;
+    - review reports — chunk reports, aggregate results, evaluator reports — go to the work unit's scratch folder rather
+      than its workspace, so archive's sweep loses nothing, and `archive-work-unit.md`'s teardown-ownership sentence and
+      `integrate-work-unit.md`'s `arc user close` backstop no longer need to say so;
+    - the step that opens a work unit's pull request (`gh pr create`, `integrate-work-unit.md`) becomes a verb that
+      writes the work item's change-request link, its repository the project ID; today no verb writes that link and
+      archive records the pull request only as the meta's `PR URL`;
+    - a candidate-tail step deletes D18's review copy at `.arc/specs/<slug>/` through that member's export function,
+      which `arc attest` (the add) and `arc review respond` (the re-export, when a fix amends the spec) call from the
+      flip; candidate-tail is a workflow step, so the delete needs a step of its own. That spec amends D18 forward (§
+      13, item 5): the copy is evidence-neutral in every direction, so read D18's re-export "as an ordinary reviewed
+      fix" through the amendment when writing the step — the re-export rides its fix's review without entering the
+      subject. The arm that keeps that delete from reopening review stays in lifecycle classification, as D18 states:
+      the work unit's own export path is evidence-neutral in `classifyPathTreatment`, the arm register key 27's row
+      keeps, which this capture's target owns. Subject construction cannot carry it: the copy is never in base, so its
+      delete leaves no path in the base-relative diff. The arm classifies by path alone, so the add and the re-export
+      are evidence-neutral too, against the consumer map's "export addition and re-export remain reviewable" on this
+      capture's target's three rows (`lib/evidence-applicability/path-treatment.ts`, `lib/git/base-overlap.ts`,
+      `lib/base-drift/current-adapters.ts`); the copy reaches review on the pull request, and a work unit's own spec on
+      the branch is evidence-neutral today (`notes-seam-delivery-review.md` § Corrections across rows). Key 27 also
+      covers `lib/delivery/lifecycle-contribution.ts`, whose path group the cutover removes after moving its six
+      consumers off it. The row closes when the cutover realizes that fate, removing the group and keeping the
+      `classifyPathTreatment` arm. How the group treats the copy in a stacked delivery is an open question routed to
+      `delivery-observe-attest`, a follow-on item that closes when that work unit's draft holds it
+      (`cohort-state-storage.md` § Closeout criteria); if its answer lands first, carry its treatment through the
+      group's removal.
+
+  The rehearsal's chain comparison also tests a new fact: from the flip a Candidate's supersession is its singleton
+  record's `history`; a live work unit's replayed versions arrive mapped, their transitions whole, and a merged work
+  unit's arrive as found. The rehearsal's import trial covers the review gate's machine-local records as well as the
+  tracked ones, since every review record reshapes at the flip.
+
+  Two more for the window. The quiesce finishes every review attempt in flight on the importing machine, beside the
+  review it already finishes on every other machine (the held entry on the import's five window steps), since an
+  attempt's state in flight is not mapped and the import's trial refuses one. And from the flip the review gate keeps
+  its working state apart from today's `.git/arc/review-gate/operations/`, so that folder is inert on every clone; the
+  deletion pass may remove it, and nothing depends on that. The deletion pass also takes that spec's other retired arms
+  (§ 14.3), among them the frontline skip marker's kind and names and the per-clone repository ID record
+  (`identity/repository-identity.json`), which the review gate reads by nothing from the flip, taking the project ID.
+
+- _Approach:_ fold each into the flip rewrite's step list, checked against `strategy-procedure-evolution.md`.
+
+- _Captured during:_ `seam-delivery-review` draft-design close, 2026-10-15.
+
+### `[ ]` **Retire `archive.cadence` at the flip, with its readers**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Deletion pass: retire archive.cadence key and all readers; settle any real residual timing choice
+
+- _Observation:_ the program removes everything the cadence selects, but never retires the key itself. Archival becomes
+  a store write at or after merge (the register's archive-before-merge row, owned by `storage-seam`), and the storage
+  contract's consumer map drops `archive-work-unit.md`'s manual-cadence routing and `integrate-work-unit.md`'s step-8
+  cadence dispatch at the flip. The same map's `arc-config.yml` row retires `user.notes_push`,
+  `session.init_pull.notes`, and `session.init_load.notes` with no successor, but not `archive.cadence`, and no row
+  names the key's code readers: `lib/config/schema.ts`, `lib/config/status-reader.ts`, `commands/config/validate.ts`,
+  readiness's `wrong-cadence` refusal (`scripts/review-gate/readiness.ts`), and `scripts/integration/checkpoint.ts`,
+  `checkpoint-composition.ts`, and `merge-composition.ts`. After the flip the key selects no behavior.
+
+- _Approach:_ retire the key with no successor beside the notes keys, and take its readers out in the deletion pass.
+  Settle at the draft whether "at or after merge" leaves any choice worth a setting — integration archiving at merge, or
+  leaving it to a later `arc archive` — with the program's rule of the final shape over today's as the default answer.
+
+- _Captured during:_ `storage-ref-backend` activation, 2026-10-16, while folding the review import mapping's liveness
+  test, which reads no cadence for this reason.
+
+### `[ ]` **Take `seam-decomposition`'s deletion set, rehearsal cut, and workflow end state**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Decomposition deletion set, workflow end state, and representative cut in rehearsal
+
+- _Observation:_ `seam-decomposition` rebuilds `arc decompose` store-native from the flip and changes nothing before it
+  beyond a capability branch in `handleDecompose`. Three things land here. The deletion pass gains today's decomposition
+  machine: every module the store version does not import, with `decompose-candidate.ts`'s callers in teardown and
+  in-flight derivation. The rehearsal is the store version's first run on the ref backend, and, run as a representative
+  cut on a copy, the evidence `decompose-core-hardening` and `decompose-transform-integrity` close on, with neither
+  closeout criterion amended. The flip rewrite takes `draft-seam-decomposition.md` § The workflow's end state: an
+  additive batch replacing dispatch, authoring, one distribution approval, and the terminal batch as the landing, with
+  today's separate finish-preview stop gone.
+
+- _Captured during:_ `seam-decomposition` draft-design close, 2026-10-16.
+
+### `[ ]` **Take `seam-status-roadmap`'s two-step ROADMAP removal and its in-repo arms**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Two-step ROADMAP removal, installer/integrity edits, in-repo arm deletion, and old-hook hazard
+
+- _Observation:_ `seam-status-roadmap` builds status's and `arc view`'s store versions dark and changes nothing before
+  the flip but a capability dispatch and three fixes (`draft-seam-status-roadmap.md` § Direction). Its ROADMAP removal
+  runs in two steps. The flip change takes the ROADMAP template with its `init-recipe.json`, `SCAFFOLDED_FILES`, and
+  `manifest.json` entries, and `verify-integrity.sh`'s presence test in both copies, since each acts once no ROADMAP
+  file exists. The deletion pass takes status's and `arc view`'s in-repo arms, `DERIVED_VIEWS`, and the remaining
+  ROADMAP paths the draft's § Direction lists, which stay in place and inert from the flip. The layout's
+  `project-document` address stays past the pass for `storage-projection`'s never-adopted rule. Removing
+  `arc hook-remedy-roadmap-conflict` fails every commit on a branch whose tracked pre-commit hook still calls it, which
+  the pass must handle.
+
+- _Captured during:_ `seam-status-roadmap` draft-design close, 2026-10-16.
+
+### `[ ]` **Take `projected-markdown-checks`' movable set, its ceremony check requests, and the flip's Markdown notice**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Movable-record rule, ceremony check requests, and flip Markdown-tool notice
+
+- _Observation:_ `draft-projected-markdown-checks.md` (§ Direction, § Coordination) hands `storage-cutover` three
+  things:
+
+    - **The movable set.** From the flip every work-item and cohort record counts as movable, its path varying by
+      lifecycle and by checkout (`active/current/`, `active/in-flight/<slug>/`, `completed/`), while personal records
+      under `.arc/user/<id>/` stay put. ARC's link rules, a write check at write-back and `arc save`, follow the
+      rewritten relocatability rule.
+
+    - **The ceremony check requests.** Every ceremony that commits or saves only state requests `arc check increment`
+      over the state it authored, before its approval stop for what it writes before the stop and before its commit or
+      save for text written after it or where it has none, and keeps its existing lint step; handoff names a failure in
+      work it leaves unfinished in its notes rather than stopping to ask. These land before the flip; the rewrite that
+      turns a state-only commit step into `arc save` keeps each request and lint step before the save.
+
+    - **The flip's notice.** It tells a project how its Markdown checks change: one listing through Git or reading the
+      index stops seeing state, while one globbing from disk keeps reading the shared roots, which the projection
+      excludes only through `.git/info/exclude`, conflict-marker files included, and a fixer among them rewrites
+      projected files that write-back persists as hand edits. It tells the project to hand each Markdown tool exactly
+      the paths it should read, Git's list for tracked files and the selection through a `selection` check for state,
+      and that link-target existence over state leaves the shipped hook, kept by declaring `validate-links.sh` as a
+      `selection` check.
+
+- _Captured during:_ `projected-markdown-checks` draft-design, draft close (2026-10-17).
+
+### `[ ]` **Close the two decomposition cohorts on representative rehearsal evidence**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Representative decomposition rehearsal evidence and closure of decompose-core-hardening /
+  decompose-transform-integrity
+
+- _Observation:_ `decompose-scaling` (planned, never started) retires (Owner, 2026-10-16). Its Git-subprocess costs —
+  local-branch discovery, repository-plan hydration, and the execute half — sit in Git machinery that changes nothing
+  before the flip and goes in `storage-cutover`'s deletion pass, and a cut's record reads from the flip are
+  `seam-decomposition`'s (its R5, flat cost), which answers the stub's one inbound entry, to re-measure against the
+  store. Its two scanner costs — locator resolution parsing and canonicalizing every unit per lookup, and the document
+  prefix re-encoded at each unit boundary (`resolveV3DecomposeContentLocator`, `byteOffset`, `decompose-content.ts`) —
+  carry with the scanner unchanged and unobserved at current scale, and the retirement records them as out of scope, as
+  the subcohort's closeout criteria allow. That leaves `decompose-core-hardening` with no open member, and
+  `decompose-transform-integrity`, whose direct members have shipped, with only that subcohort. The subcohort closes
+  only on "a representative real cut" showing its shipped members' properties "without post-transition repair"
+  (`cohort-decompose-core-hardening.md` § Closeout criteria), which today's machine has not given.
+
+- _Historical approach:_ abandon the stub with this rationale. Close both cohorts on `storage-cutover`'s rehearsal, a
+  representative cut on a copy, which the subcohort admits as evidence (its § Soft coordination); neither closeout
+  criterion is amended.
+
+- _Captured during:_ `seam-decomposition` draft-design close, 2026-10-16.
+
+_Routing boundary (2026-10-19):_ The stub retirement is a separate fresh-session Errand. This entry holds only the
+representative rehearsal and both cohorts’ closeout against their unchanged criteria; neither cohort closes before that
+evidence.
+
 ---

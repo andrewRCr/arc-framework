@@ -130,6 +130,19 @@ WU activation.
 - _Captured during:_ `pull-request-surface-policy` create-spec, adversarial pass 1 finding F6 (deferred: `docs/` stays
   stale until the sweep), 2026-10-14.
 
+### `[ ]` **Rename the code-review methods in the docs site**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Docs-site methods map at the holistic sweep; no immediate docs/ edit
+
+- _Observation:_ `review-coverage-cadence` D7 renames the methods `frontline-review`, `standard-review`, and
+  `self-review` to `code-review-frontline`, `code-review-standard`, and `code-review-author`, and D10 adds the
+  review-type methods `planning-review`, `code-review`, and `verification-review`. `docs/customization/methods.md` names
+  the old methods, and `docs/` is left stale until the sweep. The stored rubric identity `standard-review/v1` and the
+  lane configuration keys (`review.standard_*`, `review.frontline_*`) keep their names.
+
+- _Captured during:_ `review-coverage-cadence` draft-design source grounding, 2026-10-16.
+
 ---
 
 ## Why a Dedicated Plan
