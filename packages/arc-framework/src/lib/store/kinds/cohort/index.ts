@@ -5,3 +5,4 @@ export {
 export { writeCohortDocument, type CohortMemberSection } from "./creation-writer.js";
 export { rewriteCohortMemberHeading } from "./member-heading-writer.js";
 export { reportOrphanCohortMemberSections } from "./member-section-report.js";
+export { writeCohortFanout, type CohortFanoutWriteResult } from "./fanout-writer.js";

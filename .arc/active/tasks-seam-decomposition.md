@@ -86,26 +86,14 @@ under `lib/decompose/`, and the kind folder imports its decoder from there, as t
           maps are re-put under the new owner name with their exact bytes; foreign maps remain unchanged while normal
           draft references advance through the existing sweep.
 
-### `[ ]` **1.4 Add the cohort kind's at-cap fan-out writer — § 17.2**
+### `[x]` **1.4 Add the cohort kind's at-cap fan-out writer — § 17.2**
 
 - _Goal:_ The cohort kind appends to a subcohort's document a fan-out block naming the members a cut adds, in exactly
   the bytes and position today's splice renders, so typed coordination entries can later arrive through the kind.
 
-    - A pure writer in `lib/store/kinds/cohort/`, exported from its `index.ts`, taking the document, the origin, and
-      the members, rendering `fanoutBlock`'s markers, heading, and member list and placing the block as
-      `appendBeforeFinalRule` does (`decompose-v3-topology.ts`), with an entry in the cohort README. It sorts the
-      members itself, by UTF-8 bytes, where today's topology sorts them before rendering (`planTopology`).
-    - It decides what `planAtCap` decides of an existing document and returns which: the document with the block
-      appended; the exact block already present, for reuse; or `conflicting-provenance`, where either marker stands
-      without that block.
-    - Today's topology keeps its splice, its helpers staying private, and extraction's finish its own rebuild
-      (`validateAtCapFanout`, `git-decompose-v3-destination-validation.ts`); only the store version calls the writer.
-    - Build `test-first` (one behavior at a time):
-        - the writer's bytes equal those of the `append` action `planV3DecomposeTopology` plans for the same at-cap
-          document, origin, and members
-        - the block lands before the final rule, or after the content where the document has none, byte for byte
-        - members render in UTF-8 byte order
-        - a document holding the exact block is reused, and one holding a lone marker refuses
+- _Outcome:_ `writeCohortFanout` renders the existing splice's exact bytes, orders members by UTF-8 bytes, and returns
+  append, exact-block reuse, or conflicting provenance. It is public through the cohort kind; the version-3 planner
+  keeps its private renderer and splice unchanged.
 
 ### `[ ]` **1.5 Add `lineage.cut-in-flight` — § 10, § 17.2**
 
