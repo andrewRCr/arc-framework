@@ -1488,33 +1488,16 @@ moves that cross, end, or change the layout, and a move that stops publication w
 
 _Mode:_ `slice` through Phase 17 — closes on state moved between remotes, every clone following it, and no write lost.
 
-### `[ ]` **16.1 The forwarding record — § 10.6, § 3.1, § 9.8**
+### `[x]` **16.1 The forwarding record — § 10.6, § 3.1, § 9.8**
 
 - _Goal:_ A remote the state left carries one control ref naming the project and the registry commit the move landed,
   so no teammate's push restores state there and every pull knows the state moved.
 
-    - `refs/arc/project/moved`, a root commit holding only `moved.json`, canonical JSON (§ 3.5) of exactly
-      `{ "projectId": <id>, "registryCommit": <oid> }`, a schema in `lib/store/ref/`, never a URL; fetched with the
-      project namespace into the tracking refs, never listed, manifested, or merged
-    - A `moved.json` that does not parse stops pushes to its remote as a record does, and each read of its content — the
-      `push` check here, a move's steps 1 and 2 (16.2), and a follow (17.1) — refuses `move-record-malformed`, naming
-      the ref, with the remedy to repair or delete it
-    - The forwarding-record arm of the `push` check (12.3), and a carried code ref under `moved` (11.4)
-    - Build `test-first` (one behavior at a time):
-        - a pull from a remote carrying it reports `moved` with the remedy to bring in the pointer's change and run
-          `arc store migrate`, and nothing pushes there
-        - a `!` line for its tracking ref sets the tracking ref to the fetched record, never a refused ref or a notice,
-          and a prune of it keeps no tip under `refs/arc/tmp/seen/`
-        - a remote whose fetch fails while the record's tracking ref stands reports `unreachable`, its remedy naming
-          `arc store migrate`
-        - the `push` check reads the project ID from a record standing alone, and a record naming this project refuses
-          the designation `moved`, naming `arc store migrate` and `arc store migrate --to <remote>`, while the rule that
-          sets `push` without asking reports that remote's `failed` outcome terminal `refused`, with the remedies
-          `arc store remote <remote> off` and `arc store migrate`, the clone staying undesignated
-        - a push carrying a code ref under `moved` pushes the ref alone, as an ordered leg and over one atomic receiver,
-          `publishes` empty
-        - a malformed `moved.json` stops pushes there, and the `push` check refuses `move-record-malformed` naming the
-          ref, then passes once it is repaired
+- _Outcome:_ Strict forwarding-record reads stop state application and publication at the departed remote while carried
+  code can publish alone in either layout. Malformed records and moved read sources refuse; failed fetches retain the
+  follow remedy and independent tracking notices stay visible. Standalone project IDs protect explicit and automatic
+  designation without setting a role on refusal. Replaced tracking tips adopt the fetched record, pruning leaves no
+  control keeper, and repaired operations return to their normal paths.
 
 ### `[ ]` **16.2 The copy — § 10.2, § 10.3, § 10.4**
 

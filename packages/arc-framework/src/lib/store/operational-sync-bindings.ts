@@ -54,7 +54,7 @@ function stateIssue(state: Exclude<SyncState, { status: "no-remote" }>): Issue {
     case "no-identity": return { condition: "No store identity is configured.", remedy: state.remedy };
     case "designation-needed": return { condition: `Remote ${state.remote} needs a store designation.`, remedy: state.remedy };
     case "designation-ambiguous": return { condition: `More than one state remote is designated: ${state.remotes.join(", ")}.`, remedy: state.remedy };
-    case "moved": return { condition: `State moved to ${state.remote}.`, remedy: state.remedy };
+    case "moved": return { condition: `State moved from ${state.remote}.`, remedy: state.remedy };
     case "move-incomplete": case "move-unfinished": return { condition: state.condition, remedy: state.remedy };
   }
 }

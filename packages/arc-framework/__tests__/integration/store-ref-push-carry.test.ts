@@ -8,6 +8,24 @@ import { success } from "../helpers/store/suite-tools.js";
 import { createRefStore, RecordReferenceSchema, PushResultSchema, PushInputSchema } from "../../src/lib/store/index.js";
 
 describe.each(["default", "separate"] as const)("carried code in the %s layout", (layout) => {
+  it("publishes code alone at a forwarded receiver while state remains local", async () => {
+    const h = await carryFixture(layout), log = join(h.origin, "forwarded-received.log");
+    await plantRef(h.origin, "refs/arc/project/moved", [{ path: "moved.json", content: JSON.stringify({
+      projectId: "34567890-1234-4234-8234-123456789abc", registryCommit: "a".repeat(40),
+    }) }], { gitDir: h.origin });
+    await writeFile(join(h.origin, "hooks", "pre-receive"), `#!/bin/sh\ncat >> '${log}'\nprintf '%s\\n' '--push--' >> '${log}'\n`, { mode: 0o755 });
+    const result = PushResultSchema.parse(success(await h.a.store.push({ carry: { ref: branch } })));
+    expect(result.carry).toEqual({ ref: branch, status: "pushed" });
+    expect(result.states).toContainEqual(expect.objectContaining({ status: "moved", remote: h.remoteName }));
+    expect(result.publishes).toEqual([]);
+    expect((await h.remote("git", ["rev-parse", branch])).stdout.trim()).toBe(h.code.tip);
+    expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout.trim()).toBe("refs/arc/project/moved");
+    expect(success(await h.a.store.read({ reference })).content).toBe("Carried state.\n");
+    const transactions = (await readFile(log, "utf8")).split("--push--\n").filter(Boolean);
+    expect(transactions).toHaveLength(1);
+    expect(transactions[0]?.trim().split(/\s+/u).slice(2)).toEqual([branch]);
+  }, 30_000);
+
   it("publishes code and state together or in ordered receiver transactions", async () => {
     const h = await carryFixture(layout), log = join(h.origin, "received.log");
     await writeFile(join(h.origin, "hooks", "pre-receive"), `#!/bin/sh\ncat >> '${log}'\nprintf '%s\\n' '--push--' >> '${log}'\n`, { mode: 0o755 });

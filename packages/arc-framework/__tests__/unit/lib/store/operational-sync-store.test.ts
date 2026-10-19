@@ -54,6 +54,11 @@ it("retains every independent configuration and remote failure in an incomplete 
   expect(JSON.stringify(outcome)).toContain("Policy refusal.");
 });
 
+it("orients a moved state by the remote the state left", async () => {
+  const { port, result } = binding({ states: [{ status: "moved", remote: "old-home", remedy }], pulls: [] });
+  expect(await port.pull()).toEqual({ status: "incomplete", condition: "State moved from old-home.", remedy, partial: result });
+});
+
 it.each([null, [{ ref: "refs/arc/project/inbox", commits: 2, diskBytes: 42 }]])("returns the selected Store's actual maintenance measurements: %j", async measurements => {
   const f = createReferenceFixture();
   f.store.maintain = async () => ({ status: "ok", result: { measurements } });

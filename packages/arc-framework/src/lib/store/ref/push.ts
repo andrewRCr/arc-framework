@@ -73,6 +73,7 @@ async function publishRefAttempt(context: RefBackendContext, loop: PushLoop): Pr
   loop.pulls.push(...pulled.result.pulls);
   const result: PushResult = { ...pulled.result, states: statePushStates(pulled.result.states, await context.identity()), pulls: loop.pulls, publishes: [] };
   loop.states = result.states;
+  if (result.states.some(({ status }) => status === "moved")) return { status: "ok", result };
   const failedPull = pulled.result.pulls.find((pull) => pull.status === "failed" && (pull.role === "state"
     || pull.failure.code === "unreachable" && pull.failure.cause === "timeout"));
   if (failedPull?.status === "failed") return failedStatePublication(context, result, failedPull.failure, loop);

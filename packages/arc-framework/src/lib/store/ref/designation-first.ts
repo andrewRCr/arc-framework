@@ -117,6 +117,10 @@ function designationQuestion(remote: RefRemoteDesignation, designation: RefDesig
 }
 
 function automaticProjectFailure(remote: string, check: Exclude<RefDesignationProjectCheck, { status: "ok" }>): PullOutcome {
+  if (check.status === "control-refused") return { remote, role: "candidate", families: ["project-registry"], notices: [], status: "failed",
+    failure: { code: "refused", class: "terminal", message: check.refusal.condition, condition: check.refusal.condition,
+      remedy: check.refusal.code === "moved" ? { text: `Run arc store remote ${remote} off to stop this designation, or arc store remote ${remote} read and then arc store migrate to follow after bringing in the tracked pointer's change.`,
+        argv: ["arc", "store", "remote", remote, "off"] } : check.refusal.remedy } };
   const condition = check.status === "identity-mismatch"
     ? `Remote ${remote} belongs to project ${check.remote}; this store belongs to ${check.local}.` : "";
   return { remote, role: "candidate", families: ["project-registry"], notices: [], status: "failed",

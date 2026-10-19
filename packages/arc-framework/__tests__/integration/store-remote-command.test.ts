@@ -1,33 +1,11 @@
 /** Terminal answers use the real remote command syntax and native store ports. */
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
-import { Command, Option } from "commander";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { expect, it } from "vitest";
-import { handleStoreRemote, type StoreRemoteOptions } from "../../src/commands/store-remote.js";
-import { scanCommanderSource } from "../../src/lib/command-input/source-scanner.js";
-import { withInteractionContext } from "../../src/lib/command-input/interaction-context.js";
 import type { PromptRenderer } from "../../src/lib/command-input/prompter.js";
-import type { StoreRemoteResult } from "../../src/lib/store/commands.js";
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
-
-async function invokeRemote(argv: string[], cwd: string, renderer: PromptRenderer) {
-  const sourceText = await readFile(resolve(import.meta.dirname, "../../src/cli.ts"), "utf8");
-  const syntax = scanCommanderSource({ file: "cli.ts", sourceText }).commands.find(({ path }) => path === "store remote");
-  if (!syntax) throw new Error("The production remote command is absent");
-  const command = new Command("remote").exitOverride();
-  for (const operand of syntax.operands) command.argument(operand.required ? `<${operand.name}>` : `[${operand.name}]`);
-  for (const option of syntax.options) command.addOption(new Option(option.flags).default(option.defaultValue));
-  let result: StoreRemoteResult | undefined, output = "", exitCode: number | undefined;
-  command.action(withInteractionContext({ machineReadable: (opts) => opts.json === true,
-    environment: { ci: false, promptInputIsTTY: true, promptOutputIsTTY: true } },
-  async (context, remote: string | undefined, role: string | undefined, options: StoreRemoteOptions) => {
-    result = await handleStoreRemote(remote, role, options, context, { cwd, promptRenderer: renderer,
-      write: (text) => { output += text; }, setExitCode: (code) => { exitCode = code; } });
-  }));
-  await command.parseAsync(argv, { from: "user" });
-  return { result, output, exitCode };
-}
+import { invokeStoreRemote } from "../helpers/store/remote-command.js";
 
 it.each([true, false, "cancelled"] as const)("applies only an affirmative terminal answer (%s)", async (answer) => {
   const h = await refSyncFixture();
@@ -41,7 +19,7 @@ it.each([true, false, "cancelled"] as const)("applies only an affirmative termin
       displayed += question.message;
       return answer === "cancelled" ? { kind: "cancelled" } : { kind: "answered", value: answer };
     } };
-  const result = await invokeRemote(["origin", "push"], h.a.root, renderer);
+  const result = await invokeStoreRemote(["origin", "push"], { cwd: h.a.root, renderer });
   expect(result.result?.status, JSON.stringify(result)).toBe("ok");
   expect(result.exitCode).toBe(0);
   expect(displayed).toContain(h.origin);

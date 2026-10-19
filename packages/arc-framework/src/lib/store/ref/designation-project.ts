@@ -15,11 +15,14 @@ import { readBatchObjects } from "./batch-read.js";
 import { projectIdentityQueries, projectOwnerFromObjects } from "./project-identity.js";
 import { refFetchNeedsCompleteness, missingRefFetchObjects, RefFetchIncompleteError } from "./fetch-completeness.js";
 import { readSyncRefs } from "./sync-graph.js";
+import { readForwardingRecord } from "./forwarding-record.js";
+import type { StoreCommandRefusal } from "../commands.js";
 
 type ProjectFailure = Extract<PullOutcome, { status: "failed" }>["failure"];
-/** Identity mismatches retain both IDs for the command layer's own refusal shape. */
+/** Candidate checks retain exact project identities and forwarding refusals for their callers. */
 export type RefDesignationProjectCheck = { status: "ok" }
   | { status: "identity-mismatch"; local: string; remote: string }
+  | { status: "control-refused"; refusal: StoreCommandRefusal & { code: "moved" | "move-record-malformed" } }
   | { status: "failed"; failure: ProjectFailure };
 
 /** Inspect an isolated candidate registry only when this store already owns a project ID. */
@@ -37,10 +40,15 @@ export async function checkRefDesignationProject(context: RefBackendContext, rem
     await clearProjectCheck(context, prefix);
     const fetched = await fetchProjectCheck(context, remote, designation, prefix, observed);
     if (fetched.status === "failed") return fetched;
+    const forwarding = await readForwardingRecord(context, fetched.moved, remote.name);
+    if (forwarding.status === "refused") return { status: "control-refused", refusal: forwarding.refusal };
     const incoming = await projectIdFromTip(context, fetched.registry);
     if (incoming.status === "refused") return projectReadFailure(incoming.refusal.condition);
-    return incoming.result && incoming.result !== local.result
-      ? { status: "identity-mismatch", local: local.result, remote: incoming.result } : { status: "ok" };
+    const foreign = [incoming.result, forwarding.result?.projectId].find(id => id && id !== local.result);
+    if (foreign) return { status: "identity-mismatch", local: local.result, remote: foreign };
+    if (forwarding.result) return { status: "control-refused", refusal: { code: "moved", class: "recoverable",
+      condition: `State moved from remote ${remote.name}.`, remedy: { text: `Bring in the tracked pointer's change and run arc store migrate to follow. If this clone does not fetch ${remote.name}, first run arc store remote ${remote.name} read. To move state back, run arc store migrate --to ${remote.name} from its current home.` } } };
+    return { status: "ok" };
   } finally {
     for (const [ref, expected] of observed) {
       await updateRefTransaction(cleanup, [{ ref, delete: true, expected }], { cwd: cleanup.checkoutRoot });
@@ -69,7 +77,7 @@ async function clearProjectCheck(context: RefBackendContext, prefix: string): Pr
 }
 
 async function fetchProjectCheck(context: RefBackendContext, remote: RefRemoteDesignation, designation: RefDesignation,
-  prefix: string, observed: Map<string, string>): Promise<{ status: "ok"; registry?: string } | { status: "failed"; failure: ProjectFailure }> {
+  prefix: string, observed: Map<string, string>): Promise<{ status: "ok"; registry?: string; moved?: string } | { status: "failed"; failure: ProjectFailure }> {
   const target = remote.repository === "backing" && !designation.backing ? remote.url : await refFetchTarget(context, remote, designation);
   const args = [...gitRefLockArgs(), "-c", `remote.${remote.name}.negotiationInclude=`, "fetch", "--refmap=", "--no-tags", "--no-filter",
     "--prune", "--show-forced-updates", "--porcelain", "--verbose", ...await refFetchNegotiation(context, await context.identity()), "--", target,
@@ -84,6 +92,7 @@ async function fetchProjectCheck(context: RefBackendContext, remote: RefRemoteDe
   return rejected || fetched.refs.some(({ flag }) => flag === "!")
     ? projectReadFailure(fetched.stderr || "The candidate registry fetch refused a temporary ref update.") : {
       status: "ok", registry: fetched.refs.find(({ ref, flag, next }) => ref === `${prefix}registry` && flag !== "-" && !/^0+$/u.test(next))?.next,
+      moved: fetched.refs.find(({ ref, flag, next }) => ref === `${prefix}moved` && flag !== "-" && !/^0+$/u.test(next))?.next,
     };
 }
 
