@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "schema-emitter-projection-cost",
+  "claimId": "8d9cf8e9d810efc0ad4c4cf1a36f0ce9",
+  "createdAt": "2026-10-19T19:12:51.332Z",
+  "updatedAt": "2026-10-19T19:12:51.332Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Reduce repeated whole-registry projection in schema-emitter unit tests while preserving canonical schema assertions and investigating recent timeout onset.",
+  "branch": "fix/schema-emitter-projection-cost",
+  "origin": "inbox",
+  "originEntry": "Reduce repeated whole-registry projection in schema-emitter unit tests",
+  "originEntrySourceDigest": "sha256:4ad0249f39aa16ebcf1ed8268c3126a169d269a433f2275f0965def55c505fbf",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
