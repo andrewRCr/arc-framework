@@ -456,29 +456,12 @@ stored map, writing no lineage; and the preview afterward reports the cut landed
   `Cohort` to the members' path where it differs, rewrites stub dependents, writes stub homes' edges and any at-cap
   fan-out, and removes the stored map, writing no lineage, and its preview reports the retained bytes and each record.
 
-    - `[ ]` **4.3.a The batch**
+    - `[x]` **4.3.a The batch**
 
-        - The acquired records revalidated (`revalidateLifecycleRecords`) and the prepared writes alone applied in one
-          batch (`batchLifecycleWrites`), as the executor applies a retirement's, so the batch writes exactly what its
-          preview shows. `applyPreparedLifecycleWrite` would also re-put every acquired record it leaves unwritten —
-          each member, home, and dependent under `decompose` — and the store refuses that put for a lineage record,
-          which is create-only, and a conflict record, which is write-once.
-        - `Cohort` through `writeMetaCohort` under every placement but `direct-member`.
-        - Under an `at-cap` placement, the fan-out block on its subcohort document through task 1.4's writer, as task
-          3.4.b writes it: a lone marker or a different block refuses before anything is written
-          (`conflicting-at-cap-provenance`), naming the block's repair or removal through write-back, then `--finish`.
-        - A version conflict at the batch names a fresh `--finish` preview and approval, as text, as task 3.5 maps a
-          retirement's.
-        - The finish's destination validation does not carry: its claims become § 8.3's check, its locator resolution
-          § 8.4's, and its byte-equality checks go.
-        - Build `test-first` (one behavior at a time):
-            - each placement sets or keeps the origin's `Cohort`
-            - a started dependent whose edge would leave the origin refuses again here
-            - an origin activated or deactivated since the additive batch refuses where its scan's units changed,
-              naming `--revise`, and an Integrating one refuses, naming `arc reopen <origin>`
-            - under an `at-cap` placement, a lone marker or a different block refuses, and the batch lands once the
-              block is repaired
-            - no record takes a write but those the preview lists
+        - `terminal-preparation.ts` and `terminal-records.ts` share retirement's validation and recipient planner with
+          extraction. `extraction.ts` revalidates all observations and applies only prepared thinning, cohort, edge,
+          fan-out, and map-removal mutations in one batch, with no lineage or physical effects. All four placements,
+          current scan and recipient boundaries, fan-out repair, and fresh-approval conflict remedies are covered.
 
     - `[ ]` **4.3.b The preview and the landed cut**
 

@@ -5,7 +5,7 @@ import { createDecomposeOriginFixture } from "../../../fixtures/decompose-origin
 import { completeCutMapFixture } from "../../../fixtures/decompose-v4.js";
 import { lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { acquireDecomposeTerminal } from "../../../../src/lib/decompose/acquire-terminal.js";
-import { prepareDecomposeRetirementRecords } from "../../../../src/lib/decompose/retirement-records.js";
+import { prepareDecomposeTerminalRecords } from "../../../../src/lib/decompose/terminal-records.js";
 import { prepareDecomposeLineage } from "../../../../src/lib/decompose/lineage-plan.js";
 import { readWorkUnit, readLifecycleMetaFields, recordPut } from "../../../../src/lib/store/lifecycle-write.js";
 import { writeMetaCurrentWorkflow, writeMetaDependsOn, writeMetaDesign } from "../../../../src/lib/store/kinds/meta/writers.js";
@@ -16,17 +16,17 @@ import { runStoreDecomposeAdditive } from "../../../../src/lib/decompose/additiv
 import { checkDecomposeSourceBinding } from "../../../../src/lib/decompose/source-binding.js";
 import type { DecomposeContext } from "../../../../src/lib/decompose/context.js";
 import type { DecomposeTerminalRecords } from "../../../../src/lib/decompose/acquire-terminal.js";
-import type { DecomposeRetirementRecordPlan } from "../../../../src/lib/decompose/retirement-records.js";
+import type { DecomposeTerminalRecordPlan } from "../../../../src/lib/decompose/terminal-records.js";
 
 async function prepare(ctx: DecomposeContext) {
   const input = await acquireDecomposeTerminal(ctx, "origin");
   if (input.status === "refused") throw new Error(JSON.stringify(input));
-  const result = await prepareDecomposeRetirementRecords(ctx, input.result);
+  const result = await prepareDecomposeTerminalRecords(ctx, input.result);
   if (result.status === "refused") throw new Error(JSON.stringify(result));
   return { input: input.result, plan: result.result };
 }
 
-async function land(ctx: DecomposeContext, input: DecomposeTerminalRecords, plan: DecomposeRetirementRecordPlan) {
+async function land(ctx: DecomposeContext, input: DecomposeTerminalRecords, plan: DecomposeTerminalRecordPlan) {
   const lineage = await prepareDecomposeLineage(ctx, input);
   if (lineage.status === "refused") throw new Error(JSON.stringify(lineage));
   const primary = input.acquired.primary;
@@ -107,7 +107,7 @@ it.each(["lone-marker", "different-block"] as const)("refuses a %s fan-out befor
   const input = await acquireDecomposeTerminal(h.ctx, "origin");
   if (input.status === "refused") throw new Error(JSON.stringify(input));
   const before = lifecycleSuccess(await h.store.version());
-  expect(await prepareDecomposeRetirementRecords(h.ctx, input.result)).toMatchObject({ status: "refused", reason: "fanout-conflict",
+  expect(await prepareDecomposeTerminalRecords(h.ctx, input.result)).toMatchObject({ status: "refused", reason: "fanout-conflict",
     remedy: { argv: ["arc", "decompose", "origin", "--finish"], text: expect.stringContaining("write-back") } });
   expect(lifecycleSuccess(await h.store.version())).toBe(before);
   await h.handEdit(current, cohort.record.content);

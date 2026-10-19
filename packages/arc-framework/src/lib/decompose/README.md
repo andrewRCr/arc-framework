@@ -111,11 +111,14 @@ started-recipient admission with stored-cut revision remedies. Started-home inte
 can hide it; provider checks cover actual terminal additions while member seeds remain under seeded-field validation.
 Written-provider refusals point to the contribution that introduced that provider, even when one edit combines edges.
 
+`terminal-preparation.ts` shares origin, seeded-field, destination, source-binding, and recipient checks between
+retirement and extraction, retaining every observed record version for application.
+
 `lineage-plan.ts` projects admitted retirement records into create-only lineage with current names, known generations,
 and the origin's exact retired branch links. Renamed dependents match by UID; current and retired provider records
 retain the versions that establish their names for revalidation.
 
-`retirement-records.ts` prepares one metadata mutation per stub recipient, explicit stored-map removal, and at-cap
+`terminal-records.ts` prepares one metadata mutation per stub recipient, explicit stored-map removal, and at-cap
 fan-out append or reuse through the cohort writer. Started recipients retain their edges, and a dependent's own
 stored cut remains available for revision after its provider changes. Every acquired recipient stays version-bound.
 
@@ -127,6 +130,11 @@ removal or release checks before persistence, preserving projection repairs.
 revalidation. Incomplete executor inventory is read again for its typed repair; version conflicts require a fresh
 finish preview. Teardown runs after persistence, surfaces preservation notices, and retains an executable continuation
 when physical cleanup fails. A stub with no holder or branch link needs no physical cleanup.
+
+`thinning.ts` derives exact retained design content from current record locators, removing an artifact that keeps no
+units and omitting unchanged writes. `extraction.ts` combines thinning with recipient edits, stored-map removal,
+fan-out, and the surviving origin's cohort change. It revalidates observations and applies only those mutations in
+one batch, preserving companions and writing no lineage or physical cleanup effects.
 
 `apply-authority.ts` binds removing operations to their mode, origin generation, observed record versions, and exact
 prepared writes, ordering the observation and mutation sets canonically. `finish-report.ts` exposes closed preview and
