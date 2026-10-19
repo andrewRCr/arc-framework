@@ -152,10 +152,10 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
           dispositions. Both schemas initialize independently; the public codec dispatches by version and exposes the
           opaque versioned read shape.
 
-    - `[ ]` **1.6.c The boundary's write check**
+    - `[x]` **1.6.c The boundary's write check**
 
-        - Build `test-first` (one behavior at a time):
-            - a write of `schemaVersion` 1 refuses, and a write of version 2 is admitted
+        - Added current-format write admission and registration. Retained version-one boundaries remain readable;
+          writes refuse with a version-two regeneration remedy, and version-two writes are admitted.
 
     - `[ ]` **1.6.d The readiness binding's digest**
 

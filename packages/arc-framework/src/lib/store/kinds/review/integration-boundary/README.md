@@ -7,3 +7,6 @@ terminus decisions, and binds readiness by a nullable digest on publish-ready an
 Version two carries no copied policy or lane-owner version. Full convergence verification uses `merge`, and its
 post-attest continuation carries the reviewed head and next action. Shared schemas keep ordinary actions,
 reservations, Candidate identity, and exact member-vehicle uniqueness consistent across both versions.
+
+The write check permits version two and refuses retained version one with a regeneration remedy. Registration
+combines that check with the version-dispatched parser; retained version-one records remain readable.
