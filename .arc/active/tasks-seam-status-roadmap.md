@@ -449,9 +449,13 @@ were not read with no identity, and writes `{ conflicts, warnings }` with `--jso
   tokens and string warnings as `{ conflicts, warnings }`, and retains failed-token repair evidence. Explicit refresh
   precedes acquisition once; local flags suppress it, and failed refresh remains advisory beside local records.
 
-### `[ ]` **6.5 The conflict view** — validate exit criterion at segment scope
+### `[x]` **6.5 The conflict view** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds, with `arc check segment` green.
+
+- _Outcome:_ The reference-backend handler scenario exercised every conflict shape, labelled text and raw JSON,
+  malformed-record omission, reused-name generations, unknown tokens, identityless scope warnings, pre-capability
+  refusal and mode exclusions. The checkout inventory remained unchanged.
 
 ## **Phase 7:** `arc view` from the flip
 
