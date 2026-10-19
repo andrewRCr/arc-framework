@@ -6,9 +6,12 @@ import type { CandidateReviewResponseEvidenceV1 } from
 import {
   SubmissionBoundaryVersionConflictError,
   readSubmissionBoundaryVersioned,
-  resolveSubmissionBoundaryPath,
   writeSubmissionBoundary,
-} from "../../../lib/work-unit/submission-boundary-store.js";
+} from "../../../lib/store/kinds/review/integration-boundary/access.js";
+import { resolveSubmissionBoundaryPath } from "../../../lib/store/kinds/review/paths.js";
+import type { Store } from "../../../lib/store/contract.js";
+import { createStore } from "../../../lib/store/create.js";
+import { createDefaultStorePorts } from "../../../lib/store/default-ports.js";
 import { rebindSingletonPublicationResponseBoundary } from
   "../policy/integration-boundary-locus.js";
 
@@ -21,11 +24,13 @@ import { rebindSingletonPublicationResponseBoundary } from
 export async function stageSingletonPublicationResponse(input: {
   cwd: string;
   exec: GitExec;
+  store?: Store;
   workUnit: string;
   response: CandidateReviewResponseEvidenceV1;
   requirePublished: boolean;
 }): Promise<void> {
-  const snapshot = await readSubmissionBoundaryVersioned(input.cwd, input.workUnit);
+  const reviewRecordStore = input.store ?? createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec }));
+  const snapshot = await readSubmissionBoundaryVersioned(input.cwd, input.workUnit, { store: reviewRecordStore });
   const rebound = rebindSingletonPublicationResponseBoundary({
     stored: snapshot.boundary,
     workUnit: input.workUnit,
@@ -36,7 +41,7 @@ export async function stageSingletonPublicationResponse(input: {
   let path = resolveSubmissionBoundaryPath(input.workUnit);
   if (rebound !== snapshot.boundary) {
     try {
-      path = await writeSubmissionBoundary(input.cwd, rebound, snapshot.version);
+      path = await writeSubmissionBoundary(input.cwd, rebound, snapshot.version, { store: reviewRecordStore });
     } catch (error) {
       if (error instanceof SubmissionBoundaryVersionConflictError) {
         throw new Error("The singleton publication boundary moved during the review response. "

@@ -305,12 +305,10 @@ retires.
   lineage passes it into private response confirmation. Standalone confirmation uses its caller's store or Git runner.
   Fixed-head and index proofs remain intact, and the relocated checkpoint stubs retain their call-count assertions.
 
-### `[ ]` **2.6 Reroute the review gate's callers — § 3.1, § 14.2**
+### `[x]` **2.6 Reroute the review gate's callers — § 3.1, § 14.2**
 
 - _Goal:_ No review-gate module imports the Candidate or boundary store, and every lane, response, and status read
   behaves as today.
-
-    - Each batch prunes the suppressions its reroute leaves unused.
 
     - `[x]` **2.6.a The review handler**
 
@@ -324,10 +322,11 @@ retires.
           review schemas supply boundary and Candidate version types, and mechanical carry uses pure review paths.
           Exact-head carry proofs, plain-path-log supersession, and the existing assertions remain intact.
 
-    - `[ ]` **2.6.c The runtime and status modules**
+    - `[x]` **2.6.c The runtime and status modules**
 
-        - `rg/runtime/candidate-response-head-continuation.ts`, `local-prepare-composition.ts`,
-          `respond-composition.ts`, and `singleton-publication-response.ts`, and `rg/status-composition.ts`.
+        - Runtime, status, lane-read, and reserved-obligation readers share typed store access across prepare, response,
+          and singleton continuation. Status parses digest-typed publication fields and keeps unreserved obligations in
+          a pure helper; exact-head proofs, staging, and existing assertions remain intact.
 
 ### `[ ]` **2.7 Before the flip** — validate exit criterion at segment scope
 

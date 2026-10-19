@@ -4,7 +4,10 @@ import { readConfigSettings } from "../../../lib/config/status-reader.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
 import { createLocalReviewCandidateReader } from "./local-prepare-composition.js";
-import { readSubmissionBoundaryVersioned } from "../../../lib/work-unit/submission-boundary-store.js";
+import { readSubmissionBoundaryVersioned } from "../../../lib/store/kinds/review/integration-boundary/access.js";
+import type { Store } from "../../../lib/store/contract.js";
+import { createStore } from "../../../lib/store/create.js";
+import { createDefaultStorePorts } from "../../../lib/store/default-ports.js";
 import { spineRemedy } from "../../integration/spine-refusal.js";
 import { createReviewTarget } from "../core/gate-contract-v2.js";
 import type { LaneProgressState } from "../core/operation-state-schema.js";
@@ -27,7 +30,7 @@ import { readReviewLaneHistory } from "./lane-history.js";
 import { readLocalDeltaAdmissionSurface } from "./local-reserved-obligation.js";
 
 interface LaneReadBoundary {
-  readonly cwd: string; readonly exec: GitExec;
+  readonly cwd: string; readonly exec: GitExec; readonly store?: Store;
 }
 
 async function readNextContext(input: LaneReadBoundary & {
@@ -45,7 +48,7 @@ async function readNextContext(input: LaneReadBoundary & {
   const predecessor = await resultReader.readResult(terminal.attemptId);
   if (predecessor.kind === "frontline") throw new Error("standard lane contains a frontline producer");
   const { obligation, reasons, rubricVersion, rubricDigest, retrigger, count } = predecessor.requirement;
-  const boundary = input.workUnitId === undefined ? null : (await readSubmissionBoundaryVersioned(input.cwd, input.workUnitId)).boundary;
+  const boundary = input.workUnitId === undefined ? null : (await readSubmissionBoundaryVersioned(input.cwd, input.workUnitId, { store: input.store, exec: input.exec })).boundary;
   const standardReview = boundary?.reservation?.obligation ?? { obligation, reasons, rubricVersion, rubricDigest, retrigger, count };
   const candidate = input.lineage.kind === "candidate" && input.workUnitId !== undefined
     ? await input.candidateReader.read(input.workUnitId) : null;
@@ -94,7 +97,10 @@ async function readResolvedLane(request: ReviewLaneReadRequest, input: LaneReadB
 
 /** Read the authenticated checkout subject without publishing any review state. */
 export async function readReviewLane(request: ReviewLaneReadRequest, input: LaneReadBoundary): Promise<ReviewLaneReadEnvelope> {
-  try { return await readResolvedLane(request, input); }
+  try {
+    const store = input.store ?? createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec }));
+    return await readResolvedLane(request, { ...input, store });
+  }
   catch (error) {
     const code = error instanceof LocalReviewAuthorityError ? error.reason
       : error instanceof Error && "reason" in error && typeof error.reason === "string" ? error.reason : "lane-read-unavailable";

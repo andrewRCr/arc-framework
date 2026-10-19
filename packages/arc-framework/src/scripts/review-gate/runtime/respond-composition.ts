@@ -1,7 +1,7 @@
 /** Production assembly for approved review dispositions. */
 import { readReviewLaneHistory } from "./lane-history.js";
 import { deriveNextPassFacts } from "../policy/next-pass-facts.js";
-import { readSubmissionBoundaryVersioned } from "../../../lib/work-unit/submission-boundary-store.js";
+import { readSubmissionBoundaryVersioned } from "../../../lib/store/kinds/review/integration-boundary/access.js";
 import { resolveIncrementalCoverageBasis } from "../policy/incremental-coverage-basis.js";
 import { readIncrementalPredecessorResponseEvidence } from "../policy/review-policy-evidence.js";
 import { readStandardPassCounts } from "./lane-pass-counts.js";
@@ -28,9 +28,12 @@ import { getFrameworkVersion } from "../../../lib/version.js";
 import {
   readCandidateRecord,
   readCandidateRecordVersioned,
-  resolveCandidateRecordRelativePath,
   writeCandidateRecord,
-} from "../../../lib/work-unit/candidate-record-store.js";
+} from "../../../lib/store/kinds/review/candidate/access.js";
+import { resolveCandidateRecordRelativePath } from "../../../lib/store/kinds/review/paths.js";
+import type { Store } from "../../../lib/store/contract.js";
+import { createStore } from "../../../lib/store/create.js";
+import { createDefaultStorePorts } from "../../../lib/store/default-ports.js";
 import {
   CandidateManagedRecordV1Schema,
   type CandidateManagedRecordV1,
@@ -123,7 +126,7 @@ function rethrowUncollectableSubject(error: unknown): never {
 
 /** Bind local policy coordinates to the live branch and change request, as local admission does. */
 export async function resolveRespondPolicyTarget(
-  input: { exec: GitExec; cwd: string },
+  input: { exec: GitExec; cwd: string; store?: Store },
   current: ReviewResult,
   baseRef: string,
 ): Promise<{ repository: string; pullRequest: number | null } | null> {
@@ -150,7 +153,7 @@ export async function resolveRespondPolicyTarget(
 
 /** Select only the unique managed Candidate that owns the immutable producer lineage. */
 async function readRespondCandidate(
-  input: { exec: GitExec; cwd: string },
+  input: { exec: GitExec; cwd: string; store?: Store },
   current: ReviewResult,
 ): Promise<{ workUnit: string; record: CandidateManagedRecordV1 } | null> {
   const lineage = current.admission.lineage;
@@ -161,7 +164,7 @@ async function readRespondCandidate(
     : owner.status === "unowned" ? await resolveCompletedCandidateWorkUnits(input.cwd) : [];
   const candidates = await Promise.all(workUnits.map(async (workUnit) => ({
     workUnit,
-    record: await readCandidateRecord(input.cwd, workUnit),
+    record: await readCandidateRecord(input.cwd, workUnit, { store: input.store, exec: input.exec }),
   })));
   const matching = candidates.filter(({ record }) =>
     record?.attestation.candidateId === lineage.candidateId);
@@ -171,7 +174,7 @@ async function readRespondCandidate(
 
 /** Observe the exact planned or bound member while D4 reads both contribution endpoints. */
 async function confirmRespondDeliveryMemberApplicability(input: {
-  readonly repository: { exec: GitExec; cwd: string };
+  readonly repository: { exec: GitExec; cwd: string; store?: Store };
   readonly predecessor: ReviewResult;
   readonly current: ReviewResult;
   readonly lineage: Extract<ReviewResult["admission"]["lineage"], { kind: "delivery-member" }>;
@@ -319,7 +322,7 @@ async function observePinnedCorrectionMember(input: {
 
 /** Bind the existing contribution grounds used by response policy. */
 function createRespondPolicyConfirmation(context: {
-  repository: { exec: GitExec; cwd: string };
+  repository: { exec: GitExec; cwd: string; store?: Store };
   request: Pick<ReviewPolicyCommandRequest, "target">;
   currentSettings: Awaited<ReturnType<typeof readConfigSettings>>["settings"];
   rawGit: RawGitExec;
@@ -402,7 +405,7 @@ function createRespondPolicyConfirmation(context: {
 }
 
 async function readRespondPolicyNextPassContext(context: {
-  input: { cwd: string; exec: GitExec };
+  input: { cwd: string; exec: GitExec; store?: Store };
   request: ReviewPolicyCommandRequest;
   confirmedProducerTarget: ReviewResult["target"];
   prepare: Pick<ReturnType<typeof createLocalPrepareDependencies>, "operationStore">;
@@ -417,7 +420,7 @@ async function readRespondPolicyNextPassContext(context: {
   const selected = predecessor === null ? null : await readRespondCandidate(input, predecessor);
   const lineage = predecessor?.admission.lineage ?? { kind: "head-bound" as const, vehicleKind: "review-target" as const,
     vehicleIdentity: confirmedProducerTarget.targetId, headSha: confirmedProducerTarget.headSha };
-  const { completePasses } = await readStandardPassCounts({ ...input, store: prepare.operationStore,
+  const { completePasses } = await readStandardPassCounts({ ...input, store: prepare.operationStore, reviewRecordStore: input.store,
     repositoryId: confirmedProducerTarget.repositoryId, headSha: confirmedProducerTarget.headSha,
     lineage, candidate: selected?.record });
   return deriveReviewNextPassContext({ predecessor, completePasses, completedPasses: request.completedPasses,
@@ -438,7 +441,7 @@ async function readRespondPolicyNextPassContext(context: {
 }
 
 interface RespondPolicyContext {
-  input: { cwd: string; exec: GitExec };
+  input: { cwd: string; exec: GitExec; store?: Store };
   publisher: RepositoryGitCommonStatePublisher;
   prepare: Pick<ReturnType<typeof createLocalPrepareDependencies>, "operationStore">;
   settings: () => Promise<Awaited<ReturnType<typeof readConfigSettings>>["settings"]>;
@@ -506,7 +509,7 @@ async function readRespondProvisionalPassFacts(context: RespondPolicyContext,
     resolveSupersessionAncestors: createLocalReviewCandidateReader(input).readSupersessionAncestors,
     repositoryId: result.repositoryId, headSha: result.target.headSha, lineage: result.admission.lineage,
     workUnitId: selected?.workUnit });
-  const counts = await readStandardPassCounts({ ...input, store: prepare.operationStore,
+  const counts = await readStandardPassCounts({ ...input, store: prepare.operationStore, reviewRecordStore: input.store,
     repositoryId: result.repositoryId, headSha: result.target.headSha, lineage: result.admission.lineage, candidate: selected?.record });
   const { obligation, reasons, rubricVersion, rubricDigest, retrigger, count } = result.requirement;
   const nextPassContext = await deriveReviewNextPassContext({ ...counts, predecessor: result,
@@ -516,7 +519,7 @@ async function readRespondProvisionalPassFacts(context: RespondPolicyContext,
   const facts = await deriveNextPassFacts({ ...history, proposed: proposal, nextPassContext,
     target: result.target, ceiling: configuredMaxPasses, exec: rawGit });
   const workUnit = selected?.workUnit ?? (result.admission.lineage.kind === "delivery-member" ? result.admission.lineage.workUnitId : undefined);
-  const boundary = workUnit === undefined ? null : (await readSubmissionBoundaryVersioned(input.cwd, workUnit)).boundary;
+  const boundary = workUnit === undefined ? null : (await readSubmissionBoundaryVersioned(input.cwd, workUnit, { store: input.store, exec: input.exec })).boundary;
   const routeSources = boundary?.reservation?.sources ?? configuredSources;
   const basis = await resolveIncrementalCoverageBasis(result, { resultReader, confirmApplicability,
     readResponseEvidence: predecessor => readIncrementalPredecessorResponseEvidence(predecessor, dispositionStore, readResponsePerformance) });
@@ -529,7 +532,14 @@ async function readRespondProvisionalPassFacts(context: RespondPolicyContext,
 export function createRespondDependencies(input: {
   exec: GitExec;
   cwd: string;
+  store?: Store;
 }): RespondCommandDependencies {
+  return createBoundRespondDependencies({ ...input,
+    store: input.store ?? createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec })) });
+}
+
+/** Share the response invocation's operational store with prepare, policy, and publication. */
+function createBoundRespondDependencies(input: { exec: GitExec; cwd: string; store: Store }): RespondCommandDependencies {
   const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
   const rawGit = createRawGitExec(input.cwd);
   const prepare = createLocalPrepareDependencies(input);
@@ -734,7 +744,7 @@ export function createRespondDependencies(input: {
         );
       }
       for (const workUnit of candidates) {
-        const { record, version } = await readCandidateRecordVersioned(input.cwd, workUnit);
+        const { record, version } = await readCandidateRecordVersioned(input.cwd, workUnit, { store: input.store });
         if (record === null || version === null) continue;
         const projections = await Promise.all(transitionPrefixes(record).map(async (prefix) =>
           projectGitCandidateEffectiveTarget({
@@ -823,7 +833,7 @@ export function createRespondDependencies(input: {
     // reviewable subject, so staging it advances the lineage without disturbing what review sees.
     appendCandidateResponse: async ({ workUnit, record, expectedRecordVersion }) => {
       await requireCandidateMutationOwner(workUnit);
-      const recordPath = await writeCandidateRecord(input.cwd, workUnit, record, expectedRecordVersion);
+      const recordPath = await writeCandidateRecord(input.cwd, workUnit, record, expectedRecordVersion, { store: input.store });
       await input.exec("git", ["add", "--", recordPath], { cwd: input.cwd });
       return { recordPath };
     },
@@ -838,6 +848,7 @@ export function createRespondDependencies(input: {
       await stageSingletonPublicationResponse({
         cwd: input.cwd,
         exec: input.exec,
+        store: input.store,
         workUnit,
         response,
         requirePublished,

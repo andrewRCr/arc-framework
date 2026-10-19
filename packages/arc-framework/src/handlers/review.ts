@@ -1102,6 +1102,7 @@ async function acceptDeliveryReviewTerminus(
       const status = await resolveReviewStatusForWorkUnit({
         cwd: root,
         exec,
+        store: reviewRecordStore,
         workUnitId,
         remote: request.offer.remote,
       });

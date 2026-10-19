@@ -10,10 +10,9 @@ import { candidateReviewResponses, parseCandidateManagedRecord } from
 import type { CandidateReviewResponseEvidenceV1 } from "../../../lib/work-unit/candidate-attestation.js";
 import { parseIntegrationBoundaryLocus, rebindSingletonPublicationResponseBoundary } from
   "../policy/integration-boundary-locus.js";
-import { resolveCandidateRecordRelativePath } from "../../../lib/work-unit/candidate-record-store.js";
+import { resolveCandidateRecordRelativePath, resolveSubmissionBoundaryPath } from "../../../lib/store/kinds/review/paths.js";
 import type { LaneResponsePerformance } from "../core/operation-state-schema.js";
 import { readLaneProgressOwner } from "../lane-progress.js";
-import { resolveSubmissionBoundaryPath } from "../../../lib/work-unit/submission-boundary-store.js";
 
 function readMatchingResponse(input: {
   content: string;

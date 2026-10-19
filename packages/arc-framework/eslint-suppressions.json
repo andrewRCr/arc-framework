@@ -2918,11 +2918,6 @@
       "count": 2
     }
   },
-  "src/scripts/review-gate/runtime/candidate-response-head-continuation.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    }
-  },
   "src/scripts/review-gate/runtime/frontline-run-command.ts": {
     "max-lines-per-function": {
       "count": 1
@@ -2937,9 +2932,6 @@
     }
   },
   "src/scripts/review-gate/runtime/local-prepare-composition.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    },
     "max-lines-per-function": {
       "count": 1
     }
@@ -2982,17 +2974,11 @@
     }
   },
   "src/scripts/review-gate/runtime/respond-composition.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    },
     "max-lines-per-function": {
       "count": 1
     }
   },
   "src/scripts/review-gate/status-composition.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    },
     "max-lines-per-function": {
       "count": 4
     },

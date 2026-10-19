@@ -19,7 +19,11 @@ import { isGitProcessError } from "../../lib/git/process-error.js";
 import { isGitObjectId } from "../../lib/git/object-id.js";
 import { createRawGitExec } from "../../lib/io-context.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
-import { readCandidateRecordVersioned } from "../../lib/work-unit/candidate-record-store.js";
+import { CanonicalDigestSchema } from "../../lib/kernel/schema/vocabulary.js";
+import type { Store } from "../../lib/store/contract.js";
+import { createStore } from "../../lib/store/create.js";
+import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
+import { readCandidateRecordVersioned } from "../../lib/store/kinds/review/candidate/access.js";
 import {
   projectGitCandidateEffectiveTarget,
   readGitCandidateTargetBase,
@@ -29,7 +33,7 @@ import {
 } from "../../lib/work-unit/git-candidate-subject.js";
 import {
   readSubmissionBoundaryVersioned,
-} from "../../lib/work-unit/submission-boundary-store.js";
+} from "../../lib/store/kinds/review/integration-boundary/access.js";
 import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
 import { validateDeliveryPublicReviewContinuation } from
   "../../lib/delivery/public-review-continuation.js";
@@ -55,7 +59,6 @@ import {
   createHostedReservationDischargeReader,
   resolveHostedReservationTargets,
 } from "./policy/hosted-reservation-discharge.js";
-import type { IntegrationBoundaryLocus } from "./policy/integration-boundary-locus.js";
 import {
   resolveChangeRequest,
   type ChangeRequestCandidate,
@@ -84,6 +87,7 @@ import {
 } from "./policy/hosted-reservation-admission.js";
 import { selectReviewCoverageChoice } from "./policy/review-coverage-selection.js";
 import { composePublishedSingletonReview } from "./status-singleton.js";
+import { readUnreservedObligation } from "./status-unreserved-obligation.js";
 import {
   bindDeliveryReviewTerminusOffer,
   composeDeliveryReviewObligation,
@@ -96,35 +100,6 @@ import {
   type ReviewStatusTargetInput,
   type RoutedReviewObligation,
 } from "./status.js";
-
-/**
- * Read what a publication boundary that reserved no hosted review still owes.
- *
- * Only the loci a Candidate reaches once pre-publication review settles owe nothing. Before that point the
- * boundary's own next step is what is owed, so it is returned unchanged rather than as a fresh review pass.
- *
- * @param boundary - The current boundary, carrying no hosted-review reservation.
- * @returns The settled obligation, the outstanding one carrying the boundary's continuation, or a block for a
- *   locus that cannot exist without a reservation.
- */
-function readUnreservedObligation(boundary: IntegrationBoundaryLocus): RoutedReviewObligation {
-  switch (boundary.locus) {
-    case "candidate-publish-ready":
-    case "publication-pending":
-      return { state: "settled", detail: "No hosted review was reserved across publication." };
-    case "candidate-review-pending":
-    case "candidate-fix-pending":
-    case "candidate-convergence-verification-pending":
-      return {
-        state: "review-required",
-        detail: "The Candidate's pre-publication review is not settled.",
-        prePublicationAction: boundary.nextAction,
-      };
-    case "hosted-review-pending":
-    case "delivery-status-required":
-      return { state: "blocked", detail: "The publication boundary lacks the hosted review reservation it requires." };
-  }
-}
 
 /**
  * Carry one overlap analysis across into the observation the review status records.
@@ -339,6 +314,7 @@ export async function readRoutedObligation(
   judgment?: ReviewStatusPolicyJudgment,
   host: Pick<DeliveryHostPort, "readRequest"> = new GhDeliveryHostPort(hostedGhRunner),
   options: {
+    readonly store?: Store;
     readonly statusRoute?: ReviewStatusRoute;
     readonly baseMovement?: BaseMovementObservation | null;
     readonly remote?: string;
@@ -385,12 +361,13 @@ export async function readRoutedObligation(
     return { state: "blocked", detail: "The target branch does not identify a work unit." };
   }
   const workUnit = subject.workUnitId;
+  const reviewRecordStore = options.store ?? createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec }));
   try {
-    const boundary = (await readSubmissionBoundaryVersioned(cwd, workUnit)).boundary;
+    const boundary = (await readSubmissionBoundaryVersioned(cwd, workUnit, { store: reviewRecordStore })).boundary;
     if (boundary === null) {
       return { state: "blocked", detail: "The publication boundary is unavailable." };
     }
-    const versionedRecord = await readCandidateRecordVersioned(cwd, workUnit);
+    const versionedRecord = await readCandidateRecordVersioned(cwd, workUnit, { store: reviewRecordStore });
     if (versionedRecord.record === null || versionedRecord.version === null) {
       return { state: "blocked", detail: "The managed Candidate record behind the reservation is unavailable." };
     }
@@ -783,7 +760,7 @@ export async function readRoutedObligation(
           : { requestInvocation: { mode: "force" as const, sourceId: judgment.sourceId } }),
         applicabilityContext: {
           workUnitId: workUnit,
-          expectedRecordVersion: versionedRecord.version,
+          expectedRecordVersion: CanonicalDigestSchema.parse(versionedRecord.version),
           candidateId: record.attestation.candidateId,
         },
         ownerTermini: boundary.deliveryReviewTermini,
@@ -796,7 +773,7 @@ export async function readRoutedObligation(
     return await composePublishedSingletonReview({
       statusRoute: options.statusRoute ?? { kind: "target", target },
       cwd, exec, settings, reservation, record, workUnit,
-      recordVersion: versionedRecord.version,
+      recordVersion: CanonicalDigestSchema.parse(versionedRecord.version),
       baseRevision: singletonDiffBase,
       target: { repository: target.repository, pullRequest, headSha: target.headSha },
       ...(judgment === undefined ? {} : { judgment }),
@@ -815,6 +792,7 @@ export function createReviewStatusPort(
   input: {
     cwd: string;
     exec: GitExec;
+    store?: Store;
     rawExec?: RawGitExec;
     remote?: string;
     sourceId?: string;
@@ -831,6 +809,7 @@ export function createReviewStatusPort(
   },
 ): ReviewStatusPort {
   const rawExec = input.rawExec ?? createRawGitExec(input.cwd);
+  const reviewRecordStore = input.store ?? createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec }));
   return {
     observe: async (target, ceilingOverride, coverage, sourceId, additionalPassAuthorization) => {
       try {
@@ -904,6 +883,7 @@ export function createReviewStatusPort(
               optionalReviewStatusJudgment({ ceilingOverride, additionalPassAuthorization, coverage, sourceId }),
               undefined,
               {
+                store: reviewRecordStore,
                 remote,
                 rawExec,
                 baseMovement: base.baseMovement,
@@ -964,6 +944,7 @@ export class ReviewStatusWrongRouteError extends Error {
 export async function resolveReviewStatusForWorkUnit(input: {
   readonly cwd: string;
   readonly exec: GitExec;
+  readonly store?: Store;
   readonly workUnitId: string;
   readonly ceilingOverride?: ReviewStatusTargetInput["ceilingOverride"];
   readonly additionalPassAuthorization?: ReviewStatusTargetInput["additionalPassAuthorization"];
@@ -972,7 +953,8 @@ export async function resolveReviewStatusForWorkUnit(input: {
   readonly remote?: string;
 }): Promise<ReviewStatusResult> {
   const workUnitId = SlugSchema.parse(input.workUnitId);
-  const { boundary, version } = await readSubmissionBoundaryVersioned(input.cwd, workUnitId);
+  const reviewRecordStore = input.store ?? createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec }));
+  const { boundary, version } = await readSubmissionBoundaryVersioned(input.cwd, workUnitId, { store: reviewRecordStore });
   if (boundary === null) throw new Error("The publication boundary is unavailable.");
   if (boundary.locus !== "delivery-status-required") {
     throw new ReviewStatusWrongRouteError(workUnitId);
@@ -1021,6 +1003,7 @@ export async function resolveReviewStatusForWorkUnit(input: {
     optionalReviewStatusJudgment(input),
     undefined,
     {
+      store: reviewRecordStore,
       ...(input.remote === undefined ? {} : { remote: input.remote }),
       rawExec,
       statusRoute: { kind: "work-unit", workUnitId },
@@ -1051,7 +1034,7 @@ export async function resolveReviewStatusForWorkUnit(input: {
     ...(input.additionalPassAuthorization === undefined ? {}
       : { additionalPassAuthorization: input.additionalPassAuthorization }),
     ...(input.coverage === undefined ? {} : { coverage: input.coverage }),
-  }, createReviewStatusPort({ ...input, rawExec }, {
+  }, createReviewStatusPort({ ...input, rawExec, store: reviewRecordStore }, {
     target: selectedTarget,
     pullRequest: selectedPullRequest,
     routedObligation: routed,
