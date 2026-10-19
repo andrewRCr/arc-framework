@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "housekeep-guidance-20261019",
+  "claimId": "2ceb6551904ee0314d0161a398a9c399",
+  "createdAt": "2026-10-19T16:07:19.131Z",
+  "updatedAt": "2026-10-19T16:07:19.131Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Route the approved guidance and tooling captures into backlog drafts and mint the two provisional design stubs.",
+  "branch": "chore/housekeep-guidance-20261019",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
