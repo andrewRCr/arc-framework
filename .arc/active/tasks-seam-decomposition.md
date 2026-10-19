@@ -209,27 +209,13 @@ row to the tasks that build it.
         - Allocation rights protect started meta and task lists and all files another person has started. Owned prose,
           companions, and another person's stub pass before target authoring; store failures retain their full repair.
 
-    - `[ ]` **2.4.d The map's conservation and topology — § 13**
+    - `[x]` **2.4.d The map's conservation and topology — § 13**
 
-        - Carry under `lib/decompose/` the map's ownership and edge rules from `decompose-v3-conservation.ts` —
-          `duplicate-destination-identity`, `retiring-origin-destination`, `incompatible-allocation-locator`,
-          `incompatible-source-ownership`, `origin-reference-remains`, `self-dependency`, `redundant-external-edge`,
-          `unchanged-dependency-slot`, `retiring-origin-target`, and `unknown-external-target` — and its placement
-          rules from `decompose-v3-topology.ts`: `no-new-member`, `multi-member-cohortless`, `placement-member-count`,
-          `unexpected-coordination-location`, and `missing-parent`, the surviving origin counted among an extraction's
-          members (`planInternalV3DecomposeTopology`). Each refusal names its rule and the map's locus.
-        - Carry the dependency projection over records: each member's seeded `Depends On`, from the outgoing `targets`
-          dispositions and the internal and external edges, and each stub dependent's and stub home's edits, from the
-          incoming dispositions, dependents keyed by UID. `writablePath`, `unwritable-dependent`, and `stale-dependent`,
-          which compares version 3's `currentTargets`, go; `replaceDependencySlot` is rewritten under `lib/decompose/`
-          rather than imported from `decompose-sweep.ts`. The terminal batch runs the same projection over the stub
-          dependents and stub homes alone, the members' seeded edges being written already (task 3.4).
-        - Build `test-first` (one behavior at a time):
-            - each carried rule refuses at its locus, and the checks pass once the map is corrected
-            - a contribution adding a provider its recipient already names refuses `unchanged-dependency-slot`
-            - a member's external edge to the retiring origin refuses here, before anything is written
-            - an extraction with one new member under a `cohort` placement passes, the origin counted among its members
-            - the projection seeds each member's edges and edits each stub dependent's by its disposition
+        - Pure allocation, topology, and dependency rules retain the carried conditions and authored loci, with complete
+          locator identity, canonical home identities, parsed Parent checks, and the surviving extraction constituent.
+        - Record acquisition and ordered contributions feed a UID-keyed dependency projection for member seeds, stub
+          dependents, and homes. Slot replacement preserves unrelated order and aliases; terminal projection writes
+          only stub dependents and stub homes, leaving existing member seeds and started recipients alone.
 
     - `[ ]` **2.4.e Edges the cut writes**
 

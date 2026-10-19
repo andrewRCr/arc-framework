@@ -40,3 +40,11 @@ documents from new ones and the completed-cohort exception for member names.
 `check-homes.ts` resolves existing homes to open work units and applies allocation rights from active placement and
 operator ownership. It retains canonical metadata identities while leaving target content and locator resolution to
 the terminal batch; started meta and task-list allocations and document homes receive specific repairs.
+
+`allocation-rules.ts` conserves destination identity, complete locator ownership, and shared-source ownership.
+`topology.ts` validates placement counts and parsed cohort nesting, counting the surviving extraction origin.
+
+`dependency-facts.ts` acquires recipient records and external provider observations. `dependency-contributions.ts`
+orders all authored contributions, and `dependency-projection.ts` applies them by recipient UID, rejecting redundant
+provider slots through `dependency-rules.ts` and the projection checks. `dependency-slot.ts` preserves unrelated edge
+order while replacing all origin spellings. Terminal projection emits only stub-dependent and stub-home edits.

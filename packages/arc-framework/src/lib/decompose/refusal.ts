@@ -15,6 +15,10 @@ export const DecomposeReasonSchema = z.enum([
   "started-member-seed", "removed-stub-held", "removed-stub-cut", "removed-cohort-held", "member-renamed",
   "cut-landed", "stored-map-conflict", "cohort-parent", "cohort-origin-name", "member-depends-on-origin",
   "unsupported", "finish-map-operand", "version-conflict",
+  "duplicate-destination-identity", "retiring-origin-destination", "incompatible-allocation-locator",
+  "incompatible-source-ownership", "origin-reference-remains", "self-dependency", "redundant-external-edge",
+  "unchanged-dependency-slot", "retiring-origin-target", "unknown-external-target", "no-new-member",
+  "multi-member-cohortless", "placement-member-count", "unexpected-coordination-location", "missing-parent",
 ]);
 
 const common = {
