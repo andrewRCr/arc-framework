@@ -328,28 +328,12 @@ that step fails; and the preview afterward reports the cut landed, naming its me
 - _Note:_ See `notes-seam-decomposition.md` § A1 — destination locator semantics for the scanner's occurrence matching
   and source probe; the executable cases below realize spec § 8.4 and Success Criterion 9.
 
-    - `[ ]` **3.3.a Conservation over records**
+    - `[x]` **3.3.a Conservation over records**
 
-        - Each allocation's target locator resolves exactly once in its destination record through the scanner's locator
-          resolution (`resolveV3DecomposeContentLocator`, `decompose-content.ts`), as extraction's finish checks today
-          (`validateProjectedContent`). Occurrences are recomputed by `scanV3DecomposeContent`; the target is the
-          current section at the full saved locator, with no destination content digest or persistent heading identity.
-        - A retirement leaves no content unaccounted for, as `uncovered-retirement-content` requires today
-          (`decompose-v3-conservation.ts`), with no refusal of its own: every content record of the retiring group —
-          draft, spec, task list, notes, and companions — is a source record the scan covers, and one added between the
-          batches is an added unit, which task 3.3.b's rescan refuses. Each other `work-item` kind the group can hold
-          (`KIND_SHAPES`, `lib/store/catalog.ts`) is accounted for: the meta, inbound list, and stored map are checked
-          on their own, a promoted origin's description record retires with the item, and an open conflict refuses
-          through task 2.2.d's derivation.
-        - Build `test-first` (one behavior at a time):
-            - a rename, re-level, merge, or ancestry change that leaves the saved locator unresolved refuses,
-              naming the allocation and `--revise`
-            - an earlier matching heading that takes the saved ordinal passes, and the resolved content is that new
-              section, even when its body differs from the section previously at that locator
-            - removing or merging a section passes when another section still occupies the complete saved locator
-            - an authored body change that leaves the target locator resolvable passes
-            - a promoted origin's description record passes
-            - a conflict filed on a source record between the batches refuses
+        - `checkDecomposeConservation` resolves complete saved locators against current member, home, and cohort
+          records, retaining selected record versions and resolved content. Ordinal retargeting and authored bodies
+          pass; unresolved locators name the allocation and revision. Source conflicts refuse through shared acquisition;
+          an actual promoted origin retains its description outside the scanned content inventory.
 
     - `[ ]` **3.3.b The origin bound by content**
 

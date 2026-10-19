@@ -96,3 +96,7 @@ where one admissible placement matches every member. `check-seeded-fields.ts` re
 other grooming and protects a retirement from member edges to the origin. `seeded-provider.ts` compares provider
 owners, accepts their complete retirement dispositions through the shared chain resolver, and retains the records
 that prove those decisions for revalidation.
+
+`conservation.ts` resolves each allocation's complete saved locator against its current member, home, or cohort
+record. It shares artifact scans, retains the current resolved content and selected record versions, and directs
+unresolved locators to revision. Destination bodies and recomputed occurrence ordinals remain authorable.
