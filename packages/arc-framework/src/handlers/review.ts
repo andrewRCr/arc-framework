@@ -1,4 +1,5 @@
 /** Machine-readable review workflow handlers. */
+import { decodePrePublicationReplay, replayTokenFromAction, type PrePublicationReplayInput } from "../scripts/review-gate/policy/pre-publication-replay.js";
 import { ReviewLaneReadRequestSchema, ReviewLaneReadEnvelopeSchema, type ReviewLaneReadRequest } from "../scripts/review-gate/lane-read-schema.js";
 import { readReviewLane } from "../scripts/review-gate/runtime/lane-read-composition.js";
 import { reviewDiscoverableCommandInputSchema } from "./review-request-schema.js";
@@ -41,7 +42,7 @@ import { sameDeliveryReviewMemberVehicle } from "../lib/delivery/review-vehicle.
 import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
 import type { GitExec } from "../lib/git/exec.js";
-import { canonicalDigest, canonicalize, CanonicalDigestSchema, type CanonicalDigest } from "../lib/kernel/index.js";
+import { canonicalDigest, canonicalize, type CanonicalDigest } from "../lib/kernel/index.js";
 import { SlugSchema } from "../lib/kernel/schema/slug.js";
 import {
   readCandidateRecord,
@@ -98,7 +99,7 @@ import {
   type FrontlineRunRequest,
 } from "../scripts/review-gate/core/frontline-run-command-schema.js";
 import { DeliveryBindingLookup } from "../scripts/review-gate/core/delivery-binding-lookup.js";
-import { ReviewTargetSchema, type ReviewTarget } from
+import type { ReviewTarget } from
   "../scripts/review-gate/core/gate-contract-v2-schema.js";
 import {
   createLocalFrontlineSourcePreferenceReader,
@@ -4189,44 +4190,7 @@ export interface ReviewPrePublicationJudgment {
   frontlineCeilingHeadSha: string | undefined;
 }
 
-const AttestationOrderingRecoverySchema = z.strictObject({
-  candidateId: CanonicalDigestSchema,
-  candidateSubjectDigest: CanonicalDigestSchema,
-  reviewedHead: GitObjectIdSchema,
-  currentHead: GitObjectIdSchema,
-  expectedBoundaryVersion: CanonicalDigestSchema,
-});
-const PrePublicationReplayInputSchema = z.strictObject({
-  candidateId: CanonicalDigestSchema.optional(),
-  candidateSubjectDigest: CanonicalDigestSchema.optional(),
-  selfReview: z.literal("settled").optional(),
-  changeSet: z.json().optional(),
-  lanes: z.json().optional(),
-  scopeJudgmentTarget: ReviewTargetSchema.optional(),
-  frontlineCeilingHeadSha: GitObjectIdSchema.optional(),
-  attestationOrderingRecovery: AttestationOrderingRecoverySchema.optional(),
-}).refine(
-  (replay) => (replay.candidateId === undefined) === (replay.candidateSubjectDigest === undefined),
-  "Candidate replay identity requires both Candidate ID and subject digest",
-);
-type PrePublicationReplayInput = z.infer<typeof PrePublicationReplayInputSchema>;
 
-function decodePrePublicationReplay(token: string): PrePublicationReplayInput {
-  return PrePublicationReplayInputSchema.parse(JSON.parse(Buffer.from(token, "base64url").toString("utf8")));
-}
-
-function replayTokenFromAction(command: string, workUnit: string): string {
-  const argv = command.split(" ");
-  if (argv.length !== 6
-    || argv[0] !== "arc"
-    || argv[1] !== "review"
-    || argv[2] !== "pre-publication"
-    || argv[3] !== workUnit
-    || argv[4] !== "--resume") {
-    throw new Error("The pending post-attest continuation has no exact opaque replay command.");
-  }
-  return z.string().regex(/^[A-Za-z0-9_-]+$/u).parse(argv[5]);
-}
 
 export interface ReviewPrePublicationHandlerDependencies {
   resolveRoot(cwd: string): string | null;

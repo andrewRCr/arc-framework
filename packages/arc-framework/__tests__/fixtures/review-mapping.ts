@@ -1,4 +1,5 @@
 /** Producer-generated local operations and their repository persistence envelopes. */
+import type { ReviewLaneJudgment } from "../../src/scripts/review-gate/policy/review-policy-driver.js";
 import { LocalReviewResultReader } from "../../src/scripts/review-gate/hosts/local/review-result-reader.js";
 import { createLocalReviewPreparationFixture } from "./local-review-preparation.js";
 import { prepareLocalReview } from "../../src/scripts/review-gate/runtime/local-prepare.js";
@@ -41,10 +42,10 @@ export async function createLocalMappingFixture(context: {
   fixture.dependencies.readCurrentHeadSha = async () => target.headSha;
   fixture.dependencies.confirmTarget = async (attempted) => attempted.targetId === target.targetId
     ? { state: "current", target } : { state: "stale-target", attemptedTarget: attempted, currentTarget: target };
-  async function prepare() {
+  async function prepare(policyJudgment: ReviewLaneJudgment = { scopeMode: "whole-target" }) {
     const prepared = await prepareLocalReview({ schemaVersion: 1, evaluatorIdentity: "evaluator-1",
       routingFacts: { contentKind: "code-bearing", reviewRisk: "routine", changeDeterminacy: "ordinary",
-        ownership: "self", surfaceAuthority: "ordinary" }, policyJudgment: { scopeMode: "whole-target" } }, fixture.dependencies);
+        ownership: "self", surfaceAuthority: "ordinary" }, policyJudgment }, fixture.dependencies);
     const state = fixture.published();
     if (prepared.state !== "ready" || state?.kind !== "local-review") throw new Error("Expected local producer");
     return state;
@@ -134,6 +135,7 @@ export async function createHostedMappingFixture(kind: "errand" | "delivery-memb
   }] });
   const operations = new Map<string, { version: number; state: ReviewOperationState }>();
   const store = {
+    readOperationSnapshot: async () => ({ status: "complete" as const, records: [...operations.values()] }),
     readOperation: async (operationId: string) => operations.get(operationId) ?? { version: 0, state: null },
     publishOperation: async (state: ReviewOperationState, expectedVersion: number) => {
       const current = operations.get(state.operationId)?.version ?? 0;

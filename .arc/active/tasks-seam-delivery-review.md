@@ -415,47 +415,16 @@ alone.
   its time. Hosted actions and receipts remain set-specific, including predecessor carry. The shared legacy decoder
   preserves enumeration skips, and local approval checks bind the recorded evaluator identity.
 
-### `[ ]` **3.4 Map authorizations, the skip marker, termini, and the resume token's judgments to decisions — § 11.2**
+### `[x]` **3.4 Map authorizations, the skip marker, termini, and the resume token's judgments to decisions — § 11.2**
 
 - _Goal:_ Every decision today's records hold becomes a `review/decision` record carrying a decider, time, head, and
   subject digest only where its source recorded them, so no one is asked to decide again after the import.
 
-    - A new pure module, `rg/policy/pre-publication-replay.ts`, which the mapping and `handlers/review.ts` both import,
-      holds today's replay schema and decoder (`PrePublicationReplayInputSchema`, `decodePrePublicationReplay`, with
-      `AttestationOrderingRecoverySchema`), moved out of `handlers/review.ts`, which keeps using them as its in-repo
-      arm. The mapping decodes today's token through it, the token's `lanes` through `PrePublicationLaneJudgmentsSchema`
-      (`rg/policy/pre-publication-request.ts`), which the replay schema leaves untyped.
-    - Build `test-first` (one behavior at a time):
-        - today's token decodes through the moved decoder for each judgment it carries, its `lanes` through
-          `PrePublicationLaneJudgmentsSchema`
-        - a conditional pass authorization maps to an `approved-fix` decision keyed by its `authorizationId`, its
-          `authorizedBy` and `capturedAt` the decider and time, its subject its lineage at `originatingHeadSha` with no
-          subject digest, its `passCount` the producer's logical pass, and a hosted one's
-          producer kept as its acknowledged attempt ID
-        - every attempt a consumed one admitted — its admitting attempt and the retries after it at its pass — cites it
-          as `admittedBy` on its outcome, a withdrawn one gains a withdrawal decision from `withdrawnBy` and
-          `invalidatedAt`, and a superseded one gains nothing
-        - an authorization withdrawn and then superseded by a successor set's approval maps to records that pass every
-          write check (1.3.b)
-        - a consumed authorization's `admissionId` names a local admitting attempt by its `attemptId` and a hosted one
-          by its admission's ID (`hosted.admission.admissionId`), so a hosted review's admitting attempt cites it too
-        - the frontline skip marker maps to a lane-skip decision on its Candidate with no decider and its `updatedAt`
-          as the time
-        - the boundary's `terminus` maps to a terminus decision on the boundary's `candidateId` and
-          `candidateSubjectDigest` with no head (§ 5.1), decided by `acceptedBy` with no time, its basis
-          `{ passCount }` the pass count it holds, so it keys as the live decision would; each `deliveryReviewTermini`
-          entry maps on its member vehicle
-        - a boundary whose subject digest no target of its Candidate record carries maps its terminus alike
-        - every other decision it maps carries a `null` basis
-        - the resume token's additional pass maps to an `additional` extra pass, and its ceiling override to a `ceiling`
-          extra pass unless it cites a conditional pass authorization, which maps to nothing; a frontline ceiling
-          override is decided on the head the token bound it to (`frontlineCeilingHeadSha`)
-        - the token's terminus maps to nothing where the boundary carries one, and otherwise to a terminus decision
-          whose basis is the pass count the imported outcomes give its Candidate, its chain's included, counted as
-          1.2.c derives the lane's count
-        - two decisions with the same content map to one record
-        - a mixed complete/incremental history preserves logical exhaustion and next-pass ordinals for every mapped
-          grant, independently of the standard ceiling's complete count
+- _Outcome:_ Native authorization histories retain original keys, logical pass ordinals, capture metadata, and
+  withdrawals; consumed admissions and their retries cite the grant, including hosted acknowledgment identity changes.
+  Skip markers and boundary/member termini preserve recorded subjects without inferred authority. The shared legacy
+  replay decoder and lane schema recover extra passes and unstored termini, whose basis uses mapped settlement and
+  Candidate ancestry; duplicate decisions coalesce while every contributing source retains its reference.
 
 ### `[ ]` **3.5 Map a live work unit's Candidate versions and boundary — § 11.2**
 

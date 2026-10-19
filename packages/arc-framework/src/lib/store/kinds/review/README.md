@@ -44,3 +44,10 @@ A pending live attempt blocks its entire lane file, and portable outcome times p
 It joins current or historical lane performance with complete Errand/member fix responses and partitions hosted
 settlement by set, including carried receipts. Its source decoder is shared with legacy disposition enumeration.
 Local disposition findings retain the evaluator identity recorded in their original request.
+
+`mapping-operations.ts` keeps operation-file liveness and pending-attempt classification ahead of producer and decision
+mapping. Authorization histories retain their content keys, withdrawals, and consumption citations through retries
+and hosted acknowledgment. `mapping-boundary-decisions.ts` preserves Candidate/member termini and saved replay grants;
+replay termini derive their logical pass basis from mapped outcomes, evidence, and Candidate ancestry. The replay
+schema, decoder, and exact command-token parser are shared with the legacy handler. Duplicate decisions retain one
+record and all contributing source references.
