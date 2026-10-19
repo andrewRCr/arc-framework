@@ -95,30 +95,14 @@ under `lib/decompose/`, and the kind folder imports its decoder from there, as t
   append, exact-block reuse, or conflicting provenance. It is public through the cohort kind; the version-3 planner
   keeps its private renderer and splice unchanged.
 
-### `[ ]` **1.5 Add `lineage.cut-in-flight` — § 10, § 17.2**
+### `[x]` **1.5 Add `lineage.cut-in-flight` — § 10, § 17.2**
 
 - _Goal:_ Creating `abandon` lineage for a work item whose `work-item/cut-map` record is in the batch's before-state
   refuses, naming `arc decompose <origin> --finish` and `--discard`, so no abandonment strands a cut's members.
 
-- _Note:_ `lib/store/kinds/lineage/check.ts` serializes with `storage-ref-backend` (§ 1.3).
-
-    - Its own function beside `checkRetiredBranches`, run by `checkLineageRecord` on the creation of `abandon` lineage
-      (no `prior`) once the record parses, ahead of the return that skips the inbound rule while no grammar is
-      declared; its violation is reported alongside any of `lineage.retired-branches`.
-    - It reads the owner's singleton reference (`recordReferences["work-item/cut-map"](input.reference.owner)`) in
-      `input.before` through `observeRecord` (`lib/store/kinds/rule-support.ts`), since the record's owner carries
-      the generation `lineage.origin` may lack; a known record refuses, and an unavailable read refuses with its
-      condition.
-    - The lineage README's paragraph on `check.ts` gains the rule, and `ruleRecord`
-      (`__tests__/helpers/store/rule-view.ts`) the kind.
-    - Build `test-first` (one behavior at a time):
-        - `abandon` lineage refuses with the map in `before`
-        - `abandon` lineage passes with no map
-        - `decompose` and `rename` lineage pass with the map in `before`, the terminal batch's case
-        - the rule reads `before`, so a backend whose end sweep empties `after` sees the same
-        - a read of the map refused other than as not-found refuses with its condition
-        - an existing lineage record repaired in place is not rechecked
-        - the check as the production registry registers it refuses
+- _Outcome:_ `lineage.cut-in-flight` reads the exact owner's cut-map singleton in the batch's before-state and
+  refuses new abandonment with finish/discard remedies, preserving unavailable-read conditions. It aggregates with
+  branch-snapshot violations independently of inbound grammar and leaves other transitions and existing lineage alone.
 
 ## **Phase 2:** Preflight and the additive batch
 

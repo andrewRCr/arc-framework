@@ -13,7 +13,7 @@ import {
  * @param placement - Primary lifecycle location, or undefined for cohort/lineage.
  * @returns A validated contract record.
  */
-export function ruleRecord(kind: "work-item/meta" | "work-item/record" | "work-item/task-list" | "work-item/draft" | "work-item/spec" | "work-item/inbound" | "cohort/document" | "lineage/transition", name: string, uid: string, content = "", fields?: unknown, placement?: ReadPlacement): StoreRecord {
+export function ruleRecord(kind: "work-item/meta" | "work-item/record" | "work-item/task-list" | "work-item/draft" | "work-item/spec" | "work-item/inbound" | "work-item/cut-map" | "cohort/document" | "lineage/transition", name: string, uid: string, content = "", fields?: unknown, placement?: ReadPlacement): StoreRecord {
   const type = kind === "cohort/document" ? "cohort" : "work-item";
   const owner = OwnerIdentitySchema.parse({ type, name, uid });
   const reference = recordReferences[kind](owner);

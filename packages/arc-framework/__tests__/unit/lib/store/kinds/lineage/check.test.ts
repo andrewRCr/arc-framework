@@ -7,6 +7,9 @@ import { checkLineageRecord } from "../../../../../../src/lib/store/kinds/lineag
 import { writeLineageRecord, parseLineageRecord } from "../../../../../../src/lib/store/kinds/lineage/index.js";
 import type { WriteCheckInput } from "../../../../../../src/lib/store/write-check.js";
 import { META_RULE_UID } from "../../../../../helpers/store/meta-rule-input.js";
+import { cutMapFixture, rebindCutFixture } from "../../../../../fixtures/decompose-v4.js";
+import { writeCutMapRecord } from "../../../../../../src/lib/store/kinds/cut-map/index.js";
+import { SlugSchema } from "../../../../../../src/lib/kernel/index.js";
 import { ruleRecord, ruleView } from "../../../../../helpers/store/rule-view.js";
 const grammar = { shape: "heading" as const, sections: ["Entries"] };
 const held = "# Inbound\n\n## Entries\n\n### Concern\n\n- _Id:_ `11111111`\n\nConcern.\n";
@@ -67,4 +70,58 @@ it("refuses a terminal snapshot whose prior primary cannot be read", async () =>
   const terminal = { ...parseLineageRecord(proposal.next!.content), retiredBranches: [] };
   proposal.next = { content: JSON.stringify(terminal), fields: terminal };
   expect(await checkLineageRecord(proposal)).toMatchObject([{ rule: "lineage.retired-branches" }]);
+});
+
+function cutRecord(uid = META_RULE_UID) {
+  const value = cutMapFixture();
+  value.machine.origin = { slug: SlugSchema.parse("example"), uid };
+  rebindCutFixture(value);
+  return ruleRecord("work-item/cut-map", "example", uid, writeCutMapRecord(value), value);
+}
+
+it("refuses abandonment from a map in before even when after is empty", async () => {
+  const proposal = input(null, "abandon", null);
+  proposal.before = ruleView([cutRecord()]); proposal.after = ruleView([]);
+  expect(await checkLineageRecord(proposal)).toMatchObject([{ rule: "lineage.cut-in-flight", remedy: {
+    text: expect.stringContaining("arc decompose example --finish"),
+  } }]);
+  expect((await checkLineageRecord(proposal))[0]?.remedy.text).toContain("arc decompose example --discard");
+  proposal.before = ruleView([]);
+  expect(await checkLineageRecord(proposal)).toEqual([]);
+});
+it("retains an unavailable cut-map read's condition", async () => {
+  const proposal = input(null);
+  proposal.before = { ...proposal.before, read: async () => ({ status: "refused", refusal: {
+    code: "namespace-corrupt", class: "terminal", namespace: "work-item", condition: "Cut-map evidence unavailable.",
+    remedy: { text: "Restore the namespace." },
+  } }) };
+  expect(await checkLineageRecord(proposal)).toMatchObject([{ rule: "lineage.cut-in-flight", condition: "Cut-map evidence unavailable." }]);
+});
+it("reports cut and retired-branch violations together", async () => {
+  const proposal = input(null);
+  const terminal = { ...parseLineageRecord(proposal.next!.content), retiredBranches: [] };
+  proposal.next = { content: JSON.stringify(terminal), fields: terminal };
+  proposal.before = ruleView([cutRecord()]);
+  expect(await checkLineageRecord(proposal)).toMatchObject([{ rule: "lineage.retired-branches" }, { rule: "lineage.cut-in-flight" }]);
+});
+it("registers cut-in-flight admission in the production lineage check", async () => {
+  const proposal = input(null); proposal.before = ruleView([cutRecord()]);
+  const check = createKindRegistry(PRODUCTION_REGISTRATIONS)["lineage/transition"].check;
+  if (check === null) throw new Error("Lineage must register its check");
+  expect(await check(proposal)).toMatchObject([{ rule: "lineage.cut-in-flight" }]);
+});
+
+it.each(["decompose", "rename"] as const)("admits %s lineage while a cut map is in before", async kind => {
+  const proposal = input(null, kind); proposal.before = ruleView([cutRecord()]);
+  expect(await checkLineageRecord(proposal)).toEqual([]);
+});
+it("does not recheck an existing lineage version with a cut map in before", async () => {
+  const proposal = input(null); proposal.before = ruleView([cutRecord()]); proposal.prior = proposal.next;
+  expect(await checkLineageRecord(proposal)).toEqual([]);
+});
+
+it("uses the record owner's generation when lineage omits its UID", async () => {
+  const proposal = input(null, "abandon", null);
+  proposal.before = ruleView([cutRecord("00000000-0000-4000-8000-000000000002")]);
+  expect(await checkLineageRecord(proposal)).toEqual([]);
 });
