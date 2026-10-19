@@ -2367,5 +2367,7 @@ rewrite, and deletion pass (§ 11.2, § 12.6, § 14.3).
   _Trigger:_ 1.2.c must-stop. _Work:_ 1.2.R. _Revalidated:_ pending → 5.8.
 - **A8** — 2026-10-19 — task: ground evidence checks in their outcome. _Supersedes:_ none.
   _Trigger:_ 1.4.a door. _Work:_ 1.4.R. _Revalidated:_ pending → 5.8.
+- **A9** — 2026-10-19 — task: defer `indexFrontline` payload decoding until a mapped attempt joins. _Supersedes:_ none.
+  _Trigger:_ 3.8 segment. _Work:_ 3.R. _Revalidated:_ pending → 3.8.
 
 ---

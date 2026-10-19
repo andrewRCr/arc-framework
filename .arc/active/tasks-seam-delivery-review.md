@@ -395,6 +395,8 @@ alone.
   with the facts today's other records hold for it, while a `pending` attempt lists its file as in flight and every
   record of working state, retired attempts, or other stores is left behind with its reason.
 
+    - _Amended in:_ 3.R (A9)
+
 - _Outcome:_ Pure source decoding and producer mappings preserve each attempt's admission lineage, local request and
   receipt identity, sealed hosted findings, and original frontline source binding before executable redaction. Ordered
   outcomes and complete source listings distinguish pending live lanes, ended owners, joined evidence, and discarded
@@ -451,6 +453,15 @@ alone.
   logical passes, including independently numbered ancestor histories; complete coverage controls only the standard
   ceiling. Remaining tasks retain grant ordinals, optional stored tags and report replay, and invocation-bound ports for
   correction proofs, next-pass context, and lane history. The amendment entry gate leaves the design unchanged.
+
+### `[x]` **3.R Defer unused frontline payload decoding — § 11.2**
+
+- _Goal:_ An unjoined frontline outcome is left behind without requiring its payload to meet today's schema, while a
+  mapped live attempt still requires the complete native outcome validation (A9).
+
+- _Outcome:_ Frontline identity headers index independently of opaque payloads. Unjoined historical findings retain
+  the retired-attempt reason and foreign records retain their identity reason; a mapped live attempt still decodes
+  through the complete native schema. The repository's actual-live pass now completes without decoding unused findings.
 
 ### `[ ]` **3.8 The import's mapping** — validate exit criterion at segment scope
 

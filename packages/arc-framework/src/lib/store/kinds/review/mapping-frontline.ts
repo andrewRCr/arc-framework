@@ -3,7 +3,7 @@ import { canonicalize } from "../../../kernel/index.js";
 import { computeFrontlineSourceBindingId } from "../../../../scripts/review-gate/policy/frontline-operation.js";
 import type { LaneProgressState } from "../../../../scripts/review-gate/core/operation-state-schema.js";
 import type { ReviewOutcome } from "./outcome/schema.js";
-import type { ReviewMappingSources } from "./mapping-sources.js";
+import { mappingFrontlineOutcome, type ReviewMappingSources } from "./mapping-sources.js";
 
 /** Join an admitted frontline attempt to exactly one recorded outcome, without requiring run state. */
 export function mapFrontlineAttempt(attempt: LaneProgressState["attempts"][number], lane: LaneProgressState,
@@ -11,9 +11,7 @@ export function mapFrontlineAttempt(attempt: LaneProgressState["attempts"][numbe
   const binding = attempt.frontline;
   if (binding === undefined || attempt.outcome === "pending") throw new Error("Expected ended frontline admission.");
   const admission = binding.admission;
-  const outcomes = [...sources.frontline.values()].filter((record) => record.operationId === admission.operationId);
-  const record = outcomes[0];
-  if (outcomes.length !== 1 || record === undefined) throw new Error(`Expected one frontline outcome for ${admission.operationId}.`);
+  const record = mappingFrontlineOutcome(sources, admission.operationId);
   const source = record.outcome.source;
   const promptText = admission.frontlineReview.promptText;
   if (admission.frontlineReview.action !== "attempt" || promptText === null

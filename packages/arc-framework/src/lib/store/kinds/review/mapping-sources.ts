@@ -1,4 +1,5 @@
 /** Decode original persistence envelopes for pure cross-source review joins. */
+import { z } from "zod";
 import { ReviewOperationStoreRecordSchema, FrontlineOutcomeStoreRecordSchema } from "../../../../scripts/review-gate/core/repository-record-schemas.js";
 import { ForwardReceiptLedgerRecordSchema } from "../../../../scripts/review-gate/core/forward-receipt-ledger-schema.js";
 import type { FrontlineOutcomeRecord } from "../../../../scripts/review-gate/core/advisory-records.js";
@@ -6,12 +7,17 @@ import type { ReviewOperationState, LocalReviewState } from "../../../../scripts
 import type { ReviewReceiptV2 } from "../../../../scripts/review-gate/core/gate-contract-v2-schema.js";
 import type { ReviewMappingSource } from "./mapping-listing.js";
 
-/** Validated legacy facts indexed without filesystem or registry access. */
+const FrontlineIdentityHeaderSchema = FrontlineOutcomeStoreRecordSchema.extend({ record: z.object({
+  operationId: FrontlineOutcomeStoreRecordSchema.shape.record.shape.operationId,
+  repositoryId: FrontlineOutcomeStoreRecordSchema.shape.record.shape.repositoryId,
+}) });
+
+/** Legacy facts and identity headers indexed without filesystem or registry access. */
 export interface ReviewMappingSources {
   discarded: Map<string, string>;
   operations: Map<string, ReviewOperationState>;
   operationVersions: Map<string, number>;
-  frontline: Map<string, FrontlineOutcomeRecord>;
+  frontline: Map<string, { operationId: string; value: unknown }>;
   receipts: { source: string; receipts: ReviewReceiptV2[] }[];
 }
 
@@ -33,10 +39,19 @@ function indexOperation(source: Extract<ReviewMappingSource, { kind: "gate" }>, 
 
 function indexFrontline(source: Extract<ReviewMappingSource, { kind: "gate" }>, projectId: string,
   index: ReviewMappingSources): void {
-  const record = FrontlineOutcomeStoreRecordSchema.parse(decodeReviewMappingSource(source));
+  const value = decodeReviewMappingSource(source);
+  const record = FrontlineIdentityHeaderSchema.parse(value);
   if (record.operationId !== record.record.operationId) throw new Error(`Outcome identity mismatch: ${source.source}`);
-  if (record.record.repositoryId === projectId) index.frontline.set(source.source, record.record);
+  if (record.record.repositoryId === projectId) index.frontline.set(source.source, { operationId: record.operationId, value });
   else index.discarded.set(source.source, "Record names another repository ID.");
+}
+
+/** Decode the exact frontline outcome only when a live mapped attempt needs its payload. */
+export function mappingFrontlineOutcome(sources: ReviewMappingSources, operationId: string): FrontlineOutcomeRecord {
+  const matches = [...sources.frontline.values()].filter((record) => record.operationId === operationId);
+  const match = matches[0];
+  if (matches.length !== 1 || match === undefined) throw new Error(`Expected one frontline outcome for ${operationId}.`);
+  return FrontlineOutcomeStoreRecordSchema.parse(match.value).record;
 }
 
 function indexReceipts(source: Extract<ReviewMappingSource, { kind: "gate" }>, projectId: string,
