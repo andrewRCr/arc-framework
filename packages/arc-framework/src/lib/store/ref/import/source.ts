@@ -16,6 +16,7 @@ import { appendImportLineage } from "./lineage.js";
 import type { Slug } from "../../../kernel/schema/slug.js";
 import { appendImportTransients, type ImportTransientState } from "./transient.js";
 import { moveImportPendingEntries } from "./pending-entries.js";
+import { maskComments } from "../../concurrency/entries.js";
 
 /** One imported content revision and its containing owner's lifecycle placement. */
 export interface ImportRecord { reference: RecordReference; content: string; placement?: StoreRecord["placement"]; asFound?: boolean;
@@ -86,7 +87,9 @@ async function appendPersonal(context: RefBackendContext, report: MigrateReport,
     if (record.reference.kind === "personal/session-context") continue;
     const reference = record.reference.kind === "personal/document" && typeof record.reference.key === "string" ? RecordReferenceSchema.parse({ ...record.reference,
       key: `scratch/${record.reference.key}` }) : record.reference;
-    records.push({ ...record, reference });
+    const content = reference.kind === "personal/inbox" || reference.kind === "personal/working-memory"
+      ? withoutPersonalTombstones(record.content) : record.content;
+    records.push({ ...record, reference, content });
   }
 }
 
@@ -127,4 +130,13 @@ function bindOwner(record: StoreRecord, owners: Map<string, string>): ImportReco
   let uid = owners.get(key);
   if (!uid) { uid = randomUUID(); owners.set(key, uid); }
   return { ...record, reference: RecordReferenceSchema.parse({ ...record.reference, owner: { ...owner, uid } }) };
+}
+
+function withoutPersonalTombstones(content: string): string {
+  const boundaries = [...maskComments(content).matchAll(/^(?:## [^\r\n]*|---[ \t]*)\r?$/gmu)];
+  const removed = boundaries.flatMap((heading, index) => heading[0].startsWith("## Removed:")
+    ? [{ start: heading.index, end: boundaries[index + 1]?.index ?? content.length }] : []);
+  let result = content;
+  for (const { start, end } of removed.reverse()) result = result.slice(0, start) + result.slice(end);
+  return result;
 }

@@ -1331,19 +1331,11 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
   retains D9's refusal. Imported work reopens, closed cohort corrections reach history, repeated peer pulls report no
   pending ends, and independent comparison permits only UID enrichment and rename-to-former-slug projection.
 
-### `[ ]` **15.3 Errand identity refs, descriptions, inbound lists, and queues — § 10.9, § 10.11, § 3.8**
+### `[x]` **15.3 Errand identity refs, descriptions, inbound lists, and queues — § 10.9, § 10.11, § 3.8**
 
 - _Goal:_ Every Errand and claim the configured person's identity ref holds, and every held capture, buffer section, and
   execute-bound mark, lands in its new home and leaves its source, so nothing integrates, routes, or starts twice after
   the flip.
-
-    - The configured person's `refs/arc/user/<id>/errands` alone, as the in-repo implementation reads it (`transientIO`,
-      `lib/store/in-repo/transient-common.ts`); any other person's is left in place and listed in `notices`
-    - Descriptions, inbound lists, and queues rendered in the first section of the grammar the kind registry declares for
-      each kind (`EntryConfig`, `lib/store/registry.ts`), passed through `runStoreMigrate`'s registry port (14.1); the
-      generic comparisons retain § 14.1's isolated test grammars, and 15.R2 exercises the production `ENTRY_CONFIGS`
-      and `ENTRY_REGISTRATIONS` through the actual readers; an entry the supplied grammar's stamp cannot place an ID
-      in is listed under `entry-id`
 
     - `[x]` **15.3.a Errands and claims re-homed**
         - Pinned configured-identity Errands land with owner, active placement, and descriptions; both claim roles
@@ -1356,51 +1348,12 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
           into inbound lists with source dates, leaving no source copy or receipt. Malformed marks, missing targets,
           and undated buffers refuse before landing and succeed after repair.
 
-    - `[ ]` **15.3.c Entry stamps and tombstones**
-        - Build `test-first` (one behavior at a time):
-            - every entry of every entry kind lacking an `_Id:_` is stamped, both inboxes, working memory, and the three
-              kinds among them
-            - the notes merge's `## Removed:` tombstones are dropped from `USER-INBOX.md` and `WORKING-MEMORY.md`
-            - every entry compares clean through 14.4's harness, its comparator adding only the two shared files'
-              dropped tombstones
+    - `[x]` **15.3.c Entry stamps and tombstones**
+        - Shared admission stamps missing IDs across all six entry kinds, preserving existing capture and queue IDs.
+          Personal inbox and memory tombstones leave at acquisition; source comparisons retain every other byte.
 
-### `[ ]` **15.3.R Session synchronization port binding — § 6.1, § 12 (A14)**
-
-- _Goal:_ The status session's synchronization port calls the same selected store as its operational reads, so session
-  entry, named-history retries, explicit status fetches, and local maintenance reach the backend after the flip.
-
-    - Starts after 15.3.a's `seam-locus` availability gate; this work sits beyond the deferred range ending at 15.2
-    - Bind `StoreSyncPort` (`lib/store/operational-sync.ts`) to the invocation's `Store.pull`, `Store.maintain`, and
-      recoverable refusal history refs, and supply it through `createSessionStatusContext`
-      (`handlers/status/session-context.ts`), where `handlers/status.ts` builds that context
-    - Reconcile the narrow port's result model with the store's remote outcomes and configuration states, retaining
-      failures, actionable remedies, and partial-application notices; no failed pull is presented as success
-    - Add `incomplete` for an invocation that did not fully synchronize its requested state, including partially
-      applied results; retain its condition, remedy, and partial outcomes. Keep `unreachable` for transport failures.
-      Both `describeStorePull` and status fetch render `incomplete` as `pull-incomplete`, with exhaustive mappings;
-      successful pulls retain their notices for rendering
-    - The port and session-entry result descriptions belong here; status warning rendering belongs to the status and
-      roadmap seam. Whichever lands second completes the shared wiring in `handlers/status.ts`,
-      `handlers/status/store-locus.ts`, and `lib/session-init/store-user-pull.ts`: `incomplete` becomes `pull-incomplete`,
-      and every notice becomes `pull-notice`, including notices inside an incomplete result's partial outcomes. Complete
-      the expected `pullStoreStatus` binding in `handlers/status/store-locus.ts` for `incomplete` and every notice if
-      this branch lands second; that binding serves `--project`, `--user`, `--conflicts`, and slug status queries.
-      Preserve each notice's condition and remedy. For `ended-with-conflicts`, name the item and its conflict records,
-      explain that the ordinary conflict view does not list them, and pass through the retained-conflict remedy
-    - Keep `createStore` as the backend selection point and its current in-repo selection until the cutover
-    - Build `test-first` (one behavior at a time):
-        - the result projection covers configured and undesignated remotes, no identity, no remote, success, and failure
-        - a named-history refusal pulls exactly its refs through the bound store, then the original operation succeeds;
-          a failed fetch keeps the original refusal actionable
-        - maintenance returns the selected store's measurements, including unsupported measurements as `null`
-        - the production status-context construction supplies the binding to its selected store while the pre-flip
-          session arms remain inactive
-        - both `arc status --fetch` and `arc status <slug> --fetch` use the selected store and bound port, covering the
-          slug dispatch before session-context construction once both seams are available
-        - `pullStoreStatus` renders incomplete pulls and every notice, including partial-outcome notices, with the same
-          conditions and remedies as the bound port in every status mode; the ended-conflict warning names its item and
-          conflicts, explains their absence from the conflict view, and preserves its remedy. Complete these mappings
-          if this branch lands second, and verify the slug query's `--fetch` path explicitly
+- _Outcome:_ The three newly homed entry kinds use supplied registry grammars. Comparisons account only for moved
+  entries, dispositions, stamps, dates, and personal tombstones across the default and separate layouts.
 
 ### `[ ]` **15.4 Branch links, exclusions, and task captures — § 10.9, § 10.11**
 
@@ -1621,6 +1574,44 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
     - Runs after 15.4; reuse its branch-link comparison fixtures and add only missing prefix coverage
     - Verify each branch resolves to its Errand and is linked as `created`; retain the legitimate allowances for
       locally absent branches and names outside `<prefix>/<slug>`
+
+### `[ ]` **15.3.R Session synchronization port binding — § 6.1, § 12 (A14)**
+
+- _Goal:_ The status session's synchronization port calls the same selected store as its operational reads, so session
+  entry, named-history retries, explicit status fetches, and local maintenance reach the backend after the flip.
+
+    - Starts after 15.3.a's `seam-locus` availability gate; this work sits beyond the deferred range ending at 15.2
+    - Bind `StoreSyncPort` (`lib/store/operational-sync.ts`) to the invocation's `Store.pull`, `Store.maintain`, and
+      recoverable refusal history refs, and supply it through `createSessionStatusContext`
+      (`handlers/status/session-context.ts`), where `handlers/status.ts` builds that context
+    - Reconcile the narrow port's result model with the store's remote outcomes and configuration states, retaining
+      failures, actionable remedies, and partial-application notices; no failed pull is presented as success
+    - Add `incomplete` for an invocation that did not fully synchronize its requested state, including partially
+      applied results; retain its condition, remedy, and partial outcomes. Keep `unreachable` for transport failures.
+      Both `describeStorePull` and status fetch render `incomplete` as `pull-incomplete`, with exhaustive mappings;
+      successful pulls retain their notices for rendering
+    - The port and session-entry result descriptions belong here; status warning rendering belongs to the status and
+      roadmap seam. Whichever lands second completes the shared wiring in `handlers/status.ts`,
+      `handlers/status/store-locus.ts`, and `lib/session-init/store-user-pull.ts`: `incomplete` becomes `pull-incomplete`,
+      and every notice becomes `pull-notice`, including notices inside an incomplete result's partial outcomes. Complete
+      the expected `pullStoreStatus` binding in `handlers/status/store-locus.ts` for `incomplete` and every notice if
+      this branch lands second; that binding serves `--project`, `--user`, `--conflicts`, and slug status queries.
+      Preserve each notice's condition and remedy. For `ended-with-conflicts`, name the item and its conflict records,
+      explain that the ordinary conflict view does not list them, and pass through the retained-conflict remedy
+    - Keep `createStore` as the backend selection point and its current in-repo selection until the cutover
+    - Build `test-first` (one behavior at a time):
+        - the result projection covers configured and undesignated remotes, no identity, no remote, success, and failure
+        - a named-history refusal pulls exactly its refs through the bound store, then the original operation succeeds;
+          a failed fetch keeps the original refusal actionable
+        - maintenance returns the selected store's measurements, including unsupported measurements as `null`
+        - the production status-context construction supplies the binding to its selected store while the pre-flip
+          session arms remain inactive
+        - both `arc status --fetch` and `arc status <slug> --fetch` use the selected store and bound port, covering the
+          slug dispatch before session-context construction once both seams are available
+        - `pullStoreStatus` renders incomplete pulls and every notice, including partial-outcome notices, with the same
+          conditions and remedies as the bound port in every status mode; the ended-conflict warning names its item and
+          conflicts, explains their absence from the conflict view, and preserves its remedy. Complete these mappings
+          if this branch lands second, and verify the slug query's `--fetch` path explicitly
 
 ### `[ ]` **15.10 Every source the import carries** — validate exit criterion at segment scope
 
