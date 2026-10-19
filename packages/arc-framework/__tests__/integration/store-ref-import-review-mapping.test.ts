@@ -181,7 +181,31 @@ it("classifies every held work item and preserves completed review records as fo
     entries.set(slug, await hashBlob(io.execInput, serializeTransientIdentityRecord(record)));
   }
   await writeTreeCommit(io, entries, "Prepare live transient states", [], null);
-  h.ports.reviewMapping = tableMapping;
+  const facts = [
+    { claimId: "9".repeat(32), slug: "errand-open", content: "Ended predecessor review" },
+    { claimId: "1".repeat(32), slug: "errand-open", content: "Current claim review" },
+  ];
+  const common = await resolveGitCommonDir(h.git, h.root);
+  for (const fact of facts) {
+    const path = join(common, "arc/review-gate/evidence", `${fact.claimId}.json`);
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, JSON.stringify(fact));
+  }
+  h.ports.reviewMapping = input => {
+    const mapped = tableMapping(input);
+    for (const file of input.gate) {
+      const fact: typeof facts[number] = JSON.parse(new TextDecoder().decode(file.bytes));
+      const owner = input.workItems.find(item => item.kind === "errand" && item.claimId === fact.claimId);
+      const index = mapped.listing.findIndex(item => item.source === file.path);
+      if (!owner) mapped.listing[index] = { source: file.path, outcome: "left-behind", reason: "Ended claim", records: [] };
+      else {
+        const reference = RecordReferenceSchema.parse({ kind: "review/candidate", owner: { type: "work-item", name: owner.slug, uid: owner.uid } });
+        mapped.records.push({ reference, contents: [JSON.stringify(fact)] });
+        mapped.listing[index] = { source: file.path, outcome: "mapped", records: [reference] };
+      }
+    }
+    return mapped;
+  };
   expect(await h.migrate()).toMatchObject({ status: "ok" });
   const store = createRefStore(h.ports);
   const alpha = success(await store.read({ reference: RecordReferenceSchema.parse({ kind: "review/candidate", owner: { type: "work-item", name: "alpha" } }) }));
@@ -192,6 +216,9 @@ it("classifies every held work item and preserves completed review records as fo
     ...["open", "paused", "awaiting-merge"].map(state => ({ slug: `errand-${state}`, kind: "errand", live: true })),
   ].sort((a, b) => a.slug.localeCompare(b.slug)));
   expect(new Set(table.map(item => item.uid)).size).toBe(table.length);
+  const errandReview = success(await store.read({ reference: RecordReferenceSchema.parse({ kind: "review/candidate", owner: { type: "work-item", name: "errand-open" } }) }));
+  expect(JSON.parse(errandReview.content)).toEqual(facts[1]);
+  expect(errandReview.reference.owner).toMatchObject({ uid: table.find(item => item.slug === "errand-open")?.uid });
   for (const item of table) {
     const kind = item.kind === "errand" ? "work-item/record" : ["abandoned", "cut-origin"].includes(item.slug) ? "lineage/transition" : "work-item/meta";
     const record = success(await store.read({ reference: RecordReferenceSchema.parse({ kind, owner: { type: "work-item", name: item.slug } }) }));
@@ -382,3 +409,44 @@ it("supplies null current content for live work holding only a boundary", async 
   expect(JSON.parse(record.content)).toEqual([{ workItem: record.reference.owner.type === "work-item" ? record.reference.owner.uid : undefined,
     versions: [], current: null, boundary: inRepoContent(reference) }]);
 }, 40_000);
+
+it("accounts for materialization folders once and refuses overlapping or noncanonical coverage through repair", async () => {
+  const h = await importFixture();
+  const folder = "arc/review-gate/materializations/work/";
+  const files = [`${folder}source.json`, `${folder}nested/payload.bin`];
+  const common = await resolveGitCommonDir(h.git, h.root);
+  for (const path of files) {
+    await mkdir(dirname(join(common, path)), { recursive: true });
+    await writeFile(join(common, path), new Uint8Array([0, 255, 128]));
+  }
+  let mode = "valid";
+  h.ports.reviewMapping = input => {
+    const mapped = tableMapping(input);
+    mapped.listing = mapped.listing.filter(item => !files.includes(item.source));
+    const entry = { source: folder, outcome: "left-behind" as const, reason: "Working materialization", records: [] };
+    if (mode !== "omit") mapped.listing.push(entry);
+    if (mode === "repeat") mapped.listing.push(entry);
+    if (mode === "file-overlap") mapped.listing.push({ ...entry, source: files[0]! });
+    if (mode === "nested-overlap") mapped.listing.push({ ...entry, source: `${folder}nested/` });
+    if (mode === "noncanonical") entry.source = folder.replace("work/", "work//");
+    if (mode === "reason-missing") entry.reason = " ";
+    if (mode === "mapped-folder") mapped.listing[mapped.listing.length - 1] = { ...entry, outcome: "mapped" };
+    return mapped;
+  };
+  const trial = await h.migrate(true);
+  expect.soft(trial).toMatchObject({ status: "ok", result: { notices: [expect.objectContaining({ condition: "The landing would mint the repository identity ID." })] } });
+  if (trial.status === "ok") expect.soft(trial.result.reviewMapping.filter(item => item.source.startsWith(folder))).toEqual([
+    { source: folder, outcome: "left-behind", reason: "Working materialization", records: [] },
+  ]);
+  for (mode of ["omit", "repeat", "file-overlap", "nested-overlap", "noncanonical", "reason-missing", "mapped-folder"]) {
+    const result = await h.migrate(true);
+    expect.soft(result).toMatchObject({ status: "ok", result: { notices: expect.arrayContaining([expect.objectContaining({
+      condition: expect.stringContaining("Review"), remedy: { text: expect.stringContaining("mapping") },
+    })]) } });
+  }
+  expect(await h.migrate()).toMatchObject({ status: "refused", refusal: { code: "import-refused" } });
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout).toBe("");
+  expect(await readRepositoryIdentity(new RepositoryGitCommonStatePublisher(h.git, h.root))).toBeNull();
+  mode = "valid";
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+}, 60_000);

@@ -1430,22 +1430,16 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
   content; boundary-only inputs carry null. Plain-path current coverage is independent of every historical source,
   omissions and repetitions refuse through repair, and the mapped current bytes survive import.
 
-### `[ ]` **15.R Review import claim IDs and source units — § 10.8 (A2)**
+### `[x]` **15.R Review import claim IDs and source units — § 10.8 (A2)**
 
 - _Goal:_ Amendment A2's port preserves each Errand's original claim ID and accounts for canonical file and folder
   source units exactly once, so review lineages join the correct imported work item and no source disappears in a
   name or grouping mismatch.
 
-    - Extend 15.9's work-item table with required `claimId` on Errand rows, copied unchanged from the source record;
-      work-unit rows retain their existing shape, and the imported store UID remains separately minted
-    - Gate paths and listing sources follow § 10.8's five encodings; a left-behind materialization folder covers its
-      supplied descendants once, without teaching the transform the review gate's record shapes
-    - Build `test-first` (one behavior at a time):
-        - a test mapping receives the original Errand claim IDs and joins reused slugs by claim ID to the correct UID
-        - gate files, materialization folders, Candidate versions, current Candidates, and boundaries use exact encodings;
-          two Candidate versions at one tracked path remain separate sources
-        - a folder lists once without separate child-file entries; an omitted or repeated source, folder/file overlap,
-          or nested-folder overlap refuses with `notices`, then the import lands after the listing is repaired
+- _Outcome:_ Mapping rows join held Errands by unchanged claim ID, keeping a reused slug's ended review lineage out
+  of its minted UID. Canonical left-behind folders with reasons cover supplied gate descendants once; missing,
+  repeated, folder/file, and nested-folder coverage refuse until repaired. Current Candidates and committed versions
+  retain separate source identities alongside boundaries and exact gate paths.
 
 ### `[ ]` **15.R2 Production entry import compatibility — § 10.9, § 14.7 (A18)**
 
