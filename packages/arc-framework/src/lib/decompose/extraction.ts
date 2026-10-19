@@ -25,8 +25,9 @@ export interface DecomposeExtractionPlan {
 }
 
 /** Acquire and validate a surviving-origin terminal batch without writing. */
-export async function prepareDecomposeExtraction(ctx: DecomposeContext, origin: string): Promise<DecomposeResult<DecomposeExtractionPlan>> {
-  const prepared = await prepareDecomposeTerminal(ctx, origin, "extraction");
+export async function prepareDecomposeExtraction(ctx: DecomposeContext, origin: string,
+  selected?: DecomposeTerminalRecords): Promise<DecomposeResult<DecomposeExtractionPlan>> {
+  const prepared = await prepareDecomposeTerminal(ctx, origin, "extraction", selected);
   if (prepared.status === "refused") return prepared;
   const { input, records, recordPlan } = prepared.result;
   const thinning = planDecomposeSourceThinning(input.map, input.acquired.artifacts);

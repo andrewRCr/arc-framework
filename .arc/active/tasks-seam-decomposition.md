@@ -450,7 +450,7 @@ stored map, writing no lineage; and the preview afterward reports the cut landed
   current locator, and concatenates only retained units without changing their bytes. Empty results remove their
   records; unchanged records and retained companions take no write.
 
-### `[ ]` **4.3 Write an extraction's terminal batch — § 8.6, § 8.7**
+### `[x]` **4.3 Write an extraction's terminal batch — § 8.6, § 8.7**
 
 - _Goal:_ After the checks of § 8.2–8.4, one prepared batch — no lifecycle transition — thins the origin, sets its
   `Cohort` to the members' path where it differs, rewrites stub dependents, writes stub homes' edges and any at-cap
@@ -463,19 +463,12 @@ stored map, writing no lineage; and the preview afterward reports the cut landed
           fan-out, and map-removal mutations in one batch, with no lineage or physical effects. All four placements,
           current scan and recipient boundaries, fan-out repair, and fresh-approval conflict remedies are covered.
 
-    - `[ ]` **4.3.b The preview and the landed cut**
+    - `[x]` **4.3.b The preview and the landed cut**
 
-        - The preview reports the thinned artifacts' retained bytes and each record the batch would write, under task
-          3.5's authority.
-        - `--finish` after the batch reports the cut landed through the origin's `history`, where the stored map's last
-          removal carries the terminal batch's provenance.
-        - Build `test-first` (one behavior at a time):
-            - the preview writes nothing and reports the retained bytes
-            - a stale authority refuses, and a matching one lands exactly the previewed writes
-            - a version conflict at the applied batch, staged through task 2.1.c's store wrapper, names a fresh
-              `--finish` preview and approval, and writes nothing
-            - `--finish` afterward reports the cut landed, and after a discard reports no stored map rather than a
-              landed cut
+        - `finish.ts` selects one acquired cut for retirement or extraction; extraction previews report retained
+          artifact content and exact writes under the apply authority. Matching approval applies that batch; grooming
+          and batch conflicts require a fresh preview. `landed-extraction.ts` reads the current UID's latest terminal
+          map removal and historical member names, distinguishing discard and preserving native history failures.
 
 ### `[ ]` **4.4 An extraction end to end** — validate exit criterion at segment scope
 

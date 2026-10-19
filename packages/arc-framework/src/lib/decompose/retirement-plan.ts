@@ -23,10 +23,11 @@ export interface DecomposeRetirementPlan {
 }
 
 /** Acquire once, validate authoring and source bindings, and prepare one terminal transition. */
-export async function prepareDecomposeRetirement(ctx: DecomposeContext, origin: string): Promise<DecomposeResult<DecomposeRetirementPlan>> {
+export async function prepareDecomposeRetirement(ctx: DecomposeContext, origin: string,
+  selected?: DecomposeTerminalRecords): Promise<DecomposeResult<DecomposeRetirementPlan>> {
   const store = decomposeReadCache(ctx.executor.store);
   const reading = { ...ctx, executor: { ...ctx.executor, store } };
-  const prepared = await prepareDecomposeTerminal(reading, origin, "retirement");
+  const prepared = await prepareDecomposeTerminal(reading, origin, "retirement", selected);
   if (prepared.status === "refused") return prepared;
   const { input, recordPlan } = prepared.result;
   const lineage = await prepareDecomposeLineage(reading, input);

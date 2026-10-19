@@ -51,7 +51,8 @@ it.each([[false, false], [false, true], [true, false], [true, true]] as const)("
   }
   const preview = await runStoreDecomposeFinish(h.ctx, "demo");
   expect(preview).toMatchObject({ status: "ok", result: { kind: "preview", lineage: { kind: "decompose", retiredBranches: [] } } });
-  if (preview.status === "refused" || preview.result.kind !== "preview") throw Error(JSON.stringify(preview));
+  if (preview.status === "refused" || preview.result.kind !== "preview"
+    || preview.result.mode !== "retirement-finish") throw Error(JSON.stringify(preview));
   const before = lifecycleSuccess(await h.store.version());
   const readMarker = h.teardown.readMarker;
   if (started) h.teardown.readMarker = async () => { throw Error("Injected marker observation failure."); };

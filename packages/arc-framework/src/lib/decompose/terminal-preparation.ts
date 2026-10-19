@@ -22,9 +22,9 @@ export interface DecomposeTerminalPreparation {
 
 /** Repeat origin, seed, destination, source, and edge checks before preparing terminal writes. */
 export async function prepareDecomposeTerminal(ctx: DecomposeContext, origin: string,
-  mode: "retirement" | "extraction"): Promise<DecomposeResult<DecomposeTerminalPreparation>> {
+  mode: "retirement" | "extraction", selected?: DecomposeTerminalRecords): Promise<DecomposeResult<DecomposeTerminalPreparation>> {
   const reading = { ...ctx, executor: { ...ctx.executor, store: decomposeReadCache(ctx.executor.store) } };
-  const acquired = await acquireDecomposeTerminal(reading, origin);
+  const acquired = selected === undefined ? await acquireDecomposeTerminal(reading, origin) : { status: "ok" as const, result: selected };
   if (acquired.status === "refused") return acquired;
   const input = acquired.result;
   if ((input.map.authoring.shape === "extraction") !== (mode === "extraction")) return {

@@ -140,7 +140,13 @@ one batch, preserving companions and writing no lineage or physical cleanup effe
 prepared writes, ordering the observation and mutation sets canonically. `finish-report.ts` exposes closed preview and
 application reports. `finish.ts` completes preparation and checkout admission before comparing the supplied authority;
 accepted grooming requires a fresh preview and approval, and a matching authority applies exactly the previewed writes.
+`extraction-finish.ts` presents retained artifact content and applies an approved surviving-origin plan. Dispatch passes
+its acquired cut into the selected preparation, so choosing the shape does not repeat record acquisition.
 
 `landed.ts` resolves a retired origin's decomposition lineage into a landed report with its recorded successors.
 Finish selects a live primary first, so an item reusing a retired name keeps its own cut state. Abandonment is not a
 landed cut; native resolution failures retain their recovery information, and repeated finish never writes again.
+
+`landed-extraction.ts` reads the current origin generation's map history when no stored map remains. Its latest removal
+must carry terminal decomposition provenance; the preceding map supplies historical member names. A discard removal
+does not establish a landed cut, and native history failures preserve their class and repair instructions.
