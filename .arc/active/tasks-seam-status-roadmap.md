@@ -527,9 +527,12 @@ its code. `notes-seam-status-roadmap.md` § Phase 7 — `arc view` records the p
   content and its inspection notices. Removed the flip-specific resolver short-circuit and virtual file mapping; the
   in-repo resolver and missing-identity refusal remain.
 
-### `[ ]` **7.6 `arc view` from the flip** — validate exit criterion at segment scope
+### `[x]` **7.6 `arc view` from the flip** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds, with `arc check segment` green.
+- _Outcome:_ The reference-backed scenario exercised claim resolution and refusal, name history and ambiguity,
+  completed defaults, every view kind, companion and cohort paths, unprojected content, destination remedies,
+  identity-free session notes, and genuine conflicts across file and content destinations without implicit writes.
 
 ## **Phase 8:** Verification
 
