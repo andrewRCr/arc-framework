@@ -203,6 +203,27 @@
 
 - _Captured during:_ `retire-extension-points` draft close, 2026-10-13.
 
+### `[ ]` **Validate backticked artifact references, so a reference by name resolves like a link**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Mechanical tier family 1: resolve and validate filename-only artifact references
+
+- _Observation:_ ARC references a movable artifact by backticked filename only, from anywhere (`DEV-RULES.ARC` § `.arc/`
+  artifact references), because artifacts move with their lifecycle; from the flip a record's projected path also
+  differs by checkout (`active/current/` in its own, `active/in-flight/<slug>/` elsewhere), so no path to a record is
+  stable. That is half of the established idiom for documents that move — link by a stable identifier the system
+  resolves (wiki links, Sphinx `:doc:` and `:ref:` labels, Hugo `ref`, issue keys). The other half is missing: nothing
+  checks that a backticked `spec-foo.md` names an artifact that exists, so a stale or mistyped reference passes every
+  check, and nothing resolves one for a reader beyond search, though `arc view` opens an artifact by slug and kind.
+  `validate-links.sh` and `audit-links.ts` enforce only the negative rule, no relative links, never the positive one.
+
+- _Approach:_ validate backticked artifact references against the store's records (by slug and kind, archived ones
+  included), at whatever deadline family 1 takes; decide whether `arc view` resolves a backticked name so a reader can
+  follow one. Keep it apart from backticked code symbols, which `source-grounding` uses.
+
+- _Captured during:_ `projected-markdown-checks` draft-design, 2026-10-17 (the Owner asked whether ARC's link rules are
+  idiomatic).
+
 ---
 
 ## Problem / Motivation

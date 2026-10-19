@@ -82,6 +82,8 @@ it("renders each fact with the decision it informs and asks for an advisory reco
   expect(text).toContain("Fix checks since the last complete pass: 1");
   expect(text).toContain("Fix range: 5 changed lines in 1 file; target: 100 changed lines in 10 files");
   expect(text).toContain("Correction chain: proven");
+  expect(text).toContain("Material trend:");
+  expect(text.indexOf("local fix check")).toBeLessThan(text.indexOf("Complete passes:"));
   expect(text).toContain("Round 1, paths outside cited loci: no");
   expect(text).toContain("Round 2, paths outside cited loci: yes");
   expect(text).toContain("Round 2, added files: yes");
