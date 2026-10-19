@@ -50,12 +50,25 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
           without executable paths or arguments. Shared admission validators enforce content invariants, including
           delivery lineage and coverage, and local failure receipts retain the existing lane-vocabulary mapping.
 
+        - _Amended in:_ 1.2.R (A7)
+
     - `[x]` **1.2.b The write check**
 
         - The registered write check evaluates the whole proposed lane-owner history, rejecting duplicate terminal
           producers or hosted admissions, late or discontinuous local generations, and altered or discontinuous retries
           under one extra-pass decision. Unavailable and malformed listings refuse with actionable diagnostics; moving
           Errand heads and independently numbered sources retain their existing behavior.
+
+    - `[ ]` **1.2.R Preserve frontline source-binding identity**
+
+        - _Goal:_ The portable frontline outcome retains the original canonical `sourceBindingId` required by
+          disposition matching, without carrying executable paths or arguments (A7).
+        - Add the required digest to the frontline binding and retain it in production-derived fixtures.
+        - Build `test-first` (one behavior at a time):
+            - a command source with a Candidate/member response binding retains its original source digest through
+              parsing and serialization, while executable paths and arguments remain absent
+            - a missing or malformed `sourceBindingId` refuses
+            - a disposition set bound to the original source digest still matches the portable result's context
 
     - `[ ]` **1.2.c The pass-count and settled derivations**
 
@@ -701,7 +714,9 @@ alone.
       `sourceDigest`, and `guidanceDigest`, and its receipt (`evidence/receipts-v2.json`), kept as recorded with its
       findings, by `requestId`, its findings taking their ordinals by position (`rg/core/local-review-result.ts`); a
       frontline attempt takes its admission from lane progress and joins its frontline outcome (`outcomes/`) by
-      operation ID; a hosted attempt keeps its sealed result, its findings projected through `projectHostedFinding`
+      operation ID. Before redaction, derive `sourceBindingId` from the outcome's full source and response binding
+      through `computeFrontlineSourceBindingId`, comparing any joined run state's digest, without requiring a run
+      record; a hosted attempt keeps its sealed result, its findings projected through `projectHostedFinding`
       (`rg/hosted/await.ts`). `settled-findings` maps to `findings`.
     - Each outcome's `lineage` is its admission's, a frontline or hosted attempt's, or its `local-review` request's, a
       local attempt's; lane progress's own `lineage` is only its latest attempt's.
@@ -722,7 +737,8 @@ alone.
           lane-progress record holding attempts at two heads names only the later head's lineage
         - a local attempt that ended stale with no receipt maps from its operation record alone
         - a frontline attempt maps carrying its lane-progress admission and its outcome record's executable identity,
-          outcome digest, and findings
+          outcome digest, original `sourceBindingId`, and findings, including a command source bound to a
+          Candidate/member response with no run record; any joined run state's source digest must agree
         - a hosted attempt maps keyed by its admission, keeping its sealed result and projecting its findings
         - a `settled-findings` attempt maps to a `findings` outcome
         - the outcomes one lane-progress record maps take strictly rising `endedAt` values in its attempt order, a
@@ -1525,10 +1541,10 @@ review harness's differential mode (4.2), the same reviews run in-repo and from 
 
         - `executeAndPersistFrontlineRun` (`rg/policy/frontline-operation.ts`) writes the attempt's outcome, composed
           from its admission and the run's result with the frontline content § 4.2 lists, where it appends the frontline
-          outcome record today (`appendOutcome`), so a crash after the run leaves its result as today;
-          `readBoundOutcome` and `validateExplicitRetry` read a current or prior attempt's outcome through the outcome
-          port; and `recordFrontlineAttempt` (`rg/lane-progress.ts`) finds the outcome stored and only ends the attempt
-          in flight (§ 4.7).
+          outcome record today (`appendOutcome`), retaining the run's original `sourceBindingId` before redacting its
+          source, so a crash after the run leaves its result as today; `readBoundOutcome` and `validateExplicitRetry`
+          read a current or prior attempt's outcome through the outcome port; and `recordFrontlineAttempt`
+          (`rg/lane-progress.ts`) finds the outcome stored and only ends the attempt in flight (§ 4.7).
         - From the flip the run envelope's `outcomeRef` (`rg/runtime/frontline-run-command.ts`) binds the attempt's
           outcome key as its durable part (`bindReviewSourceReference`) in place of the frontline outcome record's
           reference, as the composed approved-disposition record's frontline source does (4.1.a, § 9.3).
@@ -1543,7 +1559,7 @@ review harness's differential mode (4.2), the same reviews run in-repo and from 
           `rg/runtime/frontline-retry-remedy.ts`.
         - Build `test-first` (one behavior at a time):
             - a frontline attempt that ends writes one outcome keyed by its attempt ID, carrying its executable identity
-              and outcome digest as recorded
+              and outcome digest and original `sourceBindingId` as recorded, with no executable path or arguments
             - from the flip the run envelope's `outcomeRef` names the attempt's outcome key as its durable part
             - a run interrupted after its outcome is written ends its attempt once when replayed
             - the next frontline pass is one past the derived count, a superseded Candidate's chain included
@@ -1759,8 +1775,12 @@ review harness's differential mode (4.2), the same reviews run in-repo and from 
           the run envelope's (5.1.a) and the composed approved-disposition record's (4.1.a) do, so the disposition's
           source check (`approvedRecordSourceMatchesResult`) and respond's comparison (`rg/runtime/respond-command.ts`)
           match (§ 9.3).
+        - The frontline result returns the recorded `sourceBindingId`; source-context matching never recomputes it
+          from the redacted descriptor. Its portable outcome projection carries no executable path or arguments.
         - Build `test-first` (one behavior at a time):
             - a frontline and a hosted result read back from their outcomes as today
+            - an existing frontline approved set still matches after redaction, including a command source with a
+              Candidate/member response binding
             - a disposition over a superseded set refuses as today
             - from the flip frontline closure reads the same verdicts through the composed approved-disposition record
               (4.1.a) as in-repo
@@ -1773,7 +1793,8 @@ review harness's differential mode (4.2), the same reviews run in-repo and from 
           disposition reads and decodes (`rg/policy/earlier-review-applicability.ts`) and `queryEarlierReviewAttempts`
           (`rg/policy/earlier-review-attempts.ts`); `readPendingCandidateReviewFixAuthority`
           (`rg/policy/candidate-review-fix-continuation.ts`), which compares a local record's `localSourceRef` with its
-          outcome's `sourceDigest` in place of the operation state's `sourceRef` (§ 9.3); and reduction's frontline
+          outcome's `sourceDigest` in place of the operation state's `sourceRef` (§ 9.3), and uses a frontline
+          outcome's recorded `sourceBindingId` instead of recomputing it from a redacted source; and reduction's frontline
           source (`rg/runtime/reduce-command.ts`), which reads the current set from the succession.
         - The locus probe's pending-fix callback passes its invocation-bound store and exact selected owner to
           `readPendingCandidateReviewFixAuthority`, which binds its outcome/evidence reads from those ports instead
@@ -2549,3 +2570,8 @@ prerequisites have landed, and every earlier task is independent of the remainin
   task-list, Candidate, or boundary files, and an Active changed target projects pending-fix authority from stored
   outcomes and evidence without legacy disposition records. Both use the exact selected owner and invocation store,
   opening no default store for the subject's checkout (spec, A6).
+
+- `[ ]` Imported and newly written frontline outcomes retain the original canonical `sourceBindingId` without
+  executable paths or arguments. Result reads, disposition matching, and pending-fix authority use that digest, so an
+  existing approved set still matches after redaction, including a command source with a Candidate/member response
+  binding and an import with no run record (spec, A7).

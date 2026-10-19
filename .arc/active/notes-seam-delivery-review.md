@@ -464,6 +464,29 @@ The amendment closes on the author-run `spec-review` coherence and source-ground
 those remain open until the tasks and their segment verifiers run. Low depth omits a separate independent planning pass
 under `planning-review`; the original audit's scouts were read-only and did not author these corrections.
 
+## A7 — Portable frontline source identity
+
+The Task 1.2.c evidence-fixture preparation exposed an omitted binding field in § 4.2 and the completed 1.2.a schema.
+`FrontlineReviewResult` requires `sourceBindingId`; `LocalReviewResultReader.readFrontlineResult` returns the run's
+recorded identity, and `dispositionSetMatchesSourceContext` requires it to match the approved set exactly.
+`computeFrontlineSourceBindingId` hashes the full source descriptor with the optional response binding, so hashing the
+portable descriptor after command-path redaction changes that identity. The approved correction retains the original
+canonical digest alongside the existing recorded policy and outcome digests; no approval identity or policy changes.
+
+The import derives that identity from the full legacy outcome before redaction, without requiring a run record; any
+joined run digest must agree. The live writer copies the run's identity, and portable result and pending-fix readers
+use it rather than reconstructing it. The affected source sweep covers `frontlineAdmissionMatches` in
+`rg/hosts/local/review-result-reader.ts`, `dispositionSetMatchesSourceContext` in `rg/core/disposition-records.ts`,
+`dispositionSourceContextForResult` in `rg/core/review-result-disposition.ts`, and
+`readPendingCandidateReviewFixAuthority` in `rg/policy/candidate-review-fix-continuation.ts`. Disposition and approval
+schemas need no change; local and hosted bindings are unaffected. Tasks 3.2, 5.1.a, and 5.6 carry the remaining path
+changes, and 1.2.R corrects the schema before the pass/settlement derivations resume.
+
+The bounded author spec review checks reader independence, binding completeness, and source grounding; the revision
+and propagated task descriptions receive the grounding-only task audit. The correction is determinate, so the
+independent planning offer is omitted. Its covering segment verifier is 5.8; the added acceptance criterion remains
+open for terminal verification.
+
 ## Neighbors
 
 The spec names no other work unit. These are the ones its descriptive references mean, and what each owns where it

@@ -524,7 +524,11 @@ Each source adds what today's records hold for it:
   digest, kept as recorded and never recomputed, since each digests that descriptor (`FrontlineAdmissionSchema`,
   `rg/core/frontline-admission.ts`); the provider's executable identity, its digest and qualified version
   (`FrontlineExecutableIdentitySchema`, `rg/core/advisory-records.ts`); and the response binding where a private
-  delivery member's Candidate owns the response.
+  delivery member's Candidate owns the response. The binding also retains the original `sourceBindingId` as a
+  canonical digest (A7). `computeFrontlineSourceBindingId` (`rg/policy/frontline-operation.ts`) digests the full source
+  descriptor and optional response binding; stripping the executable and arguments makes that identity impossible to
+  recompute from the portable descriptor. Writers retain the digest computed before redaction, and result readers,
+  disposition matching, and pending-fix authority use that recorded digest without recomputing it.
 - **Hosted:** the sealed result (§ 4.5), its admission and handle, its host target, vehicle, requirement, and actor, and
   the request's failure reason where it failed.
 
@@ -1495,15 +1499,17 @@ request on the host and in the commits that carried its records, and nothing rea
   `lineage` from its admission, a frontline or hosted attempt's, or from its `local-review` request, a local attempt's,
   since lane progress records only its latest attempt's lineage. A frontline attempt takes its admission from lane
   progress and joins its frontline outcome (`outcomes/`) by operation ID, for its executable identity, outcome digest,
-  and findings as recorded. A hosted attempt keeps its sealed result, its findings projected as `projectHostedFinding`
-  projects them (`rg/hosted/await.ts`). A `settled-findings` attempt maps to `findings`, which its evidence — approved,
-  with its performance where its set carries a fix — then reads as settled (§ 4.2). The outcomes one lane-progress
-  record maps take `endedAt` values rising strictly, a millisecond apart, in the order the record holds their attempts,
-  the last the record's `updatedAt`, the latest time any could have ended (§ 4.2). So the composed order (§ 4.7) keeps
-  the record's order within a pass, which the source-order check and the effective terminal attempt read for a pass that
-  fell back across sources or retried them in source order (`validateConfiguredAttempts`,
-  `rg/policy/review-policy-driver.ts`; `effectiveTerminalAttempt`, `rg/policy/pre-publication-request.ts`); one shared
-  time would hand that order to generation and attempt ID.
+  and findings as recorded. Before redacting its source, the mapper derives the original `sourceBindingId` with
+  `computeFrontlineSourceBindingId` over the full outcome source and optional response binding, retaining that digest
+  in the portable binding (A7); any joined run state's recorded digest must agree. A hosted attempt keeps its sealed
+  result, its findings projected as `projectHostedFinding` projects them (`rg/hosted/await.ts`). A `settled-findings`
+  attempt maps to `findings`, which its evidence — approved, with its performance where its set carries a fix — then
+  reads as settled (§ 4.2). The outcomes one lane-progress record maps take `endedAt` values rising strictly, a
+  millisecond apart, in the order the record holds their attempts, the last the record's `updatedAt`, the latest time
+  any could have ended (§ 4.2). So the composed order (§ 4.7) keeps the record's order within a pass, which the
+  source-order check and the effective terminal attempt read for a pass that fell back across sources or retried them in
+  source order (`validateConfiguredAttempts`, `rg/policy/review-policy-driver.ts`; `effectiveTerminalAttempt`,
+  `rg/policy/pre-publication-request.ts`); one shared time would hand that order to generation and attempt ID.
 - **A `pending` attempt** — nothing: its lane-progress file lists as in flight, returning none of its records, and the
   import refuses until the cutover's quiesce has finished it.
 - **`completedPasses`, `terminalProducer`, `settledFindingIds`, `attemptedSources`, tail pointers** — nothing: each
@@ -2311,6 +2317,11 @@ spec's review copy until the candidate tail deletes it (§ 12.5).
     projects pending-fix authority from stored outcomes and evidence without legacy disposition records. Both bind
     the exact selected owner and invocation store without reopening a default store for the subject's checkout.
 
+11. **Frontline approval identity survives redaction (A7).** Imported and newly written frontline outcomes retain the
+    original canonical `sourceBindingId` while omitting executable paths and arguments. Result reads, disposition
+    matching, and pending-fix authority use that digest, so an existing approved set still matches after redaction,
+    including a command source with a Candidate/member response binding and an import with no run record.
+
 ## Open Questions
 
 None blocks starting. The rest are expected contracts with stated availability, and none leaves design open: the ref
@@ -2352,5 +2363,7 @@ rewrite, and deletion pass (§ 11.2, § 12.6, § 14.3).
   refusing its flip-time shape. _Work:_ generate-tasks. _Revalidated:_ spec-review.
 - **A6** — 2026-10-19 — design: align review storage with shipped contracts. _Supersedes:_ § 5, § 6, § 14.4.
   _Trigger:_ F1–F4 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A7** — 2026-10-19 — spec-depth: preserve frontline source-binding identity. _Supersedes:_ none.
+  _Trigger:_ 1.2.c must-stop. _Work:_ 1.2.R. _Revalidated:_ pending → 5.8.
 
 ---
