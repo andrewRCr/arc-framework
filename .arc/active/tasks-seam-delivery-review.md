@@ -144,39 +144,13 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
           freshness, and exact review-selection uniqueness remain enforced. The public versioned read shape accepts
           opaque backend versions; registration needs no write check.
 
-    - `[ ]` **1.6.b The boundary's two versions**
+    - `[x]` **1.6.b The boundary's two versions**
 
-        - Version 2 is defined in a module of its own, `rg/policy/integration-boundary-locus-v2.ts`, since
-          `rg/policy/integration-boundary-locus.ts` already sits near the file-length limit. The schema pieces both
-          versions use — the next actions other than run-verification, the reservation and its target, and the common
-          boundary fields — move to `rg/policy/integration-boundary-locus-shared.ts`, which imports neither version. The
-          run-verification action and the post-attest continuation stay per version: version 1's module keeps today's
-          and 4.5.a's widened copy (§ 3.5), and version 2's defines its own, `"merge"` and no `projectionDisposition`.
-          Version 2's module imports only the shared one; version 1's module, which keeps the projections, imports the
-          shared module and version 2's schema, which the projections' arms from the flip build and parse their output
-          with (4.5.b, 6.1, 6.2.b, 6.4), and re-exports what moved so its importers stay unchanged. Imports run shared,
-          then version 2, then version 1, and the kind's `schema` re-exports both versions.
-        - Version 2 follows § 9.1 field by field: terminus names by decision key, no `policy` or
-          `standardLaneOwnerVersion`, `readinessBinding` — a digest or `null` — on `candidate-publish-ready` and
-          `publication-pending` alone, the policy-review variant folded into the review-resume variant,
-          `postAttestContinuation` without `projectionDisposition`, `continue-pre-publication-review` keeping
-          `responseOperationId` and `responseSource` as opaque keys that match the stored outcome (§ 9.3), and
-          `verificationKind` `"merge"`.
-        - The parser dispatches on `schemaVersion`: 1 to today's parse (`parseIntegrationBoundaryLocus`,
-          `rg/policy/integration-boundary-locus.ts`), which reads a legacy hosted-review-pending boundary as
-          `delivery-status-required`, and 2 to the new schema; the public schema exports both, and
-          `VersionedSubmissionBoundary` (§ 3.1).
-        - Build `test-first` (one behavior at a time):
-            - a version 1 boundary of every locus parses as today, a legacy hosted-review-pending one as
-              `delivery-status-required`, and a version 2 boundary of every locus parses
-            - loading version 1's module alone, and version 2's alone, each defines its schemas with no import cycle
-            - a version 2 boundary carrying `policy`, `standardLaneOwnerVersion`, or `"tier-3"` refuses to parse
-            - a post-attest continuation without `projectionDisposition` refuses under version 1 and parses under
-              version 2, and one carrying it refuses under version 2 (§ 3.5)
-            - `readinessBinding` absent on `candidate-publish-ready` or `publication-pending`, or present elsewhere,
-              refuses to parse, and `null` there parses
-            - a next action, reservation, or continuation a locus does not admit, and a delivery member twice in
-              `deliveryReviewTermini`, refuse to parse, as their variants' refinements refuse them today
+        - Extracted shared action, reservation, Candidate identity, and member-vehicle validation while retaining
+          version one's projections and legacy normalization. Version two has named decisions, explicit readiness
+          bindings at publication loci, merge verification, and post-attest continuations without projection
+          dispositions. Both schemas initialize independently; the public codec dispatches by version and exposes the
+          opaque versioned read shape.
 
     - `[ ]` **1.6.c The boundary's write check**
 
