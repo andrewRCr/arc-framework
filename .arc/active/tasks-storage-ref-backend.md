@@ -1553,25 +1553,10 @@ _Mode:_ `slice` through Phase 17 — closes on state moved between remotes, ever
           release their journals, report every leftover, and preserve the winner’s forwarding route on abandoned copies.
           Crossed copies continue until a forward lands; propagation retains the last landed copy’s lease across retries.
 
-    - `[ ]` **16.5.b Moves back and moves ended**
-        - Build `test-first` (one behavior at a time):
-            - a rerun of a remote move whose forwarding record had landed, after another clone moved the state back onto
-              the old remote, pushes no record there and ends, the old remote staying the state's home and the follow
-              coming due
-            - a rerun before its switch meeting the move back's forwarding record on its new remote ends at step 1, copying
-              nothing
-            - a rerun before its switch finding another move's forwarding record on its old remote ends, its record
-              going, where a first run refuses `moved`
-            - a rerun of step 4 after another clone moved the state back deletes nothing there and ends, the follow coming
-              due
-            - a lost lease whose re-copy meets a new remote a later move has left ends the move, reporting the refs it
-              leaves
-            - a move back interrupted between its record and its switch finishes on a rerun, the old remote holding the
-              state
-            - a move back ended before its switch by another move off its old remote leaves that move's record where its
-              copy deleted an earlier one
-            - a move back interrupted after its copy, whose destination another clone then moved on, reruns, deletes
-              nothing there, and leaves that move's record on its old remote
+    - `[x]` **16.5.b Moves back and moves ended**
+        - Interrupted moves back resume across copy and forwarding boundaries. Overtaken cleanup ends without writing
+          to either receiver, retaining recovery for missing move versions. Native three-clone moves preserve newer
+          forwarding records at old sources and abandoned copies, with every remaining source ref reported.
 
     - `[ ]` **16.5.c A move that changes the layout, and what a move reports**
         - Build `test-first` (one behavior at a time):

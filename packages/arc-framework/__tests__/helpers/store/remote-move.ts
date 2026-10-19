@@ -2,7 +2,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect } from "vitest";
-import { refSyncFixture } from "./ref-sync.js";
+import { createRefSyncCheckout, refSyncFixture } from "./ref-sync.js";
 import { success } from "./suite-tools.js";
 import { createStoreCommandPorts } from "../../../src/commands/store-ports.js";
 import { createRefStore, RecordReferenceSchema } from "../../../src/lib/store/index.js";
@@ -64,5 +64,35 @@ export async function landPreparedOldPush(h: Awaited<ReturnType<typeof switchFix
   const changed = [...new Set([...before.keys(), ...after.keys()])].filter(ref => before.get(ref) !== after.get(ref));
   await h.b.exec("git", ["push", "--atomic", ...changed.map(ref => `--force-with-lease=${ref}:${before.get(ref) ?? ""}`), "--", h.origin,
     ...changed.map(ref => `${after.get(ref) ?? ""}:${ref}`)]);
+}
+
+
+/** Start independent clones on two receivers containing the same project. */
+export async function oppositeMoveFixture() {
+  const h = await switchFixture();
+  const refs = (await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout.trim().split("\n");
+  await h.remote("git", ["push", "--atomic", h.destinationDirectory, ...refs.map(ref => `${ref}:${ref}`)]);
+  await h.b.exec("git", ["remote", "set-url", "origin", h.destinationDirectory]);
+  success(await h.b.store.pull());
+  await mkdir(join(h.b.root, ".arc", "system"), { recursive: true });
+  await writeFile(join(h.b.root, ".arc", "system", "arc-config.yml"), "# Opposite mover.\n");
+  const production = createStoreCommandPorts(h.b.root);
+  return { ...h, peerPorts: { ...production, ...h.b.ports, backingRepository: production.backingRepository } };
+}
+
+/** Add a further independently locked clone with production pointer binding at a chosen receiver. */
+export async function createRemoteMover(h: Awaited<ReturnType<typeof switchFixture>>, remote: string, label: string) {
+  const root = join(h.a.root, label);
+  await h.a.exec("git", ["clone", remote, root]);
+  const side = await createRefSyncCheckout(root, "default", remote);
+  for (const [key, value] of [["user.name", "Native mover"], ["user.email", "mover@example.com"], ["arc.identity", "andrew"], ["remote.origin.arc-state", "push"]] as const) await side.exec("git", ["config", key, value]);
+  await mkdir(join(root, ".arc", "system"), { recursive: true });
+  const config = join(root, ".arc", "system", "arc-config.yml");
+  await writeFile(config, "# Independently moving clone.\n");
+  const production = createStoreCommandPorts(root);
+  const ports = { ...production, ...side.ports, backingRepository: production.backingRepository };
+  const store = createRefStore(ports);
+  success(await store.pull());
+  return { ...side, ports, store, config };
 }
 

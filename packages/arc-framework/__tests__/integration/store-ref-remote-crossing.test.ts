@@ -4,21 +4,9 @@ import { join } from "node:path";
 import { expect, it } from "vitest";
 import { createStoreCommandPorts } from "../../src/commands/store-ports.js";
 import { createRefStore } from "../../src/lib/store/index.js";
-import { switchFixture, personal, provenance } from "../helpers/store/remote-move.js";
+import { switchFixture, oppositeMoveFixture, personal, provenance } from "../helpers/store/remote-move.js";
 import { invokeStoreMigrate } from "../helpers/store/migrate-command.js";
 import { success } from "../helpers/store/suite-tools.js";
-
-async function oppositeFixture() {
-  const h = await switchFixture();
-  const refs = (await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout.trim().split("\n");
-  await h.remote("git", ["push", "--atomic", h.destinationDirectory, ...refs.map(ref => `${ref}:${ref}`)]);
-  await h.b.exec("git", ["remote", "set-url", "origin", h.destinationDirectory]);
-  success(await h.b.store.pull());
-  await mkdir(join(h.b.root, ".arc", "system"), { recursive: true });
-  await writeFile(join(h.b.root, ".arc", "system", "arc-config.yml"), "# Opposite mover.\n");
-  const production = createStoreCommandPorts(h.b.root);
-  return { ...h, peerPorts: { ...production, ...h.b.ports, backingRepository: production.backingRepository } };
-}
 
 async function competingFixture() {
   const h = await switchFixture();
@@ -57,7 +45,7 @@ it("ends the second move before switching and forwards the copy it leaves to the
 }, 60_000);
 
 it("continues crossing copies that carry each other's move versions until one forward wins", async () => {
-  const h = await oppositeFixture();
+  const h = await oppositeMoveFixture();
   const pause = (boundary: string) => async (step: string) => { if (step === boundary) throw new Error(`Paused ${boundary}`); };
   const recorded = async (side: typeof h.a) => JSON.parse((await side.exec("git", ["show", "refs/arc/tmp/migrate/move:move.json"])).stdout) as { registryCommit: string };
   await expect(invokeStoreMigrate(["--to", h.to], { ...h.ports, migrateStep: pause("remote.copied") })).rejects.toThrow("Paused remote.copied");
@@ -82,7 +70,7 @@ it("continues crossing copies that carry each other's move versions until one fo
 }, 60_000);
 
 it("restarts a lost copy lease and preserves the destination's later forwarding record on its source", async () => {
-  const h = await oppositeFixture();
+  const h = await oppositeMoveFixture();
   const onward = join(h.b.root, "onward.git");
   await h.b.exec("git", ["init", "--bare", onward]);
   let winner: Awaited<ReturnType<typeof invokeStoreMigrate>> | undefined;
@@ -102,7 +90,7 @@ it("restarts a lost copy lease and preserves the destination's later forwarding 
 }, 60_000);
 
 it("ends an opposite-direction move whose forwarding push loses to the other copy", async () => {
-  const h = await oppositeFixture();
+  const h = await oppositeMoveFixture();
   let winner: Awaited<ReturnType<typeof invokeStoreMigrate>> | undefined;
   const loser = await invokeStoreMigrate(["--to", h.to], { ...h.ports, migrateStep: async step => {
     if (step === "remote.forward" && !winner) winner = await invokeStoreMigrate(["--to", h.origin], h.peerPorts);
