@@ -547,38 +547,18 @@ family's schemas are store schemas, never entries in the review gate's published
           and singleton response rebinding. Native fixtures prove refusal/repair, selected-generation access after slug
           reuse, stored approvals, and ordinary next-pass history with both pass counts preserved.
 
-### `[ ]` **4.2 Build the review harness over the reference backend**
+### `[x]` **4.2 Build the review harness over the reference backend**
 
 - _Goal:_ A review-gate test runs an arm from the flip over the reference backend with the production kind registry,
   seeded with a work unit's meta, Candidate, and boundary records, an Errand, and the project's identity record, beside
   a scripted repository and a temporary Git common directory for working state; a second clone shares the store; and a
   differential mode runs one scenario over both implementations and compares what each derives.
 
-    - Builds on the lifecycle verbs' reference harness (`__tests__/helpers/store/lifecycle-harness.ts`), which seeds
-      metas alone, adding seeders for `review/candidate`, `review/integration-boundary`, `work-item/record`, and
-      `project-registry/identity`; uses the scripted Git runner (`__tests__/helpers/git-exec-fake.ts`), `temp-repo.ts`,
-      `in-process-review.ts`, and `multi-clone.ts`; and builds its differential mode, modelled on
-      `__tests__/helpers/store/lifecycle-differential.ts`, which compares lifecycle reads over today's files with the
-      store's.
-    - Locus and hosted-Errand discovery use store-only Errand and claim records with exact marker/topology evidence,
-      through the production `runDerivedLocusStateProbe`. Only tests of Errand status's retained ref-based vehicle
-      reader (`readTransientIdentitySnapshot`, `rg/status-errand.ts`) also seed the identity's Errand ref: commit a
-      valid `transientContent` entry with `writeTreeCommit` (§ 14.4).
-    - Flip-time scenarios use production `resolveCandidateMutationOwner` and `resolveCompletedCandidateWorkUnits`
-      (`handlers/candidate-mutation-owner.ts`), supplied the seeded store and project-ID reader. Seed the actual
-      checkout marker and topology needed to resolve active and completed owners. Respond, applicability resolution,
-      and delivery execution's review-fix inspection and acknowledgement must resolve those owners without a stand-in.
-    - Two tiers. The store harness — the reference backend, the seeders, and the scripted Git runner — runs each arm's
-      tests in the unit tier. `in-process-review.ts`, `multi-clone.ts`, and the differential mode build or run a real
-      Git repository, so the end-to-end scenarios built on them run in the integration tier, at each segment verifier.
-    - Build `test-first` (one behavior at a time):
-        - each seeded record reads back through the store, and locus discovers a seeded Errand with no identity ref;
-          the separately retained Errand status reader resolves its dual-seeded fixture
-        - with no meta file in the checkout, the production owner resolves the seeded active or completed work unit,
-          and the production completed-owner inventory lists it from the same store
-        - a local review run through the harness writes its working state under the temporary common directory, never
-          the repository's
-        - the differential mode reports a mismatch when the two implementations derive different counts
+- _Outcome:_ Checked review seeders compose the lifecycle harness's production registry. Scripted checkouts share its
+  Store and isolate their common directories; production locus and mutation-owner readers resolve store-only Errands
+  and active/completed work units without projected metas. Real-clone helpers carry injected review context and can
+  dual-seed the retained Errand ref. Differential observations compare independently read lane and outcome counts,
+  detect an omitted result, and agree after its restoration.
 
 ### `[ ]` **4.3 Take the project ID as the review gate's repository identity from the flip — § 2.4**
 
