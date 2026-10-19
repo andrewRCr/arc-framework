@@ -433,13 +433,14 @@ alone.
   Readiness joins native lane versions to the canonical imported-content binding without backend metadata; stale or
   absent recorded versions remain unbound. Candidate ancestry retains the repository reader's identities and budgets.
 
-### `[ ]` **3.6 Pass the mapping into the import's port where the import landed first — § 11, § 14.2**
+### `[~]` **3.6 Pass the mapping into the import's port where the import landed first — § 11, § 14.2**
 
 - _Goal:_ Where the import has landed on base, `arc store migrate`'s handler passes the mapping into the import's
   `reviewMapping` port, so the import's trial lists the mapping's account; where it has not, the import's change wires
   the handler when it lands.
 
-    - Mark `[~]` where the import has not landed on base when this task is reached, naming the change that binds it.
+- _Outcome:_ The import has not landed; `storage-ref-backend` remains Active. Its import change binds
+  `mapReviewRecords` to the handler's `reviewMapping` port when it lands.
 
 ### `[ ]` **3.7 Take the planned pass-policy change's landing before the review gate's arms — § 4.3, § 5.5**
 
