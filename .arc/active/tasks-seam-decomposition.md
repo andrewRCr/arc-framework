@@ -563,19 +563,13 @@ first place to reauthor; and a stored map conflicted by a sync resolves through 
   conflicted map; discard and revision revalidate the conflict records and close them through the map subject alone.
   The unselected cut remains intact, its stubs abandon normally, and its empty cohort remains open.
 
-### `[ ]` **5.6 Refuse abandoning an origin mid-cut — § 10**
+### `[x]` **5.6 Refuse abandoning an origin mid-cut — § 10**
 
 - _Goal:_ `arc abandon` on an origin holding a stored map refuses through `lineage.cut-in-flight`, naming `--finish` and
   `--discard`, and succeeds after the discard, with no change to the abandon verb.
-
-    - Through `runStoreAbandon`, unchanged.
-    - An abandonment on a clone that has not pulled the additive batch lands, and after the sync its outcomes are
-      stated, not refused. The members read back as stubs, each removed by `arc abandon <member>`, and the cut's new
-      cohort documents stay open and empty. The reference backend keeps the stored map current under the ended owner
-      (§ 8.5), readable by UID alone, so `--discard` and `--finish` report the store's refusal of the origin's slug.
-    - Build `test-first` (one behavior at a time):
-        - the abandonment refuses while the map is stored, and succeeds after the discard
-        - the unsynced abandonment leaves the outcomes above
+- _Outcome:_ Real abandonment refuses through the registered lineage rule while the cut is stored and succeeds after
+  discard. Independent clones reproduce unsynced abandonment: finish and discard preserve the native origin refusal,
+  the UID-selected map remains readable, member stubs abandon normally, and the empty cohort stays open.
 
 ### `[ ]` **5.7 Discard and revision end to end** — validate exit criterion at segment scope
 
