@@ -361,19 +361,15 @@ exported tier classification with Class, a clash's holders omitted with `slug-cl
 stderr; no `STATUS.USER.md` is written; with no identity it prints the identity message and exits 0; and a refused
 listing refuses.
 
-### `[ ]` **5.1 Build the in-flight slice from the in-flight set — § 3**
+### `[x]` **5.1 Build the in-flight slice from the in-flight set — § 3**
 
 - _Goal:_ The user view's in-flight slice comes from `deriveStoreInFlight` over the context's store, identity, and team
   mode, through Task 2.6's builder, with the set's warnings in their own text and, for a set marked degraded, a warning
   that the slice may be incomplete naming `arc status --user`.
 
-    - The arm bypasses `runStatusUserView`'s cache and reachability branch, since the set reads local refs only.
-    - It reads the set through an optional port defaulting to `deriveStoreInFlight`, which its tests replace with a
-      double carrying entries, warnings, and the degraded mark.
-    - Build `test-first` (one behavior at a time):
-        - a branchless and a paused work unit render among the rows
-        - in team mode the identity's own and unowned entries render, and Errands are dropped
-        - a degraded set adds the warning naming `arc status --user`
+- _Outcome:_ `readStoreUserInFlight` reads the selected local membership provider and builds rows without a cache.
+  Team ownership stays with the shared derivation, Errands stay out of work-unit rows, and degraded membership carries
+  the user-view retry route alongside the provider's own warning text.
 
 ### `[ ]` **5.2 Build the ready slice from the exported tier classification — § 3**
 
