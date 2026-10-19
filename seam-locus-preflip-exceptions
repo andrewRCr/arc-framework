@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "seam-locus-preflip-exceptions",
+  "claimId": "e3658388730323346e5fdf5aefda20d5",
+  "createdAt": "2026-10-19T22:37:48.818Z",
+  "updatedAt": "2026-10-19T22:37:48.818Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "seam-locus-preflip-exceptions",
+  "branch": "chore/seam-locus-preflip-exceptions",
+  "origin": "inbox",
+  "originEntry": "Record `seam-locus`'s pre-flip exceptions in the `storage-seam` cohort document",
+  "originEntrySourceDigest": "sha256:4cfba74f085e85b6cb5965ba19299acbebf6ad3e8482f0e9f02a4a8e5a7bb712",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
