@@ -7,6 +7,29 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending integration by this work unit’s owner._
+
+### `[ ]` **Let local E2E feedback select the E2E tests a source change reaches**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Direction conversion seam: static imports expose source-to-E2E reach; subprocess residual stays explicit
+
+- _Observation:_ local E2E feedback selects by changed E2E test file only. Nothing records which E2E tests a source
+  change reaches (`823e28c1b`'s own words), because E2E tests spawn the built CLI and no import graph links them to
+  `src/`. A change to code an E2E test drives therefore runs no E2E test locally, and CI is the first to see it, as on
+  PR #1034 (`status-lifecycle.e2e.test.ts`, exact equality over `arc status <slug> --json`).
+
+- _Approach:_ scenarios the harness converts reach verb cores by import, which puts them on the import graph
+  changed-file selection already reads; keep that reach legible (static imports of the handler seam, not dispatch by
+  command string) so `--changed` can select them. Scenarios that stay real subprocess spawns still need a recorded
+  reach, or keep relying on CI.
+
+- _Captured during:_ Errand `status-derived-position` (PR #1034), 2026-10-17.
+
+---
+
 ## Problem / Motivation
 
 The E2E tier spawns the built CLI roughly a thousand times. Measured 2026-09-10,

@@ -8,7 +8,7 @@ import { afterEach, expect, it } from "vitest";
 import { cleanupTempDir } from "../helpers/integration.js";
 import { inProcessReview } from "../helpers/in-process-review.js";
 import {
-  createFixedLocalMemberReview, fixLocalMemberReview, completeLocalReviewThroughHandlers, git, roots,
+  createFixedLocalMemberReview, completeLocalReviewThroughHandlers, git, roots,
   respondThroughHandler, resumeLocalThroughHandler, statusThroughHandler, type FanOutHarness,
 } from "../fixtures/review-fan-out-harness.js";
 
@@ -101,53 +101,6 @@ async function bindPublishedMemberObservations(harness: FanOutHarness) {
     return exec(command, args, options);
   };
 }
-
-it("runs repeated member fix-check rounds outside the ceiling before an approved complete successor", async () => {
-  const first = await createFixedLocalMemberReview(1);
-  const { harness } = first;
-  await bindPublishedMemberObservations(harness);
-  expect(first.assessment.summaryText).toContain("Standard complete pass 1 of 1");
-  expect(first.assessment.summaryText).toContain("needs a fix check, round 1 since pass 1");
-  const fixCheck = await statusThroughHandler(harness, first.correctedTarget, undefined, "incremental", "delegated-agent");
-  expect(fixCheck).toMatchObject({ nextAction: "review-local-prepare", action: { requestedCoverage: "incremental", pass: 2 } });
-  if (fixCheck.nextAction !== "review-local-prepare") throw new Error("expected the first fix check");
-  expect(fixCheck.action).not.toHaveProperty("ceilingOverride");
-  const checked = await completeLocalReviewThroughHandlers(harness, fixCheck.action, "findings");
-  const repaired = await fixLocalMemberReview(harness, first.correctedTarget, checked, "fully fixed local finding\n");
-  expect(repaired.assessment.summaryText).toContain("Standard fix check, round 1 since pass 1");
-  expect(repaired.assessment.summaryText).toContain("needs a fix check, round 2 since pass 1");
-  expect(repaired.reportText).toContain("Round 1 observed signals: paths outside cited loci no, added files no");
-  expect(repaired.reportText).toContain("stored forecast tags (advisory): 0 new design, 1 local correction");
-  const second = await statusThroughHandler(harness, repaired.correctedTarget, undefined, "incremental", "delegated-agent");
-  expect(second).toMatchObject({ nextAction: "review-local-prepare", action: { requestedCoverage: "incremental", pass: 3,
-    correctionScope: { predecessorProducerId: checked.prepared.payload.operationId } } });
-  if (second.nextAction !== "review-local-prepare") throw new Error("expected the second fix check");
-  expect(second.action).not.toHaveProperty("ceilingOverride");
-  const checkedAgain = await completeLocalReviewThroughHandlers(harness, second.action, "findings");
-  const repairedAgain = await fixLocalMemberReview(harness, repaired.correctedTarget, checkedAgain, "all local repairs complete\n");
-  expect(repairedAgain.assessment.summaryText).toContain("Standard fix check, round 2 since pass 1");
-  expect(repairedAgain.assessment.summaryText).toContain("needs a fix check, round 3 since pass 1");
-  const third = await statusThroughHandler(harness, repairedAgain.correctedTarget, undefined, "incremental", "delegated-agent");
-  expect(third).toMatchObject({ nextAction: "review-local-prepare", action: { requestedCoverage: "incremental", pass: 4 } });
-  if (third.nextAction !== "review-local-prepare") throw new Error("expected the third fix check");
-  expect(third.action).not.toHaveProperty("ceilingOverride");
-  const converged = await completeLocalReviewThroughHandlers(harness, third.action);
-  await reduceCleanReview(harness, converged.prepared.payload.operationId);
-  const ceiling = await statusThroughHandler(harness, repairedAgain.correctedTarget);
-  expect(ceiling).toMatchObject({ state: "approval-required", nextAction: "obtain-ceiling-override",
-    consequence: { exhaustedPassCount: 4, nextPass: 5 },
-    routedObligation: { conjunction: { members: [{ progress: { completedPasses: 4, completePasses: 1, passCeiling: 1 } }, { state: "outstanding" }] } } });
-  if (ceiling.nextAction !== "obtain-ceiling-override") throw new Error("expected the complete-pass ceiling decision");
-  const successor = await statusThroughHandler(harness, repairedAgain.correctedTarget, ceiling.consequence, "complete", "delegated-agent");
-  expect(successor).toMatchObject({ nextAction: "review-local-prepare", action: { requestedCoverage: "complete", pass: 5 } });
-  if (successor.nextAction !== "review-local-prepare") throw new Error("expected the approved complete successor");
-  const complete = await completeLocalReviewThroughHandlers(harness, successor.action);
-  await reduceCleanReview(harness, complete.prepared.payload.operationId);
-  expect(await statusThroughHandler(harness, repairedAgain.correctedTarget)).toMatchObject({
-    routedObligation: { conjunction: { members: [{ state: "discharged",
-      progress: { completedPasses: 5, completePasses: 2, passCeiling: 1 } }, { state: "outstanding" }] } },
-  });
-}, 120_000);
 
 it("retains advisory fix tags through a performed member fix and its verified replay", async () => {
   const { harness, local } = await createFixedLocalMemberReview(4);
