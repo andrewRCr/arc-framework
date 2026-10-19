@@ -566,17 +566,12 @@ family's schemas are store schemas, never entries in the review gate's published
   so two clones' records of one target agree; on a clone holding no project ID every review command refuses
   `project-identity-unavailable` with the port's remedy and succeeds once the clone holds it.
 
-    - `[ ]` **4.3.a The resolver**
+    - `[x]` **4.3.a The resolver**
 
-        - `resolveRepositoryIdentity` (`rg/hosts/local/git-common-state.ts`) takes the project-ID reader
-          (`createProjectIdentityReader`) and resolves it through `resolveProjectIdentity` from the flip, still returning
-          the ID and throwing a typed error where the port reports it unavailable; its in-repo arm keeps the per-clone
-          record.
-        - Build `test-first` (one behavior at a time):
-            - from the flip, two clones resolve one repository identity, the project ID
-            - a clone holding no project ID throws the typed error carrying the port's reason and remedy, and the same
-              call succeeds once it holds one
-            - in-repo, the per-clone record resolves as today
+        - Both repository-identity readers select the invocation's project-ID port on a native Store, retain the
+          port's typed reason and remedy, and perform no clone-local identity access. Independent checkout views agree
+          on the project ID; a fresh invocation succeeds after the missing record is restored. The repository arm
+          retains its existing UUID and deterministic minting behavior.
 
     - `[ ]` **4.3.b Its callers and the refusal**
 
