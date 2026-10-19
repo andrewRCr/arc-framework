@@ -454,6 +454,13 @@ Author grounding traced `createRefStore`, `createRefBackend`, `storeViolations`,
 expected layout/remote-copy contracts in Tasks 13.1 and 16.2 against § 11.4. Grounding-only task audit found the caller
 ordering resolves the private-import conflict without adding an API, lock policy port, or generic helper for tests.
 
+Closure through Task 16.R: `store-ref-layout-move.test.ts` retains the divergent public layout-copy case while the
+writer’s item-ref lock stands, with the migration itself holding layout serialization. The public handler case in
+`store-ref-migration-commit-modes.test.ts` starts in the separate layout, retains another holder’s actual layout lock
+until the remote copy has anchored a two-parent merge in the code repository’s temporary refs, then releases it for
+the switch and completes with both sides’ records. Changing only unlocked commits to take layout serialization makes
+that caller refuse `lock-held`; restoration completes both public caller cases. No private import or test API was added.
+
 ## A13 — Empty fetches need a no-tip negotiation form that completes
 
 Superseded § 6.2 text:

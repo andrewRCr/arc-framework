@@ -4155,7 +4155,7 @@ open:
   _Supersedes:_ § 3.3 repair remedy. _Trigger:_ 7.5 must-stop. _Work:_ 7.5.R. _Revalidated:_ 8.6.
 
 - **A12** — 2026-10-17 — task: verify migration-only commit modes through their public callers.
-  _Supersedes:_ none. _Trigger:_ 8.3 must-stop. _Work:_ 16.R. _Revalidated:_ pending → 16.R.
+  _Supersedes:_ none. _Trigger:_ 8.3 must-stop. _Work:_ 16.R. _Revalidated:_ 16.R.
 
 - **A13** — 2026-10-17 — design: empty state fetches use an unmatched state tip instead of unconditional refetch.
   _Supersedes:_ § 6.2 no-held-tip branch. _Trigger:_ 9.1.b must-stop. _Work:_ 9.1.R. _Revalidated:_ 11.6.

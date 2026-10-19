@@ -1530,18 +1530,14 @@ _Mode:_ `slice` through Phase 17 — closes on state moved between remotes, ever
   repair. Copies stop on unreadable merges, retirement labels come from the merged registry, and completed moves retain
   their reports when a remote setting follows them.
 
-### `[ ]` **16.R Migration commit modes through public callers — § 11.4 (A12)**
+### `[x]` **16.R Migration commit modes through public callers — § 11.4 (A12)**
 
 - _Goal:_ Verify held and unlocked commit modes through real migration calls, preserving the backend's private test
   boundary and the original lock behavior required by 8.3 (A12).
 
-    - Build `test-first` (one behavior at a time):
-        - retain 13.1's public layout-copy case over divergent destination state as evidence that a merge commits while
-          the caller already holds the layout lock, without a second acquisition or ref-lock acquisition
-        - in the separate layout, a remote copy through `runStoreMigrate` commits merged temporary refs in the code
-          repository while another holder retains the layout lock; release that holder after the copy and before a
-          later switch needs the lock, then complete the move and verify the destination's merged records
-        - keep imports at the public store boundary, and close A12 against the recorded public caller evidence
+- _Outcome:_ Public layout and remote callers prove held and unlocked commits with real contending locks.
+  The separate-layout remote copy anchors its two-parent merge in the code repository’s temporary refs before release;
+  the completed move retains both sides’ records at its destination. A12 is revalidated.
 
 ### `[ ]` **16.5 Moves that cross, end, or change the layout — § 10.3, § 10.7**
 
