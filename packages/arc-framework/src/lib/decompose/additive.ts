@@ -10,8 +10,8 @@ import type { BatchResult } from "../store/write.js";
 import { prepareDecomposeAdditive } from "./additive-plan.js";
 import { revalidateLifecycleRecords, applyPreparedLifecycleWrite } from "../work-unit/prepared-lifecycle-write.js";
 import { decomposeProvenance } from "./provenance.js";
-import { decomposeStoreRefusal } from "./refusal.js";
 import { reportDecomposeAdditive, type DecomposeAdditiveReport } from "./additive-report.js";
+import { recheckDecomposeAdditiveRefusal } from "./additive-recheck.js";
 
 /** Landed additive writes retained for structured authoring reports. */
 export interface DecomposeAdditiveApplied {
@@ -29,9 +29,9 @@ export async function runStoreDecomposeAdditive(ctx: DecomposeContext, origin: s
   const plan = await prepareDecomposeAdditive(ctx, origin, mode, input);
   if (plan.status === "refused") return plan;
   const valid = await revalidateLifecycleRecords(ctx.executor.store, plan.result.observations);
-  if (valid.status === "refused") return decomposeStoreRefusal(valid.refusal);
+  if (valid.status === "refused") return recheckDecomposeAdditiveRefusal(ctx, origin, mode, input, valid.refusal);
   const batch = await applyPreparedLifecycleWrite(ctx.executor.store, plan.result.prepared, decomposeProvenance("additive"));
-  if (batch.status === "refused") return decomposeStoreRefusal(batch.refusal);
+  if (batch.status === "refused") return recheckDecomposeAdditiveRefusal(ctx, origin, mode, input, batch.refusal);
   const { map, storedMap, members, cohorts } = plan.result;
   const applied = { map, storedMap, members, cohorts, batch: batch.result };
   return { status: "ok", result: { ...applied, report: reportDecomposeAdditive(applied) } };

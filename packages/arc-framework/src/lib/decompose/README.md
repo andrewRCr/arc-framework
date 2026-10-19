@@ -75,3 +75,7 @@ remain for the production slug guard, with its repair preserved.
 `additive-report.ts` projects the landed batch into a closed authoring report, binding member and copy references to
 returned generations and preserving every allocation's source, ownership, and target locator. Existing homes receive
 instructions without a content write; the next action authors destinations before previewing the stored cut.
+
+`additive-recheck.ts` repeats binding and admission after persistence refuses, explaining competing stored cuts and
+name acquisitions before returning a store failure. An unexplained version conflict retains its complete store
+refusal and adds the exact additive retry action; other failures preserve their original recovery information.

@@ -33,6 +33,8 @@ const common = {
 /** A refused mode names its condition and preserves the operator's repair boundary. */
 export const DecomposeRefusalSchema = z.union([
   z.strictObject({ ...common, reason: DecomposeReasonSchema }),
+  z.strictObject({ ...common, reason: z.literal("version-conflict"), class: z.literal("recoverable"),
+    storeRefusal: StoreRefusalSchema.and(z.object({ code: z.literal("version-conflict") })) }),
   z.strictObject({ ...common, reason: z.literal("store"), storeRefusal: StoreRefusalSchema })
     .superRefine((value, ctx) => {
       if (value.class !== value.storeRefusal.class) {

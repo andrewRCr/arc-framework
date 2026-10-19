@@ -263,19 +263,15 @@ row to the tasks that build it.
           new cohort documents, and every destination's allocated source units, ownership, and target locators, including
           existing homes. Its typed continuation directs authoring followed by the stored map's finish preview.
 
-### `[ ]` **2.6 Recheck after the store refuses the batch — § 6**
+### `[x]` **2.6 Recheck after the store refuses the batch — § 6**
 
 - _Goal:_ When the store refuses the additive batch, the verb repeats its binding and checks against the store as it now
   stands and reports the first refusal they find, the stored-map refusal ahead of the held-name refusal, and only when
   they find none the store's own, a version conflict's remedy being the batch again as given.
 
-    - Each race is staged through task 2.1.c's store wrapper.
-    - Build `test-first` (one behavior at a time):
-        - another cut storing a map between the checks and the batch reports the stored-map refusal
-        - a name taken between the checks and the batch — within a type by a competing write, and across types, in
-          each direction, by a competing write with the injected refusal — reports the held-name refusal, and no
-          batch's after-state holds a live cohort and work item of one name
-        - a version conflict the repeated checks do not explain names the batch again as a typed action, which lands
+- _Outcome:_ `recheckDecomposeAdditiveRefusal` repeats complete binding and admission, reporting a competing stored map
+  ahead of name collisions across work-item and cohort namespaces. An unexplained version conflict retains its whole
+  store refusal beside the exact execute/extract retry action; other unexplained store failures keep their own repair.
 
 ## **Phase 3:** The terminal batch for a retirement
 
