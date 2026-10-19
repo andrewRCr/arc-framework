@@ -536,56 +536,61 @@ its code. `notes-seam-status-roadmap.md` § Phase 7 — `arc view` records the p
 
 ## **Phase 8:** Verification
 
-### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Forced merge gate passed: lint, both type checks, package sync, build, 17,484 unit tests,
+  4,200 integration tests, and 241 ARC contract tests.
+- _Success criteria:_ All 18 met. Frozen pre-flip literals match the merged base; review repairs are covered by
+  regressions and a clean independent fix check.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Before the flip every status, ROADMAP, and `arc view` test over the in-repo implementation passes unchanged but
+- `[x]` Before the flip every status, ROADMAP, and `arc view` test over the in-repo implementation passes unchanged but
   for those the identity fix, the label, and `--conflicts`' registration change, each named in its commit, and Task
   2.1's byte-identity tests pass against the merged base's literals.
-- `[ ]` With `arc.identity` unset and `user.name` set, every `arc status` mode, `arc base drift`, `arc recover audit`,
+- `[x]` With `arc.identity` unset and `user.name` set, every `arc status` mode, `arc base drift`, `arc recover audit`,
   the in-repo ROADMAP renders that read the Errand context, and the review gate's local host resolve the slugified
   `user.name`; with both unset, session-init's identity-absent arm fires and each message names how to set one; the
   identity line reads `identity:`.
-- `[ ]` Over the reference backend `readLifecycleDesign`, the slug query, and the project view read the parsed purpose
+- `[x]` Over the reference backend `readLifecycleDesign`, the slug query, and the project view read the parsed purpose
   through one selection and report the same purpose, a companion-designed and a reused slug's work unit among them.
-- `[ ]` The kind-list test fails on a rename or removal on either side, and `VIEW_KINDS`' table fails the type check
+- `[x]` The kind-list test fails on a rename or removal on either side, and `VIEW_KINDS`' table fails the type check
   when a kind it maps is renamed or removed.
-- `[ ]` From the flip `arc status --project` renders from the store and writes no file, with In Flight from placement,
+- `[x]` From the flip `arc status --project` renders from the store and writes no file, with In Flight from placement,
   Ready, Blocked in depth bands, and Paused; folds a reused slug to its live holder, or the latest archived; omits a
   clash's holders with `slug-clash`; renders listing diagnostics, a withheld meta's among them, as omitted
   `listing-diagnostic` warnings, its name standing for no entry; refuses over a refused read or `unreadable` listing;
   renders an `absent` listing empty; lists each design kind once; and carries no render stamp.
-- `[ ]` Edges naming no listed work unit resolve as § 2.2 states: a former slug to its work unit, a decomposed,
+- `[x]` Edges naming no listed work unit resolve as § 2.2 states: a former slug to its work unit, a decomposed,
   abandoned, or former-slug retired origin to a `dependency-retired` warning naming the disposition the dependent's
   reconcile reads, a lookup failure or an incomplete lineage listing to `store-read-failed`, and nothing, or an Errand,
   to today's dangling warning, each retired-origin edge unsatisfied.
-- `[ ]` The Paused tier shows paused Planning and Active work and nowhere else, with reason, waits-on, open, and mark; a
+- `[x]` The Paused tier shows paused Planning and Active work and nowhere else, with reason, waits-on, open, and mark; a
   failed marking warns and leaves the row unmarked; a paused fact row carries the paused advisory.
-- `[ ]` `--project --json` keeps today's shape with each new warning coded; `--user`'s warnings stay strings; and
+- `[x]` `--project --json` keeps today's shape with each new warning coded; `--user`'s warnings stay strings; and
   `arc status <slug> --json` from the flip carries `derivedPosition` and `scopeWindow`, a paused work unit's window null.
-- `[ ]` `--project`, `--user`, and `--conflicts` render locally by default and under `--local` or `--no-fetch`, and
+- `[x]` `--project`, `--user`, and `--conflicts` render locally by default and under `--local` or `--no-fetch`, and
   `--fetch` pulls first through the session context's port, each result rendering as § 2.4's table states, with the
   `incomplete` and notice cases verified by whichever of this change and the ref backend's binding lands second.
-- `[ ]` From the flip `arc status --user` renders both slices from the store, prints its warnings to stderr in text
+- `[x]` From the flip `arc status --user` renders both slices from the store, prints its warnings to stderr in text
   mode, writes no `STATUS.USER.md`, and with no identity prints the identity message and exits 0.
-- `[ ]` `--project --staged`, with and without `--write`, refuses from the flip naming `arc status --project`.
-- `[ ]` `arc status --conflicts` refuses before the flip naming `git status`, and from the flip lists and shows every
+- `[x]` `--project --staged`, with and without `--write`, refuses from the flip naming `arc status --project`.
+- `[x]` `arc status --conflicts` refuses before the flip naming `git status`, and from the flip lists and shows every
   conflict shape by token, omits a record that does not decode with its warning, and refuses an unknown token and any
   combined mode.
-- `[ ]` From the flip `arc view` opens a claim's work unit, refuses with a remedy where none resolves, resolves `--for`
+- `[x]` From the flip `arc view` opens a claim's work unit, refuses with a remedy where none resolves, resolves `--for`
   through the store, opens completed and unprojected work units, opens session notes as the meta with no identity, and
   warns of a conflicted record's conflicts.
-- `[ ]` No `store-raw-state`, `surface-names`, or `work-unit-paths` count in `eslint-suppressions.json` exceeds its
+- `[x]` No `store-raw-state`, `surface-names`, or `work-unit-paths` count in `eslint-suppressions.json` exceeds its
   count at the final merged base.
-- `[ ]` All quality gates pass (tests, linting, type checking)
-- `[ ]` Ready for integration
-- `[ ]` Personal and claims conflict-token queries retain the resolved person's owner, never the token's person;
+- `[x]` All quality gates pass (tests, linting, type checking)
+- `[x]` Ready for integration
+- `[x]` Personal and claims conflict-token queries retain the resolved person's owner, never the token's person;
   another person's token is unknown only after a complete read, and either family's token request with no identity
   refuses naming how to set one, while other families still show each holder of a reused name (spec A1).
-- `[ ]` Conflict listings preserve refused, `unreadable`, `absent`, and complete outcomes in list and token modes:
+- `[x]` Conflict listings preserve refused, `unreadable`, `absent`, and complete outcomes in list and token modes:
   failures refuse with their condition and remedy, complete listings warn for diagnostics and `missed` beside good
   records, and no token match after omissions or a decode failure refuses as incomplete with its repair route, never
   as unknown; text and `--json` retain those warnings (spec A2).

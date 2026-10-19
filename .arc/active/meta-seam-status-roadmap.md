@@ -11,13 +11,14 @@
 - **Design:** `spec-seam-status-roadmap.md`
 - **Task List:** `tasks-seam-status-roadmap.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:e0642b11ff22a1254d4cbfec54af6c8c03ee8f1b37d1121d556e0292ea8e7e6c`
 
-- **Current Workflow:** `process-task-loop`
-- **Last Completed:** Task 7.6 — `arc view` from the flip; Phase 7 complete
-- **Next Task:** Task 8.1 — Complete verification (line ~539)
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 8.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 8.1 in a fresh session — load and follow `verify-work-unit.md`
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]

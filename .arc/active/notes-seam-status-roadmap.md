@@ -2,15 +2,17 @@
 
 ## Contents
 
-- How the rows were checked
-- Corrections across rows
-- Rows
-- Files no row covers
-- What `seam-lifecycle` changed in the shared files
-- Provider contracts against the code
-- Neighbors' tasks on shared surfaces
-- Grounding baseline for the task list
-- Implementation facts by phase
+- [How the rows were checked](#how-the-rows-were-checked)
+- [Corrections across rows](#corrections-across-rows)
+- [Rows](#rows)
+- [Files no row covers](#files-no-row-covers)
+- [Shared-file changes](#what-seam-lifecycle-changed-in-the-shared-files)
+- [Provider contracts against the code](#provider-contracts-against-the-code)
+- [Neighbors' tasks on shared surfaces](#neighbors-tasks-on-shared-surfaces)
+- [Grounding baseline for the task list](#grounding-baseline-for-the-task-list)
+- [Implementation facts](#implementation-facts)
+- [Identity-scoped conflict tokens](#a1--identity-scoped-conflict-tokens)
+- [Conflict-listing completeness](#a2--conflict-listing-completeness)
 
 ## How the rows were checked
 
@@ -299,12 +301,12 @@ and a name a withheld meta holds fails closed in the fold and in edge resolution
 session settled two smaller gaps: `--user` prints its warnings to stderr in text mode from the flip (§ 3), and the
 conflict view omits a record that does not decode, with a warning (§ 5).
 
-## Implementation facts by phase
+## Implementation facts
 
 Facts the read-only grounding sweeps found and the plan settles, each cited from its task. Line numbers are as of the
 baseline above.
 
-### Phase 1 — the identity, purpose, and kind-list fixes
+### Identity, purpose, and kind lists
 
 - **`resolveIdentity` takes no `cwd`** (`IdentityOptions = { exec; prompt? }`, `lib/git/identity.ts`). The review gate's
   local host passes `input.cwd` to `readConfiguredIdentity` today, and `live-context.test.ts` pins the read to the
@@ -376,7 +378,7 @@ baseline above.
   from `formerSlugs`, an empty list included); `lifecycleEntry` copies a non-empty list and drops an empty one, where
   it copies `links` only when defined.
 
-### Phases 3 and 4 — the project view's acquisition, freshness, and the slug query
+### Project acquisition, freshness, and slug queries
 
 - **Slug ranking.** The reference lookup scores live-named 3, live-former 2, completed-named 1, completed-former 0, and
   refuses `ambiguous-match` on a tie at the top score. The fold's tie-break among completed holders compares
@@ -428,7 +430,7 @@ baseline above.
   (`unit/handlers/status/store-locus.test.ts`, `unit/work-unit/store-read-consumers.test.ts`); no test drives
   `handleProjectStatus` or `handleUserStatus` with an injected store.
 
-### Phases 5 and 6 — the user view and the conflict view
+### User and conflict views
 
 - **User view.** `deriveStoreInFlight` returns `reachable: false`, so the arm from the flip bypasses
   `runStatusUserView`'s cache branch and passes no `writeFile`. Its degraded mark comes with a specific warning except
@@ -465,9 +467,8 @@ baseline above.
   `prepareViewDocument`; `openArtifactInEditor` and `artifactPathOutput` currently return empty stderr on success.
   Task 7.4's artifact warnings must reach those destinations as well as content rendering. Check each destination
   with a conflicted projected record, keeping `--path` stdout a usable path and its warning on stderr.
-- **The default target's placement.** Locus's arm of `resolveAmbientTarget` returns placement `active` and
-  `taskListPath: null` for any resolved claim, reading no placement, so the arm from the flip takes only the claim's slug
-  and reads the work unit as `--for` does.
+- **The default target's placement.** The store arm reads the claim's exact reference again to refresh its placement
+  and task-list fields while retaining the resolved generation. Explicit `--for` targets use their own slug lookup.
 - **Kinds.** `design` maps to no kind, `inbox` to two, and `session-notes` to meta, so the table maps each view kind to
   a read selector typed by `KindId`, not to a bare `KindId`. The table and its selectors live in the port's module under
   `handlers/`, which reads the store at runtime; `lib/view` imports only types from `lib/store`.
