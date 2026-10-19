@@ -684,18 +684,12 @@ family's schemas are store schemas, never entries in the review gate's published
           Published actions accept `merge` and projection-free continuations; record versions stay opaque, and
           terminus and delivery results admit stored authority without tracked artifacts.
 
-    - `[ ]` **4.5.b The projections**
+    - `[x]` **4.5.b The projections**
 
-        - The boundary and next-action projections in `rg/policy/integration-boundary-locus.ts`, among them the
-          publication boundary's input (`PublicationBoundaryInputSchema`) and its recovery (`recoverPublicationBoundary`),
-          which carry `readinessBinding` into `publication-pending` (§ 9.2).
-        - The pre-publication envelope keeps `policy`, which its handler and the workflow route on; from the flip
-          `prePublicationBoundary` (`rg/policy/pre-publication-procedure.ts`) strips it with `target` and
-          `responseBinding` before `handleReviewPrePublication` (`handlers/review.ts`) persists the boundary.
-        - Build `test-first` (one behavior at a time):
-            - from the flip the envelope carries `policy` and the persisted boundary carries none
-            - every projection that writes `publication-pending` carries the binding it was published under, and a
-              recovered publication boundary keeps it
+        - Boundary projections select the native format explicitly, omit copied policy and projection bookkeeping,
+          and keep policy on transient envelopes. Publication and recovery carry readiness bindings and named authority
+          through Candidate repair, verified singleton responses, and exact delivery renewal. Native readiness refuses
+          an unbound digest.
 
     - `[ ]` **4.5.c The writers and readers**
 

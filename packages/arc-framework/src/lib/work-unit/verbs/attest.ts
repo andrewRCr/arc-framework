@@ -27,7 +27,7 @@ import type { VersionedCandidateRecord } from "../../store/kinds/review/candidat
 import { SlugSchema } from "../../kernel/schema/slug.js";
 import {
   PublishedIntegrationBoundaryLocusSchema,
-  type IntegrationBoundaryLocus,
+  type PublishedIntegrationBoundaryLocus,
 } from "../../../scripts/review-gate/policy/integration-boundary-locus.js";
 
 const ATTESTED_ORIENTATION = {
@@ -271,7 +271,7 @@ export interface AttestContext {
     nextAction: string;
     expectedRecordVersion: string | null;
     repairCurrent: boolean;
-  }): Promise<{ recordPath: string; metaPath: string; locus: IntegrationBoundaryLocus }>;
+  }): Promise<{ recordPath: string; metaPath: string; locus: PublishedIntegrationBoundaryLocus }>;
 }
 
 /**

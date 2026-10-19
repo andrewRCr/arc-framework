@@ -420,19 +420,22 @@ export function projectCandidateReviewBoundary(input: CandidateEntryCoordinates,
   });
 }
 
+interface AttestedBoundaryRecoveryInput extends CandidateSubjectCoordinates {
+  stored: PublishedIntegrationBoundaryLocus | null;
+  repairCurrent: boolean;
+}
+
 /**
- * Recover a Candidate-scoped Owner verdict after attestation proves subject movement non-semantic.
+ * Recover Candidate-scoped Owner acceptance after attestation proves subject movement non-semantic.
  *
  * @param input - Stored boundary plus the attestation's currentness and Candidate coordinates.
  * @returns The rebound public boundary, or `null` when no durable verdict can carry.
  */
-export function recoverAttestedOwnerTerminusBoundary(input: {
-  stored: IntegrationBoundaryLocus | null;
-  workUnit: string;
-  candidateId: string;
-  candidateSubjectDigest: string;
-  repairCurrent: boolean;
-}): IntegrationBoundaryLocus | null {
+export function recoverAttestedOwnerTerminusBoundary(input: AttestedBoundaryRecoveryInput & { stored: IntegrationBoundaryLocus | null }): IntegrationBoundaryLocus | null;
+/** Retain named native authority without decoding it as an embedded verdict. */
+export function recoverAttestedOwnerTerminusBoundary(input: AttestedBoundaryRecoveryInput): PublishedIntegrationBoundaryLocus | null;
+/** Rebind the existing authority only after exact Candidate repair has been established. */
+export function recoverAttestedOwnerTerminusBoundary(input: AttestedBoundaryRecoveryInput): PublishedIntegrationBoundaryLocus | null {
   const workUnit = SlugSchema.parse(input.workUnit);
   const candidateId = CandidateIdSchema.parse(input.candidateId);
   const candidateSubjectDigest = CandidateSubjectDigestSchema.parse(input.candidateSubjectDigest);
@@ -447,7 +450,8 @@ export function recoverAttestedOwnerTerminusBoundary(input: {
       && stored.locus !== "delivery-status-required")) {
     return null;
   }
-  return IntegrationBoundaryLocusSchema.parse({
+  const schema = stored.schemaVersion === 2 ? IntegrationBoundaryLocusV2Schema : IntegrationBoundaryLocusSchema;
+  return schema.parse({
     ...stored,
     candidateSubjectDigest,
   });
@@ -463,14 +467,13 @@ export function recoverAttestedOwnerTerminusBoundary(input: {
  *   the attestation recognized the current subject as the same Candidate.
  * @returns The public boundary bound to the current subject, or null when publication authority cannot carry.
  */
-export function recoverAttestedSingletonPublicationBoundary(input: {
-  stored: IntegrationBoundaryLocus | null;
-  workUnit: string;
-  candidateId: string;
-  candidateSubjectDigest: string;
-  integrating: boolean;
-  repairCurrent: boolean;
-}): IntegrationBoundaryLocus | null {
+export function recoverAttestedSingletonPublicationBoundary(input: AttestedBoundaryRecoveryInput & {
+  stored: IntegrationBoundaryLocus | null; integrating: boolean;
+}): IntegrationBoundaryLocus | null;
+/** Retain native publication bindings through an exact singleton continuation. */
+export function recoverAttestedSingletonPublicationBoundary(input: AttestedBoundaryRecoveryInput & { integrating: boolean }): PublishedIntegrationBoundaryLocus | null;
+/** Preserve the stored format after singleton lifecycle and Candidate admission. */
+export function recoverAttestedSingletonPublicationBoundary(input: AttestedBoundaryRecoveryInput & { integrating: boolean }): PublishedIntegrationBoundaryLocus | null {
   const stored = input.stored;
   if (!input.integrating
     || stored === null
@@ -479,10 +482,18 @@ export function recoverAttestedSingletonPublicationBoundary(input: {
     || (stored.candidateSubjectDigest !== input.candidateSubjectDigest && !input.repairCurrent)
     || (stored.locus !== "publication-pending" && stored.locus !== "hosted-review-pending")
     || stored.reservation?.target.kind === "delivery") return null;
-  return IntegrationBoundaryLocusSchema.parse({
+  const schema = stored.schemaVersion === 2 ? IntegrationBoundaryLocusV2Schema : IntegrationBoundaryLocusSchema;
+  return schema.parse({
     ...stored,
     candidateSubjectDigest: CandidateSubjectDigestSchema.parse(input.candidateSubjectDigest),
   });
+}
+
+interface SingletonResponseRebindInput {
+  stored: PublishedIntegrationBoundaryLocus | null;
+  workUnit: string;
+  response: CandidateReviewResponseEvidenceV1;
+  requirePublished: boolean;
 }
 
 /**
@@ -491,12 +502,11 @@ export function recoverAttestedSingletonPublicationBoundary(input: {
  * @param input - Stored boundary, exact work unit and response, and whether publication must exist.
  * @returns The rebound boundary, or null when this is not a published singleton response.
  */
-export function rebindSingletonPublicationResponseBoundary(input: {
-  stored: IntegrationBoundaryLocus | null;
-  workUnit: string;
-  response: CandidateReviewResponseEvidenceV1;
-  requirePublished: boolean;
-}): IntegrationBoundaryLocus | null {
+export function rebindSingletonPublicationResponseBoundary(input: SingletonResponseRebindInput & { stored: IntegrationBoundaryLocus | null }): IntegrationBoundaryLocus | null;
+/** Retain native readiness and decision references across a verified singleton response. */
+export function rebindSingletonPublicationResponseBoundary(input: SingletonResponseRebindInput): PublishedIntegrationBoundaryLocus | null;
+/** Enforce exact response coordinates before carrying either stored format. */
+export function rebindSingletonPublicationResponseBoundary(input: SingletonResponseRebindInput): PublishedIntegrationBoundaryLocus | null {
   const response = CandidateReviewResponseEvidenceV1Schema.parse(input.response);
   const stored = input.stored;
   const singleton = stored !== null
@@ -522,7 +532,8 @@ export function rebindSingletonPublicationResponseBoundary(input: {
     throw new Error("The singleton publication boundary does not match the reviewed Candidate subject. "
       + "Reconcile the boundary and replay the approved response.");
   }
-  return parseIntegrationBoundaryLocus({ ...stored, candidateSubjectDigest: newDigest });
+  const rebound = { ...stored, candidateSubjectDigest: newDigest };
+  return stored.schemaVersion === 2 ? IntegrationBoundaryLocusV2Schema.parse(rebound) : parseIntegrationBoundaryLocus(rebound);
 }
 
 interface CandidateReviewResumeInput extends CandidateSubjectCoordinates {
@@ -706,27 +717,33 @@ export function projectPublicationBoundary(input: unknown, schemaVersion: 1 | 2 
   });
 }
 
+interface CorrectiveDeliveryBoundaryInput {
+  readonly workUnit: string;
+  readonly candidateId: string;
+  readonly candidateSubjectDigest: string;
+  readonly supersedesCandidateId: string | null;
+  readonly sourceBoundary: PublishedIntegrationBoundaryLocus;
+  readonly deliveryContinuation: DeliveryPublicReviewContinuationV1;
+}
+
 /**
  * Rebind one carried public delivery reservation to a renewed Candidate continuation.
  *
  * @param input - Renewed Candidate identity, exact source boundary, and current delivery binding.
  * @returns One provider-neutral delivery-status boundary carrying the unchanged public reservation.
  */
-export function projectCorrectiveDeliveryStatusBoundary(input: {
-  readonly workUnit: string;
-  readonly candidateId: string;
-  readonly candidateSubjectDigest: string;
-  readonly supersedesCandidateId: string | null;
-  readonly sourceBoundary: IntegrationBoundaryLocus;
-  readonly deliveryContinuation: DeliveryPublicReviewContinuationV1;
-}): IntegrationBoundaryLocus {
+export function projectCorrectiveDeliveryStatusBoundary(input: CorrectiveDeliveryBoundaryInput & { sourceBoundary: IntegrationBoundaryLocus }): IntegrationBoundaryLocus;
+/** Carry native delivery authority in the source boundary's own format. */
+export function projectCorrectiveDeliveryStatusBoundary(input: CorrectiveDeliveryBoundaryInput): PublishedIntegrationBoundaryLocus;
+/** Validate exact delivery binding before projecting either stored format. */
+export function projectCorrectiveDeliveryStatusBoundary(input: CorrectiveDeliveryBoundaryInput): PublishedIntegrationBoundaryLocus {
   const workUnit = SlugSchema.parse(input.workUnit);
   const candidateId = CandidateIdSchema.parse(input.candidateId);
   const candidateSubjectDigest = CandidateSubjectDigestSchema.parse(input.candidateSubjectDigest);
   const supersedesCandidateId = input.supersedesCandidateId === null
     ? null
     : CandidateIdSchema.parse(input.supersedesCandidateId);
-  const source = IntegrationBoundaryLocusSchema.parse(input.sourceBoundary);
+  const source = PublishedIntegrationBoundaryLocusSchema.parse(input.sourceBoundary);
   const continuation = DeliveryPublicReviewContinuationV1Schema.parse(input.deliveryContinuation);
   if (source.mode !== "integration-boundary"
     || (source.locus !== "publication-pending"
@@ -741,8 +758,9 @@ export function projectCorrectiveDeliveryStatusBoundary(input: {
     || source.reservation.target.planId !== continuation.planId) {
     throw new Error("Corrective Candidate renewal requires the exact carried public delivery reservation.");
   }
-  return IntegrationBoundaryLocusSchema.parse({
-    schemaVersion: 1,
+  const schema = source.schemaVersion === 2 ? IntegrationBoundaryLocusV2Schema : IntegrationBoundaryLocusSchema;
+  return schema.parse({
+    schemaVersion: source.schemaVersion,
     mode: "integration-boundary",
     workUnit,
     candidateId,
@@ -754,7 +772,7 @@ export function projectCorrectiveDeliveryStatusBoundary(input: {
       command: `arc review status --work-unit ${workUnit}`,
       interactionText: "Resolve the retained delivery status.",
     },
-    policy: null,
+    ...(source.schemaVersion === 1 ? { policy: null } : {}),
     reservation: source.reservation,
     terminus: source.terminus,
     deliveryReviewTermini: source.deliveryReviewTermini,
