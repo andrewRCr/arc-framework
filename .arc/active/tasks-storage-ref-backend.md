@@ -1441,20 +1441,15 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
   repeated, folder/file, and nested-folder coverage refuse until repaired. Current Candidates and committed versions
   retain separate source identities alongside boundaries and exact gate paths.
 
-### `[ ]` **15.R2 Production entry import compatibility — § 10.9, § 14.7 (A18)**
+### `[x]` **15.R2 Production entry import compatibility — § 10.9, § 14.7 (A18)**
 
 - _Goal:_ Amendment A18's imported descriptions, inbound lists, and queues serve their production readers in both
   layouts, with queue references bound to their inbox captures and keyless branch exclusions retained.
 
-    - Runs after 15.3 and 15.4; retain the generic conformance and comparison fixtures alongside these production cases
-    - Build `test-first` (one behavior at a time):
-        - import descriptions and inbound lists through `PRODUCTION_REGISTRATIONS`, then read their entries through
-          `listInbox` (`lib/inbox/listing.ts`), using the `Description` and `Inbound` sections from `ENTRY_CONFIGS`
-        - import an Errand queue through the production registry and read it through `listErrandQueue`
-          (`lib/inbox/queue.ts`): each reference reuses its personal inbox capture's ID, including a newly minted ID,
-          carries `Inbox: personal`, and has a valid rank preserving the original marks' file order
-        - verify that the imported branch link retains a keyless exclusion by repository and SHA, including a
-          non-merge empty commit, without relaxing the omission rule for keyless task captures
+- _Outcome:_ Production-registry imports serve descriptions and inbound entries through `listInbox` under their
+  declared sections, and `listErrandQueue` retains ordered personal references sharing both existing and minted
+  capture IDs. Existing native link cases retain keyless exclusions by project and SHA in both layouts while omitting
+  keyless task captures; generic conformance and source comparisons remain intact.
 
 ### `[ ]` **15.R3 Errand branch comparison coverage — § 14.7 (A19)**
 

@@ -12,16 +12,23 @@ import { createRefStore } from "../../src/lib/store/index.js";
 import { hashBlob, writeTreeCommit } from "../../src/lib/errand/ref-tree.js";
 import { serializeTransientIdentityRecord, TransientIdentityRecordSchema } from "../../src/lib/errand/identity-record.js";
 
+import { createKindRegistry } from "../../src/lib/store/registry.js";
+import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
+import { listInbox } from "../../src/lib/inbox/listing.js";
+import { listErrandQueue } from "../../src/lib/inbox/queue.js";
+
 const removed = "## Removed: **Old**\n\n- _Section:_ Memories\n- _Removed:_ 2026-01-01T00:00:00.000Z\n\n";
 const personal = "# Inbox\n\n## Errand\n\n### **Live**\n\nKeep this capture.\n\n";
 const memory = "# Working Memory\n\n## Memories\n\n**Remember:**\n_Remove when: imported._\n\nKeep this memory.\n\n";
 
 describe.each(["default", "separate"] as const)("personal entry import in %s", layout => {
-  it("stamps every missing entry identity and retains the queue's existing capture identity", async () => {
+  it("serves production inbox and queue readers with stamped and existing capture identities", async () => {
     const h = await importFixture(layout);
+    h.ports.registry = createKindRegistry(PRODUCTION_REGISTRATIONS);
     await mkdir(join(h.root, ".arc/user/andrew"), { recursive: true });
     const queued = "### **Queued**\n\n- _Disposition:_ `execute-bound`\n\n- _Id:_ `12345678`\n\nQueued prose.\n\n";
-    await writeFile(join(h.root, ".arc/user/andrew/USER-INBOX.md"), personal.replace("### **Live**", queued + "### **Live**"));
+    const unstamped = "### **Unstamped queued**\n\n- _Disposition:_ `execute-bound`\n\nAnother queued capture.\n\n";
+    await writeFile(join(h.root, ".arc/user/andrew/USER-INBOX.md"), personal.replace("### **Live**", queued + unstamped + "### **Live**"));
     await writeFile(join(h.root, ".arc/user/andrew/WORKING-MEMORY.md"), memory);
     await writeFile(join(h.root, ".arc/active/draft-alpha.md"), "# Draft\n\n## Inbound Buffer — Pending Integration\n\n### **Buffered**\n\n- _Routed from:_ drain, 2026-01-02.\n\nBuffered prose.\n");
     await h.git("git", ["add", ".arc/active/draft-alpha.md"]);
@@ -37,8 +44,8 @@ describe.each(["default", "separate"] as const)("personal entry import in %s", l
     await saveImportPersonal(h.root);
     expect(await h.migrate()).toMatchObject({ status: "ok" });
     const store = createRefStore(h.ports);
-    const expected = { "personal/inbox": 2, "personal/working-memory": 1, "project-inbox/inbox": 2,
-      "work-item/description": 1, "work-item/inbound": 1, "personal/errand-queue": 1 } satisfies Record<EntryKind, number>;
+    const expected = { "personal/inbox": 3, "personal/working-memory": 1, "project-inbox/inbox": 2,
+      "work-item/description": 1, "work-item/inbound": 1, "personal/errand-queue": 2 } satisfies Record<EntryKind, number>;
     const observed: Record<string, { count: number; stamped: boolean }> = {};
     for (const kind of Object.keys(ENTRY_CONFIGS) as EntryKind[]) {
       const owner = kind.startsWith("personal/") ? { type: "person", name: "andrew" }
@@ -51,6 +58,28 @@ describe.each(["default", "separate"] as const)("personal entry import in %s", l
       if (kind === "personal/errand-queue") expect(parsed.data.entries[0]?.id).toBe("12345678");
     }
     expect(observed).toEqual(Object.fromEntries(Object.entries(expected).map(([kind, count]) => [kind, { count, stamped: true }])));
+    const context = { store, identity: "andrew", now: () => new Date("2026-01-03T00:00:00.000Z") };
+    const description = await listInbox({ list: "example" }, context);
+    expect(description).toMatchObject({ state: "listed", entries: [{ title: "example", section: "Description",
+      raw: expect.stringContaining("Keep this description.") }] });
+    const inbound = await listInbox({ list: "alpha" }, context);
+    expect(inbound).toMatchObject({ state: "listed", entries: [{ title: "Buffered", section: "Inbound",
+      raw: expect.stringContaining("Buffered prose."), fields: { Created: "2026-01-02" } }] });
+    const inbox = await listInbox({ list: "personal" }, context);
+    expect(inbox.state).toBe("listed");
+    if (inbox.state === "refused") throw new Error(inbox.reason);
+    const captures = inbox.entries.filter(entry => ["Queued", "Unstamped queued"].includes(entry.title));
+    expect(captures.map(entry => entry.title)).toEqual(["Queued", "Unstamped queued"]);
+    expect(captures[0]?.id).toBe("12345678");
+    expect(captures[1]?.id).toMatch(/^[0-9a-f]{8}$/u);
+    expect(captures[1]?.id).not.toBe("12345678");
+    const queue = await listErrandQueue(context);
+    expect(queue.state).toBe("listed");
+    if (queue.state === "refused") throw new Error(queue.reason);
+    expect(queue.members.map(({ id, inbox, title }) => ({ id, inbox, title }))).toEqual(
+      captures.map(({ id, title }) => ({ id, inbox: "personal", title })));
+    expect(queue.members[0]!.rank < queue.members[1]!.rank).toBe(true);
+
   }, 30_000);
 
   it("drops inbox and memory tombstones and compares every remaining source byte", async () => {
