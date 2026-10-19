@@ -95,7 +95,7 @@ function cadenceFixture(sources: string[], severity?: "major" | "minor") {
     resultReader: { readResult: async id => { const result = [predecessor, terminal].find(result => result.producerId === id);
       if (result === undefined) throw new Error("missing producer"); return result; } },
     dispositionStore: { readDispositionRecord: async id => records.get(id) ?? null,
-      appendDispositionRecord: async () => { throw new Error("unexpected write"); } },
+    },
     readResponsePerformance: async result => {
       if (result.kind !== "attested-local") throw new Error("expected local producer");
       return performance(result);

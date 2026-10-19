@@ -14,6 +14,7 @@ export interface ReviewRecordReader { readFile(path: string): Promise<string> }
 /** An invocation may supply its existing store, Git runner, or explicit filesystem adapter. */
 export interface ReviewRecordAccessOptions<TFs extends ReviewRecordReader> {
   store?: Store;
+  /** Exact work-item generation retained by the invocation. */
   owner?: OwnerIdentity;
   exec?: GitExec;
   fs?: TFs;

@@ -21,7 +21,7 @@ import { bindReviewSourceReference } from "../core/review-source-reference.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import { laneSubjectOwnerMatches } from "../core/lane-admission.js";
 import type {
-  ApprovedDispositionRecordStore,
+  ApprovedDispositionRecordReader,
   ReviewResultReader,
 } from "../core/ports.js";
 import type { ReviewPrePublicationRefusalCode } from "../core/review-command-envelope.js";
@@ -203,7 +203,7 @@ export interface PrePublicationCompositionDependencies {
   ): Promise<boolean>;
   readLanePolicy(lane: ReviewLane): Promise<LanePolicyConfig>;
   resultReader: ReviewResultReader;
-  dispositionStore: ApprovedDispositionRecordStore;
+  dispositionStore: ApprovedDispositionRecordReader;
   readResponsePerformance(predecessor: ReviewResult): Promise<LaneResponsePerformance | null>;
   readCandidateCorrectionProof?(workUnit: string): Promise<PerformedResponseProofInput["candidateProof"]>;
   confirmIncrementalApplicability(

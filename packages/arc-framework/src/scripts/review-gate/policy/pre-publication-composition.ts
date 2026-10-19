@@ -1,4 +1,6 @@
 /** Production composition for the typed pre-publication review procedure. */
+import { createReviewCompositionContext } from "../runtime/composition-context.js";
+import { resolveReviewInvocation, type ReviewInvocationInput } from "../runtime/invocation.js";
 import { confirmReviewCorrectionLeg } from "./review-next-pass.js";
 
 import { readdir, readFile } from "node:fs/promises";
@@ -39,9 +41,6 @@ import type { CandidateEffectiveTargetProjection } from
   "../../../lib/work-unit/candidate-effective-target.js";
 import { readCandidateRecord } from "../../../lib/store/kinds/review/candidate/access.js";
 import { readRepositoryCandidateSupersessionChain } from "../../../lib/store/kinds/review/candidate/history.js";
-import type { Store } from "../../../lib/store/contract.js";
-import { createStore } from "../../../lib/store/create.js";
-import { createDefaultStorePorts } from "../../../lib/store/default-ports.js";
 import { readAncestry } from "../../../lib/work-unit/git-decomposition-object-readers.js";
 import { projectGitCandidateEffectiveTarget } from "../../../lib/work-unit/git-candidate-effective-target.js";
 import { resolveChangeRequest } from "../change-request.js";
@@ -51,7 +50,6 @@ import type { ReviewResult } from "../core/review-result.js";
 import { resolveAcceptableDeliveryBaseRefs } from "../core/delivery-member-lookup.js";
 import { createGhChangeRequestResolutionPort } from "../hosts/github/change-request.js";
 import { RepositoryDeliveryMemberLookup } from "../hosts/local/delivery-member-lookup.js";
-import { LocalApprovedDispositionRecordStore } from "../hosts/local/disposition-record-store.js";
 import { createLocalFrontlineSourcePreferenceReader } from "../hosts/local/frontline-source-preferences.js";
 import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import { createRepositoryReviewResultReader } from
@@ -60,7 +58,6 @@ import {
   createLocalReviewMethodFilePort,
   createLocalReviewRubricBindingPort,
 } from "../hosts/local/method-files.js";
-import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-store.js";
 import {
   composeDeliveryMemberTarget,
   deriveLocalReviewTargetFromCoordinates,
@@ -292,10 +289,8 @@ export function projectPrePublicationCandidateRead(input: {
  * @param input - The originating work-unit checkout and its Git boundary.
  * @returns The production dependencies for `composePreBindingDeliveryReviewTargets`.
  */
-export function createPreBindingDeliveryReviewTargetDependencies(input: {
-  cwd: string;
-  exec: GitExec;
-}): PreBindingDeliveryReviewTargetDependencies {
+export function createPreBindingDeliveryReviewTargetDependencies(options: ReviewInvocationInput): PreBindingDeliveryReviewTargetDependencies {
+  const input = { ...options, ...resolveReviewInvocation(options) };
   const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
   const plans = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
   const states = new RepositoryDeliveryStateStore(publisher);
@@ -313,7 +308,7 @@ export function createPreBindingDeliveryReviewTargetDependencies(input: {
     resolveGitCommonDir: () => resolveGitCommonDir(input.exec, input.cwd),
     resolveOriginatingTop: async (plan) => {
       const [active, branch] = await Promise.all([
-        resolveActiveWu({ cwd: input.cwd }),
+        resolveActiveWu({ cwd: input.cwd, store: input.store, projectId: input.projectId }),
         getCurrentBranch(input.exec),
       ]);
       return active.status === "resolved" && active.name === plan.workUnitId
@@ -322,7 +317,7 @@ export function createPreBindingDeliveryReviewTargetDependencies(input: {
         : null;
     },
     resolveLifecyclePaths: async ({ plan, protectedBaseRef, topRef }) => {
-      const active = await resolveActiveWu({ cwd: input.cwd });
+      const active = await resolveActiveWu({ cwd: input.cwd, store: input.store, projectId: input.projectId });
       if (active.status !== "resolved" || active.name !== plan.workUnitId) return null;
       const paths = await new CurrentDeliveryLifecycleContributionPathSource({
         readDirectory: (path) => readdir(resolve(input.cwd, path)),
@@ -469,22 +464,20 @@ function createPrivateMemberApplicability(input: {
  * @param input - The repository root, Git boundary, and optional invocation store.
  * @returns The dependency bundle `composePrePublicationReviewRequest` consumes.
  */
-export function createPrePublicationCompositionDependencies(input: {
-  cwd: string;
-  exec: GitExec;
-  store?: Store;
-}): PrePublicationCompositionDependencies {
-  const reviewRecordStore = input.store ?? createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec }));
+export function createPrePublicationCompositionDependencies(options: ReviewInvocationInput): PrePublicationCompositionDependencies {
+  const context = createReviewCompositionContext(options);
+  const input = { ...options, ...context };
+  const reviewRecordStore = context.store;
   let settingsPromise: ReturnType<typeof readConfigSettings> | null = null;
   const settings = async () => {
     settingsPromise ??= readConfigSettings(input.cwd);
     return (await settingsPromise).settings;
   };
-  const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
+  const publisher = context.publisher;
   const rawGit = createRawGitExec(input.cwd);
-  const store = new LocalReviewOperationStateStore(publisher);
+  const store = context.family.ports.inFlight;
   const resultReader = createRepositoryReviewResultReader(publisher);
-  const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
+  const dispositionStore = context.family.ports.dispositions;
   const deliveryMemberLookup = new RepositoryDeliveryMemberLookup(input);
   const deliveryReviewTargetDependencies = createPreBindingDeliveryReviewTargetDependencies(input);
   let repositoryIdPromise: Promise<string> | null = null;
@@ -518,7 +511,7 @@ export function createPrePublicationCompositionDependencies(input: {
       if (currentLineage.kind === "delivery-member") {
         return confirmPrivateMemberApplicability(workUnit, predecessor, currentTarget, currentLineage);
       }
-      const candidate = await readCandidateRecord(input.cwd, SlugSchema.parse(workUnit), { store: reviewRecordStore });
+      const candidate = await readCandidateRecord(input.cwd, SlugSchema.parse(workUnit), { store: reviewRecordStore, owner: input.workItem });
       if (policyTarget.pullRequest === null) {
         if (candidate === null) return "unavailable";
         return confirmNoPullRequestCandidatePriorProducer({
@@ -551,11 +544,11 @@ export function createPrePublicationCompositionDependencies(input: {
     dispositionStore,
     readResponsePerformance: (predecessor) => readLaneResponsePerformance(store, predecessor),
     readCandidateCorrectionProof: async (workUnit) => ({
-      candidate: await readCandidateRecord(input.cwd, SlugSchema.parse(workUnit), { store: reviewRecordStore }),
+      candidate: await readCandidateRecord(input.cwd, SlugSchema.parse(workUnit), { store: reviewRecordStore, owner: input.workItem }),
       cwd: input.cwd, exec: input.exec, baseRef: (await settings())["branch.base"], observeTarget,
     }),
     confirmIncrementalApplicability: async (workUnit, predecessor, current, policyTarget) => {
-      const candidate = await readCandidateRecord(input.cwd, SlugSchema.parse(workUnit), { store: reviewRecordStore });
+      const candidate = await readCandidateRecord(input.cwd, SlugSchema.parse(workUnit), { store: reviewRecordStore, owner: input.workItem });
       const confirmGrounds = async () => {
         if (policyTarget.pullRequest === null && current.admission.lineage.kind === "candidate") {
           return confirmPrivateCandidateCorrectionBasis({
@@ -585,7 +578,7 @@ export function createPrePublicationCompositionDependencies(input: {
     confirmPriorProducerApplicability,
     readCandidate: async (workUnit): Promise<CandidateRead> => {
       const name = SlugSchema.parse(workUnit);
-      const record = await readCandidateRecord(input.cwd, name, { store: reviewRecordStore });
+      const record = await readCandidateRecord(input.cwd, name, { store: reviewRecordStore, owner: input.workItem });
       if (record === null) return { status: "missing" };
       let supersessionAncestors: readonly CandidateSupersessionAncestor[];
       try {
@@ -607,8 +600,7 @@ export function createPrePublicationCompositionDependencies(input: {
       if (effective.state === "changed" || effective.state === "decision-required") {
         try {
           pending = await readPendingCandidateReviewFixAuthority({
-            cwd: input.cwd,
-            exec: input.exec,
+            ...input,
             workUnitId: name,
             candidate: record,
           });

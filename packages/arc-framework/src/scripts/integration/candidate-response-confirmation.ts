@@ -2,7 +2,6 @@
 
 import { canonicalize } from "../../lib/kernel/canonical/canonical-json.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
-import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
 import type { GitExec } from "../../lib/git/index.js";
 import { createRawGitExec } from "../../lib/io-context.js";
 import {
@@ -11,7 +10,8 @@ import {
 } from "../../lib/work-unit/candidate-attestation.js";
 import { readCandidateRecord } from "../../lib/store/kinds/review/candidate/access.js";
 import { resolveCandidateRecordRelativePath } from "../../lib/store/kinds/review/paths.js";
-import type { Store } from "../../lib/store/contract.js";
+import type { ReviewInvocationInput } from "../review-gate/runtime/invocation.js";
+import { createReviewCompositionContext } from "../review-gate/runtime/composition-context.js";
 import { projectGitCandidateEffectiveTarget } from "../../lib/work-unit/git-candidate-effective-target.js";
 import {
   currentApprovedDispositionNode,
@@ -21,9 +21,7 @@ import type { ReviewTarget } from "../review-gate/core/gate-contract-v2-schema.j
 import { createFixAuthorization } from "../review-gate/core/fix-authorization.js";
 import { frontlineResponseBindingMatchesTarget } from "../review-gate/core/frontline-response-binding.js";
 import { parseReviewSourceReference } from "../review-gate/core/review-source-reference.js";
-import { LocalApprovedDispositionRecordStore } from "../review-gate/hosts/local/disposition-record-store.js";
 import { LocalFrontlineOutcomeStore } from "../review-gate/hosts/local/frontline-outcome-store.js";
-import { LocalReviewOperationStateStore } from "../review-gate/hosts/local/operation-state-store.js";
 import { computeFrontlineSourceBindingId } from "../review-gate/policy/frontline-operation.js";
 import {
   composeCandidateResponseConfirmationAction,
@@ -81,15 +79,14 @@ async function requireExactTargetObjects(input: { cwd: string; exec: GitExec }, 
  * @param input - The approved private disposition and exact Candidate checkpoint.
  * @returns A confirmation action and Candidate order, or null for an ineligible record.
  */
-export async function composeCandidateResponseConfirmation(input: {
-  cwd: string;
-  exec: GitExec;
-  store?: Store;
+export async function composeCandidateResponseConfirmation(options: ReviewInvocationInput & {
   workUnit: string;
   approvedHead: string;
   approvedBase: string;
   approved: ApprovedDispositionRecord;
 }): Promise<{ action: CandidateResponseConfirmationAction; order: number } | null> {
+  const context = createReviewCompositionContext(options);
+  const input = { ...options, ...context };
   const { approved } = input;
   const current = currentApprovedDispositionNode(approved);
   if (approved.source.kind !== "frontline" || approved.candidate === null
@@ -105,7 +102,7 @@ export async function composeCandidateResponseConfirmation(input: {
   if (currentHead.trim() !== input.approvedHead) {
     throw new Error(`The private disposition ${dispositionId} does not bind the current checkout head.`);
   }
-  const candidate = await readCandidateRecord(input.cwd, input.workUnit, { store: input.store, exec: input.exec });
+  const candidate = await readCandidateRecord(input.cwd, input.workUnit, { store: input.store, exec: input.exec, owner: input.workItem });
   const { stdout: committedCandidateBytes } = await input.exec("git", [
     "show",
     `${input.approvedHead}:${resolveCandidateRecordRelativePath(input.workUnit)}`,
@@ -117,9 +114,9 @@ export async function composeCandidateResponseConfirmation(input: {
     || approved.candidate.workUnit !== input.workUnit) {
     throw new Error(`The private disposition ${dispositionId} lacks its exact Candidate.`);
   }
-  const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
+  const publisher = context.publisher;
   const outcomeStore = new LocalFrontlineOutcomeStore(publisher);
-  const operationStore = new LocalReviewOperationStateStore(publisher);
+  const operationStore = context.family.ports.inFlight;
   const sourceRef = parseReviewSourceReference(approved.source.outcomeRef, "frontline");
   if (sourceRef.operationId !== approved.operationId) {
     throw new Error(`The private disposition ${dispositionId} moved frontline operation.`);
@@ -210,17 +207,16 @@ export async function composeCandidateResponseConfirmation(input: {
  * @param input - The checkpoint context and previously composed confirmation action.
  * @returns Confirmation only while the exact approved evidence is still current.
  */
-export async function confirmCandidateResponseAction(input: {
-  cwd: string;
-  exec: GitExec;
+export async function confirmCandidateResponseAction(options: ReviewInvocationInput & {
   workUnit: string;
   approvedHead: string;
   action: CandidateResponseConfirmationAction;
 }): Promise<{ state: "confirmed" } | { state: "invalidated"; reason: "missing" | "stale" | "ambiguous" }> {
+  const context = createReviewCompositionContext(options);
+  const input = { ...options, ...context };
   if (input.action.workUnit !== input.workUnit) return { state: "invalidated", reason: "stale" };
   try {
-    const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
-    const index = new LocalApprovedDispositionRecordStore(publisher);
+    const index = context.family.ports.dispositions;
     const [approved, enumerated] = await Promise.all([
       index.readDispositionRecord(input.action.operationId),
       index.listDispositionRecords(),

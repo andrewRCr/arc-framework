@@ -1,7 +1,7 @@
 /** Typed Candidate access through the invocation's store or an explicit filesystem adapter. */
 import { SlugSchema } from "../../../../kernel/schema/slug.js";
 import type { Mutation } from "../../../write.js";
-import { OwnerIdentitySchema, recordReferences, RecordVersionSchema } from "../../../identity.js";
+import { OwnerIdentitySchema, recordReferences, RecordVersionSchema, type OwnerIdentity } from "../../../identity.js";
 import { readCandidateRecordVersioned as readFileCandidateRecordVersioned,
   readCandidateRecordVersion as readFileCandidateRecordVersion,
   writeCandidateRecord as writeFileCandidateRecord,
@@ -52,8 +52,9 @@ export async function readCandidateRecordVersion(cwd: string, name: string,
 
 /** Prepare one Candidate put for the caller's atomic batch. */
 export function prepareCandidateRecordPut(name: string, record: CandidateManagedRecordV1,
-  expectedVersion: string | null): Extract<Mutation, { action: "put" }> {
-  const owner = OwnerIdentitySchema.parse({ type: "work-item", name: SlugSchema.parse(name) });
+  expectedVersion: string | null, selectedOwner?: OwnerIdentity): Extract<Mutation, { action: "put" }> {
+  const workUnit = SlugSchema.parse(name);
+  const owner = selectedOwner ?? OwnerIdentitySchema.parse({ type: "work-item", name: workUnit });
   return { action: "put", reference: recordReferences["review/candidate"](owner),
     expected: expectedVersion === null ? null : RecordVersionSchema.parse(expectedVersion),
     content: serializeCandidateManagedRecord(record) };
@@ -64,7 +65,7 @@ export async function writeCandidateRecord(cwd: string, name: string, record: Ca
   expectedVersion: string | null, options?: CandidateRecordStoreFs | CandidateRecordAccessOptions): Promise<string> {
   const access = resolveReviewRecordAccess(cwd, options);
   if ("fs" in access) return writeFileCandidateRecord(cwd, name, record, expectedVersion, access.fs);
-  const result = await access.store.write({ ...prepareCandidateRecordPut(name, record, expectedVersion),
+  const result = await access.store.write({ ...prepareCandidateRecordPut(name, record, expectedVersion, access.owner),
     provenance: { verb: "write-candidate-record", lifecycleAction: "edit" } });
   if (result.status === "refused" && result.refusal.code === "version-conflict") throw new CandidateRecordVersionConflictError();
   unwrapReviewRecordResult(result);

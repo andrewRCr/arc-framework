@@ -69,10 +69,10 @@ async function readInspectionTaskList(input: Pick<RepositoryDeliveryInspectionIn
 }
 
 function createRepositoryDeliveryInspectionDependencies(
-  input: RepositoryDeliveryInspectionInput,
+  options: RepositoryDeliveryInspectionInput,
 ): DeliveryEntryInspectionDependencies {
-  const workUnitId = input.workUnitId;
-  const { store: reviewRecordStore } = resolveReviewInvocation(input);
+  const input = { ...options, ...resolveReviewInvocation(options) };
+  const { workUnitId, store: reviewRecordStore } = input;
   const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
   const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
   const stateStore = new RepositoryDeliveryStateStore(publisher);
@@ -174,7 +174,7 @@ async function classifyTerminalDelta(
   input: RepositoryDeliveryInspectionInput,
   terminalHead: string,
 ): Promise<DeliveryTerminalDeltaClassification | null> {
-  const active = await resolveActiveWu({ cwd: input.cwd });
+  const active = await resolveActiveWu({ cwd: input.cwd, store: input.store, projectId: input.projectId });
   const base = input.baseBranch.trim();
   if (active.status !== "resolved" || active.name !== input.workUnitId
     || active.branch === null || base === "") {

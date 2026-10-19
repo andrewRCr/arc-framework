@@ -127,6 +127,12 @@ it("retains the selected work-item generation after its slug is reused", async (
   const options = { store: h.store, owner: first.reference.owner };
   expect(await readCandidateRecordVersioned("/unavailable", "example", options)).toEqual({ record, version: stored.version });
   expect(await readCandidateRecordVersion("/unavailable", "example", options)).toBe(stored.version);
+  const updated = { ...record, attestation: createCandidateAttestation({ ...record.attestation,
+    subject: record.subject, attestedAt: "2026-08-14T14:00:00.000Z" }) };
+  await writeCandidateRecord("/unavailable", "example", updated, stored.version, options);
+  expect(await readCandidateRecord("/unavailable", "example", options)).toEqual(updated);
+  expect(await readCandidateRecord("/unavailable", "example", { store: h.store, owner: second.reference.owner }))
+    .toEqual(replacement);
 });
 
 it("refuses conflicted Candidate authority and resumes after resolution", async () => {

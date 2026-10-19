@@ -2,8 +2,7 @@
 
 import { z } from "zod";
 
-import { createStore } from "../../lib/store/create.js";
-import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
+import { resolveReviewInvocation, type ReviewInvocationInput } from "../review-gate/runtime/invocation.js";
 import { createStoreLifecycleStorage } from "../../lib/store/lifecycle-storage.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import {
@@ -131,14 +130,13 @@ function failureDetail(error: unknown): string {
 }
 
 /** Bind Git, GitHub, review, lifecycle, and checkpoint stores to the merge reducer. */
-export function createIntegrationMergeDependencies(input: {
-  cwd: string;
-  exec: GitExec;
+export function createIntegrationMergeDependencies(options: ReviewInvocationInput & {
   workUnit: string;
   lifecycleStorage?: IntegrationLifecycleStoragePort;
   changeRequestPort?: ChangeRequestResolutionPort;
   hostedRunner?: HostedProcessRunner;
 }): IntegrationMergeDependencies {
+  const input = { ...options, ...resolveReviewInvocation(options) };
   let settingsPromise: ReturnType<typeof readConfigSettings> | null = null;
   const settings = () => {
     settingsPromise ??= readConfigSettings(input.cwd);
@@ -174,7 +172,7 @@ export function createIntegrationMergeDependencies(input: {
     ? "manual" as const
     : "with-integration" as const;
   const lifecycleStorage = input.lifecycleStorage ?? createStoreLifecycleStorage({
-    store: createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec })),
+    store: input.store,
     checkoutRoot: input.cwd,
   });
 
@@ -283,8 +281,7 @@ export function createIntegrationMergeDependencies(input: {
         respondDependencies,
       ),
       confirmCandidateResponse: (action) => confirmCandidateResponseAction({
-        cwd: input.cwd,
-        exec: input.exec,
+        ...input,
         workUnit: record.workUnit,
         approvedHead: record.approvedHead,
         action,

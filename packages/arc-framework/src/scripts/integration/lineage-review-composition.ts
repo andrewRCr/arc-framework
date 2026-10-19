@@ -1,12 +1,12 @@
 /** Settlement plan composed from one Candidate lineage's approved responses. */
 
+import { createReviewCompositionContext } from "../review-gate/runtime/composition-context.js";
+import type { ReviewInvocationInput } from "../review-gate/runtime/invocation.js";
+import type { ReviewInFlightPort } from "../review-gate/core/ports.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
 import type { GitExec } from "../../lib/git/index.js";
 import { createRawGitExec } from "../../lib/io-context.js";
-import type { Store } from "../../lib/store/contract.js";
-import { createStore } from "../../lib/store/create.js";
-import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
 import { readCandidateRecord } from "../../lib/store/kinds/review/candidate/access.js";
 import { candidateReviewResponses } from "../../lib/work-unit/candidate-attestation.js";
 import {
@@ -19,14 +19,8 @@ import {
 import type { ReviewTarget } from "../review-gate/core/gate-contract-v2-schema.js";
 import { composeReviewResponseSettlementAction } from "../review-gate/core/response-plan.js";
 import { parseReviewSourceReference } from "../review-gate/core/review-source-reference.js";
-import {
-  LocalApprovedDispositionRecordStore,
-} from "../review-gate/hosts/local/disposition-record-store.js";
 import { LocalFrontlineOutcomeStore } from "../review-gate/hosts/local/frontline-outcome-store.js";
 import { resolveRepositoryIdentity } from "../review-gate/hosts/local/git-common-state.js";
-import {
-  LocalReviewOperationStateStore,
-} from "../review-gate/hosts/local/operation-state-store.js";
 import { deriveLocalReviewTarget } from "../review-gate/hosts/local/repository-target.js";
 import {
   composeCandidateResponseConfirmation,
@@ -44,7 +38,7 @@ export interface LineageReviewComposition {
 async function resolveApprovedOriginTarget(
   record: ApprovedDispositionRecord,
   required: boolean,
-  operationStore: LocalReviewOperationStateStore,
+  operationStore: Pick<ReviewInFlightPort, "readOperation">,
   outcomeStore: LocalFrontlineOutcomeStore,
 ): Promise<ReviewTarget | null> {
   let resolved: ReviewTarget | null;
@@ -145,19 +139,17 @@ function composeApprovedSettlementAction(input: {
  * @param input - The repository root and its Git boundary.
  * @returns A composer memoized per work unit, approved head, and checkpoint-validated base.
  */
-export function createLineageReviewComposer(input: {
-  cwd: string;
-  exec: GitExec;
-  store?: Store;
-}): (
+export function createLineageReviewComposer(options: ReviewInvocationInput): (
   workUnit: string,
   approvedHead: string,
   approvedBase: string,
 ) => Promise<LineageReviewComposition> {
-  const reviewRecordStore = input.store ?? createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec }));
-  const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
-  const dispositionIndex = new LocalApprovedDispositionRecordStore(publisher);
-  const operationStore = new LocalReviewOperationStateStore(publisher);
+  const context = createReviewCompositionContext(options);
+  const input = { ...options, ...context };
+  const reviewRecordStore = context.store;
+  const publisher = context.publisher;
+  const dispositionIndex = context.family.ports.dispositions;
+  const operationStore = context.family.ports.inFlight;
   const outcomeStore = new LocalFrontlineOutcomeStore(publisher);
   const compositions = new Map<string, Promise<LineageReviewComposition>>();
 
@@ -166,7 +158,7 @@ export function createLineageReviewComposer(input: {
     approvedHead: string,
     approvedBase: string,
   ): Promise<LineageReviewComposition> => {
-    const record = await readCandidateRecord(input.cwd, workUnit, { store: reviewRecordStore });
+    const record = await readCandidateRecord(input.cwd, workUnit, { store: reviewRecordStore, owner: input.workItem });
     if (record === null) {
       throw new Error("The managed Candidate record disappeared during checkpoint composition.");
     }

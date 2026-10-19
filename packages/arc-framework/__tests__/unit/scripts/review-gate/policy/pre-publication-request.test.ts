@@ -270,9 +270,6 @@ function evidenceDependencies(results: readonly ReviewResult[]) {
     },
     dispositionStore: {
       readDispositionRecord: vi.fn(async (producerId: string) => dispositions.get(producerId) ?? null),
-      appendDispositionRecord: vi.fn(async () => {
-        throw new Error("unexpected disposition write");
-      }),
     },
     readResponsePerformance: vi.fn(async () => null),
   };
@@ -289,9 +286,6 @@ function dependencies(
     },
     dispositionStore: {
       readDispositionRecord: vi.fn(async () => null),
-      appendDispositionRecord: vi.fn(async () => {
-        throw new Error("unexpected disposition write");
-      }),
     },
     readResponsePerformance: vi.fn(async () => null),
     confirmIncrementalApplicability: vi.fn(async () => "applicable" as const),
@@ -1451,7 +1445,6 @@ describe("composePrePublicationReviewRequest", () => {
           readDispositionRecord: async (producerId) => producerId === predecessor.producerId
             ? record
             : null,
-          appendDispositionRecord: async () => { throw new Error("unexpected disposition write"); },
         },
         readResponsePerformance,
         readLaneProgress: async (lane) => lane === "standard"

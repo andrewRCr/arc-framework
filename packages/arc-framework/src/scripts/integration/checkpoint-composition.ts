@@ -9,8 +9,8 @@ import {
   workUnitPathTreatmentContext,
 } from "../../lib/base-drift/current-adapters.js";
 import type { RawGitExec } from "../../lib/git/exec.js";
-import { createStore } from "../../lib/store/create.js";
-import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
+import { createReviewCompositionContext } from "../review-gate/runtime/composition-context.js";
+import type { ReviewInvocationInput } from "../review-gate/runtime/invocation.js";
 import { createStoreLifecycleStorage } from "../../lib/store/lifecycle-storage.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { runBaseDrift } from "../../lib/git/base-distance.js";
@@ -60,7 +60,6 @@ import {
   assessDeliveryTerminalTop,
   classifyDeliveryTerminalDrift,
 } from "../../lib/delivery/terminal-integration.js";
-import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
 import { canonicalize } from "../../lib/kernel/index.js";
 import { resolveSlugQuery } from "../../lib/work-unit/lifecycle-query.js";
 import { readSubmissionBoundary } from "../../lib/store/kinds/review/integration-boundary/access.js";
@@ -82,8 +81,6 @@ import { resolveAcceptableDeliveryBaseRefs } from
 import { createGhMergeMethodPolicyPort } from "../review-gate/hosts/github/merge-method.js";
 import { resolveRepositoryIdentity } from "../review-gate/hosts/local/git-common-state.js";
 import { createGitTreeReadFs } from "../review-gate/hosts/local/git-tree-fs.js";
-import { LocalReviewOperationStateStore } from
-  "../review-gate/hosts/local/operation-state-store.js";
 import { RepositoryDeliveryMemberLookup } from
   "../review-gate/hosts/local/delivery-member-lookup.js";
 import { hostedGhRunner } from "../review-gate/hosted/gh-process.js";
@@ -479,13 +476,13 @@ export async function readLifecycleSummary(
  * @param input - Repository root, Git adapter, and optional exact-version lifecycle storage.
  * @returns Production dependencies for checkpoint composition.
  */
-export function createIntegrationCheckpointDependencies(input: {
-  cwd: string;
-  exec: GitExec;
+export function createIntegrationCheckpointDependencies(options: ReviewInvocationInput & {
   rawExec?: RawGitExec;
   lifecycleStorage?: IntegrationLifecycleStoragePort;
 }): IntegrationCheckpointDependencies {
-  const reviewRecordStore = createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec }));
+  const context = createReviewCompositionContext(options);
+  const input = { ...options, ...context };
+  const reviewRecordStore = input.store;
   let settingsPromise: ReturnType<typeof readConfigSettings> | null = null;
   const settings = () => {
     settingsPromise ??= readConfigSettings(input.cwd);
@@ -493,8 +490,8 @@ export function createIntegrationCheckpointDependencies(input: {
   };
   const rawExec = input.rawExec ?? createRawGitExec(input.cwd);
   const candidateContext = createCheckpointCandidateContext({
-    readRecord: (workUnit) => readCandidateRecordVersioned(input.cwd, workUnit, { store: reviewRecordStore }),
-    readVersion: (workUnit) => readCandidateRecordVersion(input.cwd, workUnit, { store: reviewRecordStore }),
+    readRecord: (workUnit) => readCandidateRecordVersioned(input.cwd, workUnit, { store: reviewRecordStore, owner: input.workItem }),
+    readVersion: (workUnit) => readCandidateRecordVersion(input.cwd, workUnit, { store: reviewRecordStore, owner: input.workItem }),
     project: async ({ workUnit, baseRevision, record }) => {
       const config = await settings();
       const effective = await projectGitCandidateEffectiveTarget({
@@ -544,7 +541,7 @@ export function createIntegrationCheckpointDependencies(input: {
   const boundary = (workUnit: string) => {
     let value = boundaries.get(workUnit);
     if (value === undefined) {
-      value = readSubmissionBoundary(input.cwd, workUnit, { store: reviewRecordStore });
+      value = readSubmissionBoundary(input.cwd, workUnit, { store: reviewRecordStore, owner: input.workItem });
       boundaries.set(workUnit, value);
     }
     return value;
@@ -1098,8 +1095,8 @@ export function createIntegrationCheckpointDependencies(input: {
         vehicle: target.vehicle,
         candidate: value.record,
       })));
-      const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
-      const operationSnapshot = await new LocalReviewOperationStateStore(publisher).readOperationSnapshot();
+      const publisher = context.publisher;
+      const operationSnapshot = await context.family.ports.inFlight.readOperationSnapshot();
       const repositoryId = await resolveRepositoryIdentity(publisher);
       const progress = deliveryTargets.map((target) => projectHostedReservationPolicyProgress({
         snapshot: operationSnapshot,

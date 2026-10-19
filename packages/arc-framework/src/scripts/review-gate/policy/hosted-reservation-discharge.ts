@@ -1,4 +1,6 @@
 /** Discharge evidence for a hosted-review reservation carried across publication. */
+import { createReviewCompositionContext } from "../runtime/composition-context.js";
+import type { ReviewInvocationInput } from "../runtime/invocation.js";
 import { composeHostedCorrectionProof, confirmHostedCurrentCorrection } from "./hosted-correction-proof.js";
 import { createHostedApplicabilityContext } from "./hosted-applicability-context.js";
 import { deriveHostedReviewTarget } from "./hosted-review-target.js";
@@ -9,15 +11,10 @@ import type { DeliveryReviewMemberVehicle } from "../../../lib/delivery/review-v
 import { canonicalize } from "../../../lib/kernel/canonical/canonical-json.js";
 import type { DeliveryHostPort } from "../../../lib/delivery/host.js";
 import { readConfigSettings } from "../../../lib/config/status-reader.js";
-import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
-import type { GitExec } from "../../../lib/git/index.js";
 import type { RawGitExec } from "../../../lib/git/exec.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
 import type { DeliveryDischargeTargetLookup } from "../core/delivery-member-lookup.js";
 import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
-import { LocalApprovedDispositionRecordStore } from
-  "../hosts/local/disposition-record-store.js";
-import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-store.js";
 import { createRepositoryReviewResultReader } from
   "../hosts/local/review-result-reader-composition.js";
 import {
@@ -584,18 +581,18 @@ export async function projectHostedReservationDischarge(input: {
  * @param input - The repository root, its Git boundary, and an optional byte-level executor to share.
  * @returns A reader resolving discharge and fresh incremental applicability for one Candidate target.
  */
-export function createHostedReservationDischargeReader(input: {
-  cwd: string;
-  exec: GitExec;
+export function createHostedReservationDischargeReader(options: ReviewInvocationInput & {
   rawExec?: RawGitExec;
   /** Selected remote for singleton base freshness; defaults to origin. */
   remote?: string;
   delivery?: DeliveryDischargeTargetLookup;
   host?: Pick<DeliveryHostPort, "readRequest">;
 }): HostedReservationDischargeReader {
-  const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
-  const store = new LocalReviewOperationStateStore(publisher);
-  const dispositions = new LocalApprovedDispositionRecordStore(publisher);
+  const context = createReviewCompositionContext(options);
+  const input = { ...options, ...context };
+  const publisher = context.publisher;
+  const store = context.family.ports.inFlight;
+  const dispositions = context.family.ports.dispositions;
   const resultReader = createRepositoryReviewResultReader(publisher);
   let maxPassesPromise: Promise<number> | null = null;
   const maxPasses = () => {

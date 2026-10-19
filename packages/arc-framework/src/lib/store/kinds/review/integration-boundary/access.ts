@@ -2,7 +2,7 @@
 import { canonicalize } from "../../../../kernel/canonical/canonical-json.js";
 import type { Mutation } from "../../../write.js";
 import { SlugSchema } from "../../../../kernel/schema/slug.js";
-import { OwnerIdentitySchema, recordReferences, RecordVersionSchema } from "../../../identity.js";
+import { OwnerIdentitySchema, recordReferences, RecordVersionSchema, type OwnerIdentity } from "../../../identity.js";
 import { readSubmissionBoundaryVersioned as readFileBoundaryVersioned,
   writeSubmissionBoundary as writeFileBoundary,
   type SubmissionBoundaryReader, type SubmissionBoundaryStoreFs } from "../../../../work-unit/submission-boundary-store.js";
@@ -42,9 +42,9 @@ export async function readSubmissionBoundary(cwd: string, name: string,
 
 /** Prepare one integration-boundary put for the caller's atomic batch. */
 export function prepareSubmissionBoundaryPut(boundary: IntegrationBoundaryLocus,
-  expectedVersion: string | null): Extract<Mutation, { action: "put" }> {
+  expectedVersion: string | null, selectedOwner?: OwnerIdentity): Extract<Mutation, { action: "put" }> {
   const value = parseIntegrationBoundaryLocus(boundary);
-  const owner = OwnerIdentitySchema.parse({ type: "work-item", name: value.workUnit });
+  const owner = selectedOwner ?? OwnerIdentitySchema.parse({ type: "work-item", name: value.workUnit });
   return { action: "put", reference: recordReferences["review/integration-boundary"](owner),
     expected: expectedVersion === null ? null : RecordVersionSchema.parse(expectedVersion), content: canonicalize(value) };
 }
@@ -54,7 +54,7 @@ export async function writeSubmissionBoundary(cwd: string, boundary: Integration
   input?: SubmissionBoundaryStoreFs | SubmissionBoundaryWriteOptions): Promise<string> {
   const access = resolveReviewRecordAccess(cwd, input);
   if ("fs" in access) return writeFileBoundary(cwd, boundary, expectedVersion, access.fs);
-  const result = await access.store.write({ ...prepareSubmissionBoundaryPut(boundary, expectedVersion),
+  const result = await access.store.write({ ...prepareSubmissionBoundaryPut(boundary, expectedVersion, access.owner),
     provenance: { verb: "write-submission-boundary", lifecycleAction: "edit" } });
   if (result.status === "refused" && result.refusal.code === "version-conflict") throw new SubmissionBoundaryVersionConflictError();
   unwrapReviewRecordResult(result);
