@@ -122,38 +122,18 @@ row to the tasks that build it.
   whether it is terminal and names the command that repairs it — a typed action where running it as given repairs the
   condition, its text where the repair needs the operator's input.
 
-    - `[ ]` **2.1.a The context**
+    - `[x]` **2.1.a The context**
 
-        - The store; the operator's identity; the shipped cohort template, decoded from the bytes `handleDecompose`
-          reads today, since `writeCohortDocument` takes a string (`lib/store/kinds/cohort/creation-writer.ts`); and
-          the inbound grammar — `KIND_MECHANISMS["work-item/inbound"].entry`, undefined until `seam-locus` declares it,
-          and a parameter tests supply.
-        - The terminal batch's seams, as `runStoreAbandon` takes them from `AbandonContext` (`verbs/abandon.ts`): the
-          lifecycle executor, whose store and Git executor every batch uses, the checkout removal, teardown's store
-          context, and the base branch.
-        - A mode taking a map takes its parsed JSON, which the handler reads once from the path (task 6.2), and the
-          path itself, the operand its typed actions carry (`v3DecomposeExecuteArgv(origin, cutMapPath)`,
-          `v3DecomposeExtractArgv`, `decompose-command-renderer.ts`).
+        - `DecomposeContext` binds all modes to the lifecycle executor's store and Git seam, with identity, cohort
+          template, inbound grammar, removal, teardown, and base branch. `DecomposeMapInput` carries parsed JSON
+          and its original path operand.
 
-    - `[ ]` **2.1.b The refusal vocabulary**
+    - `[x]` **2.1.b The refusal vocabulary**
 
-        - A result and refusal schema under `lib/decompose/`. A refusal carries its reason, its class — `recoverable`
-          or `terminal` — an optional locus, and a remedy of text with an `argv` present exactly where running it as
-          given repairs the condition, the shape the store's `RemedySchema` takes (`lib/store/refusal.ts`); today's
-          spine remedy requires an `argv` (`SpineRemedySchema`, through `V3DecomposeCoreRefusalSchema`), which § 14's
-          text remedies lack. A store refusal rides whole within it, its class and remedy lifted.
-        - Its reasons are § 14's rows, carrying `decompose-v3-refusal.ts`'s domain conditions and none of its Git
-          conditions.
-        - Commands render through `renderV3DecomposeArgv` (`decompose-command-renderer.ts`), which stays unchanged; the
-          argv builders for the forms from the flip — a bare `--finish`, `--finish --apply`, `--revise`, and
-          `--discard` — live under `lib/decompose/`.
-        - Every batch writes under `{verb: "decompose", lifecycleAction}`, its action `additive`, `terminal`,
-          `discard`, or `revise`, so history tells a terminal batch's removal of the stored map from a discard's
-          (§ 8.7).
-        - Build `test-first` (one behavior at a time):
-            - an action remedy carries its `argv` and a text remedy none, each validating
-            - a store refusal passes through with its code, class, and remedy unchanged
-            - each batch's provenance names `decompose` and its action
+        - Added typed result/refusal schemas with domain reasons, recoverable/terminal classes, optional loci, and
+          text or executable remedies. Store refusals ride whole with matching class and remedy enforced.
+        - Stored-map finish, revision, and discard argv builders use the retained renderer; batch provenance names
+          `decompose` with its additive, terminal, discard, or revise action.
 
     - `[ ]` **2.1.c Test support**
 
