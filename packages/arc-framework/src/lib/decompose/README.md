@@ -66,3 +66,8 @@ creation diagnostics, and completed tasks that would prevent later removal of th
 
 `cohort-scaffold.ts` composes topology and Purpose admission with the cohort creation writer. It creates only absent
 parent or child documents and supplies the validated placement to member scaffolds; at-cap fan-out waits for finishing.
+
+`additive-plan.ts` binds and checks the completed map before composing member, cohort, prior-edge settlement, and
+stored-map mutations. `slug-settler.ts` combines every settled slot on a stub into one metadata write.
+`additive.ts` revalidates observations and applies the prepared lifecycle batch atomically; protected dependencies
+remain for the production slug guard, with its repair preserved.

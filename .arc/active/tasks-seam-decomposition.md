@@ -249,37 +249,13 @@ row to the tasks that build it.
           parent and child documents together and returning shared placement facts for member scaffolds. Reused documents
           stay untouched; direct-member and at-cap placements create none, and at-cap fan-out remains terminal work.
 
-    - `[ ]` **2.5.c Slug edges and the stored map**
+    - `[x]` **2.5.c The settling and the map**
 
-        - Settle the edges task 2.4.e's settling plan holds — each edge a member's new slug trips in an open stub other
-          than the origin, at its read version — as record kinds § 5.3 settles it, in a settler under `lib/decompose/`
-          that writes the plan. The slug's prior target is found in the before-state by slug lookup, then lineage
-          lookup, as `work-item.slug-edges` finds it (`priorTarget`, `lib/store/kinds/work-item/slug-edges.ts`), and the
-          edge takes the disposition reconcile gives it (`planDependencyReconcile`,
-          `side-effects/discharge-dep-edges.ts`): an edge on shipped work discharges; an edge on an abandoned origin
-          drops; and an edge on a decomposed origin takes the replacement its lineage record gives that dependent
-          (`incoming`), a replacement itself retired followed on through its own lineage record and a shipped or
-          Integrating one discharged, as `resolveRetiredEdge` resolves the chain.
-        - What the batch cannot settle — an in-flight work unit's edge, a stub holding a stored map of its own, a
-          dependent the lineage did not map, or a chain reconcile cannot resolve to one disposition —
-          `work-item.slug-edges` refuses, as the plan leaves it (task 2.4.e). The settler, like the plan, imports
-          nothing from `transition-disposition-query.ts`.
-        - A paused work unit's `pause.waitsOn` edge remains its owner's to change, independently of `Depends On`;
-          `checkSlugEdges` counts both through `namedEdges` (`lib/store/kinds/work-item/slug-edges.ts`). Leave that
-          pause edge out of the settling plan and surface the rule's remedy to clear or retarget it through `arc pause`.
-        - The stored map, with expected absence, in the same batch (`batchLifecycleWrites`).
-        - Build `test-first` (one behavior at a time):
-            - a member taking a retired origin's slug settles a stub's edge on it by that lineage's disposition, and an
-              in-flight work unit's edge refuses
-            - a member taking a decomposed origin's slug whose replacement another cut has since retired settles a
-              stub's edge to the chain's end, and a replacement since shipped discharges
-            - a member taking a shipped work unit's slug discharges a stub's edge on it
-            - through the production registry, a paused work unit whose only edge to the reused slug is
-              `pause.waitsOn` makes the additive batch refuse atomically, naming the pause repair; clearing or
-              retargeting that edge lets the same cut land
-            - a stub holding a stored map of its own whose edge names the slug refuses, its edge unsettled, and the
-              batch lands once the member takes another slug
-            - a refusal anywhere leaves nothing written
+        - `prepareDecomposeAdditive` binds and checks the map, then composes member, cohort, settlement, and expected-absence
+          map writes. `runStoreDecomposeAdditive` revalidates observations and applies the prepared lifecycle batch.
+        - `decomposeSlugSettlementWrites` combines all prior-provider slots on a stub into one version-bound metadata
+          rewrite. Started, held-cut, unmapped, and pause-only dependents remain for the registry to refuse atomically;
+          choosing another slug or clearing the pause edge admits the repaired cut.
 
     - `[ ]` **2.5.d The report**
 
