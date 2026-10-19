@@ -32,3 +32,5 @@ retaining Candidate versions introduced by merge commits that rename-following h
 `mapping-types.ts` describes the pure import's supplied source bytes, work-item table, returned records, and listing.
 `mapping-work-items.ts` joins live work-unit and Errand identities to legacy lineages, including Candidate supersession.
 `mapping-result.ts` resolves approved producer IDs to outcome keys while retaining the approved disposition content.
+`mapping-listing.ts` accounts for gate files, tracked record versions, and materialization folders, retaining partial
+mapping reasons and suppressing mapped references for an in-flight source.

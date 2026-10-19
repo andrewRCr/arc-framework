@@ -377,19 +377,11 @@ alone.
           Errand claims to live imported identities. Missing or ended owners classify as left behind; hosted result
           joins normalize outcome keys while retaining the approved set's original producer identity and content.
 
-    - `[ ]` **3.1.b The listing**
+    - `[x]` **3.1.b The listing**
 
-        - Each source lists once as `mapped` with the records it became, `left-behind` with a reason, or `in-flight`:
-          each gate file by the `gate.path` it was given, its `arc/review-gate/` prefix included; a leftover
-          materialization once by its folder, written with a trailing `/` and covering every file below it; each
-          Candidate version as `<tracked path>@<commit>` with the path its slug gives
-          (`resolveCandidateRecordRelativePath`); and each boundary by its tracked path. No two entries cover one file.
-          A file mapped in part lists as mapped, its reason naming the entries it left behind; a file in flight returns
-          none of its records.
-        - Build `test-first` (one behavior at a time):
-            - every source given lists exactly once, under its encoding, a gate file with its `arc/review-gate/` prefix
-            - a repository-wide receipt ledger mapped in part lists as mapped with the entries it left behind
-            - a leftover materialization lists once by its folder with a trailing `/`, and none of its files lists again
+        - Source enumeration preserves gate prefixes, tracked Candidate versions and boundaries, and one trailing-slash
+          entry per materialization folder. Per-source listings retain partial-mapping reasons and references, classify
+          discarded sources with reasons, and omit every mapped reference for an in-flight source.
 
     - `[ ]` **3.1.c A mapped set is valid**
 
