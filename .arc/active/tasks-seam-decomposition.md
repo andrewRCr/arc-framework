@@ -594,52 +594,31 @@ and `--finish --apply`, its teardown step running through the seam the handler b
 `unsupported`, naming `--finish`; and `--finish <cut-map>` refuses, naming `--finish` — every result and refusal
 canonical JSON on standard output, with its reason and remedy on standard error.
 
-### `[ ]` **6.1 Add the modes that start at the flip, refused by the in-repo arm — § 1.4, § 2, § 14, § 15**
+### `[x]` **6.1 Add the modes that start at the flip, refused by the in-repo arm — § 1.4, § 2, § 14, § 15**
 
 - _Goal:_ `arc decompose` accepts exactly one of `--preflight`, `--execute <cut-map>`, `--extract <cut-map>`, `--finish
   [<cut-map>]`, `--revise [<cut-map>]`, `--discard`, or `--advance-base <cut-map>`, with `--apply` only beside
   `--finish`, `--revise <cut-map>`, or `--discard`; its help lists every mode; and the in-repo arm refuses each new form
   before today's code takes it.
 
-- _Rationale:_ The input change alone does not typecheck: a bare `--finish` reaches the schema as `true`, which
-  `v3DecomposeInvocation` and `finishGitV3Extraction` take as a path, and `--revise` and `--discard` would reach
-  `v3DecomposeInvocation`'s throw outside the handler's `try`. So the input and its refusals land together.
+    - `[x]` **6.1.a The input and its routing**
 
-- _Note:_ `cli.ts` serializes with `storage-ref-backend`, `seam-locus`, and `storage-projection` (§ 1.3).
+        - The schema, mode keys, and registration enumerate all seven modes, distinguish optional operands from bare
+          flags, and restrict apply authority to finish, a revision map, or discard. Every mode keeps machine-readable
+          diagnostics and rejects mixed selections.
 
-    - `[ ]` **6.1.a The input and its routing**
+    - `[x]` **6.1.b The command's registration**
 
-        - `DecomposeCommandInputSchema` (`handlers/decompose.ts`), the mode keys and machine-readable keys
-          (`decompose-command-routing.ts`), and the registration's schema fields; a bare optional-value flag reaches
-          the schema as `true`, and a following `--apply` is not taken as its value.
-        - Of today's tests, only `decompose-command-mode.test.ts`'s mode-key list and accept and refuse tables change.
-        - Build `test-first` (one behavior at a time):
-            - each new mode is accepted alone and refused beside another
-            - `--apply` is accepted beside `--finish`, `--revise <cut-map>`, and `--discard`, and refused beside a bare
-              `--revise`
-            - every new mode keeps diagnostics machine-readable
+        - Commander registers optional finish and revision operands and the discard flag. Help describes both storage
+          arms and the expanded preview-authority forms.
 
-    - `[ ]` **6.1.b The command's registration**
+    - `[x]` **6.1.c The in-repo arm's refusals of the new forms**
 
-        - `cli.ts`'s `decompose` command with `--finish [cut-map]`, `--revise [cut-map]`, and `--discard`. Help ships
-          before the flip, so each description covers both arms: what an existing mode does today and from the flip,
-          and that a new one starts at the flip; the command's summary and `--apply`'s description widen to match.
+        - A shared outcome emitter preserves canonical JSON and reason/remedy diagnostics with optional remedy argv.
+          New forms refuse before the legacy invocation is constructed; existing finish paths remain narrowed strings.
 
-    - `[ ]` **6.1.c The in-repo arm's refusals of the new forms**
-
-        - One emitter in `handlers/decompose.ts` for the dispatch's own refusals and, from task 6.2, the store
-          version's results and refusals: canonical JSON on standard output, and the reason and the remedy's text on
-          standard error. Its refusal is `{status: "refused", reason, class, locus?, remedy}`, the remedy in the store's
-          `RemedySchema` (`lib/store/refusal.ts`), whose `argv` is optional. `emitV3DecomposeRefusal` keeps today's
-          modes, its `SpineRemedySchema` requiring an `argv` that these text remedies lack.
-        - `finish` narrowed to its path before today's code takes it.
-        - `--revise` and `--discard` refuse `unsupported`: "until the flip a rejected cut stays staged, or as its
-          ARC-owned candidate, for explicit cleanup direction", today's rule for a rejected distribution
-          (`decompose-work-unit.md` § 5). `--finish` without its map refuses, naming
-          `arc decompose <origin> --finish <cut-map>` (§ 14).
-        - Build `test-first` (one behavior at a time):
-            - each refusal above, through the handler and the built CLI, as canonical JSON with its reason and remedy
-              on standard error
+- _Outcome:_ The built command and handler agree on dormant-mode refusals, optional operands beside apply authority,
+  and complete help. Existing repository-backed handler cases retain their behavior.
 
 ### `[ ]` **6.2 Branch `handleDecompose` once on the capability — § 2**
 

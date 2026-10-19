@@ -403,13 +403,15 @@ program
 
 program
   .command("decompose <origin>")
-  .description("Preflight, execute, extract, finish, or advance one decomposition")
-  .option("--preflight", "Emit one canonical read-only v3 starter map")
-  .option("--execute <cut-map>", "Stage one exact result from a canonical completed cut map")
-  .option("--extract <cut-map>", "Stage one additive result while preserving the source origin")
-  .option("--finish <cut-map>", "Preview source thinning after proving the additive result landed")
-  .option("--apply <authority>", "Apply the exact source-thinning preview authority")
-  .option("--advance-base <cut-map>", "Advance one committed candidate from its completed cut map")
+  .description("Plan, execute, extract, finish, revise, or discard one decomposition")
+  .option("--preflight", "Emit a canonical read-only starter map for the storage backend")
+  .option("--execute <cut-map>", "Stage an exact repository result; with off-branch state, create members and store the cut")
+  .option("--extract <cut-map>", "Stage an additive extraction; with off-branch state, store the cut while preserving its origin")
+  .option("--finish [cut-map]", "Preview source thinning from a map; with off-branch state, finish the stored cut without an operand")
+  .option("--revise [cut-map]", "Revise a stored cut when state is off branch (no operand emits a fresh map)")
+  .option("--discard", "Discard a stored cut when state is off branch")
+  .option("--apply <authority>", "Apply an approved finish, revision, or discard preview authority")
+  .option("--advance-base <cut-map>", "Advance a committed repository candidate (unavailable when state is off branch)")
   .action(withInteractionContext(
     {
       machineReadable: isDecomposeMachineReadableInvocation,

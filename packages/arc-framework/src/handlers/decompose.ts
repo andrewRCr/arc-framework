@@ -36,6 +36,7 @@ import { SlugSchema } from "../lib/kernel/index.js";
 import { type InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { refuse } from "./lifecycle-shared.js";
+import { RemedySchema } from "../lib/store/refusal.js";
 
 export {
   DECOMPOSE_MACHINE_READABLE_KEYS,
@@ -65,7 +66,9 @@ export const DecomposeCommandInputSchema = z.object({
   preflight: z.literal(true).optional(),
   execute: z.string().trim().min(1).optional(),
   extract: z.string().trim().min(1).optional(),
-  finish: z.string().trim().min(1).optional(),
+  finish: z.union([z.literal(true), z.string().trim().min(1)]).optional(),
+  revise: z.union([z.literal(true), z.string().trim().min(1)]).optional(),
+  discard: z.literal(true).optional(),
   apply: CanonicalDigestSchema.optional(),
   advanceBase: z.string().trim().min(1).optional(),
 }).strict().superRefine((value, refinement) => {
@@ -73,14 +76,14 @@ export const DecomposeCommandInputSchema = z.object({
   if (modes !== 1) {
     refinement.addIssue({
       code: "custom",
-      message: "Exactly one of --preflight, --execute, --extract, --finish, or --advance-base is required.",
+      message: "Exactly one of --preflight, --execute, --extract, --finish, --revise, --discard, or --advance-base is required.",
     });
   }
-  if (value.apply !== undefined && value.finish === undefined) {
+  if (value.apply !== undefined && value.finish === undefined && typeof value.revise !== "string" && value.discard !== true) {
     refinement.addIssue({
       code: "custom",
       path: ["apply"],
-      message: "--apply is valid only with --finish.",
+      message: "--apply is valid only with --finish, --revise <cut-map>, or --discard.",
     });
   }
 });
@@ -95,7 +98,7 @@ function v3DecomposeInvocation(
   if (input.extract !== undefined) {
     return { mode: "extract", origin: input.origin, cutMapPath: input.extract };
   }
-  if (input.finish !== undefined) {
+  if (typeof input.finish === "string") {
     return input.apply === undefined
       ? { mode: "finish-preview", origin: input.origin, cutMapPath: input.finish }
       : {
@@ -127,12 +130,43 @@ export interface DecomposeOptions {
   execute?: string;
   /** Stage one additive result while preserving the source origin. */
   extract?: string;
-  /** Preview source thinning from one completed extraction map. */
-  finish?: string;
-  /** Apply the exact source-thinning preview authority. */
+  /** Preview a map's source thinning or finish a stored cut. */
+  finish?: string | true;
+  /** Emit fresh revision authoring or preview a completed revision map. */
+  revise?: string | true;
+  /** Preview discarding a stored cut. */
+  discard?: true;
+  /** Apply the exact finish, revision, or discard preview authority. */
   apply?: string;
   /** Advance one committed full-protection candidate from its canonical completed cut map. */
   advanceBase?: string;
+}
+
+const DecomposeDispatchRefusalSchema = z.strictObject({
+  status: z.literal("refused"), reason: z.string().min(1), class: z.enum(["recoverable", "terminal"]),
+  locus: z.string().min(1).optional(), remedy: RemedySchema,
+});
+type DecomposeDispatchRefusal = z.infer<typeof DecomposeDispatchRefusalSchema>;
+
+function emitDecomposeOutcome(result: { status: "ok"; result: unknown } | DecomposeDispatchRefusal): void {
+  const payload: unknown = result.status === "refused" ? result : typeof result.result === "string" ? JSON.parse(result.result) : result.result;
+  process.stdout.write(`${canonicalize(payload)}\n`);
+  if (result.status === "refused") {
+    process.stderr.write(`${result.reason}\n${result.remedy.text}\n`);
+    process.exitCode = 1;
+  }
+}
+
+function inRepoDecomposeDispatchRefusal(input: z.infer<typeof DecomposeCommandInputSchema>): DecomposeDispatchRefusal | undefined {
+  if (input.revise !== undefined || input.discard === true) return DecomposeDispatchRefusalSchema.parse({
+    status: "refused", reason: "unsupported", class: "recoverable",
+    remedy: { text: "Until the flip a rejected cut stays staged, or as its ARC-owned candidate, for explicit cleanup direction." },
+  });
+  if (input.finish === true) return DecomposeDispatchRefusalSchema.parse({
+    status: "refused", reason: "finish-map-operand", class: "recoverable", locus: "finish",
+    remedy: { text: `Supply the completed cut map with arc decompose ${input.origin} --finish <cut-map>.` },
+  });
+  return undefined;
 }
 
 async function readAdvanceBaseMap(
@@ -186,6 +220,8 @@ export async function handleDecompose(
     process.exitCode = 1;
     return;
   }
+  const dispatchRefusal = inRepoDecomposeDispatchRefusal(parsed.data);
+  if (dispatchRefusal !== undefined) { emitDecomposeOutcome(dispatchRefusal); return; }
   const invocation = v3DecomposeInvocation(parsed.data);
   const emissionMode = v3DecomposeEmissionMode(invocation);
   try {
@@ -233,7 +269,7 @@ export async function handleDecompose(
       cohortTemplate,
     };
     const protection = settings["branch.protection"] === "full" ? "full" : "partial";
-    if (parsed.data.finish !== undefined) {
+    if (typeof parsed.data.finish === "string") {
       const applyAuthority = parsed.data.apply ?? null;
       const result = V3ExtractionFinishResultSchema.parse(await finishGitV3Extraction(repository, {
         cwd,
@@ -333,6 +369,8 @@ export const decomposeCommandInputRegistration = {
       "option.execute": "execute",
       "option.extract": "extract",
       "option.finish": "finish",
+      "option.revise": "revise",
+      "option.discard": "discard",
       "option.apply": "apply",
       "option.advance-base": "advanceBase",
     },
