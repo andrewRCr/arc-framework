@@ -90,7 +90,8 @@ it("selects a project on deletion and widens on an uncovered deletion without pa
   const root = await createDeclaredCheckRepository({
     project: { command: [process.execPath, "capture.cjs"], gate: "commit", inputs: ["src/deleted.ts"] },
     files: { ...checks.files, inputs: ["src/deleted.ts"] },
-    wide: { ...checks.files, inputs: ["src/a.ts"] },
+    wide: { ...checks.files, inputs: ["src/a.ts"], command: [process.execPath, "-e",
+      "require('node:fs').writeFileSync('.git/wide-receipt.json', JSON.stringify(process.argv.slice(1)))"] },
   });
   repositories.push(root);
   await writeFile(join(root, "src/a.ts"), "base\n");
@@ -102,6 +103,7 @@ it("selects a project on deletion and widens on an uncovered deletion without pa
     { id: "wide", outcome: "not selected" },
   ]);
   expect(JSON.parse(await readFile(join(root, "receipt.json"), "utf8"))).toMatchObject({ args: [] });
+  await expect(readFile(join(root, ".git/wide-receipt.json"))).rejects.toMatchObject({ code: "ENOENT" });
   await rm(join(root, "docs/b.md"));
   const widened = await runArc(["check", "gate", "commit", "--json", "--force"], root);
   expect(widened.exitCode, widened.stderr).toBe(0);
@@ -109,7 +111,8 @@ it("selects a project on deletion and widens on an uncovered deletion without pa
     { id: "project", outcome: "passed" }, { id: "files", outcome: "not selected", reason: "no files to check" },
     { id: "wide", outcome: "passed" },
   ]);
-  expect(JSON.parse(await readFile(join(root, "receipt.json"), "utf8"))).toMatchObject({ args: ["src/a.ts"] });
+  expect(JSON.parse(await readFile(join(root, "receipt.json"), "utf8"))).toMatchObject({ args: [] });
+  expect(JSON.parse(await readFile(join(root, ".git/wide-receipt.json"), "utf8"))).toEqual(["src/a.ts"]);
 });
 
 it("selects named paths by Git inputs and widens a named global path", async () => {
