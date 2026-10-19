@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "housekeep-review-20261019",
+  "claimId": "a7d2fff1a86a1b286c7a0e7546d68856",
+  "createdAt": "2026-10-19T16:06:53.340Z",
+  "updatedAt": "2026-10-19T16:06:53.340Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Route the approved review procedure and policy captures into their existing backlog design buffers.",
+  "branch": "chore/housekeep-review-20261019",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
