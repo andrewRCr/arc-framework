@@ -1351,23 +1351,10 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
           identities are reported. Kept code-repository tips lease landing, local deletion, and post-publication origin
           cleanup across retries, with atomic local cleanup and manual origin remedies when no state remote exists.
 
-    - `[ ]` **15.3.b Queues and inbound lists**
-        - Build `test-first` (one behavior at a time):
-            - each person's execute-bound marks become their Errand queue in file order, each `_Disposition:_` line
-              leaving its entry; a queue member reuses its inbox capture's `_Id:_`, carries `Inbox: personal`, and has
-              a valid fractional `Rank`, with increasing ranks preserving file order and IDs unique in the queue
-            - a capture without an `_Id:_` receives one ID, reused by its queue member; the import never independently
-              stamps a queue ID that names no capture
-            - each buffer section and held owner-adoption capture becomes its work unit's inbound list, a section's entry
-              taking the first date of its `_Routed from:_` field, the drain's, as `_Created:_` and a capture keeping its
-              own, each leaving its source
-            - a mark `listExecuteBoundInboxEntries` (`lib/user-sync/inbox-writer.ts`) reports as a diagnostic, a held
-              capture whose `WU_Target` names no work unit, and a `_Routed from:_` field with no date are each listed in
-              `notices` with its repair, the import refusing until it is fixed, then landing
-            - no routing receipt is written for what moved
-            - each queue and inbound list compares clean with the marks, buffer sections, and held captures it came from,
-              its comparator allowing only the `_Disposition:_` lines and `_Created:_` dates the import moves, and each
-              source compares clean without what moved from it
+    - `[x]` **15.3.b Queues and inbound lists**
+        - Queues reuse inbox capture IDs and fractional ranks in file order. Draft buffers and held captures move
+          into inbound lists with source dates, leaving no source copy or receipt. Malformed marks, missing targets,
+          and undated buffers refuse before landing and succeed after repair.
 
     - `[ ]` **15.3.c Entry stamps and tombstones**
         - Build `test-first` (one behavior at a time):

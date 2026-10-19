@@ -15,6 +15,7 @@ import { readImportCandidateVersions } from "./candidate.js";
 import { appendImportLineage } from "./lineage.js";
 import type { Slug } from "../../../kernel/schema/slug.js";
 import { appendImportTransients, type ImportTransientState } from "./transient.js";
+import { moveImportPendingEntries } from "./pending-entries.js";
 
 /** One imported content revision and its containing owner's lifecycle placement. */
 export interface ImportRecord { reference: RecordReference; content: string; placement?: StoreRecord["placement"]; asFound?: boolean;
@@ -43,6 +44,7 @@ export async function readImportSource(context: RefBackendContext, report: Migra
   await appendImportLineage(context, report, result, owners, head);
   await appendPersonal(context, report, result);
   await appendImportTransients(context, report, result, transients);
+  moveImportPendingEntries(context.registry, result, report);
   const refs = new Set(result.flatMap(({ reference, placement }) => placement?.kind === "completed"
     ? [expandStoredPath(reference, { registry: context.registry, placement }).ref, expandStoredPath(reference, { registry: context.registry, history: true }).ref]
     : reference.kind === "lineage/transition" ? [expandStoredPath(reference, { registry: context.registry }).ref,
