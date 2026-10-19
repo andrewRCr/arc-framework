@@ -1,6 +1,7 @@
 /** Session offers distinguish an unavailable ref inventory from branch absence. */
 import { afterEach, expect, it, vi } from "vitest";
 import { createStoreSessionProbes } from "../../../../src/handlers/status/store-session.js";
+import { createTestStatusContext } from "../../../helpers/status-context.js";
 import { handleLifecycleStatus } from "../../../../src/handlers/status/lifecycle.js";
 import { readUserInboxFromStore } from "../../../../src/handlers/status/session-context.js";
 import { createLifecycleHarness, lifecycleSuccess as ok } from "../../../helpers/store/lifecycle-harness.js";
@@ -57,7 +58,7 @@ it("withholds a named work-unit offer on unknown branch location and restores it
   expect(blocked.candidates.map(item => item.name)).toEqual(["planning"]);
   expect(blocked.warnings).toEqual(expect.arrayContaining([expect.stringMatching(/local.*refs.*repair.*retry/iu)]));
   const output = vi.spyOn(process.stdout, "write").mockReturnValue(true);
-  await handleLifecycleStatus("/current", h.exec, "demo", { json: true }, h.store, { findHoldingCheckout: h.findHoldingCheckout });
+  await handleLifecycleStatus(await createTestStatusContext({ store: h.store, exec: h.exec }), "demo", { json: true }, { findHoldingCheckout: h.findHoldingCheckout });
   expect(JSON.parse(String(output.mock.calls[0]?.[0]))).toMatchObject({ slug: "demo", state: "active", owner: "alice",
     warnings: expect.arrayContaining([expect.stringMatching(/local.*refs.*repair.*retry/iu)]) });
   h.repair();

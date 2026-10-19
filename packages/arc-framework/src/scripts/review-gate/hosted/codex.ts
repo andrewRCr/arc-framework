@@ -69,16 +69,43 @@ function finding(
   };
 }
 
+function reportsCleanCompletion(comment: HostedGitHubIssueComment): boolean {
+  return REVIEW_HEADING.test(comment.body)
+    && /\bdid(?:n't| not) find any major issues\b/iu.test(comment.body);
+}
+
 function cleanForHead(comment: HostedGitHubIssueComment, headSha: string): boolean {
-  if (!REVIEW_HEADING.test(comment.body)
-    || !/\bdid(?:n't| not) find any major issues\b/iu.test(comment.body)) {
-    return false;
-  }
+  if (!reportsCleanCompletion(comment)) return false;
   const markers = [...comment.body.matchAll(
     /^(?:\*\*)?Reviewed commit:(?:\*\*)?\s*`?([a-f0-9]{7,40})`?\s*$/gimu,
   )];
   const marker = markers[0]?.[1]?.toLowerCase();
   return markers.length === 1 && marker !== undefined && headSha.startsWith(marker);
+}
+
+function completedWithoutHead(comment: HostedGitHubIssueComment): boolean {
+  return /^<!-- codex-review-receipt:v1 -->$/mu.test(comment.body)
+    && reportsCleanCompletion(comment)
+    && !/\breviewed commit:/iu.test(comment.body);
+}
+
+function requestAccountsForReceipt(
+  comments: HostedGitHubIssueComment[],
+  handle: HostedRequestHandle | undefined,
+  receipt: HostedGitHubIssueComment,
+): boolean {
+  if (handle === undefined || handle.artifact.kind !== "issue-comment") return false;
+  const request = comments.find((comment) => comment.id === handle.artifact.id);
+  if (request === undefined
+    || request.url !== handle.artifact.url
+    || request.actorIdentity !== handle.admission.actorIdentity
+    || request.body !== COMMAND
+    || request.createdAt !== handle.artifact.createdAt
+    || request.updatedAt !== request.createdAt) return false;
+  // An unbound receipt cannot distinguish competing generations, including an earlier unfinished request.
+  return !comments.some((comment) => comment.id !== request.id
+    && comment.createdAt <= receipt.createdAt
+    && /^\s*@codex\s+review\b/imu.test(comment.body));
 }
 
 function connectedAccountFailure(comment: HostedGitHubIssueComment): boolean {
@@ -135,18 +162,19 @@ export class CodexHostedAdapter implements HostedReviewAdapter, HostedReviewObse
   }
 
   observe(handle: HostedRequestHandle, options?: { signal?: AbortSignal }): Promise<HostedObservation> {
-    return this.observeSince(handle.target, handle.artifact.createdAt, options);
+    return this.observeSince(handle.target, handle, options);
   }
 
   observeHandle(target: HostedTarget): Promise<HostedObservation> {
-    return this.observeSince(target, "1970-01-01T00:00:00.000Z");
+    return this.observeSince(target, undefined);
   }
 
   private async observeSince(
     target: HostedTarget,
-    requestedAt: string,
+    handle: HostedRequestHandle | undefined,
     options?: { signal?: AbortSignal },
   ): Promise<HostedObservation> {
+    const requestedAt = handle?.artifact.createdAt ?? "1970-01-01T00:00:00.000Z";
     try {
       const [reviews, threads, comments] = await Promise.all([
         this.github.readReviews(target, options),
@@ -199,6 +227,12 @@ export class CodexHostedAdapter implements HostedReviewAdapter, HostedReviewObse
         return { kind: "findings", reviewUrl: review.url, findings: allFindings };
       }
       if (clean !== undefined) return { kind: "clean", reviewUrl: clean.url };
+      const unbound = providerComments.find(completedWithoutHead);
+      if (unbound !== undefined && requestAccountsForReceipt(comments, handle, unbound)) {
+        return { kind: "terminal-failure", reason:
+          `Codex completed review without identifying the reviewed commit. Receipt: ${unbound.url}. `
+          + `Clean review is not established for ${target.headSha}.` };
+      }
       return { kind: "pending" };
     } catch (error) {
       // A retryable read failure is left to the waiting caller, which keeps polling; only a terminal one ends it.

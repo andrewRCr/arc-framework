@@ -96,6 +96,12 @@ dispatch line, never as comparison logic written in English.
 **Anti-pattern:** a workflow step of the form `state == "clean" AND refState == "local-ahead"` — that is code
 wearing prose, unexecutable and uncheckable where it sits.
 
+Where a decision's inputs require judgment, the CLI emits and enforces a closed set of allowed next actions, together
+with the facts it can compute. The agent recommends among those actions, giving its reasoning and what would change
+the recommendation; the Owner decides. A computed recommendation earns its place only as a pure function of facts,
+where it usually establishes a bound. Judgment-dependent advice must not become a computed verdict that the agent
+merely carries out.
+
 ### 2. Agent-interpreted markup never grows control flow
 
 A rich workflow language interpreted by the LLM is the worst of both substrates — unchecked like prose, unreadable
@@ -127,6 +133,12 @@ wants an eval the way a code change wants a test. Owner: `workflow-eval-harness`
 Anything rendered verbatim to the user — offers, advisories, prompts — is precomposed by the CLI
 (the `recommended*Text` pattern), not templated in prose. A template in markdown is untestable; the same template
 in code is a unit test away.
+
+Keep enforced bounds and advisory considerations in separate blocks. Each consideration states its reason and the
+condition under which it favors an allowed option; the CLI does not preselect the judgment. `localCoverageInteractionText`
+is an existing instance; `review-coverage-cadence`'s next-pass interaction is the first designed one. Whether this
+separation preserves judgment across models remains unvalidated until cross-model evals exist
+(`workflow-eval-harness`).
 
 ### 7. Controlled vocabulary for load-bearing concepts
 

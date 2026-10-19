@@ -47,6 +47,11 @@ export async function runView(
     ...(options.forSlug === undefined ? {} : { forSlug: options.forSlug }),
   });
 
+  const output = await routeViewArtifact(artifact, options, dependencies);
+  return { ...output, stderr: formatWarnings(artifact.warnings ?? []) + output.stderr };
+}
+
+async function routeViewArtifact(artifact: ViewArtifactResult, options: RunViewOptions, dependencies: ViewDependencies): Promise<ViewOutput> {
   if (artifact.status === "error") {
     return { stdout: "", stderr: `${artifact.message}\n`, exitCode: 1 };
   }

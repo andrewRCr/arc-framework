@@ -54,14 +54,19 @@ function repositoryPath(root: string, path: string): string {
 /** Project an artifact from its logical work-unit identity and read placement. */
 export function workItemArtifactPath(slug: string, artifact: WorkUnitArtifactKind,
   readPlacement: z.infer<typeof WorkUnitReadPlacementSchema>, cohort: string | null): string {
+  const placement = workItemLayoutPlacement(readPlacement, cohort);
+  return resolveArcPath({ kind: "work-unit-artifact", artifact, slug: SlugSchema.parse(slug), placement });
+}
+/** Adapt a logical read placement to the layout's physical coordinates. */
+export function workItemLayoutPlacement(readPlacement: z.infer<typeof WorkUnitReadPlacementSchema>, cohort: string | null): WorkUnitPlacement {
   const selected = WorkUnitReadPlacementSchema.parse(readPlacement);
-  const placement: WorkUnitPlacement = selected.kind === "active"
+  return selected.kind === "active"
     ? { kind: "active", scope: { kind: "project" } }
     : selected.kind === "backlog"
       ? { ...selected, cohort: (cohort ?? "").split("/").filter(Boolean).map((part) => SlugSchema.parse(part)) }
       : selected;
-  return resolveArcPath({ kind: "work-unit-artifact", artifact, slug: SlugSchema.parse(slug), placement });
 }
+
 /** Project a diagnostic path for a lifecycle record without reading through that path. */
 export function lifecycleArtifactPath(entry: LifecycleEntry, artifact: WorkUnitArtifactKind): string {
   return workItemArtifactPath(entry.reference.owner.name, artifact,

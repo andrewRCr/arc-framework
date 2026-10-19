@@ -5,11 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   DeliveryPlanAbandonOptions,
 } from "../../../src/handlers/delivery.js";
-import {
-  DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_ID,
-} from "../../../src/lib/delivery/design-inventory.js";
-import { createProductionSchemaRegistry } from "../../../src/production-schema-registry.js";
-import { lookupKernelSchema } from "../../../src/lib/kernel/schema/generate.js";
 
 const mocks = vi.hoisted(() => ({
   readConfigSettings: vi.fn(),
@@ -30,7 +25,6 @@ const {
   handleDeliveryCompose,
   handleDeliveryPlanAbandon,
   handleDeliveryPlanFromBranch,
-  handleDeliveryPlanInventorySchema,
 } = await import("../../../src/handlers/delivery.js");
 
 let stdout = "";
@@ -69,24 +63,6 @@ afterEach(() => {
 });
 
 describe("delivery handler JSON boundaries", () => {
-  it("emits the exact registered design-inventory schema authority", () => {
-    handleDeliveryPlanInventorySchema({ json: true });
-
-    const registry = createProductionSchemaRegistry();
-    const expected = lookupKernelSchema(registry, DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_ID);
-    if (expected.status !== "found") throw new Error("Missing production inventory schema");
-    expect(JSON.parse(stdout)).toEqual({
-      schemaVersion: 1,
-      command: "delivery plan inventory schema",
-      status: "ok",
-      value: {
-        id: DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_ID,
-        version: expected.meta.version,
-        schema: expected.schema,
-      },
-    });
-  });
-
   it("preserves machine output when abandon input is invalid", async () => {
     const invalid = { json: true, unexpected: true } as DeliveryPlanAbandonOptions;
 

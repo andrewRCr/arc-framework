@@ -1,6 +1,6 @@
 /** Registered session status waits for the operational pull before selecting its frame. */
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile, readFile } from "node:fs/promises";
+import { mkdir, writeFile, readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, onTestFinished, vi } from "vitest";
 import type { Store } from "../../src/lib/store/contract.js";
@@ -16,6 +16,7 @@ import { ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs, writeWorktreeM
 import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { dispatchRegisteredCli } from "../helpers/registered-cli.js";
+import { runHandlerAt } from "../helpers/handler.js";
 
 const binding = vi.hoisted(() => ({ store: null as Store | null, sync: null as StoreSyncPort | null }));
 vi.mock("../../src/handlers/status/session-context.js", async importOriginal => {
@@ -53,6 +54,21 @@ async function session(h: Awaited<ReturnType<typeof fixture>>, sync: StoreSyncPo
     return JSON.parse(output);
   } finally { binding.store = null; binding.sync = null; out.mockRestore(); process.chdir(cwd); process.exitCode = exit; }
 }
+
+it("dispatches a registered slug query through the session's selected store and synchronization port", async () => {
+  const h = await fixture();
+  binding.store = h.store;
+  binding.sync = createStoreSyncPort({ pull: async () => {
+    lifecycleSuccess(await h.store.write({ ...recordPut(h.meta, { content: writeMetaOwner(h.meta.content, SlugSchema.parse("bob")) }),
+      provenance: { verb: "pull", lifecycleAction: "pull" } }));
+    return { status: "pulled" };
+  } });
+  try {
+    const result = await runHandlerAt(h.cwd, () => dispatchRegisteredCli(["--no-input", "status", "demo", "--fetch", "--json"]));
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ slug: "demo", state: "planning", owner: "bob" });
+  } finally { binding.store = null; binding.sync = null; }
+}, 30_000);
 
 it("returns the refreshed owner when base-distance work runs during a delayed pull", async () => {
   const h = await fixture();
@@ -143,4 +159,19 @@ it("surfaces an unavailable captured record and restores the ordinary frame afte
   broken = false;
   const repaired = await session(h, createStoreSyncPort());
   expect(repaired.derivedLocusState).toMatchObject({ ok: true, value: { active: { context: { owner: "alice" } } } });
+}, 30_000);
+
+
+it("renders registered user status with the production membership and checkout readers without a cache file", async () => {
+  const h = await fixture();
+  binding.store = h.store;
+  try {
+    const before = await readdir(h.cwd, { recursive: true });
+    const result = await runHandlerAt(h.cwd, () => dispatchRegisteredCli(["--no-input", "status", "--user", "--json"]));
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(JSON.parse(result.stdout)).toMatchObject({ source: "rendered", warnings: [] });
+    expect(JSON.parse(result.stdout).output).toMatch(/## In Flight[\s\S]*demo/u);
+    expect(await readdir(h.cwd, { recursive: true })).toEqual(before);
+  } finally { binding.store = null; binding.sync = null; }
 }, 30_000);

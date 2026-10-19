@@ -492,6 +492,25 @@ describe("shared code-review workflow contracts", () => {
     expect(partial).not.toContain("integration-interlock");
   });
 
+  it("offers exact Owner acceptance when a provider completion lacks reviewed-commit metadata", async () => {
+    const workflow = await readRepositoryFile(
+      "packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md",
+    );
+    const stop = (await sharedSection(workflow, "errand-stop")).replace(/\s+/gu, " ");
+    const review = sectionBetween(workflow, "4. **Enter the open PR.**", "5. **Settle the final head.**")
+      .replace(/\s+/gu, " ");
+
+    expect(stop).toContain("trusted provider completion receipt without a reviewed-commit binding");
+    expect(stop).toContain("the provider's reviewed commit remains unproved");
+    expect(stop).toContain("does not increment completed passes");
+    expect(stop).toContain("the request handle and receipt URL");
+    expect(stop).toContain("required facts for the chosen basis are unavailable");
+    expect(stop).toContain("Ask for explicit acceptance of that exact residual risk");
+    expect(review).toContain("`terminal-failure / stop`");
+    expect(review).toContain("On decline, retain the stop");
+    expect(review).toContain("before resolving the lane again");
+  });
+
   it("carries explicit Errand review-risk acceptance through the protected merge path", async () => {
     const [packaged, project] = await Promise.all([
       readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md"),

@@ -57,8 +57,10 @@ it("keeps a clean member fix check open until complete review and excludes a lat
   expect(complete.prepared.payload.reviewerPayload.reviewerInstructions).toContain("Previously reported and fixed");
   await reduceCleanReview(harness, complete.prepared.payload.operationId);
   const closed = await statusThroughHandler(harness, correctedTarget);
-  expect(closed, JSON.stringify(closed)).toMatchObject({ routedObligation: { conjunction: { members: [
-    { state: "discharged", progress: { completePasses: 2 } }, { state: "outstanding" },
+  expect(closed, JSON.stringify(closed)).toMatchObject({ nextAction: "continue-reconcile",
+    routedObligation: { conjunction: { status: "outstanding", members: [
+    { state: "discharged", progress: { completedPasses: 3, completePasses: 2 } },
+    { state: "outstanding", progress: { completedPasses: 0 } },
   ] } } });
 
   await writeFile(join(harness.root, "first.txt"), "plain member successor\n");
