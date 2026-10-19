@@ -137,15 +137,12 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
   parser admits `schemaVersion` 1 as today's parse reads it and 2, its write check refusing version 1; and one pure
   digest over a standard-lane listing gives the binding readiness records and publication recomputes.
 
-    - `[ ]` **1.6.a The Candidate kind**
+    - `[x]` **1.6.a The Candidate kind**
 
-        - The parser is `CandidateManagedRecordV1Schema` (`lib/work-unit/candidate-attestation.ts`), whose refinements
-          carry § 8.2's log checks and recompute the Candidate ID and every response ID (§ 8.5); the kind registers no
-          write check. The public schema gives `VersionedCandidateRecord` its home (§ 3.1).
-        - Build `test-first` (one behavior at a time):
-            - a record whose Candidate ID or a response ID does not recompute refuses to parse
-            - a verification response or selection that does not continue the running target refuses to parse
-            - an evidence reference used twice, and a repeated exact review selection, refuse to parse
+        - Added the Candidate kind's public schema, issue-bearing JSON codec, and registration over the existing whole
+          managed-record schema. Canonical Candidate and response identities, running-target continuity, evidence
+          freshness, and exact review-selection uniqueness remain enforced. The public versioned read shape accepts
+          opaque backend versions; registration needs no write check.
 
     - `[ ]` **1.6.b The boundary's two versions**
 
