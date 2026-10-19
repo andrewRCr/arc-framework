@@ -23,24 +23,15 @@ the Candidate registers no check. The pure derivations later phases share — th
 settled state, the decision's key, and the readiness binding's digest — live with the kind whose records they read, so
 the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
 
-### `[ ]` **1.1 Reshape the review kinds in the catalog and the registry — § 2.1, § 13**
+### `[x]` **1.1 Reshape the review kinds in the catalog and the registry — § 2.1, § 13**
 
 - _Goal:_ The registry names `review/decision` where it named `review/terminus`, still keyed by `id` on its work item;
   `review/outcome`, `review/decision`, and `review/adversarial-pass` take the `create-only` writer rule; and the four
   keyed kinds stay unhomed in the in-repo implementation.
 
-    - `KIND_SHAPES` (`lib/store/catalog.ts`) and `KIND_MECHANISMS` (`lib/store/registry.ts`) rename the kind; the three
-      create-only kinds take `{ ...machine(unhomed), writerRule: "create-only" }`, as `project-registry/identity` takes
-      it, and `review/evidence` keeps `single-writer`.
-    - The rename reaches every `review/terminus` literal on base, so a search for it finds none: today
-      `__tests__/unit/lib/store/registry.test.ts`, and where the ref backend lands first its path template (`atRef`,
-      `lib/store/registry.ts`) and the literals in `registry.test.ts`, `__tests__/unit/lib/store/stored-path.test.ts`,
-      and `__tests__/integration/store-ref-diagnostics.test.ts`.
-    - The store's conformance cases `duplicate-creation` and `create-only-update` already select every `create-only`
-      kind, so they cover the three kinds' writer rule over the reference backend once the shapes change.
-    - Build `test-first` (one behavior at a time):
-        - over the in-repo implementation, a write of any of the four keyed kinds refuses `unsupported` and their
-          listings read `absent`
+- _Outcome:_ The catalog names `review/decision`; outcomes, decisions, and adversarial passes are create-only, while
+  evidence remains single-writer. All four keyed review kinds retain their unsupported in-repo persistence and absent
+  listings, and reference conformance selects their create-only checks automatically.
 
 ### `[ ]` **1.2 Build `review/outcome`, its key, and its derivations — § 4.1–4.3, § 4.8**
 

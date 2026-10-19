@@ -33,7 +33,7 @@ export const KIND_SHAPES = {
   "review/integration-boundary": singleton("work-item"),
   "review/evidence": keyed("work-item", "id"),
   "review/outcome": keyed("work-item", "id"),
-  "review/terminus": keyed("work-item", "id"),
+  "review/decision": keyed("work-item", "id"),
   "review/adversarial-pass": keyed("work-item", "pass"),
   "project-registry/identity": singleton("project"),
   "project-registry/counter": keyed("project", "name"),
