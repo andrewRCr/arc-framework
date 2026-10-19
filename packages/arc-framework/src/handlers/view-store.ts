@@ -23,10 +23,14 @@ export async function resolveStoreViewTarget(input: { cwd: string; store: Store;
     const completed = read.refusal.code === "ambiguous-match" ? " Open a completed holder through its projected file under completed/." : "";
     return { status: "unavailable", slug: input.slug, message: `${read.refusal.condition} ${read.refusal.remedy.text}${completed}` };
   }
-  const meta = read.result, fields = readLifecycleMetaFields(meta);
+  return targetFromMeta(input.cwd, read.result);
+}
+
+function targetFromMeta(cwd: string, meta: StoreRecord): ViewTargetResult {
+  const fields = readLifecycleMetaFields(meta);
   if (fields.status === "refused") throw new Error(`${fields.refusal.condition} ${fields.refusal.remedy.text}`);
   const placement = WorkUnitReadPlacementSchema.parse(meta.placement), slug = meta.reference.owner.name;
-  const path = (artifact: "meta" | "tasks"): string => resolve(input.cwd, workItemArtifactPath(slug, artifact, placement, fields.result.cohort));
+  const path = (artifact: "meta" | "tasks"): string => resolve(cwd, workItemArtifactPath(slug, artifact, placement, fields.result.cohort));
   return { status: "resolved", slug, placement: workItemLayoutPlacement(placement, fields.result.cohort),
     location: placement.kind === "backlog" ? placement.commitment : placement.kind,
     metaPath: path("meta"), taskListPath: fields.result.taskList === null ? null : path("tasks"),
@@ -34,10 +38,16 @@ export async function resolveStoreViewTarget(input: { cwd: string; store: Store;
 }
 
 
-/** Resolve one checkout claim, then use the same exact work-unit read as an explicit target. */
+/** Refresh the resolved checkout claim by its exact reference, retaining identity across placement changes. */
 export async function resolveStoreAmbientViewTarget(input: { cwd: string; store: Store }): Promise<ViewTargetResult> {
   const current = await resolveCurrentWorkUnit(input);
-  if (current.status === "resolved") return resolveStoreViewTarget({ ...input, slug: current.candidate.reference.owner.name });
+  if (current.status === "resolved") {
+    const read = await input.store.read({ reference: current.candidate.reference });
+    return read.status === "ok" ? targetFromMeta(input.cwd, read.result) : {
+      status: "unavailable", slug: current.candidate.reference.owner.name,
+      message: `${read.refusal.condition} ${read.refusal.remedy.text}`,
+    };
+  }
   const candidates = current.status === "ambiguous"
     ? [`Candidates: ${current.candidates.map(candidate => JSON.stringify(candidate.reference)).join(", ")}.`] : [];
   return { status: "unavailable", message: ["No work-unit claim resolved for this checkout.", ...current.warnings, ...candidates,

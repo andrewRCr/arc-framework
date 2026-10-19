@@ -15,6 +15,7 @@ import { recordPut } from "../../../src/lib/store/lifecycle-write.js";
 import { ArchiveQuarterSchema, SlugSchema } from "../../../src/lib/kernel/index.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { scriptGitExec } from "../../helpers/git-exec-fake.js";
+import { recordKey } from "../../helpers/store/model.js";
 
 const folders: string[] = [];
 afterEach(async () => { await Promise.all(folders.splice(0).map(path => rm(path, { recursive: true, force: true }))); });
@@ -153,6 +154,65 @@ it("opens a work-unit claim through a fresh read of its own placement", async ()
   const output = await runView({ cwd: f.cwd, kind: "meta", project: false, identity: "alice", path: true }, {
     resolveArtifact: input => resolveViewArtifact(input, f.deps), readFile: f.deps.readFile });
   expect(output).toEqual({ stdout: `${planned}\n`, stderr: "", exitCode: 0 });
+});
+
+it("opens the claimed work unit despite a same-name Errand from a namespace clash", async () => {
+  const f = await fixture(), meta = await f.seedMeta("claimed");
+  const value = TransientIdentityRecordV3Schema.parse({ version: 3, kind: "errand", purpose: "errand", slug: "separate", owner: "alice", intent: "Fix it",
+    claimId: "b".repeat(32), branch: "chore/separate", origin: "description", originEntry: null, state: "open", savedHead: null,
+    changeRequest: null, createdAt: "2026-10-18T00:00:00Z", updatedAt: "2026-10-18T00:00:00Z" });
+  const errand = await f.seed(recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: "separate" })),
+    serializeTransientIdentityRecord(value), { kind: "active" });
+  // A synchronized name clash can exist below the local write admission guard.
+  const clashed = f.store.state.records.get(recordKey(errand.reference));
+  if (clashed === undefined) throw new Error("Expected the seeded Errand");
+  clashed.reference = RecordReferenceSchema.parse({ ...clashed.reference, owner: { ...clashed.reference.owner, name: "claimed" } });
+  clashed.content = serializeTransientIdentityRecord(TransientIdentityRecordV3Schema.parse({ ...value, slug: "claimed", branch: "chore/claimed" }));
+  await writeWorktreeOwnershipMarker(f.cwd, { createdByArc: true, spawningIdentity: "alice", now: 0,
+    createdFor: { kind: "work-unit", name: "claimed" } });
+
+  expect(await resolveViewArtifact({ cwd: f.cwd, kind: "meta", project: false, identity: null }, f.deps))
+    .toMatchObject({ status: "resolved", content: meta.content, ref: meta.version });
+  expect(await f.deps.resolveExplicitTarget({ cwd: f.cwd, slug: "claimed" }))
+    .toMatchObject({ status: "unavailable", message: expect.stringContaining("more than one record generation") });
+});
+
+it("keeps the resolved claim generation when its name is reused before the fresh read", async () => {
+  const f = await fixture(), meta = await f.seedMeta("claimed"), read = f.store.read.bind(f.store);
+  await writeWorktreeOwnershipMarker(f.cwd, { createdByArc: true, spawningIdentity: "alice", now: 0,
+    createdFor: { kind: "work-unit", name: "claimed" } });
+  let replaced = false;
+  f.store.read = async input => {
+    const result = await read(input);
+    if (!replaced && result.status === "ok" && result.result.reference.kind === "work-item/meta") {
+      replaced = true;
+      lifecycleSuccess(await f.store.write({ ...recordPut(result.result, { placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }),
+        provenance: { verb: "archive", lifecycleAction: "archive" } }));
+      await f.seedMeta("claimed");
+    }
+    return result;
+  };
+  expect(await f.deps.resolveAmbientTarget({ cwd: f.cwd, identity: null }))
+    .toMatchObject({ status: "resolved", location: "completed", artifactSource: { kind: "store", reference: meta.reference } });
+});
+
+it("retains a refused claim refresh's repair route and resolves after repair", async () => {
+  const f = await fixture(), meta = await f.seedMeta("claimed"), read = f.store.read.bind(f.store);
+  await writeWorktreeOwnershipMarker(f.cwd, { createdByArc: true, spawningIdentity: "alice", now: 0,
+    createdFor: { kind: "work-unit", name: "claimed" } });
+  let reads = 0, repaired = false;
+  f.store.read = async input => {
+    if (input.reference.kind === "work-item/meta" && ++reads === 2 && !repaired) return {
+      status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: "work-item",
+        condition: "Claimed metadata is unavailable.", remedy: { text: "Restore the claimed metadata from its backup, then retry." } },
+    };
+    return read(input);
+  };
+  expect(await f.deps.resolveAmbientTarget({ cwd: f.cwd, identity: null })).toMatchObject({ status: "unavailable",
+    message: expect.stringContaining("Claimed metadata is unavailable. Restore the claimed metadata from its backup, then retry.") });
+  repaired = true; reads = 0;
+  expect(await f.deps.resolveAmbientTarget({ cwd: f.cwd, identity: null }))
+    .toMatchObject({ status: "resolved", artifactSource: { kind: "store", reference: meta.reference } });
 });
 
 it("distinguishes every same-name claim candidate by its immutable identity", async () => {
