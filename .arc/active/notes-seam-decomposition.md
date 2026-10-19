@@ -26,6 +26,32 @@ carried or deleted (§ 1.5, § 13).
   (`decompose-v3-operation.ts`, `git-decompose-v3-operation.ts`) and lifecycle (`verbs/abandon.ts`, `verbs/rename.ts`,
   `handlers/lifecycle.ts`, `commands/rename.ts`) both import it.
 
+## A1 — destination locator semantics
+
+The pre-implementation audit after merging `main` at `efd3442b4` found that spec § 8.4 promised more than the
+unchanged scanner establishes. The approved correction keeps destination conservation as successful locator
+resolution, with arbitrary authored bodies, and makes ordinal retargeting explicit. Task 3.3 realizes the correction;
+task 5.3's revision tests use the same unresolved-locator condition, and the spec adds Success Criterion 9.
+
+Superseded text from § 8.4 ¶1:
+
+> A locator names a heading's text and level, its ancestors', and its
+> occurrence among headings of the same text (`V3DecomposeLocatorSchema`), so renaming or re-leveling an allocated
+> heading or any heading above it, merging it, or adding an earlier heading of the same text refuses, naming the
+> allocation; the remedy is to update that allocation's target locator through a revision. Authoring may change anything
+> else.
+
+`scanV3DecomposeContent` assigns occurrence ordinals afresh, and `resolveV3DecomposeContentLocator` matches the
+complete locator rather than a section's prior content (`decompose-content.ts`). A source probe scanned a destination
+with `## Allocated` and body `Original content`, then inserted an earlier `## Allocated` with body `Inserted content`.
+The saved occurrence-0 locator resolved successfully to `Inserted content`, and the original section moved to ordinal 1.
+`validateProjectedContent` checks resolution alone (`git-decompose-v3-destination-validation.ts`).
+
+Keeping persistent section identity would require additional destination evidence and a decision about which authored
+edits preserve it. The approved correction composes the existing scanner and leaves that mechanism out of scope; the
+distribution approval reviews the current content the locators name. The origin's content digests still bind the
+source inventory between the batches, independently of destination authoring.
+
 ## Refusal coverage
 
 Each row of the spec's § 14, by the tasks of `tasks-seam-decomposition.md` that build and test it. A row's tests show

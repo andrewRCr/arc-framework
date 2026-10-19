@@ -568,6 +568,9 @@ row to the tasks that build it.
           dependent the lineage did not map, or a chain reconcile cannot resolve to one disposition —
           `work-item.slug-edges` refuses, as the plan leaves it (task 2.4.e). The settler, like the plan, imports
           nothing from `transition-disposition-query.ts`.
+        - A paused work unit's `pause.waitsOn` edge remains its owner's to change, independently of `Depends On`;
+          `checkSlugEdges` counts both through `namedEdges` (`lib/store/kinds/work-item/slug-edges.ts`). Leave that
+          pause edge out of the settling plan and surface the rule's remedy to clear or retarget it through `arc pause`.
         - The stored map, with expected absence, in the same batch (`batchLifecycleWrites`).
         - Build `test-first` (one behavior at a time):
             - a member taking a retired origin's slug settles a stub's edge on it by that lineage's disposition, and an
@@ -575,6 +578,9 @@ row to the tasks that build it.
             - a member taking a decomposed origin's slug whose replacement another cut has since retired settles a
               stub's edge to the chain's end, and a replacement since shipped discharges
             - a member taking a shipped work unit's slug discharges a stub's edge on it
+            - through the production registry, a paused work unit whose only edge to the reused slug is
+              `pause.waitsOn` makes the additive batch refuse atomically, naming the pause repair; clearing or
+              retargeting that edge lets the same cut land
             - a stub holding a stored map of its own whose edge names the slug refuses, its edge unsettled, and the
               batch lands once the member takes another slug
             - a refusal anywhere leaves nothing written
@@ -707,11 +713,15 @@ that step fails; and the preview afterward reports the cut landed, naming its me
   the origin's rescan still matches the map's units and edges, the origin's inbound list holds no entry, and every edge
   the batch writes resolves — each failure refusing before anything is written, naming its repair.
 
+- _Note:_ See `notes-seam-decomposition.md` § A1 — destination locator semantics for the scanner's occurrence matching
+  and source probe; the executable cases below realize spec § 8.4 and Success Criterion 9.
+
     - `[ ]` **3.3.a Conservation over records**
 
         - Each allocation's target locator resolves exactly once in its destination record through the scanner's locator
           resolution (`resolveV3DecomposeContentLocator`, `decompose-content.ts`), as extraction's finish checks today
-          (`validateProjectedContent`).
+          (`validateProjectedContent`). Occurrences are recomputed by `scanV3DecomposeContent`; the target is the
+          current section at the full saved locator, with no destination content digest or persistent heading identity.
         - A retirement leaves no content unaccounted for, as `uncovered-retirement-content` requires today
           (`decompose-v3-conservation.ts`), with no refusal of its own: every content record of the retiring group —
           draft, spec, task list, notes, and companions — is a source record the scan covers, and one added between the
@@ -720,9 +730,12 @@ that step fails; and the preview afterward reports the cut landed, naming its me
           on their own, a promoted origin's description record retires with the item, and an open conflict refuses
           through task 2.2.d's derivation.
         - Build `test-first` (one behavior at a time):
-            - a renamed, re-leveled, or merged allocated heading, or an earlier heading of the same text, refuses,
+            - a rename, re-level, merge, or ancestry change that leaves the saved locator unresolved refuses,
               naming the allocation and `--revise`
-            - any other authored change passes
+            - an earlier matching heading that takes the saved ordinal passes, and the resolved content is that new
+              section, even when its body differs from the section previously at that locator
+            - removing or merging a section passes when another section still occupies the complete saved locator
+            - an authored body change that leaves the target locator resolvable passes
             - a promoted origin's description record passes
             - a conflict filed on a source record between the batches refuses
 
@@ -798,7 +811,9 @@ that step fails; and the preview afterward reports the cut landed, naming its me
 
         - Before the batch, the removal check on a checkout on this machine holding a started origin
           (`findWorkUnitHoldingCheckout`, `checkRetiringCheckout`), refusing with its own remedy
-          (`describeRemovalRefusal`).
+          (`describeRemovalRefusal`). A spawned checkout selected for removal requires Git cleanliness; a retained
+          checkout anchored with `arc start --here` takes the release disposition, which checks the projection without
+          requiring Git cleanliness (`checkWorktreeRemoval`).
         - The executor runs with the primary's current name and adds the primary's removal itself
           (`executeStoreTransition`, `lifecycle-store-executor.ts`), so `additionalWrites` never names the primary,
           which a batch naming one record twice would refuse; each of its rejections maps into task 2.1.b's refusals, a
@@ -810,7 +825,9 @@ that step fails; and the preview afterward reports the cut landed, naming its me
           as `runStoreAbandon`'s does; teardown's notices, such as a kept `plan/<slug>` branch holding unlanded commits,
           surface in the result as abandonment surfaces them.
         - Build `test-first` (one behavior at a time):
-            - a dirty holding checkout refuses before anything is written
+            - a dirty spawned holding checkout selected for removal refuses before anything is written
+            - a dirty retained holding checkout passes the release checks, and teardown releases its claim while
+              preserving its files; a refused projection check on that checkout refuses before the batch
             - a failed teardown step leaves the continuation, and `arc teardown <origin>` completes it
             - a listing made incomplete before the executor's own read refuses as the listing refusal, recoverable, and
               `--finish` lands once the listing is whole
@@ -832,7 +849,9 @@ that step fails; and the preview afterward reports the cut landed, naming its me
       today's finish compares it (`git-decompose-v3-finish.ts`).
     - A version conflict at an applied batch names a fresh preview and approval, as text.
     - Build `test-first` (one behavior at a time):
-        - the preview writes nothing, and a dirty holding checkout refuses at the preview
+        - the preview writes nothing, and a dirty spawned holding checkout selected for removal refuses at the preview
+        - a dirty retained holding checkout passes the preview when its projection check passes, and refuses there
+          when that check refuses
         - a change every check accepts — a member's `Next Action` groomed, or a stub dependent's unrelated field
           edited — makes the authority stale
         - a matching authority lands exactly the previewed writes
@@ -1124,8 +1143,8 @@ first place to reauthor; and a stored map conflicted by a sync resolves through 
               `--finish` then refuses, naming `--revise`
             - each terminal-batch refusal naming `--revise` passes `--finish` once the revision lands: a renamed origin
               (task 3.2.a); a home gone or shipped, or a member whose slug another item took (3.1); a dropped seeded
-              edge, a `Cohort` changed on every member alike, or a member gone (3.2.b); an allocated heading
-              renamed, re-leveled, or merged, or an earlier heading of the same text (3.3.a); a unit or edge added,
+              edge, a `Cohort` changed on every member alike, or a member gone (3.2.b); a target locator left
+              unresolved by a heading or ancestry change (3.3.a); a unit or edge added,
               changed, or removed (3.3.b); a started home's new edge or a provider ended since the additive batch
               (3.3.c); and an extraction origin activated or deactivated since, or a started dependent whose edge would
               leave it (4.3.a)
@@ -1360,3 +1379,8 @@ canonical JSON on standard output, with its reason and remedy on standard error.
 - `[ ]` All quality gates pass (tests, linting, type checking)
 
 - `[ ]` Ready for integration
+
+- `[ ]` Destination conservation follows ordinal locator resolution: a target locator that no longer resolves refuses,
+  naming its allocation and a revision; an earlier matching heading that takes the saved ordinal passes, as does an
+  authored body change that leaves the locator resolvable. Retirement and extraction use the same rule, and a revision
+  can name a different current target locator.

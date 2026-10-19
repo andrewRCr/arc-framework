@@ -601,13 +601,18 @@ authoring exists for.
 
 #### 8.4 The content
 
-- **Conservation is locator resolution:** each allocation's target locator resolves exactly once in its destination
+- **Conservation is locator resolution (A1):** each allocation's target locator resolves exactly once in its destination
   record, as extraction's finish checks today (`validateProjectedContent`,
   `git-decompose-v3-destination-validation.ts`). A locator names a heading's text and level, its ancestors', and its
-  occurrence among headings of the same text (`V3DecomposeLocatorSchema`), so renaming or re-leveling an allocated
-  heading or any heading above it, merging it, or adding an earlier heading of the same text refuses, naming the
-  allocation; the remedy is to update that allocation's target locator through a revision. Authoring may change anything
-  else.
+  occurrence among headings of the same text (`V3DecomposeLocatorSchema`). The scanner recomputes those ordinals from
+  the current document (`scanV3DecomposeContent`), and resolution compares the complete locator
+  (`resolveV3DecomposeContentLocator`), without a destination content digest or persistent heading identity. Inserting
+  an earlier matching heading can therefore make the saved locator resolve to that new section, and removing or merging
+  a section can leave another at its ordinal; either passes when the locator still resolves exactly once. A rename,
+  re-level, merge, or ancestry change refuses only when it leaves that locator unresolved, naming the allocation and a
+  revision of its target locator. Authoring may change the resolved section's body. The distribution approval reviews
+  which current content each allocation names; the origin's content binding below does not establish destination
+  identity.
 - **A retiring group's content is all accounted for,** as `uncovered-retirement-content` requires today
   (`decompose-v3-conservation.ts`), with no refusal of its own: every content record of the group — its draft, spec,
   task list, notes, and companions, the Markdown artifacts today's rule counts — is a source record the scan covers, and
@@ -644,8 +649,10 @@ and from a started Planning work unit already declare that form: the primary's r
 (`fromFlip`, `lifecycle-transitions.ts`).
 
 - **Before the batch,** where a checkout on this machine holds a started origin, the removal check runs
-  (`checkRetiringCheckout`, `lib/git/worktree-removal.ts`), as abandonment's does (lifecycle § 11.3), so a dirty
-  checkout refuses before anything irreversible.
+  (`checkRetiringCheckout`, `lib/git/worktree-removal.ts`), as abandonment's does (lifecycle § 11.3). A spawned checkout
+  selected for removal refuses when dirty. A retained checkout anchored with `arc start --here` takes the release
+  disposition: `checkWorktreeRemoval` checks its projection without requiring Git cleanliness, and teardown releases
+  its claim while preserving its files. Either disposition refuses when its projection check refuses.
 - **The batch** writes the lineage record (`writeLineageRecord`) and removes the origin's primary, which ends the item
   (lifecycle § 8.6). On the ref backend the item's group moves under history (its § 7.4); the reference backend keeps
   the group's other records under the ended owner, as after an abandonment, and nothing reads them by the origin's slug.
@@ -706,16 +713,17 @@ its inputs are rewritten over records. The finish's destination validation (`val
 #### 8.7 Preview and apply
 
 The terminal batch is irreversible, so it applies only what was approved. `--finish` without `--apply` acquires, checks,
-and prepares as § 8.1–8.6 do, the removal check included, so a dirty checkout refuses at the preview rather than after
-the approval; it writes nothing and reports the preview: for a retirement the lineage record, the removals, and each
-record the batch would write; for an extraction the retained bytes of the thinned artifacts and each record it would
-write. With it comes the apply authority: the digest of the batch's mode, the origin's slug and UID, every acquired
-record's reference and version, and the prepared writes. `--finish --apply <authority>` acquires, checks, and prepares
-again and, once every check passes, runs the batch only when the fresh digest equals the authority; otherwise it
-refuses, naming `--finish` for a fresh preview. The preview is what the distribution approval surfaces (§ 16), so a
-change after it — a stub groomed, a dependent added — needs a fresh preview and approval. Within the apply,
-revalidation by version guards the gap between its own acquisition and its batch (lifecycle § 3); the authority carries
-that freshness across the approval, as today's finish authority does (`git-decompose-v3-finish.ts`).
+and prepares as § 8.1–8.6 do, the removal check included, so a dirty spawned checkout selected for removal refuses at
+the preview rather than after the approval; a retained checkout takes § 8.5's release checks. It writes nothing and
+reports the preview: for a retirement the lineage record, the removals, and each record the batch would write; for an
+extraction the retained bytes of the thinned artifacts and each record it would write. With it comes the apply authority:
+the digest of the batch's mode, the origin's slug and UID, every acquired record's reference and version, and the prepared
+writes. `--finish --apply <authority>` acquires, checks, and prepares again and, once every check passes, runs the batch
+only when the fresh digest equals the authority; otherwise it refuses, naming `--finish` for a fresh preview. The preview
+is what the distribution approval surfaces (§ 16), so a change after it — a stub groomed, a dependent added — needs a
+fresh preview and approval. Within the apply, revalidation by version guards the gap between its own acquisition and its
+batch (lifecycle § 3); the authority carries that freshness across the approval, as today's finish authority does
+(`git-decompose-v3-finish.ts`).
 
 The same rule holds for every batch that removes a record: the discard and the revision preview and apply under an
 authority too (§ 9). The additive batch, which removes nothing, runs straight.
@@ -1257,6 +1265,10 @@ nothing is committed, pushed, or merged by the cut.
 8. **The ratchet holds.** At landing no `store-raw-state`, `surface-names`, or `work-unit-paths` count in
    `eslint-suppressions.json` exceeds its count at the final merged base, in total or per file, no module under
    `lib/decompose/` holds an entry, and `npm run -s lint:ts` passes with no suppression added for a new violation.
+9. **Destination conservation follows ordinal locator resolution (A1).** A target locator that no longer resolves
+   refuses, naming its allocation and a revision; an earlier matching heading that takes its saved ordinal passes,
+   as does an authored body change that leaves the locator resolvable. Retirement and extraction use this same rule,
+   and a revision can name a different current target locator (§ 8.4).
 
 ## Open Questions
 
@@ -1265,6 +1277,7 @@ this design open.
 
 ## Amendments
 
-None.
+- **A1** — 2026-10-19 — design: destination conservation uses ordinal locator resolution.
+  _Supersedes:_ § 8.4 ¶1. _Trigger:_ F1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---
