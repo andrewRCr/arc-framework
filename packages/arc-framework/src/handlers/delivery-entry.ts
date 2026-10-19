@@ -21,6 +21,7 @@ import {
 } from "../lib/delivery/entry-inspection.js";
 import { inspectRepositoryDeliveryEntry as inspectRepositoryDeliveryEntryAt } from
   "../lib/delivery/repository-entry.js";
+import { resolveReviewInvocation, type ReviewInvocationOptions } from "../scripts/review-gate/runtime/invocation.js";
 import { createGitExec } from "../lib/io-context.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { requireArcProjectRoot } from "./shared.js";
@@ -153,10 +154,13 @@ function resolveTaskListPath(cwd: string, activePath: string, taskList: string):
 export async function inspectActiveRepositoryDeliveryEntry(
   input: z.infer<typeof InputSchema>,
   interaction?: InteractionContext,
+  invocation: ReviewInvocationOptions = {},
 ): Promise<DeliveryEntryInspectionResult> {
   const cwd = requireArcProjectRoot();
   if (cwd === null) throw new Error("ARC project root unavailable");
-  const active = await resolveActiveWu({ cwd });
+  const exec = createGitExec(interaction?.subprocess);
+  const bound = resolveReviewInvocation({ ...invocation, cwd, exec });
+  const active = await resolveActiveWu({ cwd, store: bound.store, projectId: bound.projectId });
   if (active.status !== "resolved" || active.name === "") throw new Error("Active work unit unavailable");
   const parsedMeta = parseMetaFile(await readFile(resolve(cwd, active.path), "utf8"));
   if (parsedMeta.taskList === null || parsedMeta.taskList === "[none]") {
@@ -167,10 +171,11 @@ export async function inspectActiveRepositoryDeliveryEntry(
   const { settings } = await readConfigSettings(cwd);
 
   return inspectRepositoryDeliveryEntryAt({
+    ...bound,
     cwd,
     taskListPath,
     request: DeliveryEntryInspectionRequestSchema.parse({ workUnitId: active.name, ...input }),
     baseBranch: settings["branch.base"],
-    exec: createGitExec(interaction?.subprocess),
+    exec,
   });
 }

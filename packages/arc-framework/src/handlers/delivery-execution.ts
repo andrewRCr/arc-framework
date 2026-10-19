@@ -264,8 +264,8 @@ import {
 import { parseIntegrationBoundaryLocus } from
   "../scripts/review-gate/policy/integration-boundary-locus.js";
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
-import { createStore } from "../lib/store/create.js";
-import { createDefaultStorePorts } from "../lib/store/default-ports.js";
+import { resolveReviewInvocation, type ReviewInvocationOptions } from "../scripts/review-gate/runtime/invocation.js";
+import { createReviewCompositionContext } from "../scripts/review-gate/runtime/composition-context.js";
 import { resolveCandidateRecordRelativePath, resolveSubmissionBoundaryPath } from "../lib/store/kinds/review/paths.js";
 import { resolveGitCommonDir } from "../lib/git/exec.js";
 import type { GitExec } from "../lib/git/exec.js";
@@ -1791,10 +1791,10 @@ export interface DeliveryExecutionHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultDependencies(): DeliveryExecutionHandlerDependencies {
+function defaultDependencies(invocation: ReviewInvocationOptions = {}): DeliveryExecutionHandlerDependencies {
   return {
     readText: (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
-    execute: executeDeliveryCommand,
+    execute: (command, request, interaction) => executeDeliveryCommand(command, request, interaction, invocation),
     write: (text) => process.stdout.write(text),
     setExitCode: (code) => { process.exitCode = code; },
   };
@@ -1964,8 +1964,9 @@ export async function handleDeliveryExecution(
   opts: DeliveryExecutionOptions,
   interaction?: InteractionContext,
   overrides: Partial<DeliveryExecutionHandlerDependencies> = {},
+  invocation: ReviewInvocationOptions = {},
 ): Promise<void> {
-  const deps = { ...defaultDependencies(), ...overrides };
+  const deps = { ...defaultDependencies(invocation), ...overrides };
   const options = InputOptionSchema.safeParse(opts);
   if (!options.success) {
     emit(deps, command, { status: "refused", reason: "invalid-command-input" });
@@ -2234,12 +2235,15 @@ async function executeDeliveryCommand(
   command: DeliveryExecutionCommand,
   request: unknown,
   interaction?: InteractionContext,
-  internalContext?: { readonly settledRecordEffectHead: string | null },
+  internalContext?: ReviewInvocationOptions & { readonly settledRecordEffectHead?: string | null },
 ): Promise<unknown> {
   const cwd = requireArcProjectRoot();
   if (cwd === null) return { status: "refused", reason: "arc-project-root-unresolved" };
   const exec = createGitExec(interaction?.subprocess);
-  const reviewRecordStore = createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec }));
+  const invocation = resolveReviewInvocation({ ...internalContext, cwd, exec });
+  const reviewRecordStore = invocation.store;
+  let reviewContext: ReturnType<typeof createReviewCompositionContext> | undefined;
+  const review = () => reviewContext ??= createReviewCompositionContext({ ...invocation, cwd, exec });
   const publisher = new RepositoryGitCommonStatePublisher(exec, cwd);
   const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
   const stateStore = new RepositoryDeliveryStateStore(publisher);
@@ -2254,7 +2258,7 @@ async function executeDeliveryCommand(
     let currentDerivation: z.infer<typeof DeliveryCorrectionDerivationSchema> | undefined;
     let requiredFindingPaths: readonly string[] = [];
     try {
-      const entry = await inspectActiveRepositoryDeliveryEntry({ entryMode: "execution" }, interaction);
+      const entry = await inspectActiveRepositoryDeliveryEntry({ entryMode: "execution" }, interaction, invocation);
       if (expected.derivedFrom.kind === "open-task") {
         if (entry.status !== "correction-routing-required"
           || entry.planId !== expected.planId
@@ -2276,7 +2280,7 @@ async function executeDeliveryCommand(
         currentDerivation = expected.derivedFrom;
       } else {
         if (entry.status !== "not-applicable") return { status: "moved" };
-        const records = await new LocalApprovedDispositionRecordStore(publisher).listDispositionRecords();
+        const records = await review().family.ports.dispositions.listDispositionRecords();
         const selection = selectPendingDeliveryReviewFixAuthority({
           workUnitId: state.workUnitId,
           records,
@@ -2314,7 +2318,7 @@ async function executeDeliveryCommand(
         remote: expected.remote,
         entryMode: "integrating",
       },
-      interaction,
+      interaction, { ...internalContext, ...invocation },
     ));
     if (!planned.success || planned.data.route !== "provider-refresh"
       || planned.data.selectedDeliverableId !== expected.selectedDeliverableId
@@ -2339,7 +2343,7 @@ async function executeDeliveryCommand(
     const [planRead, stateRead, active, gitCommonDir] = await Promise.all([
       planStore.readCurrent(expected.planId),
       stateStore.read(expected.planId),
-      resolveActiveWu({ cwd }),
+      resolveActiveWu({ cwd, store: invocation.store, projectId: invocation.projectId }),
       resolveGitCommonDir(exec, cwd),
     ]);
     if (planRead.status !== "ok" || planRead.value === null
@@ -2440,7 +2444,7 @@ async function executeDeliveryCommand(
     const [planRead, stateRead, active, gitCommonDir] = await Promise.all([
       planStore.readCurrent(expected.planId),
       stateStore.read(expected.planId),
-      resolveActiveWu({ cwd }),
+      resolveActiveWu({ cwd, store: invocation.store, projectId: invocation.projectId }),
       resolveGitCommonDir(exec, cwd),
     ]);
     if (planRead.status !== "ok" || planRead.value === null
@@ -2540,7 +2544,7 @@ async function executeDeliveryCommand(
         planId,
         repository: parsed.repository,
         remote: parsed.remote,
-      }, interaction);
+      }, interaction, { ...internalContext, ...invocation });
       const result = z.object({
         status: z.literal("position"),
         position: z.object({ landedPrefix: z.array(DeliveryCanonicalDigestSchema) }),
@@ -2561,12 +2565,12 @@ async function executeDeliveryCommand(
       reviewFixLocusPromise ??= (async () => {
         const [{ settings }, active] = await Promise.all([
           readConfigSettings(cwd),
-          resolveActiveWu({ cwd }),
+          resolveActiveWu({ cwd, store: invocation.store, projectId: invocation.projectId }),
         ]);
         if (active.status === "resolved" && active.name !== "") {
           return { ...active, baseBranch: settings["branch.base"] };
         }
-        const owner = await resolveCandidateMutationOwner({ cwd, exec });
+        const owner = await resolveCandidateMutationOwner({ ...invocation, cwd, exec });
         if (owner.status !== "owned") return null;
         const index = await buildLifecycleIndex({
           cwd,
@@ -2601,6 +2605,7 @@ async function executeDeliveryCommand(
         : resolveTaskListPath(locus.path, meta.taskList);
       if (taskListPath === null) throw new Error("Delivery review-fix task list unavailable");
       return inspectRepositoryDeliveryEntryAt({
+        ...invocation,
         cwd,
         taskListPath,
         request: { workUnitId: SlugSchema.parse(locus.name), entryMode },
@@ -2961,7 +2966,7 @@ async function executeDeliveryCommand(
             remote: parsed.remote,
             entryMode: "integrating",
           },
-          interaction,
+          interaction, { ...internalContext, ...invocation },
         ));
         if (!planned.success) {
           return {
@@ -3220,7 +3225,7 @@ async function executeDeliveryCommand(
         }
         let dispositionRecords;
         try {
-          dispositionRecords = await new LocalApprovedDispositionRecordStore(publisher).listDispositionRecords();
+          dispositionRecords = await review().family.ports.dispositions.listDispositionRecords();
         } catch {
           return { status: "refused", reason: "review-fix-response-unavailable" };
         }
@@ -3250,7 +3255,7 @@ async function executeDeliveryCommand(
       }
       let dispositionRecords;
       try {
-        dispositionRecords = await new LocalApprovedDispositionRecordStore(publisher).listDispositionRecords();
+        dispositionRecords = await review().family.ports.dispositions.listDispositionRecords();
       } catch {
         return { status: "refused", reason: "review-fix-response-unavailable" };
       }
@@ -3317,7 +3322,7 @@ async function executeDeliveryCommand(
           } catch {
             return { status: "refused", reason: "review-fix-response-stale" };
           }
-          const operationRead = await new LocalReviewOperationStateStore(publisher)
+          const operationRead = await review().family.ports.inFlight
             .readOperation(operationReference.operationId);
           const attempts = operationRead.state?.kind === "lane-progress"
             ? operationRead.state.attempts.filter(({ attemptId }) => attemptId === selection.operationId)
@@ -3522,6 +3527,7 @@ async function executeDeliveryCommand(
       if (terminalRebind.status !== "not-required") return terminalRebind;
       try {
         const reviewStatus = await resolveReviewStatusForWorkUnit({
+          ...invocation,
           cwd,
           exec,
           workUnitId: continuation.action.action.workUnitId,
@@ -3536,14 +3542,14 @@ async function executeDeliveryCommand(
             planId: entry.planId,
             repository: parsed.repository,
             remote: parsed.remote,
-          }, interaction);
+          }, interaction, { ...internalContext, ...invocation });
           const parsedPosition = ResultSchema.safeParse(positioned);
           return parsedPosition.success ? parsedPosition.data : invalidServiceResult(positioned);
         }
         if (reviewStatus.nextAction === "respond-to-findings") {
           let records;
           try {
-            records = await new LocalApprovedDispositionRecordStore(publisher).listDispositionRecords();
+            records = await review().family.ports.dispositions.listDispositionRecords();
           } catch {
             return { status: "refused" as const, reason: "review-fix-response-replay-unavailable" };
           }
@@ -3632,7 +3638,7 @@ async function executeDeliveryCommand(
         resolveReviewFixLocus(),
       ]);
       const boundary = locus !== null
-        ? await readSubmissionBoundaryVersioned(cwd, locus.name, { store: reviewRecordStore })
+        ? await readSubmissionBoundaryVersioned(cwd, locus.name, { store: reviewRecordStore, owner: invocation.workItem })
         : { boundary: null, version: null };
       const state = stateRead?.status === "ok" ? stateRead.value : null;
       return {
@@ -3679,7 +3685,7 @@ async function executeDeliveryCommand(
           try {
             const response = await respondToReviewCommand(
               action.input,
-              createRespondDependencies({ exec, cwd }),
+              createRespondDependencies({ ...invocation, exec, cwd }),
             );
             result = { ...response, status: response.state };
           } catch (error) {
@@ -3695,7 +3701,7 @@ async function executeDeliveryCommand(
             commands[action.kind],
             action.input,
             interaction,
-            { settledRecordEffectHead: context.settledRecordEffectHead },
+            { ...invocation, settledRecordEffectHead: context.settledRecordEffectHead },
           );
         }
         if (typeof result !== "object" || result === null || !("status" in result)
@@ -3734,8 +3740,8 @@ async function executeDeliveryCommand(
           return { status: "refused" as const, reason: "boundary-carry-position-moved" };
         }
         const [candidate, boundary] = await Promise.all([
-          readCandidateRecordVersioned(cwd, planRead.value.workUnitId, { store: reviewRecordStore }),
-          readSubmissionBoundaryVersioned(cwd, planRead.value.workUnitId, { store: reviewRecordStore }),
+          readCandidateRecordVersioned(cwd, planRead.value.workUnitId, { store: reviewRecordStore, owner: invocation.workItem }),
+          readSubmissionBoundaryVersioned(cwd, planRead.value.workUnitId, { store: reviewRecordStore, owner: invocation.workItem }),
         ]);
         if (candidate.record === null || boundary.boundary === null) {
           return { status: "refused" as const, reason: "boundary-carry-authority-unavailable" };
@@ -3771,7 +3777,7 @@ async function executeDeliveryCommand(
           candidateSubjectDigest,
         });
         if (carried.status === "refused") return carried;
-        const path = await writeSubmissionBoundary(cwd, carried.boundary, boundary.version, { store: reviewRecordStore });
+        const path = await writeSubmissionBoundary(cwd, carried.boundary, boundary.version, { store: reviewRecordStore, owner: invocation.workItem });
         await exec("git", ["add", "--", path], { cwd });
         await captureExpectedRecordEffects([path]);
         return {
@@ -3836,12 +3842,13 @@ async function executeDeliveryCommand(
       return { status: "refused", reason: "verification-target-mismatch" };
     }
     try {
-      const owner = await resolveCandidateMutationOwner({ cwd, exec });
+      const owner = await resolveCandidateMutationOwner({ ...invocation, cwd, exec });
       if (owner.status !== "owned" || owner.workUnit !== workUnitId) {
         return { status: "refused", reason: "candidate-mutation-unowned" };
       }
       const verifiedAt = new Date().toISOString();
-      const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
+      const dispositionWriter = new LocalApprovedDispositionRecordStore(publisher);
+      const dispositionStore = review().family.ports.dispositions;
       const dispositionRecords = await dispositionStore.listDispositionRecords();
       const validateLocalResponse = async (record: (typeof dispositionRecords)[number]) => {
         const responseMember = record.deliveryMember;
@@ -3853,7 +3860,7 @@ async function executeDeliveryCommand(
         } catch {
           return null;
         }
-        const operation = await new LocalReviewOperationStateStore(publisher)
+        const operation = await review().family.ports.inFlight
           .readOperation(sourceReference.operationId);
         const admission = operation.state?.kind === "local-review"
           ? operation.state.deliveryAdmission
@@ -3966,7 +3973,7 @@ async function executeDeliveryCommand(
           } catch {
             return { status: "refused", reason: "review-fix-response-invalid" };
           }
-          const operation = await new LocalReviewOperationStateStore(publisher)
+          const operation = await review().family.ports.inFlight
             .readOperation(sourceReference.operationId);
           const attempts = operation.state?.kind === "lane-progress"
             ? operation.state.attempts.filter(({ attemptId }) => attemptId === responseRecord.operationId)
@@ -4024,7 +4031,7 @@ async function executeDeliveryCommand(
       const [
         candidate, collectedTarget, unstagedReviewablePaths, actor, boundarySnapshot, committedPredecessorRecord,
       ] = await Promise.all([
-        readCandidateRecordVersioned(cwd, planRead.value.workUnitId, { store: reviewRecordStore }),
+        readCandidateRecordVersioned(cwd, planRead.value.workUnitId, { store: reviewRecordStore, owner: invocation.workItem }),
         collectGitCandidateSubject({
           cwd,
           name: planRead.value.workUnitId,
@@ -4038,7 +4045,7 @@ async function executeDeliveryCommand(
           exec,
         }),
         resolveUserIdentity(exec),
-        readSubmissionBoundaryVersioned(cwd, planRead.value.workUnitId, { store: reviewRecordStore }),
+        readSubmissionBoundaryVersioned(cwd, planRead.value.workUnitId, { store: reviewRecordStore, owner: invocation.workItem }),
         exec("git", ["show", `HEAD:${committedCandidatePath}`], { cwd, objectAccess: "local-only" })
           .then(({ stdout }) => parseCandidateManagedRecord(stdout))
           .catch(() => null),
@@ -4100,7 +4107,7 @@ async function executeDeliveryCommand(
       if (carried.status === "refused") return carried;
 
       if (responseAdvance !== null) {
-        await dispositionStore.appendDispositionRecord(responseAdvance.record);
+        await dispositionWriter.appendDispositionRecord(responseAdvance.record);
       }
       if (localResponseSettlement !== null) {
         await settleLaneAttempt(new LocalReviewOperationStateStore(publisher), {
@@ -4116,7 +4123,7 @@ async function executeDeliveryCommand(
             planRead.value.workUnitId,
             recorded.record,
             candidate.version,
-            { store: reviewRecordStore },
+            { store: reviewRecordStore, owner: invocation.workItem },
           )
         : resolveCandidateRecordRelativePath(planRead.value.workUnitId);
       await exec("git", ["add", "--", recordPath], { cwd });
@@ -4134,7 +4141,7 @@ async function executeDeliveryCommand(
         cwd,
         carried.boundary,
         boundarySnapshot.version,
-        { store: reviewRecordStore },
+        { store: reviewRecordStore, owner: invocation.workItem },
       );
       await exec("git", ["add", "--", boundaryPath], { cwd });
       const recordEffects = await readExpectedRecordEffects([recordPath, boundaryPath]);
@@ -4316,7 +4323,7 @@ async function executeDeliveryCommand(
     inspectCheckout: (path: string) => inspectDeliveryCandidateCheckout(exec, path),
   };
   const resolveOriginatingTopRef = async (plan: z.infer<typeof DeliveryPlanV1Schema>): Promise<string | null> => {
-    const active = await resolveActiveWu({ cwd });
+    const active = await resolveActiveWu({ cwd, store: invocation.store, projectId: invocation.projectId });
     if (active.status !== "resolved" || active.name !== plan.workUnitId || active.branch === null) return null;
     return `refs/heads/${active.branch}`;
   };
@@ -4325,7 +4332,7 @@ async function executeDeliveryCommand(
     protectedBaseRef: string,
     topRef: string,
   ): Promise<readonly string[] | null> => {
-    const active = await resolveActiveWu({ cwd });
+    const active = await resolveActiveWu({ cwd, store: invocation.store, projectId: invocation.projectId });
     if (active.status !== "resolved" || active.name !== plan.workUnitId) return null;
     try {
       const paths = await new CurrentDeliveryLifecycleContributionPathSource({
@@ -4684,7 +4691,7 @@ async function executeDeliveryCommand(
     }
     const [gitCommonDir, active] = await Promise.all([
       resolveGitCommonDir(exec, cwd),
-      resolveActiveWu({ cwd }),
+      resolveActiveWu({ cwd, store: invocation.store, projectId: invocation.projectId }),
     ]);
     const locatorResult = deriveDeliveryResidueLocators(plan, gitCommonDir);
     const locator = locatorResult.status === "derived"
@@ -5261,7 +5268,7 @@ async function executeDeliveryCommand(
     const current = stateRead.value;
     const host = new GhDeliveryHostPort(hostedGhRunner);
     if (command === "native-land-prepare") {
-      const reviewStatus = createReviewStatusPort({ cwd, exec });
+      const reviewStatus = createReviewStatusPort({ ...invocation, cwd, exec });
       const prepare = NativePrepareSchema.parse(parsed);
       const expectedChain = deriveNativeDeliveryMemberChain({
         state: current.value,
@@ -5308,7 +5315,7 @@ async function executeDeliveryCommand(
         const expected = expectedChain.members.find((candidate) => candidate.headRef === target.headRef
           && candidate.headSha === target.headSha);
         if (expected === undefined) throw new Error("selected native landing member is unavailable");
-        return createReviewStatusPort({ cwd, exec }, {
+        return createReviewStatusPort({ ...invocation, cwd, exec }, {
           target,
           pullRequest: Number(expected.changeRequestId),
           routedObligation,
@@ -5347,6 +5354,7 @@ async function executeDeliveryCommand(
       const submit = NativeSubmitSchema.parse(parsed);
       const operation = current.value.activeOperation;
       const reviewStatusInput = {
+        ...invocation,
         cwd,
         exec,
         preparedNativeLanding: {
@@ -5710,7 +5718,7 @@ async function executeDeliveryCommand(
     const host = new GhDeliveryHostPort(hostedGhRunner);
     const treeRoot = parsed.treeRoot;
     const memberLookup = new RepositoryDeliveryMemberLookup({ exec, cwd });
-    const reviewStatus = createReviewStatusPort({ cwd, exec });
+    const reviewStatus = createReviewStatusPort({ ...invocation, cwd, exec });
     const readiness = {
       assess: async (input: {
         planId: string; deliverableId: string; workUnitId: string; repository: string;
@@ -5886,8 +5894,8 @@ async function executeDeliveryCommand(
       }
       try {
         const [record, boundary] = await Promise.all([
-          readCandidateRecord(cwd, currentPlan.workUnitId, { store: reviewRecordStore }),
-          readSubmissionBoundary(cwd, currentPlan.workUnitId, { store: reviewRecordStore }),
+          readCandidateRecord(cwd, currentPlan.workUnitId, { store: reviewRecordStore, owner: invocation.workItem }),
+          readSubmissionBoundary(cwd, currentPlan.workUnitId, { store: reviewRecordStore, owner: invocation.workItem }),
         ]);
         if (record === null || boundary === null) {
           return await reconcileDeliveryExecution({
@@ -6469,7 +6477,7 @@ async function executeDeliveryCommand(
           ...eligibilityDeps,
           resolveOriginatingTopRef,
           resolveLifecyclePaths: async (plan) => {
-            const active = await resolveActiveWu({ cwd });
+            const active = await resolveActiveWu({ cwd, store: invocation.store, projectId: invocation.projectId });
             if (active.status !== "resolved" || active.name !== plan.workUnitId) return null;
             try {
               const paths = await new CurrentDeliveryLifecycleContributionPathSource({

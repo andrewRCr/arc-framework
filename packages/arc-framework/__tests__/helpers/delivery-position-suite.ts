@@ -426,7 +426,8 @@ type ActiveOperationScenario =
   | "selected-change-terminal-authoring-before"
   | "selected-change-terminal-authoring-applied";
 
-async function positionFixture(
+/** Produce an initialized repository with canonical delivery plan and execution state. */
+export async function positionFixture(
   activeOperation?: ActiveOperationScenario,
   options: { reviewChunkingThresholdLines?: number; memberTwoLineCount?: number } = {},
 ) {
