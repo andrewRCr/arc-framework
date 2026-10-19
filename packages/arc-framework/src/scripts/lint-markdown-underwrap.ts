@@ -50,6 +50,23 @@ interface UnderwrapInputs {
   readonly readBlob: ReadIndexedBlob;
 }
 
+async function readUnderwrapBytes(options: UnderwrapInputs, path: string, automatic: boolean): Promise<Uint8Array | null> {
+  const worktreePath = join(options.root, ...path.split("/"));
+  const bytes = options.worktree ? await readFile(worktreePath) : await options.readBlob(options.root, path);
+  if (bytes === null) {
+    if (automatic) return null;
+    throw new ArcError(`Indexed Markdown blob is missing: ${path}`, "markdown.index-blob-missing");
+  }
+  if (!automatic && !options.worktree) {
+    const worktreeBytes = await readFile(worktreePath);
+    if (!worktreeBytes.equals(bytes)) {
+      throw new ArcError(`Markdown worktree/index drift: ${path}. Re-stage the file to check its indexed bytes, ` +
+        "or use --worktree to check the edited file without certifying the Git index.", "markdown.worktree-index-drift");
+    }
+  }
+  return bytes;
+}
+
 async function readUnderwrapStrings(options: UnderwrapInputs): Promise<Record<string, string>> {
   const automatic = options.paths.length === 0;
   const paths = automatic
@@ -65,9 +82,8 @@ async function readUnderwrapStrings(options: UnderwrapInputs): Promise<Record<st
   }
   const strings: Record<string, string> = {};
   for (const path of paths) {
-    const bytes = options.worktree ? await readFile(join(options.root, ...path.split("/"))) : await options.readBlob(options.root, path);
-    if (bytes === null && automatic) continue;
-    if (bytes === null) throw new ArcError(`Indexed Markdown blob is missing: ${path}`, "markdown.index-blob-missing");
+    const bytes = await readUnderwrapBytes(options, path, automatic);
+    if (bytes === null) continue;
     strings[path] = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   }
   return strings;

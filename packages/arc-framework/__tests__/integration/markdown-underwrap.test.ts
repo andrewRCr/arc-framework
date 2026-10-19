@@ -49,15 +49,23 @@ afterEach(async () => {
 });
 
 describe("changed indexed Markdown under-wrap check", () => {
-  it.each([true, false])("certifies index bytes when worktree content disagrees (badIndex=%s)", async badIndex => {
+  it.each([true, false])("refuses explicit index feedback when worktree content disagrees (badIndex=%s)", async badIndex => {
     await write("guide.md", badIndex ? bad : good);
     await git("git", ["add", "guide.md"], { cwd: root });
     await write("guide.md", badIndex ? good : bad);
     const before = (await git("git", ["write-tree"], { cwd: root })).stdout;
-    expect(await main(root, ["guide.md"])).toBe(badIndex ? 1 : 0);
-    expect(messages.join("")).toBe(badIndex ? "guide.md:1 ARC001 Line is 17 columns; the next word fits within 120.\n" : "");
+    expect(await main(root, ["guide.md"])).toBe(1);
+    expect(messages.join("")).toContain("Markdown worktree/index drift: guide.md");
+    expect(messages.join("")).toContain("--worktree");
+    expect(messages.join("")).toContain("Re-stage");
+    expect(messages.join("")).not.toContain("ARC001");
     expect((await git("git", ["write-tree"], { cwd: root })).stdout).toBe(before);
     expect(await readFile(join(root, "guide.md"), "utf8")).toBe(badIndex ? good : bad);
+
+    await git("git", ["add", "guide.md"], { cwd: root });
+    messages = [];
+    expect(await main(root, ["guide.md"])).toBe(badIndex ? 0 : 1);
+    expect(messages.join("").includes("guide.md:1 ARC001")).toBe(!badIndex);
   });
 
   it.each([true, false])("checks an untracked planning artifact from disk (underwrapped=%s)", async underwrapped => {
