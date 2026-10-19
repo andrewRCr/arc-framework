@@ -203,7 +203,7 @@ export async function handleRecoverStatus(context: SessionStatusContext, opts: S
       dirty: () => runDirtyStateStatus({ exec }),
       exec,
       execInput: requireGitExecInput(io.execInput),
-      readFile: io.readFile, store: context.store,
+      readFile: io.readFile, store: context.store, sync: context.storeSync,
     }),
     workingMemoryPath: identity === null ? null : (await userSurfacesFor(identity)).workingMemoryPath,
   });

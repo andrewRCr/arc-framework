@@ -90,6 +90,8 @@ export async function openOrdinaryErrandAtRuntimeWithDisposition(
     dependencies: {
       readFrame: () => runDerivedLocusStateProbe({
         cwd: options.cwd,
+        store: options.store,
+        projectId: options.projectId,
         identity: options.identity,
         baseBranch: options.base,
         exec: options.exec,

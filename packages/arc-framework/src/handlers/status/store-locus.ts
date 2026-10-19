@@ -15,6 +15,7 @@ export interface StoreLifecycleStatusPorts {
 /** Refresh Store state before acquiring the lifecycle and checkout facts to render. */
 export async function pullStoreStatus(ports: StoreLifecycleStatusPorts = {}): Promise<string[]> {
   const pull = await (ports.sync ?? createStoreSyncPort()).pull();
+  if (pull.status === "designation-needed") return [`State remote ${pull.remote} needs a role (${pull.choices.join(", ")}). ${pull.remedy.text} ${pull.remedy.argv.join(" ")}`];
   return pull.status === "unreachable" ? [`${pull.condition} ${pull.remedy.text} Query derived from local refs only.`] : [];
 }
 /** Keep a failed holder observation visible in the path field rather than fabricating absence. */

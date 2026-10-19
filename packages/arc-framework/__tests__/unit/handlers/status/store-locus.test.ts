@@ -95,3 +95,23 @@ it("retains local status without invoking the pull port when fetch is absent", a
   });
   expect(JSON.parse(String(output.mock.calls[0]?.[0]))).toMatchObject({ owner: "alice", state: "active" });
 });
+
+
+it("retains remote designation choices and command in fetched status, then refreshes after designation", async () => {
+  const h = createLifecycleHarness(); await h.seedMeta("demo");
+  const output = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+  let designated = false;
+  const ports = { findHoldingCheckout: async () => null, readInFlightWarnings: async () => [],
+    sync: createStoreSyncPort({ pull: async () => designated ? { status: "pulled" } : {
+      status: "designation-needed", remote: "backup", choices: ["state", "code-and-state"],
+      remedy: { text: "Choose the state role.", argv: ["arc", "store", "remote", "backup", "state"] },
+    } }) };
+  const query = async () => {
+    output.mockClear();
+    await handleLifecycleStatus("/current", async () => { throw new Error("Unexpected Git"); }, "demo", { json: true, fetch: true }, h.store, ports);
+    return JSON.parse(String(output.mock.calls[0]?.[0])) as { warnings: string[] };
+  };
+  expect((await query()).warnings).toEqual([expect.stringMatching(/backup.*state, code-and-state.*Choose the state role.*arc store remote backup state/u)]);
+  designated = true;
+  expect((await query()).warnings ?? []).toEqual([]);
+});

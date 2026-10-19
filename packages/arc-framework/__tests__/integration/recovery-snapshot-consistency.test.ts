@@ -17,6 +17,9 @@ import { ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs, writeWorktreeM
 import { CompactionSeedSchema } from "../../src/lib/compaction-seed/schema.js";
 import { RecoverAuditReportSchema } from "../../src/lib/recover/report.js";
 import { resolveTaskListCursor } from "../../src/lib/task-list/cursor.js";
+import { handleRecoverStatus } from "../../src/handlers/status/session.js";
+import { createRawGitExec } from "../../src/lib/io-context.js";
+import { createSessionStatusContext } from "../../src/handlers/status/session-context.js";
 import { createRecoverStatusProbes } from "../../src/handlers/recover-probes.js";
 import { HistoryRefSchema } from "../../src/lib/store/refusal.js";
 import { createStoreSyncPort } from "../../src/lib/store/operational-sync.js";
@@ -100,4 +103,25 @@ it.each([true, false])("preserves strict snapshot acquisition and named-history 
   expect(frame.entering).toMatchObject({ kind: "selected", row: { context: { taskCursor: resolveTaskListCursor(before) } } });
   expect(await retry.stateVersion("test-user")).toBe(lifecycleSuccess(await version()));
   expect(pulled).toEqual([refs]);
+}, 30_000);
+
+
+it.each([true, false])("uses the selected history port through recovery status, repaired=%s", async repaired => {
+  const h = await fixture(), version = h.store.version.bind(h.store);
+  const refs = [HistoryRefSchema.parse(`refs/arc/history/work/${randomUUID()}`)];
+  let available = false;
+  const pulls: (readonly string[])[] = [];
+  h.store.version = async () => available ? version() : { status: "refused", refusal: { code: "state-unresolvable", class: "recoverable", historyRefs: refs,
+    condition: "Status snapshot is unavailable.", remedy: { text: "Restore the named history refs." } } };
+  const sync = createStoreSyncPort({ pull: async selected => { pulls.push(selected ?? []); available = repaired; return { status: "pulled" }; } });
+  const exec: typeof h.input.exec = (command, args, options) => h.input.exec(command, args, { ...options, cwd: options?.cwd ?? h.cwd });
+  const context = await createSessionStatusContext(h.cwd, exec, createRawGitExec(h.cwd), createRawGitExec(h.cwd), undefined, { store: h.store, sync });
+  let output = "";
+  const stdout = vi.spyOn(process.stdout, "write").mockImplementation(chunk => { output += String(chunk); return true; });
+  try {
+    await handleRecoverStatus(context, { json: true });
+    expect(pulls).toEqual([refs]);
+    if (repaired) expect(JSON.parse(output).derivedLocusState).toMatchObject({ ok: true });
+    else expect(output).toContain("Status snapshot is unavailable");
+  } finally { stdout.mockRestore(); }
 }, 30_000);
