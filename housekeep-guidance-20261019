@@ -3,14 +3,20 @@
   "slug": "housekeep-guidance-20261019",
   "claimId": "2ceb6551904ee0314d0161a398a9c399",
   "createdAt": "2026-10-19T16:07:19.131Z",
-  "updatedAt": "2026-10-19T16:07:19.131Z",
+  "updatedAt": "2026-10-19T16:32:14.882Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Route the approved guidance and tooling captures into backlog drafts and mint the two provisional design stubs.",
   "branch": "chore/housekeep-guidance-20261019",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/housekeep-guidance-20261019",
+    "headSha": "a3718d4d1b44028bf1865bf531d73c1e6a86a9f2"
+  }
 }
