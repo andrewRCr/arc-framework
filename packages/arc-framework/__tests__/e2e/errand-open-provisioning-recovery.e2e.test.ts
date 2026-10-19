@@ -49,7 +49,7 @@ it.runIf(process.platform !== "win32")("recovers the same clean claim after its 
     await git(["remote", "add", "origin", remote]);
     await git(["push", "-u", "origin", "main"]);
 
-    const args = ["errand", "open", "recover-setup", "--isolate", "--json"];
+    const args = ["errand", "open", "recover-setup", "--type", "fix", "--isolate", "--json"];
     const interrupted = await runArcAnchored(args, primary);
     expect(interrupted.exitCode, interrupted.stdout + interrupted.stderr).not.toBe(0);
     await access(interruptedPath);
@@ -63,7 +63,7 @@ it.runIf(process.platform !== "win32")("recovers the same clean claim after its 
         kind: string; checkout: { path: string; branch: string }; diagnostics: Array<{ message: string }>;
       }> } };
     };
-    const stranded = before.derivedLocusState.value.roster.find((row) => row.checkout.branch === "chore/recover-setup");
+    const stranded = before.derivedLocusState.value.roster.find((row) => row.checkout.branch === "fix/recover-setup");
     expect(stranded).toMatchObject({ kind: "unresolved-checkout" });
     if (stranded === undefined) throw new Error("Missing interrupted checkout");
     spawned = stranded.checkout.path;

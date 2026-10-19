@@ -799,6 +799,7 @@ errand
 errand
   .command("open <slug>")
   .description("Open an errand in the free primary or a provisioned transient worktree")
+  .option("--type <type>", "Errand branch nature-type: fix, chore, refactor, or hotfix (default: chore)")
   .option("--intent <text>", "Free-text statement of the errand's concern (default: the slug)")
   .option("--from-inbox <entry-title>", "Adopt an inbox capture as the errand concern")
   .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")

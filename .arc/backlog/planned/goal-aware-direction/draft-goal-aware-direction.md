@@ -149,6 +149,32 @@
 - _Drain note:_ a stub cannot be paused (`spec-seam-lifecycle.md` § 8.1), so a hold on a stub stays something other
   than a pause.
 
+### `[ ]` **Give the vector shape a place for gate-qualified edges, apart from sequencing intents**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ VECTOR.USER and recommender Inputs: typed gate-qualified edges versus personal sequencing intents
+
+- _Observation:_ the steering map's 2026-10-15 refresh, run as the vector trial, added a Stage 2 "Orderings" block that
+  mixes hard edges' gate points — when each dependency holds: activation, a named task, or landing — with the Owner's
+  sequencing intents. The vector shape had no slot for the first, so the map restated it in prose, which is the drift
+  the trial avoids elsewhere. The gate points are now `work-item-relations`' concern; the intents stay `VECTOR.USER`'s.
+- _Approach:_ keep intents in `VECTOR.USER` and read gate points from typed edges once `work-item-relations` lands;
+  until then, name the misfit at the steering map's next refresh.
+- _Captured during:_ the 2026-10-15 housekeep session, the dependency-model discussion.
+
+### `[ ]` **Take the recommender's inputs from lifecycle's typed view, not the project composition or `--json` facts**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Recommender Inputs: lifecycle typed view replaces retired readiness composition
+
+- _Observation:_ `resolveProjectReadinessComposition` (`lib/status/project-view.ts`) stays in-repo and leaves at the
+  storage cutover; from the flip `arc status --project` acquires from lifecycle's typed view (`readLifecycleView`,
+  `lib/store/lifecycle-index.ts`), which returns each meta's parsed owner, cohort, dependencies, priority, `Class`, and
+  pause with its placement. The `arc status --project --json` facts (`ProjectReadinessFact`) carry no priority, cohort,
+  `Depends On`, `Class`, or pause, so they cannot feed the recommender (`draft-seam-status-roadmap.md` § Coordination).
+
+- _Captured during:_ `seam-status-roadmap` draft-design close, 2026-10-16.
+
 ---
 
 ## Problem / Motivation

@@ -32,6 +32,7 @@ import type {
 import type { ChangeRequestLifecycleEvidence } from "./change-request-lifecycle.js";
 import type { ErrandInboxOrigin } from "./inbox-origin.js";
 import type { ErrandErrorCode, ErrandRefusalReason } from "./result-common.js";
+import { DEFAULT_ERRAND_BRANCH_TYPE, type ErrandBranchType } from "./branch-type.js";
 
 /** Accepted slug format and retry guidance shared by core and CLI input refusals. */
 export const ERRAND_SLUG_INPUT_REMEDY = "Choose a valid, non-empty slug of lowercase alphanumeric segments joined by hyphens "
@@ -90,6 +91,8 @@ export interface OpenOrdinaryErrandDependencies {
 /** Complete ordinary Errand open request, independent of CLI rendering. */
 export interface OpenOrdinaryErrandOptions {
   slug: string;
+  /** Select a new branch's nature; omission on re-entry preserves the recorded branch. */
+  type?: ErrandBranchType;
   intent?: string;
   inbox?: ErrandInboxOrigin | null;
   protection: "full" | "partial";
@@ -126,7 +129,7 @@ export async function openOrdinaryErrand(
   const parent = warmWorkUnitParent(frame);
   if (parent.kind === "refused") return openRefusal(parent.reason, parent.message);
 
-  const branch = options.protection === "full" ? `chore/${slug}` : null;
+  const branch = options.protection === "full" ? `${options.type ?? DEFAULT_ERRAND_BRANCH_TYPE}/${slug}` : null;
   let record: OrdinaryErrandRecord | null = null;
   let previousRecord: OrdinaryErrandRecord | null = null;
   let expectedBranchHead: string | null = null;
@@ -151,6 +154,7 @@ export async function openOrdinaryErrand(
         options.intent,
         originEntry,
         originEntrySourceDigest,
+        options.type,
       );
       if (continuity !== null) return openRefusal("identity-conflict", continuity);
       if (existing.state === "open") {
@@ -270,7 +274,7 @@ export async function openOrdinaryErrand(
             : { originEntry, originEntrySourceDigest }),
         },
       } : {}),
-      branch,
+      branch: record?.branch ?? branch,
       expectedBranchHead,
       base: options.base,
       locationTemplate: options.locationTemplate,
@@ -388,7 +392,12 @@ function validateResumeContinuity(
   intent: string | undefined,
   originEntry: string | null,
   originEntrySourceDigest: ErrandInboxOrigin["sourceDigest"] | null,
+  type: ErrandBranchType | undefined,
 ): string | null {
+  if (type !== undefined && record.branch !== `${type}/${record.slug}`) {
+    return resumeContinuityRefusal("Resume cannot change the Errand branch type. Recorded branch: ", record.branch,
+      ". Rerun without --type to resume with the recorded branch.");
+  }
   const requestedIntent = intent?.trim();
   if (requestedIntent !== undefined && requestedIntent !== "" && requestedIntent !== record.intent) {
     return resumeContinuityRefusal(

@@ -472,6 +472,32 @@
   Integrate only the remaining scope: let the integration approval authorize the necessary host-review settlement
   after Owner acceptance, covering the Errand vehicle as well as work units.
 
+### `[ ]` **Decide whether the operator selection override takes the Owner past a delta check**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Operator Selection Override: whether skip/prefer lift mandatory local delta-check admission
+
+- _Observation:_ `review-coverage-cadence`'s spec adds a delta check: after a converged look, a plain commit (one that
+  answers no finding) takes an incremental local look on `delegated-agent`, whose range Git proves. While one is
+  admissible, the next pass runs on `delegated-agent` with no exception, and the driver refuses a forced hosted source
+  with a remedy naming the delta check. The Owner's other outcomes come in a fixed order: a local complete pass at once,
+  by complete coverage in local prepare's request, or a hosted complete pass after the delta check (by rank under
+  `full-final`, by an additional pass under `incremental`, on an Errand and in pre-publication). An Owner lift of the
+  limit was weighed and withdrawn there, because carrying the choice to every composition that applies it (Errand
+  status, both branches of hosted request admission, the singleton's discharge and its re-read) would need a stored
+  choice. This unit's planned `selectionOverride` on the policy request is that stored choice. That spec reads the delta
+  check's admissibility from the configured list, which a one-request `skip` leaves unchanged, so as written a `skip` of
+  `delegated-agent` leaves the delta check admissible and meets the override's empty-order stop. Whether a `skip` or a
+  `prefer` should take the Owner past the delta check is this unit's decision.
+
+- _Approach:_ when grooming § Operator Selection Override, decide whether `skip` and `prefer` narrow only the configured
+  order (leaving the delta check's limit in place, so a `skip` of `delegated-agent` stops) or also lift it, and if they
+  lift it, carry the override to every composition that applies the limit.
+
+- _Captured during:_ `review-coverage-cadence` create-spec, second adversarial pass, fix-check round 4 (2026-10-17).
+
+---
+
 ## Operator Selection Override
 
 Mirror the existing ceiling override rather than inventing a shape. `src/scripts/review-gate/policy/review-policy-driver.ts`

@@ -8,6 +8,52 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending integration by this work unit’s owner._
+
+### `[ ]` **Account for `codex queue` holding a message silently until the target's turn ends, with no withdraw**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Native ingress: queued versus delivered status and duplicate prevention
+
+- _Observation:_ First field use, 2026-10-16, on codex-cli 0.163.0. `codex queue --thread "process-task-loop.SRB"
+  --message ...` printed `Queued message <id> for thread <uuid>` and exited 0, resolving the name to the one session
+  carrying it (`~/.codex/session_index.jsonl`). The message then sat in `~/.codex/queue_1.sqlite` (`queued_items`) while
+  the target was mid-turn, its rollout still being written; the target's log did not contain it and its pane showed
+  nothing, so the sender read success and the receiver saw no sign. Delivery waits for the target's turn to end: asked
+  to pause, the target took the message at once. That fits the draft's "wakes an idle session" but leaves a busy
+  session's wait unbounded and invisible. `codex queue` offers only `--thread` and `--message`, with no list or
+  withdraw, so pasting the text by hand as well delivers it twice. How the delivered turn is framed to the model stays
+  unverified.
+
+- _Approach:_ the bridge reports a queued message as pending, not delivered, reading `queued_items` or the target's
+  rollout to confirm delivery, and offers no hand-paste fallback while a queued copy is pending, or names the duplicate.
+
+- _Captured during:_ `seam-decomposition` create-spec, relaying a review finding to `storage-ref-backend`'s Codex
+  session, 2026-10-16.
+
+### `[ ]` **Plan for routing as the bridge's first consumer: messages to a live work unit's session by slug**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Delivery by target and Envelope: slug addressing, advisory session presence, and delivery record
+
+- _Observation:_ discovered-work routing now sends a concern for a live work unit (one with a registered checkout) to
+  that unit's session by message, within its scope window from `arc status <slug>`. It names no transport: it uses the
+  harness's session messaging where there is one, and otherwise gives the Owner the message to relay. It sends without
+  asking only where the two sessions already have a conversation. Three needs fall on the bridge: addressing a session
+  by work-unit slug; knowing whether a session is actually present in a checkout, since a checkout usually but not
+  always has one; and a delivery record, since today a message goes in place of an inbox capture and the Owner holds its
+  delivery once it is sent or handed over for relay.
+
+- _Approach:_ treat routing as the first consumer when grooming delivery and the envelope. Slug addressing and the
+  advisory live status answer the first two needs, and the bridge's machine-local inbox could give a sent message the
+  delivery record it lacks. Keep the consent rule outside the transport, as the gate doctrine is.
+
+- _Captured during:_ Errand `route-live-wu-concerns` (PR #1035), 2026-10-17.
+
+---
+
 ## Problem / Motivation
 
 Claude Code (`ListAgents` / `SendMessage`, 2.1.224+) and Codex (`codex queue`, 0.149+) each message their own

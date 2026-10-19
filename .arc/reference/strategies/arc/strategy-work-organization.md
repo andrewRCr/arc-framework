@@ -1337,9 +1337,10 @@ The cheap-branch mechanism lands an Errand without WU machinery. Behavior depend
 
 - **Partially protected:** an Errand commits directly to the base branch (the documented off-WU-maintenance
   path).
-- **Fully protected:** an Errand uses a short-lived ephemeral branch with a `chore`-type prefix (per
-  [`branch-format`][branch-format-method]) plus a PR. The branch exists only long enough for review and
-  merge, then is torn down. It is not a planning branch, carries no meta, and never enters lifecycle.
+- **Fully protected:** an Errand uses a short-lived ephemeral branch plus a PR. `arc errand open --type <type>` selects
+  `fix`, `chore`, `refactor`, or `hotfix` for the work's nature, defaulting to `chore`; the identity record determines
+  that it is an Errand. The branch exists only long enough for review and merge, then is torn down. It is not a planning
+  branch, carries no meta, and never enters lifecycle.
 
 Either way, the work is tracked by its commit's `standalone (...)` context footer (vocabulary:
 `maintenance | planning | documentation | refactor`; see [`commit-footer`][commit-footer-method]) rather than

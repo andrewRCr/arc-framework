@@ -661,12 +661,12 @@ describe("arc errand open", () => {
     await cleanupTempDir(tmpDir);
   });
 
-  it("exposes JSON output without retaining the legacy nature-type option", async () => {
+  it("exposes JSON output and branch-type selection", async () => {
     const result = await runArc(["errand", "open", "--help"], tmpDir);
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("--json");
-    expect(result.stdout).not.toContain("--type");
+    expect(result.stdout).toContain("--type <type>");
   });
 
   it("redirects a nested Errand open through the active Errand's leave boundary", async () => {
@@ -873,7 +873,7 @@ describe("arc errand open", () => {
     }
   });
 
-  it("rejects the removed legacy nature-type option before mutation", async () => {
+  it("rejects unsupported branch types before mutation", async () => {
     await setFullProtection(tmpDir);
 
     const result = await runArc(["errand", "open", "new-thing", "--type", "feat"], tmpDir);
