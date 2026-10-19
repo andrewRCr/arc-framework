@@ -3,6 +3,8 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
+import { resolveCandidateRecordRelativePath } from "../store/kinds/review/paths.js";
+
 import { digestBytes, type CanonicalDigest } from "../kernel/canonical/canonical-json.js";
 import { atomicWriteFile } from "../fs.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
@@ -16,6 +18,8 @@ import {
   type CandidateSupersessionAncestor,
   type CandidateManagedRecordV1,
 } from "./candidate-attestation.js";
+
+export { resolveCandidateRecordRelativePath };
 
 export const CANDIDATE_RECORD_NAMESPACE = ".arc/system/.internal/candidates";
 
@@ -41,11 +45,6 @@ export class CandidateRecordVersionConflictError extends Error {
     super("Candidate record changed after it was read");
     this.name = "CandidateRecordVersionConflictError";
   }
-}
-
-/** Resolve a Candidate record's repository-relative path. */
-export function resolveCandidateRecordRelativePath(name: string): string {
-  return `${CANDIDATE_RECORD_NAMESPACE}/${SlugSchema.parse(name)}.json`;
 }
 
 /** Read and validate one Candidate record, or return null when absent. */

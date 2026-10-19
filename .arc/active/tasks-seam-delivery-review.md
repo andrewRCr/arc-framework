@@ -249,13 +249,10 @@ retires.
   checkout's store with today's names and parameters, and the history's in-repo arm today's plain path-log walk, so no
   caller imports either store.
 
-    - `[ ]` **2.3.a The path resolvers**
+    - `[x]` **2.3.a The path resolvers**
 
-        - `resolveCandidateRecordRelativePath` and `resolveSubmissionBoundaryPath` move, built on the layout's
-          `candidate-record` and `integration-boundary-record` addresses (`resolveArcPath`, `lib/layout/projection.ts`)
-          in place of their hand-built paths; the stores re-export them.
-        - Build `test-first` (one behavior at a time):
-            - each resolver returns the literal path today's store builds for a named work unit's record
+        - Moved both pure resolvers to `lib/store/kinds/review/paths.ts`, using the layout's Candidate and boundary
+          addresses. The filesystem adapters re-export them, preserving their established paths and slug validation.
 
     - `[ ]` **2.3.b The typed access**
 

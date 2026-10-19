@@ -15,3 +15,5 @@ Each kind owns its content schema, codec, storage identity, and any checks that 
 `index.ts` exposes schemas, codecs, identities, and derivations. Kind-owned registrations stay private to the store
 and join its complete production list. The repository adapter uses a separate registration list and defers its
 existing Candidate and boundary codecs until those records are read or written.
+
+`paths.ts` resolves Candidate and boundary record paths through the semantic layout addresses.
