@@ -36,3 +36,7 @@ Wrong-shape continuations carry the supplied map operand unchanged; stale and un
 `check-names.ts` checks member and newly created cohort names across live work items, former slugs, cohort documents,
 and the map itself. It retains complete cohort observations for topology and Purpose checks, distinguishing reused open
 documents from new ones and the completed-cohort exception for member names.
+
+`check-homes.ts` resolves existing homes to open work units and applies allocation rights from active placement and
+operator ownership. It retains canonical metadata identities while leaving target content and locator resolution to
+the terminal batch; started meta and task-list allocations and document homes receive specific repairs.

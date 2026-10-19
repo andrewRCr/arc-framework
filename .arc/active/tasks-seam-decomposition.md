@@ -202,20 +202,12 @@ row to the tasks that build it.
         - Full-path cohort observations distinguish reused open documents from new documents, including subcohort
           parents; unreadable inventory preserves its repair instead of implying availability.
 
-    - `[ ]` **2.4.c Allocations and homes — § 7**
+    - `[x]` **2.4.c Allocations and homes — § 7**
 
-        - A home resolves through `lookup` to an open work unit; one resolving to nothing, to a completed work unit, or
-          to an Errand refuses, naming another destination.
-        - A home is started when placed active, and another person's when its `Owner` differs from the operator's
-          identity, as materialization reads ownership (`ownedInFlight`, `verbs/materialize-store.ts`).
-        - An allocation into a started home's meta or task list refuses, naming its draft, spec, or notes; one into any
-          file of a home another person has started refuses, naming an inbound entry to route it; another person's
-          stub takes allocations. A home's other companions follow its draft's and spec's rule.
-        - A `document` home refuses, naming a work item or member for the content.
-        - Target locators resolve only at the terminal batch (task 3.3), since authoring writes the content they name.
-        - Build `test-first` (one behavior at a time):
-            - each refusal fires, and the checks pass after its remedy
-            - an allocation into another person's stub passes
+        - `checkDecomposeHomes` resolves current or former home slugs to open work units, retaining canonical primary
+          records and started/ownership facts. Missing, completed, Errand, and document destinations name another home.
+        - Allocation rights protect started meta and task lists and all files another person has started. Owned prose,
+          companions, and another person's stub pass before target authoring; store failures retain their full repair.
 
     - `[ ]` **2.4.d The map's conservation and topology — § 13**
 
