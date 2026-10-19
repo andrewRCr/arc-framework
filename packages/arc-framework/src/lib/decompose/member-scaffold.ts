@@ -30,7 +30,7 @@ export interface DecomposeMemberScaffolds { members: readonly DecomposeMemberSca
 
 /** Prepare member seeds and copied planning artifacts without applying writes. */
 export function planDecomposeMembers(ctx: DecomposeContext, map: CutMap, acquired: DecomposeOriginRecords,
-  topology: DecomposeTopology, dependencies: DecomposeDependencyProjection): DecomposeResult<DecomposeMemberScaffolds> {
+  topology: DecomposeTopology, dependencies: DecomposeDependencyProjection, createdSlugs?: ReadonlySet<string>): DecomposeResult<DecomposeMemberScaffolds> {
   const fields = readLifecycleMetaFields(acquired.primary);
   if (fields.status === "refused") return decomposeStoreRefusal(fields.refusal);
   const invalid = checkDecomposeScaffoldSource(acquired, fields.result, map.machine.planningProfile);
@@ -41,7 +41,7 @@ export function planDecomposeMembers(ctx: DecomposeContext, map: CutMap, acquire
     origin: fields.result.origin };
   const members: DecomposeMemberScaffold[] = [], writes: Mutation[] = [];
   for (const destination of map.authoring.destinations) {
-    if (destination.kind !== "new-member") continue;
+    if (destination.kind !== "new-member" || createdSlugs !== undefined && !createdSlugs.has(destination.slug)) continue;
     const planned = scaffoldMember(ctx, map, acquired, destination, topology, dependencies, inherited);
     if (planned.status === "refused") return planned;
     members.push(planned.result.member);

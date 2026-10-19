@@ -26,8 +26,8 @@ export interface DecomposeSlugSettlementPlan {
 
 /** Plan only resolvable stub edges, leaving held, started, and ambiguous edges for the store's slug guard. */
 export async function planDecomposeSlugSettlements(ctx: DecomposeContext, map: CutMap,
-  acquired: DecomposeOriginRecords, records: readonly StoreRecord[] = []): Promise<DecomposeResult<DecomposeSlugSettlementPlan>> {
-  const slugs = new Set(map.authoring.destinations.flatMap(destination => destination.kind === "new-member" ? [destination.slug] : []));
+  acquired: DecomposeOriginRecords, records: readonly StoreRecord[] = [], createdSlugs?: ReadonlySet<string>): Promise<DecomposeResult<DecomposeSlugSettlementPlan>> {
+  const slugs = createdSlugs ?? new Set(map.authoring.destinations.flatMap(destination => destination.kind === "new-member" ? [destination.slug] : []));
   const settlements: DecomposeSlugSettlement[] = [], guards: StoreRecord[] = [];
   for (const entry of acquired.lifecycleEntries) {
     if (entry.placement.kind !== "backlog" || sameOwner(entry.reference.owner, acquired.primary.reference.owner)

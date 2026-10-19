@@ -26,6 +26,13 @@ headings, and stable edge identities; renamed dependents and providers receive f
 name, allocation, home, topology, Purpose, and written-edge checks, admitting retained names only by authenticated
 record reference and carrying Purpose for cut-owned documents without recreating them.
 
+`revision-plan.ts` composes added scaffolds, whole-group removals, cohort differences, and the stored-map replacement.
+`revision-members.ts` combines prior-generation settlement with retained metadata edits; `revision-seeds.ts` compares
+seed providers by identity, including their retirement dispositions, while preserving unrelated edges and current aliases.
+`revision.ts` binds approval to exact mutations and observed versions, applies those writes alone, and uses
+`revision-recheck.ts` to report current admission failures before unexplained native refusals. `revision-report.ts`
+defines its closed preview and application reports.
+
 `removal-guards.ts` shares started-member, nested-cut, and held-entry admission with revision. `removal-holders.ts`
 counts the surviving lifecycle state after prepared edits, `removal-edges.ts` protects dependency and pause holders,
 and `removal-cohorts.ts` keeps documents until their open work items and child cohorts leave.

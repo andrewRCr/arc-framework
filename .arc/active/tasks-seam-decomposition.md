@@ -536,45 +536,11 @@ first place to reauthor; and a stored map conflicted by a sync resolves through 
           admission while allowing retained member names by authenticated reference and Purpose for cut-owned cohorts.
           Owned documents remain observed rather than recreated; invalid maps and stale facts retain revision remedies.
 
-    - `[ ]` **5.3.b The batch**
+    - `[x]` **5.3.b The batch**
 
-        - Stubs added through task 2.5's writers, after task 2.5.a's copy checks, and removed whole as task 5.1.a
-          removes them; cohort documents created or removed; each retained member's seeded edges, found by provider as
-          § 8.3 finds them, and `Cohort` moved through `writeMetaDependsOn` and `writeMetaCohort`; and the stored map
-          replaced at its version — under task 3.5's authority with the revision as its mode, revalidated and applied as
-          task 5.1.a applies the discard.
-        - The fresh machine half, the retained members, and the removals take their members from one run of task 3.1's
-          member test, so each `history` is read once per run.
-        - When the store refuses the batch, 5.3.a's checks run again against the store as it stands and report the
-          first refusal they find; only when they find none does the store's refusal stand, a version conflict naming
-          `--revise <cut-map>` for a fresh preview (§ 6, § 14).
-        - Build `test-first` (one behavior at a time):
-            - the preview writes nothing and lists each record the batch would write
-            - a stale authority refuses, naming `--revise <cut-map>`, and a matching one lands exactly the previewed
-              writes
-            - over task 3.7's read-counting wrapper, the preview and the apply each read the `history` of the stored map
-              and of each item a member's slug finds once, and the rest as task 3.7 counts, unchanged over long record
-              histories and many unrelated work items
-            - each kind of difference lands, and an unseeded edge stays
-            - a stub the revision adds whose copy task 2.5.a refuses — a task list or notes with no title line, or a
-              task list carrying a diagnostic the write checks report or a completed task — refuses, and the revision
-              lands after each remedy
-            - a member already gone that the revised map drops needs nothing, and an item that took its slug stays
-              untouched
-            - a retained member holding a stored map of its own takes its moved seeded edges, and its own cut's
-              `--finish` then refuses, naming `--revise`
-            - each terminal-batch refusal naming `--revise` passes `--finish` once the revision lands: a renamed origin
-              (task 3.2.a); a home gone or shipped, or a member whose slug another item took (3.1); a dropped seeded
-              edge, a `Cohort` changed on every member alike, or a member gone (3.2.b); a target locator left
-              unresolved by a heading or ancestry change (3.3.a); a unit or edge added,
-              changed, or removed (3.3.b); a started home's new edge or a provider ended since the additive batch
-              (3.3.c); and an extraction origin activated or deactivated since, or a started dependent whose edge would
-              leave it (4.3.a)
-            - a name taken between the checks and the batch, through task 2.1.c's store wrapper within a type and across
-              types, reports the held-name refusal
-            - a version conflict the repeated checks do not explain names `--revise <cut-map>` for a fresh preview
-            - with no stored map, `--revise` and `--revise <cut-map>` each refuse, naming `--execute <cut-map>` or
-              `--extract <cut-map>`
+        - Added exact revision preview/apply batches with member and cohort differences, whole-group removal, conflict
+          closure, and provider-aware seeded-field reconciliation. Retained content and unseeded edges stay authored;
+          admission repeats after native failures, and terminal refusal repairs proceed through revision to finish.
 
     - `[ ]` **5.3.c What a revision refuses beyond the discard's**
 
