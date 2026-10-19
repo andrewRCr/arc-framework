@@ -4,6 +4,7 @@ import { CheckDeclarationSchema } from "../../../../src/lib/checks/declaration.j
 import { checkRequestDeadline, checkResultKind, selectRequestChecks } from "../../../../src/lib/checks/gates.js";
 import type { CheckForm } from "../../../../src/lib/checks/request.js";
 const checks = CheckDeclarationSchema.parse({ checks: {
+  selected: { command: ["check"], mode: "selection" },
   commit: { command: ["check"], gate: "commit" }, push: { command: ["check"], gate: "push" },
   files: { command: ["check"], gate: "push", mode: "files" }, merge: { command: ["check"], gate: "merge" }, manual: { command: ["check"] },
 } }).checks;
@@ -11,9 +12,10 @@ it.each([
   { form: { kind: "gate", gate: "commit" }, ids: ["commit"] },
   { form: { kind: "gate", gate: "push" }, ids: ["commit", "push", "files"] },
   { form: { kind: "gate", gate: "merge" }, ids: ["commit", "push", "files", "merge"] },
-  { form: { kind: "increment" }, ids: ["commit", "files"] },
-  { form: { kind: "segment" }, ids: ["commit", "push", "files"] },
+  { form: { kind: "increment" }, ids: ["selected", "commit", "files"] },
+  { form: { kind: "segment" }, ids: ["selected", "commit", "push", "files"] },
   { form: { kind: "new-head", from: "HEAD" }, ids: ["commit", "push", "files"] },
+  { form: { kind: "pre-push", ref: "refs/heads/main", tip: "HEAD" }, ids: ["commit", "push", "files"] },
   { form: { kind: "pre-commit" }, ids: ["commit"] },
 ] satisfies { form: CheckForm; ids: string[] }[])("selects $ids for $form", ({ form, ids }) => {
   expect(selectRequestChecks(checks, form).map(([id]) => id)).toEqual(ids);
@@ -27,4 +29,11 @@ it("labels early files feedback separately from enforcement and gives named runs
   expect(selectRequestChecks(checks, named).map(([id]) => id)).toEqual(["commit", "manual"]);
   expect(checkResultKind(named, checks.commit!)).toBe("feedback");
   expect(checkResultKind(named, checks.manual!)).toBe("feedback");
+});
+
+it("runs explicitly named selection checks only as feedback", () => {
+  expect(selectRequestChecks(checks, { kind: "run", ids: ["selected"] }).map(([id]) => id)).toEqual(["selected"]);
+  const check = checks.selected;
+  expect(check).toBeDefined();
+  if (check) expect(checkResultKind({ kind: "increment" }, check)).toBe("feedback");
 });

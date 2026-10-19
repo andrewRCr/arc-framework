@@ -12,6 +12,12 @@ export { materializeArcPath } from "./materialization.js";
 export { LAYOUT_SCHEMA_IDS, createLayoutRegistry } from "./registry.js";
 export { resolveArcPath } from "./projection.js";
 export {
+  PROJECTED_LIFECYCLE_ROOTS,
+  PROJECTED_PERSONAL_ROOT,
+  isProjectedPath,
+  isProjectedLifecyclePath,
+} from "./projected-roots.js";
+export {
   TEMPLATE_BINDING_SUFFIX,
   resolveTemplateOutputBindings,
   resolveTemplateOutputPath,

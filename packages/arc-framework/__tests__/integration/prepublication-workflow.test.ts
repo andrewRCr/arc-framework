@@ -1,3 +1,4 @@
+import { codeReviewSection } from "../helpers/code-review-section.js";
 import { readFile, readdir } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 
@@ -129,23 +130,21 @@ describe("prepublication workflow boundary", () => {
       expect(delivery.slice(locate, pushChecks))
         .toMatch(softWrappedProse("whole-target choice closes the attention disposition"));
 
-      for (const [workflow, carrierCommand] of [
-        [delivery, "arc review hosted request -"],
+      const method = await readFile(resolve(root, "system/methods/code-review.md"), "utf8");
+      for (const [workflow, carrierAction] of [
+        [delivery, "`review-hosted-request` enters"],
         [preparation, "arc review frontline run -"],
-        [integration, "arc review hosted request -"],
+        [integration, "`review-hosted-request` enters"],
       ] as const) {
-        const scopeGuard = indexOfSoftWrappedProse(workflow, "No review carrier may run while");
-        const hostedCarrier = workflow.indexOf(carrierCommand, scopeGuard);
+        const scopeGuard = workflow.indexOf("[code-chunk-gate]");
+        const carrier = workflow.indexOf(carrierAction, scopeGuard);
         expect(scopeGuard).toBeGreaterThan(-1);
-        expect(hostedCarrier).toBeGreaterThan(scopeGuard);
-        expect(workflow.slice(scopeGuard, hostedCarrier))
-          .toMatch(/exact-target(?:\s+chunked)?\s+scope\s+selection/u);
-        expect(workflow.slice(scopeGuard, hostedCarrier)).toContain("unresolved");
-        expect(workflow.slice(scopeGuard, hostedCarrier))
-          .toMatch(softWrappedProse("capable whole-target choice"));
-      }
-      for (const workflow of [delivery, integration]) {
-        expect(workflow).toMatch(softWrappedProse("exact-target forced hosted invocation"));
+        expect(carrier).toBeGreaterThan(scopeGuard);
+        const gate = codeReviewSection(workflow, "chunk-gate", method).replace(/\s+/gu, " ");
+        expect(gate).toContain("No carrier runs with unresolved exact-target attention");
+        expect(gate).toContain("explicit capable whole-target choice closes attention");
+        expect(gate).toContain("exact forced hosted whole-target invocation selected by the Owner");
+        expect(gate).toContain("A stale or missing selection returns to the owning route before any carrier");
       }
     }
   });
@@ -194,22 +193,23 @@ describe("prepublication workflow boundary", () => {
     expect(recipe.include_files).toContain("system/methods/validate-criteria.md");
   });
 
-  it("fires validate-criteria directly at work-unit and delivery-member boundaries", async () => {
+  it("routes scoped verification through the author check and independent companion", async () => {
     for (const root of ROOTS) {
-      const [verification, taskLoop, validateCriteria] = await Promise.all([
+      const [verification, taskLoop, validateCriteria, review] = await Promise.all([
         readFile(resolve(root, "system/workflows/arc/work-unit-lifecycle/verify-work-unit.md"), "utf8"),
         readFile(resolve(root, root === ROOTS[0]
           ? "system/workflows/arc/process-task-loop.template.md"
           : "system/workflows/arc/process-task-loop.md"), "utf8"),
         readFile(resolve(root, "system/methods/validate-criteria.md"), "utf8"),
+        readFile(resolve(root, "system/methods/verification-review.md"), "utf8"),
       ]);
 
-      expect(verification).toContain("    - validate-criteria");
+      expect(verification).toContain("    - verification-review");
       expect(verification).not.toContain("    - adversarial-review");
-      expect(verification).toContain("validate-criteria:\n  scope:\n    kind: work-unit");
+      expect(verification).toContain("verification-review:\n  scope:\n    kind: work-unit");
       expect(verification).toContain("Without a Delivery Plan:");
       expect(verification).toContain("criteria: task list's complete flat Success Criteria section");
-      expect(verification).toMatch(softWrappedProse("open the upstream design/spec artifact"));
+      expect(validateCriteria).toMatch(softWrappedProse("open the upstream design/spec artifact"));
       expect(verification).toContain("With a Delivery Plan:");
       expect(verification).toContain("member-groups: recorded delivery-member criteria reports");
       expect(verification).toContain("seams: task list's Cross-member seams group");
@@ -219,13 +219,25 @@ describe("prepublication workflow boundary", () => {
       expect(verification).toMatch(softWrappedProse("member-scope verification tasks"));
       expect(verification).toMatch(softWrappedProse("sole terminal work-unit verification task"));
       expect(verification).not.toMatch(softWrappedProse("without becoming additional verification tasks"));
-      expect(taskLoop).toContain("    - validate-criteria");
+      expect(taskLoop).toContain("    - verification-review");
       expect(taskLoop).not.toContain("    - adversarial-review");
-      expect(validateCriteria).toContain("arc:\n  methods:\n    - adversarial-review");
+      expect(validateCriteria).not.toContain("    - adversarial-review");
+      expect(validateCriteria).not.toContain("### Adversarial companion");
+      expect(review).toContain("    - validate-criteria");
+      expect(review).toContain("    - adversarial-review");
+      expect(review).toContain("    - review-model");
+      expect(review).toContain("validate-criteria:");
+      expect(review).toMatch(softWrappedProse("decline proceeds normally"));
+      expect(review).toMatch(softWrappedProse("Each finding names the exact criterion it fails"));
+      for (const site of [verification, taskLoop]) {
+        expect(site).not.toContain("adversarial-review:");
+        expect(site).toContain("methods/verification-review.md#author-criteria-walk");
+        expect(site).toContain("methods/verification-review.md#independent-companion");
+      }
       expect(validateCriteria).toMatch(softWrappedProse("When none is present, open the upstream design/spec artifact"));
       expect(validateCriteria).toMatch(softWrappedProse("flat Success Criteria section against actual outcomes"));
       expect(validateCriteria).toMatch(softWrappedProse("When a Delivery Plan is present"));
-      expect(validateCriteria).toMatch(softWrappedProse("offer one fresh-context pass over the same selected scope"));
+      expect(review).toMatch(softWrappedProse("offer one fresh-context pass over the same selected scope"));
       const unresolvedStop = indexOfSoftWrappedProse(verification,
         "If the combined report contains any `[ ]` criterion, stop.");
       const attestationStep = verification.indexOf("## Step 3 — Attest the Candidate");
@@ -241,9 +253,9 @@ describe("prepublication workflow boundary", () => {
         .toMatch(softWrappedProse("last task assigned to a delivery member"));
       const memberBoundarySection = taskLoop.slice(memberBoundary, reportAndStop);
       const criteriaWalk = indexOfSoftWrappedProse(memberBoundarySection, "member's criteria walk");
-      const memberValidation = memberBoundarySection.indexOf("validate-criteria:");
+      const memberValidation = memberBoundarySection.indexOf("verification-review:");
       expect(criteriaWalk).toBeGreaterThan(-1);
-      expect(memberBoundarySection).toMatch(/validate-criteria:\n\s+scope:\n\s+kind: delivery-member/u);
+      expect(memberBoundarySection).toMatch(/verification-review:\n\s+scope:\n\s+kind: delivery-member/u);
       expect(memberValidation).toBeGreaterThan(criteriaWalk);
       const unresolvedBranch = taskLoop.indexOf("**Unresolved member-report branch:**");
       const resolvedBranch = taskLoop.indexOf("**Resolved completion branch:**");
@@ -340,7 +352,7 @@ describe("prepublication workflow boundary", () => {
       ]);
 
       const cleanup = indexOfSoftWrappedProse(verification, "Before the Candidate exists, clean the WU content");
-      const selfReview = indexOfSoftWrappedProse(verification, "execute it against the local aggregate diff");
+      const selfReview = verification.indexOf("[code-author-check]");
       const mergeChecks = verification.indexOf("arc check gate merge --force");
       const attest = verification.indexOf("arc attest {name} --json");
       const reRoot = verification.indexOf("`blocked / establish-new-root`");
@@ -351,7 +363,12 @@ describe("prepublication workflow boundary", () => {
       expect(reRoot).toBeGreaterThan(attest);
       expect(verification).toMatch(softWrappedProse("execute its exact `continuation.argv`"));
       expect(verification).toContain("`attested / re-root`");
-      expect(preparation).not.toMatch(softWrappedProse("execute it against the local aggregate diff"));
+      expect(preparation).toContain("For `run-self-review`, run [code-review's author check]");
+      const method = await readFile(resolve(root, "system/methods/code-review.md"), "utf8");
+      const author = codeReviewSection(verification, "author-check", method);
+      expect(author).toMatch(softWrappedProse("aggregate diff against the base branch"));
+      expect(author).toContain("standalone non-producer report");
+      expect(author).toContain("Do not invoke the producer-backed response command");
       expect(integration).not.toMatch(softWrappedProse("After settlement, clean the WU content"));
 
       expect(indexOfSoftWrappedProse(verification, "mark the single verification task `[x]`")).toBeGreaterThan(-1);
@@ -389,13 +406,16 @@ describe("prepublication workflow boundary", () => {
     for (const root of ROOTS) {
       const [footer, selfReview] = await Promise.all([
         readFile(resolve(root, "system/methods/commit-footer.md"), "utf8"),
-        readFile(resolve(root, "system/methods/self-review.md"), "utf8"),
+        readFile(resolve(root, "system/methods/code-review-author.md"), "utf8"),
       ]);
 
       expect(footer).toContain("meta-[name].md (prepublication)");
       expect(footer).toContain("meta-[name].md (integration)");
-      expect(selfReview).toMatch(softWrappedProse("finding-driven fixes with the canonical `(code review)` context footer"));
-      expect(selfReview).not.toMatch(/finding-driven fixes[\s\S]{0,120}`\(prepublication\)`/u);
+      const method = await readFile(resolve(root, "system/methods/code-review.md"), "utf8");
+      expect(selfReview).toContain("code-review.md#author-check");
+      expect(method).toMatch(softWrappedProse("Commit with the caller's canonical `(code review)` context"));
+      expect(method).toMatch(softWrappedProse("reserving lifecycle footers for ceremony commits"));
+      expect(method).not.toMatch(/finding-driven fixes[\s\S]{0,120}`\(prepublication\)`/u);
     }
   });
 });

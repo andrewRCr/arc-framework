@@ -129,14 +129,17 @@ canonical commit/push path under workflow guidance. Off-workflow commits use raw
 Self-hosting integration runs one configured review loop through the shipped `arc review` command tree. Frontline
 sources run independently through `frontline resolve` and `frontline run`. The standard-review stream resolves one
 ordered source per pass: `delegated-agent` uses the local prepare/attest/resume boundary, while `coderabbit-pr` and
-`codex-pr` use the hosted request/await/settle boundary. Chunking and source resolution return typed actions, so the
-workflow dispatches mechanics without reconstructing provider state or asking which source to try next.
+`codex-pr` use the hosted request/await/settle boundary. Fix checks run locally on `delegated-agent`; hosted sources
+run complete passes with bare provider commands. After material fixes, a local fix check converges before another
+hosted pass. Chunking and source resolution return typed actions, so the workflow dispatches mechanics without
+reconstructing provider state or asking which source to try next.
 
 The CLI owns deterministic mechanics: immutable target and guidance bindings, ordered safe fallback, bounded
 awaiting, result normalization, and thread settlement. The operating agent owns bounded judgment about finding
-disposition, later-head applicability, and whether targeted verification, focused supplementation, or a complete
-pass fits a changed target. Confident in-scope choices proceed and are disclosed; mutations, durable commitments,
-material uncertainty, exceptional cost, and final integration remain human-authorized.
+disposition and later-head applicability. At a bounded review applicability stop, a fresh local check of the movement
+informs the Owner's choice; typed continuations carry verification and complete-review routes. Confident in-scope
+choices proceed and are disclosed; mutations, durable commitments, material uncertainty, exceptional cost, and final
+integration remain human-authorized.
 
 When `merge.lock: draft` is enabled, the final exact candidate head may invoke `arc merge lock release` only from
 the combined disposition and integration interlock. Draft-state lock is a per-PR structural hold on host

@@ -67,7 +67,7 @@ export function batchCheckPaths(command: readonly string[], paths: readonly stri
  */
 export function checkArgumentBatches(check: CheckDeclaration["checks"][string], command: readonly string[],
   paths: readonly string[], platform: NodeJS.Platform): string[][] {
-  return check.mode === "files" && check.pass_paths ? batchCheckPaths(command, paths, platform) : [[]];
+  return check.mode !== "project" && check.pass_paths ? batchCheckPaths(command, paths, platform) : [[]];
 }
 
 function argumentUnits(value: string, platform: NodeJS.Platform, program = false): number {

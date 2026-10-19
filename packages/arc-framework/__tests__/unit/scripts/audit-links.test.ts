@@ -50,6 +50,43 @@ describe("headingAnchors", () => {
 });
 
 describe("auditLinks", () => {
+  it.each([
+    "/.arc/active/meta-example.md", "/.arc/backlog/planned/example/draft-example.md",
+    "/.arc/completed/old/cohort-group.md", "/.arc/%61ctive/./meta-example.md",
+  ])("refuses normalized movable targets before existence feedback: %s", url => {
+    const source = ".arc/reference/source.md";
+    const io = fixtureIo({ [source]: `[x](${url})` });
+    expect(auditLinks([source], io).diagnostics).toEqual([`${source}:1:1: link to movable artifact -> ${url}`]);
+  });
+
+  it("checks ignored targets in one batch and preserves the tracked user README", () => {
+    const source = ".arc/reference/source.md";
+    const privateTarget = ".arc/user/alice/private.md";
+    const readme = ".arc/user/README.md";
+    const io = fixtureIo({
+      [source]: "[first](/.arc/user/alice/private.md)\n[again](../user/alice/./private.md)\n[users](/.arc/user/README.md)\n",
+      [privateTarget]: "# Private\n", [readme]: "# Users\n",
+    });
+    const observed: string[][] = [];
+    const result = auditLinks([source], { ...io, ignoredTargets(paths) {
+      observed.push([...paths]);
+      return new Set([privateTarget]);
+    } });
+    expect(result).toEqual({ pass: false, diagnostics: [
+      `${source}:1:1: link to ignored ARC path -> /.arc/user/alice/private.md`,
+      `${source}:2:1: link to ignored ARC path -> ../user/alice/./private.md`,
+    ] });
+    expect(observed).toEqual([[privateTarget, readme]]);
+  });
+
+  it("keeps lifecycle prefix lookalikes and ordinary tracked README targets linkable", () => {
+    const source = ".arc/reference/source.md";
+    const io = fixtureIo({
+      [source]: "[one](/.arc/active-other/meta-example.md) [two](/.arc/active/README.md)",
+      ".arc/active-other/meta-example.md": "# Example", ".arc/active/README.md": "# Active",
+    });
+    expect(auditLinks([source], io)).toEqual({ pass: true, diagnostics: [] });
+  });
   it("passes links, images, and definitions that name existing files, directories, and headings", () => {
     const io = fixtureIo({
       ".arc/a/source.md": [

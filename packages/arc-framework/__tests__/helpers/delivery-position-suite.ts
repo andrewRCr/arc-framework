@@ -4052,10 +4052,10 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       `${continuedAfterResponseSettlement.stderr}\n${continuedAfterResponseSettlement.stdout}`,
     ).toBe(0);
     expect(JSON.parse(continuedAfterResponseSettlement.stdout), continuedAfterResponseSettlement.stdout)
-      .toMatchObject({
-        status: "review-status-required",
-        nextAction: "review-hosted-request",
-        effectLog: [],
+      .toMatchObject({ status: "review-status-required", nextAction: "select-coverage", effectLog: [],
+        reviewStatus: { coverageSelectionAction: { choices: [
+          { sourceId: "delegated-agent", coverage: "incremental" }, { sourceId: "delegated-agent", coverage: "complete" },
+        ] } },
       });
 
     const retainedTarget = createReviewTarget({

@@ -3,6 +3,7 @@
 import { z } from "zod";
 
 import { DeliveryReviewMemberVehicleSchema } from "../../../lib/delivery/review-vehicle.js";
+import type { LaneProgressState } from "../core/operation-state-schema.js";
 import type { ReviewOperationStateSnapshot } from "../core/ports.js";
 import {
   GitObjectIdSchema,
@@ -109,6 +110,27 @@ function sameVehicleIdentity(
     && current.workUnitId === prior.workUnitId;
 }
 
+function localAttemptCoordinates(
+  selector: EarlierReviewAttemptQuery,
+  attempt: LaneProgressState["attempts"][number],
+): { target: z.infer<typeof HostedTargetSchema>; priorVehicle?: z.infer<typeof DeliveryReviewMemberVehicleSchema> } | null {
+  const local = attempt.local;
+  if (local === undefined || attempt.sourceId !== "delegated-agent" || attempt.changeRequestId !== null
+    || local.target.repositoryId !== selector.repositoryId || local.target.headSha !== attempt.headSha) return null;
+  if (selector.currentVehicle === undefined) {
+    return selector.lineage.kind === "candidate" && local.vehicle.kind === "work-unit"
+      && local.target.kind === "change-set" && local.deliveryAdmission === undefined
+      ? { target: { repository: selector.repository, pullRequest: selector.pullRequest, headSha: attempt.headSha } }
+      : null;
+  }
+  const admission = local.deliveryAdmission;
+  return admission !== undefined && local.vehicle.kind === "delivery-member" && local.target.kind === "delivery-member"
+    && sameVehicleIdentity(selector.currentVehicle, admission.vehicle)
+    && admission.target.repository.toLowerCase() === selector.repository
+    && admission.target.pullRequest === selector.pullRequest
+    ? { target: admission.target, priorVehicle: admission.vehicle } : null;
+}
+
 /** Return all exact earlier attempts, or stop evidence that cannot be mistaken for absence. */
 export function queryEarlierReviewAttempts(
   selectorInput: EarlierReviewAttemptQuery,
@@ -175,17 +197,8 @@ export function queryEarlierReviewAttempts(
         continue;
       }
       const local = attempt.local;
-      if (local === undefined
-        || local.deliveryAdmission === undefined
-        || attempt.changeRequestId !== null
-        || selector.currentVehicle === undefined
-        || local.vehicle.kind !== "delivery-member"
-        || !sameVehicleIdentity(selector.currentVehicle, local.deliveryAdmission.vehicle)
-        || local.deliveryAdmission.target.repository.toLowerCase() !== selector.repository
-        || local.deliveryAdmission.target.pullRequest !== selector.pullRequest
-        || local.target.kind !== "delivery-member"
-        || local.target.repositoryId !== selector.repositoryId
-        || local.target.headSha !== attempt.headSha) continue;
+      const coordinates = localAttemptCoordinates(selector, attempt);
+      if (local === undefined || coordinates === null) continue;
       candidates.push(EarlierReviewAttemptCandidateSchema.parse({
         operationId: state.operationId,
         version: record.version,
@@ -203,8 +216,7 @@ export function queryEarlierReviewAttempts(
           ? {}
           : { chunkSeriesComplete: attempt.chunkSeriesComplete }),
         priorHead: attempt.headSha,
-        target: local.deliveryAdmission.target,
-        priorVehicle: local.deliveryAdmission.vehicle,
+        ...coordinates,
         reviewTarget: local.target,
         findings: [],
       }));

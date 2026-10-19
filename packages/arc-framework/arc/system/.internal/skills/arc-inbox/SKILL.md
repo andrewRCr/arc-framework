@@ -11,12 +11,14 @@ arc:
 # ARC Inbox
 
 Route a discovered concern now or capture it for later. Consult `DEV-RULES.ARC § Discovered Work Routing` for the
-inline / errand-now / defer call. `arc-housekeep` drains captures; `arc-session` enters execution.
+inline / message / errand-now / defer call. `arc-housekeep` drains captures; `arc-session` enters execution.
 
 1. Choose route-now or capture.
 
-   - Fix a current-WU concern inline. For another concern, ask whether the session holds the commitment to place it
-     now. Without commitment, continue at step 2 for capture; with it, invoke the fast path below.
+   - Fix a current-WU concern inline. A concern for another work unit with a checkout takes the fast path below
+     whatever the commitment; the method decides any message to its session. For another concern, ask whether the
+     session holds the commitment to place it now. Without commitment, continue at step 2 for capture; with it,
+     invoke the fast path below.
    - When `arc-errand` hands back an outcome the Owner already confirmed, enter this step's hand-off directly,
      without invoking the gate again or repeating step 2's classification.
 
@@ -30,15 +32,17 @@ inline / errand-now / defer call. `arc-housekeep` drains captures; `arc-session`
 
    > [!IMPORTANT]
    > `workflow-interlock`: Stop before carrying out the proposed route. Show the outcome, `_Shapes:_`, any unclear
-   > pair and its four record answers, the coupled target's horizon advisory verbatim, and any named wait. For a
-   > new stub, show every minting judgment the method requires. Await approval before the hand-off.
+   > pair and its four record answers, the coupled target's horizon advisory verbatim, any message to a live target,
+   > and any named wait. For a new stub, show every minting judgment the method requires. Await approval before the
+   > hand-off.
 
    **Hand-off — follow the method's binding.** A `fold` lands only in the session's own work unit. Run an immediate
    `errand` through `arc-errand`; a now-route outside the session's own work unit that writes a backlog stub or mints
    a stub takes that skill's route-only shape. Deferred `errand`, pre-routed capture, and `capture` outcomes continue
    at steps 3–5, with section, `WU_Target` and `_Shapes:_` from the confirmed result, skipping step 2. Errands use
-   `## Errand` without a work-unit home; a Work Unit capture carries its candidate target or `TBD`. A started target
-   takes the binding's owner-adoption capture or named wait. `dismiss` writes nothing.
+   `## Errand` without a work-unit home; a Work Unit capture carries its candidate target or `TBD`. A live target's
+   confirmed message is sent, or handed to the Owner to relay, in place of a capture; another started target, or a
+   live one with no message, takes the binding's owner-adoption capture or named wait. `dismiss` writes nothing.
 
 2. Classify by fate → section.
 

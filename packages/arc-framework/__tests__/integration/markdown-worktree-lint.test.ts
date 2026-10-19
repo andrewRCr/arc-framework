@@ -7,7 +7,8 @@ import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { makeGitExec } from "../helpers/integration.js";
-import { gitExec } from "../../src/lib/io-context.js";
+import { createRawGitExec, gitExec } from "../../src/lib/io-context.js";
+import { selectMarkdownlintPaths } from "../../src/lib/markdown/lint-selection.js";
 import { MARKDOWN_SELECTION } from "../../src/lib/markdown/selection.js";
 import { runWorktreeMarkdownlint } from "../../src/lib/markdown/worktree-lint.js";
 import {
@@ -45,6 +46,15 @@ afterEach(async () => {
 });
 
 describe("worktree Markdown lint", () => {
+  it("uses Git exclusion semantics across dot directories and letter case", async () => {
+    const included = [".arc/active/current/.venv-probe.md", ".arc/Completed/page.md",
+      ".arc/user/andrew/nested/working-memory.md", ".arc/active/current/NODE_MODULES/page.md"];
+    const excluded = [".arc/.hidden/temp-probe.md", ".arc/user/andrew/.hidden/WORKING-MEMORY.md",
+      ".arc/active/.venv-test/page.md"];
+    const paths = await selectMarkdownlintPaths(root, [...included, ...excluded], createRawGitExec(root));
+    expect([...paths].sort()).toEqual(included.sort());
+  });
+
   it("validates configs and passes shared-selector paths explicitly", async () => {
     const executeLinter = vi.fn(async () => 0);
     const result = await runWorktreeMarkdownlint({

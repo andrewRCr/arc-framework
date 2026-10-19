@@ -12,6 +12,9 @@ export const REVIEW_CHUNKING_RESOLVE_REQUEST_SCHEMA_ID = "review-chunking-resolv
 export const ReviewChunkingResolveRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
   target: ReviewTargetCoordinatesSchema,
+  localSubject: z.enum(["index", "worktree"]).optional().describe(
+    "Snapshot local content for sizing; target.headSha must be current HEAD. The returned target pins the snapshot.",
+  ),
   scopeSelection: z.strictObject({
     mode: z.enum(["whole-target", "chunked"]),
     target: ReviewTargetCoordinatesSchema,

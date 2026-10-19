@@ -22,7 +22,7 @@ export const HELP_GROUPS: Readonly<Record<string, readonly (readonly [string, re
     ["Set up and maintain ARC:", ["init", "join", "update", "health", "diff", "check", "config", "schema"]],
   ],
   review: [
-    ["Choose review work:", ["pre-publication", "resolve", "changeset"]],
+    ["Choose review work:", ["pre-publication", "resolve", "changeset", "lane"]],
     ["Run and respond:", ["frontline", "hosted", "local", "respond", "reduce", "terminus"]],
     ["Check readiness:", ["status", "readiness", "checks", "change-request", "merge-method"]],
     ["Clear planning changes:", ["planning-lane", "planning-grooming"]],
@@ -176,6 +176,8 @@ export const COMMAND_HELP: Readonly<Record<string, HelpPage>> = {
     ],
     notes: requestNotes,
   },
+  "review lane": { summary: COMMAND_SUMMARIES["review lane"], notes: [["Related:", "arc review lane read --help"]] },
+  "review lane read": { summary: COMMAND_SUMMARIES["review lane read"], notes: requestNotes },
   "review readiness": { summary: COMMAND_SUMMARIES["review readiness"], notes: requestNotes },
   "review frontline resolve": { summary: COMMAND_SUMMARIES["review frontline resolve"], notes: requestNotes },
   "review hosted settle": { summary: COMMAND_SUMMARIES["review hosted settle"], notes: requestNotes },

@@ -20,8 +20,8 @@ const method = (name: string, active: boolean): string => [
 describe("local review method files", () => {
   it.each(["/repo", "/repo/cafe\u0301"])("reads the registered review methods from %s", (cwd) => {
     const contents = new Map([
-      [join(cwd, ".arc", "system", "methods", "self-review.md"), method("self-review", false)],
-      [join(cwd, ".arc", "system", "methods", "frontline-review.md"), method("frontline-review", true)],
+      [join(cwd, ".arc", "system", "methods", "code-review-author.md"), method("code-review-author", false)],
+      [join(cwd, ".arc", "system", "methods", "code-review-frontline.md"), method("code-review-frontline", true)],
     ]);
     const readFile = (path: string): string => {
       const content = contents.get(path);

@@ -1,5 +1,6 @@
 /** Project-authored check fields and their resolved defaults. */
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import { CheckDeclarationSchema } from "../../../../src/lib/checks/declaration.js";
 
 const illustrative = {
@@ -13,7 +14,51 @@ const illustrative = {
   },
 };
 
+describe("selection declarations", () => {
+  it("resolves feedback defaults while allowing runtime inputs", () => {
+    const check = { command: ["lint"], mode: "selection", runtime_inputs: [["node", "--version"]] };
+    expect(CheckDeclarationSchema.parse({ checks: { lint: check } }).checks.lint).toMatchObject({
+      ...check, cache: false, widen: false, pass_paths: true, shell: false, fixes: false,
+      ci_only: false, reads_index: false,
+    });
+  });
+  it.each([
+    ["cache", true], ["widen", true], ["pass_paths", false], ["gate", "commit"],
+    ["shell", false], ["shell", true], ["ci_only", false], ["ci_only", true],
+    ["reads_index", false], ["reads_index", true], ["fixes", false], ["fixes", true],
+  ])("refuses declared %s=%j with an actionable field message", (field, value) => {
+    const result = CheckDeclarationSchema.safeParse({ checks: { lint: {
+      command: ["lint"], mode: "selection", [field]: value,
+    } } });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.message).toContain(field);
+  });
+  it("projects authored restrictions and resolved defaults into JSON Schema", () => {
+    const schema = z.toJSONSchema(CheckDeclarationSchema, { io: "input" });
+    expect(JSON.stringify(schema)).toContain('"selection"');
+    expect(schema).toMatchObject({ properties: { checks: { additionalProperties: { oneOf: expect.arrayContaining([
+      expect.objectContaining({ properties: expect.objectContaining({
+        mode: expect.objectContaining({ const: "selection" }), cache: { type: "boolean", const: false, default: false },
+        shell: { not: {} },
+      }) }),
+    ]) } } } });
+    expect(() => z.toJSONSchema(CheckDeclarationSchema, { io: "output" })).not.toThrow();
+  });
+});
+
 describe("check declaration fields", () => {
+  it.each([
+    { check: { command: 7 }, path: ["checks", "verify", "command"], message: "Invalid input" },
+    { check: { command: ["lint"], unexpected: true }, path: ["checks", "verify"], message: "unexpected" },
+    { check: { command: ["lint"], shards: { count: 2, argument: "{index}", unexpected: true } },
+      path: ["checks", "verify", "shards"], message: "unexpected" },
+  ])("retains ordinary field diagnostics at $path", ({ check, path, message }) => {
+    const result = CheckDeclarationSchema.safeParse({ checks: { verify: check } });
+    expect(result.success).toBe(false);
+    if (result.success) throw new Error("Expected a declaration refusal");
+    expect(result.error.issues).toContainEqual(expect.objectContaining({ path, message: expect.stringContaining(message) }));
+  });
+
   it("accepts typed commands, global inputs, and shard configuration", () => {
     expect(CheckDeclarationSchema.parse(illustrative)).toMatchObject(illustrative);
   });

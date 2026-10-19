@@ -12,7 +12,7 @@ import { scanCommanderSource, type CommanderSourceScan } from "../../../src/lib/
 
 const namespaces: Readonly<Record<string, readonly (readonly [string, readonly string[]])[]>> = {
   review: [
-    ["Choose review work:", ["pre-publication", "resolve", "changeset"]],
+    ["Choose review work:", ["pre-publication", "resolve", "changeset", "lane"]],
     ["Run and respond:", ["frontline", "hosted", "local", "respond", "reduce", "terminus"]],
     ["Check readiness:", ["status", "readiness", "checks", "change-request", "merge-method"]],
     ["Clear planning changes:", ["planning-lane", "planning-grooming"]],

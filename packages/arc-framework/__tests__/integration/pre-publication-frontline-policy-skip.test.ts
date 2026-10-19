@@ -37,7 +37,7 @@ async function candidate() {
     .replace(/^review.frontline_sources:.*$/mu, "review.frontline_sources: [coderabbit-cli]")
     .replace(/^review.standard_sources:.*$/mu, "review.standard_sources: [delegated-agent]");
   await writeFile(configPath, config);
-  const methodPath = join(root, ".arc", "system", "methods", "frontline-review.md");
+  const methodPath = join(root, ".arc", "system", "methods", "code-review-frontline.md");
   await writeFile(methodPath, (await readFile(methodPath, "utf8")).replace(/^active:.*$/mu, "active: true"));
   await git(root, ["add", "-A"]);
   await git(root, ["commit", "-m", "initialize"]);

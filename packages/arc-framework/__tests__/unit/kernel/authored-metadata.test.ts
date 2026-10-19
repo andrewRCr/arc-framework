@@ -26,7 +26,7 @@ describe("authored schema metadata", () => {
     expect(registry.ids()).toEqual([]);
   });
 
-  it("marks exactly the eighteen production request roots", () => {
+  it("marks exactly the production request roots", () => {
     const registry = createProductionSchemaRegistry();
     const marked = registry.ids().filter((id) => {
       const meta = registry.meta(id);
@@ -42,6 +42,7 @@ describe("authored schema metadata", () => {
       "review-hosted-await-request",
       "review-hosted-request-request",
       "review-hosted-settle-request",
+      "review-lane-read-request",
       "review-local-attest-request",
       "review-local-prepare-request",
       "review-local-resume-request",

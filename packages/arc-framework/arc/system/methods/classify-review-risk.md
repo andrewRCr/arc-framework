@@ -23,11 +23,13 @@ override-mode: extend
 
 ### What the call changes
 
-Both answers are reviewed. `sensitive` makes standard review **required**, so an incomplete pass blocks the merge
-gate, and re-reviews the complete change set after a fix. `routine` leaves the obligation to the other routing facts:
-ordinary code still requires a standard pass, while atomic code and most documentation get a **recommended** one —
-it runs by default but does not block merge when it does not complete — and fixes are re-reviewed incrementally. A
-wrong `routine` call silently lowers the obligation; a wrong `sensitive` call spends one more review.
+Both answers are reviewed. `sensitive` makes standard review **required**, so an incomplete review blocks the merge
+gate, and selects `full-final`: after a material fix, local fix checks verify repairs; the lane stays open after a
+clean fix check until a complete pass closes it. `routine` leaves the obligation to the other routing facts:
+ordinary code still requires standard review, while atomic code and most documentation get a **recommended** review
+that runs by default and does not block merge when it does not complete. Incremental adequacy can close on a proved,
+converged fix-check chain. Complete passes count against the standard ceiling; fix and delta checks do not. A wrong
+`routine` call lowers the obligation and final coverage; a wrong `sensitive` call can spend an extra complete review.
 
 ### Sensitive
 

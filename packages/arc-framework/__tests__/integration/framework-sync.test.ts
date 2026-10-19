@@ -172,10 +172,14 @@ describe("framework sync (self-hosting drift check)", () => {
       "system/methods/source-grounding.md",
       "system/methods/spec-review.md",
       "system/methods/task-audit.md",
-      "system/methods/self-review.md",
-      "system/methods/standard-review.md",
+      "system/methods/code-review-author.md",
+      "system/methods/code-review-standard.md",
       "system/methods/implementation-audit.md",
       "system/methods/review-chunking.md",
+      "system/methods/review-model.md",
+      "system/methods/planning-review.md",
+      "system/methods/code-review.md",
+      "system/methods/verification-review.md",
       "system/methods/review-response.md",
       "system/methods/review-triage.md",
       "system/methods/validate-criteria.md",
@@ -193,7 +197,7 @@ describe("framework sync (self-hosting drift check)", () => {
   });
 
   it("keeps frontline activation project-specific without changing its method contract", async () => {
-    const path = "system/methods/frontline-review.md";
+    const path = "system/methods/code-review-frontline.md";
     const [packaged, project] = await Promise.all([
       readFile(join(PKG_ARC_DIR, path), "utf8"),
       readFile(join(ARC_DIR, path), "utf8"),
@@ -205,7 +209,7 @@ describe("framework sync (self-hosting drift check)", () => {
   });
 
   it("keeps the frontline chunking attachment reference-only and whole-target", async () => {
-    const method = await readFile(join(PKG_ARC_DIR, "system/methods/frontline-review.md"), "utf8");
+    const method = await readFile(join(PKG_ARC_DIR, "system/methods/code-review-frontline.md"), "utf8");
     expect(method.match(/review-chunking/gu)?.length).toBeGreaterThanOrEqual(2);
     expect(method).toContain("canonical target, partition, and coverage state");
     expect(method).toContain("one aggregate whole-target frontline result");
@@ -213,7 +217,7 @@ describe("framework sync (self-hosting drift check)", () => {
   });
 
   it("keeps standard chunking bounded to one exact-target carrier orchestration", async () => {
-    const standard = await readFile(join(PKG_ARC_DIR, "system/methods/standard-review.md"), "utf8");
+    const standard = await readFile(join(PKG_ARC_DIR, "system/methods/code-review-standard.md"), "utf8");
     const adversarial = await readFile(join(PKG_ARC_DIR, "system/methods/adversarial-review.md"), "utf8");
     const guidance = `${standard}\n${adversarial}`;
 
@@ -233,14 +237,14 @@ describe("framework sync (self-hosting drift check)", () => {
   });
 
   it("declares design proportionality at every direct planning consumer", async () => {
-    const workflowPaths = [
+    const consumerPaths = [
       "system/workflows/arc/draft-design.md",
       "system/workflows/arc/create-spec.md",
       "system/workflows/arc/generate-tasks.template.md",
-      "system/workflows/arc/supplemental/amend-design.md",
+      "system/methods/planning-review.md",
     ];
 
-    for (const path of workflowPaths) {
+    for (const path of consumerPaths) {
       const content = await readFile(join(PKG_ARC_DIR, path), "utf8");
       const declarations = parseWorkflowFrontmatter(content);
       expect(declarations.parseError, `${path} frontmatter`).toBeUndefined();

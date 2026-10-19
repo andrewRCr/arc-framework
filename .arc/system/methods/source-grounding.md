@@ -10,8 +10,9 @@ override-active: false
 
 # Method: source-grounding
 
-> - **Workflow:** [draft-design.md][draft-design], [create-spec.md][create-spec],
->   [generate-tasks.md][generate-tasks], [amend-design.md][amend-design]
+> - **Workflow:** [planning-review](planning-review.md), [spec-review](spec-review.md),
+>   [task-audit](task-audit.md), [adversarial-review](adversarial-review.md), [draft-design.md][draft-design],
+>   [create-spec.md][create-spec], [generate-tasks.md][generate-tasks], and [amend-design.md][amend-design].
 > - **When:** A planning stage grounds its artifact, a pass grounds through its rubric, or a response grounds its
 >   repairs before proposing them and its changes before a fix check.
 >

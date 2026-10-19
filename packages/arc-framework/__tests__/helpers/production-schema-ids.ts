@@ -97,6 +97,8 @@ export const PRODUCTION_SCHEMA_IDS = [
   "review-hosted-request-request",
   "review-hosted-settle-envelope",
   "review-hosted-settle-request",
+  "review-lane-read-envelope",
+  "review-lane-read-request",
   "review-lifecycle-tail-proof",
   "review-local-attest-envelope",
   "review-local-attest-request",

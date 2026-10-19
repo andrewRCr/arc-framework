@@ -3016,7 +3016,7 @@
       "count": 1
     },
     "sonarjs/cognitive-complexity": {
-      "count": 3
+      "count": 2
     }
   },
   "src/scripts/review-gate/runtime/respond-composition.ts": {

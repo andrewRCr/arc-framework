@@ -173,8 +173,10 @@ describe("local prepare incremental reviewer instructions", () => {
   const predecessorHeadSha = objectId("e");
   const basisHeadSha = objectId("f");
 
-  async function preparedInstructions(requiredFindings: CorrectionScopeInput["requiredFindings"]) {
-    const records = fixture({
+  async function preparedInstructions(requiredFindings: CorrectionScopeInput["requiredFindings"] | undefined,
+    incrementalBasis?: "fix-check" | "delta-check",
+    fixedFindingPointers?: readonly { locus: string; title?: string }[]) {
+    const records = fixture(requiredFindings === undefined ? undefined : {
       schemaVersion: 1,
       predecessorProducerId: "local-predecessor",
       predecessorHeadSha,
@@ -190,10 +192,56 @@ describe("local prepare incremental reviewer instructions", () => {
       materialize: async () => ({ reviewRoot: records.source.materializationRef }),
       now: () => "2026-07-23T17:00:00Z",
       cleanupTtlMs: 60_000,
-      guidance: projectLocalReviewGuidance(),
+      guidance: projectLocalReviewGuidance(), incrementalBasis, fixedFindingPointers,
     });
     return { instructions: preparation.state.reviewerInstructions, headSha: records.target.headSha };
   }
+
+  it("keeps the configured rubric and asks complete reviewers for failure anchors", async () => {
+    const { instructions } = await preparedInstructions(undefined);
+    expect(instructions).toContain("Fails:");
+    expect(instructions).toContain(projectLocalReviewGuidance().reviewerInstructions);
+  });
+
+  it("gives complete reviewers fixed-finding pointers without a closure claim", async () => {
+    const { instructions } = await preparedInstructions(undefined, undefined, [
+      { locus: "src/a.ts:10", title: "Missing authorization check" }, { locus: "src/b.ts:20" },
+    ]);
+    expect(instructions).toContain("Fails:");
+    expect(instructions).toContain("src/a.ts:10 — Missing authorization check");
+    expect(instructions).toContain("src/b.ts:20");
+    expect(instructions).toContain("Previously reported and fixed");
+    expect(instructions).toContain("the fix and the code around it stay in scope");
+    expect(instructions).toContain("Search independently");
+    expect(instructions).toContain("sweep for siblings");
+    expect(instructions).not.toMatch(/fix (?:is |was )?(?:verified|closed)|clean so far|converged/iu);
+  });
+
+  it.each([false, true])("names all fix-check axes and the sibling sweep with earlier findings=%s", async carried => {
+    const { instructions } = await preparedInstructions(carried
+      ? [{ producerId: "local-predecessor", findingId: "finding-1", locus: "src/a.ts:10" }] : []);
+    expect(instructions).toContain("Fails:");
+    expect(instructions).toMatch(/closure/iu);
+    expect(instructions).toMatch(/behavioral grounding/iu);
+    expect(instructions).toMatch(/propagation and completeness/iu);
+    expect(instructions).toMatch(/new failure/iu);
+    expect(instructions).toMatch(/sibling sweep/iu);
+  });
+
+  it("gives a delta check the range, carried findings, and three axes without repair closure", async () => {
+    const { instructions, headSha } = await preparedInstructions([
+      { producerId: "local-predecessor", findingId: "finding-1", locus: "src/a.ts:10" },
+    ], "delta-check");
+    expect(instructions).not.toMatch(/closure/iu);
+    expect(instructions).toMatch(/behavioral grounding/iu);
+    expect(instructions).toMatch(/propagation and completeness/iu);
+    expect(instructions).toMatch(/new failure/iu);
+    expect(instructions).toMatch(/sibling sweep/iu);
+    expect(instructions).toContain(`${predecessorHeadSha}..${headSha}: review that range completely`);
+    expect(instructions).toContain("apply the coverage and clean rules to it");
+    expect(instructions).toContain("local-predecessor / finding-1 at src/a.ts:10");
+    expect(instructions).toMatch(/original loci, including loci outside the changed lines/u);
+  });
 
   it("defines the pass's requested change set as the predecessor-to-head range", async () => {
     const { instructions, headSha } = await preparedInstructions([]);

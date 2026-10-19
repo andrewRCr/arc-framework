@@ -1,5 +1,10 @@
+import { nextPassFactsFixture } from "../../../../fixtures/next-pass-facts.js";
+import { approvedRecord, performedFix } from "../../../../fixtures/review-response-proof.js";
+import { firstReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
+import { withReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
 /** Unit coverage for typed non-delivery local review coverage recovery. */
 
+import { deriveReviewNextPassContext, type ReviewNextPassInput } from "../../../../../src/scripts/review-gate/policy/review-next-pass.js";
 import { describe, expect, it, vi } from "vitest";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
@@ -13,7 +18,6 @@ import {
   createReviewTarget,
 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import type {
-  ApprovedDispositionRecordStore,
   ReviewResultReader,
 } from "../../../../../src/scripts/review-gate/core/ports.js";
 import type { LaneSubjectLineage } from
@@ -154,6 +158,14 @@ function completeLocalResult(
   };
 }
 
+function fixedLocalResult(owner: LaneSubjectLineage = lineage,
+  projection: StandardReviewObligationProjection = standardReview) {
+  const predecessor = completeLocalResult(owner, projection);
+  return { ...predecessor, originalOutcome: "findings" as const,
+    findings: [{ findingId: "finding-1", severity: "minor" as const, locus: "src/example.ts:1",
+      evidenceUrlOrId: "finding-1", sourceOrdinal: 1 }] };
+}
+
 function incrementalLocalResult(): ReviewResult {
   const predecessor = completeLocalResult();
   return {
@@ -176,28 +188,51 @@ function incrementalLocalResult(): ReviewResult {
   };
 }
 
-function dependencies(predecessor: ReviewResult): {
-  resultReader: ReviewResultReader;
-  dispositionStore: ApprovedDispositionRecordStore;
-  confirmCurrentApplicability: () => Promise<"applicable">;
-} {
+function dependencies(predecessor: ReviewResult, producedHeadSha = objectId("c")) {
+  const record = predecessor.originalOutcome === "findings" ? approvedRecord(predecessor, [{
+    sourceVerification: "verified", verifiedSeverity: "minor", disposition: "fix",
+  }]) : null;
   return {
-    resultReader: {
-      readResult: async (producerId) => {
-        if (producerId !== predecessor.producerId) throw new Error("missing result");
-        return predecessor;
-      },
-    },
-    dispositionStore: {
-      readDispositionRecord: async () => null,
-      appendDispositionRecord: async () => ({ dispositionRecordRef: "unused" }),
-    },
-    confirmCurrentApplicability: async () => "applicable",
+    resultReader: { readResult: async (producerId: string) => {
+      if (producerId !== predecessor.producerId) throw new Error("missing result");
+      return predecessor;
+    } },
+    dispositionStore: { readDispositionRecord: async () => record,
+      appendDispositionRecord: async () => ({ dispositionRecordRef: "unused" }) },
+    readResponsePerformance: async () => record === null ? null : { ...performedFix(predecessor, record), producedHeadSha },
+    confirmCurrentApplicability: async () => "applicable" as const,
   };
 }
 
+async function resolveWithEvidence(
+  input: Omit<Parameters<typeof resolveLocalReviewCoverageSelection>[0], "nextPassContext" | "facts"> & { lineage: LaneSubjectLineage },
+  proof: Pick<ReviewNextPassInput, "resultReader" | "dispositionStore"> & {
+    readResponsePerformance?: ReviewNextPassInput["readResponsePerformance"];
+    confirmIncrementalApplicability?: ReviewNextPassInput["confirmApplicability"];
+    confirmCurrentApplicability?: (predecessor: ReviewResult, target: ReviewResult["target"])
+      => ReturnType<NonNullable<ReviewNextPassInput["confirmCurrentApplicability"]>>;
+  },
+) {
+  const terminal = input.policy.state === "coverage-required" ? input.policy.payload.attemptedSources.at(-1) : undefined;
+  const producerId = terminal !== undefined && "reviewOperationId" in terminal
+    ? terminal.reviewOperationId : input.predecessorOperationId;
+  const predecessor = producerId === undefined ? null : await proof.resultReader.readResult(producerId).catch(() => null);
+  const nextPassContext = await deriveReviewNextPassContext({ predecessor, completedPasses: predecessor?.admission.logicalPass ?? 0, completePasses: predecessor === null ? 0 : 1,
+    currentTarget: input.target, currentLineage: input.lineage, standardReview: input.standardReview,
+    resultReader: proof.resultReader, dispositionStore: proof.dispositionStore,
+    readResponsePerformance: proof.readResponsePerformance ?? (async () => null),
+    confirmApplicability: proof.confirmIncrementalApplicability,
+    confirmCurrentApplicability: proof.confirmCurrentApplicability === undefined ? undefined
+      : predecessor => proof.confirmCurrentApplicability!(predecessor, input.target),
+  });
+  const facts = nextPassFactsFixture();
+  facts.chainProven = nextPassContext.incremental !== null;
+  if (!facts.chainProven) facts.rangeSize.fix = null;
+  return resolveLocalReviewCoverageSelection({ ...input, nextPassContext, facts });
+}
+
 function readyPolicy(headSha: string, projection: StandardReviewObligationProjection = standardReview) {
-  return resolveReviewPolicy({
+  return resolveReviewPolicy(withReviewNextPassContext({
     schemaVersion: 1,
     target: { repository: "local/repo-1", pullRequest: null, headSha },
     lane: "standard",
@@ -208,7 +243,7 @@ function readyPolicy(headSha: string, projection: StandardReviewObligationProjec
     sources: ["delegated-agent"],
     maxPasses: 2,
     invocation: { mode: "force", sourceId: "delegated-agent" },
-  });
+  }));
 }
 
 describe("local review coverage selection", () => {
@@ -448,7 +483,7 @@ describe("local review coverage selection", () => {
       headSha: objectId("a"),
     };
     const predecessor = {
-      ...completeLocalResult(errandLineage),
+      ...fixedLocalResult(errandLineage),
       originalOutcome: "findings" as const,
       vehicle: { kind: "errand" as const, identity: "repair-review-state", claimId: "claim-old" },
       request: { carrier: {
@@ -497,7 +532,7 @@ describe("local review coverage selection", () => {
       headSha: objectId("a"),
     };
     const predecessor = {
-      ...completeLocalResult(errandLineage),
+      ...fixedLocalResult(errandLineage),
       originalOutcome: "findings" as const,
       vehicle: { kind: "errand" as const, identity: "repair-review-state", claimId: "claim-old" },
       request: { carrier: {
@@ -576,12 +611,12 @@ describe("local review coverage selection", () => {
     };
     for (const decision of ["review-required", "unavailable"] as const) {
       const proof = { ...dependencies(predecessor), confirmCurrentApplicability: async () => decision };
-      await expect(resolveLocalReviewCoverageSelection(common, proof)).resolves.toMatchObject({
+      await expect(resolveWithEvidence(common, proof)).resolves.toMatchObject({
         state: "coverage-required",
         action: { choices: [{ requestedCoverage: "complete" }] },
       });
     }
-    await expect(resolveLocalReviewCoverageSelection(common, {
+    await expect(resolveWithEvidence(common, {
       resultReader: dependencies(predecessor).resultReader,
       dispositionStore: dependencies(predecessor).dispositionStore,
     })).resolves.toMatchObject({
@@ -590,10 +625,10 @@ describe("local review coverage selection", () => {
     });
   });
   it("offers an exact predecessor-backed incremental choice after the target head changes", async () => {
-    const predecessor = completeLocalResult();
+    const predecessor = fixedLocalResult();
     const currentTarget = target(objectId("c"));
 
-    await expect(resolveLocalReviewCoverageSelection({
+    await expect(resolveWithEvidence({
       policy: readyPolicy(currentTarget.headSha),
       target: currentTarget,
       sourceId: "delegated-agent",
@@ -618,7 +653,7 @@ describe("local review coverage selection", () => {
   });
 
   it("accepts only the exact offered correction admission", async () => {
-    const predecessor = completeLocalResult();
+    const predecessor = fixedLocalResult();
     const currentTarget = target(objectId("c"));
     const common = {
       policy: readyPolicy(currentTarget.headSha),
@@ -628,7 +663,7 @@ describe("local review coverage selection", () => {
       standardReview,
       predecessorOperationId: predecessor.producerId,
     };
-    const offered = await resolveLocalReviewCoverageSelection(common, dependencies(predecessor));
+    const offered = await resolveWithEvidence(common, dependencies(predecessor));
     if (offered.state !== "coverage-required") throw new Error("expected coverage choice");
     const incremental = offered.action.choices[0];
     if (incremental?.requestedCoverage !== "incremental") {
@@ -637,11 +672,11 @@ describe("local review coverage selection", () => {
     const exactScope = incremental.correctionScope;
     if (exactScope === undefined) throw new Error("expected exact correction scope");
 
-    await expect(resolveLocalReviewCoverageSelection({
+    await expect(resolveWithEvidence({
       ...common,
       coverageAdmission: incremental,
-    }, dependencies(predecessor))).resolves.toEqual({ state: "ready", coverageSelected: false });
-    await expect(resolveLocalReviewCoverageSelection({
+    }, dependencies(predecessor))).resolves.toEqual({ state: "ready", coverageSelected: false, coverageAdmission: incremental });
+    await expect(resolveWithEvidence({
       ...common,
       coverageAdmission: {
         ...incremental,
@@ -657,10 +692,10 @@ describe("local review coverage selection", () => {
       vehicleIdentity: "repair-review-state",
       headSha: objectId("a"),
     };
-    const predecessor = completeLocalResult(predecessorLineage);
+    const predecessor = fixedLocalResult(predecessorLineage);
     const currentTarget = target(objectId("c"));
 
-    await expect(resolveLocalReviewCoverageSelection({
+    await expect(resolveWithEvidence({
       policy: readyPolicy(currentTarget.headSha),
       target: currentTarget,
       sourceId: "delegated-agent",
@@ -677,7 +712,7 @@ describe("local review coverage selection", () => {
       },
     });
 
-    await expect(resolveLocalReviewCoverageSelection({
+    await expect(resolveWithEvidence({
       policy: readyPolicy(currentTarget.headSha),
       target: currentTarget,
       sourceId: "delegated-agent",
@@ -702,10 +737,10 @@ describe("local review coverage selection", () => {
       headSha: objectId("a"),
     };
     const currentLineage = { ...predecessorLineage, headSha: objectId("c") };
-    const predecessor = completeLocalResult(predecessorLineage);
+    const predecessor = fixedLocalResult(predecessorLineage);
     if (predecessor.kind !== "attested-local") throw new Error("expected local predecessor");
     const currentTarget = target(currentLineage.headSha);
-    const offered = await resolveLocalReviewCoverageSelection({
+    const offered = await resolveWithEvidence({
       policy: readyPolicy(currentTarget.headSha),
       target: currentTarget,
       sourceId: "delegated-agent",
@@ -726,6 +761,7 @@ describe("local review coverage selection", () => {
     const current: ReviewResult = {
       ...predecessor,
       producerId: "local-incremental",
+      originalOutcome: "clean", findings: [],
       target: currentTarget,
       resultDigest: digest("incremental-result"),
       admission: {
@@ -755,12 +791,14 @@ describe("local review coverage selection", () => {
     }, {
       sources: ["delegated-agent"],
       maxPasses: 3,
+      nextPassContext: firstReviewNextPassContext,
       resultReader: {
         readResult: async (producerId) => producerId === predecessor.producerId
           ? predecessor
           : current,
       },
       dispositionStore: dependencies(predecessor).dispositionStore,
+      readResponsePerformance: dependencies(predecessor).readResponsePerformance,
       confirmTarget: async () => currentTarget,
       confirmIncrementalApplicability: async (earlier, later) => (
         earlier.admission.lineage.kind === "head-bound"
@@ -779,7 +817,7 @@ describe("local review coverage selection", () => {
   it("offers and completes a third Errand pass over two exact correction legs", async () => {
     const owner = { kind: "head-bound" as const, vehicleKind: "errand" as const,
       vehicleIdentity: "claim-1" };
-    const first = completeLocalResult({ ...owner, headSha: objectId("a") });
+    const first = fixedLocalResult({ ...owner, headSha: objectId("a") });
     const middleTarget = target(objectId("b"));
     const currentTarget = target(objectId("c"));
     const requirementFor = (reviewTarget: typeof middleTarget) => {
@@ -821,12 +859,19 @@ describe("local review coverage selection", () => {
       if (producerId === middle.producerId) return middle;
       throw new Error("missing result");
     } };
+    const firstProof = dependencies(first, middleTarget.headSha);
+    const middleProof = dependencies(middle, currentTarget.headSha);
+    const dispositionStore = { ...firstProof.dispositionStore,
+      readDispositionRecord: async (producerId: string) => producerId === first.producerId
+        ? firstProof.dispositionStore.readDispositionRecord() : middleProof.dispositionStore.readDispositionRecord() };
+    const readResponsePerformance = async (producer: ReviewResult) => producer.producerId === first.producerId
+      ? firstProof.readResponsePerformance() : middleProof.readResponsePerformance();
     const applicable = async (earlier: ReviewResult, later: ReviewResult) => (
       (earlier.producerId === first.producerId && later.producerId === middle.producerId)
       || (earlier.producerId === middle.producerId && later.producerId === "errand-current")
         ? "applicable" as const : "unavailable" as const
     );
-    const policy = resolveReviewPolicy({
+    const policy = resolveReviewPolicy(withReviewNextPassContext({
       schemaVersion: 1,
       target: { repository: "local/repo-1", pullRequest: null, headSha: currentTarget.headSha },
       lane: "standard",
@@ -837,14 +882,14 @@ describe("local review coverage selection", () => {
       sources: ["delegated-agent"],
       maxPasses: 3,
       invocation: { mode: "force", sourceId: "delegated-agent" },
-    });
-    const offered = await resolveLocalReviewCoverageSelection({
+    }));
+    const offered = await resolveWithEvidence({
       policy, target: currentTarget, sourceId: "delegated-agent",
       lineage: { ...owner, headSha: currentTarget.headSha }, standardReview,
       predecessorOperationId: middle.producerId,
     }, {
       resultReader: reader,
-      dispositionStore: dependencies(first).dispositionStore,
+      dispositionStore, readResponsePerformance,
       confirmIncrementalApplicability: applicable,
       confirmCurrentApplicability: async () => "applicable",
     });
@@ -855,6 +900,7 @@ describe("local review coverage selection", () => {
     const current: ReviewResult = {
       ...first,
       producerId: "errand-current",
+      originalOutcome: "clean", findings: [],
       target: currentTarget,
       resultDigest: digest("errand-current"),
       admission: {
@@ -875,9 +921,10 @@ describe("local review coverage selection", () => {
       attempts: [{ sourceId: "delegated-agent", outcome: "clean", reviewOperationId: current.producerId }],
     }, {
       sources: ["delegated-agent"], maxPasses: 3,
+      nextPassContext: firstReviewNextPassContext,
       resultReader: { readResult: async (producerId) => producerId === current.producerId
         ? current : reader.readResult(producerId) },
-      dispositionStore: dependencies(first).dispositionStore,
+      dispositionStore, readResponsePerformance,
       confirmTarget: async () => currentTarget,
       confirmIncrementalApplicability: applicable,
     })).resolves.toMatchObject({
@@ -890,7 +937,7 @@ describe("local review coverage selection", () => {
     const predecessor = incrementalLocalResult();
     const currentTarget = target(objectId("c"));
 
-    await expect(resolveLocalReviewCoverageSelection({
+    await expect(resolveWithEvidence({
       policy: readyPolicy(currentTarget.headSha),
       target: currentTarget,
       sourceId: "delegated-agent",
@@ -918,20 +965,20 @@ describe("full-final local correction coverage", () => {
     standardReview: projection, predecessorOperationId: "local-predecessor",
   });
 
-  it("offers and accepts only complete coverage after an Errand head changes", async () => {
+  it("admits complete coverage after a converged Errand look without a choice", async () => {
     const predecessor = completeLocalResult(owner, fullFinal);
-    const offered = await resolveLocalReviewCoverageSelection(input(fullFinal), dependencies(predecessor));
-    expect(offered).toMatchObject({ state: "coverage-required", action: { choices: [{ requestedCoverage: "complete" }] } });
-    await expect(resolveLocalReviewCoverageSelection({ ...input(fullFinal), coverageAdmission: { requestedCoverage: "complete" } },
-      dependencies(predecessor))).resolves.toEqual({ state: "ready", coverageSelected: false });
+    const offered = await resolveWithEvidence(input(fullFinal), dependencies(predecessor));
+    expect(offered).toEqual({ state: "ready", coverageSelected: false, coverageAdmission: { requestedCoverage: "complete" } });
+    await expect(resolveWithEvidence({ ...input(fullFinal), coverageAdmission: { requestedCoverage: "complete" } },
+      dependencies(predecessor))).resolves.toEqual({ state: "ready", coverageSelected: false, coverageAdmission: { requestedCoverage: "complete" } });
   });
 
   it("rejects an incremental choice that no longer matches full-final routing", async () => {
-    const prior = await resolveLocalReviewCoverageSelection(input(standardReview), dependencies(completeLocalResult(owner)));
+    const prior = await resolveWithEvidence(input(standardReview), dependencies(fixedLocalResult(owner)));
     if (prior.state !== "coverage-required") throw new Error("Expected a prior coverage offer");
     const incremental = prior.action.choices.find(choice => choice.requestedCoverage === "incremental");
     if (incremental === undefined) throw new Error("Expected the incremental route's choice");
-    await expect(resolveLocalReviewCoverageSelection({ ...input(fullFinal), coverageAdmission: incremental },
-      dependencies(completeLocalResult(owner, fullFinal)))).rejects.toThrow("current offered choice");
+    await expect(resolveWithEvidence({ ...input(fullFinal), coverageAdmission: incremental },
+      dependencies(fixedLocalResult(owner, fullFinal)))).rejects.toThrow("current offered choice");
   });
 });

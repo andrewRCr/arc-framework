@@ -1,4 +1,8 @@
 /** Shared support for hosted-review reservation discharge. */
+import { confirmReviewCorrectionLeg, type ReviewCorrectionLegInput } from "./review-next-pass.js";
+import { deriveHostedReviewTarget } from "./hosted-review-target.js";
+
+import type { ReviewNextPassContext } from "./review-next-pass-schema.js";
 
 import {
   DeliveryReviewMemberVehicleSchema,
@@ -6,7 +10,6 @@ import {
   type DeliveryReviewMemberVehicle,
 } from "../../../lib/delivery/review-vehicle.js";
 import { canonicalize } from "../../../lib/kernel/canonical/canonical-json.js";
-import { readConfigSettings } from "../../../lib/config/status-reader.js";
 import type { DeliveryHostChangeRequest, DeliveryHostPort } from "../../../lib/delivery/host.js";
 import type { GitExec } from "../../../lib/git/index.js";
 import type { CandidateManagedRecordV1 } from "../../../lib/work-unit/candidate-attestation.js";
@@ -26,17 +29,13 @@ import type { HostedFindingsResponsePlan } from "../core/response-plan-schema.js
 import type { ReviewResult } from "../core/review-result.js";
 import type { HostedAwaitEnvelope } from "../hosted/await.js";
 import {
-  HostedProviderIdSchema,
   hostedRequestHandleMatchesProgress,
   type HostedReviewCoverage,
   type HostedRequestEnvelope,
   type HostedAdmission,
   type HostedRequestHandle,
 } from "../hosted/request.js";
-import { hostedProviderAdmitsCoverage } from "../hosted/correction-review-capability.js";
 import { laneSubjectOwnerMatches, type LaneSubjectLineage } from "../core/lane-admission.js";
-import { deriveLocalReviewTargetFromCoordinates } from
-  "../hosts/local/repository-target.js";
 import type { IncrementalReviewScope } from "../core/incremental-review-scope.js";
 import {
   type IncrementalPredecessorApplicability,
@@ -51,6 +50,16 @@ export type EarlierApplicableAttempt = Extract<
   EarlierHostedAttemptApplicabilityRead,
   { status: "complete" }
 >["attempts"][number];
+
+/** Refuse inconsistent current and retained terminal evidence for the same logical pass. */
+export function projectConflictingHostedTerminalPass(
+  latest: ProjectedLaneAttempt | undefined, retained: readonly EarlierApplicableAttempt[],
+): HostedReservationDischarge | null {
+  return latest !== undefined && retained.some(attempt => attempt.logicalPass === latest.logicalPass
+    && (attempt.attemptId !== latest.attemptId || attempt.outcome !== latest.outcome))
+    ? { discharged: false, detail: "The latest logical pass contains conflicting current and retained terminal review evidence.",
+      nextSource: null } : null;
+}
 
 function isCompleteCleanCoverage(attempt: EarlierApplicableAttempt): boolean {
   return attempt.outcome === "clean"
@@ -132,6 +141,7 @@ export interface IncrementalCorrectionScopeCandidate {
 export function incrementalApplicabilityFromEarlierRead(input: {
   readonly producerId: string;
   readonly producerTarget: NonNullable<EarlierApplicableAttempt["producerTarget"]>;
+  readonly currentTarget: ReviewResult["target"];
   readonly earlier: EarlierHostedAttemptApplicabilityRead;
 }): IncrementalPredecessorApplicability {
   if (input.earlier.status !== "complete") return "unavailable";
@@ -141,7 +151,12 @@ export function incrementalApplicabilityFromEarlierRead(input: {
     && canonicalize(attempt.producerTarget) === canonicalize(input.producerTarget)
   ));
   if (exact.length !== 1) return "unavailable";
-  const applicability = exact[0]?.applicability;
+  const retained = exact[0];
+  if (retained?.retentionBasis === "verified-fix-response"
+    && (input.producerTarget.baseRef !== input.currentTarget.baseRef
+      || input.producerTarget.diffBaseSha !== input.currentTarget.diffBaseSha
+      || input.producerTarget.diffBaseTree !== input.currentTarget.diffBaseTree)) return "review-required";
+  const applicability = retained?.applicability;
   return applicability === "retain-prior-attempt"
     ? "applicable"
     : applicability === "request-review"
@@ -156,7 +171,7 @@ export async function confirmIncrementalPredecessorApplicability(input: {
   readonly readEarlierAttemptApplicability?: (
     sourceId: string,
   ) => Promise<EarlierHostedAttemptApplicabilityRead>;
-}): Promise<IncrementalPredecessorApplicability> {
+} & Pick<ReviewCorrectionLegInput, "dispositionStore" | "readResponsePerformance" | "candidateProof" | "rangeProof">): Promise<IncrementalPredecessorApplicability> {
   const { predecessor, current } = input;
   const scope = current.admission.correctionScope;
   if (scope === undefined
@@ -165,18 +180,23 @@ export async function confirmIncrementalPredecessorApplicability(input: {
     return "unavailable";
   }
   if (predecessor.repositoryId !== current.repositoryId) return "unavailable";
-  if (canonicalize(predecessor.target) === canonicalize(current.target)) return "applicable";
-  const sourceId = predecessor.kind === "hosted"
-    ? predecessor.sourceIdentity
-    : predecessor.kind === "attested-local"
-      ? predecessor.deliveryAdmission?.sourceId
-      : undefined;
-  if (sourceId === undefined || input.readEarlierAttemptApplicability === undefined) return "unavailable";
-  return incrementalApplicabilityFromEarlierRead({
-    producerId: predecessor.producerId,
-    producerTarget: predecessor.target,
-    earlier: await input.readEarlierAttemptApplicability(sourceId),
-  });
+  const confirmGrounds = async () => {
+    if (canonicalize(predecessor.target) === canonicalize(current.target)) return "applicable";
+    const sourceId = predecessor.kind === "hosted"
+      ? predecessor.sourceIdentity
+      : predecessor.kind === "attested-local"
+        ? "delegated-agent"
+        : undefined;
+    if (sourceId === undefined || input.readEarlierAttemptApplicability === undefined) return "unavailable";
+    return incrementalApplicabilityFromEarlierRead({
+      producerId: predecessor.producerId,
+      producerTarget: predecessor.target,
+      currentTarget: current.target,
+      earlier: await input.readEarlierAttemptApplicability(sourceId),
+    });
+  };
+  return confirmReviewCorrectionLeg({ ...input, currentTarget: current.target,
+    currentLineage: current.admission.lineage, currentResult: current, confirmGrounds });
 }
 
 /** Retain a current-head correction predecessor only for its exact live review target and owner. */
@@ -207,18 +227,7 @@ export async function confirmExactCurrentCorrectionPredecessor(input: {
   if (input.currentHeadSha !== input.approvedHeadSha
     || input.predecessor.target.headSha !== input.currentHeadSha) return false;
   try {
-    const { settings } = await readConfigSettings(input.cwd);
-    const currentTarget = await deriveLocalReviewTargetFromCoordinates({
-      exec: input.exec,
-      cwd: input.cwd,
-      repositoryId: input.currentRepositoryId,
-      coordinates: {
-        kind: input.vehicle === undefined ? "change-set" : "delivery-member",
-        baseRef: settings["branch.base"],
-        diffBaseSha: input.baseRevision,
-        headSha: input.currentHeadSha,
-      },
-    });
+    const currentTarget = await deriveHostedReviewTarget({ ...input, approvedHeadSha: input.currentHeadSha });
     return exactCurrentCorrectionPredecessorMatches({
       predecessor: input.predecessor,
       currentTarget,
@@ -463,6 +472,8 @@ export function retainedSafeUnavailableAttempt(
 
 /** Whether the reserved hosted review has produced a verdict, with the evidence for that reading. */
 export interface HostedReservationDischarge {
+  terminalPolicyState?: ReviewResolveEnvelope["state"];
+  nextPassContext?: ReviewNextPassContext;
   discharged: boolean;
   detail: string;
   nextSource: string | null;
@@ -495,6 +506,10 @@ export interface HostedReservationDischargeReaderArgs {
 
 /** Discharge projection plus its fresh predecessor-applicability boundary. */
 export interface HostedReservationDischargeReader {
+  confirmCurrentIncrementalApplicability(
+    args: HostedReservationDischargeReaderArgs,
+    predecessor: ReviewResult,
+  ): Promise<IncrementalPredecessorApplicability>;
   (args: HostedReservationDischargeReaderArgs): Promise<HostedReservationDischarge>;
   confirmIncrementalApplicability(
     args: HostedReservationDischargeReaderArgs,
@@ -514,14 +529,7 @@ export function coverageSelectionChoices(
         ? [complete]
         : [{ sourceId, coverage: "incremental" }, complete];
     }
-    const provider = HostedProviderIdSchema.safeParse(sourceId);
-    return provider.success && hostedProviderAdmitsCoverage(
-      provider.data,
-      "incremental",
-      correctionScope,
-    )
-      ? [{ sourceId, coverage: "incremental" }, complete]
-      : [complete];
+    return [complete];
   });
 }
 

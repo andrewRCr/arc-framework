@@ -107,6 +107,8 @@ const reviewIdentities = [
   "review-planning-grooming-resolve-request",
   "review-policy-version-preimage",
   "review-pre-publication-envelope",
+  "review-lane-read-envelope",
+  "review-lane-read-request",
   "review-readiness-envelope",
   "review-readiness-request",
   "review-receipt",

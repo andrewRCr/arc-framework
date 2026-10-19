@@ -7,11 +7,39 @@ import {
   ArcLayoutAddressSchema,
   LayoutError,
   resolveArcPath,
+  isProjectedPath,
+  isProjectedLifecyclePath,
   type ArcLayoutAddress,
 } from "../../../src/lib/layout/index.js";
 
 const slug = (value: string) => SlugSchema.parse(value);
 const address = (value: unknown): ArcLayoutAddress => ArcLayoutAddressSchema.parse(value);
+
+describe("projected roots", () => {
+  it.each([
+    ".arc/active", ".arc/backlog", ".arc/completed", ".arc/active/current/meta-example.md",
+    ".arc/backlog/../active/", "./.arc/completed/archive.md",
+  ])("recognizes lifecycle root or descendant %s", (path) => {
+    expect(isProjectedLifecyclePath(path)).toBe(true);
+    expect(isProjectedPath(path)).toBe(true);
+  });
+  it.each([
+    ".arc/user/a", ".arc/user/andrew/WORKING-MEMORY.md", ".arc/user/user-2/",
+    ".arc/user/../user/alice/draft.md",
+  ])("recognizes slug-named personal roots %s", (path) => {
+    expect(isProjectedPath(path)).toBe(true);
+    expect(isProjectedLifecyclePath(path)).toBe(false);
+  });
+  it.each([
+    ".arc/user", ".arc/user/README.md", ".arc/user/UPPER/file.md", ".arc/user/a_b/file.md",
+    ".arc/user/-a/file.md", ".arc/user/a--b/file.md", ".arc/user/a-/file.md",
+    ".arc/active-other/file.md", ".arc/backlogs/file.md", ".arc/completed-old",
+    ".arc/active/../../file.md", "../.arc/active", "/.arc/active", "prefix/.arc/active",
+  ])("keeps nonprojection paths outside the roots %s", (path) => {
+    expect(isProjectedPath(path)).toBe(false);
+    expect(isProjectedLifecyclePath(path)).toBe(false);
+  });
+});
 
 describe("resolveArcPath", () => {
   it.each([
