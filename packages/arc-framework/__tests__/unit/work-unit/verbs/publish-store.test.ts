@@ -190,7 +190,9 @@ it("advances renewed publication readiness while Integrating and preserves the r
   expect(result).toMatchObject({ status: "unchanged", boundary: { locus: "publication-pending",
     nextAction: { kind: "continue-publication", command: "git push -u origin feat/example" } } });
   expect(lifecycleSuccess(await h.store.read({ reference: primary.reference }))).toEqual(primary);
-  if (result.status !== "unchanged") throw new Error("Missing publication continuation");
+  if (result.status !== "unchanged" || result.boundary.schemaVersion !== 1) {
+    throw new Error("Expected version-one publication continuation");
+  }
   expect(await runPublish(context(h.store), { ...params, boundary: result.boundary })).toEqual(result);
 });
 it("refuses unresolved renewed review while Integrating and publishes after readiness is repaired", async () => {

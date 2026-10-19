@@ -135,6 +135,7 @@ import {
   IntegrationBoundaryLocusSchema,
   parseIntegrationBoundaryLocus,
   type IntegrationBoundaryLocus,
+  type PublishedIntegrationBoundaryLocus,
   type PostAttestContinuation,
 } from "../scripts/review-gate/policy/integration-boundary-locus.js";
 import {
@@ -4283,7 +4284,7 @@ export interface ReviewPrePublicationHandlerDependencies {
     input: z.infer<typeof ReviewPrePublicationInputSchema>,
     judgment: ReviewPrePublicationJudgment,
   ): Promise<PrePublicationComposition>;
-  persistBoundary(root: string, boundary: IntegrationBoundaryLocus): Promise<void>;
+  persistBoundary(root: string, boundary: PublishedIntegrationBoundaryLocus): Promise<void>;
   persistAcceptedFrontlineSkip(root: string, input: {
     workUnit: string;
     candidateId: CanonicalDigest;
@@ -4292,7 +4293,7 @@ export interface ReviewPrePublicationHandlerDependencies {
   }): Promise<void>;
   recoverAttestationOrdering(
     root: string,
-    boundary: IntegrationBoundaryLocus,
+    boundary: PublishedIntegrationBoundaryLocus,
     expectedVersion: string,
   ): Promise<void>;
   write(text: string): void;
@@ -4303,7 +4304,7 @@ export interface ReviewPrePublicationHandlerDependencies {
 async function recoverProjectedPublicationBoundary(
   dependencies: ReviewPrePublicationHandlerDependencies,
   root: string,
-  boundary: IntegrationBoundaryLocus,
+  boundary: PublishedIntegrationBoundaryLocus,
   expectedVersion: string,
 ): Promise<SubmissionBoundaryVersionConflictError | null> {
   try {
@@ -5040,7 +5041,7 @@ export async function handleReviewPrePublication(
     // The settled locus is where the durable publication boundary is written. Recording it here —
     // before the result is claimed — is what makes `arc publish` succeed on its first call; an
     // absent boundary now means genuinely open obligations rather than a write nobody performed.
-    if (envelope.locus === "candidate-publish-ready") {
+    if (envelope.schemaVersion === 1 && envelope.locus === "candidate-publish-ready") {
       if (beforeCompose.status !== "current"
         || beforeCompose.candidateId !== composition.request.candidateId
         || laneVersionBeforeCompose === null) {
@@ -5055,7 +5056,7 @@ export async function handleReviewPrePublication(
     if (envelope.locus === "candidate-publish-ready"
       || envelope.locus === "candidate-convergence-verification-pending") {
       const persist = async (): Promise<"written" | "lane-moved" | SubmissionBoundaryVersionConflictError> => {
-        if (envelope.locus === "candidate-publish-ready"
+        if (envelope.schemaVersion === 1 && envelope.locus === "candidate-publish-ready"
           && envelope.standardLaneOwnerVersion !== await dependencies.readStandardLaneOwnerVersion(
             root, composition.request.candidateId, currentRootHead,
           )) return "lane-moved";

@@ -48,6 +48,7 @@ import {
   parseIntegrationBoundaryLocus,
   projectPublicationBoundary,
   type IntegrationBoundaryLocus,
+  type PublishedIntegrationBoundaryLocus,
   type StandardReviewReservationV1,
 } from "../../../scripts/review-gate/policy/integration-boundary-locus.js";
 
@@ -193,7 +194,7 @@ const PUBLISH_RESUME_REMEDY = (name: string): SpineRemedy => spineRemedy(
 /** The outcome of a `publish` attempt, including reconcile stops before phase mutation. */
 export type PublishResult =
   | { status: "rejected"; reason: string; remedy: SpineRemedy; refusal?: StoreRefusal }
-  | { status: "unchanged"; boundary: IntegrationBoundaryLocus }
+  | { status: "unchanged"; boundary: PublishedIntegrationBoundaryLocus }
   | {
       status: "published";
       outcome: TransitionOutcome;

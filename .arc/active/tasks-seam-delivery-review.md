@@ -677,42 +677,12 @@ family's schemas are store schemas, never entries in the review gate's published
   and publish-unchanged writes, attest's singleton recovery, repair, and unchanged writes, and the singleton response's
   rebind, and 6.2.b every write naming a terminus, the Owner terminus write among them.
 
-    - `[ ]` **4.5.a The widened published schemas**
+    - `[x]` **4.5.a The widened published schemas**
 
-        - Per § 3.5: the boundary's version 2 in `commands/status/schema.ts`, `commands/active/schema.ts`, attest's
-          `locus` (`AttestResultSchema`), publish's unchanged result (`lib/work-unit/verbs/publish.ts`), and
-          `PrePublicationReviewEnvelopeSchema`; `"merge"` in a widened copy of `RunConvergenceVerificationActionSchema`,
-          which `IntegrationCheckpointResultSchema` and `PrePublicationContinuationSchema` embed in place of the action,
-          and in attest's own action schemas (`AttestConvergenceVerificationActionSchema`,
-          `AttestRootVerificationActionSchema`); and `RecordVersionSchema` in attest's `recordRevision` and
-          `candidateRecordRevision`, `DeliveryReviewTerminusOfferSchema` and `AttestationOrderingRecoverySchema`'s
-          `expectedBoundaryVersion`, and an applicability offer's `expectedRecordVersion`
-          (`rg/policy/review-applicability-resolution.ts`, `lib/work-unit/candidate-applicability-resolution.ts`), and
-          the checkpoint's `candidate-record-moved` payload (`scripts/integration/checkpoint.ts`); the two that carry
-          the Candidate's version, the applicability offer's and the checkpoint payload's, drop the digest parse 2.3.b
-          gave it on its way in.
-        - `PrePublicationReviewEnvelopeSchema`'s version 2 arm extends version 2's variants with the envelope's fields
-          and keeps `policy`, typed per variant as version 1's are: a resolve envelope or `null` on the review-resume
-          variant, which the policy-review one folds into, a nullable resolve envelope on `candidate-fix-pending`, and
-          `null` elsewhere (§ 9.3).
-        - Per § 3.5, the fields of a mechanism § 14.3 retires: the widened copy's post-attest continuation admits one
-          without `projectionDisposition` (`PostAttestContinuationSchema`); a member terminus's acceptance result admits
-          `recorded` with the next action `continue` and no `boundaryPath`
-          (`DeliveryReviewTerminusAcceptanceResultSchema`, `rg/policy/delivery-review-terminus.ts`), which 6.2.b emits;
-          and delivery's acknowledged result admits no `candidate.recordPath`, `boundaryCarry.path`, or `recordEffects`
-          (`ResultSchema`, `handlers/delivery-execution.ts`), which 6.5.e stops emitting and its driver stops reading.
-        - `createRunConvergenceVerificationAction` (`rg/policy/integration-boundary-locus.ts`) parses through the
-          widened copy, while `IntegrationBoundaryLocusSchema`'s version 1 variants keep today's action and continuation
-          objects, so version 1 still requires `projectionDisposition` and admits only today's kinds (1.6.b).
-        - Sweep every emitted contract again for a field only a § 14.3 mechanism fills, widening each one found.
-        - Build `test-first` (one behavior at a time):
-            - each widened schema parses today's value and the flip's
-            - a version 2 envelope parses each variant with its `policy`, its review-resume one with a resolve envelope
-              or `null`, and refuses a `policy` its variant does not admit
-            - a version 1 boundary still refuses a convergence action or continuation without `projectionDisposition`
-              after the widening
-            - every output emitted before the flip parses as it did, the schema-pinning tests changing only by the
-              widened arms
+        - Published boundary outputs and publish's unchanged result admit both formats. Pre-publication's native
+          envelope keeps variant-typed policy, while strict V1 boundaries retain their original action rules.
+          Published actions accept `merge` and projection-free continuations; record versions stay opaque, and
+          terminus and delivery results admit stored authority without tracked artifacts.
 
     - `[ ]` **4.5.b The projections**
 

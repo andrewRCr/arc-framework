@@ -39,10 +39,13 @@ import {
   RunSelfReviewActionSchema,
   StandardReviewReservationTargetSchema,
   parseIntegrationBoundaryLocus,
-  type IntegrationBoundaryLocus,
+  type PublishedIntegrationBoundaryLocus,
   type PostAttestContinuation,
   type StandardReviewReservationV1,
 } from "./integration-boundary-locus.js";
+
+import { IntegrationBoundaryLocusV2Schema, CandidateSelfReviewBoundaryV2Schema, CandidateReviewResumeBoundaryV2Schema, CandidateFixBoundaryV2Schema,
+  CandidateConvergenceBoundaryV2Schema, CandidatePublishReadyBoundaryV2Schema } from "./integration-boundary-locus-v2.js";
 
 const CandidateIdSchema = CanonicalDigestSchema;
 const CandidateSubjectDigestSchema = CanonicalDigestSchema;
@@ -145,6 +148,11 @@ const PrePublicationEnvelopeFields = {
   responseBinding: FrontlineResponseBindingSchema.optional(),
 };
 export const PrePublicationReviewEnvelopeSchema = z.union([
+  CandidateSelfReviewBoundaryV2Schema.extend({ ...PrePublicationEnvelopeFields, policy: z.null() }),
+  CandidateReviewResumeBoundaryV2Schema.extend({ ...PrePublicationEnvelopeFields, policy: ReviewResolveEnvelopeSchema.nullable() }),
+  CandidateFixBoundaryV2Schema.extend({ ...PrePublicationEnvelopeFields, policy: ReviewResolveEnvelopeSchema.nullable() }),
+  CandidateConvergenceBoundaryV2Schema.safeExtend({ ...PrePublicationEnvelopeFields, policy: z.null() }),
+  CandidatePublishReadyBoundaryV2Schema.extend({ ...PrePublicationEnvelopeFields, policy: z.null() }),
   CandidateSelfReviewBoundarySchema.extend(PrePublicationEnvelopeFields),
   CandidatePolicyReviewBoundarySchema.extend(PrePublicationEnvelopeFields),
   CandidateReviewResumeBoundarySchema.extend(PrePublicationEnvelopeFields),
@@ -161,10 +169,14 @@ export type PrePublicationReviewEnvelope = z.infer<typeof PrePublicationReviewEn
  * goes stale the moment the head moves, against a boundary deliberately keyed to the reviewable
  * subject instead.
  */
-export function prePublicationBoundary(envelope: PrePublicationReviewEnvelope): IntegrationBoundaryLocus {
+export function prePublicationBoundary(envelope: PrePublicationReviewEnvelope): PublishedIntegrationBoundaryLocus {
   const boundary: Record<string, unknown> = { ...envelope };
   delete boundary.target;
   delete boundary.responseBinding;
+  if (envelope.schemaVersion === 2) {
+    delete boundary.policy;
+    return IntegrationBoundaryLocusV2Schema.parse(boundary);
+  }
   return parseIntegrationBoundaryLocus(boundary);
 }
 
