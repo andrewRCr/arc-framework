@@ -29,7 +29,7 @@ import { SlugSchema, type Slug } from "../lib/kernel/index.js";
 import { createStore } from "../lib/store/create.js";
 import { createDefaultStorePorts } from "../lib/store/default-ports.js";
 import type { Store } from "../lib/store/contract.js";
-import { createStoreSyncPort, type StoreSyncPort } from "../lib/store/operational-sync.js";
+import { bindStoreSyncPort, type StoreSyncPort } from "../lib/store/operational-sync.js";
 import { describeStorePull, type StoreSessionInitUserValue } from "../lib/session-init/store-user-pull.js";
 import { joinStoreDesignationSite } from "../prompts/join-store-designation.js";
 import { prompt, type PromptRenderer } from "../lib/command-input/prompter.js";
@@ -52,22 +52,23 @@ export async function pullJoinStore(input: { cwd: string; exec: GitExec; identit
   const store = ports.openStore?.({ cwd: input.cwd, exec: input.exec, identity: input.identity })
     ?? createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec, identity: input.identity }));
   if (!store.capabilities.stateOffBranch) return null;
-  const result = await (ports.sync?.(store) ?? createStoreSyncPort()).pull();
+  const result = await (ports.sync?.(store) ?? bindStoreSyncPort(store)).pull();
   const value = describeStorePull(result);
-  if (result.status === "unreachable") p.log.warn(`${result.condition} ${result.remedy.text}`);
+  if (result.status === "unreachable" || result.status === "incomplete") p.log.warn(`${result.condition} ${result.remedy.text}`);
   if (result.status !== "designation-needed") return value;
   p.log.info(value.summary);
   if (input.context.interaction !== "allowed") return value;
-  const recommended = result.remedy.argv.at(-1);
+  const remedyArgv = result.remedy.argv ?? [];
+  const recommended = remedyArgv.at(-1);
   const answer = await prompt(joinStoreDesignationSite, input.context, {
     message: `How should remote ${result.remote} serve store state?`,
     options: result.choices.map(choice => ({ value: choice, label: choice,
-      ...(choice === recommended ? { hint: result.remedy.argv.join(" ") } : {}) })),
+      ...(choice === recommended ? { hint: remedyArgv.join(" ") } : {}) })),
     ...(recommended !== undefined && result.choices.includes(recommended) ? { initialValue: recommended } : {}),
   }, ports.renderer);
   if (answer.kind === "cancelled") return { status: "cancelled" };
   if (answer.kind !== "answered" || !result.choices.includes(answer.value)) return value;
-  const argv = answer.value === recommended ? [...result.remedy.argv] : ["arc", "store", "remote", result.remote, answer.value];
+  const argv = answer.value === recommended ? [...remedyArgv] : ["arc", "store", "remote", result.remote, answer.value];
   await (ports.execute ?? executeJoinDesignation)(argv, input.cwd, input.context);
   return value;
 }

@@ -189,3 +189,18 @@ it("keeps create-only description companions out of the actual awaiting-merge re
     { kind: "resume", previous, authorization: authorization.authorization, updatedAt: "2026-10-17T00:00:00Z" })).toMatchObject({ kind: "applied", value: { state: "open", claimId: previous.claimId } });
   expect(lifecycleSuccess(await h.store.read({ reference: description.reference }))).toEqual(description);
 });
+
+it("withholds Errand authority after an incomplete pull and continues after repair", async () => {
+  const h = createLifecycleHarness();
+  const opened = await transitionStoreErrand({ store: h.store, identity: "alice", projectId: async () => "project-id" }, { kind: "create", record: record() });
+  if (opened.kind !== "applied" || opened.value === null) throw new Error("Expected open");
+  let complete = false;
+  h.store.pull = async () => ({ status: "ok", result: complete ? { states: [], pulls: [] }
+    : { states: [{ status: "move-incomplete", condition: "State was only partly pulled.", remedy: { text: "Repair the state remote." } }], pulls: [] } });
+  const before = lifecycleSuccess(await h.store.version());
+  expect(await readStoreErrand({ store: h.store, identity: "alice" }, "fix-it"))
+    .toEqual({ kind: "refused", reason: "State was only partly pulled. Repair the state remote." });
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  complete = true;
+  expect(await readStoreErrand({ store: h.store, identity: "alice" }, "fix-it")).toMatchObject({ kind: "ready", record: opened.value });
+});

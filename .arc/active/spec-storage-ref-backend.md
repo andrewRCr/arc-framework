@@ -4163,7 +4163,7 @@ open:
 - **A14** — 2026-10-17 — task: bind the session synchronization port to the invocation's selected store after the
   locus seam is available. _Supersedes:_ none; realizes § 6.1's session pull and § 12's maintenance through
   `createSessionStatusContext` and `createStoreSyncPort`'s currently unbound operations. _Trigger:_ door, the status
-  and roadmap seam's binding-gap report. _Work:_ 15.3.R. _Revalidated:_ pending → 15.3.R.
+  and roadmap seam's binding-gap report. _Work:_ 15.3.R. _Revalidated:_ 15.3.R.
 
   The port gains `incomplete` for a pull invocation that did not fully synchronize the requested state, preserving
   partial outcomes, condition, and remedy; `unreachable` retains transport failure. Session entry and status fetch

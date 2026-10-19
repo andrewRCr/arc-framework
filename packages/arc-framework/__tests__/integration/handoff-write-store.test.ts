@@ -89,12 +89,12 @@ it("names the work-unit checkout when no current work unit is held, then succeed
 it("maintains once after the landed write and reports only excessive measurements", async () => {
   const h = await fixture();
   let maintained = false;
-  const sync = createStoreSyncPort({ maintain: async () => {
+  h.store.maintain = async () => {
     if (maintained) throw new Error("Duplicate maintenance"); maintained = true;
     expect(ParsedMetaRecordSchema.parse(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })).fields).stateAtHandoff).not.toBeNull();
-    return { measurements: [{ ref: "refs/arc/project/inbox", commits: 2001, diskBytes: 51_000_000 }] };
-  } });
-  expect(await runHandoffWrite({ ...h, request, sync })).toMatchObject({ status: "written", maintenance: { growth: [{ commits: 2001, diskBytes: 51_000_000 }] } });
+    return { status: "ok", result: { measurements: [{ ref: "refs/arc/project/inbox", commits: 2001, diskBytes: 51_000_000 }] } };
+  };
+  expect(await runHandoffWrite({ ...h, request })).toMatchObject({ status: "written", maintenance: { growth: [{ commits: 2001, diskBytes: 51_000_000 }] } });
   expect(maintained).toBe(true);
 });
 it("reports maintenance failure after landing as success with a diagnostic", async () => {

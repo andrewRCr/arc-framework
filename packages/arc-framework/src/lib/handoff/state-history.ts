@@ -27,8 +27,8 @@ export async function readStateHistory<T>(operation: () => Promise<StoreResult<T
 }
 async function requireHistoryPull(sync: StoreSyncPort, refs: readonly string[], refusal: StoreRefusal): Promise<void> {
   const pulled = await pullHistory(sync, refs, refusal);
-  if (pulled.status === "unreachable" || pulled.status === "designation-needed") {
-    throw new Error(`${refusal.condition} ${pulled.status === "unreachable" ? pulled.condition : `State remote ${pulled.remote} needs a role.`} ${pulled.remedy.text}`);
+  if (pulled.status === "unreachable" || pulled.status === "incomplete" || pulled.status === "designation-needed") {
+    throw new Error(`${refusal.condition} ${refusal.remedy.text} ${pulled.status === "designation-needed" ? `State remote ${pulled.remote} needs a role.` : pulled.condition} ${pulled.remedy.text}`);
   }
 }
 async function pullHistory(sync: StoreSyncPort, refs: readonly string[], refusal: StoreRefusal) {

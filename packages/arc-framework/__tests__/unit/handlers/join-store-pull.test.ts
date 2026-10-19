@@ -44,3 +44,20 @@ it("runs the explicit alternate answer while marking the remedy as the recommend
   });
   expect(remoteRoles.get("upstream")).toBe("code");
 });
+
+it("allows an explicit designation when the selected store supplies a human remedy without argv", async () => {
+  const h = createLifecycleHarness();
+  h.store.pull = async () => ({ status: "ok", result: { states: [{ status: "designation-needed", remote: "upstream",
+    choices: ["push", "read", "off"], remedy: { text: "Choose the upstream role." } }], pulls: [] } });
+  const roles = new Map<string, string>();
+  const renderer: PromptRenderer = { confirm: async () => ({ kind: "cancelled" }), text: async () => ({ kind: "cancelled" }),
+    multiselect: async () => ({ kind: "cancelled" }), select: async (_context, question) => ({ kind: "answered", value: question.options[1]!.value }) };
+  const result = await pullJoinStore({ cwd: "/project", exec: async () => { throw new Error("Unbound Git"); },
+    identity: SlugSchema.parse("alice"), context: context(true) }, { openStore: () => h.store, renderer,
+    execute: async ([command, family, verb, remote, role]) => {
+      if (command !== "arc" || family !== "store" || verb !== "remote" || remote === undefined || role === undefined) throw new Error("Invalid designation command");
+      roles.set(remote, role);
+    } });
+  expect(result).toMatchObject({ status: "designation-needed", summary: expect.stringContaining("Choose the upstream role.") });
+  expect(roles.get("upstream")).toBe("read");
+});

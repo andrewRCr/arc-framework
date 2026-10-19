@@ -4,7 +4,7 @@ import { createLifecycleHarness } from "../../helpers/store/lifecycle-harness.js
 import { createStore } from "../../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
 import { createStoreSyncPort } from "../../../src/lib/store/operational-sync.js";
-import { probeStoreUserPull } from "../../../src/lib/session-init/store-user-pull.js";
+import { probeStoreUserPull, describeStorePull } from "../../../src/lib/session-init/store-user-pull.js";
 import { SessionInitUserValueSchema } from "../../../src/commands/user/session-init-schema.js";
 
 it("carries a bound designation and typed remedy through the user slot schema", async () => {
@@ -43,4 +43,29 @@ it("names identity configuration in the session user slot when no store identity
     sync: createStoreSyncPort({ pull: async () => ({ status: "no-identity" }) }) });
   expect(SessionInitUserValueSchema.parse(result)).toEqual({ status: "no-identity",
     summary: "No store identity is configured. Run git config arc.identity <name> and retry." });
+});
+
+it("describes incomplete synchronization and retains its partial outcomes in the user schema", () => {
+  const remedy = { text: "Repair the refused remote." };
+  const partial = { states: [], pulls: [{ status: "failed" as const, remote: "origin", role: "state" as const,
+    families: ["work-item" as const], notices: [], failure: { code: "refused" as const, class: "terminal" as const,
+      condition: "Remote policy refusal.", message: "Remote policy refusal.", remedy } }] };
+  const result = describeStorePull({ status: "incomplete", condition: "Remote policy refusal.", remedy, partial });
+  expect(result.summary).toBe("Remote policy refusal.");
+  expect(result.actions).toContainEqual(remedy);
+  expect(SessionInitUserValueSchema.parse(result)).toEqual(result);
+});
+
+it("preserves a designation's human remedy when no executable argv is supplied", () => {
+  const result = describeStorePull({ status: "designation-needed", remote: "backup", choices: ["push", "read", "off"],
+    remedy: { text: "Choose the backup role." } });
+  expect(result.summary).toContain("Choose the backup role.");
+  expect(result.actions).toEqual([{ text: "Choose the backup role." }]);
+  expect(SessionInitUserValueSchema.parse(result)).toEqual(result);
+});
+
+it("retains the backend's identity remedy in session orientation", () => {
+  const result = describeStorePull({ status: "no-identity", remedy: { text: "Configure the selected identity.", argv: ["git", "config", "arc.identity", "alice"] } });
+  expect(result.summary).toContain("Configure the selected identity.");
+  expect(result.actions).toEqual([{ text: "Configure the selected identity.", argv: ["git", "config", "arc.identity", "alice"] }]);
 });

@@ -3,7 +3,7 @@ import { legacyInboxEntryDigest } from "../lib/store/legacy-inbox-origin.js";
 import { removePartialOrigin } from "../lib/inbox/partial-origin.js";
 import { resolveQueueExecutionOffer } from "../lib/inbox/offer.js";
 import { resolveInboxEntryOperand } from "../lib/inbox-entry-operand.js";
-import { createStoreSyncPort } from "../lib/store/operational-sync.js";
+import { bindStoreSyncPort } from "../lib/store/operational-sync.js";
 import { prepareErrandAdoption } from "../lib/inbox/errand-adoption.js";
 import { prepareErrandReturn, type ErrandReturn } from "../lib/inbox/errand-return.js";
 import type { ErrandInboxOrigin } from "../lib/errand/inbox-origin.js";
@@ -22,8 +22,8 @@ export interface HandlerErrandAdoption { origin: ErrandInboxOrigin | null; write
 export async function prepareHandlerErrandAdoption(input: { slug: string; literal?: string; file?: string; intent?: string; partial?: boolean }, context: InboxContext, legacy: () => Promise<ErrandInboxOrigin>): Promise<HandlerErrandAdoption> {
   const selected = input.literal !== undefined || input.file !== undefined;
   if (!context.store.capabilities.stateOffBranch) return { origin: selected ? await legacy() : null, writes: [] };
-  const pulled = await (context.sync ?? createStoreSyncPort()).pull();
-  if (pulled.status === "unreachable") throw new Error(`${pulled.condition} ${pulled.remedy.text}`);
+  const pulled = await (context.sync ?? bindStoreSyncPort(context.store)).pull();
+  if (pulled.status === "unreachable" || pulled.status === "incomplete") throw new Error(`${pulled.condition} ${pulled.remedy.text}`);
   const from = selected ? await resolveInboxEntryOperand({ literal: input.literal, file: input.file, stateOffBranch: true }) : undefined;
   const adoption = await prepareErrandAdoption({ slug: input.slug, from, intent: input.intent, partial: input.partial }, context);
   if (adoption.status === "refused") throw new Error(`${adoption.refusal.condition} ${adoption.refusal.remedy.text}`);
