@@ -15,7 +15,7 @@ describe("stored lane pass counts", () => {
     expect(deriveReviewOutcomePassCounts({ lane: "standard", lineage: first.lineage,
       outcomes: [first, first, third, ReviewOutcomeSchema.parse(frontlineOutcome())] })).toEqual({
       completedPasses: 2, completePasses: 2, inheritedCompletedPasses: 0, inheritedCompletePasses: 0,
-      nextLogicalPass: 4,
+      nextLogicalPass: 3,
     });
   });
   it("ignores failed and stale generations while their successful retry counts once", () => {
@@ -86,6 +86,6 @@ describe("stored lane pass counts", () => {
     const unrelated = local({ lineage: { kind: "candidate", candidateId: `sha256:${"e".repeat(64)}` }, logicalPass: 7 });
     expect(deriveReviewOutcomePassCounts({ lane: "standard", lineage, outcomes: [current, unrelated],
       ancestors: [{ lineage: first.lineage, outcomes: [first], evidence: [] }] }))
-      .toMatchObject({ completedPasses: 2, completePasses: 2, inheritedCompletedPasses: 1 });
+      .toMatchObject({ completedPasses: 2, completePasses: 2, inheritedCompletedPasses: 1, nextLogicalPass: 3 });
   });
 });

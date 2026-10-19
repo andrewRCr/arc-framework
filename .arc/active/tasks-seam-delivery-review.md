@@ -442,16 +442,15 @@ alone.
 - _Outcome:_ The import has not landed; `storage-ref-backend` remains Active. Its import change binds
   `mapReviewRecords` to the handler's `reviewMapping` port when it lands.
 
-### `[ ]` **3.7 Take the planned pass-policy change's landing before the review gate's arms — § 4.3, § 5.5**
+### `[x]` **3.7 Take the planned pass-policy change's landing before the review gate's arms — § 4.3, § 5.5**
 
 - _Goal:_ Phase 4 starts on a base carrying the planned change to the standard lane's pass policy, or on the Owner's
   decision to proceed without it, so the review gate's arms from the flip are built over the pass policy that ships.
 
-    - The merged base carries that landing; no proceed-without-provider choice remains. Verify its presence by slug
-      and re-check 1.2.c's two-count derivation against `readStandardPassCounts`, `ceilingPassCount`, and
-      `resolveInvalidOverrideReason`, and each task of Phases 4–5 naming a changed file.
-    - Include optional stored tags, report replay, correction-proof port consumers, and the grant ordinals in the
-      propagation sweep. A correction runs through `amend-design.md` before Phase 4 starts.
+- _Outcome:_ The shipped cadence is present on base. The stored derivation now numbers the next pass from completed
+  logical passes, including independently numbered ancestor histories; complete coverage controls only the standard
+  ceiling. Remaining tasks retain grant ordinals, optional stored tags and report replay, and invocation-bound ports for
+  correction proofs, next-pass context, and lane history. The amendment entry gate leaves the design unchanged.
 
 ### `[ ]` **3.8 The import's mapping** — validate exit criterion at segment scope
 

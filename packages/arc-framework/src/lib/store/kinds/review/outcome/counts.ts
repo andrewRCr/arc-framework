@@ -33,8 +33,7 @@ function countHistory(history: ReviewOutcomeHistory, lane: ReviewOutcome["lane"]
     && !reviewOutcomeIsOutdated(outcome, history.evidence, superseded));
   return { completedPasses: new Set(finished.map(({ logicalPass }) => logicalPass)).size,
     completePasses: new Set(finished.filter(({ effectiveCoverage }) => effectiveCoverage === "complete")
-      .map(({ logicalPass }) => logicalPass)).size,
-    highestPass: finished.reduce((highest, { logicalPass }) => Math.max(highest, logicalPass), 0) };
+      .map(({ logicalPass }) => logicalPass)).size };
 }
 
 /** Count one lane's ended producers without performing supersession admission checks. */
@@ -47,8 +46,8 @@ export function deriveReviewOutcomePassCounts(input: {
   const inherited = ancestors.map((history) => countHistory(history, input.lane, true));
   const inheritedCompletedPasses = inherited.reduce((count, history) => count + history.completedPasses, 0);
   const inheritedCompletePasses = inherited.reduce((count, history) => count + history.completePasses, 0);
-  const highestPass = inherited.reduce((highest, history) => Math.max(highest, history.highestPass), current.highestPass);
-  return { completedPasses: current.completedPasses + inheritedCompletedPasses,
+  const completedPasses = current.completedPasses + inheritedCompletedPasses;
+  return { completedPasses,
     completePasses: current.completePasses + inheritedCompletePasses,
-    inheritedCompletedPasses, inheritedCompletePasses, nextLogicalPass: highestPass + 1 };
+    inheritedCompletedPasses, inheritedCompletePasses, nextLogicalPass: completedPasses + 1 };
 }
