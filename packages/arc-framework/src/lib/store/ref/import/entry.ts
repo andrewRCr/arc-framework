@@ -12,6 +12,7 @@ import type { Store } from "../../contract.js";
 import { inspectImportDestination } from "./occupied.js";
 import { publishImport } from "./finish.js";
 import { landImportRefs } from "./land.js";
+import { keepImportTransients } from "./transient-cleanup.js";
 
 /** Build a complete report before any destination ref or repository identity is published. */
 export async function importTrackedState(context: RefBackendContext, store: Store, input: StoreMigrateInput): Promise<StoreMigrateResult> {
@@ -24,8 +25,10 @@ export async function importTrackedState(context: RefBackendContext, store: Stor
   if (occupied.result) return input.trial ? { status: "ok", result: report } : publishImport(context, store, report);
   await context.migrateStep?.("import.build");
   const codeHead = (await context.exec("git", ["rev-parse", "HEAD"], { cwd: context.checkoutRoot })).stdout.trim();
-  const records = prepareImportRecords(context, await readImportSource(context, report, codeHead), report);
+  const transients = { tips: new Map<string, string>(), notices: [] as MigrateReport["notices"] };
+  const records = prepareImportRecords(context, await readImportSource(context, report, codeHead, transients), report);
   const blocked = report.refused.length > 0 || report.notices.length > 0;
+  report.notices.push(...transients.notices);
   if (existingId === null) report.notices.push({ condition: "The landing would mint the repository identity ID." });
   if (blocked) return input.trial ? { status: "ok", result: report } : importRefused(report);
   const projectId = input.trial ? existingId ?? randomUUID() : await resolveRepositoryIdentity(publisher);
@@ -34,9 +37,10 @@ export async function importTrackedState(context: RefBackendContext, store: Stor
   if (!identity.length) return importRefused(report);
   records.push(...identity);
   report.refs.push({ ref: "refs/arc/project/registry", scope: "project", action: "create" });
+  if (!input.trial) await keepImportTransients(context, transients.tips);
   const physical = await writeRefRepository(context);
   const refs = await buildImportCommits(physical, records, codeHead, randomUUID());
-  if (!await landImportRefs(physical, refs, input.trial === true)) return landingRace(context, store, report, projectId, input.trial === true);
+  if (!await landImportRefs(physical, refs, input.trial === true, transients.tips)) return landingRace(context, store, report, projectId, input.trial === true);
   return input.trial ? { status: "ok", result: report } : publishImport(context, store, report);
 }
 

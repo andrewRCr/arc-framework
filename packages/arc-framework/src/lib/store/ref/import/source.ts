@@ -14,12 +14,13 @@ import { importCohortPlacements } from "./cohort-source.js";
 import { readImportCandidateVersions } from "./candidate.js";
 import { appendImportLineage } from "./lineage.js";
 import type { Slug } from "../../../kernel/schema/slug.js";
+import { appendImportTransients, type ImportTransientState } from "./transient.js";
 
 /** One imported content revision and its containing owner's lifecycle placement. */
 export interface ImportRecord { reference: RecordReference; content: string; placement?: StoreRecord["placement"]; asFound?: boolean;
   versions?: { commit: string; content: string }[]; formerSlugs?: Slug[] }
 /** All source content is acquired before a destination object or ref is published. */
-export async function readImportSource(context: RefBackendContext, report: MigrateReport, codeHead: string): Promise<ImportRecord[]> {
+export async function readImportSource(context: RefBackendContext, report: MigrateReport, codeHead: string, transients: ImportTransientState): Promise<ImportRecord[]> {
   const source = context.importSource;
   if (!source) throw new Error("The store composition point did not bind the import source");
   const result: ImportRecord[] = [];
@@ -41,6 +42,7 @@ export async function readImportSource(context: RefBackendContext, report: Migra
   await appendListing(context, report, result, owners, "project-inbox/inbox", undefined, head);
   await appendImportLineage(context, report, result, owners, head);
   await appendPersonal(context, report, result);
+  await appendImportTransients(context, report, result, transients);
   const refs = new Set(result.flatMap(({ reference, placement }) => placement?.kind === "completed"
     ? [expandStoredPath(reference, { registry: context.registry, placement }).ref, expandStoredPath(reference, { registry: context.registry, history: true }).ref]
     : reference.kind === "lineage/transition" ? [expandStoredPath(reference, { registry: context.registry }).ref,

@@ -40,8 +40,8 @@ function applyImportMetadata(group: ImportGroup, record: ImportRecord, context: 
   }
   if (record.formerSlugs) group.metadata.formerSlugs = record.formerSlugs;
   if (record.reference.kind === "review/candidate") group.candidate = record;
-  if (record.reference.kind === "work-item/meta" && record.placement) {
-    group.metadata.primary = { role: "work-item/meta", placement: writePlacement(record.placement) };
+  if ((record.reference.kind === "work-item/meta" || record.reference.kind === "work-item/record") && record.placement) {
+    group.metadata.primary = { role: record.reference.kind, placement: writePlacement(record.placement) };
     group.placement = record.placement;
   }
   if (record.reference.kind === "cohort/document" && record.placement?.kind === "completed") {

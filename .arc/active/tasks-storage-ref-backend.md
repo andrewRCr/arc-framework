@@ -1345,40 +1345,11 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
       and `ENTRY_REGISTRATIONS` through the actual readers; an entry the supplied grammar's stamp cannot place an ID
       in is listed under `entry-id`
 
-    - `[ ]` **15.3.a Errands and claims re-homed**
-        - Starts only once `seam-locus` has shipped: `arc status seam-locus` reports `shipped: true`. Until then, stop
-          here and raise it — 15.3.b and 15.3.c do not depend on this subtask, so they can run first if reordered, while
-          15.4's case for a re-homed Errand's branch link waits on it
-        - The transient-identity steps, each declared at the step port (13.1): the build keeps each tip it re-homes at
-          `refs/arc/tmp/migrate/import/kept/` in the code repository, where those refs and `origin` live, a prefix the
-          landing leaves; the local transient-identity refs are deleted, each expecting its kept tip, by the landing's
-          transaction in the default layout, and in the separate one, whose landing is the store directory's own
-          transaction, by a step of their own after it, which a rerun finishes as it finishes every step after the
-          landing (14.3); after the publish, `origin`'s are deleted, where the Errand verbs publish them, leased on the
-          kept tips; then the kept tips drop (§ 10.11)
-        - On a clone with no state remote, which is always in the separate layout (§ 9.7), nothing publishes, so the
-          kept tips drop in the local delete's own transaction, and transient-identity refs `origin` still holds are
-          listed in `notices` with the remedy to delete them (§ 10.11)
-        - Each re-homed Errand's record carries `owner`, the identity whose `refs/arc/user/<id>/errands` held it,
-          serialized through `serializeTransientIdentityRecord` (`lib/errand/identity-record.ts`) (§ 10.9), whose schema
-          gains the optional `owner` with `seam-locus`
-        - Build `test-first` (one behavior at a time):
-            - every Errand record the identity ref holds, open, paused, or awaiting merge, lands at `refs/arc/work/<uid>`
-              as `errand-<uid>.json`, and each grooming and housekeeping claim on the person's claims ref
-            - each re-homed Errand's record carries the configured person's identity, whose ref held it, as its `owner`
-            - each Errand's origin entry, found by title, moves into its description before any `_Id:_` stamp, leaving
-              its inbox; a source digest changed since adoption is listed in `notices`, and an Errand whose entry is gone
-              takes its description from `intent`
-            - the transient-identity refs leave by these steps, and a rerun after the first push clears `origin`'s and
-              drops the kept tips
-            - in the separate layout, an import interrupted after its landing and before the local delete leaves the
-              transient-identity refs in place, and a rerun deletes them and finishes
-            - an import on a clone with no state remote drops the kept tips in its local delete's transaction, listing
-              `origin`'s transient-identity refs in `notices`, and one interrupted between its landing and that delete
-              finishes on a rerun, each delete leased on its kept tip
-            - its records compare clean through 14.4's harness, its comparator allowing only the re-homing: each Errand
-              record read at its work ref, with the `owner` only that side carries, and each claim on the person's
-              claims ref, each origin entry read in its Errand's description, and its inbox read without it
+    - `[x]` **15.3.a Errands and claims re-homed**
+        - Pinned configured-identity Errands land with owner, active placement, and descriptions; both claim roles
+          re-home to the personal claims ref. Origin captures leave before stamping; changed digests and other
+          identities are reported. Kept code-repository tips lease landing, local deletion, and post-publication origin
+          cleanup across retries, with atomic local cleanup and manual origin remedies when no state remote exists.
 
     - `[ ]` **15.3.b Queues and inbound lists**
         - Build `test-first` (one behavior at a time):

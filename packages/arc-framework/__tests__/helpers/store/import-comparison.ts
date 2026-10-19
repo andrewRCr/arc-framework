@@ -54,7 +54,8 @@ async function readComparisonSource(store: ReadOnlyStore, ports: ReturnType<type
   const head = StateVersionSchema.parse((await ports.exec("git", ["rev-parse", "HEAD^{tree}"], { cwd: ports.checkoutRoot })).stdout.trim());
   const metas = await listing(store, { family: "work-item", kind: "work-item/meta" });
   for (const definition of Object.values(KIND_REGISTRY)) {
-    if (definition.inRepo.substrate !== "tracked" && definition.inRepo.substrate !== "personal") continue;
+    if (definition.inRepo.substrate !== "tracked" && definition.inRepo.substrate !== "personal"
+      && definition.inRepo.substrate !== "transient-identity") continue;
     if (definition.family === "review") {
       for (const meta of metas.records) {
         const selected = composition.recordsBySlug.get(meta.reference.owner.name);
