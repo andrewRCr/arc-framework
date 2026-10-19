@@ -13,6 +13,7 @@ import { inspectImportDestination } from "./occupied.js";
 import { publishImport } from "./finish.js";
 import { landImportRefs } from "./land.js";
 import { keepImportTransients } from "./transient-cleanup.js";
+import { prepareImportCodeLinks, qualifyImportCodeLinks } from "./code-links.js";
 
 /** Build a complete report before any destination ref or repository identity is published. */
 export async function importTrackedState(context: RefBackendContext, store: Store, input: StoreMigrateInput): Promise<StoreMigrateResult> {
@@ -27,11 +28,13 @@ export async function importTrackedState(context: RefBackendContext, store: Stor
   const codeHead = (await context.exec("git", ["rev-parse", "HEAD"], { cwd: context.checkoutRoot })).stdout.trim();
   const transients = { tips: new Map<string, string>(), notices: [] as MigrateReport["notices"] };
   const records = prepareImportRecords(context, await readImportSource(context, report, codeHead, transients), report);
+  await prepareImportCodeLinks(context, records, report);
   const blocked = report.refused.length > 0 || report.notices.length > 0;
   report.notices.push(...transients.notices);
   if (existingId === null) report.notices.push({ condition: "The landing would mint the repository identity ID." });
   if (blocked) return input.trial ? { status: "ok", result: report } : importRefused(report);
   const projectId = input.trial ? existingId ?? randomUUID() : await resolveRepositoryIdentity(publisher);
+  qualifyImportCodeLinks(records, projectId);
   const identity = prepareImportRecords(context, [{ reference: RecordReferenceSchema.parse({ kind: "project-registry/identity", owner: { type: "project", name: "project", uid: projectId } }),
     content: JSON.stringify({ projectId }) }], report);
   if (!identity.length) return importRefused(report);

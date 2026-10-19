@@ -26,7 +26,10 @@ const keptPrefix = "refs/arc/tmp/migrate/import/kept/";
 async function seed(h: Awaited<ReturnType<typeof importFixture>>, records: TransientIdentityRecord[]): Promise<string> {
   const io = { exec: h.ports.exec, execInput: h.ports.execInput, identity: "andrew" };
   const entries = new Map<string, string>();
-  for (const record of records) entries.set(record.slug, await hashBlob(io.execInput, serializeTransientIdentityRecord(TransientIdentityRecordSchema.parse(record))));
+  for (const record of records) {
+    entries.set(record.slug, await hashBlob(io.execInput, serializeTransientIdentityRecord(TransientIdentityRecordSchema.parse(record))));
+    if (record.kind === "errand" && record.purpose === "errand" && record.branch) await h.git("git", ["branch", record.branch]);
+  }
   return writeTreeCommit(io, entries, "Seed transient identities", [], null);
 }
 

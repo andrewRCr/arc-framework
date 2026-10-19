@@ -1355,59 +1355,17 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
 - _Outcome:_ The three newly homed entry kinds use supplied registry grammars. Comparisons account only for moved
   entries, dispositions, stamps, dates, and personal tombstones across the default and separate layouts.
 
-### `[ ]` **15.4 Branch links, exclusions, and task captures — § 10.9, § 10.11**
+### `[x]` **15.4 Branch links, exclusions, and task captures — § 10.9, § 10.11**
 
 - _Goal:_ Every commit whose footer names a closed task, and every live item's branch, resolves through the store's
   `lookup` to the same work unit as through the in-repo implementation's, each branch link recording whether ARC created
   the branch and which of its commits are no task's work, and a branch the import cannot place refusing it.
 
-    - Each live work unit's and open Errand's branch, named by its meta's `branch` field (`META_FIELDS`,
-      `lib/store/kinds/meta/projection.ts`) or its Errand record's `branch`, links as `BranchLinkSchema`
-      (`lib/store/links.ts`) holds it, its repository the project ID; none where the field is empty or names
-      `branch.base`
-    - `linkedAs` by name: `created` for ARC's forms for the item — `plan/<slug>`, `<type>/<slug>`, and an Errand's
-      `<errand-type>/<slug>` over `ERRAND_BRANCH_TYPES` (`lib/errand/branch-type.ts`) — and `adopted` for any other
-    - The tip the link reads: of the branch's local tip and the tip its remote-tracking ref holds, the one that contains
-      the other, or the remote's where only the remote holds it; a branch neither holds is listed in `refused` as
-      `branch-missing`, and diverged tips as `branch-diverged`, each with § 10.5's remedies, both listed first, refusing
-      the import until fixed
-    - A work unit's `excluded` is `computeDefaultCaptureSet`'s set (`lib/git/default-capture-set.ts`) over that tip —
-      `tips` that tip, `captures` the work unit's derived captures, and `refresh: false`, so a trial and its landing
-      read one base — each commit records the project ID as its repository, its SHA, and its `copyKey` only when
-      present; keyless exclusions remain in the link (`CommitCaptureSchema`, `lib/store/links.ts`). Its `refused`
-      result, where no base ref resolves, is listed in `notices` with its reason and remedy, refusing the import
-      (§ 10.5); an Errand's link excludes nothing
-    - Captures from every commit reachable from the base branch or a live work unit's branch, once each, whose footer
-      names the work unit: each range expanded with `expandTaskReference` (`lib/commit-check/task-reference.ts`), its IDs
-      kept as written and only those whose task is closed captured, so a footer naming a closed task and an open one
-      captures the closed alone; each capture the project ID as its repository, and its SHA with the copy key
-      `computeCopyKeys` (`lib/git/copy-key.ts`) gives it, and none wherever it gives none: a merge commit, one with no
-      readable author, and one whose patch is empty or the clone cannot produce
-    - The in-repo `lookup` by ref finds a branch only where it exists locally, resolves an Errand's record branch
-      over `ERRAND_BRANCH_TYPES` (`isTransientLookup` and `matchesLookup`, `lib/store/in-repo/transient-lookup.ts`),
-      and takes other branches' slugs from their names (`branchToWorkUnitSlug`). The comparator allows a transform
-      difference only for a branch absent locally or one not named `<prefix>/<slug>`
-    - Build `test-first` (one behavior at a time):
-        - its links compare clean through 14.4's harness under the allowance above: every captured commit resolves
-          through the store's `lookup` by commit to the same work unit, and to the closed subset of the tasks the in-repo
-          `lookupCommit` returns, each capture's copy key the one `computeCopyKeys` gives
-        - each live work unit's branch, and each Errand's admitted branch, that exists locally under `<prefix>/<slug>`
-          resolves through both implementations' `lookup` by ref to the same item, each passed its own repository, and a
-          meta with no branch, or one naming the base branch, gets no link
-        - each imported Errand links its record's `branch`, and one on a `fix/<slug>` branch resolves through both
-          implementations' `lookup` by ref to the Errand without a comparator allowance
-        - a `plan/<slug>`, a `feat/<slug>`, and an Errand's `fix/<slug>` branch link `created`, and a branch named
-          otherwise `adopted`
-        - a work unit's link excludes the branch's non-merge commits not on base less those its footers capture, over the
-          local tip, the remote's where only the remote holds the branch, and the containing tip where they differ; an
-          Errand's link excludes none
-        - a non-merge empty commit without a copy key remains in the work unit's exclusions with its repository and
-          SHA; the separate rule omitting keyless task captures still holds
-        - a branch neither side holds is listed under `branch-missing`, and one whose tips diverged under
-          `branch-diverged`, first in `refused`, each naming its remedies and refusing the import until fixed, after which
-          the import lands
-        - a base branch no ref resolves, locally or on the remote, lists `computeDefaultCaptureSet`'s reason and remedy
-          in `notices` and refuses the import, which lands once the base ref resolves
+- _Outcome:_ Live branch links name the project identity and read the containing held tip without fetching. Missing
+  and diverged branches refuse before other record failures, with repair guidance; an unresolved configured base
+  carries the capture service's reason and remedy. Batched footer attribution captures only closed tasks with copy
+  keys, while work-unit exclusions retain keyless non-merge commits and Errand exclusions stay empty. Created links
+  follow the activation type grammar and Errand branch policy; reverse lookups agree with independent source reads.
 
 ### `[ ]` **15.5 Parked work units — § 10.9**
 
