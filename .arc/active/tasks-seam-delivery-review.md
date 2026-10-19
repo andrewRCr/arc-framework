@@ -524,7 +524,7 @@ item the invocation resolved (§ 2.3); the in-flight port composes today's lane-
 its arm once on `capabilities.stateOffBranch`, an absent store keeping the in-repo arm, as the lifecycle verbs do. The
 family's schemas are store schemas, never entries in the review gate's published-schema registry.
 
-### `[ ]` **4.1 Give the review gate's composition roots the store and the family's ports — § 2.3, § 3.3**
+### `[x]` **4.1 Give the review gate's composition roots the store and the family's ports — § 2.3, § 3.3**
 
 - _Goal:_ Every review-gate composition root that reads or writes a review fact holds the store its invocation opens —
   production opening the checkout's store, a test injecting any `Store` — and binds the family's ports from it, with no
@@ -538,47 +538,14 @@ family's schemas are store schemas, never entries in the review gate's published
           responses, and portable source bindings. Repository selection retains today's adapters, and working state
           keeps its separate numeric CAS and snapshot contract. The family's schemas remain outside the review registry.
 
-    - `[ ]` **4.1.b The composition roots**
+    - `[x]` **4.1.b The composition roots**
 
-        - Production opens the store as the lifecycle verbs do (`createStore(createDefaultStorePorts({ checkoutRoot,
-          exec }))`, `openDefaultStore` in `handlers/lifecycle-shared.ts`) at the invocation's checkout, and binds the
-          project-ID reader as the executor context binds it (`lib/work-unit/executor-context.ts`).
-        - The roots: `handlers/review.ts`'s default-dependency builders that construct a review-gate store
-          (`resolveConfiguredReviewPolicy`, `defaultFrontlineResolveDependencies`, `defaultFrontlineRunDependencies`,
-          `executeDefaultHostedRequest`, `defaultHostedAwaitDependencies`, `defaultHostedSettleDependencies`,
-          `persistAcceptedFrontlineSkip`, and `prePublicationStandardLaneAccess` among them); `rg/runtime/`'s
-          `local-prepare-composition.ts`, `respond-composition.ts`, `frontline-run-composition.ts`,
-          `local-attest-composition.ts`, `local-resume-composition.ts`, and `reduce-composition.ts`;
-          `rg/hosts/local/review-result-reader-composition.ts` and `frontline-materialization.ts`; `rg/policy/`'s
-          `pre-publication-composition.ts`, `hosted-reservation-discharge.ts`, and
-          `candidate-review-fix-continuation.ts`; `rg/status-composition.ts`, `status-errand.ts`, and
-          `status-singleton.ts`; `handlers/lifecycle-delivery-review.ts` and `handlers/delivery-execution.ts`;
-          `scripts/integration/checkpoint-composition.ts`, `merge-composition.ts`, `lineage-review-composition.ts`, and
-          `candidate-response-confirmation.ts`; and `lib/delivery/repository-entry.ts`.
-        - `runDerivedLocusStateProbe` (`handlers/derived-locus-state-probe.ts`) passes its store, project-ID reader,
-          and exact selected work-unit owner to its delivery-correction and pending-fix callbacks (§ 12.1). The
-          inspection and pending-fix readers use that store and the bound ports, opening no second default store.
-        - `createLocalContributionConfirmation` (`rg/runtime/local-correction-context.ts`) takes core disposition and
-          operation read ports instead of concrete local store classes, and receives this root's bound stores. Its
-          correction proofs and the new report/history readers use the same composed ports.
-        - `readResolveNextPassContext` (`handlers/review-next-pass-context.ts`) takes this invocation's store and
-          project-ID reader for repository identity, live context, and Candidate history instead of opening another
-          Candidate store. Both context helpers use composed core operation/disposition read ports rather than a
-          concrete local operation store, retaining the two pass counts.
-        - `readReviewLane` (`rg/runtime/lane-read-composition.ts`) is a read-only root too: bind its Candidate and
-          boundary readers, result reader, lane-history reads, and operation/disposition ports from this invocation's
-          store, rather than constructing local stores independently. Its core facts and rejection projections keep
-          their inputs and write no records.
-        - Each root passes its store to the Candidate and boundary's typed access (2.3.b), so its reads and writes of
-          them and its family writes go through one store and can share a batch.
-        - Build `test-first` (one behavior at a time):
-            - each root's existing tests pass unchanged over the in-repo implementation
-            - a root given a store reporting `stateOffBranch: true` binds the family's ports
-            - a root given a store reads the Candidate and boundary through it, opening no other
-            - the probe's two nested callbacks receive its store and exact selected owner, with no legacy-file
-              fallback off branch; 7.6 exercises each through the production subject projection
-            - ordinary next-pass context reads stored Candidate history and lane/evidence records through the same
-              injected store, never a newly opened default store, and computes both counts from a mixed history
+        - Handler, runtime, policy, status, lifecycle, delivery, integration, and result-reader roots retain one
+          invocation Store, project-ID reader, and selected work-item owner through their nested helpers. Family
+          ports select the backend; read-only consumers use core ports while writable adapters retain their existing
+          contracts. Candidate and boundary access shares the selected Store and exact generation, including renewal
+          and singleton response rebinding. Native fixtures prove refusal/repair, selected-generation access after slug
+          reuse, stored approvals, and ordinary next-pass history with both pass counts preserved.
 
 ### `[ ]` **4.2 Build the review harness over the reference backend**
 

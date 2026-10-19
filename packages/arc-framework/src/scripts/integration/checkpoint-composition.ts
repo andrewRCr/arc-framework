@@ -1197,7 +1197,7 @@ export function createIntegrationCheckpointDependencies(options: ReviewInvocatio
       if (taskListPath === null) throw new Error("The shipped delivery task-list binding is unavailable.");
 
       const renewal = await inspectRepositoryDeliveryCandidateRenewal({
-        cwd: input.cwd,
+        ...input,
         taskListPath,
         workUnitId: workUnit,
         baseBranch: (await settings()).settings["branch.base"],

@@ -536,11 +536,11 @@ export function createRespondDependencies(input: ReviewInvocationInput): Respond
 
 /** Share the response invocation's operational store with prepare, policy, and publication. */
 function createBoundRespondDependencies(input: ReviewInvocationInput & ReviewInvocationContext): RespondCommandDependencies {
-  const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
+  const { publisher, family } = createReviewCompositionContext(input);
   const rawGit = createRawGitExec(input.cwd);
   const prepare = createLocalPrepareDependencies(input);
   const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
-  const confirmResponseHeadContinuation = createCandidateResponseHeadContinuationReader({ ...input, dispositionStore, operationStore: prepare.operationStore });
+  const confirmResponseHeadContinuation = createCandidateResponseHeadContinuationReader({ ...input, dispositionStore: family.ports.dispositions, operationStore: prepare.operationStore });
   const deliveryMembers = new RepositoryDeliveryMemberLookup(input);
   const privateDeliveryTargets = createPreBindingDeliveryReviewTargetDependencies(input);
   let settingsPromise: ReturnType<typeof readConfigSettings> | null = null;
@@ -567,10 +567,7 @@ function createBoundRespondDependencies(input: ReviewInvocationInput & ReviewInv
       }));
   const completedWorkUnits = (): Promise<readonly string[]> =>
     resolveCompletedCandidateWorkUnits(input.cwd, input.store);
-  const candidateMutationOwner = () => resolveCandidateMutationOwner({
-    cwd: input.cwd,
-    exec: input.exec,
-  });
+  const candidateMutationOwner = () => resolveCandidateMutationOwner(input);
   const requireCandidateMutationOwner = async (workUnit: string): Promise<void> => {
     const owner = await candidateMutationOwner();
     if (owner.status === "owned" && owner.workUnit === workUnit) return;
@@ -842,9 +839,7 @@ function createBoundRespondDependencies(input: ReviewInvocationInput & ReviewInv
     rebindSingletonPublicationResponse: async ({ workUnit, response, requirePublished }) => {
       await requireCandidateMutationOwner(workUnit);
       await stageSingletonPublicationResponse({
-        cwd: input.cwd,
-        exec: input.exec,
-        store: input.store,
+        ...input,
         workUnit,
         response,
         requirePublished,
@@ -891,7 +886,7 @@ function createBoundRespondDependencies(input: ReviewInvocationInput & ReviewInv
         prepare.operationStore,
         { ...withdrawal, now: new Date().toISOString() },
         (producerId, dispositionSetId) => confirmCurrentDispositionSet(
-          dispositionStore,
+          family.ports.dispositions,
           producerId,
           dispositionSetId,
         ),

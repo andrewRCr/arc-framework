@@ -1,6 +1,6 @@
 /** Stage the published singleton boundary that follows one verified Candidate review response. */
 
-import type { GitExec } from "../../../lib/git/exec.js";
+import { resolveReviewInvocation, type ReviewInvocationInput } from "./invocation.js";
 import type { CandidateReviewResponseEvidenceV1 } from
   "../../../lib/work-unit/candidate-attestation.js";
 import {
@@ -9,9 +9,6 @@ import {
   writeSubmissionBoundary,
 } from "../../../lib/store/kinds/review/integration-boundary/access.js";
 import { resolveSubmissionBoundaryPath } from "../../../lib/store/kinds/review/paths.js";
-import type { Store } from "../../../lib/store/contract.js";
-import { createStore } from "../../../lib/store/create.js";
-import { createDefaultStorePorts } from "../../../lib/store/default-ports.js";
 import { rebindSingletonPublicationResponseBoundary } from
   "../policy/integration-boundary-locus.js";
 
@@ -21,16 +18,14 @@ import { rebindSingletonPublicationResponseBoundary } from
  * @param input - Checkout, Git adapter, work unit, response, and hosted-publication requirement.
  * @returns After the boundary has been written when needed and staged for the fix commit.
  */
-export async function stageSingletonPublicationResponse(input: {
-  cwd: string;
-  exec: GitExec;
-  store?: Store;
+export async function stageSingletonPublicationResponse(input: ReviewInvocationInput & {
   workUnit: string;
   response: CandidateReviewResponseEvidenceV1;
   requirePublished: boolean;
 }): Promise<void> {
-  const reviewRecordStore = input.store ?? createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec }));
-  const snapshot = await readSubmissionBoundaryVersioned(input.cwd, input.workUnit, { store: reviewRecordStore });
+  const invocation = resolveReviewInvocation(input);
+  const access = { store: invocation.store, owner: invocation.workItem };
+  const snapshot = await readSubmissionBoundaryVersioned(input.cwd, input.workUnit, access);
   const rebound = rebindSingletonPublicationResponseBoundary({
     stored: snapshot.boundary,
     workUnit: input.workUnit,
@@ -41,7 +36,7 @@ export async function stageSingletonPublicationResponse(input: {
   let path = resolveSubmissionBoundaryPath(input.workUnit);
   if (rebound !== snapshot.boundary) {
     try {
-      path = await writeSubmissionBoundary(input.cwd, rebound, snapshot.version, { store: reviewRecordStore });
+      path = await writeSubmissionBoundary(input.cwd, rebound, snapshot.version, access);
     } catch (error) {
       if (error instanceof SubmissionBoundaryVersionConflictError) {
         throw new Error("The singleton publication boundary moved during the review response. "
