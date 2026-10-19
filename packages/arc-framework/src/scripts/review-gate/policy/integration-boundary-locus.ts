@@ -1,7 +1,7 @@
 /** Typed operational loci at the Candidate-to-publication boundary. */
 
 import { z } from "zod";
-import { IntegrationBoundaryLocusV2Schema } from "./integration-boundary-locus-v2.js";
+import { IntegrationBoundaryLocusV2Schema, type IntegrationBoundaryLocusV2 } from "./integration-boundary-locus-v2.js";
 export { IntegrationBoundaryLocusV2Schema };
 
 import { canonicalDigest, canonicalize } from "../../../lib/kernel/canonical/canonical-json.js";
@@ -15,6 +15,7 @@ import {
   type DeliveryPublicReviewContinuationV1,
 } from "../../../lib/delivery/public-review-continuation.js";
 import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
+import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 import { attestConvergenceArgv } from "../../integration/spine-refusal.js";
 import { GitObjectIdSchema } from "../core/gate-contract-v2-schema.js";
 import { ReviewResolveEnvelopeSchema } from "./review-policy-driver.js";
@@ -366,6 +367,10 @@ const PublicationBoundaryInputSchema = z.strictObject({
     pullRequest: z.number().int().positive(),
   }).nullable(),
 });
+const PublicationBoundaryInputV2Schema = PublicationBoundaryInputSchema.omit({ standardLaneOwnerVersion: true }).extend({
+  terminus: CanonicalDigestSchema.nullable().default(null),
+  readinessBinding: CanonicalDigestSchema.nullable(),
+});
 
 /** Project the conservative exact Candidate entry point before review evidence is reduced. */
 export function projectCandidateReviewBoundary(input: {
@@ -570,7 +575,21 @@ export function recoverPrePublicationBoundary(input: {
   workUnit: string;
   candidateId: string;
   candidateSubjectDigest: string;
-}): IntegrationBoundaryLocus | null {
+}): IntegrationBoundaryLocus | null;
+/** Retain the exact native or repository prepublication boundary when its subject matches. */
+export function recoverPrePublicationBoundary(input: {
+  stored: PublishedIntegrationBoundaryLocus | null;
+  workUnit: string;
+  candidateId: string;
+  candidateSubjectDigest: string;
+}): PublishedIntegrationBoundaryLocus | null;
+/** Check common Candidate coordinates before carrying either persisted format. */
+export function recoverPrePublicationBoundary(input: {
+  stored: PublishedIntegrationBoundaryLocus | null;
+  workUnit: string;
+  candidateId: string;
+  candidateSubjectDigest: string;
+}): PublishedIntegrationBoundaryLocus | null {
   const workUnit = SlugSchema.parse(input.workUnit);
   const candidateId = CandidateIdSchema.parse(input.candidateId);
   const candidateSubjectDigest = CandidateSubjectDigestSchema.parse(input.candidateSubjectDigest);
@@ -594,12 +613,18 @@ export function recoverPrePublicationBoundary(input: {
  * at the hosted resume point. Every other combination continues publication, including a
  * reservation still waiting for its change request.
  */
-export function projectPublicationBoundary(input: unknown): IntegrationBoundaryLocus {
-  const value = PublicationBoundaryInputSchema.parse(input);
+export function projectPublicationBoundary(input: unknown, schemaVersion?: 1): IntegrationBoundaryLocus;
+/** Project native publication with the readiness binding that authorized it. */
+export function projectPublicationBoundary(input: unknown, schemaVersion: 2): IntegrationBoundaryLocusV2;
+/** Select the persisted format explicitly at the backend boundary. */
+export function projectPublicationBoundary(input: unknown, schemaVersion: 1 | 2): PublishedIntegrationBoundaryLocus;
+/** Preserve shared publication routing across both persisted formats. */
+export function projectPublicationBoundary(input: unknown, schemaVersion: 1 | 2 = 1): PublishedIntegrationBoundaryLocus {
+  const value = schemaVersion === 2 ? PublicationBoundaryInputV2Schema.parse(input) : PublicationBoundaryInputSchema.parse(input);
   const hosted = value.reservation !== null && value.changeRequest !== null;
   const deliveryHosted = hosted && value.reservation?.target.kind === "delivery";
-  return IntegrationBoundaryLocusSchema.parse({
-    schemaVersion: 1,
+  const projection = {
+    schemaVersion,
     mode: "integration-boundary",
     workUnit: value.workUnit,
     candidateId: value.candidateId,
@@ -627,9 +652,16 @@ export function projectPublicationBoundary(input: unknown): IntegrationBoundaryL
         : "Resume publication at the idempotent push, then resolve or open the change request.",
       ...(deliveryHosted ? { workUnitId: value.workUnit } : {}),
     },
-    policy: null,
     reservation: value.reservation,
     terminus: value.terminus,
+  };
+  if ("readinessBinding" in value) return IntegrationBoundaryLocusV2Schema.parse({
+    ...projection,
+    ...(!hosted ? { readinessBinding: value.readinessBinding } : {}),
+  });
+  return IntegrationBoundaryLocusSchema.parse({
+    ...projection,
+    policy: null,
     ...(!hosted && value.standardLaneOwnerVersion !== undefined
       ? { standardLaneOwnerVersion: value.standardLaneOwnerVersion }
       : {}),
@@ -692,14 +724,20 @@ export function projectCorrectiveDeliveryStatusBoundary(input: {
   });
 }
 
-/** Recover the public integration projection without dropping same-Candidate prepublication authority. */
-export function recoverPublicationBoundary(input: {
-  stored: IntegrationBoundaryLocus | null;
+interface PublicationRecoveryInput {
+  stored: PublishedIntegrationBoundaryLocus | null;
   workUnit: string;
   branch: string;
   candidateId: string;
   candidateSubjectDigest: string;
-}): IntegrationBoundaryLocus | null {
+}
+
+/** Recover the public integration projection without dropping same-Candidate prepublication authority. */
+export function recoverPublicationBoundary(input: PublicationRecoveryInput & { stored: IntegrationBoundaryLocus | null }): IntegrationBoundaryLocus | null;
+/** Recover publication while retaining the stored record's format. */
+export function recoverPublicationBoundary(input: PublicationRecoveryInput): PublishedIntegrationBoundaryLocus | null;
+/** Preserve the binding that authorized the transition to publication. */
+export function recoverPublicationBoundary(input: PublicationRecoveryInput): PublishedIntegrationBoundaryLocus | null {
   const stored = input.stored;
   if (stored === null
     || stored.workUnit !== input.workUnit
@@ -710,12 +748,23 @@ export function recoverPublicationBoundary(input: {
     || stored.locus === "delivery-status-required") {
     // The Candidate record's latest response subject is authoritative for the current lineage.
     // Rebind the carried publication authority instead of treating that approved advance as stale.
-    return IntegrationBoundaryLocusSchema.parse({
+    const schema = stored.schemaVersion === 2 ? IntegrationBoundaryLocusV2Schema : IntegrationBoundaryLocusSchema;
+    return schema.parse({
       ...stored,
       candidateSubjectDigest: input.candidateSubjectDigest,
     });
   }
   if (stored.locus !== "candidate-publish-ready") return null;
+  if (stored.schemaVersion === 2) return projectPublicationBoundary({
+    workUnit: input.workUnit,
+    branch: input.branch,
+    candidateId: input.candidateId,
+    candidateSubjectDigest: input.candidateSubjectDigest,
+    reservation: stored.reservation,
+    terminus: stored.terminus,
+    readinessBinding: stored.readinessBinding,
+    changeRequest: null,
+  }, 2);
   return projectPublicationBoundary({
     workUnit: input.workUnit,
     branch: input.branch,
@@ -733,13 +782,11 @@ export function recoverPublicationBoundary(input: {
  * @param input - Stored boundary and the authoritative current Candidate and branch identity.
  * @returns The recoverable integration or same-Candidate review locus; otherwise `null`.
  */
-export function recoverIntegratingBoundary(input: {
-  stored: IntegrationBoundaryLocus | null;
-  workUnit: string;
-  branch: string;
-  candidateId: string;
-  candidateSubjectDigest: string;
-}): IntegrationBoundaryLocus | null {
+export function recoverIntegratingBoundary(input: PublicationRecoveryInput & { stored: IntegrationBoundaryLocus | null }): IntegrationBoundaryLocus | null;
+/** Recover either persisted format without reducing its stored authority. */
+export function recoverIntegratingBoundary(input: PublicationRecoveryInput): PublishedIntegrationBoundaryLocus | null;
+/** Apply public recovery first, then exact Candidate prepublication recovery. */
+export function recoverIntegratingBoundary(input: PublicationRecoveryInput): PublishedIntegrationBoundaryLocus | null {
   return recoverPublicationBoundary(input) ?? recoverPrePublicationBoundary({
     stored: input.stored,
     workUnit: input.workUnit,
