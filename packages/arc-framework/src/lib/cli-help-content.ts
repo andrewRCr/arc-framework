@@ -132,7 +132,7 @@ export const COMMAND_HELP: Readonly<Record<string, HelpPage>> = {
       ["arc status --session-init --json", "Read session initialization context"],
     ],
     optionGroups: [
-      ["Work views:", ["--project", "--user"]],
+      ["Work views:", ["--project", "--user", "--conflicts"]],
       ["Session context:", ["--session-init", "--session-handoff", "--recover"]],
       ["Refresh:", ["--fetch", "--local", "--no-fetch"]],
       ["Project rendering:", ["--staged", "--write"]],
@@ -143,7 +143,7 @@ export const COMMAND_HELP: Readonly<Record<string, HelpPage>> = {
       ["Defaults:", "Without a slug or view flag, inspect user sync, configuration, and active work.\n"
         + "Slug queries use local state by default. Ordinary --user and --project views read live refs by default; "
         + "use --local or --no-fetch for local views. Session-init does not itself select JSON; add --json."],
-      ["Choose one:", "A slug, --project, --user, --session-init, --session-handoff, or --recover. "
+      ["Choose one:", "A slug, --project, --user, --conflicts, --session-init, --session-handoff, or --recover. "
         + "These modes are mutually exclusive."],
     ],
   },

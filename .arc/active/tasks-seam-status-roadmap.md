@@ -413,23 +413,14 @@ labels, and content, shows a token's conflicts for a completed and a live holder
 naming the listing, omits a record that does not decode with its warning, warns that the personal and claims families
 were not read with no identity, and writes `{ conflicts, warnings }` with `--json`.
 
-### `[ ]` **6.1 Register `--conflicts` as an exclusive status mode, refusing before the flip — § 5**
+### `[x]` **6.1 Register `--conflicts` as an exclusive status mode, refusing before the flip — § 5**
 
 - _Goal:_ `--conflicts [conflict]` is a status mode held exclusive everywhere the modes are, its help listed among them,
   and before the flip it refuses `unsupported` naming `git status`.
 
-    - `cli.ts`: the option, taking an optional token, with a conflict list of attribute names, and `conflicts` added to
-      each other mode's list. `StatusCommandInputSchema` and its refinement message, `statusCommandInputRegistration`,
-      `modeCount` and its message (`handlers/status.ts`), and the `status` help notes and option groups
-      (`lib/cli-help-content.ts`) name it.
-    - `handleStatus` dispatches it after building the session context, its handler branching on `usesOffBranchState`
-      over the context's store.
-    - Tests pinning the message and help follow: `e2e/session-init.e2e.test.ts`, `e2e/run-cli.e2e.test.ts`,
-      `e2e/cli-help-examples.e2e.test.ts`, and `unit/command-input/repository-inventory.test.ts`.
-    - Build `test-first` (one behavior at a time):
-        - `--conflicts` with a slug, `--user`, `--project`, `--session-init`, `--session-handoff`, or `--recover` refuses
-          through the schema and the mode count
-        - before the flip `--conflicts` refuses `unsupported` naming `git status`, in text and `--json`
+- _Outcome:_ `--conflicts [conflict]` joins schema validation, the defensive mode count, Commander exclusion lists,
+  command-input registration and grouped help. Before the capability flips it uses the shared text/JSON refusal naming
+  `git status`; the existing exclusion-message, help and inventory assertions include the new mode.
 
 ### `[ ]` **6.2 List every open conflict of a listed item — § 5**
 

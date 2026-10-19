@@ -6,7 +6,7 @@ import { runCli } from "../helpers/run-cli.js";
 
 const pages = [
   { path: ["start"], examples: ["arc start my-work", "arc start fresh-work --new", "arc start my-work --here"], notes: ["planned target", "new target"] },
-  { path: ["status"], examples: ["arc status my-work --json", "arc status --project", "arc status --session-init --json"], notes: ["mutually exclusive"] },
+  { path: ["status"], examples: ["arc status my-work --json", "arc status --project", "arc status --session-init --json"], notes: ["mutually exclusive", "--conflicts"] },
   { path: ["view"], examples: ["arc view tasks --current", "arc view spec --for my-work"], notes: ["for a person", "existing work unit"] },
   { path: ["errand", "open"], examples: ["arc errand open my-fix", 'arc errand open my-fix --from-inbox "Fix the formatting issue"', "arc errand open my-fix --isolate"], notes: ["existing capture", "bold title"] },
   { path: ["errand", "next"], examples: ["arc errand next --json"], notes: ["without opening it"] },

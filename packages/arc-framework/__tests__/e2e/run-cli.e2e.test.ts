@@ -100,6 +100,7 @@ describe("runCli", () => {
       expect(help.indexOf(heading), heading).toBeGreaterThan(previous);
       previous = help.indexOf(heading);
     }
+    expect(help).toMatch(/Work views:[\s\S]*--conflicts \[conflict\][\s\S]*Session context:/u);
     expect(help).toContain("arc status my-work --json");
     expect(help).toContain("arc status --session-init --json");
     expect(help).toMatch(/--session-handoff\s+Select handoff context; requires --json/u);

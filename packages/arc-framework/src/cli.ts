@@ -1626,31 +1626,35 @@ program
     new Option(
       "--session-init",
       "Select session initialization context; add --json for JSON output",
-    ).conflicts("session-handoff"),
+    ).conflicts(["session-handoff", "conflicts"]),
   )
   .addOption(
     new Option(
       "--session-handoff",
       "Select handoff context; requires --json",
-    ).conflicts(["session-init", "recover"]),
+    ).conflicts(["session-init", "recover", "conflicts"]),
   )
   .addOption(
     new Option(
       "--recover",
       "Select recovery context; requires --json",
-    ).conflicts(["session-init", "session-handoff", "user"]),
+    ).conflicts(["session-init", "session-handoff", "user", "conflicts"]),
   )
   .addOption(
     new Option(
       "--user",
       "Render the in-flight-mine view (STATUS.USER) — your work units in flight across worktrees",
-    ).conflicts(["session-init", "session-handoff", "recover", "project"]),
+    ).conflicts(["session-init", "session-handoff", "recover", "project", "conflicts"]),
   )
   .addOption(
     new Option(
       "--project",
       "Render the live project status view",
-    ).conflicts(["session-init", "session-handoff", "recover", "user"]),
+    ).conflicts(["session-init", "session-handoff", "recover", "user", "conflicts"]),
+  )
+  .addOption(
+    new Option("--conflicts [conflict]", "List open store conflicts or inspect a conflict token")
+      .conflicts(["sessionInit", "sessionHandoff", "recover", "user", "project"]),
   )
   .option("--fetch", "With status <slug>: upgrade the local-default query with live remote membership")
   .option("--local", "With --user/--project: skip the live-default network read (slug queries are local by default)")
@@ -1661,7 +1665,7 @@ program
     new Option(
       "--write-compaction-seed",
       "With --session-init: write the machine-local compaction recovery seed",
-    ).conflicts(["recover", "session-handoff", "user", "project"]),
+    ).conflicts(["recover", "session-handoff", "user", "project", "conflicts"]),
   )
   .option("--json", "Emit the typed result as JSON")
   .action(withInteractionContext(

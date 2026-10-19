@@ -118,6 +118,7 @@ import { StatusCommandInputSchema, type StatusCliOptions } from "./status/input.
 import { handleLifecycleStatus } from "./status/lifecycle.js";
 import { createSessionStatusContext, readWorkingMemoryFromStore } from "./status/session-context.js";
 import { handleCompositeStatus, handleRecoverStatus, handleSessionHandoffStatus } from "./status/session.js";
+import { renderStatusViewRefusal } from "./status/refusal.js";
 import { handleProjectStatus, handleUserStatus } from "./status/views.js";
 
 export {
@@ -161,10 +162,11 @@ export async function handleStatus(
     opts.recover,
     opts.user,
     opts.project,
+    opts.conflicts !== undefined && opts.conflicts !== false,
   ].filter(Boolean).length;
   if (modeCount > 1) {
     process.stderr.write(
-      "Error: a status <slug> query, --session-init, --session-handoff, --recover, --user, and --project are mutually exclusive.\n",
+      "Error: a status <slug> query, --session-init, --session-handoff, --recover, --user, --project, and --conflicts are mutually exclusive.\n",
     );
     process.exitCode = 1;
     return;
@@ -193,6 +195,11 @@ export async function handleStatus(
   if (opts.sessionInit) return handleSessionInitStatus(context, opts);
   if (opts.user) return handleUserStatus(context, opts);
   if (opts.project) return handleProjectStatus(context, opts);
+  if (opts.conflicts !== undefined && opts.conflicts !== false) {
+    renderStatusViewRefusal({ code: "unsupported", condition: "This store keeps conflicts in tracked files.",
+      remedy: { text: "Use git status to inspect Git conflicts." } }, opts);
+    return;
+  }
   await handleCompositeStatus(context, opts);
 }
 

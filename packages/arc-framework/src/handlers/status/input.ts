@@ -11,6 +11,8 @@ export interface StatusCliOptions {
   recover?: boolean;
   user?: boolean;
   project?: boolean;
+  /** List open conflicts, or inspect the supplied conflict token. */
+  conflicts?: boolean | string;
   /** `--local`: render explicit user/project views from local refs without a network read. */
   local?: boolean;
   /** `--staged`: render the `--project` view's tree inputs from the git index (the pre-commit regen source). */
@@ -32,6 +34,7 @@ export const StatusCommandInputSchema = z.object({
   recover: z.boolean().optional(),
   user: z.boolean().optional(),
   project: z.boolean().optional(),
+  conflicts: z.union([z.boolean(), z.string().min(1)]).optional(),
   local: z.boolean().optional(),
   staged: z.boolean().optional(),
   write: z.boolean().optional(),
@@ -39,12 +42,12 @@ export const StatusCommandInputSchema = z.object({
   json: z.boolean().optional(),
   writeCompactionSeed: z.boolean().optional(),
 }).strict().superRefine((value, refinement) => {
-  const modes = [value.slug !== undefined, value.sessionInit, value.sessionHandoff, value.recover, value.user, value.project]
+  const modes = [value.slug !== undefined, value.sessionInit, value.sessionHandoff, value.recover, value.user, value.project, value.conflicts !== undefined && value.conflicts !== false]
     .filter(Boolean).length;
   if (modes > 1) {
     refinement.addIssue({
       code: "custom",
-      message: "A status <slug> query, --session-init, --session-handoff, --recover, --user, and --project are mutually exclusive.",
+      message: "A status <slug> query, --session-init, --session-handoff, --recover, --user, --project, and --conflicts are mutually exclusive.",
     });
   }
   if (value.writeCompactionSeed === true && value.sessionInit !== true) {
@@ -69,6 +72,7 @@ export const statusCommandInputRegistration = {
     "option.recover": "recover",
     "option.user": "user",
     "option.project": "project",
+    "option.conflicts": "conflicts",
     "option.local": "local",
     "option.no-fetch": "fetch",
     "option.staged": "staged",
