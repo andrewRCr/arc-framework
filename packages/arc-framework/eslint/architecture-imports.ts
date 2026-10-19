@@ -69,6 +69,7 @@ const RAW_STATE_MODULES = [
   "lib/git/ref-tree.ts",
   "lib/errand/ref-tree.ts",
   "lib/work-unit/candidate-record-store.ts",
+  "lib/work-unit/submission-boundary-store.ts",
   "lib/work-unit/transition-record-store.ts",
   "lib/work-unit/git-transition-record-enumeration.ts",
   "lib/errand/identity-snapshot.ts",

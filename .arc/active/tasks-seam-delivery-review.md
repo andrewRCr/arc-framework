@@ -328,16 +328,14 @@ retires.
           and singleton continuation. Status parses digest-typed publication fields and keeps unreserved obligations in
           a pure helper; exact-head proofs, staging, and existing assertions remain intact.
 
-### `[ ]` **2.7 Before the flip** — validate exit criterion at segment scope
+### `[x]` **2.7 Before the flip** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
 
-    - `lib/work-unit/submission-boundary-store.ts` joins `RAW_STATE_MODULES` (the package's
-      `eslint/architecture-imports.ts`) beside the Candidate store, with a case in
-      `__tests__/unit/eslint-architecture-imports.test.ts`, so the ratchet refuses any production value importer
-      outside `lib/store/` at a zero floor; a type-only import, which the ratchet does not count, takes its types from
-      the kinds' public schemas (2.4).
-    - A whole-project `lint:ts` shows no floor grown; 2.1's tests and the carve-outs this phase names pass.
+- _Outcome:_ On merged base `9fe2f2f0d`, the existing review, delivery, integration, and checkpoint scenarios pass with
+  their behavioral assertions preserved. The boundary adapter joins the Candidate adapter's import ban at a zero floor,
+  and whole-project lint confirms no suppression growth. Meta and code-head movement still invalidate checkpoints,
+  while unrelated record writes do not.
 
 ## **Phase 3:** The import's mapping
 
