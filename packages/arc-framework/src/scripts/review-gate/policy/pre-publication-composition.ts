@@ -6,7 +6,9 @@ import { confirmReviewCorrectionLeg } from "./review-next-pass.js";
 import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import { parseMetaRecord, toMetaRecord } from "../../../lib/active/meta-reader.js";
+import { readWorkUnit, readLifecycleMetaFields } from "../../../lib/store/lifecycle-write.js";
+import { describeRecordConflicts } from "../../../lib/store/conflict-diagnostics.js";
+import { parseMetaRecord, toMetaRecord, type MetaRecord } from "../../../lib/active/meta-reader.js";
 import { workUnitPathTreatmentContext } from "../../../lib/base-drift/current-adapters.js";
 import { readConfigSettings } from "../../../lib/config/status-reader.js";
 import {
@@ -28,7 +30,7 @@ import { analyzeRevisionOverlap, getCurrentBranch, type GitExec } from "../../..
 import { createRawGitExec } from "../../../lib/io-context.js";
 import { SlugSchema, validateManagedPath, type CanonicalDigest } from "../../../lib/kernel/index.js";
 import { materializeArcPath, resolveArcPath } from "../../../lib/layout/index.js";
-import { resolveActiveWu } from "../../../lib/release/wu-resolution.js";
+import { resolveReviewActiveWu } from "../runtime/review-work-unit.js";
 import { resolveGitCommonDir } from "../../../lib/git/exec.js";
 import {
   CandidateConvergenceProjectionSchema,
@@ -283,6 +285,29 @@ export function projectPrePublicationCandidateRead(input: {
   return { status: "blocked", reason };
 }
 
+async function readAssuranceMeta(input: ReviewInvocationInput, workUnit: string): Promise<
+  { status: "resolved"; meta: MetaRecord } | { status: "refused"; reason: string }> {
+  const missing = () => ({ status: "refused" as const, reason: `No active meta record exists for \`${workUnit}\`.` });
+  let meta: MetaRecord | null;
+  if (input.store?.capabilities.stateOffBranch === true) {
+    const read = await readWorkUnit(input.store, workUnit);
+    if (read.status === "refused") return read.refusal.code === "not-found" ? missing()
+      : { status: "refused", reason: `${read.refusal.condition} ${read.refusal.remedy.text}` };
+    if (read.result.conflicts.length > 0) return { status: "refused", reason:
+      `The work-unit metadata has unresolved conflicts.${describeRecordConflicts(read.result.conflicts)}` };
+    const fields = readLifecycleMetaFields(read.result);
+    meta = fields.status === "refused" ? null : toMetaRecord(fields.result);
+  } else {
+    const metaPath = materializeArcPath(input.cwd, resolveArcPath({ kind: "work-unit-artifact",
+      placement: { kind: "active", scope: { kind: "project" } }, slug: SlugSchema.parse(workUnit), artifact: "meta" }));
+    let content: string;
+    try { content = await readFile(metaPath, "utf8"); } catch { return missing(); }
+    meta = toMetaRecord(parseMetaRecord(content));
+  }
+  return meta === null ? { status: "refused", reason: `The active meta record for \`${workUnit}\` is incomplete.` }
+    : { status: "resolved", meta };
+}
+
 /**
  * Bind canonical delivery, Git eligibility, and exact review-target reads for private member projection.
  *
@@ -308,7 +333,7 @@ export function createPreBindingDeliveryReviewTargetDependencies(options: Review
     resolveGitCommonDir: () => resolveGitCommonDir(input.exec, input.cwd),
     resolveOriginatingTop: async (plan) => {
       const [active, branch] = await Promise.all([
-        resolveActiveWu({ cwd: input.cwd, store: input.store, projectId: input.projectId }),
+        resolveReviewActiveWu(input),
         getCurrentBranch(input.exec),
       ]);
       return active.status === "resolved" && active.name === plan.workUnitId
@@ -317,7 +342,7 @@ export function createPreBindingDeliveryReviewTargetDependencies(options: Review
         : null;
     },
     resolveLifecyclePaths: async ({ plan, protectedBaseRef, topRef }) => {
-      const active = await resolveActiveWu({ cwd: input.cwd, store: input.store, projectId: input.projectId });
+      const active = await resolveReviewActiveWu(input);
       if (active.status !== "resolved" || active.name !== plan.workUnitId) return null;
       const paths = await new CurrentDeliveryLifecycleContributionPathSource({
         readDirectory: (path) => readdir(resolve(input.cwd, path)),
@@ -615,22 +640,9 @@ export function createPrePublicationCompositionDependencies(options: ReviewInvoc
     },
 
     readAssurance: async (workUnit): Promise<AssuranceRead> => {
-      const metaPath = materializeArcPath(input.cwd, resolveArcPath({
-        kind: "work-unit-artifact",
-        placement: { kind: "active", scope: { kind: "project" } },
-        slug: SlugSchema.parse(workUnit),
-        artifact: "meta",
-      }));
-      let content: string;
-      try {
-        content = await readFile(metaPath, "utf8");
-      } catch {
-        return { status: "refused", reason: `No active meta record exists for \`${workUnit}\`.` };
-      }
-      const meta = toMetaRecord(parseMetaRecord(content));
-      if (meta === null) {
-        return { status: "refused", reason: `The active meta record for \`${workUnit}\` is incomplete.` };
-      }
+      const read = await readAssuranceMeta(input, workUnit);
+      if (read.status === "refused") return read;
+      const meta = read.meta;
       const composed = composeWorkUnitReviewAssurance(
         meta,
         createLocalReviewMethodFilePort({ cwd: input.cwd }),
@@ -733,7 +745,7 @@ export function createPrePublicationCompositionDependencies(options: ReviewInvoc
       const name = SlugSchema.parse(workUnit);
       let live: Awaited<ReturnType<typeof readLocalReviewLiveContext>>;
       try {
-        live = await readLocalReviewLiveContext({ exec: input.exec, cwd: input.cwd });
+        live = await readLocalReviewLiveContext(input);
       } catch (error) {
         return { status: "refused", reason: `The Work Unit Owner could not be resolved: ${describe(error)}` };
       }

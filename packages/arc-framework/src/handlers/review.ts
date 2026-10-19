@@ -67,7 +67,7 @@ import {
 } from "./review-locus-context.js";
 import type { SpineRemedy } from "../scripts/integration/spine-refusal.js";
 
-import { resolveActiveWu } from "../lib/release/wu-resolution.js";
+import { resolveReviewActiveWu } from "../scripts/review-gate/runtime/review-work-unit.js";
 import {
   FrontlineResolveEnvelopeSchema,
   FrontlineRunEnvelopeSchema,
@@ -1640,7 +1640,7 @@ function createResolveContributionConfirmation(input: ReviewInvocationOptions & 
 }): NonNullable<EvidenceBoundReviewPolicyDependencies["confirmIncrementalApplicability"]> {
   const { root, exec, request, dispositionStore, readResponsePerformance } = input;
   return async (predecessor, current) => {
-    const active = await resolveActiveWu({ cwd: root, store: input.store, projectId: input.projectId });
+    const active = await resolveReviewActiveWu({ cwd: root, exec, store: input.store, projectId: input.projectId });
     const candidate = current.admission.lineage.kind === "candidate"
       && active.status === "resolved" && active.name !== ""
       ? await readCandidateRecord(root, active.name, { exec, store: input.store, owner: input.workItem })
@@ -2396,7 +2396,7 @@ async function resolveHostedProgressContext(input: ReviewInvocationOptions & {
     };
   }
 
-  const active = member === null ? await resolveActiveWu({ cwd: input.root, store: bound.store, projectId: bound.projectId }) : null;
+  const active = member === null ? await resolveReviewActiveWu({ cwd: input.root, exec: input.exec, store: bound.store, projectId: bound.projectId }) : null;
   const workUnitId = member?.workUnitId
     ?? (active?.status === "resolved" && active.name !== "" ? active.name : null);
   if (workUnitId === null) {
@@ -2855,7 +2855,7 @@ function defaultReviewChunkingResolveDependencies(context: InteractionContext, i
       const publisher = new RepositoryGitCommonStatePublisher(exec, root);
       const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
       const stateStore = new RepositoryDeliveryStateStore(publisher);
-      const active = await resolveActiveWu({ cwd: root, ...invocationFor(root) });
+      const active = await resolveReviewActiveWu({ cwd: root, exec, ...invocationFor(root) });
       const workUnitId = active.status === "resolved" && active.name !== ""
         ? active.name
         : active.status === "none"

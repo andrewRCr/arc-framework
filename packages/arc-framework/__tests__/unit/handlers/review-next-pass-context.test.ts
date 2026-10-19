@@ -21,7 +21,9 @@ import { readResolveNextPassContext } from "../../../src/handlers/review-next-pa
 it("counts an inherited complete look from stored Candidate history without a Candidate file", async ({ onTestFinished }) => {
   const older = candidateFixture();
   const harness = createLifecycleHarness();
-  const meta = await harness.seedMeta("example");
+  const meta = await harness.seedMeta("example", { branch: null }, { kind: "active" }, { branches: [{
+    repository: "123e4567-e89b-42d3-a456-426614174099", ref: "feat/example", linkedAs: "created", excluded: [],
+  }] });
   await harness.seed(recordReferences["review/candidate"](meta.reference.owner), serializeCandidateManagedRecord(older));
   const producerFixture = await createLocalMappingFixture({ repositoryId: "123e4567-e89b-42d3-a456-426614174099",
     lineage: { kind: "candidate", candidateId: older.attestation.candidateId },

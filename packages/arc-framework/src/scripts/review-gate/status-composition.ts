@@ -347,6 +347,7 @@ export async function readRoutedObligation(
   });
   if (errand !== null) return errand;
   const subject = await resolveReviewSubject({
+    ...invocation,
     headRef: target.headRef,
     headSha: target.headSha,
     memberLookup,
@@ -834,6 +835,7 @@ export function createReviewStatusPort(
           changeRequestPort,
         );
         const subject = await resolveReviewSubject({
+          ...input,
           headRef: target.headRef,
           headSha: matchesPrecomputedTarget ? precomputed.deliveryLookupHeadSha : target.headSha,
           memberLookup,

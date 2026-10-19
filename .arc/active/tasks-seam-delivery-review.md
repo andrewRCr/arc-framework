@@ -662,15 +662,11 @@ family's schemas are store schemas, never entries in the review gate's published
             - a malformed listing entry alone refuses nothing, and an empty lookup beside one refuses naming its
               diagnostics and remedies, and review succeeds once the entry is repaired
 
-    - `[ ]` **4.4.c The assurance read**
+    - `[x]` **4.4.c The assurance read**
 
-        - `readAssurance` (`rg/policy/pre-publication-composition.ts`) reads the work unit's meta record through
-          `readWorkUnit` (`lib/store/lifecycle-write.ts`) on the root's store from the flip, in place of reading the
-          meta file at its active path, refusing as today where no meta record exists or it is incomplete.
-        - Build `test-first` (one behavior at a time):
-            - from the flip pre-publication reads the work unit's class and rubric from its stored meta with no meta
-              file in the checkout
-            - a work unit with no meta record refuses as today
+        - Pre-publication reads class and rubric through the selected Store's exact metadata record, with project
+          method files supplying the rubric. Missing records return the existing refusal and proceed after repair;
+          removing a stored rubric's method still refuses, and repository-backed metadata reads retain their behavior.
 
 ### `[ ]` **4.5 Write the boundary in its new shape — § 3.5, § 9.1, § 9.5, § 12.6**
 

@@ -1,5 +1,6 @@
 /** Review-only resolution from an exact target to its owning work unit. */
 
+import { readReviewWorkUnitByRef, type ReviewWorkUnitLookup } from "../../../lib/store/review-work-unit.js";
 import { branchToWorkUnitSlug } from "../../../lib/work-unit/work-unit-slug.js";
 import type {
   DeliveryMemberBinding,
@@ -36,12 +37,14 @@ export function resolveReviewHeadRef(
  * @param input - Exact branch/head coordinates and the delivery reverse lookup
  * @returns Ordinary or delivery ownership, an authoritative miss, or an unavailable read
  */
-export async function resolveReviewSubject(input: {
+export async function resolveReviewSubject(input: Partial<ReviewWorkUnitLookup> & {
   readonly headRef: string;
   readonly headSha: string;
   readonly memberLookup: DeliveryMemberLookup;
 }): Promise<ReviewSubjectResolution> {
-  const ordinary = branchToWorkUnitSlug(input.headRef);
+  const ordinary = input.store?.capabilities.stateOffBranch === true
+    ? (await readReviewWorkUnitByRef({ store: input.store, projectId: input.projectId }, input.headRef))?.name ?? null
+    : branchToWorkUnitSlug(input.headRef);
   if (ordinary !== null) return { status: "resolved", workUnitId: ordinary, member: null };
   try {
     const delivery = await input.memberLookup.resolveMemberByRef(input.headRef, input.headSha);
