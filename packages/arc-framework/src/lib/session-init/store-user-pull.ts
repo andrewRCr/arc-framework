@@ -17,7 +17,7 @@ export function describeStorePull(result: PullResult): StoreSessionInitUserValue
     summary: `Remote ${result.remote} needs a store designation. ${result.remedy.text}`,
     actions: [{ ...result.remedy, argv: [...result.remedy.argv] }] };
   if (result.status === "unreachable") return { ...result, summary: result.condition, actions: [{ ...result.remedy }] };
-  return { ...result, summary: ({ "no-remote": "No state remote is configured.", "no-identity": "No store identity is configured.",
+  return { ...result, summary: ({ "no-remote": "No state remote is configured.", "no-identity": "No store identity is configured. Run git config arc.identity <name> and retry.",
     pulled: "Store state pulled.", noop: "Store state is current." })[result.status] };
 }
 

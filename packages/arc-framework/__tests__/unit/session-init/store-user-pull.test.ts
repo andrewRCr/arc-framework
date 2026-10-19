@@ -37,3 +37,10 @@ it("keeps the in-repo arm dormant even with a bound backend pull", async () => {
   expect(await probeStoreUserPull({ store, remoteSyncEnabled: true,
     sync: createStoreSyncPort({ pull: async () => { throw new Error("Pulled before the flip"); } }) })).toBeNull();
 });
+
+it("names identity configuration in the session user slot when no store identity resolves", async () => {
+  const result = await probeStoreUserPull({ store: createLifecycleHarness().store, remoteSyncEnabled: true,
+    sync: createStoreSyncPort({ pull: async () => ({ status: "no-identity" }) }) });
+  expect(SessionInitUserValueSchema.parse(result)).toEqual({ status: "no-identity",
+    summary: "No store identity is configured. Run git config arc.identity <name> and retry." });
+});

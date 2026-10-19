@@ -6,6 +6,8 @@ import { deriveStoreInFlight } from "../../lib/git/in-flight-store.js";
 import { renderInFlightWarning } from "../../lib/git/in-flight-derivation.js";
 import { createLocusPorts } from "../../lib/locus/lifecycle-ports.js";
 import { createStoreSyncPort, type StoreSyncPort } from "../../lib/store/operational-sync.js";
+import { describeStorePull } from "../../lib/session-init/store-user-pull.js";
+import type { ProjectReadinessWarning } from "../../lib/status/project-view.js";
 /** Local and synchronization evidence can be supplied by one already-bound invocation. */
 export interface StoreLifecycleStatusPorts {
   findHoldingCheckout?: (slug: string) => Promise<string | null>;
@@ -13,17 +15,21 @@ export interface StoreLifecycleStatusPorts {
   sync?: StoreSyncPort;
 }
 /** Refresh Store state before acquiring the lifecycle and checkout facts to render. */
-export async function pullStoreStatus(ports: StoreLifecycleStatusPorts = {}): Promise<string[]> {
+export async function pullStoreStatus(ports: StoreLifecycleStatusPorts = {}): Promise<ProjectReadinessWarning[]> {
   const pull = await (ports.sync ?? createStoreSyncPort()).pull();
-  if (pull.status === "designation-needed") return [`State remote ${pull.remote} needs a role (${pull.choices.join(", ")}). ${pull.remedy.text} ${pull.remedy.argv.join(" ")}`];
-  return pull.status === "unreachable" ? [`${pull.condition} ${pull.remedy.text} Query derived from local refs only.`] : [];
+  if (pull.status === "pulled" || pull.status === "noop" || pull.status === "no-remote") return [];
+  const orientation = describeStorePull(pull);
+  const parts = [orientation.summary];
+  if ("remedy" in pull && !orientation.summary.includes(pull.remedy.text)) parts.push(pull.remedy.text);
+  if (pull.status === "designation-needed") parts.push(pull.remedy.argv.join(" "));
+  return [{ code: "pull-incomplete", rendered: parts.join(" ") }];
 }
 /** Keep a failed holder observation visible in the path field rather than fabricating absence. */
 export async function readStoreStatusLocus(input: { cwd: string; exec: GitExec; store: Store; slug: string; fetch: boolean },
   ports: StoreLifecycleStatusPorts = {}): Promise<{ worktreePath?: string; warnings: string[] }> {
   const locus = createLocusPorts(input);
   const find = ports.findHoldingCheckout ?? ((name: string) => locus.findHoldingCheckout({ name, resolveLegacy: () => Promise.resolve(null) }));
-  const warnings = input.fetch ? await pullStoreStatus(ports) : [];
+  const warnings = input.fetch ? (await pullStoreStatus(ports)).map(warning => warning.rendered) : [];
   let worktreePath: string | null;
   try { worktreePath = await find(input.slug); }
   catch (error) { worktreePath = error instanceof Error ? error.message : String(error); }

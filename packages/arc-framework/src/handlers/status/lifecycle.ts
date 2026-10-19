@@ -245,7 +245,7 @@ async function resolveSlugOperationalBoundary(options: {
 /** Render lifecycle truth without composing code-ref or materialized-artifact evidence. */
 async function handleStoreLifecycleStatus(store: Store, slug: string, opts: StatusCliOptions,
   local: { cwd: string; exec: GitExec }, ports?: StoreLifecycleStatusPorts): Promise<void> {
-  const refreshWarnings = opts.fetch === true ? await pullStoreStatus(ports) : [];
+  const refreshWarnings = opts.fetch === true ? (await pullStoreStatus(ports)).map(warning => warning.rendered) : [];
   const view = await readLifecycleView(store);
   if (view.status === "refused") {
     renderStoreQueryRefusal(view.refusal, opts);

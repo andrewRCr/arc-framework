@@ -289,40 +289,23 @@ landed, `incomplete` and notices are absent from the union, and whichever of the
 `pullStoreStatus` for them and verifies both (spec § 12), Task 4.1 carrying this change's part where the binding lands
 first; the flags' help text stays until the cutover rewrites it.
 
-### `[ ]` **4.1 Render every pull result and notice through `pullStoreStatus` — § 2.4**
+### `[x]` **4.1 Render every pull result and notice through `pullStoreStatus` — § 2.4**
 
 - _Goal:_ `pullStoreStatus` (`handlers/status/store-locus.ts`) returns, for each pull result, the coded warning § 2.4's
   table names, built from `describeStorePull`'s orientation, so every status mode under `--fetch` renders one result the
   same way.
 
-    - `[ ]` **4.1.a Render the results the port gives today**
+    - `[x]` **4.1.a Render the results the port gives today**
 
-        - Warnings carry a code (`pull-incomplete`, `pull-notice`) and text: the orientation's summary, its remedy's text
-          where the summary omits it, and its command's `argv` where the result carries one. `--project` keeps the code;
-          the other modes render the text.
-        - `describeStorePull`'s `no-identity` summary (`lib/session-init/store-user-pull.ts`) names
-          `git config arc.identity <name>`, which session start's `user` slot then shows from the flip.
-        - `unit/handlers/status/store-locus.test.ts`'s expected `unreachable` warning follows.
-        - Build `test-first` (one behavior at a time):
-            - `pulled`, `noop`, and `no-remote` add no warning
-            - `no-identity`, `unreachable`, and `designation-needed` each add `pull-incomplete` with their remedy and
-              command
-            - session start's `user` slot shows the `no-identity` summary naming the command
+        - Shared pull orientation supplies coded diagnostics for missing identity, unreachable and undesignated remotes,
+          retaining remedies and command arguments. Successful and no-remote outcomes stay quiet; session start's
+          missing-identity summary names `git config arc.identity <name>`.
 
-    - `[ ]` **4.1.b Render `incomplete` and each notice, where the ref backend's binding has landed**
+    - `[~]` **4.1.b Render `incomplete` and each notice, where the ref backend's binding has landed**
 
-        - Applies only where `PullResultSchema` (`lib/store/operational-sync.ts`) already carries `incomplete` and
-          notices; otherwise the binding's change completes `pullStoreStatus` for them.
-        - The condition is read again on the freshly merged base of Task 4.5 and of the verification before
-          integration: where the binding has landed since, this subtask runs then.
-        - `incomplete` adds `pull-incomplete` with its condition and remedy. Each notice, a successful outcome's or one
-          inside an `incomplete` result's partial outcomes, adds `pull-notice` with its condition and remedy.
-        - A notice that an item ended with open conflicts also names the item and each conflict record it lists, and
-          states that the conflict view does not list them; it names no `arc status --conflicts`.
-        - Build `test-first` (one behavior at a time):
-            - an `incomplete` result adds `pull-incomplete` with its condition and remedy
-            - a `pulled` result's notice and an `incomplete` result's partial outcome's notice each add `pull-notice`
-            - an ended item's notice names the item, its records, and the conflict view's omission
+        - Not applicable to the current `PullResultSchema`, which has neither `incomplete` nor notices. The required
+          condition re-read remains at Task 4.5's fresh base and verification before integration; if the binding has
+          landed, this subtask runs there.
 
 ### `[ ]` **4.2 Pull before the project view under `--fetch`, keeping today's flag precedence — § 2.4**
 

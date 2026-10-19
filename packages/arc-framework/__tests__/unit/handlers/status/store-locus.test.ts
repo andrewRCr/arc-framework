@@ -57,7 +57,7 @@ it("adds an anchored holder, in-flight warnings and fetch reachability without c
     ...ports,
   });
   expect(JSON.parse(String(output.mock.calls[0]?.[0]))).toMatchObject({ slug: "demo", state: "active", owner: "alice", integrationBoundary: null,
-    worktreePath: "/anchored-holder", warnings: ["Malformed Errand other; repair its record.", expect.stringMatching(/Offline.*Reconnect/u)] });
+    worktreePath: "/anchored-holder", warnings: ["Malformed Errand other; repair its record.", "Offline Reconnect"] });
   offline = false; output.mockClear();
   await handleLifecycleStatus("/current", async () => { throw new Error("Injected ports own local reads"); }, "demo", { json: true, fetch: true }, h.store, ports);
   expect(JSON.parse(String(output.mock.calls[0]?.[0]))).toMatchObject({ owner: "alice", state: "active", worktreePath: "/anchored-holder",
@@ -113,7 +113,7 @@ it("retains remote designation choices and command in fetched status, then refre
     await handleLifecycleStatus("/current", async () => { throw new Error("Unexpected Git"); }, "demo", { json: true, fetch: true }, h.store, ports);
     return JSON.parse(String(output.mock.calls[0]?.[0])) as { warnings: string[] };
   };
-  expect((await query()).warnings).toEqual([expect.stringMatching(/backup.*state, code-and-state.*Choose the state role.*arc store remote backup state/u)]);
+  expect((await query()).warnings).toEqual(["Remote backup needs a store designation. Choose the state role. arc store remote backup state"]);
   designated = true;
   expect((await query()).warnings ?? []).toEqual([]);
 });
