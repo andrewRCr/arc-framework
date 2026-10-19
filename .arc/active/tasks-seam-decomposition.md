@@ -523,7 +523,7 @@ first place to reauthor; and a stored map conflicted by a sync resolves through 
   preserves full authoring across compatible byte, kind, and renamed-edge changes, or returns the first changed binding
   beside fresh slots; source refusals retain their repairs and birth-history reads stay flat as stored histories grow.
 
-### `[ ]` **5.3 Apply a revision — § 9.2, § 9.3**
+### `[x]` **5.3 Apply a revision — § 9.2, § 9.3**
 
 - _Goal:_ `--revise <cut-map>` previews and, with `--apply <authority>`, writes in one batch the difference between the
   stored map and the revised one — adding and removing stubs and cohort documents, moving retained members' seeded
@@ -542,15 +542,11 @@ first place to reauthor; and a stored map conflicted by a sync resolves through 
           closure, and provider-aware seeded-field reconciliation. Retained content and unseeded edges stay authored;
           admission repeats after native failures, and terminal refusal repairs proceed through revision to finish.
 
-    - `[ ]` **5.3.c What a revision refuses beyond the discard's**
+    - `[x]` **5.3.c What a revision refuses beyond the discard's**
 
-        - A started member whose seeded field it would move, naming that change for the member's owner or the map's
-          drop of it; a member renamed since, naming `arc rename <new> <old>`; a member gone that the revised map keeps,
-          naming its removal from the map; and a revised placement keeping a cohort document the cut created under
-          another `Parent`, naming another name for it.
-        - Build `test-first` (one behavior at a time):
-            - each refusal fires, and the revision lands after its remedy
-            - task 5.1.b's refusals fire for a stub the revision removes, and the revision lands after each remedy
+        - Added member-name, missing-generation, cohort-Parent, and started-seed guards with owner or map remedies.
+          Revision exercises every shared removal boundary through refusal and native repair; when no retained member
+          can receive held entries, its remedy first requires keeping a routing recipient in the map.
 
 ### `[ ]` **5.4 Refuse the discard and revision of a landed cut — § 8.7**
 

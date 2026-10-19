@@ -33,6 +33,10 @@ seed providers by identity, including their retirement dispositions, while prese
 `revision-recheck.ts` to report current admission failures before unexplained native refusals. `revision-report.ts`
 defines its closed preview and application reports.
 
+`revision-guards.ts` requires original member names and explicit map decisions to drop missing generations. It protects
+started members' seeded fields and refuses reparenting a cut-created cohort. Held entries need a retained recipient;
+a revision replacing every member first asks the operator to keep one for routing.
+
 `removal-guards.ts` shares started-member, nested-cut, and held-entry admission with revision. `removal-holders.ts`
 counts the surviving lifecycle state after prepared edits, `removal-edges.ts` protects dependency and pause holders,
 and `removal-cohorts.ts` keeps documents until their open work items and child cohorts leave.

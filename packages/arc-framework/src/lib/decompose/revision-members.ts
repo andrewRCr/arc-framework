@@ -8,6 +8,7 @@ import { planDecomposeMembers } from "./member-scaffold.js";
 import { acquireLifecycleRecords } from "../work-unit/prepared-lifecycle-write.js";
 import { recordPut } from "../store/lifecycle-write.js";
 import { parseLifecycleMetaContent } from "../store/lifecycle-meta-content.js";
+import { checkDecomposeRevisionSeedMove } from "./revision-guards.js";
 import { projectDecomposeRevisionSeeds } from "./revision-seeds.js";
 import { decomposeRemovalWrites } from "./removal-records.js";
 import { sameReference } from "../store/identity.js";
@@ -59,6 +60,8 @@ async function prepareRetainedMember(ctx: DecomposeContext, input: DecomposeRevi
   const moved = await projectDecomposeRevisionSeeds(ctx.executor.store, input.prior.map, basis.result, {
     dependsOn, cohort: input.cohorts.topology.memberCohort, addedSlugs: decomposeRevisionAddedSlugs(input) });
   if (moved.status === "refused") return moved;
+  const protectedMove = checkDecomposeRevisionSeedMove(primary, moved.result.content);
+  if (protectedMove !== undefined) return protectedMove;
   return { status: "ok", result: { records: moved.result.records,
     writes: moved.result.content === primary.content ? [] : [recordPut(primary, { content: moved.result.content })] } };
 }

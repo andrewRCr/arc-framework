@@ -47,7 +47,7 @@ export async function prepareDecomposeRevision(ctx: DecomposeContext, origin: st
     { ...recordPut(prior.storedMap, { content: writeCutMapRecord(map) }),
       ...(prior.storedMap.conflicts.length === 0 ? {} : { resolves: prior.storedMap.conflicts }) }];
   const routeTo = prior.members.find(member => member.primary !== null
-    && plan.dependencies.members.some(next => next.slug === member.slug))?.slug ?? "<retained-member>";
+    && plan.dependencies.members.some(next => next.slug === member.slug))?.slug;
   const refusal = await checkDecomposeRemovals(cached, { records, writes, routeTo });
   return refusal ?? { status: "ok", result: { ...plan, records, writes } };
 }

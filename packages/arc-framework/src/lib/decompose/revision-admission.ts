@@ -1,6 +1,7 @@
 /** Admission of a revised map against one stored cut and fresh machine facts. */
 import type { DecomposeContext, DecomposeMapInput } from "./context.js";
 import type { DecomposeResult } from "./refusal.js";
+import { checkDecomposeRevisionIdentities } from "./revision-guards.js";
 import { bindDecomposeRevisionMap, type BoundDecomposeRevision } from "./bind-revision.js";
 import { checkDecomposeNames, type DecomposeNames, type DecomposeCohortObservation } from "./check-names.js";
 import { checkDecomposeHomes, type DecomposeHome } from "./check-homes.js";
@@ -32,6 +33,8 @@ export async function admitDecomposeRevision(ctx: DecomposeContext, origin: stri
   const { prior, map } = bound.result;
   const owned = await acquireDecomposeCutCohorts(store, prior.map, prior.storedMap);
   if (owned.status === "refused") return owned;
+  const identities = checkDecomposeRevisionIdentities(bound.result, owned.result);
+  if (identities !== undefined) return identities;
   const retained = prior.members.flatMap(member => member.primary === null ? [] : [member.primary.reference]);
   const names = await checkDecomposeNames(store, map, retained);
   if (names.status === "refused") return names;

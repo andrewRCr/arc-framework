@@ -13,7 +13,7 @@ import { splitEntryList } from "../store/concurrency/entries.js";
 import { entryVersion } from "../store/kinds/entry-fields.js";
 
 /** Acquired inputs, exact proposed writes, and the destination for held inbound work. */
-export interface DecomposeRemovalInput { records: readonly StoreRecord[]; writes: readonly Mutation[]; routeTo: string }
+export interface DecomposeRemovalInput { records: readonly StoreRecord[]; writes: readonly Mutation[]; routeTo: string | undefined }
 
 /** Refuse removing protected member work before preparing an approval packet. */
 export async function checkDecomposeRemovals(ctx: DecomposeContext, input: DecomposeRemovalInput): Promise<DecomposeRefusal | undefined> {
@@ -45,10 +45,11 @@ function checkRemovedInbound(ctx: DecomposeContext, member: StoreRecord, input: 
   if (entries.length === 0) return undefined;
   const slug = member.reference.owner.name;
   const routes = entries.map(entry => renderV3DecomposeArgv(["arc", "route", entry.id ?? "<entry-id>", "--from", slug,
-    "--expected-version", entryVersion(entry), "--to", input.routeTo]));
+    "--expected-version", entryVersion(entry), "--to", input.routeTo ?? "<retained-member>"]));
+  const recipient = input.routeTo === undefined ? "Keep a current member in the revised map as a routing recipient first. " : "";
   return { status: "refused", reason: "inbound-held", class: "recoverable", locus: `${slug}.inbound`,
     message: `${slug} holds inbound entries: ${entries.map(entry => entry.id ?? "entry without ID").join(", ")}.`,
-    remedy: { text: `Route each entry to surviving work with ${routes.join("; ")} before removing this stub. Assign a managed identity first to an entry without an ID.` } };
+    remedy: { text: `${recipient}Route each entry to surviving work with ${routes.join("; ")} before removing this stub. Assign a managed identity first to an entry without an ID.` } };
 }
 
 function checkRemovedMember(member: StoreRecord, input: DecomposeRemovalInput): DecomposeRefusal | undefined {
