@@ -242,19 +242,14 @@ one renderer, built in Task 3.6: stderr `Error [<code>]: <condition> <remedy>` a
   Failed marking leaves its row unmarked and retains the failure text as a source warning. The session handler exports
   its existing positive-integer parser for dispatch reuse.
 
-### `[ ]` **3.5 Acquire the project view from the store, with its completeness — § 2.1**
+### `[x]` **3.5 Acquire the project view from the store, with its completeness — § 2.1**
 
 - _Goal:_ One acquisition reads lifecycle's view once and returns the composer's input, its records, edge resolutions,
   marks, and source warnings, or the listing's refusal, so an unreadable store never renders as an empty view.
 
-    - A refused read and an `unreadable` listing return their refusal; an `absent` listing returns no records; a complete
-      listing's diagnostics become `listing-diagnostic` warnings carrying their condition and remedy and, where the
-      listing missed a record, stating that the view omits it. It never passes `indeterminate` or a `renderedRef`.
-    - Composes Tasks 3.1 to 3.4.
-    - Build `test-first` (one behavior at a time):
-        - an `unreadable` listing returns its refusal; an `absent` one returns empty input
-        - a malformed meta and a conflicted meta each become an omitted `listing-diagnostic` warning
-        - In Flight holds placement `active` work units with no pause
+- _Outcome:_ `readStoreProjectViewInput` composes standing entries, readiness records, dependency resolutions, pause
+  marks, and diagnostics from one lifecycle view. Unreadable and refused inventories retain actionable status refusals;
+  absent inventories render empty input. The shared title preserves the existing header without freshness fields.
 
 ### `[ ]` **3.6 Dispatch `--project` on the context's store, refusing the staged write from the flip — § 7, § 2.5**
 

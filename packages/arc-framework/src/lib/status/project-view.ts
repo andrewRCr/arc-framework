@@ -310,7 +310,8 @@ interface DependencyClassification {
 }
 
 const META_FILE_RE = /^meta-(.+)\.md$/u;
-const DEFAULT_TITLE = "Roadmap: Project Status";
+/** Default title shared by repository and store-backed project views. */
+export const PROJECT_READINESS_TITLE = "Roadmap: Project Status";
 const INDETERMINATE_ORACLE_WARNING: ProjectReadinessWarning = {
   code: "oracle-degraded",
   rendered: "In-flight inputs were indeterminate during derivation; rendering project view from a degraded snapshot.",
@@ -555,7 +556,7 @@ export function mergeProjectReadinessRecords(
 
 /** Resolve the project-readiness view title from render inputs only. */
 function resolveTitle(title: string | undefined): string {
-  return title ?? DEFAULT_TITLE;
+  return title ?? PROJECT_READINESS_TITLE;
 }
 
 function selectedRefFor(entry: InFlightWorkUnit): string {
