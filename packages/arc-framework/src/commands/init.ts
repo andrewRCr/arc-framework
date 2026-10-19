@@ -6,6 +6,7 @@
  * with guidance to use `arc join` or `arc update` instead.
  */
 
+import { preparePersonalIdentitySetup, type PersonalIdentitySetupOptions } from "../lib/personal-identity-setup.js";
 import { join, dirname } from "node:path";
 import {
   ensureDir, writeArcGitignoreBlock,
@@ -99,7 +100,7 @@ export async function isArcInstalled(
 // --- Orchestrator ---
 
 /** Options for the init orchestrator. */
-export interface InitOptions {
+export interface InitOptions extends PersonalIdentitySetupOptions {
   cwd: string;
   io: IOContext;
   templateDir: string;
@@ -142,6 +143,10 @@ export async function runInit(
   if (!prompts) {
     return null;
   }
+
+  const preparedIdentity = identityResult === null ? null : await preparePersonalIdentitySetup({
+    ...options, identity: identityResult, command: "init",
+  });
 
   // Validate the complete template projection before acquiring the init lock
   // or performing any other filesystem effect.
@@ -290,7 +295,7 @@ export async function runInit(
 
     // Identity and user directory setup
     await runPostInitSetup({
-      arcDir, internalTemplateDir, io, identityResult,
+      arcDir, internalTemplateDir, io, identityResult, preparedIdentity,
     });
 
     return {

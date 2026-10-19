@@ -23,7 +23,7 @@ const namespaces: Readonly<Record<string, readonly (readonly [string, readonly s
     ["Maintain notes and inbox:", ["compact", "reconcile-references", "inbox-list", "inbox-mark-execute-bound", "inbox-remove"]],
   ],
   errand: [
-    ["Find and open work:", ["next", "check", "open", "link", "materialize"]],
+    ["Find and open work:", ["queue", "next", "check", "open", "link", "materialize"]],
     ["Pause and finish work:", ["leave", "merge", "close", "abandon", "promote"]],
   ],
   release: [

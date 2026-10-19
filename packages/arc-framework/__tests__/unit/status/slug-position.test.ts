@@ -38,7 +38,7 @@ function cursorAt(id: string, title: string): Context["taskCursor"] {
 
 function row(name: string, ctx: Context | null, kind: "work-unit" | "transient" = "work-unit"): DerivedCheckoutRow {
   return {
-    checkout: { path: `/repo.${name}`, head: "a".repeat(40), branch: `feat/${name}`, detached: false, primary: false },
+    checkout: { path: `/repo.${name}`, head: "a".repeat(40), branch: `feat/${name}`, detached: false, primary: false, folderPresent: true },
     markerGeneration: `sha256:${"b".repeat(64)}`,
     parentCheckoutPath: null,
     origin: null,

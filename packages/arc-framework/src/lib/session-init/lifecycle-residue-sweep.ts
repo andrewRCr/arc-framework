@@ -4,8 +4,12 @@
  * @module
  */
 
+import { quoteShellArgument } from "../release/commit-message-retry.js";
+import type { Store } from "../store/contract.js";
+import { runStoreRetirementSweep } from "./store-retirement-sweep.js";
+import type { SessionAction } from "./actions.js";
 import type { WorktreeMarkerReadResult } from "../git/worktree-marker.js";
-import { isWorktreeClean } from "../git/worktree-cleanup.js";
+import { checkWorktreeRemoval, type ProjectionRemovalSlots, type RemovalCheck } from "../git/worktree-removal.js";
 import type {
   RegisteredWorktree,
 } from "../git/worktree-roster.js";
@@ -34,7 +38,7 @@ import {
 
 /** Structured outside-worktree action for one validated deferred rename move. */
 export interface RenameMoveRemedy {
-  argv: readonly ["git", "worktree", "move", string, string];
+  argv: readonly ["git", "worktree", "move", "-f", "-f", string, string];
   text: string;
 }
 
@@ -47,6 +51,7 @@ export interface RenameMoveResidue {
   from: string;
   to: string;
   remedy: RenameMoveRemedy;
+  actions: SessionAction[];
 }
 
 /** Ordinary CLI action offered for one structurally proven landed retirement. */
@@ -62,12 +67,15 @@ export type LandedRetirementResidue =
       worktreePath: string;
       lifecycle: RetirementLifecycleResult;
       teardown: RetirementTeardownRemedy;
+      actions?: SessionAction[];
     }
   | {
       status: "blocked";
       worktreePath: string;
       subject: { slug: string; branch: string };
       reason: string;
+      repair?: string;
+      actions?: SessionAction[];
     };
 
 export type LandedRetirementSweepResult = CleanupRemoteEvidence & {
@@ -76,6 +84,8 @@ export type LandedRetirementSweepResult = CleanupRemoteEvidence & {
 };
 
 export interface RunLandedRetirementSweepOptions {
+  store?: Store;
+  projectId?: () => Promise<string>;
   topology: readonly RegisteredWorktree[];
   markers: ReadonlyMap<string, WorktreeMarkerReadResult>;
   baseBranch: string;
@@ -88,7 +98,10 @@ export interface RunLandedRetirementSweepOptions {
   /** Compatibility acquisition seam for callers outside session composition. */
   fetchBase?: () => Promise<boolean>;
   authorize?: (request: TeardownAuthorizationRequest) => Promise<TeardownAuthorizationDecision>;
-  isClean?: (worktreePath: string) => Promise<boolean>;
+  /** Read-only removal observation seam. */
+  checkRemoval?: (worktreePath: string) => Promise<RemovalCheck>;
+  /** Projection policy for default removal observations. */
+  projectionRemovalSlots?: ProjectionRemovalSlots;
 }
 
 /**
@@ -125,13 +138,11 @@ export function projectRenameMoveRemedy(
   ) {
     return null;
   }
-  return {
-    ...pending,
-    remedy: {
-      argv: ["git", "worktree", "move", pending.from, pending.to],
-      text: `Move the registered worktree from ${JSON.stringify(pending.from)} to ${JSON.stringify(pending.to)}.`,
-    },
+  const remedy: RenameMoveRemedy = {
+    argv: ["git", "worktree", "move", "-f", "-f", pending.from, pending.to],
+    text: `Run git worktree move -f -f ${quoteShellArgument(pending.from)} ${quoteShellArgument(pending.to)} from outside the checkout.`,
   };
+  return { ...pending, remedy, actions: [{ ...remedy, argv: [...remedy.argv] }] };
 }
 
 /**
@@ -143,11 +154,13 @@ export function projectRenameMoveRemedy(
 export async function runLandedRetirementSweep(
   options: RunLandedRetirementSweepOptions,
 ): Promise<LandedRetirementSweepResult> {
+  if (options.store?.capabilities.stateOffBranch) return runStoreRetirementSweep({ ...options, store: options.store });
   const projectedEvidence = projectCleanupRemoteEvidence(options.baseBranch, options.baseEvidence);
   const candidates = options.topology.filter((entry) => {
     if (entry.detached || entry.branch === null) return false;
     const marker = options.markers.get(entry.path);
     return marker?.kind === "present"
+      && marker.marker.spawnedByArc
       && marker.marker.createdFor?.kind === "work-unit"
       && marker.marker.wuName === marker.marker.createdFor.name
       && marker.marker.husk === undefined
@@ -226,8 +239,9 @@ export async function runLandedRetirementSweep(
         : createTeardownRetirementAuthorityStrict(authorityExec, proofTarget, options.readBlob)
       ).authorize
     : options.authorize;
-  const clean = options.isClean
-    ?? (async (worktreePath: string) => await isWorktreeClean({ exec: options.exec, cwd: worktreePath }));
+  const checkRemoval = options.checkRemoval
+    ?? ((checkoutPath: string) => checkWorktreeRemoval({ exec: options.exec, checkoutPath,
+      disposition: "remove", check: options.projectionRemovalSlots?.check }));
   const projected = await Promise.all(candidates.map(async (
     candidate,
   ): Promise<LandedRetirementResidue | null> => {
@@ -255,12 +269,15 @@ export async function runLandedRetirementSweep(
     }
     const evidence = decision.evidence;
     if (evidence.kind !== "git-transition" || evidence.transition !== "abandon") return null;
-    if (!await clean(candidate.path)) {
+    const removalCheck = await checkRemoval(candidate.path);
+    if (removalCheck.kind === "missing") return null;
+    if (removalCheck.kind === "refused") {
       return {
         status: "blocked",
         worktreePath: candidate.path,
         subject: { slug, branch: candidate.branch },
-        reason: "uncommitted",
+        reason: removalCheck.reason === "dirty" || removalCheck.reason === "persist-would-refuse"
+          ? "uncommitted" : removalCheck.reason,
       };
     }
     const pending = { status: "pending" } as const;
@@ -281,6 +298,7 @@ export async function runLandedRetirementSweep(
         argv: ["arc", "teardown", slug],
         text: `arc teardown ${slug}`,
       },
+      actions: [{ text: `arc teardown ${slug}`, argv: ["arc", "teardown", slug] }],
     };
   }));
   const retirements = projected.filter((entry): entry is LandedRetirementResidue => entry !== null);

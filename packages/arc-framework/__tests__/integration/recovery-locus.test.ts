@@ -28,7 +28,7 @@ const CURSOR = {
 function workUnit(): DerivedCheckoutRow {
   return {
     kind: "work-unit",
-    checkout: { path: "/repo.demo", head: "a".repeat(40), branch: "feat/demo", detached: false, primary: false },
+    checkout: { folderPresent: true, path: "/repo.demo", head: "a".repeat(40), branch: "feat/demo", detached: false, primary: false },
     markerGeneration: null,
     parentCheckoutPath: null,
     origin: null,
@@ -83,7 +83,7 @@ function transient(kind: "errand" | "partial-errand" | "housekeep" = "errand"): 
       : null;
   return {
     kind: "transient",
-    checkout: { path: "/repo", head: "b".repeat(40), branch: "errand/fix-one", detached: false, primary: true },
+    checkout: { folderPresent: true, path: "/repo", head: "b".repeat(40), branch: "errand/fix-one", detached: false, primary: true },
     markerGeneration: `sha256:${"d".repeat(64)}`,
     parentCheckoutPath: "/repo.demo",
     origin: null,
@@ -266,7 +266,7 @@ describe("checkout-derived recovery transitions", () => {
     const malformed: DerivedCheckoutRow = {
       ...workUnit(),
       kind: "unresolved-checkout",
-      checkout: { path: "/bad", head: "e".repeat(40), branch: null, detached: true, primary: false },
+      checkout: { folderPresent: true, path: "/bad", head: "e".repeat(40), branch: null, detached: true, primary: false },
       context: null,
       subject: null,
       diagnostics: [{ code: "marker-unreadable", message: "bad sibling" }],

@@ -44,6 +44,7 @@ describe("projected roots", () => {
 describe("resolveArcPath", () => {
   it.each([
     [{ kind: "arc-root" }, ".arc"],
+    [{ kind: "user-root", identity: slug("andrew") }, ".arc/user/andrew"],
     [{ kind: "placement-root", tier: "active" }, ".arc/active"],
     [{ kind: "placement-root", tier: "planned" }, ".arc/backlog/planned"],
     [{ kind: "placement-root", tier: "provisional" }, ".arc/backlog/provisional"],

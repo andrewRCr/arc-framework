@@ -66,6 +66,8 @@ export interface RemoveWorktreeCheckoutOptions extends Omit<WorktreeRemovalOptio
   slots?: ProjectionRemovalSlots;
   /** Spawn repair must never remove a checkout whose folder has returned. */
   onlyMissing?: boolean;
+  /** Re-observe caller-owned generation and lifecycle authority after persistence and before retirement. */
+  beforeRetire?: () => Promise<void>;
 }
 /** Remove exactly one checkout or stale registration. */
 export async function removeWorktreeCheckout(options: RemoveWorktreeCheckoutOptions): Promise<WorktreeRemovalResult> {
@@ -83,6 +85,7 @@ export async function removeWorktreeCheckout(options: RemoveWorktreeCheckoutOpti
     }
     step = "unlock";
     const registration = await readRegistration(options.exec, options.checkoutPath);
+    await options.beforeRetire?.();
     if (registration?.locked === PROJECTION_LOCK_REASON) {
       await options.exec("git", ["worktree", "unlock", options.checkoutPath], { cwd: options.primaryWorktreePath });
     }
@@ -90,6 +93,7 @@ export async function removeWorktreeCheckout(options: RemoveWorktreeCheckoutOpti
     if (options.onlyMissing && await (options.folderExists ?? folderExists)(options.checkoutPath)) {
       return { kind: "failed", step, detail: `Checkout folder has returned at ${options.checkoutPath}; its registration was left intact.` };
     }
+    await options.beforeRetire?.();
     await options.exec("git", ["worktree", "remove", options.checkoutPath], { cwd: options.primaryWorktreePath });
     return { kind: check.kind === "missing" ? "pruned" : "removed" };
   } catch (error) { return { kind: "failed", step, detail: message(error) }; }

@@ -53,9 +53,9 @@ describe("dormant occupancy marker projection", () => {
     });
   });
 
-  it("round-trips spawned work-unit ownership without transient fields", () => {
+  it.each([true, false])("round-trips work-unit ownership with spawn provenance %s", (spawnedByArc) => {
     const workUnit: OccupancyMarker = {
-      spawnedByArc: true,
+      spawnedByArc,
       createdFor: { kind: "work-unit", name: "widget" },
     };
     expect(parseOccupancyMarker(serializeOccupancyMarker(workUnit))).toEqual({
@@ -72,7 +72,6 @@ describe("dormant occupancy marker projection", () => {
       createdFor: { kind: "partial-errand", slug: "wrong", claimId: "claim-1" },
       provisioning: "ready",
     },
-    { spawnedByArc: false, createdFor: { kind: "work-unit", name: "widget" } },
     {
       spawnedByArc: false,
       createdFor: { kind: "partial-errand", slug: "partial", claimId: null },
@@ -131,6 +130,11 @@ describe("dormant occupancy marker projection", () => {
     },
   ])("rejects invalid persisted identity, path, and origin scalars %#", (invalid) => {
     expect(parseOccupancyMarker(JSON.stringify(invalid))).toMatchObject({ kind: "malformed" });
+  });
+
+  it("admits an anchored work unit on either checkout topology", () => {
+    const marker: OccupancyMarker = { spawnedByArc: false, createdFor: { kind: "work-unit", name: "widget" } };
+    for (const primary of [true, false]) expect(validateOccupancyMarkerTopology(marker, { primary })).toEqual({ kind: "valid", marker });
   });
 
   it("distinguishes invalid JSON from valid non-record marker content", () => {

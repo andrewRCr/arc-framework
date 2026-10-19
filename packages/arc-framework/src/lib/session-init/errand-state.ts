@@ -20,12 +20,17 @@
  * @module
  */
 
+import type { Store } from "../store/contract.js";
+import { acquireStoreErrands, type StoreIdentityAcquisition } from "../errand/store-discovery.js";
+import { storeInFlightLocationUnavailable, type StoreInFlightEntry } from "../git/in-flight-store.js";
+import type { z } from "zod";
+import { ErrandStateResultSchema } from "./errand-state-schema.js";
 import type { GitExec } from "../git/exec.js";
 import type { InFlightEntry, InFlightErrand, InFlightResidue } from "../git/in-flight-derivation.js";
 import { isLandedInBaseStrict } from "../git/branch-containment.js";
 import type { TransientIdentityRecord } from "../errand/identity-record.js";
 
-import { detectErrandResume, type ErrandResumeResult } from "./errand-resume-detection.js";
+import { detectErrandResume } from "./errand-resume-detection.js";
 import type { NudgeMarkerState } from "./nudge-rate-limit.js";
 import {
   classifyInFlightErrands,
@@ -33,8 +38,7 @@ import {
   type InFlightErrandSweepResult,
 } from "./in-flight-errand-sweep.js";
 import {
-  findMaterializableErrands,
-  type MaterializableErrandsResult,
+  findMaterializableErrands, ownedActiveErrandRecords,
 } from "./materializable-errands.js";
 import {
   projectCleanupRemoteEvidence,
@@ -48,21 +52,11 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 export type ErrandNudgeState = NudgeMarkerState;
 
 /** Composite errand state exposed by the session-init envelope. */
-export type ErrandStateResult = CleanupRemoteEvidence & {
-  /** Current-branch resume signal — cheap and always computed. */
-  resume: ErrandResumeResult;
-  /** Orient-only advisory over the oracle's in-flight `chore/` errands. */
-  inFlight: InFlightErrandSweepResult;
-  /** Exact ordinary-v3 tails that can be materialized locally. */
-  materializable: MaterializableErrandsResult;
-  /** Branch/record residue surfaced for advisory cleanup. */
-  residue: InFlightResidue[];
-  /** Rate-limit state shared by reminder and stale-errand surfaces. */
-  nudge: ErrandNudgeState;
-  /** Soft diagnostics; discovery failures should not block session-init. */
-  warnings: string[];
-};
+export type ErrandStateResult = z.infer<typeof ErrandStateResultSchema>;
 export interface RunErrandStateOptions {
+  store?: Store;
+  identity?: string | null;
+  errandAcquisition?: StoreIdentityAcquisition;
   exec: GitExec;
   currentBranch: string | null;
   hasBackingMeta: boolean;
@@ -73,7 +67,7 @@ export interface RunErrandStateOptions {
    * discovery is off or the oracle was unavailable (unreachable remote): both
    * leave in-flight/materialize empty.
    */
-  entries: readonly InFlightEntry[] | null;
+  entries: readonly (InFlightEntry | StoreInFlightEntry)[] | null;
   /** Oracle-derived residue; remains visible when entry discovery is unavailable. */
   residue?: readonly InFlightResidue[];
   /** Soft diagnostics already emitted by the in-flight oracle. */
@@ -90,6 +84,8 @@ export interface RunErrandStateOptions {
    * empty, which disables the local-presence exclusion rather than tightening it.
    */
   locallyPresentBranches?: ReadonlySet<string>;
+  /** A failed local-ref read cannot authorize an offer from a later identity acquisition. */
+  localRefsAvailable?: boolean;
   /** Supplied advertised-base prerequisites; omitted only by compatibility callers pending composition cutover. */
   baseEvidence?: CleanupBaseEvidence;
   /** Integration base branch short-name, e.g. `main`. */
@@ -108,19 +104,25 @@ export interface RunErrandStateOptions {
  * @param options - Git adapter, current-branch context, oracle entries, config, and nudge state.
  * @returns Composite errand state for the session-init envelope.
  */
-export async function runErrandState(options: RunErrandStateOptions): Promise<ErrandStateResult> {
+export async function runErrandState(input: RunErrandStateOptions): Promise<ErrandStateResult> {
+  const options = await bindStoreErrandRecords(input);
   let projectedEvidence = projectCleanupRemoteEvidence(options.baseBranch, options.baseEvidence);
   const oracleWarnings = [...(options.oracleWarnings ?? [])];
-  const residue = [...(options.residue ?? [])];
+  const residue = (options.residue ?? []).map((item) => ({ ...item,
+    actions: [{ text: `Inspect Errand residue \`${item.slug}\` on \`${item.branch}\` (${item.reason}); resolve the missing record, branch, or classification before cleanup.` }],
+  }));
   // Branch→slug index: the record-derived identity oracle the probes resolve against.
   const slugByBranch = new Map(options.records.flatMap((record) =>
     record.branch === null ? [] : [[record.branch, record.slug] as const]));
 
-  const resume = detectErrandResume({
+  const detectedResume = detectErrandResume({
     currentBranch: options.currentBranch,
     hasBackingMeta: options.hasBackingMeta,
     slugByBranch,
   });
+  const resume = detectedResume.resumable
+    ? { ...detectedResume, actions: [{ text: `Resume Errand \`${detectedResume.slug}\` on the current branch with the run-errand workflow.` }] }
+    : detectedResume;
 
   if (!options.includeDiscovery) {
     return emptyDiscovery(projectedEvidence, resume, options.nudge, residue, oracleWarnings);
@@ -136,12 +138,12 @@ export async function runErrandState(options: RunErrandStateOptions): Promise<Er
   }
 
   const materializable = findMaterializableErrands({
-    records: options.recordsComplete ? options.records : [],
+    records: materializableRecords(options),
     remoteTips: options.remoteTips,
     locallyPresentBranches: options.locallyPresentBranches ?? new Set(),
   });
   const errands = options.entries.filter(
-    (entry): entry is InFlightErrand => entry.kind === "errand",
+    (entry): entry is InFlightErrand => entry.kind === "errand" && typeof entry.branch === "string",
   );
   if (errands.length === 0) {
     return {
@@ -204,33 +206,27 @@ export async function runErrandState(options: RunErrandStateOptions): Promise<Er
   };
 }
 
+function materializableRecords(options: RunErrandStateOptions): readonly TransientIdentityRecord[] {
+  if (!options.recordsComplete || options.localRefsAvailable === false) return [];
+  if (options.store?.capabilities.stateOffBranch !== true) return options.records;
+  return options.records.filter(record => !options.entries?.some(entry => entry.branch === record.branch && storeInFlightLocationUnavailable(entry)));
+}
+
 /** Resolve one Errand merge proof from supplied advertised evidence when present. */
 async function resolveErrandMerged(
   options: RunErrandStateOptions,
   entry: InFlightErrand,
 ): Promise<{ merged: boolean | null; remoteEvidence?: "pending-fetch" }> {
+  if (options.store?.capabilities.stateOffBranch === true && storeErrandLocationUnavailable(options, entry)) return { merged: null };
   const evidence = options.baseEvidence;
   if (evidence === undefined) return { merged: null };
   if (!evidence.remoteSyncEnabled || evidence.snapshot.kind === "unreachable") return { merged: null };
   const baseOid = evidence.snapshot.tips[options.baseBranch];
   if (baseOid === undefined) return { merged: null };
-  if (evidence.objectAvailability.kind !== "complete") {
-    throw new Error("Advertised Errand merge object availability could not be inspected.");
-  }
-  const baseCommitIsLocal = evidence.objectAvailability.commits[baseOid];
-  if (baseCommitIsLocal === false) return { merged: null, remoteEvidence: "pending-fetch" };
-  if (baseCommitIsLocal === undefined) {
-    throw new Error("The advertised base commit has no local availability fact.");
-  }
+  if (!errandCommitIsLocal(evidence, baseOid, "base")) return { merged: null, remoteEvidence: "pending-fetch" };
   const source = entry.remoteOnly ? options.remoteTips.get(entry.branch) : entry.branch;
   if (source === undefined) return { merged: null };
-  if (entry.remoteOnly) {
-    const sourceCommitIsLocal = evidence.objectAvailability.commits[source];
-    if (sourceCommitIsLocal === false) return { merged: null, remoteEvidence: "pending-fetch" };
-    if (sourceCommitIsLocal === undefined) {
-      throw new Error("The advertised Errand commit has no local availability fact.");
-    }
-  }
+  if (entry.remoteOnly && !errandCommitIsLocal(evidence, source, "Errand")) return { merged: null, remoteEvidence: "pending-fetch" };
   if (evidence.history.kind === "shallow") return { merged: null };
   if (evidence.history.kind !== "complete") throw new Error("Errand history completeness could not be inspected.");
   const localOnlyExec: GitExec = (command, args, execOptions) => options.exec(command, args, {
@@ -238,6 +234,17 @@ async function resolveErrandMerged(
     objectAccess: "local-only",
   });
   return { merged: await isLandedInBaseStrict(localOnlyExec, source, baseOid) };
+}
+
+function storeErrandLocationUnavailable(options: RunErrandStateOptions, entry: InFlightErrand): boolean {
+  return storeInFlightLocationUnavailable(entry) || (options.localRefsAvailable === false && entry.worktreePath === undefined);
+}
+
+function errandCommitIsLocal(evidence: CleanupBaseEvidence, oid: string, label: "base" | "Errand"): boolean {
+  if (evidence.objectAvailability.kind !== "complete") throw new Error("Advertised Errand merge object availability could not be inspected.");
+  const available = evidence.objectAvailability.commits[oid];
+  if (available === undefined) throw new Error(`The advertised ${label} commit has no local availability fact.`);
+  return available;
 }
 
 /** Committer-date timestamp for an errand, preferring the local ref when checked out here. */
@@ -251,9 +258,9 @@ function timestampOf(
 
 function emptyDiscovery(
   evidence: CleanupRemoteEvidence,
-  resume: ErrandResumeResult,
+  resume: ErrandStateResult["resume"],
   nudge: ErrandNudgeState,
-  residue: InFlightResidue[],
+  residue: ErrandStateResult["residue"],
   warnings: string[],
 ): ErrandStateResult {
   return {
@@ -321,4 +328,15 @@ async function readErrandTimestamps(exec: GitExec): Promise<ErrandTimestamps> {
     }
   }
   return { local, remote, warnings: [] };
+}
+
+async function bindStoreErrandRecords(options: RunErrandStateOptions): Promise<RunErrandStateOptions> {
+  if (options.store?.capabilities.stateOffBranch !== true) return options;
+  const acquired = options.errandAcquisition ?? await acquireStoreErrands(options.store);
+  const warnings = acquired.kind === "error" ? [acquired.message]
+    : acquired.kind === "complete" ? acquired.diagnostics.map(item => `${item.condition} ${item.remedy.text}`) : [];
+  if (acquired.kind === "complete" && acquired.missed && warnings.length === 0) warnings.push("Errand inventory is incomplete; repair the missing record observations before materializing an Errand.");
+  return { ...options, records: ownedActiveErrandRecords(acquired, options.identity ?? null),
+    recordsComplete: acquired.kind === "absent" || (acquired.kind === "complete" && !acquired.missed && acquired.diagnostics.length === 0),
+    oracleWarnings: [...(options.oracleWarnings ?? []), ...warnings] };
 }

@@ -173,6 +173,7 @@ function currentErrandFrame(): IdentityFrame {
   const row: IdentityFrame["roster"][number] = {
     kind: "transient",
     checkout: {
+      folderPresent: true,
       path: "/repo/repair",
       head: oid("b"),
       branch: "chore/repair",

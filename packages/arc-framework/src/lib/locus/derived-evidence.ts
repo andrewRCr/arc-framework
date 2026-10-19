@@ -1,5 +1,9 @@
 /** Bounded worktree-first evidence acquisition without record, lock, or process inputs. */
 
+import { readStoreIdentityEvidence, type StoreIdentityEvidence } from "./store-identities.js";
+import { readStoreWorkUnitEvidence } from "./store-work-unit-evidence.js";
+import type { Store } from "../store/contract.js";
+import { createProjectIdentityReader } from "../store/project-identity.js";
 import { readdir, readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 
@@ -29,12 +33,18 @@ import {
 } from "../work-unit/completed-index.js";
 import type { DormantMarkerGenerationEvidence } from "./derived-lifecycle-evidence.js";
 import type { DormantCheckoutReadEvidence } from "./derived-reader.js";
+import { readStoreCompletedEvidence } from "../store/lifecycle-completed.js";
 import type { OccupancyMarker } from "./occupancy-marker.js";
 import { readPrimarySafety } from "./primary-safety.js";
 import type { PrimarySafetyProjection } from "./role-derivation.js";
 
 /** Exact I/O surface permitted to feed the derived reader. */
 export interface DerivedLocusEvidenceIO {
+  store?: Store;
+  projectId?: () => Promise<string>;
+  archiveCadence?: "manual" | "with-integration";
+  exec?: GitExec;
+  baseBranch?: string;
   scanWorktrees(): Promise<RegisteredWorktreeScanResult>;
   listDirectory(path: string): Promise<string[]>;
   readArchivedMeta(checkoutPath: string, ref: string, slug: string): Promise<ArchivedWorkUnitMetaRead>;
@@ -51,8 +61,13 @@ export function createDerivedLocusEvidenceIO(options: {
   readonly exec: GitExec;
   readonly identity: string;
   readonly baseBranch: string;
+  readonly store?: Store;
+  readonly projectId?: () => Promise<string>;
+  readonly archiveCadence?: "manual" | "with-integration";
 }): DerivedLocusEvidenceIO {
   return {
+    store: options.store, projectId: options.projectId, archiveCadence: options.archiveCadence,
+    exec: options.exec, baseBranch: options.baseBranch,
     scanWorktrees: () => scanRegisteredWorktrees(options.exec),
     listDirectory: (path) => readdir(path),
     readArchivedMeta: async (checkoutPath, ref, slug) => {
@@ -65,7 +80,8 @@ export function createDerivedLocusEvidenceIO(options: {
     readText: (path) => readFile(path, "utf8"),
     readMarker: readWorktreeMarkerGeneration,
     readIdentities: () => readTransientIdentitySnapshot({ exec: options.exec, identity: options.identity }),
-    readCompleted: () => readCompletedEvidenceFromRef(options.exec, options.baseBranch),
+    readCompleted: () => options.store?.capabilities.stateOffBranch ? readStoreCompletedEvidence(options.store)
+      : readCompletedEvidenceFromRef(options.exec, options.baseBranch),
     readPrimarySafety: async (primaryPath) => {
       const result = await readPrimarySafety({
         primaryPath,
@@ -89,6 +105,7 @@ export type DerivedLocusEvidenceResult =
       readonly checkouts: readonly DormantCheckoutReadEvidence[];
       readonly completed: CompletedEvidenceRead;
       readonly identities: TransientIdentitySnapshot;
+      readonly identityAcquisitions?: StoreIdentityEvidence;
       readonly primarySafety: PrimarySafetyProjection;
     };
 
@@ -104,18 +121,25 @@ export async function acquireDerivedLocusEvidence(options: {
     return topologyFailure(error);
   }
   if (!topology.ok) return topologyFailure(topology.message);
+  const io = options.io.store?.capabilities.stateOffBranch === true && options.io.projectId === undefined
+    ? { ...options.io, projectId: createProjectIdentityReader(options.io.store) } : options.io;
+  const inventoryError = io.store?.capabilities.stateOffBranch === true ? await workUnitInventoryFailure(io.store) : null;
   const primary = topology.worktrees.filter((worktree) => worktree.primary);
   const primaryPath = primary.length === 1 ? primary[0]?.path : undefined;
+  const identityAcquisitions = io.store?.capabilities.stateOffBranch === true
+    ? await readStoreIdentityEvidence(io.store, options.identity) : undefined;
   const [checkouts, completed, identities, primarySafety] = await Promise.all([
-    Promise.all(topology.worktrees.map((worktree) => readCheckout(worktree, options.identity, options.io))),
-    options.io.readCompleted().catch((error: unknown): CompletedEvidenceRead => {
+    Promise.all(topology.worktrees.map((worktree) => readCheckout(worktree, options.identity, io, inventoryError))),
+    (io.store?.capabilities.stateOffBranch === true
+      ? Promise.resolve<CompletedEvidenceRead>({ status: "available", records: new Map() })
+      : options.io.readCompleted()).catch((error: unknown): CompletedEvidenceRead => {
       void error;
       return {
         status: "unavailable",
         reason: "archive-tree-read-failed",
       };
     }),
-    options.io.readIdentities().catch((error: unknown): TransientIdentitySnapshot => ({
+    (identityAcquisitions === undefined ? options.io.readIdentities() : Promise.resolve<TransientIdentitySnapshot>({ kind: "absent" })).catch((error: unknown): TransientIdentitySnapshot => ({
       kind: "error",
       stage: "tree",
       message: errorMessage(error),
@@ -130,14 +154,16 @@ export async function acquireDerivedLocusEvidence(options: {
           message: errorMessage(error),
         })),
   ]);
-  return { kind: "complete", topology, checkouts, completed, identities, primarySafety };
+  return { kind: "complete", topology, checkouts, completed, identities, primarySafety, identityAcquisitions };
 }
 
 async function readCheckout(
   worktree: RegisteredWorktree,
   identity: string,
   io: DerivedLocusEvidenceIO,
+  inventoryError: string | null,
 ): Promise<DormantCheckoutReadEvidence> {
+  if (io.store?.capabilities.stateOffBranch === true) return readStoreCheckout(worktree, io, io.store, inventoryError);
   const roots = [
     join(worktree.path, ".arc", "active"),
     join(worktree.path, ".arc", "user", identity, "active"),
@@ -292,7 +318,7 @@ function projectMarker(result: WorktreeMarkerGenerationReadResult): DormantMarke
   }
   let marker: OccupancyMarker;
   if (subject.kind === "work-unit") {
-    marker = { spawnedByArc: true, createdFor: { kind: "work-unit", name: subject.name } };
+    marker = { spawnedByArc: result.marker.spawnedByArc, createdFor: { kind: "work-unit", name: subject.name } };
   } else {
     if (decoded.provisioning === null) {
       return { kind: "malformed", reason: "Transient marker ownership has no provisioning state" };
@@ -300,16 +326,16 @@ function projectMarker(result: WorktreeMarkerGenerationReadResult): DormantMarke
     const common = {
       spawnedByArc: result.marker.spawnedByArc,
       provisioning: decoded.provisioning,
-      ...(result.marker.parentCheckoutPath === undefined
-        ? {}
-        : { parentCheckoutPath: result.marker.parentCheckoutPath }),
+      ...parentCheckout(result.marker.parentCheckoutPath),
     };
     if (subject.kind === "partial-errand") {
       const originEntry = result.marker.originEntry;
       const originEntrySourceDigest = result.marker.originEntrySourceDigest;
-      marker = originEntry === undefined || originEntrySourceDigest === undefined
-        ? { ...common, createdFor: subject }
-        : { ...common, createdFor: subject, originEntry, originEntrySourceDigest };
+      const originEntryVersion = result.marker.originEntryVersion;
+      marker = originEntry === undefined ? { ...common, createdFor: subject }
+        : originEntryVersion !== undefined ? { ...common, createdFor: subject, originEntry, originEntryVersion }
+          : originEntrySourceDigest !== undefined ? { ...common, createdFor: subject, originEntry, originEntrySourceDigest }
+            : { ...common, createdFor: subject };
     } else {
       marker = { ...common, createdFor: subject };
     }
@@ -329,4 +355,31 @@ function errorCode(error: unknown): string | undefined {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+async function workUnitInventoryFailure(store: Store): Promise<string | null> {
+  try {
+    const listing = await store.list({ family: "work-item", kind: "work-item/meta" });
+    if (listing.status === "refused") return `${listing.refusal.condition} ${listing.refusal.remedy.text}`;
+    const result = listing.result;
+    if (result.status === "unreadable") return `${result.condition} ${result.remedy.text}`;
+    if (result.status === "complete" && (result.missed || result.diagnostics.length > 0)) return `Work-unit inventory is incomplete: ${result.diagnostics.map(item => `${item.condition} ${item.remedy.text}`).join("; ") || "records were missed"}`;
+    return null;
+  } catch (error) { return errorMessage(error); }
+}
+
+async function readStoreCheckout(worktree: RegisteredWorktree, io: DerivedLocusEvidenceIO, store: Store,
+  inventoryError: string | null): Promise<DormantCheckoutReadEvidence> {
+  const marker = await io.readMarker(worktree.path).then(projectMarker,
+    (error: unknown): DormantMarkerGenerationEvidence => ({ kind: "error", reason: errorMessage(error) }));
+  const subject = marker.kind === "present" ? marker.marker.createdFor : null;
+  const workUnit = inventoryError !== null ? { kind: "unreadable" as const, reason: inventoryError }
+    : subject?.kind === "work-unit" ? await readStoreWorkUnitEvidence({ store, slug: subject.name, head: worktree.head,
+        exec: io.exec, baseBranch: io.baseBranch, archiveCadence: io.archiveCadence, projectId: io.projectId })
+      : { kind: "absent" as const };
+  return { checkoutPath: worktree.path, marker, workUnit, metaRoots: [], metas: [] };
+}
+
+function parentCheckout(path: string | undefined): { parentCheckoutPath?: string } {
+  return path === undefined ? {} : { parentCheckoutPath: path };
 }

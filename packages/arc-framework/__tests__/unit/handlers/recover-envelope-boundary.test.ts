@@ -141,7 +141,8 @@ describe("recovery persisted-seed boundary", () => {
         const seedHead = "a".repeat(40);
         const freshHead = "b".repeat(40);
         const seed = {
-            schemaVersion: 1,
+            schemaVersion: 2,
+            stateVersion: null,
             emittedAt: "2026-08-29T12:00:00.000Z",
             repoRoot: "/selected",
             branch: "feat/demo",

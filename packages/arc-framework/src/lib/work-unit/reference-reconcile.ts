@@ -18,7 +18,7 @@ export interface ReachableReferenceTransition {
   subject: string;
   outcome:
     | { kind: "rename"; targetSlug: string }
-    | { kind: "decompose" }
+    | { kind: "decompose"; successors?: readonly string[] }
     | { kind: "removed" };
 }
 
@@ -77,7 +77,7 @@ export interface ReferenceReconcilePlan {
 /** One subject's composed result over reachable retirement transitions. */
 export type ReferenceTransitionResolution =
   | { kind: "rename"; targetSlug: string }
-  | { kind: "decompose" }
+  | { kind: "decompose"; successors?: readonly string[] }
   | { kind: "removed" }
   | { kind: "absent" }
   | { kind: "conflict"; reason: ReferenceTransitionConflict["reason"] };

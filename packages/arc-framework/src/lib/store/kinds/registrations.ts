@@ -1,5 +1,6 @@
 /** One production registration set shared by storage backends. */
 
+import { ENTRY_REGISTRATIONS, ROUTING_RECEIPT_REGISTRATIONS } from "./entry-registration.js";
 import { FAMILY_REGISTRY, KIND_MECHANISMS, type RegisteredKind } from "../registry.js";
 import { familyOf, type KindId } from "../catalog.js";
 import { checkRecordLinks } from "./record-links.js";
@@ -29,5 +30,5 @@ function composeLinkChecks(registrations: readonly RegisteredKind[]): readonly R
 
 /** Parsers, write checks, and anchors owned by each record kind. */
 export const PRODUCTION_REGISTRATIONS: readonly RegisteredKind[] = composeLinkChecks([
-  ERRAND_RECORD_REGISTRATION, META_REGISTRATION, LINEAGE_REGISTRATION, TASK_LIST_REGISTRATION, ...DESIGN_REGISTRATIONS, COHORT_REGISTRATION,
+  ...ENTRY_REGISTRATIONS, ...ROUTING_RECEIPT_REGISTRATIONS, ERRAND_RECORD_REGISTRATION, META_REGISTRATION, LINEAGE_REGISTRATION, TASK_LIST_REGISTRATION, ...DESIGN_REGISTRATIONS, COHORT_REGISTRATION,
 ]);

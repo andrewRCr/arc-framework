@@ -14,11 +14,11 @@ export interface HelpPage {
 /** Task groups keyed by namespace path, with help-only member ordering. */
 export const HELP_GROUPS: Readonly<Record<string, readonly (readonly [string, readonly string[]])[]>> = {
   "": [
-    ["Inspect work and context:", ["status", "view", "active", "locus", "log", "recover"]],
+    ["Inspect work and context:", ["status", "view", "active", "locus", "inbox", "log", "recover"]],
     ["Plan and organize work:", ["start", "stub", "promote", "demote", "rename", "decompose", "plan", "set-class", "set-stage", "finalize", "repoint-design"]],
     ["Run and resume work:", ["activate", "deactivate", "park", "pause", "handover", "resume", "materialize", "reopen", "abandon", "task", "wu", "attest", "candidate"]],
     ["Review and land work:", ["review", "publish", "integrate", "merge", "base", "delivery", "release", "archive", "teardown"]],
-    ["Run errands and synchronize:", ["errand", "housekeep", "sync", "user"]],
+    ["Run errands and synchronize:", ["errand", "route", "housekeep", "handoff", "sync", "user"]],
     ["Set up and maintain ARC:", ["init", "join", "update", "health", "diff", "check", "config", "schema"]],
   ],
   review: [
@@ -33,7 +33,7 @@ export const HELP_GROUPS: Readonly<Record<string, readonly (readonly [string, re
     ["Maintain notes and inbox:", ["compact", "reconcile-references", "inbox-list", "inbox-mark-execute-bound", "inbox-remove"]],
   ],
   errand: [
-    ["Find and open work:", ["next", "check", "open", "link", "materialize"]],
+    ["Find and open work:", ["queue", "next", "check", "open", "link", "materialize"]],
     ["Pause and finish work:", ["leave", "merge", "close", "abandon", "promote"]],
   ],
   release: [
@@ -59,6 +59,8 @@ const requestSourceNotes: HelpPage["notes"] = [["Input and output:",
 ]];
 
 const automaticRequestPaths = [
+  "errand queue set",
+  "handoff write",
   "candidate applicability resolve",
   "merge lock resolve",
   "merge lock hold",

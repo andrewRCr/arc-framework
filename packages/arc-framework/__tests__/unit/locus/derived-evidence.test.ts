@@ -17,6 +17,7 @@ describe("derived locus evidence", () => {
       scanWorktrees: vi.fn().mockResolvedValue({
         ok: true,
         worktrees: [{
+          folderPresent: true,
           path: "/repo",
           head: "a".repeat(40),
           branch: "main",
@@ -52,6 +53,7 @@ describe("derived locus evidence", () => {
       scanWorktrees: vi.fn().mockResolvedValue({
         ok: true,
         worktrees: [{
+          folderPresent: true,
           path: "/repo/demo",
           head: "a".repeat(40),
           branch: "fix/demo",

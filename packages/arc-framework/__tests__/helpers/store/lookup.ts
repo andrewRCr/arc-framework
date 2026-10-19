@@ -17,7 +17,14 @@ function preferredSlugRecords(records: MemoryRecord[], slug: string): MemoryReco
 }
 
 function fields(context: ReferenceContext, record: MemoryRecord): Record<string, unknown> | undefined {
-  const parsed = context.registry[record.reference.kind].parser?.(record.content);
+  const parser = context.registry[record.reference.kind].parser;
+  if (parser === null && ["work-item/record", "claims/groom", "claims/housekeep"].includes(record.reference.kind)) {
+    try {
+      const decoded: unknown = JSON.parse(record.content);
+      return typeof decoded === "object" && decoded !== null && !Array.isArray(decoded) ? decoded as Record<string, unknown> : undefined;
+    } catch { return undefined; }
+  }
+  const parsed = parser?.(record.content);
   if (!parsed?.success || typeof parsed.data !== "object" || parsed.data === null || Array.isArray(parsed.data)) return undefined;
   return parsed.data as Record<string, unknown>;
 }

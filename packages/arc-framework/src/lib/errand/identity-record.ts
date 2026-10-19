@@ -28,6 +28,7 @@ const OrdinaryBaseShape = {
   kind: z.literal("errand"),
   purpose: z.literal("errand"),
   intent: z.string().max(4_096),
+  owner: SlugSchema.optional(),
   branch: LocusOpaqueTextSchema,
 };
 const DescriptionOriginShape = {
@@ -37,7 +38,7 @@ const DescriptionOriginShape = {
 const InboxOriginShape = {
   origin: z.literal("inbox"),
   originEntry: LocusOpaqueTextSchema,
-  originEntrySourceDigest: LocusDigestSchema,
+  originEntrySourceDigest: LocusDigestSchema.nullable(),
 };
 const OpenStateShape = { state: z.literal("open"), savedHead: z.null(), changeRequest: z.null() };
 const PausedStateShape = { state: z.literal("paused"), savedHead: LocusGitOidSchema, changeRequest: z.null() };

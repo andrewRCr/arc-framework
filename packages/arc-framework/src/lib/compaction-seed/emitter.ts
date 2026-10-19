@@ -9,6 +9,13 @@
  * @module
  */
 
+import { createStore } from "../store/create.js";
+import { createDefaultStorePorts } from "../store/default-ports.js";
+import { workItemArtifactPath } from "../store/lifecycle-storage.js";
+import { identifyWorkUnitArtifactPath } from "../layout/index.js";
+import type { Store } from "../store/contract.js";
+import type { StateVersion } from "../store/identity.js";
+import type { GitExec } from "../git/exec.js";
 import { join } from "node:path";
 
 import type { WorktreeIdentity } from "../git/worktree-identity.js";
@@ -61,6 +68,10 @@ export interface EmitCompactionSeedOptions {
   gitSnapshot: CompactionSeedGitSnapshot;
   writeSeed?: (path: string, seed: CompactionSeed) => Promise<void>;
   now?: () => Date;
+  exec?: GitExec;
+  store?: Pick<Store, "version">;
+  /** Operational anchor paired with the supplied frame; null preserves an unavailable acquisition. */
+  stateVersion?: StateVersion | null;
 }
 
 /** Result of a seed write attempt. */
@@ -214,18 +225,21 @@ export async function emitCompactionSeed(
           sessionType = asCompactionSeedSessionType(recovery.frame.sessionType);
         }
         metaPath = loadSet.entries.find((entry) =>
-          /(?:^|\/)\.arc\/active\/meta-[^/]+\.md$/u.test(entry.path))?.path ?? metaPath;
+          identifyWorkUnitArtifactPath(entry.path)?.artifact === "meta")?.path ?? metaPath;
       }
     } catch (error) {
       return { status: "failed", reason: "seed-invalid", message: errorMessage(error) };
     }
   }
+  metaPath = projectSeedMetaPath(metaPath);
+  const stateVersion = options.stateVersion === undefined ? await readEmissionStateVersion(options) : options.stateVersion;
   const seed: CompactionSeed = {
     schemaVersion: COMPACTION_SEED_SCHEMA_VERSION,
     emittedAt: (options.now ?? (() => new Date()))().toISOString(),
     repoRoot: options.cwd,
     branch: options.gitSnapshot.branch,
     head: options.gitSnapshot.head,
+    stateVersion,
     dirty: uncommittedFiles.length > 0,
     activeWorkUnit: activeWorkUnitName(metaPath),
     metaPath,
@@ -251,6 +265,12 @@ export async function emitCompactionSeed(
   return { status: "written", path, seed };
 }
 
+async function readEmissionStateVersion(options: EmitCompactionSeedOptions): Promise<StateVersion | null> {
+  const store = options.store ?? createStore(createDefaultStorePorts({ checkoutRoot: options.cwd, exec: options.exec }));
+  const version = await store.version();
+  return version.status === "ok" ? version.result : null;
+}
+
 function asCompactionSeedSessionType(value: string | null): CompactionSeedSessionType | null {
   return value === "planning"
     || value === "execution"
@@ -265,9 +285,20 @@ async function writeCompactionSeedFile(path: string, seed: CompactionSeed): Prom
 }
 
 function activeWorkUnitName(path: string | null): string | null {
-  if (path === null) return null;
-  const match = /(?:^|\/)meta-(.+)\.md$/u.exec(path);
-  return match?.[1] ?? null;
+  const identified = path === null ? null : identifyWorkUnitArtifactPath(path);
+  return identified?.artifact === "meta" ? identified.slug : null;
+}
+
+function projectSeedMetaPath(path: string | null): string | null {
+  const identified = path === null ? null : identifyWorkUnitArtifactPath(path);
+  if (identified === null || identified.artifact !== "meta") return path;
+  const placement = identified.placement;
+  if (placement.kind === "active" && placement.scope.kind !== "project") return path;
+  const cohort = placement.kind === "backlog" ? placement.cohort.join("/") : null;
+  const readPlacement = placement.kind === "active" ? { kind: "active" as const }
+    : placement.kind === "backlog" ? { kind: "backlog" as const, commitment: placement.commitment }
+      : placement;
+  return workItemArtifactPath(identified.slug, "meta", readPlacement, cohort);
 }
 
 function errorMessage(err: unknown): string {

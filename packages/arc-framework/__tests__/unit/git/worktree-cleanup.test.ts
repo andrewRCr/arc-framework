@@ -13,6 +13,7 @@ import {
   decideHuskCleanup,
   decideWorktreeCleanup,
 } from "../../../src/lib/git/worktree-cleanup.js";
+import type { RemovalCheck } from "../../../src/lib/git/worktree-removal.js";
 import type { WorktreeMarker, WorktreeMarkerReadResult } from "../../../src/lib/git/index.js";
 
 const marker: WorktreeMarker = {
@@ -30,19 +31,19 @@ describe("decideWorktreeCleanup", () => {
   describe("shipped context", () => {
     it("is removable when present + clean + merged", () => {
       expect(
-        decideWorktreeCleanup({ marker: present, clean: true, merged: true, context: "shipped" }),
+        decideWorktreeCleanup({ marker: present, removalCheck: { kind: "removable" }, merged: true, context: "shipped" }),
       ).toEqual({ action: "removable" });
     });
 
     it("is blocked (uncommitted) when present + dirty, even if merged", () => {
       expect(
-        decideWorktreeCleanup({ marker: present, clean: false, merged: true, context: "shipped" }),
+        decideWorktreeCleanup({ marker: present, removalCheck: { kind: "refused", reason: "dirty", paths: ["changed"] }, merged: true, context: "shipped" }),
       ).toEqual({ action: "blocked", reason: "uncommitted" });
     });
 
     it("is blocked (unmerged) when present + clean but unmerged — merge gate applies", () => {
       expect(
-        decideWorktreeCleanup({ marker: present, clean: true, merged: false, context: "shipped" }),
+        decideWorktreeCleanup({ marker: present, removalCheck: { kind: "removable" }, merged: false, context: "shipped" }),
       ).toEqual({ action: "blocked", reason: "unmerged" });
     });
 
@@ -50,7 +51,7 @@ describe("decideWorktreeCleanup", () => {
       expect(
         decideWorktreeCleanup({
           marker: present,
-          clean: true,
+          removalCheck: { kind: "removable" },
           userSurfacesSafe: false,
           merged: true,
           context: "shipped",
@@ -60,13 +61,13 @@ describe("decideWorktreeCleanup", () => {
 
     it("is external when there is no marker — externally managed", () => {
       expect(
-        decideWorktreeCleanup({ marker: absent, clean: true, merged: true, context: "shipped" }),
+        decideWorktreeCleanup({ marker: absent, removalCheck: { kind: "removable" }, merged: true, context: "shipped" }),
       ).toEqual({ action: "external" });
     });
 
     it("is external when the marker is malformed — untrustworthy reads as the safe external default", () => {
       expect(
-        decideWorktreeCleanup({ marker: malformed, clean: true, merged: true, context: "shipped" }),
+        decideWorktreeCleanup({ marker: malformed, removalCheck: { kind: "removable" }, merged: true, context: "shipped" }),
       ).toEqual({ action: "external" });
     });
   });
@@ -76,7 +77,7 @@ describe("decideWorktreeCleanup", () => {
       expect(
         decideWorktreeCleanup({
           marker: present,
-          clean: true,
+          removalCheck: { kind: "removable" },
           merged: false,
           context: "abandonment",
         }),
@@ -87,7 +88,7 @@ describe("decideWorktreeCleanup", () => {
       expect(
         decideWorktreeCleanup({
           marker: present,
-          clean: false,
+          removalCheck: { kind: "refused", reason: "dirty", paths: ["changed"] },
           merged: false,
           context: "abandonment",
         }),
@@ -98,12 +99,32 @@ describe("decideWorktreeCleanup", () => {
       expect(
         decideWorktreeCleanup({
           marker: absent,
-          clean: true,
+          removalCheck: { kind: "removable" },
           merged: false,
           context: "abandonment",
         }),
       ).toEqual({ action: "external" });
     });
+  });
+});
+
+describe("cleanup removal observations", () => {
+  it.each([
+    [{ kind: "missing" }, { action: "missing" }],
+    [{ kind: "refused", reason: "locked", path: "/gone", lockReason: "owner", folderPresent: false },
+      { action: "blocked", reason: "locked" }],
+  ] satisfies [RemovalCheck, unknown][])("settles absent folders without reading a marker: %j", (removalCheck, expected) => {
+    expect(decideWorktreeCleanup({
+      get marker(): WorktreeMarkerReadResult { throw new Error("marker must not be read"); },
+      removalCheck, merged: true, context: "shipped",
+    })).toEqual(expected);
+  });
+
+  it("reports an unobservable status without granting removal", () => {
+    expect(decideWorktreeCleanup({ marker: present,
+      removalCheck: { kind: "refused", reason: "unobservable", detail: "status failed" },
+      merged: true, context: "shipped",
+    })).toEqual({ action: "blocked", reason: "unobservable" });
   });
 });
 
@@ -155,4 +176,10 @@ describe("decideHuskCleanup", () => {
       reason,
     });
   });
+});
+
+it.each(["shipped", "abandonment"] as const)("keeps an anchored checkout external during %s cleanup", (context) => {
+  expect(decideWorktreeCleanup({ marker: { kind: "present", marker: { ...marker, spawnedByArc: false,
+    createdFor: { kind: "work-unit", name: marker.wuName! } } }, removalCheck: { kind: "removable" }, merged: true, context }))
+    .toEqual({ action: "external" });
 });

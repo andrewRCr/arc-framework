@@ -18,6 +18,12 @@ export interface NoInputMatrixCase {
  * Repository inventory tests reconcile command coverage and named prompt-policy coverage separately.
  */
 export const NO_INPUT_MATRIX: readonly NoInputMatrixCase[] = Object.freeze([
+  { commandPath: "inbox", args: ["inbox", "personal", "--json"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
+  { commandPath: "route", args: ["route", "--to", "project"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
+  { commandPath: "locus release", args: ["locus", "release"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
+  { commandPath: "errand queue", args: ["errand", "queue", "--json"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
+  { commandPath: "errand queue set", args: ["errand", "queue", "set", "-"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
+  { commandPath: "handoff write", args: ["handoff", "write", "-"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
   { commandPath: "abandon", args: ["abandon", "matrix"], expected: { exitCode: 1 } },
   { commandPath: "activate", args: ["activate", "matrix"], expected: { exitCode: 1 } },
   { commandPath: "archive", args: ["archive", "matrix"], expected: { exitCode: 1 } },
@@ -71,6 +77,7 @@ export const NO_INPUT_MATRIX: readonly NoInputMatrixCase[] = Object.freeze([
   { commandPath: "integrate checkpoint", args: ["integrate", "checkpoint", "matrix"], expected: { exitCode: 0, outputIncludes: "\"reason\":\"drift-unavailable\"" } },
   { commandPath: "integrate merge", args: ["integrate", "merge", "matrix", "--checkpoint", "invalid"], expected: { exitCode: 64, outputIncludes: "\"reason\":\"invalid-input\"" } },
   { commandPath: "publish", args: ["publish", "matrix"], expected: { exitCode: 1 } },
+  { commandPath: "join", args: ["join", "--tools", "", "--identity", "matrix"], fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "Workspace setup complete" } },
   { commandPath: "materialize", args: ["materialize", "matrix"], expected: { exitCode: 1 } },
   { commandPath: "pause", args: ["pause", "matrix", "--reason", "blocked", "--no-waits-on", "--no-resume-notes", "--no-open"], expected: { exitCode: 1 } },
   { commandPath: "handover", args: ["handover", "matrix", "--to", "other"], expected: { exitCode: 1 } },

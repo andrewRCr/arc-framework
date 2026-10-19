@@ -5,6 +5,16 @@
  * through the shared contract projection.
  */
 
+import { PausedWorkResultSchema } from "../session-init/paused-work.js";
+import { InboundBackPressureResultSchema } from "../session-init/inbound-back-pressure.js";
+import { CurrentWuReconcileSessionResultSchema } from "../session-init/current-wu-reconcile-schema.js";
+import { UserReferenceReconcileSessionResultSchema } from "../user-reference-reconcile-schema.js";
+import { WorkUnitStateResultSchema } from "../session-init/work-unit-state-schema.js";
+import { ErrandStateResultSchema } from "../session-init/errand-state-schema.js";
+import { StaleWorktreeSweepResultSchema } from "../session-init/stale-worktree-sweep-schema.js";
+import { DerivedLocusFrameSchema } from "../locus/derived-schema.js";
+import { SessionInitUserValueSchema } from "../../commands/user/session-init-schema.js";
+import { SessionInitRecoveryValueSchema } from "../session-init/branch-gone-cascade.js";
 import { createKernelRegistry, type KernelRegistry } from "../kernel/index.js";
 import { ActiveSessionInitResultSchema } from "../../commands/active/schema.js";
 import { ConfigSessionInitResultSchema } from "../../commands/config/status.js";
@@ -24,6 +34,7 @@ import { BaseDistanceSnapshotResultSchema } from "../git/base-distance.js";
 import { DirtyStateResultSchema } from "../git/dirty-state.js";
 import { WorktreeSnapshotAnalysisResultSchema } from "../git/worktree-sync.js";
 import { WorktreeRosterResultSchema } from "../git/worktree-roster.js";
+import { SessionActionSchema } from "../session-init/actions.js";
 import { CurrentHuskAdvisorySchema } from "../session-init/current-husk-advisory.js";
 import { CascadeResolutionSchema } from "../session-init/branch-gone-cascade.js";
 import { ErrandStalenessSweepResultSchema } from "../session-init/errand-staleness-sweep.js";
@@ -40,6 +51,16 @@ import { TaskListCursorFileResultSchema } from "../task-list/file-cursor.js";
 
 /** Stable identities for the currently registered session-envelope roots. */
 export const SESSION_ENVELOPE_SCHEMA_IDS = {
+  currentWuReconcile: "current-wu-reconcile",
+  userReferenceReconcile: "user-reference-reconcile",
+  workUnitState: "session-work-unit-state",
+  errandState: "errand-state",
+  staleWorktreeSweep: "stale-worktree-sweep",
+  derivedLocusFrame: "derived-locus-frame",
+  sessionInitUser: "session-init-user",
+  sessionInitRecovery: "session-init-recovery",
+
+  sessionAction: "session-action",
   activeSessionInit: "active-session-init",
   baseBranchSync: "base-branch-sync",
   baseDistance: "base-distance",
@@ -53,6 +74,8 @@ export const SESSION_ENVELOPE_SCHEMA_IDS = {
   errandStalenessSweep: "errand-staleness-sweep",
   hooksPathSessionAdvisory: "hooks-path-session-advisory",
   inboxState: "inbox-state",
+  pausedWork: "paused-work",
+  inboundBackPressure: "inbound-back-pressure",
   loadSetAuditVerdict: "load-set-audit-verdict",
   loadSetManifest: "load-set-manifest",
   materializableWorkUnits: "materializable-work-units",
@@ -77,6 +100,16 @@ const STRICT_CURRENT_V1 = {
 } as const;
 
 const SESSION_ENVELOPE_SCHEMAS = [
+  [SESSION_ENVELOPE_SCHEMA_IDS.currentWuReconcile, CurrentWuReconcileSessionResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.userReferenceReconcile, UserReferenceReconcileSessionResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.workUnitState, WorkUnitStateResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.errandState, ErrandStateResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.staleWorktreeSweep, StaleWorktreeSweepResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.derivedLocusFrame, DerivedLocusFrameSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.sessionInitUser, SessionInitUserValueSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.sessionInitRecovery, SessionInitRecoveryValueSchema],
+
+  [SESSION_ENVELOPE_SCHEMA_IDS.sessionAction, SessionActionSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.activeSessionInit, ActiveSessionInitResultSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.baseBranchSync, BaseBranchSnapshotAnalysisResultSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.baseDistance, BaseDistanceSnapshotResultSchema],
@@ -90,6 +123,8 @@ const SESSION_ENVELOPE_SCHEMAS = [
   [SESSION_ENVELOPE_SCHEMA_IDS.errandStalenessSweep, ErrandStalenessSweepResultSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.hooksPathSessionAdvisory, HooksPathSessionAdvisorySchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.inboxState, InboxStateResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.pausedWork, PausedWorkResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.inboundBackPressure, InboundBackPressureResultSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.loadSetAuditVerdict, LoadSetAuditVerdictSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.loadSetManifest, LoadSetManifestSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.materializableWorkUnits, MaterializableWorkUnitDiscoveryResultSchema],

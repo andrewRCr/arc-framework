@@ -28,6 +28,7 @@ interface UserSurfacePaths {
 }
 
 export interface ViewArtifactDependencies {
+  stateOffBranch?: boolean;
   resolveAmbientTarget: (options: {
     cwd: string;
     identity: string | null;
@@ -102,6 +103,10 @@ async function resolveViewArtifactUnchecked(
     return presentOrAbsent(kind, path, null, dependencies);
   }
 
+  if (kind === "session-notes" && options.forSlug !== undefined && dependencies.stateOffBranch === true) {
+    return resolveSessionContextArtifact(options, options.forSlug, dependencies);
+  }
+
   const target = await resolveTarget(options, dependencies);
   if (target.status === "completed") {
     return error(kind ?? "view", `Work unit "${target.slug}" is completed; completed viewing is unsupported.`);
@@ -157,19 +162,8 @@ async function resolveExactKind(
   switch (kind) {
     case "cohort":
       return resolveCohortArtifact(options.cwd, target, dependencies);
-    case "session-notes": {
-      if (options.identity === null) {
-        return error(kind, "No ARC identity is configured for this identity-scoped artifact.");
-      }
-      const result = await dependencies.resolveSessionNotes({
-        cwd: options.cwd,
-        identity: options.identity,
-        workUnitName: target.slug,
-      });
-      if (result.status === "error") return { status: "error", kind, message: result.message };
-      if (result.status === "absent") return { status: "absent", kind };
-      return presentOrAbsent(kind, result.path, target.slug, dependencies);
-    }
+    case "session-notes":
+      return resolveSessionContextArtifact(options, target.slug, dependencies);
     case "working-memory":
     case "inbox":
       return error(kind, `The ${kind} artifact is identity-global and has no work-unit target.`);
@@ -285,4 +279,13 @@ function error(kind: string, message: string): ViewArtifactResult {
 
 function absolute(cwd: string, path: string): string {
   return isAbsolute(path) ? path : join(cwd, path);
+}
+
+async function resolveSessionContextArtifact(options: ResolveViewArtifactOptions, workUnit: string,
+  dependencies: ViewArtifactDependencies): Promise<ViewArtifactResult> {
+  if (options.identity === null) return error("session-notes", "No ARC identity is configured for this identity-scoped artifact.");
+  const result = await dependencies.resolveSessionNotes({ cwd: options.cwd, identity: options.identity, workUnitName: workUnit });
+  if (result.status === "error") return { status: "error", kind: "session-notes", message: result.message };
+  return result.status === "absent" ? { status: "absent", kind: "session-notes" }
+    : { status: "resolved", kind: "session-notes", path: result.path, workUnit };
 }

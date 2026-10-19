@@ -7,6 +7,7 @@ import type { LocusEnvelope } from "../../../src/commands/locus.js";
 
 const ROW = {
   checkout: {
+    folderPresent: true,
     path: "/repo/work",
     head: "a".repeat(40),
     branch: "feat/reader",

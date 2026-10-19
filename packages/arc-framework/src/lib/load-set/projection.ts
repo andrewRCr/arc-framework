@@ -13,6 +13,9 @@ import { isAbsolute, posix } from "node:path";
 
 import { SlugSchema } from "../kernel/index.js";
 import { resolveArcPath } from "../layout/index.js";
+import { workItemArtifactPath } from "../store/lifecycle-storage.js";
+import type { z } from "zod";
+import type { WorkUnitReadPlacementSchema } from "../store/placement.js";
 
 import {
   LOAD_SET_MANIFEST_VERSION,
@@ -34,6 +37,10 @@ export type LoadSetWorkUnitStage = "task-work" | "verification-closeout" | "deli
 export interface LoadSetProjectionInput {
   /** ARC identity, or `null` when identity is absent. */
   identity: string | null;
+  /** Logical coordinates selected by the authoritative metadata reader. */
+  workUnit?: { slug: string; placement: z.infer<typeof WorkUnitReadPlacementSchema>; cohort: string | null };
+  /** Whether session context lives in the meta rather than a workspace seed. */
+  stateOffBranch?: boolean;
   /**
    * Exact identity-global working-memory path selected by the user-surface owner.
    * When omitted, defaults to the active-checkout-relative semantic projection.
@@ -99,11 +106,11 @@ export function resolveLoadSetManifest(input: LoadSetProjectionInput): LoadSetMa
   const workflowRoot = resolveArcPath({ kind: "procedure-root", family: "workflows" });
   const workUnitStage = input.workUnitStage ?? null;
 
-  if (input.metaPath !== null) {
-    entries.push(full(input.metaPath));
-  }
+  const metaPath = input.workUnit === undefined ? input.metaPath
+    : workItemArtifactPath(input.workUnit.slug, "meta", input.workUnit.placement, input.workUnit.cohort);
+  if (metaPath !== null) entries.push(full(metaPath));
 
-  if (input.identity !== null && input.activeWorkUnit !== null) {
+  if (input.stateOffBranch !== true && input.identity !== null && input.activeWorkUnit !== null) {
     entries.push(full(resolveArcPath({
       kind: "user-document",
       identity: layoutSlug(input.identity),

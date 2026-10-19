@@ -1,5 +1,6 @@
 /** Subject-keyed lifecycle queries and their operational boundary rendering. */
 
+import { pullStoreStatus, readStoreStatusLocus, type StoreLifecycleStatusPorts } from "./store-locus.js";
 import * as p from "../../lib/terminal.js";
 import { readdir, readFile } from "node:fs/promises";
 import { runActiveStatus } from "../../commands/active.js";
@@ -47,10 +48,11 @@ export async function handleLifecycleStatus(
   slug: string,
   opts: StatusCliOptions,
   store?: Store,
+  ports?: StoreLifecycleStatusPorts,
 ): Promise<void> {
   store ??= createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec }));
   if (usesOffBranchState(store)) {
-    await handleStoreLifecycleStatus(store, slug, opts);
+    await handleStoreLifecycleStatus(store, slug, opts, { cwd, exec }, ports);
     return;
   }
   const json = Boolean(opts.json);
@@ -240,7 +242,9 @@ async function resolveSlugOperationalBoundary(options: {
 }
 
 /** Render lifecycle truth without composing code-ref or materialized-artifact evidence. */
-async function handleStoreLifecycleStatus(store: Store, slug: string, opts: StatusCliOptions): Promise<void> {
+async function handleStoreLifecycleStatus(store: Store, slug: string, opts: StatusCliOptions,
+  local: { cwd: string; exec: GitExec }, ports?: StoreLifecycleStatusPorts): Promise<void> {
+  const refreshWarnings = opts.fetch === true ? await pullStoreStatus(ports) : [];
   const view = await readLifecycleView(store);
   if (view.status === "refused") {
     renderStoreQueryRefusal(view.refusal, opts);
@@ -251,17 +255,24 @@ async function handleStoreLifecycleStatus(store: Store, slug: string, opts: Stat
     renderStoreQueryRefusal(record.refusal, opts);
     return;
   }
+  if (record.status === "ok" && record.result.conflicts.length > 0) {
+    renderStoreQueryRefusal({ code: "record-malformed", class: "recoverable", reference: record.result.reference,
+      rule: "lifecycle.meta-conflict", condition: `The named work-unit primary has unresolved conflicts: ${record.result.conflicts.map((reference) => JSON.stringify(reference)).join(", ")}.`,
+      remedy: { text: "Resolve the named conflict records, then retry this status query." } }, opts);
+    return;
+  }
   const query = resolveSlugQuery(view.result.index, record.status === "ok" ? record.result.reference.owner.name : slug);
   const fields = record.status === "ok" ? ParsedMetaRecordSchema.safeParse(record.result.fields) : undefined;
   const design = record.status === "ok" ? await readLifecycleDesign(store, record.result) : { content: null, warnings: [] };
-  const warnings = [...design.warnings, ...lifecycleListingWarnings(view.result.listing)];
+  const locus = await readStoreStatusLocus({ ...local, store, slug: query.slug, fetch: false }, ports);
+  const warnings = [...design.warnings, ...lifecycleListingWarnings(view.result.listing), ...locus.warnings, ...refreshWarnings];
   const purpose = design.content === null ? null : extractWorkUnitPurpose(design.content);
   const output = { ...query, purpose, owner: fields?.success === true ? fields.data.owner : null,
-    integrationBoundary: null, ...(warnings.length === 0 ? {} : { warnings: [...new Set(warnings)] }) };
+    integrationBoundary: null, ...(locus.worktreePath === undefined ? {} : { worktreePath: locus.worktreePath }), ...(warnings.length === 0 ? {} : { warnings: [...new Set(warnings)] }) };
   if (opts.json) process.stdout.write(`${JSON.stringify(output)}\n`);
   else {
     p.intro("arc status");
-    p.note(formatSlugStateQuery(query, { purpose, warnings }), "Lifecycle state");
+    p.note(formatSlugStateQuery(query, { purpose, worktreePath: locus.worktreePath, warnings }), "Lifecycle state");
     p.outro("Done.");
   }
 }

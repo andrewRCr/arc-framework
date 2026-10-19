@@ -2,6 +2,10 @@
 
 import { readFile, readdir } from "node:fs/promises";
 
+import { openDefaultStore } from "./lifecycle-shared.js";
+import { gitExec } from "../lib/io-context.js";
+import { readStoreCompletedEvidence } from "../lib/store/lifecycle-completed.js";
+import type { Store } from "../lib/store/contract.js";
 import type { GitExec } from "../lib/git/exec.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "../lib/work-unit/lifecycle-index.js";
@@ -20,6 +24,8 @@ import { resolveUserIdentity } from "./shared.js";
  */
 export async function resolveCandidateMutationOwner(input: {
   readonly cwd: string;
+  readonly store?: Store;
+  readonly projectId?: () => Promise<string>;
   readonly exec: GitExec;
 }): Promise<CandidateMutationOwner> {
   const [{ settings }, identity] = await Promise.all([
@@ -28,6 +34,9 @@ export async function resolveCandidateMutationOwner(input: {
   ]);
   return projectCandidateMutationOwner(await runDerivedLocusStateProbe({
     cwd: input.cwd,
+    store: input.store,
+    projectId: input.projectId,
+    archiveCadence: settings["archive.cadence"] === "manual" ? "manual" : "with-integration",
     identity,
     baseBranch: settings["branch.base"],
     exec: input.exec,
@@ -40,7 +49,12 @@ export async function resolveCandidateMutationOwner(input: {
  * @param cwd - Repository root containing the lifecycle records
  * @returns Completed work-unit slugs
  */
-export async function resolveCompletedCandidateWorkUnits(cwd: string): Promise<readonly string[]> {
+export async function resolveCompletedCandidateWorkUnits(cwd: string, store: Store = openDefaultStore(cwd, gitExec)): Promise<readonly string[]> {
+  if (store.capabilities.stateOffBranch) {
+    const evidence = await readStoreCompletedEvidence(store);
+    if (evidence.status !== "available") throw new Error("Completed work-unit inventory could not be read completely; repair its diagnostics, then retry.");
+    return [...evidence.records.keys()];
+  }
   const fs: LifecycleIndexFs = {
     readdir: (path) => readdir(path, { withFileTypes: true }),
     readFile: (path) => readFile(path, "utf8"),

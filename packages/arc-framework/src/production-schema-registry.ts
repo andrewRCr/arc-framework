@@ -1,5 +1,6 @@
 /** Production schema-registry composition shared by public emitters and contract verification. */
 
+import { registerInboxSchemas } from "./lib/inbox/registry.js";
 import { registerCheckDeclarationSchemas } from "./lib/checks/declaration.js";
 import { registerDeliveryAuthoringSchemas } from "./lib/delivery/design-inventory.js";
 import { registerDeliveryDomainSchemas } from "./lib/delivery/schema.js";
@@ -8,6 +9,7 @@ import { registerDecomposeSchemas } from "./lib/work-unit/decompose-v3-schema.js
 import { registerSchemaCommandSchemas } from "./lib/schema-command/envelope.js";
 import { registerSessionEnvelopeSchemas } from "./lib/session-envelope/registry.js";
 import { registerReviewDomainSchemas } from "./scripts/review-gate/core/register-review-schemas.js";
+import { registerHandoffWriteSchemas } from "./lib/handoff/write-schema.js";
 
 /**
  * Compose every schema family served by the production CLI.
@@ -15,7 +17,8 @@ import { registerReviewDomainSchemas } from "./scripts/review-gate/core/register
  * @returns A fresh registry containing the complete production schema surface.
  */
 export function createProductionSchemaRegistry(): KernelRegistry {
-  return registerCheckDeclarationSchemas(registerSchemaCommandSchemas(registerDecomposeSchemas(registerSessionEnvelopeSchemas(registerDeliveryAuthoringSchemas(
+  const registry = registerCheckDeclarationSchemas(registerSchemaCommandSchemas(registerDecomposeSchemas(registerSessionEnvelopeSchemas(registerDeliveryAuthoringSchemas(
     registerDeliveryDomainSchemas(registerReviewDomainSchemas(createKernelRegistry())),
   )))));
+  return registerInboxSchemas(registerHandoffWriteSchemas(registry));
 }
