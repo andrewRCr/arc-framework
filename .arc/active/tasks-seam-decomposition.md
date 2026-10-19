@@ -407,9 +407,14 @@ that step fails; and the preview afterward reports the cut landed, naming its me
   growth in unrelated work, with exact terminal record-read budgets and one map/member history query per run. The
   scripted Git boundary admits no calls.
 
-### `[ ]` **3.8 A retirement end to end** — validate exit criterion at segment scope
+### `[x]` **3.8 A retirement end to end** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
+
+- _Outcome:_ On merged main `9fe2f2f0d`, stub and started Planning retirements pass under cohort and at-cap placements
+  through preflight, additive creation, authoring, preview, and apply. Each terminal batch writes exact lineage,
+  removals, recipient edges, and any fan-out together. Teardown reads the lineage, completes a failed cleanup retry,
+  releases retained claims without removing files, and repeated finish reports the recorded members.
 
 ## **Phase 4:** Extraction
 

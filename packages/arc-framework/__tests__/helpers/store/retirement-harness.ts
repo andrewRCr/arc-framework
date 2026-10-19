@@ -3,6 +3,7 @@ import { createLifecycleHarness, lifecycleSuccess } from "./lifecycle-harness.js
 import { makeGitProcessError } from "../git-exec-fake.js";
 import { recordReferences } from "../../../src/lib/store/identity.js";
 import { ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
+import type { MetaRenderOverrides } from "../../../src/lib/store/kinds/meta/writers.js";
 import type { WritePlacement } from "../../../src/lib/store/placement.js";
 import { writeLineageRecord } from "../../../src/lib/store/kinds/lineage/index.js";
 import type { BranchLink } from "../../../src/lib/store/links.js";
@@ -11,9 +12,9 @@ import { nodeReconcileWorkUnitWorktreeFs } from "../../../src/lib/work-unit/muta
 import type { GitExecInput } from "../../../src/lib/git/exec.js";
 const base = "a".repeat(40), work = "b".repeat(40), errand = "c".repeat(40);
 export const retirementLink = (ref = "feat/demo", linkedAs: "created" | "adopted" = "created"): BranchLink => ({ repository: "repo", ref, linkedAs, excluded: [] });
-export async function createRetirementHarness(options: { ended?: boolean; state?: "Planning" | "Active" | "Integrating"; placement?: WritePlacement; spawned?: boolean; end?: "abandon" | "decompose" | "archive"; branches?: BranchLink[]; noSnapshot?: boolean; held?: boolean; heldBranch?: string | null; dirty?: boolean; secondaryOwnWork?: boolean; unlanded?: boolean } = {}) {
-  const h = createLifecycleHarness(), end = options.end ?? "abandon", branches = options.branches ?? [retirementLink()];
-  const meta = await h.seedMeta("demo", { state: end === "archive" ? "Shipped" : options.state ?? "Active", currentWorkflow: end === "archive" ? null : options.state === "Planning" ? "draft-design" : options.state === "Integrating" ? "integrate-work-unit" : "process-task-loop" }, options.placement ?? (end === "archive" ? { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } : { kind: "active" }), { branches });
+export async function createRetirementHarness(options: { harness?: ReturnType<typeof createLifecycleHarness>; fields?: MetaRenderOverrides; ended?: boolean; state?: "Planning" | "Active" | "Integrating"; placement?: WritePlacement; spawned?: boolean; end?: "abandon" | "decompose" | "archive"; branches?: BranchLink[]; noSnapshot?: boolean; held?: boolean; heldBranch?: string | null; dirty?: boolean; secondaryOwnWork?: boolean; unlanded?: boolean } = {}) {
+  const h = options.harness ?? createLifecycleHarness(), end = options.end ?? "abandon", branches = options.branches ?? [retirementLink()];
+  const meta = await h.seedMeta("demo", { state: end === "archive" ? "Shipped" : options.state ?? "Active", currentWorkflow: end === "archive" ? null : options.state === "Planning" ? "draft-design" : options.state === "Integrating" ? "integrate-work-unit" : "process-task-loop", ...options.fields }, options.placement ?? (end === "archive" ? { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } : { kind: "active" }), { branches });
   if (end !== "archive" && options.ended !== false) {
     const reference = recordReferences["lineage/transition"](meta.reference.owner);
     lifecycleSuccess(await h.store.batch({ provenance: { verb: end, lifecycleAction: end }, writes: [
