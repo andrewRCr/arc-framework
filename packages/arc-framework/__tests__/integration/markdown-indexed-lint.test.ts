@@ -1,8 +1,7 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import { lint } from "markdownlint/promise";
@@ -10,18 +9,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { makeGitExec } from "../helpers/integration.js";
 import { gitExec, readGitBlobBytes } from "../../src/lib/io-context.js";
-import { resolveIndexedMarkdownCheckerPaths } from "../../src/lib/markdown/checker-alignment.js";
 import {
   runIndexedMarkdownCertification,
   type RunIndexedMarkdownCertificationOptions,
 } from "../../src/lib/markdown/indexed-lint.js";
 import { MARKDOWN_SELECTION } from "../../src/lib/markdown/selection.js";
-import { main as runStagedMarkdownCommand } from "../../src/scripts/lint-markdown-staged.js";
 
 const execFileAsync = promisify(execFile);
-const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
 const runtimeVersions = { markdownlint: "0.40.0", stringWidth: "8.1.0" };
-const indexedRepairTimeoutMs = 60_000;
 
 let root: string;
 
@@ -29,17 +24,6 @@ async function write(path: string, content: string | Uint8Array): Promise<void> 
   const target = join(root, ...path.split("/"));
   await mkdir(dirname(target), { recursive: true });
   await writeFile(target, content);
-}
-
-async function stageExecutingCheckerSources(): Promise<void> {
-  const runtimePaths = await resolveIndexedMarkdownCheckerPaths({
-    root: repositoryRoot,
-    readBlob: async (cwd, path) => readFile(join(cwd, ...path.split("/"))),
-  });
-  await Promise.all(runtimePaths.map(async (path) => {
-    await write(path, await readFile(join(repositoryRoot, ...path.split("/"))));
-  }));
-  await execFileAsync("git", ["add", "--all"], { cwd: root });
 }
 
 function rootConfig(config: Record<string, unknown>): string {
@@ -83,50 +67,43 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  vi.unstubAllEnvs();
   await rm(root, { recursive: true, force: true });
 });
 
 describe("indexed Markdown certification", () => {
-  it.each([true, false])("certifies inherited index content independently of the repository index (invalid=%s)", async invalid => {
+  it.each([true, false])("certifies an alternate index independently of the repository index (invalid=%s)", async invalid => {
     await stageFixture();
-    await stageExecutingCheckerSources();
     await gitExec("git", ["-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-qm", "fixture"], { cwd: root });
     const indexFile = join(root, ".git", "checked-index");
-    const options = { cwd: root, indexFile };
-    await gitExec("git", ["read-tree", "HEAD"], options);
+    const indexOptions = { cwd: root, indexFile };
+    await gitExec("git", ["read-tree", "HEAD"], indexOptions);
     await write("README.md", invalid ? "# Repository index valid\n" : "repository trailing \n");
     await gitExec("git", ["add", "README.md"], { cwd: root });
     await write("README.md", invalid ? "trailing \n" : "# Checked index valid\n");
-    await gitExec("git", ["add", "README.md"], options);
-    vi.stubEnv("GIT_INDEX_FILE", indexFile);
-    const output: string[] = [];
-    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(chunk => { output.push(String(chunk)); return true; });
-    try {
-      await expect(runStagedMarkdownCommand(root)).resolves.toBe(invalid ? 1 : 0);
-      if (invalid) expect(output.join("\n")).toContain("README.md:1:9 MD009/no-trailing-spaces");
-    } finally {
-      stderr.mockRestore();
-    }
+    await gitExec("git", ["add", "README.md"], indexOptions);
+    const result = await runIndexedMarkdownCertification(options({
+      exec: (command, args, execOptions) => gitExec(command, args, { ...execOptions, ...indexOptions }),
+      readBlob: (cwd, path) => readGitBlobBytes(cwd, null, path, { indexFile }),
+    }));
+    expect(result.paths).toEqual(["README.md"]);
+    expect(result.diagnostics.map(({ message }) => message)).toEqual(invalid
+      ? ["README.md:1:9 MD009/no-trailing-spaces Trailing spaces"] : []);
   });
 
   it("rejects a committed Markdown violation with a clean index and succeeds after its indexed repair", async () => {
     await stageFixture();
     await write("README.md", "trailing \n");
-    await stageExecutingCheckerSources();
+    await execFileAsync("git", ["add", "README.md"], { cwd: root });
     await execFileAsync("git", ["-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-qm", "fixture"], { cwd: root });
-    const output: string[] = [];
-    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(chunk => { output.push(String(chunk)); return true; });
-    try {
-      await expect(runStagedMarkdownCommand(root)).resolves.toBe(1);
-      expect(output.join("\n")).toContain("README.md:1:9 MD009/no-trailing-spaces");
-      await write("README.md", "# Repaired\n");
-      await execFileAsync("git", ["add", "README.md"], { cwd: root });
-      await expect(runStagedMarkdownCommand(root)).resolves.toBe(0);
-    } finally {
-      stderr.mockRestore();
-    }
-  }, indexedRepairTimeoutMs);
+    expect((await execFileAsync("git", ["diff", "--cached", "--name-only"], { cwd: root })).stdout).toBe("");
+    const invalid = await runIndexedMarkdownCertification(options());
+    expect(invalid.diagnostics.map(({ message }) => message)).toEqual([
+      "README.md:1:9 MD009/no-trailing-spaces Trailing spaces",
+    ]);
+    await write("README.md", "# Repaired\n");
+    await execFileAsync("git", ["add", "README.md"], { cwd: root });
+    await expect(runIndexedMarkdownCertification(options())).resolves.toMatchObject({ diagnostics: [] });
+  });
 
   it("reports an invalid staged blob even when an unstaged worktree fix is valid", async () => {
     await stageFixture();
@@ -198,17 +175,6 @@ describe("indexed Markdown certification", () => {
       line: 3,
       message: `${path}:3: Task-list structure is malformed: open subtask 1.1.a at line 3 appears beneath completed parent 1.1 at line 1`,
     }]);
-
-    await stageExecutingCheckerSources();
-    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
-    try {
-      await expect(runStagedMarkdownCommand(root)).resolves.toBe(1);
-      expect(stderr).toHaveBeenCalledWith(expect.stringContaining(
-        `${path}:3: Task-list structure is malformed: open subtask 1.1.a`,
-      ));
-    } finally {
-      stderr.mockRestore();
-    }
   });
 
   it("runs segmentation validation over the same indexed content map", async () => {

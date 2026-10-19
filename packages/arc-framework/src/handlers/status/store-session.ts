@@ -106,7 +106,8 @@ async function readStoreInboxSlot(context: StoreSessionContext, identity: string
   const survivors = listing.entries.flatMap(row => row.survivor === undefined ? [] : [{ id: row.id, title: row.title, home: row.survivor.home }]);
   return runInboxState({ content, queuedEntryIds: new Set(queue.members.filter(member => member.inbox === "personal").map(member => member.id)), survivors });
 }
-function positive(value: string | undefined, fallback: number): number {
+/** Read a positive safe-integer setting, retaining the caller's default for other values. */
+export function positive(value: string | undefined, fallback: number): number {
   const number = Number(value); return Number.isSafeInteger(number) && number > 0 ? number : fallback;
 }
 function localRefsAvailable(snapshot: Awaited<ReturnType<typeof deriveStoreInFlight>> | null): boolean {

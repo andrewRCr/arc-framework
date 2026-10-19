@@ -21,6 +21,8 @@ describe("status slot error taxonomy", () => {
     const composition = new SessionCompositionError("resolve-load-set", "loadSet", cause);
 
     expect(identity).toMatchObject({ code: "session.identity-missing", slot: "user" });
+    expect(identity.message).toContain("no identity resolved from `arc.identity` or Git `user.name`");
+    expect(identity.message).toContain("git config arc.identity <name>");
     expect(probe).toMatchObject({
       code: "session.probe-failed",
       slot: "worktree",

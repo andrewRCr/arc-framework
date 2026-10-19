@@ -13,8 +13,9 @@
 import { readdir, readFile } from "node:fs/promises";
 import { basename } from "node:path";
 
-import { validatePriority, validateState, type Priority, type WorkUnitState } from "../kernel/schema/vocabulary.js";
+import { validatePriority, validateState, type Priority, type WorkClass, type WorkUnitState } from "../kernel/schema/vocabulary.js";
 import { parseMetaRecord } from "../active/meta-reader.js";
+import type { MetaPause } from "../active/meta-schema.js";
 import type { GitExec } from "../git/exec.js";
 import { readGitBlobEntry } from "../io-context.js";
 import { resolveWorkUnitPurposes, type WorkUnitArtifactReaders } from "./work-unit-purpose.js";
@@ -56,7 +57,8 @@ export type ProjectReadinessSourceKind =
   | "active-meta"
   | "backlog-stub"
   | "completed-index"
-  | "in-flight-meta";
+  | "in-flight-meta"
+  | "store";
 
 /** Provenance for one source candidate that contributed to a merged record. */
 export interface ProjectReadinessRecordSource {
@@ -76,6 +78,8 @@ export interface ProjectReadinessRecordCandidate {
   cohort?: string;
   source?: ProjectReadinessRecordSource;
   scheduling?: "parked";
+  class?: WorkClass | "[TBD]";
+  pause?: MetaPause;
 }
 
 /** One resolved project-readiness record after source precedence is applied. */
@@ -117,7 +121,13 @@ export interface ProjectReadinessDerivationWarning {
 export type ProjectReadinessWarningCode =
   | "dangling-dependency"
   | "oracle-degraded"
-  | "stale-location-unshipped";
+  | "stale-location-unshipped"
+  | "dependency-retired"
+  | "store-read-failed"
+  | "listing-diagnostic"
+  | "pull-incomplete"
+  | "pull-notice"
+  | "slug-clash";
 
 /** A project-readiness warning produced from dependency or provenance classification. */
 export interface ProjectReadinessWarning {
@@ -126,6 +136,15 @@ export interface ProjectReadinessWarning {
   dependency?: string;
   rendered: string;
 }
+
+/** Acquired dependency identity, including a current primary that supersedes an archived namesake. */
+export type ProjectDependencyResolution =
+  | { kind: "listed"; slug: string }
+  /** Exact generation outside the standing graph; its namesake supplies no classification or depth. */
+  | { kind: "verdict"; slug: string; satisfied: boolean }
+  | { kind: "unsatisfied"; warning?: ProjectReadinessWarning };
+/** Resolutions keyed first by the dependent, then by the edge exactly as written. */
+export type ProjectDependencyResolutions = ReadonlyMap<string, ReadonlyMap<string, ProjectDependencyResolution>>;
 
 /** Dependency satisfaction fact computed from lifecycle classification. */
 export type ProjectDependencySatisfaction = "satisfied" | "unsatisfied";
@@ -251,8 +270,8 @@ export interface ResolveProjectReadinessRenderStampOptions {
 
 /** Options for {@link composeProjectReadinessView}. */
 export interface ComposeProjectReadinessViewOptions {
-  /** Freshness marker to print in the header. */
-  renderedRef: string | ProjectReadinessRenderStamp;
+  /** Optional repository-file freshness marker to print in the header. */
+  renderedRef?: string | ProjectReadinessRenderStamp;
   /** H1 text without the leading `#`. */
   title: string;
   /** Already-resolved project-readiness records. */
@@ -265,6 +284,10 @@ export interface ComposeProjectReadinessViewOptions {
   indeterminate?: boolean;
   /** Readiness provider; omitted uses dependency satisfaction as readiness. */
   readinessProvider?: ProjectReadinessProvider;
+  /** Acquired meanings of edges absent from this record graph. */
+  dependencyResolutions?: ProjectDependencyResolutions;
+  /** Marks acquired from the pause-marking function, never computed by the composer. */
+  pausedMarks?: ReadonlyMap<string, ProjectReadinessPauseMarks>;
 }
 
 /** Render result plus structured warnings for the caller to surface separately. */
@@ -277,16 +300,18 @@ export interface ProjectReadinessViewResult {
 /** A blocked planned row plus the unresolved edges it displays. */
 interface BlockedRow {
   row: StatusViewRow;
-  unsatisfied: string[];
+  resolvedTargets: string[];
 }
 
 interface DependencyClassification {
   unsatisfiedBySlug: ReadonlyMap<string, readonly string[]>;
+  resolvedTargetsBySlug: ReadonlyMap<string, readonly string[]>;
   warnings: ProjectReadinessWarning[];
 }
 
 const META_FILE_RE = /^meta-(.+)\.md$/u;
-const DEFAULT_TITLE = "Roadmap: Project Status";
+/** Default title shared by repository and store-backed project views. */
+export const PROJECT_READINESS_TITLE = "Roadmap: Project Status";
 const INDETERMINATE_ORACLE_WARNING: ProjectReadinessWarning = {
   code: "oracle-degraded",
   rendered: "In-flight inputs were indeterminate during derivation; rendering project view from a degraded snapshot.",
@@ -307,6 +332,11 @@ export const PROJECT_READINESS_COLUMNS = [
   "owner",
   "dependsOn",
   "cohort",
+] as const satisfies readonly StatusColumn[];
+
+/** Pause rows retain the in-flight columns before their durable waiting context. */
+export const PROJECT_PAUSED_COLUMNS = [
+  ...PROJECT_IN_FLIGHT_COLUMNS, "pauseReason", "pauseWaitsOn", "pauseOpen", "pauseMark",
 ] as const satisfies readonly StatusColumn[];
 
 const DEFAULT_FS: ProjectViewFs = {
@@ -526,7 +556,7 @@ export function mergeProjectReadinessRecords(
 
 /** Resolve the project-readiness view title from render inputs only. */
 function resolveTitle(title: string | undefined): string {
-  return title ?? DEFAULT_TITLE;
+  return title ?? PROJECT_READINESS_TITLE;
 }
 
 function selectedRefFor(entry: InFlightWorkUnit): string {
@@ -805,38 +835,63 @@ function lifecycleIndexFromRecords(records: readonly ProjectReadinessRecord[]): 
   );
 }
 
+interface DependencyEdgeClassification {
+  satisfied: boolean;
+  resolvedTarget?: string;
+  warning?: ProjectReadinessWarning;
+}
+
+/** Report an unsatisfied edge whose current target is no work unit. */
+export function missingDependencyWarning(dependent: string, dependency: string): ProjectReadinessWarning {
+  return { code: "dangling-dependency", workUnit: dependent, dependency,
+    rendered: `\`${dependent}\` depends on missing work unit \`${dependency}\`; treating the edge as blocked.` };
+}
+
+function classifyDependencyEdge(dependent: string, dependency: string, index: LifecycleIndex,
+  resolutions?: ProjectDependencyResolutions): DependencyEdgeClassification {
+  const resolution = resolutions?.get(dependent)?.get(dependency);
+  if (resolution === undefined) {
+    const listed = resolveSlugQuery(index, dependency);
+    return listed.state !== "nonexistent" ? { satisfied: listed.shipped, resolvedTarget: dependency }
+      : { satisfied: false, resolvedTarget: dependency, warning: missingDependencyWarning(dependent, dependency) };
+  }
+  switch (resolution.kind) {
+    case "verdict": return { satisfied: resolution.satisfied };
+    case "unsatisfied": return { satisfied: false, ...(resolution.warning === undefined ? {} : { warning: resolution.warning }) };
+    case "listed": {
+      const target = resolveSlugQuery(index, resolution.slug);
+      return { satisfied: target.shipped, resolvedTarget: resolution.slug,
+        ...(target.state === "nonexistent" ? { warning: missingDependencyWarning(dependent, dependency) } : {}) };
+    }
+  }
+}
+
 function classifyDependencies(
   records: readonly ProjectReadinessRecord[],
   index: LifecycleIndex,
+  resolutions?: ProjectDependencyResolutions,
 ): DependencyClassification {
   const warnings: ProjectReadinessWarning[] = [];
   const warned = new Set<string>();
   const unsatisfiedBySlug = new Map<string, string[]>();
-
+  const resolvedTargetsBySlug = new Map<string, string[]>();
   for (const record of records) {
-    const unsatisfied: string[] = [];
+    const unsatisfied: string[] = [], targets: string[] = [];
     for (const dep of record.dependsOn) {
-      const query = resolveSlugQuery(index, dep);
-      if (query.state === "nonexistent") {
-        unsatisfied.push(dep);
-        const key = `${record.slug}\0${dep}`;
-        if (!warned.has(key)) {
-          warned.add(key);
-          warnings.push({
-            code: "dangling-dependency",
-            workUnit: record.slug,
-            dependency: dep,
-            rendered: `\`${record.slug}\` depends on missing work unit \`${dep}\`; treating the edge as blocked.`,
-          });
-        }
-      } else if (!query.shipped) {
-        unsatisfied.push(dep);
+      const edge = classifyDependencyEdge(record.slug, dep, index, resolutions);
+      if (edge.satisfied) continue;
+      unsatisfied.push(dep);
+      if (edge.resolvedTarget !== undefined) targets.push(edge.resolvedTarget);
+      const key = `${record.slug}\0${dep}`;
+      if (edge.warning !== undefined && !warned.has(key)) {
+        warned.add(key);
+        warnings.push(edge.warning);
       }
     }
-    if (unsatisfied.length > 0) unsatisfiedBySlug.set(record.slug, unsatisfied);
+    unsatisfiedBySlug.set(record.slug, unsatisfied);
+    resolvedTargetsBySlug.set(record.slug, targets);
   }
-
-  return { unsatisfiedBySlug, warnings };
+  return { unsatisfiedBySlug, resolvedTargetsBySlug, warnings };
 }
 
 function elevatedDerivationWarnings(
@@ -857,16 +912,14 @@ function elevatedDerivationWarnings(
   });
 }
 
+function dependencyReadiness(records: readonly ProjectReadinessRecord[], classification: DependencyClassification): ReadonlyMap<string, ProjectReadinessVerdict> {
+  return new Map(records.map(record => [record.slug, unsatisfiedFor(classification, record.slug).length === 0 ? "ready" : "blocked"]));
+}
+
 /** Default provider: a record is ready exactly when all dependency edges are satisfied. */
 export const depsOnlyReadinessProvider: ProjectReadinessProvider = {
   resolve(records) {
-    const classification = classifyDependencies(records, lifecycleIndexFromRecords(records));
-    return new Map(
-      records.map((record) => [
-        record.slug,
-        unsatisfiedFor(classification, record.slug).length === 0 ? "ready" : "blocked",
-      ]),
-    );
+    return dependencyReadiness(records, classifyDependencies(records, lifecycleIndexFromRecords(records)));
   },
 };
 
@@ -933,7 +986,7 @@ function blockedDepths(blocked: ReadonlyMap<string, BlockedRow>): Map<number, St
 
     const nextVisiting = new Set(visiting);
     nextVisiting.add(slug);
-    const childDepth = Math.max(0, ...item.unsatisfied.map((dep) => depthOf(dep, nextVisiting)));
+    const childDepth = Math.max(0, ...item.resolvedTargets.map((dep) => depthOf(dep, nextVisiting)));
     const depth = childDepth + 1;
     memo.set(slug, depth);
     return depth;
@@ -967,6 +1020,67 @@ function renderStamp(stamp: string | ProjectReadinessRenderStamp): string {
   return lines.map((line) => `> ${line}`).join("\n");
 }
 
+/** One blocked record with the written dependency edges its row displays. */
+export interface ProjectReadinessBlockedRecord {
+  record: ProjectReadinessRecord;
+  unsatisfied: readonly string[];
+  /** Listed target slugs used only for dependency-depth banding. */
+  resolvedTargets: readonly string[];
+}
+
+/** A record whose validated pause made it eligible for the Paused tier. */
+export type ProjectReadinessPausedRecord = ProjectReadinessRecord & { pause: MetaPause };
+/** Caller-supplied marks carried by the pause-marking function's result. */
+export type ProjectReadinessPauseMarks = readonly ("resumable" | "review-due")[];
+
+/** Shared record tiers and their dependency facts, before render-row construction. */
+export interface ProjectReadinessTierClassification {
+  inFlight: ProjectReadinessRecord[];
+  ready: ProjectReadinessRecord[];
+  blocked: ProjectReadinessBlockedRecord[];
+  paused: ProjectReadinessPausedRecord[];
+  parked: ProjectReadinessRecord[];
+  facts: ProjectReadinessFact[];
+  warnings: ProjectReadinessWarning[];
+}
+
+/** Classify resolved records for project and identity status without constructing render rows.
+ * @param options - Records, optional readiness provider, and derivation diagnostics.
+ * @returns Mutually exclusive scheduling tiers plus the facts used to classify them.
+ */
+export function classifyProjectReadinessRecords(
+  options: Pick<ComposeProjectReadinessViewOptions, "records" | "readinessProvider" | "derivationWarnings" | "dependencyResolutions">,
+): ProjectReadinessTierClassification {
+  const records = [...options.records];
+  const index = lifecycleIndexFromRecords(records);
+  const classification = classifyDependencies(records, index, options.dependencyResolutions);
+  const readiness = options.readinessProvider === undefined ? dependencyReadiness(records, classification) : options.readinessProvider.resolve(records);
+  const facts = factsFor(records, classification, readiness, index);
+  const factsBySlug = new Map(facts.map(fact => [fact.slug, fact]));
+  const isReady = (record: ProjectReadinessRecord): boolean => {
+    const fact = factsBySlug.get(record.slug);
+    return fact?.dependencySatisfaction === "satisfied" && fact.readiness === "ready";
+  };
+  const unpaused = records.filter(record => record.pause === undefined);
+  const planned = unpaused.filter(record => record.location === "planned" && record.scheduling !== "parked" && record.state === "Planning");
+  return {
+    inFlight: unpaused.filter(record => record.location === "active" && record.scheduling !== "parked"),
+    ready: planned.filter(isReady),
+    blocked: planned.filter(record => !isReady(record)).map(record => ({ record, unsatisfied: unsatisfiedFor(classification, record.slug), resolvedTargets: classification.resolvedTargetsBySlug.get(record.slug) ?? [] })),
+    paused: records.filter((record): record is ProjectReadinessPausedRecord => record.pause !== undefined),
+    parked: unpaused.filter(record => record.scheduling === "parked" || (record.location === "planned" && record.state === "Active")),
+    facts,
+    warnings: [...classification.warnings, ...elevatedDerivationWarnings(options.derivationWarnings ?? [], index)],
+  };
+}
+
+function pausedRowOf(record: ProjectReadinessPausedRecord, unsatisfied: readonly string[], marks: ProjectReadinessPauseMarks = []): StatusViewRow {
+  const waiting = record.pause.waitsOn;
+  return { ...rowOf(record, unsatisfied, true), pauseReason: record.pause.reason,
+    pauseWaitsOn: waiting === null ? "" : waiting.kind === "work-unit" ? waiting.slug : waiting.text,
+    pauseOpen: record.pause.open, pauseMark: marks.join(", ") };
+}
+
 /**
  * Compose the project readiness view from resolved records.
  *
@@ -976,50 +1090,24 @@ function renderStamp(stamp: string | ProjectReadinessRenderStamp): string {
 export function composeProjectReadinessViewResult(
   options: ComposeProjectReadinessViewOptions,
 ): ProjectReadinessViewResult {
-  const records = [...options.records];
-  const index = lifecycleIndexFromRecords(records);
-  const classification = classifyDependencies(records, index);
+  const tiers = classifyProjectReadinessRecords(options);
   const sourceWarnings = appendIndeterminateOracleWarning(options.sourceWarnings ?? [], options.indeterminate === true, false);
-  const warnings = [
-    ...sourceWarnings,
-    ...classification.warnings,
-    ...elevatedDerivationWarnings(options.derivationWarnings ?? [], index),
-  ];
-  const readiness = (options.readinessProvider ?? depsOnlyReadinessProvider).resolve(records);
-  const facts = factsFor(records, classification, readiness, index);
-  const factsBySlug = new Map(facts.map((fact) => [fact.slug, fact]));
-
-  const active = records
-    .filter((record) => record.location === "active" && record.scheduling !== "parked")
-    .map((record) => rowOf(record, unsatisfiedFor(classification, record.slug), true));
-
-  const planned = records.filter((record) => record.location === "planned" && record.scheduling !== "parked");
-  const ready = planned
-    .filter((record) => record.state === "Planning")
-    .filter((record) => {
-      const fact = factsBySlug.get(record.slug);
-      return fact?.dependencySatisfaction === "satisfied" && fact.readiness === "ready";
-    })
-    .map((record) => rowOf(record, [], false));
-
-  const blocked = new Map<string, BlockedRow>();
-  for (const record of planned.filter((item) => item.state === "Planning")) {
-    const fact = factsBySlug.get(record.slug);
-    if (fact?.dependencySatisfaction === "satisfied" && fact.readiness === "ready") continue;
-    const unsatisfied = unsatisfiedFor(classification, record.slug);
-    blocked.set(record.slug, { row: rowOf(record, unsatisfied, false), unsatisfied: [...unsatisfied] });
-  }
-
-  const parked = records
-    .filter((record) => record.scheduling === "parked" || (record.location === "planned" && record.state === "Active"))
-    .map((record) => rowOf(record, unsatisfiedFor(classification, record.slug), false));
+  const warnings = [...sourceWarnings, ...tiers.warnings];
+  const facts = tiers.facts;
+  const factsBySlug = new Map(facts.map(fact => [fact.slug, fact]));
+  const unsatisfied = (record: ProjectReadinessRecord): readonly string[] => factsBySlug.get(record.slug)?.unsatisfiedDependencies ?? [];
+  const active = tiers.inFlight.map(record => rowOf(record, unsatisfied(record), true));
+  const ready = tiers.ready.map(record => rowOf(record, [], false));
+  const blocked = new Map(tiers.blocked.map(item => [item.record.slug,
+    { row: rowOf(item.record, item.unsatisfied, false), resolvedTargets: [...item.resolvedTargets] }]));
+  const parked = tiers.parked.map(record => rowOf(record, unsatisfied(record), false));
+  const paused = tiers.paused.map(record => pausedRowOf(record, unsatisfied(record), options.pausedMarks?.get(record.slug)));
   const blockedGroups = blockedDepths(blocked);
 
   const lines = [
     `# ${options.title}`,
     "",
-    renderStamp(options.renderedRef),
-    "",
+    ...(options.renderedRef === undefined ? [] : [renderStamp(options.renderedRef), ""]),
     "This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a",
     "unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many",
     "unsatisfied dependency hops separate them from a startable root. Within each tier, rows are ordered by",
@@ -1046,6 +1134,10 @@ export function composeProjectReadinessViewResult(
     for (const depth of [...blockedGroups.keys()].sort((a, b) => a - b)) {
       lines.push(`### Depth ${depth}`, "", renderStatusTable(blockedGroups.get(depth) ?? [], PROJECT_READINESS_COLUMNS), "");
     }
+  }
+
+  if (paused.length > 0) {
+    lines.push("## Paused", "", renderStatusTable(paused, PROJECT_PAUSED_COLUMNS), "");
   }
 
   if (parked.length > 0) {

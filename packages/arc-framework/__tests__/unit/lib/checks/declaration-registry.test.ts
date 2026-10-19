@@ -1,8 +1,9 @@
 /** Runtime identity and authored editor projection of project checks. */
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { expect, it } from "vitest";
-import { CheckDeclarationSchema } from "../../../../src/lib/checks/declaration.js";
+import { CheckDeclarationSchema, registerCheckDeclarationSchemas } from "../../../../src/lib/checks/declaration.js";
 import { foldKernelSchemaClosure, projectKernelSchemas } from "../../../../src/lib/kernel/schema/generate.js";
+import { createRegistry } from "../../../../src/lib/kernel/schema/registry.js";
 import { editorDocumentReference } from "../../../../src/lib/schema-command/editor-documents.js";
 import { createProductionSchemaRegistry } from "../../../../src/production-schema-registry.js";
 
@@ -19,7 +20,7 @@ it("supplies the declaration's checkout-local editor reference", () => {
   });
 });
 it("projects strict structural fields while leaving cross-field rules to runtime", () => {
-  const registry = createProductionSchemaRegistry();
+  const registry = registerCheckDeclarationSchemas(createRegistry());
   const document = foldKernelSchemaClosure(projectKernelSchemas("input", registry), "check-declaration");
   const validate = new Ajv2020({ strict: true, validateFormats: false }).compile(document);
   expect(validate({ checks: { test: { command: ["npm", "test"] } } })).toBe(true);
@@ -34,7 +35,8 @@ it("projects strict structural fields while leaving cross-field rules to runtime
 });
 
 it("documents selection scope and enforces its authored restrictions in the editor schema", () => {
-  const document = foldKernelSchemaClosure(projectKernelSchemas("input", createProductionSchemaRegistry()), "check-declaration");
+  const registry = registerCheckDeclarationSchemas(createRegistry());
+  const document = foldKernelSchemaClosure(projectKernelSchemas("input", registry), "check-declaration");
   const validate = new Ajv2020({ strict: true, validateFormats: false }).compile(document);
   expect(validate({ checks: { selected: { command: ["lint"], mode: "selection" } } })).toBe(true);
   for (const field of ["gate", "shell", "fixes", "reads_index", "ci_only", "cache", "widen", "pass_paths"]) {

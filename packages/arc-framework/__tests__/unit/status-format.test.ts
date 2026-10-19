@@ -285,9 +285,9 @@ describe("buildStatusSummary — full mode", () => {
     expect(activeIdx).toBeGreaterThan(configIdx);
   });
 
-  it("renders the identity block with arc.identity and arc.role values", () => {
+  it("renders the identity block with resolved identity and arc.role values", () => {
     const summary = buildStatusSummary(makeFullResult());
-    expect(summary).toContain("arc.identity: andrew");
+    expect(summary).toContain("\n  identity: andrew");
     expect(summary).toContain("arc.role:     maintainer");
   });
 
@@ -295,7 +295,7 @@ describe("buildStatusSummary — full mode", () => {
     const summary = buildStatusSummary(
       makeFullResult({ identity: { identity: null, role: null } }),
     );
-    expect(summary).toContain("arc.identity: (unset)");
+    expect(summary).toContain("\n  identity: (unset)");
     expect(summary).toContain("arc.role:     (unset)");
   });
 

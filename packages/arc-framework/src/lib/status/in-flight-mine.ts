@@ -24,11 +24,12 @@
 
 import { validateClass, validatePriority } from "../kernel/schema/vocabulary.js";
 import type { InFlightEntry, InFlightWorkUnit } from "../git/in-flight-derivation.js";
+import type { StoreInFlightEntry, StoreInFlightWorkUnit } from "../git/in-flight-store.js";
 
 import type { StatusViewRow } from "./render.js";
 
 /** Narrow an in-flight entry to a work unit (errands carry no render fields). */
-function isWorkUnit(entry: InFlightEntry): entry is InFlightWorkUnit {
+function isWorkUnit(entry: InFlightEntry | StoreInFlightEntry): entry is InFlightWorkUnit | StoreInFlightWorkUnit {
   return entry.kind === "work-unit";
 }
 
@@ -38,13 +39,13 @@ function isWorkUnit(entry: InFlightEntry): entry is InFlightWorkUnit {
  * @param entries - Oracle output (identity-filtered in-flight WUs and errands).
  * @returns Render rows for the in-flight work units, in oracle order.
  */
-export function buildInFlightMineSlice(entries: readonly InFlightEntry[]): StatusViewRow[] {
+export function buildInFlightMineSlice(entries: readonly (InFlightEntry | StoreInFlightEntry)[]): StatusViewRow[] {
   const workUnits = entries.filter(isWorkUnit);
   const inFlightNames = new Set(workUnits.map((wu) => wu.name));
 
   return workUnits.map((wu) => ({
     workUnit: wu.name,
-    state: wu.scheduling === "parked" ? "Parked" : wu.state,
+    state: wu.scheduling === "paused" ? "Paused" : wu.scheduling === "parked" ? "Parked" : wu.state,
     ...(wu.class !== undefined ? { class: validateClass(wu.class) } : {}),
     ...(wu.priority !== undefined ? { priority: validatePriority(wu.priority) } : {}),
     dependsOn: wu.dependsOn.filter((dep) => inFlightNames.has(dep)),

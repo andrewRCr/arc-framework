@@ -16,6 +16,7 @@ import type { ResolvedViewArtifact, ResolvedViewTarget, ViewArtifactResult, View
 export async function readViewArtifactContent(
   artifact: ResolvedViewArtifact, readFile: (path: string) => Promise<string>,
 ): Promise<string> {
+  if ("source" in artifact) return artifact.content;
   return "ref" in artifact ? artifact.content : await readFile(artifact.path);
 }
 
@@ -25,6 +26,7 @@ export async function readViewArtifactContent(
  * @returns File path or ref-qualified display label.
  */
 export function viewArtifactDisplayLabel(artifact: ResolvedViewArtifact): string {
+  if ("source" in artifact) return artifact.displayLabel;
   return "ref" in artifact ? artifact.displayLabel : artifact.path;
 }
 
@@ -34,6 +36,10 @@ export function viewArtifactDisplayLabel(artifact: ResolvedViewArtifact): string
  * @returns A rendering remedy for reference content, or null for real files.
  */
 export function viewArtifactFileRefusal(artifact: ResolvedViewArtifact): string | null {
+  if ("source" in artifact) {
+    const subject = artifact.workUnit === null ? `The ${artifact.kind} artifact` : `The ${artifact.kind} artifact for work unit "${artifact.workUnit}"`;
+    return `${subject} has no file in this checkout. Read it by rendering: ${artifact.renderCommand}.`;
+  }
   return "ref" in artifact
     ? `Work unit "${artifact.workUnit}" is at "${artifact.ref}" without a registered checkout. `
       + `Read it by rendering: arc view ${artifact.kind} --for ${artifact.workUnit}.`
