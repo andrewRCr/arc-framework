@@ -38,7 +38,8 @@ async function fixture(linkedAs: "created" | "adopted" = "created") {
     cwd: "/repo", store: h.store, exec, projectId: async () => "repo", locusPorts, indexFs: h.ctx.indexFs,
     guardValidators: { "worktree-occupancy": () => ({ ok: true }) }, setPhase: forbidden, relocateArtifacts: forbidden,
     reconcileBranch: forbidden, reconcileWorkUnitWorktree: (operation) => reconcileWorkUnitWorktree({
-      exec, store: h.store, locusPorts, fs: nodeReconcileWorkUnitWorktreeFs, chdir: () => { throw new Error("Anchored placement must not hop"); },
+      exec, store: h.store, locusPorts, fs: nodeReconcileWorkUnitWorktreeFs, serializeWorktreeOperation: (_cwd, operation) => operation(),
+      chdir: () => { throw new Error("Anchored placement must not hop"); },
     }, operation),
     writeSoftFields: forbidden, writeBranchField: forbidden, writeCurrentWorkflowField: forbidden, writeDesignField: forbidden,
   };

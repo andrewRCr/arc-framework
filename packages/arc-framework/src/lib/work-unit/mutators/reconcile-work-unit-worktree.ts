@@ -392,6 +392,19 @@ export async function reconcileWorkUnitWorktree(
   ctx: ReconcileWorkUnitWorktreeContext,
   op: ReconcileWorkUnitWorktreeOp,
 ): Promise<ReconcileWorkUnitWorktreeResult> {
+  if (op.mutation === "spawn" && usesOffBranchState(ctx.store)) {
+    const { stdout } = await ctx.exec("git", ["rev-parse", "--show-toplevel"]);
+    const serialize = ctx.serializeWorktreeOperation
+      ?? (<T>(cwd: string, operation: () => Promise<T>) => withWorktreeOperationLock({ exec: ctx.exec, cwd, operation }));
+    return serialize(stdout.trim(), () => reconcileWorkUnitWorktreeUnlocked(ctx, op));
+  }
+  return reconcileWorkUnitWorktreeUnlocked(ctx, op);
+}
+
+async function reconcileWorkUnitWorktreeUnlocked(
+  ctx: ReconcileWorkUnitWorktreeContext,
+  op: ReconcileWorkUnitWorktreeOp,
+): Promise<ReconcileWorkUnitWorktreeResult> {
   const offBranch = usesOffBranchState(ctx.store);
   if (op.mutation === "move") {
     const selfMove = await isSelfTeardown(op.from, op.currentLocus);

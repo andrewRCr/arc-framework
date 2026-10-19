@@ -113,6 +113,11 @@ class InFlightProjection {
       return { marks: ["degraded", "indeterminate"] };
     }
     const rows = this.options.roster?.filter(candidate => matchesTransient(candidate, kind, slug, claimId)) ?? [];
+    const unknown = unknownCheckoutEvidence(this.options.roster);
+    if (unknown !== null) {
+      this.warn(`Location for transient '${slug}' is unavailable: ${unknown} Inspect arc locus --json, repair its checkout evidence, then retry.`, "worktree-list-failed");
+      return { path: rows.length === 1 ? rows[0]?.checkout.path : undefined, marks: ["degraded", "indeterminate"] };
+    }
     // A valid transient role may carry advisory record diagnostics without losing its holder.
     if (rows.length > 1 || rows.some(row => row.kind !== "transient")) {
       const details = rows.flatMap(row => row.diagnostics.map(diagnostic => `${diagnostic.code}: ${diagnostic.message}`)).join(" ");
@@ -164,7 +169,14 @@ async function workUnitLocation(context: InFlightProjection, name: string): Prom
     return { marks: ["degraded", rows.length > 1 ? "location-ambiguous" : "indeterminate"] };
   }
   const holder = rows[0];
-  if (context.options.findHoldingCheckout === undefined) return { path: holder?.checkout.path, holder };
+  if (context.options.findHoldingCheckout === undefined) {
+    const unknown = unknownCheckoutEvidence(context.options.roster);
+    if (unknown !== null) {
+      context.warn(`Location for work unit '${name}' is unavailable: ${unknown} Inspect arc locus --json, repair its checkout evidence, then retry.`, "worktree-list-failed");
+      return { path: holder?.checkout.path, holder, marks: ["degraded", "indeterminate"] };
+    }
+    return { path: holder?.checkout.path, holder };
+  }
   try {
     const path = await context.options.findHoldingCheckout(name) ?? undefined;
     return { path, holder: rows.find(row => row.checkout.path === path) };
@@ -172,6 +184,12 @@ async function workUnitLocation(context: InFlightProjection, name: string): Prom
     context.warn(`Holder lookup failed for work unit '${name}': ${error instanceof Error ? error.message : String(error)} Repair its checkout evidence, then retry.`);
     return { marks: ["degraded", "indeterminate"] };
   }
+}
+function unknownCheckoutEvidence(roster: readonly DerivedCheckoutRow[] | undefined): string | null {
+  if (roster === undefined) return "the checkout roster was not available.";
+  const unknown = roster.filter(row => row.kind === "unresolved-checkout" && row.subject === null && row.checkout.folderPresent
+    && row.diagnostics.some(diagnostic => diagnostic.source !== "primary-safety" && diagnostic.code !== "primary-safety-unproven"));
+  return unknown.length === 0 ? null : `checkout ownership is unresolved at ${unknown.map(row => row.checkout.path).join(", ")}.`;
 }
 function optionalField<Key extends string>(key: Key, value: string | null | undefined): Partial<Record<Key, string>> {
   return value == null ? {} : { [key]: value } as Record<Key, string>;

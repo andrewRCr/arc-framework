@@ -250,7 +250,8 @@ export async function readDerivedLocusRoster(options: {
       : archivedMeta.kind === "present"
         ? archivedMeta
         : null;
-    if (row.kind === "work-unit" && (subjectMeta !== null || evidence.workUnit?.kind === "present")) {
+    if (row.kind === "work-unit" && (subjectMeta !== null || evidence.workUnit?.kind === "present")
+      && !(evidence.workUnit?.kind === "present" && evidence.workUnit.record.placement?.kind === "backlog")) {
       let context: Awaited<ReturnType<typeof projectCheckoutSubjectMeta>>;
       try {
         context = await projectCheckoutSubjectMeta({

@@ -11,6 +11,7 @@ import { MetaPauseSchema } from "../../../../src/lib/active/meta-schema.js";
 import { writeMetaPause } from "../../../../src/lib/store/kinds/meta/writers.js";
 import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
 import type { CleanupBaseEvidence } from "../../../../src/lib/session-init/cleanup-remote-evidence.js";
+import { DerivedLocusFrameSchema } from "../../../../src/lib/locus/derived-schema.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 
 afterEach(() => { vi.restoreAllMocks(); process.exitCode = undefined; });
@@ -40,8 +41,12 @@ async function fixture() {
     { match: { prefix: ["cherry"] }, responses: [{ stdout: "" }] },
   ]);
   const findHoldingCheckout = async (name: string) => name === "held" ? "/held" : null;
+  const caller = { kind: "unmanaged-checkout", subject: null, checkout: { path: "/current", head, branch: "main", detached: false, primary: false, folderPresent: true },
+    markerGeneration: null, parentCheckoutPath: null, origin: null, identity: null, context: null, lifecycleLocation: null, diagnostics: [] };
+  const frame = DerivedLocusFrameSchema.parse({ roster: [caller], entering: { kind: "selected", row: caller },
+    primaryAvailability: { kind: "unsafe", checkoutPath: null, reasons: ["No primary in this fixture"] }, identityDiscovery: { kind: "absent" }, active: null });
   const probes = () => createStoreSessionProbes({ store: h.store, cwd: "/current", exec: fake.exec, identity: "alice",
-    readFrame: async () => null, readSettings: async () => ({}), projectId: async () => "project", findHoldingCheckout,
+    readFrame: async () => frame, readSettings: async () => ({}), projectId: async () => "project", findHoldingCheckout,
     readUserInbox: id => readUserInboxFromStore(h.store, id) });
   return { ...h, exec: fake.exec, probes, errand, findHoldingCheckout, repair: () => { repaired = true; } };
 }

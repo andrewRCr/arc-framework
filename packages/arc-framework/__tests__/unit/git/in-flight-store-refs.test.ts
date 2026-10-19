@@ -18,7 +18,7 @@ it("keeps active work and Errands indeterminate on a failed ref read, then clear
     { failure: { exitCode: 128, stderr: "Refs unreadable" } },
     { stdout: `refs/heads/feat/demo\t${"b".repeat(40)}\nrefs/heads/chore/fix-it\t${"c".repeat(40)}\n` },
   ] }]);
-  const input = { store: h.store, exec: fake.exec, identity: "alice", teamMode: false, projectId: async () => "project" };
+  const input = { store: h.store, exec: fake.exec, identity: "alice", teamMode: false, roster: [], projectId: async () => "project" };
   const blocked = await deriveStoreInFlight(input);
   expect(blocked.entries).toHaveLength(2);
   for (const entry of blocked.entries) expect(entry).toMatchObject({ remoteOnly: false, marks: ["degraded", "indeterminate"] });
@@ -30,6 +30,10 @@ it("keeps active work and Errands indeterminate on a failed ref read, then clear
   expect(repaired).not.toHaveProperty("marks");
   expect(repaired.warnings).toEqual([]); expect(repaired.residue).toEqual([]);
   expect(repaired.snapshot.refs).toEqual({ "feat/demo": "b".repeat(40), "chore/fix-it": "c".repeat(40) });
+  const unobserved = await deriveStoreInFlight({ ...input, roster: undefined });
+  for (const entry of unobserved.entries) expect(entry).toMatchObject({ marks: ["degraded", "indeterminate"] });
+  expect(unobserved.warnings).toHaveLength(2);
+  expect(unobserved.warnings.every(warning => /roster was not available.*repair.*retry/iu.test(warning.rendered))).toBe(true);
 });
 
 it("retains independently known holders and branchless work when the ref inventory is unavailable", async () => {

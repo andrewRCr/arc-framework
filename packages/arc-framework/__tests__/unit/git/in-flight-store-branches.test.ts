@@ -13,7 +13,7 @@ it("selects the current project work branch and keeps retained links out of resi
   ] });
   const fake = scriptGitExec([{ match: { prefix: ["for-each-ref"] }, responses: [{ stdout:
     `refs/heads/chore/original\t${"a".repeat(40)}\nrefs/heads/feat/promoted\t${"b".repeat(40)}\n` }] }]);
-  const result = await deriveStoreInFlight({ store: h.store, exec: fake.exec, identity: "test-user", teamMode: false, projectId: async () => "project" });
+  const result = await deriveStoreInFlight({ store: h.store, exec: fake.exec, identity: "test-user", teamMode: false, roster: [], projectId: async () => "project" });
   expect(result.entries).toEqual([expect.objectContaining({ name: "promoted", branch: "feat/promoted", remoteOnly: false })]);
   expect(result.snapshot.refs).toEqual({ "feat/promoted": "b".repeat(40) });
   expect(result.residue).toEqual([]);
@@ -27,7 +27,7 @@ it("withholds an ambiguous canonical branch hint, reports its repair, then accep
     { repository: "project", ref: "refs/heads/feat/demo", linkedAs: "created", excluded: [] },
   ] });
   const fake = scriptGitExec([{ match: { prefix: ["for-each-ref"] }, responses: [{ stdout: `refs/heads/feat/demo\t${"a".repeat(40)}\n` }] }]);
-  const input = { store: h.store, exec: fake.exec, identity: "test-user", teamMode: false, projectId: async () => "project" };
+  const input = { store: h.store, exec: fake.exec, identity: "test-user", teamMode: false, roster: [], projectId: async () => "project" };
   const unresolved = await deriveStoreInFlight(input);
   expect(unresolved.entries[0]).not.toHaveProperty("branch");
   expect(unresolved.marks).toEqual(["degraded"]);

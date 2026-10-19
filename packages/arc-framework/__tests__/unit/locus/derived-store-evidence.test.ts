@@ -414,3 +414,23 @@ it("binds exact marker corroboration through the Store reader when its Errand in
   expect(result.roster[0]).toMatchObject({ kind: "transient", subject: { kind: "errand", key: slug, claimId } });
   expect(result.identityDiscovery).toMatchObject({ kind: "store", errands: { kind: "complete", missed: true, identities: [] } });
 });
+
+
+it("retains backlog occupancy without selecting a planning session, then selects it after start", async () => {
+  const { io, reference, fixture: h, fields } = await fixture();
+  const saved = success(await h.store.read({ reference }));
+  success(await h.store.write({ action: "put", reference, expected: saved.version, content: saved.content,
+    placement: { kind: "backlog", commitment: "planned" }, provenance: testProvenance }));
+  const readFrame = async () => {
+    const evidence = await acquireDerivedLocusEvidence({ identity: "andrew", io });
+    if (evidence.kind !== "complete") throw new Error("Topology required");
+    return readDerivedLocusFrame({ ...evidence, store: h.store, identity: "andrew", enteringCheckoutPath: "/repo",
+      canonicalizePath: async path => path, subjectMetaIO });
+  };
+  const parked = await readFrame();
+  expect(parked.entering).toMatchObject({ kind: "selected", row: { kind: "work-unit", lifecycleLocation: "parked", context: null } });
+  expect(parked.active).toBeNull();
+  const backlog = success(await h.store.read({ reference }));
+  success(await h.store.write({ action: "put", reference, expected: backlog.version, content: JSON.stringify(fields), placement: { kind: "active" }, provenance: testProvenance }));
+  expect((await readFrame()).active).toMatchObject({ subject: { key: reference.owner.name }, context: { sessionType: "planning" } });
+});

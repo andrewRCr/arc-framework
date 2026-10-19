@@ -70,3 +70,24 @@ it("reports code overlap from the exact branchless grooming checkout", async () 
   expect(result.result.overlaps).toEqual([{ workItem: h.slug, worktreePath: "/holder", matchedPaths: ["src/shared.ts"] }]);
   expect(result.warnings).toEqual([]);
 });
+
+it("retains unknown marker authority in branchless overlap and probes the checkout after repair", async () => {
+  const h = await fixture();
+  const unknown = DerivedLocusFrameSchema.parse({ ...h.frame, roster: h.frame.roster.map(row => row.checkout.path !== "/holder" ? row : {
+    ...row, kind: "unresolved-checkout", subject: null, identity: null, context: null,
+    diagnostics: [{ code: "marker-unreadable", message: "Repair the marker" }],
+  }) });
+  const fake = scriptGitExec([
+    { match: { prefix: ["for-each-ref"] }, responses: [{ stdout: "" }] },
+    { match: ["rev-parse", "--verify", "origin/main"], responses: [{ stdout: "b".repeat(40) }] },
+    { match: ["rev-parse", "--verify", "HEAD"], responses: [{ stdout: "b".repeat(40) }] },
+    { match: ["rev-parse", "--verify", "--quiet", "MERGE_HEAD"], responses: [{ failure: { exitCode: 1 } }] },
+    { match: ["status", "--porcelain", "--", "src/shared.ts"], responses: [{ stdout: " M src/shared.ts\n" }] },
+  ]);
+  const input = { store: h.store, exec: fake.exec, cwd: "/caller", identity: "alice", teamMode: false, baseBranch: "main", projectId: async () => "project", targetPaths: ["src/shared.ts"] };
+  const failed = await runStoreErrandOverlap({ ...input, readFrame: async () => unknown });
+  expect(failed.result).toMatchObject({ overlaps: [], skipped: [{ workItem: h.slug, marks: ["degraded", "indeterminate"] }] });
+  expect(failed.warnings).toEqual(expect.arrayContaining([expect.objectContaining({ code: "worktree-list-failed", rendered: expect.stringContaining("/holder") })]));
+  const repaired = await runStoreErrandOverlap({ ...input, readFrame: async () => h.frame });
+  expect(repaired.result.overlaps).toEqual([{ workItem: h.slug, worktreePath: "/holder", matchedPaths: ["src/shared.ts"] }]);
+});

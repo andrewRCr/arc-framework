@@ -97,7 +97,7 @@ export function projectDerivedCheckoutRow(options: {
     ? composed.subject
     : "subject" in derived
       ? derived.subject
-      : options.workUnit === undefined ? null : markerSubject;
+      : options.workUnit === undefined ? markerTransient : markerSubject;
   const identity = subject === null || subject.kind === "work-unit" || subject.kind === "partial-errand"
     ? null
     : exactIdentity(options.identities, subject);

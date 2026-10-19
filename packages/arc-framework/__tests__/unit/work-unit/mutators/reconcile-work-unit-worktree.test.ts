@@ -981,7 +981,7 @@ describe("store-arm marker boundary", () => {
     ctx.store = createLifecycleHarness().store;
     ctx.locusPorts = { ...createDefaultLocusPorts(), checkMarkerExclusivity: async () => ({ kind: "refused", checkoutPath: "/holding", reason: "Claim conflict." }) };
     await expect(reconcileWorkUnitWorktree(ctx, { mutation: "spawn", branch: "feat/demo", base: "main", locationTemplate: "/spawn/{name}", repo: "repo", wuName: "demo", spawningIdentity: "andrew" })).rejects.toThrow("Claim conflict.");
-    expect(events).toEqual([]);
+    expect(events.filter(event => !event.includes("rev-parse"))).toEqual([]);
   });
   it("writes the in-place claim through the anchored writer and keeps default unadmission non-writing", async () => {
     const { ctx } = buildCtx({ toplevel: "/checkout", worktreeList: porcelain("/checkout", "/other") });

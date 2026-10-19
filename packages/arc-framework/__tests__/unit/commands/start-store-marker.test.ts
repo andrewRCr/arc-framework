@@ -36,6 +36,7 @@ async function fixture(ports?: LocusPorts, productionOccupancy = false) {
     if (args.join(" ") === "rev-parse HEAD") return { stdout: "a".repeat(40) };
     if (args.join(" ") === "symbolic-ref --quiet HEAD") return { stdout: "refs/heads/person" };
     if (args.join(" ") === "rev-parse --show-toplevel") return { stdout: root };
+    if (args.join(" ") === "rev-parse --git-common-dir") return { stdout: root };
     if (args[0] === "worktree" && args[1] === "list") return { stdout: worktreePorcelainZ(`worktree ${root}\nHEAD ${"a".repeat(40)}\nbranch refs/heads/person\n`) };
     mutations.push([...args]); throw new Error(`Unexpected physical mutation: ${args.join(" ")}`);
   };
