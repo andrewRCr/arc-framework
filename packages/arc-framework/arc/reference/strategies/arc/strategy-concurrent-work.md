@@ -209,7 +209,10 @@ holding the old history. Append-only keeps a pushed branch a safe, shared base. 
   diverge and reconcile at integration.
 - **If you genuinely need the base's changes mid-flight, _merge_ it in — never rebase onto it.** Merging `main`
   into the branch is ancestry-preserving and fast-forward-safe for everyone who holds it; rebasing onto `main`
-  rewrites the pushed commits and breaks the invariant.
+  rewrites the pushed commits and breaks the invariant. Use `git -c merge.directoryRenames=false merge origin/main`
+  (substituting the configured base branch), as `arc base merge` does. Disabling directory-rename inference for that
+  invocation keeps a branch's new active artifacts in place when base archives the last active work unit, while
+  preserving individual file renames. The repository's Git configuration stays unchanged.
 - **Integration is the single sanctioned rewrite point.** Any history cleanup — squash, reorder, final rebase —
   happens at integration, after review, when the branch stops being a shared working base and becomes a merge
   candidate.
