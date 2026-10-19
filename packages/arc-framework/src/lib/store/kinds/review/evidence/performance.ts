@@ -25,8 +25,9 @@ function validateFixOwnership(value: ReviewEvidence, performance: NonNullable<Re
   fail: (message: string) => void): void {
   const binding = value.binding;
   const response = performance.fixResponse;
-  const needsResponse = binding?.kind === "errand" || binding?.kind === "delivery-member";
-  if (needsResponse !== (response !== undefined)) fail("Errand and member performance requires exactly its complete fix response");
+  const hasFix = value.dispositionSet.findings.some(({ disposition }) => disposition === "fix");
+  const needsResponse = hasFix && (binding?.kind === "errand" || binding?.kind === "delivery-member");
+  if (needsResponse !== (response !== undefined)) fail("Only Errand and member fix performance requires its complete fix response");
   if (response === undefined) return;
   if (binding?.kind !== "errand" && binding?.kind !== "delivery-member") return;
   const member = binding.kind === "delivery-member";

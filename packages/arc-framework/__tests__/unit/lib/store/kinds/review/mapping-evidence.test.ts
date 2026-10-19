@@ -6,15 +6,46 @@ import { ReviewEvidenceSchema } from "../../../../../../src/lib/store/kinds/revi
 import { ApprovedDispositionRecordSchema, type ApprovedDispositionRecord } from "../../../../../../src/scripts/review-gate/core/advisory-records.js";
 import type { ReviewMappingInput } from "../../../../../../src/lib/store/kinds/review/mapping-types.js";
 import { canonicalDigest } from "../../../../../../src/lib/kernel/index.js";
-import { createLocalMappingFixture, createFrontlineMappingFixture } from "../../../../../fixtures/review-mapping.js";
+import { createLocalMappingFixture, createFrontlineMappingFixture, mappingErrand } from "../../../../../fixtures/review-mapping.js";
 import { approvedRecord } from "../../../../../fixtures/review-response-proof.js";
 import { assertReviewMapping } from "../../../../../helpers/store/assert-review-mapping.js";
+import { recordLaneResponsePerformance } from "../../../../../../src/scripts/review-gate/lane-progress.js";
+import { reviewOutcomeIsSettled } from "../../../../../../src/lib/store/kinds/review/outcome/settlement.js";
 
 function appendDisposition(input: ReviewMappingInput, record: ApprovedDispositionRecord): string {
   const source = `arc/review-gate/evidence/disposition-${canonicalDigest({ operationId: record.operationId }).slice(7)}.json`;
   input.gate.push({ path: source, bytes: new TextEncoder().encode(JSON.stringify(record)) });
   return source;
 }
+
+it("retains a native no-fix Errand settlement header without inventing a fix response", async () => {
+  const fixture = await createLocalMappingFixture();
+  await fixture.conclude();
+  const producer = await fixture.resultReader.readResult(fixture.state.operationId);
+  const record = ApprovedDispositionRecordSchema.parse({ ...approvedRecord(producer, [
+    { sourceVerification: "verified", verifiedSeverity: "major", disposition: "reject" },
+  ]), errand: { key: mappingErrand.slug, claimId: mappingErrand.claimId, branch: "fix/review-errand" } });
+  const lane = await recordLaneResponsePerformance(fixture.dependencies.operationStore, {
+    lane: "standard", repositoryId: fixture.state.repositoryId, headSha: fixture.state.target.headSha,
+    lineage: producer.admission.lineage, attemptId: fixture.state.operationId,
+    dispositionSetId: record.currentDispositionSetId, producedHeadSha: fixture.state.target.headSha,
+    now: record.approvedDispositionLineage[0]!.approvedDisposition.approval.approvedAt,
+  });
+  const header = lane.attempts[0]!.responsePerformance;
+  expect(header).toBeDefined();
+  expect(record.approvedDispositionLineage[0]!.errandFixResponse).toBeNull();
+  const input = fixture.input();
+  appendDisposition(input, record);
+  const result = mapReviewRecords(input);
+  const evidence = ReviewEvidenceSchema.parse(JSON.parse(result.records.find(({ reference }) =>
+    reference.kind === "review/evidence")!.contents[0]!));
+  expect(evidence.performance).toEqual(header);
+  expect(evidence.performance?.fixResponse).toBeUndefined();
+  const outcome = ReviewOutcomeSchema.parse(JSON.parse(result.records.find(({ reference }) =>
+    reference.kind === "review/outcome")!.contents[0]!));
+  expect(reviewOutcomeIsSettled(outcome, [evidence])).toBe(true);
+  await assertReviewMapping(result);
+});
 
 it("maps an approved local response to evidence on its result's imported owner", async () => {
   const fixture = await createLocalMappingFixture();

@@ -187,21 +187,17 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
   checkout-occupancy resolution, and lazy status imports. The subject's remaining Candidate-bullet and boundary reads,
   status's absent stored boundary, and both nested probe callbacks remain assigned to their existing tasks.
 
-### `[ ]` **1.R Preserve no-fix settlement performance headers — § 6.2, § 6.5**
+### `[x]` **1.R Preserve no-fix settlement performance headers — § 6.2, § 6.5**
 
 **Additional Context:** `notes-seam-delivery-review.md` § A10.
 
 - _Goal:_ Evidence retains recorded no-fix settlement headers without inventing fix transitions, while performed Errand
   and member fixes still require their complete authorized response (A10).
 
-    - `validateFixOwnership` requires an Errand or member fix response only when the approved set contains a `fix`;
-      sets with no fix admit their native header and refuse either fix-response object. The mapping keeps recorded
-      headers unchanged and derives no absent transition facts.
-    - Build `test-first` (one behavior at a time):
-        - native no-fix Errand and member performance headers parse and pass the complete-set write check unchanged
-        - an Errand or member set containing a fix still refuses performance missing its complete fix response
-        - a set containing no fix refuses an Errand or member fix-response object
-        - a mapped no-fix settlement retains its recorded header and reads as settled without inventing a fix response
+- _Outcome:_ Evidence ownership validation distinguishes recorded settlement headers from complete fix transitions.
+  Errand and member fixes still require their authorized response, while no-fix sets refuse either response object.
+  Native settlement import retains the exact header and settled reading; the captured repository scenario admits the
+  four historical headers through production parsers and write checks without inventing transition facts.
 
 ## **Phase 2:** Before the flip — Candidate and boundary callers through the store
 
