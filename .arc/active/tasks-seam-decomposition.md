@@ -51,20 +51,11 @@ under `lib/decompose/`, and the kind folder imports its decoder from there, as t
         - `cut-map-machine.ts` defines the strict record-bound envelope and exported identities: source locators alone,
           dependent UIDs, provider UIDs or unresolved slugs, and the complete machine facts for `preflightId`.
 
-    - `[ ]` **1.2.b The authoring half — § 3.3**
+    - `[x]` **1.2.b The authoring half — § 3.3**
 
-        - Carry version 3's starter and completed authoring (`StarterAuthoringSchema`, `CompletedAuthoringSchema`,
-          `decompose-v3-schema.ts`): shape, placement, destinations, allocations with ownership, incoming and outgoing
-          dispositions, and internal and external edges.
-        - The `cohort` and `subcohort` placements gain `purpose`, and `subcohort` gains `parentPurpose`, optional in
-          the schema; whether one is required or refused turns on whether the document exists, which the additive
-          batch checks (task 2.4). The starter keeps one author slot for the whole placement, Purpose included, since
-          which documents a cut creates follows from the placement the operator authors.
-        - A starter builder and parser, exported, as version 3's are (`createV3DecomposeStarterMap`,
-          `parseV3DecomposeStarterMap`).
-        - Build `test-first` (one behavior at a time):
-            - a starter built from a machine half parses, every authoring decision an author slot
-            - a `cohort` or `subcohort` placement decodes with its Purpose fields and without them
+        - New authoring and root schemas carry the closed decisions and author slots independently of version 3.
+          Cohort Purpose fields are optional structural values; starter construction and parsing preserve every
+          machine identity and reject a corrupt machine envelope.
 
     - `[ ]` **1.2.c Decoding — § 3.4**
 
