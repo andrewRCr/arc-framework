@@ -28,14 +28,20 @@ export async function endRemoteMove(code: RefBackendContext, recorded: RecordedR
 
 /** Drop an overtaken move's journal while reporting its remaining published refs before clearing temporary data. */
 export async function finishEndedRemoteMove(code: RefBackendContext, recorded: RecordedRemote, copy: RemoteCopy, switched: boolean): Promise<MigrateReport> {
+  const report = describeEndedRemoteMove(recorded, copy, switched);
+  await removeMoveRecord(code, recorded);
+  await clearRemoteGathering(code);
+  return report;
+}
+
+/** Describe known leftovers without changing either receiver, the recorded move, or its retained heads. */
+export function describeEndedRemoteMove(recorded: RecordedRemote, copy: RemoteCopy, switched: boolean): MigrateReport {
   const notices = [...copy.report.notices, { condition: `Another move overtook this recorded move ${switched ? "after" : "before"} its switch. Run arc store migrate to follow the state's home.` }];
   const leftovers: [MoveRemote, Map<string, string>][] = [[recorded.record.source, copy.source]];
   if (!switched) leftovers.push([recorded.record.destination, copy.destination]);
   for (const [remote, refs] of leftovers) {
     for (const ref of refs.keys()) notices.push({ condition: `The ended move leaves ${ref} published at ${remote.fetchUrl}.` });
   }
-  await removeMoveRecord(code, recorded);
-  await clearRemoteGathering(code);
   return { ...copy.report, notices };
 }
 

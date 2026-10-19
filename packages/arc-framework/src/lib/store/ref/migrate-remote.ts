@@ -1,6 +1,6 @@
 /** Resolve explicit remote move targets and preserve their recorded transport coordinates. */
 import type { Store } from "../contract.js";
-import type { StoreMigrateResult } from "../commands.js";
+import type { MigrateReport, StoreMigrateResult } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
 import { readRefDesignation } from "./designation.js";
 import { captureMoveRemote } from "./migrate-remote-target.js";
@@ -8,12 +8,13 @@ import { migrationCodeContext, readMoveRecord, type MoveRemote, type RecordedRem
 import { readRefRepository } from "./repository.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { fetchLayoutObjects } from "./migrate-layout-build.js";
-import { copyRemoteMove, clearRemoteGathering, remoteCopyReport, readCopiedRemoteRefs } from "./migrate-remote-copy.js";
+import { copyRemoteMove, clearRemoteGathering, remoteCopyReport, readRemoteCopyReport, type RemoteCopy } from "./migrate-remote-copy.js";
 import { deleteRemoteSource } from "./migrate-remote-delete.js";
 import { forwardRemoteMove } from "./migrate-remote-forward.js";
 import { switchRemoteMove, remoteSwitchComplete } from "./migrate-remote-switch.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
-import { endRemoteMove } from "./migrate-remote-end.js";
+import { describeEndedRemoteMove, endRemoteMove } from "./migrate-remote-end.js";
+import { FORWARDING_REF } from "./forwarding-record.js";
 
 /** Copy under the caller's move lock and retain the exact record until forwarding and switching finish. */
 export async function moveRefRemote(context: RefBackendContext, store: Store, to?: string, trial = false, resume?: RecordedRemote): Promise<StoreMigrateResult> {
@@ -35,7 +36,7 @@ async function performRemoteMove(context: RefBackendContext, code: RefBackendCon
   const local = await readSyncRefs(physical, "refs/arc/project/registry");
   await fetchLayoutObjects(code, physical.repository?.gitDir ?? physical.repository?.commonDir ?? "", local);
   const active = resume;
-  if (active && await remoteSwitchComplete(context, active)) return finishRemoteMove(code, active, remoteCopyReport(await readCopiedRemoteRefs(code, "state"), new Map(), []));
+  if (!trial && active && await remoteSwitchComplete(context, active)) return finishRemoteMove(code, active, await readRemoteCopyReport(code));
   return runRemoteMoveRounds(context, code, store, transports, local, trial, active);
 }
 
@@ -43,6 +44,7 @@ async function runRemoteMoveRounds(context: RefBackendContext, code: RefBackendC
   transports: Pick<RemoteMoveRecord, "source" | "destination">, local: ReadonlyMap<string, string>, trial: boolean, active?: RecordedRemote): Promise<StoreMigrateResult> {
   for (;;) {
     const copied = await copyRemoteMove(code, transports.source, transports.destination, local, trial, active);
+    if (trial) return remoteMoveTrial(context, code, copied, active !== undefined);
     if (copied.ended) {
       if (!copied.recorded) throw new Error("An ended remote move has no record");
       const ended = await endRemoteMove(code, copied.recorded, copied);
@@ -50,13 +52,18 @@ async function runRemoteMoveRounds(context: RefBackendContext, code: RefBackendC
       active = copied.recorded;
       continue;
     }
-    if (trial) { await clearRemoteGathering(code); return { status: "ok", result: copied.report }; }
     if (!copied.recorded) throw new Error("A copied remote move has no record");
     active = copied.recorded;
     if (await forwardRemoteMove(code, copied) === "restart") continue;
     await switchRemoteMove(context, store, active);
     return finishRemoteMove(code, active, copied.report);
   }
+}
+
+async function remoteMoveTrial(context: RefBackendContext, code: RefBackendContext, copy: RemoteCopy, recorded: boolean): Promise<StoreMigrateResult> {
+  if (!recorded) await clearRemoteGathering(code);
+  if (copy.ended && copy.recorded) return { status: "ok", result: describeEndedRemoteMove(copy.recorded, copy, await remoteSwitchComplete(context, copy.recorded)) };
+  return { status: "ok", result: trialRemoteReport(copy) };
 }
 
 async function resolveMoveRemotes(context: RefBackendContext, code: RefBackendContext, to?: string): Promise<{ source: MoveRemote; destination: MoveRemote }> {
@@ -78,9 +85,17 @@ function unfinishedMove(destination: string): Extract<StoreMigrateResult, { stat
 }
 
 function pointerFollowNotice(): { condition: string } {
-  return { condition: "Teammates follow this move once the tracked pointer's change reaches them as code. Later publication stops at the old remote; already published state is not unpublished." };
+  return { condition: "Teammates follow this move once the tracked pointer's change reaches them as code. "
+    + "Later publication stops at the old remote; already published state is not unpublished. "
+    + "A push composed before the switch, including one already in flight in another worktree, may land after "
+    + "the move's last listing and stay on the old remote until a follow answering push clears it." };
 }
 
+function trialRemoteReport(copy: RemoteCopy): MigrateReport {
+  const source = new Map([...copy.source].filter(([ref]) => ref !== FORWARDING_REF));
+  const deletes = remoteCopyReport(source, new Map(), []).refs.map(row => ({ ...row, action: "delete" as const }));
+  return { ...copy.report, refs: [...copy.report.refs, ...deletes], notices: [...copy.report.notices, pointerFollowNotice()] };
+}
 
 async function finishRemoteMove(code: RefBackendContext, recorded: RecordedRemote, copied: import("../commands.js").MigrateReport): Promise<StoreMigrateResult> {
   const deleted = await deleteRemoteSource(code, recorded);

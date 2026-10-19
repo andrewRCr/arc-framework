@@ -1,5 +1,5 @@
 /** Prepare and atomically land one remote copy while retaining restart and deletion bases. */
-import type { MigrateReport } from "../commands.js";
+import { MigrateReportSchema, type MigrateReport } from "../commands.js";
 import { RecordReferenceSchema } from "../identity.js";
 import { pushRefs, type PushOutcome, type PushRefChange } from "../../git/push.js";
 import type { RefBackendContext } from "./context.js";
@@ -11,6 +11,7 @@ import { clearMigrationRefs, fetchMigrationRemote } from "./migrate-remote-fetch
 import { MigrationRefusal } from "./migrate-refusal.js";
 import { readForwardingRecord, FORWARDING_REF } from "./forwarding-record.js";
 import { readBatchObjects } from "./batch-read.js";
+import { writeRefBlob } from "./tree-write.js";
 import { projectIdentityQueries, projectOwnerFromObjects } from "./project-identity.js";
 import { readSyncRefs, syncRefIsAncestor } from "./sync-graph.js";
 import { saveMoveRecord, removeMoveRecord, type MoveRemote, type RecordedRemote, type RemoteMoveRecord } from "./migrate-record.js";
@@ -30,11 +31,9 @@ export async function copyRemoteMove(code: RefBackendContext, source: MoveRemote
   for (;;) {
     const basis = await readRemoteCopyBasis(code, source, destination, local, recorded);
     const { incoming, held, observed } = basis;
-    if (basis.ended) return { recorded, ended: basis.ended, report: remoteCopyReport(new Map(), new Map(), []), source: incoming, destination: held };
+    if (basis.ended) return { recorded, ended: basis.ended, report: await readRemoteCopyReport(code), source: incoming, destination: held };
     if (basis.ownForwarding && recorded) {
-      const planned = await readSyncRefs(code, copyRoot);
-      const refs = new Map([...planned].map(([ref, tip]) => ["refs/arc/" + ref.slice(copyRoot.length), tip]));
-      return { recorded, report: remoteCopyReport(refs, held, []), source: incoming, destination: held };
+      return { recorded, report: await readRemoteCopyReport(code), source: incoming, destination: held };
     }
     await retainKnownCopyVersion(code, recorded, held);
     await code.migrateStep?.("remote.build");
@@ -50,7 +49,7 @@ export async function copyRemoteMove(code: RefBackendContext, source: MoveRemote
     if (pushed.status !== "refs" || pushed.refs.some(row => row.status !== "ok")) {
       await refuseCopyPush(code, recorded, pushed, firstRun);
     }
-    await retainCopiedTips(code, incoming, observed, prepared.registry, held.get(FORWARDING_REF));
+    await retainCopiedTips(code, incoming, observed, { registry: prepared.registry, report, destination: held });
     await code.migrateStep?.("remote.copied");
     return { recorded, report, source: incoming, destination: held };
   }
@@ -165,17 +164,19 @@ export function migrationPushRefusal(outcome: PushOutcome): Extract<import("../c
     remedy: { text: "Enable atomic pushes and repair the receiver's hook or permissions, then retry arc store migrate." } } };
 }
 
-async function retainCopiedTips(code: RefBackendContext, source: ReadonlyMap<string, string>, observed: ReadonlyMap<string, string>, registry: string, deleted?: string): Promise<void> {
+async function retainCopiedTips(code: RefBackendContext, source: ReadonlyMap<string, string>, observed: ReadonlyMap<string, string>,
+  copied: { registry: string; report: MigrateReport; destination: ReadonlyMap<string, string> }): Promise<void> {
   const prior = await readSyncRefs(code, copiedRoot);
   const retained = new Map([...source].filter(([ref]) => ref !== FORWARDING_REF).map(([ref, tip]) => [copiedRoot + "state/" + ref.slice("refs/arc/".length), tip]));
-  retained.set(copiedRoot + "registry", registry);
+  retained.set(copiedRoot + "registry", copied.registry);
+  retained.set(copiedRoot + "report", await writeRefBlob(code, JSON.stringify(MigrateReportSchema.parse(copied.report))));
   for (const [name, tip] of observed) {
     const suffix = name.slice(name.indexOf("/") + 1), live = "refs/arc/" + suffix;
     const paired = live.includes("/history/") ? live.replace("/history/", "/") : live.replace(/^refs\/arc\/(work|cohort)\//u, "refs/arc/history/$1/");
     const candidates = [...new Set([source.get(live), source.get(paired)])].filter((value): value is string => value !== undefined);
     for (const current of candidates) if (await syncRefIsAncestor(code, tip, current)) { retained.set(copiedRoot + name, tip); break; }
   }
-  const kept = deleted ?? prior.get(copiedRoot + "deleted-record") ?? (await readSyncRefs(code, deletedRecordRef)).get(deletedRecordRef);
+  const kept = copied.destination.get(FORWARDING_REF) ?? prior.get(copiedRoot + "deleted-record") ?? (await readSyncRefs(code, deletedRecordRef)).get(deletedRecordRef);
   if (kept) retained.set(copiedRoot + "deleted-record", kept);
   await requireLayoutTransaction(code, [...[...retained].map(([ref, next]) => ({ ref, next, expected: prior.get(ref) ?? null })),
     ...[...prior].filter(([ref]) => !retained.has(ref)).map(([ref, expected]) => ({ ref, expected, delete: true as const }))]);
@@ -210,6 +211,15 @@ export function remoteCopyReport(planned: ReadonlyMap<string, string>, destinati
   });
   for (const ref of destination.keys()) if (!planned.has(ref)) refs.push({ ref, scope: "project", action: "delete" });
   return { move: "remote", refs, refused: [], brokenChains: [], reviewMapping: [], differingNotes: [], notices };
+}
+
+/** Recover landed copy actions and advisory remedies across either side of the switch. */
+export async function readRemoteCopyReport(code: RefBackendContext): Promise<MigrateReport> {
+  const ref = copiedRoot + "report", tip = (await readSyncRefs(code, ref)).get(ref);
+  if (!tip) return remoteCopyReport(new Map(), new Map(), []);
+  const object = (await readBatchObjects(code, [tip])).get(tip);
+  if (object?.type !== "blob") throw new Error("A forwarded remote move has no retained copy report");
+  return MigrateReportSchema.parse(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(object.bytes)));
 }
 
 async function captureMoveHeads(code: RefBackendContext, remote: MoveRemote): Promise<Map<string, string>> {

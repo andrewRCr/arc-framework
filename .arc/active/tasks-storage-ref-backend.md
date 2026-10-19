@@ -1539,14 +1539,12 @@ _Mode:_ `slice` through Phase 17 — closes on state moved between remotes, ever
   The separate-layout remote copy anchors its two-parent merge in the code repository’s temporary refs before release;
   the completed move retains both sides’ records at its destination. A12 is revalidated.
 
-### `[ ]` **16.5 Moves that cross, end, or change the layout — § 10.3, § 10.7**
+### `[x]` **16.5 Moves that cross, end, or change the layout — § 10.3, § 10.7**
 
 - _Goal:_ Of moves that cross on one remote, the registry's leases let exactly one land; a move another has overtaken ends
   without stranding a clone; and a move that changes the layout runs it as its switch.
 
 - **Additional Context:** `notes-storage-ref-backend.md` § The move model check
-
-- _Note:_ Each case here asserts the remotes and the moving clones' records; the clones that then follow are 17.2.b's.
 
     - `[x]` **16.5.a Crossing moves**
         - Native competing moves settle through registry leases before either losing clone switches. Overtaken moves
@@ -1558,19 +1556,10 @@ _Mode:_ `slice` through Phase 17 — closes on state moved between remotes, ever
           to either receiver, retaining recovery for missing move versions. Native three-clone moves preserve newer
           forwarding records at old sources and abandoned copies, with every remaining source ref reported.
 
-    - `[ ]` **16.5.c A move that changes the layout, and what a move reports**
-        - Build `test-first` (one behavior at a time):
-            - a remote move between the code remote and a backing repository, interrupted inside either half of the
-              layout move it runs as its switch (16.3), restarts that half from its own temporary refs, its trial report
-              matching what it then does
-            - interrupted after its switch, a move between two backing repositories and one back to the code remote each
-              finish on a no-target rerun, syncing meanwhile and reporting `move-unfinished`, and `--to` another remote
-              refuses `move-unfinished` while the record stands
-            - a move refused `identity-mismatch` for another project, and one to a mistyped or unreachable remote,
-              refused `unreachable`, each through the `store` arm, leave no record, and `--to` the right remote then
-              succeeds
-            - a move's trial and report say it stops later publication and never unpublishes, that teammates follow once
-              the pointer's change reaches them, and that a push composed before a switch may land after the last listing
+    - `[x]` **16.5.c A move that changes the layout, and what a move reports**
+        - Both layout directions restart with their copied heads and retain writes made during interruption; switched
+          backing moves sync and finish without a target. Reports retain landed merge actions, conditions, and remedies,
+          while trials include cleanup and publication residuals without ending records or clearing copied heads.
 
 ## **Phase 17:** Following a move and leaving the source
 
