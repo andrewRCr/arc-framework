@@ -13,9 +13,10 @@ import {
 import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-marker.js";
 
 function candidate(
-  overrides: { branch?: string; worktreePath?: string; proposedAction?: CandidateAction } = {},
+  overrides: { branch?: string; worktreePath?: string; proposedAction?: CandidateAction; workUnitName?: string } = {},
 ): CascadeCandidate {
-  return CascadeCandidateSchema.parse({ branch: "feat/x", proposedAction: "switch", ...overrides });
+  return CascadeCandidateSchema.parse({ branch: "feat/x", proposedAction: "switch", ...overrides,
+    ...(overrides.proposedAction === "removable" ? { workUnitName: overrides.workUnitName ?? "x" } : {}) });
 }
 
 type ResolveInput = Parameters<typeof resolveCascade>[0];
@@ -183,7 +184,7 @@ describe("determineCandidateAction", () => {
     const action = determineCandidateAction({
       isMainOrAdmin: false,
       marker: presentMarker,
-      clean: true,
+      removalCheck: { kind: "removable" },
       merged: true,
     });
 
@@ -194,7 +195,7 @@ describe("determineCandidateAction", () => {
     const action = determineCandidateAction({
       isMainOrAdmin: true,
       marker: { kind: "absent" },
-      clean: true,
+      removalCheck: { kind: "removable" },
       merged: false,
     });
 
@@ -205,7 +206,7 @@ describe("determineCandidateAction", () => {
     const action = determineCandidateAction({
       isMainOrAdmin: false,
       marker: { kind: "absent" },
-      clean: true,
+      removalCheck: { kind: "removable" },
       merged: true,
     });
 
@@ -216,7 +217,7 @@ describe("determineCandidateAction", () => {
     const action = determineCandidateAction({
       isMainOrAdmin: false,
       marker: presentMarker,
-      clean: true,
+      removalCheck: { kind: "removable" },
       merged: false,
     });
 
@@ -227,7 +228,7 @@ describe("determineCandidateAction", () => {
     const action = determineCandidateAction({
       isMainOrAdmin: false,
       marker: presentMarker,
-      clean: false,
+      removalCheck: { kind: "refused", reason: "dirty", paths: ["changed"] },
       merged: true,
     });
 
@@ -238,7 +239,7 @@ describe("determineCandidateAction", () => {
     const action = determineCandidateAction({
       isMainOrAdmin: false,
       marker: presentMarker,
-      clean: true,
+      removalCheck: { kind: "removable" },
       userSurfacesSafe: false,
       merged: true,
     });
@@ -250,7 +251,7 @@ describe("determineCandidateAction", () => {
     const action = determineCandidateAction({
       isMainOrAdmin: false,
       marker: { kind: "malformed", message: "bad json", path: "/wt/.arc/system/.internal/worktree-marker.json" },
-      clean: true,
+      removalCheck: { kind: "removable" },
       merged: true,
     });
 
@@ -264,6 +265,7 @@ describe("CascadeResolutionSchema", () => {
     branch: "feat/shipped",
     worktreePath: "/wt/shipped",
     proposedAction: "removable",
+    workUnitName: "x",
   });
   const pendingResolution = {
     kind: "pending",

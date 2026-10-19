@@ -1,0 +1,183 @@
+/** Registered promotion preserves exact Store/Git generations through refusal and interrupted recovery. */
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { expect, it } from "vitest";
+import { repairCliFixture, repairCli } from "../helpers/repair-cli.js";
+import { success } from "../helpers/store/suite-tools.js";
+import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { recordReferences } from "../../src/lib/store/identity.js";
+import { ParsedMetaRecordSchema } from "../../src/lib/active/meta-schema.js";
+import { readWorktreeMarker, readWorktreeMarkerGeneration, removeWorktreeMarkerGeneration,
+  writeWorktreeMarker, ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs } from "../../src/lib/git/worktree-marker.js";
+import { ErrandPromotionResultSchema } from "../../src/lib/errand/promotion-result.js";
+
+async function openedFixture(slug: string) {
+  const f = await repairCliFixture();
+  const opened = await repairCli(f, ["errand", "open", slug, "--intent", "Keep the useful Errand work", "--json"]);
+  expect(opened).toMatchObject({ result: { outcome: "applied" } });
+  await writeFile(join(f.cwd, "errand-work.txt"), "Useful Errand work\n");
+  await f.exec("git", ["add", "errand-work.txt"]);
+  await f.exec("git", ["commit", "-m", "Useful Errand work"]);
+  const cut = (await f.exec("git", ["rev-parse", "HEAD"])).stdout.trim();
+  const store = f.h.context.store;
+  const reference = success(await store.lookup({ kind: "slug", slug: SlugSchema.parse(slug) })).reference;
+  const primary = success(await store.read({ reference }));
+  const description = success(await store.read({ reference: recordReferences["work-item/description"](reference.owner) }));
+  return { ...f, store, cut, primary, description, marker: await readWorktreeMarker(f.cwd), slug };
+}
+function promoteArgs(slug: string, name: string, floor = "derivation") {
+  return ["errand", "promote", slug, "--name", name, "--type", "feat", "--floor", floor, "--class", "Light", "--json"];
+}
+
+it("refuses registered promotion by a foreign owner without changing state and lets the source owner retry", async () => {
+  const f = await openedFixture("cli-owner"), name = "grown-owner", before = success(await f.store.version());
+  await f.exec("git", ["config", "arc.identity", "another-user"]);
+  expect(await repairCli(f, promoteArgs(f.slug, name))).toMatchObject({ exitCode: 1,
+    result: { outcome: "refused", reason: "identity-conflict", recommendedPromptText: expect.stringContaining("owned by test-user") } });
+  expect(success(await f.store.version())).toBe(before);
+  expect(success(await f.store.read({ reference: f.primary.reference }))).toEqual(f.primary);
+  expect(success(await f.store.read({ reference: f.description.reference }))).toEqual(f.description);
+  expect(await readWorktreeMarker(f.cwd)).toEqual(f.marker);
+  expect((await f.exec("git", ["branch", "--show-current"])).stdout.trim()).toBe(`chore/${f.slug}`);
+  expect((await f.exec("git", ["rev-parse", "HEAD"])).stdout.trim()).toBe(f.cut);
+  expect((await f.exec("git", ["branch", "--list", `feat/${name}`])).stdout.trim()).toBe("");
+  await f.exec("git", ["config", "arc.identity", "test-user"]);
+  expect(await repairCli(f, promoteArgs(f.slug, name))).toMatchObject({ result: { outcome: "applied", checkoutPath: f.cwd } });
+}, 30_000);
+
+async function foreignCaller(f: Awaited<ReturnType<typeof openedFixture>>) {
+  const cwd = join(f.cwd, ".arc-checkouts", "foreign-caller");
+  await f.exec("git", ["worktree", "add", "--detach", cwd, "main"]);
+  await ensureWorktreeMarkerIgnored(cwd, f.exec, nodeWorktreeMarkerIgnoreFs);
+  return { ...f, cwd };
+}
+async function releaseMarker(cwd: string) {
+  const generation = await readWorktreeMarkerGeneration(cwd);
+  if (generation.kind !== "present") throw new Error("Missing target marker");
+  expect(await removeWorktreeMarkerGeneration(cwd, generation.bytes)).toEqual({ kind: "removed" });
+}
+it("checks confirmed foreign promotion against the selected checkout before mutation and retries after releasing a competing claim", async () => {
+  const f = await openedFixture("cli-foreign"), name = "grown-foreign", caller = await foreignCaller(f);
+  const confirmation = ErrandPromotionResultSchema.parse((await repairCli(caller, promoteArgs(f.slug, name))).result);
+  expect(confirmation).toMatchObject({ outcome: "confirmation-required", checkoutPath: f.cwd });
+  if (confirmation.outcome !== "confirmation-required") throw new Error("Missing exact foreign confirmation");
+  await writeWorktreeMarker(caller.cwd, { spawnedByArc: false, spawningIdentity: "test-user", createdAt: "2026-10-16T00:00:00Z",
+    createdFor: { kind: "work-unit", name } });
+  const held = await readWorktreeMarker(caller.cwd), before = success(await f.store.version());
+  const argv = [...promoteArgs(f.slug, name), "--confirm-foreign-generation", confirmation.generation];
+  expect(await repairCli(caller, argv)).toMatchObject({ exitCode: 1, result: { outcome: "refused", recommendedPromptText: expect.stringContaining(caller.cwd) } });
+  expect(success(await f.store.version())).toBe(before);
+  expect(success(await f.store.read({ reference: f.primary.reference }))).toEqual(f.primary);
+  expect(success(await f.store.read({ reference: f.description.reference }))).toEqual(f.description);
+  expect(await readWorktreeMarker(f.cwd)).toEqual(f.marker);
+  expect(await readWorktreeMarker(caller.cwd)).toEqual(held);
+  expect((await f.exec("git", ["branch", "--show-current"])).stdout.trim()).toBe(`chore/${f.slug}`);
+  expect((await f.exec("git", ["branch", "--list", `feat/${name}`])).stdout.trim()).toBe("");
+  await releaseMarker(caller.cwd);
+  expect(await repairCli(caller, argv)).toMatchObject({ result: { outcome: "applied", checkoutPath: f.cwd, branch: `feat/${name}` } });
+  expect((await f.exec("git", ["rev-parse", "HEAD"])).stdout.trim()).toBe(f.cut);
+}, 30_000);
+it("recovers from another checkout with its own converted holder and refuses duplicate holders until repair", async () => {
+  const f = await openedFixture("cli-foreign-recovery"), name = "grown-foreign-recovery", caller = await foreignCaller(f);
+  expect(await repairCli(f, promoteArgs(f.slug, name))).toMatchObject({ result: { outcome: "applied" } });
+  const before = success(await f.store.version()), converted = await readWorktreeMarker(f.cwd);
+  expect(await repairCli(caller, promoteArgs(f.slug, name))).toMatchObject({ result: { outcome: "idempotent", checkoutPath: f.cwd } });
+  await writeWorktreeMarker(caller.cwd, { spawnedByArc: false, spawningIdentity: "test-user", createdAt: "2026-10-16T00:00:00Z",
+    createdFor: { kind: "work-unit", name } });
+  expect(await repairCli(caller, promoteArgs(f.slug, name))).toMatchObject({ exitCode: 1, result: { outcome: "refused", reason: "duplicate-locus" } });
+  expect(success(await f.store.version())).toBe(before);
+  expect(await readWorktreeMarker(f.cwd)).toEqual(converted);
+  expect((await f.exec("git", ["branch", "--show-current"])).stdout.trim()).toBe(`feat/${name}`);
+  expect((await f.exec("git", ["rev-parse", "HEAD"])).stdout.trim()).toBe(f.cut);
+  await releaseMarker(caller.cwd);
+  expect(await repairCli(caller, promoteArgs(f.slug, name))).toMatchObject({ result: { outcome: "idempotent", checkoutPath: f.cwd } });
+  expect(success(await f.store.version())).toBe(before);
+  expect(await readWorktreeMarker(f.cwd)).toEqual(converted);
+}, 30_000);
+
+it.each(["derivation", "scale"] as const)("promotes through registered %s options after preserving a conflicting branch", async floor => {
+  const f = await openedFixture(`cli-promote-${floor}`), name = `grown-${floor}`;
+  const version = success(await f.store.version());
+  await f.exec("git", ["branch", `feat/${name}`, "main"]);
+  const refused = await repairCli(f, promoteArgs(f.slug, name, floor));
+  expect(refused).toMatchObject({ exitCode: 1, result: { outcome: "refused", recommendedPromptText: expect.stringContaining(`target branch feat/${name} already exists`) } });
+  expect(success(await f.store.version())).toBe(version);
+  expect(success(await f.store.read({ reference: f.primary.reference }))).toEqual(f.primary);
+  expect(success(await f.store.read({ reference: f.description.reference }))).toEqual(f.description);
+  expect(await readWorktreeMarker(f.cwd)).toEqual(f.marker);
+  expect((await f.exec("git", ["branch", "--show-current"])).stdout.trim()).toBe(`chore/${f.slug}`);
+  expect((await f.exec("git", ["rev-parse", "HEAD"])).stdout.trim()).toBe(f.cut);
+  await f.exec("git", ["branch", "-m", `feat/${name}`, `preserved-${name}`]);
+
+  const promoted = await repairCli(f, promoteArgs(f.slug, name, floor));
+  expect(promoted).toMatchObject({ result: { outcome: "applied", branch: `feat/${name}`, checkoutPath: f.cwd, allocation: "primary", settlement: { state: "settled", originEntry: null } } });
+  const target = success(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse(name) })).reference;
+  const meta = success(await f.store.read({ reference: target }));
+  expect(target).toMatchObject({ kind: "work-item/meta", owner: { ...f.primary.reference.owner, name } });
+  expect(ParsedMetaRecordSchema.parse(meta.fields)).toMatchObject({ state: floor === "derivation" ? "Planning" : "Active", owner: "test-user", workClass: "Light", promotionReceipt: expect.stringContaining(`errand-v1/${f.slug}/`) });
+  expect(meta.links?.branches).toEqual(expect.arrayContaining([
+    expect.objectContaining({ repository: f.primary.links?.branches?.[0]?.repository, ref: `chore/${f.slug}`, linkedAs: "created" }),
+    expect.objectContaining({ repository: f.primary.links?.branches?.[0]?.repository, ref: `feat/${name}`, linkedAs: "created", excluded: [] }),
+  ]));
+  expect(success(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse(f.slug) })).reference).toEqual(target);
+  expect(success(await f.store.read({ reference: f.description.reference }))).toEqual({ ...f.description, reference: recordReferences["work-item/description"](target.owner) });
+  expect((await f.exec("git", ["branch", "--show-current"])).stdout.trim()).toBe(`feat/${name}`);
+  expect((await f.exec("git", ["rev-parse", "HEAD"])).stdout.trim()).toBe(f.cut);
+  expect((await f.exec("git", ["rev-parse", `refs/heads/chore/${f.slug}`])).stdout.trim()).toBe(f.cut);
+  expect((await f.exec("git", ["rev-parse", `refs/heads/preserved-${name}`])).stdout.trim()).toBe(f.head.trim());
+  expect(await readWorktreeMarker(f.cwd)).toMatchObject({ kind: "present", marker: { spawnedByArc: false, createdFor: { kind: "work-unit", name } } });
+  const inFlight = await repairCli(f, ["active", "in-flight", "--json"]);
+  expect(inFlight).toMatchObject({ result: { entries: [expect.objectContaining({ kind: "work-unit", name, branch: `feat/${name}`, worktreePath: f.cwd })] } });
+  const result = inFlight.result as { warnings: { branch?: string }[] };
+  expect(result.warnings.filter(warning => [f.primary.links?.branches?.[0]?.ref, `feat/${name}`].includes(warning.branch))).toEqual([]);
+}, 30_000);
+
+it("recovers a registered promotion's recorded cut after a real ref lock and repaired branch conflict", async () => {
+  const f = await openedFixture("cli-promote-recovery"), name = "grown-recovery";
+  const lock = join(f.cwd, ".git", "refs", "heads", "feat", `${name}.lock`);
+  await mkdir(join(f.cwd, ".git", "refs", "heads", "feat"), { recursive: true });
+  await writeFile(lock, "External ref lock\n");
+  const interrupted = await repairCli(f, promoteArgs(f.slug, name));
+  expect(interrupted).toMatchObject({ exitCode: 1, result: { outcome: "error", error: { message: expect.stringContaining(`${name}.lock`) } } });
+  const target = success(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse(name) })).reference;
+  const landed = success(await f.store.read({ reference: target }));
+  expect(target).toMatchObject({ kind: "work-item/meta", owner: { ...f.primary.reference.owner, name } });
+  expect(await readWorktreeMarker(f.cwd)).toEqual(f.marker);
+  expect((await f.exec("git", ["branch", "--show-current"])).stdout.trim()).toBe(`chore/${f.slug}`);
+  expect((await f.exec("git", ["rev-parse", "HEAD"])).stdout.trim()).toBe(f.cut);
+  expect((await f.exec("git", ["branch", "--list", `feat/${name}`])).stdout.trim()).toBe("");
+  await rm(lock);
+  const foreignVersion = success(await f.store.version());
+  await f.exec("git", ["config", "arc.identity", "another-user"]);
+  expect(await repairCli(f, promoteArgs(f.slug, name))).toMatchObject({ exitCode: 1,
+    result: { outcome: "refused", reason: "identity-conflict", recommendedPromptText: expect.stringContaining("owned by test-user") } });
+  expect(success(await f.store.version())).toBe(foreignVersion);
+  expect(success(await f.store.read({ reference: target }))).toEqual(landed);
+  expect(success(await f.store.read({ reference: f.description.reference }))).toEqual({ ...f.description, reference: recordReferences["work-item/description"](target.owner) });
+  expect(await readWorktreeMarker(f.cwd)).toEqual(f.marker);
+  expect((await f.exec("git", ["branch", "--show-current"])).stdout.trim()).toBe(`chore/${f.slug}`);
+  expect((await f.exec("git", ["rev-parse", "HEAD"])).stdout.trim()).toBe(f.cut);
+  expect((await f.exec("git", ["branch", "--list", `feat/${name}`])).stdout.trim()).toBe("");
+  await f.exec("git", ["config", "arc.identity", "test-user"]);
+  await writeFile(join(f.cwd, "errand-work.txt"), "Useful Errand work\nLater source work\n");
+  await f.exec("git", ["add", "errand-work.txt"]); await f.exec("git", ["commit", "-m", "Later source work"]);
+  const moved = (await f.exec("git", ["rev-parse", "HEAD"])).stdout.trim();
+  await f.exec("git", ["branch", `feat/${name}`, "main"]);
+  const version = success(await f.store.version());
+  const refused = await repairCli(f, promoteArgs(f.slug, name));
+  expect(refused).toMatchObject({ exitCode: 1, result: { outcome: "refused", recommendedPromptText: expect.stringMatching(/branch conflict.*recorded.*repair.*retry/isu) } });
+  expect(success(await f.store.version())).toBe(version);
+  expect(success(await f.store.read({ reference: target }))).toEqual(landed);
+  expect(await readWorktreeMarker(f.cwd)).toEqual(f.marker);
+  await f.exec("git", ["branch", "-m", `feat/${name}`, "preserved-recovery-conflict"]);
+
+  const recovered = await repairCli(f, promoteArgs(f.slug, name));
+  expect(recovered).toMatchObject({ result: { outcome: "applied", branch: `feat/${name}`, checkoutPath: f.cwd, settlement: { state: "settled", identity: "retired", originEntry: null } } });
+  expect(success(await f.store.read({ reference: target }))).toEqual(landed);
+  expect(success(await f.store.read({ reference: f.description.reference }))).toEqual({ ...f.description, reference: recordReferences["work-item/description"](target.owner) });
+  expect((await f.exec("git", ["branch", "--show-current"])).stdout.trim()).toBe(`feat/${name}`);
+  expect((await f.exec("git", ["rev-parse", "HEAD"])).stdout.trim()).toBe(f.cut);
+  expect((await f.exec("git", ["rev-parse", `refs/heads/chore/${f.slug}`])).stdout.trim()).toBe(moved);
+  expect((await f.exec("git", ["rev-parse", "refs/heads/preserved-recovery-conflict"])).stdout.trim()).toBe(f.head.trim());
+  expect(await readWorktreeMarker(f.cwd)).toMatchObject({ kind: "present", marker: { spawnedByArc: false, createdFor: { kind: "work-unit", name } } });
+}, 30_000);

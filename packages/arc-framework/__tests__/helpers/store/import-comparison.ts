@@ -4,6 +4,8 @@ import { createRefStore, createStore } from "../../../src/lib/store/create.js";
 import { isDeepStrictEqual } from "node:util";
 import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
 import { resolveCallerComposedLifecycleIndex } from "../../../src/lib/work-unit/composed-lifecycle-index.js";
+import { ENTRY_CONFIGS, type EntryKind } from "../../../src/lib/store/kinds/entry-configs.js";
+import { parseEntryList } from "../../../src/lib/store/kinds/entry-list.js";
 import { KIND_REGISTRY } from "../../../src/lib/store/registry.js";
 import { StateVersionSchema } from "../../../src/lib/store/identity.js";
 import { canonicalize } from "../../../src/lib/kernel/canonical/canonical-json.js";
@@ -33,7 +35,7 @@ export async function importComparisonFixture(layout: "default" | "separate" = "
   const [source, target] = await Promise.all([importFixture(layout, options), importFixture(layout, options)]);
   if (prepare) { await prepare(source); await prepare(target); }
   const store = createRefStore(target.ports);
-  const ports = { ...createDefaultStorePorts(source.ports), ...source.ports };
+  const ports = { ...createDefaultStorePorts({ checkoutRoot: source.ports.checkoutRoot, exec: source.ports.exec, execInput: source.ports.execInput }), ...source.ports };
   const sourceStore = createStore(ports);
   const comparators = new Map<KindId, ImportComparator>();
   return { source, target, store, comparators, compare: async (): Promise<ImportDifference[]> => {
@@ -147,7 +149,18 @@ function normalizeRecord(record: StoreRecord): StoreRecord {
   const definition = KIND_REGISTRY[record.reference.kind];
   const content = definition.merge === "entry" ? record.content.replace(/^[ \t]*(?:- )?_Id:_ `[0-9a-f]{8}`[ \t]*(?:\r?\n|$)/gmu, "")
     : definition.projection === "never" ? canonicalize(JSON.parse(record.content)) : record.content;
-  return { ...record, content };
+  return { ...record, content, fields: normalizeEntryFields(record, content) };
+}
+
+function normalizeEntryFields(record: StoreRecord, content: string): unknown {
+  const kind = record.reference.kind;
+  if (!(kind in ENTRY_CONFIGS) || record.fields === undefined) return record.fields;
+  const original = parseEntryList(record.content, kind as EntryKind);
+  // Keep independently changed or custom parsed fields visible to the comparison.
+  if (!original.success || !isDeepStrictEqual(record.fields, original.data)) return record.fields;
+  const normalized = parseEntryList(content, kind as EntryKind);
+  if (!normalized.success) throw new Error(`ID-normalized entry content is invalid: ${normalized.error}`);
+  return normalized.data;
 }
 
 function recordDifferences(expected: StoreRecord, actual: StoreRecord): ImportDifference[] {

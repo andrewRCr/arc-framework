@@ -102,6 +102,8 @@ Then settle the judgment + cleanup the executor doesn't own:
 
 Stage all edits.
 
+When a fold includes spec or task-list prose edits, run `arc check increment` before the activation commit.
+
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
 

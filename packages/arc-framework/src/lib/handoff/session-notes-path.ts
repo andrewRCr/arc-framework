@@ -7,7 +7,12 @@
  *
  * @module
  */
+import { describeRecordConflicts } from "../store/conflict-diagnostics.js";
 
+import type { Store } from "../store/contract.js";
+import { workItemArtifactPath } from "../store/lifecycle-storage.js";
+import { WorkUnitReadPlacementSchema } from "../store/placement.js";
+import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
 import { join } from "node:path";
 
 import type { DirEntry } from "../git/index.js";
@@ -21,6 +26,7 @@ export interface SessionNotesPathIO {
 
 /** Exact-path I/O seam for one named work unit's SESSION-NOTES. */
 export interface WorkUnitSessionNotesPathIO {
+  store?: Store;
   access: (path: string) => Promise<void>;
 }
 
@@ -64,6 +70,9 @@ export async function resolveWorkUnitSessionNotesPath(
   workUnitName: string,
   io: WorkUnitSessionNotesPathIO,
 ): Promise<SessionNotesPathResult> {
+  SlugSchema.parse(identity);
+  SlugSchema.parse(workUnitName);
+  if (io.store?.capabilities.stateOffBranch === true) return resolveStoreSessionContext(cwd, workUnitName, io.store);
   const path = materializeWorkUnitSessionNotesPath(cwd, identity, workUnitName);
   try {
     await io.access(path);
@@ -109,4 +118,21 @@ export async function resolveSessionNotesPath(
   }
 
   return null;
+}
+
+async function resolveStoreSessionContext(cwd: string, slug: string, store: Store): Promise<SessionNotesPathResult> {
+  try {
+    const lookup = await store.lookup({ kind: "slug", slug: SlugSchema.parse(slug) });
+    if (lookup.status === "refused") return lookup.refusal.code === "not-found" ? { status: "absent" }
+      : { status: "error", message: `${lookup.refusal.condition} ${lookup.refusal.remedy.text}` };
+    const read = await store.read({ reference: lookup.result.reference });
+    if (read.status === "refused") return { status: "error", message: `${read.refusal.condition} ${read.refusal.remedy.text}` };
+    const record = read.result;
+    if (record.reference.kind !== "work-item/meta" || record.conflicts.length > 0) {
+      return { status: "error", message: `The work unit's session context is unresolved. Inspect and repair its meta record, then retry.${describeRecordConflicts(record.conflicts)}` };
+    }
+    const fields = ParsedMetaRecordSchema.parse(record.fields);
+    const path = workItemArtifactPath(record.reference.owner.name, "meta", WorkUnitReadPlacementSchema.parse(record.placement), fields.cohort);
+    return { status: "resolved", path: join(cwd, path) };
+  } catch (error) { return { status: "error", message: `Unable to resolve session context: ${error instanceof Error ? error.message : String(error)}` }; }
 }

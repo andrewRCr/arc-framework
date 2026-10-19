@@ -9,6 +9,8 @@
  */
 import { posix } from "node:path";
 import { z } from "zod";
+import { UnclosedTaskCommitsSchema } from "../locus/unclosed-task-commits-schema.js";
+import { SlugSchema } from "../kernel/schema/slug.js";
 
 import type { Probe } from "../../commands/status/types.js";
 import {
@@ -18,7 +20,8 @@ import {
   type CompactionSeed,
 } from "../compaction-seed/schema.js";
 import type { DirtyStateResult } from "../git/dirty-state.js";
-import { resolveArcPath } from "../layout/index.js";
+import { identifyWorkUnitArtifactPath, resolveArcPath } from "../layout/index.js";
+import { workItemArtifactPath } from "../store/lifecycle-storage.js";
 import {
   LoadSetAuditDiffSchema,
   LoadSetAuditVerdictSchema,
@@ -28,7 +31,7 @@ import {
 } from "../load-set/audit.js";
 import type { LoadSetManifest } from "../load-set/types.js";
 import type { DerivedLocusFrame } from "../locus/derived-reader.js";
-import type { RecoveryLocusFrame } from "./locus-context.js";
+import { resolveRecoveryParentContext, type RecoveryLocusFrame } from "./locus-context.js";
 import type {
   TaskListCursor,
 } from "../task-list/cursor.js";
@@ -192,6 +195,7 @@ export const RecoveryAuditVerdictSchema = z.strictObject({
   locusHint: RecoveryAuditLocusHintSchema.nullable(),
   dirtyFiles: RecoveryAuditDirtyFilesSchema,
   taskCursor: RecoveryAuditTaskCursorSchema.nullable(),
+  unclosedTaskCommits: UnclosedTaskCommitsSchema.optional(),
 }).superRefine((value, context) => {
   const ready = value.status === "ready";
   if (value.ready !== ready) {
@@ -284,6 +288,8 @@ export async function auditRecoveryState(
   const loadSetAudit = auditLoadSet(options, stopReasons, explainedDrift, integrationCorrection);
   const dirtyFiles = auditDirtyFiles(options, stopReasons, explainedDrift, committedProgress);
   const taskCursor = auditTaskCursor(options, stopReasons, integrationCorrection);
+  const unclosedTaskCommits = taskCursor?.match === true && options.recover.derivedLocusState.ok
+    ? options.recover.derivedLocusState.value.active?.context.unclosedTaskCommits : undefined;
 
   return {
     status: stopReasons.length === 0 ? "ready" : "stop",
@@ -295,6 +301,7 @@ export async function auditRecoveryState(
     locusHint,
     dirtyFiles,
     taskCursor,
+    ...(unclosedTaskCommits === undefined ? {} : { unclosedTaskCommits }),
   };
 }
 
@@ -553,15 +560,12 @@ function archivedIntegrationRelocation(
     || diff.pathDrifts.length !== 1) return null;
   const drift = diff.pathDrifts[0];
   if (drift === undefined) return null;
-  const expected = `.arc/active/meta-${slug}.md`;
-  const escapedSlug = slug.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  const actualPattern = new RegExp(
-    `^\\.arc/completed/[^/]+/\\d+_${escapedSlug}/meta-${escapedSlug}\\.md$`,
-    "u",
-  );
+  if (!SlugSchema.safeParse(slug).success) return null;
+  const expected = workItemArtifactPath(slug, "meta", { kind: "active" }, null);
+  const actual = identifyWorkUnitArtifactPath(drift.actual.path);
   if (options.seed.metaPath !== expected
     || drift.expected.path !== expected
-    || !actualPattern.test(drift.actual.path)
+    || actual === null || actual.artifact !== "meta" || actual.slug !== slug || actual.placement.kind !== "completed"
     || entering.row.context.metaPath !== drift.actual.path
     || drift.expected.readMode.kind !== "full"
     || drift.actual.readMode.kind !== "full") return null;
@@ -734,6 +738,15 @@ function requiresTaskCursor(options: AuditRecoveryStateOptions): boolean {
     ? options.recover.recoveryFrame.value.sessionType
     : null;
   const freshCursor = options.recover.taskCursor;
+  const parent = options.recover.derivedLocusState.ok && options.recover.recoveryFrame.ok
+    ? resolveRecoveryParentContext(options.recover.derivedLocusState.value, options.recover.recoveryFrame.value) : null;
+  if (options.seed.sessionType === "execution" && options.seed.taskCursor === null
+    && freshCursor?.ok && freshCursor.value.status === "no-open-task"
+    && parent?.sessionType === "execution" && parent.workflow === "verify-work-unit"
+    && parent.taskCursor?.status === "no-open-task" && parent.workUnit === options.seed.activeWorkUnit
+    && parent.metaPath === options.seed.metaPath && options.recover.recoveryFrame.ok
+    && options.seed.currentWorkflow === options.recover.recoveryFrame.value.workflow
+    && options.seed.locus.parentCheckoutPath === options.recover.recoveryFrame.value.parentCheckoutPath) return false;
   if (options.seed.sessionType === "execution"
     && options.seed.currentWorkflow === "verify-work-unit"
     && options.seed.taskCursor === null

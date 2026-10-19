@@ -1,10 +1,10 @@
 /**
- * Neither reference material nor emitted corrective actions may promise a command the CLI does not
- * register.
+ * Reference material and live corrective actions name registered commands. The exact dormant remote
+ * designation emitters remain visible until their operational backend and command are available.
  *
  * Every side is derived — documented invocations from the quick-reference copies, emitted
  * invocations from the source literals commands hand back to their caller, live paths from the
- * Commander source scan — so removing a command surfaces here without anyone maintaining a list.
+ * Commander source scan — with a bounded, explicitly checked category for the dormant emitters.
  */
 
 import { readdir, readFile } from "node:fs/promises";
@@ -14,11 +14,21 @@ import { beforeAll, describe, expect, it } from "vitest";
 import ts from "typescript";
 
 import { loadRepositoryCommandInputSnapshot } from "../../src/lib/command-input/repository-inventory.js";
+import { createStore } from "../../src/lib/store/create.js";
+import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
+import { createStoreSyncPort } from "../../src/lib/store/operational-sync.js";
 
 const REPOSITORY_SCAN_TIMEOUT_MS = 30_000;
 
 const root = resolve(import.meta.dirname, "../../../..");
 const sourceRoot = resolve(root, "packages/arc-framework/src");
+
+// Remote designation stays unreachable until the operational backend registers its command.
+// Keep the two dormant emitters explicit; registration or backend activation retires this category.
+const DEFERRED_BACKEND_COMMANDS = [
+  "handlers/join.ts: arc store remote",
+  "prompts/join-store-designation.ts: arc store remote",
+] as const;
 
 const REFERENCES = [
   { label: "project", path: resolve(root, ".arc/reference/QUICK-REFERENCE.md") },
@@ -201,7 +211,7 @@ describe("documented command surface", () => {
     expect(unregistered).toEqual([]);
   });
 
-  it("registers every command the source emits as a corrective action", () => {
+  it("registers emitted corrective commands apart from the exact dormant backend contract", () => {
     const emitted = Object.entries(sourceFiles)
       .flatMap(([file, text]) => emittedInvocations(text).map((invocation) => ({ file, invocation })));
     // The scan is derived, so an over-tight filter would pass by finding nothing. The Candidate
@@ -213,7 +223,14 @@ describe("documented command surface", () => {
       .filter(({ invocation }) => resolveCommandPath(invocation.words, registered, operandCommands) === null)
       .map(({ file, invocation }) => `${file}: ${invocation.line}`);
 
-    expect(unregistered).toEqual([]);
+    expect(unregistered.sort()).toEqual([...DEFERRED_BACKEND_COMMANDS].sort());
+  });
+
+  it("retires deferred remote designation when its command registers or its backend activates", async () => {
+    expect(registered.has("store remote"), "Remove the deferred command category once remote designation registers.").toBe(false);
+    const store = createStore(createDefaultStorePorts({ checkoutRoot: root }));
+    expect(store.capabilities.stateOffBranch, "A live operational backend must register every corrective command.").toBe(false);
+    expect(await createStoreSyncPort().pull()).toEqual({ status: "no-remote" });
   });
 
   it("reads the command path out of an interpolated emitted literal", () => {

@@ -9,6 +9,7 @@
  * @module
  */
 
+import { workUnitTeardownAction } from "./actions.js";
 import type { DirtyStateResult } from "../git/dirty-state.js";
 import type {
   WorktreeSnapshotAnalysisResult,
@@ -77,6 +78,34 @@ export function inferBranchGoneRecovery(
   recovery: CascadeResolution,
   dirty: DirtyStateResult,
 ): SessionInitRecoveryValue {
+  const recommendation = recommendBranchGoneRecovery(recovery, dirty);
+  if (recovery.kind === "pending") {
+    return { ...recommendation, actions: [{ ...recovery.refreshRemedy, argv: [...recovery.refreshRemedy.argv] }] };
+  }
+  if (recovery.kind === "surface") {
+    const removals = recovery.candidates.flatMap((candidate) => candidate.proposedAction !== "removable" ? []
+      : [workUnitTeardownAction(candidate.workUnitName)]);
+    if (removals.length !== 0) return { ...recommendation, actions: [...removals, { text: recommendation.recommendedPromptText }] };
+  }
+  if (recovery.kind === "resolved" && recovery.candidate.proposedAction === "removable") {
+    const name = recovery.candidate.workUnitName;
+    return { ...recommendation, actions: [workUnitTeardownAction(name)] };
+  }
+  if (recovery.kind === "resolved" && recovery.candidate.proposedAction === "switch") {
+    if (recovery.candidate.worktreePath !== undefined) {
+      return { ...recommendation, actions: [{ text: `Continue recovery in checkout \`${recovery.candidate.worktreePath}\`.` }] };
+    }
+    if (recommendation.recommendedAction === "switch") {
+      return { ...recommendation, actions: [{ text: `After any needed git fetch, run git switch ${recovery.candidate.branch}.` }] };
+    }
+  }
+  return { ...recommendation, actions: [{ text: recommendation.recommendedPromptText }] };
+}
+
+function recommendBranchGoneRecovery(
+  recovery: CascadeResolution,
+  dirty: DirtyStateResult,
+): SessionInitRecoveryValue {
   switch (recovery.kind) {
     case "pending":
       return {
@@ -93,14 +122,14 @@ export function inferBranchGoneRecovery(
         return {
           ...recovery,
           recommendedAction: "surface",
-          recommendedPromptText: `Recover manually onto \`${recovery.candidate.branch}\`.`,
+          recommendedPromptText: recoveryCandidateRepair(recovery.candidate) || `Recover manually onto \`${recovery.candidate.branch}\`.`,
         };
       }
       return {
         ...recovery,
         recommendedAction: "prompt",
         recommendedPromptText: recovery.candidate.proposedAction === "removable"
-          ? `Remove shipped worktree \`${recovery.candidate.worktreePath}\` before recovering?`
+          ? `Remove shipped worktree \`${recovery.candidate.worktreePath}\` with \`${workUnitTeardownAction(recovery.candidate.workUnitName).text}\` before recovering?`
           : `Recover onto \`${recovery.candidate.branch}\`?`,
       };
     case "surface":
@@ -110,7 +139,7 @@ export function inferBranchGoneRecovery(
         recommendedPromptText: [
           "Choose a recovery branch:",
           ...recovery.candidates.map((candidate) =>
-            `- \`${candidate.branch}\` (${candidate.proposedAction})`),
+            `- \`${candidate.branch}\` (${candidate.proposedAction}${candidate.proposedAction === "removable" ? `; ${workUnitTeardownAction(candidate.workUnitName).text}` : ""})${recoveryCandidateRepair(candidate)}`),
         ].join("\n"),
       };
     case "unproven":
@@ -123,7 +152,7 @@ export function inferBranchGoneRecovery(
           : [
               "Recovery candidates could not be proven against the advertised base"
                 + ` (${recovery.remoteEvidence}). Choose one manually:`,
-              ...recovery.candidates.map((candidate) => `- \`${candidate.branch}\``),
+              ...recovery.candidates.map((candidate) => `- \`${candidate.branch}\`${recoveryCandidateRepair(candidate)}`),
             ].join("\n"),
       };
     case "main-fallback":
@@ -135,8 +164,16 @@ export function inferBranchGoneRecovery(
   }
 }
 
+function recoveryCandidateRepair(candidate: Extract<CascadeResolution, { kind: "resolved" }>["candidate"]): string {
+  if (candidate.proposedAction !== "external" || !candidate.diagnostics?.length) return "";
+  return `\n${candidate.diagnostics.map(item => `${item.code}: ${item.message}`).join("\n")}\n`
+    + `Repair checkout authority at ${candidate.worktreePath} and retry recovery.`;
+}
+
 /** Inputs to {@link inferSessionInitRecommendations}. */
 export interface RecommendationInput {
+  /** Retire notes recommendations when operational state lives off branch. */
+  stateOffBranch?: boolean;
   worktree: SessionWorktreeStatus;
   /** Resolved user session-init result, or null when identity missing or probe failed. */
   user: UserSessionInitStatusResult | null;
@@ -507,8 +544,9 @@ export function inferRetiredSubdirs(
   retiredSubdirs: RetiredSubdirDetectionResult | null,
   policy: NotesLoadPolicy,
   dirty: DirtyStateResult,
+  stateOffBranch = false,
 ): ChannelRecommendation {
-  if (retiredSubdirs === null || retiredSubdirs.candidates.length === 0) {
+  if (stateOffBranch || retiredSubdirs === null || retiredSubdirs.candidates.length === 0) {
     return { recommendedAction: "skip", recommendedPromptText: "" };
   }
   const count = retiredSubdirs.candidates.length;
@@ -644,7 +682,9 @@ export function inferSessionInitRecommendations(
     input.dirty,
     input.supersession,
   );
-  const userRec = inferUser(input.user, input.notesPullPolicy, input.dirty);
+  const userRec = input.stateOffBranch
+    ? { recommendedAction: "skip" as const, recommendedPromptText: "" }
+    : inferUser(input.user, input.notesPullPolicy, input.dirty);
 
   const combinedPrompt =
     worktreeRec.recommendedAction === "prompt" &&

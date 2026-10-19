@@ -3,7 +3,7 @@
  */
 
 import { execFile } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile, mkdir, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { promisify } from "node:util";
@@ -40,5 +40,41 @@ describe("validate-links.sh", () => {
     await expect(execFileAsync("bash", [validateLinksScript, sourcePath])).resolves.toMatchObject({
       stderr: "",
     });
+  });
+
+  it.each([validateLinksScript, join(repoRoot, ".arc/system/.internal/scripts/validate-links.sh")])(
+    "requires indexed source content and recovers after staging: %s", async script => {
+      tmpDir = await mkdtemp(join(tmpdir(), "arc-validate-staged-source-"));
+      await execFileAsync("git", ["init", "-q"], { cwd: tmpDir });
+      await writeFile(join(tmpDir, "source.md"), "A valid source.\n");
+      await expect(execFileAsync("bash", [script, "--staged", "source.md"], { cwd: tmpDir })).rejects.toMatchObject({
+        code: 1, stderr: expect.stringContaining("could not read staged Markdown; restage the file and retry"),
+      });
+      await execFileAsync("git", ["add", "source.md"], { cwd: tmpDir });
+      await expect(execFileAsync("bash", [script, "--staged", "source.md"], { cwd: tmpDir }))
+        .resolves.toMatchObject({ stderr: "" });
+    },
+  );
+
+  it("ships the same executable target rules as the installed validator", async () => {
+    const installed = join(repoRoot, ".arc/system/.internal/scripts/validate-links.sh");
+    expect(await readFile(validateLinksScript, "utf8")).toBe(await readFile(installed, "utf8"));
+    expect((await stat(validateLinksScript)).mode & 0o111).not.toBe(0);
+    expect((await stat(installed)).mode & 0o111).not.toBe(0);
+    tmpDir = await mkdtemp(join(tmpdir(), "arc-validate-targets-"));
+    await execFileAsync("git", ["init", "-q"], { cwd: tmpDir });
+    await mkdir(join(tmpDir, ".arc/active"), { recursive: true });
+    await mkdir(join(tmpDir, ".arc/user/alice"), { recursive: true });
+    await writeFile(join(tmpDir, ".gitignore"), ".arc/user/*\n");
+    await writeFile(join(tmpDir, ".arc/active/meta-example.md"), "# Target\n");
+    await writeFile(join(tmpDir, ".arc/user/alice/private.md"), "# Private\n");
+    const source = join(tmpDir, "README.md");
+    await writeFile(source, "[movable](/.arc/active/meta-example.md)\n[ignored](.arc/user/alice/private.md)\n");
+    await expect(execFileAsync("bash", [validateLinksScript, source], { cwd: tmpDir })).rejects.toMatchObject({
+      code: 1, stderr: expect.stringContaining("link to movable artifact"),
+    });
+    await writeFile(join(tmpDir, "guide.md"), "# Guide\n");
+    await writeFile(source, "[guide](/guide.md)\n");
+    await expect(execFileAsync("bash", [validateLinksScript, source], { cwd: tmpDir })).resolves.toMatchObject({ stderr: "" });
   });
 });

@@ -92,6 +92,9 @@ function okConfig(): Probe<ConfigStatusResult> {
         "archive.cadence": "with-integration",
         "user.notes_push": "on-sync",
         "inbox.remind_after_days": "1",
+        "inbound.retriage_after_entries": "10",
+        "inbound.retriage_after_days": "30",
+        "pause.review_after_days": "14",
         "integration.stale_after_days": "2",
         "changeset.advisory_threshold_lines": "0",
         "changeset.advisory_threshold_files": "0",
@@ -302,7 +305,7 @@ describe("buildStatusSummary — full mode", () => {
     // User formatter output: "andrew: git note up to date"
     expect(summary).toContain("andrew: git note up to date");
     // Config formatter: "N agent-consumable settings"
-    expect(summary).toContain("36 agent-consumable settings");
+    expect(summary).toContain("39 agent-consumable settings");
     // Active formatter: "0 active work units"
     expect(summary).toContain("0 active work units");
   });
@@ -561,4 +564,19 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
     expect(summary).toContain("Domain Rules:");
     expect(summary).toContain("(unavailable) constitution dir missing");
   });
+});
+
+it("renders a store designation and omits an empty user slot", () => {
+  const value = { status: "designation-needed" as const, remote: "origin", choices: ["state", "code"],
+    summary: "Remote origin needs a store designation. arc store remote origin state",
+    remedy: { text: "arc store remote origin state", argv: ["arc", "store", "remote", "origin", "state"] },
+    actions: [{ text: "arc store remote origin state", argv: ["arc", "store", "remote", "origin", "state"] }] };
+  expect(buildSessionInitStatusSummary(makeSessionInitResult({ user: { ok: true, value } }))).toContain(value.summary);
+  expect(buildSessionInitStatusSummary(makeSessionInitResult({ user: { ok: true, value: null } }))).not.toContain("User:");
+});
+
+it("renders the entering checkout's pause before work starts", () => {
+  const result = makeSessionInitResult({ locusGuidance: { kind: "ready", identities: [], cleanup: [], diagnostics: [],
+    pause: "Paused: awaiting review. Resume with arc resume current." } });
+  expect(buildSessionInitStatusSummary(result)).toContain("Paused: awaiting review. Resume with arc resume current.");
 });

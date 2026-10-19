@@ -20,8 +20,10 @@ describe("delivery lifecycle composition ownership", () => {
     ]);
 
     expect(generate.match(/unmarked provisional `## Delivery Plan`/gu)).toHaveLength(1);
-    expect(prepare.match(/arc review changeset resolve -/gu)).toHaveLength(1);
-    expect(prepare.indexOf("arc review changeset resolve -")).toBeLessThan(prepare.indexOf("arc publish {name}"));
+    const chunkGate = "run [code-review's chunk gate][code-chunk-gate]";
+    expect(prepare.match(/run \[code-review's chunk gate\]\[code-chunk-gate\]/gu)).toHaveLength(1);
+    expect(prepare.indexOf(chunkGate)).toBeLessThan(prepare.indexOf("arc publish {name}"));
+    expect(prepare).toContain("../../../methods/code-review.md#chunk-gate");
     expect(integrate.match(/arc review changeset resolve -/gu)).toHaveLength(1);
     const phaseTwo = integrate.indexOf("## Phase 2");
     expect(phaseTwo).toBeGreaterThan(0);

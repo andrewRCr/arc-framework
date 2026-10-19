@@ -1,3 +1,4 @@
+import { withReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
 /** Recovery guidance for review-policy refusals. */
 
 import { describe, expect, it } from "vitest";
@@ -12,7 +13,7 @@ import {
   resolveReviewPolicy,
 } from "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
 import {
-  HostedErrandCorrectionError,
+  HostedIncrementalCoverageError,
   HostedReviewAdmissionError,
   StaleLaneAttemptsError,
   hostedRequestAdmissionRemedy,
@@ -60,13 +61,13 @@ function refusal(admit: () => unknown): ReviewDriverAdmissionError {
   throw new Error("expected the driver to refuse admission");
 }
 
-const approvalRequired = refusal(() => assertStandardReviewExecutionAdmission({ ...lane, completedPasses: 2 }));
-const invalidOverride = refusal(() => assertStandardReviewExecutionAdmission({
+const approvalRequired = refusal(() => assertStandardReviewExecutionAdmission(withReviewNextPassContext({ ...lane, completedPasses: 2 })));
+const invalidOverride = refusal(() => assertStandardReviewExecutionAdmission(withReviewNextPassContext({
   ...lane,
   completedPasses: 3,
   judgment: { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 } },
-}));
-const passComplete = new ReviewDriverAdmissionError("refused", resolveReviewPolicy({
+})));
+const passComplete = new ReviewDriverAdmissionError("refused", resolveReviewPolicy(withReviewNextPassContext({
   ...policyRequest,
   completedPasses: 1,
   attempts: [{ sourceId: "codex-pr", outcome: "clean", reviewOperationId: "hosted/attempt-1" }],
@@ -77,9 +78,9 @@ const passComplete = new ReviewDriverAdmissionError("refused", resolveReviewPoli
     confirmedFindingCount: 0,
     maxConfirmedSeverity: null,
     materialFix: false,
-    coverageAdequate: true,
+    effectiveCoverage: "complete" as const, coverageAdequate: true,
   },
-}));
+})));
 
 describe("driver admission refusals", () => {
   it("carry the driver's answer and no request where the guard composed none", () => {
@@ -97,11 +98,11 @@ describe("driver admission refusals", () => {
   });
 
   it("type a source the driver does not select next as the same refusal", () => {
-    expect(refusal(() => assertStandardReviewExecutionAdmission({
+    expect(refusal(() => assertStandardReviewExecutionAdmission(withReviewNextPassContext({
       ...lane,
       completedPasses: 0,
       expectedSourceId: "delegated-agent",
-    }))).toMatchObject({ state: "ready", nextAction: "hosted-request", message: /not driver-admissible/u });
+    })))).toMatchObject({ state: "ready", nextAction: "hosted-request", message: /not driver-admissible/u });
   });
 });
 
@@ -124,16 +125,12 @@ describe("hostedRequestAdmissionRemedy", () => {
     expect(hostedRequestAdmissionRemedy(new Error(approvalRequired.message))).toBeUndefined();
   });
 
-  it("sends an Errand correction mismatch to the review status that offers the admissible request", () => {
-    const mismatch = new HostedErrandCorrectionError("codex-pr has no native incremental review", statusTarget);
-
-    expect(mismatch).toMatchObject({
-      code: "invalid-input",
-      message: expect.stringContaining("codex-pr has no native incremental review"),
-    });
-    expect(hostedRequestAdmissionRemedy(mismatch)).toEqual({
-      invariant: expect.stringContaining("only the correction its lane offers at that head"),
-      text: expect.stringMatching(/submit its offered request unchanged: `arc review status --target /u),
+  it("names the local fix check for refused hosted incremental coverage", () => {
+    const refusal = new HostedIncrementalCoverageError(statusTarget);
+    expect(refusal).toMatchObject({ code: "invalid-input", message: expect.stringContaining("unsupported") });
+    expect(hostedRequestAdmissionRemedy(refusal)).toMatchObject({
+      invariant: expect.stringContaining("fix checks run locally"),
+      text: expect.stringContaining("local fix check through arc review local prepare"),
       argv: ["arc", "review", "status", "--target", JSON.stringify(statusTarget)],
     });
   });
@@ -141,11 +138,11 @@ describe("hostedRequestAdmissionRemedy", () => {
 
 describe("localPrepareAdmissionRemedy", () => {
   it("re-resolves the exact policy request the driver evaluated", () => {
-    const evaluated = new ReviewDriverAdmissionError("refused", resolveReviewPolicy({
+    const evaluated = new ReviewDriverAdmissionError("refused", resolveReviewPolicy(withReviewNextPassContext({
       ...policyRequest,
       sources: ["delegated-agent"],
       maxPasses: 2,
-    }), policyRequest);
+    })), policyRequest);
 
     expect(localPrepareAdmissionRemedy(evaluated)).toEqual({
       invariant: expect.stringContaining("currently admits"),
@@ -155,6 +152,18 @@ describe("localPrepareAdmissionRemedy", () => {
       argv: ["arc", "review", "resolve", "-"],
       stdin: policyRequest,
     });
+  });
+
+  it("names the local delta check when a forced hosted source is refused", () => {
+    const request = ReviewPolicyCommandRequestSchema.parse({ ...policyRequest, completedPasses: 1,
+      invocation: { mode: "force", sourceId: "codex-pr" } });
+    const resolution = resolveReviewPolicy({ ...request, sources: ["codex-pr", "delegated-agent"], maxPasses: 4,
+      nextPassContext: { completePasses: 1, convergence: "converged", responseDue: false, incremental: { basis: "delta-check", scope: {
+        schemaVersion: 1, predecessorProducerId: "local/complete", predecessorHeadSha: "b".repeat(40),
+        basisHeadSha: "b".repeat(40), headSha: target.headSha, requiredFindings: [],
+      } } } });
+    expect(localPrepareAdmissionRemedy(new ReviewDriverAdmissionError("refused", resolution, request)))
+      .toMatchObject({ text: expect.stringMatching(/delta check.*delegated-agent/iu) });
   });
 
   it("names nothing when the refusing guard composed no request", () => {

@@ -1,5 +1,6 @@
 /** Storage grouping and record mechanisms as role-based, backend-independent data. */
 
+import { ENTRY_CONFIGS } from "./kinds/entry-configs.js";
 import { FAMILY_IDS, KIND_SHAPES, familyOf, type FamilyId, type KindId } from "./catalog.js";
 import type { StateVersion } from "./identity.js";
 import type { WriteCheck } from "./write-check.js";
@@ -45,7 +46,7 @@ export type InRepoHome = {
   finder?: "companions" | "personal-documents" | "transient-records";
 };
 /** Pure generic entry shape and the sections in which entries live. */
-export interface EntryConfig { shape: "heading" | "field-header"; sections: readonly string[] }
+export interface EntryConfig { shape: "heading" | "field-header"; sections: readonly string[]; managedFields?: readonly string[] }
 /** Where the ref backend stores one kind's records inside its family's ref. */
 export interface RefHome {
   /** Path template; `<slug>`, `<uid>`, `<person>`, and `<key>` expand from the record's reference. */
@@ -81,6 +82,8 @@ const once: KindMechanism = {
   ...never, inRepo: unhomed,
 };
 
+const receipt: KindMechanism = { ...once, writerVerbs: ["merge", "sync", "route", "resolve", "errand-open", "errand-link", "errand-abandon"] };
+
 const atRef = (path: string, mechanism: KindMechanism): KindMechanism => ({ ...mechanism, ref: { path } });
 
 /** Every role explicitly declares its mechanism and storage homes. */
@@ -92,10 +95,10 @@ export const KIND_MECHANISMS = {
   "work-item/spec": atRef("spec-<slug>.md", artifact("spec", "line")),
   "work-item/notes": atRef("notes-<slug>.md", artifact("notes", "line")),
   "work-item/companion": atRef("<key>-<slug>.md", prose({ substrate: "tracked", finder: "companions" }, "projection-defined")),
-  "work-item/description": atRef("errand-<slug>.md", entry(unhomed)),
-  "work-item/inbound": atRef("inbound-<slug>.md", entry(unhomed)),
+  "work-item/description": atRef("errand-<slug>.md", entry(unhomed, ENTRY_CONFIGS["work-item/description"])),
+  "work-item/inbound": atRef("inbound-<slug>.md", entry(unhomed, ENTRY_CONFIGS["work-item/inbound"])),
   "cohort/document": atRef("cohort-<slug>.md", prose({ substrate: "tracked", address: { kind: "cohort-document" } }, { kind: "cohort-document" })),
-  "project-inbox/inbox": atRef("ATOMIC-INBOX.md", { ...entry({ substrate: "tracked", address: { kind: "inbox", scope: "project" } }, { shape: "heading", sections: ["Inbox"] }), projection: { kind: "inbox", scope: "project" } }),
+  "project-inbox/inbox": atRef("ATOMIC-INBOX.md", { ...entry({ substrate: "tracked", address: { kind: "inbox", scope: "project" } }, ENTRY_CONFIGS["project-inbox/inbox"]), projection: { kind: "inbox", scope: "project" } }),
   "review/candidate": atRef("review/candidate-<uid>.json", machine({ substrate: "tracked", address: { kind: "candidate-record" } })),
   "review/integration-boundary": atRef("review/integration-boundary-<uid>.json", machine({ substrate: "tracked", address: { kind: "integration-boundary-record" } })),
   "review/evidence": atRef("review/evidence-<key>-<uid>.json", machine(unhomed)),
@@ -105,10 +108,10 @@ export const KIND_MECHANISMS = {
   "project-registry/identity": atRef("identity.json", { ...machine(unhomed), writerRule: "create-only" }),
   "project-registry/counter": atRef("counters/<key>.json", { ...machine(unhomed), writerRule: "cas" }),
   "lineage/transition": atRef("lineage/<uid>.json", { ...machine({ substrate: "tracked", address: { kind: "transition-record" } }), writerRule: "create-only" }),
-  "personal/inbox": atRef("<person>/USER-INBOX.md", { ...entry({ substrate: "personal", address: { kind: "inbox", scope: "identity" } }, { shape: "heading", sections: ["Errand", "Work Unit"] }), projection: { kind: "inbox", scope: "identity" } }),
-  "personal/working-memory": atRef("<person>/WORKING-MEMORY.md", { ...entry({ substrate: "personal", address: { kind: "user-document", document: "working-memory" } }, { shape: "field-header", sections: ["Memories"] }), projection: { kind: "user-document", document: "working-memory" } }),
+  "personal/inbox": atRef("<person>/USER-INBOX.md", { ...entry({ substrate: "personal", address: { kind: "inbox", scope: "identity" } }, ENTRY_CONFIGS["personal/inbox"]), projection: { kind: "inbox", scope: "identity" } }),
+  "personal/working-memory": atRef("<person>/WORKING-MEMORY.md", { ...entry({ substrate: "personal", address: { kind: "user-document", document: "working-memory" } }, ENTRY_CONFIGS["personal/working-memory"]), projection: { kind: "user-document", document: "working-memory" } }),
   "personal/document": atRef("<person>/<key>", prose({ substrate: "personal", finder: "personal-documents" }, "projection-defined")),
-  "personal/errand-queue": atRef("<person>/errand-queue-<person>.md", entry(unhomed)),
+  "personal/errand-queue": atRef("<person>/errand-queue-<person>.md", entry(unhomed, ENTRY_CONFIGS["personal/errand-queue"])),
   "personal/session-context": atRef("<person>/<key>/SESSION-NOTES.md", { ...prose({ substrate: "personal", address: { kind: "user-document", document: "session-notes" } }, { kind: "user-document", document: "session-notes" }), interim: true }),
   "claims/groom": atRef("groom-<key>-<person>.json", machine(transient)),
   "claims/housekeep": atRef("housekeep-<key>-<person>.json", machine(transient)),
@@ -124,8 +127,8 @@ export const KIND_MECHANISMS = {
   "claims/conflict-record": atRef("conflicts/<key>.json", once),
   "project-machinery/conflict-record": once,
   "constitution/conflict-record": once,
-  "project-inbox/routing-receipt": atRef("receipts/<key>.json", once),
-  "personal/routing-receipt": atRef("<person>/receipts/<key>.json", once),
+  "project-inbox/routing-receipt": atRef("receipts/<key>.json", receipt),
+  "personal/routing-receipt": atRef("<person>/receipts/<key>.json", receipt),
 } satisfies Record<KindId, KindMechanism>;
 
 /** A registered role with a replaceable parser slot and ordered format. */

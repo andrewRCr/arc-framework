@@ -1,6 +1,7 @@
 /** Store records and completeness-preserving listing outcomes. */
 
 import { z } from "zod";
+import { SlugSchema } from "../kernel/index.js";
 import { FAMILY_IDS, type FamilyId } from "./catalog.js";
 import { FormatVersionSchema, KindIdSchema, OwnerIdentitySchema, RecordReferenceSchema, RecordVersionSchema, StateVersionSchema } from "./identity.js";
 import { LinksSchema } from "./links.js";
@@ -19,6 +20,7 @@ export const StoreRecordSchema = z.strictObject({
   fields: z.unknown().optional(),
   placement: ReadPlacementSchema.optional(),
   links: LinksSchema.optional(),
+  aliases: z.array(SlugSchema).optional(),
 }).superRefine((value, context) => {
   const belongsToWorkItem = value.reference.kind.startsWith("work-item/") || value.reference.kind.startsWith("review/");
   if (belongsToWorkItem && !value.reference.kind.endsWith("/conflict-record")
@@ -36,6 +38,7 @@ export const StoreRecordSchema = z.strictObject({
     context.addIssue({ code: "custom", message: "Invalid completed-cohort read placement" });
   }
   const primary = value.reference.kind === "work-item/meta" || value.reference.kind === "work-item/record";
+  if (!primary && value.aliases !== undefined) context.addIssue({ code: "custom", message: "Only primary records carry aliases" });
   if (!primary && value.links !== undefined) context.addIssue({ code: "custom", message: "Only primary records carry links" });
 });
 /** A record with exact mutation basis and conflict references. */

@@ -57,7 +57,7 @@ export async function runStoreMigrate(ports: RefStorePorts, input: StoreMigrateI
   const { runRefBackendMigrate } = await import("./ref/backend.js");
   if (!input.import || ports.importSource) return runRefBackendMigrate(ports, input);
   const { createDefaultStorePorts } = await import("./default-ports.js");
-  const sourcePorts = { ...createDefaultStorePorts(ports), ...ports };
+  const sourcePorts = { ...createDefaultStorePorts({ checkoutRoot: ports.checkoutRoot, exec: ports.exec, execInput: ports.execInput }), ...ports };
   return runRefBackendMigrate({ ...ports, importSource: { store: createStore(sourcePorts), ports: sourcePorts } }, input);
 }
 

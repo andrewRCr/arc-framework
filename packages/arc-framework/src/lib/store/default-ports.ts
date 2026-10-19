@@ -3,6 +3,7 @@ import * as fs from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import { dirname, join } from "node:path";
 import { atomicCreateFile, atomicWriteFile } from "../fs.js";
+import type { Slug } from "../kernel/index.js";
 import { resolveIdentity } from "../git/identity.js";
 import type { GitExec, GitExecInput } from "../git/exec.js";
 import { GitProcessError } from "../git/process-error.js";
@@ -40,12 +41,12 @@ async function signalEndedSleep(milliseconds: number, signal: AbortSignal): Prom
  * @param input - Checkout and optional already-bound Git adapters.
  * @returns All required store ports, each policy or lock resolved only when used.
  */
-export function createDefaultStorePorts(input: { checkoutRoot: string; exec?: GitExec; execInput?: GitExecInput }): StorePorts & { fs: StoreFileAccess & RefRepositoryFileAccess } {
+export function createDefaultStorePorts(input: { checkoutRoot: string; exec?: GitExec; execInput?: GitExecInput; identity?: Slug }): StorePorts & { fs: StoreFileAccess & RefRepositoryFileAccess } {
   const baseExec = input.exec ?? createExecaGitExec();
   const exec: GitExec = (command, args, options) => baseExec(command, args, { cwd: input.checkoutRoot, ...options });
   const baseInput = input.execInput ?? createExecaGitExecInput();
   const execInput: GitExecInput = (args, content, options) => baseInput(args, content, { cwd: input.checkoutRoot, ...options });
-  const identity = () => resolveIdentity({ exec });
+  const identity = () => input.identity === undefined ? resolveIdentity({ exec }) : Promise.resolve(input.identity);
   return {
     checkoutRoot: input.checkoutRoot, exec, execInput, identity, remote: () => configuredStateRemote(exec),
     clock: () => new Date(),

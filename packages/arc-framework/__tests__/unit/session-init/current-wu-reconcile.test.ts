@@ -4,6 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import { LineageRecordSchema } from "../../../src/lib/store/kinds/lineage/index.js";
 import { runCurrentWuReconcileSessionProbe } from "../../../src/lib/session-init/current-wu-reconcile.js";
 import { buildLifecycleIndexFromMetas } from "../../../src/lib/work-unit/lifecycle-index.js";
 
@@ -50,7 +51,7 @@ describe("runCurrentWuReconcileSessionProbe", () => {
         reads += 1;
         return Promise.resolve(meta("`retired`"));
       },
-    }, { slug: "dependent", metaPath: META_PATH });
+    }, { slug: "dependent", metaPath: META_PATH, checkoutPath: "/repo" });
 
     expect(result).toMatchObject({
       status: "pending",
@@ -59,6 +60,11 @@ describe("runCurrentWuReconcileSessionProbe", () => {
       recommendedAction: "surface",
       recommendedCommand: ["arc", "wu", "reconcile", "dependent", "--apply", "--json"],
     });
+    expect(result).toMatchObject({ actions: [
+      { text: "arc wu reconcile dependent --json", argv: ["arc", "wu", "reconcile", "dependent", "--json"] },
+      { text: "arc wu reconcile dependent --apply --json",
+        argv: ["arc", "wu", "reconcile", "dependent", "--apply", "--json"], checkout: "/repo" },
+    ] });
     expect(result.recommendedPromptText).toContain("arc wu reconcile dependent --apply --json");
     expect(reads).toBe(1);
   });
@@ -68,7 +74,7 @@ describe("runCurrentWuReconcileSessionProbe", () => {
       index: buildLifecycleIndexFromMetas([{ path: META_PATH, content: meta("`retired`") }]),
       queryDisposition: () => Promise.resolve({ status: "ambiguous" }),
       readFile: () => Promise.resolve(meta("`retired`")),
-    }, { slug: "dependent", metaPath: META_PATH });
+    }, { slug: "dependent", metaPath: META_PATH, checkoutPath: "/repo" });
 
     expect(result).toMatchObject({
       status: "conflict",
@@ -76,7 +82,30 @@ describe("runCurrentWuReconcileSessionProbe", () => {
       recommendedAction: "surface",
       recommendedCommand: ["arc", "wu", "reconcile", "dependent", "--json"],
     });
+    expect(result).toMatchObject({ actions: [
+      { text: "arc wu reconcile dependent --json", argv: ["arc", "wu", "reconcile", "dependent", "--json"] },
+    ] });
     expect(result.recommendedPromptText).toMatch(/blocked.*ambiguous-evidence/iu);
+  });
+
+  it("offers only inspection for an advisory-only pending plan", async () => {
+    const content = meta("[none]");
+    const notesPath = ".arc/active/notes-dependent.md";
+    const result = await runCurrentWuReconcileSessionProbe({
+      index: buildLifecycleIndexFromMetas([{ path: META_PATH, content }]),
+      queryDisposition: async () => ({ status: "absent" }),
+      enumerateTransitionRecords: async () => ({ status: "valid", groups: [{
+        origin: "retired", records: [LineageRecordSchema.parse({
+          schemaVersion: 2, origin: { name: "retired" }, kind: "rename",
+          successors: [{ name: "successor" }], incoming: [],
+        })],
+      }] }),
+      listArtifactPaths: async () => [META_PATH, notesPath],
+      readFile: async (path) => path === META_PATH ? content : "The retired remains relevant context.\n",
+    }, { slug: "dependent", metaPath: META_PATH, checkoutPath: "/repo" });
+    expect(result).toMatchObject({ status: "pending", actions: [
+      { text: "arc wu reconcile dependent --json", argv: ["arc", "wu", "reconcile", "dependent", "--json"] },
+    ] });
   });
 
   it("keeps a clean reconcile silent", async () => {
@@ -84,7 +113,7 @@ describe("runCurrentWuReconcileSessionProbe", () => {
       index: buildLifecycleIndexFromMetas([{ path: META_PATH, content: meta("[none]") }]),
       queryDisposition: () => Promise.resolve({ status: "absent" }),
       readFile: () => Promise.resolve(meta("[none]")),
-    }, { slug: "dependent", metaPath: META_PATH });
+    }, { slug: "dependent", metaPath: META_PATH, checkoutPath: "/repo" });
 
     expect(result).toMatchObject({
       status: "clean",
@@ -92,5 +121,6 @@ describe("runCurrentWuReconcileSessionProbe", () => {
       recommendedCommand: null,
       recommendedPromptText: "",
     });
+    expect(result).not.toHaveProperty("actions");
   });
 });

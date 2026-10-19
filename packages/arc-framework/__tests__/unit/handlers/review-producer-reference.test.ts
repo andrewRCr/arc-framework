@@ -1,3 +1,4 @@
+import { firstReviewNextPassContext } from "../../fixtures/review-next-pass.js";
 import { describe, expect, it } from "vitest";
 
 import { createHostedHandleFixture, createHostedTerminalAttemptFixture } from
@@ -60,6 +61,7 @@ describe("hosted producer reference refusals", () => {
           resolveRoot: () => "/trusted-repository",
           readText: async () => JSON.stringify(submitted),
           resolve: (parsed) => resolveEvidenceBoundReviewPolicy(parsed, {
+      ...(parsed.lane === "standard" ? { nextPassContext: firstReviewNextPassContext } : {}),
             sources: [handle.provider], maxPasses: 2, resultReader: reader,
             confirmTarget: async () => handle.admission.reviewTarget,
             dispositionStore: {

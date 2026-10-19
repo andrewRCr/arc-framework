@@ -79,6 +79,8 @@ describe("status <slug>", () => {
       shipped: false,
       dependsOn: [{ slug: "shipped-dep", landed: true }],
       integrationBoundary: null,
+      derivedPosition: null,
+      scopeWindow: { window: "closed", basis: "lifecycle", reason: "integrating" },
       purpose: null,
       owner: "test-user",
     });

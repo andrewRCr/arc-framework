@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 
 import {
   findStaleWorktreeCandidates,
@@ -14,6 +14,8 @@ import type { UserSurfaceMigrationFs } from "../../../src/lib/user-surface-migra
 import type { DerivedCheckoutRow } from "../../../src/lib/locus/derived-roster.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
+const folderExists = vi.fn<() => Promise<boolean>>();
+beforeEach(() => { folderExists.mockReset().mockResolvedValue(true); });
 const shipped = new Set(["work-organization-reform"]);
 const emptyBlobReader: RunStaleWorktreeSweepOptions["readBlob"] = async () => null;
 
@@ -25,6 +27,7 @@ function runStaleWorktreeSweep(
 ) {
   return runStaleWorktreeSweepCore({
     ...options,
+    folderExists: options.folderExists ?? folderExists,
     readBlob: options.readBlob ?? emptyBlobReader,
     derivedRoster: options.derivedRoster ?? [],
   });
@@ -275,6 +278,7 @@ describe("runStaleWorktreeSweep", () => {
       scanWorktrees: async () => ({
         ok: true,
         worktrees: [{
+          folderPresent: true,
           path: retainedPath,
           head: "1111111111111111111111111111111111111111",
           branch: "feat/work-organization-reform",
@@ -466,8 +470,8 @@ describe("runStaleWorktreeSweep", () => {
       scanWorktrees: async () => ({
         ok: true,
         worktrees: [
-          { path: "/wt/husk", head: "stamped", branch: null, detached: true, primary: false },
-          { path: "/wt/moved", head: "moved", branch: null, detached: true, primary: false },
+          { folderPresent: true, path: "/wt/husk", head: "stamped", branch: null, detached: true, primary: false },
+          { folderPresent: true, path: "/wt/moved", head: "moved", branch: null, detached: true, primary: false },
         ],
       }),
     });
@@ -525,6 +529,7 @@ describe("runStaleWorktreeSweep", () => {
       scanWorktrees: async () => ({
         ok: true,
         worktrees: [{
+          folderPresent: true,
           path: "/wt/project.old-name",
           head,
           branch: "feat/new-name",
@@ -542,9 +547,13 @@ describe("runStaleWorktreeSweep", () => {
       from: "/wt/project.old-name",
       to: "/wt/project.new-name",
       remedy: {
-        argv: ["git", "worktree", "move", "/wt/project.old-name", "/wt/project.new-name"],
-        text: "Move the registered worktree from \"/wt/project.old-name\" to \"/wt/project.new-name\".",
+        argv: ["git", "worktree", "move", "-f", "-f", "/wt/project.old-name", "/wt/project.new-name"],
+        text: "Run git worktree move -f -f '/wt/project.old-name' '/wt/project.new-name' from outside the checkout.",
       },
+      actions: [{
+        argv: ["git", "worktree", "move", "-f", "-f", "/wt/project.old-name", "/wt/project.new-name"],
+        text: "Run git worktree move -f -f '/wt/project.old-name' '/wt/project.new-name' from outside the checkout.",
+      }],
     }]);
   });
 
@@ -557,7 +566,7 @@ describe("runStaleWorktreeSweep", () => {
       readMarker: async () => stampedMarker({ kind: "work-unit", name: "work-organization-reform" }),
       scanWorktrees: async () => ({
         ok: true,
-        worktrees: [{ path: "/wt/dirty", head: "stamped", branch: null, detached: true, primary: false }],
+        worktrees: [{ folderPresent: true, path: "/wt/dirty", head: "stamped", branch: null, detached: true, primary: false }],
       }),
     });
 
@@ -578,8 +587,8 @@ describe("runStaleWorktreeSweep", () => {
       scanWorktrees: async () => ({
         ok: true,
         worktrees: [
-          { path: "/wt/recordless", head: "stamped", branch: null, detached: true, primary: false },
-          { path: "/wt/errand", head: "stamped", branch: null, detached: true, primary: false },
+          { folderPresent: true, path: "/wt/recordless", head: "stamped", branch: null, detached: true, primary: false },
+          { folderPresent: true, path: "/wt/errand", head: "stamped", branch: null, detached: true, primary: false },
         ],
       }),
     });
@@ -629,7 +638,7 @@ describe("runStaleWorktreeSweep", () => {
       revalidateEvidence,
       scanWorktrees: async () => ({
         ok: true,
-        worktrees: [{ path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false }],
+        worktrees: [{ folderPresent: true, path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false }],
       }),
     });
 
@@ -671,7 +680,7 @@ describe("runStaleWorktreeSweep", () => {
       },
       scanWorktrees: async () => ({
         ok: true,
-        worktrees: [{ path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false }],
+        worktrees: [{ folderPresent: true, path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false }],
       }),
     });
 
@@ -702,7 +711,7 @@ describe("runStaleWorktreeSweep", () => {
       },
       scanWorktrees: async () => ({
         ok: true,
-        worktrees: [{ path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false }],
+        worktrees: [{ folderPresent: true, path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false }],
       }),
     });
 
@@ -734,7 +743,7 @@ describe("runStaleWorktreeSweep", () => {
       },
       scanWorktrees: async () => ({
         ok: true,
-        worktrees: [{ path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false }],
+        worktrees: [{ folderPresent: true, path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false }],
       }),
     });
 
@@ -755,7 +764,7 @@ describe("runStaleWorktreeSweep", () => {
       ),
       scanWorktrees: async () => ({
         ok: true as const,
-        worktrees: [{ path: "/wt/other", head: "stamped", branch: null, detached: true, primary: false }],
+        worktrees: [{ folderPresent: true, path: "/wt/other", head: "stamped", branch: null, detached: true, primary: false }],
       }),
     };
 
@@ -780,8 +789,8 @@ describe("runStaleWorktreeSweep", () => {
       scanWorktrees: async () => ({
         ok: true,
         worktrees: [
-          { path: "/wt/absent", head: "one", branch: null, detached: true, primary: false },
-          { path: "/wt/malformed", head: "two", branch: null, detached: true, primary: false },
+          { folderPresent: true, path: "/wt/absent", head: "one", branch: null, detached: true, primary: false },
+          { folderPresent: true, path: "/wt/malformed", head: "two", branch: null, detached: true, primary: false },
         ],
       }),
     });
@@ -802,8 +811,8 @@ describe("runStaleWorktreeSweep", () => {
       scanWorktrees: async () => ({
         ok: true,
         worktrees: [
-          { path: "/wt/unreadable", head: "stamped", branch: null, detached: true, primary: false },
-          { path: "/wt/readable", head: "stamped", branch: null, detached: true, primary: false },
+          { folderPresent: true, path: "/wt/unreadable", head: "stamped", branch: null, detached: true, primary: false },
+          { folderPresent: true, path: "/wt/readable", head: "stamped", branch: null, detached: true, primary: false },
         ],
       }),
     });
@@ -844,8 +853,8 @@ describe("runStaleWorktreeSweep", () => {
       scanWorktrees: async () => ({
         ok: true,
         worktrees: [
-          { path: "/wt/current", head: "stamped", branch: null, detached: true, primary: false },
-          { path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false },
+          { folderPresent: true, path: "/wt/current", head: "stamped", branch: null, detached: true, primary: false },
+          { folderPresent: true, path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false },
         ],
       }),
     });
@@ -872,7 +881,7 @@ describe("runStaleWorktreeSweep", () => {
   it("scans eligible linked worktree residues without an identity in solo mode", async () => {
     const scanWorktrees = vi.fn(async () => ({
       ok: true as const,
-      worktrees: [{ path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false }],
+      worktrees: [{ folderPresent: true, path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false }],
     }));
     const result = await runStaleWorktreeSweep({
       roster: { entries: [], warnings: [] },
@@ -899,6 +908,7 @@ function derivedWorkUnitRow(name: string, path: string): DerivedCheckoutRow {
   return {
     kind: "work-unit",
     checkout: {
+      folderPresent: true,
       path,
       head: "a".repeat(40),
       branch: `feat/${name}`,
@@ -915,3 +925,53 @@ function derivedWorkUnitRow(name: string, path: string): DerivedCheckoutRow {
     subject: { kind: "work-unit", key: name },
   };
 }
+
+
+describe("husk session actions", () => {
+  const baseOid = "b".repeat(40);
+  it.each([
+    ["work-unit", "primary", ["arc", "teardown", "retired"]],
+    ["work-unit", "linked", ["arc", "teardown", "retired", "--husk", "/wt/husk"]],
+    ["branch", "primary", ["arc", "teardown", "--branch", "review/leftover"]],
+    ["branch", "linked", null],
+    ["errand", "primary", null],
+    ["errand", "linked", null],
+  ] as const)("offers %s cleanup from %s", async (kind, locus, argv) => {
+    const subject = kind === "work-unit" ? { kind, name: "retired" }
+      : kind === "branch" ? { kind, ref: "review/leftover" } : { kind, slug: "tidy" };
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] },
+      worktreeIdentity: locus === "primary" ? { kind: "primary" } : { kind: "linked", path: "/wt/current" },
+      baseBranch: "main", exec: buildExec({ clean: true, merged: true }),
+      readMarker: async () => stampedMarker(subject),
+      scanWorktrees: async () => ({ ok: true, worktrees: [
+        { folderPresent: true, path: "/wt/husk", head: "stamped", branch: null, detached: true, primary: false },
+      ] }),
+      baseEvidence: { remoteSyncEnabled: true,
+        snapshot: { kind: "available", scope: "all-heads", tips: { main: baseOid } },
+        objectAvailability: { kind: "complete", commits: { [baseOid]: true } }, history: { kind: "complete" } },
+    });
+    const report = result.worktrees[0];
+    if (report?.kind !== "husk") throw new Error("expected a husk report");
+    expect(report.actions).toHaveLength(1);
+    expect(report?.actions?.[0]?.text).toContain(argv === null ? "/wt/husk" : "arc teardown");
+    if (argv === null) expect(report?.actions?.[0]).not.toHaveProperty("argv");
+    else expect(report?.actions?.[0]?.argv).toEqual(argv);
+  });
+  it("leaves an untrusted stamp for a manual decision", async () => {
+    const marker = stampedMarker({ kind: "work-unit", name: "retired" });
+    if (marker.kind !== "present" || marker.marker.husk === undefined) throw new Error("missing stamp");
+    marker.marker.husk.authorization = "discard-confirmed";
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] }, worktreeIdentity: { kind: "primary" },
+      baseBranch: "main", exec: buildExec({ clean: true, merged: true }), readMarker: async () => marker,
+      scanWorktrees: async () => ({ ok: true, worktrees: [
+        { folderPresent: true, path: "/wt/husk", head: "stamped", branch: null, detached: true, primary: false },
+      ] }),
+    });
+    expect(result.worktrees[0]).toMatchObject({ stamp: { kind: "manual-only" }, actions: [{ text: expect.stringContaining("/wt/husk") }] });
+    const report = result.worktrees[0];
+    if (report?.kind !== "husk") throw new Error("expected a husk report");
+    expect(report.actions?.[0]).not.toHaveProperty("argv");
+  });
+});

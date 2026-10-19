@@ -1,4 +1,8 @@
+import { firstReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
+import type { IncrementalReviewScope } from "../../../../../src/scripts/review-gate/core/incremental-review-scope.js";
+import type { StandardReviewObligationProjection } from "../../../../../src/scripts/review-gate/policy/standard-review-projection-schema.js";
 import { describe, expect, it, vi } from "vitest";
+import { cleanHostedResult, findingsHostedResult, approvedRecord, performedFix } from "../../../../fixtures/review-response-proof.js";
 
 import { responsePolicyRequestFixture } from "../../../../fixtures/review-response-policy.js";
 
@@ -50,158 +54,10 @@ const standardReview = {
   count: 1 as const,
 };
 
-function cleanHostedResult(): ReviewResult {
-  const target = createReviewTarget({
-    schemaVersion: 2,
-    semanticsVersion: "review-gate/v2",
-    kind: "change-set",
-    repositoryId: "repo-1",
-    baseRef: "main",
-    diffBaseSha: objectId("a"),
-    diffBaseTree: objectId("b"),
-    headSha: policyTarget.headSha,
-    headTree: objectId("d"),
-  });
-  const requirement = createReviewRequirement({
-    target,
-    projection: standardReview,
-    acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
-    initialAdmission: "automatic",
-  });
-  if (requirement === null) throw new Error("expected requirement");
-  return {
-    kind: "hosted",
-    producerId: "hosted/attempt-1",
-    repositoryId: target.repositoryId,
-    target,
-    sourceIdentity: "codex-pr",
-    originalOutcome: "clean",
-    findings: [],
-    resultDigest: digest("result"),
-    admission: {
-      lineage: {
-        kind: "head-bound",
-        vehicleKind: "errand",
-        vehicleIdentity: "example",
-        headSha: target.headSha,
-      },
-      logicalPass: 1,
-      retryGeneration: 0,
-      requestedCoverage: "complete",
-      effectiveCoverage: "complete",
-      scopeMode: "whole-target",
-      policyVersion: requirement.policyVersion,
-    },
-    laneOperationId: "lane-progress-standard",
-    actorIdentity: "reviewer-1",
-    hostedTarget: policyTarget,
-    requirement,
-    hostSettlementFindingIds: [],
-    noHostSettlementFindingIds: [],
-    settled: false,
-  };
-}
-
-function approvedRecord(
-  result: ReviewResult,
-  judgments: readonly ({
-    sourceVerification: "verified";
-    verifiedSeverity: "critical" | "major" | "minor";
-    disposition: "fix" | "defer" | "reject";
-  } | {
-    sourceVerification: "not-supported";
-    verifiedSeverity: null;
-    disposition: "reject";
-  })[],
-) {
-  if (result.kind !== "hosted") throw new Error("expected hosted result");
-  const set = createDispositionSet({
-    schemaVersion: 2,
-    semanticsVersion: "review-gate/v2",
-    targetId: result.target.targetId,
-    producerId: result.producerId,
-    resultDigest: result.resultDigest,
-    policyVersion: result.admission.policyVersion,
-    rubricVersion: result.requirement.rubricVersion,
-    rubricDigest: result.requirement.rubricDigest,
-    proposedBy: "arc-cli/0.1.0",
-    proposedVerification: "full",
-    findings: judgments.map((judgment, index) => {
-      const finding = result.findings[index];
-      if (finding === undefined) throw new Error("missing producer finding");
-      const common = {
-        findingId: finding.findingId,
-        sourceIdentity: result.sourceIdentity,
-        locus: finding.locus,
-        verificationRefs: [`source:${finding.locus}`],
-        reportedSeverity: finding.severity,
-        rationale: "The source check established this disposition.",
-        recommendation: "Record the approved response.",
-        openQuestions: [],
-      };
-      return judgment.sourceVerification === "verified"
-        ? { ...common, ...judgment }
-        : { ...common, ...judgment };
-    }),
-  });
-  const approvedDisposition = approveDispositionState({
-    proposed: proposeDispositionSet(set),
-    approvedBy: "andrew",
-    approvedAt: "2026-09-09T20:00:00Z",
-  });
-  return ApprovedDispositionRecordSchema.parse({
-    schemaVersion: 1,
-    semanticsVersion: "review-advisory/v1",
-    repositoryId: result.repositoryId,
-    operationId: result.producerId,
-    candidate: null,
-    errand: null,
-    deliveryMember: null,
-    source: {
-      kind: "hosted",
-      attemptRef: bindReviewSourceReference({
-        kind: "hosted",
-        operationId: result.laneOperationId,
-        durableRef: result.producerId,
-      }),
-      hostedResultId: result.resultDigest,
-    },
-    currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
-    approvedDispositionLineage: [{
-      approvedDisposition,
-      responsePolicyRequest: responsePolicyRequestFixture({
-        headSha: result.target.headSha,
-        sourceId: result.sourceIdentity,
-        reviewOperationId: result.producerId,
-      }),
-      fixAuthorization: null,
-      errandFixResponse: null,
-      deliveryMemberFixResponse: null,
-      predecessorDispositionSetId: null,
-      successorDispositionSetId: null,
-    }],
-  });
-}
-
-function findingsHostedResult(
-  severities: readonly ("critical" | "major" | "minor")[],
-): ReviewResult {
-  const clean = cleanHostedResult();
-  return {
-    ...clean,
-    originalOutcome: "findings",
-    findings: severities.map((severity, index) => ({
-      findingId: `finding-${index + 1}`,
-      severity,
-      locus: `src/example.ts:${index + 1}`,
-      evidenceUrlOrId: `hosted:finding-${index + 1}`,
-      sourceOrdinal: index + 1,
-    })),
-    resultDigest: digest(`result-${severities.join("-")}`),
-  };
-}
-
-function chunkedLocalAggregateResult(): ReviewResult {
+function chunkedLocalAggregateResult(options: { projection?: StandardReviewObligationProjection;
+  logicalPass?: number; correctionScope?: IncrementalReviewScope; clean?: boolean } = {}): Extract<ReviewResult, { kind: "attested-local" }> {
+  const logicalPass = options.logicalPass ?? 1;
+  const coverage = options.correctionScope === undefined ? "complete" : "incremental";
   const target = createReviewTarget({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
@@ -215,7 +71,7 @@ function chunkedLocalAggregateResult(): ReviewResult {
   });
   const requirement = createReviewRequirement({
     target,
-    projection: standardReview,
+    projection: options.projection ?? standardReview,
     acceptableSources: [{ sourceKind: "agent", qualifier: "standard-review/v1" }],
     initialAdmission: "automatic",
   });
@@ -230,7 +86,7 @@ function chunkedLocalAggregateResult(): ReviewResult {
     authorIdentity: "andrew",
     evaluatorIdentity: "codex",
     lineageId: digest("lineage"),
-    logicalPass: 1,
+    logicalPass,
     generation: 0,
     requestMechanism: "subagent",
   });
@@ -250,11 +106,12 @@ function chunkedLocalAggregateResult(): ReviewResult {
       workUnitId: "example",
       head: policyTarget.headSha,
     },
-    pass: 1,
-    requestedCoverage: "complete",
+    pass: logicalPass,
+    requestedCoverage: coverage,
     scopeSelection: { mode: "chunked", target: policyTarget },
+    ...(options.correctionScope === undefined ? {} : { correctionScope: options.correctionScope }),
   });
-  const findings = ["major", "minor"].map((severity, index) => ({
+  const findings = options.clean === true ? [] : ["major", "minor"].map((severity, index) => ({
     findingId: `aggregate-finding-${index + 1}`,
     severity: severity as "major" | "minor",
     locus: `src/chunk-${index + 1}.ts:1`,
@@ -264,13 +121,13 @@ function chunkedLocalAggregateResult(): ReviewResult {
   return {
     kind: "attested-local",
     vehicle: { kind: "delivery-member", identity: deliveryAdmission.vehicle.deliverableId },
-    producerId: "local/aggregate-1",
+    producerId: `local/aggregate-${logicalPass}`,
     repositoryId: target.repositoryId,
     target,
     sourceIdentity: "delegated-agent",
-    originalOutcome: "findings",
+    originalOutcome: options.clean === true ? "clean" : "findings",
     findings,
-    resultDigest: digest("local-aggregate-result"),
+    resultDigest: digest(`local-aggregate-result-${logicalPass}`),
     admission: {
       lineage: {
         kind: "delivery-member",
@@ -278,15 +135,16 @@ function chunkedLocalAggregateResult(): ReviewResult {
         deliverableId: deliveryAdmission.vehicle.deliverableId,
         workUnitId: deliveryAdmission.vehicle.workUnitId,
       },
-      logicalPass: 1,
+      logicalPass,
       retryGeneration: 0,
-      requestedCoverage: "complete",
-      effectiveCoverage: "complete",
+      requestedCoverage: coverage,
+      effectiveCoverage: coverage,
       scopeMode: "chunked",
       policyVersion: requirement.policyVersion,
+      ...(options.correctionScope === undefined ? {} : { correctionScope: options.correctionScope }),
     },
-    receiptRef: "receipts/local-aggregate-1.json",
-    localSourceRef: "sources/local-aggregate-1.json",
+    receiptRef: `receipts/local-aggregate-${logicalPass}.json`,
+    localSourceRef: `sources/local-aggregate-${logicalPass}.json`,
     requirement,
     request,
     deliveryAdmission,
@@ -361,6 +219,16 @@ function approvedLocalRecord(
   });
 }
 
+function incrementalPolicy(result: ReviewResult): ReviewResult {
+  if (result.kind === "frontline") throw new Error("expected standard producer");
+  const { obligation, reasons, rubricVersion, rubricDigest, count } = result.requirement;
+  const requirement = createReviewRequirement({ target: result.target,
+    projection: { obligation, reasons, rubricVersion, rubricDigest, count, retrigger: "incremental" },
+    acceptableSources: result.requirement.acceptableSources, initialAdmission: result.requirement.initialAdmission });
+  if (requirement === null) throw new Error("expected requirement");
+  return { ...result, requirement, admission: { ...result.admission, policyVersion: requirement.policyVersion } };
+}
+
 function dependencies(
   result: ReviewResult,
   disposition = null as ReturnType<typeof approvedRecord> | null,
@@ -377,21 +245,12 @@ function dependencies(
   };
   return {
     resultReader,
+    ...(result.kind === "frontline" ? {} : { nextPassContext: { ...firstReviewNextPassContext, completePasses: result.admission.effectiveCoverage === "complete" ? 1 : 0 } }),
     dispositionStore,
     confirmTarget: vi.fn(async () => currentTarget),
   };
 }
 
-function performedFix(result: ReviewResult, record: ReturnType<typeof approvedRecord>) {
-  return {
-    schemaVersion: 1 as const,
-    producerId: result.producerId,
-    dispositionSetId: record.currentDispositionSetId,
-    originatingHeadSha: result.target.headSha,
-    producedHeadSha: result.target.headSha,
-    performedAt: "2026-09-09T21:00:00Z",
-  };
-}
 
 describe("evidence-bound review policy", () => {
   function cleanRequest(result: ReviewResult) {
@@ -430,6 +289,7 @@ describe("evidence-bound review policy", () => {
 
     await expect(readIncrementalPredecessorResponseEvidence(result, store)).resolves.toEqual({
       status: "performed",
+      hasFix: false,
       requiredFindings: [{
         producerId: result.producerId,
         findingId: "finding-1",
@@ -686,7 +546,7 @@ describe("evidence-bound review policy", () => {
       schemaVersion: 1 as const, target: { ...policyTarget, pullRequest: null }, lane: "frontline" as const,
       standardReview, completedPasses: 0, attempts: [], frontlineActive: true,
     };
-    const evidence = { ...dependencies(result), sources: ["coderabbit-cli"], maxPasses: 2 };
+    const evidence = { ...dependencies(result), nextPassContext: undefined, sources: ["coderabbit-cli"], maxPasses: 2 };
     await expect(resolveEvidenceBoundReviewPolicy(opening, evidence))
       .resolves.toMatchObject({ state: "ready", nextAction: "run-frontline" });
     await expect(resolveEvidenceBoundReviewPolicy(opening, { ...evidence, frontlinePhaseClosed: true }))
@@ -893,6 +753,46 @@ describe("evidence-bound review policy", () => {
       sources: ["codex-pr", "coderabbit-pr"],
       maxPasses: 2,
     })).rejects.toThrow(message);
+  });
+
+  it.each(["fresh", "additional"] as const)("uses the caller's scope on a %s successor of a chunked fix check", async mode => {
+    const projection: StandardReviewObligationProjection = { ...standardReview,
+      retrigger: mode === "additional" ? "incremental" : "full-final" };
+    const root = chunkedLocalAggregateResult({ projection, clean: true });
+    const result = chunkedLocalAggregateResult({ projection, logicalPass: 2, clean: true,
+      correctionScope: { schemaVersion: 1, predecessorProducerId: root.producerId,
+        predecessorHeadSha: root.target.headSha, basisHeadSha: root.target.headSha,
+        headSha: root.target.headSha, requiredFindings: [] } });
+    const request = { ...cleanRequest(result), completedPasses: 2, standardReview: projection,
+      attempts: [{ sourceId: "delegated-agent", outcome: "clean", reviewOperationId: result.producerId, chunkSeriesComplete: true }],
+      scopeSelection: { mode: "whole-target", target: policyTarget },
+      ...(mode === "additional" ? { additionalPassAuthorization: { target: policyTarget, lane: "standard",
+        precedingProducerId: result.producerId, completedPasses: 2, nextPass: 3 } } : {}) };
+    await expect(resolveEvidenceBoundReviewPolicyContinuation(request, { terminalResponsePerformed: false }, {
+      ...dependencies(result), sources: ["delegated-agent"], maxPasses: 4,
+      nextPassContext: { completePasses: 1, convergence: "converged", responseDue: false, incremental: null },
+      resultReader: { readResult: async producerId => producerId === root.producerId ? root : result },
+    })).resolves.toMatchObject({ state: "ready", nextAction: "local-prepare", payload: { pass: 3, scope: "whole-target" } });
+  });
+
+  it.each(["fresh", "additional"] as const)("binds a removed local terminal and selects the configured hosted %s successor", async mode => {
+    const projection: StandardReviewObligationProjection = { ...standardReview,
+      retrigger: mode === "additional" ? "incremental" : "full-final" };
+    const root = chunkedLocalAggregateResult({ projection, clean: true });
+    const result = chunkedLocalAggregateResult({ projection, logicalPass: 2, clean: true,
+      correctionScope: { schemaVersion: 1, predecessorProducerId: root.producerId,
+        predecessorHeadSha: root.target.headSha, basisHeadSha: root.target.headSha,
+        headSha: root.target.headSha, requiredFindings: [] } });
+    const request = { ...cleanRequest(result), completedPasses: 2, standardReview: projection,
+      attempts: [{ sourceId: "delegated-agent", outcome: "clean", reviewOperationId: result.producerId, chunkSeriesComplete: true }],
+      scopeSelection: { mode: "whole-target", target: policyTarget },
+      ...(mode === "additional" ? { additionalPassAuthorization: { target: policyTarget, lane: "standard",
+        precedingProducerId: result.producerId, completedPasses: 2, nextPass: 3 } } : {}) };
+    await expect(resolveEvidenceBoundReviewPolicyContinuation(request, { terminalResponsePerformed: false }, {
+      ...dependencies(result), sources: ["delegated-agent", "codex-pr"], selectionSources: ["codex-pr"], maxPasses: 4,
+      nextPassContext: { completePasses: 1, convergence: "converged", responseDue: false, incremental: null },
+      resultReader: { readResult: async producerId => producerId === root.producerId ? root : result },
+    })).resolves.toMatchObject({ state: "ready", nextAction: "hosted-request", payload: { sourceId: "codex-pr", pass: 3 } });
   });
 
   it("exposes a validated terminal producer's exact scope mismatch", async () => {
@@ -1124,7 +1024,8 @@ describe("evidence-bound review policy", () => {
       standardReview: { ...standardReview, retrigger: "incremental" },
     }, {
       ...dependencies(result, record),
-      sources: ["codex-pr"],
+      nextPassContext: { completePasses: 0, convergence: "unconverged" as const, responseDue: true, incremental: null },
+      sources: ["codex-pr", "delegated-agent"],
       maxPasses: 2,
     })).resolves.toMatchObject({
       state: "coverage-required",
@@ -1146,7 +1047,8 @@ describe("evidence-bound review policy", () => {
     };
     const evidence = {
       ...dependencies(result, record),
-      sources: ["codex-pr"],
+      nextPassContext: { completePasses: 0, convergence: "unconverged" as const, responseDue: true, incremental: null },
+      sources: ["codex-pr", "delegated-agent"],
       maxPasses: 2,
       readResponsePerformance: async () => performedFix(result, record),
     };
@@ -1163,8 +1065,8 @@ describe("evidence-bound review policy", () => {
       coverageSelected: true,
     }, evidence)).resolves.toMatchObject({
       state: "ready",
-      nextAction: "hosted-request",
-      payload: { pass: 2, sourceId: "codex-pr" },
+      nextAction: "local-prepare",
+      payload: { pass: 2, sourceId: "delegated-agent" },
     });
   });
 
@@ -1215,7 +1117,7 @@ describe("evidence-bound review policy", () => {
     });
   });
 
-  it("applies an exhausted-ceiling override after inadequate clean coverage is selected", async () => {
+  it("admits a complete successor below the ceiling after inadequate clean coverage is selected", async () => {
     const original = cleanHostedResult();
     if (original.kind !== "hosted") throw new Error("expected hosted result");
     const requirement = createReviewRequirement({
@@ -1238,12 +1140,7 @@ describe("evidence-bound review policy", () => {
     const request = {
       ...cleanRequest(result),
       standardReview: { ...standardReview, retrigger: "incremental" as const },
-      ceilingOverride: {
-        target: policyTarget,
-        lane: "standard" as const,
-        exhaustedPassCount: 1,
-        nextPass: 2,
-      },
+
     };
     const evidence = {
       ...dependencies(result),
@@ -1263,13 +1160,14 @@ describe("evidence-bound review policy", () => {
       coverageSelected: true,
     }, evidence)).resolves.toMatchObject({
       state: "ready",
-      payload: { pass: 2, sourceId: "codex-pr", ceilingOverrideApplied: true },
+      payload: { pass: 2, sourceId: "codex-pr", ceilingOverrideApplied: false },
     });
   });
 
   it("derives adequate incremental coverage from an explicit applicable complete predecessor", async () => {
-    const predecessor = cleanHostedResult();
-    const current = cleanHostedResult();
+    const incrementalReview = { ...standardReview, retrigger: "incremental" as const };
+    const predecessor = incrementalPolicy(cleanHostedResult());
+    const current = incrementalPolicy(cleanHostedResult());
     if (current.kind !== "hosted") throw new Error("expected hosted result");
     const incrementalTarget = createReviewTarget({
       schemaVersion: current.target.schemaVersion,
@@ -1284,7 +1182,7 @@ describe("evidence-bound review policy", () => {
     });
     const incrementalRequirement = createReviewRequirement({
       target: incrementalTarget,
-      projection: standardReview,
+      projection: incrementalReview,
       acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
       initialAdmission: "automatic",
     });
@@ -1317,6 +1215,7 @@ describe("evidence-bound review policy", () => {
 
     await expect(resolveEvidenceBoundReviewPolicy({
       ...cleanRequest(incremental),
+      standardReview: incrementalReview,
       target: { ...policyTarget, headSha: incremental.target.headSha },
       completedPasses: 2,
     }, {
@@ -1332,7 +1231,8 @@ describe("evidence-bound review policy", () => {
   });
 
   it("recognizes an exact same-head predecessor without external applicability evidence", async () => {
-    const predecessor = cleanHostedResult();
+    const incrementalReview = { ...standardReview, retrigger: "incremental" as const };
+    const predecessor = incrementalPolicy(cleanHostedResult());
     const incremental: ReviewResult = {
       ...predecessor,
       producerId: "hosted/attempt-same-head",
@@ -1358,6 +1258,7 @@ describe("evidence-bound review policy", () => {
 
     await expect(resolveEvidenceBoundReviewPolicy({
       ...cleanRequest(incremental),
+      standardReview: incrementalReview,
       completedPasses: 2,
     }, {
       ...evidence,
@@ -1435,3 +1336,4 @@ describe("evidence-bound review policy", () => {
     })).rejects.toThrow(/no source may be attempted after a non-fall-through outcome/u);
   });
 });
+

@@ -643,6 +643,13 @@ function requirePendingAuthorization(
   }
 }
 
+function requireCompletePendingCoverage(lane: LaneProgressState["lane"], attempt: LaneAttempt): void {
+  if (lane === "standard" && (attempt.local?.requestedCoverage ?? attempt.hosted?.requestedCoverage) !== "complete") {
+    throw new Error("conditional next-pass authorization admits only a complete pass; "
+      + "choose complete coverage or use conditionalNextPassWithdrawal before the fix check");
+  }
+}
+
 /** Fold consumption into the pending attempt's one versioned lane-owner publication. */
 export async function bindConditionalPendingAdmission(
   store: ReviewOperationStateStore,
@@ -686,11 +693,13 @@ export async function bindConditionalPendingAdmission(
   }
   const attemptIndex = next.attempts.findIndex((candidate) =>
     candidate.attemptId === match.attempt.attemptId);
-  if (attemptIndex < 0 || !next.attempts.some((candidate) =>
-    candidate.attemptId === input.admissionId && candidate.outcome === "pending"
-      && candidate.logicalPass === input.nextPass && candidate.headSha === input.producedHeadSha)) {
+  const pending = next.attempts.find((candidate) => candidate.attemptId === input.admissionId
+    && candidate.outcome === "pending" && candidate.logicalPass === input.nextPass
+    && candidate.headSha === input.producedHeadSha);
+  if (attemptIndex < 0 || pending === undefined) {
     throw new Error("conditional pass authorization pending admission is unavailable");
   }
+  requireCompletePendingCoverage(input.lane, pending);
   if (authorization.status === "consumed") {
     assertConsumedRetry(snapshot, match, input, next);
     return next;

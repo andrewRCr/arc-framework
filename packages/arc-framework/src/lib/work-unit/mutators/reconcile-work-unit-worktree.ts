@@ -46,6 +46,7 @@ import { basename, dirname, join } from "node:path";
 
 import type { Store } from "../../store/contract.js";
 import { usesOffBranchState } from "../../store/lifecycle-write.js";
+import { resolveWorktreeMarkerPath } from "../../git/worktree-marker.js";
 import { createDefaultLocusPorts, requireMarkerExclusivity, type LocusPorts } from "../locus-ports.js";
 import type { GitExec } from "../../git/exec.js";
 import {
@@ -391,6 +392,19 @@ export async function reconcileWorkUnitWorktree(
   ctx: ReconcileWorkUnitWorktreeContext,
   op: ReconcileWorkUnitWorktreeOp,
 ): Promise<ReconcileWorkUnitWorktreeResult> {
+  if (op.mutation === "spawn" && usesOffBranchState(ctx.store)) {
+    const { stdout } = await ctx.exec("git", ["rev-parse", "--show-toplevel"]);
+    const serialize = ctx.serializeWorktreeOperation
+      ?? (<T>(cwd: string, operation: () => Promise<T>) => withWorktreeOperationLock({ exec: ctx.exec, cwd, operation }));
+    return serialize(stdout.trim(), () => reconcileWorkUnitWorktreeUnlocked(ctx, op));
+  }
+  return reconcileWorkUnitWorktreeUnlocked(ctx, op);
+}
+
+async function reconcileWorkUnitWorktreeUnlocked(
+  ctx: ReconcileWorkUnitWorktreeContext,
+  op: ReconcileWorkUnitWorktreeOp,
+): Promise<ReconcileWorkUnitWorktreeResult> {
   const offBranch = usesOffBranchState(ctx.store);
   if (op.mutation === "move") {
     const selfMove = await isSelfTeardown(op.from, op.currentLocus);
@@ -446,7 +460,8 @@ export async function reconcileWorkUnitWorktree(
         spawnedByArc: false, wuName: op.wuName, createdFor: { kind: "work-unit", name: op.wuName },
         spawningIdentity: op.spawningIdentity ?? "", createdAt: new Date(op.now ?? Date.now()).toISOString(),
       });
-      if (marker.kind === "exists" || marker.kind === "generation-mismatch") throw new Error(`anchored marker write refused: ${marker.kind}`);
+      if (marker.kind === "exists" || marker.kind === "generation-mismatch") throw new Error(
+        `Checkout ${worktreePath} already has a marker at ${resolveWorktreeMarkerPath(worktreePath)} (${marker.kind}). Inspect its marker, then rerun the command.`);
       if (marker.kind === "created" || marker.kind === "replaced") markerGeneration = marker.bytes;
     }
     return {

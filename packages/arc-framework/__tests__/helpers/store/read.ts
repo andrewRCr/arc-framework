@@ -1,5 +1,6 @@
 /** Reference reads, completeness-preserving listings, and saved-state history queries. */
 
+import { SlugSchema } from "../../../src/lib/kernel/index.js";
 import {
   FAMILY_REGISTRY, familyOf, sameOwner, type ChangesInput, type HistoryEntry, type ListInput,
   type ListingDiagnostic, type ListingOutcome, type ReadInput, type RecordReference,
@@ -39,6 +40,7 @@ export function publicRecord(context: ReferenceContext, record: MemoryRecord, re
     reference: structuredClone(record.reference), content: record.content, version: record.version,
     formatVersion: record.formatVersion, conflicts: structuredClone(conflicts),
     ...(parsed?.success ? { fields: parsed.data } : {}),
+    ...(record.reference.kind === "work-item/meta" || record.reference.kind === "work-item/record" ? { aliases: record.formerSlugs.map(name => SlugSchema.parse(name)) } : {}),
     ...(placement === undefined ? {} : { placement: structuredClone(placement) }), ...(record.links === undefined ? {} : { links: structuredClone(record.links) }),
   };
 }

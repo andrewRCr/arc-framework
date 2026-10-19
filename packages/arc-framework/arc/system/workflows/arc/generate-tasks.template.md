@@ -11,7 +11,9 @@ arc:
     - test-first
     - task-audit
     - spec-review
-    - adversarial-review
+    - planning-review
+    - source-grounding
+    - verification-review
 ---
 
 # Workflow: Generate Task List
@@ -274,7 +276,8 @@ Use the provisional coverage to emit the delivery-aware task shape:
   authority.
 - End each member's task range with a member-scope verification parent assigned to that member and carrying the exact
   `— validate criteria at member scope` suffix. Its Goal is the member-scope criteria walk through
-  `validate-criteria`; it stays distinct from the sole terminal work-unit verification task and adds no phase.
+  [verification-review][verification-review]; it stays distinct from the sole terminal work-unit verification task and
+  adds no phase.
 - Group Success Criteria beneath the member headings, followed by `### Cross-member seams`. Assign each criterion
   to the earliest boundary that can see its evidence; criteria with no visible member boundary go to the seam group.
 
@@ -396,8 +399,11 @@ Don't apply edits in this step. Masked design decisions are confirmed here, not 
 
 **Re-entry valve (the loop's floor-raising back-edge):** when a finding is a floor-raising signal rather than a
 local fix, fire it per [`resolve-planning-depth`][arc-methods-rpd] § Mid-stage re-entry — a **scale** surprise
-(the grounding surface is wider than the level assumed) re-resolves `generate-tasks` higher; a **derivation**
-surprise (a masked design decision needing fresh design) routes to the spec. A merely-wrong mechanism is the
+(the grounding surface is wider than the level assumed) re-resolves `generate-tasks` higher below `high`. At
+`high`, offer a return to grounding the named surface, the `Novel` ratchet when invention is required, or boundary
+assessment for separable concerns. An accepted return ends the loop as `re-entered`; re-run the stage's grounding
+and readiness before offering a fresh loop with a fresh cap and the ended loop's findings as context. A **derivation**
+surprise (a masked design decision needing fresh design) still routes to the spec. A merely-wrong mechanism is the
 in-place case below (Revise the phase coherently → spec-propagation), not a re-entry.
 
 ### Revise the phase coherently
@@ -531,38 +537,16 @@ work unit's existing artifacts (lifecycle position first; `pm.mode` only when no
 
 Name matches the spec (e.g., `spec-api-modernization.md` → `tasks-api-modernization.md`).
 
-The finalization boundary also carries an advisory adversarial fire-point — the audit rubric run from fresh
-context over the finished suite (the per-phase audits above checked each phase as authored; this pass attacks
-the whole):
-
-> [!IMPORTANT]
-> `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Heavy` / `Novel`; surface a
-> neutral offer at `Light`. Offer the pass and await the call — user decides; decline proceeds normally.
+Run [planning-review's author checks][planning-author-checks] and [independent offer][planning-offer] at this
+stage gate, then its [findings and pass record][planning-findings].
 
 ```yaml
-adversarial-review:
-  rubric:          # task-audit (grounding + executability), full depth
-  artifacts:       # spec-{name}.md + tasks-{name}.md + non-exhaustive key-file pointers
-  orientation:
-    - AGENT-BRIEF.ARC
-    - AGENT-BRIEF.PROJECT
-  pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3
-  fold-verification: on
-  prior-findings:  # pass two onward; omitted on pass one
+planning-review:
+  artifact: task-list
+  artifacts:       # spec-{name}.md + tasks-{name}.md + neutral key-file pointers
+  class:           # resolved Class
+  prior-findings:  # recorded history; fresh-loop first pass takes ended-loop findings, not folds, as context
 ```
-
-For a large target with a stable, contract-closed authored partition (segments, delivery members, or numbered spec
-sections), consider [adversarial-review § Authored-partition carrier mode][authored-partition]. Use one whole-target
-reviewer when no such partition exists or seams are dense.
-
-Beside every disposition set carrying a fix, offer the [fix check][fold-verification] to run after author grounding
-of the folds, before any successor pass or the final post-settle re-read.
-
-After each returned pass, apply the method's complete-disposition and bounded-continuation protocol, then append the
-pass to `ADVERSARIAL-PASSES.md` in the work unit's personal workspace (`.arc/user/{identity}/{name}/`, beside
-SESSION-NOTES): follow [adversarial-review § Pass record][pass-record] for the entry contents. Later passes take their
-`prior-findings` from it, and the commit below summarizes each pass in one body line. A stub groomed before it starts
-has no workspace yet, so that summary is its only record. This advisory evidence creates no lane-progress record.
 
 ### Canonicalize active delivery authoring
 
@@ -589,8 +573,8 @@ Later candidate eligibility still owns materialization.
 If the task or design inventory drifted, run `arc delivery plan abandon --json` and recreate from current inputs.
 Never patch the machine-owned snapshot or publish stale authoring state.
 
-**Post-settle coherence re-read** (always-on, in-context): after renderer replacement and any adversarial folds,
-re-fire the Final suite-coherence pass over the settled task list.
+Run [planning-review's post-settle reread][planning-reread] over the settled task list, then run `arc check increment`
+and report its result at the pre-save approval.
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop after the pre-save checklist passes. Surface the task list location for review;
@@ -601,6 +585,9 @@ re-fire the Final suite-coherence pass over the settled task list.
 to write the resolved `**Class:**`, derived `**Task List:**`, and terminal `**Next Action:**` through the field
 model in one call. generate-tasks is the planning terminus, so no stage advance or boundary sentinel; `activate`
 sets `Current Workflow` to `process-task-loop`. Bundle this write with the task list in the ceremony commit.
+
+Run [planning-review's post-settle reread][planning-reread] as the final review before this commit. If authored text
+changed after the first request, including this reread, run `arc check increment` again before the commit.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -650,6 +637,9 @@ Activation can be deferred if planning ahead. Activate when implementation is ab
 [init-work-unit]: work-unit-lifecycle/planning/init-work-unit.md
 [activate-work-unit]: work-unit-lifecycle/activate-work-unit.md
 [source-grounding]: ../../methods/source-grounding.md
-[pass-record]: ../../methods/adversarial-review.md#pass-record
-[authored-partition]: ../../methods/adversarial-review.md#authored-partition-carrier-mode
-[fold-verification]: ../../methods/adversarial-review.md#fold-verification
+[verification-review]: ../../methods/verification-review.md#author-criteria-walk
+
+[planning-author-checks]: ../../methods/planning-review.md#author-checks
+[planning-offer]: ../../methods/planning-review.md#independent-offer
+[planning-findings]: ../../methods/planning-review.md#findings-and-pass-record
+[planning-reread]: ../../methods/planning-review.md#post-settle-reread

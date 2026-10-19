@@ -184,7 +184,7 @@ const dispositionEvidenceText = "Evidence\n- F1 · src/index.ts:7 · verified at
 const provisionalPassAssessment = {
   status: "provisional",
   lane: "standard",
-  admittedLogicalPass: 2,
+  admittedLogicalPass: 2, ceilingPassCount: 2,
   configuredMaxPasses: 2,
   proposedSignal: { confirmedFindingCount: 1, maxConfirmedSeverity: "major", materialFix: true },
   capPosition: "at-ceiling",
@@ -484,7 +484,7 @@ describe("review command envelopes", () => {
       fixConsequence: { kind: "next-pass", coverage: "complete" },
       potentialStopReason: null,
     }],
-    ["a ceiling decision below the ceiling", { admittedLogicalPass: 1, capPosition: "below-ceiling" }],
+    ["a ceiling decision below the ceiling", { admittedLogicalPass: 1, ceilingPassCount: 1, capPosition: "below-ceiling" }],
   ] as const)("rejects a provisional pass assessment carrying %s", (_name, change) => {
     expect(() => RespondEnvelopeSchema.parse({
       ...header("review-respond"),

@@ -73,6 +73,9 @@ function buildSettings(overrides: SettingsOverrides = {}): ResolvedSettingsResul
 
   const settings: ConfigSettings = {
     "inbox.remind_after_days": "1",
+    "inbound.retriage_after_entries": "10",
+    "inbound.retriage_after_days": "30",
+    "pause.review_after_days": "14",
     "integration.stale_after_days": "2",
     "changeset.advisory_threshold_lines": "0",
     "changeset.advisory_threshold_files": "0",

@@ -23,48 +23,61 @@ override-active: false
 
 ## disposition-report.default
 
-Lead with the decision and layer the rest beneath it: the approver decides from the table and opens a finding's
-section only to drill in. The report's shape is:
+Lead with the caller's header, then the complete decision table, one Decisions block, and the finding sections.
+The caller supplies the header and its approval and continuation asks; omit optional fields it does not supply.
 
 ```markdown
-| # | Grade | Verdict | Action | Finding |
-|---|---|---|---|---|
-| F{ordinal} | <verified grade, or —> | <verdict> | <FIX, DEFER, or REJECT> | <title> |
+<caller-supplied header line>                              [when supplied]
 
-**Open questions**                                       [only when any finding carries one]
-- F{ordinal}: <question>
+| # | Grade | Finding | Action |
+|---|---|---|---|
+| F{ordinal} | <verified grade, or —> | <title> | <FIX, DEFER, or REJECT, with a fix tag when supplied> |
+
+**Decisions**                                            [when there are asks]
+- <caller-supplied approval and continuation asks>
+- F{ordinal}: <open question>                             [when supplied]
 
 ### F{ordinal} — <title>
 
-**Issue:** <the finding as raised>
+<verified grade, or —> · <verdict, with source grade and gating when supplied> · <action>
+
+**Finding:** <the finding as raised>                       [when supplied]
+
+**Fails:** <rubric item, or none with its reason>           [when supplied]
 
 **Action:** <proposed action and boundaries>
 
 **Detail:** <source check and consequence>
 ```
 
-Every set gets the table, one row per finding. Label the findings `F1`, `F2`, and onward in decision order — most
-severe verified grade first, unsupported findings last, the source's order kept among equals. The labels are
-report-local and replace no label the source assigned. Grade is the verified grade with its symbol — `🔴 critical`,
-`🟠 major`, or `🟡 minor` — or `—` when the finding is not supported. Verdict is `Confirmed` or `Not supported`; when
-the source supplies the reviewer's grade, a not-supported verdict names it (`reviewer graded <grade>`), and a
-confirmed one names it only when it differs. Action is the proposed disposition; the section carries the full action.
+Assign labels `F1`, `F2`, and onward in canonical decision order before sorting for display: blocking findings first,
+then verified grade, unsupported findings last, then canonical source order. Keep a nit after other minor findings.
+A label remains the same in the proposal, approved report, replay, open questions, and evidence for one set.
+The labels replace no producer-native identity.
 
-Gather every open question beneath the table under its finding's label, so everything asked of the approver sits in
-one place. Then give one section per finding, in table order. The title names the issue in a phrase; the issue states
-the finding as raised, before any judgment of it; the action gives the proposed response and its boundaries; and the
-detail gives the source check and consequence behind the verdict. Separate a section's fields with a blank line, and
-adjacent sections with a blank line, `---`, and another blank line.
+Where tags are supplied, display new-design fixes first within their grade, retaining each canonical label. A fix's
+action is `FIX (new design)` or `FIX (local correction)`; other actions take no tag. Mark the tags as the agent's
+advisory reading, never an approved judgment. Without tags, display the canonical order.
 
-Hold the evidence behind the set — each finding's locus and the references its source check rests on — out of the
-report. Give it when the approver asks, before or after approving, one line per finding under its label:
+Grade is `🔴 critical`, `🟠 major`, or `🟡 minor`, with `nit` when supplied and `· record-only` when that standing
+applies. An unsupported finding shows `—`. The table has no verdict column. Each section's status line mirrors its
+row and adds `Confirmed` or `Not supported`, the reviewer's grade when different or unsupported, and gating where
+supplied. The section's title names the finding; Finding states the claim before judgment, Fails names the rubric
+anchor, Action gives the response and boundaries, and Detail gives the source check and consequence. Separate fields
+with a blank line, and adjacent sections with a blank line, `---`, and another blank line.
+
+Gather approval, open questions, the fix-check offer, and the successor recommendation in the one Decisions block
+under the table, each with its recommendation. The caller supplies the loop reading after the findings. An approved
+or replay report may use the reduced shape: a header naming the approved set, tagged table and sections, and no Fails,
+Decisions, or loop reading. Omit missing source fields rather than invent them.
+
+Hold each finding's locus and source-verification references outside the report. Give the evidence when asked,
+using the same label and display order:
 
 ```markdown
 **Evidence**
 - F{ordinal} · <locus> · verified at <source-verification references>
 ```
 
-Show the report as text where the approver reads it — never a file path, link, or summary in its place — because the
-approver decides from the report itself. A caller may lead the report with a line of its own, extend a verdict or an
-evidence line with fields its source supplies, and set a finer decision order. Omit any field a finding's source does
-not supply rather than fabricate it.
+Show the report as text where the approver reads it, never a file path, link, or summary in its place. A caller may
+extend a status or evidence line with fields its source supplies.

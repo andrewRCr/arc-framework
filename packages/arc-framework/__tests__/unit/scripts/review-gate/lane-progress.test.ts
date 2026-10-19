@@ -1,4 +1,6 @@
+import { localPendingBinding, hostedPendingBinding } from "../../../fixtures/lane-pending-binding.js";
 import { describe, expect, it } from "vitest";
+import { createHostedHandleFixture, createHostedTerminalAttemptFixture, publishHostedTerminalProgressFixture } from "../../../fixtures/hosted-review.js";
 
 import { CanonicalDigestSchema } from "../../../../src/lib/kernel/index.js";
 
@@ -121,10 +123,12 @@ async function admitConditionalPending(
     lineage: input.lineage,
     logicalPass: input.nextPass,
     attemptId: input.admissionId,
-    sourceId: input.sourceId ?? attempt.sourceId,
+    sourceId: input.lane === "frontline" ? attempt.sourceId : "delegated-agent",
     outcome: "pending",
     consumedPass: false,
     now: input.now,
+    ...(input.lane === "frontline" ? {} : { local: localPendingBinding({
+      operationId: input.admissionId, headSha: input.producedHeadSha }) }),
     conditionalPendingAdmission: {
       ...input,
       authorizationId: digest(input.authorizationId),
@@ -135,33 +139,69 @@ async function admitConditionalPending(
 }
 
 describe("lane progress", () => {
+  it("keeps an unnamed fix check unspent and refuses its named extra-pass authorization", async () => {
+    for (const named of [false, true]) {
+      const store = createStore();
+      const { captured, lineage } = await seedConditionalAuthorization(store, { bind: true });
+      const pending = { ...attempt, lineage, sourceId: "delegated-agent", attemptId: "fix-check", logicalPass: 2,
+        outcome: "pending" as const, consumedPass: false,
+        local: localPendingBinding({ operationId: "fix-check", headSha: attempt.headSha, coverage: "incremental" }) };
+      const authorization = { authorizationId: captured.authorizationId, repositoryId: attempt.repositoryId,
+        lane: attempt.lane, lineage, producedHeadSha: attempt.headSha, nextPass: 2, admissionId: pending.attemptId,
+        now: attempt.now, confirmDispositionSetCurrent: async () => true };
+      if (named) {
+        await expect(recordLaneAttempt(store, { ...pending, conditionalPendingAdmission: authorization }))
+          .rejects.toThrow(/complete pass.*conditionalNextPassWithdrawal/u);
+        const complete = await recordLaneAttempt(store, { ...pending,
+          local: localPendingBinding({ operationId: pending.attemptId, headSha: attempt.headSha }),
+          conditionalPendingAdmission: authorization });
+        expect(currentAuthorization(complete.attempts[0])).toMatchObject({ status: "consumed", admissionId: "fix-check" });
+      } else {
+        const admitted = await recordLaneAttempt(store, pending);
+        expect(currentAuthorization(admitted.attempts[0])).toMatchObject({ status: "bound" });
+        expect(admitted.attempts[1]?.local?.requestedCoverage).toBe("incremental");
+        await recordLaneAttempt(store, { ...pending, outcome: "clean", consumedPass: true, advancePendingAttempt: true,
+          local: { ...pending.local, effectiveCoverage: "incremental" } });
+        await expect(recordLaneAttempt(store, { ...pending, attemptId: "complete-successor", logicalPass: 3,
+          local: localPendingBinding({ operationId: "complete-successor", headSha: attempt.headSha }),
+          conditionalPendingAdmission: { ...authorization, admissionId: "complete-successor", nextPass: 3 } }))
+          .rejects.toThrow("does not match the named admission");
+      }
+    }
+  });
+
   it("publishes conditional consumption and its pending attempt in one owner write", async () => {
     const store = createStore();
     const { captured, lineage } = await seedConditionalAuthorization(store, { bind: true });
     const originalPublish = store.publishOperation;
-    const pending = (attemptId: string, sourceId: string) => recordLaneAttempt(store, {
-      ...attempt,
-      lineage,
-      attemptId,
-      sourceId,
-      logicalPass: 2,
-      headSha: attempt.headSha,
-      outcome: "pending",
-      consumedPass: false,
-      conditionalPendingAdmission: {
-        authorizationId: captured.authorizationId,
-        repositoryId: attempt.repositoryId,
-        lane: "standard" as const,
+    const pending = (sourceId: string) => {
+      const hosted = hostedPendingBinding({ headSha: attempt.headSha, logicalPass: 2, sourceId, lineage });
+      const attemptId = hosted.admission.admissionId;
+      return recordLaneAttempt(store, {
+        ...attempt,
         lineage,
-        producedHeadSha: attempt.headSha,
-        nextPass: 2,
-        admissionId: attemptId,
-        now: "2026-08-15T12:03:00Z",
-        confirmDispositionSetCurrent: async () => true,
-      },
-    });
+        attemptId,
+        sourceId,
+        logicalPass: 2,
+        headSha: attempt.headSha,
+        outcome: "pending",
+        consumedPass: false,
+        hosted,
+        conditionalPendingAdmission: {
+          authorizationId: captured.authorizationId,
+          repositoryId: attempt.repositoryId,
+          lane: "standard" as const,
+          lineage,
+          producedHeadSha: attempt.headSha,
+          nextPass: 2,
+          admissionId: attemptId,
+          now: "2026-08-15T12:03:00Z",
+          confirmDispositionSetCurrent: async () => true,
+        },
+      });
+    };
     store.publishOperation = async () => { throw new Error("interrupted before owner publication"); };
-    await expect(pending("interrupted", "old-source")).rejects.toThrow("interrupted");
+    await expect(pending("coderabbit-pr")).rejects.toThrow("interrupted");
     const before = await readLaneProgressOwner(store, {
       lane: "standard", repositoryId: attempt.repositoryId, headSha: attempt.headSha, lineage,
     });
@@ -169,14 +209,15 @@ describe("lane progress", () => {
     expect(before?.attempts).toHaveLength(1);
 
     store.publishOperation = originalPublish;
-    const admitted = await pending("resumed", "new-source");
+    const admitted = await pending("codex-pr");
     expect(currentAuthorization(admitted.attempts[0])).toMatchObject({
-      status: "consumed", admissionId: "resumed",
+      status: "consumed", admissionId: hostedPendingBinding({
+        headSha: attempt.headSha, logicalPass: 2, sourceId: "codex-pr", lineage }).admission.admissionId,
     });
     expect(admitted.attempts[1]).toMatchObject({
-      attemptId: "resumed", sourceId: "new-source", outcome: "pending",
+      sourceId: "codex-pr", outcome: "pending",
     });
-    await expect(pending("competing", "other-source")).rejects.toThrow("one pending source attempt");
+    await expect(pending("coderabbit-pr")).rejects.toThrow("one pending source attempt");
   });
 
   it("rechecks conditional authority after a concurrent owner update", async () => {
@@ -203,6 +244,8 @@ describe("lane progress", () => {
       logicalPass: 2,
       outcome: "pending",
       consumedPass: false,
+      sourceId: "delegated-agent",
+      local: localPendingBinding({ operationId: "raced-admission", headSha: attempt.headSha }),
       conditionalPendingAdmission: {
         authorizationId: captured.authorizationId,
         repositoryId: attempt.repositoryId,
@@ -251,6 +294,35 @@ describe("lane progress", () => {
     expect(result.inheritedCompletePasses).toBe(0);
     expect(result.ancestorOwners.map(({ owner }) => owner?.attempts[0]?.attemptId))
       .toEqual(["ancestor-1", "ancestor-0"]);
+  });
+
+  it("inherits only complete passes while retaining interleaved fix-check attempts", async () => {
+    const store = createStore();
+    const candidates = [digest(`sha256:${"1".repeat(64)}`), digest(`sha256:${"2".repeat(64)}`)];
+    for (const [index, candidateId] of candidates.entries()) {
+      const lineage = { kind: "candidate" as const, candidateId };
+      for (const [offset, requestedCoverage] of (["complete", "incremental", "complete"] as const).entries()) {
+        const logicalPass = offset + 1;
+        const handle = createHostedHandleFixture({ repositoryId: attempt.repositoryId, lineage, logicalPass,
+          provider: "coderabbit-pr", requestedCoverage,
+          target: { repository: "owner/repo", pullRequest: 42, headSha: attempt.headSha },
+          artifact: { kind: "issue-comment", id: `ancestor-${index}-pass-${logicalPass}`,
+            url: `https://example.invalid/request-${index}-${logicalPass}`, createdAt: "2026-08-15T11:00:00Z" } });
+        const terminal = createHostedTerminalAttemptFixture({ admission: handle.admission,
+          artifact: handle.artifact, outcome: "clean" });
+        await publishHostedTerminalProgressFixture(store, {
+          operationId: laneProgressOperationId({ lane: "standard", repositoryId: attempt.repositoryId,
+            headSha: attempt.headSha, lineage }), repositoryId: attempt.repositoryId, lineage, logicalPass,
+          changeRequestId: "pull/42", headSha: attempt.headSha, sourceId: "coderabbit-pr", outcome: "clean",
+          terminal, now: attempt.now });
+      }
+    }
+    const inherited = await readCandidateInheritedLaneProgress(store, { lane: "standard",
+      repositoryId: attempt.repositoryId, headSha: objectId("d"),
+      ancestors: candidates.map(candidateId => ({ candidateId, baseRevision: objectId("a"), reviewResponseCount: 0 })) });
+    expect(inherited).toMatchObject({ inheritedCompletedPasses: 6, inheritedCompletePasses: 4 });
+    expect(inherited.ancestorOwners.map(({ owner }) => owner?.attempts.map(value => value.logicalPass)))
+      .toEqual([[1, 2, 3], [1, 2, 3]]);
   });
 
   it("distinguishes a zero-attempt ancestor from a missing owner with a recorded response", async () => {

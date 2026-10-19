@@ -12,6 +12,7 @@ const ready = z.strictObject({
   recovery: z.string().optional(),
   reconciliation: z.string().optional(),
   entering: z.string().optional(),
+  pause: z.string().optional(),
   identityDiscovery: z.string().optional(),
   identities: z.array(z.string()),
   cleanup: z.array(z.string()),
@@ -64,6 +65,10 @@ export function deriveDerivedLocusSessionGuidance(
   return LocusSessionGuidanceSchema.parse({
     kind: "ready",
     entering: `${row.kind} at ${row.checkout.path}`,
+    ...(row.kind === "work-unit" && row.subject.kind === "work-unit" && row.context?.pause != null
+      ? { pause: `Work unit '${row.subject.key}' is paused: ${row.context.pause.reason}. `
+        + (row.context.pause.resumeNotes === null ? "" : `Resume notes: ${row.context.pause.resumeNotes}. `)
+        + `Run arc resume ${row.subject.key} before starting work.` } : {}),
     ...(primaryAvailability === undefined ? {} : { primaryAvailability }),
     ...(identityDiscovery === undefined ? {} : { identityDiscovery }),
     identities: [],

@@ -1,5 +1,8 @@
 /** Production composition for exact-target review status. */
+import { deriveHostedReviewTarget } from "./policy/hosted-review-target.js";
 
+
+import type { ReviewStatusRoute } from "./status-route.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { workUnitPathTreatmentContext } from "../../lib/base-drift/current-adapters.js";
 import type { DeliveryHostPort } from "../../lib/delivery/host.js";
@@ -336,6 +339,7 @@ export async function readRoutedObligation(
   judgment?: ReviewStatusPolicyJudgment,
   host: Pick<DeliveryHostPort, "readRequest"> = new GhDeliveryHostPort(hostedGhRunner),
   options: {
+    readonly statusRoute?: ReviewStatusRoute;
     readonly baseMovement?: BaseMovementObservation | null;
     readonly remote?: string;
     readonly changeRequestCandidate?: Pick<ChangeRequestCandidate, "baseRefName" | "url">;
@@ -356,6 +360,7 @@ export async function readRoutedObligation(
     rawExec,
     target,
     pullRequest,
+    ...(judgment?.sourceId === undefined ? {} : { sourceId: judgment.sourceId }),
     ...(judgment?.ceilingOverride === undefined ? {}
       : { ceilingOverride: judgment.ceilingOverride }),
     ...(judgment?.additionalPassAuthorization === undefined ? {}
@@ -672,12 +677,13 @@ export async function readRoutedObligation(
       const rawFirstOutstanding = discharges[firstOutstandingIndex];
       let firstOutstanding: Parameters<typeof composeDeliveryReviewObligation>[0]["discharges"][number] | undefined =
         composedDischarges[firstOutstandingIndex];
-      const selectedCoverage = firstOutstanding?.coverageSelectionAction === undefined
+      const coverageSelection = firstOutstanding?.coverageSelectionAction === undefined
         ? null
         : selectReviewCoverageChoice(firstOutstanding.coverageSelectionAction, {
             sourceId: judgment?.sourceId,
             coverage: judgment?.coverage,
           });
+      const selectedCoverage = coverageSelection?.state === "selected" ? coverageSelection.choice : null;
       if (firstOutstanding !== undefined && selectedCoverage !== null) {
         firstOutstanding = {
           ...firstOutstanding,
@@ -691,27 +697,39 @@ export async function readRoutedObligation(
         ));
       }
       const firstTarget = deliveryTargets[firstOutstandingIndex];
-      if (firstOutstanding?.nextSource !== null
-        && firstOutstanding?.nextSource !== undefined
-        && firstTarget !== undefined) {
-        const scopeSelection = await resolveDeliveryMemberScopeSelection({
-          rawExec,
-          settings,
-          planId: reservation.target.planId,
-          target: firstTarget,
-          ...(judgment?.sourceId === undefined ? {} : { sourceId: judgment.sourceId }),
-        });
+      const forcedSourceWithOffer = judgment?.sourceId !== undefined && judgment.sourceId !== "delegated-agent"
+        && firstOutstanding?.coverageSelectionAction !== undefined;
+      if (firstOutstanding !== undefined && firstTarget !== undefined && coverageSelection?.state !== "refused"
+        && (firstOutstanding.coverageSelectionAction === undefined || forcedSourceWithOffer)
+        && (firstOutstanding.nextSource !== null || forcedSourceWithOffer)) {
+        const coverage = firstOutstanding.requestCoverage ?? judgment?.coverage ?? "complete";
+        const scopeSelection = coverage === "incremental" && firstOutstanding.correctionScope === undefined
+          ? undefined
+          : await resolveDeliveryMemberScopeSelection({
+            rawExec,
+            settings,
+            planId: reservation.target.planId,
+            target: firstTarget,
+            coverage,
+            ...(firstOutstanding.correctionScope === undefined ? {} : { correctionScope: firstOutstanding.correctionScope }),
+            ...(judgment?.sourceId === undefined ? {} : { sourceId: judgment.sourceId }),
+          });
+        const dischargeArgs = { reservation, baseRevision: firstTarget.baseRevision, approvedHead: firstTarget.headSha,
+          changeRequest: { repository: firstTarget.repository, pullRequest: firstTarget.pullRequest },
+          vehicle: firstTarget.vehicle, candidate: record };
         const admission = await resolveEvidenceBoundHostedReservationPolicy({
           reservation,
           snapshot,
           repositoryId,
+          currentReviewTarget: await deriveHostedReviewTarget({ cwd, exec, currentRepositoryId: repositoryId,
+            approvedHeadSha: firstTarget.headSha, baseRevision: firstTarget.baseRevision, vehicle: firstTarget.vehicle }),
           target: {
             repository: firstTarget.repository,
             pullRequest: firstTarget.pullRequest,
             headSha: firstTarget.headSha,
           },
           vehicle: firstTarget.vehicle,
-          maxPasses: policy.maxPasses,
+          maxPasses: policy.maxPasses, chosenCoverage: selectedCoverage?.coverage ?? judgment?.coverage,
           ...(rawFirstOutstanding?.requestAttempts === undefined
             ? {}
             : { requestAttempts: rawFirstOutstanding.requestAttempts }),
@@ -730,19 +748,10 @@ export async function readRoutedObligation(
           dispositionStore,
           readResponsePerformance: (predecessor) => readLaneResponsePerformance(store, predecessor),
           confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),
-          confirmIncrementalApplicability: (predecessor, current) => (
-            readDischarge.confirmIncrementalApplicability({
-              reservation,
-              baseRevision: firstTarget.baseRevision,
-              approvedHead: firstTarget.headSha,
-              changeRequest: {
-                repository: firstTarget.repository,
-                pullRequest: firstTarget.pullRequest,
-              },
-              vehicle: firstTarget.vehicle,
-              candidate: record,
-            }, predecessor, current)
-          ),
+          confirmIncrementalApplicability: (predecessor, current) =>
+            readDischarge.confirmIncrementalApplicability(dischargeArgs, predecessor, current),
+          confirmCurrentApplicability: predecessor =>
+            readDischarge.confirmCurrentIncrementalApplicability(dischargeArgs, predecessor),
         });
         if (admission.status === "unavailable") {
           return { state: "blocked", detail: admission.detail };
@@ -751,6 +760,7 @@ export async function readRoutedObligation(
           ? discharge
           : {
               ...discharge,
+              ...(admission.policy.state === "unavailable" ? { coverageSelectionAction: undefined } : {}),
               ...(admission.policy.state === "ready"
                 ? { nextSource: admission.policy.payload.sourceId }
                 : {}),
@@ -764,6 +774,7 @@ export async function readRoutedObligation(
             });
       }
       return composeDeliveryReviewObligation({
+        statusRoute: options.statusRoute ?? { kind: "target", target },
         targets: deliveryTargets,
         discharges: composedDischarges,
         ...(judgment?.coverage === undefined ? {} : { requestCoverage: judgment.coverage }),
@@ -783,6 +794,7 @@ export async function readRoutedObligation(
       return { state: "blocked", detail: "The singleton Candidate diff base is unavailable." };
     }
     return await composePublishedSingletonReview({
+      statusRoute: options.statusRoute ?? { kind: "target", target },
       cwd, exec, settings, reservation, record, workUnit,
       recordVersion: versionedRecord.version,
       baseRevision: singletonDiffBase,
@@ -1011,6 +1023,7 @@ export async function resolveReviewStatusForWorkUnit(input: {
     {
       ...(input.remote === undefined ? {} : { remote: input.remote }),
       rawExec,
+      statusRoute: { kind: "work-unit", workUnitId },
       captureTerminalAdvance: (advance) => {
         terminalAdvance = advance;
       },

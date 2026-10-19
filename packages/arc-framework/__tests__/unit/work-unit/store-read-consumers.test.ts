@@ -9,6 +9,7 @@ import { resolveVerbTargetOrReport } from "../../../src/handlers/lifecycle.js";
 import { makeWorktreeOccupancyGuard } from "../../../src/lib/work-unit/lifecycle-guards.js";
 import { buildLifecycleIndexFromRecords } from "../../../src/lib/work-unit/lifecycle-index.js";
 import { handleLifecycleStatus } from "../../../src/handlers/status/lifecycle.js";
+import type { StoreLifecycleStatusPorts } from "../../../src/handlers/status/store-locus.js";
 import type { Store } from "../../../src/lib/store/contract.js";
 import { createStore } from "../../../src/lib/store/create.js";
 import { testStorePorts } from "../../helpers/store/in-repo-ports.js";
@@ -18,12 +19,17 @@ import { SlugSchema } from "../../../src/lib/kernel/index.js";
 import { recordReferences } from "../../../src/lib/store/identity.js";
 import { resolveCohortValidationContext, validateFiles } from "../../../src/scripts/validate-cohort-consistency.js";
 import { resolveBacklogStub } from "../../../src/lib/work-unit/backlog-stub.js";
+import { createDefaultLocusPorts } from "../../../src/lib/work-unit/locus-ports.js";
 import { buildExecutorContext } from "../../../src/lib/work-unit/executor-context.js";
 import { createUserIOContext } from "../../../src/lib/io-context.js";
 import { runGraduate } from "../../../src/commands/start.js";
 import { writeMetaCohort } from "../../../src/lib/store/kinds/meta/writers.js";
 import { resolveDraftPresent } from "../../../src/handlers/plan.js";
 
+const quietLocusPorts: StoreLifecycleStatusPorts = {
+  findHoldingCheckout: async () => null,
+  readInFlightWarnings: async () => [],
+};
 
 async function checkoutClaim(name: string) {
   const cwd = await mkdtemp(join(tmpdir(), "arc-consumer-claim-"));
@@ -49,12 +55,12 @@ it("occupancy rejects a foreign held store unit without consulting the legacy re
   expect(await guard({ slug: "demo", index: buildLifecycleIndexFromRecords([]), position: null, inputs: {} })).toMatchObject({ ok: false, message: expect.stringContaining("other") });
   expect(reader).not.toHaveBeenCalled();
 });
-it("status reads phase, owner, dependencies and purpose from the same store without Git", async () => {
+it("status reads lifecycle details from the same store with bound local-locus evidence", async () => {
   const h = createLifecycleHarness(); const meta = await h.seedMeta("demo", { owner: "alice", design: ["spec-demo.md"] });
   await h.seed(recordReferences["work-item/spec"](meta.reference.owner), "# Specification: demo\n\n**Purpose:** Make store reads work. More detail.\n");
   const output = vi.spyOn(process.stdout, "write").mockReturnValue(true);
-  const exec = vi.fn(async () => { throw new Error("Git must not be read for store lifecycle status"); });
-  await handleLifecycleStatus("/absent", exec, "demo", { json: true }, h.store);
+  const exec = vi.fn(async () => { throw new Error("Record projection must use the supplied locus observations"); });
+  await handleLifecycleStatus("/absent", exec, "demo", { json: true }, h.store, quietLocusPorts);
   expect(JSON.parse(String(output.mock.calls[0]?.[0]))).toMatchObject({ slug: "demo", state: "active", owner: "alice", purpose: "Make store reads work.", integrationBoundary: null });
   expect(exec).not.toHaveBeenCalled();
 });
@@ -93,8 +99,8 @@ it("status still answers a valid subject when an unrelated stored meta is malfor
   if (broken === undefined) throw new Error("Missing seeded corruption basis");
   broken.content = "invalid metadata bytes";
   const output = vi.spyOn(process.stdout, "write").mockReturnValue(true);
-  const exec = vi.fn(async () => { throw new Error("Git must not be read"); });
-  await handleLifecycleStatus("/absent", exec, "demo", { json: true }, h.store);
+  const exec = vi.fn(async () => { throw new Error("Use the supplied locus observations"); });
+  await handleLifecycleStatus("/absent", exec, "demo", { json: true }, h.store, quietLocusPorts);
   expect(JSON.parse(String(output.mock.calls[0]?.[0]))).toMatchObject({ slug: "demo", state: "active", warnings: [expect.stringContaining("broken")] });
   expect(exec).not.toHaveBeenCalled();
 });
@@ -146,7 +152,7 @@ it.each(["Not-A-Slug", "parent/child/grandchild", "parent//child"])("diagnoses u
   if (raw === undefined) throw Error("Missing corruption basis");
   const original = raw.content; raw.content = writeMetaCohort(original, cohort);
   const output = vi.spyOn(process.stdout, "write").mockReturnValue(true);
-  await handleLifecycleStatus("/absent", async () => { throw Error("Status must not read Git"); }, "healthy", { json: true }, h.store);
+  await handleLifecycleStatus("/absent", async () => { throw Error("Use the supplied locus observations"); }, "healthy", { json: true }, h.store, quietLocusPorts);
   expect(JSON.parse(String(output.mock.calls[0]?.[0]))).toMatchObject({ slug: "healthy", state: "planned",
     warnings: [expect.stringContaining("broken")] });
   const exec = async (_command: string, args: string[]) => {
@@ -155,7 +161,7 @@ it.each(["Not-A-Slug", "parent/child/grandchild", "parent//child"])("diagnoses u
     throw Error(`Unexpected Git operation: ${args.join(" ")}`);
   };
   const ctx = buildExecutorContext({ cwd: "/absent", io: { ...createUserIOContext(), exec }, store: h.store,
-    identity: "test-user", teamMode: false, internalTemplateDir: "/templates" });
+    identity: "test-user", teamMode: false, internalTemplateDir: "/templates", locusPorts: createDefaultLocusPorts() });
   let physical = 0;
   ctx.reconcileWorkUnitWorktree = async () => { physical++; return { mutation: "spawn", branch: null, worktreePath: "/spawn" }; };
   const params = { name: "healthy", spawningIdentity: "test-user", baseBranch: "main", locationTemplate: "/spawn", repo: "repo" };
@@ -163,7 +169,7 @@ it.each(["Not-A-Slug", "parent/child/grandchild", "parent//child"])("diagnoses u
   expect(physical).toBe(0);
   expect(lifecycleSuccess(await h.store.read({ reference: healthy.reference }))).toEqual(healthy);
   raw.content = original; output.mockClear();
-  await handleLifecycleStatus("/absent", async () => { throw Error("Status must not read Git"); }, "healthy", { json: true }, h.store);
+  await handleLifecycleStatus("/absent", async () => { throw Error("Use the supplied locus observations"); }, "healthy", { json: true }, h.store, quietLocusPorts);
   const repaired = JSON.parse(String(output.mock.calls[0]?.[0])) as { slug: string; warnings?: string[] };
   expect(repaired.slug).toBe("healthy"); expect(repaired.warnings ?? []).toEqual([]);
   expect(await runGraduate(ctx, params)).toMatchObject({ status: "graduated" });

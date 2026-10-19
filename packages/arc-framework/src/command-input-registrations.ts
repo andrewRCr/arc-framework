@@ -1,5 +1,6 @@
 /** Composition root for command-owned input schema registrations. */
 
+import { storeCommandInputRegistrations, storeCommandInputPolicyDeclarations } from "./handlers/store-command-input.js";
 import { initCommandInputPolicyDeclarations, initCommandInputRegistration } from "./commands/init-input.js";
 import { joinCommandInputPolicyDeclarations, joinCommandInputRegistration } from "./commands/join-input.js";
 import {
@@ -7,7 +8,8 @@ import {
   configValidateCommandInputRegistration,
 } from "./commands/config.js";
 import { infrastructureCommandInputPolicyDeclarations } from "./command-input-infrastructure-policies.js";
-import { storeCommandInputPolicyDeclarations, storeCommandInputRegistrations } from "./commands/store-input.js";
+import { storeCommandInputPolicyDeclarations as refStoreCommandInputPolicyDeclarations,
+  storeCommandInputRegistrations as refStoreCommandInputRegistrations } from "./commands/store-input.js";
 import { activeCommandInputPolicyDeclarations } from "./handlers/active.js";
 import { baseCommandInputPolicyDeclarations, baseCommandInputRegistrations } from "./handlers/base.js";
 import {
@@ -108,6 +110,7 @@ import type { CommandInputRegistration } from "./lib/command-input/registry.js";
 /** Every command-owned schema registration contributed by migrated families. */
 export const commandInputRegistrations = [
   ...storeCommandInputRegistrations,
+  ...refStoreCommandInputRegistrations,
   initCommandInputRegistration,
   joinCommandInputRegistration,
   checkCommitMessageInputRegistration,
@@ -146,6 +149,7 @@ export const commandInputRegistrations = [
 
 /** Command-owned policy declarations composed without reinterpreting their domain semantics. */
 export const commandInputPolicyDeclarations = [
+  ...storeCommandInputPolicyDeclarations,
   ...activeCommandInputPolicyDeclarations,
   ...baseCommandInputPolicyDeclarations,
   ...candidateCommandInputPolicyDeclarations,
@@ -186,6 +190,6 @@ export const commandInputPolicyDeclarations = [
   ...userSyncCommandInputPolicyDeclarations,
   ...viewCommandInputPolicyDeclarations,
   ...remedyRoadmapConflictInputPolicyDeclarations,
-  ...storeCommandInputPolicyDeclarations,
+  ...refStoreCommandInputPolicyDeclarations,
   ...infrastructureCommandInputPolicyDeclarations,
 ] as const satisfies readonly CommandInputDeclaration[];

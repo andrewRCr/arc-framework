@@ -14,7 +14,8 @@ import { CheckDeclarationSchema } from "../../lib/checks/declaration.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { readTypedProjectFile } from "../../lib/config/typed-file-reader.js";
 import { createGitExec } from "../../lib/io-context.js";
-import { createExecaGitExecInput } from "../../lib/git/process-executor.js";
+import { readProjectedSelection, type ProjectedSelectionReader } from "../../lib/checks/projected-selection.js";
+import { createExecaGitExecInput, createExecaRawGitExec } from "../../lib/git/process-executor.js";
 import type { InteractionContext } from "../../lib/command-input/interaction-context.js";
 import { declaredChecksExitCode, runDeclaredRequest, type RunDeclaredChecksResult } from "./run.js";
 import { isCheckHookForm, type CheckForm, type CheckRequest } from "../../lib/checks/request.js";
@@ -27,14 +28,17 @@ import { CheckIncrementInputSchema, CheckPreCommitInputSchema, CheckPrePushInput
   CheckSegmentInputSchema, CheckNewHeadInputSchema, type CheckScopeOptions, type CheckIncrementOptions } from "./request-input.js";
 export type { CheckIncrementOptions, CheckScopeOptions } from "./request-input.js";
 
+/** Narrow provider substitution retaining the command's real repository and process boundaries. */
+export interface CheckHandlerDependencies { readProjectedSelection: ProjectedSelectionReader }
+
 /**
  * Execute an increment request through real repository I/O.
  * @param options - Commander output options
  * @param interaction - Invocation-bound process policy
  * @returns Resolves after writing output and assigning process exit state
  */
-export async function handleCheckIncrement(options: CheckIncrementOptions, interaction: InteractionContext): Promise<void> {
-  return handleDeclaredRequest(options, interaction, { kind: "increment" });
+export async function handleCheckIncrement(options: CheckIncrementOptions, interaction: InteractionContext, overrides: Partial<CheckHandlerDependencies> = {}): Promise<void> {
+  return handleDeclaredRequest(options, interaction, { kind: "increment" }, overrides);
 }
 
 /**
@@ -54,8 +58,8 @@ export async function handleCheckPreCommit(options: CheckIncrementOptions, inter
  * @param interaction - Process interaction policy
  * @returns Resolves after reporting the request
  */
-export async function handleCheckRun(ids: string[], options: CheckScopeOptions, interaction: InteractionContext): Promise<void> {
-  return handleDeclaredRequest(options, interaction, { kind: "run", ids });
+export async function handleCheckRun(ids: string[], options: CheckScopeOptions, interaction: InteractionContext, overrides: Partial<CheckHandlerDependencies> = {}): Promise<void> {
+  return handleDeclaredRequest(options, interaction, { kind: "run", ids }, overrides);
 }
 
 /**
@@ -80,8 +84,8 @@ export async function handleCheckGate(gate: string, options: CheckScopeOptions, 
  * @param interaction - Invocation process policy
  * @returns Resolves after reporting the request
  */
-export async function handleCheckSegment(options: CheckIncrementOptions, interaction: InteractionContext): Promise<void> {
-  return handleDeclaredRequest(options, interaction, { kind: "segment" });
+export async function handleCheckSegment(options: CheckIncrementOptions, interaction: InteractionContext, overrides: Partial<CheckHandlerDependencies> = {}): Promise<void> {
+  return handleDeclaredRequest(options, interaction, { kind: "segment" }, overrides);
 }
 
 /**
@@ -201,11 +205,11 @@ function parseRequestOptions(options: CheckScopeOptions, form: CheckForm) {
   }
 }
 
-async function handleDeclaredRequest(options: CheckScopeOptions, interaction: InteractionContext, form: CheckForm): Promise<void> {
-  report(await runDeclaredCliRequest(options, interaction, form), options.json === true);
+async function handleDeclaredRequest(options: CheckScopeOptions, interaction: InteractionContext, form: CheckForm, overrides: Partial<CheckHandlerDependencies> = {}): Promise<void> {
+  report(await runDeclaredCliRequest(options, interaction, form, overrides), options.json === true);
 }
 
-async function runDeclaredCliRequest(options: CheckScopeOptions, interaction: InteractionContext, form: CheckForm): Promise<RunDeclaredChecksResult> {
+async function runDeclaredCliRequest(options: CheckScopeOptions, interaction: InteractionContext, form: CheckForm, overrides: Partial<CheckHandlerDependencies> = {}): Promise<RunDeclaredChecksResult> {
   const parsed = parseRequestOptions(options, form);
   if (!parsed.success) {
     return { kind: "error", exitCode: 2, error: { kind: "usage", code: "input.invalid", message: parsed.error.message } };
@@ -221,6 +225,8 @@ async function runDeclaredCliRequest(options: CheckScopeOptions, interaction: In
       && (process.env.PRE_COMMIT !== undefined || (await detectHookManager(root, access))?.manager === "lefthook");
     outcome = await runDeclaredRequest(root, {
       platform: process.platform,
+      readProjectedSelection: overrides.readProjectedSelection ?? readProjectedSelection,
+      rawGit: createExecaRawGitExec(root),
       availableParallelism,
       git, gitInput: createExecaGitExecInput(undefined, interaction.subprocess),
       passes: createCheckPassStore({ directory: () => checkRecordDirectory(git, root),

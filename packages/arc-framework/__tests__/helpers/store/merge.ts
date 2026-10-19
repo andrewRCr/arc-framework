@@ -9,13 +9,15 @@ import { mergeEntryText, mergeLineText, stampEntryIds } from "../../../src/lib/s
 import type { ReferenceContext } from "./context.js";
 import { advanceMemoryState, canonicalReference, generationAliases, recordKey, type MemoryRecord } from "./model.js";
 
-/** Return a kind's declared grammar, or the reference fixture's explicit generic test grammar.
+/** Return a kind's declared production grammar or an explicit test override.
  * @param context - Independent registered kind mechanisms.
  * @param reference - Entry-list role.
- * @returns Production entry configuration, with a test shape for the three reserved entry mechanisms.
+ * @returns The declared entry configuration.
  */
 export function entryConfig(context: ReferenceContext, reference: RecordReference) {
-  return context.registry[reference.kind].entry ?? { shape: "heading" as const, sections: ["Entries"] };
+  const config = context.registry[reference.kind].entry;
+  if (config === undefined) throw new Error(`Missing entry grammar for ${reference.kind}`);
+  return config;
 }
 
 /** Stamp IDs at first persist, changing only missing managed descriptor fields.

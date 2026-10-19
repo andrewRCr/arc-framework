@@ -27,6 +27,7 @@ import {
   type HostedProgressVehicle,
   type HostedProviderId,
   type HostedRequestHandle,
+  type HostedRequestEnvelope,
   type HostedReviewCoverage,
   type HostedTarget,
 } from "../../src/scripts/review-gate/hosted/request.js";
@@ -146,6 +147,7 @@ type HostedAttemptBinding = NonNullable<LaneProgressState["attempts"][number]["h
 /** Create one production-shaped hosted terminal attempt from an already-admitted producer. */
 export function createHostedTerminalAttemptFixture(input: {
   readonly admission: HostedRequestHandle["admission"];
+  readonly invocation?: HostedRequestEnvelope["invocation"];
   readonly effectiveCoverage?: HostedReviewCoverage;
   readonly coverageEvidence?: HostedCoverageEvidence;
   readonly artifact?: HostedArtifact;
@@ -197,6 +199,7 @@ export function createHostedTerminalAttemptFixture(input: {
     },
     ...(input.admission.vehicle === undefined ? {} : { vehicle: input.admission.vehicle }),
     admission: input.admission,
+    ...(input.invocation === undefined ? {} : { invocation: input.invocation }),
   };
   const attemptId = hostedLaneAttemptId(handle);
   const findings = [...input.findings ?? []];

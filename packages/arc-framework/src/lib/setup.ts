@@ -9,7 +9,8 @@
 import { ensureDir, writeArcGitattributesBlock } from "./template/index.js";
 import { detectHookManager } from "./hook-manager.js";
 import { ARC_GIT_HOOKS_DIR, integrateHooks } from "./hook-integration.js";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+import { preparePersonalIdentitySetup, seedPersonalIdentityRecords, type PersonalIdentitySetupOptions, type PreparedPersonalIdentitySetup } from "./personal-identity-setup.js";
 import { setTimeout as delay } from "node:timers/promises";
 import type { CoreIO } from "./types.js";
 import type { ReadFileFn, WriteFileFn } from "./template/index.js";
@@ -144,7 +145,7 @@ async function setLocalGitConfigWithRetry(
  * creation (`arc init` / `arc join` via {@link runPostInitSetup}, and `arc user add`).
  * SESSION-NOTES is intentionally excluded — it is per-WU and seeded lazily by
  * `arc user open` once a work unit is anchored. Every creation path must seed the same
- * set, so both loops read this single source.
+ * set in the legacy filesystem arm, so both loops read this single source.
  */
 export const CROSS_WU_INSTANCE_FILES = [
   "WORKING-MEMORY.md",
@@ -152,7 +153,9 @@ export const CROSS_WU_INSTANCE_FILES = [
 ] as const;
 
 /** Options for post-init user setup. */
-export interface PostInitSetupOptions {
+export interface PostInitSetupOptions extends PersonalIdentitySetupOptions {
+  preparedIdentity?: PreparedPersonalIdentitySetup | null;
+  command?: "init" | "join";
   arcDir: string;
   internalTemplateDir: string;
   io: CoreIO;
@@ -164,8 +167,10 @@ export interface PostInitSetupOptions {
  *
  * Stores identity in git config and creates the user directory with the
  * cross-WU instance files (WORKING-MEMORY, USER-INBOX) seeded from the
- * internal templates. SESSION-NOTES is per-WU and seeded lazily by
- * `arc user open` once a work unit is anchored — there is no anchored WU
+ * internal templates. With off-branch state, confirmation precedes identity
+ * changes and only absent personal records are created in the selected Store.
+ * SESSION-NOTES is per-WU and seeded lazily by `arc user open` in legacy
+ * workspaces once a work unit is anchored — there is no anchored WU
  * at init time. Per-user files seed cross-PM-mode (R65b) — `pm.mode` no
  * longer gates user-directory seeding.
  */
@@ -175,8 +180,14 @@ export async function runPostInitSetup(
   const { arcDir, internalTemplateDir, io, identityResult } = options;
 
   if (identityResult) {
+    const prepared = options.preparedIdentity !== undefined ? options.preparedIdentity
+      : await preparePersonalIdentitySetup({ ...options, cwd: dirname(arcDir), identity: identityResult, command: options.command ?? "init" });
     await io.exec("git", ["config", "--local", "arc.identity", identityResult]);
 
+    if (prepared !== null) {
+      await seedPersonalIdentityRecords({ prepared, identity: identityResult, io, internalTemplateDir });
+      return;
+    }
     const userDir = join(arcDir, "user", identityResult);
     await ensureDir(userDir, io.mkdir);
 

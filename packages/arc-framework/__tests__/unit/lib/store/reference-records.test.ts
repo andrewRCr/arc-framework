@@ -14,7 +14,7 @@ describe("reference record landing", () => {
       const shape = kind === "personal/inbox" ? "heading" : "field-header";
       const section = shape === "heading" ? "Errand" : "Memories";
       const prefix = `# Document${newline}<!-- comment -->`;
-      const entry = (body: string) => `${shape === "heading" ? "### [ ] **First**" : "**Memory:**"}${newline}_Id:_ \`11111111\`${newline}${newline}${body}${newline}${newline}`;
+      const entry = (body: string) => `${shape === "heading" ? "### [ ] **First**" : `**Memory:**${newline}_Remove when: obsolete._`}${newline}_Id:_ \`11111111\`${newline}${newline}${body}${newline}${newline}`;
       const base = await seed(fixture, reference, `${prefix}${newline}${newline}## ${section}${newline}${newline}${entry("base")}`);
       const edited = base.content.replace(`base${newline}`, `edited${newline}`);
       success(await fixture.store.write(WriteInputSchema.parse(update(fixture, base, removalCurrent ? prefix : edited))));
@@ -35,7 +35,7 @@ describe("reference record landing", () => {
       const shape = kind === "personal/inbox" ? "heading" : "field-header";
       const section = shape === "heading" ? "Errand" : "Memories";
       const heading = `# Document${newline}<!-- comment -->${newline}${newline}## ${section}`;
-      const entry = (body: string) => `${shape === "heading" ? "### [ ] **First**" : "**Memory:**"}${newline}_Id:_ \`11111111\`${newline}${newline}${body}${newline}${newline}`;
+      const entry = (body: string) => `${shape === "heading" ? "### [ ] **First**" : `**Memory:**${newline}_Remove when: obsolete._`}${newline}_Id:_ \`11111111\`${newline}${newline}${body}${newline}${newline}`;
       const base = await seed(fixture, reference, `${heading}${newline}${newline}${entry("base")}`);
       const edited = `${heading}${newline}${newline}${entry("edited")}`;
       success(await fixture.store.write(WriteInputSchema.parse(update(fixture, base, removalCurrent ? heading : edited))));

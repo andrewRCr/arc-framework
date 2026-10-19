@@ -66,16 +66,18 @@ The command's `payload.dispositionReportText` is exactly these renderer-produced
 ```text
 **Verification:** full
 
-| # | Grade | Verdict | Action | Finding |
-|---|---|---|---|---|
-| F1 | — | Not supported · reviewer graded 🟠 major · record-only | REJECT | Failing path at the cited branch |
+| # | Grade | Finding | Action |
+|---|---|---|---|
+| F1 | — | Failing path at the cited branch | REJECT |
 
-**Open questions**
+**Decisions**
 - F1: Should the reviewer clarify the cited execution path?
 
 ### F1 — Failing path at the cited branch
 
-**Issue:** The reviewer alleges the branch at this locus enters a failing execution path.
+— · Not supported · reviewer graded 🟠 major · record-only · REJECT
+
+**Finding:** The reviewer alleges the branch at this locus enters a failing execution path.
 
 **Action:** Reject the finding without changing code.
 
@@ -92,7 +94,7 @@ Its `payload.dispositionEvidenceText`, held back from the report and shown when 
 The same command payload supplies this provisional pass line:
 
 ```text
-Standard pass 1 of 2. No confirmed findings.
+Standard complete pass 1 of 2. No confirmed findings.
 ```
 
 Agent recommendation beside the command payload: Do not request another standard pass from this provisional

@@ -1,3 +1,5 @@
+import { withReviewReport } from "../../fixtures/review-report-input.js";
+import { withReviewNextPassContext } from "../../fixtures/review-next-pass.js";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -35,8 +37,7 @@ import {
 
 import { canonicalDigest, CanonicalDigestSchema } from "../../../src/lib/kernel/index.js";
 import { SlugSchema } from "../../../src/lib/kernel/schema/slug.js";
-import { resolveProcessInteractionContext } from
-  "../../../src/lib/command-input/interaction-context.js";
+import { resolveProcessInteractionContext } from "../../../src/lib/command-input/interaction-context.js";
 import {
   IntegrationBoundaryLocusSchema,
   projectCandidateReviewResumeBoundary,
@@ -1969,7 +1970,7 @@ describe("handleReviewLocalPrepare", () => {
     });
     const refusal = new ReviewDriverAdmissionError(
       "Review capacity lacks standard-review driver admission (approval-required/obtain-ceiling-override).",
-      resolveReviewPolicy({ ...policyRequest, sources: ["delegated-agent"], maxPasses: 2 }),
+      resolveReviewPolicy(withReviewNextPassContext({ ...policyRequest, sources: ["delegated-agent"], maxPasses: 2 })),
       policyRequest,
     );
 
@@ -2256,7 +2257,7 @@ describe("handleReviewRespond", () => {
 
     await handleReviewRespond("-", {
       resolveRoot: () => "/repo",
-      readText: async () => JSON.stringify(respondProposalRequest),
+      readText: async () => JSON.stringify(withReviewReport(respondProposalRequest)),
       respond,
       write,
       setExitCode: vi.fn(),
@@ -2398,6 +2399,7 @@ describe("handleReviewPrePublication", () => {
     schemaVersion: 1 as const,
     target,
     lane: name,
+    ...(name === "standard" ? { nextPassContext: { completePasses: 1, convergence: "none" as const, responseDue: false, incremental: null } } : {}),
     frontlineActive: false,
     standardReview,
     completedPasses: 0,
@@ -3659,7 +3661,7 @@ describe("handleReviewPrePublication", () => {
           confirmedFindingCount: 1,
           maxConfirmedSeverity: "major" as const,
           materialFix: true,
-          coverageAdequate: true,
+          effectiveCoverage: "complete" as const, coverageAdequate: true,
         },
       },
     };
@@ -3708,7 +3710,7 @@ describe("handleReviewPrePublication", () => {
           confirmedFindingCount: 1,
           maxConfirmedSeverity: "minor" as const,
           materialFix: false,
-          coverageAdequate: true,
+          effectiveCoverage: "complete" as const, coverageAdequate: true,
         },
       },
       pendingResponse: { frontline: null, standard: { kind: "attested-local", receiptRef: "minor-source" } },
@@ -3767,7 +3769,7 @@ describe("handleReviewPrePublication", () => {
           confirmedFindingCount: 1,
           maxConfirmedSeverity: "major" as const,
           materialFix: true,
-          coverageAdequate: true,
+          effectiveCoverage: "complete" as const, coverageAdequate: true,
         },
       },
       pendingResponse: { frontline: null, standard: {

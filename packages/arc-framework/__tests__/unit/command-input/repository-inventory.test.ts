@@ -172,7 +172,7 @@ describe("repository command-input inventory", () => {
         { id: "prompt.start.graduate-worktree", noInput: "proceed", callee: "confirmStep" },
         { id: "prompt.start.resume-here", noInput: "proceed", callee: "confirmStep" },
         { id: "prompt.start.resume-worktree", noInput: "proceed", callee: "confirmStep" },
-        { id: "prompt.start.cold-start", noInput: "proceed", callee: "confirmStep" },
+        { id: "prompt.start.cold-start", noInput: "proceed", callee: "prompt" },
       ].sort((left, right) => left.id.localeCompare(right.id)));
   });
 

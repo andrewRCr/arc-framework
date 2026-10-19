@@ -16,7 +16,8 @@ function fixture(name: string): Record<string, unknown> {
   const value = JSON.parse(producerCompatible) as Record<string, unknown>;
   const derivedRow = {
     kind: "free-primary",
-    checkout: { path: "/redacted/primary", primary: true },
+    checkout: { folderPresent: true, path: "/redacted/primary", primary: true, head: "a".repeat(40), branch: "main", detached: false },
+    markerGeneration: null, parentCheckoutPath: null, origin: null, identity: null, lifecycleLocation: null,
     subject: null,
     context: null,
     diagnostics: [],
@@ -133,6 +134,26 @@ function setPath(value: Record<string, unknown>, path: MutationPath, replacement
 function expectContractFailure(value: Record<string, unknown>, expectedPath: string): void {
   expect(() => assertSessionInitProbeResult(value)).toThrow(`session-init-envelope: ${expectedPath}:`);
 }
+
+describe("Store user slot diagnostics", () => {
+  it.each([
+    ["text", 42, "user.value.remedy.text:"],
+    ["argv", [42], "user.value.remedy.argv.0:"],
+  ] as const)("retains the actual nested pull remedy %s defect", (field, replacement, path) => {
+    const value = fixture("orient");
+    value.user = { ok: true, value: { status: "designation-needed", remote: "origin", choices: ["shared"], summary: "Choose a role.",
+      remedy: { text: "Designate the remote.", argv: ["arc", "remote", "designate"], [field]: replacement } } };
+    expect(SessionInitProbeResultSchema.safeParse(value).success).toBe(false);
+    expect(() => assertSessionInitProbeResult(value)).toThrow(path);
+  });
+
+  it.each([null, { status: "pulled", summary: "Store state pulled." }])("continues to admit the new Store value %j", (user) => {
+    const value = fixture("orient");
+    value.user = { ok: true, value: user };
+    expect(SessionInitProbeResultSchema.safeParse(value).success).toBe(true);
+    expect(() => assertSessionInitProbeResult(value)).not.toThrow();
+  });
+});
 
 function integrationBoundaryFixture(workUnit = "active-widget"): Record<string, unknown> {
   return {
@@ -406,12 +427,11 @@ describe("session-init envelope schema", () => {
     });
     expectInvalid(emptyPendingPlan);
 
-    // One edit makes the plan legitimately pending-shaped — the rule reads only
-    // `edits.length`, never element contents — so this payload is valid except for the
-    // command. The positive control proves that, and therefore that the rejection below
-    // is the command contract rather than a second defect in the same fixture.
+    // A complete pending edit supplies the positive control for the command contract.
     const realApplyCommand = clone(emptyPendingPlan);
-    setPath(realApplyCommand, ["userReferenceReconcile", "value", "plan", "edits"], [{}]);
+    setPath(realApplyCommand, ["userReferenceReconcile", "value", "plan", "edits"], [{
+      path: "/tmp/USER-INBOX.md", content: "Updated target", replacements: [{ subject: "old", targetSlug: "new" }],
+    }]);
     expectValid(realApplyCommand);
 
     const fakeApplyCommand = clone(realApplyCommand);
@@ -824,7 +844,11 @@ describe("session-init envelope schema", () => {
     ],
   ] as const)("rejects the stale-worktree routing field: %s", (_label, report, expectedPath) => {
     const value = fixture("orient");
-    setPath(value, ["sweep", "value", "worktrees"], [report]);
+    const complete = report.kind === "husk"
+      ? { worktreePath: "/tmp/alpha", branch: null, stampedBranch: "feat/alpha", completedWorkUnit: "alpha",
+          ...report, subject: { name: "alpha", ...report.subject }, stamp: { authorization: "merged-preserved", ...report.stamp } }
+      : { worktreePath: "/tmp/alpha", branch: "feat/alpha", ...report };
+    setPath(value, ["sweep", "value", "worktrees"], [complete]);
     expectContractFailure(value, expectedPath);
   });
 
@@ -854,9 +878,11 @@ describe("session-init envelope schema", () => {
       from: "/wt/old",
       to: "/wt/new",
       remedy: {
-        argv: ["git", "worktree", "move", "/wt/old", "/wt/new"],
-        text: "git worktree move /wt/old /wt/new",
+        argv: ["git", "worktree", "move", "-f", "-f", "/wt/old", "/wt/new"],
+        text: "git worktree move -f -f /wt/old /wt/new",
       },
+      actions: [{ argv: ["git", "worktree", "move", "-f", "-f", "/wt/old", "/wt/new"],
+        text: "git worktree move -f -f /wt/old /wt/new" }],
     }]);
     assertSchemaAccepts(SessionInitProbeResultSchema, value);
 
@@ -868,7 +894,7 @@ describe("session-init envelope schema", () => {
     [
       "errand classification",
       ["errandState", "value", "inFlight", "errands"],
-      [{ state: "unknown" }],
+      [{ slug: "alpha", branch: "chore/alpha", ageDays: 0, state: "unknown" }],
       "errandState.value.inFlight.errands.0.state",
     ],
     [

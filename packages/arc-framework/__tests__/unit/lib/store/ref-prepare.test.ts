@@ -26,7 +26,7 @@ describe("ref content admission before I/O", () => {
       const owner = { type: kind.startsWith("personal/") ? "person" : "work-item", name: "test-user" };
       const reference = RecordReferenceSchema.parse({ owner, kind });
       const mutation = { action: "put" as const, reference, expected: null, content: "## Entries\n\n### **Typed entry**\n\nbody\n" };
-      const store = createPreflightRefStore();
+      const store = createPreflightRefStore({ ...KIND_REGISTRY, [kind]: { ...KIND_REGISTRY[kind], entry: undefined } });
       for (const operation of ["write", "batch"] as const) {
         const result = operation === "write" ? await store.write({ ...mutation, provenance })
           : await store.batch({ writes: [mutation], provenance });

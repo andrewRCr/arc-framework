@@ -63,6 +63,8 @@ function projectAddress(address: ArcLayoutAddress): string {
       return `.arc/system/${address.family}`;
     case "project-document":
       return ".arc/backlog/ROADMAP.md";
+    case "user-root":
+      return `.arc/user/${address.identity}`;
     case "user-document":
       return projectUserDocument(address);
     default:

@@ -230,6 +230,7 @@ function freePrimaryDerivedFrame(): DerivedLocusFrame {
   const row = {
     kind: "free-primary" as const,
     checkout: {
+      folderPresent: true,
       path: "/repo",
       head: "a".repeat(40),
       branch: "main",
@@ -401,7 +402,7 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
     userReferenceReconcile: cleanUserReferenceReconcile,
     roster: async () => ({ entries: [], warnings: [] }),
     recovery: async () => ({ kind: "main-fallback" as const, remoteEvidence: "exact" as const, baseBranch: "main" }),
-    sweep: async () => ({ remoteEvidence: "not-applicable", worktrees: [], renameMoves: [], retirements: [], warnings: [] }),
+    sweep: async () => ({ remoteEvidence: "not-applicable", worktrees: [], missingFolders: [], renameMoves: [], retirements: [], warnings: [] }),
     orphanBranchSweep: async () => ({ remoteEvidence: "not-applicable", orphans: [] }),
     retiredSubdirs: async () => ({ candidates: [] }),
     errandSweep: async () => ({ stale: [] }),
@@ -487,7 +488,7 @@ function makeResolvedReleaseModeSessionInitProbes(
     userReferenceReconcile: cleanUserReferenceReconcile,
     roster: async () => ({ entries: [], warnings: [] }),
     recovery: async () => ({ kind: "main-fallback" as const, remoteEvidence: "exact" as const, baseBranch: "main" }),
-    sweep: async () => ({ remoteEvidence: "not-applicable", worktrees: [], renameMoves: [], retirements: [], warnings: [] }),
+    sweep: async () => ({ remoteEvidence: "not-applicable", worktrees: [], missingFolders: [], renameMoves: [], retirements: [], warnings: [] }),
     orphanBranchSweep: async () => ({ remoteEvidence: "not-applicable", orphans: [] }),
     retiredSubdirs: async () => ({ candidates: [] }),
     errandSweep: async () => ({ stale: [] }),
@@ -808,7 +809,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       userReferenceReconcile: cleanUserReferenceReconcile,
       roster: async () => ({ entries: [], warnings: [] }),
       recovery: async () => ({ kind: "main-fallback" as const, remoteEvidence: "exact" as const, baseBranch: "main" }),
-      sweep: async () => ({ remoteEvidence: "not-applicable", worktrees: [], renameMoves: [], retirements: [], warnings: [] }),
+      sweep: async () => ({ remoteEvidence: "not-applicable", worktrees: [], missingFolders: [], renameMoves: [], retirements: [], warnings: [] }),
       orphanBranchSweep: async () => ({ remoteEvidence: "not-applicable", orphans: [] }),
       retiredSubdirs: async () => ({ candidates: [] }),
       errandSweep: async () => ({ stale: [] }),
@@ -1012,7 +1013,7 @@ function makeRealWorktreeProbes(
     userReferenceReconcile: cleanUserReferenceReconcile,
     roster: async () => ({ entries: [], warnings: [] }),
     recovery: async () => ({ kind: "main-fallback" as const, remoteEvidence: "exact" as const, baseBranch: "main" }),
-    sweep: async () => ({ remoteEvidence: "not-applicable", worktrees: [], renameMoves: [], retirements: [], warnings: [] }),
+    sweep: async () => ({ remoteEvidence: "not-applicable", worktrees: [], missingFolders: [], renameMoves: [], retirements: [], warnings: [] }),
     orphanBranchSweep: async () => ({ remoteEvidence: "not-applicable", orphans: [] }),
     retiredSubdirs: async () => ({ candidates: [] }),
     errandSweep: async () => ({ stale: [] }),
@@ -1070,8 +1071,8 @@ describe("runSessionInitStatus — real worktree probe", () => {
     }
     expect(result.user.ok).toBe(true);
     if (result.user.ok) {
-      expect(result.user.value.state).toBe("clean");
-      expect("qualifier" in result.user.value).toBe(false);
+      expect(notesUser(result.user).state).toBe("clean");
+      expect("qualifier" in notesUser(result.user)).toBe(false);
     }
   });
 
@@ -1103,7 +1104,7 @@ describe("runSessionInitStatus — real worktree probe", () => {
     }
     expect(result.user.ok).toBe(true);
     if (result.user.ok) {
-      expect(result.user.value.qualifier).toBe("clean-at-current-head");
+      expect(notesUser(result.user).qualifier).toBe("clean-at-current-head");
     }
   });
 
@@ -1125,7 +1126,7 @@ describe("runSessionInitStatus — real worktree probe", () => {
     if (result.user.ok) {
       // User channel resolves independently — qualifier reserved for
       // remote-ahead worktree only.
-      expect(result.user.value.qualifier).toBeUndefined();
+      expect(notesUser(result.user).qualifier).toBeUndefined();
     }
   });
 
@@ -1146,8 +1147,8 @@ describe("runSessionInitStatus — real worktree probe", () => {
     }
     expect(result.user.ok).toBe(true);
     if (result.user.ok) {
-      expect(result.user.value.state).toBe("disabled");
-      expect(result.user.value.qualifier).toBeUndefined();
+      expect(notesUser(result.user).state).toBe("disabled");
+      expect(notesUser(result.user).qualifier).toBeUndefined();
     }
   });
 });
@@ -1585,7 +1586,9 @@ describe("runSessionHandoffStatus — inbox-state envelope path", () => {
 
     expect(result.inboxState?.ok).toBe(true);
     if (result.inboxState?.ok) {
-      expect(result.inboxState.value).toEqual({ routableCount: 2, executeBoundCount: 0, housekeepNeeded: true });
+      expect(result.inboxState.value).toEqual({ routableCount: 2, executeBoundCount: 0, housekeepNeeded: true,
+        actions: [{ text: "arc-session --housekeep" }],
+      });
     }
   });
 
@@ -1682,7 +1685,9 @@ describe("runSessionInitStatus — inbox-state envelope path", () => {
 
     expect(result.inboxState?.ok).toBe(true);
     if (result.inboxState?.ok) {
-      expect(result.inboxState.value).toEqual({ routableCount: 2, executeBoundCount: 1, housekeepNeeded: true });
+      expect(result.inboxState.value).toEqual({ routableCount: 2, executeBoundCount: 1, housekeepNeeded: true,
+        actions: [{ text: "arc-session --housekeep" }],
+      });
     }
   });
 
@@ -1801,3 +1806,9 @@ describe("runSessionInitStatus — reminder-sweep envelope path", () => {
     expect("errandSweep" in result).toBe(false);
   });
 });
+
+function notesUser<T>(probe: { ok: true; value: T } | { ok: false }): Extract<T, { state: string }> {
+  if (!probe.ok || typeof probe.value !== "object" || probe.value === null || !("state" in probe.value)
+    || typeof probe.value.state !== "string") throw new Error("Expected the legacy notes user slot.");
+  return probe.value as Extract<T, { state: string }>;
+}

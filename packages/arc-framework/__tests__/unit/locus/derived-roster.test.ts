@@ -11,9 +11,11 @@ import type {
   ActiveMetaEvidence,
   DormantMarkerGenerationEvidence,
 } from "../../../src/lib/locus/derived-lifecycle-evidence.js";
+import { DerivedCheckoutRowSchema } from "../../../src/lib/locus/derived-schema.js";
 import { projectDerivedCheckoutRow } from "../../../src/lib/locus/derived-roster.js";
 
 const checkout: RegisteredWorktree = {
+  folderPresent: true,
   path: "/repo/demo",
   head: "a".repeat(40),
   branch: "feat/demo",
@@ -218,6 +220,15 @@ describe("dormant derived checkout rows", () => {
     });
   });
 
+  it("retains a version-bound origin in the validated checkout row", () => {
+    const row = project({ checkout: { ...checkout, path: "/repo", branch: "main", primary: true }, marker: marker({
+      spawnedByArc: false, createdFor: { kind: "partial-errand", slug: "repair", claimId: null },
+      provisioning: "ready", originEntry: "personal:abcd1234", originEntryVersion: "v1:0123456789abcdef",
+    }) });
+    expect(row.origin).toEqual({ entry: "personal:abcd1234", version: "v1:0123456789abcdef" });
+    expect(DerivedCheckoutRowSchema.parse(row)).toEqual(row);
+  });
+
   it("derives direct and origin-bound partial Errands independently of identity availability", () => {
     expect(project({
       checkout: { ...checkout, path: "/repo", branch: "main", primary: true },
@@ -265,4 +276,11 @@ describe("dormant derived checkout rows", () => {
       primarySafety: { kind: "complete", clean: false, onBase: true },
     })).toMatchObject({ kind: "unresolved-checkout" });
   });
+});
+
+
+it("preserves missing-folder evidence on a schema-valid derived checkout row", () => {
+  const row = project({ checkout: { ...checkout, folderPresent: false } });
+  expect(row.checkout.folderPresent).toBe(false);
+  expect(DerivedCheckoutRowSchema.safeParse(row).success).toBe(true);
 });

@@ -342,7 +342,9 @@ it.each(["create-new", "materialize"] as const)("reports retained cleanup and re
   expect(await stat(h.path)).toBeDefined();
   if (meta !== undefined) expect(lifecycleSuccess(await h.store.read({ reference: meta.reference }))).toEqual(meta);
   else expect(h.store.state.records.size).toBe(0);
-  expect(await run("exit 7")).toMatchObject({ reason: expect.stringMatching(/collision|already held/isu) });
+  expect(await run("exit 7")).toMatchObject(verb === "create-new"
+    ? { reason: expect.stringMatching(/collision|already held/isu) }
+    : { status: "rejected", reason: expect.stringContaining("run arc pause demo --reason <text>, then arc locus release demo") });
   blocked = false; await h.repair(); await h.configure();
   expect(await run()).toMatchObject(verb === "create-new" ? { ok: true } : { status: "materialized" });
 }, TIMEOUT_MS);

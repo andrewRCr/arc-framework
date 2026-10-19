@@ -21,3 +21,10 @@ export * from "./default-ports.js";
 export * from "./current-work-unit.js";
 export * from "./lifecycle-index.js";
 export * from "./lifecycle-storage.js";
+export { ENTRY_CONFIGS, type EntryKind } from "./kinds/entry-configs.js";
+export { parseEntryList, writeEntryList, type ParsedEntryList, type ParsedListEntry } from "./kinds/entry-list.js";
+export {
+  ENTRY_FIELDS, PERSONAL_FIELDS, managedFieldValue, readEntryField, validEntryFieldValue, writeEntryFields,
+  readRemovalTrigger, writeRemovalTrigger, writeRoutedFrom, entryVersion, drawEntryId, matchInboxEntryTitle, targetNamedByLine,
+} from "./kinds/entry-fields.js";
+export { RoutingListSchema, RoutingReceiptSchema, parseRoutingReceipt, writeRoutingReceipt, type RoutingReceipt } from "./kinds/routing-receipt.js";

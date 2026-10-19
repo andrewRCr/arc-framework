@@ -1,5 +1,8 @@
 /** Compose the actionable review status of one published singleton Candidate. */
 
+import { selectReviewSources } from "./policy/review-source-eligibility.js";
+import { projectSingletonLocalCoverageRefusal, projectReviewSourceRefusal } from "./status-driver-refusal.js";
+import type { ReviewStatusRoute } from "./status-route.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import type { GitExec } from "../../lib/git/exec.js";
 import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
@@ -19,6 +22,7 @@ import { composeSingletonReviewObligation, type RoutedReviewObligation } from ".
 import type { ReviewStatusPolicyJudgment } from "./status-judgment.js";
 
 interface PublishedSingletonInput {
+  statusRoute: ReviewStatusRoute;
   cwd: string;
   exec: GitExec;
   settings: Awaited<ReturnType<typeof readConfigSettings>>["settings"];
@@ -49,7 +53,16 @@ export async function composePublishedSingletonReview(input: PublishedSingletonI
     ...(input.judgment?.sourceId === undefined ? {}
       : { invocation: { mode: "force" as const, sourceId: input.judgment.sourceId } }),
   };
-  const discharge = await readDischarge(dischargeInput);
+  let discharge = await readDischarge(dischargeInput);
+  if (!discharge.discharged && discharge.terminalPolicyState === "coverage-required") {
+    const invocation = input.judgment?.sourceId === undefined ? discharge.invocation
+      : { mode: "force" as const, sourceId: input.judgment.sourceId };
+    const selection = selectReviewSources({ lane: "standard", sources: reservation.sources,
+      nextPassContext: discharge.nextPassContext, ...(invocation === undefined ? {} : { invocation }) });
+    const refusal = projectReviewSourceRefusal({ diagnostic: selection.refusal, route: input.statusRoute });
+    if (refusal !== null) return refusal;
+    if (discharge.nextSource === null) discharge = { ...discharge, nextSource: selection.sources[0] ?? null };
+  }
   const applicabilityContext = {
     workUnitId: input.workUnit,
     expectedRecordVersion: input.recordVersion,
@@ -58,7 +71,11 @@ export async function composePublishedSingletonReview(input: PublishedSingletonI
   const request = !discharge.discharged && discharge.nextSource !== null
     ? await resolveSingletonRequest(input, discharge, dischargeInput)
     : undefined;
+  const coverageRefusal = projectSingletonLocalCoverageRefusal({ route: input.statusRoute,
+    coverage: input.judgment?.coverage, request, terminalPolicyState: discharge.terminalPolicyState });
+  if (coverageRefusal !== null) return coverageRefusal;
   return composeSingletonReviewObligation({
+    statusRoute: input.statusRoute,
     discharge,
     applicabilityContext,
     ...(request === undefined ? {} : { request }),
@@ -89,6 +106,7 @@ async function resolveSingletonRequest(
     target: input.target,
     maxPasses: policy.maxPasses,
     coverageSelected: input.judgment?.coverage !== undefined,
+    chosenCoverage: input.judgment?.coverage,
     ceilingOverride: input.judgment?.ceilingOverride,
     additionalPassAuthorization: input.judgment?.additionalPassAuthorization,
     ...(invocation === undefined ? {} : { invocation }),
@@ -104,6 +122,7 @@ async function resolveSingletonRequest(
   const sourceId = admission.state === "ready" ? admission.payload.sourceId : discharge.nextSource;
   return {
     target: input.target,
+    standardReview: input.reservation.obligation,
     admission,
     sourceId,
     coverage: input.judgment?.coverage ?? discharge.requestCoverage ?? "complete",

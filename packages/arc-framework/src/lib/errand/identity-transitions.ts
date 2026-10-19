@@ -63,7 +63,7 @@ export type OrdinaryErrandTransition =
       kind: "link";
       previous: OrdinaryErrandRecord;
       originEntry: string;
-      originEntrySourceDigest: CanonicalDigest;
+      originEntrySourceDigest: CanonicalDigest | null;
       updatedAt: string;
     }
   | {

@@ -5,6 +5,12 @@ import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 import ts from "typescript";
+import type { SessionInitProbeResult } from "../../../src/commands/status/types.js";
+import type { SessionInitProbeResultSchemaInputCompatibility } from "../../../src/commands/status/schema.js";
+
+type InvalidProducer = Omit<SessionInitProbeResult, "mode"> & { mode: "invalid" };
+// @ts-expect-error Invalid producer modes must fail schema input compatibility.
+export type InvalidSessionInitProducer = SessionInitProbeResultSchemaInputCompatibility<InvalidProducer>;
 
 const SOURCE_ROOT = resolve(import.meta.dirname, "../../../src");
 
@@ -22,6 +28,8 @@ const SCHEMA_OWNED_TYPES: readonly TypeLocus[] = [
     { file: "lib/recover/audit.ts", type: "RecoveryAuditVerdict" },
     { file: "lib/recover/report.ts", type: "RecoverAuditReport" },
     { file: "lib/session-init/inbox-state.ts", type: "InboxStateResult" },
+    { file: "lib/session-init/paused-work.ts", type: "PausedWorkResult" },
+    { file: "lib/session-init/inbound-back-pressure.ts", type: "InboundBackPressureResult" },
     {
         file: "lib/session-init/errand-staleness-sweep.ts",
         type: "ErrandStalenessSweepResult",
@@ -69,9 +77,6 @@ const SCHEMA_OWNED_TYPES: readonly TypeLocus[] = [
     { file: "commands/constitution/types.ts", type: "DomainRulesSessionInitResult" },
     { file: "commands/status/types.ts", type: "StatusIdentity" },
     { file: "commands/status/types.ts", type: "CompactionSeedWriteStatus" },
-];
-
-const HANDWRITTEN_TAIL_TYPES: readonly TypeLocus[] = [
     {
         file: "lib/session-init/stale-worktree-sweep.ts",
         type: "StaleWorktreeSweepResult",
@@ -82,6 +87,13 @@ const HANDWRITTEN_TAIL_TYPES: readonly TypeLocus[] = [
     },
     { file: "lib/session-init/errand-state.ts", type: "ErrandStateResult" },
     { file: "commands/user/types.ts", type: "UserSessionInitStatusResult" },
+    { file: "lib/session-init/current-wu-reconcile.ts", type: "CurrentWuReconcileSessionResult" },
+    { file: "lib/user-reference-reconcile.ts", type: "UserReferenceReconcileSessionResult" },
+    { file: "lib/locus/derived-reader.ts", type: "DerivedLocusFrame" },
+
+];
+
+const HANDWRITTEN_TAIL_TYPES: readonly TypeLocus[] = [
     { file: "commands/status/types.ts", type: "SessionInitProbeResult" },
     { file: "commands/status/types.ts", type: "SessionRecoverProbeResult" },
 ];

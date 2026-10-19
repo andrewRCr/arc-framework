@@ -22,9 +22,16 @@ export function lifecycleRecordPath(primary: StoreRecord, record: StoreRecord): 
 
 /** Project backend-assigned cohort closeout coordinates for a completed sidecar report. */
 export function completedCohortPath(record: StoreRecord): string {
-  const placement = CohortReadPlacementSchema.parse(record.placement);
+  CohortReadPlacementSchema.parse(record.placement);
+  return cohortDocumentPath(record);
+}
+
+/** Project a cohort document from its own lifecycle coordinates. */
+export function cohortDocumentPath(record: StoreRecord): string {
   const fields = ParsedCohortDocumentSchema.parse(record.fields), name = SlugSchema.parse(record.reference.owner.name);
   const cohort: [typeof name] | [typeof name, typeof name] = fields.parent === null ? [name] : [fields.parent, name];
+  if (record.placement === undefined) return resolveArcPath({ kind: "cohort-document", cohort, placement: { kind: "planned" } });
+  const placement = CohortReadPlacementSchema.parse(record.placement);
   return resolveArcPath({ kind: "cohort-document", cohort, placement: { ...placement,
     closeout: placement.closeout === "a" ? "leaf" : "parent" } });
 }

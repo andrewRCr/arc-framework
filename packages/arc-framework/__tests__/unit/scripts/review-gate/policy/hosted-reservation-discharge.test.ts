@@ -1,3 +1,4 @@
+import { withReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
 /** Unit coverage for hosted-review reservation discharge. */
 
 import { makeGitProcessError } from "../../../../helpers/git-exec-fake.js";
@@ -376,7 +377,7 @@ async function defaultTerminalPolicy(
   const coverageAdequate = "effectiveCoverage" in attempt
     ? attempt.effectiveCoverage === "complete"
     : attempt.local?.effectiveCoverage === "complete" || attempt.hosted?.effectiveCoverage === "complete";
-  return resolveReviewPolicy({
+  return resolveReviewPolicy(withReviewNextPassContext({
     schemaVersion: 1,
     target: target(oid("a")),
     lane: "standard",
@@ -390,9 +391,11 @@ async function defaultTerminalPolicy(
       confirmedFindingCount: outcome === "clean" ? 0 : 1,
       maxConfirmedSeverity: outcome === "clean" ? null : "major",
       materialFix: outcome !== "clean",
+      effectiveCoverage: "effectiveCoverage" in attempt ? attempt.effectiveCoverage
+        : attempt.local?.effectiveCoverage ?? attempt.hosted?.effectiveCoverage ?? null,
       coverageAdequate,
     },
-  });
+  }));
 }
 
 function projectHostedReservationDischarge(
@@ -420,6 +423,7 @@ function hostedReviewResult(input: {
   readonly producerId: string;
   readonly headSha: string;
   readonly coverage: "complete" | "incremental";
+  readonly findingId?: string;
   readonly correctionScope?: {
     readonly predecessorProducerId: string;
     readonly predecessorHeadSha: string;
@@ -451,8 +455,9 @@ function hostedReviewResult(input: {
     repositoryId: "repo-1",
     target: reviewTarget,
     sourceIdentity: "codex-pr",
-    originalOutcome: "clean",
-    findings: [],
+    originalOutcome: input.findingId === undefined ? "clean" : "findings",
+    findings: input.findingId === undefined ? [] : [{ findingId: input.findingId, severity: "major",
+      locus: `src/${input.findingId}.ts:1`, evidenceUrlOrId: input.findingId, sourceOrdinal: 1 }],
     resultDigest: canonicalDigest({ producerId: input.producerId }),
     admission: {
       lineage: { kind: "candidate", candidateId: `sha256:${"f".repeat(64)}` },
@@ -1147,7 +1152,7 @@ describe("hosted reservation discharge", () => {
       readLaneProgress: progress({}),
       readEarlierAttemptApplicability: async () => ({ status: "complete", attempts: [prior] }),
       requireEarlierApplicabilityEvidence: true,
-      resolveEarlierTerminalPolicy: async () => resolveReviewPolicy({
+      resolveEarlierTerminalPolicy: async () => resolveReviewPolicy(withReviewNextPassContext({
         schemaVersion: 1,
         target: target(oid("a")),
         lane: "standard",
@@ -1165,9 +1170,9 @@ describe("hosted reservation discharge", () => {
           confirmedFindingCount: 1,
           maxConfirmedSeverity: "minor",
           materialFix: false,
-          coverageAdequate: true,
+          effectiveCoverage: "complete" as const, coverageAdequate: true,
         },
-      }),
+      })),
     });
 
     expect(result).toEqual({
@@ -1288,7 +1293,7 @@ describe("hosted reservation discharge", () => {
           attempts: [settled],
         },
       }),
-      resolveTerminalPolicy: async () => resolveReviewPolicy({
+      resolveTerminalPolicy: async () => resolveReviewPolicy(withReviewNextPassContext({
         schemaVersion: 1,
         target: target(headSha),
         lane: "standard",
@@ -1306,9 +1311,9 @@ describe("hosted reservation discharge", () => {
           confirmedFindingCount: 1,
           maxConfirmedSeverity: "major",
           materialFix: true,
-          coverageAdequate: true,
+          effectiveCoverage: "complete" as const, coverageAdequate: true,
         },
-      }),
+      })),
     });
 
     expect(result).toMatchObject({
@@ -1332,7 +1337,7 @@ describe("hosted reservation discharge", () => {
           attempts: [settled],
         },
       }),
-      resolveTerminalPolicy: async () => resolveReviewPolicy({
+      resolveTerminalPolicy: async () => resolveReviewPolicy(withReviewNextPassContext({
         schemaVersion: 1,
         target: target(headSha),
         lane: "standard",
@@ -1350,9 +1355,9 @@ describe("hosted reservation discharge", () => {
           confirmedFindingCount: 0,
           maxConfirmedSeverity: null,
           materialFix: false,
-          coverageAdequate: true,
+          effectiveCoverage: "complete" as const, coverageAdequate: true,
         },
-      }),
+      })),
     });
 
     expect(result).toEqual({
@@ -1400,7 +1405,7 @@ describe("hosted reservation discharge", () => {
     });
   });
 
-  it("routes unproved provider-native coverage to the typed complete-coverage selection", async () => {
+  it("keeps unproved provider-native coverage outstanding without inventing a coverage offer", async () => {
     const vehicle = DeliveryReviewMemberVehicleSchema.parse({
       kind: "delivery-member",
       planId: PLAN_ID,
@@ -1448,18 +1453,9 @@ describe("hosted reservation discharge", () => {
       discharged: false,
       nextSource: null,
       detail: expect.stringContaining("coverage-required/select-coverage"),
-      coverageSelectionAction: {
-        schemaVersion: 1,
-        kind: "review-coverage-selection",
-        workUnitId: "delivery",
-        sourceId: "coderabbit-pr",
-        pass: 1,
-        completedPasses: 1,
-        consumedPass: true,
-        choices: [{ sourceId: "coderabbit-pr", coverage: "complete" }],
-        interactionText: expect.stringContaining("--coverage"),
-      },
+
     });
+    expect(result).not.toHaveProperty("coverageSelectionAction");
   });
 
   it("preserves an incremental terminal result as coverage-required policy evidence", async () => {
@@ -1483,7 +1479,7 @@ describe("hosted reservation discharge", () => {
           attempts: [incremental],
         },
       }),
-      resolveTerminalPolicy: async () => resolveReviewPolicy({
+      resolveTerminalPolicy: async () => resolveReviewPolicy(withReviewNextPassContext({
         schemaVersion: 1,
         target: target(headSha),
         lane: "standard",
@@ -1501,15 +1497,16 @@ describe("hosted reservation discharge", () => {
           confirmedFindingCount: 0,
           maxConfirmedSeverity: null,
           materialFix: false,
-          coverageAdequate: false,
+          effectiveCoverage: "incremental" as const, coverageAdequate: false,
         },
-      }),
+      })),
     });
 
     expect(result).toEqual({
       discharged: false,
       detail: "The terminal review producer did not establish convergence (coverage-required/select-coverage).",
-      nextSource: null,
+      terminalPolicyState: "coverage-required",
+      nextSource: null, completedPasses: 1, requestAttempts: [],
     });
   });
 
@@ -2040,7 +2037,7 @@ describe("hosted reservation discharge", () => {
         completePasses: 0,
         passCeiling: 2,
         attemptHistory: [],
-        requestAdmission: resolveReviewPolicy({
+        requestAdmission: resolveReviewPolicy(withReviewNextPassContext({
           schemaVersion: 1,
           target: secondTarget,
           lane: "standard",
@@ -2049,7 +2046,7 @@ describe("hosted reservation discharge", () => {
           maxPasses: 2,
           completedPasses: 0,
           attempts: [],
-        }),
+        })),
       }],
     });
 
@@ -2251,7 +2248,7 @@ describe("hosted reservation discharge", () => {
   it.each(["clean", "settled-findings"] as const)(
     "admits retained incremental %s evidence to complete-chain policy validation",
     async (terminalOutcome) => {
-    const resolveEarlierTerminalPolicy = async (terminal: TerminalPolicyAttempt) => resolveReviewPolicy({
+    const resolveEarlierTerminalPolicy = async (terminal: TerminalPolicyAttempt) => resolveReviewPolicy(withReviewNextPassContext({
       schemaVersion: 1,
       target: target(oid("b")),
       lane: "standard",
@@ -2269,9 +2266,9 @@ describe("hosted reservation discharge", () => {
         confirmedFindingCount: 0,
         maxConfirmedSeverity: null,
         materialFix: false,
-        coverageAdequate: true,
+        effectiveCoverage: "incremental" as const, coverageAdequate: true,
       },
-    });
+    }));
     const result = await projectHostedReservationDischarge({
       reservation: reservation("coderabbit-pr", ["coderabbit-pr"]),
       span: [oid("b")],
@@ -2299,7 +2296,7 @@ describe("hosted reservation discharge", () => {
     });
   });
 
-  it("routes retained incremental evidence with an inadequate chain to coverage selection", async () => {
+  it("retains an inadequate earlier incremental look without a new fix-check scope", async () => {
     const vehicle = DeliveryReviewMemberVehicleSchema.parse({
       kind: "delivery-member",
       planId: PLAN_ID,
@@ -2307,14 +2304,6 @@ describe("hosted reservation discharge", () => {
       workUnitId: "delivery",
       head: oid("b"),
     });
-    const correctionScope = {
-      schemaVersion: 1 as const,
-      predecessorProducerId: "attempt-coderabbit-pr",
-      predecessorHeadSha: oid("a"),
-      basisHeadSha: oid("a"),
-      headSha: oid("b"),
-      requiredFindings: [],
-    };
     const result = await projectHostedReservationDischarge({
       reservation: reservation("coderabbit-pr", ["coderabbit-pr"]),
       span: [oid("b")],
@@ -2330,7 +2319,6 @@ describe("hosted reservation discharge", () => {
           applicability: "retain-prior-attempt",
         })],
       }),
-      resolveIncrementalCorrectionScope: async () => correctionScope,
     });
 
     expect(result).toMatchObject({
@@ -2338,22 +2326,10 @@ describe("hosted reservation discharge", () => {
       detail: "The retained terminal review producer did not establish convergence "
         + "(coverage-required/select-coverage).",
       nextSource: null,
-      correctionScope,
-      coverageSelectionAction: {
-        schemaVersion: 1,
-        kind: "review-coverage-selection",
-        workUnitId: "delivery",
-        sourceId: "coderabbit-pr",
-        pass: 1,
-        completedPasses: 1,
-        consumedPass: true,
-        choices: [
-          { sourceId: "coderabbit-pr", coverage: "incremental" },
-          { sourceId: "coderabbit-pr", coverage: "complete" },
-        ],
-        interactionText: expect.stringContaining("--coverage"),
-      },
+
     });
+    expect(result).not.toHaveProperty("coverageSelectionAction");
+    expect(result).not.toHaveProperty("correctionScope");
   });
 
   it("routes an applicable prior findings attempt back to its exact response plan", async () => {
@@ -2822,6 +2798,7 @@ describe("hosted reservation discharge", () => {
 
   it("carries an incremental predecessor's basis and transitive material instructions", () => {
     const predecessor = hostedReviewResult({
+      findingId: "finding-b",
       producerId: "hosted/incremental-b",
       headSha: oid("b"),
       coverage: "incremental",
@@ -2837,7 +2814,7 @@ describe("hosted reservation discharge", () => {
       predecessor,
       currentHeadSha: oid("c"),
       response: {
-        status: "performed",
+        status: "performed", hasFix: true,
         requiredFindings: [findingInstruction(predecessor.producerId, "finding-b")],
       },
     })).toEqual({
@@ -2872,6 +2849,8 @@ describe("hosted reservation discharge", () => {
     });
 
     await expect(confirmIncrementalPredecessorApplicability({
+      dispositionStore: { readDispositionRecord: async () => null, appendDispositionRecord: async () => { throw new Error("read-only proof"); } },
+      readResponsePerformance: async () => null,
       predecessor: complete,
       current,
       readEarlierAttemptApplicability: async () => ({
@@ -2926,6 +2905,8 @@ describe("hosted reservation discharge", () => {
       })],
     }));
     await expect(confirmIncrementalPredecessorApplicability({
+      dispositionStore: { readDispositionRecord: async () => null, appendDispositionRecord: async () => { throw new Error("read-only proof"); } },
+      readResponsePerformance: async () => null,
       predecessor,
       current: { ...current, target: changedTarget },
       readEarlierAttemptApplicability,
@@ -2935,6 +2916,7 @@ describe("hosted reservation discharge", () => {
 
   it("offers a correction from an exact current target and withholds it after a base change", async () => {
     const predecessor = hostedReviewResult({
+      findingId: "finding-1",
       producerId: "hosted/current-complete",
       headSha: oid("a"),
       coverage: "complete",
@@ -2951,7 +2933,7 @@ describe("hosted reservation discharge", () => {
       currentHeadSha: predecessor.target.headSha,
     }, {
       resultReader: { readResult: async () => predecessor },
-      readResponseEvidence: async () => ({ status: "performed" as const, requiredFindings: [] }),
+      readResponseEvidence: async () => ({ status: "performed" as const, hasFix: true, requiredFindings: [] }),
       confirmApplicability: async () => "applicable" as const,
       confirmCurrentApplicability: async (candidate) => exactCurrentCorrectionPredecessorMatches({
         predecessor: candidate,
@@ -2986,6 +2968,8 @@ describe("hosted reservation discharge", () => {
     });
     const applicability = (predecessor: ReviewResult, result: ReviewResult) =>
       confirmIncrementalPredecessorApplicability({
+      dispositionStore: { readDispositionRecord: async () => null, appendDispositionRecord: async () => { throw new Error("read-only proof"); } },
+      readResponsePerformance: async () => null,
         predecessor,
         current: result,
         readEarlierAttemptApplicability: async () => ({
@@ -3004,7 +2988,7 @@ describe("hosted reservation discharge", () => {
     const dependencies = {
       resultReader: { readResult: async () => complete },
       confirmApplicability: applicability,
-      readResponseEvidence: async () => ({ status: "performed" as const, requiredFindings: [] }),
+      readResponseEvidence: async () => ({ status: "performed" as const, hasFix: false, requiredFindings: [] }),
     };
     await expect(resolveIncrementalCoverageBasis(current, dependencies)).resolves.toMatchObject({
       status: "inadequate", reason: "applicability-required",
@@ -3047,12 +3031,14 @@ describe("hosted reservation discharge", () => {
       expect(incrementalApplicabilityFromEarlierRead({
         producerId: "hosted/prior-complete",
         producerTarget,
+        currentTarget: producerTarget,
         earlier: projected(applicability),
       })).toBe(applicability === "request-review" ? "review-required" : "applicable");
     }
     expect(incrementalApplicabilityFromEarlierRead({
       producerId: "hosted/prior-complete",
       producerTarget,
+      currentTarget: producerTarget,
       earlier: projected("stop"),
     })).toBe("unavailable");
   });

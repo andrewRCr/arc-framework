@@ -120,7 +120,7 @@ export function createLocalReviewPreparationFixture() {
     _input: Parameters<Parameters<typeof prepareLocalReview>[1]["validatePolicyAdmission"]>[0],
   ): Promise<unknown> => {
     void _input;
-    return { state: "ready", pass: 1 };
+    return { state: "ready", pass: 1, coverageAdmission: _input.coverageAdmission ?? { requestedCoverage: "complete" } };
   });
   const composeAssurance = vi.fn(async () => ({
     status: "resolved" as const,
@@ -173,8 +173,10 @@ export function createLocalReviewPreparationFixture() {
     composeAssurance,
     resolvePolicy,
     validatePolicySelection: () => undefined,
+    readReservedWorkUnitObligation: async () => undefined,
     validateDeliveryAdmission,
     validatePolicyAdmission,
+    readFixedFindingPointers: async () => [],
     operationStore: {
       readOperation: async (operationId: string) => (
         operations.get(operationId) ?? { version: 0, state: null }
