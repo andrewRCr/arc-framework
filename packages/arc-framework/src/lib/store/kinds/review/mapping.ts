@@ -3,6 +3,7 @@ import { OwnerIdentitySchema, recordReferences } from "../../identity.js";
 import { collectReviewMappingSources, reviewMappingListingEntry } from "./mapping-listing.js";
 import { createReviewMappingWorkItemResolver } from "./mapping-work-items.js";
 import { indexReviewMappingSources, type ReviewMappingSources } from "./mapping-sources.js";
+import { mapReviewEvidenceSource } from "./mapping-evidence.js";
 import { mapReviewAttempt } from "./mapping-outcomes.js";
 import { reviewOutcomeKey } from "./outcome/key.js";
 import { reviewMappingJoinedSourceListing, type MappedReviewOutcome } from "./mapping-source-listing.js";
@@ -39,16 +40,22 @@ export function mapReviewRecords(input: ReviewMappingInput): ReviewMappingResult
   const indexed = indexReviewMappingSources(sources, input.projectId);
   const resolveOwner = createReviewMappingWorkItemResolver(input);
   const outcomes: MappedReviewOutcome[] = [];
-  const laneListings = new Map<string, ReviewMappingResult["listing"][number]>();
+  const sourceListings = new Map<string, ReviewMappingResult["listing"][number]>();
   for (const [source, state] of indexed.operations) {
     if (state.kind !== "lane-progress") continue;
     const mapped = mapLane(source, state, indexed, resolveOwner);
     outcomes.push(...mapped.records);
-    laneListings.set(source, mapped.listing);
+    sourceListings.set(source, mapped.listing);
   }
-  return {
-    records: outcomes.map(({ reference, outcome }) => ({ reference, contents: [JSON.stringify(outcome)] })),
-    listing: sources.map((source) => laneListings.get(source.source)
+  const records = outcomes.map(({ reference, outcome }) => ({ reference, contents: [JSON.stringify(outcome)] }));
+  for (const source of sources) {
+    const evidence = mapReviewEvidenceSource(source, input.projectId, outcomes, indexed);
+    if (evidence === null) continue;
+    records.push(...evidence.records);
+    sourceListings.set(source.source, evidence.listing);
+  }
+  return { records,
+    listing: sources.map((source) => sourceListings.get(source.source)
       ?? reviewMappingJoinedSourceListing(source, indexed, outcomes)),
   };
 }

@@ -1,10 +1,13 @@
 /** Producer-generated local operations and their repository persistence envelopes. */
+import { LocalReviewResultReader } from "../../src/scripts/review-gate/hosts/local/review-result-reader.js";
 import { createLocalReviewPreparationFixture } from "./local-review-preparation.js";
 import { prepareLocalReview } from "../../src/scripts/review-gate/runtime/local-prepare.js";
 import { recordLocalReceiptConclusion } from "../../src/scripts/review-gate/lane-progress.js";
 import { createReviewReceipt, createReviewTarget } from "../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { ReviewOperationStoreRecordSchema } from "../../src/scripts/review-gate/core/repository-record-schemas.js";
 import type { ReviewOperationState } from "../../src/scripts/review-gate/core/operation-state-schema.js";
+import type { LaneSubjectLineage } from "../../src/scripts/review-gate/core/lane-admission.js";
+import type { LocalReviewAuthority } from "../../src/scripts/review-gate/core/local-review-authority.js";
 import type { ReviewMappingInput } from "../../src/lib/store/kinds/review/mapping-types.js";
 import { DeliveryReviewMemberVehicleSchema } from "../../src/lib/delivery/review-vehicle.js";
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
@@ -19,15 +22,19 @@ export function mappingOperation(state: ReviewOperationState, version = 1) {
     bytes: new TextEncoder().encode(JSON.stringify(record)) };
 }
 
-export async function createLocalMappingFixture() {
+export async function createLocalMappingFixture(context: {
+  lineage?: LaneSubjectLineage; vehicle?: LocalReviewAuthority["vehicle"];
+  imported?: Pick<ReviewMappingInput, "workItems" | "candidates">;
+} = {}) {
   const fixture = createLocalReviewPreparationFixture();
-  fixture.dependencies.resolveLineage = async (_vehicle, headSha) => ({ kind: "head-bound", vehicleKind: "errand",
+  const vehicle = context.vehicle ?? { kind: "errand" as const, identity: mappingErrand.slug, claimId: mappingErrand.claimId };
+  fixture.dependencies.resolveLineage = async (_vehicle, headSha) => context.lineage ?? ({ kind: "head-bound", vehicleKind: "errand",
     vehicleIdentity: mappingErrand.claimId, headSha });
   fixture.dependencies.resolveAuthority = async () => ({ authority: {
-    vehicle: { kind: "errand", identity: mappingErrand.slug, claimId: mappingErrand.claimId }, authorIdentity: "author-1", evaluatorIdentity: "evaluator-1",
+    vehicle, authorIdentity: "author-1", evaluatorIdentity: "evaluator-1",
     attestationRuntimeKind: "arc-cli", runtimeIdentity: "arc-cli/0.1.0", attestationMechanism: "local-attestation",
   }, member: null });
-  fixture.dependencies.resolveVehicle = async () => ({ vehicle: { kind: "errand", identity: mappingErrand.slug, claimId: mappingErrand.claimId },
+  fixture.dependencies.resolveVehicle = async () => ({ vehicle,
     authorIdentity: "author-1", member: null });
   let target = fixture.changeSetTarget;
   fixture.deriveTarget.mockImplementation(async () => target);
@@ -35,12 +42,12 @@ export async function createLocalMappingFixture() {
   fixture.dependencies.confirmTarget = async (attempted) => attempted.targetId === target.targetId
     ? { state: "current", target } : { state: "stale-target", attemptedTarget: attempted, currentTarget: target };
   async function prepare() {
-  const prepared = await prepareLocalReview({ schemaVersion: 1, evaluatorIdentity: "evaluator-1",
-    routingFacts: { contentKind: "code-bearing", reviewRisk: "routine", changeDeterminacy: "ordinary",
-      ownership: "self", surfaceAuthority: "ordinary" }, policyJudgment: { scopeMode: "whole-target" } }, fixture.dependencies);
-  const state = fixture.published();
-  if (prepared.state !== "ready" || state?.kind !== "local-review") throw new Error("Expected local producer");
-  return state;
+    const prepared = await prepareLocalReview({ schemaVersion: 1, evaluatorIdentity: "evaluator-1",
+      routingFacts: { contentKind: "code-bearing", reviewRisk: "routine", changeDeterminacy: "ordinary",
+        ownership: "self", surfaceAuthority: "ordinary" }, policyJudgment: { scopeMode: "whole-target" } }, fixture.dependencies);
+    const state = fixture.published();
+    if (prepared.state !== "ready" || state?.kind !== "local-review") throw new Error("Expected local producer");
+    return state;
   }
   const state = await prepare();
   async function moveHead() {
@@ -51,7 +58,7 @@ export async function createLocalMappingFixture() {
   }
   const receipts: ReturnType<typeof createReviewReceipt>[] = [];
   function input(): ReviewMappingInput {
-    return { projectId: state.repositoryId, workItems: [mappingErrand], candidates: [],
+    return { projectId: state.repositoryId, ...(context.imported ?? { workItems: [mappingErrand], candidates: [] }),
       gate: [...fixture.operations.values()].map(({ state, version }) => mappingOperation(state, version)).concat([{
         path: "arc/review-gate/evidence/receipts-v2.json", bytes: new TextEncoder().encode(JSON.stringify({
           schemaVersion: 2, semanticsVersion: "review-gate/v2", repositoryId: state.repositoryId,
@@ -72,7 +79,18 @@ export async function createLocalMappingFixture() {
       receipts: receipts.filter((item) => item.targetId === targetId) });
     return receipt;
   }
-  return { ...fixture, state, receipts, input, conclude, moveHead, prepare };
+  const resultReader = new LocalReviewResultReader({
+    operationIndex: { readOperationSnapshot: async () => ({ status: "complete", records: [...fixture.operations.values()] }) },
+    sourceStore: fixture.dependencies.sourceStore,
+    receiptIndex: {
+      readReceiptEntries: async (targetId) => receipts.flatMap((receipt, index) => receipt.targetId === targetId
+        ? [{ receipt, durableEvidenceRef: `git-common:review-gate/evidence/receipts-v2.json#${index + 1}` }] : []),
+      readReceiptReference: async (ref) => receipts[Number(ref.split("#").at(-1)) - 1] ?? null,
+    },
+    outcomeStore: { readOutcome: async () => ({ version: 0, record: null, outcomeRef: null }),
+      appendOutcome: async () => { throw new Error("Unexpected frontline result"); } },
+  });
+  return { ...fixture, state, receipts, input, conclude, moveHead, prepare, resultReader };
 }
 
 export async function createFrontlineMappingFixture() {
@@ -99,4 +117,47 @@ export async function createFrontlineMappingFixture() {
     gate: [mappingOperation(fixture.lane), { path: "arc/review-gate/outcomes/frontline-outcome.json",
       bytes: new TextEncoder().encode(JSON.stringify(record)) }] };
   return { fixture, input };
+}
+
+export async function createHostedMappingFixture(kind: "errand" | "delivery-member" = "errand") {
+  const { createHostedHandleFixture, createHostedTerminalAttemptFixture } = await import("./hosted-review.js");
+  const { recordLaneAttempt } = await import("../../src/scripts/review-gate/lane-progress.js");
+  const member = DeliveryReviewMemberVehicleSchema.parse({ kind: "delivery-member", workUnitId: "example",
+    planId: "123e4567-e89b-42d3-a456-426614174002", deliverableId: canonicalDigest({ member: "example" }), head: "c".repeat(40) });
+  const handle = createHostedHandleFixture(kind === "delivery-member" ? { vehicle: member } : {
+    lineage: { kind: "head-bound", vehicleKind: "errand", vehicleIdentity: mappingErrand.claimId, headSha: "c".repeat(40) },
+  });
+  const ended = createHostedTerminalAttemptFixture({ admission: handle.admission, outcome: "findings", findings: [{
+    findingId: "hosted-finding", origin: "review-thread", commentId: "comment-1", threadId: "thread-1",
+    settlement: "reply-and-resolve", severity: "major", locus: "src/example.ts:3",
+    url: "https://example.invalid/finding-1", sourceOrdinal: 1,
+  }] });
+  const operations = new Map<string, { version: number; state: ReviewOperationState }>();
+  const store = {
+    readOperation: async (operationId: string) => operations.get(operationId) ?? { version: 0, state: null },
+    publishOperation: async (state: ReviewOperationState, expectedVersion: number) => {
+      const current = operations.get(state.operationId)?.version ?? 0;
+      if (current !== expectedVersion) throw new Error("version-conflict");
+      const version = current + 1;
+      operations.set(state.operationId, { state, version });
+      return { version };
+    },
+  };
+  const lane = await recordLaneAttempt(store, { lane: "standard", repositoryId: handle.admission.repositoryId,
+    changeRequestId: `pull/${handle.target.pullRequest}`, headSha: handle.target.headSha, lineage: handle.admission.lineage,
+    logicalPass: handle.admission.logicalPass, retryGeneration: 0, attemptId: ended.attemptId, sourceId: handle.provider,
+    outcome: "findings", consumedPass: true, hosted: ended.hosted, now: "2026-10-19T13:00:00Z" });
+  const resultReader = new LocalReviewResultReader({
+    operationIndex: { readOperationSnapshot: async () => ({ status: "complete", records: [...operations.values()] }) },
+    receiptIndex: { readReceiptEntries: async () => [], readReceiptReference: async () => null },
+    sourceStore: { readSource: async () => null, appendSource: async () => { throw new Error("Unexpected source write"); } },
+    outcomeStore: { readOutcome: async () => ({ version: 0, record: null, outcomeRef: null }),
+      appendOutcome: async () => { throw new Error("Unexpected outcome write"); } },
+  });
+  function input(): ReviewMappingInput {
+    return { projectId: handle.admission.repositoryId, candidates: [],
+      workItems: kind === "errand" ? [mappingErrand] : [{ kind: "work-unit", slug: member.workUnitId, uid: mappingErrand.uid, live: true }],
+      gate: [...operations.values()].map(({ state, version }) => mappingOperation(state, version)) };
+  }
+  return { handle, ended, member, operations, store, lane, resultReader, input };
 }

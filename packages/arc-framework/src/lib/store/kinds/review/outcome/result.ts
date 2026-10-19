@@ -42,6 +42,7 @@ export function reviewOutcomeMatchesDispositionSet(outcome: ReviewOutcome, set: 
   const actual = set.findings.map(({ findingId, reportedSeverity, locus, reportedNit }) =>
     ({ findingId, severity: reportedSeverity, locus, nit: reportedNit === true }))
     .sort((left, right) => left.findingId.localeCompare(right.findingId));
+  const producerIdentity = outcome.local?.request.evaluatorIdentity ?? outcome.source.sourceId;
   return canonicalize(expected) === canonicalize(actual)
-    && set.findings.every(({ sourceIdentity }) => sourceIdentity === outcome.source.sourceId);
+    && set.findings.every(({ sourceIdentity }) => sourceIdentity === producerIdentity);
 }

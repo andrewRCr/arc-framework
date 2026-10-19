@@ -13,7 +13,7 @@ export function outcomeEvidence(outcome: ReviewOutcome, disposition: "fix" | "de
   void _kind;
   const set = createDispositionSet({ schemaVersion: 2, semanticsVersion: "review-gate/v2", ...binding,
     targetId: outcome.target.targetId, proposedBy: "proposer", proposedVerification: "full",
-    findings: outcome.findings.map((finding) => ({ findingId: finding.findingId, sourceIdentity: outcome.source.sourceId,
+    findings: outcome.findings.map((finding) => ({ findingId: finding.findingId, sourceIdentity: outcome.local?.request.evaluatorIdentity ?? outcome.source.sourceId,
       locus: finding.locus, reportedSeverity: finding.severity, ...(finding.nit === true ? { reportedNit: true } : {}),
       sourceVerification: "verified", verifiedSeverity: finding.severity, disposition,
       verificationRefs: [finding.evidenceUrlOrId], rationale: "The source was checked.",

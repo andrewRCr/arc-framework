@@ -404,23 +404,16 @@ alone.
   outcomes and complete source listings distinguish pending live lanes, ended owners, joined evidence, and discarded
   working state; shared persistence envelopes keep repository readers and the mapping on the same source grammar.
 
-### `[ ]` **3.3 Map approved-disposition records to evidence — § 11.2**
+### `[x]` **3.3 Map approved-disposition records to evidence — § 11.2**
 
 - _Goal:_ Each disposition set an approved-disposition record holds becomes one `review/evidence` record naming its
   predecessor and successor, its result resolved to an outcome key, and its performance and settlement joined from the
   record and lane progress, while records in an older shape are left behind.
 
-    - Build `test-first` (one behavior at a time):
-        - a record holding a lineage of sets maps to one evidence record per set, each naming its predecessor and, where
-          one was approved over it, its successor
-        - a local, a frontline, and a hosted source reference each resolve to the result's outcome key
-        - an Errand's or delivery member's set takes its performance from its lineage node's fix response
-          (`errandFixResponse`, `deliveryMemberFixResponse`), merged with lane progress's response performance for that
-          set, current or superseded (`responsePerformance`, `responsePerformanceHistory`)
-        - a hosted set's settlement joins the attempt's settlement evidence and finding actions
-        - each node's optional tags copy exactly to its evidence record, including absence, and replay on a second
-          clone renders the stored tags without requiring the importing request's report inputs
-        - a record `parseEnumeratedRecord` skips today is left behind with its reason
+- _Outcome:_ Each approved set retains its binding, succession, policy snapshot, and optional advisory tags. Current
+  and historical lane headers join complete fix responses; without a header, the recorded fix consumption supplies
+  its time. Hosted actions and receipts remain set-specific, including predecessor carry. The shared legacy decoder
+  preserves enumeration skips, and local approval checks bind the recorded evaluator identity.
 
 ### `[ ]` **3.4 Map authorizations, the skip marker, termini, and the resume token's judgments to decisions — § 11.2**
 

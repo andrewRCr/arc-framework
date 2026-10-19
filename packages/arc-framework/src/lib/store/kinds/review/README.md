@@ -39,3 +39,8 @@ mapping reasons and suppressing mapped references for an in-flight source.
 pure persistence envelopes with the repository stores. Joined receipt and frontline files retain their contributed
 outcome references; working state, ended owners, foreign repositories, and retired snapshots keep explicit reasons.
 A pending live attempt blocks its entire lane file, and portable outcome times preserve legacy attempt order.
+
+`mapping-evidence.ts` preserves every approved set, binding, advisory tag, policy snapshot, and succession edge.
+It joins current or historical lane performance with complete Errand/member fix responses and partitions hosted
+settlement by set, including carried receipts. Its source decoder is shared with legacy disposition enumeration.
+Local disposition findings retain the evaluator identity recorded in their original request.

@@ -5,7 +5,6 @@ import { createLocalMappingFixture, mappingErrand, createFrontlineMappingFixture
 import { assertReviewMapping } from "../../../../../helpers/store/assert-review-mapping.js";
 import { reviewOutcomeResultDigest } from "../../../../../../src/lib/store/kinds/review/outcome/result.js";
 import { ReviewOutcomeSchema } from "../../../../../../src/lib/store/kinds/review/outcome/schema.js";
-import { LocalReviewResultReader } from "../../../../../../src/scripts/review-gate/hosts/local/review-result-reader.js";
 
 it("maps a local producer with its exact admission, receipt, findings, and original result digest", async () => {
   const fixture = await createLocalMappingFixture();
@@ -24,15 +23,7 @@ it("maps a local producer with its exact admission, receipt, findings, and origi
   const { targetId, ...coordinates } = fixture.state.target;
   expect(createReviewTarget({ ...coordinates, repositoryId: fixture.input().projectId }).targetId).toBe(targetId);
   expect(outcome.target.targetId).toBe(targetId);
-  const reader = new LocalReviewResultReader({
-    operationIndex: { readOperationSnapshot: async () => ({ status: "complete", records: [...fixture.operations.values()] }) },
-    sourceStore: fixture.dependencies.sourceStore,
-    receiptIndex: { readReceiptEntries: async () => [{ receipt, durableEvidenceRef: "git-common:review-gate/evidence/receipts-v2.json#1" }],
-      readReceiptReference: async () => receipt },
-    outcomeStore: { readOutcome: async () => ({ version: 0, record: null, outcomeRef: null }),
-      appendOutcome: async () => { throw new Error("Unexpected frontline result"); } },
-  });
-  expect(reviewOutcomeResultDigest(outcome)).toEqual((await reader.readResult(fixture.state.operationId)).resultDigest);
+  expect(reviewOutcomeResultDigest(outcome)).toEqual((await fixture.resultReader.readResult(fixture.state.operationId)).resultDigest);
   await assertReviewMapping(result);
 });
 
