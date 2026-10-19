@@ -24,6 +24,7 @@ export function hostedOutcome(options: HostedHandleFixtureInput & {
     requestedCoverage: hosted.requestedCoverage, effectiveCoverage: hosted.effectiveCoverage,
     reviewTarget: hosted.reviewTarget, requirement: hosted.requirement, actorIdentity: hosted.actorIdentity,
     requestFailureReason: hosted.requestFailureReason, sealedResult: hosted.sealedResult,
+    ...(hosted.vehicle === undefined ? {} : { vehicle: hosted.vehicle }),
   };
   return {
     schemaVersion: 1, attemptId, lane: "standard", lineage: handle.admission.lineage,
@@ -35,8 +36,8 @@ export function hostedOutcome(options: HostedHandleFixtureInput & {
   };
 }
 
-export function frontlineOutcome(options: Parameters<typeof createFrontlineFixture>[1] = {}) {
-  const { admission, outcomeRecord, run } = createFrontlineFixture(undefined, options);
+export function frontlineOutcome(options: Parameters<typeof createFrontlineFixture>[1] & { target?: ReviewTarget } = {}) {
+  const { admission, outcomeRecord, run } = createFrontlineFixture(options.target, options);
   return {
     schemaVersion: 1, attemptId: admission.operationId, lane: "frontline", lineage: admission.lineage,
     logicalPass: 1, retryGeneration: 0, source: { sourceId: outcomeRecord.sourceIdentity, kind: "frontline" },

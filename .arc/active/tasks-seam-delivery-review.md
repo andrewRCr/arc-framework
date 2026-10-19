@@ -97,47 +97,29 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
   mark in its successor's batch, the policy projection's one correction, the Candidate response's binding once, and
   append-only settlement.
 
-    - `[ ]` **1.4.a The schema and its parser**
+    - `[x]` **1.4.a The schema and its parser**
 
-        - Fields per § 6.2: `result` (the outcome key and its result digest), `binding` (§ 6.1's five arms),
-          `dispositionSet` (`DispositionSetSchema`), `approval` (`DispositionApprovalSchema`), optional
-          `advisoryFixTags` (`ReviewFixTagsSchema`), `predecessorDispositionSetId`, `successorDispositionSetId`,
-          `responsePolicyRequest`, `policyProjectionPending`, `performance`, and `settlement`; keyed by `dispositionSetId`.
-        - No fix authorization is stored: `createFixAuthorization` derives it from the approval and the set.
-        - Tags stay outside the canonical set and approval identity. Where present, `validateReviewFixTags`
-          (`rg/core/review-report-inputs.ts`) requires exactly one per `fix` finding; absence remains valid for
-          historical records (§ 6.2).
-        - The parser holds § 6.5's rules a record settles alone: `validateDispositionSet` and
-          `validateDispositionApproval` (`rg/core/dispositions.ts`); the per-set settlement rule that
-          `HostedLaneAttemptBindingSchema`'s refinement and `validateHostedSettlementEvidence`
-          (`rg/core/operation-state-schema.ts`, both module-private today) apply to each node of a hosted attempt's
-          `dispositionSetLineage` — one entry per finding, each matching its set's finding action, carried only from the
-          set's direct predecessor — extracted into one exported function over a set's finding actions, its settlement
-          entries, and its predecessor's ID, which that binding calls per node and this parser calls once over the
-          record's set, its `settlement`, and `predecessorDispositionSetId`; and the approved-disposition record's refinements
-          (`ApprovedDispositionLineageNodeSchema`, `ApprovedDispositionRecordSchema`, `rg/core/advisory-records.ts`) that
-          carry over: a record pending its policy projection carries no performance or successor; an Errand's
-          performance binds its Errand, its fix, and its target transition, a hosted one keeping its originating change
-          request; a delivery member's binds its member, its fix, and its hosted transition, with host coordinates as its
-          source kind gives and never a frontline source; a Candidate-owned private member's head is its fix's old head;
-          and only a Candidate lineage's performance carries `candidateResponseId` (`validateResponseDigestLineage`,
-          `rg/core/lane-progress-state-validation.ts`).
+        - Added strict approved-response envelopes with all five ownership shapes, optional advisory tags, atomic
+          performance, and hosted settlement. Canonical approval, transition, policy-projection, and settlement checks
+          share existing constructors and the extracted per-set validator. Producer-dependent checks remain in 1.4.R.
+
+    - `[ ]` **1.4.R Ground producer-dependent evidence rules in the outcome**
+
+        - _Goal:_ Rules requiring the result's source kind or original lineage read the referenced outcome through the
+          write check, preserving the existing performance invariants without treating response ownership as producer
+          lineage (§ 2.5, A8).
+        - Observe the result's outcome on the same work item, refusing missing or unreadable evidence; bind its result
+          digest and approved disposition context to that exact outcome. Use its source kind and lineage for the
+          source-dependent Errand and delivery-member host-coordinate rules, Candidate-response eligibility, and a
+          Candidate-owned private member's original fix head, even before performance exists. Source-dependent
+          performance restrictions do not reject an unperformed frontline member binding.
         - Build `test-first` (one behavior at a time):
-            - each binding arm parses, and none of them is a valid binding too
-            - a record whose approver is its proposer refuses to parse
-            - absent tags and exactly one valid tag per `fix` finding parse; missing, extra, or duplicate tag
-              identities refuse when the field is present, and tags change neither the disposition ID nor approval
-            - a disposition set whose ID does not recompute, or whose findings are out of canonical order, refuses
-            - two settlement entries for one finding, an entry unlike its set's finding action, and an entry carried
-              from a set other than the record's predecessor each refuse
-            - a record naming a source by `receiptRef`, `localSourceRef`, `outcomeRef`, or `attemptRef` refuses
-            - a record pending its policy projection that carries a performance or a successor refuses
-            - an Errand's performance naming another Errand, fix, or transition, and a hosted Errand's without its
-              change request, refuse
-            - a delivery member's performance naming another member or fix, with host coordinates its source kind does
-              not give, or from a frontline source, refuses
-            - a Candidate-owned private member whose head is not its fix's old head refuses
-            - `candidateResponseId` on a performance outside a Candidate lineage refuses
+            - a missing, unreadable, or mismatched referenced outcome refuses, and its exact counterpart admits
+            - a Candidate-owned private member whose head differs from its original fix head refuses before performance
+            - a hosted Errand's performance without its originating change request refuses
+            - a delivery-member performance from a frontline source, or with host coordinates unlike its source, refuses
+            - a head-bound producer whose response has a Candidate owner still refuses `candidateResponseId`; a
+              Candidate-lineage producer with matching response ownership admits it
 
     - `[ ]` **1.4.b The write check**
 

@@ -487,6 +487,30 @@ and propagated task descriptions receive the grounding-only task audit. The corr
 independent planning offer is omitted. Its covering segment verifier is 5.8; the added acceptance criterion remains
 open for terminal verification.
 
+## A8 — Producer facts belong to outcome observations
+
+Task 1.4.a assigned source- and lineage-dependent performance checks to the evidence parser, although § 2.5 already
+places every rule reading another record in the write check. The design holds: § 6.5 qualifies its parser rules as
+those the record settles alone, and its performance invariants remain unchanged. This task-only correction separates
+local content checks from exact producer comparisons; no stored producer fact or acceptance outcome is added.
+
+`validateResponseDigestLineage` reads the lane owner's original lineage. Response ownership is different:
+`settleNewApprovedResponse` resolves its Candidate by the reviewed target through `readCandidateLineage`, while
+`recordPerformedResponse` deliberately omits `candidateResponseId` unless the producer's admission lineage is Candidate.
+A Candidate response binding therefore cannot prove that the referenced outcome has Candidate lineage. The evidence
+record retains the outcome key, not that lineage. It also omits the stored fix authorization whose `oldHeadSha`
+`ApprovedDispositionRecordSchema` compares with a Candidate-owned private member's head before performance exists;
+that original fix head now comes from the referenced outcome. The same observation gives the authoritative source kind for
+`validateErrandFixResponse` and `validateDeliveryMemberFixResponse`'s host-coordinate rules; it also grounds the result
+digest and canonical source context instead of inferring them from response ownership or host coordinates.
+`ApprovedDispositionRecordSchema` admits an unperformed frontline member binding without a Candidate owner; that remains
+readable, and the source-dependent member restriction applies only to performance.
+
+Task 1.4.a keeps content-only binding, authorization, transition, and settlement validation. Task 1.4.R reads the exact
+outcome and checks producer-dependent invariants before 1.4.b composes the full write check. The correction receives
+bounded author spec review and the grounding-only task audit; low depth omits an independent planning pass. Goals,
+criteria, completed tasks, and lifecycle state remain unchanged; 5.8 is the next covering verifier.
+
 ## Neighbors
 
 The spec names no other work unit. These are the ones its descriptive references mean, and what each owns where it
