@@ -89,7 +89,7 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
           citing that grant. Related listings must be complete and parseable; in-flight and successor timing remain
           with the withdrawing verb.
 
-### `[ ]` **1.4 Build `review/evidence` and its succession rules — § 6.2, § 6.3, § 6.5**
+### `[x]` **1.4 Build `review/evidence` and its succession rules — § 6.2, § 6.3, § 6.5**
 
 - _Goal:_ An evidence record holds one approved response under its disposition set, naming its result by outcome key and
   its predecessor and successor sets; its parser holds the set and settlement rules a record settles alone, and its
@@ -113,35 +113,13 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
           refuse with diagnostics; an unperformed frontline member binding remains readable. Settlement and admission
           share one pure comparison of approved sets with outcomes.
 
-    - `[ ]` **1.4.b The write check**
+    - `[x]` **1.4.b The write check**
 
-        - The key, the hosted result's sealed findings, a record created whole, and today's advances from
-          `appendDispositionRecord` (`rg/hosts/local/disposition-record-store.ts`) and lane progress's transitions
-          (`rg/hosts/local/operation-state-store.ts`) on update, each under a stable identifier.
-        - Build `test-first` (one behavior at a time):
-            - a record stored under a key other than its `dispositionSetId` refuses
-            - a hosted set whose finding actions do not cover exactly its result's sealed findings, or whose settlement
-              names another finding, refuses
-            - a created record naming a successor its batch does not create, naming it as predecessor, refuses, and a
-              record created already performed and settled is admitted
-            - `performance` goes from absent to set once, nothing else changing (`isFixResponseAdvance`)
-            - `successorDispositionSetId` goes from absent to the new set's ID only in the batch creating that set with
-              this one as its predecessor, while neither has a performed response (`isDispositionSuccessorAdvance`);
-              a second successor refuses
-            - `policyProjectionPending` clears, and `responsePolicyRequest` may change in the same write, only while no
-              response is performed (`isPolicyProjectionAdvance`)
-            - a written performance stays unchanged but for `candidateResponseId`, which may be added once
-              (`assertResponsePerformanceTransitions`, `isCandidateResponseBindingAdvance`)
-            - settlement entries are append-only, each appended entry replied, resolved, and not carried, and a
-              successor may start with its predecessor's entries, each carried and otherwise identical
-              (`assertHostedTransitions`)
-            - an unbound record does not gain a binding later
-            - every advance preserves tags and their absence, refusing their addition, removal, or alteration; a
-              successor may have its own tags without changing its predecessor's
-            - a listing that is unreadable or missed entries refuses
-
-        - A hosted record's first entries are `record-only` and uncarried as the approving verb writes them
-          (5.3.a), a rule the check leaves out since it cannot tell that write from the import's (§ 6.5).
+        - Registered evidence admission binds keys and sealed findings, requires complete response histories, and
+          preserves reciprocal linear succession in one batch. Updates permit only the exact monotonic performance,
+          Candidate digest, policy-projection, and current-set settlement advances; tags and ownership remain fixed.
+          Carried receipts retain their predecessor's exact facts, and whole imported histories may arrive performed
+          and settled.
 
 ### `[ ]` **1.5 Build `review/adversarial-pass` — § 7.1, § 7.3, § 7.4**
 

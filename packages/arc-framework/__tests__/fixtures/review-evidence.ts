@@ -90,3 +90,19 @@ export function privateMemberEvidenceFixture(disposition: "fix" | "defer" = "def
   const value = { ...reviewEvidenceFixture(outcome, disposition), binding: { kind: "candidate-member", candidate, deliveryMember: member } };
   return { outcome, value: ReviewEvidenceSchema.parse(value) };
 }
+
+export function hostedSettlementFixture() {
+  const outcome = ReviewOutcomeSchema.parse(hostedOutcome({ outcome: "findings", findings: [1, 2].map((number) => ({
+    findingId: `thread-${number}`, sourceOrdinal: number, severity: "major", origin: "review-thread",
+    commentId: `comment-${number}`, threadId: `thread-${number}`, settlement: "reply-and-resolve",
+    locus: `src/main.ts:${number}`, url: `https://example.invalid/thread-${number}`,
+  })) }));
+  const prior = reviewEvidenceFixture(outcome);
+  const entry = HostedSettlementEvidenceSchema.parse({ findingId: "thread-1", disposition: "defer", channelAction: "reply-and-resolve",
+    dispositionSetId: prior.dispositionSet.dispositionSetId, performedAt: "2026-10-19T13:01:00Z", carriedFromDispositionSetId: null,
+    actorIdentity: "andrew", target: outcome.hosted!.target, fixTarget: null, commentId: "comment-1", threadId: "thread-1",
+    replyDigest: canonicalDigest({ reply: 1 }), replyId: "reply-1" });
+  if (entry.channelAction !== "reply-and-resolve") throw new Error("expected a replied settlement receipt");
+  const next = ReviewEvidenceSchema.parse({ ...prior, settlement: { ...prior.settlement, evidence: [entry] } });
+  return { outcome, prior, next, entry };
+}

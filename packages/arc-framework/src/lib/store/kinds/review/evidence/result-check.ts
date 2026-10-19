@@ -8,6 +8,7 @@ import { reviewOutcomeMatchesDispositionSet } from "../outcome/result.js";
 import { reviewOutcomeKey } from "../outcome/key.js";
 import { canonicalize } from "../../../../kernel/index.js";
 import type { ReviewOutcome } from "../outcome/schema.js";
+import { checkHostedEvidence } from "./hosted-check.js";
 
 /** Check an approved response against its exact immutable producer outcome. */
 export async function checkReviewEvidenceResult(input: WriteCheckInput, value: ReviewEvidence): Promise<readonly BrokenRule[]> {
@@ -22,7 +23,7 @@ export async function checkReviewEvidenceResult(input: WriteCheckInput, value: R
       ? "The approved response does not match the exact outcome identity, context, and findings." : decoded.error,
     "Restore a valid outcome under its exact producer key.")];
   }
-  return checkProducerPerformance(value, decoded.data);
+  return [...checkProducerPerformance(value, decoded.data), ...checkHostedEvidence(value, decoded.data)];
 }
 
 function checkProducerPerformance(value: ReviewEvidence, outcome: ReviewOutcome): readonly BrokenRule[] {

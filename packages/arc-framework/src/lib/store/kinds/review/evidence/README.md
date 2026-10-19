@@ -13,3 +13,9 @@ The parser validates the canonical approval, ownership and target-transition fac
 projection, and per-set settlement. The referenced outcome supplies the exact producer source and original lineage;
 those comparisons belong to admission rather than content parsing. Shared hosted-settlement rules also validate the
 legacy aggregate binding.
+
+The write check observes the exact producer outcome and complete response history. Succession keeps reciprocal edges,
+the same result and ownership, and a newly created successor in the predecessor's batch. Existing records permit one
+performance, one Candidate response digest binding, the pending policy correction, and append-only uncarried host
+replies. Tags and all unrelated fields remain fixed. A successor's carried receipt differs from its predecessor only
+in set coordinates; complete historical records may be created already performed and settled.
