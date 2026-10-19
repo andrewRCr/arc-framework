@@ -3,7 +3,7 @@
  *
  * @module
  */
-import { resolveStoreViewTarget } from "./view-store.js";
+import { resolveStoreViewTarget, resolveStoreAmbientViewTarget } from "./view-store.js";
 import { describeRecordConflicts } from "../lib/store/conflict-diagnostics.js";
 
 import { execFile, spawn } from "node:child_process";
@@ -55,8 +55,6 @@ import { resolveStartedViewTarget } from "../lib/view/started-artifacts.js";
 import type { WorkUnitArtifactReaders } from "../lib/status/work-unit-purpose.js";
 import type { Store } from "../lib/store/contract.js";
 import type { RecordReference } from "../lib/store/identity.js";
-import { resolveCurrentWorkUnit } from "../lib/store/current-work-unit.js";
-import { workItemArtifactPath } from "../lib/store/lifecycle-storage.js";
 import { openDefaultStore } from "./lifecycle-shared.js";
 import { requireArcProjectRoot } from "./shared.js";
 import { launchViewEditor } from "./view-editor.js";
@@ -271,13 +269,7 @@ export function createViewDependencies(
   return {
     stateOffBranch: store.capabilities.stateOffBranch,
     resolveAmbientTarget: async ({ identity }) => {
-      if (store.capabilities.stateOffBranch) {
-        const current = await resolveCurrentWorkUnit({ cwd, store });
-        if (current.status !== "resolved" || current.candidate.record === undefined) return { status: "unavailable" };
-        const name = current.candidate.reference.owner.name;
-        return { status: "resolved", slug: name, location: "active", placement: { kind: "active", scope: { kind: "project" } },
-          metaPath: workItemArtifactPath(name, "meta", { kind: "active" }, current.candidate.record.cohort), taskListPath: null };
-      }
+      if (store.capabilities.stateOffBranch) return resolveStoreAmbientViewTarget({ cwd, store });
       const result = await runActiveSessionInitStatusInternal({
         cwd,
         identity,

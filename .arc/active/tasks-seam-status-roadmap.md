@@ -488,23 +488,15 @@ its code. `notes-seam-status-roadmap.md` § Phase 7 — `arc view` records the p
   reference and shared projected placement. Completed targets open, ambiguous lookups retain their repair route and
   completed-file advice, and malformed metadata preserves its diagnostic instead of becoming an unknown target.
 
-### `[ ]` **7.2 Refuse with a remedy where no default target resolves — § 6.1**
+### `[x]` **7.2 Refuse with a remedy where no default target resolves — § 6.1**
 
 - _Goal:_ From the flip, a checkout with no work-unit claim refuses with a message naming that no work-unit claim
   resolved, each warning `resolveCurrentWorkUnit` returned, each candidate where it reports several, and
   `arc view <kind> --for <slug>`, which `unavailableTarget` prints in place of today's message.
 
-- **Additional Context:** `notes-seam-status-roadmap.md` § Phase 7 — `arc view`
-
-    - Extend locus's arm of `resolveAmbientTarget` (`handlers/view.ts`) to return it as the unavailable result's
-      `message`, which `unavailableTarget` (`lib/view-artifact.ts`) already prints over its default; the in-repo arm
-      keeps today's text.
-    - A resolved claim gives only its slug: the arm then reads that work unit as Task 7.1's `--for` does, so both
-      targets open through one read, with the work unit's own placement.
-    - Build `test-first` (one behavior at a time):
-        - an Errand claim and no claim each refuse with the remedy
-        - a malformed marker's warning appears in the message
-        - a work-unit claim opens its work unit
+- _Outcome:_ `resolveStoreAmbientViewTarget` preserves every claim warning and ambiguous candidate reference in the
+  explicit-target remedy. A resolved claim delegates its slug to the same store target read as `--for`, retaining the
+  work unit's own placement even when it changes after claim acquisition.
 
 ### `[ ]` **7.3 Read each view kind through one store port and one typed table — § 6.2**
 

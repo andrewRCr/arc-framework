@@ -1,5 +1,6 @@
 /** Bind view targets to the selected store's exact identities and projected coordinates. */
 import { resolve } from "node:path";
+import { resolveCurrentWorkUnit } from "../lib/store/current-work-unit.js";
 import type { Store } from "../lib/store/contract.js";
 import { readWorkUnit, readLifecycleMetaFields } from "../lib/store/lifecycle-write.js";
 import { WorkUnitReadPlacementSchema } from "../lib/store/placement.js";
@@ -22,4 +23,15 @@ export async function resolveStoreViewTarget(input: { cwd: string; store: Store;
     location: placement.kind === "backlog" ? placement.commitment : placement.kind,
     metaPath: path("meta"), taskListPath: fields.result.taskList === null ? null : path("tasks"),
     artifactSource: { kind: "store", reference: meta.reference } };
+}
+
+
+/** Resolve one checkout claim, then use the same exact work-unit read as an explicit target. */
+export async function resolveStoreAmbientViewTarget(input: { cwd: string; store: Store }): Promise<ViewTargetResult> {
+  const current = await resolveCurrentWorkUnit(input);
+  if (current.status === "resolved") return resolveStoreViewTarget({ ...input, slug: current.candidate.reference.owner.name });
+  const candidates = current.status === "ambiguous"
+    ? [`Candidates: ${current.candidates.map(candidate => JSON.stringify(candidate.reference)).join(", ")}.`] : [];
+  return { status: "unavailable", message: ["No work-unit claim resolved for this checkout.", ...current.warnings, ...candidates,
+    "Use arc view <kind> --for <slug> to open a work unit's artifacts."].join(" ") };
 }

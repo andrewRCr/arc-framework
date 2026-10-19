@@ -5,6 +5,7 @@ import { join, dirname } from "node:path";
 import { afterEach, expect, it } from "vitest";
 import { createViewDependencies } from "../../../src/handlers/view.js";
 import { OwnerIdentitySchema, recordReferences, RecordReferenceSchema } from "../../../src/lib/store/identity.js";
+import { writeWorktreeOwnershipMarker, resolveWorktreeMarkerPath } from "../../../src/lib/git/worktree-marker.js";
 import { resolveViewArtifact } from "../../../src/lib/view-artifact.js";
 import { runView } from "../../../src/commands/view.js";
 import { WorkUnitReadPlacementSchema } from "../../../src/lib/store/placement.js";
@@ -96,4 +97,77 @@ it("retains malformed metadata's repair evidence and resolves after repair", asy
   expect(artifact).toMatchObject({ status: "error", message: expect.stringContaining("Metadata fields are damaged. Repair metadata fields and retry.") });
   f.store.read = read;
   expect(await f.deps.resolveExplicitTarget({ cwd: f.cwd, slug: "damaged" })).toMatchObject({ status: "resolved", artifactSource: { kind: "store", reference: meta.reference } });
+});
+
+
+it.each(["none", "errand"] as const)("names the explicit target remedy for a %s checkout claim", async claim => {
+  const f = await fixture();
+  if (claim === "errand") await writeWorktreeOwnershipMarker(f.cwd, { createdByArc: true, spawningIdentity: "alice", now: 0,
+    createdFor: { kind: "errand", slug: "fix-it" } });
+  const result = await runView({ cwd: f.cwd, project: false, identity: "alice", kind: "meta" }, {
+    resolveArtifact: input => resolveViewArtifact(input, f.deps), readFile: f.deps.readFile });
+  expect(result.exitCode).toBe(1);
+  expect(result.stderr).toContain("No work-unit claim resolved for this checkout.");
+  expect(result.stderr).toContain("arc view <kind> --for <slug>");
+});
+
+
+it("retains a malformed marker's warning in the no-claim remedy and resolves after repair", async () => {
+  const f = await fixture(); await f.seedMeta("demo");
+  const marker = resolveWorktreeMarkerPath(f.cwd);
+  await mkdir(dirname(marker), { recursive: true }); await writeFile(marker, "not JSON");
+  const options = { cwd: f.cwd, project: false, identity: "alice", kind: "meta" };
+  const result = await resolveViewArtifact(options, f.deps);
+  expect(result).toMatchObject({ status: "error", message: expect.stringContaining("malformed JSON") });
+  if (result.status === "error") expect(result.message).toContain("arc view <kind> --for <slug>");
+  await writeWorktreeOwnershipMarker(f.cwd, { createdByArc: true, spawningIdentity: "alice", now: 0,
+    createdFor: { kind: "work-unit", name: "demo" } });
+  expect(await f.deps.resolveAmbientTarget({ cwd: f.cwd, identity: "alice" })).toMatchObject({ status: "resolved", slug: "demo" });
+});
+
+it("names every candidate when checkout-held work units are ambiguous", async () => {
+  const f = await fixture(), first = await f.seedMeta("first"), second = await f.seedMeta("second"), list = f.store.list.bind(f.store);
+  f.store.list = async input => input.filter?.heldHere === true
+    ? { status: "ok", result: { status: "complete", records: [first, second], diagnostics: [], missed: false } } : list(input);
+  const result = await resolveViewArtifact({ cwd: f.cwd, kind: "meta", project: false, identity: "alice" }, f.deps);
+  expect(result.status).toBe("error");
+  if (result.status !== "error") throw new Error("Expected ambiguous claims to refuse");
+  expect(result.message).toContain("first"); expect(result.message).toContain("second");
+  expect(result.message).toContain("arc view <kind> --for <slug>");
+});
+
+it("opens a work-unit claim through a fresh read of its own placement", async () => {
+  const f = await fixture(), meta = await f.seedMeta("claimed", { state: "Planning", currentWorkflow: "draft-design" });
+  await writeWorktreeOwnershipMarker(f.cwd, { createdByArc: true, spawningIdentity: "alice", now: 0, createdFor: { kind: "work-unit", name: "claimed" } });
+  const planned = join(f.cwd, workItemArtifactPath("claimed", "meta", { kind: "backlog", commitment: "planned" }, null));
+  await mkdir(dirname(planned), { recursive: true }); await writeFile(planned, meta.content);
+  const read = f.store.read.bind(f.store); let moved = false;
+  f.store.read = async input => {
+    const result = await read(input);
+    if (!moved && result.status === "ok" && result.result.reference.kind === "work-item/meta") {
+      moved = true;
+      lifecycleSuccess(await f.store.write({ ...recordPut(result.result, { placement: { kind: "backlog", commitment: "planned" } }), provenance: { verb: "park", lifecycleAction: "park" } }));
+    }
+    return result;
+  };
+  const output = await runView({ cwd: f.cwd, kind: "meta", project: false, identity: "alice", path: true }, {
+    resolveArtifact: input => resolveViewArtifact(input, f.deps), readFile: f.deps.readFile });
+  expect(output).toEqual({ stdout: `${planned}\n`, stderr: "", exitCode: 0 });
+});
+
+it("distinguishes every same-name claim candidate by its immutable identity", async () => {
+  const f = await fixture(), first = await f.seedMeta("first"), second = await f.seedMeta("second"), list = f.store.list.bind(f.store);
+  const records = [first, second].map(record => ({ ...record,
+    reference: RecordReferenceSchema.parse({ ...record.reference, owner: { ...record.reference.owner, name: "shared" } }),
+    content: record.content.replaceAll(record.reference.owner.name, "shared") }));
+  f.store.list = async input => input.filter?.heldHere === true
+    ? { status: "ok", result: { status: "complete", records, diagnostics: [], missed: false } } : list(input);
+  const result = await resolveViewArtifact({ cwd: f.cwd, kind: "meta", project: false, identity: "alice" }, f.deps);
+  expect(result.status).toBe("error");
+  if (result.status !== "error") throw new Error("Expected clashed claims to refuse");
+  for (const record of records) {
+    const uid = "uid" in record.reference.owner ? record.reference.owner.uid : undefined;
+    if (uid === undefined) throw new Error("The reference store did not mint a work-unit identity");
+    expect(result.message).toContain(uid);
+  }
 });
