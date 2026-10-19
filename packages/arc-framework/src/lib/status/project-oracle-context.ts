@@ -2,7 +2,7 @@
 
 import { projectTransientInFlightRead, readTransientInFlightIndexes } from "../errand/record.js";
 import type { GitExec } from "../git/exec.js";
-import { readConfiguredIdentity } from "../git/identity.js";
+import { resolveIdentity } from "../git/identity.js";
 
 /** Errand classification inputs shared by worktree- and index-backed renders. */
 export interface ProjectErrandOracleContext {
@@ -20,7 +20,7 @@ export async function resolveProjectErrandOracleContext(exec: GitExec): Promise<
   let identity: string | null = null;
   let identityReadFailed = false;
   try {
-    identity = await readConfiguredIdentity(exec);
+    identity = await resolveIdentity({ exec });
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "identity.invalid") throw error;
     identityReadFailed = true;

@@ -332,11 +332,13 @@ describe("resolveViewArtifact", () => {
   });
 });
 
-it("views an off-branch named session context without projected metadata or workspace files", async () => {
-  const dependencies = deps({ stateOffBranch: true,
-    resolveExplicitTarget: vi.fn(async () => { throw new Error("No checkout lifecycle metadata"); }),
-    resolveSessionNotes: vi.fn(async () => ({ status: "resolved" as const, path: "/repo/.arc/active/meta-feature.md" })),
-    pathExists: async () => { throw new Error("Named session context must not probe workspace files"); } });
-  expect(await resolve("session-notes", dependencies, { forSlug: "feature" }))
-    .toEqual({ status: "resolved", kind: "session-notes", path: "/repo/.arc/active/meta-feature.md", workUnit: "feature" });
+it("keeps the missing-identity refusal for in-repo session notes", async () => {
+  expect(await resolve("session-notes", deps({ stateOffBranch: false }), { identity: null }))
+    .toEqual({ status: "error", kind: "session-notes", message: "No ARC identity is configured for this identity-scoped artifact." });
+});
+
+it("keeps in-repo resolution independent of the optional store artifact reader", async () => {
+  const result = await resolve("meta", deps({ stateOffBranch: false,
+    readStoreArtifact: async () => { throw new Error("In-repo view attempted a store record read"); } }));
+  expect(result).toEqual({ status: "resolved", kind: "meta", path: join(CWD, TARGET.metaPath), workUnit: "feature" });
 });

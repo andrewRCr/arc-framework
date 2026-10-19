@@ -238,21 +238,28 @@ describe("resolveExplicitViewTarget", () => {
   });
 });
 
-it("renders selected-store session context and prints its projected path with no checkout metadata", async () => {
+it("opens selected-store session context at its projected meta file", async () => {
   const { createLifecycleHarness } = await import("../../helpers/store/lifecycle-harness.js");
   const { createViewDependencies } = await import("../../../src/handlers/view.js");
   const { resolveViewArtifact } = await import("../../../src/lib/view-artifact.js");
   const { runView } = await import("../../../src/commands/view.js");
-  const h = createLifecycleHarness();
-  const record = await h.seedMeta("demo", { state: "Planning", currentWorkflow: "draft-design" });
-  const deps = createViewDependencies("/linked", async () => { throw new Error("No projected checkout files"); },
-    async () => { throw new Error("No Git metadata discovery"); }, "andrew", h.store);
-  const input = { cwd: "/linked", kind: "session-notes", identity: "andrew", project: false, forSlug: "demo", nonInteractive: true };
-  const bindings = { resolveArtifact: (options: Parameters<typeof resolveViewArtifact>[0]) => resolveViewArtifact(options, deps), readFile: deps.readFile };
-  const result = await runView(input, bindings);
-  expect(result.exitCode).toBe(0);
-  expect(result.stdout).toContain("Planning");
-  expect(await deps.readFile("/linked/.arc/active/meta-demo.md")).toBe(record.content);
-  expect(await runView({ ...input, path: true }, bindings))
-    .toEqual({ stdout: "/linked/.arc/active/meta-demo.md\n", stderr: "", exitCode: 0 });
+  const { mkdtemp, mkdir, writeFile, readFile, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join, dirname } = await import("node:path");
+  const cwd = await mkdtemp(join(tmpdir(), "arc-view-session-"));
+  try {
+    const h = createLifecycleHarness();
+    const record = await h.seedMeta("demo", { state: "Planning", currentWorkflow: "draft-design" });
+    const path = join(cwd, ".arc/active/meta-demo.md");
+    await mkdir(dirname(path), { recursive: true }); await writeFile(path, record.content);
+    const deps = createViewDependencies(cwd, path => readFile(path, "utf8"),
+      async () => { throw new Error("No Git metadata discovery"); }, "andrew", h.store);
+    const input = { cwd, kind: "session-notes", identity: "andrew", project: false, forSlug: "demo", nonInteractive: true };
+    const bindings = { resolveArtifact: (options: Parameters<typeof resolveViewArtifact>[0]) => resolveViewArtifact(options, deps), readFile: deps.readFile };
+    const result = await runView(input, bindings);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Planning");
+    expect(await deps.readFile(path)).toBe(record.content);
+    expect(await runView({ ...input, path: true }, bindings)).toEqual({ stdout: `${path}\n`, stderr: "", exitCode: 0 });
+  } finally { await rm(cwd, { recursive: true, force: true }); }
 });

@@ -55,6 +55,7 @@ describe("repository command-input inventory", () => {
       "status:semantic.interaction-context",
     ]);
     expect(inventory.entries).toEqual(expect.arrayContaining([
+      expect.objectContaining({ identity: "status:option.conflicts", schemaField: "conflicts" }),
       expect.objectContaining({ identity: "pause:option.no-waits-on", schemaField: "waitsOn" }),
       expect.objectContaining({ identity: "pause:option.no-resume-notes", schemaField: "resumeNotes" }),
       expect.objectContaining({ identity: "pause:option.no-open", schemaField: "open" }),

@@ -118,6 +118,7 @@ import { StatusCommandInputSchema, type StatusCliOptions } from "./status/input.
 import { handleLifecycleStatus } from "./status/lifecycle.js";
 import { createSessionStatusContext, readWorkingMemoryFromStore } from "./status/session-context.js";
 import { handleCompositeStatus, handleRecoverStatus, handleSessionHandoffStatus } from "./status/session.js";
+import { handleConflictStatus } from "./status/conflicts.js";
 import { handleProjectStatus, handleUserStatus } from "./status/views.js";
 
 export {
@@ -161,10 +162,11 @@ export async function handleStatus(
     opts.recover,
     opts.user,
     opts.project,
+    opts.conflicts !== undefined && opts.conflicts !== false,
   ].filter(Boolean).length;
   if (modeCount > 1) {
     process.stderr.write(
-      "Error: a status <slug> query, --session-init, --session-handoff, --recover, --user, and --project are mutually exclusive.\n",
+      "Error: a status <slug> query, --session-init, --session-handoff, --recover, --user, --project, and --conflicts are mutually exclusive.\n",
     );
     process.exitCode = 1;
     return;
@@ -183,16 +185,17 @@ export async function handleStatus(
     objectAccess: "local-only",
   });
 
+  const context = await createSessionStatusContext(cwd, exec, transitionExec, localOnlyTransitionExec, interaction);
   if (slug !== undefined) {
-    await handleLifecycleStatus(cwd, exec, slug, opts);
+    await handleLifecycleStatus(context, slug, opts);
     return;
   }
-  const context = await createSessionStatusContext(cwd, exec, transitionExec, localOnlyTransitionExec, interaction);
   if (opts.sessionHandoff) return handleSessionHandoffStatus(context, opts);
   if (opts.recover) return handleRecoverStatus(context, opts);
   if (opts.sessionInit) return handleSessionInitStatus(context, opts);
   if (opts.user) return handleUserStatus(context, opts);
   if (opts.project) return handleProjectStatus(context, opts);
+  if (opts.conflicts !== undefined && opts.conflicts !== false) return handleConflictStatus(context, opts);
   await handleCompositeStatus(context, opts);
 }
 

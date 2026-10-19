@@ -23,6 +23,7 @@ export interface LifecycleEntry {
   phase: Phase;
   location: Location;
   links?: Links;
+  aliases?: StoreRecord["aliases"];
 }
 /** Identity lookup and iteration over independently selected work units. */
 export interface IdentityLifecycleIndex {
@@ -105,7 +106,8 @@ function indexedListing(result: StoreResult<ListingOutcome>): StoreResult<Lifecy
   return { status: "ok", result: { ...evidence, index, diagnostics,
     missed: evidence.missed || diagnostics.length > evidence.diagnostics.length } };
 }
-function identityKey(owner: OwnerIdentity): string {
+/** Stable grouping key shared by lifecycle entries and their identity-owned companion records. */
+export function identityKey(owner: OwnerIdentity): string {
   return JSON.stringify([owner.type, owner.type !== "person" && owner.uid !== undefined ? ["uid", owner.uid] : ["name", owner.name]]);
 }
 function lifecycleEntry(record: StoreRecord): LifecycleEntry | ListingDiagnostic | undefined {
@@ -129,7 +131,9 @@ function lifecycleEntry(record: StoreRecord): LifecycleEntry | ListingDiagnostic
     const placement = record.placement;
     workUnitMetaPath({ ...record, fields });
     const location = placement.kind === "backlog" ? placement.commitment : placement.kind;
-    return { reference: record.reference, version: record.version, fields, placement, phase, location, ...(record.links === undefined ? {} : { links: record.links }) };
+    return { reference: record.reference, version: record.version, fields, placement, phase, location,
+      ...(record.links === undefined ? {} : { links: record.links }),
+      ...(record.aliases === undefined || record.aliases.length === 0 ? {} : { aliases: record.aliases }) };
   } catch (error) {
     return malformedMeta(record, `Metadata could not be parsed: ${error instanceof Error ? error.message : String(error)}`);
   }

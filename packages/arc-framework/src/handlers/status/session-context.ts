@@ -17,7 +17,7 @@ import { resolveSessionPersonalPaths, type SessionPersonalPaths } from "./person
 import type { LifecycleIndexFs } from "../../lib/work-unit/lifecycle-index.js";
 import { readIdentityPointers } from "../identity-pointers.js";
 
-/** I/O and cached readers bound once for a non-slug status invocation. */
+/** I/O and cached readers bound once for the selected status mode. */
 export interface SessionStatusContext {
   /** One operational store selected by the status invocation. */
   store?: Store;

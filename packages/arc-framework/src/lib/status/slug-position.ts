@@ -2,6 +2,7 @@
 
 import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
 import type { LifecycleState } from "../work-unit/lifecycle-resolver.js";
+import type { MetaPause } from "../active/meta-schema.js";
 
 /** Whether a work unit can still take a routed concern: freely, only by a narrow test, or not at all. */
 export type ScopeWindow = "open" | "gated" | "closed";
@@ -93,9 +94,11 @@ export async function readDerivedSlugPosition(options: {
  * Derive the scope window from a checkout position when one is available, otherwise from lifecycle state alone.
  * @param state - The work unit's lifecycle state.
  * @param position - Its checkout-derived position, or null without a single resolved checkout.
+ * @param pause - A durable pause that defers routed concerns until resumption.
  * @returns The window, or a null window with the reason it cannot be read.
  */
-export function projectScopeWindow(state: LifecycleState, position: DerivedSlugPosition | null): ScopeWindowFact {
+export function projectScopeWindow(state: LifecycleState, position: DerivedSlugPosition | null, pause?: MetaPause): ScopeWindowFact {
+  if (pause !== undefined) return { window: null, basis: "lifecycle", reason: "paused; a routed concern waits for its resumption" };
   const fromCheckout = position === null ? null : checkoutWindow(position);
   return fromCheckout ?? lifecycleWindow(state);
 }
