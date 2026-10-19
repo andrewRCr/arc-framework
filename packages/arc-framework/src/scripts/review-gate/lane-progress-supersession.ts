@@ -6,16 +6,7 @@ import {
 } from "../../lib/work-unit/candidate-attestation.js";
 import type { LaneProgressState } from "./core/operation-state-schema.js";
 import type { ReviewOperationStateStore } from "./core/ports.js";
-import { readLaneProgressOwner } from "./lane-progress.js";
-
-function completePasses(owner: LaneProgressState): number {
-  return new Set(owner.attempts.filter((attempt) =>
-    attempt.terminalProducer
-    && (attempt.local?.effectiveCoverage === "complete"
-      || attempt.hosted?.effectiveCoverage === "complete"
-      || attempt.frontline?.effectiveCoverage === "complete"),
-  ).map(({ logicalPass }) => logicalPass)).size;
-}
+import { countCompleteLogicalPasses, readLaneProgressOwner } from "./lane-progress.js";
 
 /** A predecessor authority that still needs an executable review continuation. */
 export function livePredecessorReviewAttempt(owner: LaneProgressState): {
@@ -89,7 +80,7 @@ export async function readCandidateInheritedLaneProgress(
   return {
     inheritedCompletedPasses: ancestorOwners.reduce((sum, { owner }) => sum + (owner?.completedPasses ?? 0), 0),
     inheritedCompletePasses: ancestorOwners.reduce((sum, { owner }) =>
-      sum + (owner === null ? 0 : completePasses(owner)), 0),
+      sum + (owner === null ? 0 : countCompleteLogicalPasses(owner.attempts)), 0),
     ancestorOwners,
   };
 }

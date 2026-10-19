@@ -2,7 +2,7 @@
 
 Act as a fresh author-side reader. Read these files directly:
 
-- `packages/arc-framework/arc/system/methods/self-review.md`
+- `packages/arc-framework/arc/system/methods/code-review-author.md`
 - `packages/arc-framework/arc/system/methods/review-triage.md`
 - `packages/arc-framework/arc/system/methods/disposition-report.md`
 - `packages/arc-framework/__tests__/fixtures/review-triage/author-self-review/scenario.md`

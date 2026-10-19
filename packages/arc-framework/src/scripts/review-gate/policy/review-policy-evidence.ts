@@ -1,5 +1,6 @@
 /** Evidence composition for terminal review-policy attempts. */
 
+import type { ReviewNextPassContext } from "./review-next-pass-schema.js";
 import { canonicalize } from "../../../lib/kernel/index.js";
 
 import { validateReviewTarget } from "../core/gate-contract-v2.js";
@@ -15,7 +16,7 @@ import type { ReviewScopeMode, ReviewSeverity } from "../core/review-primitives.
 import {
   fixesMaterialFinding,
   isMaterialSeverity,
-  type VerifiedTerminalReviewSignal,
+  type InternalVerifiedTerminalReviewSignal,
 } from "../core/review-convergence.js";
 import type { LaneResponsePerformance } from "../core/operation-state-schema.js";
 import {
@@ -37,7 +38,11 @@ import { reconcileReviewFallbackAttempts, reconcileReviewSourceInvocation } from
 /** Trusted inputs needed to bind one command request to immutable producer evidence. */
 export interface EvidenceBoundReviewPolicyDependencies {
   readonly sources: readonly string[];
+  readonly selectionSources?: readonly string[];
+  readonly configuredSources?: readonly string[];
   readonly maxPasses: number;
+  readonly nextPassContext?: ReviewNextPassContext;
+  readonly chosenCoverage?: ReviewPolicyRequest["chosenCoverage"];
   readonly resultReader: ReviewResultReader;
   readonly dispositionStore: ApprovedDispositionRecordStore;
   readonly confirmTarget: (attemptedTarget: ReviewResult["target"])
@@ -272,11 +277,11 @@ export async function readIncrementalPredecessorResponseEvidence(
   ) => Promise<LaneResponsePerformance | null>,
 ): Promise<IncrementalPredecessorResponseEvidence> {
   if (predecessor.originalOutcome === "clean") {
-    return { status: "performed", requiredFindings: [] };
+    return { status: "performed", hasFix: false, requiredFindings: [] };
   }
   const predecessorRecord = await dispositionStore.readDispositionRecord(predecessor.producerId);
   if (predecessorRecord === null) {
-    return { status: "incomplete", requiredFindings: [] };
+    return { status: "incomplete", hasFix: false, requiredFindings: [] };
   }
   const approved = validateApprovedDispositionRecordForResult(predecessorRecord, predecessor);
   const node = currentApprovedDispositionNode(approved);
@@ -308,6 +313,7 @@ export async function readIncrementalPredecessorResponseEvidence(
     || predecessor.settled;
   return {
     status: fixPerformed && hostSettlementPerformed ? "performed" : "incomplete",
+    hasFix,
     requiredFindings,
   };
 }
@@ -320,8 +326,10 @@ async function deriveVerifiedTerminalSignal(
     "resultReader" | "dispositionStore" | "confirmIncrementalApplicability" | "readResponsePerformance"
       | "allowUnapprovedFindings"
   >,
-): Promise<VerifiedTerminalReviewSignal> {
-  const coverage = await resolveIncrementalCoverageBasis(result, {
+): Promise<InternalVerifiedTerminalReviewSignal> {
+  const coverageAdequate = result.kind !== "frontline" && result.requirement.retrigger === "full-final"
+    ? result.admission.effectiveCoverage === "complete"
+    : (await resolveIncrementalCoverageBasis(result, {
     resultReader: dependencies.resultReader,
     confirmApplicability: dependencies.confirmIncrementalApplicability
       ?? ((predecessor, current) => Promise.resolve(
@@ -332,14 +340,14 @@ async function deriveVerifiedTerminalSignal(
       dependencies.dispositionStore,
       dependencies.readResponsePerformance,
     ),
-  });
-  const coverageAdequate = coverage.status === "adequate";
+  })).status === "adequate";
   if (result.originalOutcome === "clean") {
     return {
       reviewOperationId: operationId,
       confirmedFindingCount: 0,
       maxConfirmedSeverity: null,
       materialFix: false,
+      effectiveCoverage: result.admission.effectiveCoverage,
       coverageAdequate,
     };
   }
@@ -353,6 +361,7 @@ async function deriveVerifiedTerminalSignal(
         confirmedFindingCount: 0,
         maxConfirmedSeverity: null,
         materialFix: false,
+        effectiveCoverage: result.admission.effectiveCoverage,
         coverageAdequate,
       };
     }
@@ -373,6 +382,7 @@ async function deriveVerifiedTerminalSignal(
     confirmedFindingCount,
     maxConfirmedSeverity,
     materialFix: fixesMaterialFinding(findings),
+    effectiveCoverage: result.admission.effectiveCoverage,
     coverageAdequate,
   };
 }
@@ -380,8 +390,12 @@ async function deriveVerifiedTerminalSignal(
 /** The repository-proven subject facts the owning composition supplied, as reducer request fields. */
 function provenSubjectFacts(
   dependencies: EvidenceBoundReviewPolicyDependencies,
-): { frontlinePhaseClosed?: true; errandVehicle?: true } {
+): Pick<ReviewPolicyRequest, "frontlinePhaseClosed" | "errandVehicle" | "nextPassContext" | "selectionSources" | "configuredSources" | "chosenCoverage"> {
   return {
+    ...(dependencies.selectionSources === undefined ? {} : { selectionSources: dependencies.selectionSources }),
+    ...(dependencies.configuredSources === undefined ? {} : { configuredSources: dependencies.configuredSources }),
+    ...(dependencies.nextPassContext === undefined ? {} : { nextPassContext: dependencies.nextPassContext }),
+    ...(dependencies.chosenCoverage === undefined ? {} : { chosenCoverage: dependencies.chosenCoverage }),
     ...(dependencies.frontlinePhaseClosed === true ? { frontlinePhaseClosed: true } : {}),
     ...(dependencies.errandVehicle === true ? { errandVehicle: true } : {}),
   };
@@ -475,18 +489,23 @@ async function responsePerformedForTerminal(
   return evidence.status === "performed";
 }
 
-function continuationChoice(input: {
+/** Choose the terminal or its next pass from verified coverage and response state. */
+export function continuationChoice(input: {
   terminal: ReviewResolveEnvelope;
   additionalPass: ReviewResolveEnvelope | null;
   terminalOutcome?: string;
   currentResponsePerformed: boolean;
   coverageSelected: boolean;
+  nextPassContext?: ReviewNextPassContext;
+  retrigger?: "none" | "full-final" | "incremental";
 }): "terminal" | "additional" | "fresh" {
   const { terminal, additionalPass, terminalOutcome, currentResponsePerformed, coverageSelected } = input;
   if (additionalPass !== null && terminal.state === "pass-complete"
     && (terminalOutcome === "clean" || currentResponsePerformed)) return "additional";
   if (terminal.state === "findings" && currentResponsePerformed) return "fresh";
-  if (terminal.state === "coverage-required" && coverageSelected
+  const completeSuccessor = input.retrigger === "full-final"
+    && input.nextPassContext?.convergence === "converged" && !input.nextPassContext.responseDue;
+  if (terminal.state === "coverage-required" && (coverageSelected || completeSuccessor)
     && (!terminal.payload.responseRequired || currentResponsePerformed)) return "fresh";
   return "terminal";
 }
@@ -499,27 +518,18 @@ function continuationChoice(input: {
  * @param dependencies - Repository-bound evidence readers and configured policy.
  * @returns The terminal policy result, or the authorized successor after performed response.
  */
-export async function resolveEvidenceBoundReviewPolicyContinuation(
+export async function bindReviewPolicyContinuationEvidence(
   input: unknown,
   response: {
     readonly terminalResponsePerformed: boolean;
     readonly coverageSelected?: boolean;
   },
   dependencies: EvidenceBoundReviewPolicyDependencies,
-): Promise<ReviewResolveEnvelope> {
+): Promise<ReviewPolicyRequest> {
   const request = ReviewPolicyCommandRequestSchema.parse(input);
-  const terminalOutcome = request.attempts.at(-1)?.outcome;
-  const terminalRequest = terminalOutcome === "findings" || terminalOutcome === "clean"
-    ? ReviewPolicyCommandRequestSchema.parse({
-        ...request,
-        ceilingOverride: undefined,
-        additionalPassAuthorization: undefined,
-      })
-    : request;
-  const terminalAttempt = terminalRequest.attempts.at(-1);
-  const terminalOperationId = terminalAttempt?.outcome === "findings"
-    ? terminalAttempt.reviewOperationId
-    : undefined;
+  const terminalAttempt = request.attempts.at(-1);
+  const terminalOperationId = terminalAttempt?.outcome === "findings" || terminalAttempt?.outcome === "clean"
+    ? terminalAttempt.reviewOperationId : undefined;
   let terminalResult: Promise<ReviewResult> | undefined;
   const resultReader: ReviewResultReader = {
     readResult: (producerId) => {
@@ -530,6 +540,13 @@ export async function resolveEvidenceBoundReviewPolicyContinuation(
       return terminalResult;
     },
   };
+  const producer = terminalOperationId === undefined ? undefined : await resultReader.readResult(terminalOperationId);
+  const terminalRequest = producer === undefined ? request : ReviewPolicyCommandRequestSchema.parse({
+    ...request,
+    scopeSelection: { mode: producer.admission.scopeMode, target: request.target },
+    ceilingOverride: undefined,
+    additionalPassAuthorization: undefined,
+  });
   const boundTerminal = await bindReviewPolicyEvidence(terminalRequest, {
     ...dependencies,
     resultReader,
@@ -539,9 +556,13 @@ export async function resolveEvidenceBoundReviewPolicyContinuation(
     ? null
     : resolveReviewPolicy({
         ...boundTerminal,
+        scopeSelection: request.scopeSelection,
         additionalPassAuthorization: request.additionalPassAuthorization,
       });
-  if (additionalPass?.state === "invalid-override") return additionalPass;
+  if (additionalPass?.state === "invalid-override") return {
+    ...boundTerminal, scopeSelection: request.scopeSelection,
+    additionalPassAuthorization: request.additionalPassAuthorization,
+  };
   // A settled outcome alone does not prove that the current findings response was performed.
   const currentResponsePerformed = await responsePerformedForTerminal(
     terminalAttempt, response.terminalResponsePerformed, resultReader, dependencies,
@@ -549,15 +570,29 @@ export async function resolveEvidenceBoundReviewPolicyContinuation(
   const choice = continuationChoice({
     terminal, additionalPass, terminalOutcome: terminalAttempt?.outcome,
     currentResponsePerformed, coverageSelected: response.coverageSelected === true,
+    nextPassContext: dependencies.nextPassContext, retrigger: request.standardReview.retrigger,
   });
-  if (choice === "terminal") return terminal;
-  if (choice === "additional" && additionalPass !== null) return additionalPass;
-  return resolveReviewPolicy({
+  if (choice === "terminal") return boundTerminal;
+  if (choice === "additional" && additionalPass !== null) return {
+    ...boundTerminal, scopeSelection: request.scopeSelection,
+    additionalPassAuthorization: request.additionalPassAuthorization,
+  };
+  return ReviewPolicyRequestSchema.parse({
     ...request,
     attempts: [],
     sources: dependencies.sources,
     maxPasses: dependencies.maxPasses,
+    ...provenSubjectFacts(dependencies),
   });
+}
+
+/** Resolve the evidence-bound terminal or its authorized successor through the policy reducer. */
+export async function resolveEvidenceBoundReviewPolicyContinuation(
+  input: unknown,
+  response: { readonly terminalResponsePerformed: boolean; readonly coverageSelected?: boolean },
+  dependencies: EvidenceBoundReviewPolicyDependencies,
+): Promise<ReviewResolveEnvelope> {
+  return resolveReviewPolicy(await bindReviewPolicyContinuationEvidence(input, response, dependencies));
 }
 
 /**

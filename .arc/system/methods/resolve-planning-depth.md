@@ -79,17 +79,21 @@ is **capture (durably) → ratchet → re-enter**, never patch-and-limp a too-li
 **offered with a recommendation at the interlock, never a new automatic detector** — accept-or-decline, like
 every other depth read.
 
-On accept, re-fire the keyed-axis read and route by the axis the signal belongs to. The rule is one line: **route
-to the stage that owns the signal's axis, re-entered one level higher.** Scale is owned by `generate-tasks`;
-derivation by the design stages (`draft-design` / `create-spec`).
+On accept, re-fire the keyed-axis read and route to the stage that owns the signal's axis. Scale belongs to
+`generate-tasks`; derivation belongs to `draft-design` / `create-spec`.
 
-- **Already in the owning stage (or the headwater)** → re-enter _this_ stage higher, **nowhere-up from `high`**. A
-  scale signal at `generate-tasks` re-resolves `generate-tasks`; `draft-design` is the derivation headwater, so it
-  only re-enters itself.
-- **Owning stage is upstream** → route there. A derivation signal at `generate-tasks` routes to the **spec** (a
-  masked design decision belongs in the design, not a deeper task pass); a derivation signal at `create-spec`
-  whose _direction_ is unshaped routes to `draft-design`, while a merely-underestimated _form_ re-resolves
-  `create-spec` higher.
+- **Already in the owning stage, below `high`** → re-enter this stage one level higher.
+- **Already at `high` in the owning stage** → offer a return to shaping for the named locus, the `Class` ratchet to
+  `Novel` when the design must be invented rather than composed, or `assess-boundary-fit` when the folds span
+  separable concerns. There is no higher level to offer. An accepted return ends the review loop as `re-entered`:
+  `draft-design` returns to facilitated shaping from the problem and alternatives, `create-spec` to discovery over
+  the named section at the resolved form, and `generate-tasks` to grounding the named surface. Re-run readiness
+  afterward (`spec-review` over the section in `create-spec`), then offer a fresh review loop with a fresh cap.
+  Preserve the ended loop's pass record; its findings, not its folds, enter the new first pass as `prior-findings`,
+  labeled as the ended loop's and supplied as context rather than the search frontier.
+- **Owning stage is upstream** → route there. A derivation signal at `generate-tasks` routes to the spec; one at
+  `create-spec` whose direction is unshaped routes to `draft-design`. A signal about the spec's form alone belongs
+  to `create-spec` and takes its current level's branch above.
 
 The re-entry read is a `classify-work-unit` confirm-or-ratchet exactly as the entry read is: a floor-raising
 signal ratchets `Class` **up** to the realized floor (scale → `Heavy`; derivation → `Heavy` / `Novel`),

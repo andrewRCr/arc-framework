@@ -440,6 +440,13 @@ async function observeHostedReview(
     } } as const;
   }
   const observation = parsed.data;
+  if ((observation.kind === "clean" || observation.kind === "findings")
+    && handle.provider === "coderabbit-pr" && handle.requestedCoverage === "incremental"
+    && observation.coverageEvidence === undefined) {
+    return { kind: "return", value: { ...base(handle), state: "terminal-failure", nextAction: "stop",
+      reason: "Hosted incremental review is unavailable. Run a local fix check on delegated-agent or request a complete hosted pass." } };
+  }
+
   if (observation.kind === "clean") {
     return { kind: "return", value: {
       ...base(handle),

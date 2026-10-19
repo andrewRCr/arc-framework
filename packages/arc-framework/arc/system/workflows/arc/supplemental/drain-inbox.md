@@ -220,7 +220,8 @@ never as a dispositions table in the target's draft.
 
     - `exempt / none` — skip both review lanes and continue to PR creation.
     - `review-required / continue-review` — reuse its exact target, routing, and obligation payload in the
-      reviewed-lane settlement from [run-errand][run-errand]; do not retype those projections.
+      reviewed-lane [code review][code-findings-round] through [run-errand][run-errand];
+      do not retype those projections.
     - `not-eligible / continue-review` — enter that reviewed-lane settlement through ordinary fact composition.
     - A command error carries no action; stop.
 
@@ -242,18 +243,18 @@ never as a dispositions table in the target's draft.
   > (exact settled head, matching adapter target, checks, resolved lane) and await explicit integration approval —
   > never infer it from the § 3 routing confirmation, which approved the _routing_, not the merge.
 
-  After approval, re-read the PR's exact base and head SHAs. If the head differs from the adapter target surfaced
-  at the interlock, invalidate approval and return to the opened-target adapter resolution and integration
-  interlock. Otherwise run `arc review planning-lane <base-sha> <head-sha>`. Only literal `planning` permits arming
-  auto-merge; `reviewed` follows the reviewed-lane settlement in [`run-errand`][run-errand], while command failure
-  or malformed output stops. Foreign ownership or another confidently recognized review condition may still move
-  a planning result to reviewed without another permission stop, but never the reverse. For a literal `planning`
-  result, invoke `arc review merge-method resolve` and continue only from `validated / use-method`. Retain the
-  returned `method` as the sole merge-method input; `blocked / stop` stops with the lock still held. Immediately
-  before arming, invoke `arc merge lock release -` for the exact target — as on the errand grooming lane, auto-merge
-  cannot be armed on a locked PR. `released / proceed` and `no-lock / none` both continue by invoking
-  `gh pr merge <pr-number> --auto --<method> --match-head-commit <head-sha>` with that exact returned method and the
-  release payload's head; `blocked / stop` invalidates approval.
+  After approval, re-read the PR's exact base and head SHAs. If the head differs from the adapter target surfaced at the
+  interlock, invalidate approval and return to the opened-target adapter resolution and integration interlock. Otherwise
+  run `arc review planning-lane <base-sha> <head-sha>`. Only literal `planning` permits arming auto-merge; `reviewed`
+  follows the reviewed-lane [code review][code-findings-round] through [`run-errand`][run-errand], while command failure
+  or malformed output stops. Foreign ownership or another confidently recognized review condition may still move a
+  planning result to reviewed without another permission stop, but never the reverse. For a literal `planning` result,
+  invoke `arc review merge-method resolve` and continue only from `validated / use-method`. Retain the returned `method`
+  as the sole merge-method input; `blocked / stop` stops with the lock still held. Immediately before arming, invoke
+  `arc merge lock release -` for the exact target — as on the errand grooming lane, auto-merge cannot be armed on a
+  locked PR. `released / proceed` and `no-lock / none` both continue by invoking `gh pr merge <pr-number> --auto
+  --<method> --match-head-commit <head-sha>` with that exact returned method and the release payload's head; `blocked /
+  stop` invalidates approval.
 
   **A released PR is not a head-authorized PR.** Draft is a property of the pull request rather than of a commit,
   so the release says the lock came off — never that it came off for one head. Both continuing actions carry the
@@ -327,3 +328,5 @@ drain.
 [cheap-branch]: ../../../../reference/strategies/arc/strategy-work-organization.md#cheap-branch-path
 [branch-modes]: ../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes
 [auto-lane]: ../../../../reference/strategies/arc/strategy-work-organization.md#auto-merge-lane
+
+[code-findings-round]: ../../../methods/code-review.md#findings-round

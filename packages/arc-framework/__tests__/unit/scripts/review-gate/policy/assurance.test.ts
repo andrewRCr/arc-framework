@@ -121,8 +121,8 @@ describe("work-unit review assurance", () => {
     const result = composeWorkUnitReviewAssurance(
       { workClass: "Heavy", reviewRubric: null },
       methodFiles({
-        "self-review": method("self-review", false),
-        "frontline-review": method("frontline-review", true),
+        "code-review-author": method("code-review-author", false),
+        "code-review-frontline": method("code-review-frontline", true),
       }),
       rubrics(true),
     );
@@ -157,8 +157,8 @@ describe("work-unit review assurance", () => {
     const result = composeWorkUnitReviewAssurance(
       { workClass: "Novel", reviewRubric: null },
       methodFiles({
-        "self-review": "not frontmatter",
-        "frontline-review": method("frontline-review", "enabled"),
+        "code-review-author": "not frontmatter",
+        "code-review-frontline": method("code-review-frontline", "enabled"),
       }),
       rubrics(true),
     );
@@ -168,8 +168,8 @@ describe("work-unit review assurance", () => {
       frontlineReview: false,
     });
     expect(result.diagnostics).toEqual(expect.arrayContaining([
-      expect.stringContaining("self-review"),
-      expect.stringContaining("frontline-review"),
+      expect.stringContaining("code-review-author"),
+      expect.stringContaining("code-review-frontline"),
     ]));
   });
 
@@ -236,8 +236,8 @@ describe("work-unit review assurance", () => {
     expect(result.assurance.reviewRubric.state).toBe("unavailable");
     expect(result.diagnostics).toEqual(expect.arrayContaining([
       expect.stringContaining("rubric.security-audit."),
-      expect.stringContaining("method.frontline-review.missing"),
-      expect.stringContaining("method.self-review.missing"),
+      expect.stringContaining("method.code-review-frontline.missing"),
+      expect.stringContaining("method.code-review-author.missing"),
     ]));
   });
 

@@ -215,8 +215,8 @@ describe("resolvePlanningGroomingReviewCommand", () => {
 
     expect(result.activity).toEqual({ selfReview: true, frontlineReview: false });
     expect(result.diagnostics).toEqual([
-      "method.frontline-review.missing",
-      "method.self-review.missing",
+      "method.code-review-author.missing",
+      "method.code-review-frontline.missing",
     ]);
   });
 });

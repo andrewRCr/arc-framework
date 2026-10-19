@@ -3,12 +3,8 @@ purpose: Execute or resume one canonical delivery stack through exact-head revie
 audience: agent
 arc:
   methods:
+    - code-review
     - assess-evidence-applicability
-    - frontline-review
-    - standard-review
-    - implementation-audit
-    - review-triage
-    - review-response
     - review-chunking
     - validate-criteria
     - pull-request-format
@@ -94,8 +90,9 @@ member closeout. Dispatch only on the typed result:
   result stop before gate execution.
 
 No member push-gate request starts until every exact member target has a closed result and disposition. Retain each
-exact-target selection for the calling pre-publication review. This recheck governs the current materialization only;
-later target movement requires another exact check.
+exact-target selection for the calling pre-publication complete review. A fix check instead measures its own range after
+coverage is chosen. This recheck governs the current materialization only; after later target movement, status's measure
+of the selected pass is the next exact check.
 
 ```bash
 arc delivery eligibility prepare -
@@ -299,44 +296,27 @@ review evidence exists. Resolve its exact open change request and pass the resol
 arc review status --target '{targetRef}'
 ```
 
-No review carrier may run while the latest exact-target `consider-chunks / select-review-scope` result is unresolved.
-A selected bounded-review route closes through `scope-selected`; an explicit capable whole-target choice closes the
-attention disposition while retaining `consider-chunks`. Require the returned review action to carry either the
-exact-target chunked scope selection or, for the whole-target route, the exact-target forced hosted invocation selected
-by the Owner. A missing or stale selection returns to the owning route rather than editing the action or invoking a
-carrier.
+Apply [code-review's chunk gate][code-chunk-gate] to status's coverage-aware measure. An explicit whole-target
+hosted selection re-enters `arc review status --target '{targetRef}' --source <hosted-source-id>`; the source-less
+form retains the automatic chunked route.
 
-After the Owner selects the whole-target route, re-enter the same exact target with that configured hosted source:
+Dispatch only on `nextAction`.
 
-```bash
-arc review status --target '{targetRef}' --source <hosted-source-id>
-```
+Before source dispatch, run [code-review's successor decision][code-successor-decision] with the selected member's
+exact `targetRef.headSha` as `memberHeadObjectId` and this member-target route's explicit stop limit.
 
-The source-less form retains the automatic chunked route.
+`select-coverage` applies [code-review's coverage selection][code-coverage-selection] to the returned offer and this
+caller's stop capability. Re-enter the same status scope through its returned command; retain the resulting admission.
 
-The default action requests complete coverage. When a typed applicability recommendation requires a focused
-supplemental hosted pass, request it from the same first-outstanding member position instead of editing an action:
+`stop` renders the refusal's `reason`, `detail`, and `remedy.text` verbatim, then stops. Preserve the structured remedy
+and follow its exact command after the stated repair or Owner decision.
 
-```bash
-arc review status --target '{targetRef}' --coverage incremental
-```
+At `obtain-ceiling-override`, apply [code-review's ceiling override][code-ceiling-override] with this exact member
+subject. Carry an approved consequence unchanged in `arc review status --target '{targetRef}' --ceiling-override
+'{consequence}'`.
 
-Pass the returned action unchanged. Re-enter without `--coverage` after the supplemental attempt concludes; an
-incremental result does not settle or consume the member's required complete review.
-
-Dispatch only on `nextAction`. `obtain-ceiling-override` renders the exact `consequence` and stops without requesting.
-Only explicit approval of that exact consequence admits one additional pass; on approval, re-enter the same target
-with the returned consequence serialized unchanged:
-
-```bash
-arc review status --target '{targetRef}' --ceiling-override '{consequence}'
-```
-
-`review-hosted-request` means pass the returned action unchanged to:
-
-```bash
-arc review hosted request -
-```
+`review-hosted-request` enters [code-review's hosted await and settlement][code-hosted-await-and-settlement]
+with the returned action unchanged.
 
 `review-local-prepare` returns the exact standard-review driver admission. Pass its `action` unchanged as
 `deliveryAdmission` in the ordinary local prepare request:
@@ -345,89 +325,20 @@ arc review hosted request -
 arc review local prepare -
 ```
 
-Follow the typed local launch, attest, reduce, and findings-response sequence. Do not rerun source selection or
-substitute the current checkout head for the returned member head. After the local attempt concludes, re-enter
-through `arc review status`; durable lane progress consumes the admitted pass.
+Apply [code-review's local operation][code-local-operation] to the returned member head and driver admission,
+then re-enter `arc review status` for that exact member.
 
-`review-local-resume` means pass the returned action unchanged to:
+`review-local-resume` applies [code-review's local operation][code-local-operation] to the returned resume action,
+then re-enters this caller's same status scope.
 
-```bash
-arc review local resume -
-```
+`respond-to-findings` applies [code-review's findings round][code-findings-round] to `responsePlan`'s exact target,
+source, and findings. Use this workflow's selector-free correction route for a delivery-owned fix and its exact
+[review-fix verification continuation][review-fix-verification] when requested; the controller owns machine writes.
+Re-enter this member's status only after the durable response and remaining hosted phases complete.
 
-Follow the same typed local sequence, then re-enter through `arc review status`.
-
-`respond-to-findings` uses the returned `responsePlan`'s exact target, source, and findings. Run
-[`review-triage`][review-triage] to verify the source, compose the complete proposal with the effective policy in
-`proposal.severityGatingPolicy`, and recommend `proposal.proposedVerification`. Submit the proposal through the first
-call:
-
-```bash
-arc review respond -
-```
-
-Emit the returned `payload.dispositionReportText` verbatim unless the effective triage override changes presentation,
-then obtain complete-set approval over that exact report and canonical set. That approval is the fix round's
-structured gate: where the configured interlocks release them, the fix's commit, push, and approved settlement follow
-without another stop ([DEV-RULES.ARC § Review-Increment Invariant][review-increment-invariant]). Submit the exact
-approved set through a second call:
-
-```bash
-arc review respond -
-```
-
-Follow only its returned action and use [`review-response`][review-response] to perform the approved response. This
-resumes the retained attempt and never requests another hosted review. Preserve the `ready-to-fix` authorization's
-`approvedVerification` through re-entry and changed-target continuation; it does not select fewer checks here. Execute
-any returned hosted settlement plan through the existing phase-ordered settlement path below, passing its
-`payload.hostedSettlementPlan.actorIdentity` unchanged, then re-enter through `arc review status`.
-Retain any returned `payload.policyRequest` carrying `conditionalPassAuthorizationId` unchanged and pass its exact
-ceiling override into the named hosted, local, or frontline admission; never reconstruct the authorization ID.
-After a member fix, require `delivery-member-advanced` or idempotent `delivery-member-current` and pass
-`payload.hostedFixTarget` unchanged as the after-fix settlement's `fixTarget`; never reconstruct it from the checkout.
-
-On `requested / await`, pass the returned `action` unchanged to:
-
-```bash
-arc review hosted await -
-```
-
-`pending / await` retains the newly returned `action` unchanged for one more bounded call; `pending / inspect-or-extend`
-retains the request for the diagnostic below, then stops. Submitting `action` unchanged checks once; on explicit
-direction, add `continueAfterAttention: true` to that action for one more bounded call. Neither path requests another
-review or records a provider outcome. For either pending outcome, run one short exact-head diagnostic observation before
-continuing or stopping:
-
-```bash
-arc review checks await \
-  --repository <action.handle.target.repository> \
-  --pull-request <action.handle.target.pullRequest> \
-  --head-sha <action.handle.target.headSha> \
-  --timeout-ms 10000 \
-  --poll-interval-ms 10000
-```
-
-Surface failed required `checks` and any `diagnosticFailures`; when either is present, begin read-only diagnosis by
-inspecting every returned `failureLogs.logs[].path` before deciding the failure, and surface `failureLogs.failures` when
-retrieval is partial or unavailable. `unavailable / retry` surfaces `cause`, `detail`, current `checks`, and
-`diagnosticFailures`, retains the same hosted-review `action`, and ends this foreground attempt. `pending / await`,
-`green / complete`, and `not-required / complete` retain the same hosted-review `action`; only that action re-enters
-hosted await. `failed / stop`, stale or mismatched targets, and blocked reads stop with the action intact. This
-observation does not become review settlement, feed the review driver, move the exact head, or release the draft lock.
-Before any push that moves the reviewed head while this action is pending, including a fix for a failure this
-observation found, re-enter the action through hosted await until it concludes and handle its result first, so its
-findings join the same push. At `pending / inspect-or-extend`, push only on explicit Owner direction, which gives up
-that result.
-
-Feed `clean`, `findings`, and safe-unavailability results to the existing review driver. For approved hosted
-finding settlement, execute the returned settlement plan in phase order through:
-
-```bash
-arc review hosted settle -
-```
-
-On `head-pending / retry`, surface `remedy.text` and end this foreground attempt. A later re-entry passes
-`remedy.stdin` unchanged through `remedy.argv`.
+For `requested / await` and pending hosted results, apply [code-review's hosted await and
+settlement][code-hosted-await-and-settlement]. Feed clean and safe-unavailability
+outcomes through the retained driver/status route; findings use the findings round above.
 
 `resolve-review-applicability` renders `selectionAction.interactionText` before the Owner's typed choice.
 
@@ -457,8 +368,7 @@ permits landing when a returned typed discharge conjunction is `discharged`; the
 conjunction is also authoritative because no delivery-member conjunction remains to discharge. No other review-status
 result permits landing preparation.
 
-Apply `frontline-review`, then `standard-review` or `implementation-audit` as applicable, and settle findings through
-the producer-backed response choreography above before returning to the calling landing arm.
+Return to the calling landing arm only after the selected typed review action and its findings response complete.
 
 Only a native arm admitted by `member-discharged / continue-reconcile` or `settled / continue-reconcile` advances to
 set-wide preparation:
@@ -712,14 +622,12 @@ that authority against the canonical plan, versioned Delivery State, persisted o
 boundary. Re-enter the same command after every returned step; never invoke a low-level correction verb from a
 selector reconstructed in prose.
 
-After every continuation result, before following its returned step, perform
-[integration's description upkeep][description-upkeep] after the approved correction is pushed. Load
-[pull-request-format][pull-request-format] and update the terminal request against its published head from the
-canonical delivery bindings. Read `effectLog` for the controller's executed and replayed correction effects. This
-upkeep applies before handling `review-status-required`, `position`, or any other returned result after a pushed
-correction, including a stop after partial progress. Diagnose an incomplete description update before advancing;
-retain the original result unchanged for resumption. The returned action keeps its authoring, settlement, and
-review-admission authority.
+After every continuation result, read `effectLog` for the controller's executed and replayed correction effects.
+After the approved correction is pushed, resolve the terminal request against its published head from the canonical
+delivery bindings, then perform [code-review's description upkeep][code-hosted-settlement] before following the
+returned step. This applies before `review-status-required`, `position`, or any other result, including a stop after
+partial progress. Diagnose an incomplete update before advancing; retain the original result unchanged for resumption.
+The returned action keeps its authoring, settlement, and review-admission authority.
 
 - `dispatch / dispatch` invokes `action.argv` with `action.input` unchanged, then re-enters this continuation
   without an interlock. The typed action may publish the selected correction, rematerialize the exact suffix, resume
@@ -808,12 +716,20 @@ On `terminal-checkpoint`, delegate to [`integrate-work-unit.md`][integrate-work-
 delivery arm from the current Candidate and retained member bindings, and its existing integration interlock owns the
 terminal merge. Do not fire a delivery interlock here.
 
+---
+
 [integrate-work-unit]: ../work-unit-lifecycle/integrate-work-unit.md
 [assess-evidence-applicability]: ../../../methods/assess-evidence-applicability.md
 [review-chunking]: ../../../methods/review-chunking.md
-[review-response]: ../../../methods/review-response.md
-[review-triage]: ../../../methods/review-triage.md
-[validate-criteria]: ../../../methods/validate-criteria.md
-[review-increment-invariant]: ../../../rules/DEV-RULES.ARC.md#review-increment-invariant
+[validate-criteria]: ../../../methods/validate-criteria.md#validate-criteriadefault
 [pull-request-format]: ../../../methods/pull-request-format.md
-[description-upkeep]: ../work-unit-lifecycle/integrate-work-unit.md#2-review-iteration
+
+[code-successor-decision]: ../../../methods/code-review.md#successor-decision
+[code-coverage-selection]: ../../../methods/code-review.md#coverage-selection
+[code-chunk-gate]: ../../../methods/code-review.md#chunk-gate
+[code-ceiling-override]: ../../../methods/code-review.md#ceiling-override
+[code-findings-round]: ../../../methods/code-review.md#findings-round
+[code-hosted-await-and-settlement]: ../../../methods/code-review.md#hosted-await-and-settlement
+[code-local-operation]: ../../../methods/code-review.md#local-operation
+[review-fix-verification]: #complete-a-review-fix-verification-continuation
+[code-hosted-settlement]: ../../../methods/code-review.md#hosted-settlement

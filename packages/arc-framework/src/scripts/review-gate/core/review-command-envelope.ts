@@ -55,6 +55,7 @@ const PersistedVersionSchema = z.number().int().positive();
 
 export const ReviewCommandModeSchema = z.enum([
   "review-readiness",
+  "review-lane-read",
   "review-resolve",
   "review-frontline-resolve",
   "review-chunking-resolve",

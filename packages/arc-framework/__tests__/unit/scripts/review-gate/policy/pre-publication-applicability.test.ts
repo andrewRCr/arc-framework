@@ -1,3 +1,4 @@
+import { withReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
 /** Current-contribution applicability in pre-publication policy composition. */
 
 import { describe, expect, it, vi } from "vitest";
@@ -13,6 +14,7 @@ import {
   type ReviewLane,
   type TargetRead,
 } from "../../../../../src/scripts/review-gate/policy/pre-publication-request.js";
+import type { IncrementalPredecessorApplicability } from "../../../../../src/scripts/review-gate/policy/incremental-coverage-basis.js";
 import type { LaneProgressProjection } from "../../../../../src/scripts/review-gate/lane-progress.js";
 import {
   createReviewRequest,
@@ -206,7 +208,7 @@ function dependencies(
 }
 
 describe("pre-publication current contribution applicability", () => {
-  it("asks contribution authority for a same-owner delivery predecessor", async () => {
+  it("keeps a full-final member fix check incomplete despite an earlier complete pass", async () => {
     const priorMember = deliveryMemberTarget({
       deliverableCharacter: "1", baseCharacter: "2", headCharacter: "3",
     });
@@ -320,13 +322,13 @@ describe("pre-publication current contribution applicability", () => {
     );
     expect(composition.status === "refused" ? composition.reason : "").toBe("");
     expect(composition.status === "composed" && composition.request.standard).toMatchObject({
-      verifiedTerminalSignal: { coverageAdequate: false },
+      attempts: [],
+      completedPasses: 2,
     });
-    expect(confirmIncrementalApplicability).toHaveBeenCalledWith(
-      "example", expect.objectContaining({ producerId: predecessor.producerId }),
-      expect.objectContaining({ producerId: current.producerId }),
-      expect.anything(),
-    );
+    if (composition.status !== "composed") throw new Error(composition.reason);
+    expect(resolveReviewPolicy(composition.request.standard)).toMatchObject({
+      state: "ready", nextAction: "local-prepare", payload: { pass: 3 },
+    });
   });
 
   it("routes a same-head old-base clean terminal through current applicability", async () => {
@@ -345,7 +347,7 @@ describe("pre-publication current contribution applicability", () => {
       diffBaseTree: "8".repeat(40),
     });
     const confirmPriorProducerApplicability = vi.fn(async () => "review-required" as
-      "applicable" | "review-required" | "unavailable");
+      IncrementalPredecessorApplicability);
     const deps = dependencies({
       resolveTarget: async () => ({
         status: "resolved", target: { repository: "arc-framework/example", pullRequest: 42, headSha: HEAD },
@@ -371,21 +373,19 @@ describe("pre-publication current contribution applicability", () => {
     if (required.status !== "composed") return;
     expect(required.request.standard.attempts).toEqual([]);
     expect(required.request.standard.verifiedTerminalSignal).toBeUndefined();
-    expect(resolveReviewPolicy(required.request.standard)).toMatchObject({
+    expect(resolveReviewPolicy(withReviewNextPassContext(required.request.standard))).toMatchObject({
       state: "ready", nextAction: "hosted-request",
     });
-    expect(confirmPriorProducerApplicability).toHaveBeenCalledWith(
-      "example", prior, currentTarget,
-      { kind: "candidate", candidateId: CANDIDATE_ID },
-      expect.anything(),
-    );
-
-    confirmPriorProducerApplicability.mockResolvedValue("unavailable");
-    const unavailable = await composePrePublicationReviewRequest(
-      { workUnit: "example", selfReview: "settled" }, deps,
-    );
-    expect(unavailable.status === "composed" && resolveReviewPolicy(unavailable.request.standard))
-      .toMatchObject({ state: "ready", nextAction: "hosted-request" });
+    for (const refusal of ["unavailable", "range-proven"] as const) {
+      confirmPriorProducerApplicability.mockResolvedValue(refusal);
+      const refused = await composePrePublicationReviewRequest(
+        { workUnit: "example", selfReview: "settled" }, deps,
+      );
+      expect(refused.status === "composed" && refused.request.standard).toMatchObject({ attempts: [] });
+      expect(refused.status === "composed" && refused.request.standard.verifiedTerminalSignal).toBeUndefined();
+      expect(refused.status === "composed" && resolveReviewPolicy(withReviewNextPassContext(refused.request.standard)))
+        .toMatchObject({ state: "ready", nextAction: "hosted-request" });
+    }
 
     confirmPriorProducerApplicability.mockResolvedValue("applicable");
     const retained = await composePrePublicationReviewRequest(

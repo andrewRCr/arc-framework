@@ -7,7 +7,7 @@ import {
   RespondCommandError,
   UnchangedVerifiedFixTargetError,
 } from "../../../../../src/scripts/review-gate/runtime/respond-command.js";
-import { uncommittedVerifiedFixRemedy } from "../../../../../src/scripts/review-gate/runtime/respond-remedy.js";
+import { reviewRespondRemedy } from "../../../../../src/scripts/review-gate/runtime/respond-remedy.js";
 
 const verifiedFixRequest = {
   schemaVersion: 1,
@@ -15,9 +15,9 @@ const verifiedFixRequest = {
   verifiedFix: { applicability: "focused", verificationEvidenceRefs: ["verification://focused-fix"] },
 };
 
-describe("uncommittedVerifiedFixRemedy", () => {
+describe("reviewRespondRemedy", () => {
   it("names commit-then-replay and carries the exact request for a dirty verified-fix submission", () => {
-    expect(uncommittedVerifiedFixRemedy(new LocalTargetDerivationError("dirty-worktree"), verifiedFixRequest))
+    expect(reviewRespondRemedy(new LocalTargetDerivationError("dirty-worktree"), verifiedFixRequest))
       .toEqual({
         invariant: expect.stringContaining("clean committed head"),
         text: expect.stringMatching(/Commit the fix .* then replay the response .*`arc review respond -`\.$/u),
@@ -27,14 +27,14 @@ describe("uncommittedVerifiedFixRemedy", () => {
   });
 
   it("asks for the approved fix to be applied first when the exact target never changed", () => {
-    const remedy = uncommittedVerifiedFixRemedy(new UnchangedVerifiedFixTargetError(), verifiedFixRequest);
+    const remedy = reviewRespondRemedy(new UnchangedVerifiedFixTargetError(), verifiedFixRequest);
 
     expect(remedy).toMatchObject({
       text: expect.stringMatching(/^A verified fix .* Apply the approved fix if it is not in place, commit it /u),
       argv: ["arc", "review", "respond", "-"],
       stdin: verifiedFixRequest,
     });
-    expect(uncommittedVerifiedFixRemedy(new LocalTargetDerivationError("dirty-worktree"), verifiedFixRequest)?.text)
+    expect(reviewRespondRemedy(new LocalTargetDerivationError("dirty-worktree"), verifiedFixRequest)?.text)
       .not.toContain("Apply the approved fix");
   });
 
@@ -47,28 +47,28 @@ describe("uncommittedVerifiedFixRemedy", () => {
       supersedes: { predecessorDispositionSetId: `sha256:${"a".repeat(64)}`, expectedFixPaths: ["src/fix.ts"] },
     };
 
-    expect(uncommittedVerifiedFixRemedy(error, supersedingRequest)?.stdin).toEqual(verifiedFixRequest);
+    expect(reviewRespondRemedy(error, supersedingRequest)?.stdin).toEqual(verifiedFixRequest);
     expect(supersedingRequest).toHaveProperty("supersedes");
   });
 
   it("names nothing for a dirty worktree when the request carries no verified fix", () => {
     const withoutFix = { schemaVersion: verifiedFixRequest.schemaVersion, source: verifiedFixRequest.source };
 
-    expect(uncommittedVerifiedFixRemedy(new LocalTargetDerivationError("dirty-worktree"), withoutFix))
+    expect(reviewRespondRemedy(new LocalTargetDerivationError("dirty-worktree"), withoutFix))
       .toBeUndefined();
   });
 
   it.each(["non-commit-head", "unresolved-base", "ambiguous-merge-base"] as const)(
     "names nothing for a verified fix refused on %s",
     (reason) => {
-      expect(uncommittedVerifiedFixRemedy(new LocalTargetDerivationError(reason), verifiedFixRequest))
+      expect(reviewRespondRemedy(new LocalTargetDerivationError(reason), verifiedFixRequest))
         .toBeUndefined();
     },
   );
 
   it("names nothing for a failure that is neither refusal, whatever its message", () => {
-    expect(uncommittedVerifiedFixRemedy(new Error("dirty-worktree"), verifiedFixRequest)).toBeUndefined();
-    expect(uncommittedVerifiedFixRemedy(
+    expect(reviewRespondRemedy(new Error("dirty-worktree"), verifiedFixRequest)).toBeUndefined();
+    expect(reviewRespondRemedy(
       new RespondCommandError("invalid-input", "a verified fix requires its exact approved response record"),
       verifiedFixRequest,
     )).toBeUndefined();

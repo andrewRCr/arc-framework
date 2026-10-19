@@ -2,10 +2,10 @@
 
 The assessment should establish that:
 
-- the report leads with a decision table whose row carries the finding's report-local label, verdict, gating,
-  `REJECT` action, and title, with the open question directly beneath it as the one thing asked of the approver;
-- the finding's section gives a standalone account below the table: its heading names the finding, and the reviewer's
-  issue is stated before the full action and the detail behind the verdict;
+- the report's four-column table carries the finding's stable label, unsupported grade marker, title, and `REJECT`
+  action, with its open question in the Decisions block beneath it;
+- the finding's section carries its verdict, the reviewer's reported grade, and record-only standing on its status
+  line, then states the finding before the full action and detail behind the verdict;
 - the separate evidence text, offered on request rather than shown in the report, preserves the native label, capture
   ordinal, source reference, and report-local finding label without conflating them, and keeps ARC's verification
   reference distinct from the producer source;
