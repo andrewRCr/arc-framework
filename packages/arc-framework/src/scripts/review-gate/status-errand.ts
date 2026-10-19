@@ -1,5 +1,6 @@
 /** Positive Errand identity and exact-head lane progress for review status. */
 
+import { ProjectIdentityError } from "../../lib/store/project-identity.js";
 import { resolveReviewInvocation, type ReviewInvocationInput, type ReviewInvocationOptions } from "./runtime/invocation.js";
 import { createReviewCompositionContext } from "./runtime/composition-context.js";
 import { projectReviewDriverRefusal } from "./status-driver-refusal.js";
@@ -782,7 +783,7 @@ export async function readErrandRoutedObligation(options: ReviewInvocationInput 
     }
 
     const { publisher, family } = createReviewCompositionContext({ ...input, exec });
-    const repositoryId = await resolveRepositoryIdentity(publisher);
+    const repositoryId = await resolveRepositoryIdentity(publisher, undefined, input);
     const store = family.ports.inFlight;
     const dispositionStore = family.ports.dispositions;
     const progress = await readLaneProgress(store, {
@@ -937,6 +938,7 @@ export async function readErrandRoutedObligation(options: ReviewInvocationInput 
         detail,
       };
   } catch (error) {
+    if (error instanceof ProjectIdentityError) throw error;
     return blocked(error instanceof Error ? error.message : String(error));
   }
 }

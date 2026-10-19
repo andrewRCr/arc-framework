@@ -17,6 +17,11 @@ const PRE_PUBLICATION_REMEDIES: Record<
     "Correct the reported input, then re-run",
     prePublicationResumeArgv(workUnit),
   ),
+  "project-identity-unavailable": (workUnit) => spineRemedy(
+    "Pre-publication requires the selected project's stable identity.",
+    "Restore the project identity record, then re-run",
+    prePublicationResumeArgv(workUnit),
+  ),
   "corrupt-state": (workUnit) => spineRemedy(
     "Pre-publication reduces only intact durable review evidence.",
     "Repair the reported durable record, then re-run",

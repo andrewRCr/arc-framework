@@ -271,7 +271,7 @@ function createBoundLocalPrepareDependencies(input: ReviewInvocationInput & Retu
   const sweepAdapter = new RepositoryLocalReviewSourceSweepAdapter(input.exec, input.cwd);
   let receiptStore: Promise<LocalForwardReviewReceiptStore> | null = null;
   const receipts = () => {
-    receiptStore ??= resolveRepositoryIdentity(publisher)
+    receiptStore ??= resolveRepositoryIdentity(publisher, undefined, input)
       .then((repositoryId) => new LocalForwardReviewReceiptStore(publisher, repositoryId));
     return receiptStore;
   };
@@ -316,7 +316,7 @@ function createBoundLocalPrepareDependencies(input: ReviewInvocationInput & Retu
       });
     },
     readReceipts: async (targetId) => (await receipts()).readReceipts(targetId),
-    resolveRepositoryId: () => resolveRepositoryIdentity(publisher),
+    resolveRepositoryId: () => resolveRepositoryIdentity(publisher, undefined, input),
     readCurrentHeadSha: async () => (await input.exec("git", ["rev-parse", "HEAD"], {
       cwd: input.cwd,
     })).stdout.trim(),

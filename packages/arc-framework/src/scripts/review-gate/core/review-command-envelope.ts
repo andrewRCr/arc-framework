@@ -991,7 +991,12 @@ export const LocalResumeEnvelopeSchema = z.union([
 export const ReviewCommandErrorEnvelopeSchema = z.union([
   ...ReviewCommandModeSchema.options
     .filter((mode) => mode !== "review-pre-publication")
-    .flatMap((mode) => ReviewCommandErrorCodeSchema.options.map((code) => errorVariant(mode, code))),
+    .flatMap((mode) => ReviewCommandErrorCodeSchema.options
+      .filter((code) => code !== "project-identity-unavailable")
+      .map((code) => errorVariant(mode, code))),
+  ...ReviewCommandModeSchema.options
+    .filter((mode) => mode !== "review-pre-publication")
+    .map((mode) => remedialErrorVariant(mode, "project-identity-unavailable")),
   // The pre-publication verb is the review spine's middle verb, so its refusals carry the same
   // corrective guidance the checkpoint and merge verbs do.
   ...ReviewPrePublicationRefusalCodeSchema.options
@@ -1008,15 +1013,7 @@ export const ReviewCommandErrorEnvelopeSchema = z.union([
 function errorVariant<Mode extends ReviewCommandMode, Code extends ReviewPrePublicationRefusalCode>(
   mode: Mode,
   code: Code,
-): z.ZodObject<{
-  schemaVersion: z.ZodLiteral<1>;
-  diagnostics: z.ZodArray<typeof ReviewCommandDiagnosticSchema>;
-  mode: z.ZodLiteral<Mode>;
-  error: z.ZodObject<{
-    code: z.ZodLiteral<Code>;
-    message: z.ZodString;
-  }>;
-}> {
+) {
   return z.strictObject({
     ...HeaderShape,
     mode: z.literal(mode),
@@ -1030,16 +1027,7 @@ function errorVariant<Mode extends ReviewCommandMode, Code extends ReviewPrePubl
 function remedialErrorVariant<Mode extends ReviewCommandMode, Code extends ReviewPrePublicationRefusalCode>(
   mode: Mode,
   code: Code,
-): z.ZodObject<{
-  schemaVersion: z.ZodLiteral<1>;
-  diagnostics: z.ZodArray<typeof ReviewCommandDiagnosticSchema>;
-  mode: z.ZodLiteral<Mode>;
-  error: z.ZodObject<{
-    code: z.ZodLiteral<Code>;
-    message: z.ZodString;
-  }>;
-  remedy: typeof SpineRemedySchema;
-}> {
+) {
   return errorVariant(mode, code).extend({ remedy: SpineRemedySchema });
 }
 

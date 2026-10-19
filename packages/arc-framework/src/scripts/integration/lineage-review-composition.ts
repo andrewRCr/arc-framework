@@ -5,7 +5,6 @@ import type { ReviewInvocationInput } from "../review-gate/runtime/invocation.js
 import type { ReviewInFlightPort } from "../review-gate/core/ports.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
-import type { GitExec } from "../../lib/git/index.js";
 import { createRawGitExec } from "../../lib/io-context.js";
 import { readCandidateRecord } from "../../lib/store/kinds/review/candidate/access.js";
 import { candidateReviewResponses } from "../../lib/work-unit/candidate-attestation.js";
@@ -72,7 +71,7 @@ async function resolveApprovedOriginTarget(
 }
 
 async function deriveApprovedSettledTarget(
-  input: { cwd: string; exec: GitExec },
+  input: ReviewInvocationInput,
   publisher: RepositoryGitCommonStatePublisher,
   approvedHead: string,
 ): Promise<ReviewTarget> {
@@ -81,7 +80,7 @@ async function deriveApprovedSettledTarget(
     exec: input.exec,
     cwd: input.cwd,
     baseRef: settings["branch.base"],
-    repositoryId: await resolveRepositoryIdentity(publisher),
+    repositoryId: await resolveRepositoryIdentity(publisher, undefined, input),
   });
   if (target.headSha !== approvedHead) {
     throw new Error("The current change set does not bind the approved head.");

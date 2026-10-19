@@ -25,6 +25,8 @@ import { createLocalReviewSubjectResolver } from "./local-review-subject.js";
 import { resolveLocalPolicyTarget, createLocalContributionConfirmation } from "./local-correction-context.js";
 import { readReviewLaneHistory } from "./lane-history.js";
 import { readLocalDeltaAdmissionSurface } from "./local-reserved-obligation.js";
+import { ProjectIdentityError } from "../../../lib/store/project-identity.js";
+import { projectIdentitySpineRemedy } from "./project-identity-remedy.js";
 
 type LaneReadBoundary = ReviewInvocationInput;
 
@@ -75,7 +77,7 @@ async function readResolvedLane(request: ReviewLaneReadRequest, input: LaneReadB
     ...(member === null ? {} : { memberCoordinates: { headSha: member.head, diffBaseSha: member.base } }) });
   const lineage = await resolver.resolveLineage(vehicle, coordinates.headSha, undefined, member ?? undefined);
   const { publisher, family } = createReviewCompositionContext(input);
-  const repositoryId = await readRepositoryIdentity(publisher);
+  const repositoryId = await readRepositoryIdentity(publisher, input);
   const operationStore = family.ports.inFlight;
   const dispositionStore = family.ports.dispositions;
   const history = repositoryId === null ? { progress: [], inheritedLineages: [], dispositions: [] }
@@ -96,6 +98,11 @@ export async function readReviewLane(request: ReviewLaneReadRequest, input: Lane
     return await readResolvedLane(request, { ...input, ...resolveReviewInvocation(input) });
   }
   catch (error) {
+    if (error instanceof ProjectIdentityError) {
+      return { schemaVersion: 1, mode: "review-lane-read", state: "refused", nextAction: "stop", diagnostics: [],
+        payload: { code: "project-identity-unavailable", detail: error.failure.reason,
+          remedy: projectIdentitySpineRemedy(error, ["arc", "review", "lane", "read", "-"], request) } };
+    }
     const code = error instanceof LocalReviewAuthorityError ? error.reason
       : error instanceof Error && "reason" in error && typeof error.reason === "string" ? error.reason : "lane-read-unavailable";
     const detail = error instanceof Error ? error.message : String(error);

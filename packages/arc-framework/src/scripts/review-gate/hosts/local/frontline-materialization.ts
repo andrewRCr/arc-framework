@@ -38,7 +38,7 @@ export async function prepareFrontlineTargetMaterialization(options: ReviewInvoc
     });
     added = true;
     const repositoryId = await resolveRepositoryIdentity(
-      new RepositoryGitCommonStatePublisher(input.exec, input.cwd),
+      new RepositoryGitCommonStatePublisher(input.exec, input.cwd), undefined, input,
     );
     const target = await deriveLocalReviewTarget({
       exec: input.exec,

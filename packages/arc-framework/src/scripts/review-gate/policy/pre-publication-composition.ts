@@ -297,7 +297,7 @@ export function createPreBindingDeliveryReviewTargetDependencies(options: Review
   const lookup = new RepositoryDeliveryMemberLookup(input);
   let repositoryIdPromise: Promise<string> | null = null;
   const repositoryId = () => {
-    repositoryIdPromise ??= resolveRepositoryIdentity(publisher);
+    repositoryIdPromise ??= resolveRepositoryIdentity(publisher, undefined, input);
     return repositoryIdPromise;
   };
   return {
@@ -482,7 +482,7 @@ export function createPrePublicationCompositionDependencies(options: ReviewInvoc
   const deliveryReviewTargetDependencies = createPreBindingDeliveryReviewTargetDependencies(input);
   let repositoryIdPromise: Promise<string> | null = null;
   const repositoryId = () => {
-    repositoryIdPromise ??= resolveRepositoryIdentity(publisher);
+    repositoryIdPromise ??= resolveRepositoryIdentity(publisher, undefined, input);
     return repositoryIdPromise;
   };
   const observeTarget = async (): Promise<ReviewTarget> => {

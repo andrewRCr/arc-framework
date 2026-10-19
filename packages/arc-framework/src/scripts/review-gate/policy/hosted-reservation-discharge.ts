@@ -603,7 +603,7 @@ export function createHostedReservationDischargeReader(options: ReviewInvocation
   };
   let repositoryIdPromise: Promise<string> | null = null;
   const repositoryId = () => {
-    repositoryIdPromise ??= resolveRepositoryIdentity(publisher);
+    repositoryIdPromise ??= resolveRepositoryIdentity(publisher, undefined, input);
     return repositoryIdPromise;
   };
   const rawExec = input.rawExec ?? createRawGitExec(input.cwd);

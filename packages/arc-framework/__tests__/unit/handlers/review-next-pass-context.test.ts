@@ -2,6 +2,7 @@
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { ProjectIdentityError } from "../../../src/lib/store/project-identity.js";
 import { expect, it } from "vitest";
 import { createLocalMappingFixture } from "../../fixtures/review-mapping.js";
 import { createLifecycleHarness } from "../../helpers/store/lifecycle-harness.js";
@@ -62,4 +63,11 @@ it("counts an inherited complete look from stored Candidate history without a Ca
     operationStore: fixture.fixture.dependencies.operationStore, resultReader: fixture.fixture.resultReader,
     dispositionStore: createReviewEvidencePort(fixture.harness.store, fixture.owner) };
   expect(await readResolveNextPassContext(input)).toMatchObject({ completePasses: 1, convergence: "converged", responseDue: false });
+  const terminalRequest = ReviewPolicyCommandRequestSchema.parse({ ...request,
+    attempts: [{ sourceId: "delegated-agent", outcome: "clean", reviewOperationId: producer.producerId }] });
+  const unavailable = new ProjectIdentityError({ status: "unavailable", reason: "Project identity record is missing.",
+    remedy: { text: "Restore the authoritative project identity." } });
+  await expect(readResolveNextPassContext({ ...input, request: terminalRequest,
+    projectId: async () => { throw unavailable; } })).rejects.toMatchObject({ failure: unavailable.failure });
+  expect(await readResolveNextPassContext({ ...input, request: terminalRequest })).toMatchObject({ completePasses: 2 });
 });

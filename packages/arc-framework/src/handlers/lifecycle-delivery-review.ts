@@ -373,7 +373,7 @@ export async function handleAttest(
       inspectReRootReviewAuthority: async (_slug, candidateId) => {
         const { publisher, family } = createReviewCompositionContext({ ...reviewInvocation, cwd: base.cwd, exec: base.io.exec });
         const store = family.ports.inFlight;
-        const repositoryId = await resolveRepositoryIdentity(publisher);
+        const repositoryId = await resolveRepositoryIdentity(publisher, undefined, reviewInvocation);
         for (const lane of ["frontline", "standard"] as const) {
           const owner = await readLaneProgressOwner(store, {
             lane, repositoryId, headSha: subject.target.revision,
@@ -670,7 +670,7 @@ export async function publishCandidateWithReviewBoundary(
   }
   const record = candidate.record;
   const { publisher, family } = createReviewCompositionContext({ ...reviewInvocation, cwd: base.cwd, exec: base.io.exec });
-  const repositoryId = await resolveRepositoryIdentity(publisher);
+  const repositoryId = await resolveRepositoryIdentity(publisher, undefined, reviewInvocation);
   const operationStore = family.ports.inFlight;
   const currentHead = async () => (await base.io.exec("git", ["rev-parse", "HEAD"], {
     cwd: base.cwd,

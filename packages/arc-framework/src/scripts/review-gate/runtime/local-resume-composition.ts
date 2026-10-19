@@ -24,7 +24,7 @@ export function createLocalResumeDependencies(input: {
   const { publisher, family } = context;
   let receiptStore: Promise<ForwardReviewReceiptStore> | null = null;
   const receipts = async () => {
-    receiptStore ??= resolveRepositoryIdentity(publisher)
+    receiptStore ??= resolveRepositoryIdentity(publisher, undefined, context)
       .then((repositoryId) => new LocalForwardReviewReceiptStore(publisher, repositoryId));
     return receiptStore;
   };

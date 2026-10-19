@@ -1097,7 +1097,7 @@ export function createIntegrationCheckpointDependencies(options: ReviewInvocatio
       })));
       const publisher = context.publisher;
       const operationSnapshot = await context.family.ports.inFlight.readOperationSnapshot();
-      const repositoryId = await resolveRepositoryIdentity(publisher);
+      const repositoryId = await resolveRepositoryIdentity(publisher, undefined, input);
       const progress = deliveryTargets.map((target) => projectHostedReservationPolicyProgress({
         snapshot: operationSnapshot,
         repositoryId,

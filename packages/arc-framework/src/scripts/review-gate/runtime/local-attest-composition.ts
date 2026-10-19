@@ -25,7 +25,7 @@ export function createLocalAttestDependencies(options: ReviewInvocationInput): L
   const sweepAdapter = new RepositoryLocalReviewSourceSweepAdapter(input.exec, input.cwd);
   let receiptStore: Promise<ForwardReviewReceiptStore> | null = null;
   const receipts = async () => {
-    receiptStore ??= resolveRepositoryIdentity(publisher)
+    receiptStore ??= resolveRepositoryIdentity(publisher, undefined, input)
       .then((repositoryId) => new LocalForwardReviewReceiptStore(publisher, repositoryId));
     return receiptStore;
   };

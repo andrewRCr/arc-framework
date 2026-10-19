@@ -24,7 +24,7 @@ export function createRepositoryReviewResultReader(
 ): ReviewResultReader {
   let receiptStore: Promise<LocalForwardReviewReceiptStore> | null = null;
   const receipts = () => {
-    receiptStore ??= resolveRepositoryIdentity(publisher)
+    receiptStore ??= resolveRepositoryIdentity(publisher, undefined, invocation)
       .then((repositoryId) => new LocalForwardReviewReceiptStore(publisher, repositoryId));
     return receiptStore;
   };

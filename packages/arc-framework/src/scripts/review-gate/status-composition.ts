@@ -1,4 +1,5 @@
 /** Production composition for exact-target review status. */
+import { ProjectIdentityError } from "../../lib/store/project-identity.js";
 import { deriveHostedReviewTarget } from "./policy/hosted-review-target.js";
 
 
@@ -600,7 +601,7 @@ export async function readRoutedObligation(
       const dispositionStore = family.ports.dispositions;
       const resultReader = createRepositoryReviewResultReader(publisher, invocation);
       const snapshot = await store.readOperationSnapshot();
-      const repositoryId = await resolveRepositoryIdentity(publisher);
+      const repositoryId = await resolveRepositoryIdentity(publisher, undefined, invocation);
       const policy = await resolveConfiguredLanePolicy({
         lane: "standard",
         settings,
@@ -778,6 +779,7 @@ export async function readRoutedObligation(
       readDischarge,
     });
   } catch (error) {
+    if (error instanceof ProjectIdentityError) throw error;
     return {
       state: "blocked",
       detail: error instanceof Error ? error.message : String(error),
@@ -911,6 +913,7 @@ export function createReviewStatusPort(
           ...(subject.status === "resolved" ? { workUnitId: subject.workUnitId } : {}),
         };
       } catch (error) {
+        if (error instanceof ProjectIdentityError) throw error;
         return {
           actualHeadSha: target.headSha,
           requiredChecks: "unavailable",

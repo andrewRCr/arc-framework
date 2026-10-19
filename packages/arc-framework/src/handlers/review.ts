@@ -1,4 +1,6 @@
 /** Machine-readable review workflow handlers. */
+import { ProjectIdentityError } from "../lib/store/project-identity.js";
+import { projectIdentitySpineRemedy, reviewProjectIdentityRequestRemedy } from "../scripts/review-gate/runtime/project-identity-remedy.js";
 import { decodePrePublicationReplay, replayTokenFromAction, type PrePublicationReplayInput } from "../scripts/review-gate/policy/pre-publication-replay.js";
 import { ReviewLaneReadRequestSchema, ReviewLaneReadEnvelopeSchema, type ReviewLaneReadRequest } from "../scripts/review-gate/lane-read-schema.js";
 import { createReviewInvocationResolver, resolveReviewInvocation, type ReviewInvocationOptions, type ReviewInvocationContext } from "../scripts/review-gate/runtime/invocation.js";
@@ -77,6 +79,7 @@ import {
   ReduceEnvelopeSchema,
   RespondEnvelopeSchema,
   ReviewCommandErrorEnvelopeSchema,
+  ReviewCommandModeSchema,
   prePublicationRemedy,
   prePublicationTargetRemedy,
   type ReviewCommandErrorCode,
@@ -860,7 +863,11 @@ function emitReviewStatusResolutionFailure(
   error: unknown,
 ): void {
   const wrongRoute = error instanceof ReviewStatusWrongRouteError;
-  const detail = error instanceof Error ? error.message : String(error);
+  const detail = error instanceof ProjectIdentityError ? `project-identity-unavailable: ${error.message}`
+    : error instanceof Error ? error.message : String(error);
+  const retryArgv = "target" in input
+    ? ["arc", "review", "status", "--target", JSON.stringify(input.target)]
+    : ["arc", "review", "status", "--work-unit", input.workUnitId];
   dependencies.write(`${JSON.stringify(ReviewStatusCommandResultSchema.parse({
     schemaVersion: 1,
     mode: "review-status",
@@ -872,7 +879,7 @@ function emitReviewStatusResolutionFailure(
     nextAction: "stop",
     reason: wrongRoute ? "wrong-route" : "status-unavailable",
     detail,
-    remedy: wrongRoute
+    remedy: error instanceof ProjectIdentityError ? projectIdentitySpineRemedy(error, retryArgv) : wrongRoute
       ? spineRemedy(
         "The --work-unit route requires a current delivery status action.",
         "For singleton review, use --target with the JSON targetRef from "
@@ -1473,7 +1480,7 @@ function defaultReviewPlanningGroomingResolveDependencies(
       const bound = resolveReviewInvocation({ ...invocation, cwd: root, exec });
       const publisher = new RepositoryGitCommonStatePublisher(exec, root);
       const [repositoryId, config] = await Promise.all([
-        resolveRepositoryIdentity(publisher),
+        resolveRepositoryIdentity(publisher, undefined, bound),
         readConfigSettings(root),
       ]);
       const target = await deriveLocalReviewTarget({
@@ -1596,7 +1603,7 @@ async function errandFrontlinePhaseClosed(
   const live = await readLocalReviewLiveContext({ ...input, exec: input.exec, cwd: input.root });
   if (live.context.workUnit !== null || live.context.errand === null) return false;
   return frontlinePhaseClosed(input.operationStore, {
-    repositoryId: await resolveRepositoryIdentity(input.publisher),
+    repositoryId: await resolveRepositoryIdentity(input.publisher, undefined, input),
     lineages: [errandFrontlineLineage(live.context.errand.claimId, request.target.headSha)],
     readSettledFindingsAdvice: settledFrontlineAdviceReader(input.resultReader, input.dispositionStore),
   });
@@ -2125,7 +2132,8 @@ async function executeReviewHandler(input: {
   try {
     rawResult = await input.execute(request, root);
   } catch (error) {
-    const remedy = input.remedyFor?.(error, submittedRequest);
+    const remedy = reviewProjectIdentityRequestRemedy(input.mode, error, submittedRequest)
+      ?? input.remedyFor?.(error, submittedRequest);
     emitReviewCommandError(input.mode, error, "execution", input.dependencies, errorSchema, remedy);
     return;
   }
@@ -2154,9 +2162,11 @@ async function executeHostedReviewHandler(input: {
     return;
   }
 
+  let submittedRequest: unknown;
   let request: unknown;
   try {
-    request = input.requestSchema.parse(JSON.parse(await input.dependencies.readText(operand.data.input)));
+    submittedRequest = JSON.parse(await input.dependencies.readText(operand.data.input));
+    request = input.requestSchema.parse(submittedRequest);
   } catch (error) {
     emitHostedReviewError(input.mode, error, "request", input.dependencies);
     return;
@@ -2166,7 +2176,8 @@ async function executeHostedReviewHandler(input: {
   try {
     rawResult = await input.execute(request);
   } catch (error) {
-    emitHostedReviewError(input.mode, error, "execution", input.dependencies, input.remedyFor?.(error));
+    emitHostedReviewError(input.mode, error, "execution", input.dependencies,
+      reviewProjectIdentityRequestRemedy(input.mode, error, submittedRequest) ?? input.remedyFor?.(error));
     return;
   }
 
@@ -2247,7 +2258,7 @@ async function resolveHostedProgressContext(input: ReviewInvocationOptions & {
   const bound = resolveReviewInvocation({ ...input, cwd: input.root });
   const settings = input.settings ?? (await readConfigSettings(input.root)).settings;
   const baseRef = settings["branch.base"];
-  const repositoryId = await resolveRepositoryIdentity(input.publisher);
+  const repositoryId = await resolveRepositoryIdentity(input.publisher, undefined, bound);
   const memberLookup = new RepositoryDeliveryMemberLookup({ exec: input.exec, cwd: input.root });
   const memberResolution = input.vehicle?.kind === "delivery-member"
     ? await memberLookup.resolveMemberByVehicle(input.vehicle)
@@ -2564,7 +2575,7 @@ async function deriveFrontlineCommandRequest(
   invocation: ReviewInvocationOptions = {},
 ): Promise<FrontlineCommandRequest> {
   const { publisher } = createReviewCompositionContext({ ...invocation, cwd: root, exec });
-  const repositoryId = await resolveRepositoryIdentity(publisher);
+  const repositoryId = await resolveRepositoryIdentity(publisher, undefined, invocation);
   return FrontlineCommandRequestSchema.parse({
     ...request,
     target: await deriveLocalReviewTargetFromCoordinates({
@@ -2822,7 +2833,7 @@ function defaultReviewChunkingResolveDependencies(context: InteractionContext, i
     ...defaultReviewHandlerBoundary(),
     deriveRequest: async (request, root) => {
       const publisher = new RepositoryGitCommonStatePublisher(exec, root);
-      const repositoryId = await resolveRepositoryIdentity(publisher);
+      const repositoryId = await resolveRepositoryIdentity(publisher, undefined, invocationFor(root));
       const derive = (coordinates: ReviewChunkingResolveRequest["target"]) =>
         deriveLocalReviewTargetFromCoordinates({ exec, cwd: root, repositoryId, coordinates });
       return ReviewChunkingResolveCommandRequestSchema.parse({
@@ -2914,7 +2925,7 @@ function defaultFrontlineRunDependencies(context: InteractionContext, invocation
     ...defaultReviewHandlerBoundary(),
     deriveRequest: async (request, root) => {
       const { publisher } = createReviewCompositionContext({ ...invocationFor(root), cwd: root, exec });
-      const repositoryId = await resolveRepositoryIdentity(publisher);
+      const repositoryId = await resolveRepositoryIdentity(publisher, undefined, invocationFor(root));
       const target = await deriveLocalReviewTargetFromCoordinates({
         exec,
         cwd: root,
@@ -3052,6 +3063,15 @@ function reviewCommandDiagnostics(error: unknown, message: string) {
     : [];
 }
 
+function reviewProjectIdentityError(mode: ReviewFamilyMode, error: unknown, errorSchema: ZodType,
+  remedyFor?: (code: ReviewCommandErrorCode) => SpineRemedy): unknown {
+  if (!(error instanceof ProjectIdentityError) || !ReviewCommandModeSchema.safeParse(mode).success) return undefined;
+  const code = "project-identity-unavailable" as const;
+  const fallback = remedyFor?.(code) ?? reviewProjectIdentityRequestRemedy(mode, error);
+  return errorSchema.parse({ schemaVersion: 1, mode, diagnostics: [], error: { code, message: error.message },
+    remedy: projectIdentitySpineRemedy(error, fallback?.argv ?? ["arc", "review", "--help"], fallback?.stdin) });
+}
+
 function reviewCommandError(
   mode: ReviewFamilyMode,
   error: unknown,
@@ -3060,6 +3080,8 @@ function reviewCommandError(
   remedyFor?: (code: ReviewCommandErrorCode) => SpineRemedy,
 ) {
   const message = error instanceof Error ? error.message : String(error);
+  const identityFailure = reviewProjectIdentityError(mode, error, errorSchema, remedyFor);
+  if (identityFailure !== undefined) return identityFailure;
   const stableCode = reviewErrorCode(mode, error);
   const code = error instanceof LocalTargetDerivationError
     ? "invalid-input"
@@ -3548,7 +3570,7 @@ async function executeDefaultHostedRequest(
   const { family } = createReviewCompositionContext({ ...bound, cwd: root, exec });
   const request = HostedRequestEnvelopeSchema.parse(input);
   const index = new HostedRequestOwnerIndex(publisher);
-  const repositoryId = await resolveRepositoryIdentity(publisher);
+  const repositoryId = await resolveRepositoryIdentity(publisher, undefined, bound);
   return withRepositoryReviewOperationLock(
     exec,
     root,
@@ -3972,7 +3994,7 @@ function defaultHostedAwaitDependencies(context: InteractionContext, invocation:
       if (publisher === null || root === null) throw new Error("Hosted review requires an ARC project.");
       const request = HostedAwaitEnvelopeSchema.parse(input);
       const store = createReviewCompositionContext({ ...bound, cwd: root, exec }).family.ports.inFlight;
-      const repositoryId = await resolveRepositoryIdentity(publisher);
+      const repositoryId = await resolveRepositoryIdentity(publisher, undefined, bound);
       if (request.handle.admission.repositoryId !== repositoryId) {
         throw new Error("Hosted await does not match the current repository.");
       }
@@ -4386,7 +4408,7 @@ function prePublicationStandardLaneAccess(exec: GitExec, invocationFor: (root: s
   return {
     readStandardLaneOwnerVersion: async (root, candidateId, headSha) => {
       const { publisher, family } = createReviewCompositionContext({ ...invocationFor(root), cwd: root, exec });
-      const repositoryId = await resolveRepositoryIdentity(publisher);
+      const repositoryId = await resolveRepositoryIdentity(publisher, undefined, invocationFor(root));
       const store = family.ports.inFlight;
       return (await readLaneProgressOwnerVersioned(store, {
         lane: "standard", repositoryId, headSha,
@@ -4395,7 +4417,7 @@ function prePublicationStandardLaneAccess(exec: GitExec, invocationFor: (root: s
     },
     withStandardLaneLock: async (root, candidateId, headSha, action) => {
       const { publisher } = createReviewCompositionContext({ ...invocationFor(root), cwd: root, exec });
-      const repositoryId = await resolveRepositoryIdentity(publisher);
+      const repositoryId = await resolveRepositoryIdentity(publisher, undefined, invocationFor(root));
       return withRepositoryReviewOperationLock(exec, root, laneContinuationOperationId({
         lane: "standard", repositoryId, headSha,
         lineage: { kind: "candidate", candidateId },

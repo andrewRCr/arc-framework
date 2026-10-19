@@ -60,8 +60,10 @@ export async function readResolveNextPassContext(input: ReviewInvocationOptions 
   const terminal = request.attempts.at(-1);
   const terminalResult = terminal?.outcome === "clean" || terminal?.outcome === "findings"
     ? await resultReader.readResult(terminal.reviewOperationId) : null;
-  const repositoryId = terminalResult?.repositoryId
-    ?? await resolveRepositoryIdentity(new RepositoryGitCommonStatePublisher(exec, root));
+  const repositoryId = invocation.store.capabilities.stateOffBranch
+    ? await resolveRepositoryIdentity(new RepositoryGitCommonStatePublisher(exec, root), undefined, invocation)
+    : terminalResult?.repositoryId
+      ?? await resolveRepositoryIdentity(new RepositoryGitCommonStatePublisher(exec, root), undefined, invocation);
   const settings = (await readConfigSettings(root)).settings;
   const target = await deriveLocalReviewTarget({ exec, cwd: root, repositoryId, baseRef: settings["branch.base"] });
   const live = await readLocalReviewLiveContext(invocation);

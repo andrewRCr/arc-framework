@@ -22,7 +22,7 @@ export function createReduceDependencies(options: ReviewInvocationInput): Reduce
   const prepare = createLocalPrepareDependencies(input);
   let receiptStore: Promise<LocalForwardReviewReceiptStore> | null = null;
   const receipts = () => {
-    receiptStore ??= resolveRepositoryIdentity(publisher)
+    receiptStore ??= resolveRepositoryIdentity(publisher, undefined, input)
       .then((repositoryId) => new LocalForwardReviewReceiptStore(publisher, repositoryId));
     return receiptStore;
   };
