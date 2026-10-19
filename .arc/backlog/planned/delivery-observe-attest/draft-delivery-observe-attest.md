@@ -149,4 +149,41 @@ Two rows in `cohort-state-storage.md`'s register are this work unit's:
 - _Captured during:_ `delivery-rebuild-continuity` planning — adversarial review traced the member constructor's
   output to this writer and found the verb could not accept it.
 
+### `[ ]` **Decide where a stacked delivery's design reaches review, and how its members treat D18's review copy**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Scope: how a stacked delivery presents its design and treats D18 export in members and cleanup
+
+- _Observation:_ both rows say to retain or rehome D18's candidate-tail deletion arm so the cleanup cannot reopen
+  review, while "export addition and re-export remain reviewable". `seam-delivery-review` found that cannot hold:
+  `classifyPathTreatment` classifies by path alone, so the one arm D18 keeps for the export path at `.arc/specs/<slug>/`
+  makes the add, the re-export, and the delete evidence-neutral alike, and a reviewable add would let the delete change
+  the subject, since the copy is never in base and its delete drops out of the base-relative diff. The copy reaches
+  review on the pull request, and a work unit's own spec on the branch is already evidence-neutral today
+  (`notes-seam-delivery-review.md` § Corrections across rows).
+
+  A stacked delivery meets the copy a second way, in these modules' own lifecycle-contribution path group
+  (`CurrentDeliveryLifecycleContributionPathSource.resolve`), which holds the work unit's artifacts, ROADMAP, and the
+  Candidate and boundary records today. Three readers take it, each only under a delivery plan:
+    - `classifyDeliveryTerminalDelta`, through `classifyGitDeliveryTerminalDelta` and `lib/delivery/repository-entry.ts`
+      — a candidate-tail delete outside the group reads as non-lifecycle content;
+    - `revalidateDeliveryLifecycleContribution`, from `lib/delivery/eligibility.ts`, `handlers/delivery-execution.ts`,
+      and the review gate's pre-publication composition — it holds every group path to the protected base in each
+      member, so in the group no member could carry the copy;
+    - `compareNormalizedDeliveryTree`, through `compareGitNormalizedDeliveryTrees` (`lib/delivery/git-eligibility.ts`)
+      and `lib/delivery/chain-containment.ts` — it reports a group path the base lacks as invented.
+
+  No code knows the export path yet, and `seam-delivery-review`'s export adds nothing to the group, so the question is
+  open: where a stacked delivery's design reaches review, given D18's "design artifacts reach review only through the
+  export", and how its members, the group, and the candidate-tail delete treat the copy. Today a delivery's own design
+  artifacts are already held to base in every member, so the question predates the export. Delivery stays paused until
+  the follow-ons re-scope it. `storage-cutover` removes the group with its six consumers under register key 27, keeping
+  only the `classifyPathTreatment` arm; if this answer lands first, the cutover carries its treatment through that
+  removal.
+
+- _Approach:_ settle the question when re-scoping delivery, before a stacked delivery runs after the flip, and read the
+  two rows' Becomes with the copy evidence-neutral in `classifyPathTreatment` in every direction.
+
+- _Captured during:_ `seam-delivery-review` draft-design, after adversarial pass 3's fix-check rounds, 2026-10-15.
+
 ---
