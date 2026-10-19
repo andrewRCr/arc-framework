@@ -353,6 +353,24 @@
 
 - _Captured during:_ the `review-nonconvergence` Errand, 2026-10-13.
 
+### `[ ]` **Re-ground the draft-close routing entries on routing when a concern is raised**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Concern 1 and two routing inbound entries: route when raised, draft-close backstop sweep
+
+- _Observation:_ routing now happens when a concern is raised, at the latest at the next report boundary
+  (`route-discovered-work` § Target lifecycle, PR #1035), and the method's draft-close cascade reads as a sweep for what
+  was not routed when raised (Errand `timing-when-raised`). The first entry's timing premise, that coordination routes
+  leave the planning record at draft close, no longer holds; its placement point, keeping coordination routing out of
+  specs and implementation records, still does. The second entry stands: the draft-close gate is the sweep's caller.
+
+- _Approach:_ at the owner's pass, rewrite the first entry to its placement point with draft close as the backstop
+  sweep, and keep the second as the sweep's caller.
+
+- _Captured during:_ Errand `timing-when-raised`, 2026-10-17.
+
+---
+
 ## Problem / Motivation
 
 The planning pipeline's _readiness_ surface (when is a draft spec-ready, who decides, how the stage pointer
