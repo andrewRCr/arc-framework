@@ -299,7 +299,7 @@ that step fails; and the preview afterward reports the cut landed, naming its me
   batch against the current map incarnation; only those owners leave the incoming scan, and each history is read
   once. Closed homes name `--revise`; a missing map names the additive modes.
 
-### `[ ]` **3.2 Check the origin's current kind and the seeded fields — § 8.2, § 8.3**
+### `[x]` **3.2 Check the origin's current kind and the seeded fields — § 8.2, § 8.3**
 
 - _Goal:_ The terminal batch applies the shape's rules to the origin's current kind rather than the one the map
   recorded, and requires of each member only what the map decided — it exists, carries the map's `Cohort`, and still
@@ -312,35 +312,12 @@ that step fails; and the preview afterward reports the cut landed, naming its me
           Active retirements name deactivation, Integrating origins name reopening with shape-specific follow-up,
           archived origins name discard, and a renamed origin names revision at its current slug. Started stubs pass.
 
-    - `[ ]` **3.2.b The seeded fields**
+    - `[x]` **3.2.b The seeded fields**
 
-        - Providers are compared by owner as § 3.2 resolves them, so a provider's rename passes, and an abandoned
-          provider whose edge stays passes.
-        - A seeded provider also passes where the member's edge holds the disposition reconcile gives it
-          (`planDependencyReconcile`), whoever applied it — another cut or a started member's own reconcile: no edge for
-          shipped or Integrating work or an abandoned provider, and for one another cut has retired, the replacement its
-          lineage record gives the member (`incoming`), followed on through a replacement itself retired, as
-          `resolveRetiredEdge` resolves the chain.
-        - A gate or reason set during authoring and any added edge pass; any other dropped seeded edge or a changed
-          `Cohort` refuses, naming its restoration through write-back, and `--revise` where a revised map can make the
-          change legitimate — for a `Cohort`, only where a placement the map's rules admit gives every member its
-          current `Cohort`, since the map takes one placement for every member (`memberPlacement`,
-          `decompose-v3-repository-projections.ts`) under its member-count rules (`placement-cardinality`); and a member
-          gone (task 3.1) refuses, naming `--revise`.
-        - A member renamed since refuses, naming `arc rename <new> <old>` as a typed action; a retirement's member
-          naming the origin in its `Depends On` refuses, naming that edge's removal through write-back.
-        - Build `test-first` (one behavior at a time):
-            - each passing case above passes, but for a gate or reason, which `Depends On` cannot hold until its entry
-              widens beyond a slug (`writeMetaDependsOn`, § 12)
-            - each refusing case refuses; those whose remedy is a rename or a write-back edit pass after it, and those
-              naming `--revise` are task 5.3's
-            - a seeded provider retired by two successive cuts passes where the member's edge names the second cut's
-              replacement
-            - a `Cohort` changed on one member alone, members' `Cohort`s changed to different values, or a
-              one-member retirement's `Cohort` set at all, its one placement `direct-member` leaving none, refuses
-              naming the restoration alone, and passes once restored through write-back
-            - a `Cohort` changed on every member alike to a cohort a placement admits refuses naming the restoration
-              and `--revise`
+        - `checkDecomposeSeededFields` compares provider owners and accepts the complete disposition of retirement
+          or reconciliation, retaining its versioned proof records. `checkDecomposeMemberPlacement` requires the
+          authenticated member's name and seeded Cohort; only a common admissible placement offers revision.
+          Reverse renames and forbidden origin edges name their repairs; other member grooming passes.
 
 ### `[ ]` **3.3 Check the content — § 8.4**
 

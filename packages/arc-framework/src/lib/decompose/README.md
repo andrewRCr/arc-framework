@@ -81,7 +81,7 @@ name acquisitions before returning a store failure. An unexplained version confl
 refusal and adds the exact additive retry action; other failures preserve their original recovery information.
 
 `acquire-terminal.ts` acquires a stored cut's complete preparation inputs and version guards. `read-cache.ts`
-shares listed and individually read records within preparation; revalidation uses the original store.
+shares listed records, reads, lookups, and histories within preparation; revalidation uses the original store.
 `member-identity.ts` authenticates members by their birth names and creation batches against decomposition history
 since the map's latest creation, sharing history reads for aliases. Accepted member generations alone leave the
 incoming scan. `acquire-terminal-targets.ts` retains named cohort documents and complete open-home groups, directing
@@ -90,3 +90,9 @@ closed-home allocations through revision.
 `check-terminal-origin.ts` admits the origin's current lifecycle state for the cut's shape before deriving source facts.
 It repeats the shared scaffold floor and gives typed deactivation, reopening, revision, or discard actions when the
 current state or name prevents finishing.
+
+`check-member-placement.ts` validates authenticated member names and their assigned cohort, offering revision only
+where one admissible placement matches every member. `check-seeded-fields.ts` retains seeded providers while allowing
+other grooming and protects a retirement from member edges to the origin. `seeded-provider.ts` compares provider
+owners, accepts their complete retirement dispositions through the shared chain resolver, and retains the records
+that prove those decisions for revalidation.

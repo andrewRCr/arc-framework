@@ -5,10 +5,17 @@ import { prepareDecomposePreflight } from "../../src/lib/decompose/preflight.js"
 import { runStoreDecomposeAdditive } from "../../src/lib/decompose/additive.js";
 import { recordReferences } from "../../src/lib/store/identity.js";
 import { writeMetaDependsOn } from "../../src/lib/store/kinds/meta/writers.js";
+import type { CutMap } from "../../src/lib/decompose/cut-map-schema.js";
 
 /** Land the production additive batch, optionally with an existing home or a surviving origin. */
-export async function createDecomposeTerminalFixture(options: { withHome?: boolean; started?: boolean; extraction?: boolean } = {}) {
+export async function createDecomposeTerminalFixture(options: {
+  withHome?: boolean; started?: boolean; extraction?: boolean; provider?: boolean; authorMap?: (map: CutMap) => void;
+} = {}) {
   const h = await createDecomposeOriginFixture(options.started);
+  if (options.provider) {
+    await h.seedStub("provider");
+    await h.handEdit(h.primary, writeMetaDependsOn(h.primary.content, ["provider"]));
+  }
   const dependent = await h.seedStub("consumer");
   await h.handEdit(dependent, writeMetaDependsOn(dependent.content, ["origin"]));
   if (options.withHome) {
@@ -27,6 +34,7 @@ export async function createDecomposeTerminalFixture(options: { withHome?: boole
     allocation.disposition.destinationId = "z-home";
     allocation.disposition.targetLocator.artifact = "draft-home.md";
   }
+  options.authorMap?.(map);
   const applied = await runStoreDecomposeAdditive(h.ctx, "origin", options.extraction ? "extract" : "execute", { cutMap: map, cutMapPath: "cut.json" });
   if (applied.status === "refused") throw new Error(JSON.stringify(applied));
   return { ...h, map, applied: applied.result };
