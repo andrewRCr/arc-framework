@@ -431,28 +431,14 @@ were not read with no identity, and writes `{ conflicts, warnings }` with `--jso
   the resolved person. Family refusal, unreadability, omitted keys, unqualified incompleteness and content-decode
   failures retain their repair routes beside good records; public tokens preserve complete IDs while omitting UIDs.
 
-### `[ ]` **6.3 Show the conflicts one token names — § 5**
+### `[x]` **6.3 Show the conflicts one token names — § 5**
 
 - _Goal:_ With a token, the view retains the resolved person's scope for personal and claims, lists other families'
   conflict-record kinds without an owner, and shows each matching owner without treating an incomplete read as absence.
 
-    - Personal and claims listings use the resolved person's owner, never the token's person; without an identity the
-      token request refuses, naming `git config arc.identity <name>`. Other families list without an owner so a live
-      and a completed holder of one name both remain visible. Match the token's owner type, owner name, and ID.
-    - Apply Task 6.2's listing and decode handling to the requested family. A found match renders with its warnings;
-      with no match after a diagnostic, `missed`, or a decode failure, refuse as an incomplete read with those warnings
-      and the repair route. Only a read without omissions permits an unknown-token refusal, naming
-      `arc status --conflicts`; another person's token then matches nothing in an identity-scoped family.
-    - Build `test-first` (one behavior at a time):
-        - a token names a completed and a live holder's conflicts under one name, and both show
-        - personal and claims token queries list with the resolved person's owner, showing that person's token and
-          refusing another person's as unknown after a complete read
-        - a personal or claims token request without an identity refuses naming the identity command
-        - a refused or `unreadable` listing refuses with its condition and remedy
-        - an unknown token after a complete read or an `absent` listing refuses naming the listing
-        - a match in a listing with diagnostics renders with the omission warnings
-        - no match after diagnostics, `missed` without diagnostics, or a record's decode failure refuses as incomplete
-          with the repair route, never as an unknown token
+- _Outcome:_ `readStoreConflictToken` reads only the requested family, retains person scope and every same-name
+  generation, and preserves matches beside omission warnings. Only complete reads prove an unknown token; no match
+  after diagnostics, missed inventory or decode failure refuses as incomplete with the evidence and retry route.
 
 ### `[ ]` **6.4 Render each conflict shape, and its `--json` result — § 5**
 
