@@ -32,7 +32,9 @@ describe("authored schema metadata", () => {
       const meta = registry.meta(id);
       return meta?.authored === "request";
     });
+    expect(registry.meta("cut-map")).toMatchObject({ id: "cut-map", version: 4, migrationPosture: "strict-current", authored: "request" });
     expect(marked).toEqual([
+      "cut-map",
       "decompose-cut-map",
       "delivery-design-inventory-input",
       "errand-queue-set-request",

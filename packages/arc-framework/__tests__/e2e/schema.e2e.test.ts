@@ -34,7 +34,7 @@ describe("arc schema discovery", () => {
   });
 
   it("returns authored request and cut-map documents", async () => {
-    for (const id of ["review-resolve-request", "decompose-cut-map"]) {
+    for (const id of ["review-resolve-request", "decompose-cut-map", "cut-map"]) {
       const result = await runArc(["schema", "get", id], cwd);
       expect(result.exitCode, result.stderr).toBe(0);
       const payload = SchemaGetEnvelopeSchema.parse(JSON.parse(result.stdout));

@@ -32,19 +32,11 @@ under `lib/decompose/`, and the kind folder imports its decoder from there, as t
   basename and managed-path checks. Version 3 imports and re-exports the public names; its consumers and tests keep
   their existing imports.
 
-### `[ ]` **1.2 Define the `cut-map` schema at version 4 — § 3, § 15**
+### `[x]` **1.2 Define the `cut-map` schema at version 4 — § 3, § 15**
 
 - _Goal:_ `cut-map` version 4 decodes a map whose machine half binds an origin by records alone — UIDs, basenames, and
   digests, no Git pins — with version 3's authoring rules carried whole and a Purpose for each cohort document a cut
   creates, and `arc schema get cut-map` publishes it beside `decompose-cut-map` version 3.
-
-- _Shape:_ New modules under `lib/decompose/` importing nothing from `decompose-v3-schema.ts`, which the deletion pass
-  removes (§ 13): the authoring schemas are redefined, not imported, and the root is a fresh `z.strictObject`, since
-  the kernel registry refuses one schema instance under two identities (`createRegistry`,
-  `lib/kernel/schema/registry.ts`).
-
-- _Note:_ `production-schema-registry.ts`, the production schema IDs, and `authored-metadata.test.ts` serialize with
-  `seam-locus` (§ 1.3).
 
     - `[x]` **1.2.a The machine half — § 3.2**
 
@@ -63,17 +55,11 @@ under `lib/decompose/`, and the kind folder imports its decoder from there, as t
           groups with the carried issue codes and paths. Version 3 receives `unsupported-version`; parsed JSON need
           not use canonical bytes. Shared version-4 factories supply scanner-derived maps and extraction fixtures.
 
-    - `[ ]` **1.2.d Publish the schema — § 15**
+    - `[x]` **1.2.d Publish the schema — § 15**
 
-        - Register `cut-map` at version 4 through an exported registration function, called in
-          `createProductionSchemaRegistry` (`production-schema-registry.ts`) beside `registerDecomposeSchemas`, with
-          version 3's `migrationPosture: "strict-current"` and `authored: "request"`. The schema compiles under the
-          strict Ajv projection every root takes (`production-projection.test.ts`), so it uses no transform or custom
-          type.
-        - `cut-map` joins the production schema IDs in their sorted order
-          (`__tests__/helpers/production-schema-ids.ts`), and the authored request roots, whose test title's count rises
-          by one (`authored-metadata.test.ts`); and `arc schema get cut-map` is covered beside `decompose-cut-map`
-          (`schema.e2e.test.ts`, over a fresh `npm run build`).
+        - `registerCutMapSchemas` publishes the fresh `cut-map` root at version 4 as a strict-current request beside
+          version 3. Production identity and authored-root inventories include it; strict Ajv projection and fresh-build
+          CLI discovery cover both generations.
 
 ### `[ ]` **1.3 Register the `work-item/cut-map` kind — § 4, § 17.1, § 17.2**
 
