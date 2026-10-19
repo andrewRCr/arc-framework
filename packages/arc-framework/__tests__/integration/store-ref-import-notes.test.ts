@@ -103,10 +103,10 @@ it.each(["default", "separate"] as const)("carries notes-excluded files but refu
   await unlink(join(h.root, ".arc/user/andrew/.env"));
   expect(await h.migrate()).toMatchObject({ status: "ok" });
   const store = createRefStore(h.ports);
-  for (const [path, content] of contents) expect(success(await store.read({ reference: personal("personal/document", `scratch/${path}`) })).content).toBe(content);
+  for (const [path, content] of contents) expect(success(await store.read({ reference: personal("personal/document", path.startsWith("scratch/") ? path : `scratch/${path}`) })).content).toBe(content);
   const listed = success(await store.list({ family: "personal" }));
   expect(listed.status).toBe("complete");
-  if (listed.status === "complete") expect(listed.records.map(record => record.reference.key).sort()).toEqual([...contents.keys()].map(path => `scratch/${path}`).sort());
+  if (listed.status === "complete") expect(listed.records.map(record => record.reference.key).sort()).toEqual([...contents.keys()].map(path => path.startsWith("scratch/") ? path : `scratch/${path}`).sort());
 }, 40_000);
 
 
@@ -152,7 +152,7 @@ it("selects each live workspace by notes history from any checkout and reconcile
   expect(await h.migrate()).toMatchObject({ status: "ok" });
   const store = createRefStore(h.ports);
   for (const [path, content] of [["alpha/memo.txt", "Alpha changed on disk.\n"], ["beta/memo.txt", "Beta saved last.\n"], ["gamma/memo.txt", "No note holds this workspace.\n"]]) {
-    expect(success(await store.read({ reference: personal("personal/document", `scratch/${path}`) })).content).toBe(content);
+    expect(success(await store.read({ reference: personal("personal/document", `scratch/work-unit/${path}`) })).content).toBe(content);
   }
 }, 60_000);
 
@@ -186,7 +186,7 @@ it("orders compacted notes by annotated committer date and keeps older saved pat
   expect(await h.migrate()).toMatchObject({ status: "refused" });
   await unlink(join(h.root, ".arc/user/andrew/alpha/removed.txt"));
   expect(await h.migrate()).toMatchObject({ status: "ok" });
-  expect(success(await createRefStore(h.ports).read({ reference: personal("personal/document", "scratch/alpha/memo.txt") })).content).toBe("Newest workspace.\n");
+  expect(success(await createRefStore(h.ports).read({ reference: personal("personal/document", "scratch/work-unit/alpha/memo.txt") })).content).toBe("Newest workspace.\n");
 }, 40_000);
 
 

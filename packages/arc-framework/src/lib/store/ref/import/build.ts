@@ -21,9 +21,24 @@ export function prepareImportRecords(context: RefBackendContext, records: Import
     const admitted = prepareImportRecord(context, record, report);
     if (admitted) prepared.push(admitted);
   }
-  const collision = checkRefBatchPaths(prepared.map(({ reference }) => reference), context.registry);
+  const unique = reconcilePersonalDestinations(prepared, report);
+  const collision = checkRefBatchPaths(unique.map(({ reference }) => reference), context.registry);
   if (collision) report.notices.push({ condition: collision.condition, remedy: collision.remedy });
-  return prepared;
+  return unique;
+}
+
+function reconcilePersonalDestinations(records: ImportRecord[], report: MigrateReport): ImportRecord[] {
+  const result: ImportRecord[] = [], seen = new Map<string, ImportRecord>();
+  for (const record of records) {
+    if (record.personalPath === undefined) { result.push(record); continue; }
+    const key = JSON.stringify(record.reference), previous = seen.get(key);
+    if (!previous) { seen.set(key, record); result.push(record); continue; }
+    if (previous.content === record.content) continue;
+    report.refused.push({ reference: record.reference, rule: "key" });
+    report.notices.push({ condition: `Personal sources ${previous.personalPath ?? "unknown"} and ${record.personalPath} differ at the same destination ${JSON.stringify(record.reference)}.`,
+      remedy: { text: "Move one source to another scratch path or reconcile both files to the intended identical content, then retry arc store migrate --import." } });
+  }
+  return result;
 }
 
 function prepareImportRecord(context: RefBackendContext, record: ImportRecord, report: MigrateReport): ImportRecord | undefined {

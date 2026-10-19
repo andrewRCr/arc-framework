@@ -1388,30 +1388,15 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
   block landing; disk-only sources retain their bytes through serialization checks. Machine-local files and generated
   status stay outside both sides, and save/load or restored access reopens a refused import.
 
-### `[ ]` **15.7 Personal state at D5's layout — § 10.12**
+### `[x]` **15.7 Personal state at D5's layout — § 10.12**
 
 - _Goal:_ Each person's files land at D5's layout, so from the flip no subdirectory of `.arc/user/<id>/` is a workspace
   and the identity root holds only ARC's surfaces and `scratch/`.
 
-    - The fold takes the prose sections alone: the H1, the blockquote, comments, and the emptied `## Handoff Metadata`
-      heading are dropped; `Next Task` and `Last Completed` drop on the metas that fold, and `Blockers` stays a field
-      beside the prose it joins
-    - A workspace named for a work unit, live or ended, maps to `scratch/work-unit/<slug>/`, any other root folder to
-      `scratch/<folder>/`, and an existing `scratch/` keeps its paths
-    - Build `test-first` (one behavior at a time):
-        - a live work unit's `SESSION-NOTES.md`, where its meta's `Owner` names the person, folds into the meta's
-          `## Session Context` through `writeMetaSessionContext`, headings demoted, `Commit at Handoff` and a recognized
-          `Session Type` becoming fields, `Blockers` other than `[none]` joining the prose, and `Working On`,
-          `Next Task`, and `Last Completed` dropped, with no `State at Handoff`
-        - a body with an interior standalone `---`, which the section writer refuses, is listed in `refused` as
-          `session-context`, refusing the import until fixed, then landing
-        - every other workspace file but `.internal/`, `ADVERSARIAL-PASSES.md` and an unfolded `SESSION-NOTES.md` among
-          them, lands at `scratch/work-unit/<slug>/`, and other root files outside ARC's surfaces at `scratch/`
-        - the identity root's `STATUS.USER.md` and every `.internal/` folder land nowhere, and no session-context record
-          is written
-        - each person's imported personal ref compares clean with their notes snapshot, less what § 10.8 keeps out, its
-          comparator allowing only § 10.12's moves: each moved file at its `scratch/` path, and each folded
-          `SESSION-NOTES.md` read against its meta's session context by the fold's rules
+- _Outcome:_ Owned live session notes fold through the meta section writer, retaining handoff fields and blockers
+  while removing obsolete progress fields. Other personal files move into scratch with live, ended, and former
+  work-unit folders recognized; existing scratch stays put. Differing destination aliases refuse until reconciled.
+  Independent per-person comparisons cover both layouts, and writer refusals reopen after a saved repair.
 
 ### `[ ]` **15.8 What the import leaves out, and refuses until it lands — § 10.8, § 10.9**
 

@@ -22,7 +22,7 @@ import { readImportParkedSources, isParkedSourceDiagnostic, type ParkedImportSou
 
 /** One imported content revision and its containing owner's lifecycle placement. */
 export interface ImportRecord { reference: RecordReference; content: string; placement?: StoreRecord["placement"]; asFound?: boolean;
-  versions?: { commit: string; content: string }[]; formerSlugs?: Slug[]; links?: Links }
+  versions?: { commit: string; content: string }[]; formerSlugs?: Slug[]; links?: Links; personalPath?: string }
 /** All source content is acquired before a destination object or ref is published. */
 export async function readImportSource(context: RefBackendContext, report: MigrateReport, codeHead: string, transients: ImportTransientState): Promise<ImportRecord[]> {
   const source = context.importSource;

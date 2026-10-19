@@ -7,6 +7,8 @@ import { readRecentUserNotes } from "../../../user-sync/notes-ref.js";
 import { mergeCrossWuFromNotes } from "../../../../commands/user/save-load.js";
 import { projectManifest } from "../../../user-sync/projection.js";
 import { personalFileReference } from "../../in-repo/personal-paths.js";
+import { importPersonalPath } from "./personal-layout.js";
+import { foldImportSession } from "./session-context.js";
 import { readImportWorkspaces } from "./personal-notes.js";
 import { RecordReferenceSchema } from "../../identity.js";
 import type { Slug } from "../../../kernel/schema/slug.js";
@@ -57,14 +59,15 @@ function comparePersonalFile(person: Slug, path: string, snapshot: string | unde
     remedy: { text: disagreementRemedy(person, path, diskOnly, kind) } });
   const content = diskOnly ? projected[0] : snapshot;
   if (content === undefined || differs || kind === "snapshot-only") return;
-  appendPersonalRecord(person, path, content, records);
+  appendPersonalRecord(person, path, content, records, report);
 }
 
-function appendPersonalRecord(person: Slug, path: string, content: string, records: ImportRecord[]): void {
+function appendPersonalRecord(person: Slug, path: string, content: string, records: ImportRecord[], report: MigrateReport): void {
   const original = personalFileReference(person, path) ?? RecordReferenceSchema.parse({ kind: "personal/document", owner: { type: "person", name: person }, key: path });
-  if (original.kind === "personal/session-context") return;
-  const reference = original.kind === "personal/document" ? RecordReferenceSchema.parse({ ...original, key: `scratch/${path}` }) : original;
-  records.push({ reference, content });
+  if (original.kind === "personal/session-context" && foldImportSession({ reference: original, content }, records, report)) return;
+  const reference = original.kind === "personal/document" || original.kind === "personal/session-context"
+    ? RecordReferenceSchema.parse({ kind: "personal/document", owner: original.owner, key: importPersonalPath(path, records) }) : original;
+  records.push({ reference, content, personalPath: path });
 }
 
 function disagreementRemedy(person: Slug, path: string, diskOnly: boolean, kind: string | undefined): string {
