@@ -230,7 +230,7 @@ row to the tasks that build it.
         - `checkDecomposePurposes` requires a substantive Purpose for each new cohort document and refuses Purpose fields
           for reused documents, with independent parent and child decisions and exact map loci for addition or removal.
 
-### `[ ]` **2.5 Write the additive batch — § 6, § 12, § 13**
+### `[x]` **2.5 Write the additive batch — § 6, § 12, § 13**
 
 - _Goal:_ One batch writes a cut's members, their copies, its new cohort documents with their Purpose, the settling of
   every edge the members' slugs trip, and the stored map with expected absence, removing nothing, and the verb reports
@@ -257,15 +257,11 @@ row to the tasks that build it.
           rewrite. Started, held-cut, unmapped, and pause-only dependents remain for the registry to refuse atomically;
           choosing another slug or clearing the pause edge admits the repaired cut.
 
-    - `[ ]` **2.5.d The report**
+    - `[x]` **2.5.d The report**
 
-        - A result schema: each member with its copies, each cohort document created, and each destination's
-          authoring requirements — the units allocated to it with their ownership and target locators, an existing
-          home's among them — and the next step, authoring and then `--finish` to preview, as a typed action. Today's
-          packets (`authoring`, `decompose-v3-result-report.ts`) come from the patches the in-repo arm composes into
-          existing homes, which the store version leaves to authoring.
-        - Build `test-first` (one behavior at a time):
-            - the report names every record the batch wrote and every allocation's destination and target
+        - The closed `DecomposeAdditiveReportSchema` reports exact landed record identities, each member and its copies,
+          new cohort documents, and every destination's allocated source units, ownership, and target locators, including
+          existing homes. Its typed continuation directs authoring followed by the stored map's finish preview.
 
 ### `[ ]` **2.6 Recheck after the store refuses the batch — § 6**
 

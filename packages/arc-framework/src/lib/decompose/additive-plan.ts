@@ -20,7 +20,7 @@ import { recordReferences, sameReference } from "../store/identity.js";
 import { writeCutMapRecord } from "../store/kinds/cut-map/index.js";
 
 /** Prepared edits and their immutable provider observations, with report inputs. */
-export interface DecomposeAdditivePlan extends Omit<DecomposeAdditiveApplied, "batch"> {
+export interface DecomposeAdditivePlan extends Omit<DecomposeAdditiveApplied, "batch" | "report"> {
   prepared: PreparedLifecycleWrite;
   observations: readonly StoreRecord[];
 }

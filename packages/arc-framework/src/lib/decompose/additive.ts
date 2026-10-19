@@ -11,6 +11,7 @@ import { prepareDecomposeAdditive } from "./additive-plan.js";
 import { revalidateLifecycleRecords, applyPreparedLifecycleWrite } from "../work-unit/prepared-lifecycle-write.js";
 import { decomposeProvenance } from "./provenance.js";
 import { decomposeStoreRefusal } from "./refusal.js";
+import { reportDecomposeAdditive, type DecomposeAdditiveReport } from "./additive-report.js";
 
 /** Landed additive writes retained for structured authoring reports. */
 export interface DecomposeAdditiveApplied {
@@ -19,6 +20,7 @@ export interface DecomposeAdditiveApplied {
   members: readonly DecomposeMemberScaffold[];
   cohorts: DecomposeCohortScaffolds["cohorts"];
   batch: BatchResult;
+  report: DecomposeAdditiveReport;
 }
 
 /** Bind, validate, and atomically create one cut without changing its original content. */
@@ -31,5 +33,6 @@ export async function runStoreDecomposeAdditive(ctx: DecomposeContext, origin: s
   const batch = await applyPreparedLifecycleWrite(ctx.executor.store, plan.result.prepared, decomposeProvenance("additive"));
   if (batch.status === "refused") return decomposeStoreRefusal(batch.refusal);
   const { map, storedMap, members, cohorts } = plan.result;
-  return { status: "ok", result: { map, storedMap, members, cohorts, batch: batch.result } };
+  const applied = { map, storedMap, members, cohorts, batch: batch.result };
+  return { status: "ok", result: { ...applied, report: reportDecomposeAdditive(applied) } };
 }

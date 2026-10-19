@@ -71,3 +71,7 @@ parent or child documents and supplies the validated placement to member scaffol
 stored-map mutations. `slug-settler.ts` combines every settled slot on a stub into one metadata write.
 `additive.ts` revalidates observations and applies the prepared lifecycle batch atomically; protected dependencies
 remain for the production slug guard, with its repair preserved.
+
+`additive-report.ts` projects the landed batch into a closed authoring report, binding member and copy references to
+returned generations and preserving every allocation's source, ownership, and target locator. Existing homes receive
+instructions without a content write; the next action authors destinations before previewing the stored cut.
