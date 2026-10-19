@@ -166,16 +166,14 @@ the measurements.
   whose reason defers routed concerns until resumption. Planning and Active cases cover both checkout and no-checkout
   inputs; callers that supply no pause retain their existing windows.
 
-### `[ ]` **2.8 Carry a listed record's former slugs on its lifecycle entry — § 2.1**
+### `[x]` **2.8 Carry a listed record's former slugs on its lifecycle entry — § 2.1**
 
 - _Goal:_ A `LifecycleEntry` carries its primary record's former slugs as `aliases`, present only where the record has
   at least one, as it carries `links`.
 
-    - `lifecycleEntry` (`lib/store/lifecycle-index.ts`) copies a non-empty `aliases` from the `StoreRecord` and drops an
-      empty one, which the reference backend sets on every primary record.
-    - Build `test-first` (one behavior at a time):
-        - over the reference backend, a renamed work unit's entry carries its former slug
-        - an entry whose record has no former slug, its list empty or absent, carries no `aliases`
+- _Outcome:_ Lifecycle entries retain non-empty primary aliases and omit empty or absent collections. Reference-store
+  rename and new-primary fixtures plus a Git-free in-repo held listing cover all three shapes; the frozen in-repo
+  render baseline remains unchanged.
 
 ## **Phase 3:** The project view from the flip
 
