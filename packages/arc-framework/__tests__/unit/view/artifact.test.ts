@@ -340,3 +340,9 @@ it("views an off-branch named session context without projected metadata or work
   expect(await resolve("session-notes", dependencies, { forSlug: "feature" }))
     .toEqual({ status: "resolved", kind: "session-notes", path: "/repo/.arc/active/meta-feature.md", workUnit: "feature" });
 });
+
+it("keeps in-repo resolution independent of the optional store artifact reader", async () => {
+  const result = await resolve("meta", deps({ stateOffBranch: false,
+    readStoreArtifact: async () => { throw new Error("In-repo view attempted a store record read"); } }));
+  expect(result).toEqual({ status: "resolved", kind: "meta", path: join(CWD, TARGET.metaPath), workUnit: "feature" });
+});

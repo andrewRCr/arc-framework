@@ -9,6 +9,7 @@
 
 import { isAbsolute, join } from "node:path";
 
+import { formatConflictToken } from "./status/conflict-token.js";
 import type { SessionNotesPathResult } from "./handoff/session-notes-path.js";
 import { resolveArcPath } from "./layout/index.js";
 import { readViewTargetMeta, resolveRefViewArtifact, resolveViewDesignArtifact, viewWorkUnitArtifactPath } from "./view/started-artifacts.js";
@@ -20,6 +21,8 @@ import {
   type ViewArtifactResult,
   type ViewKind,
   type ViewTargetResult,
+  type StoreViewArtifactInput,
+  type StoreViewArtifactRead,
 } from "./view/types.js";
 
 interface UserSurfacePaths {
@@ -29,6 +32,7 @@ interface UserSurfacePaths {
 
 export interface ViewArtifactDependencies {
   stateOffBranch?: boolean;
+  readStoreArtifact?: (input: StoreViewArtifactInput) => Promise<StoreViewArtifactRead>;
   resolveAmbientTarget: (options: {
     cwd: string;
     identity: string | null;
@@ -59,7 +63,13 @@ export async function resolveViewArtifact(
   dependencies: ViewArtifactDependencies,
 ): Promise<ViewArtifactResult> {
   try {
-    return await resolveViewArtifactUnchecked(options, dependencies);
+    if (options.kind !== undefined && !isViewKind(options.kind)) {
+      return error(options.kind, `Unknown view kind "${options.kind}". Valid kinds: ${VIEW_KINDS.join(", ")}.`);
+    }
+    if (dependencies.stateOffBranch === true && dependencies.readStoreArtifact !== undefined) {
+      return await resolveStoreArtifactRequest(options, options.kind, dependencies, dependencies.readStoreArtifact);
+    }
+    return await resolveViewArtifactUnchecked(options, dependencies, options.kind);
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
     return error(options.kind ?? "view", `Unable to resolve ${options.kind ?? "view"}: ${message}`);
@@ -69,12 +79,8 @@ export async function resolveViewArtifact(
 async function resolveViewArtifactUnchecked(
   options: ResolveViewArtifactOptions,
   dependencies: ViewArtifactDependencies,
+  kind: ViewKind | undefined,
 ): Promise<ViewArtifactResult> {
-  if (options.kind !== undefined && !isViewKind(options.kind)) {
-    return error(options.kind, `Unknown view kind "${options.kind}". Valid kinds: ${VIEW_KINDS.join(", ")}.`);
-  }
-  const kind = options.kind;
-
   if (kind === "inbox" && options.project) {
     return presentOrAbsent(
       kind,
@@ -117,6 +123,45 @@ async function resolveViewArtifactUnchecked(
 
   if (kind === undefined) return resolveFurthestPresent(options.cwd, target, dependencies);
   return resolveExactKind(options, kind, target, dependencies);
+}
+
+async function resolveStoreArtifactRequest(options: ResolveViewArtifactOptions, requested: ViewKind | undefined,
+  dependencies: ViewArtifactDependencies, read: NonNullable<ViewArtifactDependencies["readStoreArtifact"]>): Promise<ViewArtifactResult> {
+  const global = requested === "working-memory" || requested === "inbox";
+  if ((requested === "working-memory" || (requested === "inbox" && !options.project)) && options.identity === null) {
+    return error(requested, "No ARC identity is configured for this identity-scoped artifact.");
+  }
+  let target: ResolvedViewTarget | undefined;
+  if (!global) {
+    const selected = await resolveTarget(options, dependencies);
+    if (selected.status === "unavailable") return unavailableTarget(options, selected);
+    if (selected.status === "completed") return error(requested ?? "view", `Work unit "${selected.slug}" is completed; completed viewing is unsupported.`);
+    target = selected;
+  }
+  const kinds = storeViewKinds(requested, target);
+  for (const kind of kinds) {
+    const record = await read({ kind, target, project: options.project, identity: options.identity });
+    if (record.status === "absent") continue;
+    if (record.status === "error") return error(kind, record.message);
+    return presentStoreArtifact(kind, record, target, options, dependencies);
+  }
+  return requested === undefined ? error("view", `Work unit "${target?.slug}" has no readable meta artifact.`) : { status: "absent", kind: requested };
+}
+
+function storeViewKinds(requested: ViewKind | undefined, target?: ResolvedViewTarget): readonly ViewKind[] {
+  if (requested !== undefined) return [requested];
+  return target?.location === "completed" ? ["meta"] : ["tasks", "spec", "draft", "meta"];
+}
+async function presentStoreArtifact(kind: ViewKind, record: Extract<StoreViewArtifactRead, { status: "found" }>,
+  target: ResolvedViewTarget | undefined, options: ResolveViewArtifactOptions, dependencies: ViewArtifactDependencies): Promise<ViewArtifactResult> {
+  const workUnit = target?.slug ?? null;
+  const warnings = [...(record.warnings ?? []), ...record.conflicts.map(conflict =>
+    `The ${kind} record has an open conflict. Inspect arc status --conflicts ${formatConflictToken(conflict)}.`)];
+  if (await dependencies.pathExists(record.path)) return { status: "resolved", kind, path: record.path, workUnit, warnings };
+  const subject = workUnit ?? (options.project ? "project" : options.identity ?? "project");
+  const renderCommand = workUnit === null ? `arc view ${kind}${options.project ? " --project" : ""}` : `arc view ${kind} --for ${workUnit}`;
+  return { status: "resolved", source: "store", kind, content: record.content, ref: record.version,
+    displayLabel: `${subject}:${kind}`, workUnit, renderCommand, warnings };
 }
 
 async function resolveTarget(

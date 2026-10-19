@@ -498,53 +498,25 @@ its code. `notes-seam-status-roadmap.md` § Phase 7 — `arc view` records the p
   explicit-target remedy. A resolved claim delegates its slug to the same store target read as `--for`, retaining the
   work unit's own placement even when it changes after claim acquisition.
 
-### `[ ]` **7.3 Read each view kind through one store port and one typed table — § 6.2**
+### `[x]` **7.3 Read each view kind through one store port and one typed table — § 6.2**
 
 - _Goal:_ From the flip each view kind reads its record through one port and one table typed by `KindId`, which maps
   each of `VIEW_KINDS`' ten names to the record it reads, so renaming or removing a kind it maps fails the type check,
   and with no kind an open work unit opens its furthest artifact present and a completed one its meta.
 
-- **Additional Context:** `notes-seam-status-roadmap.md` § Phase 7 — `arc view`
+- _Outcome:_ One optional record port binds all ten view kinds to the typed selector table, including companion design,
+  cohort and identity-scoped reads. Default selection follows record presence and uses a completed work unit's meta;
+  project-inbox inventory failures retain their repair route, while in-repo resolution leaves the port untouched.
 
-    - `ViewArtifactDependencies` (`lib/view-artifact.ts`) gains an optional port: given a kind, a target from the flip or
-      none, `--project`, and the identity, it returns the record's projected path, content, version, and conflicts, or
-      its absence, or an error. `createViewDependencies` implements it from the flip in a new module beside
-      `handlers/view.ts`, which holds the table, so `handlers/view.ts`'s ratchet counts stay as they are.
-    - From the flip `resolveViewArtifactUnchecked` resolves every kind through the port in place of its file arms, the
-      personal kinds and `inbox --project` among them, and opens the port's path where a file exists; Task 7.4 renders
-      the rest. A record the port finds is present, so the furthest artifact is the furthest whose record exists.
-    - Each entry is a read selector, since `design` reads the record `readLifecycleDesign` returns (Task 1.2.a), `inbox`
-      reads one of two kinds, and `session-notes` reads the meta.
-    - Paths come from `workItemArtifactPath`, `lifecycleRecordPath` for a companion, `cohortDocumentPath` for the cohort
-      document, and `resolveArcPath` with a literal address kind for the personal records and the project inbox, each
-      rooted at the checkout, so the arms add no surface name or work-unit address outside `lib/store/`.
-    - The personal kinds read the resolved identity's records and keep today's refusal with none.
-    - Build `test-first` (one behavior at a time):
-        - each kind opens the record its entry names, `inbox --project` the project inbox
-        - with no kind, an open work unit opens tasks, then spec, draft, meta; a completed one opens its meta
-        - a personal kind with no identity refuses as today
-        - the in-repo resolution never calls the port
-
-### `[ ]` **7.4 Open a projected target at its path, or render its record's content — § 6.3**
+### `[x]` **7.4 Open a projected target at its path, or render its record's content — § 6.3**
 
 - _Goal:_ A target whose file exists at its resolved path opens as today; one with no file renders its record's content
   through the content arm, `--path` and `--editor` refusing there with their own text; and a conflicted record carries a
   warning naming `arc status --conflicts <conflict>` for each conflict.
 
-- **Additional Context:** `notes-seam-status-roadmap.md` § Phase 7 — `arc view`
-
-    - The content arm from the store carries a discriminator of its own, which the three helpers `commands/view/run.ts`
-      calls (`readViewArtifactContent`, `viewArtifactDisplayLabel`, `viewArtifactFileRefusal`,
-      `lib/view/started-artifacts.ts`) check before `"ref" in artifact`, so the ref refusal never fires for it; its
-      `ref` is the record's version and its label names the work unit and kind. The result gains a warnings field,
-      which `run.ts` prints to stderr.
-    - Build `test-first` (one behavior at a time):
-        - a companion design and a cohort document open at their paths
-        - a target with no file renders its content, and `--path` and `--editor` refuse naming
-          `arc view <kind> --for <slug>`
-        - with no kind, a work unit with no projected file opens its furthest record's content
-        - a conflicted record's file opens as any target, and with no file its current side renders, each with its
-          warning
+- _Outcome:_ Store content carries its own source and rendering remedy; projected files retain their normal display,
+  path and editor behavior. Conflict notices reach stderr at every destination, including no-file refusals, while
+  default viewing renders the furthest unprojected record without creating files.
 
 ### `[ ]` **7.5 Open session notes as the work unit's meta, with no identity — § 6.4**
 

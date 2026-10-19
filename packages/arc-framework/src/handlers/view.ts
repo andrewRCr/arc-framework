@@ -3,7 +3,7 @@
  *
  * @module
  */
-import { resolveStoreViewTarget, resolveStoreAmbientViewTarget } from "./view-store.js";
+import { resolveStoreViewTarget, resolveStoreAmbientViewTarget, createStoreViewArtifactReader } from "./view-store.js";
 import { describeRecordConflicts } from "../lib/store/conflict-diagnostics.js";
 
 import { execFile, spawn } from "node:child_process";
@@ -268,6 +268,7 @@ export function createViewDependencies(
   const sessionContexts = new Map<string, RecordReference>();
   return {
     stateOffBranch: store.capabilities.stateOffBranch,
+    ...(store.capabilities.stateOffBranch ? { readStoreArtifact: createStoreViewArtifactReader({ cwd, store }) } : {}),
     resolveAmbientTarget: async ({ identity }) => {
       if (store.capabilities.stateOffBranch) return resolveStoreAmbientViewTarget({ cwd, store });
       const result = await runActiveSessionInitStatusInternal({
