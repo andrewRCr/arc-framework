@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "declaration-registry-projection-cost",
+  "claimId": "195539fd419947f07077e24e273cdb73",
+  "createdAt": "2026-10-19T20:50:24.142Z",
+  "updatedAt": "2026-10-19T20:50:24.142Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "declaration-registry-projection-cost",
+  "branch": "chore/declaration-registry-projection-cost",
+  "origin": "inbox",
+  "originEntry": "Profile and simplify declaration-registry schema projection",
+  "originEntrySourceDigest": "sha256:f837d98c886e514b7c698b157cf26e4939d902296feab619b74b96ee8b2f2c6f",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
