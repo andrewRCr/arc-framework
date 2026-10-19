@@ -213,6 +213,32 @@ Errands land after the contract and before the members:
   The same section also admits behavior-preserving setup deletions, the doubled-force checkout move form,
   dormant anchored-checkout code, `arc set-class` working at once, and registration of the verbs that refuse
   `unsupported` until the flip. The seed fix's one cold-start workflow-text change is the scope exception below.
+
+  Amended 2026-10-16 — locus's pre-flip exceptions follow `spec-seam-locus.md` § 1.4. Its nine exceptions each carry
+  their own test:
+
+    - Rebuilt session-init slots carry typed actions and registered schemas beside today's command fields, including
+      the orphan-branch sweep's `git branch -D` for every merged branch. `pausedWork` and `inboundBackPressure` appear
+      with their schemas and report nothing.
+    - Removal prompts carry `arc teardown <name>` argv, and registered-worktree scans report folder presence. The
+      sweep reports missing registrations in `missingFolders`: an ended work unit's with teardown, others with
+      removal by path as text, unlocking first when locked, rather than as an external branched report.
+    - The residue sweep's rename-move remedy uses `git worktree move -f -f`.
+    - Errand exits and `arc errand leave` take the removal function's outcomes. The stale-worktree sweep,
+      branch-gone recovery, and residue sweep take the check's `unobservable`, `locked`, and `missing` outcomes.
+      Branch-gone recovery reports missing registrations in `missingFolders` with removal by path rather than
+      switching to them.
+    - The compaction seed's schema version advances.
+    - `arc inbox`, `arc route`, `arc locus release`, `arc errand queue`, `arc errand queue set`, and `arc handoff write`
+      are registered and refuse `unsupported`, each naming what serves until the flip.
+    - Dormant marker admissions accept `spawnedByArc: false` work-unit markers and partial Errand origins with a
+      qualified ID and version beside today's title and digest; the Errand record, claim, and link transition admit
+      a null inbox digest. Removal readers key on `spawnedByArc: true`; nothing writes the new forms before the flip.
+    - The three settings are declared and appear in `arc config` with no effect.
+    - Both `--from-inbox` descriptions are backend-neutral, describing adoption or association of an inbox capture;
+      every flag and argument operand keeps its exact spelling.
+
+  Every other part of locus's design runs only from the flip, beside an in-repo arm keeping today's behavior.
 - **Prepared writes** are shared decision 12, lifecycle's; decomposition's and locus's reconciling writers follow it.
 - **Moves, archive, rename, and links.** The in-repo implementation refuses each `unsupported` (D4, D8). The refusals
   for moves and archive name the verb that serves them until rerouted (`lib/store/in-repo/write-admission.ts`); the link
