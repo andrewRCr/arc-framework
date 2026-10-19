@@ -110,22 +110,15 @@ the measurements.
           APIs, tracked ROADMAP, decomposition, and user status. Its configured-identity fixtures reach all project
           tiers, both blocked depths, and all three warning codes; literals precede production changes in this phase.
 
-### `[ ]` **2.2 Export the tier classification, and carry a record's source, Class, and pause — § 2.1, § 3**
+### `[x]` **2.2 Export the tier classification, and carry a record's source, Class, and pause — § 2.1, § 3**
 
 - _Goal:_ One exported pure function sorts readiness records into In Flight, Ready, Blocked, Paused, and Parked, which
   the composer calls, and a record can carry a store source, its Class, and its pause, none of which the in-repo
   acquisition sets.
 
-    - `ProjectReadinessSourceKind` gains a store value; `ProjectReadinessRecordCandidate` gains optional `class`
-      (`WorkClass` or `[TBD]`) and `pause` (`MetaPause`).
-    - The exported classification (`lib/status/project-view.ts`) takes what the composer's tiers read, the records and
-      the readiness provider, so an input a later task adds reaches `--project` and `--user` alike. It returns each
-      tier's records, not rows, a Blocked record with its unsatisfied edges, so `--user` builds its own rows with Class
-      (Task 5.2); the composer renders from it, and `ProjectReadinessViewResult` keeps its shape.
-    - Build `test-first` (one behavior at a time):
-        - each tier takes the records today's inline filters give it, over Task 2.1's fixtures
-        - a paused record, Planning or Active, at any placement, lands in Paused and in no other tier, Parked included
-        - a planned record whose `State` is Active and has no pause still lands in Parked
+- _Outcome:_ `classifyProjectReadinessRecords` supplies record tiers, blocked edges, facts, and diagnostics to the
+  composer. Candidates carry optional Class and pause plus a store source; paused records occupy their own tier across
+  placements and leave all ordinary tiers, while planned Active records without pause remain Parked.
 
 ### `[ ]` **2.3 Classify unlisted edges through supplied resolutions — § 2.2**
 

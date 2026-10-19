@@ -13,8 +13,9 @@
 import { readdir, readFile } from "node:fs/promises";
 import { basename } from "node:path";
 
-import { validatePriority, validateState, type Priority, type WorkUnitState } from "../kernel/schema/vocabulary.js";
+import { validatePriority, validateState, type Priority, type WorkClass, type WorkUnitState } from "../kernel/schema/vocabulary.js";
 import { parseMetaRecord } from "../active/meta-reader.js";
+import type { MetaPause } from "../active/meta-schema.js";
 import type { GitExec } from "../git/exec.js";
 import { readGitBlobEntry } from "../io-context.js";
 import { resolveWorkUnitPurposes, type WorkUnitArtifactReaders } from "./work-unit-purpose.js";
@@ -56,7 +57,8 @@ export type ProjectReadinessSourceKind =
   | "active-meta"
   | "backlog-stub"
   | "completed-index"
-  | "in-flight-meta";
+  | "in-flight-meta"
+  | "store";
 
 /** Provenance for one source candidate that contributed to a merged record. */
 export interface ProjectReadinessRecordSource {
@@ -76,6 +78,8 @@ export interface ProjectReadinessRecordCandidate {
   cohort?: string;
   source?: ProjectReadinessRecordSource;
   scheduling?: "parked";
+  class?: WorkClass | "[TBD]";
+  pause?: MetaPause;
 }
 
 /** One resolved project-readiness record after source precedence is applied. */
@@ -967,6 +971,53 @@ function renderStamp(stamp: string | ProjectReadinessRenderStamp): string {
   return lines.map((line) => `> ${line}`).join("\n");
 }
 
+/** One blocked record with the written dependency edges its row displays. */
+export interface ProjectReadinessBlockedRecord {
+  record: ProjectReadinessRecord;
+  unsatisfied: readonly string[];
+}
+
+/** Shared record tiers and their dependency facts, before render-row construction. */
+export interface ProjectReadinessTierClassification {
+  inFlight: ProjectReadinessRecord[];
+  ready: ProjectReadinessRecord[];
+  blocked: ProjectReadinessBlockedRecord[];
+  paused: ProjectReadinessRecord[];
+  parked: ProjectReadinessRecord[];
+  facts: ProjectReadinessFact[];
+  warnings: ProjectReadinessWarning[];
+}
+
+/** Classify resolved records for project and identity status without constructing render rows.
+ * @param options - Records, optional readiness provider, and derivation diagnostics.
+ * @returns Mutually exclusive scheduling tiers plus the facts used to classify them.
+ */
+export function classifyProjectReadinessRecords(
+  options: Pick<ComposeProjectReadinessViewOptions, "records" | "readinessProvider" | "derivationWarnings">,
+): ProjectReadinessTierClassification {
+  const records = [...options.records];
+  const index = lifecycleIndexFromRecords(records);
+  const classification = classifyDependencies(records, index);
+  const readiness = (options.readinessProvider ?? depsOnlyReadinessProvider).resolve(records);
+  const facts = factsFor(records, classification, readiness, index);
+  const factsBySlug = new Map(facts.map(fact => [fact.slug, fact]));
+  const isReady = (record: ProjectReadinessRecord): boolean => {
+    const fact = factsBySlug.get(record.slug);
+    return fact?.dependencySatisfaction === "satisfied" && fact.readiness === "ready";
+  };
+  const unpaused = records.filter(record => record.pause === undefined);
+  const planned = unpaused.filter(record => record.location === "planned" && record.scheduling !== "parked" && record.state === "Planning");
+  return {
+    inFlight: unpaused.filter(record => record.location === "active" && record.scheduling !== "parked"),
+    ready: planned.filter(isReady),
+    blocked: planned.filter(record => !isReady(record)).map(record => ({ record, unsatisfied: unsatisfiedFor(classification, record.slug) })),
+    paused: records.filter(record => record.pause !== undefined),
+    parked: unpaused.filter(record => record.scheduling === "parked" || (record.location === "planned" && record.state === "Active")),
+    facts,
+    warnings: [...classification.warnings, ...elevatedDerivationWarnings(options.derivationWarnings ?? [], index)],
+  };
+}
+
 /**
  * Compose the project readiness view from resolved records.
  *
@@ -976,43 +1027,17 @@ function renderStamp(stamp: string | ProjectReadinessRenderStamp): string {
 export function composeProjectReadinessViewResult(
   options: ComposeProjectReadinessViewOptions,
 ): ProjectReadinessViewResult {
-  const records = [...options.records];
-  const index = lifecycleIndexFromRecords(records);
-  const classification = classifyDependencies(records, index);
+  const tiers = classifyProjectReadinessRecords(options);
   const sourceWarnings = appendIndeterminateOracleWarning(options.sourceWarnings ?? [], options.indeterminate === true, false);
-  const warnings = [
-    ...sourceWarnings,
-    ...classification.warnings,
-    ...elevatedDerivationWarnings(options.derivationWarnings ?? [], index),
-  ];
-  const readiness = (options.readinessProvider ?? depsOnlyReadinessProvider).resolve(records);
-  const facts = factsFor(records, classification, readiness, index);
-  const factsBySlug = new Map(facts.map((fact) => [fact.slug, fact]));
-
-  const active = records
-    .filter((record) => record.location === "active" && record.scheduling !== "parked")
-    .map((record) => rowOf(record, unsatisfiedFor(classification, record.slug), true));
-
-  const planned = records.filter((record) => record.location === "planned" && record.scheduling !== "parked");
-  const ready = planned
-    .filter((record) => record.state === "Planning")
-    .filter((record) => {
-      const fact = factsBySlug.get(record.slug);
-      return fact?.dependencySatisfaction === "satisfied" && fact.readiness === "ready";
-    })
-    .map((record) => rowOf(record, [], false));
-
-  const blocked = new Map<string, BlockedRow>();
-  for (const record of planned.filter((item) => item.state === "Planning")) {
-    const fact = factsBySlug.get(record.slug);
-    if (fact?.dependencySatisfaction === "satisfied" && fact.readiness === "ready") continue;
-    const unsatisfied = unsatisfiedFor(classification, record.slug);
-    blocked.set(record.slug, { row: rowOf(record, unsatisfied, false), unsatisfied: [...unsatisfied] });
-  }
-
-  const parked = records
-    .filter((record) => record.scheduling === "parked" || (record.location === "planned" && record.state === "Active"))
-    .map((record) => rowOf(record, unsatisfiedFor(classification, record.slug), false));
+  const warnings = [...sourceWarnings, ...tiers.warnings];
+  const facts = tiers.facts;
+  const factsBySlug = new Map(facts.map(fact => [fact.slug, fact]));
+  const unsatisfied = (record: ProjectReadinessRecord): readonly string[] => factsBySlug.get(record.slug)?.unsatisfiedDependencies ?? [];
+  const active = tiers.inFlight.map(record => rowOf(record, unsatisfied(record), true));
+  const ready = tiers.ready.map(record => rowOf(record, [], false));
+  const blocked = new Map(tiers.blocked.map(item => [item.record.slug,
+    { row: rowOf(item.record, item.unsatisfied, false), unsatisfied: [...item.unsatisfied] }]));
+  const parked = tiers.parked.map(record => rowOf(record, unsatisfied(record), false));
   const blockedGroups = blockedDepths(blocked);
 
   const lines = [
