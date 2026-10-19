@@ -571,9 +571,13 @@ first place to reauthor; and a stored map conflicted by a sync resolves through 
   discard. Independent clones reproduce unsynced abandonment: finish and discard preserve the native origin refusal,
   the UID-selected map remains readable, member stubs abandon normally, and the empty cohort stays open.
 
-### `[ ]` **5.7 Discard and revision end to end** — validate exit criterion at segment scope
+### `[x]` **5.7 Discard and revision end to end** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
+- _Outcome:_ On merged base `6ca2459b9`, the checked-store scenarios close discard through history-only removals and
+  successful abandonment, revision through exact member/cohort and seeded-field differences, and fresh authoring
+  through carried or reauthoring outcomes after source changes. Independent clones resolve stored-map conflicts
+  through either exit while preserving the accepted leftovers.
 
 ## **Phase 6:** The dispatch and the flags
 
