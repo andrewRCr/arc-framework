@@ -9,3 +9,7 @@ cohort template, inbound grammar, and terminal cleanup boundaries. Map inputs re
 `refusal.ts` validates mode outcomes, including text-only repairs and whole store refusals with their recovery
 information lifted unchanged. `command-argv.ts` builds stored-map continuations for the shared command renderer.
 `provenance.ts` distinguishes additive, terminal, discard, and revision batches in record history.
+
+`acquire-origin.ts` retains the whole versioned origin group, projected artifact basenames, lifecycle inventory,
+and stored-map observation. Incoming candidates exclude caller-supplied member UIDs while the full inventory remains
+available for other checks. Start-only guards and pure machine derivation consume these observations separately.

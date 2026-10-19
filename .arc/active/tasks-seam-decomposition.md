@@ -152,25 +152,12 @@ row to the tasks that build it.
   held entries — apart from it, so the terminal batch (task 3.3) and the re-binding (task 5.2) derive over their own
   acquisition and skip the guards.
 
-    - `[ ]` **2.2.a Acquire the origin**
+    - `[x]` **2.2.a Acquire the origin**
 
-        - The primary through `readWorkUnit`, which also resolves a former slug, the machine half's `origin` carrying
-          the current name; the group through `acquireLifecycleRecords` (`lib/work-unit/prepared-lifecycle-write.ts`);
-          the dependents through `readLifecycleView`; and the stored map's absence at its singleton reference.
-        - `requireCompleteInventory` throws on an unreadable or incomplete listing (`store.lifecycle-unreadable`,
-          `store.lifecycle-incomplete`, `lib/store/lifecycle-storage.ts`); the throw becomes a recoverable refusal
-          whose remedy is the condition's own.
-        - The source records are the group's records `lifecycleRecordPath` places — draft, spec, task list, notes, and
-          companions — the meta aside (`lib/store/lifecycle-record-path.ts`), so the inbound list, the stored map, and
-          any conflict record are never scanned.
-        - The scan takes the members to leave out as owner UIDs from its caller, which gives those task 3.1's member
-          test accepts, so a member renamed since the additive batch is still left out and an item that took a gone
-          member's slug is scanned (§ 3.2).
-        - Build `test-first` (one behavior at a time):
-            - preflight runs no Git invocation (`scriptGitExec([])`)
-            - an origin named by a former slug derives its current name
-            - an incomplete listing refuses as recoverable, and preflight passes once the listing is whole
-            - an owner the caller leaves out yields no incoming edge, renamed or not
+        - `acquireDecomposeOrigin` resolves the primary and whole record group through the store, retains projected
+          source basenames and the stored-map observation, and requires a complete lifecycle inventory. Inventory
+          failures retain their repair as recoverable refusals; incoming candidates omit supplied member UIDs while
+          preserving the full inventory for other checks.
 
     - `[ ]` **2.2.b The source kind, units, and profile**
 
