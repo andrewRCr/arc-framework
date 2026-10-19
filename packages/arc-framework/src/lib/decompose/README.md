@@ -13,3 +13,7 @@ information lifted unchanged. `command-argv.ts` builds stored-map continuations 
 `acquire-origin.ts` retains the whole versioned origin group, projected artifact basenames, lifecycle inventory,
 and stored-map observation. Incoming candidates exclude caller-supplied member UIDs while the full inventory remains
 available for other checks. Start-only guards and pure machine derivation consume these observations separately.
+
+`source-profile.ts` validates Design and Task List against stored artifact basenames. `source-facts.ts` derives the
+record-bound source identity and kind, scans all planning artifacts or only an Active origin's design, and produces
+canonically ordered allocation units with content digests.

@@ -159,20 +159,12 @@ row to the tasks that build it.
           failures retain their repair as recoverable refusals; incoming candidates omit supplied member UIDs while
           preserving the full inventory for other checks.
 
-    - `[ ]` **2.2.b The source kind, units, and profile**
+    - `[x]` **2.2.b The source kind, units, and profile**
 
-        - The source kind follows the origin's state and placement as `createV3DecomposePreflight` selects it
-          (`decompose-v3-preflight.ts`), with no branch read: `backlog-stub`, `started-planning`, or `active-origin`.
-        - The units are scanned from the draft or spec, task list, notes, and companions, or from an Active origin's
-          design artifacts alone (`sourceUnits`), named by basename. A draft is a `work-item/draft` record, a single
-          spec a `work-item/spec`, and a paired spec two `work-item/companion` records, keyed `spec-prd` and `spec-rfc`
-          (`lib/store/companion-name.ts`).
-        - The profile follows `Design` alone (`inferPlanningProfile`): an artifact `Design` does not name leaves it as
-          it is.
-        - Build `test-first` (one behavior at a time):
-            - each source kind yields its machine half, and a paused origin proceeds
-            - an Active origin's task list contributes no unit
-            - an artifact `Design` does not name leaves the profile unchanged, under each profile
+        - `deriveDecomposeSource` derives source kind from state and placement and scans all planning artifacts or
+          only an Active origin's design. Units carry version-4 locator identities, byte digests, and canonical order.
+          `decomposePlanningProfile` follows Design alone and validates its artifacts and optional Task List; pause
+          and incidental artifacts leave source selection unchanged.
 
     - `[ ]` **2.2.c The edges**
 
