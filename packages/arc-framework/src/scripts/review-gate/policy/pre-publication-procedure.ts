@@ -39,8 +39,9 @@ import {
   RunSelfReviewActionSchema,
   StandardReviewReservationTargetSchema,
   parseIntegrationBoundaryLocus,
+  PostAttestContinuationSchema,
   type PublishedIntegrationBoundaryLocus,
-  type PostAttestContinuation,
+  type PublishedPostAttestContinuation,
   type StandardReviewReservationV1,
 } from "./integration-boundary-locus.js";
 
@@ -183,32 +184,33 @@ export function prePublicationBoundary(envelope: PrePublicationReviewEnvelope): 
 /** Project the next pre-publication action while delegating lane mechanics to the review-policy driver. */
 export function projectPrePublicationReview(
   input: unknown,
-  postAttestContinuation: PostAttestContinuation,
+  postAttestContinuation: PublishedPostAttestContinuation,
+  nativeBoundary?: NativePrePublicationBoundary,
 ): PrePublicationReviewEnvelope {
   const request = PrePublicationReviewRequestSchema.parse(input);
   if (request.selfReview === "pending") {
     return envelope(request, {
       locus: "candidate-review-pending",
       nextAction: action(request.workUnit, "run-self-review", "Run the active author self-review method."),
-    });
+    }, nativeBoundary);
   }
 
   const frontline = resolveReviewPolicy(request.frontline);
   // A findings producer can exist before the Owner approves dispositions. The response command
   // is the route that obtains that approval, so it takes precedence over derived policy state.
   if (request.pendingResponse.frontline !== null) {
-    return pendingResponseEnvelope(request, "frontline", frontline, request.pendingResponse.frontline);
+    return pendingResponseEnvelope(request, "frontline", frontline, request.pendingResponse.frontline, nativeBoundary);
   }
   if (!isSettledFrontline(frontline.state)) {
-    return policyEnvelope(request, "frontline", frontline);
+    return policyEnvelope(request, "frontline", frontline, nativeBoundary);
   }
 
   const standard = resolveReviewPolicy(request.standard);
   if (request.pendingResponse.standard !== null) {
-    return pendingResponseEnvelope(request, "standard", standard, request.pendingResponse.standard);
+    return pendingResponseEnvelope(request, "standard", standard, request.pendingResponse.standard, nativeBoundary);
   }
-  if (standard.state === "findings") return policyEnvelope(request, "standard", standard);
-  if (!isSettledStandard(standard.state)) return policyEnvelope(request, "standard", standard);
+  if (standard.state === "findings") return policyEnvelope(request, "standard", standard, nativeBoundary);
+  if (!isSettledStandard(standard.state)) return policyEnvelope(request, "standard", standard, nativeBoundary);
   const reservation = standard.state === "awaiting-change-request"
     ? createStandardReviewReservation(request, firstWaitingSource(standard.payload.waitingSources))
     : null;
@@ -217,21 +219,26 @@ export function projectPrePublicationReview(
   if (request.candidate.convergenceVerification === "pending") {
     return envelope(request, {
       locus: "candidate-convergence-verification-pending",
-      nextAction: createRunConvergenceVerificationAction(
-        request.workUnit,
-        request.candidate.convergenceScope,
-        postAttestContinuation,
-      ),
+      nextAction: nativeBoundary === undefined
+        ? createRunConvergenceVerificationAction(request.workUnit, request.candidate.convergenceScope,
+          PostAttestContinuationSchema.parse(postAttestContinuation))
+        : createRunConvergenceVerificationAction(request.workUnit, request.candidate.convergenceScope, postAttestContinuation, 2),
       reservation,
       terminus,
-    });
+    }, nativeBoundary);
   }
   return envelope(request, {
     locus: "candidate-publish-ready",
     nextAction: action(request.workUnit, "publish-candidate", "Publish the current Candidate."),
     reservation,
     terminus,
-  });
+  }, nativeBoundary);
+}
+
+/** Already-resolved native authority carried by the emitted boundary. */
+export interface NativePrePublicationBoundary {
+  terminus: z.infer<typeof CanonicalDigestSchema> | null;
+  readinessBinding: z.infer<typeof CanonicalDigestSchema> | null;
 }
 
 export const CandidateDeltaVerificationProjectionSchema = z.strictObject({
@@ -314,6 +321,7 @@ function policyEnvelope(
   request: PrePublicationReviewRequest,
   lane: "frontline" | "standard",
   policy: z.infer<typeof ReviewResolveEnvelopeSchema>,
+  nativeBoundary?: NativePrePublicationBoundary,
 ): PrePublicationReviewEnvelope {
   const findings = policy.state === "findings";
   const interactionText = findings
@@ -373,7 +381,7 @@ function policyEnvelope(
     locus: findings ? "candidate-fix-pending" : "candidate-review-pending",
     nextAction,
     policy,
-  });
+  }, nativeBoundary);
 }
 
 function pendingResponseEnvelope(
@@ -381,6 +389,7 @@ function pendingResponseEnvelope(
   lane: "frontline" | "standard",
   policy: z.infer<typeof ReviewResolveEnvelopeSchema>,
   source: z.infer<typeof ReviewResponseSettlementSourceSchema>,
+  nativeBoundary?: NativePrePublicationBoundary,
 ): PrePublicationReviewEnvelope {
   const terminal = request[lane].attempts.at(-1);
   if (terminal?.outcome !== "findings") {
@@ -396,16 +405,17 @@ function pendingResponseEnvelope(
       interactionText: `Complete the ${lane} review findings response, then resume pre-publication review.`,
     }),
     policy,
-  });
+  }, nativeBoundary);
 }
 
 function envelope(
   request: PrePublicationReviewRequest,
   projection: Pick<PrePublicationReviewEnvelope, "locus" | "nextAction">
     & Partial<Pick<PrePublicationReviewEnvelope, "policy" | "reservation" | "terminus">>,
+  nativeBoundary?: NativePrePublicationBoundary,
 ): PrePublicationReviewEnvelope {
   return PrePublicationReviewEnvelopeSchema.parse({
-    schemaVersion: 1,
+    schemaVersion: nativeBoundary === undefined ? 1 : 2,
     mode: "pre-publication-review",
     workUnit: request.workUnit,
     candidateId: request.candidateId,
@@ -416,6 +426,9 @@ function envelope(
     reservation: null,
     terminus: null,
     ...projection,
+    ...(nativeBoundary === undefined ? {} : { terminus: nativeBoundary.terminus,
+      ...(projection.locus === "candidate-publish-ready"
+        ? { readinessBinding: CanonicalDigestSchema.parse(nativeBoundary.readinessBinding) } : {}) }),
   });
 }
 

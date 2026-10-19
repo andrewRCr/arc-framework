@@ -1,7 +1,8 @@
 /** Typed operational loci at the Candidate-to-publication boundary. */
 
 import { z } from "zod";
-import { IntegrationBoundaryLocusV2Schema, type IntegrationBoundaryLocusV2 } from "./integration-boundary-locus-v2.js";
+import { IntegrationBoundaryLocusV2Schema, type IntegrationBoundaryLocusV2,
+  type RunConvergenceVerificationActionV2Schema } from "./integration-boundary-locus-v2.js";
 export { IntegrationBoundaryLocusV2Schema };
 
 import { canonicalDigest, canonicalize } from "../../../lib/kernel/canonical/canonical-json.js";
@@ -105,15 +106,22 @@ export const PublishedRunConvergenceVerificationActionSchema = RunConvergenceVer
  * @returns An action whose evidence placeholder must be replaced before invocation.
  */
 export function createRunConvergenceVerificationAction(workUnit: string, requiredScope: "focused" | "full",
-  postAttestContinuation: PostAttestContinuation): z.infer<typeof RunConvergenceVerificationActionSchema>;
+  postAttestContinuation: PostAttestContinuation, schemaVersion?: 1): z.infer<typeof RunConvergenceVerificationActionSchema>;
 /** Compose an action with a continuation that can omit checkout projection bookkeeping. */
 export function createRunConvergenceVerificationAction(workUnit: string, requiredScope: "focused" | "full",
-  postAttestContinuation: PublishedPostAttestContinuation): z.infer<typeof PublishedRunConvergenceVerificationActionSchema>;
+  postAttestContinuation: PublishedPostAttestContinuation, schemaVersion?: 1): z.infer<typeof PublishedRunConvergenceVerificationActionSchema>;
+/** Emit the native verification kind and omit checkout projection bookkeeping. */
+export function createRunConvergenceVerificationAction(workUnit: string, requiredScope: "focused" | "full",
+  postAttestContinuation: PublishedPostAttestContinuation, schemaVersion: 2): z.infer<typeof RunConvergenceVerificationActionV2Schema>;
+/** Preserve the format selected by the invocation's backend. */
+export function createRunConvergenceVerificationAction(workUnit: string, requiredScope: "focused" | "full",
+  postAttestContinuation: PublishedPostAttestContinuation, schemaVersion: 1 | 2): z.infer<typeof PublishedRunConvergenceVerificationActionSchema>;
 /** Validate the emitted action through the public transport contract. */
 export function createRunConvergenceVerificationAction(
   workUnit: string,
   requiredScope: "focused" | "full",
   postAttestContinuation: PublishedPostAttestContinuation,
+  schemaVersion: 1 | 2 = 1,
 ): z.infer<typeof PublishedRunConvergenceVerificationActionSchema> {
   const attestArgv = attestConvergenceArgv(
     workUnit,
@@ -123,14 +131,16 @@ export function createRunConvergenceVerificationAction(
   return PublishedRunConvergenceVerificationActionSchema.parse({
     kind: "run-convergence-verification",
     requiredScope,
-    verificationKind: requiredScope === "focused" ? "focused" : "tier-3",
+    verificationKind: requiredScope === "focused" ? "focused" : schemaVersion === 2 ? "merge" : "tier-3",
     verificationEvidenceRefRequired: true,
     attestArgv: [...attestArgv],
     command: attestArgv.join(" "),
     interactionText: requiredScope === "focused"
       ? "Run the bounded focused verification, then replace the carried evidence placeholder and attest."
       : "Run arc check gate merge --force, then replace the carried evidence placeholder and attest.",
-    postAttestContinuation,
+    postAttestContinuation: schemaVersion === 2
+      ? { reviewedHead: postAttestContinuation.reviewedHead, nextAction: postAttestContinuation.nextAction }
+      : postAttestContinuation,
   });
 }
 export const IntegrationBoundaryNextActionSchema = z.discriminatedUnion("kind", [
