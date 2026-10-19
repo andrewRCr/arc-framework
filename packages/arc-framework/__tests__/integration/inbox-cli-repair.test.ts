@@ -328,7 +328,7 @@ it("keeps a survivor through destination rename and failed atomic carry, then re
   expect(survivor).toMatchObject({ survivor: { home: { list: uid } } }); args[5] = survivor.version;
   const renamed = `${target.reference.owner.name}-after`;
   success(await f.h.context.store.write({ action: "put", reference: { ...target.reference,
-    owner: OwnerIdentitySchema.parse({ ...target.reference.owner, name: renamed }) }, expected: target.version,
+    owner: OwnerIdentitySchema.parse({ ...target.reference.owner, name: renamed }) }, expected: success(await f.h.context.store.read({ reference: target.reference })).version,
     content: target.content.replaceAll(target.reference.owner.name, renamed), placement: { kind: "active" },
     provenance: { verb: "rename", lifecycleAction: "rename" } }));
   if (uid === undefined) throw new Error("Generation UID required");

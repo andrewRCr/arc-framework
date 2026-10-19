@@ -1,7 +1,7 @@
 /** Expected-version ordinary Errand operations over the selected operational store. */
 import { SlugSchema, ArchiveQuarterSchema } from "../kernel/index.js";
 import type { Store } from "../store/contract.js";
-import { OwnerIdentitySchema, recordReferences } from "../store/identity.js";
+import { OwnerIdentitySchema, recordReferences, sameReference } from "../store/identity.js";
 import type { StoreRecord } from "../store/read.js";
 import type { Links } from "../store/links.js";
 import type { Mutation } from "../store/write.js";
@@ -101,7 +101,10 @@ async function applyTransform(options: ErrandStoreOptions, slug: string, basis: 
   const prepared = await prepareMutation(options, slug, basis.saved, computed, retirement);
   if (prepared.kind === "refused") return prepared;
   const { mutation, content, links, placement, reference } = prepared;
-  const written = await options.store.batch({ writes: [mutation, ...(options.companionWrites ?? [])],
+  const companions = options.companionWrites ?? [];
+  const primaryGuard = companions.find(write => sameReference(write.reference, reference));
+  if (primaryGuard !== undefined && primaryGuard.expected !== mutation.expected) return { kind: "refused", reason: "The Errand primary changed after entry preparation. Read its entries again, then retry; no writes were applied." };
+  const written = await options.store.batch({ writes: [mutation, ...companions.filter(write => !sameReference(write.reference, reference))],
     provenance: { verb: options.provenanceVerb ?? "errand", lifecycleAction: retirement === undefined ? "update" : "retire" } });
   if (written.status === "ok") return { kind: "applied", value: decision.value, tip: "store" };
   if (written.refusal.code === "version-conflict") return rereadExpectedMutation(options.store, slug,

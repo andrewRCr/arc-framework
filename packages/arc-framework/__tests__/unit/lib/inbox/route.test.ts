@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { createInboxHarness, entry } from "../../../helpers/inbox-harness.js";
 import { listInbox } from "../../../../src/lib/inbox/listing.js";
+import { readRoutingReceipts } from "../../../../src/lib/inbox/receipts.js";
 import { routeEntry } from "../../../../src/lib/inbox/route.js";
 import { success } from "../../../helpers/store/suite-tools.js";
 
@@ -69,4 +70,19 @@ describe("atomic versioned entry routes", () => {
     const receipts = success(await h.context.store.list({ family: "personal", kind: "personal/routing-receipt" }));
     expect(receipts).toMatchObject({ status: "complete", records: [{ fields: { entryId: routed.entryId, source: null } }] });
   });
+});
+
+
+it("keeps the listed identity and receipt when repeated managed IDs are canonicalized", async () => {
+  const h = createInboxHarness();
+  await h.inbox("personal", '### **Repeated**\n- _Id:_ `11111111`\n- _Id:_ `22222222`\n\nProse');
+  const target = await h.workUnit();
+  const listed = await listInbox({ list: "personal" }, h.context);
+  if (listed.state !== "listed" || !listed.entries[0]) throw new Error("Entry required");
+  const row = listed.entries[0];
+  expect(await routeEntry({ entryId: row.id, expectedVersion: row.version, from: "personal", to: target.reference.owner.name }, h.context)).toMatchObject({ state: "routed", entryId: "11111111" });
+  expect(await listInbox({ list: target.reference.owner.name }, h.context)).toMatchObject({ entries: [{ id: "11111111", fields: { Id: "11111111" } }] });
+  expect(await listInbox({ list: "personal" }, h.context)).toMatchObject({ entries: [] });
+  const receipts = await readRoutingReceipts(h.context);
+  expect(receipts).toMatchObject({ status: "ok", result: [{ entryId: "11111111" }] });
 });

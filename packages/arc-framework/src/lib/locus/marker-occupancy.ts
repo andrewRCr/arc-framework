@@ -9,6 +9,7 @@ import type { StoreRecord } from "../store/read.js";
 import { decodeWorktreeMarkerOwnership, readWorktreeMarkerGeneration, resolveWorktreeMarkerPath,
   type WorktreeMarkerGenerationReadResult } from "../git/worktree-marker.js";
 import type { DerivedCheckoutRow } from "./derived-roster.js";
+import { readWorkUnitLineage } from "./store-terminal-work-unit.js";
 
 /** The generation retained by an occupancy observation. */
 export type PresentMarker = Extract<WorktreeMarkerGenerationReadResult, { kind: "present" }>;
@@ -41,6 +42,8 @@ async function readWorkUnitOccupancy(input: { cwd: string; store: Store; identit
   const lookup = await input.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse(name) } });
   if (lookup.status === "refused") {
     if (lookup.refusal.code !== "not-found") return unreadable(`${lookup.refusal.condition} ${lookup.refusal.remedy.text}`);
+    const lineage = await readWorkUnitLineage(input.store, name);
+    if (lineage !== null) return occupied(marker, `Checkout ${input.cwd} holds '${name}' with retained lineage. Inspect arc status ${name}; run arc teardown ${name} for ended work, or repair the marker after a rename.`);
     return { ...occupied(marker, noRecordMarkerExit(input.cwd, name, marker.marker.spawnedByArc)), missingRecord: true };
   }
   const read = await input.store.read({ reference: lookup.result.reference });

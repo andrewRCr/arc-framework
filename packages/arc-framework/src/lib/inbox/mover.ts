@@ -7,6 +7,8 @@ import type { ResolvedEntryList } from "./lists.js";
 import type { InboxContext, InboxOutcome, InboxRow } from "./types.js";
 import type { RoutingCoordinate } from "./receipts.js";
 import { entryConflictRefusal } from "./conflicts.js";
+import { recordPut } from "../store/lifecycle-write.js";
+import { failure } from "./refusals.js";
 
 /** A move's exact source basis and selected destination section. */
 export interface EntryMoveInput {
@@ -43,6 +45,18 @@ export async function prepareEntryMove(input: EntryMoveInput, context: InboxCont
   const destinationContent = appendEntry(same ? sourceContent ?? "" : destination.saved?.content ?? "", input.section, raw);
   const writes: Mutation[] = [{ action: "put", reference: destination.reference, content: destinationContent, expected: destination.saved?.version ?? null }];
   if (source !== null && !same && source.saved !== null) writes.push({ action: "put", reference: source.reference, content: sourceContent ?? "", expected: source.saved.version });
+  const guarded = bindPrimaryAuthority(writes, [source, destination]);
+  if (guarded.status === "refused") return guarded;
   writes.push(...routingReceiptMutations(source, destination, { entryId: entry.id, source: origin, destination: home, time: new Date(time).toISOString() }, context));
   return { status: "ok", result: { writes, entryId: entry.id, destination: home } };
+}
+
+function bindPrimaryAuthority(writes: Mutation[], lists: readonly (ResolvedEntryList | null)[]): InboxOutcome<Mutation[]> {
+  for (const primary of lists.map(list => list?.primary)) {
+    if (primary == null) continue;
+    const guard = writes.find(write => sameReference(write.reference, primary.reference));
+    if (guard !== undefined && guard.expected !== primary.version) return failure("version-conflict", "The work-item primary changed during entry preparation; no writes were applied.", "Read its current entries and lifecycle, then retry the move.");
+    if (guard === undefined) writes.push(recordPut(primary));
+  }
+  return { status: "ok", result: writes };
 }

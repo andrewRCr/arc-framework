@@ -103,7 +103,7 @@ async function findPrimary(selector: string, context: InboxContext): Promise<Inb
   const slug = SlugSchema.safeParse(selector);
   if (!slug.success) return failure("invalid-input", `Invalid list selector ${selector}.`, "Name personal, project, a work-item slug, or its UID.");
   const found = await context.store.lookup({ kind: "slug", slug: slug.data });
-  if (found.status === "refused") return found.refusal.code === "not-found" ? retiredDestination(slug.data, found.refusal, context) : { status: "refused", refusal: withProvenance(found.refusal) };
+  if (found.status === "refused") return found.refusal.code === "not-found" ? retiredDestination(slug.data, withProvenance(found.refusal), context) : { status: "refused", refusal: withProvenance(found.refusal) };
   const read = await context.store.read({ reference: found.result.reference });
   return read.status === "refused" ? { status: "refused", refusal: withProvenance(read.refusal) } : read;
 }
@@ -120,8 +120,9 @@ async function primaryByUid(uid: string, context: InboxContext): Promise<InboxOu
       records.push(...value.records.filter((record) => record.reference.owner.type !== "person" && record.reference.owner.uid === uid));
     }
   }
-  return records.length === 1 && records[0] !== undefined ? { status: "ok", result: records[0] }
-    : failure(records.length ? "ambiguous-match" : "not-found", `UID ${uid} does not select exactly one work item.`, "List the work-item generations and use the intended UID.");
+  if (records.length === 1 && records[0] !== undefined) return { status: "ok", result: records[0] };
+  const absent = failure(records.length ? "ambiguous-match" : "not-found", `UID ${uid} does not select exactly one work item.`, "List the work-item generations and use the intended UID.");
+  return records.length === 0 ? retiredDestination(uid, absent.refusal, context) : absent;
 }
 
 function decodeErrand(record: StoreRecord): { owner?: string; state: string } | null {

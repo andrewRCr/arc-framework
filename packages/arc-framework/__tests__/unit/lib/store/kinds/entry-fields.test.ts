@@ -101,3 +101,15 @@ describe("shared entry fields", () => {
       expect(parsed.data.entries[0]?.bytes).toContain(first);
     });
 });
+
+
+it("preserves first-field parsing semantics while allowing an explicit identity replacement", () => {
+  const raw = '### **A**\n- _Id:_ `11111111`\n- _Id:_ `22222222`\n- WU_Target: first\n- WU_Target: second\n\nProse';
+  const canonical = writeEntryFields(raw, { Created: "2026-02-01" });
+  expect(readEntryField(canonical, "Id")).toBe("11111111");
+  expect(readEntryField(canonical, "WU_Target")).toBe("first");
+  expect(canonical).not.toContain("22222222");
+  const legacy = '### **A**\nIdentity: _Id:_ `11111111`\n- _Id:_ `22222222`\n\nProse';
+  expect(readEntryField(writeEntryFields(legacy, {}), "Id")).toBe("11111111");
+  expect(readEntryField(writeEntryFields(raw, { Id: "33333333" }), "Id")).toBe("33333333");
+});

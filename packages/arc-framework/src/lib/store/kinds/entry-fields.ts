@@ -84,7 +84,10 @@ export function writeRemovalTrigger(trigger: string): string { return `_Remove w
 export function writeEntryFields(raw: string, changes: Readonly<Record<string, string | undefined>>): string {
   const newline = raw.includes("\r\n") ? "\r\n" : "\n";
   const initial = entryFieldHeader(raw);
-  const fields = { ...fieldsOnLines(maskComments(raw).split("\n").slice(1)), ...changes };
+  const visible = maskComments(raw), existing = fieldsOnLines(visible.split("\n").slice(1));
+  const identity = readEntryField(visible, "Id");
+  if (identity !== undefined) existing.Id = identity;
+  const fields = { ...existing, ...changes };
   for (const [field, value] of Object.entries(fields)) {
     if (value !== undefined && !validEntryFieldValue(field, value)) throw new Error(`Invalid ${field} entry value: ${value}`);
   }
@@ -150,7 +153,7 @@ function fieldsOnLines(lines: readonly string[]): Record<string, string | undefi
   const fields: Record<string, string | undefined> = {};
   for (const line of lines) {
     const field = fieldOnLine(line);
-    if (field !== undefined) fields[field] = readEntryField(line, field);
+    if (field !== undefined && fields[field] === undefined) fields[field] = readEntryField(line, field);
   }
   return fields;
 }

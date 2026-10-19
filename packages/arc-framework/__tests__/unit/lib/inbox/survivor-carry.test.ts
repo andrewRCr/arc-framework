@@ -133,7 +133,7 @@ describe("survivor carry boundaries", () => {
   });
   it("lists a survivor as ordinary work once its home completes", async () => {
     const { h, target } = await racedSurvivor();
-    success(await h.context.store.write({ action: "put", reference: target.reference, content: target.content.replace("`Active`", "`Shipped`"), expected: target.version, placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q1") }, provenance: { verb: "archive", lifecycleAction: "archive" } }));
+    success(await h.context.store.write({ action: "put", reference: target.reference, content: target.content.replace("`Active`", "`Shipped`"), expected: success(await h.context.store.read({ reference: target.reference })).version, placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q1") }, provenance: { verb: "archive", lifecycleAction: "archive" } }));
     const listing = await listInbox({ list: "personal" }, h.context);
     if (listing.state === "refused") throw new Error(listing.reason);
     expect(listing.entries[0]?.survivor).toBeUndefined();

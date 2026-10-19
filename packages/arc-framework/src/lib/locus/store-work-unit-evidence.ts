@@ -11,7 +11,7 @@ import { selectWorkBranchLink, workBranchName } from "../store/lifecycle-branch.
 import { createProjectIdentityReader } from "../store/project-identity.js";
 import { parseLineageRecord } from "../store/kinds/lineage/parser.js";
 import type { DerivedWorkUnitSubject, WorkUnitLifecycleProjection } from "./role-derivation.js";
-import { readTerminalWorkUnitLineage } from "./store-terminal-work-unit.js";
+import { readWorkUnitLineage } from "./store-terminal-work-unit.js";
 
 /** A complete subject observation retains the exact record for context projection. */
 export type StoreWorkUnitEvidence =
@@ -57,9 +57,10 @@ async function readClaimedWorkUnit(store: Store, slug: string): Promise<StoreRec
 }
 async function readRemovedWorkUnit(input: StoreWorkUnitInput): Promise<StoreWorkUnitEvidence> {
   let lineage: StoreRecord | null;
-  try { lineage = await readTerminalWorkUnitLineage(input.store, input.slug); }
+  try { lineage = await readWorkUnitLineage(input.store, input.slug); }
   catch (error) { throw new SubjectClaimUnavailable(error instanceof Error ? error.message : String(error), { cause: error }); }
   if (lineage === null) throw new MissingWorkUnitRecord(`Work unit '${input.slug}' has no primary or authenticated terminal lineage. Restore its record or repair the marker's subject, then retry.`);
+  if (parseLineageRecord(lineage.content)?.kind === "rename") throw new SubjectClaimUnavailable(`Work unit '${input.slug}' has rename lineage but no current primary. Restore its current record or repair the marker, then retry.`);
   const subject = { kind: "work-unit" as const, key: lineage.reference.owner.name };
   return { kind: "terminal", subject, lifecycle: { kind: "present", subject, state: "retired", expectedTopology: {} } };
 }

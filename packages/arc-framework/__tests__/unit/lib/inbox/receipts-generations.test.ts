@@ -33,7 +33,7 @@ it.each(["former", "current", "listed"] as const)("carries to a renamed work uni
   const row = await routeSurvivor(h, target.reference.owner.name);
   const renamed = `${target.reference.owner.name}-after`;
   success(await h.context.store.write({ action: "put", reference: { ...target.reference,
-    owner: OwnerIdentitySchema.parse({ ...target.reference.owner, name: renamed }) }, expected: target.version,
+    owner: OwnerIdentitySchema.parse({ ...target.reference.owner, name: renamed }) }, expected: success(await h.context.store.read({ reference: target.reference })).version,
     content: target.content.replaceAll(target.reference.owner.name, renamed), placement: { kind: "active" },
     provenance: { verb: "rename", lifecycleAction: "rename" } }));
   const listed = await first(h);
@@ -49,7 +49,7 @@ it.each(["former", "current", "listed"] as const)("carries to a renamed work uni
 it("keeps an ended Errand's old survivor ordinary when another generation reuses its slug", async () => {
   const h = createInboxHarness(), ended = await h.errand("same");
   const row = await routeSurvivor(h, ended.reference.owner.name);
-  success(await h.context.store.write({ action: "put", reference: ended.reference, expected: ended.version,
+  success(await h.context.store.write({ action: "put", reference: ended.reference, expected: success(await h.context.store.read({ reference: ended.reference })).version,
     content: ended.content, placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q1") },
     provenance: { verb: "errand-abandon", lifecycleAction: "abandon" } }));
   expect((await first(h)).survivor).toBeUndefined();

@@ -24,7 +24,8 @@ it("composes the inbound insert, exact source removal, and receipt with destinat
   const prepared = await prepareEntryMove({ source: source.result, destination: destination.result, entry: rows.result[0], section: "Inbound" }, context);
   if (prepared.status !== "ok") throw new Error(prepared.refusal.condition);
   const plan = prepared.result;
-  expect(plan.writes).toHaveLength(3);
+  expect(plan.writes).toHaveLength(4);
+  expect(plan.writes).toContainEqual(expect.objectContaining({ reference: destination.result.primary?.reference, expected: destination.result.primary?.version }));
   success(await f.store.batch({ writes: plan.writes, provenance: { verb: "route", lifecycleAction: "route" } }));
   const inbound = success(await f.store.read({ reference: destination.result.reference }));
   expect(inbound.content).toContain('- _Created:_ `2026-02-01`');
@@ -41,5 +42,5 @@ it("moves an inbound entry into a description without either inbox receipt",asyn
  const rows=rowsInList(from.result);if(rows.status!=="ok"||!rows.result[0])throw new Error("No row");
  const prepared=await prepareEntryMove({source:from.result,destination:to.result,entry:rows.result[0],section:"Description"},h.context);
  if(prepared.status!=="ok")throw new Error(prepared.refusal.condition);const plan=prepared.result;
- expect(plan.writes.map(write=>write.reference.kind)).toEqual(["work-item/description","work-item/inbound"]);
+ expect(plan.writes.map(write=>write.reference.kind)).toEqual(["work-item/description","work-item/inbound","work-item/meta","work-item/record"]);
 });

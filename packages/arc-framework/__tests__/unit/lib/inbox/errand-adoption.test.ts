@@ -11,7 +11,7 @@ it("prepares project adoption with description, removal, queue drop and receipt,
  const plan=await prepareErrandAdoption({slug:target.reference.owner.name,from:"project:12345678"},h.context);
  expect(plan).toMatchObject({status:"ok",result:{origin:{title:"project:12345678",sourceDigest:null},writes:expect.any(Array)}});
  if(plan.status!=="ok")throw new Error(plan.refusal.condition);
- expect(plan.result.writes).toHaveLength(4);
+ expect(plan.result.writes).toHaveLength(5);
  expect(await listInbox({list:"project"},h.context)).toMatchObject({entries:[{id:"12345678"}]});
  expect(await h.context.store.batch({writes:plan.result.writes,provenance:{verb:"errand-open",lifecycleAction:"open"}})).toMatchObject({status:"ok"});
  expect(await listInbox({list:"project"},h.context)).toMatchObject({entries:[]});
