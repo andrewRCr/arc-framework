@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "integration-scenario-cost",
+  "claimId": "fd7e787338bea40287a2cb11ffc94e3b",
+  "createdAt": "2026-10-19T19:48:48.349Z",
+  "updatedAt": "2026-10-19T19:48:48.349Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Simplify repeated expensive integration and E2E scenarios at faithful smaller boundaries while retaining material assertions and representative real external-boundary coverage.",
+  "branch": "fix/integration-scenario-cost",
+  "origin": "inbox",
+  "originEntry": "Find and simplify excessive integration scenarios",
+  "originEntrySourceDigest": "sha256:4dc265a12baaa3b44b9b5c4f8ed1f5939c0b2e9d2d6e15938a689bc6a196f8e9",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
