@@ -559,3 +559,20 @@ The amendment changes no record shape or lifecycle. Existing Goals and criteria 
 Task 15.R2 add the production-reader check after the import's source transforms and branch links exist, before the
 Phase 15 exit scenario. The grammar-absent registry case in 15.8 remains a valid negative test despite production
 availability. The broader audit found no material drift in the remaining remote-move, follow, host, or cost tasks.
+
+## A20 — Current Candidates are separate mapping inputs
+
+The superseded input supplied only `versions: { commit: string; content: string }[]` and
+`boundary: string | null`; its source table listed “Candidate version” as `<tracked path>@<commit>` and required
+“Every gate file, Candidate version, and boundary” exactly once. That omitted the current Candidate as a source.
+`composedMetaSource` retains agreeing working-tree bytes, `appendWorkItem` reads current review content separately,
+and `readImportCandidateVersions` reads only committed path history. The diagnostic mapping in `mapImportReview`
+received only that history before replacing live review records. A faithful producer's newer uncommitted Candidate
+read through the source store but disappeared after a successful import; an uncommitted notes control survived.
+
+The correction supplies `current: string | null` alongside historical versions and accounts for it by its plain
+tracked path. No commit is invented for working bytes. The mapping retains responsibility for the returned records.
+The bounded sweep folds input and coverage changes into 15.9.R, updates 15.R's encoding inventory, and adds criterion
+27 and its task-list counterpart; 15.10 replays the import scenario. Completed as-found Candidate replay and the
+remaining move/follow contracts are unaffected. Author grounding and the low-depth reader, binding, coherence, and
+revision-task checks use these source paths; the independent amendment offer is omitted at low depth.

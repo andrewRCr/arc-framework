@@ -1414,6 +1414,7 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
   returns, so once the review family's mapping lands no review fact of live work is lost or carried in today's shape.
 
     - _Amended in:_ 15.R (A2)
+    - _Amended in:_ 15.9.R (A20)
     - An optional `reviewMapping` among `runStoreMigrate`'s ports, its `ReviewMappingInput` and `ReviewMappingResult`
       types in the transform module (§ 10.8); the `arc store migrate` handler passes none until the review family's
       mapping lands, and that mapping conforms by shape, importing nothing of the transform's
@@ -1440,6 +1441,18 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
           which lands once the branch merges, and one whose change landed by a multi-commit squash refuses likewise and
           lands once its branch is removed, while one whose branch is gone or merged imports as completed
 
+### `[ ]` **15.9.R Current Candidate input and coverage — § 10.8, § 14.7 (A20)**
+
+- _Goal:_ Amendment A20 supplies every live selected Candidate's current bytes independently of committed history,
+  accounting for its plain tracked path exactly once so an uncommitted review fact survives the mapping.
+
+    - Add `current: string | null` to each Candidate input and supply the selected record's content, null only when
+      absent; retain real commit coordinates solely for historical versions
+    - Build `test-first` (one behavior at a time):
+        - a valid newer uncommitted Candidate reads through the source store and survives a mapping's returned record
+        - current and committed sources at the same path are distinct; omitted or repeated current coverage refuses,
+          then repaired coverage lands; a boundary-only input carries null current content
+
 ### `[ ]` **15.R Review import claim IDs and source units — § 10.8 (A2)**
 
 - _Goal:_ Amendment A2's port preserves each Errand's original claim ID and accounts for canonical file and folder
@@ -1448,11 +1461,11 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
 
     - Extend 15.9's work-item table with required `claimId` on Errand rows, copied unchanged from the source record;
       work-unit rows retain their existing shape, and the imported store UID remains separately minted
-    - Gate paths and listing sources follow § 10.8's four encodings; a left-behind materialization folder covers its
+    - Gate paths and listing sources follow § 10.8's five encodings; a left-behind materialization folder covers its
       supplied descendants once, without teaching the transform the review gate's record shapes
     - Build `test-first` (one behavior at a time):
         - a test mapping receives the original Errand claim IDs and joins reused slugs by claim ID to the correct UID
-        - gate files, materialization folders, Candidate versions, and boundaries compare under their exact encodings;
+        - gate files, materialization folders, Candidate versions, current Candidates, and boundaries use exact encodings;
           two Candidate versions at one tracked path remain separate sources
         - a folder lists once without separate child-file entries; an omitted or repeated source, folder/file overlap,
           or nested-folder overlap refuses with `notices`, then the import lands after the listing is repaired
@@ -2193,3 +2206,7 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
 - `[ ]` Production-registry imports in both layouts serve `listInbox` for descriptions and inbound lists and
   `listErrandQueue` for queues; queue IDs match their personal inbox captures, valid ranks preserve file order, and
   keyless branch exclusions retain their repository and SHA (§ 10.9, § 14.7) (A18)
+
+- `[ ]` Review mapping receives each live selected Candidate's current content separately from committed versions,
+  including newer uncommitted bytes, or null when absent; its plain tracked path is covered exactly once independently
+  of `path@commit`, omitted and repeated coverage refuse through repair, and mapped current bytes survive (A20)

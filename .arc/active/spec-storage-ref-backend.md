@@ -2684,9 +2684,10 @@ private moves it before going public, and the trial run says so.
 interface ReviewMappingInput {
   projectId: string;
   gate: { path: string; bytes: Uint8Array }[];            // Git-common-relative paths below arc/review-gate/
-  candidates: {                                          // each live work unit holding a Candidate record
+  candidates: {                                          // each live work unit holding a Candidate or boundary (A20)
     workItem: string;                                    // its UID
     versions: { commit: string; content: string }[];    // oldest first, from the path log
+    current: string | null;                              // selected Candidate bytes, or absent (A20)
     boundary: string | null;                             // the boundary record's current content
   }[];
   workItems: (
@@ -2702,6 +2703,9 @@ interface ReviewMappingResult {
 }
 ```
 
+- **Current Candidate content (A20)** is supplied separately from committed versions, even when its bytes equal the
+  newest version. `current` is null only when that selected source has no Candidate. An uncommitted current Candidate
+  has no invented commit coordinate; the mapping decides how to retain it alongside its committed history.
 - **`workItems`** lists every work unit and Errand the import carries, with the UID it mints for each (A11), so a name
   absent from it is no work the import holds. An Errand row also carries its original `claimId`, copied unchanged from
   `TransientIdentityRecordSchema` (`lib/errand/identity-record.ts`): review lineages identify Errands by this value
@@ -2721,23 +2725,25 @@ interface ReviewMappingResult {
   (§ 10.9, § 10.11). - **Every returned record is checked as every imported record is,** by its kind's parser and the
   serialization rules (§ 5.6); one either refuses is listed in `refused` under `review-mapping`, naming the record,
   with the remedy to correct the mapping. No move gates on a write check (§ 10.4), so the mapping guarantees that its
-  records pass their kinds' write checks. - **Source identities and coverage (A2).** Gate input paths use forward
-  slashes and are relative to the Git common directory, below `arc/review-gate/`. Listing sources use these four
-  encodings:
+  records pass their kinds' write checks. - **Source identities and coverage (A2, A20).** Gate input paths use forward
+  slashes and are relative to the Git common directory, below `arc/review-gate/`. Listing sources use these five
+  encodings (A20):
 
   | Source                           | Listing source                                                                                         |
   | -------------------------------- | ------------------------------------------------------------------------------------------------------ |
   | Gate file                        | Its supplied `gate.path`, including the `arc/review-gate/` prefix                                      |
   | Leftover working materialization | Its Git-common-relative folder path with a trailing `/`, listed once                                   |
   | Candidate version                | `<tracked path>@<commit>`, the path from `resolveCandidateRecordRelativePath` for its work unit's slug |
+  | Current Candidate (A20)          | The checkout-relative tracked Candidate path, without a commit suffix                                  |
   | Boundary                         | The checkout-relative tracked path the import read for that work unit                                  |
 
-  A materialization folder is `left-behind` with a reason and covers every supplied gate file below that folder;
-  those files take no separate listing entries. Every gate file, Candidate version, and boundary must be covered
-  exactly once. An omitted source, repeated source, or overlapping coverage — a folder and one of its files, or
-  nested folder entries — is listed in `notices` and refuses the import until the listing is repaired. An `in-flight`
-  entry likewise refuses until the review it names has finished (§ 10.5). The import checks paths and coverage,
-  never the review gate's record shapes.
+  A materialization folder is `left-behind` with a reason and covers every supplied gate file below that folder; those
+  files take no separate listing entries. Every gate file, Candidate version, current Candidate, and boundary must be
+  covered exactly once (A20). An omitted source, repeated source, or overlapping coverage — a folder and one of its
+  files, or nested folder entries — is listed in `notices` and refuses the import until the listing is repaired. An
+  `in-flight` entry likewise refuses until the review it names has finished (§ 10.5). The import checks paths and
+  coverage, never the review gate's record shapes.
+
 - **With no mapping in the port,** the trial lists the gate's facts in `notices` and the import refuses (§ 10.5), and
   every Candidate and boundary record lands as found.
 - **Its provenance** is `migrate` with lifecycle action `import`, and `Arc-Code-Head` names the importing checkout's
@@ -3724,19 +3730,21 @@ remote.
   unmerged branch imports them from that branch, comparing clean against today's reader and the in-repo implementation
   run at that branch's head (§ 10.8).
 - **The review mapping,** through a test mapping in the port: the import hands it the gate's whole folder, quarantined
-  and retired files among them, each live work unit's Candidate versions oldest first with its current boundary, and
-  the work-item table, a work unit in flight — one merged but not yet archived among them — and every Errand live, and
-  an archived, abandoned, or cut work unit not. Each Errand row retains its original claim ID, and a reused slug with
-  a different claim ID joins only its own review lineage to the minted UID (A2). What it returns lands in place of
-  those records and files, each at its kind's stored path and a record's contents replayed oldest first, while a
-  completed work unit's Candidate and boundary land as found, and the trial's `reviewMapping` carries its listing. A
-  returned record a parser the test registry installs refuses, and one a serialization rule refuses, are listed in
-  `refused` under `review-mapping`; an `in-flight` entry, a source the listing omits or repeats, and an archived work
-  unit whose branch exists unlanded in base each refuse the import until fixed, after which it lands. The four source
-  encodings of § 10.8 compare exactly: a materialization folder lists once, Candidate versions at one path remain
-  distinct by commit, and overlapping folder/file or nested-folder coverage refuses, then lands after repair (A2).
-  With no mapping in the port, the gate's evidence and outcomes added to the fixture are listed in `notices` and
-  refuse the import.
+  and retired files among them, each live work unit's Candidate versions oldest first with its current Candidate and
+  boundary (A20), and the work-item table, a work unit in flight — one merged but not yet archived among them — and
+  every Errand live, and an archived, abandoned, or cut work unit not. Each Errand row retains its original claim ID,
+  and a reused slug with a different claim ID joins only its own review lineage to the minted UID (A2). What it returns
+  lands in place of those records and files, each at its kind's stored path and a record's contents replayed oldest
+  first, while a completed work unit's Candidate and boundary land as found, and the trial's `reviewMapping` carries
+  its listing. A returned record a parser the test registry installs refuses, and one a serialization rule refuses, are
+  listed in `refused` under `review-mapping`; an `in-flight` entry, a source the listing omits or repeats, and an
+  archived work unit whose branch exists unlanded in base each refuse the import until fixed, after which it lands. The
+  five source encodings of § 10.8 compare exactly (A20): a materialization folder lists once, Candidate versions at one
+  path remain distinct by commit, and overlapping folder/file or nested-folder coverage refuses, then lands after
+  repair (A2). A newer uncommitted Candidate reaches the mapping and survives its returned records; the current
+  plain-path source is distinct from every committed version, and omitted or repeated current coverage refuses until
+  repaired (A20). With no mapping in the port, the gate's evidence and outcomes added to the fixture are listed in
+  `notices` and refuse the import.
 
 #### 14.8 Hosts: a scripted trial, run by hand
 
@@ -4079,6 +4087,11 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     reuse their inbox captures' IDs, name the personal inbox, and preserve file order through valid ranks; keyless
     branch exclusions retain their repository and SHA. Generic conformance coverage remains required (§ 14.7) (A18).
 
+27. **Review mapping preserves current Candidates.** Every live selected Candidate supplies its current content
+    separately from committed versions, including newer uncommitted content; absent Candidates supply null. Its plain
+    tracked path is accounted exactly once, independently of each `path@commit`, with omission and repetition refusing
+    through repair and the mapped current content retained (§ 10.8, § 14.7) (A20).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4175,5 +4188,8 @@ open:
 
 - **A19** — 2026-10-19 — design: compare every admitted Errand branch prefix without a transform allowance.
   _Supersedes:_ § 14.7 non-chore Errand exception. _Trigger:_ door. _Work:_ 15.R3. _Revalidated:_ pending → 15.10.
+
+- **A20** — 2026-10-19 — design: review mapping receives current Candidate bytes independently of path history.
+  _Supersedes:_ § 10.8 input/coverage. _Trigger:_ 15.9 must-stop. _Work:_ 15.9.R. _Revalidated:_ pending → 15.10.
 
 ---
