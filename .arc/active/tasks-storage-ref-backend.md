@@ -1471,11 +1471,14 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
   including slug fetch, renders incomplete pulls and every notice, retaining ended-conflict details even when a later
   read refuses; local queries stay offline, and the pre-flip session arms stay dormant.
 
-### `[ ]` **15.10 Every source the import carries** — validate exit criterion at segment scope
+### `[x]` **15.10 Every source the import carries** — validate exit criterion at segment scope
 
 - _Goal:_ Every import, notes-snapshot, post-import, and Candidate case of § 14.7 passes over the fixture.
 
-    - Request `arc check segment`
+- _Outcome:_ Independent source comparisons cover every imported record and admitted transform, notes snapshots and
+  source retirement, post-import writes and history, Candidate chains, and review mapping. Production entry readers in
+  both layouts, all admitted Errand branch prefixes, claim-lineage joins, canonical source coverage, and separate current
+  Candidate bytes close A2, A18, A19, and A20 against the same fixture suite.
 
 ## **Phase 16:** Remote moves
 

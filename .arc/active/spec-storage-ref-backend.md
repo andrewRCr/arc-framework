@@ -4125,7 +4125,7 @@ open:
   _Supersedes:_ § 10.8 `workItems` ¶. _Trigger:_ review. _Work:_ 15.9. _Revalidated:_ 15.9.
 
 - **A2** — 2026-10-16 — design: review import preserves claim IDs and canonical source units.
-  _Supersedes:_ § 10.8 table and source accounting. _Trigger:_ door. _Work:_ 15.R. _Revalidated:_ pending → 15.10.
+  _Supersedes:_ § 10.8 table and source accounting. _Trigger:_ door. _Work:_ 15.R. _Revalidated:_ 15.10.
 
 - **A3** — 2026-10-16 — design: backslash entries retain exact diagnostic paths and remain invalid record keys.
   _Supersedes:_ § 11.6 pathname claim. _Trigger:_ 3.3.a must-stop. _Work:_ 3.3.R. _Revalidated:_ 4.5.
@@ -4184,12 +4184,12 @@ open:
   _Supersedes:_ § 6.2 tracking-tip cutoffs. _Trigger:_ 11.3 must-stop. _Work:_ 11.3.R. _Revalidated:_ 11.6.
 
 - **A18** — 2026-10-19 — design: align import verification with production entry and link contracts.
-  _Supersedes:_ §§ 14.1, 14.7 grammar premises. _Trigger:_ door. _Work:_ 15.R2. _Revalidated:_ pending → 15.10.
+  _Supersedes:_ §§ 14.1, 14.7 grammar premises. _Trigger:_ door. _Work:_ 15.R2. _Revalidated:_ 15.10.
 
 - **A19** — 2026-10-19 — design: compare every admitted Errand branch prefix without a transform allowance.
-  _Supersedes:_ § 14.7 non-chore Errand exception. _Trigger:_ door. _Work:_ 15.R3. _Revalidated:_ pending → 15.10.
+  _Supersedes:_ § 14.7 non-chore Errand exception. _Trigger:_ door. _Work:_ 15.R3. _Revalidated:_ 15.10.
 
 - **A20** — 2026-10-19 — design: review mapping receives current Candidate bytes independently of path history.
-  _Supersedes:_ § 10.8 input/coverage. _Trigger:_ 15.9 must-stop. _Work:_ 15.9.R. _Revalidated:_ pending → 15.10.
+  _Supersedes:_ § 10.8 input/coverage. _Trigger:_ 15.9 must-stop. _Work:_ 15.9.R. _Revalidated:_ 15.10.
 
 ---
