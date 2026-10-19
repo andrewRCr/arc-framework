@@ -47,7 +47,7 @@ export interface PlannedWorkUnit {
 }
 
 /** Whether a planned WU belongs to the identity's slice (its own or unattributed). */
-function isMine(owner: string | undefined, identity: string | null): boolean {
+export function isMine(owner: string | undefined, identity: string | null): boolean {
   return identity === null || owner === undefined || owner === identity;
 }
 

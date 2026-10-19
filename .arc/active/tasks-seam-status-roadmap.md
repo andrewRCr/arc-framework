@@ -371,16 +371,14 @@ listing refuses.
   Team ownership stays with the shared derivation, Errands stay out of work-unit rows, and degraded membership carries
   the user-view retry route alongside the provider's own warning text.
 
-### `[ ]` **5.2 Build the ready slice from the exported tier classification — § 3**
+### `[x]` **5.2 Build the ready slice from the exported tier classification — § 3**
 
 - _Goal:_ The user view's ready slice is Task 2.2's Ready tier over Task 3.5's acquisition, the identity's own or unowned
   rows, rendered in today's columns with Class.
 
-    - Export `isMine` (`lib/status/ready-mine.ts`); build rows with Class from the records.
-    - Build `test-first` (one behavior at a time):
-        - a Planning work unit at a planned placement with satisfied dependencies renders with its Class
-        - a planned meta whose `State` is Active and a paused one render no ready row
-        - an edge resolved as § 2.2 states counts as satisfied; a clash's holders are omitted with `slug-clash`
+- _Outcome:_ `readStoreUserReady` filters the shared Ready tier through exported `isMine` and retains Class and source
+  diagnostics. Planning, pause and dependency semantics now match the project view, including exact retired-generation
+  satisfaction and omission of clashed holders.
 
 ### `[ ]` **5.3 Dispatch `--user` on the context's store, writing no file — § 3, § 7**
 
