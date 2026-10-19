@@ -9,6 +9,8 @@ import { scriptRawGitExec } from "../../../../helpers/git-exec-fake.js";
 import { createLocalDeltaFixture, linearReviewRangeProof } from "../../../../fixtures/local-review-delta.js";
 import type { LaneProgressState } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import { deriveNextPassFacts, NextPassFactsSchema } from "../../../../../src/scripts/review-gate/policy/next-pass-facts.js";
+import { projectProvisionalPassAssessment } from "../../../../../src/scripts/review-gate/runtime/provisional-pass-assessment.js";
+import { readProposedResponseReport } from "../../../../../src/scripts/review-gate/runtime/response-report.js";
 
 async function laneWithDelta(outcome: "clean" | "findings" = "clean") {
   const fixture = await createLocalDeltaFixture("Light");
@@ -108,7 +110,8 @@ it("joins each historical response round to its own approved set", async () => {
   const fixture = await laneWithDelta("findings");
   const producer = await fixture.resultReader.readResult(fixture.delta.operationId);
   const first = approvedRecord(producer, [{ sourceVerification: "verified", verifiedSeverity: "major", disposition: "fix" }]);
-  const original = currentApprovedDispositionNode(first);
+  const original = { ...currentApprovedDispositionNode(first),
+    advisoryFixTags: [{ findingId: "finding-1", tag: "local-correction" as const }] };
   const { dispositionSetId, ...fields } = original.approvedDisposition.dispositionSet;
   const successor = approveDispositionState({ proposed: proposeDispositionSet(createDispositionSet({ ...fields,
     findings: fields.findings.map(finding => ({ ...finding, sourceVerification: "verified" as const,
@@ -117,7 +120,7 @@ it("joins each historical response round to its own approved set", async () => {
   const successorId = successor.dispositionSet.dispositionSetId;
   const record = ApprovedDispositionRecordSchema.parse({ ...first, currentDispositionSetId: successorId,
     approvedDispositionLineage: [{ ...original, successorDispositionSetId: successorId },
-      { ...original, approvedDisposition: successor, predecessorDispositionSetId: dispositionSetId }] });
+      { ...original, approvedDisposition: successor, advisoryFixTags: [], predecessorDispositionSetId: dispositionSetId }] });
   const response = { lane: "standard" as const, repositoryId: producer.repositoryId, headSha: producer.target.headSha,
     lineage: producer.admission.lineage, attemptId: producer.producerId, producedHeadSha: "f".repeat(40),
     now: "2026-10-18T02:00:00Z" };
@@ -133,6 +136,20 @@ it("joins each historical response round to its own approved set", async () => {
     { dispositionSetId, outsideCitedLoci: false, addedFiles: false },
     { dispositionSetId: successorId, outsideCitedLoci: true, addedFiles: false },
   ]);
+  const proposal = proposeDispositionSet(currentApprovedDispositionNode(record).approvedDisposition.dispositionSet);
+  const standardFacts = { facts, chainAdequate: true, delegatedAgentSelectable: true };
+  const assessment = projectProvisionalPassAssessment({ proposal, result: producer, lane: "standard",
+    admittedLogicalPass: producer.admission.logicalPass, configuredMaxPasses: 4, standardFacts });
+  const report = await readProposedResponseReport({ proposal, producerFindings: producer.findings,
+    assessment, standardFacts, hosted: false, readRecord: async id => id === producer.producerId ? record : null,
+    report: { tags: [], fails: [{ findingId: "finding-1", fails: "Correctness and failure behavior" }],
+      successorRecommendation: "Stop after the approved response.", origin: [],
+      reading: { kind: "converging", rationale: "The latest response defers the remaining finding." } },
+  });
+  expect(report.dispositionReportText).toContain("Round 1 observed signals: paths outside cited loci no, "
+    + "added files no; stored forecast tags (advisory): 0 new design, 1 local correction.");
+  expect(report.dispositionReportText).toContain("Round 2 observed signals: paths outside cited loci yes, "
+    + "added files no; stored forecast tags (advisory): 0 new design, 0 local correction.");
 });
 
 it("resets fix-check rounds when a later complete look concludes", async () => {
