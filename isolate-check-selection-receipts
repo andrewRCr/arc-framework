@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "isolate-check-selection-receipts",
+  "claimId": "ac5d15b118b95c9a6ccdec2263283ac3",
+  "createdAt": "2026-10-19T13:46:59.225Z",
+  "updatedAt": "2026-10-19T13:46:59.225Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Give concurrently executing check-selection fixture commands separate receipts so assertions do not depend on completion order.",
+  "branch": "chore/isolate-check-selection-receipts",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
