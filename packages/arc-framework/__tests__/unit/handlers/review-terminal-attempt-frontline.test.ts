@@ -23,8 +23,7 @@ async function resolve(submitted: unknown, standardMaxPasses = 2, frontlineMaxPa
       sources: parsed.lane === "frontline" ? ["coderabbit-cli"] : ["codex-pr"],
       maxPasses: parsed.lane === "frontline" ? frontlineMaxPasses : standardMaxPasses,
       resultReader: reader, confirmTarget: async () => admission.target,
-      dispositionStore: { readDispositionRecord: async () => null,
-        appendDispositionRecord: async () => { throw new Error("not used"); } },
+      dispositionStore: { readDispositionRecord: async () => null },
     }),
     write: text => output.push(text), setExitCode: code => exitCodes.push(code),
   });

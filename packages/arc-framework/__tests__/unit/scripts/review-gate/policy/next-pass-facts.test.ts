@@ -58,8 +58,7 @@ it.each([true, false])("reports the proven chain and its range against the targe
   const { obligation, reasons, rubricVersion, rubricDigest, retrigger, count } = root.requirement;
   const nextPassContext = await deriveReviewNextPassContext({ completePasses: 1, completedPasses: root.admission.logicalPass, predecessor: root, currentTarget: fixture.currentTarget(),
     currentLineage: root.admission.lineage, standardReview: { obligation, reasons, rubricVersion, rubricDigest, retrigger, count },
-    resultReader: fixture.resultReader, dispositionStore: { readDispositionRecord: async () => null,
-      appendDispositionRecord: async () => { throw new Error("Read-only context"); } }, readResponsePerformance: async () => null,
+    resultReader: fixture.resultReader, dispositionStore: { readDispositionRecord: async () => null }, readResponsePerformance: async () => null,
     rangeProof: linearReviewRangeProof(root.target.headSha, fixture.currentTarget().headSha),
     deltaAdmission: { sources: admitted ? ["delegated-agent"] : [], surface: "ordinary" } });
   const targetRange = `${root.target.diffBaseSha}..${fixture.currentTarget().headSha}`;

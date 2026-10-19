@@ -59,8 +59,7 @@ async function resolve(submitted: unknown, fault?: (result: ReviewResult) => Rev
       sources, maxPasses,
       resultReader: { readResult: async id => { const result = await reader.readResult(id); return fault?.(result) ?? result; } },
       confirmTarget: async () => target,
-      dispositionStore: { readDispositionRecord: async () => null, appendDispositionRecord: async () => { throw new Error("not used"); } },
-    }),
+      dispositionStore: { readDispositionRecord: async () => null } }),
     write: text => output.push(text), setExitCode: code => exitCodes.push(code),
   });
   return { result: JSON.parse(output.join("")) as unknown, exitCodes };

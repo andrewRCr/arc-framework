@@ -4,7 +4,7 @@ import type { GitExec } from "../../../lib/git/exec.js";
 import type { CandidateManagedRecordV1 } from "../../../lib/work-unit/candidate-attestation.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import type { LaneResponsePerformance } from "../core/operation-state-schema.js";
-import type { ApprovedDispositionRecordStore } from "../core/ports.js";
+import type { ApprovedDispositionRecordReader } from "../core/ports.js";
 import type { ReviewResult } from "../core/review-result.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import type { IncrementalPredecessorApplicability } from "./incremental-coverage-basis.js";
@@ -17,7 +17,7 @@ export interface PerformedResponseProofInput {
   readonly currentTarget: ReviewTarget;
   readonly currentLineage: LaneSubjectLineage;
   readonly currentResult?: ReviewResult;
-  readonly dispositionStore: ApprovedDispositionRecordStore;
+  readonly dispositionStore: ApprovedDispositionRecordReader;
   readonly readResponsePerformance: (result: ReviewResult) => Promise<LaneResponsePerformance | null>;
   readonly candidateProof?: {
     readonly candidate: CandidateManagedRecordV1 | null;

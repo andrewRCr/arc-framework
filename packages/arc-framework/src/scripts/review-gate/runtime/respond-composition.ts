@@ -20,6 +20,7 @@ import {
   readTransientInFlightIndexes,
 } from "../../../lib/errand/record.js";
 import type { GitExec } from "../../../lib/git/exec.js";
+import type { ApprovedDispositionRecordStore } from "../core/ports.js";
 import type { RawGitExec } from "../../../lib/git/exec.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
@@ -32,8 +33,7 @@ import {
 } from "../../../lib/store/kinds/review/candidate/access.js";
 import { resolveCandidateRecordRelativePath } from "../../../lib/store/kinds/review/paths.js";
 import type { Store } from "../../../lib/store/contract.js";
-import { createStore } from "../../../lib/store/create.js";
-import { createDefaultStorePorts } from "../../../lib/store/default-ports.js";
+import { resolveReviewInvocation, type ReviewInvocationInput, type ReviewInvocationContext } from "./invocation.js";
 import {
   CandidateManagedRecordV1Schema,
   type CandidateManagedRecordV1,
@@ -326,7 +326,7 @@ function createRespondPolicyConfirmation(context: {
   request: Pick<ReviewPolicyCommandRequest, "target">;
   currentSettings: Awaited<ReturnType<typeof readConfigSettings>>["settings"];
   rawGit: RawGitExec;
-  dispositionStore: LocalApprovedDispositionRecordStore;
+  dispositionStore: ApprovedDispositionRecordStore;
   readResponsePerformance: NonNullable<EvidenceBoundReviewPolicyDependencies["readResponsePerformance"]>;
   deliveryMembers: RepositoryDeliveryMemberLookup;
   privateDeliveryTargets: ReturnType<typeof createPreBindingDeliveryReviewTargetDependencies>;
@@ -529,17 +529,12 @@ async function readRespondProvisionalPassFacts(context: RespondPolicyContext,
 }
 
 /** Bind respond to repository-common records and trusted local/runtime identities. */
-export function createRespondDependencies(input: {
-  exec: GitExec;
-  cwd: string;
-  store?: Store;
-}): RespondCommandDependencies {
-  return createBoundRespondDependencies({ ...input,
-    store: input.store ?? createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec })) });
+export function createRespondDependencies(input: ReviewInvocationInput): RespondCommandDependencies {
+  return createBoundRespondDependencies({ ...input, ...resolveReviewInvocation(input) });
 }
 
 /** Share the response invocation's operational store with prepare, policy, and publication. */
-function createBoundRespondDependencies(input: { exec: GitExec; cwd: string; store: Store }): RespondCommandDependencies {
+function createBoundRespondDependencies(input: ReviewInvocationInput & ReviewInvocationContext): RespondCommandDependencies {
   const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
   const rawGit = createRawGitExec(input.cwd);
   const prepare = createLocalPrepareDependencies(input);

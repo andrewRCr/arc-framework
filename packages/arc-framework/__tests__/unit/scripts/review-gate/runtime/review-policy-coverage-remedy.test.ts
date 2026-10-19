@@ -19,7 +19,7 @@ async function fixture() {
   const nextPassContext = await deriveReviewNextPassContext({ completedPasses: 1, completePasses: 1,
     predecessor: result, currentTarget, currentLineage: result.admission.lineage, standardReview,
     resultReader: { readResult: async () => result },
-    dispositionStore: { readDispositionRecord: async () => record, appendDispositionRecord: async () => { throw new Error("read-only"); } },
+    dispositionStore: { readDispositionRecord: async () => record },
     readResponsePerformance: async () => ({ ...performedFix(result, record), producedHeadSha: currentTarget.headSha }),
   });
   if (nextPassContext.incremental === null) throw new Error("expected proven fix check");

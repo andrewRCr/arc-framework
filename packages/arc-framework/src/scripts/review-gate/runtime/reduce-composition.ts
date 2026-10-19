@@ -1,8 +1,7 @@
 /** Production assembly for read-only advisory review reduction. */
 
-import type { GitExec } from "../../../lib/git/exec.js";
-import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
-import { LocalApprovedDispositionRecordStore } from "../hosts/local/disposition-record-store.js";
+import type { ReviewInvocationInput } from "./invocation.js";
+import { createReviewCompositionContext } from "./composition-context.js";
 import { LocalFrontlineOutcomeStore } from "../hosts/local/frontline-outcome-store.js";
 import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import { LocalForwardReviewReceiptStore } from "../hosts/local/receipt-store.js";
@@ -16,11 +15,10 @@ import {
 } from "./reduce-command.js";
 
 /** Bind reduction to repository-common read stores and trusted target confirmation. */
-export function createReduceDependencies(input: {
-  exec: GitExec;
-  cwd: string;
-}): ReduceCommandDependencies {
-  const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
+export function createReduceDependencies(options: ReviewInvocationInput): ReduceCommandDependencies {
+  const context = createReviewCompositionContext(options);
+  const input = { ...options, ...context };
+  const { publisher, family } = context;
   const prepare = createLocalPrepareDependencies(input);
   let receiptStore: Promise<LocalForwardReviewReceiptStore> | null = null;
   const receipts = () => {
@@ -33,7 +31,7 @@ export function createReduceDependencies(input: {
     sourceStore: prepare.sourceStore,
     outcomeStore: new LocalFrontlineOutcomeStore(publisher),
     resultReader: createRepositoryReviewResultReader(publisher),
-    dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+    dispositionStore: family.ports.dispositions,
     readReceiptEntries: async (targetId) => (await receipts()).readReceiptEntries(targetId),
     confirmTarget: (target) => prepare.confirmTarget(target),
   };

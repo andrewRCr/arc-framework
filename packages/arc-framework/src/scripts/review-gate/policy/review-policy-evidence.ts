@@ -6,7 +6,7 @@ import { canonicalize } from "../../../lib/kernel/index.js";
 import { validateReviewTarget } from "../core/gate-contract-v2.js";
 import { currentApprovedDispositionNode } from "../core/advisory-records.js";
 import type {
-  ApprovedDispositionRecordStore,
+  ApprovedDispositionRecordReader,
   ReviewResultReader,
 } from "../core/ports.js";
 import { validateApprovedDispositionRecordForResult } from
@@ -44,7 +44,7 @@ export interface EvidenceBoundReviewPolicyDependencies {
   readonly nextPassContext?: ReviewNextPassContext;
   readonly chosenCoverage?: ReviewPolicyRequest["chosenCoverage"];
   readonly resultReader: ReviewResultReader;
-  readonly dispositionStore: ApprovedDispositionRecordStore;
+  readonly dispositionStore: ApprovedDispositionRecordReader;
   readonly confirmTarget: (attemptedTarget: ReviewResult["target"])
   => Promise<ReviewResult["target"]>;
   readonly confirmIncrementalApplicability?: (
@@ -271,7 +271,7 @@ function greaterSeverity(left: ReviewSeverity | null, right: ReviewSeverity): Re
 /** Resolve approved and performed response evidence for one immutable predecessor result. */
 export async function readIncrementalPredecessorResponseEvidence(
   predecessor: ReviewResult,
-  dispositionStore: ApprovedDispositionRecordStore,
+  dispositionStore: ApprovedDispositionRecordReader,
   readResponsePerformance?: (
     predecessor: ReviewResult,
   ) => Promise<LaneResponsePerformance | null>,

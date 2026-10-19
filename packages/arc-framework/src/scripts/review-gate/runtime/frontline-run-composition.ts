@@ -1,8 +1,8 @@
 /** Production adapters for exact-target frontline review execution. */
 
 import type { InteractionContext } from "../../../lib/command-input/interaction-context.js";
-import type { GitExec } from "../../../lib/git/exec.js";
-import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
+import type { ReviewInvocationInput } from "./invocation.js";
+import { createReviewCompositionContext } from "./composition-context.js";
 import {
   LocalFrontlineOutcomeStore,
 } from "../hosts/local/frontline-outcome-store.js";
@@ -10,9 +10,6 @@ import {
   prepareFrontlineTargetMaterialization,
 } from "../hosts/local/frontline-materialization.js";
 import { withRepositoryReviewOperationLock } from "../hosts/local/git-common-state.js";
-import {
-  LocalReviewOperationStateStore,
-} from "../hosts/local/operation-state-store.js";
 import {
   classifyFrontlineCarrierFailure,
   prepareFrontlineCarrier,
@@ -36,15 +33,15 @@ import {
 import type { FrontlineRunCommandDependencies } from "./frontline-run-command.js";
 
 /** Bind frontline run to exact Git materialization, repository-common stores, and CodeRabbit. */
-export function createFrontlineRunDependencies(input: {
-  exec: GitExec;
-  cwd: string;
+export function createFrontlineRunDependencies(options: ReviewInvocationInput & {
   interaction: InteractionContext["subprocess"];
 }): FrontlineRunCommandDependencies {
-  const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
+  const context = createReviewCompositionContext(options);
+  const input = { ...options, ...context };
+  const { publisher, family } = context;
   const registry = new FrontlineSourceRegistry([CODERABBIT_FRONTLINE_REGISTRATION]);
   return {
-    operationStore: new LocalReviewOperationStateStore(publisher),
+    operationStore: family.ports.inFlight,
     outcomeStore: new LocalFrontlineOutcomeStore(publisher),
     withOperationLock: (operationId, maxWaitMs, action) => withRepositoryReviewOperationLock(
       input.exec,

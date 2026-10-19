@@ -123,6 +123,9 @@ export interface ApprovedDispositionRecordStore {
   appendDispositionRecord(record: ApprovedDispositionRecord): Promise<{ dispositionRecordRef: string }>;
 }
 
+/** Keyed approved-response access without mutation authority. */
+export type ApprovedDispositionRecordReader = Pick<ApprovedDispositionRecordStore, "readDispositionRecord">;
+
 /**
  * Enumeration boundary for consumers holding a disposition-set identity rather than an operation.
  *

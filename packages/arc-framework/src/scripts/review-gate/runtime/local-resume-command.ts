@@ -39,7 +39,7 @@ export interface LocalResumeDependencies {
   sourceStore: LocalReviewSourceStore;
   receiptStore: ForwardReviewReceiptStore;
   resultReader: ReviewResultReader;
-  dispositionStore: ApprovedDispositionRecordStore;
+  dispositionStore: Pick<ApprovedDispositionRecordStore, "readDispositionRecord">;
   confirmTarget(target: ReviewTarget): Promise<LocalTargetConfirmation>;
   materialize(
     source: NonNullable<Awaited<ReturnType<LocalReviewSourceStore["readSource"]>>>,

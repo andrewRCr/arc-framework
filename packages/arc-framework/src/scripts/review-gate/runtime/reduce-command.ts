@@ -50,7 +50,7 @@ export interface ReviewReductionAdapterDependencies {
   sourceStore: LocalReviewSourceStore;
   outcomeStore: FrontlineOutcomeStore;
   resultReader: ReviewResultReader;
-  dispositionStore: ApprovedDispositionRecordStore;
+  dispositionStore: Pick<ApprovedDispositionRecordStore, "readDispositionRecord">;
   readReceiptEntries(targetId: string): Promise<LocalReceiptEntry[]>;
   confirmTarget(target: ReviewTarget): Promise<LocalTargetConfirmation>;
 }

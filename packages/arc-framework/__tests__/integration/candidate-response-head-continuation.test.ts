@@ -207,8 +207,7 @@ describe("committed Candidate response continuation", () => {
     const unbound = await recordLaneResponsePerformance(store, performance);
     const beforeBinding = unbound.attempts[0]?.responsePerformance;
     const proof = createCandidateResponseHeadContinuationReader({ cwd: input.cwd, exec: bound, operationStore: store,
-      dispositionStore: { readDispositionRecord: async () => approvedRecord,
-        appendDispositionRecord: async () => { throw new Error("proof must not write approval"); } } });
+      dispositionStore: { readDispositionRecord: async () => approvedRecord } });
     const continuation = { repositoryId: "repo", lineage, producerId: "producer", dispositionSetId,
       originatingHeadSha: input.originatingHeadSha, fromHeadSha: input.verifiedHeadSha, toHeadSha: input.toHeadSha };
     await expect(proof(continuation)).resolves.toBe(false);

@@ -2,7 +2,7 @@
 
 import type { GitExec } from "../../../lib/git/exec.js";
 import { currentApprovedDispositionNode, type ApprovedDispositionRecord } from "../core/advisory-records.js";
-import type { ApprovedDispositionRecordStore, ReviewOperationStateStore } from "../core/ports.js";
+import type { ApprovedDispositionRecordReader, ReviewOperationStateStore } from "../core/ports.js";
 import type { ConfirmResponseHeadContinuation, ResponseHeadContinuationInput } from "../core/response-head-continuation.js";
 import { canonicalize, type CanonicalDigest } from "../../../lib/kernel/index.js";
 import { candidateReviewResponses, parseCandidateManagedRecord } from
@@ -136,7 +136,7 @@ function candidatePerformanceMatches(
 export function createCandidateResponseHeadContinuationReader(repository: {
   cwd: string;
   exec: GitExec;
-  dispositionStore: ApprovedDispositionRecordStore;
+  dispositionStore: ApprovedDispositionRecordReader;
   operationStore: Pick<ReviewOperationStateStore, "readOperation">;
 }): ConfirmResponseHeadContinuation {
   return async (input) => {

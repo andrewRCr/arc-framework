@@ -7,8 +7,7 @@ import type { ReviewResult } from "../core/review-result.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import { deriveLocalReviewTarget } from "../hosts/local/repository-target.js";
 import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
-import type { LocalApprovedDispositionRecordStore } from "../hosts/local/disposition-record-store.js";
-import type { LocalReviewOperationStateStore } from "../hosts/local/operation-state-store.js";
+import type { ApprovedDispositionRecordReader, ReviewOperationStateStore } from "../core/ports.js";
 import { createGhChangeRequestResolutionPort } from "../hosts/github/change-request.js";
 import { resolveChangeRequest } from "../change-request.js";
 import { readLaneResponsePerformance } from "../lane-progress.js";
@@ -56,8 +55,8 @@ export async function resolveLocalPolicyTarget(
 export function createLocalContributionConfirmation(input: {
   context: {
     input: { cwd: string; exec: GitExec };
-    dispositionStore: LocalApprovedDispositionRecordStore;
-    operationStore: LocalReviewOperationStateStore;
+    dispositionStore: ApprovedDispositionRecordReader;
+    operationStore: ReviewOperationStateStore;
   };
   repositoryId: string;
   baseRef: string;

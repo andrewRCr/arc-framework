@@ -21,7 +21,7 @@ import {
   type LocalReviewCoverageSelectionAction,
 } from "../core/local-review-coverage.js";
 import type {
-  ApprovedDispositionRecordStore,
+  ApprovedDispositionRecordReader,
 } from "../core/ports.js";
 import type { LaneResponsePerformance } from "../core/operation-state-schema.js";
 import type { ReviewResult } from "../core/review-result.js";
@@ -258,7 +258,7 @@ type ErrandFixApplicabilityInput = {
   readonly currentClaimId: string | null;
   readonly currentResult?: ReviewResult;
   readonly observeTarget: () => Promise<ReviewTarget>;
-  readonly dispositionStore: ApprovedDispositionRecordStore;
+  readonly dispositionStore: ApprovedDispositionRecordReader;
   readonly readResponsePerformance: (
     predecessor: ReviewResult,
   ) => Promise<LaneResponsePerformance | null>;

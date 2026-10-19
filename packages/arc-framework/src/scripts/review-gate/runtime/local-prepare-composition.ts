@@ -1,5 +1,6 @@
 /** Production adapters for the local review prepare command. */
 import { resolveLocalPolicyTarget, createLocalContributionConfirmation } from "./local-correction-context.js";
+import type { ApprovedDispositionRecordReader, ReviewOperationStateStore } from "../core/ports.js";
 import { readReviewLaneHistory } from "./lane-history.js";
 import { projectFixedFindingPointers } from "../core/fixed-finding-pointers.js";
 import { deriveNextPassFacts } from "../policy/next-pass-facts.js";
@@ -14,12 +15,10 @@ import { readFile } from "node:fs/promises";
 
 import { readConfigSettings } from "../../../lib/config/status-reader.js";
 import type { GitExec } from "../../../lib/git/exec.js";
-import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
+import { createReviewCompositionContext } from "./composition-context.js";
+import type { ReviewInvocationInput } from "./invocation.js";
 import { getFrameworkVersion } from "../../../lib/version.js";
 import { canonicalize } from "../../../lib/kernel/index.js";
-import {
-  LocalReviewOperationStateStore,
-} from "../hosts/local/operation-state-store.js";
 import {
   resolveRepositoryIdentity,
   withRepositoryLocalReviewLock,
@@ -66,7 +65,6 @@ import { RepositoryLocalReviewSourceSweepAdapter } from "../hosts/local/source-s
 import { LocalForwardReviewReceiptStore } from "../hosts/local/receipt-store.js";
 import {
   confirmCurrentDispositionSet,
-  LocalApprovedDispositionRecordStore,
 } from "../hosts/local/disposition-record-store.js";
 import { createRepositoryReviewResultReader } from
   "../hosts/local/review-result-reader-composition.js";
@@ -154,8 +152,8 @@ async function validateLocalPolicyAdmission(
   context: {
     input: { cwd: string; exec: GitExec; store?: Store };
     resultReader: ReturnType<typeof createRepositoryReviewResultReader>;
-    dispositionStore: LocalApprovedDispositionRecordStore;
-    operationStore: LocalReviewOperationStateStore;
+    dispositionStore: ApprovedDispositionRecordReader;
+    operationStore: ReviewOperationStateStore;
   },
 ): ReturnType<LocalPrepareDependencies["validatePolicyAdmission"]> {
   const {
@@ -262,21 +260,16 @@ function localHistoryDependencies(context: Parameters<typeof validateLocalPolicy
 }
 
 /** Bind local prepare to the current repository, managed methods, and Git-common stores. */
-export function createLocalPrepareDependencies(input: {
-  exec: GitExec;
-  cwd: string;
-  store?: Store;
-}): LocalPrepareDependencies {
-  return createBoundLocalPrepareDependencies({ ...input,
-    store: input.store ?? createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec })) });
+export function createLocalPrepareDependencies(input: ReviewInvocationInput): LocalPrepareDependencies {
+  return createBoundLocalPrepareDependencies({ ...input, ...createReviewCompositionContext(input) });
 }
 
 /** Retain one operational store throughout local admission and its nested Candidate reads. */
-function createBoundLocalPrepareDependencies(input: { exec: GitExec; cwd: string; store: Store }): LocalPrepareDependencies {
-  const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
-  const operationStore = new LocalReviewOperationStateStore(publisher);
+function createBoundLocalPrepareDependencies(input: ReviewInvocationInput & ReturnType<typeof createReviewCompositionContext>): LocalPrepareDependencies {
+  const { publisher, family } = input;
+  const operationStore = family.ports.inFlight;
   const sourceStore = new RepositoryLocalReviewSourceStore(publisher);
-  const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
+  const dispositionStore = family.ports.dispositions;
   const resultReader = createRepositoryReviewResultReader(publisher);
   const sweepAdapter = new RepositoryLocalReviewSourceSweepAdapter(input.exec, input.cwd);
   let receiptStore: Promise<LocalForwardReviewReceiptStore> | null = null;

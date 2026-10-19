@@ -390,7 +390,6 @@ describe("Candidate hosted reservation admission", () => {
       resultReader: { readResult: () => Promise.reject(new Error("past pass must not be read")) },
       dispositionStore: {
         readDispositionRecord: () => Promise.resolve(null),
-        appendDispositionRecord: () => Promise.reject(new Error("read-only test store")),
       },
       confirmTarget: () => Promise.reject(new Error("past pass must not be confirmed")),
     })).resolves.toBeUndefined();
@@ -533,7 +532,6 @@ describe("Candidate hosted reservation admission", () => {
       },
       dispositionStore: {
         readDispositionRecord: () => Promise.resolve(null),
-        appendDispositionRecord: () => Promise.reject(new Error("read-only test store")),
       },
       confirmTarget: () => Promise.reject(new Error("no terminal producer expected")),
     })).resolves.toBeUndefined();

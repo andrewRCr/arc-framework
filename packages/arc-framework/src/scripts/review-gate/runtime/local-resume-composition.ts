@@ -1,11 +1,9 @@
 /** Production adapters for the local review resume command. */
 
 import type { GitExec } from "../../../lib/git/exec.js";
-import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
+import type { ReviewInvocationOptions } from "./invocation.js";
+import { createReviewCompositionContext } from "./composition-context.js";
 import type { ForwardReviewReceiptStore } from "../core/ports.js";
-import {
-  LocalApprovedDispositionRecordStore,
-} from "../hosts/local/disposition-record-store.js";
 import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import { LocalForwardReviewReceiptStore } from "../hosts/local/receipt-store.js";
 import { createRepositoryReviewResultReader } from
@@ -20,9 +18,10 @@ import type { LocalResumeDependencies } from "./local-resume-command.js";
 export function createLocalResumeDependencies(input: {
   exec: GitExec;
   cwd: string;
-}): LocalResumeDependencies {
-  const prepare = createLocalPrepareDependencies(input);
-  const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
+} & ReviewInvocationOptions): LocalResumeDependencies {
+  const context = createReviewCompositionContext(input);
+  const prepare = createLocalPrepareDependencies({ ...input, ...context });
+  const { publisher, family } = context;
   let receiptStore: Promise<ForwardReviewReceiptStore> | null = null;
   const receipts = async () => {
     receiptStore ??= resolveRepositoryIdentity(publisher)
@@ -40,7 +39,7 @@ export function createLocalResumeDependencies(input: {
         (await receipts()).appendReceipt(receipt, expectedLedgerVersion)
       ),
     },
-    dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+    dispositionStore: family.ports.dispositions,
     resultReader: createRepositoryReviewResultReader(publisher),
     confirmTarget: (target) => prepare.confirmTarget(target),
     materialize: (source) => ensureLocalReviewSourceMaterialized({

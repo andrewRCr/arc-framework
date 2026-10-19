@@ -1,6 +1,6 @@
 /** Production adapters for the local review attestation command. */
 
-import type { GitExec } from "../../../lib/git/exec.js";
+import { resolveReviewInvocation, type ReviewInvocationInput } from "./invocation.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import {
   resolveRepositoryIdentity,
@@ -18,10 +18,8 @@ import { LocalAttestCommandError, type LocalAttestDependencies } from "./local-a
 import { createLocalPrepareDependencies } from "./local-prepare-composition.js";
 
 /** Bind local attestation to the same trusted facts and Git-common stores as preparation. */
-export function createLocalAttestDependencies(input: {
-  exec: GitExec;
-  cwd: string;
-}): LocalAttestDependencies {
+export function createLocalAttestDependencies(options: ReviewInvocationInput): LocalAttestDependencies {
+  const input = { ...options, ...resolveReviewInvocation(options) };
   const prepare = createLocalPrepareDependencies(input);
   const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
   const sweepAdapter = new RepositoryLocalReviewSourceSweepAdapter(input.exec, input.cwd);
