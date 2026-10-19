@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseReviewEvidence, decodeReviewEvidence } from "../../../../../../../src/lib/store/kinds/review/evidence/parser.js";
-import { reviewEvidenceFixture } from "../../../../../../fixtures/review-evidence.js";
-import { createFrontlineFixture } from "../../../../../../fixtures/frontline-review.js";
+import { reviewEvidenceFixture, privateMemberEvidenceFixture } from "../../../../../../fixtures/review-evidence.js";
 
-import { createReviewTarget } from "../../../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
-import { BoundFrontlineResponseBindingSchema } from "../../../../../../../src/scripts/review-gate/core/frontline-response-binding.js";
 import { frontlineOutcome, localOutcome } from "../../../../../../fixtures/review-outcome.js";
 import { ApprovedDispositionRecordSchema } from "../../../../../../../src/scripts/review-gate/core/advisory-records.js";
 import { bindReviewSourceReference } from "../../../../../../../src/scripts/review-gate/core/review-source-reference.js";
@@ -14,19 +11,6 @@ const candidate = { workUnit: "example", candidateId: `sha256:${"c".repeat(64)}`
 const member = { kind: "delivery-member", planId: "123e4567-e89b-42d3-a456-426614174000",
   deliverableId: `sha256:${"d".repeat(64)}`, workUnitId: "example", head: "c".repeat(40) };
 
-function privateMemberEvidence(disposition: "fix" | "defer" = "defer") {
-  const root = createFrontlineFixture().admission.target;
-  const target = createReviewTarget({ schemaVersion: 2, semanticsVersion: "review-gate/v2", kind: "delivery-member",
-    repositoryId: root.repositoryId, baseRef: root.baseRef, diffBaseSha: root.diffBaseSha, diffBaseTree: root.diffBaseTree,
-    headSha: root.headSha, headTree: root.headTree });
-  const responseBinding = BoundFrontlineResponseBindingSchema.parse({ candidate: { ...candidate, target: root },
-    deliveryMember: member });
-  const outcome = ReviewOutcomeSchema.parse(frontlineOutcome({ target, responseBinding, findings: [{
-    findingId: "finding-1", severity: "major", locus: "src/main.ts:1", evidenceUrlOrId: "finding:1", sourceOrdinal: 1,
-  }] }));
-  const value = { ...reviewEvidenceFixture(outcome, disposition), binding: { kind: "candidate-member", candidate, deliveryMember: member } };
-  return value;
-}
 
 describe("review evidence envelopes", () => {
   it.each([null, { kind: "candidate", candidate },
@@ -37,7 +21,7 @@ describe("review evidence envelopes", () => {
     expect(parseReviewEvidence(JSON.stringify(value))).toEqual(JSON.parse(JSON.stringify(value)));
   });
   it("parses the Candidate-owned private-member binding with a production frontline context", () => {
-    const value = privateMemberEvidence();
+    const { value } = privateMemberEvidenceFixture();
     expect(parseReviewEvidence(JSON.stringify(value))).toEqual(JSON.parse(JSON.stringify(value)));
   });
   it.each(["approver", "approval-set", "set-id", "result-digest", "pending-successor"] as const)(
@@ -73,7 +57,7 @@ describe("review evidence envelopes", () => {
     expect(parseReviewEvidence(JSON.stringify({ ...reviewEvidenceFixture(outcome, "fix"), advisoryFixTags }))).toBeNull();
   });
   it.each(["work-unit", "non-frontline"] as const)("refuses an inconsistent private-member %s", (field) => {
-    const value = privateMemberEvidence();
+    const { value } = privateMemberEvidenceFixture();
     const changed = field === "work-unit" ? { ...value, binding: { ...value.binding,
       candidate: { ...candidate, workUnit: "another-work-unit" } } }
       : { ...reviewEvidenceFixture(), binding: value.binding };
@@ -98,7 +82,7 @@ describe("review evidence envelopes", () => {
       findings: [...value.dispositionSet.findings].reverse() } }))).toBeNull();
   });
   it("checks a performed private member's head against its recorded performance", () => {
-    const value = privateMemberEvidence("fix");
+    const { value } = privateMemberEvidenceFixture("fix");
     const performance = { schemaVersion: 1, producerId: value.dispositionSet.producerId,
       dispositionSetId: value.dispositionSet.dispositionSetId, originatingHeadSha: member.head,
       producedHeadSha: "e".repeat(40), performedAt: "2026-10-19T13:00:00Z" };
@@ -112,7 +96,7 @@ describe("review evidence envelopes", () => {
     expect(decodeReviewEvidence("{")).toEqual({ success: false, error: expect.stringMatching(/^JSON:/u) });
   });
   it("keeps an unperformed frontline member binding readable as the legacy record does", () => {
-    const original = privateMemberEvidence();
+    const { value: original } = privateMemberEvidenceFixture();
     const value = { ...original, binding: { kind: "delivery-member", deliveryMember: member } };
     const legacy = { schemaVersion: 1, semanticsVersion: "review-advisory/v1", repositoryId: "repo-1",
       operationId: value.dispositionSet.producerId, candidate: null, errand: null, deliveryMember: member,

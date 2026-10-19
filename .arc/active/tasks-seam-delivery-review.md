@@ -103,23 +103,15 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
           performance, and hosted settlement. Canonical approval, transition, policy-projection, and settlement checks
           share existing constructors and the extracted per-set validator. Producer-dependent checks remain in 1.4.R.
 
-    - `[ ]` **1.4.R Ground producer-dependent evidence rules in the outcome**
+    - `[x]` **1.4.R Ground producer-dependent evidence rules in the outcome**
 
         - _Goal:_ Rules requiring the result's source kind or original lineage read the referenced outcome through the
           write check, preserving the existing performance invariants without treating response ownership as producer
           lineage (§ 2.5, A8).
-        - Observe the result's outcome on the same work item, refusing missing or unreadable evidence; bind its result
-          digest and approved disposition context to that exact outcome. Use its source kind and lineage for the
-          source-dependent Errand and delivery-member host-coordinate rules, Candidate-response eligibility, and a
-          Candidate-owned private member's original fix head, even before performance exists. Source-dependent
-          performance restrictions do not reject an unperformed frontline member binding.
-        - Build `test-first` (one behavior at a time):
-            - a missing, unreadable, or mismatched referenced outcome refuses, and its exact counterpart admits
-            - a Candidate-owned private member whose head differs from its original fix head refuses before performance
-            - a hosted Errand's performance without its originating change request refuses
-            - a delivery-member performance from a frontline source, or with host coordinates unlike its source, refuses
-            - a head-bound producer whose response has a Candidate owner still refuses `candidateResponseId`; a
-              Candidate-lineage producer with matching response ownership admits it
+        - Outcome-backed checks bind the exact producer, approved context, findings, original fix head, and host
+          coordinates. Candidate response digests require original Candidate lineage. Missing or unreadable outcomes
+          refuse with diagnostics; an unperformed frontline member binding remains readable. Settlement and admission
+          share one pure comparison of approved sets with outcomes.
 
     - `[ ]` **1.4.b The write check**
 

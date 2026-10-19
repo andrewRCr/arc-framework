@@ -1,12 +1,14 @@
 /** Approved evidence built from canonical producer-bound disposition constructors. */
+import { createFrontlineFixture } from "./frontline-review.js";
+import { BoundFrontlineResponseBindingSchema } from "../../src/scripts/review-gate/core/frontline-response-binding.js";
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
 import { DeliveryReviewMemberVehicleSchema } from "../../src/lib/delivery/review-vehicle.js";
 import { createReviewTarget } from "../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { HostedSettlementEvidenceSchema } from "../../src/scripts/review-gate/core/operation-state-schema.js";
 import { createFixAuthorization, consumeFixAuthorization } from "../../src/scripts/review-gate/core/fix-authorization.js";
-import { ReviewEvidenceBindingSchema, type ReviewEvidence } from "../../src/lib/store/kinds/review/evidence/schema.js";
+import { ReviewEvidenceBindingSchema, ReviewEvidenceSchema, type ReviewEvidence } from "../../src/lib/store/kinds/review/evidence/schema.js";
 import { ReviewOutcomeSchema, type ReviewOutcome } from "../../src/lib/store/kinds/review/outcome/schema.js";
-import { localOutcome, hostedOutcome } from "./review-outcome.js";
+import { localOutcome, hostedOutcome, frontlineOutcome } from "./review-outcome.js";
 import { outcomeEvidence } from "./review-outcome-evidence.js";
 import { responsePolicyRequestFixture } from "./review-response-policy.js";
 
@@ -35,13 +37,13 @@ export function reviewEvidenceFixture(outcome: ReviewOutcome = ReviewOutcomeSche
         count: outcome.requirement.count } }) }), ...(settlement === undefined ? { settlement: undefined } : { settlement }) };
 }
 
-export function performedEvidenceFixture(kind: "candidate" | "errand" | "delivery-member" = "candidate") {
+export function performedEvidenceFixture(kind: "candidate" | "errand" | "delivery-member" = "candidate", producer?: ReviewOutcome) {
   const member = DeliveryReviewMemberVehicleSchema.parse({ kind: "delivery-member",
     planId: "123e4567-e89b-42d3-a456-426614174000", deliverableId: canonicalDigest({ deliverable: 1 }),
     workUnitId: "example", head: "c".repeat(40) });
   const finding = { findingId: "finding-1", severity: "major" as const, locus: "src/main.ts:1",
     evidenceUrlOrId: "finding:1", sourceOrdinal: 1 };
-  const outcome = ReviewOutcomeSchema.parse(kind === "delivery-member"
+  const outcome = producer ?? ReviewOutcomeSchema.parse(kind === "delivery-member"
     ? hostedOutcome({ vehicle: member, outcome: "findings", findings: [{ findingId: "finding-1", severity: "major",
         sourceOrdinal: 1, origin: "review-body", reviewId: "review-1", fingerprint: "finding-1", settlement: "not-applicable",
         locus: finding.locus, url: "https://example.invalid/review", body: "A retained finding." }] })
@@ -70,4 +72,21 @@ export function performedEvidenceFixture(kind: "candidate" | "errand" | "deliver
     : { kind, candidate: { workUnit: "example", candidateId: outcome.lineage.kind === "candidate"
       ? outcome.lineage.candidateId : canonicalDigest({ candidate: 1 }) } });
   return { outcome, value: { ...value, binding, performance } };
+}
+
+export function privateMemberEvidenceFixture(disposition: "fix" | "defer" = "defer") {
+  const candidate = { workUnit: "example", candidateId: canonicalDigest({ candidate: 1 }) };
+  const member = { kind: "delivery-member", planId: "123e4567-e89b-42d3-a456-426614174000",
+    deliverableId: canonicalDigest({ deliverable: 1 }), workUnitId: "example", head: "c".repeat(40) };
+  const root = createFrontlineFixture().admission.target;
+  const target = createReviewTarget({ schemaVersion: 2, semanticsVersion: "review-gate/v2", kind: "delivery-member",
+    repositoryId: root.repositoryId, baseRef: root.baseRef, diffBaseSha: root.diffBaseSha, diffBaseTree: root.diffBaseTree,
+    headSha: root.headSha, headTree: root.headTree });
+  const responseBinding = BoundFrontlineResponseBindingSchema.parse({ candidate: { ...candidate, target: root },
+    deliveryMember: member });
+  const outcome = ReviewOutcomeSchema.parse(frontlineOutcome({ target, responseBinding, findings: [{
+    findingId: "finding-1", severity: "major", locus: "src/main.ts:1", evidenceUrlOrId: "finding:1", sourceOrdinal: 1,
+  }] }));
+  const value = { ...reviewEvidenceFixture(outcome, disposition), binding: { kind: "candidate-member", candidate, deliveryMember: member } };
+  return { outcome, value: ReviewEvidenceSchema.parse(value) };
 }

@@ -1,6 +1,6 @@
 /** Reproduce portable result identities from immutable admission facts. */
-import { canonicalDigest, type CanonicalDigest } from "../../../../kernel/index.js";
-import type { DispositionSourceContext } from "../../../../../scripts/review-gate/core/disposition-records.js";
+import { canonicalDigest, canonicalize, type CanonicalDigest } from "../../../../kernel/index.js";
+import { dispositionSetMatchesSourceContext, type DispositionSet, type DispositionSourceContext } from "../../../../../scripts/review-gate/core/disposition-records.js";
 import type { ReviewOutcome } from "./schema.js";
 
 /** Reproduce the original producer result digest, or return null when no result was recorded. */
@@ -30,4 +30,18 @@ export function reviewOutcomeDispositionContext(outcome: ReviewOutcome): Disposi
   if (outcome.requirement === undefined) return null;
   return { ...producer, kind: "rubric", policyVersion: outcome.requirement.policyVersion,
     rubricVersion: outcome.requirement.rubricVersion, rubricDigest: outcome.requirement.rubricDigest };
+}
+
+/** Compare the canonical producer, target, result context, and reported findings of one approved set. */
+export function reviewOutcomeMatchesDispositionSet(outcome: ReviewOutcome, set: DispositionSet): boolean {
+  const context = reviewOutcomeDispositionContext(outcome);
+  if (outcome.outcome !== "findings" || context === null || set.targetId !== outcome.target.targetId
+    || !dispositionSetMatchesSourceContext(set, context)) return false;
+  const expected = outcome.findings.map(({ findingId, severity, locus, nit }) => ({ findingId, severity, locus, nit: nit === true }))
+    .sort((left, right) => left.findingId.localeCompare(right.findingId));
+  const actual = set.findings.map(({ findingId, reportedSeverity, locus, reportedNit }) =>
+    ({ findingId, severity: reportedSeverity, locus, nit: reportedNit === true }))
+    .sort((left, right) => left.findingId.localeCompare(right.findingId));
+  return canonicalize(expected) === canonicalize(actual)
+    && set.findings.every(({ sourceIdentity }) => sourceIdentity === outcome.source.sourceId);
 }
