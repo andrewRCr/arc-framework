@@ -266,14 +266,11 @@ retires.
           helpers. The plain path log preserves linked versions introduced by merge commits that the generic store's
           rename-following history can omit, while existing refusals and revision bindings remain intact.
 
-### `[ ]` **2.4 Reroute the work-unit, lifecycle, delivery, and locus callers — § 3.1, § 14.2**
+### `[x]` **2.4 Reroute the work-unit, lifecycle, delivery, and locus callers — § 3.1, § 14.2**
 
 - _Goal:_ No work-unit, lifecycle, delivery, or locus module imports the Candidate or boundary store: each reads and
   writes through the typed access, takes its types from the kinds' public schemas and its paths from their new home, and
   passes today's tests unchanged.
-
-    - Each batch runs a whole-project `lint:ts` and prunes the `store-raw-state` suppressions its reroute leaves unused
-      (`--prune-suppressions`), since an unused suppression fails the run.
 
     - `[x]` **2.4.a Attest, the publication claim, and the reopen permit**
 
@@ -293,11 +290,11 @@ retires.
           resolvers; boundary reads retain injected I/O, V1 parsing, absence, and owner checks. The shipped store-backed
           Candidate authority and owner-generation binding remain intact.
 
-    - `[ ]` **2.4.d Delivery and the path classifiers**
+    - `[x]` **2.4.d Delivery and the path classifiers**
 
-        - `handlers/delivery-execution.ts`'s Candidate and boundary reads and writes, `lib/delivery/repository-entry.ts`,
-          `lib/delivery/lifecycle-contribution.ts`, `lib/delivery/review-fix-record-effects.ts`, and
-          `lib/base-drift/current-adapters.ts`.
+        - Delivery execution and repository inspection bind current Candidate and boundary access to stores using
+          their Git runners. Delivery lifecycle, record-effect, and base-drift classifiers use the pure review paths;
+          fixed-revision and index proof reads, staging, and existing test assertions remain intact.
 
 ### `[ ]` **2.5 Reroute the integration callers — § 3.1, § 14.2**
 

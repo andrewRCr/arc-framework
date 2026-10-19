@@ -2,9 +2,8 @@
 
 import { validateManagedPath, type ManagedPath } from "../kernel/index.js";
 import { resolveArcPath } from "../layout/index.js";
-import { resolveCandidateRecordRelativePath } from "../work-unit/candidate-record-store.js";
+import { resolveCandidateRecordRelativePath, resolveSubmissionBoundaryPath } from "../store/kinds/review/paths.js";
 import { listCurrentWuArtifactPaths } from "../work-unit/reference-reconcile.js";
-import { resolveSubmissionBoundaryPath } from "../work-unit/submission-boundary-store.js";
 
 /** Repository paths through which one work unit can contribute lifecycle state. */
 export interface DeliveryLifecycleContributionPaths {

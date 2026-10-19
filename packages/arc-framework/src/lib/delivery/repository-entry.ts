@@ -8,9 +8,11 @@ import { validateManagedPath } from "../kernel/index.js";
 import { resolveActiveWu } from "../release/wu-resolution.js";
 import type { GitExec } from "../git/exec.js";
 import { createRawGitExec } from "../io-context.js";
+import { createStore } from "../store/create.js";
+import { createDefaultStorePorts } from "../store/default-ports.js";
 import { projectGitCandidateEffectiveTarget } from "../work-unit/git-candidate-effective-target.js";
-import { readCandidateRecord } from "../work-unit/candidate-record-store.js";
-import { readSubmissionBoundary } from "../work-unit/submission-boundary-store.js";
+import { readCandidateRecord } from "../store/kinds/review/candidate/access.js";
+import { readSubmissionBoundary } from "../store/kinds/review/integration-boundary/access.js";
 import { RepositoryDeliveryAuthoringStore } from "./authoring-store.js";
 import { resolveExistingDeliveryAuthoringMap } from "./authoring-resolution.js";
 import {
@@ -60,6 +62,7 @@ function createRepositoryDeliveryInspectionDependencies(
   input: RepositoryDeliveryInspectionInput,
 ): DeliveryEntryInspectionDependencies {
   const workUnitId = input.workUnitId;
+  const reviewRecordStore = createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec }));
   const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
   const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
   const stateStore = new RepositoryDeliveryStateStore(publisher);
@@ -107,10 +110,10 @@ function createRepositoryDeliveryInspectionDependencies(
     },
     readIntegrationBoundary: async () => ({
       status: "ok",
-      value: await readSubmissionBoundary(input.cwd, workUnitId),
+      value: await readSubmissionBoundary(input.cwd, workUnitId, { store: reviewRecordStore }),
     }),
     readCandidate: async (terminalCoordinates) => {
-      const record = await readCandidateRecord(input.cwd, workUnitId);
+      const record = await readCandidateRecord(input.cwd, workUnitId, { store: reviewRecordStore });
       if (record === null) return { status: "ok", value: null };
       try {
         const projected = await projectGitCandidateEffectiveTarget({

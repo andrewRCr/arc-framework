@@ -238,9 +238,8 @@ import { readAncestry } from "../lib/work-unit/git-decomposition-object-readers.
 import {
   readCandidateRecord,
   readCandidateRecordVersioned,
-  resolveCandidateRecordRelativePath,
   writeCandidateRecord,
-} from "../lib/work-unit/candidate-record-store.js";
+} from "../lib/store/kinds/review/candidate/access.js";
 import {
   projectGitCandidateEffectiveTarget,
   readGitCandidateTargetBase,
@@ -260,12 +259,14 @@ import {
 import {
   readSubmissionBoundary,
   readSubmissionBoundaryVersioned,
-  resolveSubmissionBoundaryPath,
   writeSubmissionBoundary,
-} from "../lib/work-unit/submission-boundary-store.js";
+} from "../lib/store/kinds/review/integration-boundary/access.js";
 import { parseIntegrationBoundaryLocus } from
   "../scripts/review-gate/policy/integration-boundary-locus.js";
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
+import { createStore } from "../lib/store/create.js";
+import { createDefaultStorePorts } from "../lib/store/default-ports.js";
+import { resolveCandidateRecordRelativePath, resolveSubmissionBoundaryPath } from "../lib/store/kinds/review/paths.js";
 import { resolveGitCommonDir } from "../lib/git/exec.js";
 import type { GitExec } from "../lib/git/exec.js";
 import { analyzeRevisionOverlap } from "../lib/git/base-overlap.js";
@@ -2238,6 +2239,7 @@ async function executeDeliveryCommand(
   const cwd = requireArcProjectRoot();
   if (cwd === null) return { status: "refused", reason: "arc-project-root-unresolved" };
   const exec = createGitExec(interaction?.subprocess);
+  const reviewRecordStore = createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec }));
   const publisher = new RepositoryGitCommonStatePublisher(exec, cwd);
   const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
   const stateStore = new RepositoryDeliveryStateStore(publisher);
@@ -3630,7 +3632,7 @@ async function executeDeliveryCommand(
         resolveReviewFixLocus(),
       ]);
       const boundary = locus !== null
-        ? await readSubmissionBoundaryVersioned(cwd, locus.name)
+        ? await readSubmissionBoundaryVersioned(cwd, locus.name, { store: reviewRecordStore })
         : { boundary: null, version: null };
       const state = stateRead?.status === "ok" ? stateRead.value : null;
       return {
@@ -3732,8 +3734,8 @@ async function executeDeliveryCommand(
           return { status: "refused" as const, reason: "boundary-carry-position-moved" };
         }
         const [candidate, boundary] = await Promise.all([
-          readCandidateRecordVersioned(cwd, planRead.value.workUnitId),
-          readSubmissionBoundaryVersioned(cwd, planRead.value.workUnitId),
+          readCandidateRecordVersioned(cwd, planRead.value.workUnitId, { store: reviewRecordStore }),
+          readSubmissionBoundaryVersioned(cwd, planRead.value.workUnitId, { store: reviewRecordStore }),
         ]);
         if (candidate.record === null || boundary.boundary === null) {
           return { status: "refused" as const, reason: "boundary-carry-authority-unavailable" };
@@ -3769,7 +3771,7 @@ async function executeDeliveryCommand(
           candidateSubjectDigest,
         });
         if (carried.status === "refused") return carried;
-        const path = await writeSubmissionBoundary(cwd, carried.boundary, boundary.version);
+        const path = await writeSubmissionBoundary(cwd, carried.boundary, boundary.version, { store: reviewRecordStore });
         await exec("git", ["add", "--", path], { cwd });
         await captureExpectedRecordEffects([path]);
         return {
@@ -4022,7 +4024,7 @@ async function executeDeliveryCommand(
       const [
         candidate, collectedTarget, unstagedReviewablePaths, actor, boundarySnapshot, committedPredecessorRecord,
       ] = await Promise.all([
-        readCandidateRecordVersioned(cwd, planRead.value.workUnitId),
+        readCandidateRecordVersioned(cwd, planRead.value.workUnitId, { store: reviewRecordStore }),
         collectGitCandidateSubject({
           cwd,
           name: planRead.value.workUnitId,
@@ -4036,7 +4038,7 @@ async function executeDeliveryCommand(
           exec,
         }),
         resolveUserIdentity(exec),
-        readSubmissionBoundaryVersioned(cwd, planRead.value.workUnitId),
+        readSubmissionBoundaryVersioned(cwd, planRead.value.workUnitId, { store: reviewRecordStore }),
         exec("git", ["show", `HEAD:${committedCandidatePath}`], { cwd, objectAccess: "local-only" })
           .then(({ stdout }) => parseCandidateManagedRecord(stdout))
           .catch(() => null),
@@ -4114,6 +4116,7 @@ async function executeDeliveryCommand(
             planRead.value.workUnitId,
             recorded.record,
             candidate.version,
+            { store: reviewRecordStore },
           )
         : resolveCandidateRecordRelativePath(planRead.value.workUnitId);
       await exec("git", ["add", "--", recordPath], { cwd });
@@ -4131,6 +4134,7 @@ async function executeDeliveryCommand(
         cwd,
         carried.boundary,
         boundarySnapshot.version,
+        { store: reviewRecordStore },
       );
       await exec("git", ["add", "--", boundaryPath], { cwd });
       const recordEffects = await readExpectedRecordEffects([recordPath, boundaryPath]);
@@ -5882,8 +5886,8 @@ async function executeDeliveryCommand(
       }
       try {
         const [record, boundary] = await Promise.all([
-          readCandidateRecord(cwd, currentPlan.workUnitId),
-          readSubmissionBoundary(cwd, currentPlan.workUnitId),
+          readCandidateRecord(cwd, currentPlan.workUnitId, { store: reviewRecordStore }),
+          readSubmissionBoundary(cwd, currentPlan.workUnitId, { store: reviewRecordStore }),
         ]);
         if (record === null || boundary === null) {
           return await reconcileDeliveryExecution({

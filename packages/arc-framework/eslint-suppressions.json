@@ -358,7 +358,7 @@
   },
   "src/handlers/delivery-execution.ts": {
     "arc/store-raw-state": {
-      "count": 3
+      "count": 2
     },
     "arc/surface-names": {
       "count": 2
@@ -684,7 +684,7 @@
   },
   "src/lib/base-drift/current-adapters.ts": {
     "arc/store-raw-state": {
-      "count": 3
+      "count": 2
     },
     "arc/surface-names": {
       "count": 1
@@ -865,11 +865,6 @@
       "count": 3
     }
   },
-  "src/lib/delivery/lifecycle-contribution.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    }
-  },
   "src/lib/delivery/materialization.ts": {
     "max-lines-per-function": {
       "count": 1
@@ -933,11 +928,6 @@
       "count": 1
     }
   },
-  "src/lib/delivery/repository-entry.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    }
-  },
   "src/lib/delivery/residue-reaping.ts": {
     "max-lines-per-function": {
       "count": 1
@@ -973,9 +963,6 @@
     }
   },
   "src/lib/delivery/review-fix-record-effects.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    },
     "max-lines-per-function": {
       "count": 1
     },
