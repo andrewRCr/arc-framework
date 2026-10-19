@@ -175,22 +175,15 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
   refusals, and existing writer bytes. Production-backed batch tests exercise reciprocal succession and atomic refusal
   of a second successor.
 
-### `[ ]` **1.8 Take the planned locus change's landing, and re-ground the tasks built on it — § 12.1, § 12.4, § 14.4**
+### `[x]` **1.8 Take the planned locus change's landing, and re-ground the tasks built on it — § 12.1, § 12.4, § 14.4**
 
 - _Goal:_ Phase 2 starts on a base carrying the planned locus change, with every task that names that change's code
   grounded in what landed rather than in its plan.
 
-    - The merged base carries that landing. Verify its presence by slug and retain the source-grounding check below;
-      there is no remaining locus landing wait.
-    - Re-check against the landed code each task grounded on that change before it landed: 2.4.c
-      (`lib/locus/subject-meta.ts`, `commands/active/status.ts`, and the deferred list in `cli-loading-boundary.test.ts`),
-      4.2 (the production Candidate mutation owner and store-only locus Errand discovery), 4.4.a (the review
-      gate's five calls to `resolveActiveWu`), 4.4.b (the marker's `claimId`), 4.6.b, 4.6.c
-      (`resolveCandidateMutationOwner`), 7.2 (`handlers/status/lifecycle.ts`), and 7.6 (the subject's `store` option and
-      `readStoreSubjectCandidate`), with spec § 12.1, § 12.4, and § 14.4 and `notes-seam-delivery-review.md`
-      § Neighbors, including the probe's nested delivery-correction and pending-fix callbacks (4.1.b, 5.6.b, 7.6).
-      Recheck the shipped code rather than reinstating provider stand-ins. A correction runs through
-      `amend-design.md` before Phase 2 starts.
+- _Outcome:_ Confirmed the shipped locus landing and re-grounded every named consumer against the merged source.
+  A6 remains current: preserve store-aware Candidate ownership, store-only Errand discovery, marker claim identities,
+  checkout-occupancy resolution, and lazy status imports. The subject's remaining Candidate-bullet and boundary reads,
+  status's absent stored boundary, and both nested probe callbacks remain assigned to their existing tasks.
 
 ## **Phase 2:** Before the flip — Candidate and boundary callers through the store
 
