@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "procedure-judgment-bounds",
+  "claimId": "a3bbfef46ce4ecae208f2c3303dbcca1",
+  "createdAt": "2026-10-19T17:28:51.429Z",
+  "updatedAt": "2026-10-19T17:28:51.429Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Clarify CLI action bounds and agent recommendations when inputs require judgment.",
+  "branch": "chore/procedure-judgment-bounds",
+  "origin": "inbox",
+  "originEntry": "State in `strategy-procedure-evolution` that the CLI bounds options where its inputs are judgment",
+  "originEntrySourceDigest": "sha256:00c8d98bba802e8106a199b98d43be64541667fe9ab60d9128ff6d0c47ccdc36",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
