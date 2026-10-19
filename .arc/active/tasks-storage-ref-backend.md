@@ -1398,19 +1398,15 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
   work-unit folders recognized; existing scratch stays put. Differing destination aliases refuse until reconciled.
   Independent per-person comparisons cover both layouts, and writer refusals reopen after a saved repair.
 
-### `[ ]` **15.8 What the import leaves out, and refuses until it lands — § 10.8, § 10.9**
+### `[x]` **15.8 What the import leaves out, and refuses until it lands — § 10.8, § 10.9**
 
 - _Goal:_ The import carries no project machinery, constitution, machine-local state, or counters, and refuses, changing
   nothing, wherever a source needs a schema or mapping that has not landed.
 
-    - Build `test-first` (one behavior at a time):
-        - project machinery, the constitution, the shipped machinery under `.arc/system/.internal/`, the checkout marker,
-          pristine store, editor schemas, and the registry's counters land nowhere, while tracked Candidate, boundary, and
-          transition records do
-        - a backend built with a registry that declares no grammar for one entry kind, over a fixture holding entries of
-          it, lists the kind in the trial's `notices`, and the import refuses, changing nothing
-        - the review gate's evidence and outcomes added to the fixture are listed in `notices`, and the import refuses,
-          changing nothing
+- _Outcome:_ The trial inventories unmapped review-gate files from the Git common directory and refuses landing
+  until a mapping is available; inaccessible inventories retain an actionable retry. Missing entry grammars name
+  their kinds before any ref or identity mutation. The source inventory excludes machinery, constitution, ignored
+  machine files, and counters while retaining tracked Candidate, boundary, and transition state.
 
 ### `[ ]` **15.9 The review mapping's port — § 10.5, § 10.8, § 10.9**
 

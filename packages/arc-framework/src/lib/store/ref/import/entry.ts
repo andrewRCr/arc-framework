@@ -14,6 +14,7 @@ import { publishImport } from "./finish.js";
 import { landImportRefs } from "./land.js";
 import { keepImportTransients } from "./transient-cleanup.js";
 import { prepareImportCodeLinks, qualifyImportCodeLinks } from "./code-links.js";
+import { inspectUnmappedReviewGate } from "./review-gate.js";
 
 /** Build a complete report before any destination ref or repository identity is published. */
 export async function importTrackedState(context: RefBackendContext, store: Store, input: StoreMigrateInput): Promise<StoreMigrateResult> {
@@ -25,6 +26,7 @@ export async function importTrackedState(context: RefBackendContext, store: Stor
   if (occupied.status === "refused") return occupied;
   if (occupied.result) return input.trial ? { status: "ok", result: report } : publishImport(context, store, report);
   await context.migrateStep?.("import.build");
+  await inspectUnmappedReviewGate(context, report);
   const codeHead = (await context.exec("git", ["rev-parse", "HEAD"], { cwd: context.checkoutRoot })).stdout.trim();
   const transients = { tips: new Map<string, string>(), notices: [] as MigrateReport["notices"] };
   const records = prepareImportRecords(context, await readImportSource(context, report, codeHead, transients), report);
