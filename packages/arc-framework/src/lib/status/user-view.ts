@@ -49,6 +49,9 @@ import {
   type StatusViewRow,
 } from "./render.js";
 
+/** Guidance shared by user-view acquisition paths when identity is unavailable. */
+export const USER_VIEW_IDENTITY_MESSAGE = "Status (User) requires an identity resolved from `arc.identity` or Git `user.name`. Set one with `git config arc.identity <name>`.";
+
 /** What produced the view output. */
 export type StatusUserViewSource = "rendered" | "cache" | "cache-missing" | "no-identity";
 
@@ -92,7 +95,7 @@ export interface RunStatusUserViewOptions {
 }
 
 /** Compose the two-section user view from the resolved in-flight and ready slices. */
-function composeUserView(
+export function composeUserView(
   identity: string,
   inFlight: readonly StatusViewRow[],
   ready: readonly StatusViewRow[],
@@ -121,7 +124,7 @@ export async function runStatusUserView(
 
   if (identity === null) {
     return {
-      output: "Status (User) requires an identity resolved from `arc.identity` or Git `user.name`. Set one with `git config arc.identity <name>`.",
+      output: USER_VIEW_IDENTITY_MESSAGE,
       source: "no-identity",
       warnings: [],
     };

@@ -1,6 +1,6 @@
 /** Registered session status waits for the operational pull before selecting its frame. */
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile, readFile } from "node:fs/promises";
+import { mkdir, writeFile, readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, onTestFinished, vi } from "vitest";
 import type { Store } from "../../src/lib/store/contract.js";
@@ -159,4 +159,19 @@ it("surfaces an unavailable captured record and restores the ordinary frame afte
   broken = false;
   const repaired = await session(h, createStoreSyncPort());
   expect(repaired.derivedLocusState).toMatchObject({ ok: true, value: { active: { context: { owner: "alice" } } } });
+}, 30_000);
+
+
+it("renders registered user status with the production membership and checkout readers without a cache file", async () => {
+  const h = await fixture();
+  binding.store = h.store;
+  try {
+    const before = await readdir(h.cwd, { recursive: true });
+    const result = await runHandlerAt(h.cwd, () => dispatchRegisteredCli(["--no-input", "status", "--user", "--json"]));
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(JSON.parse(result.stdout)).toMatchObject({ source: "rendered", warnings: [] });
+    expect(JSON.parse(result.stdout).output).toMatch(/## In Flight[\s\S]*demo/u);
+    expect(await readdir(h.cwd, { recursive: true })).toEqual(before);
+  } finally { binding.store = null; binding.sync = null; }
 }, 30_000);

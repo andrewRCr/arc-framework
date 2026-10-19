@@ -380,20 +380,15 @@ listing refuses.
   diagnostics. Planning, pause and dependency semantics now match the project view, including exact retired-generation
   satisfaction and omission of clashed holders.
 
-### `[ ]` **5.3 Dispatch `--user` on the context's store, writing no file — § 3, § 7**
+### `[x]` **5.3 Dispatch `--user` on the context's store, writing no file — § 3, § 7**
 
 - _Goal:_ `handleUserStatus` branches on `usesOffBranchState` over the context's store: from the flip it pulls once under
   `--fetch`, renders both slices, prints each warning to stderr in text mode, writes no `STATUS.USER.md`, and refuses a
   refused or `unreadable` listing through the shared renderer; before the flip it runs today's code.
 
-    - Both arms render through `composeUserView` (`lib/status/user-view.ts`), exported for it, so they print one body;
-      the arm's `--json` result carries `source: "rendered"`.
-    - With no identity it prints the identity message and exits 0, its `--json` result carrying `source: "no-identity"`.
-    - Build `test-first` (one behavior at a time):
-        - the arm writes no file and its `--json` result has today's shape
-        - each warning prints to stderr in text mode from the flip, and today's arm prints none
-        - an `unreadable` listing refuses with its remedy
-        - `--fetch` pulls once before both slices
+- _Outcome:_ The capability arm renders both slices through shared `composeUserView`, with one explicit pull, string
+  warnings and shared refusals, and no cache writes. Its default membership reader uses the selected store's production
+  checkout roster; failed roster evidence remains advisory and degraded. The in-repo arm retains its text behavior.
 
 ### `[ ]` **5.4 The user view from the flip** — validate exit criterion at segment scope
 

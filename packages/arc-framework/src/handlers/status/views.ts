@@ -29,6 +29,7 @@ import type { SessionStatusContext } from "./session-context.js";
 import { positive } from "./store-session.js";
 import { renderStatusViewRefusal } from "./refusal.js";
 import { pullStoreStatus } from "./store-locus.js";
+import { handleStoreUserStatus, type StoreUserStatusPorts } from "./store-user.js";
 function writeProjectReadinessWarnings(warnings: readonly ProjectReadinessWarning[]): void {
   for (const warning of warnings) process.stderr.write(`warning: ${warning.rendered}\n`);
 }
@@ -39,10 +40,14 @@ function writeProjectReadinessWarnings(warnings: readonly ProjectReadinessWarnin
  * @param opts - Validated status options.
  * @returns Completion after writing the selected status output.
  */
-export async function handleUserStatus(context: SessionStatusContext, opts: StatusCliOptions): Promise<void> {
+export async function handleUserStatus(context: SessionStatusContext, opts: StatusCliOptions, ports: StoreUserStatusPorts = {}): Promise<void> {
   const { cwd, exec, io, identity, lifecycleFs } = context;
   const json = Boolean(opts.json);
   const resolved = await resolveAllSettings({ cwd, exec, readFile: io.readFile });
+  if (context.store !== undefined && usesOffBranchState(context.store)) {
+    await handleStoreUserStatus({ ...context, store: context.store }, opts, resolved, ports);
+    return;
+  }
   const teamMode = resolved.settings["team.mode"] === "true";
   const localOnly = Boolean(opts.local) || opts.fetch === false;
   const parkedSlugs = listParkedSlugs(await buildLifecycleIndex({ cwd, fs: lifecycleFs }));
