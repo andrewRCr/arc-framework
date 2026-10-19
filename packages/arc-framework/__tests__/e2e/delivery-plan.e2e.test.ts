@@ -12,6 +12,9 @@ import { collectCandidateSubjectTarget } from "../helpers/candidate-subject.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { writeSubmissionBoundary } from "../../src/lib/work-unit/submission-boundary-store.js";
 import { createGitExec } from "../../src/lib/io-context.js";
+import { DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_ID } from "../../src/lib/delivery/design-inventory.js";
+import { lookupKernelSchema } from "../../src/lib/kernel/schema/generate.js";
+import { createProductionSchemaRegistry } from "../../src/production-schema-registry.js";
 import { projectDeliveryPublicReviewContinuation } from
   "../../src/lib/delivery/public-review-continuation.js";
 import {
@@ -108,6 +111,14 @@ describe("arc delivery", () => {
       "delivery", "plan", "inventory", "schema", "--json",
     ], repository);
     expect(inventorySchema.exitCode, inventorySchema.stderr).toBe(0);
+    const expected = lookupKernelSchema(createProductionSchemaRegistry(), DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_ID);
+    if (expected.status !== "found") throw new Error("Missing production inventory schema");
+    expect(JSON.parse(inventorySchema.stdout)).toEqual({
+      schemaVersion: 1,
+      command: "delivery plan inventory schema",
+      status: "ok",
+      value: { id: DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_ID, version: expected.meta.version, schema: expected.schema },
+    });
     expect(JSON.parse(inventorySchema.stdout)).toMatchObject({
       command: "delivery plan inventory schema",
       status: "ok",
