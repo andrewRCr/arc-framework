@@ -1367,35 +1367,16 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
   keys, while work-unit exclusions retain keyless non-merge commits and Errand exclusions stay empty. Created links
   follow the activation type grammar and Errand branch policy; reverse lookups agree with independent source reads.
 
-### `[ ]` **15.5 Parked work units — § 10.9**
+### `[x]` **15.5 Parked work units — § 10.9**
 
 - _Goal:_ A work unit parked from `Active` lands paused and in flight, its records as the branch it was parked on holds
   them, so nothing about a parked work unit is lost at the flip.
 
-    - Its records read from the tip 15.4 reads of the branch its pointer record names (`composePointerRecord`,
-      `lib/work-unit/pointer-record.ts`), refusing `branch-missing` and `branch-diverged` as 15.4 does; its meta's pause
-      section built through `MetaPauseSchema` (`lib/active/meta-schema.ts`) from the pointer's `Reason:` line as its
-      reason, the meta's `Owner` as who paused it, and the committer time of the commit that first wrote the pointer as
-      since when, an ISO-8601 UTC string as `arc pause` writes it (`toISOString()`,
-      `lib/work-unit/verbs/pause-handover.ts`), with no waits-on
-    - A pause the schema refuses — an empty `Reason:` line, or an `Owner` that is not a slug — or whose reason the Pause
-      section's writer refuses, a `##` heading or a `---` line (`pauseProseProblem`,
-      `lib/store/kinds/meta/pause-section.ts`), is listed in `refused` as `pause`, naming the field, with the remedy to
-      write the reason or correct the `Owner`
-    - Build `test-first` (one behavior at a time):
-        - a work unit parked from `Active` imports in flight at `Active`, its records as the tip 15.4 reads holds them
-          and its pause carrying the pointer's reason, the meta's owner, and the parking commit's committer time in
-          ISO-8601 UTC
-        - a pointer whose `Reason:` line is empty, and a meta whose `Owner` is not a slug, are each listed in `refused`
-          as `pause` naming the field, since the import invents neither, refusing the import until it is fixed, then
-          landing
-        - a pointer whose reason is `---`, and one whose reason is a `##` heading, are each listed in `refused` as
-          `pause` naming the reason, refusing the import until it is fixed, then landing
-        - a work unit parked from Planning imports as a stub
-        - a parked work unit whose branch only the remote holds imports its records from the remote's tip, and one whose
-          tips diverged is listed under `branch-diverged`, refusing the import until fixed
-        - its records compare clean through 14.4's harness, its comparator allowing only § 10.9's parked row: its
-          placement in flight at `Active`, its meta's pause section, and its records read at its branch's tip
+- _Outcome:_ Parked Active owners acquire every tracked work-item kind and their Candidate histories from the
+  containing held branch tip, bypassing ordinary source precedence. Their records land Active; their metas gain a
+  canonical Pause with the pointer's current reason, the preserved meta's owner, and the first pointer commit's
+  committer time. Missing or diverged branches and invalid pause fields or prose refuse with repair guidance.
+  Planning parks remain stubs, and independent comparisons allow only tip selection, Active placement, and Pause.
 
 ### `[ ]` **15.6 Each person's notes snapshot — § 10.10**
 

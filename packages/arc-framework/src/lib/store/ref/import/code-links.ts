@@ -42,7 +42,8 @@ async function readBranchSources(context: RefBackendContext, records: readonly I
 
 function refusalPriority(rule: string): number { return rule === "branch-missing" || rule === "branch-diverged" ? 0 : 1; }
 
-function reportBranchRefusal(record: ImportRecord, branch: string, status: "missing" | "diverged", report: MigrateReport): void {
+/** Retain the common branch refusal and repair guidance for every imported source. */
+export function reportBranchRefusal(record: ImportRecord, branch: string, status: "missing" | "diverged", report: MigrateReport): void {
   report.refused.push({ reference: record.reference, rule: `branch-${status}` });
   const remedy = status === "diverged"
     ? `Merge or push '${branch}' until its local and origin-tracking tips have a containing tip, then retry arc store migrate --import.`

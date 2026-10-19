@@ -18,6 +18,7 @@ import { appendImportTransients, type ImportTransientState } from "./transient.j
 import { moveImportPendingEntries } from "./pending-entries.js";
 import { maskComments } from "../../concurrency/entries.js";
 import type { Links } from "../../links.js";
+import { readImportParkedSources, isParkedSourceDiagnostic, type ParkedImportSources } from "./parked-source.js";
 
 /** One imported content revision and its containing owner's lifecycle placement. */
 export interface ImportRecord { reference: RecordReference; content: string; placement?: StoreRecord["placement"]; asFound?: boolean;
@@ -29,17 +30,22 @@ export async function readImportSource(context: RefBackendContext, report: Migra
   const result: ImportRecord[] = [];
   const owners = new Map<string, string>();
   const internal: InRepoContext = { ports: source.ports, registry: context.registry };
+  const parked = await readImportParkedSources(context, internal, report, codeHead);
   const composition = await composedMetas(internal);
   const metas = await source.store.list({ family: "work-item", kind: "work-item/meta" });
   if (metas.status !== "ok") { report.notices.push({ condition: metas.refusal.condition, remedy: metas.refusal.remedy }); return result; }
   if (metas.result.status === "complete") {
-    report.notices.push(...metas.result.diagnostics.map(({ condition, remedy }) => ({ condition, remedy })));
-    for (const meta of metas.result.records) await appendWorkItem(context, report, result, owners, internal, composition, meta);
+    report.notices.push(...metas.result.diagnostics.filter(item => !isParkedSourceDiagnostic(item, parked.names))
+      .map(({ condition, remedy }) => ({ condition, remedy })));
+    for (const meta of metas.result.records.filter(meta => !parked.names.has(meta.reference.owner.name))) {
+      await appendWorkItem(context, report, result, owners, internal, composition, meta);
+    }
   } else if (metas.result.status === "unreadable") report.notices.push({ condition: metas.result.condition, remedy: metas.result.remedy });
   for (const kind of Object.values(context.registry).filter((definition) => definition.family === "work-item"
     && definition.id !== "work-item/meta" && definition.inRepo.substrate === "tracked")) {
-    await appendListing(context, report, result, owners, kind.id);
+    await appendListing(context, report, result, owners, kind.id, undefined, undefined, parked.names);
   }
+  await appendParkedWork(context, report, result, owners, internal, composition, parked);
   const head = StateVersionSchema.parse((await source.ports.exec("git", ["rev-parse", `${codeHead}^{tree}`], { cwd: source.ports.checkoutRoot })).stdout.trim());
   await appendListing(context, report, result, owners, "cohort/document", undefined, head);
   await appendListing(context, report, result, owners, "project-inbox/inbox", undefined, head);
@@ -60,19 +66,31 @@ export async function readImportSource(context: RefBackendContext, report: Migra
 }
 
 async function appendWorkItem(context: RefBackendContext, report: MigrateReport, result: ImportRecord[], owners: Map<string, string>,
-  internal: InRepoContext, composition: Awaited<ReturnType<typeof composedMetas>>, meta: StoreRecord): Promise<void> {
+  internal: InRepoContext, composition: Awaited<ReturnType<typeof composedMetas>>, meta: StoreRecord, pinnedRevision?: string): Promise<void> {
   const source = internal.ports;
   result.push(bindOwner(meta, owners));
-  const selected = await composedMetaSource(internal, meta.reference.owner.name, composition);
-  const asOf = selected?.revision === undefined ? undefined : StateVersionSchema.parse((await source.exec("git",
-    ["rev-parse", `${selected.revision}^{tree}`], { cwd: source.checkoutRoot })).stdout.trim());
+  const selected = pinnedRevision === undefined ? await composedMetaSource(internal, meta.reference.owner.name, composition) : undefined;
+  const revision = pinnedRevision ?? selected?.revision;
+  const asOf = revision === undefined ? undefined : StateVersionSchema.parse((await source.exec("git",
+    ["rev-parse", `${revision}^{tree}`], { cwd: source.checkoutRoot })).stdout.trim());
   for (const kind of ["review/candidate", "review/integration-boundary"] as const) {
     await appendListing(context, report, result, owners, kind, meta.reference.owner, asOf);
   }
   const candidate = result.find(({ reference }) => reference.kind === "review/candidate" && reference.owner.name === meta.reference.owner.name);
   if (candidate) {
-    candidate.versions = await readImportCandidateVersions(context, candidate.reference.owner.name, selected?.revision);
-    await inspectCandidateChain(context, candidate, selected?.revision, report);
+    candidate.versions = await readImportCandidateVersions(context, candidate.reference.owner.name, revision);
+    await inspectCandidateChain(context, candidate, revision, report);
+  }
+}
+
+async function appendParkedWork(context: RefBackendContext, report: MigrateReport, records: ImportRecord[], owners: Map<string, string>,
+  internal: InRepoContext, composition: Awaited<ReturnType<typeof composedMetas>>, parked: ParkedImportSources): Promise<void> {
+  for (const { meta, revision, asOf } of parked.available) {
+    await appendWorkItem(context, report, records, owners, internal, composition, meta, revision);
+    for (const kind of Object.values(context.registry).filter(definition => definition.family === "work-item"
+      && definition.id !== "work-item/meta" && definition.inRepo.substrate === "tracked")) {
+      await appendListing(context, report, records, owners, kind.id, meta.reference.owner, asOf);
+    }
   }
 }
 
@@ -95,7 +113,7 @@ async function appendPersonal(context: RefBackendContext, report: MigrateReport,
 }
 
 async function appendListing(context: RefBackendContext, report: MigrateReport, result: ImportRecord[], owners: Map<string, string>,
-  kind: KindId, owner?: RecordReference["owner"], asOf?: ReturnType<typeof StateVersionSchema.parse>): Promise<void> {
+  kind: KindId, owner?: RecordReference["owner"], asOf?: ReturnType<typeof StateVersionSchema.parse>, ignoredOwners?: ReadonlySet<string>): Promise<void> {
   const source = context.importSource;
   if (!source) throw new Error("No import source bound");
   const listing = await source.store.list({ family: context.registry[kind].family, kind, owner, asOf });
@@ -103,9 +121,10 @@ async function appendListing(context: RefBackendContext, report: MigrateReport, 
   if (listing.result.status === "complete") {
     const asFound = kind === "review/candidate" || kind === "review/integration-boundary";
     const placements = kind === "cohort/document" ? await importCohortPlacements(context, report, asOf) : new Map<string, StoreRecord["placement"]>();
-    result.push(...listing.result.records.map((record) => ({ ...bindOwner(record, owners), asFound,
+    result.push(...listing.result.records.filter(record => !ignoredOwners?.has(record.reference.owner.name)).map((record) => ({ ...bindOwner(record, owners), asFound,
       placement: placements.get(record.reference.owner.name) ?? record.placement })));
-    await appendDiagnostics(context, report, result, owners, kind, listing.result.diagnostics, owner, asOf);
+    await appendDiagnostics(context, report, result, owners, kind,
+      listing.result.diagnostics.filter(item => !ignoredOwners || !isParkedSourceDiagnostic(item, ignoredOwners)), owner, asOf);
   } else if (listing.result.status === "unreadable") report.notices.push({ condition: listing.result.condition, remedy: listing.result.remedy });
 }
 
