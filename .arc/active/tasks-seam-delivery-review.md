@@ -43,76 +43,12 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
   decisions, from the standard ceiling's complete-coverage count (§ 4.3). Derive both, including both inherited
   counts, without changing that policy.
 
-    - `[ ]` **1.2.a The schema, its parser, and the key**
+    - `[x]` **1.2.a The schema, its parser, and the key**
 
-        - Fields per § 4.2: `attemptId`, `lane`, `lineage` (`LaneSubjectLineageSchema`), `logicalPass`,
-          `retryGeneration`, `source`, `target` (`ReviewTarget`), `requestedCoverage`, `effectiveCoverage`,
-          `correctionScope`, `chunkSeriesComplete`, `outcome`, `findings` (`NormalizedReviewFinding`), `requirement`,
-          `admittedBy`, and `endedAt`, with the format version; one binding per source — local, frontline, or hosted —
-          holding what § 4.2 lists for it, the hosted one keeping its sealed result (`HostedSealedResultSchema`).
-        - `outcome` takes `LaneAttemptSchema`'s outcomes (`rg/core/operation-state-schema.ts`) without `pending` and
-          `settled-findings`, with the frontline reason class (`FrontlineExecutionOutcomeSchema`). `LaneAttemptSchema`,
-          its outcome enum, and `HostedResultDigestPreimageSchema` are module-private there today; export what the kind
-          builds on.
-        - The frontline binding holds the admission with its source as `sourceId`, kind, and capability alone, and
-          keeps the admission's policy version and the outcome digest as recorded digests, never recomputed (§ 4.2).
-        - The local binding keeps the guidance digest (`guidanceDigest`) and the receipt as recorded where the attempt
-          produced one (`ReviewReceiptV2Schema`, `rg/core/gate-contract-v2-schema.ts`), which the local result's digest
-          covers with the attempt ID and the admission fields (`localResultDigest`,
-          `rg/hosts/local/review-result-reader.ts`; § 4.2).
-        - The parser holds § 4.8's rules an outcome settles alone, as `validateLaneAttempt`
-          (`rg/core/lane-attempt-validation.ts`) and `validateLaneProgressState`
-          (`rg/core/lane-progress-state-validation.ts`) hold them for an attempt today: one binding; a local source of
-          `delegated-agent` whose operation is its attempt ID, and a hosted source that is a hosted provider; a
-          frontline or hosted binding matching its admission, the admission's lineage owning the outcome's and its
-          repository the outcome's, and a hosted one matching it in full (`hostedMatchesAdmission`); a frontline-lane
-          outcome carrying a frontline binding, its source and repository the outcome's (`FrontlineOutcomeRecordSchema`,
-          `rg/core/advisory-records.ts`); a hosted binding's review target and requirement valid, both its targets at
-          one head, a delivery vehicle exactly for a delivery-member review target and at its head, its attempt ID from
-          its admission while unacknowledged and from its handle once acknowledged, and its handle matching its
-          admission (`validateHostedAdmission`), a sealed result only with its handle, and a `requestFailureReason`
-          present exactly on a `terminal-failure` (`validateHostedSettlement`); a local binding's coverage admission
-          valid, its delivery vehicle exactly for a delivery-member target, and a delivery admission it carries matching
-          it (`LocalLaneAttemptBindingSchema`); a `clean` or `findings` local outcome carrying its receipt, and a
-          receipt valid against the outcome's request, target, and requirement (`validateReviewReceipt`,
-          `rg/core/gate-contract-v2.ts`), its result and findings the outcome's; no binding's effective coverage
-          weakening requested complete coverage; each source's coverage rule, a hosted coverage derived from its sealed
-          evidence and its `hostedResultId` recomputing; a head-bound outcome at its lineage's head, and a delivery
-          member's in its member lineage; findings only for `findings`; and a hosted attempt at generation 0.
-        - One function returns an outcome's key from its content: `attemptId` for a local or frontline attempt, and for
-          a hosted one its admission's `admissionId` with the `hosted-admission/` prefix written `hosted-admission-`
-          (§ 4.1).
-        - Build `test-first` (one behavior at a time):
-            - a local, a frontline, and a hosted outcome each parse
-            - an outcome carrying two source bindings, `pending`, or `settled-findings` refuses to parse
-            - a frontline source carrying `executable` or `argv` refuses to parse
-            - a local attempt that finished with effective coverage other than its requested coverage, a frontline
-              verdict without complete effective coverage, and a hosted verdict without a matching sealed result each
-              refuse to parse
-            - findings on an outcome other than `findings`, and a hosted attempt above generation 0, refuse to parse
-            - a local source other than `delegated-agent`, a local operation other than its attempt ID, and a hosted
-              source that is no hosted provider each refuse to parse
-            - a frontline or hosted binding whose admission names another attempt, pass, generation, head, source, owner,
-              or repository refuses to parse, as does a frontline-lane outcome with no frontline binding
-            - a hosted binding whose admission names another host target, requested coverage, vehicle, review target,
-              requirement, or actor identity refuses to parse
-            - a hosted binding with an invalid review target or requirement, its two targets at different heads, a
-              delivery vehicle missing for a delivery-member review target or present for another or at another head, an
-              attempt ID other than its admission's while unacknowledged or its handle's once acknowledged, a handle not
-              matching its admission, a sealed result without a handle, a `terminal-failure` without a
-              `requestFailureReason`, or a `requestFailureReason` on any other outcome each refuses to parse
-            - a local binding with an invalid coverage admission, a delivery vehicle without a delivery-member target or
-              the reverse, or a delivery admission it does not match, and either binding weakening requested complete
-              coverage, each refuses to parse
-            - a `clean` or `findings` local outcome without its receipt, and a receipt naming another request, target,
-              or requirement, or giving another result or other findings than its outcome, each refuses to parse
-            - a hosted outcome whose coverage its sealed evidence does not establish, or whose `hostedResultId` does not
-              recompute, refuses to parse
-            - a head-bound outcome at another head, and a delivery member's outcome outside its member lineage, refuse
-              to parse
-            - an outcome with no `endedAt` refuses to parse
-            - the key is the attempt ID for local and frontline outcomes, and for a hosted one a single path segment
-              naming its admission, unlike its acknowledged `attemptId`
+        - Added the immutable outcome schema, issue-bearing JSON codec, and stable admission-based hosted key. Source
+          bindings retain portable admission and receipt facts; frontline policy and result digests stay recorded,
+          without executable paths or arguments. Shared admission validators enforce content invariants, including
+          delivery lineage and coverage, and local failure receipts retain the existing lane-vocabulary mapping.
 
     - `[ ]` **1.2.b The write check**
 

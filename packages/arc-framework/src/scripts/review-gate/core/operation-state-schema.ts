@@ -217,7 +217,7 @@ function localStateMatchesDeliveryAdmission(state: LocalReviewState): boolean {
  * progress, so an unusable value is refused at write rather than discovered at read.
  */
 const LaneSourceIdSchema = z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u);
-const LaneAttemptOutcomeSchema = z.enum([
+export const LaneAttemptOutcomeSchema = z.enum([
   "pending",
   "clean",
   "findings",
@@ -469,7 +469,7 @@ const HostedDispositionSetLineageNodeSchema = z.strictObject({
   })),
 });
 
-const HostedResultDigestPreimageSchema = z.strictObject({
+export const HostedResultDigestPreimageSchema = z.strictObject({
   attemptId: IdentifierSchema,
   admission: HostedAdmissionSchema,
   handle: HostedRequestHandleSchema,
@@ -685,7 +685,7 @@ const FrontlineLaneAttemptBindingSchema = z.strictObject({
   effectiveCoverage: z.literal("complete").nullable(),
 });
 
-const LaneAttemptSchema = z.strictObject({
+export const LaneAttemptSchema = z.strictObject({
   attemptId: IdentifierSchema,
   logicalPass: z.number().int().positive(),
   retryGeneration: z.number().int().nonnegative(),
