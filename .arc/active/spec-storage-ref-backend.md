@@ -2802,6 +2802,16 @@ interface ReviewMappingResult {
 - **Session context:** the import writes no `State at Handoff`, since nothing writes one before the flip, so it carries
   no anchor to resolve.
 
+- **Queue references (A18):** each imported member keeps its personal inbox capture's `_Id:_`, minting a missing ID
+  once for the capture and reusing it in the queue. It carries `Inbox: personal` and a valid fractional `Rank`, with
+  increasing ranks preserving the marks' file order. `readQueueState` (`lib/inbox/queue-storage.ts`) validates unique
+  IDs, inbox qualifiers, and ranks; `renderQueueSet` defines their stored field form. The import never stamps an
+  independent queue ID that names no capture.
+- **Exclusions retain keyless commits (A18):** each exclusion names the project ID as its repository and keeps the
+  SHA `computeDefaultCaptureSet` returns, adding `copyKey` only when present (`CommitCaptureSchema`,
+  `lib/store/links.ts`). A missing copy key does not remove an exclusion; this differs from § 10.11's rule omitting
+  task captures whose copy key cannot be computed.
+
 #### 10.10 Notes as one snapshot means every copy agrees first
 
 The import reads each person's notes as one snapshot, the same from any checkout: each identity-global file merged
@@ -3137,7 +3147,10 @@ the default in a files-format code repository, and the separate one in its refta
   `__tests__/helpers/store/conformance-suite.ts`), while the reserved families stay served. It runs the reference
   fixture's test registry, whose pure test parsers cover the single-writer kinds, so like that fixture it declares
   `rejectingContentUnavailable` for the prose and entry-list kinds of its families, which no registered parser refuses,
-  and declares that fixture's test grammars for the three entry kinds whose registry declares none (`entryShapes`).
+  and declares that fixture's generic test grammars for description, inbound, and queue records (`entryShapes`).
+  Production grammars now exist in `ENTRY_CONFIGS` (`lib/store/kinds/entry-configs.ts`), with parsers registered by
+  `ENTRY_REGISTRATIONS` (`lib/store/kinds/entry-registration.ts`); these conformance fixtures keep their isolated test
+  registry. Separate import cases exercise the production registry and its actual consumers (§ 14.7) (A18).
 - **Its project-owned references name the store's one project** (§ 3.2), `{ type: "project", name: "project" }`, as the
   in-repo fixture's do (`__tests__/helpers/store/in-repo-fixture.ts`).
 - **Exclusions for the refusals the suite's cases provoke only from the in-repo implementation,** as the reference
@@ -3654,6 +3667,12 @@ remote.
   after the clone moved or followed, the other holding the pointer's change: each pulls and pushes to the clone's one
   state remote in its one layout, neither reports a state, a no-target `arc store migrate` from either changes nothing,
   and `arc store remote` there shows the same roles.
+- **Production entry imports (A18):** additional cases in both layouts import descriptions, inbound lists, and
+  queues through the production registry. `listInbox` (`lib/inbox/listing.ts`) reads the descriptions and inbound
+  entries, and `listErrandQueue` (`lib/inbox/queue.ts`) reads the queue, using the `Description`, `Inbound`, and
+  `Queue` sections. The queue references share their captures' IDs, including newly minted IDs, carry
+  `Inbox: personal`, and have valid increasing ranks preserving file order. A keyless non-merge commit remains in
+  its branch's exclusions with the project ID and SHA.
 - **The import** runs over a fixture repository in today's substrates whose review gate holds no evidence or outcome.
   Afterward every record the in-repo implementation lists reads the same through the ref backend — its content and every
   field both carry, never its version — but for the transforms of § 10.9, each lineage record's work-item references
@@ -3665,8 +3684,8 @@ remote.
   the writer refuses listed in `refused`; the store's project ID with the review gate's repository ID; Errand
   descriptions, inbound lists, and queues with the entries, buffer sections, held captures, and marks they came from,
   and each source without what moved from it — a draft without its buffer section, an inbox without its held captures
-  and open Errands' origin entries, an entry without its mark — under § 14.1's test grammars through the backend's
-  registry, since the production registry declares none for those three kinds yet (§ 5.1); and each closed task's
+  and open Errands' origin entries, an entry without its mark — under § 14.1's generic test grammars through the
+  backend's registry; the production-reader cases use production grammars (A18); and each closed task's
   captures with the in-repo implementation's `lookup` by commit, so every commit whose footer names a closed task
   resolves through both to the same work unit and tasks; and each live work unit's and open Errand's branch with the
   in-repo implementation's `lookup` by ref, each passed its own repository — the project ID, and the checkout — so each
@@ -4054,6 +4073,11 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     objects all arrived. The remote refuses while incomplete and passive current and historical reads succeed after
     repair without fetching (§ 6.2, § 14.5) (A17).
 
+26. **Imported lists serve production readers.** In both layouts, imported descriptions and inbound lists read
+    through `listInbox`, and imported queues through `listErrandQueue`, with the production registry. Queue members
+    reuse their inbox captures' IDs, name the personal inbox, and preserve file order through valid ranks; keyless
+    branch exclusions retain their repository and SHA. Generic conformance coverage remains required (§ 14.7) (A18).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4066,19 +4090,18 @@ open:
 - **With the working copy:** its removal check calls `checkSerializationRules`, and its persist reports the backend's
   refusal (§ 5.6).
 - **With handoff's rewrite:** handoff calls `maintain()` and shows its measurements and its own push's figures (§ 12).
-- **Before the import runs:** `work-item/description`, `work-item/inbound`, and `personal/errand-queue` declare their
-  entry grammars, which the import's build stamps by and the backend merges by (§ 5.1, § 10.9); until each does, the
-  import's trial names it and the import refuses (§ 10.5). This change verifies those three kinds' import under test
-  grammars (§ 14.7), so the declared grammars are first exercised by the cutover's trial run. The review family's
-  mapping likewise fills the import's `reviewMapping` port (§ 10.8): a pure function over the input § 10.8 states,
-  returning the records of live work in the family's kinds and an account of every source it was given, each record
-  parsing under its kind's schema and passing its kind's write check over the set it returns. Until it does, the
-  import's trial lists the gate's facts and the import refuses; this change verifies the import's side through a test
-  mapping, and that refusal.
-- **Available before the import re-homes Errands (§ 10.9):** the Errand record's optional `owner`, the identity slug of
-  the person who owns it. The record's schema is strict today (`TransientIdentityRecordSchema`,
-  `lib/errand/identity-record.ts`), so `serializeTransientIdentityRecord` throws on a record carrying `owner` until
-  the field lands; the rest of this change implements without it.
+- **Available to the import:** `ENTRY_CONFIGS` declares the description, inbound, and queue grammars, and
+  `ENTRY_REGISTRATIONS` registers their production parsers. The build stamps entries and the backend merges them
+  under the supplied registry (§ 5.1, § 10.9); an explicitly supplied registry lacking a grammar still refuses
+  (§ 10.5). Generic conformance and production-reader import cases both run before cutover (§ 14.1, § 14.7) (A18).
+- **Before the import runs:** the review family's mapping fills the import's `reviewMapping` port (§ 10.8): a pure
+  function over the input § 10.8 states, returning the records of live work in the family's kinds and an account of
+  every source it was given, each record parsing under its kind's schema and passing its kind's write check over the
+  set it returns. Until it does, the import's trial lists the gate's facts and the import refuses; this change verifies
+  the import's side through a test mapping, and that refusal.
+- **Available before the import re-homes Errands (§ 10.9):** `TransientIdentityRecordSchema`
+  (`lib/errand/identity-record.ts`) admits the optional `owner`, the identity slug of the person who owns the Errand,
+  and `serializeTransientIdentityRecord` retains it. The import supplies the identity whose ref held the record.
 - **Unverified and load-bearing, checked by the host kit (§ 14.8):** that protocol v2 narrows the ref advertisement to a
   command-line refspec's prefixes, and that hosts keep the `atomic` capability over HTTP.
 
@@ -4145,5 +4168,8 @@ open:
 
 - **A17** — 2026-10-17 — design: partial-clone checks traverse fetched tips without tracking cutoffs.
   _Supersedes:_ § 6.2 tracking-tip cutoffs. _Trigger:_ 11.3 must-stop. _Work:_ 11.3.R. _Revalidated:_ 11.6.
+
+- **A18** — 2026-10-19 — design: align import verification with production entry and link contracts.
+  _Supersedes:_ §§ 14.1, 14.7 grammar premises. _Trigger:_ door. _Work:_ 15.R2. _Revalidated:_ pending → 15.10.
 
 ---

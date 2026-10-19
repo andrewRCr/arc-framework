@@ -539,3 +539,23 @@ Author grounding traced `fetchRefPatterns`, `readRefFetchBasis`, `missingRefFetc
 supplemental fetch in `mergePulledRefState`. The grounding-only revision audit and specification reader, binding, and
 coherence checks cover § 6.2, § 14.5, criterion 25, and 11.3.R, with 11.6 as the segment replay. There is no new stored
 record, result arm, normal full-clone traversal, remote round trip beyond the existing one repair, or lifecycle change.
+
+## A18 — Import verification against the shipped entry contracts
+
+The superseded premises were “since the production registry declares none for those three kinds yet” (§ 14.7) and
+“the declared grammars are first exercised by the cutover's trial run” (Open Questions). `ENTRY_CONFIGS` now declares
+all six entry grammars, and `ENTRY_REGISTRATIONS` supplies their production parsers. The backend-neutral conformance
+fixtures intentionally keep generic parsers and grammars; replacing them with production registrations would couple
+that shared suite to family-specific schemas. Separate native import cases verify production compatibility instead.
+
+The approved scope also makes two existing contracts explicit. `readQueueState` validates a queue member's ID, inbox
+qualifier, rank, and uniqueness, while `renderQueueSet` writes those fields; an imported capture and its queue
+reference must share one ID, including when the import mints it. `computeDefaultCaptureSet` retains SHA entries without
+copy keys, and `CommitCaptureSchema` makes `copyKey` optional, so imported exclusions must not filter those entries.
+The separate rule omitting keyless task captures remains required. The Errand schema's optional `owner` is available
+and retained by `serializeTransientIdentityRecord`, matching the import's existing ownership contract.
+
+The amendment changes no record shape or lifecycle. Existing Goals and criteria remain preserved; criterion 26 and
+Task 15.R2 add the production-reader check after the import's source transforms and branch links exist, before the
+Phase 15 exit scenario. The grammar-absent registry case in 15.8 remains a valid negative test despite production
+availability. The broader audit found no material drift in the remaining remote-move, follow, host, or cost tasks.

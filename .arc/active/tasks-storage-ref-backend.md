@@ -1341,8 +1341,9 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
       `lib/store/in-repo/transient-common.ts`); any other person's is left in place and listed in `notices`
     - Descriptions, inbound lists, and queues rendered in the first section of the grammar the kind registry declares for
       each kind (`EntryConfig`, `lib/store/registry.ts`), passed through `runStoreMigrate`'s registry port (14.1); the
-      tests pass § 14.1's test grammars, since the production registry declares none for the three kinds yet, and an
-      entry the grammar's stamp cannot place an ID in is listed under `entry-id`
+      generic comparisons retain § 14.1's isolated test grammars, and 15.R2 exercises the production `ENTRY_CONFIGS`
+      and `ENTRY_REGISTRATIONS` through the actual readers; an entry the supplied grammar's stamp cannot place an ID
+      in is listed under `entry-id`
 
     - `[ ]` **15.3.a Errands and claims re-homed**
         - Starts only once `seam-locus` has shipped: `arc status seam-locus` reports `shipped: true`. Until then, stop
@@ -1382,7 +1383,10 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
     - `[ ]` **15.3.b Queues and inbound lists**
         - Build `test-first` (one behavior at a time):
             - each person's execute-bound marks become their Errand queue in file order, each `_Disposition:_` line
-              leaving its entry
+              leaving its entry; a queue member reuses its inbox capture's `_Id:_`, carries `Inbox: personal`, and has
+              a valid fractional `Rank`, with increasing ranks preserving file order and IDs unique in the queue
+            - a capture without an `_Id:_` receives one ID, reused by its queue member; the import never independently
+              stamps a queue ID that names no capture
             - each buffer section and held owner-adoption capture becomes its work unit's inbound list, a section's entry
               taking the first date of its `_Routed from:_` field, the drain's, as `_Created:_` and a capture keeping its
               own, each leaving its source
@@ -1458,8 +1462,10 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
       the import until fixed
     - A work unit's `excluded` is `computeDefaultCaptureSet`'s set (`lib/git/default-capture-set.ts`) over that tip —
       `tips` that tip, `captures` the work unit's derived captures, and `refresh: false`, so a trial and its landing
-      read one base — each commit a capture with its copy key; its `refused` result, where no base ref resolves, listed
-      in `notices` with its reason and remedy, refusing the import (§ 10.5); an Errand's link excludes nothing
+      read one base — each commit records the project ID as its repository, its SHA, and its `copyKey` only when
+      present; keyless exclusions remain in the link (`CommitCaptureSchema`, `lib/store/links.ts`). Its `refused`
+      result, where no base ref resolves, is listed in `notices` with its reason and remedy, refusing the import
+      (§ 10.5); an Errand's link excludes nothing
     - Captures from every commit reachable from the base branch or a live work unit's branch, once each, whose footer
       names the work unit: each range expanded with `expandTaskReference` (`lib/commit-check/task-reference.ts`), its IDs
       kept as written and only those whose task is closed captured, so a footer naming a closed task and an open one
@@ -1485,6 +1491,8 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
         - a work unit's link excludes the branch's non-merge commits not on base less those its footers capture, over the
           local tip, the remote's where only the remote holds the branch, and the containing tip where they differ; an
           Errand's link excludes none
+        - a non-merge empty commit without a copy key remains in the work unit's exclusions with its repository and
+          SHA; the separate rule omitting keyless task captures still holds
         - a branch neither side holds is listed under `branch-missing`, and one whose tips diverged under
           `branch-diverged`, first in `refused`, each naming its remedies and refusing the import until fixed, after which
           the import lands
@@ -1632,6 +1640,21 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
           two Candidate versions at one tracked path remain separate sources
         - a folder lists once without separate child-file entries; an omitted or repeated source, folder/file overlap,
           or nested-folder overlap refuses with `notices`, then the import lands after the listing is repaired
+
+### `[ ]` **15.R2 Production entry import compatibility — § 10.9, § 14.7 (A18)**
+
+- _Goal:_ Amendment A18's imported descriptions, inbound lists, and queues serve their production readers in both
+  layouts, with queue references bound to their inbox captures and keyless branch exclusions retained.
+
+    - Runs after 15.3 and 15.4; retain the generic conformance and comparison fixtures alongside these production cases
+    - Build `test-first` (one behavior at a time):
+        - import descriptions and inbound lists through `PRODUCTION_REGISTRATIONS`, then read their entries through
+          `listInbox` (`lib/inbox/listing.ts`), using the `Description` and `Inbound` sections from `ENTRY_CONFIGS`
+        - import an Errand queue through the production registry and read it through `listErrandQueue`
+          (`lib/inbox/queue.ts`): each reference reuses its personal inbox capture's ID, including a newly minted ID,
+          carries `Inbox: personal`, and has a valid rank preserving the original marks' file order
+        - verify that the imported branch link retains a keyless exclusion by repository and SHA, including a
+          non-merge empty commit, without relaxing the omission rule for keyless task captures
 
 ### `[ ]` **15.10 Every source the import carries** — validate exit criterion at segment scope
 
@@ -2303,3 +2326,7 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
 - `[ ]` Partial-clone completeness checks do not cut off at tracking tips advanced by a failed check: after the
   remote advances again, retry repairs the missing ancestor objects and passive historical reads succeed without
   fetching (§ 6.2, § 14.5) (A17)
+
+- `[ ]` Production-registry imports in both layouts serve `listInbox` for descriptions and inbound lists and
+  `listErrandQueue` for queues; queue IDs match their personal inbox captures, valid ranks preserve file order, and
+  keyless branch exclusions retain their repository and SHA (§ 10.9, § 14.7) (A18)
