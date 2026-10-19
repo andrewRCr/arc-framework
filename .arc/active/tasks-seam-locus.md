@@ -1285,32 +1285,38 @@ the close as the action; and no ratchet floor exceeds its count at the merged ba
 
 ## **Phase 8:** Verification
 
-### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Final local merge checks passed: Markdown and code lint, both typechecks, build, unit, integration,
+  and framework contracts. Hosted/native results at `4a757a491` remain earlier-head evidence.
+- _Success criteria:_ All 25 met using retained criteria inspection, approved repair checks, and post-base boundary
+  verification. Dormant successes remain reference-Store and registered-handler evidence; actual-flipped built-CLI
+  release checks remain recorded in `notes-seam-locus.md`.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Every locus, session-init, and personal-surface test passes over the in-repo implementation, unchanged but for
+- `[x]` Every locus, session-init, and personal-surface test passes over the in-repo implementation, unchanged but for
   those a § 1.4 item changes, each named with its item, and the session-init envelope and the locus verbs' results on
   the fixture repositories are unchanged but for § 1.4's items.
 
-- `[ ]` Each § 1.4 item has its test: the rebuilt slots' actions and schemas, the orphan sweep's `git branch -D`, and
+- `[x]` Each § 1.4 item has its test: the rebuilt slots' actions and schemas, the orphan sweep's `git branch -D`, and
   `pausedWork` and `inboundBackPressure` reporting nothing; the removal prompts' `arc teardown` argv, each
   registration's folder presence, and the sweep's `missingFolders`; the doubled-force move; each removal outcome the
   callers take, branch-gone recovery's `missingFolders` among them, over a scripted Git; the compaction seed's schema
   version; the six verbs' `unsupported` refusals; the anchored marker's and the origin binding's dormant admissions; and
   the three settings declared.
 
-- `[ ]` At landing no `arc/store-raw-state`, `arc/surface-names`, or `arc/work-unit-paths` count in
+- `[x]` At landing no `arc/store-raw-state`, `arc/surface-names`, or `arc/work-unit-paths` count in
   `eslint-suppressions.json` exceeds its count at the final merged base, in total or per file; every entry left in the
   rerouted parts of § 1.2's files sits in an arm § 1.5 names; and `npm run -s lint:ts` passes with no suppression added
   for a new violation.
 
-- `[ ]` Every slot § 4.2 names registers its schema, `arc schema` serves each, and each carries the action § 4.3's table
+- `[x]` Every slot § 4.2 names registers its schema, `arc schema` serves each, and each carries the action § 4.3's table
   gives it, with its checkout where § 4.3 requires one.
 
-- `[ ]` Each arm from the flip passes over the reference backend: every behavior § 2–§ 12 states from the flip has its
+- `[x]` Each arm from the flip passes over the reference backend: every behavior § 2–§ 12 states from the flip has its
   test, among them locus from the marker and the store, two markers unresolved, an incomplete observation granting
   nothing, the exclusivity check in each verb this change runs it in, an anchored checkout kept and read as `external`,
   the in-flight set with a paused work unit in it, the overlap check's state and entry-list targets, and § 3.7's cases;
@@ -1327,77 +1333,77 @@ the close as the action; and no ratchet floor exceeds its count at the merged ba
   `arc resume`. The tripwire report passes over scripted measurements and push outcomes, showing each figure past its
   bound and none below.
 
-- `[ ]` `arc inbox`, `arc route`, `arc locus release`, `arc errand queue`, `arc errand queue set`, and
+- `[x]` `arc inbox`, `arc route`, `arc locus release`, `arc errand queue`, `arc errand queue set`, and
   `arc handoff write` pass on their success paths and on each refusal they name, a recoverable refusal also on its
   continuation once repaired, and each refuses `unsupported` before the flip, naming what serves until then.
 
-- `[ ]` The entry grammar holds: each kind parses and writes the fields § 6.3 admits; the entry-field module reads every
+- `[x]` The entry grammar holds: each kind parses and writes the fields § 6.3 admits; the entry-field module reads every
   spelling and writes the managed form; each ID placement in § 6.4 has its test; and a wrapped or colon-less
   `WORKING-MEMORY` header above its trigger refuses.
 
-- `[ ]` Routing holds: a move writes the insert, the removal, and the receipts in one batch; an entry changed since it
+- `[x]` Routing holds: a move writes the insert, the removal, and the receipts in one batch; an entry changed since it
   was listed refuses and stays, and an edit racing the write survives, as a survivor where it left an inbox; an ID the
   destination holds is reported or refused as § 7.2 states; a survivor lists with its home and is carried in both forms,
   a crash leaving the survivor or its carry and never both; each abandon return in § 7.5 lands where it states; and the
   latest receipt is decided across the two refs by time.
 
-- `[ ]` The commits not yet closed equal the close's default set over the same base refs on an adopted, a re-activated,
+- `[x]` The commits not yet closed equal the close's default set over the same base refs on an adopted, a re-activated,
   and a promoted work unit's branch, a rebased copy of a captured or excluded commit matching by its copy key; where no
   base ref resolves, the condition is reported with the close's repair in place of the listing; the action is the bare
   close only where every listed commit is one Git made fresh; a paused work unit takes `arc resume <slug>`; and recovery
   lists them beside a matching cursor.
 
-- `[ ]` Inbound back-pressure trips on each threshold, and below both the slot reports its figures with no action.
+- `[x]` Inbound back-pressure trips on each threshold, and below both the slot reports its figures with no action.
 
-- `[ ]` The quality gates pass at every gate the project declares
+- `[x]` The quality gates pass at every gate the project declares
 
-- `[ ]` From the flip, a production verb's executor context given no ports carries this change's exclusivity check,
+- `[x]` From the flip, a production verb's executor context given no ports carries this change's exclusivity check,
   lookup, and anchored-marker writer, its rebind on another checkout (`withCwd`) the same record, and store start's
   create-new and the cold start reach them through it; over the in-repo implementation the context carries none, and
   lifecycle's callers keep today's defaults (A1).
 
-- `[ ]` From the flip, each reader and writer of links this change adds, given no project-ID port, reads the project's
+- `[x]` From the flip, each reader and writer of links this change adds, given no project-ID port, reads the project's
   identity record over its store, and treats a failed read of that record as an incomplete observation (§ 2.1, A2).
 
-- `[ ]` From the flip, `arc start <name> --here --new` refuses before any write every name `arc start <name> --new`
+- `[x]` From the flip, `arc start <name> --here --new` refuses before any write every name `arc start <name> --new`
   refuses — a held work unit's, a former slug, or an Errand's — and refuses `--class`, as the in-repo arm does (A3).
 
-- `[ ]` From the flip, graduation in place and `arc materialize --here` in a checkout whose marker names anything but
+- `[x]` From the flip, graduation in place and `arc materialize --here` in a checkout whose marker names anything but
   their work unit refuse before any Git step, `HEAD` unmoved and nothing written, naming that marker's exit (A4).
 
-- `[ ]` From the flip promotion runs in the checkout today's terminal authorization selects for the Errand it reads —
+- `[x]` From the flip promotion runs in the checkout today's terminal authorization selects for the Errand it reads —
   the current checkout, or the Errand's other checkout after confirmation — refusing as today before any write, and
   refusing a checkout off the Errand's branch; a rerun after its write completes in the checkout whose marker names that
   Errand or its work unit (A7).
 
-- `[ ]` From the flip `arc status <slug>` reports the work unit's worktree path from the marker roster, or the lookup's
+- `[x]` From the flip `arc status <slug>` reports the work unit's worktree path from the marker roster, or the lookup's
   condition in its place, its in-flight warnings from the set listed through the store, and with `--fetch` the
   reachability the store's pull reports, its operational boundary staying the delivery change's (A10).
 
-- `[ ]` From the flip the stale-worktree sweep gives a registration whose folder is missing and whose ended work unit
+- `[x]` From the flip the stale-worktree sweep gives a registration whose folder is missing and whose ended work unit
   adopted its branch `git worktree remove <path>` as text, with `git worktree unlock <path>` first where it is locked,
   never `arc teardown` (A11).
 
-- `[ ]` From the flip, where the store-backed prepare returns a refusal, `currentWuReconcile` reports its condition with
+- `[x]` From the flip, where the store-backed prepare returns a refusal, `currentWuReconcile` reports its condition with
   its remedy as the slot's action, and the probe does not fail (A12).
 
-- `[ ]` From the flip a renamed work unit's scratch folder follows its current slug only where the folder there is
+- `[x]` From the flip a renamed work unit's scratch folder follows its current slug only where the folder there is
   absent or empty; where it holds anything, neither moves, and both are reported with their paths as text (A13).
 
-- `[ ]` From the flip a review-due `pausedWork` item carries `arc resume <slug>`, `arc pause <slug> --open` where the
+- `[x]` From the flip a review-due `pausedWork` item carries `arc resume <slug>`, `arc pause <slug> --open` where the
   pause is not open, and `arc abandon <slug> --yes` as typed actions, and `arc handover <slug> --to <identity>` as text
   (A14).
 
-- `[ ]` From the flip one exported function, given a single paused work item, the store, and `pause.review_after_days`,
+- `[x]` From the flip one exported function, given a single paused work item, the store, and `pause.review_after_days`,
   returns its marks and, for a review-due item, its review prompt and choices, whoever owns the item, and `pausedWork`
   maps it over the person's listing (A15).
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration
 
-- `[ ]` Off-branch primary records expose former-name aliases at the selected state, including explicit empty arrays;
+- `[x]` Off-branch primary records expose former-name aliases at the selected state, including explicit empty arrays;
   managed references rewrite through lookup and prose yields a rename advisory; missing aliases or incomplete
   listings report unavailable authority without rewriting (A16).
 
-- `[ ]` Dormant destructive paths pass success and repaired continuation through CLI-generated handler inputs with
+- `[x]` Dormant destructive paths pass success and repaired continuation through CLI-generated handler inputs with
   real Git, and before-flip refusal through the built CLI in temporary repositories; successful real-CLI destructive
   scenarios remain a required release check at the flip (A17).

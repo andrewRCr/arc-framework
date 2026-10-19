@@ -11,13 +11,14 @@
 - **Design:** `spec-seam-locus.md`
 - **Task List:** `tasks-seam-locus.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:d61a10c3c30c005ff703925ed2ea75406ffec2f048522aa6cfe7db7d5c8d0b4b`
 
-- **Current Workflow:** `process-task-loop`
-- **Last Completed:** Task 7.6 — Session continuity
-- **Next Task:** Task 8.1 — Complete verification (line ~1284 in `tasks-seam-locus.md`)
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 8.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 8.1 in a fresh session; load and follow `verify-work-unit.md` for verification.
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]
