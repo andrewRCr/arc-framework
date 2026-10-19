@@ -363,8 +363,12 @@ remote base all name the same exact head. Any tracked change continues through t
    review fix or base reconciliation. Continue only when `openedChangeRequest` and the adapter target name the same
    exact head.
 
-   Bind the opened target's `scopeSelection` directly to whole-target and invoke `arc review resolve -` for each
-   incomplete lane. Before either standard-lane ready source dispatch, apply the clean-fix-check successor check above.
+   A retained hosted terminal failure reporting a completed receipt without reviewed-commit binding enters the
+   Owner-directed review stop below before resolving the lane again. Retain its failed outcome and exact handle.
+   Other outcomes continue below.
+
+   Bind the opened target's `scopeSelection` directly to whole-target and invoke `arc review resolve -` for
+   each incomplete lane. Before either standard-lane ready source dispatch, apply the clean-fix-check successor check above.
    If the Owner has directed that no further standard-review pass be spent, take the exact
    Owner-directed review stop below only from `ready / hosted-request`, `ready / local-prepare`, or
    `approval-required / obtain-ceiling-override`, or `coverage-required / select-coverage` once
@@ -392,8 +396,11 @@ remote base all name the same exact head. Any tracked change continues through t
      request and standalone context. Complete the committed verified-fix replay before push, then the remaining
      [hosted settlement][code-hosted-settlement]. Re-enter this resolve/status route only after response completion.
    - `rate-limited | transient-unavailable / try-next-source` — feed that safe outcome to the same driver call.
+   - `terminal-failure / stop` reporting a trusted completed receipt without reviewed-commit binding — preserve the
+     failed result and exact handle, surface its reason and receipt, then offer the Owner-directed review stop below.
+     On decline, retain the stop. Do not claim clean evidence, increment completed passes, or request another review.
    - Ambiguous delivery, stale target, malformed output, source failure, or terminal failure stops; never replay an
-     uncertain request.
+     uncertain request. The completed receipt's acceptance offer above is the sole terminal-failure exception.
 
    **Owner-directed review stop (open PR only).** Apply [code-review's Errand stop][code-errand-stop] with the
    current claim, repository/PR, base/head, reviewed delta, and completed response. Its accepted continuation goes
