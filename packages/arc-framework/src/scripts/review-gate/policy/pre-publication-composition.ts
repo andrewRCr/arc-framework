@@ -37,10 +37,11 @@ import {
 } from "../../../lib/work-unit/candidate-attestation.js";
 import type { CandidateEffectiveTargetProjection } from
   "../../../lib/work-unit/candidate-effective-target.js";
-import {
-  readCandidateRecord,
-  readRepositoryCandidateSupersessionChain,
-} from "../../../lib/work-unit/candidate-record-store.js";
+import { readCandidateRecord } from "../../../lib/store/kinds/review/candidate/access.js";
+import { readRepositoryCandidateSupersessionChain } from "../../../lib/store/kinds/review/candidate/history.js";
+import type { Store } from "../../../lib/store/contract.js";
+import { createStore } from "../../../lib/store/create.js";
+import { createDefaultStorePorts } from "../../../lib/store/default-ports.js";
 import { readAncestry } from "../../../lib/work-unit/git-decomposition-object-readers.js";
 import { projectGitCandidateEffectiveTarget } from "../../../lib/work-unit/git-candidate-effective-target.js";
 import { resolveChangeRequest } from "../change-request.js";
@@ -465,13 +466,15 @@ function createPrivateMemberApplicability(input: {
 /**
  * Bind the canonical Candidate, meta, host, identity, and durable-progress reads to the composition.
  *
- * @param input - The repository root and its Git boundary.
+ * @param input - The repository root, Git boundary, and optional invocation store.
  * @returns The dependency bundle `composePrePublicationReviewRequest` consumes.
  */
 export function createPrePublicationCompositionDependencies(input: {
   cwd: string;
   exec: GitExec;
+  store?: Store;
 }): PrePublicationCompositionDependencies {
+  const reviewRecordStore = input.store ?? createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec }));
   let settingsPromise: ReturnType<typeof readConfigSettings> | null = null;
   const settings = async () => {
     settingsPromise ??= readConfigSettings(input.cwd);
@@ -515,7 +518,7 @@ export function createPrePublicationCompositionDependencies(input: {
       if (currentLineage.kind === "delivery-member") {
         return confirmPrivateMemberApplicability(workUnit, predecessor, currentTarget, currentLineage);
       }
-      const candidate = await readCandidateRecord(input.cwd, SlugSchema.parse(workUnit));
+      const candidate = await readCandidateRecord(input.cwd, SlugSchema.parse(workUnit), { store: reviewRecordStore });
       if (policyTarget.pullRequest === null) {
         if (candidate === null) return "unavailable";
         return confirmNoPullRequestCandidatePriorProducer({
@@ -548,11 +551,11 @@ export function createPrePublicationCompositionDependencies(input: {
     dispositionStore,
     readResponsePerformance: (predecessor) => readLaneResponsePerformance(store, predecessor),
     readCandidateCorrectionProof: async (workUnit) => ({
-      candidate: await readCandidateRecord(input.cwd, SlugSchema.parse(workUnit)),
+      candidate: await readCandidateRecord(input.cwd, SlugSchema.parse(workUnit), { store: reviewRecordStore }),
       cwd: input.cwd, exec: input.exec, baseRef: (await settings())["branch.base"], observeTarget,
     }),
     confirmIncrementalApplicability: async (workUnit, predecessor, current, policyTarget) => {
-      const candidate = await readCandidateRecord(input.cwd, SlugSchema.parse(workUnit));
+      const candidate = await readCandidateRecord(input.cwd, SlugSchema.parse(workUnit), { store: reviewRecordStore });
       const confirmGrounds = async () => {
         if (policyTarget.pullRequest === null && current.admission.lineage.kind === "candidate") {
           return confirmPrivateCandidateCorrectionBasis({
@@ -582,7 +585,7 @@ export function createPrePublicationCompositionDependencies(input: {
     confirmPriorProducerApplicability,
     readCandidate: async (workUnit): Promise<CandidateRead> => {
       const name = SlugSchema.parse(workUnit);
-      const record = await readCandidateRecord(input.cwd, name);
+      const record = await readCandidateRecord(input.cwd, name, { store: reviewRecordStore });
       if (record === null) return { status: "missing" };
       let supersessionAncestors: readonly CandidateSupersessionAncestor[];
       try {

@@ -1074,7 +1074,7 @@ async function acceptDeliveryReviewTerminus(
 ): Promise<DeliveryReviewTerminusAcceptanceResult> {
   const exec = createGitExec(interaction?.subprocess);
   const reviewRecordStore = createStore(createDefaultStorePorts({ checkoutRoot: root, exec }));
-  const ownerDependencies = createPrePublicationCompositionDependencies({ cwd: root, exec });
+  const ownerDependencies = createPrePublicationCompositionDependencies({ cwd: root, exec, store: reviewRecordStore });
   const readOwnerAuthority = async (workUnitId: string) => {
     const direct = await ownerDependencies.readOwnerTerminusAuthority(workUnitId);
     if (direct.status === "authorized") return direct;
@@ -2384,6 +2384,7 @@ async function resolveHostedProgressContext(input: {
   const candidate = await createPrePublicationCompositionDependencies({
     cwd: input.root,
     exec: input.exec,
+    store: reviewRecordStore,
   }).readCandidate(workUnitId);
   if (candidate.status !== "current") {
     throw new Error("Hosted review reservation requires a current Candidate.");
@@ -4407,7 +4408,7 @@ function defaultPrePublicationDependencies(
     readRootGitHead: async (root) => GitObjectIdSchema.parse(
       (await exec("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim(),
     ),
-    readCandidate: (root, workUnit) => createPrePublicationCompositionDependencies({ cwd: root, exec })
+    readCandidate: (root, workUnit) => createPrePublicationCompositionDependencies({ cwd: root, exec, store: recordStoreFor(root) })
       .readCandidate(workUnit),
     readBoundary: async (root, workUnit) => {
       const snapshot = await readSubmissionBoundaryVersioned(root, workUnit, { store: recordStoreFor(root) });
@@ -4429,7 +4430,7 @@ function defaultPrePublicationDependencies(
             ? {}
             : { frontlineCeilingHeadSha: judgment.frontlineCeilingHeadSha }),
         },
-        createPrePublicationCompositionDependencies({ cwd: root, exec }),
+        createPrePublicationCompositionDependencies({ cwd: root, exec, store: recordStoreFor(root) }),
       );
       const existing = snapshot.boundary;
       let carried = composition;

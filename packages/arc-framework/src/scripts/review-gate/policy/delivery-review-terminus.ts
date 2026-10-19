@@ -10,7 +10,7 @@ import {
 } from "../../../lib/delivery/review-vehicle.js";
 import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
 import type { VersionedSubmissionBoundary } from
-  "../../../lib/work-unit/submission-boundary-store.js";
+  "../../../lib/store/kinds/review/integration-boundary/schema.js";
 import { CompletedReviewPassCountSchema } from "../core/review-pass.js";
 import { HostedTargetSchema } from "../hosted/request.js";
 import type { IntegrationBoundaryLocus } from "./integration-boundary-locus.js";
@@ -116,7 +116,7 @@ export type DeliveryReviewTerminusAcceptanceResult = z.infer<
 >;
 
 interface DeliveryReviewTerminusAcceptanceDependencies {
-  readBoundary(workUnitId: string): Promise<VersionedSubmissionBoundary>;
+  readBoundary(workUnitId: string): Promise<VersionedSubmissionBoundary<IntegrationBoundaryLocus>>;
   readOwnerAuthority(workUnitId: string): Promise<
     | { readonly status: "authorized"; readonly ownerIdentity: string }
     | { readonly status: "refused"; readonly reason: string }

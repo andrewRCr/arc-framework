@@ -7,7 +7,7 @@ import {
   type CandidateManagedRecordV1,
   type CandidateReviewApplicabilitySelectionV1,
 } from "../../../lib/work-unit/candidate-attestation.js";
-import { resolveCandidateRecordRelativePath } from "../../../lib/work-unit/candidate-record-store.js";
+import { resolveCandidateRecordRelativePath } from "../../../lib/store/kinds/review/paths.js";
 import type {
   ReviewContributionApplicabilityResult,
   ReviewContributionApplicabilitySelector,

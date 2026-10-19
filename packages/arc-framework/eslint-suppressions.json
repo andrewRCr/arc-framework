@@ -2839,14 +2839,9 @@
       "count": 1
     }
   },
-  "src/scripts/review-gate/policy/mechanical-review-applicability-carry.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    }
-  },
   "src/scripts/review-gate/policy/pre-publication-composition.ts": {
     "arc/store-raw-state": {
-      "count": 2
+      "count": 1
     },
     "arc/work-unit-paths": {
       "count": 1

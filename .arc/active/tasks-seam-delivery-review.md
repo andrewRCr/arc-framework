@@ -318,10 +318,11 @@ retires.
           Terminus, hosted-progress, and prepublication boundary operations reuse bound stores; Git history,
           fixed-HEAD replay, staging, and existing test assertions remain intact.
 
-    - `[ ]` **2.6.b The policy modules**
+    - `[x]` **2.6.b The policy modules**
 
-        - `rg/policy/delivery-review-terminus.ts`, `mechanical-review-applicability-carry.ts`,
-          `pre-publication-composition.ts`, and `review-applicability-resolution.ts`.
+        - Pre-publication composition uses typed Candidate access and reuses the handler's store when provided. Public
+          review schemas supply boundary and Candidate version types, and mechanical carry uses pure review paths.
+          Exact-head carry proofs, plain-path-log supersession, and the existing assertions remain intact.
 
     - `[ ]` **2.6.c The runtime and status modules**
 
