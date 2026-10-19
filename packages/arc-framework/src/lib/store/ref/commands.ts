@@ -11,6 +11,8 @@ import { moveRefRemote } from "./migrate-remote.js";
 import { moveRefLayout } from "./migrate-layout.js";
 import { AdvisoryLockTimeoutError } from "../../advisory-lock.js";
 import { applyRefRemoteSetting, remoteView } from "./remote-setting.js";
+import { guardRefFollowSetting, readRefFollowDue } from "./follow-due.js";
+import { judgeRefFollow } from "./follow-candidates.js";
 
 /** No-target migration reconciles the physical store with its explicitly recorded roles. */
 export async function runRefMigrate(context: RefBackendContext, store: Store, input: StoreMigrateInput): Promise<StoreMigrateResult> {
@@ -33,10 +35,20 @@ export async function runRefMigrate(context: RefBackendContext, store: Store, in
       finished = resumed.result;
     }
     if (parsed.data.to) return moveRefRemote(context, store, parsed.data.to, parsed.data.trial);
-    const designation = await readRefDesignation(context);
-    const aligned = await moveRefLayout(context, store, designatedStoreLayout(designation));
-    return aligned.status === "refused" || !finished ? aligned : { status: "ok", result: combineLayoutReports(finished, aligned.result) };
+    return reconcileNoTarget(context, store, finished);
   });
+}
+
+async function reconcileNoTarget(context: RefBackendContext, store: Store, finished?: MigrateReport): Promise<StoreMigrateResult> {
+  const due = await readRefFollowDue(context);
+  if (due) {
+    const followed = await judgeRefFollow(context, due);
+    if (followed.status === "refused") return followed;
+    if (followed.status === "decided") return followed.result;
+  }
+  const designation = await readRefDesignation(context);
+  const aligned = await moveRefLayout(context, store, designatedStoreLayout(designation));
+  return aligned.status === "refused" || !finished ? aligned : { status: "ok", result: combineLayoutReports(finished, aligned.result) };
 }
 
 /** Apply a code remote's own setting in the order its layout switch requires. */
@@ -60,6 +72,8 @@ export async function runRefRemote(context: RefBackendContext, store: Store, inp
       if (finished.status === "refused") return finished;
       completed = finished.result;
     }
+    const follow = await guardRefFollowSetting(context, setting.remote, setting.role);
+    if (follow) return follow;
     const applied = await applyRefRemoteSetting(context, store, setting, input.ownState);
     if (applied.status === "ok" && completed) applied.result.report = applied.result.report
       ? combineLayoutReports(completed, applied.result.report) : completed;

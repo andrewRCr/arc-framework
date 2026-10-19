@@ -1569,60 +1569,19 @@ recorded move; and `arc store remote` during a follow and when repointing `backi
 
 _Exit criterion:_ Every case of § 14.6 and § 14.7 passes.
 
-### `[ ]` **17.1 The follow's candidates — § 10.6, § 9.6**
+### `[x]` **17.1 The follow's candidates — § 10.6, § 9.6**
 
 - _Goal:_ A follower takes as the state's home only a remote that holds the commit the move landed, so a checkout behind
   a move never publishes state onto a fork that copied the registry before it.
 
-- **Additional Context:** `notes-storage-ref-backend.md` § The move model check
-
-    - The follow is due while a remote this clone fetches carries the forwarding record's tracking ref; it fetches the old
-      remote's record into `refs/arc/tmp/follow/source/` first, and each candidate's registry and record into
-      `refs/arc/tmp/follow/candidate/<remote>/` or `refs/arc/tmp/follow/pointer/`; candidates come from the invoking
-      checkout's pointer, never from the clone's designation: the backing repository the pointer names, or, where it names
-      none, each remote of the code repository holding the project's registry ref, read by presence as 12.2.b's presence
-      read reads it (§ 9.2), whatever the clone's `backing` and its remotes' keys say
-    - Each read by 9.1's one-ref patterns, § 6.2's flags, and its partial-clone check, since an exact refspec for a ref
-      a candidate lacks fails the whole fetch
-    - A candidate holds the move's commit where `git cat-file -e` under `objectAccess: "local-only"` finds it and
-      `git merge-base --is-ancestor` then exits 0: a commit `cat-file -e` finds absent, one the fetch did not bring, and
-      an exit 1 read as not held, and any other exit of either is a failed read, never not held
-    - The follow-due arm of `runStoreRemote` (13.4), built first: while a follow is due, a setting naming a remote the
-      follow names runs the follow with that remote and answer (17.2.a), the old remote's `off` is always allowed and
-      ends the follow's being due, and any other setting refuses `role-conflict` naming `arc store migrate`
     - Until 17.2.a builds the steps an answer runs, a setting naming a remote the follow names refuses `unsupported`
         - _Retired in:_ Phase 17
-    - The follow's judgment ends in a refusal or in the question due (13.1) naming the candidate it takes, which the
-      cases here read; 17.2.a builds the steps an answer runs
-    - Build `test-first` (one behavior at a time):
-        - until the follow, `pull` and `push` report `moved`, or a read source fails terminal `refused` naming the move,
-          whether or not the checkout holds the pointer's change, and `arc store remote` refuses `role-conflict` every
-          setting but the follow's and the old remote's `off`, naming `arc store migrate`, the old remote's `off` ending
-          the follow's being due
-        - a follow from a checkout without the pointer's change refuses `follow-refused` naming the remedy to bring it
-          in, changing nothing, for the fork-upstream and `read` followers of a move to a backing repository too, and
-          over a fork that copied the upstream's registry before the move
-        - a candidate carrying a forwarding record, holding another project's state, or lacking the move's commit is
-          refused, and several accepted refuse `follow-refused` naming each
-        - following a move back to the upstream, a fork that copied the upstream's registry before the state left it is
-          refused for lacking the move's commit and the follow takes the upstream, and where the fork is the follower's
-          only remote the follow refuses `follow-refused`, naming the remedy to add the upstream
-        - a follower that missed two consecutive moves of different kinds follows from a checkout holding the second's
-          pointer straight to its destination, and refuses `follow-refused` from a checkout between them
-        - a follower whose tracking ref names a record a later move replaced judges candidates by the record its own fetch
-          finds, passing over a fork that copied the registry between the moves
-        - a follower offline across a move back and a second move away sets its tracking ref to the newer record,
-          reporting no `history-diverged`, as does one pulling between them, and two candidates whose registries are
-          ancestor-related read the same in either fetch order
-        - a follow whose presence read, or read of a candidate's record, project ID, or registry, fails refuses through
-          the `store` arm, changes nothing, and names that remote `unreachable`, as does a `cat-file -e` or `merge-base`
-          exit outside 0 and 1
-        - a malformed `moved.json` in the old remote's record refuses the follow `move-record-malformed` naming the ref,
-          changing nothing, and the follow runs once it is repaired
-        - a `read` follower whose store holds its own project ID follows to the candidate naming the record's project ID
-        - where the upstream's state moved to a backing repository and the contributor's own state stays in the code
-          repository's refs, the follow refuses `follow-refused` naming the third route of § 9.6, which then reads the
-          upstream from the added remote
+
+- _Outcome:_ Follow judgment fetches the old remote's current record and each checkout-derived candidate into isolated
+  namespaces, accepting only the same project's registry containing that move. It names ambiguous candidates, rejects
+  stale forks and onward moves, preserves read followers' own identities, and directs code-publishing contributors to
+  the separate read-source route. Read failures retain state and roles with repair remedies; stale tracking is dropped.
+  The remote-setting guard allows the old remote's `off` and reserves accepted answers for the follow.
 
 ### `[ ]` **17.2 The follow's copy, switch, and deletes — § 10.3, § 10.6**
 

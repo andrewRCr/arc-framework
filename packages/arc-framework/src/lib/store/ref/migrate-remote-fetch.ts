@@ -22,12 +22,13 @@ export async function clearMigrationRefs(context: RefBackendContext, prefix: str
 }
 
 /** Fetch every store ref, or just project controls, without adopting any as local state. */
-export async function fetchMigrationRemote(context: RefBackendContext, remote: MoveRemote, complete: boolean): Promise<Map<string, string>> {
+export async function fetchMigrationRemote(context: RefBackendContext, remote: MoveRemote, complete: boolean,
+  options?: { prefix?: string; controls?: readonly ("registry" | "moved")[] }): Promise<Map<string, string>> {
   const key = createHash("sha256").update(JSON.stringify([remote.name, remote.fetchUrl])).digest("hex");
-  const prefix = `refs/arc/tmp/migrate/remote/${key}/`;
+  const prefix = options?.prefix ?? `refs/arc/tmp/migrate/remote/${key}/`;
   await clearMigrationRefs(context, prefix);
   const patterns = complete ? ["work/*", "cohort/*", "archive/*", "project/*", "user/*", "history/work/*", "history/cohort/*"]
-    : ["project/registry*", "project/moved*"];
+    : (options?.controls ?? ["registry", "moved"]).map(control => `project/${control}*`);
   const args = [...gitRefLockArgs(), "-c", `remote.${remote.name}.negotiationInclude=`, "fetch", "--refmap=", "--no-tags", "--no-filter",
     "--no-write-fetch-head", "--prune", "--show-forced-updates", "--porcelain", "--verbose", ...await refFetchNegotiation(context, await context.identity()),
     "--", remote.fetchUrl, ...patterns.map(pattern => `+refs/arc/${pattern}:${prefix}${pattern}`)];
