@@ -215,14 +215,11 @@ one renderer, built in Task 3.6: stderr `Error [<code>]: <condition> <remedy>` a
   exported `identityKey`, preserving generation-specific purposes. Failed inventories clear all purposes with repair
   warnings; complete listings retain their readable purposes and disclose omitted records through shared diagnostics.
 
-### `[ ]` **3.3 Resolve an unlisted edge by slug, then by lineage origin — § 2.2**
+### `[x]` **3.3 Resolve an unlisted edge by slug, then by lineage origin — § 2.2**
 
 - _Goal:_ Every edge naming no standing entry resolves to a listed work unit, a retired origin with the disposition the
   dependent's own reconcile reads, an unsatisfied fail-closed edge, a store-read failure, or today's dangling edge,
   delivered as Task 2.3's resolutions.
-
-- **Additional Context:** `notes-seam-status-roadmap.md` § Phases 3 and 4 — the project view's acquisition, freshness,
-  and the slug query
 
     - `[x]` **3.3.a Share the reconcile's retired-origin query**
 
@@ -230,40 +227,11 @@ one renderer, built in Task 3.6: stderr `Error [<code>]: <condition> <remedy>` a
           terminal-alias selection and disposition matcher with the dependent's owner identity. The extracted query
           retains a renamed dependent's UID-bound cut disposition.
 
-    - `[ ]` **3.3.b Resolve each unlisted edge**
+    - `[x]` **3.3.b Resolve each unlisted edge**
 
-        - Order: an edge that is not a valid slug (`SlugSchema`) takes no lookup and reads as dangling; a fail-closed
-          name (Task 3.1) resolves unsatisfied with no warning; then `store.lookup({ kind: "slug" })`: a standing
-          record's match gives its slug, another listed record's a verdict from its own `phase` and `location`, a
-          withheld meta's an unsatisfied edge with no warning, and an Errand's record (`work-item/record`) reads as
-          dangling; then, on `not-found`, Task 3.3.a's query over one lineage enumeration per render, made only when an
-          edge reaches it.
-        - A cut's `replace` or `drop`, `abandoned`, and `unmapped-dependent` give `dependency-retired`, naming the
-          retirement and the disposition, and `arc wu reconcile --apply` from the dependent's checkout, or its
-          activation, or, for an unmapped dependent, editing its `Depends On`. A rename's `retarget` resolves again as an
-          edge naming its successor, tracking the names passed. `absent` reads as dangling.
-        - Each of these adds `store-read-failed` naming its condition and remedy:
-            - a lookup or history read refusing with any code but `not-found`, `ambiguous-match` for a clashed slug
-              among them
-            - the query's `ambiguous` or `namespace-corrupt`
-            - a rename chain returning to a name it passed
-        - Build `test-first` (one behavior at a time):
-            - an edge naming a renamed work unit's former slug classifies against that work unit
-            - a multi-hop lineage rename resolves to its standing work unit, with an unsatisfied edge classified and
-              banded below that work unit and its written name preserved in the row and facts
-            - a lineage rename chain ending at an absent name warns as dangling
-            - a lineage rename cycle terminates with an unsatisfied edge and `store-read-failed`, carrying its
-              condition and remedy through the composed project result
-            - an edge reaching a completed holder of a reused slug through its former slug is satisfied
-            - an edge naming a decomposed origin warns with the dependent's replacements, and an unmapped dependent's warns
-              naming the `Depends On` edit
-            - an edge naming an abandoned origin warns naming the abandonment; a stub depending on it reads Blocked
-            - an edge naming a retired origin's former slug resolves as the origin
-            - an edge naming an Errand's slug, or no slug at all, warns as dangling
-            - a lookup refusing other than `not-found` warns with its condition, and an incomplete lineage listing warns
-              for every edge reaching it; an edge naming nothing warns as today
-            - an edge naming a clashed slug stays unsatisfied with `store-read-failed` from the lookup's
-              `ambiguous-match`, over a store double
+        - `resolveStoreProjectDependencies` binds former names to exact lifecycle generations, follows rename chains,
+          and shares one lazy lineage observation. Retired edges retain dependent-specific dispositions and repair
+          guidance; withheld names fail closed, while missing work and Errands keep dangling warnings.
 
 ### `[ ]` **3.4 Mark each paused row through the marking function — § 2.3**
 
