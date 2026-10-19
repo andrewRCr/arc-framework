@@ -44,6 +44,7 @@ without physical paths. Its checkout agreement query is an interim read bridge; 
 
 The lifecycle storage adapter binds checkpoint and merge filesystem reads to one saved state. Its directories project
 selected meta records only, and its reads retain the existing lifecycle tree reader's trailing-whitespace behavior.
+`lifecycle-meta-content.ts` parses proposed metadata through the registered kind for prepared-write checks.
 
 Reference backends and conformance fixtures live exclusively in test support. This module adds no package export
 or standalone build entry.

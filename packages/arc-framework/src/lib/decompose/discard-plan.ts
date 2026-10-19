@@ -13,6 +13,7 @@ import { decomposeReadCache } from "./read-cache.js";
 import { decomposeStoreRefusal } from "./refusal.js";
 import { decomposeRemovalWrites } from "./removal-records.js";
 import { sameReference } from "../store/identity.js";
+import { checkDecomposeRemovals } from "./removal-guards.js";
 
 /** Stored map, authenticated members, observations, and exact explicit removals. */
 export interface DecomposeDiscardPlan extends DecomposeStoredCut {
@@ -48,6 +49,8 @@ export async function prepareDecomposeDiscard(ctx: DecomposeContext, origin: str
   const leftEdited = map.authoring.destinations.filter(destination => allocated.has(destination.destinationId)
     && (destination.kind === "existing-home" || destination.kind === "cohort-coordination"
       && !cohorts.result.some(cohort => cohort.path === destination.cohort)));
-  return { status: "ok", result: { ...selected.result, members: members.result, records,
-    writes: decomposeRemovalWrites(removed), leftEdited } };
+  const writes = decomposeRemovalWrites(removed);
+  const refusal = await checkDecomposeRemovals({ ...ctx, executor: { ...ctx.executor, store } }, {
+    records, writes, routeTo: primary.reference.owner.name });
+  return refusal ?? { status: "ok", result: { ...selected.result, members: members.result, records, writes, leftEdited } };
 }

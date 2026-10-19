@@ -16,6 +16,10 @@ history. `removal-records.ts` closes conflicts through their subjects' removals.
 and existing destinations left edited, binds approval to observed versions, revalidates, and applies only those writes.
 `discard-report.ts` defines its closed preview and application reports.
 
+`removal-guards.ts` shares started-member, nested-cut, and held-entry admission with revision. `removal-holders.ts`
+counts the surviving lifecycle state after prepared edits, `removal-edges.ts` protects dependency and pause holders,
+and `removal-cohorts.ts` keeps documents until their open work items and child cohorts leave.
+
 `acquire-origin.ts` retains the whole versioned origin group, projected artifact basenames, lifecycle inventory,
 and stored-map observation. Incoming candidates exclude caller-supplied member UIDs while the full inventory remains
 available for other checks. Start-only guards and pure machine derivation consume these observations separately.

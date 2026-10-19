@@ -19,7 +19,7 @@ interface AcquiredName { name: string; locus: string; cohort: boolean }
 
 /** Prove each acquired name free before planning any creation. */
 export async function checkDecomposeNames(store: Store, map: CutMap): Promise<DecomposeResult<DecomposeNames>> {
-  const cohorts = await acquireCohorts(store);
+  const cohorts = await acquireDecomposeCohortInventory(store);
   if (cohorts.status === "refused") return cohorts;
   const newCohorts = placementCohorts(map.authoring.placement).filter(({ path }) =>
     !cohorts.result.some(cohort => cohort.path === path && cohort.record.placement?.kind !== "completed"));
@@ -71,7 +71,8 @@ function nameCollision(name: string, locus: string, holder: string): DecomposeRe
     message: `${JSON.stringify(name)} is held by ${holder}.`, remedy: { text: "Choose another name at the named map locus, then retry." } };
 }
 
-async function acquireCohorts(store: Store): Promise<DecomposeResult<DecomposeCohortObservation[]>> {
+/** Acquire the complete parsed cohort inventory without applying a consumer's admission policy. */
+export async function acquireDecomposeCohortInventory(store: Store): Promise<DecomposeResult<DecomposeCohortObservation[]>> {
   const listed = await store.list({ family: "cohort", kind: "cohort/document" });
   if (listed.status === "refused") return decomposeStoreRefusal(listed.refusal);
   const listing = listed.result;

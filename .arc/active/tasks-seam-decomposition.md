@@ -494,7 +494,7 @@ stubs and cohort documents, moves only seeded edges and `Cohort`, and replaces t
 extraction-kept units or to the source kind, and otherwise a fresh starter with the stored authoring beside it and the
 first place to reauthor; and a stored map conflicted by a sync resolves through either.
 
-### `[ ]` **5.1 Discard a cut — § 9.1, § 9.3**
+### `[x]` **5.1 Discard a cut — § 9.1, § 9.3**
 
 - _Goal:_ `--discard` previews and `--discard --apply <authority>` removes in one batch each stub still present as a
   whole group, the cut's new cohort documents, and the stored map, writing no lineage, and its preview lists each
@@ -507,25 +507,12 @@ first place to reauthor; and a stored map conflicted by a sync resolves through 
           to observed versions and writes, revalidates, and applies one batch. Renames, slug reuse, real sync conflicts,
           history retention, stale approval, batch conflicts, and flat observation counts are covered.
 
-    - `[ ]` **5.1.b What a discard or revision refuses — § 9.3**
+    - `[x]` **5.1.b What a discard or revision refuses — § 9.3**
 
-        - A started member it would remove, naming `arc abandon <member>`.
-        - An edge it does not write that names a stub it removes — a `Depends On` or pause `waits-on` edge of any open
-          work item, completed records skipped, as `work-item.slug-edges` counts them — naming the edge for its owner,
-          a `waits-on` edge through `arc pause <name> --waits-on <other>`, `--waits-on-note <text>`, or
-          `--no-waits-on`. The count is rewritten under `lib/decompose/`, the records the batch removes left out, since
-          `namedEdges` and `survivingEdge` are private to `lib/store/kinds/work-item/slug-edges.ts` and the latter reads
-          a write check's input.
-        - A stub it would remove that holds a stored map of its own, naming `arc decompose <stub> --discard`.
-        - A new cohort document it would remove that an open work item or cohort document holds
-          (`checkCohortOpenMembers`), naming each holder.
-        - A stub it would remove whose inbound list holds an entry, naming `arc route <entry-id> --from <stub>
-          --expected-version <version> --to <destination>`, admitting while no grammar is declared.
-        - Build `test-first` (one behavior at a time):
-            - each refusal fires, and the discard lands after its remedy
-            - an unreadable or incomplete lifecycle listing refuses the edge count as recoverable, and the discard lands
-              once the listing is whole
-            - a held entry moved off the stub by a direct store write under the supplied grammar lets the discard land
+        - Shared removal guards protect started members, nested cuts, surviving dependency and pause edges, open cohort
+          holders, and held inbound entries with per-entry routing versions. Surviving inventories apply prepared edits
+          through the store's metadata parser and preserve incomplete-listing repairs. Each refusal admits its native
+          remedy; removed groups and completed holders do not block the count.
 
 ### `[ ]` **5.2 Re-bind a changed origin and emit the revision starter — § 9.4, § 9.2**
 
