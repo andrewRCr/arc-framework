@@ -3,14 +3,20 @@
   "slug": "codex-review-receipt-binding",
   "claimId": "441e6595579f7f431eb4be9d1b70679d",
   "createdAt": "2026-10-19T17:50:00.589Z",
-  "updatedAt": "2026-10-19T17:50:00.589Z",
+  "updatedAt": "2026-10-19T19:05:14.360Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Handle completed Codex clean receipts without indefinite pending or invented reviewed-commit evidence.",
   "branch": "fix/codex-review-receipt-binding",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "fix/codex-review-receipt-binding",
+    "headSha": "e530efa7d5347046314700f134f082c97386d9f2"
+  }
 }
