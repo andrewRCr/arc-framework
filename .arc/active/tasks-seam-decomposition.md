@@ -441,20 +441,14 @@ stored map, writing no lineage; and the preview afterward reports the cut landed
   verb refuses stub extraction and redistributed companions with repair-and-retry coverage; one new cohort member
   counts the surviving origin as its second constituent.
 
-### `[ ]` **4.2 Thin the origin's draft or spec over records — § 8.6, § 13**
+### `[x]` **4.2 Thin the origin's draft or spec over records — § 8.6, § 13**
 
 - _Goal:_ The terminal batch derives the origin's retained bytes from the records it acquired, preserving the bytes of
   the units the origin keeps and removing a record that keeps none, as today's thinning plans it.
 
-    - Carry `planV3ExtractionSourceThinning` (`decompose-v3-thinning.ts`) under `lib/decompose/`, its inputs records
-      rather than a path-keyed tree (`V3RepositoryPlanTree`) and its source IDs version 4's (task 1.2.a). Its own checks
-      of the map's binding, the source-artifact inventory, and Git file modes go, task 3.3.b's rescan binding the origin
-      instead.
-    - A record whose bytes the thinning leaves unchanged takes no write.
-    - Build `test-first` (one behavior at a time):
-        - the kept units' bytes survive exactly
-        - a record keeping no unit is removed, and one keeping every unit takes no write
-        - units resolve by locator against the origin's current record
+- _Outcome:_ `planDecomposeSourceThinning` scans acquired design records, resolves version-4 allocation identities by
+  current locator, and concatenates only retained units without changing their bytes. Empty results remove their
+  records; unchanged records and retained companions take no write.
 
 ### `[ ]` **4.3 Write an extraction's terminal batch — § 8.6, § 8.7**
 
