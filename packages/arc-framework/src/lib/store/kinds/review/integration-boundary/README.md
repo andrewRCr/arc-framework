@@ -10,3 +10,9 @@ reservations, Candidate identity, and exact member-vehicle uniqueness consistent
 
 The write check permits version two and refuses retained version one with a regeneration remedy. Registration
 combines that check with the version-dispatched parser; retained version-one records remain readable.
+
+`deriveReviewReadinessBinding` selects one subject owner's standard-lane outcomes, their responding evidence,
+approved-fix decisions and withdrawals, and the supplied owner's pending attempts. It hashes canonical record content
+by key and canonical pending state by attempt ID, independently of listing order, JSON formatting, and backend versions.
+An outcome suppresses a leftover pending attempt by attempt ID or stable hosted admission ID. Any unreadable,
+incomplete, malformed, or inconsistently keyed listing returns an incomplete result without a digest.

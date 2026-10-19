@@ -4,3 +4,5 @@ export { IntegrationBoundaryLocusSchema, IntegrationBoundaryLocusV2Schema, type 
 export { parseReviewIntegrationBoundary, decodeReviewIntegrationBoundary } from "./parser.js";
 export { checkReviewIntegrationBoundary } from "./check.js";
 export { REVIEW_INTEGRATION_BOUNDARY_REGISTRATION } from "./registration.js";
+export { deriveReviewReadinessBinding, type ReviewReadinessInput, type ReviewReadinessBinding,
+  type ReadinessInFlightAttempt } from "./readiness.js";

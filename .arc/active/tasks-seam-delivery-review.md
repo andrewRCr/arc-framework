@@ -131,7 +131,7 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
   JSON decoding. Finding dispositions are unique; reports and accounts remain prose. The activity-key check keeps
   global stored-pass numbering separate from the loop's ordinal, and recorded approvals grant no next-pass permission.
 
-### `[ ]` **1.6 Build the Candidate and boundary kinds, and the readiness digest — § 8, § 9.1, § 9.2, § 9.5**
+### `[x]` **1.6 Build the Candidate and boundary kinds, and the readiness digest — § 8, § 9.1, § 9.2, § 9.5**
 
 - _Goal:_ The Candidate kind's parser validates today's managed record whole and recomputes its IDs; the boundary kind's
   parser admits `schemaVersion` 1 as today's parse reads it and 2, its write check refusing version 1; and one pure
@@ -157,25 +157,11 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
         - Added current-format write admission and registration. Retained version-one boundaries remain readable;
           writes refuse with a version-two regeneration remedy, and version-two writes are admitted.
 
-    - `[ ]` **1.6.d The readiness binding's digest**
+    - `[x]` **1.6.d The readiness binding's digest**
 
-        - One pure function takes a work item's listings of outcomes, evidence, and decisions, each with its
-          completeness, the lineage's subject owner, and the lane's in-flight attempts, and selects for itself what the
-          binding covers: the standard lane's outcomes on that owner, the evidence whose result is one of them, the
-          `approved-fix` decisions on that lineage, and the withdrawals of those decisions, each by its key and a digest
-          of its canonical content (`canonicalize`, `lib/kernel/canonical/canonical-json.ts`), with each in-flight
-          attempt by its attempt ID and a digest of its canonical in-flight state. It returns their digest, or an
-          incomplete result when any listing was incomplete (§ 9.2). The import, readiness, and every publication site
-          call this one selector.
-        - Build `test-first` (one behavior at a time):
-            - the same records in any order give one digest
-            - a record whose stored bytes differ only in key order or whitespace gives the same digest
-            - a changed record, an added record, or an added in-flight attempt gives another
-            - a record rewritten with the same content gives the same digest
-            - a terminus, a selection, or a lane-skip decision changes nothing
-            - another lane's outcome, an outcome on another subject owner, and evidence for an outcome outside the lane
-              change nothing
-            - an incomplete listing gives no digest
+        - Added the pure canonical selector for standard-lane outcomes, responding evidence, approved-fix grants and
+          withdrawals, and pending attempts. Backend versions and byte formatting do not affect the binding; incomplete
+          listings yield no digest. Stored outcomes suppress pending leftovers, including re-keyed hosted admissions.
 
 ### `[ ]` **1.7 Register the six kinds — § 2.5**
 
