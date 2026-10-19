@@ -86,3 +86,7 @@ shares listed and individually read records within preparation; revalidation use
 since the map's latest creation, sharing history reads for aliases. Accepted member generations alone leave the
 incoming scan. `acquire-terminal-targets.ts` retains named cohort documents and complete open-home groups, directing
 closed-home allocations through revision.
+
+`check-terminal-origin.ts` admits the origin's current lifecycle state for the cut's shape before deriving source facts.
+It repeats the shared scaffold floor and gives typed deactivation, reopening, revision, or discard actions when the
+current state or name prevents finishing.

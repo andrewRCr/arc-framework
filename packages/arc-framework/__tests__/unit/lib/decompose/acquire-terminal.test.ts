@@ -1,10 +1,8 @@
 /** Stored-cut acquisition preserves current generation and record-version boundaries. */
 import { expect, it } from "vitest";
+import { createDecomposeTerminalFixture } from "../../../fixtures/decompose-terminal.js";
 import { createDecomposeOriginFixture } from "../../../fixtures/decompose-origin.js";
 import { acquireDecomposeTerminal } from "../../../../src/lib/decompose/acquire-terminal.js";
-import { prepareDecomposePreflight } from "../../../../src/lib/decompose/preflight.js";
-import { completeCutMapFixture } from "../../../fixtures/decompose-v4.js";
-import { runStoreDecomposeAdditive } from "../../../../src/lib/decompose/additive.js";
 import { lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { writeMetaDependsOn } from "../../../../src/lib/store/kinds/meta/writers.js";
 import { sameReference, recordReferences } from "../../../../src/lib/store/identity.js";
@@ -21,31 +19,6 @@ import { acquireDecomposeDependencyFacts } from "../../../../src/lib/decompose/d
 import { projectDecomposeDependencies } from "../../../../src/lib/decompose/dependency-projection.js";
 import { planDecomposeTopology } from "../../../../src/lib/decompose/topology.js";
 import { planDecomposeMembers } from "../../../../src/lib/decompose/member-scaffold.js";
-
-async function landedFixture(withHome = false) {
-  const h = await createDecomposeOriginFixture();
-  const dependent = await h.seedStub("consumer");
-  await h.handEdit(dependent, writeMetaDependsOn(dependent.content, ["origin"]));
-  if (withHome) {
-    const home = await h.seedStub("home");
-    await h.handEdit(home, writeMetaDependsOn(home.content, ["origin"]));
-    await h.seed(recordReferences["work-item/draft"](home.reference.owner), "# Home\n\n## Existing\n\nAuthored content.\n");
-  }
-  const fresh = await prepareDecomposePreflight(h.ctx, "origin");
-  if (fresh.status === "refused") throw new Error(JSON.stringify(fresh));
-  const map = completeCutMapFixture(fresh.result.machine);
-  if (withHome) {
-    map.authoring.shape = "heterogeneous";
-    map.authoring.destinations.push({ kind: "existing-home", destinationId: "z-home", target: { kind: "work-unit", slug: "home" } });
-    const allocation = map.authoring.sourceAllocations[0];
-    if (allocation?.disposition.kind !== "target") throw new Error("Expected source allocation.");
-    allocation.disposition.destinationId = "z-home";
-    allocation.disposition.targetLocator.artifact = "draft-home.md";
-  }
-  const applied = await runStoreDecomposeAdditive(h.ctx, "origin", "execute", { cutMap: map, cutMapPath: "cut.json" });
-  if (applied.status === "refused") throw new Error(JSON.stringify(applied));
-  return { ...h, map, applied: applied.result };
-}
 
 // A second read of one generation is an acquisition failure, rather than an assertion on spy arguments.
 function oncePerRecord(store: Store): Store {
@@ -70,7 +43,7 @@ it("names the additive modes when no stored cut exists", async () => {
 });
 
 it("limits membership to the current incarnation when the stored map is recreated", async () => {
-  const h = await landedFixture();
+  const h = await createDecomposeTerminalFixture();
   const map = lifecycleSuccess(await h.store.read({ reference: h.applied.report.storedMap }));
   // Checked machine-record recreation isolates the history boundary; the members keep their earlier birth histories.
   lifecycleSuccess(await h.store.write({ action: "remove", reference: map.reference, expected: map.version,
@@ -84,7 +57,7 @@ it("limits membership to the current incarnation when the stored map is recreate
 });
 
 it.each(["map", "member"] as const)("admits no member without a batch ID in its %s history", async missing => {
-  const h = await landedFixture();
+  const h = await createDecomposeTerminalFixture();
   const store = new Proxy(h.store, { get(target, property) {
     if (property === "history") return async (input: { reference: RecordReference }) => {
       const history = await target.history(input);
@@ -105,7 +78,7 @@ it.each(["map", "member"] as const)("admits no member without a batch ID in its 
 });
 
 it("admits a member created with the map update in a revision batch", async () => {
-  const h = await landedFixture();
+  const h = await createDecomposeTerminalFixture();
   const previous = await acquireDecomposeTerminal(h.ctx, "origin");
   if (previous.status === "refused") throw new Error(JSON.stringify(previous));
   h.map.authoring.destinations.push({ kind: "new-member", destinationId: "member-c", slug: "member-c", workClass: "Light" });
@@ -136,7 +109,7 @@ it("admits a member created with the map update in a revision batch", async () =
 });
 
 it.each(["abandoned", "shipped"] as const)("refuses a home %s after scaffolding and acquires a revised open target", async outcome => {
-  const h = await landedFixture(true);
+  const h = await createDecomposeTerminalFixture({ withHome: true });
   const home = lifecycleSuccess(await h.store.lookup({ kind: "slug", slug: SlugSchema.parse("home") }));
   const primary = lifecycleSuccess(await h.store.read({ reference: home.reference }));
   if (outcome === "abandoned") await h.seedRetiredWorkUnit(primary);
@@ -170,7 +143,7 @@ it.each(["abandoned", "shipped"] as const)("refuses a home %s after scaffolding 
 });
 
 it("leaves a replacement generation out of the cut and includes its real incoming edge", async () => {
-  const h = await landedFixture();
+  const h = await createDecomposeTerminalFixture();
   const member = lifecycleSuccess(await h.store.read({ reference: h.applied.report.members[0]!.meta }));
   await h.seedRetiredWorkUnit(member);
   const replacement = await h.seedStub("member-a");
@@ -185,7 +158,7 @@ it("leaves a replacement generation out of the cut and includes its real incomin
 });
 
 it("recognizes a sibling only by its own birth name even when it takes another member's slug", async () => {
-  const h = await landedFixture();
+  const h = await createDecomposeTerminalFixture();
   const first = lifecycleSuccess(await h.store.read({ reference: h.applied.report.members[0]!.meta }));
   await h.seedRetiredWorkUnit(first);
   expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: scriptGitExec([]).exec, baseBranch: "main" },
@@ -200,7 +173,7 @@ it("recognizes a sibling only by its own birth name even when it takes another m
 });
 
 it("acquires the landed cut once per record and retains guards that reject later edits", async () => {
-  const h = await landedFixture();
+  const h = await createDecomposeTerminalFixture();
   const store = oncePerRecord(h.store);
   const result = await acquireDecomposeTerminal({ ...h.ctx, executor: { ...h.ctx.executor, store } }, "origin");
   expect(result.status).toBe("ok");

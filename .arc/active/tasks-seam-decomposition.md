@@ -306,22 +306,11 @@ that step fails; and the preview afterward reports the cut landed, naming its me
   names each seeded provider, compared by owner — so grooming passes and divergence refuses, naming its restoration
   through write-back, and the revision only where one can make it legitimate.
 
-    - `[ ]` **3.2.a The origin's current kind**
+    - `[x]` **3.2.a The origin's current kind**
 
-        - Derived by task 2.2's derivation over the records task 3.1 acquired. A kind the shape does not take refuses,
-          naming the moves that restore one — `arc deactivate <origin>` for an Active origin, and for an Integrating one
-          `arc reopen <origin>`, then in a retirement `arc deactivate <origin>` — or `--discard`:
-          an Active origin in a retirement, and an Integrating or archived one in either shape — for a retirement, whose
-          `decompose` edges leave none of these positions (`lifecycle-transitions.ts`), before the preview rather than
-          at the executor after the approval, and for an extraction, which runs no transition, as the source-kind
-          selection refuses it (`source-predecessor`). A renamed origin refuses, naming `--revise`.
-        - Build `test-first` (one behavior at a time):
-            - an Active origin refuses a retirement, and the checks pass after its deactivation
-            - an origin no member can be made from refuses here as at preflight
-            - an Integrating origin refuses at the preview, and a retirement's checks pass after `arc reopen` and then
-              `arc deactivate`
-            - a stub started since the additive batch passes
-            - a renamed origin refuses
+        - `checkDecomposeTerminalOrigin` derives the current source kind and repeats the scaffold-source floor.
+          Active retirements name deactivation, Integrating origins name reopening with shape-specific follow-up,
+          archived origins name discard, and a renamed origin names revision at its current slug. Started stubs pass.
 
     - `[ ]` **3.2.b The seeded fields**
 
