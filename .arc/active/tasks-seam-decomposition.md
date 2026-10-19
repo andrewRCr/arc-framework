@@ -357,18 +357,11 @@ that step fails; and the preview afterward reports the cut landed, naming its me
   (`lifecycle-transitions.ts`), `storeTransition.additionalWrites` for the batch's other writes, `preparedRecords` for
   the records the executor revalidates, and `provenance` naming the terminal batch.
 
-    - `[ ]` **3.4.a The lineage record**
+    - `[x]` **3.4.a The lineage record**
 
-        - Carry `createDecomposeTransitionRecord`'s projection from the map (`decompose-transition-record.ts`) under
-          `lib/decompose/` — `successors` the members, `incoming` each dependent's disposition, `outgoing` each
-          provider's members — each reference carrying its current name and, where its record or the map holds one,
-          its UID, by which reconcile's store arm matches a dependent (`store-reconcile-context.ts`); and add the
-          origin's UID and `retiredBranches` from the primary's exact branch links, `[]` where it has none, as
-          `runStoreAbandon` writes them.
-        - Build `test-first` (one behavior at a time):
-            - the record passes `lineage.retired-branches`, with links and without
-            - `arc teardown <origin>` accepts it (`readStoreRetirementEvidence`)
-            - a dependent renamed between the batches is named by its UID and current name
+        - `prepareDecomposeLineage` projects current generation-bearing successors, dependent dispositions, provider
+          allocations, and exact retired branch links into a create-only record accepted by teardown. Renamed live and
+          retired providers retain current names and proof records for revalidation; renamed dependents match by UID.
 
     - `[ ]` **3.4.b The edges and the fan-out**
 
@@ -384,6 +377,8 @@ that step fails; and the preview afterward reports the cut landed, naming its me
           re-binds through `--revise` (§ 8.4).
         - Build `test-first` (one behavior at a time):
             - a stub dependent's edge is replaced or dropped by its disposition; an in-flight dependent's is left
+            - an incoming replacement naming its own dependent refuses as a self dependency before additive writes,
+              including a home's former-name alias; correcting the replacement admits the cut
             - a stub dependent holding a stored map of its own takes its rewritten edge, and its own cut's `--finish`
               then refuses, naming `--revise`
             - the fan-out block names the members by their map slugs

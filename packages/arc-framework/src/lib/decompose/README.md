@@ -109,3 +109,7 @@ allowing metadata grooming, provider renames, and changes outside the current sc
 started-recipient admission with stored-cut revision remedies. Started-home intent is checked before omitted writes
 can hide it; provider checks cover actual terminal additions while member seeds remain under seeded-field validation.
 Written-provider refusals point to the contribution that introduced that provider, even when one edit combines edges.
+
+`lineage-plan.ts` projects admitted retirement records into create-only lineage with current names, known generations,
+and the origin's exact retired branch links. Renamed dependents match by UID; current and retired provider records
+retain the versions that establish their names for revalidation.
