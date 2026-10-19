@@ -2,13 +2,12 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import { handleSchemaGet, handleSchemaList, type SchemaHandlerDependencies } from "../../../src/handlers/schema.js";
-import { createKernelRegistry, type KernelRegistry } from "../../../src/lib/kernel/index.js";
+import { createRegistry, type KernelRegistry } from "../../../src/lib/kernel/schema/registry.js";
 import {
   SchemaGetEnvelopeSchema, SchemaListEnvelopeSchema, SchemaRefusalEnvelopeSchema,
 } from "../../../src/lib/schema-command/envelope.js";
-import { createProductionSchemaRegistry } from "../../../src/production-schema-registry.js";
 
-function capture(registry: () => KernelRegistry = createProductionSchemaRegistry) {
+function capture(registry: () => KernelRegistry) {
   const result = { stdout: "", exitCode: 0 };
   const dependencies: SchemaHandlerDependencies = {
     registry, write: (text) => { result.stdout += text; }, setExitCode: (code) => { result.exitCode = code; },
@@ -17,45 +16,57 @@ function capture(registry: () => KernelRegistry = createProductionSchemaRegistry
 }
 
 describe("schema discovery handlers", () => {
-  it("lists every production identity with metadata in compact JSON", () => {
-    const { result, dependencies } = capture();
+  it("lists every registered identity with metadata in compact JSON", () => {
+    const registry = createRegistry();
+    registry.register(z.strictObject({ count: z.number() }), {
+      id: "editor", version: 2, migrationPosture: "strict-current", authored: "editor-document",
+    });
+    registry.register(z.strictObject({ label: z.string() }), {
+      id: "payload", version: 5, migrationPosture: "backward-compatible",
+    });
+    const { result, dependencies } = capture(() => registry);
     handleSchemaList({ json: true }, undefined, dependencies);
-    const registry = createProductionSchemaRegistry();
-    expect(JSON.parse(result.stdout)).toEqual({ status: "ok", schemas: registry.ids().map((id) => ({
-      id, version: registry.meta(id)?.version, migrationPosture: registry.meta(id)?.migrationPosture,
-      editorDocument: id === "check-declaration"
-        ? { path: ".arc/system/.internal/schemas/check-declaration.schema.json" } : null,
-    })) });
+    expect(JSON.parse(result.stdout)).toEqual({ status: "ok", schemas: [
+      { id: "editor", version: 2, migrationPosture: "strict-current",
+        editorDocument: { path: ".arc/system/.internal/schemas/editor.schema.json" } },
+      { id: "payload", version: 5, migrationPosture: "backward-compatible", editorDocument: null },
+    ] });
     expect(result.stdout.split("\n")).toHaveLength(2);
     expect(SchemaListEnvelopeSchema.safeParse(JSON.parse(result.stdout)).success).toBe(true);
     expect(result.exitCode).toBe(0);
   });
 
   it("lists plain metadata without projecting an unrepresentable root", () => {
-    const registry = createKernelRegistry();
+    const registry = createRegistry();
     registry.register(z.custom(), { id: "opaque", version: 5, migrationPosture: "backward-compatible" });
     const { result, dependencies } = capture(() => registry);
     handleSchemaList({}, undefined, dependencies);
-    expect(result.stdout.trim().split("\n")).toEqual(registry.ids().map((id) => {
-      const meta = registry.meta(id);
-      return `${id} ${meta?.version} ${meta?.migrationPosture}`;
-    }));
+    expect(result.stdout.trim().split("\n")).toEqual(["opaque 5 backward-compatible"]);
     expect(result.exitCode).toBe(0);
   });
 
   it("gets a request root on its input side", () => {
-    const { result, dependencies } = capture();
-    handleSchemaGet("review-resolve-request", undefined, dependencies);
-    const payload = JSON.parse(result.stdout) as { status: string; schema: { $id: string; required: string[] } };
-    expect(payload.status).toBe("ok");
-    expect(payload.schema.$id).toBe("urn:arc:schema:review-resolve-request");
-    expect(payload.schema.required).not.toContain("frontlineActive");
+    const registry = createRegistry();
+    registry.register(z.strictObject({ label: z.string(), enabled: z.boolean().default(false) }), {
+      id: "request", version: 4, migrationPosture: "strict-current", authored: "request",
+    });
+    const { result, dependencies } = capture(() => registry);
+    handleSchemaGet("request", undefined, dependencies);
+    const payload: unknown = JSON.parse(result.stdout);
+    expect(payload).toEqual({
+      status: "ok", id: "request", version: 4, migrationPosture: "strict-current", editorDocument: null,
+      schema: {
+        $schema: "https://json-schema.org/draft/2020-12/schema", $id: "urn:arc:schema:request",
+        type: "object", properties: { label: { type: "string" }, enabled: { default: false, type: "boolean" } },
+        required: ["label"], additionalProperties: false,
+      },
+    });
     expect(SchemaGetEnvelopeSchema.safeParse(payload).success).toBe(true);
     expect(result.stdout.split("\n")).toHaveLength(2);
   });
 
   it("reports a marked editor document through its layout address", () => {
-    const registry = createKernelRegistry();
+    const registry = createRegistry();
     registry.register(z.strictObject({ count: z.number(), $schema: z.string().optional() }), {
       id: "editor", version: 2, migrationPosture: "strict-current", authored: "editor-document",
     });
@@ -67,7 +78,9 @@ describe("schema discovery handlers", () => {
   });
 
   it("refuses an unknown identity with its discovery remedy", () => {
-    const { result, dependencies } = capture();
+    const registry = createRegistry();
+    registry.register(z.custom(), { id: "opaque", version: 1, migrationPosture: "strict-current" });
+    const { result, dependencies } = capture(() => registry);
     handleSchemaGet("missing", undefined, dependencies);
     expect(JSON.parse(result.stdout)).toEqual({
       status: "refused", reason: "unknown-schema-id", id: "missing", remedy: "arc schema list",
