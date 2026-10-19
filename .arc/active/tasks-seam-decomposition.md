@@ -372,28 +372,17 @@ that step fails; and the preview afterward reports the cut landed, naming its me
           their repairs; version conflicts name a fresh finish preview. Teardown releases retained claims, preserves
           files and unlanded planning branches, and leaves an executable continuation after physical cleanup fails.
 
-### `[ ]` **3.5 Preview and apply under an apply authority — § 8.7**
+### `[x]` **3.5 Preview and apply under an apply authority — § 8.7**
 
 - _Goal:_ `--finish` acquires, checks, and prepares the terminal batch, the removal check included, writes nothing, and
   reports the lineage record, the removals, and each record it would write with an apply authority; `--finish --apply
   <authority>` runs the batch only when a fresh preparation's digest equals it, refusing otherwise, naming `--finish`.
 
-    - The authority is the canonical digest (`canonicalDigest`) of the schema version, the mode — a retirement's
-      finish, an extraction's finish, the discard, or the revision — the origin's slug and UID, every acquired record's
-      reference and version, and the prepared writes, the executor's removal of the primary among them, each list in
-      canonical order; it lives in a module the discard and the revision share (tasks 5.1, 5.3).
-    - The apply acquires, checks, and prepares again, and compares the authority last, once every check passes, as
-      today's finish compares it (`git-decompose-v3-finish.ts`).
-    - A version conflict at an applied batch names a fresh preview and approval, as text.
-    - Build `test-first` (one behavior at a time):
-        - the preview writes nothing, and a dirty spawned holding checkout selected for removal refuses at the preview
-        - a dirty retained holding checkout passes the preview when its projection check passes, and refuses there
-          when that check refuses
-        - a change every check accepts — a member's `Next Action` groomed, or a stub dependent's unrelated field
-          edited — makes the authority stale
-        - a matching authority lands exactly the previewed writes
-        - a version conflict at the applied batch that the repeated checks do not explain, staged through task 2.1.c's
-          store wrapper, names a fresh `--finish` preview and approval, as text, and writes nothing
+- _Outcome:_ `runStoreDecomposeFinish` prepares a read-only retirement preview and applies only a freshly matched
+  authority. `decomposeApplyAuthority` binds the mode, origin generation, observed versions, and exact mutations in
+  canonical order for every removing mode. Accepted grooming invalidates approval; current content and checkout
+  refusals precede the comparison. Matching applies land exactly the previewed writes; batch conflicts require a fresh
+  preview and approval.
 
 ### `[ ]` **3.6 Report a landed cut from `--finish` — § 8.7**
 

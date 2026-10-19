@@ -67,5 +67,5 @@ function retirementRejection(name: string, outcome: Exclude<TransitionOutcome, {
   };
   return { status: "refused", reason: "version-conflict", class: "recoverable", locus: name, message: outcome.message,
     ...(outcome.refusal?.code === "version-conflict" ? { storeRefusal: outcome.refusal } : {}),
-    remedy: { text: `Prepare a fresh terminal preview with ${renderV3DecomposeArgv(argv)}.`, argv: [...argv] } };
+    remedy: { text: `Prepare a fresh terminal preview with ${renderV3DecomposeArgv(argv)} and obtain approval again.`, argv: [...argv] } };
 }

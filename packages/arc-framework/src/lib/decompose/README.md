@@ -127,3 +127,8 @@ removal or release checks before persistence, preserving projection repairs.
 revalidation. Incomplete executor inventory is read again for its typed repair; version conflicts require a fresh
 finish preview. Teardown runs after persistence, surfaces preservation notices, and retains an executable continuation
 when physical cleanup fails. A stub with no holder or branch link needs no physical cleanup.
+
+`apply-authority.ts` binds removing operations to their mode, origin generation, observed record versions, and exact
+prepared writes, ordering the observation and mutation sets canonically. `finish-report.ts` exposes closed preview and
+application reports. `finish.ts` completes preparation and checkout admission before comparing the supplied authority;
+accepted grooming requires a fresh preview and approval, and a matching authority applies exactly the previewed writes.
