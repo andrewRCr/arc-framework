@@ -984,7 +984,9 @@ A verification response has no evidence record: a delivery fix writes it only as
   performance (`LaneResponsePerformanceSchema`) record them. Today those are two writes, the fix response appended to
   the disposition record and then its performance (`recordPerformedResponse`, `rg/runtime/respond-command.ts`); from the
   flip they are one `performance` write, so no response is ever half recorded, and a replay that finds a matching
-  performance returns today's envelope and writes nothing.
+  performance returns today's envelope and writes nothing. A set containing no `fix` may retain its recorded
+  `LaneResponsePerformanceSchema` header without a fix response; that header records settlement and supplies no fix
+  authority. The import keeps such headers whole rather than inventing a target transition or dropping them (A10).
 - **`settlement`** — a hosted response's per-finding settlement (`settlementEvidence`): each finding's disposition and,
   where it was replied to, the host comment, thread, reply, and reply digest it settled through, with the set's finding
   actions; and, for a successor set, the entries carried from its predecessor (`carriedFromDispositionSetId`).
@@ -1025,11 +1027,13 @@ set's finding action gives, carried only from the record's predecessor — the p
 (`rg/core/operation-state-schema.ts`), extracted into one exported function that the binding calls per node and this
 parser once. It also holds the approved-disposition record's refinements that carry over
 (`ApprovedDispositionLineageNodeSchema`, `ApprovedDispositionRecordSchema`, `rg/core/advisory-records.ts`): a record
-pending its policy projection carries no performance or successor; an Errand's performance binds its Errand, its fix,
-and its target transition, a hosted one keeping its originating change request; a delivery member's binds its member,
-its fix, and its hosted transition, with host coordinates as its source kind gives and never a frontline source; and a
-Candidate-owned private member's head is its fix's old head. Only a Candidate lineage's performance carries
-`candidateResponseId` (`validateResponseDigestLineage`, `rg/core/lane-progress-state-validation.ts`).
+pending its policy projection carries no performance or successor. When its approved set contains a `fix`, an Errand's
+performance requires the complete fix response binding its Errand, its fix, and its target transition, a hosted one
+keeping its originating change request; a delivery member's requires its complete member fix response and hosted
+transition, with host coordinates as its source kind gives and never a frontline source. A set containing no `fix`
+admits its recorded performance header without either fix-response object; neither object is admitted without a fix
+in the set (A10). A Candidate-owned private member's head is its fix's old head. Only a Candidate lineage's performance
+carries `candidateResponseId` (`validateResponseDigestLineage`, `rg/core/lane-progress-state-validation.ts`).
 
 Its write check holds the rest. The key is the record's `dispositionSetId`. A hosted set's finding actions cover exactly
 the sealed findings of its result's outcome, and its settlement names only those (`validateHostedSettlement`,
@@ -2322,6 +2326,10 @@ spec's review copy until the candidate tail deletes it (§ 12.5).
     matching, and pending-fix authority use that digest, so an existing approved set still matches after redaction,
     including a command source with a Candidate/member response binding and an import with no run record.
 
+12. **Settlement headers do not invent fixes (A10).** Imported Errand and member evidence with no `fix` disposition
+    retains its native performance header without a fix response. A performed Errand or member fix still requires its
+    complete authorized transition, and a set with no fix refuses either fix-response object.
+
 ## Open Questions
 
 None blocks starting. The rest are expected contracts with stated availability, and none leaves design open: the ref
@@ -2369,5 +2377,7 @@ rewrite, and deletion pass (§ 11.2, § 12.6, § 14.3).
   _Trigger:_ 1.4.a door. _Work:_ 1.4.R. _Revalidated:_ pending → 5.8.
 - **A9** — 2026-10-19 — task: defer `indexFrontline` payload decoding until a mapped attempt joins. _Supersedes:_ none.
   _Trigger:_ 3.8 segment. _Work:_ 3.R. _Revalidated:_ pending → 3.8.
+- **A10** — 2026-10-19 — design: retain no-fix settlement headers. _Supersedes:_ § 6.2 performance and § 6.5 fix ownership.
+  _Trigger:_ 3.8 segment. _Work:_ 1.R. _Revalidated:_ pending → 3.8.
 
 ---

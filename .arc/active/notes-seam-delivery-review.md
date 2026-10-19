@@ -511,6 +511,30 @@ outcome and checks producer-dependent invariants before 1.4.b composes the full 
 bounded author spec review and the grounding-only task audit; low depth omits an independent planning pass. Goals,
 criteria, completed tasks, and lifecycle state remain unchanged; 5.8 is the next covering verifier.
 
+## A10 — No-fix settlement headers retain their recorded facts
+
+The diagnostic mapping returned four Errand evidence records whose approved findings contain no `fix`, but whose native
+lane histories hold a `LaneResponsePerformanceSchema` header. `mapReviewEvidencePerformance` correctly keeps that
+header; `validateFixOwnership` rejects it because it requires a complete fix response for every Errand or member
+performance. `parseApprovedDispositionRecord` and the native lane schema accept the original records. These headers
+record settlement without a fix; there is no target transition to recover or fabricate.
+
+The superseded § 6.5 statement was:
+
+> an Errand's performance binds its Errand, its fix, and its target transition, a hosted one keeping its originating
+> change request; a delivery member's binds its member, its fix, and its hosted transition, with host coordinates as
+> its source kind gives and never a frontline source
+
+Section 6.2 described every performance through the response's old and new targets, applicability, fix consumption,
+hosted fix target, and Candidate response. That description now distinguishes a recorded settlement header from the
+complete transition a fix requires. Full fix-response objects remain required for performed Errand and member fixes
+and are refused where the approved set contains no fix. The mapper preserves each recorded header unchanged.
+
+The approved correction changes § 6.2 and § 6.5, adds Success Criterion 12, and is carried by Task 1.R. Task 1.4.a
+points forward without rewriting its completed result. The mapping, settlement derivation, and remaining evidence-port tasks
+retain their existing shapes; Task 3.8 reruns its real-record scenario. Bounded author spec review and grounding-only
+task audit apply at low depth; the independent planning offer is omitted.
+
 ## Neighbors
 
 The spec names no other work unit. These are the ones its descriptive references mean, and what each owns where it

@@ -103,6 +103,8 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
           performance, and hosted settlement. Canonical approval, transition, policy-projection, and settlement checks
           share existing constructors and the extracted per-set validator. Producer-dependent checks remain in 1.4.R.
 
+        - _Amended in:_ 1.R (A10)
+
     - `[x]` **1.4.R Ground producer-dependent evidence rules in the outcome**
 
         - _Goal:_ Rules requiring the result's source kind or original lineage read the referenced outcome through the
@@ -184,6 +186,22 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
   A6 remains current: preserve store-aware Candidate ownership, store-only Errand discovery, marker claim identities,
   checkout-occupancy resolution, and lazy status imports. The subject's remaining Candidate-bullet and boundary reads,
   status's absent stored boundary, and both nested probe callbacks remain assigned to their existing tasks.
+
+### `[ ]` **1.R Preserve no-fix settlement performance headers — § 6.2, § 6.5**
+
+**Additional Context:** `notes-seam-delivery-review.md` § A10.
+
+- _Goal:_ Evidence retains recorded no-fix settlement headers without inventing fix transitions, while performed Errand
+  and member fixes still require their complete authorized response (A10).
+
+    - `validateFixOwnership` requires an Errand or member fix response only when the approved set contains a `fix`;
+      sets with no fix admit their native header and refuse either fix-response object. The mapping keeps recorded
+      headers unchanged and derives no absent transition facts.
+    - Build `test-first` (one behavior at a time):
+        - native no-fix Errand and member performance headers parse and pass the complete-set write check unchanged
+        - an Errand or member set containing a fix still refuses performance missing its complete fix response
+        - a set containing no fix refuses an Errand or member fix-response object
+        - a mapped no-fix settlement retains its recorded header and reads as settled without inventing a fix response
 
 ## **Phase 2:** Before the flip — Candidate and boundary callers through the store
 
@@ -2176,3 +2194,7 @@ prerequisites have landed, and every earlier task is independent of the remainin
   executable paths or arguments. Result reads, disposition matching, and pending-fix authority use that digest, so an
   existing approved set still matches after redaction, including a command source with a Candidate/member response
   binding and an import with no run record (spec, A7).
+
+- `[ ]` Imported Errand and member evidence with no `fix` disposition retains its native performance header without a
+  fix response. Performed Errand or member fixes require their complete authorized transition, and a set with no fix
+  refuses either fix-response object (spec, A10).
