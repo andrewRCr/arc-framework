@@ -3,14 +3,20 @@
   "slug": "bound-local-review-choice-test",
   "claimId": "8bb934ae0c9b6e1d3e773666cf3efb2f",
   "createdAt": "2026-10-19T15:17:47.999Z",
-  "updatedAt": "2026-10-19T15:17:47.999Z",
+  "updatedAt": "2026-10-19T16:22:22.889Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Simplify the repeated local-review coverage-choice scenario while retaining executable real-CLI choices and all policy/reporting assertions.",
   "branch": "chore/bound-local-review-choice-test",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/bound-local-review-choice-test",
+    "headSha": "2885c3af3b29c8019b4528d040308532291fbf26"
+  }
 }
