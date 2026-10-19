@@ -243,16 +243,11 @@ row to the tasks that build it.
         - `copyDecomposeArtifact` retitles only the first line and copies task lists or notes only where allocated.
           Missing titles, task-list diagnostics, and completed tasks refuse at the source artifact; deferred tasks pass.
 
-    - `[ ]` **2.5.b Cohort documents — topology**
+    - `[x]` **2.5.b Cohort documents — topology**
 
-        - Carry `decompose-v3-topology.ts`'s four placements and both `Parent` checks over cohort records
-          (`structurallyMatches`): `cohort` creates one or reuses an open one, `subcohort` creates its parent beside it
-          with `parentPurpose` where absent, and `at-cap` and `direct-member` create none.
-        - Each created document through `writeCohortDocument` with the map's Purpose; an `at-cap` fan-out waits for the
-          terminal batch.
-        - Build `test-first` (one behavior at a time):
-            - each placement writes its documents, and a reused document with a mismatched `Parent` refuses
-            - a member and its new cohort document land together, as `meta.cohort` requires
+        - `planDecomposeCohorts` composes topology and Purpose checks with the cohort creation writer, creating missing
+          parent and child documents together and returning shared placement facts for member scaffolds. Reused documents
+          stay untouched; direct-member and at-cap placements create none, and at-cap fan-out remains terminal work.
 
     - `[ ]` **2.5.c Slug edges and the stored map**
 

@@ -63,3 +63,6 @@ parent separately and directing edits to reused documents through write-back.
 `member-scaffold.ts` prepares new member metadata, declared design copies, and allocated task-list or notes copies.
 `scaffold-copy.ts` preserves artifact bodies while retitling the first line and rejects missing titles, task-list
 creation diagnostics, and completed tasks that would prevent later removal of the copy.
+
+`cohort-scaffold.ts` composes topology and Purpose admission with the cohort creation writer. It creates only absent
+parent or child documents and supplies the validated placement to member scaffolds; at-cap fan-out waits for finishing.
