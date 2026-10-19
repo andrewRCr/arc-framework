@@ -7,6 +7,8 @@
  */
 
 import { z } from "zod";
+import { createStore, createDefaultStorePorts } from "../lib/store/index.js";
+import { inboxOutput, type InboxHandlerPorts } from "./inbox-runtime.js";
 
 import { runUserInboxList } from "../commands/user.js";
 import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
@@ -62,6 +64,7 @@ export const UserInboxListResultSchema = z.discriminatedUnion("state", [
     state: z.literal("refused"),
     nextAction: z.literal("stop"),
     reason: z.string().min(1),
+    code: z.literal("unsupported").optional(),
     remedy: z.string().min(1),
   }),
 ]);
@@ -69,18 +72,21 @@ export const UserInboxListResultSchema = z.discriminatedUnion("state", [
 /** One typed `arc user inbox-list` result. */
 export type UserInboxListCommandResult = z.infer<typeof UserInboxListResultSchema>;
 
-function refused(reason: string, remedy: string): UserInboxListCommandResult {
+function refused(reason: string, remedy: string): Extract<UserInboxListCommandResult, { state: "refused" }> {
   return { schemaVersion: 1, mode: "user-inbox-list", state: "refused", nextAction: "stop", reason, remedy };
 }
 
 async function resolveUserInboxList(
   opts: UserInboxListCommandOptions,
   context?: InteractionContext,
+  ports: InboxHandlerPorts = {},
 ): Promise<UserInboxListCommandResult> {
+  const store = ports.store ?? createStore(createDefaultStorePorts({ checkoutRoot: ports.cwd ?? process.cwd(), exec: createGitExec(context?.subprocess) }));
+  if (store.capabilities.stateOffBranch) return { ...refused("This title-keyed inbox listing is unsupported with off-branch state.", "Use arc inbox personal --target <slug>."), code: "unsupported" };
   const parsed = UserInboxListInputSchema.safeParse(opts);
   if (!parsed.success) return refused(z.prettifyError(parsed.error), "Pass the work unit's slug as --target.");
   const target = parsed.data.target;
-  const cwd = resolveArcRoot(process.cwd());
+  const cwd = ports.cwd ?? resolveArcRoot(process.cwd());
   if (cwd === null) return refused("ARC project root is unavailable.", "Run from an ARC project checkout.");
   const identity = await resolveIdentity({ exec: createGitExec(context?.subprocess) });
   if (identity === null) {
@@ -123,21 +129,22 @@ function describe(result: UserInboxListCommandResult): string {
 export async function handleUserInboxList(
   opts: UserInboxListCommandOptions,
   context?: InteractionContext,
+  ports: InboxHandlerPorts = {},
 ): Promise<void> {
   const json = opts.json === true;
   if (!json) p.intro("arc user inbox-list");
   let result: UserInboxListCommandResult;
   try {
-    result = UserInboxListResultSchema.parse(await resolveUserInboxList(opts, context));
+    result = UserInboxListResultSchema.parse(await resolveUserInboxList(opts, context, ports));
   } catch (error) {
     result = refused(
       error instanceof Error ? error.message : String(error),
       "Resolve the reported identity, inbox read, or lock failure, then retry.",
     );
   }
-  process.exitCode = result.state === "refused" ? 1 : 0;
+  inboxOutput(ports).exit(result.state === "refused" ? 1 : 0);
   if (json) {
-    process.stdout.write(`${JSON.stringify(result)}\n`);
+    inboxOutput(ports).stdout(`${JSON.stringify(result)}\n`);
     return;
   }
   if (result.state === "refused") {

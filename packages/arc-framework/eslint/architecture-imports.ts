@@ -46,6 +46,7 @@ export function architectureRuleFor(predicate: ArchitecturePredicate): string {
  */
 const RAW_STATE_MODULES = [
   "lib/store/kinds/registrations.ts",
+  "lib/store/kinds/entry-registration.ts",
   "lib/store/kinds/meta/registration.ts",
   "lib/store/kinds/errand-record/registration.ts",
   "lib/store/kinds/lineage/registration.ts",

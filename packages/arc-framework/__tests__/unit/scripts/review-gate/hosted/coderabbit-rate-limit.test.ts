@@ -1,3 +1,4 @@
+import { withReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
 /** Authenticated command rate limits preserve request attribution and source fallback. */
 
 import { describe, expect, it } from "vitest";
@@ -106,7 +107,7 @@ describe("CodeRabbit command rate limits", () => {
       });
       expect(result).toMatchObject({ state: "rate-limited", nextAction: "try-next-source" });
       if (result.state !== "rate-limited") throw new Error("Rate-limit continuation was not returned");
-      const policy = resolveReviewPolicy({
+      const policy = resolveReviewPolicy(withReviewNextPassContext({
         schemaVersion: 1,
         target,
         lane: "standard",
@@ -125,7 +126,7 @@ describe("CodeRabbit command rate limits", () => {
         scopeSelection: { mode: "whole-target", target },
         sources: ["coderabbit-pr", "codex-pr"],
         maxPasses: 2,
-      });
+      }));
       expect(policy).toMatchObject({
         state: "ready",
         nextAction: "hosted-request",

@@ -23,6 +23,10 @@
  */
 
 import type { GitExec } from "../git/exec.js";
+import type { Store } from "../store/contract.js";
+import type { RecordReference } from "../store/identity.js";
+import type { StoreSyncPort } from "../store/operational-sync.js";
+import { deriveStoreRestateCandidates } from "./restate-store.js";
 
 /** Single commit entry returned by the helper. */
 export interface RestateCandidatesCommit {
@@ -52,6 +56,10 @@ export interface DeriveRestateCandidatesOptions {
   exec: GitExec;
   /** SESSION-NOTES.md content; `null` when the file is absent. */
   sessionNotes: string | null;
+  store?: Store;
+  workUnit?: RecordReference;
+  identity?: string;
+  sync?: StoreSyncPort;
 }
 
 const LOG_FORMAT = "%h%n%s%n%B";
@@ -75,6 +83,7 @@ function fallback(): RestateCandidatesResult {
 export async function deriveRestateCandidates(
   options: DeriveRestateCandidatesOptions,
 ): Promise<RestateCandidatesResult> {
+  if (options.store?.capabilities.stateOffBranch === true) return deriveOffBranchCandidates(options, options.store);
   const { exec, sessionNotes } = options;
 
   if (sessionNotes === null) return fallback();
@@ -136,4 +145,15 @@ function extractTaskIds(body: string, ids: Set<string>): void {
       }
     }
   }
+}
+
+async function deriveOffBranchCandidates(options: DeriveRestateCandidatesOptions, store: Store): Promise<RestateCandidatesResult> {
+    if (options.workUnit === undefined || options.identity === undefined) throw new Error("Restating requires the current work unit and person. Resolve the work-unit checkout and retry handoff.");
+    const state = await deriveStoreRestateCandidates({ store, workUnit: options.workUnit,
+      identity: options.identity, ...(options.sync === undefined ? {} : { sync: options.sync }) });
+    if (state === null) return fallback();
+    const code = state.commit === null ? fallback() : await deriveRestateCandidates({ exec: options.exec,
+      sessionNotes: `**Commit at Handoff:** \`${state.commit}\`` });
+    return { commitsSinceHandoff: code.commitsSinceHandoff, tasksClosedSinceHandoff: state.tasks,
+      noteFileChangesSinceHandoff: state.notes, ...(code.baselineSignal === undefined ? {} : { baselineSignal: code.baselineSignal }) };
 }

@@ -40,6 +40,17 @@ function renderSessionContext(body: string, ending: string): string {
     : `## Session Context${ending}${ending}${normalized}${ending}${ending}`;
 }
 
+/** Identify the first body line that would terminate Session Context.
+ * @param body - Whole proposed section body.
+ * @returns One-based line and exact text, or null for a contained body.
+ */
+export function findMetaSessionContextBoundary(body: string): { line: number; text: string } | null {
+  for (const [index, text] of body.split(/\r?\n/u).entries()) {
+    if (/^## /u.test(text) || text.trim() === "---") return { line: index + 1, text };
+  }
+  return null;
+}
+
 /** Set, replace, insert, or remove the Session Context section.
  * @param content - Anchored metadata Markdown.
  * @param body - Whole section body, or null to remove the section.
@@ -48,7 +59,7 @@ function renderSessionContext(body: string, ending: string): string {
  */
 export function writeMetaSessionContext(content: string, body: string | null): string {
   const block = locateMetaFieldBlock(content);
-  if (body !== null && body.split(/\r?\n/u).some((line) => /^## /u.test(line) || line.trim() === "---")) {
+  if (body !== null && findMetaSessionContextBoundary(body) !== null) {
     throw new Error("Cannot write Session Context: body contains a section boundary.");
   }
   const targets = sectionSpans(block, content, body === null, "Session Context");

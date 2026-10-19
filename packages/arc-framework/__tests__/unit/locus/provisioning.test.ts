@@ -94,6 +94,7 @@ function harness(overrides: Partial<ProvisionTransientLocusDependencies> = {}) {
       return {
         ok: true,
         worktrees: [{
+          folderPresent: true,
           path: WORKTREE_PATH,
           head: HEAD,
           branch: BRANCH,
@@ -300,7 +301,7 @@ describe("provisionTransientLocus", () => {
     const test = harness({
       scanWorktrees: async () => ({
         ok: true,
-        worktrees: [{ path: "/repo", head: HEAD, branch: "main", detached: false, primary: true }],
+        worktrees: [{ folderPresent: true, path: "/repo", head: HEAD, branch: "main", detached: false, primary: true }],
       }),
     });
 
@@ -326,4 +327,16 @@ describe("provisionTransientLocus", () => {
     expect(result).toMatchObject({ kind: "error", evidence: { kind: "identity-only" } });
     expect(test.marker()).toEqual({ kind: "absent" });
   });
+});
+
+it("provisions a partial Errand with the qualified entry's observed version", async () => {
+  const test = harness();
+  const result = await provisionTransientLocus(options(test.dependencies, {
+    protection: "partial", identity: null,
+    proposal: { ...primaryProposal, subject: { kind: "errand", key: "demo", claimId: null } },
+    authority: { kind: "partial-errand", key: "demo", originEntry: "personal:abcd1234", originEntryVersion: "v1:0123456789abcdef" },
+  }));
+  expect(result.kind).toBe("provisioned");
+  expect(test.marker()).toMatchObject({ kind: "present", marker: { originEntry: "personal:abcd1234",
+    originEntryVersion: "v1:0123456789abcdef" } });
 });

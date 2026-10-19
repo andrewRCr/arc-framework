@@ -22,6 +22,9 @@
  * @module
  */
 
+import type { Store } from "../lib/store/contract.js";
+import { createStore } from "../lib/store/create.js";
+import { createDefaultStorePorts } from "../lib/store/default-ports.js";
 import { readdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
@@ -108,6 +111,7 @@ export function selectForeignWriteCandidates(paths: string[]): string[] {
 
 /** Inputs for {@link detectStagedForeignWrites}. */
 export interface StagedForeignWriteOptions {
+  store?: Store;
   /** Injectable git executor. */
   exec: GitExec;
   /** Identity-filtered in-flight roster (local derivation, projected by the caller). */
@@ -137,6 +141,7 @@ export interface StagedForeignWriteOptions {
 export async function detectStagedForeignWrites(
   options: StagedForeignWriteOptions,
 ): Promise<ForeignArtifactDetectionResult> {
+  if (options.store?.capabilities.stateOffBranch) return { overlaps: [] };
   const {
     exec,
     roster,
@@ -168,17 +173,17 @@ export async function detectStagedForeignWrites(
  */
 export function formatForeignWriteWarnings(overlaps: ForeignArtifactOverlap[]): string[] {
   return overlaps.map(
-    (o) => `${o.branch} also touches ${o.matchedPaths.join(", ")} (${overlapLocation(o)})`,
+    (o) => `${o.branch ?? o.workItem ?? "unknown work item"} also touches ${o.matchedPaths.join(", ")} (${overlapLocation(o)})`,
   );
 }
 
 function formatSkippedEntry(entry: ForeignArtifactSkippedEntry): string {
   const marks = entry.marks.join(", ");
-  return `${entry.branch} skipped: entry marked ${marks} (${overlapLocation(entry)})`;
+  return `${entry.branch ?? entry.workItem ?? "unknown work item"} skipped: entry marked ${marks} (${overlapLocation(entry)})`;
 }
 
 function formatIndeterminateProbe(entry: ForeignArtifactIndeterminateProbe): string {
-  return `${entry.branch} skipped: probe indeterminate (${overlapLocation(entry)})`;
+  return `${entry.branch ?? entry.workItem ?? "unknown work item"} skipped: probe indeterminate (${overlapLocation(entry)})`;
 }
 
 function overlapLocation(entry: { worktreePath?: string; remoteOnly?: boolean }): string {
@@ -233,6 +238,7 @@ async function main(): Promise<void> {
   if (selectForeignWriteCandidates(paths).length === 0) return;
 
   const cwd = process.cwd();
+  if (createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec: gitExec })).capabilities.stateOffBranch) return;
   const { settings } = await readConfigSettings(cwd);
   const baseBranch = settings["branch.base"];
   if (!baseBranch) return;

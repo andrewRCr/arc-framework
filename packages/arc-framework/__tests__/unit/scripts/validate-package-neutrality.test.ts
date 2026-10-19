@@ -174,8 +174,8 @@ describe("validateFiles", () => {
 
   it("accepts registered review activation defaults", () => {
     const validFiles = {
-      "packages/arc-framework/arc/system/methods/self-review.md": activatableMethod("self-review", true),
-      "packages/arc-framework/arc/system/methods/frontline-review.md": activatableMethod("frontline-review", false),
+      "packages/arc-framework/arc/system/methods/code-review-author.md": activatableMethod("code-review-author", true),
+      "packages/arc-framework/arc/system/methods/code-review-frontline.md": activatableMethod("code-review-frontline", false),
     };
     expect(validateFiles(Object.keys(validFiles), fakeReader(validFiles))).toEqual({
       pass: true,
@@ -183,7 +183,7 @@ describe("validateFiles", () => {
     });
 
     const drifted = {
-      "packages/arc-framework/arc/system/methods/self-review.md": activatableMethod("self-review", false),
+      "packages/arc-framework/arc/system/methods/code-review-author.md": activatableMethod("code-review-author", false),
     };
     const result = validateFiles(Object.keys(drifted), fakeReader(drifted));
     expect(result.pass).toBe(false);

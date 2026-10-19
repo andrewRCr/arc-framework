@@ -1,5 +1,8 @@
 /** Dormant checkout-row composition over authority, corroboration, and safety facts. */
 
+import type { StoreWorkUnitEvidence } from "./store-work-unit-evidence.js";
+import type { z } from "zod";
+import { DerivedCheckoutDiagnosticSchema } from "./derived-schema.js";
 import type { TransientIdentitySnapshot } from "../errand/identity-snapshot.js";
 import type { RegisteredWorktree } from "../git/worktree-roster.js";
 import type { CompletedEvidenceRead } from "../work-unit/completed-index.js";
@@ -15,7 +18,6 @@ import { corroborateCheckoutRole } from "./role-corroboration.js";
 import {
   composePrimaryCheckoutRole,
   deriveCheckoutRole,
-  type DerivedCheckoutSubject,
   type DerivedTransientSubject,
   type PrimarySafetyProjection,
 } from "./role-derivation.js";
@@ -23,21 +25,21 @@ import {
   projectCheckoutAuthorityTopology,
   projectCheckoutCorroborationTopology,
 } from "./role-topology.js";
+import type { SessionAction } from "../session-init/actions.js";
+import type { DerivedCheckoutSubject } from "./role-derivation.js";
 import type { LocusIdentityV1 } from "./schema/identity.js";
 import type { SubjectMetaProjection } from "./subject-meta.js";
 
 /** Stable dormant diagnostic attached only to the checkout whose facts failed. */
-export interface DerivedCheckoutDiagnostic {
-  readonly code: string;
-  readonly source?: string;
-  readonly message: string;
-}
+export type DerivedCheckoutDiagnostic = z.infer<typeof DerivedCheckoutDiagnosticSchema>;
 
 interface DerivedCheckoutRowBase {
   readonly checkout: RegisteredWorktree;
   readonly markerGeneration: string | null;
   readonly parentCheckoutPath: string | null;
-  readonly origin: { readonly entry: string; readonly sourceDigest: string } | null;
+  readonly origin: { readonly entry: string; readonly sourceDigest: string }
+    | { readonly entry: string; readonly version: string } | null;
+  readonly actions?: SessionAction[];
   readonly identity: LocusIdentityV1 | null;
   readonly context: Extract<SubjectMetaProjection, { kind: "resolved" }> | null;
   readonly lifecycleLocation: "active" | "completed" | "parked" | null;
@@ -47,10 +49,7 @@ interface DerivedCheckoutRowBase {
 /** Future internal row taxonomy; deliberately separate from the selected public locus schema. */
 export type DerivedCheckoutRow = DerivedCheckoutRowBase & (
   | { readonly kind: "free-primary" | "unmanaged-checkout"; readonly subject: null }
-  | {
-      readonly kind: "work-unit" | "retired" | "transient";
-      readonly subject: DerivedCheckoutSubject;
-    }
+  | { readonly kind: "work-unit" | "retired" | "transient"; readonly subject: DerivedCheckoutSubject }
   | { readonly kind: "unresolved-checkout"; readonly subject: DerivedCheckoutSubject | null }
 );
 
@@ -59,6 +58,7 @@ export function projectDerivedCheckoutRow(options: {
   checkout: RegisteredWorktree;
   marker: DormantMarkerGenerationEvidence;
   activeMeta: ActiveMetaEvidence;
+  workUnit?: StoreWorkUnitEvidence;
   archivedMeta?: ArchivedMetaEvidence;
   completed: CompletedEvidenceRead;
   identities: TransientIdentitySnapshot;
@@ -72,12 +72,12 @@ export function projectDerivedCheckoutRow(options: {
     && markerSubject.kind !== "partial-errand"
     ? markerSubject
     : null;
-  const lifecycle = projectWorkUnitLifecycle({
+  const lifecycle = options.workUnit === undefined ? projectWorkUnitLifecycle({
     activeMeta: options.activeMeta,
     archivedMeta,
     markerSubject: markerWorkUnit,
     completed: options.completed,
-  });
+  }) : options.workUnit.kind === "present" || options.workUnit.kind === "terminal" ? options.workUnit.lifecycle : options.workUnit;
   const identityAuthority = projectIdentityAuthority(options.identities, markerTransient);
   const derived = deriveCheckoutRole({
     topology: projectCheckoutAuthorityTopology(options.checkout),
@@ -97,7 +97,7 @@ export function projectDerivedCheckoutRow(options: {
     ? composed.subject
     : "subject" in derived
       ? derived.subject
-      : null;
+      : options.workUnit === undefined ? markerTransient : markerSubject;
   const identity = subject === null || subject.kind === "work-unit" || subject.kind === "partial-errand"
     ? null
     : exactIdentity(options.identities, subject);
@@ -108,20 +108,22 @@ export function projectDerivedCheckoutRow(options: {
     origin: markerDetails.origin,
     identity,
     context: null,
-    lifecycleLocation: options.activeMeta.kind === "present"
+    lifecycleLocation: options.workUnit?.kind === "terminal" ? null : options.workUnit?.kind === "present"
+      ? options.workUnit.record.placement?.kind === "completed" ? "completed" : options.workUnit.record.placement?.kind === "active" ? "active" : "parked"
+      : options.activeMeta.kind === "present"
       ? options.activeMeta.location
       : archivedMeta.kind === "present"
         ? archivedMeta.location
         : composed.kind === "work-unit" && markerWorkUnit !== null
           ? "parked"
           : null,
-    diagnostics: "diagnostics" in composed
+    diagnostics: [...("diagnostics" in composed
       ? composed.diagnostics.map((diagnostic) => ({
           code: diagnostic.code,
           ...("source" in diagnostic ? { source: diagnostic.source } : {}),
           message: diagnostic.message,
         }))
-      : [],
+      : []), ...identityDiagnostics(options.identities, subject, identity)],
   };
   if (composed.kind === "unoccupied-primary") {
     return {
@@ -141,18 +143,25 @@ export function projectDerivedCheckoutRow(options: {
   return { ...base, kind: composed.kind, subject: composed.subject };
 }
 
+function identityDiagnostics(snapshot: TransientIdentitySnapshot, subject: DerivedCheckoutSubject | null, identity: LocusIdentityV1 | null): DerivedCheckoutDiagnostic[] {
+  if (identity === null || subject === null || snapshot.kind !== "complete") return [];
+  return snapshot.diagnostics.filter(diagnostic => diagnostic.key === subject.key).map(diagnostic => ({ code: diagnostic.kind, source: "identity",
+    message: "message" in diagnostic ? diagnostic.message : `Transient identity ${subject.key} is ${diagnostic.kind}` }));
+}
+
 function projectMarkerDetails(marker: DormantMarkerGenerationEvidence): {
   generation: string | null;
   parentCheckoutPath: string | null;
-  origin: { entry: string; sourceDigest: string } | null;
+  origin: DerivedCheckoutRow["origin"];
 } {
   if (marker.kind !== "present") {
     return { generation: null, parentCheckoutPath: null, origin: null };
   }
   const value = marker.marker;
-  const origin = value.createdFor.kind === "partial-errand"
+  const origin: DerivedCheckoutRow["origin"] = value.createdFor.kind === "partial-errand"
     && value.originEntry !== undefined
-    ? { entry: value.originEntry, sourceDigest: value.originEntrySourceDigest }
+    ? value.originEntryVersion !== undefined ? { entry: value.originEntry, version: value.originEntryVersion }
+      : { entry: value.originEntry, sourceDigest: value.originEntrySourceDigest }
     : null;
   return {
     generation: marker.generation,

@@ -1,0 +1,41 @@
+/** Recovery compares the saved operational task list to current Store bytes. */
+import { expect, it } from "vitest";
+import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
+import { resolveRecoveryTaskListEvidence } from "../../src/lib/recover/task-list-evidence.js";
+import { recordReferences } from "../../src/lib/store/identity.js";
+import type { GitExec } from "../../src/lib/git/exec.js";
+
+const noGit: GitExec = () => Promise.reject(new Error("Operational evidence must not read the code tree"));
+it("reads the seed's saved task list and the pinned current task list", async () => {
+  const h = createLifecycleHarness();
+  const meta = await h.seedMeta("subject");
+  const reference = recordReferences["work-item/task-list"](meta.reference.owner);
+  const before = "# Tasks\n\n### `[ ]` **1.1 Implement**\n";
+  const after = before.replace("[ ]", "[x]");
+  const task = await h.seed(reference, before);
+  const stateVersion = lifecycleSuccess(await h.store.version());
+  lifecycleSuccess(await h.store.write({ action: "put", reference, expected: task.version, content: after,
+    provenance: { verb: "task-close", lifecycleAction: "update" } }));
+  expect(await resolveRecoveryTaskListEvidence({ cwd: "/absent-checkout", exec: noGit, seedHead: "code-head",
+    taskListPath: ".arc/active/tasks-subject.md", store: h.store, stateVersion }))
+    .toEqual({ status: "ok", seed: before, fresh: after });
+});
+
+it("keeps fresh task evidence at the captured recovery snapshot after a later task edit", async () => {
+  const h = createLifecycleHarness(), meta = await h.seedMeta("subject");
+  const reference = recordReferences["work-item/task-list"](meta.reference.owner);
+  const before = "# Tasks\n\n### `[ ]` **1.1 Earlier**\n\n### `[ ]` **1.2 Later**\n";
+  const first = await h.seed(reference, before), stateVersion = lifecycleSuccess(await h.store.version());
+  const captured = before.replace("[ ]", "[x]");
+  lifecycleSuccess(await h.store.write({ action: "put", reference, expected: first.version, content: captured,
+    provenance: { verb: "task-close", lifecycleAction: "update" } }));
+  const currentStateVersion = lifecycleSuccess(await h.store.version());
+  const second = lifecycleSuccess(await h.store.read({ reference }));
+  lifecycleSuccess(await h.store.write({ action: "put", reference, expected: second.version, content: captured.replace("[ ]", "[x]"),
+    provenance: { verb: "task-close", lifecycleAction: "update" } }));
+  const input = { cwd: "/absent-checkout", exec: noGit, seedHead: "code-head", taskListPath: ".arc/active/tasks-subject.md", store: h.store, stateVersion };
+  expect(await resolveRecoveryTaskListEvidence({ ...input, currentStateVersion })).toEqual({ status: "ok", seed: before, fresh: captured });
+  expect(await resolveRecoveryTaskListEvidence({ ...input, currentStateVersion: null })).toMatchObject({ status: "unavailable",
+    message: expect.stringContaining("Repair state availability and retry recovery") });
+  expect(await resolveRecoveryTaskListEvidence({ ...input, currentStateVersion })).toEqual({ status: "ok", seed: before, fresh: captured });
+});

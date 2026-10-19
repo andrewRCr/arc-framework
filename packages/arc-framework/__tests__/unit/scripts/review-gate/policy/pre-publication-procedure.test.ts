@@ -596,6 +596,7 @@ function request(overrides: Record<string, unknown> = {}) {
       schemaVersion: 1,
       target,
       lane: "standard",
+      nextPassContext: { completePasses: 0, convergence: "none", responseDue: false, incremental: null },
       standardReview,
       sources: ["codex-pr", "delegated-agent"],
       completedPasses: 0,
@@ -626,7 +627,7 @@ describe("projectPrePublicationReview", () => {
         confirmedFindingCount: 0,
         maxConfirmedSeverity: null,
         materialFix: false,
-        coverageAdequate: true,
+        effectiveCoverage: "complete" as const, coverageAdequate: true,
       },
     };
     const input = {
@@ -664,7 +665,7 @@ describe("projectPrePublicationReview", () => {
         confirmedFindingCount: 1,
         maxConfirmedSeverity: "minor",
         materialFix: false,
-        coverageAdequate: true,
+        effectiveCoverage: "complete" as const, coverageAdequate: true,
       },
     };
     const pending = projectPrePublicationReview({
@@ -706,7 +707,7 @@ describe("projectPrePublicationReview", () => {
         confirmedFindingCount: 1,
         maxConfirmedSeverity: "major",
         materialFix: true,
-        coverageAdequate: true,
+        effectiveCoverage: "complete" as const, coverageAdequate: true,
       },
       terminalResponseSettled: true,
     };
@@ -732,7 +733,7 @@ describe("projectPrePublicationReview", () => {
         confirmedFindingCount: 1,
         maxConfirmedSeverity: "minor",
         materialFix: false,
-        coverageAdequate: true,
+        effectiveCoverage: "complete" as const, coverageAdequate: true,
       },
     };
     const pending = projectPrePublicationReview({
@@ -953,7 +954,7 @@ describe("projectPrePublicationReview", () => {
           confirmedFindingCount: 0,
           maxConfirmedSeverity: null,
           materialFix: false,
-          coverageAdequate: true,
+          effectiveCoverage: "complete" as const, coverageAdequate: true,
         },
       },
       standard: {
@@ -1001,6 +1002,25 @@ describe("projectPrePublicationReview", () => {
       reservation: null,
       nextAction: { kind: "publish-candidate" },
     });
+  });
+
+  it("carries Owner acceptance after a clean converged fix check into publication", () => {
+    const base = request({ selfReview: "settled" });
+    const result = projectPrePublicationReview({
+      ...base,
+      frontline: { ...(base.frontline as Record<string, unknown>), frontlineActive: false, sources: [] },
+      standard: {
+        ...(base.standard as Record<string, unknown>),
+        completedPasses: ownerAcceptedTerminus.completedPasses,
+        attempts: [{ sourceId: "delegated-agent", outcome: "clean", reviewOperationId: "local/fix-check" }],
+        nextPassContext: { completePasses: 1, convergence: "converged", responseDue: false, incremental: null },
+        verifiedTerminalSignal: { reviewOperationId: "local/fix-check", confirmedFindingCount: 0,
+          maxConfirmedSeverity: null, materialFix: false, effectiveCoverage: "incremental" as const, coverageAdequate: false },
+        terminus: ownerAcceptedTerminus,
+      },
+    }, postAttestContinuation);
+    expect(result).toMatchObject({ locus: "candidate-publish-ready", policy: null, reservation: null,
+      terminus: ownerAcceptedTerminus, nextAction: { kind: "publish-candidate" } });
   });
 
   it("projects Owner acceptance as publish-ready without claiming a clean or converged policy result", () => {
@@ -1108,7 +1128,7 @@ describe("projectPrePublicationReview", () => {
           confirmedFindingCount: 0,
           maxConfirmedSeverity: null,
           materialFix: false,
-          coverageAdequate: true,
+          effectiveCoverage: "complete" as const, coverageAdequate: true,
         },
       },
     }, postAttestContinuation);
@@ -1137,7 +1157,7 @@ describe("projectPrePublicationReview", () => {
           confirmedFindingCount: 1,
           maxConfirmedSeverity: "major",
           materialFix: true,
-          coverageAdequate: true,
+          effectiveCoverage: "complete" as const, coverageAdequate: true,
         },
       },
     }, postAttestContinuation);

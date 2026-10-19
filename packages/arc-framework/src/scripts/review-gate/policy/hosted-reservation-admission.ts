@@ -1,4 +1,10 @@
 /** Ordered admission for a hosted-review reservation carried across publication. */
+import { countCompleteLogicalPasses } from "../lane-progress.js";
+import { deriveReviewNextPassContextFromAttempts } from "./review-next-pass.js";
+import type { LocalReviewState } from "../core/operation-state-schema.js";
+import type { ReviewResult } from "../core/review-result.js";
+import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
+import type { IncrementalPredecessorApplicability } from "./incremental-coverage-basis.js";
 
 import {
   sameDeliveryReviewMemberIdentity,
@@ -8,7 +14,6 @@ import {
 import { canonicalize } from "../../../lib/kernel/index.js";
 import type { ReviewOperationStateSnapshot } from "../core/ports.js";
 import type { IncrementalReviewScope } from "../core/incremental-review-scope.js";
-import { hostedProviderAdmitsCoverage } from "../hosted/correction-review-capability.js";
 import {
   HostedProviderIdSchema, type HostedRequestEnvelope, type HostedReviewCoverage,
 } from "../hosted/request.js";
@@ -16,6 +21,7 @@ import {
   projectReviewPolicyAttempt,
   resolveReviewPolicy,
   type ReviewPolicyCommandRequest,
+  type ReviewPolicyRequest,
   type ReviewResolveEnvelope,
 } from "./review-policy-driver.js";
 import { assertStandardReviewExecutionAdmission, requireDriverAdmission } from "./review-execution-admission.js";
@@ -59,6 +65,7 @@ export type HostedReservationPolicyProgress =
     readonly completePasses: number;
     readonly attempts: ReviewPolicyCommandRequest["attempts"];
     readonly attemptHistory: readonly HostedReservationPolicyAttemptProgress[];
+    readonly predecessorProducerId?: string;
   }
   | { readonly status: "unavailable"; readonly detail: string };
 
@@ -77,8 +84,8 @@ type EvidenceBoundHostedReservationPolicyInput = HostedReservationPolicyInput & 
 type HostedReservationEvidenceDependencies = Pick<
   EvidenceBoundReviewPolicyDependencies,
   "resultReader" | "dispositionStore" | "confirmTarget" | "confirmIncrementalApplicability"
-    | "readResponsePerformance"
->;
+    | "readResponsePerformance" | "nextPassContext"
+> & { readonly confirmCurrentApplicability?: (predecessor: ReviewResult) => Promise<IncrementalPredecessorApplicability> };
 
 /** Project driver-grade progress for one delivery member across exact head movement. */
 export function projectHostedReservationPolicyProgress(input: {
@@ -96,8 +103,9 @@ export function projectHostedReservationPolicyProgress(input: {
   if (input.vehicle.head !== input.target.headSha) {
     return { status: "unavailable", detail: "The delivery-member vehicle does not identify the current target head." };
   }
+  let predecessor: { attemptId: string; logicalPass: number } | undefined;
   const completedLogicalPasses = new Set<number>();
-  const completeLogicalPasses = new Set<number>();
+  const completeAttempts: Parameters<typeof countCompleteLogicalPasses>[0][number][] = [];
   const historyTimeline: Array<{
     readonly progress: HostedReservationPolicyAttemptProgress;
     readonly operationId: string;
@@ -156,10 +164,11 @@ export function projectHostedReservationPolicyProgress(input: {
         && (attempt.outcome === "clean"
         || attempt.outcome === "findings"
         || attempt.outcome === "settled-findings")) {
-        completedLogicalPasses.add(attempt.logicalPass);
-        if (local?.effectiveCoverage === "complete" || hosted?.effectiveCoverage === "complete") {
-          completeLogicalPasses.add(attempt.logicalPass);
+        if (predecessor === undefined || attempt.logicalPass > predecessor.logicalPass) {
+          predecessor = { attemptId: attempt.attemptId, logicalPass: attempt.logicalPass };
         }
+        completedLogicalPasses.add(attempt.logicalPass);
+        completeAttempts.push(attempt);
       }
       if (attempt.headSha === input.target.headSha
         && attempt.outcome !== "pending"
@@ -197,9 +206,10 @@ export function projectHostedReservationPolicyProgress(input: {
   return {
     status: "complete",
     completedPasses: completedLogicalPasses.size,
-    completePasses: completeLogicalPasses.size,
+    completePasses: countCompleteLogicalPasses(completeAttempts),
     attempts,
     attemptHistory,
+    ...(predecessor === undefined ? {} : { predecessorProducerId: predecessor.attemptId }),
   };
 }
 
@@ -208,8 +218,11 @@ export function resolveHostedReservationPolicy(input: {
   readonly reservation: StandardReviewReservationV1;
   readonly snapshot: ReviewOperationStateSnapshot;
   readonly repositoryId: string;
+  readonly currentReviewTarget?: ReviewTarget;
   readonly target: { readonly repository: string; readonly pullRequest: number; readonly headSha: string };
   readonly vehicle: DeliveryReviewMemberVehicle;
+  readonly nextPassContext?: ReviewPolicyRequest["nextPassContext"];
+  readonly chosenCoverage?: HostedReviewCoverage;
   readonly maxPasses: number;
   readonly requestAttempts?: ReviewPolicyCommandRequest["attempts"];
   readonly invocation?: ReviewPolicyCommandRequest["invocation"];
@@ -239,6 +252,8 @@ export function resolveHostedReservationPolicy(input: {
       standardReview: input.reservation.obligation,
       sources: input.reservation.sources,
       maxPasses: input.maxPasses,
+      nextPassContext: input.nextPassContext,
+      chosenCoverage: input.chosenCoverage,
       completedPasses: progress.completedPasses,
       attempts,
       ...(input.invocation === undefined ? {} : { invocation: input.invocation }),
@@ -290,6 +305,17 @@ export async function resolveEvidenceBoundHostedReservationPolicy(
   const latestCurrentAttempt = [...progress.attemptHistory].reverse().find((attempt) => (
     attempt.headSha === input.target.headSha
   ));
+  const nextPassContext = await deriveReviewNextPassContextFromAttempts({ attempts, completedPasses: progress.completedPasses, completePasses: progress.completePasses,
+    predecessorOperationId: progress.predecessorProducerId,
+    currentTarget: input.currentReviewTarget ?? null,
+    currentLineage: { kind: "delivery-member", planId: input.vehicle.planId,
+      deliverableId: input.vehicle.deliverableId, workUnitId: input.vehicle.workUnitId },
+    standardReview: input.reservation.obligation, resultReader: dependencies.resultReader,
+    dispositionStore: dependencies.dispositionStore,
+    readResponsePerformance: dependencies.readResponsePerformance ?? (() => Promise.resolve(null)),
+    confirmApplicability: dependencies.confirmIncrementalApplicability,
+    confirmCurrentApplicability: dependencies.confirmCurrentApplicability,
+  });
   const policy = await resolveEvidenceBoundReviewPolicyContinuation(request, {
     terminalResponsePerformed: latestCurrentAttempt?.outcome === "settled-findings",
     coverageSelected: input.coverageSelection !== undefined,
@@ -297,6 +323,9 @@ export async function resolveEvidenceBoundHostedReservationPolicy(
     sources: input.reservation.sources,
     maxPasses: input.maxPasses,
     ...dependencies,
+    selectionSources: input.reservation.sources,
+    nextPassContext,
+    chosenCoverage: input.chosenCoverage,
   });
   return { status: "resolved", policy };
 }
@@ -315,6 +344,7 @@ export async function resolveEvidenceBoundSingletonHostedReservationPolicy(
     readonly target: { readonly repository: string; readonly pullRequest: number; readonly headSha: string };
     readonly maxPasses: number;
     readonly coverageSelected?: boolean;
+    readonly chosenCoverage?: HostedReviewCoverage;
     readonly invocation?: HostedRequestEnvelope["invocation"];
     readonly ceilingOverride?: ReviewPolicyCommandRequest["ceilingOverride"];
     readonly additionalPassAuthorization?: ReviewPolicyCommandRequest["additionalPassAuthorization"];
@@ -341,6 +371,9 @@ export async function resolveEvidenceBoundSingletonHostedReservationPolicy(
     sources: input.reservation.sources,
     maxPasses: input.maxPasses,
     ...dependencies,
+    selectionSources: input.reservation.sources,
+    nextPassContext: input.discharge.nextPassContext ?? dependencies.nextPassContext,
+    chosenCoverage: input.chosenCoverage,
   });
 }
 
@@ -358,11 +391,10 @@ function assertHostedPolicyResolution(
 function assertHostedCoverageAdmission(
   provider: string,
   coverage: "complete" | "incremental",
-  correctionScope?: IncrementalReviewScope,
 ): void {
   const recognized = HostedProviderIdSchema.safeParse(provider);
-  if (recognized.success && !hostedProviderAdmitsCoverage(recognized.data, coverage, correctionScope)) {
-    throw new Error(`Hosted review source \`${provider}\` cannot carry an exact correction scope.`);
+  if (recognized.success && coverage === "incremental") {
+    throw new Error(`Hosted review source \`${provider}\` accepts complete coverage only; run the local fix check on delegated-agent.`);
   }
 }
 
@@ -371,19 +403,21 @@ export function assertHostedReservationPolicyAdmission(input: {
   readonly reservation: StandardReviewReservationV1;
   readonly snapshot: ReviewOperationStateSnapshot;
   readonly repositoryId: string;
+  readonly currentReviewTarget?: ReviewTarget;
   readonly target: { readonly repository: string; readonly pullRequest: number; readonly headSha: string };
   readonly vehicle: DeliveryReviewMemberVehicle;
   readonly provider: string;
   readonly coverage: "complete" | "incremental";
   readonly correctionScope?: IncrementalReviewScope;
+  readonly nextPassContext?: ReviewPolicyRequest["nextPassContext"];
   readonly maxPasses: number;
   readonly requestAttempts?: ReviewPolicyCommandRequest["attempts"];
   readonly invocation?: ReviewPolicyCommandRequest["invocation"];
   readonly ceilingOverride?: ReviewPolicyCommandRequest["ceilingOverride"];
   readonly additionalPassAuthorization?: ReviewPolicyCommandRequest["additionalPassAuthorization"];
 }): void {
-  assertHostedCoverageAdmission(input.provider, input.coverage, input.correctionScope);
-  const resolution = resolveHostedReservationPolicy(input);
+  assertHostedCoverageAdmission(input.provider, input.coverage);
+  const resolution = resolveHostedReservationPolicy({ ...input, chosenCoverage: "complete" });
   assertHostedPolicyResolution(resolution, input.provider);
 }
 
@@ -398,10 +432,11 @@ export async function assertEvidenceBoundHostedReservationPolicyAdmission(
   input: Parameters<typeof assertHostedReservationPolicyAdmission>[0],
   dependencies: HostedReservationEvidenceDependencies,
 ): Promise<void> {
-  assertHostedCoverageAdmission(input.provider, input.coverage, input.correctionScope);
+  assertHostedCoverageAdmission(input.provider, input.coverage);
   assertHostedPolicyResolution(
     await resolveEvidenceBoundHostedReservationPolicy({
       ...input,
+      chosenCoverage: "complete",
       ...(input.invocation?.mode === "force" && input.invocation.sourceId === input.provider
         ? { coverageSelection: { sourceId: input.provider, coverage: input.coverage } }
         : {}),
@@ -413,7 +448,7 @@ export async function assertEvidenceBoundHostedReservationPolicyAdmission(
 function assertCandidateHostedReservationPosition(
   input: Parameters<typeof assertCandidateHostedReservationPolicyAdmission>[0],
 ): void {
-  assertHostedCoverageAdmission(input.provider, input.coverage, input.correctionScope);
+  assertHostedCoverageAdmission(input.provider, input.coverage);
   if (input.coverage === "incremental"
     && canonicalize(input.correctionScope ?? null)
       !== canonicalize(input.discharge.correctionScope ?? null)) {
@@ -438,7 +473,11 @@ function candidateCapacityAttemptMatchesTarget(
   target: Parameters<typeof assertCandidateHostedReservationPolicyAdmission>[0]["target"],
 ): boolean {
   if (attempt.headSha !== target.headSha) return false;
-  const boundTarget = attempt.hosted?.target ?? attempt.local?.deliveryAdmission?.target;
+  const local = attempt.local;
+  if (local?.deliveryAdmission === undefined && local?.vehicle?.kind === "work-unit"
+    && local.target?.kind === "change-set" && local.target.headSha === target.headSha
+    && attempt.sourceId === "delegated-agent") return true;
+  const boundTarget = attempt.hosted?.target ?? local?.deliveryAdmission?.target;
   return boundTarget !== undefined
     && boundTarget.repository.toLowerCase() === target.repository.toLowerCase()
     && boundTarget.pullRequest === target.pullRequest
@@ -465,7 +504,8 @@ export function assertCandidateHostedReservationPolicyAdmission(input: {
         readonly pullRequest: number;
         readonly headSha: string;
       } };
-      readonly local?: { readonly deliveryAdmission?: { readonly target: {
+      readonly local?: { readonly vehicle?: LocalReviewState["vehicle"]; readonly target?: ReviewTarget;
+        readonly deliveryAdmission?: { readonly target: {
         readonly repository: string;
         readonly pullRequest: number;
         readonly headSha: string;
@@ -476,6 +516,7 @@ export function assertCandidateHostedReservationPolicyAdmission(input: {
   readonly provider: string;
   readonly coverage: "complete" | "incremental";
   readonly correctionScope?: IncrementalReviewScope;
+  readonly nextPassContext?: ReviewPolicyRequest["nextPassContext"];
   readonly maxPasses: number;
   readonly logicalPass: number;
   /** Completed passes on explicitly validated superseded Candidate owners. */
@@ -515,6 +556,8 @@ export function assertCandidateHostedReservationPolicyAdmission(input: {
     throw new Error("Hosted Candidate request progress names a source outside the reservation.");
   }
   const admission = assertStandardReviewExecutionAdmission({
+    chosenCoverage: "complete",
+    nextPassContext: input.nextPassContext,
     target: input.target,
     frontlineActive: false,
     standardReview: input.reservation.obligation,
@@ -583,10 +626,24 @@ async function verifyCandidateAdditionalPassPredecessor(
   const predecessorResponse = {
     terminalResponsePerformed: predecessor.outcome === "settled-findings",
   };
+  const producer = await dependencies.resultReader.readResult(predecessor.attemptId);
+  const completePasses = (input.discharge.nextPassContext ?? input.nextPassContext ?? dependencies.nextPassContext)?.completePasses;
+  if (completePasses === undefined) {
+    throw new Error("Additional review requires repository-derived complete-pass counts. Re-read the exact lane and retry.");
+  }
+  const nextPassContext = await deriveReviewNextPassContextFromAttempts({ attempts: predecessorRequest.attempts, completePasses, completedPasses,
+    currentTarget: producer.target, currentLineage: producer.admission.lineage,
+    standardReview: input.reservation.obligation, resultReader: dependencies.resultReader,
+    dispositionStore: dependencies.dispositionStore,
+    readResponsePerformance: dependencies.readResponsePerformance ?? (() => Promise.resolve(null)),
+    confirmApplicability: dependencies.confirmIncrementalApplicability,
+  });
   const predecessorDependencies = {
     sources: input.reservation.sources,
     maxPasses: input.maxPasses,
     ...dependencies,
+    selectionSources: input.reservation.sources,
+    nextPassContext,
   };
   const terminalPolicy = await resolveEvidenceBoundReviewPolicyContinuation(
     predecessorRequest, predecessorResponse, predecessorDependencies,
@@ -616,9 +673,10 @@ function candidateContinuationRequest(
   attempts: ReviewPolicyCommandRequest["attempts"],
   completedPasses: number,
   verifiedSettledPredecessor: boolean,
+  completePasses: number,
 ): ReviewPolicyCommandRequest {
   const ceilingOverride = input.ceilingOverride
-    ?? (verifiedSettledPredecessor && completedPasses >= input.maxPasses
+    ?? (verifiedSettledPredecessor && completePasses >= input.maxPasses
       ? {
           target: input.target,
           lane: "standard" as const,
@@ -678,12 +736,16 @@ export async function assertEvidenceBoundCandidateHostedReservationPolicyAdmissi
   const latest = completed.at(-1);
   const policy = await resolveEvidenceBoundReviewPolicyContinuation(candidateContinuationRequest(
     input, attempts, completedPasses, verifiedSettledPredecessor,
+    (input.discharge.nextPassContext ?? dependencies.nextPassContext)?.completePasses ?? 0,
   ), {
     terminalResponsePerformed: latest?.outcome === "settled-findings",
   }, {
     sources: input.reservation.sources,
     maxPasses: input.maxPasses,
     ...dependencies,
+    selectionSources: input.reservation.sources,
+    nextPassContext: input.discharge.nextPassContext ?? dependencies.nextPassContext,
+    chosenCoverage: "complete",
   });
   assertHostedPolicyResolution({ status: "resolved", policy }, input.provider);
   if (!("pass" in policy.payload) || policy.payload.pass !== input.logicalPass) {

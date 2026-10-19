@@ -5,6 +5,7 @@ import {
   FAMILY_IDS, FAMILY_REGISTRY, KIND_SHAPES, KIND_REGISTRY, OwnerIdentitySchema, RecordReferenceSchema,
   ConflictRecordSchema, createKindRegistry, familyOf, type KindId, type KindDefinition, type RecordParser,
 } from "../../../src/lib/store/index.js";
+import { ENTRY_REGISTRATIONS } from "../../../src/lib/store/kinds/entry-registration.js";
 import { ReferenceBackend } from "./reference-backend.js";
 import { canonicalReference, currentStateVersion, recordKey } from "./model.js";
 import { surfaceLock } from "./refusals.js";
@@ -31,12 +32,13 @@ export const referenceDeclarations: FixtureDeclarations = {
   liveListingStateVersion: true,
   syncFamilies: FAMILY_IDS,
   identitySyncFamilies: FAMILY_IDS.filter((family) => FAMILY_REGISTRY[family].scope === "identity"),
-  entryShapes: Object.fromEntries(["work-item/description", "work-item/inbound", "personal/errand-queue"].map((kind) => [kind, { shape: "heading", sections: ["Entries"] }])),
+  entryShapes: {},
   familyExclusions: Object.fromEntries(FAMILY_IDS.map((family) => [family, { items: {
     5: "Memory has one atomic substrate; only the in-repo backend refuses a cross-substrate batch.",
     8: "Memory state versions cover every record in the namespace.",
   } }])),
   refusalExclusions: {
+    "state-unresolvable": "Memory retains every saved snapshot and throws for an unknown state version; named history-ref recovery is tested through a scripted Store wrapper.",
     "checkout-not-writable": "A memory namespace has no checkout write authority.",
     "unsupported:cross-substrate-batch": "Every memory batch uses one atomic substrate.",
     "unsupported:uncovered-state-version": "Memory snapshots cover every family.",
@@ -54,11 +56,11 @@ export const referenceDeclarations: FixtureDeclarations = {
     "transient-write:record-malformed": "Reference writes validate only the named record, never another record on a transient identity ref.",
   },
   rejectingContentUnavailable: Object.fromEntries((Object.keys(KIND_SHAPES) as KindId[])
-    .filter((kind) => KIND_REGISTRY[kind].merge !== "single-writer").map((kind) => [kind, "No write parser is registered for this prose or entry-list test kind."])),
+    .filter((kind) => KIND_REGISTRY[kind].merge !== "single-writer").map((kind) => [kind, "Entry-free prose is valid; production entry field and trigger refusals have kind-specific tests."])),
 };
 
-/** Open a fresh reference fixture with pure test field parsers, never production field schemas.
- * @param entryShapes - Optional generic test grammars for reserved entry-list kinds.
+/** Open a fresh reference fixture with production entry grammars and isolated test machine-record parsers.
+ * @param entryShapes - Optional explicit overrides of production entry-list grammars.
  * @param registryOverrides - Isolated test definitions for parser and format behavior.
  * @returns All backend-neutral hooks over an independently owned memory namespace.
  */
@@ -67,7 +69,7 @@ export function createReferenceFixture(entryShapes: FixtureDeclarations["entrySh
   const declarations = { ...referenceDeclarations, entryShapes: { ...referenceDeclarations.entryShapes, ...entryShapes } };
   const parsers = Object.fromEntries((Object.keys(KIND_SHAPES) as KindId[])
     .filter((kind) => KIND_REGISTRY[kind].merge === "single-writer").map((kind) => [kind, kind.endsWith("/conflict-record") ? conflictParser : jsonParser]));
-  const definitions = createKindRegistry(Object.entries(parsers).map(([kind, parser]) => ({ kind: kind as KindId, parser })));
+  const definitions = createKindRegistry([...ENTRY_REGISTRATIONS, ...Object.entries(parsers).map(([kind, parser]) => ({ kind: kind as KindId, parser }))]);
   const registry = Object.fromEntries((Object.keys(definitions) as KindId[]).map((kind) => [kind, {
     ...definitions[kind], ...(declarations.entryShapes[kind] ? { entry: declarations.entryShapes[kind] } : {}),
     ...registryOverrides[kind],
@@ -103,8 +105,9 @@ export function createReferenceFixture(entryShapes: FixtureDeclarations["entrySh
       }
       if (registry[reference.kind].merge === "single-writer") return JSON.stringify({ value: variant === "changed-again" ? 3 : variant === "changed" ? 2 : 1, claimId: "1".repeat(32) });
       if (registry[reference.kind].merge === "entry") {
-        const config = registry[reference.kind].entry ?? { shape: "heading", sections: ["Entries"] };
-        const header = config.shape === "heading" ? "### [ ] **First**\n\n" : "**First:**\n_Remove when:_ trigger satisfied\n";
+        const config = registry[reference.kind].entry;
+        if (config === undefined) throw new Error(`Missing entry grammar for ${reference.kind}`);
+        const header = config.shape === "heading" ? "### [ ] **First**\n\n" : "**First:**\n_Remove when: trigger satisfied._\n";
         return `# Entries\n\n## ${config.sections[0]}\n\n${header}${config.shape === "heading" ? "- " : ""}_Id:_ \`11111111\`\n\n${variant === "changed-again" ? "another change" : variant === "changed" ? "changed" : "first"}\n`;
       }
       return variant === "changed-again" ? "opening\nanother change\nclosing\n" : variant === "changed" ? "opening\nchanged\nclosing\n" : "opening\nbase\nclosing\n";

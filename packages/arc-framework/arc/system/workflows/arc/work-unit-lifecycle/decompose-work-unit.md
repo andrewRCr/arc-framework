@@ -129,6 +129,8 @@ For extraction, add these exact typed result fields to the common review surface
 Use their reported values verbatim and never re-derive them from artifacts or Git state. In the human orientation,
 name the surviving origin as the natural continuation; it is not a successor selected by the workflow.
 
+Run `arc check increment` over the authored destinations and report its result at distribution approval.
+
 > [!IMPORTANT]
 > `workflow-interlock`: Stop after every reported destination is authored. Surface the actual distributed authority,
 > dependency effects, topology, the retirement transition record when present, and the extraction fields above when
@@ -296,6 +298,8 @@ git diff --cached --name-only --no-renames
 
 Any additional or missing cached path, or any unstaged finish-release path, stops release. Use the
 [`commit-format` method][commit-format] for the message.
+
+Run `arc check increment` over the owner's reconciliation before the finish-release commit.
 
 > [!CAUTION]
 > `commit-interlock` release — commit the exact staged finish and owner reconciliation as `workflowCommit`:

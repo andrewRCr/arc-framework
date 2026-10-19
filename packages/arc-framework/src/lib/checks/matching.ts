@@ -46,6 +46,7 @@ export async function matchTreeInputs(io: TreeMatchIO, cwd: string, tree: string
   return readTreeChange(io.git, cwd, emptyTree, tree, inputPathspecs(inputs));
 }
 
-function inputPathspecs(inputs: readonly string[]): string[] {
+/** Translate declared positive and excluded inputs into Git glob pathspecs. */
+export function inputPathspecs(inputs: readonly string[]): string[] {
   return inputs.map(input => input.startsWith("!") ? `:(glob,exclude)${input.slice(1)}` : `:(glob)${input}`);
 }

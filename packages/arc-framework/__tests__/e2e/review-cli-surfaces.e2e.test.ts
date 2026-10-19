@@ -86,6 +86,7 @@ describe("packaged review CLI surfaces", () => {
     [["review", "reduce"], "urn:arc:schema:review-reduce-request"],
     [["review", "respond"], "urn:arc:schema:review-respond-request"],
     [["review", "hosted", "request"], "urn:arc:schema:review-hosted-request-request"],
+    [["review", "lane", "read"], "urn:arc:schema:review-lane-read-request"],
     [["review", "readiness"], "urn:arc:schema:review-readiness-request"],
     [["review", "frontline", "resolve"], "urn:arc:schema:review-frontline-resolve-request"],
     [["review", "hosted", "settle"], "urn:arc:schema:review-hosted-settle-request"],

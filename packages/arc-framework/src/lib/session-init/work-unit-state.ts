@@ -14,6 +14,8 @@
  * @module
  */
 
+import type { z } from "zod";
+import { WorkUnitStateResultSchema } from "./work-unit-state-schema.js";
 import type { GitExec } from "../git/exec.js";
 import type { HistoryCompletenessResult } from "../git/history-completeness.js";
 import type { ObjectAvailabilityResult } from "../git/object-availability.js";
@@ -27,8 +29,8 @@ import {
   enumerateOwnedIntegratingWorkUnits,
   projectWorkUnitPresenceFacts,
   type InFlightWorkUnitFacts,
-  type InFlightWorkUnitSweepResult,
   type BehindBaseRelation,
+  type InFlightWorkUnitReport,
 } from "./in-flight-work-unit-sweep.js";
 import type { NudgeMarkerState } from "./nudge-rate-limit.js";
 import type { CleanupBaseEvidence } from "./cleanup-remote-evidence.js";
@@ -51,18 +53,7 @@ export type WorkUnitPrSource = (
 ) => Promise<Map<string, WorkUnitPrFacts>>;
 
 /** Composite work-unit completion-sweep state exposed by the session-init envelope. */
-export interface WorkUnitStateResult {
-  /** The classified owned in-flight work units across the completion tail. */
-  inFlight: InFlightWorkUnitSweepResult;
-  /**
-   * Once-per-calendar-day marker state for the batched `stale` nudge. The event
-   * states (`mergeable` / `merged-needs-archival`) bypass this gate and surface
-   * every session-init; only the time-gated `stale` overlay batches against it.
-   */
-  nudge: NudgeMarkerState;
-  /** Soft diagnostics; a degraded read should not block session-init. */
-  warnings: string[];
-}
+export type WorkUnitStateResult = z.infer<typeof WorkUnitStateResultSchema>;
 
 export interface RunWorkUnitStateOptions {
   exec: GitExec;
@@ -203,7 +194,10 @@ export async function runWorkUnitState(
     staleThresholdDays: options.staleThresholdDays,
   });
 
-  return { inFlight, nudge: options.nudge, warnings };
+  return {
+    inFlight: { workUnits: inFlight.workUnits.map((report) => withWorkUnitActions(report, options)) },
+    nudge: options.nudge, warnings,
+  };
 }
 
 async function overlayBehindBaseSnapshot(
@@ -347,4 +341,30 @@ async function readLocalBranchCommitterDates(exec: GitExec): Promise<BranchCommi
     if (branch !== "") dates.set(branch, timestamp);
   }
   return { dates, warnings: [] };
+}
+
+
+function withWorkUnitActions(
+  report: InFlightWorkUnitReport,
+  options: RunWorkUnitStateOptions,
+): WorkUnitStateResult["inFlight"]["workUnits"][number] {
+  switch (report.state) {
+    case "awaiting-review": return report;
+    case "merged-needs-archival": {
+      const checkout = options.roster.find((entry) => entry.branch === report.branch)?.worktreePath;
+      return { ...report, actions: [{ text: `Archive work unit \`${report.name}\` after its merged pull request.`,
+        ...(checkout === undefined ? {} : { checkout }) }] };
+    }
+    case "mergeable": {
+      const prefix = report.behindBase.status === "known" && report.behindBase.value
+        ? `Merge base \`${options.baseBranch}\` into \`${report.branch}\` first. ` : "";
+      return { ...report, actions: [{ text: `${prefix}Complete the integration workflow for \`${report.name}\`.` }] };
+    }
+    case "mergeability-unavailable":
+      return { ...report, actions: [{ text: report.mergeabilityGuidance }] };
+    case "blocked":
+      return { ...report, actions: [{ text: `The owner of \`${report.name}\` must address its pull request's requested changes or failing checks.` }] };
+    case "stale":
+      return { ...report, actions: [{ text: `Nudge the owner about review of \`${report.name}\` (\`${report.branch}\`, ${report.ageDays}d), once today.` }] };
+  }
 }

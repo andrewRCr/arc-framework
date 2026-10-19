@@ -275,3 +275,15 @@ describe("resolveLoadSetManifest", () => {
     })).toThrow("Load-set path segment must be safe: CON");
   });
 });
+
+it.each([
+  { placement: { kind: "active" } as const, path: ".arc/active/meta-demo.md" },
+  { placement: { kind: "completed", quarter: "2026-q4", sequence: "03" } as const, path: ".arc/completed/2026-q4/03_demo/meta-demo.md" },
+])("projects the logical meta coordinates instead of the supplied stale path: $path", async ({ placement, path }) => {
+  const { WorkUnitReadPlacementSchema } = await import("../../../src/lib/store/placement.js");
+  const result = resolveLoadSetManifest({ ...BASE_INPUT, sessionType: "execution", planningStage: null,
+    metaPath: ".arc/active/stale-meta.md", stateOffBranch: true,
+    workUnit: { slug: "demo", placement: WorkUnitReadPlacementSchema.parse(placement), cohort: null } });
+  expect(result.entries).toContainEqual(fullEntry(path));
+  expect(result.entries.some(entry => entry.path.includes("stale-meta") || entry.path.includes("SESSION-NOTES"))).toBe(false);
+});

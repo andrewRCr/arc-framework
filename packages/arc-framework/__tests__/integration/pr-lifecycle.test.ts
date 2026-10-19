@@ -1,3 +1,4 @@
+import { codeReviewSection } from "../helpers/code-review-section.js";
 import { readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 
@@ -137,13 +138,17 @@ describe("PR lifecycle and review contracts", () => {
     expect(preOpen).toBeLessThan(create);
 
     const frontlineCycle = prepare.slice(resolveFrontline, submit);
-    expect(frontlineCycle).toContain("review-response");
-    expect(frontlineCycle).toMatch(/(?:recompose|produce)\s+(?:the\s+exact|a new)\s+target/u);
+    const method = await readFile(resolve(packageArc, "system/methods/code-review.md"), "utf8");
+    const response = codeReviewSection(prepare, "findings-round", method);
+    const operation = codeReviewSection(prepare, "local-operation", method);
+    expect(frontlineCycle).toContain("[code-findings-round]");
+    expect(response).toContain("[review-response]");
+    expect(frontlineCycle).toContain("candidate-advanced / continue-review");
     expect(frontlineCycle).toContain("arc review frontline run -");
     expect(frontlineCycle).toContain("arc review local prepare -");
-    expect(frontlineCycle).toContain("arc review local attest -");
-    expect(frontlineCycle).toContain("arc review local resume -");
-    expect(frontlineCycle).toContain("public typed actions");
+    expect(operation).toContain("arc review local attest -");
+    expect(operation).toContain("arc review local resume -");
+    expect(operation).toContain("public typed result");
     expect(frontlineCycle).not.toMatch(/ReviewOperationStateStore|invalid-request/u);
     expect(frontlineCycle.replace(/\s+/gu, " ")).toContain("arc check gate commit");
   });
@@ -194,13 +199,17 @@ describe("PR lifecycle and review contracts", () => {
     expect(resolveFrontline).toBeLessThan(resolvePr);
 
     const frontlineCycle = workflow.slice(cycleStart, resolvePr);
-    expect(frontlineCycle).toContain("review-response");
+    const method = await readFile(resolve(packageArc, "system/methods/code-review.md"), "utf8");
+    const response = codeReviewSection(workflow, "findings-round", method);
+    const operation = codeReviewSection(workflow, "local-operation", method);
+    expect(frontlineCycle).toContain("[code-findings-round]");
+    expect(response).toContain("[review-response]");
     expect(frontlineCycle.replace(/\s+/gu, " ")).toContain("not a routing input");
     expect(frontlineCycle).toMatch(/(?:recompose|create)\s+(?:the\s+exact|a new)\s+target/u);
     expect(frontlineCycle).toContain("arc review frontline run -");
     expect(frontlineCycle).toContain("arc review local prepare -");
-    expect(frontlineCycle).toContain("arc review local attest -");
-    expect(frontlineCycle).toContain("arc review local resume -");
+    expect(operation).toContain("arc review local attest -");
+    expect(operation).toContain("arc review local resume -");
     expect(frontlineCycle).toContain("typed `state` / `nextAction`");
     expect(frontlineCycle).not.toMatch(/ReviewOperationStateStore|invalid-request/u);
     expect(workflow.slice(partialProtection)).not.toContain("arc review frontline resolve -");
@@ -262,7 +271,7 @@ describe("PR lifecycle and review contracts", () => {
 
   it("keeps self-review author-side and provider-neutral", async () => {
     for (const base of [packageArc, projectArc]) {
-      const method = await readFile(resolve(base, "system/methods/self-review.md"), "utf8");
+      const method = await readFile(resolve(base, "system/methods/code-review-author.md"), "utf8");
       expect(method).toContain("author-side");
       expect(method).toContain("not peer/independent review evidence");
       expect(method).toContain("**Correctness**");
@@ -288,8 +297,8 @@ describe("PR lifecycle and review contracts", () => {
 
   it("separates frontline advice from satisfying standard review", async () => {
     for (const base of [packageArc, projectArc]) {
-      const frontline = await readFile(resolve(base, "system/methods/frontline-review.md"), "utf8");
-      const independent = await readFile(resolve(base, "system/methods/standard-review.md"), "utf8");
+      const frontline = await readFile(resolve(base, "system/methods/code-review-frontline.md"), "utf8");
+      const independent = await readFile(resolve(base, "system/methods/code-review-standard.md"), "utf8");
       expect(frontline).toContain("active: false");
       expect(frontline).toContain("advisory pre-publication");
       expect(frontline).toContain("cannot satisfy");
@@ -307,7 +316,7 @@ describe("PR lifecycle and review contracts", () => {
 
   it("composes frontline chunking as one bounded advisory pass", async () => {
     for (const base of [packageArc, projectArc]) {
-      const method = await readFile(resolve(base, "system/methods/frontline-review.md"), "utf8");
+      const method = await readFile(resolve(base, "system/methods/code-review-frontline.md"), "utf8");
       const normalized = method.replace(/\s+/gu, " ");
       expect(method).toContain("review-chunking");
       expect(normalized).toContain("one curated-scope-capable local carrier orchestration");
@@ -323,7 +332,7 @@ describe("PR lifecycle and review contracts", () => {
 
   it("composes standard review chunking as one complete local-carrier pass", async () => {
     for (const base of [packageArc, projectArc]) {
-      const standard = await readFile(resolve(base, "system/methods/standard-review.md"), "utf8");
+      const standard = await readFile(resolve(base, "system/methods/code-review-standard.md"), "utf8");
       const adversarial = await readFile(resolve(base, "system/methods/adversarial-review.md"), "utf8");
       const normalizedStandard = standard.replace(/\s+/gu, " ");
       const normalizedAdversarial = adversarial.replace(/\s+/gu, " ");
@@ -335,10 +344,11 @@ describe("PR lifecycle and review contracts", () => {
       expect(normalizedStandard).toContain("fresh non-author aggregate context");
       expect(normalizedStandard).toContain("one aggregate whole-target standard-review result");
       expect(normalizedStandard).toContain("Hosted and whole-target-only local carriers are ineligible");
-      expect(normalizedStandard).toContain("counts as one standard-review pass");
+      expect(normalizedStandard).toContain("counts toward the standard ceiling only with complete coverage");
       expect(normalizedStandard).toContain("no partial report or evaluator call can settle the obligation");
       expect(normalizedAdversarial).toContain("bounded chunk-series carrier mode");
-      expect(normalizedAdversarial).toContain("sequential attention isolation within one logical pass");
+      expect(normalizedAdversarial).toContain("dependency-based scheduling within one logical pass");
+      expect(normalizedAdversarial).toContain("Run ready independent scopes concurrently when supported");
       expect(normalizedAdversarial).toContain("stable evaluator profile and complete rubric");
       expect(normalizedAdversarial).toContain("no standalone authority");
     }
@@ -351,9 +361,9 @@ describe("PR lifecycle and review contracts", () => {
         resolve(base, "reference/strategies/arc/strategy-session-operations.md"),
         "utf8",
       );
-      const selfReview = await readFile(resolve(base, "system/methods/self-review.md"), "utf8");
-      const frontline = await readFile(resolve(base, "system/methods/frontline-review.md"), "utf8");
-      const independent = await readFile(resolve(base, "system/methods/standard-review.md"), "utf8");
+      const selfReview = await readFile(resolve(base, "system/methods/code-review-author.md"), "utf8");
+      const frontline = await readFile(resolve(base, "system/methods/code-review-frontline.md"), "utf8");
+      const independent = await readFile(resolve(base, "system/methods/code-review-standard.md"), "utf8");
       const guidance = `${brief}\n${strategy}\n${selfReview}\n${frontline}\n${independent}`
         .replace(/\s+/gu, " ");
 
@@ -380,7 +390,7 @@ describe("PR lifecycle and review contracts", () => {
 
   it("documents the native reviewer-guidance adapter boundary", async () => {
     for (const base of [packageArc, projectArc]) {
-      const method = await readFile(resolve(base, "system/methods/standard-review.md"), "utf8");
+      const method = await readFile(resolve(base, "system/methods/code-review-standard.md"), "utf8");
       const strategy = await readFile(
         resolve(base, "reference/strategies/arc/strategy-configurability-architecture.md"),
         "utf8",
@@ -405,8 +415,8 @@ describe("PR lifecycle and review contracts", () => {
       expect(normalized).toContain("reviewer never edits the target");
       expect(normalized).toContain("only an authorized adapter may attest a completed exact target");
       expect(method).toContain("implementation-audit");
-      expect(method).toContain("frontline-review");
-      expect(method).toContain("standard-review");
+      expect(method).toContain("code-review-frontline");
+      expect(method).toContain("code-review-standard");
     }
   });
 
@@ -486,39 +496,41 @@ describe("PR lifecycle and review contracts", () => {
   });
 
   it("keeps the advisory settlement protocol reachable at every direct planning and criteria caller", async () => {
-    const callers = [
-      ["system/workflows/arc/draft-design.md", "`adversarial-passes.md` in the work unit's personal workspace"],
-      ["system/workflows/arc/create-spec.md", "`adversarial-passes.md` in the work unit's personal workspace"],
-      ["system/workflows/arc/generate-tasks.template.md", "`adversarial-passes.md` in the work unit's personal workspace"],
-      ["system/methods/validate-criteria.md", "ordinary closing-task evidence"],
-    ] as const;
-
+    const callers = ["draft-design.md", "create-spec.md", "generate-tasks.template.md"];
     for (const base of [packageArc, projectArc]) {
-      for (const [packagedPath, evidenceLocus] of callers) {
-        const path = base === projectArc && packagedPath.endsWith("generate-tasks.template.md")
-          ? "system/workflows/arc/generate-tasks.md"
-          : packagedPath;
-        const content = await readFile(resolve(base, path), "utf8");
-        const normalized = content.toLowerCase().replace(/\s+/gu, " ");
-
-        expect(content).toContain("    - adversarial-review");
-        expect(content).toContain("adversarial-review:");
-        expect(normalized).toContain("apply the method's complete-disposition and bounded-continuation protocol");
-        expect(normalized).toContain(evidenceLocus);
-        if (!packagedPath.endsWith("validate-criteria.md")) {
-          expect(normalized).toContain("later passes take their `prior-findings` from it");
-          expect(normalized).toContain("a stub groomed before it starts has no workspace yet");
+      const method = await readFile(resolve(base, "system/methods/planning-review.md"), "utf8");
+      const normalized = method.toLowerCase().replace(/\s+/gu, " ");
+      expect(method).toContain("    - adversarial-review");
+      expect(method).toContain("adversarial-review:");
+      expect(normalized).toContain("complete-disposition and continuation protocol");
+      expect(normalized).toContain("`adversarial-passes.md` in the work unit's personal workspace");
+      expect(normalized).toContain("later passes take their history from that record");
+      expect(normalized).toContain("a stub groomed before it starts has no workspace");
+      expect(normalized).toContain("creates no lane-progress record");
+      for (const packagedPath of callers) {
+        const path = base === projectArc ? packagedPath.replace(".template.md", ".md") : packagedPath;
+        const content = await readFile(resolve(base, "system/workflows/arc", path), "utf8");
+        expect(content).toContain("    - planning-review");
+        expect(content).toContain("planning-review:");
+        for (const section of ["author-checks", "independent-offer", "findings-and-pass-record", "post-settle-reread"]) {
+          expect(content).toContain(`methods/planning-review.md#${section}`);
         }
-        expect(normalized).toContain("creates no lane-progress record");
+        expect(content).not.toContain("adversarial-review:");
       }
+      const verificationReview = await readFile(resolve(base, "system/methods/verification-review.md"), "utf8");
+      expect(verificationReview).toContain("adversarial-review:");
+      expect(verificationReview).toContain("ordinary closing-task evidence");
     }
 
-    // An amendment's pass reads the planning passes as its prior findings.
+    // The amendment passes its depth and recorded history to the same review home.
     for (const base of [packageArc, projectArc]) {
       const amendment = await readFile(resolve(base, "system/workflows/arc/supplemental/amend-design.md"), "utf8");
-      expect(amendment.toLowerCase().replace(/\s+/gu, " ")).toContain(
-        "pass any prior findings recorded in the work unit's `adversarial-passes.md`",
-      );
+      expect(amendment).toContain("planning-review:");
+      expect(amendment).toContain("artifact: amendment");
+      expect(amendment).toContain("  depth:");
+      expect(amendment).toContain("  class:");
+      expect(amendment).toContain("prior-findings:  # recorded planning findings");
+      expect(amendment).toContain("methods/planning-review.md#post-settle-reread");
     }
 
     const recipe = JSON.parse(
@@ -526,6 +538,7 @@ describe("PR lifecycle and review contracts", () => {
     ) as { include_files: string[] };
     for (const path of [
       "system/methods/adversarial-review.md",
+      "system/methods/planning-review.md",
       "system/methods/validate-criteria.md",
       "system/workflows/arc/draft-design.md",
       "system/workflows/arc/create-spec.md",

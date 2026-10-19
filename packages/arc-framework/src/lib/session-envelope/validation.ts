@@ -26,8 +26,23 @@ export function assertSessionEnvelopeContract<Output>(
 }
 
 function formatIssues(issues: readonly z.core.$ZodIssue[]): string {
-  return issues.map((issue) => {
-    const path = issue.path.length === 0 ? "<root>" : issue.path.map(String).join(".");
-    return `${path}: ${issue.message}`;
-  }).join("; ");
+  return issueMessages(issues).join("; ");
+}
+
+function issueMessages(issues: readonly z.core.$ZodIssue[], prefix: readonly PropertyKey[] = []): string[] {
+  return issues.flatMap((issue) => {
+    const segments = [...prefix, ...issue.path];
+    // Some composed authorities already expose the union root and its details.
+    // Keep that existing diagnostic order; expand native union issues otherwise.
+    if (issue.code === "invalid_union" && issue.errors.length > 0 && !hasDescendantIssue(issues, issue)) {
+      return issue.errors.flatMap((branch) => issueMessages(branch, segments));
+    }
+    const path = segments.length === 0 ? "<root>" : segments.map(String).join(".");
+    return [`${path}: ${issue.message}`];
+  });
+}
+
+function hasDescendantIssue(issues: readonly z.core.$ZodIssue[], parent: z.core.$ZodIssue): boolean {
+  return issues.some((issue) => issue !== parent && issue.path.length > parent.path.length
+    && parent.path.every((segment, index) => issue.path[index] === segment));
 }

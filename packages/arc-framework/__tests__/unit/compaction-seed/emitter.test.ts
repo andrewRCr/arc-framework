@@ -1,3 +1,5 @@
+import { StateVersionSchema, type StateVersion } from "../../../src/lib/store/identity.js";
+import type { Store } from "../../../src/lib/store/contract.js";
 import { join } from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
@@ -92,6 +94,7 @@ function derivedFrame(parentCheckoutPath: string | null = null): DerivedLocusFra
   const row = {
     kind: "transient" as const,
     checkout: {
+      folderPresent: true,
       path: "/repo",
       head: "a".repeat(40),
       branch: "errand/compaction-recovery",
@@ -145,6 +148,7 @@ function derivedWorkUnitFrame(options: {
   const row = {
     kind: "work-unit" as const,
     checkout: {
+      folderPresent: true,
       path: "/repo",
       head: "a".repeat(40),
       branch: "feat/compaction-recovery",
@@ -238,9 +242,13 @@ async function emit(overrides: {
   snapshotBranch?: string;
   envelope?: Partial<Parameters<typeof emitCompactionSeed>[0]["envelope"]>;
   writeSeed?: (path: string, seed: CompactionSeed) => Promise<void>;
+  store?: Pick<Store, "version">;
+  stateVersion?: StateVersion | null;
 } = {}) {
   return emitCompactionSeed({
     cwd: "/repo",
+    store: overrides.store ?? { version: async () => ({ status: "ok", result: StateVersionSchema.parse("state-distinct-from-code") }) },
+    ...(overrides.stateVersion === undefined ? {} : { stateVersion: overrides.stateVersion }),
     envelope: envelope(overrides.envelope),
     gitSnapshot: {
       branch: overrides.snapshotBranch ?? "feat/compaction-recovery",
@@ -323,6 +331,36 @@ describe("parseUncommittedFiles", () => {
 });
 
 describe("emitCompactionSeed", () => {
+  it.each([StateVersionSchema.parse("captured-before-task-update"), null])("retains a paired frame anchor %j when state advances before emission", async stateVersion => {
+    const result = await emit({ stateVersion, store: { version: async () => ({ status: "ok", result: StateVersionSchema.parse("advanced-after-task-update") }) } });
+    expect(result).toMatchObject({ status: "written", seed: { stateVersion, taskCursor: CURSOR.cursor,
+      currentWorkflow: "process-task-loop", head: "72d145021bf4166fa70efc5b9fd11916cf0a359a" } });
+  });
+  it("records an independent state version beside the explicit code baseline under the advanced schema", async () => {
+    const result = await emit();
+    expect(result).toMatchObject({ status: "written", seed: { schemaVersion: 2,
+      stateVersion: "state-distinct-from-code", head: "72d145021bf4166fa70efc5b9fd11916cf0a359a" } });
+    if (result.status === "written") expect(parseCompactionSeedJson(stringifyCompactionSeed(result.seed)))
+      .toEqual({ ok: true, seed: result.seed });
+  });
+
+  it("takes the completed meta path from the shared load set through the layout", async () => {
+    const metaPath = ".arc/completed/2029-q2/88_compaction-recovery/meta-compaction-recovery.md";
+    const loadSet = { ...LOAD_SET, entries: [{ path: metaPath, readMode: { kind: "full" as const } }, ...LOAD_SET.entries] };
+    const frame = derivedWorkUnitFrame({ loadSet, sessionType: "integration", workflow: "integrate-work-unit" });
+    if (frame.entering.kind !== "selected" || frame.entering.row.context === null) throw new Error("Missing context");
+    frame.entering.row.context.metaPath = metaPath;
+    const result = await emit({ envelope: { derivedLocusState: { ok: true, value: frame } } });
+    expect(result).toMatchObject({ status: "written", seed: { metaPath, activeWorkUnit: "compaction-recovery", loadSet } });
+  });
+
+  it("records a refusing state version as null", async () => {
+    const result = await emit({ store: { version: async () => ({ status: "refused", refusal: {
+      code: "unsupported", class: "recoverable", case: "uncovered-state-version", condition: "No version is available.", remedy: { text: "Rebuild from current state." },
+    } }) } });
+    expect(result).toMatchObject({ status: "written", seed: { stateVersion: null } });
+  });
+
   it("persists only the entering checkout and optional marker parent as locus facts", async () => {
     const result = await emit({
       envelope: { derivedLocusState: { ok: true, value: derivedFrame("/repo-parent") } },

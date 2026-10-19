@@ -5,6 +5,7 @@
  * work units touch the target path(s), emitting the overlap facts as JSON for
  * skill consumption. This covers the real path resolution that unit tests stub.
  */
+import { withReviewReport } from "../fixtures/review-report-input.js";
 
 import { execFile, spawn } from "node:child_process";
 import { access, chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
@@ -16,8 +17,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll, afterEach } from
 
 import { CLI_PATH } from "../helpers/cli-spawn.js";
 import {
-  cleanupTempDir,
-  createTempRepo,
+  cleanupTempDir, createTempRepo,
   runArc,
   runArcAnchored,
   runArcAnchoredSequence,
@@ -441,26 +441,26 @@ describe("arc review respond for an Errand", () => {
 
   it("persists and idempotently replays a verified fix without Candidate lineage", async () => {
     const { repository, source } = await errandWithReviewedFinding();
-    const proposed = await invokeReview(repository, ["review", "respond", "-"], {
+    const proposed = await invokeReview(repository, ["review", "respond", "-"], withReviewReport({
       schemaVersion: 1,
       source,
       proposal: fixProposal,
-    });
+    }));
     const dispositions = approveDispositions(proposed);
     const policyRequest = await responsePolicyRequest(repository, source);
-    await expect(invokeReview(repository, ["review", "respond", "-"], {
+    await expect(invokeReview(repository, ["review", "respond", "-"], withReviewReport({
       schemaVersion: 1,
       source,
       policyRequest,
       dispositions,
-    })).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
+    }))).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
 
     const verifiedRequest = { schemaVersion: 1, source, policyRequest, dispositions, verifiedFix };
     await stageApprovedFix(repository);
     const uncommitted = await runArcWithStdin(
       ["review", "respond", "-"],
       repository,
-      `${JSON.stringify(verifiedRequest)}\n`,
+      `${JSON.stringify(withReviewReport(verifiedRequest))}\n`,
     );
     expect(uncommitted.exitCode).not.toBe(0);
     const refusal = JSON.parse(uncommitted.stdout) as { remedy: { argv: string[]; stdin: unknown } };
@@ -474,7 +474,7 @@ describe("arc review respond for an Errand", () => {
     await commitFixture(repository, "apply approved fix");
     await expect(invokeReview(repository, refusal.remedy.argv.slice(1), refusal.remedy.stdin))
       .resolves.toMatchObject({ state: "errand-advanced", nextAction: "continue-review" });
-    await expect(invokeReview(repository, ["review", "respond", "-"], verifiedRequest))
+    await expect(invokeReview(repository, ["review", "respond", "-"], withReviewReport(verifiedRequest)))
       .resolves.toMatchObject({ state: "errand-current", nextAction: "continue-review" });
   });
 

@@ -30,7 +30,7 @@ import type {
   PauseHeadEvidence,
 } from "./identity-transitions.js";
 import type { ChangeRequestLifecycleEvidence } from "./change-request-lifecycle.js";
-import type { InspectedInboxEntry } from "../user-sync/inbox-writer.js";
+import type { ErrandInboxOrigin } from "./inbox-origin.js";
 import type { ErrandErrorCode, ErrandRefusalReason } from "./result-common.js";
 
 /** Accepted slug format and retry guidance shared by core and CLI input refusals. */
@@ -91,7 +91,7 @@ export interface OpenOrdinaryErrandDependencies {
 export interface OpenOrdinaryErrandOptions {
   slug: string;
   intent?: string;
-  inbox?: InspectedInboxEntry | null;
+  inbox?: ErrandInboxOrigin | null;
   protection: "full" | "partial";
   base: string;
   createdAt: string;
@@ -213,7 +213,7 @@ export async function openOrdinaryErrand(
         branch,
         origin: originEntry === null ? "description" : "inbox",
         originEntry,
-        ...(originEntrySourceDigest === null ? {} : { originEntrySourceDigest }),
+        ...(originEntry === null ? {} : { originEntrySourceDigest }),
         state: "open",
         savedHead: null,
         changeRequest: null,
@@ -265,8 +265,9 @@ export async function openOrdinaryErrand(
         authority: {
           kind: "partial-errand" as const,
           key: slug,
-          originEntry,
-          originEntrySourceDigest,
+          ...(options.inbox !== null && options.inbox !== undefined && "version" in options.inbox && options.inbox.version !== undefined
+            ? { originEntry: options.inbox.title, originEntryVersion: options.inbox.version }
+            : { originEntry, originEntrySourceDigest }),
         },
       } : {}),
       branch,
@@ -386,7 +387,7 @@ function validateResumeContinuity(
   record: OrdinaryErrandRecord,
   intent: string | undefined,
   originEntry: string | null,
-  originEntrySourceDigest: InspectedInboxEntry["sourceDigest"] | null,
+  originEntrySourceDigest: ErrandInboxOrigin["sourceDigest"] | null,
 ): string | null {
   const requestedIntent = intent?.trim();
   if (requestedIntent !== undefined && requestedIntent !== "" && requestedIntent !== record.intent) {

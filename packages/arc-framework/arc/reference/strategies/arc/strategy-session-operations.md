@@ -345,20 +345,20 @@ unconditionally: `grep -m 1 "^active:"` retrieves the flag without reading the b
 
 ### Method Classification by Trigger
 
-| Method                        | Trigger Workflow             | Session Applicability                                |
-| ----------------------------- | ---------------------------- | ---------------------------------------------------- |
-| issue-triage                  | process-task-loop            | Universal — every task execution session             |
-| test-first                    | process-task-loop            | Conditional — tasks with test-first marker           |
-| commit-format                 | prepare-commits              | User-triggered commit events                         |
-| commit-footer                 | prepare-commits              | User-triggered commit events                         |
-| self-review                   | prepare-work-unit            | Prepublication phase only                            |
-| frontline-review              | prepare-work-unit            | Optional advisory prepublication review              |
-| standard-review               | prepare / integrate          | Local or hosted exact-change-set standard            |
-| implementation-audit          | prepare / integrate          | Prepublication and hosted review rubric              |
-| review-triage                 | prepare / integrate          | Prepublication and integration findings              |
-| assess-evidence-applicability | integrate / deliver / errand | Conditional — bounded review / verification residual |
-| classify-review-risk          | prepare / errand             | Every review routing-fact composition                |
-| session-state                 | session-handoff              | Session end only                                     |
+| Method                        | Trigger Workflow             | Session Applicability                                         |
+| ----------------------------- | ---------------------------- | ------------------------------------------------------------- |
+| issue-triage                  | process-task-loop            | Universal — every task execution session                      |
+| test-first                    | process-task-loop            | Conditional — tasks with test-first marker                    |
+| commit-format                 | prepare-commits              | User-triggered commit events                                  |
+| commit-footer                 | prepare-commits              | User-triggered commit events                                  |
+| code-review-author            | code-review                  | Aggregate author check before verification or pre-publication |
+| code-review-frontline         | code-review                  | Optional advisory pre-publication review                      |
+| code-review-standard          | code-review                  | Local or hosted exact-change-set standard                     |
+| implementation-audit          | prepare / integrate          | Prepublication and hosted review rubric                       |
+| review-triage                 | prepare / integrate          | Prepublication and integration findings                       |
+| assess-evidence-applicability | integrate / deliver / errand | Conditional — bounded review / verification residual          |
+| classify-review-risk          | prepare / errand             | Every review routing-fact composition                         |
+| session-state                 | session-handoff              | Session end only                                              |
 
 ### Review enforcement boundary
 
@@ -558,12 +558,11 @@ commit, multiple atomic commits, or iteration before committing.
 
 ### Disposition-Approval Release
 
-A review-fix round has one structured gate: the complete-set approval of its finding
-dispositions. Under `arc.commitInterlock ∈ {on-task-approval, on-workflow}` that approval
-releases the commit-interlock for the approved fixes, and under `arc.pushInterlock: on-workflow`
-it also releases their push and the approved hosted settlement. A `manual` setting
-keeps its own stop. The approval prompt names what it releases — for example
-`Approve: 3 fixes → verify → commit → push → settle 2 threads → standard pass 2?` — and the round reports its result as
+A review-fix round has one structured gate: the complete-set approval of its finding dispositions. Under
+`arc.commitInterlock ∈ {on-task-approval, on-workflow}` that approval releases the commit-interlock for the approved
+fixes, and under `arc.pushInterlock: on-workflow` it also releases their push and the approved hosted settlement. A
+`manual` setting keeps its own stop. The approval prompt names what it releases — for example `Approve: 3 fixes → verify
+→ commit → push → settle 2 threads → local fix check, round 1 since pass 1?` — and the round reports its result as
 information rather than as a new gate. The round returns to the approver when the performed fix exceeds the approved
 scope, a verification or gate failure is not a deterministic same-concern correction, host state is ambiguous, or a new
 finding arrives. Merge stays behind the integration-interlock.
@@ -825,9 +824,9 @@ Triggers are concrete observable events (a downstream WU integrates, a tool land
 workaround becomes obsolete). Vague triggers (`once we figure out X`) defeat the
 eviction-on-trigger discipline and let entries accumulate indefinitely.
 
-**Lifecycle.** Written at session handoff alongside SESSION-NOTES; read at session-init as part
-of T2 state load. Reviewed at each handoff — entries whose triggers have fired are removed.
-Surviving entries travel with the developer's workspace across WU boundaries.
+**Lifecycle.** Additions are proposed when they arise, at the latest at the next report boundary, and land on
+approval; read at session-init as part of T2 state load. Reviewed at each handoff — entries whose triggers have fired
+are removed. Surviving entries travel with the developer's workspace across WU boundaries.
 
 **Distinguishing the three personal surfaces:**
 

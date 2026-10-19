@@ -1,25 +1,21 @@
 ---
 name: validate-criteria
 description: Evidence-led success-criteria validation over an explicit member or work-unit scope.
-arc:
-  methods:
-    - adversarial-review
 related:
-  - adversarial-review
+  - verification-review
 override-active: false
 ---
 
 # Method: validate-criteria
 
-> - **Workflow:** [process-task-loop.md][process-task-loop], [verify-work-unit.md][verify-work-unit]
+> - **Workflow:** [verification-review][verification-review], [deliver-stack][deliver-stack], and
+>   [amend-design][amend-design] for evidence-only deltas.
 > - **When:** A delivery member or whole work unit reaches its criteria-validation boundary.
 >
 > - **Signature:** `validate-criteria(scope)` → criteria report
 > - **Contract:** Walk the criteria, diff, and reachable tree selected by one explicit scope; bind every immutable
 >   criterion by its exact task-list locus and criterion digest, and report its evidence, resolved state, and the
->   shared span walked; then
->   offer the same fresh-context adversarial companion at either boundary. The method gathers evidence and never
->   marks task-list criteria.
+>   shared span walked. The check gathers evidence and never marks task-list criteria.
 
 ## validate-criteria.override
 
@@ -37,6 +33,13 @@ The caller supplies one scope value. That value binds all three validation coord
 Do not widen or reconstruct one coordinate independently of the others. At member scope, read the upstream design,
 inspect the bounded diff and reachable tree, and resolve each criterion in the selected member group against
 source-grounded evidence.
+
+Direct inspection toward whether the selected criteria and governing spec contract are fulfilled, including required
+failure and recovery behavior. Tie each reviewer assignment and seam question to that verification purpose. Read
+whole files and follow dependencies when needed to answer it; do not add an independent general code-quality rubric
+or an exhaustive file-body reading requirement. Report concrete incidental defects through the ordinary findings
+and approval protocol; their discovery does not widen every remaining assignment. Criteria-review evidence does not
+satisfy the separate standard-review obligation.
 
 At work-unit scope, first inspect whether the task list contains a Delivery Plan. When none is present, open the
 upstream design/spec artifact, inspect the complete work-unit diff and reachable tree, and resolve every criterion
@@ -115,7 +118,7 @@ criteria with their evidence, any criteria the amendment appended with theirs an
 the summary. Unchanged criteria are omitted, and a digest already recorded in an effective entry is never restated.
 
 Each entry carries a **per-criterion verdict** saying why it is present or absent — a judgment applied per
-criterion, not the report-level verdict the adversarial companion below returns:
+criterion; independent review has its own report-level verdict:
 
 - `carries` — the base entry still holds; this is why an unchanged criterion is absent from the delta;
 - `supplemental` — the entry is listed because evidence was added to what the base already carries; and
@@ -128,35 +131,21 @@ Locate a member's deltas through the log: each `## Amendments` row's `_Work:_` n
 closing subtask carries that delta. Never locate one positionally, and never by scanning a member's revision
 parents — either would be a second authority over the same fact.
 
-### Adversarial companion
+### Verification subject
 
-After the primary walk, offer one fresh-context pass over the same selected scope. Use the work unit's
-`Class`-scaled posture at both member and work-unit scope: recommend at `Novel`; make a neutral offer at `Light` or
-`Heavy`. Withhold the primary report and all task-list criterion markings from the fresh pass. The primary compares
-the returned report with its own walk and retains judgment over every finding.
+For the caller's pre-walk `arc review changeset resolve -`, use the selected diff's actual baseline: the member's
+bounded base or the work unit's merge base. A committed subject uses its exact commit coordinates. For local content,
+anchor `target.headSha` to current HEAD and supply `localSubject: index` or `localSubject: worktree` to include the
+index or staged, unstaged, and non-ignored untracked content respectively. Use `kind: change-set` for local sizing
+with that bounded diff base; a snapshot has no published delivery-member binding. Never measure HEAD alone when
+verifying local edits.
 
-> [!IMPORTANT]
-> `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Novel`; surface a neutral
-> offer at `Light` / `Heavy`. Offer the pass and await the call — user decides; decline proceeds normally.
-
-```yaml
-adversarial-review:
-  rubric:          # the selected success-criteria slice, validated adversarially
-  artifacts:       # upstream design + task list with markings withheld + the selected diff and reachable tree
-  orientation:
-    - AGENT-BRIEF.ARC
-    - AGENT-BRIEF.PROJECT
-  pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3
-  prior-findings:  # pass two onward; omitted on pass one
-```
-
-After each returned pass, apply the method's complete-disposition and bounded-continuation protocol. Retain the
-complete source-verified finding/account/action set, `Pass N of M`, stop reason, and any conditional next-pass
-decision alongside the criteria report as ordinary closing-task evidence. This advisory evidence creates no
-lane-progress record.
+The local mode snapshots through a private index without staging files or moving refs. Retain the returned exact
+target and use its snapshot as the reviewed subject; refresh sizing and scope selection when that subject changes.
+Any `scopeSelection` must name that returned target, rather than the HEAD used to anchor the snapshot.
 
 ---
 
 [amend-design]: ../workflows/arc/supplemental/amend-design.md
-[process-task-loop]: ../workflows/arc/process-task-loop.md
-[verify-work-unit]: ../workflows/arc/work-unit-lifecycle/verify-work-unit.md
+[verification-review]: verification-review.md
+[deliver-stack]: ../workflows/arc/supplemental/deliver-stack.md

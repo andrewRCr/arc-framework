@@ -1,3 +1,4 @@
+import { withReviewReport } from "../fixtures/review-report-input.js";
 /** Real-CLI coverage for publication readiness, ordering recovery, and submission. */
 
 import { execFile } from "node:child_process";
@@ -237,7 +238,7 @@ async function approveFix(
   root: string,
   source: FindingsReductionPayload["responseSource"],
 ) {
-  const proposed = await invokeReview(root, ["review", "respond", "-"], {
+  const proposed = await invokeReview(root, ["review", "respond", "-"], withReviewReport({
     schemaVersion: 1,
     source,
     proposal: {
@@ -256,7 +257,7 @@ async function approveFix(
         openQuestions: [],
       }],
     },
-  });
+  }));
   expect(proposed).toMatchObject({ state: "awaiting-approval", nextAction: "obtain-approval" });
   const proposal = proposed.payload.proposal as {
     state: "proposed";
@@ -333,17 +334,17 @@ async function reachAtCapConvergence(root: string): Promise<{
   const source = (findings.payload as unknown as FindingsReductionPayload).responseSource;
   const dispositions = await approveFix(root, source);
   const policyRequest = await responsePolicyRequest(root, source);
-  await expect(invokeReview(root, ["review", "respond", "-"], {
+  await expect(invokeReview(root, ["review", "respond", "-"], withReviewReport({
     schemaVersion: 1,
     source,
     policyRequest,
     dispositions,
-  })).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
+  }))).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
 
   await writeFile(join(root, "src", "example.ts"), "export const example = 'fixed';\n");
   await git(root, ["add", "src/example.ts"]);
   await git(root, ["commit", "-m", "apply approved fix"]);
-  await expect(invokeReview(root, ["review", "respond", "-"], {
+  await expect(invokeReview(root, ["review", "respond", "-"], withReviewReport({
     schemaVersion: 1,
     source,
     policyRequest,
@@ -352,7 +353,7 @@ async function reachAtCapConvergence(root: string): Promise<{
       applicability: "focused",
       verificationEvidenceRefs: ["verification://focused-fix"],
     },
-  })).resolves.toMatchObject({ state: "candidate-advanced", nextAction: "continue-review" });
+  }))).resolves.toMatchObject({ state: "candidate-advanced", nextAction: "continue-review" });
   await git(root, ["commit", "-m", "record verified response"]);
 
   const clean = await completeLocalReview(root, "clean", "run-clean-pass-2");
@@ -562,13 +563,13 @@ describe("attest → pre-publication → publish", () => {
     const source = (findings.payload as unknown as FindingsReductionPayload).responseSource;
     const dispositions = await approveFix(repository, source);
     const policyRequest = await responsePolicyRequest(repository, source);
-    await expect(invokeReview(repository, ["review", "respond", "-"], {
+    await expect(invokeReview(repository, ["review", "respond", "-"], withReviewReport({
       schemaVersion: 1, source, policyRequest, dispositions,
-    })).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
+    }))).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
     await writeFile(join(repository, "src", "example.ts"), "export const example = 'fixed';\n");
     await git(repository, ["add", "src/example.ts"]);
     await git(repository, ["commit", "-m", "apply approved fix"]);
-    await expect(invokeReview(repository, ["review", "respond", "-"], {
+    await expect(invokeReview(repository, ["review", "respond", "-"], withReviewReport({
       schemaVersion: 1,
       source,
       policyRequest,
@@ -577,7 +578,7 @@ describe("attest → pre-publication → publish", () => {
         applicability: "focused",
         verificationEvidenceRefs: ["verification://focused-fix"],
       },
-    })).resolves.toMatchObject({ state: "candidate-advanced", nextAction: "continue-review" });
+    }))).resolves.toMatchObject({ state: "candidate-advanced", nextAction: "continue-review" });
     await git(repository, ["commit", "-m", "record verified response"]);
     const projectedHead = await git(repository, ["rev-parse", "HEAD"]);
     const reviewEnv = originLinked ? await attachOriginWithoutPr(repository) : undefined;
@@ -668,7 +669,7 @@ describe("attest → pre-publication → publish", () => {
       const findings = await completeLocalReview(repository, "findings", "run-material-defer-pass-1");
       expect(findings).toMatchObject({ state: "findings", nextAction: "respond" });
       const source = (findings.payload as unknown as FindingsReductionPayload).responseSource;
-      const proposed = await invokeReview(repository, ["review", "respond", "-"], {
+      const proposed = await invokeReview(repository, ["review", "respond", "-"], withReviewReport({
         schemaVersion: 1, source,
         proposal: {
           proposedVerification: "focused",
@@ -690,7 +691,7 @@ describe("attest → pre-publication → publish", () => {
             openQuestions: [],
           }],
         },
-      });
+      }));
       expect(proposed).toMatchObject({ state: "awaiting-approval", nextAction: "obtain-approval" });
       await git(repository, ["remote", "add", "origin", OFFLINE_ORIGIN]);
       const judgments = await writeNonDefaultPrePublicationJudgments(repository);
@@ -723,9 +724,9 @@ describe("attest → pre-publication → publish", () => {
         },
       };
       const policyRequest = await responsePolicyRequest(repository, source);
-      await expect(invokeReview(repository, ["review", "respond", "-"], {
+      await expect(invokeReview(repository, ["review", "respond", "-"], withReviewReport({
         schemaVersion: 1, source, policyRequest, dispositions,
-      })).resolves.toMatchObject({ state: "settled", nextAction: "reduce" });
+      }))).resolves.toMatchObject({ state: "settled", nextAction: "reduce" });
 
       // Deferring or rejecting a confirmed major fixes nothing, so the pass converges without spending another.
       const continued = await runArc(prePublicationArgv, repository, { env: OFFLINE_ENV });
@@ -764,9 +765,9 @@ describe("attest → pre-publication → publish", () => {
 
     const dispositions = await approveFix(repository, source);
     const policyRequest = await responsePolicyRequest(repository, source);
-    await expect(invokeReview(repository, ["review", "respond", "-"], {
+    await expect(invokeReview(repository, ["review", "respond", "-"], withReviewReport({
       schemaVersion: 1, source, policyRequest, dispositions,
-    })).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
+    }))).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
     await writeFile(join(repository, "src", "example.ts"), "export const example = 'fixed';\n");
     await git(repository, ["add", "src/example.ts"]);
     await git(repository, ["commit", "-m", "apply approved fix"]);

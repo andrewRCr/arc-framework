@@ -3,7 +3,8 @@
 import type { readConfigSettings } from "../../lib/config/status-reader.js";
 import type { RawGitExec } from "../../lib/git/exec.js";
 import { resolveChangeStats } from "../../lib/change-stats.js";
-import { HostedProviderIdSchema } from "./hosted/request.js";
+import { HostedProviderIdSchema, type HostedReviewCoverage } from "./hosted/request.js";
+import type { IncrementalReviewScope } from "./core/incremental-review-scope.js";
 import type { DeliveryLocalReviewScopeSelection } from
   "./policy/delivery-local-review-admission.js";
 import {
@@ -14,9 +15,9 @@ import {
 /**
  * Select the local review scope for one delivery member from the configured chunking thresholds.
  *
- * @param input - Byte-level Git executor, configuration settings, delivery plan, selected source, and exact member
- *   target.
- * @returns A chunked selection when the member's measured change crosses a threshold and the source is not hosted;
+ * @param input - Byte-level Git executor, configuration settings, delivery plan, selected source and coverage, and
+ *   exact member target. Incremental coverage measures the correction scope's predecessor-to-head range.
+ * @returns A chunked selection when the pass's measured range crosses a threshold and the source is not hosted;
  *   otherwise undefined, leaving whole-target review.
  * @throws When a threshold is invalid, the target cannot be measured, or chunking returns an unexpected disposition.
  */
@@ -25,6 +26,8 @@ export async function resolveDeliveryMemberScopeSelection(input: {
   readonly settings: Awaited<ReturnType<typeof readConfigSettings>>["settings"];
   readonly planId: string;
   readonly sourceId?: string;
+  readonly coverage: HostedReviewCoverage;
+  readonly correctionScope?: IncrementalReviewScope;
   readonly target: {
     readonly repository: string;
     readonly pullRequest: number;
@@ -40,9 +43,13 @@ export async function resolveDeliveryMemberScopeSelection(input: {
     throw new Error(`Invalid review chunking threshold ${parsed.key}: ${parsed.value}`);
   }
   if (parsed.thresholds.lines === 0 && parsed.thresholds.files === 0) return undefined;
+  if (input.coverage === "incremental" && input.correctionScope === undefined) {
+    throw new Error("Incremental review measurement requires its correction scope.");
+  }
   const stats = await resolveChangeStats(
     input.rawExec,
-    input.target.baseRevision,
+    input.coverage === "incremental" && input.correctionScope !== undefined
+      ? input.correctionScope.predecessorHeadSha : input.target.baseRevision,
     input.target.headSha,
   );
   if (stats.kind === "unknown") {

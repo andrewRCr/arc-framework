@@ -42,7 +42,7 @@ async function probeMaterializableCandidates(
   exec: GitExec,
   execInput: GitExecInput,
   cwd: string,
-): Promise<{ pendingBranchCount: number; candidates: Array<{ name: string; branch: string }> }> {
+): Promise<{ pendingBranchCount: number; candidates: Array<{ name: string; branch?: string }> }> {
   const snapshot = await readRemoteHeadSnapshot({ exec, scope: { kind: "all-heads" } });
   if (snapshot.kind !== "available") throw new Error("Expected an available remote-head snapshot.");
   const [objectAvailability, history, localRefs, worktrees] = await Promise.all([
@@ -646,7 +646,8 @@ describe("in-flight reshuffle fixture", () => {
 
       await expect(probeMaterializableCandidates(exec, execInput, fixture.cloneA)).resolves.toEqual({
         pendingBranchCount: 0,
-        candidates: [{ name: "cross-machine-candidate", branch }],
+        candidates: [{ name: "cross-machine-candidate", branch,
+          actions: [{ text: "arc materialize cross-machine-candidate", argv: ["arc", "materialize", "cross-machine-candidate"] }] }],
       });
     } finally {
       await fixture.cleanup();

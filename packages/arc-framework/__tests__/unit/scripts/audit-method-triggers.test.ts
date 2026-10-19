@@ -96,19 +96,19 @@ describe("activatable method corpus", () => {
 
   it("matches package frontmatter to the typed registry defaults", () => {
     const methods = writeMethodsDir([]);
-    writeFileSync(join(methods, "self-review.md"), activationMethod("self-review", true));
-    writeFileSync(join(methods, "frontline-review.md"), activationMethod("frontline-review", false));
+    writeFileSync(join(methods, "code-review-author.md"), activationMethod("code-review-author", true));
+    writeFileSync(join(methods, "code-review-frontline.md"), activationMethod("code-review-frontline", false));
     expect(auditActivatableMethodCorpus(methods)).toEqual([]);
   });
 
   it("detects missing entries, default drift, and activation on unregistered methods", () => {
     const methods = writeMethodsDir([]);
-    writeFileSync(join(methods, "self-review.md"), activationMethod("self-review", false));
+    writeFileSync(join(methods, "code-review-author.md"), activationMethod("code-review-author", false));
     writeFileSync(join(methods, "other.md"), activationMethod("other", true));
     const diagnostics = auditActivatableMethodCorpus(methods);
     expect(diagnostics).toEqual(expect.arrayContaining([
-      expect.stringContaining("self-review"),
-      expect.stringContaining("frontline-review"),
+      expect.stringContaining("code-review-author"),
+      expect.stringContaining("code-review-frontline"),
       expect.stringContaining("other"),
     ]));
   });

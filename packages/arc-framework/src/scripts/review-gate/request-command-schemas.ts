@@ -1,5 +1,6 @@
 /** Kernel registration for public review request schemas owned by their own command modules. */
 
+import { ReviewLaneReadRequestSchema } from "./lane-read-schema.js";
 import type { KernelRegistry } from "../../lib/kernel/index.js";
 import { HostedAwaitEnvelopeSchema } from "./hosted/await.js";
 import { HostedRequestEnvelopeSchema } from "./hosted/request.js";
@@ -19,6 +20,7 @@ export const REVIEW_HOSTED_AWAIT_REQUEST_SCHEMA_ID = "review-hosted-await-reques
 export const REVIEW_REDUCE_REQUEST_SCHEMA_ID = "review-reduce-request";
 export const REVIEW_RESPOND_REQUEST_SCHEMA_ID = "review-respond-request";
 export const REVIEW_HOSTED_REQUEST_REQUEST_SCHEMA_ID = "review-hosted-request-request";
+export const REVIEW_LANE_READ_REQUEST_SCHEMA_ID = "review-lane-read-request";
 export const REVIEW_READINESS_REQUEST_SCHEMA_ID = "review-readiness-request";
 export const REVIEW_FRONTLINE_RESOLVE_REQUEST_SCHEMA_ID = "review-frontline-resolve-request";
 export const REVIEW_HOSTED_SETTLE_REQUEST_SCHEMA_ID = "review-hosted-settle-request";
@@ -45,6 +47,7 @@ export function registerReviewRequestCommandSchemas(registry: KernelRegistry): K
     [REVIEW_RESPOND_REQUEST_SCHEMA_ID, RespondRequestSchema],
     [REVIEW_HOSTED_REQUEST_REQUEST_SCHEMA_ID, HostedRequestEnvelopeSchema],
     [REVIEW_READINESS_REQUEST_SCHEMA_ID, ReviewReadinessRequestSchema],
+    [REVIEW_LANE_READ_REQUEST_SCHEMA_ID, ReviewLaneReadRequestSchema],
     [REVIEW_FRONTLINE_RESOLVE_REQUEST_SCHEMA_ID, FrontlineResolveRequestSchema],
     [REVIEW_HOSTED_SETTLE_REQUEST_SCHEMA_ID, HostedSettleEnvelopeSchema],
     [REVIEW_LOCAL_PREPARE_REQUEST_SCHEMA_ID, LocalPrepareRequestSchema],

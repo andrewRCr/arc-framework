@@ -287,6 +287,7 @@ describe("resolveFileList — actual recipe", () => {
     expect(files).toContain("system/methods/adversarial-review.md");
     expect(files).toContain("system/methods/design-audit.md");
     expect(files).toContain("system/methods/disposition-report.md");
+    expect(files).toContain("system/methods/review-model.md");
     expect(files).toContain("system/methods/review-chunking.md");
     expect(files).toContain("system/methods/resolve-planning-depth.md");
     expect(files).toContain("system/methods/source-grounding.md");
@@ -301,6 +302,17 @@ describe("resolveFileList — actual recipe", () => {
       const files = resolveFileList(actualRecipe, { "pm.mode": pm, tools: "", "team.mode": "false" });
       expect(files).toContain(method);
       expect(files).not.toContain("reference/templates/arc/work-unit/template-pull-request.md");
+    }
+    expect(classifyFile(method)).toBe("Configurable");
+    expect(fileLayer(method, new Set())).toBe("core");
+  });
+
+  it.each(["review-model", "planning-review", "code-review", "verification-review"])("ships %s in every project configuration", name => {
+    const method = `system/methods/${name}.md`;
+    for (const pm of ["none", "external", "arc-in-git"]) {
+      for (const team of ["false", "true"]) {
+        expect(resolveFileList(actualRecipe, { "pm.mode": pm, tools: "", "team.mode": team })).toContain(method);
+      }
     }
     expect(classifyFile(method)).toBe("Configurable");
     expect(fileLayer(method, new Set())).toBe("core");

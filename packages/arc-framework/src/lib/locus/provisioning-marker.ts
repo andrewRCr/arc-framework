@@ -213,8 +213,12 @@ function primaryMarkerSubject(
 
 function partialOrigin(
   authority: ProvisioningAuthority,
-): { originEntry?: string; originEntrySourceDigest?: string } | null {
+): { originEntry?: string; originEntrySourceDigest?: string; originEntryVersion?: string } | null {
   if (authority.kind !== "partial-errand") return null;
+  if (authority.originEntryVersion !== undefined) {
+    if (authority.originEntrySourceDigest != null) return null;
+    return { originEntry: authority.originEntry, originEntryVersion: authority.originEntryVersion };
+  }
   if (authority.originEntry === null && authority.originEntrySourceDigest === null) return {};
   return authority.originEntry !== null && authority.originEntrySourceDigest !== null
     ? {

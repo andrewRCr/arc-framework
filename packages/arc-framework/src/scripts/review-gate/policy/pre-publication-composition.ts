@@ -1,4 +1,5 @@
 /** Production composition for the typed pre-publication review procedure. */
+import { confirmReviewCorrectionLeg } from "./review-next-pass.js";
 
 import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -546,24 +547,37 @@ export function createPrePublicationCompositionDependencies(input: {
     resultReader,
     dispositionStore,
     readResponsePerformance: (predecessor) => readLaneResponsePerformance(store, predecessor),
+    readCandidateCorrectionProof: async (workUnit) => ({
+      candidate: await readCandidateRecord(input.cwd, SlugSchema.parse(workUnit)),
+      cwd: input.cwd, exec: input.exec, baseRef: (await settings())["branch.base"], observeTarget,
+    }),
     confirmIncrementalApplicability: async (workUnit, predecessor, current, policyTarget) => {
-      if (policyTarget.pullRequest === null && current.admission.lineage.kind === "candidate") {
-        return confirmPrivateCandidateCorrectionBasis({
-          predecessor,
-          currentTarget: current.target,
-          currentLineage: current.admission.lineage,
-          currentResult: current,
-          candidate: await readCandidateRecord(input.cwd, SlugSchema.parse(workUnit)),
-          cwd: input.cwd,
-          baseRef: (await settings())["branch.base"],
-          exec: input.exec,
-          observeTarget,
-          readResponsePerformance: (result) => readLaneResponsePerformance(store, result),
-        });
-      }
-      return confirmPriorProducerApplicability(
-        workUnit, predecessor, current.target, current.admission.lineage, policyTarget,
-      );
+      const candidate = await readCandidateRecord(input.cwd, SlugSchema.parse(workUnit));
+      const confirmGrounds = async () => {
+        if (policyTarget.pullRequest === null && current.admission.lineage.kind === "candidate") {
+          return confirmPrivateCandidateCorrectionBasis({
+            predecessor,
+            currentTarget: current.target,
+            currentLineage: current.admission.lineage,
+            currentResult: current,
+            candidate,
+            cwd: input.cwd,
+            baseRef: (await settings())["branch.base"],
+            exec: input.exec,
+            observeTarget,
+            readResponsePerformance: (result) => readLaneResponsePerformance(store, result),
+          });
+        }
+        return confirmPriorProducerApplicability(
+          workUnit, predecessor, current.target, current.admission.lineage, policyTarget,
+        );
+      };
+      return confirmReviewCorrectionLeg({ predecessor, currentTarget: current.target,
+        currentLineage: current.admission.lineage, currentResult: current, dispositionStore,
+        rangeProof: input,
+        readResponsePerformance: result => readLaneResponsePerformance(store, result),
+        candidateProof: { candidate, ...input, baseRef: (await settings())["branch.base"], observeTarget },
+        confirmGrounds });
     },
     confirmPriorProducerApplicability,
     readCandidate: async (workUnit): Promise<CandidateRead> => {

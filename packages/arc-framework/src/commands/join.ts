@@ -6,6 +6,7 @@
  * Requires an existing ARC installation (`.arc/system/arc-config.yml`).
  */
 
+import { preparePersonalIdentitySetup, type PersonalIdentitySetupOptions } from "../lib/personal-identity-setup.js";
 import { join } from "node:path";
 import { writeArcGitignoreBlock } from "../lib/template/index.js";
 import { configureGitIntegration, runPostInitSetup } from "../lib/setup.js";
@@ -44,7 +45,7 @@ export interface JoinPromptResult {
 }
 
 /** Options for the join orchestrator. */
-export interface JoinOptions {
+export interface JoinOptions extends PersonalIdentitySetupOptions {
   cwd: string;
   io: JoinIOContext;
   templateDir: string;
@@ -89,13 +90,16 @@ export async function runJoin(options: JoinOptions): Promise<JoinResult> {
     });
   }
 
+  const preparedIdentity = identityResult === null ? null : await preparePersonalIdentitySetup({
+    ...options, identity: identityResult, command: "join",
+  });
   const arcDir = materializeArcPath(cwd, resolveArcPath({ kind: "arc-root" }));
 
   // Set role in git config
   await io.exec("git", ["config", "--local", "arc.role", prompts.role]);
 
   // Set identity in git config (before shared setup which also sets it)
-  if (identityResult) {
+  if (identityResult && preparedIdentity === null) {
     await io.exec("git", ["config", "--local", "arc.identity", identityResult]);
   }
 
@@ -127,7 +131,7 @@ export async function runJoin(options: JoinOptions): Promise<JoinResult> {
 
   // User directory and session templates
   await runPostInitSetup({
-    arcDir, internalTemplateDir, io, identityResult,
+    arcDir, internalTemplateDir, io, identityResult, preparedIdentity,
   });
 
   await writeEditorDocumentsOrThrow(cwd, io.exec, nodeEditorDocumentsFs, undefined, io.writeEditorDocuments);

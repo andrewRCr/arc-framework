@@ -13,7 +13,7 @@ export async function readClaimedCurrentWorkUnit(input: { cwd: string; store: St
   try {
     const marker = await readWorktreeMarker(input.cwd);
     if (marker.kind === "absent") return undefined;
-    if (marker.kind === "malformed") { warnings.push(`${marker.path}: ${marker.message}`); return undefined; }
+    if (marker.kind === "malformed") { warnings.push(`${marker.path}: ${marker.message}. Inspect and repair or remove the marker, then retry.`); return undefined; }
     if (marker.marker.husk !== undefined) return undefined;
     const ownership = decodeWorktreeMarkerOwnership(marker.marker);
     if (ownership.kind !== "current" || ownership.subject.kind !== "work-unit") return undefined;

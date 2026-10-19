@@ -397,9 +397,9 @@ workflow step that references the method — not at session initialization.
 ### Activity activation
 
 Activation and overriding are orthogonal. Only methods in the closed activatable-method registry may declare
-`active`; the package defaults are `self-review: true` and `frontline-review: false`. A valid project value is the
-effective value. A missing file, missing or malformed `active`, or read failure emits a diagnostic and falls back to
-the registered package default. `override-active` still says whether an override body is populated, and
+`active`; the package defaults are `code-review-author: true` and `code-review-frontline: false`. A valid project value
+is the effective value. A missing file, missing or malformed `active`, or read failure emits a diagnostic and falls back
+to the registered package default. `override-active` still says whether an override body is populated, and
 `override-mode` still says how that body composes; neither enables or disables the activity.
 
 ### Method references in workflows

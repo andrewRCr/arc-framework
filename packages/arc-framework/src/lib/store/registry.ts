@@ -1,5 +1,6 @@
 /** Storage grouping and record mechanisms as role-based, backend-independent data. */
 
+import { ENTRY_CONFIGS } from "./kinds/entry-configs.js";
 import { FAMILY_IDS, KIND_SHAPES, familyOf, type FamilyId, type KindId } from "./catalog.js";
 import type { StateVersion } from "./identity.js";
 import type { WriteCheck } from "./write-check.js";
@@ -45,7 +46,7 @@ export type InRepoHome = {
   finder?: "companions" | "personal-documents" | "transient-records";
 };
 /** Pure generic entry shape and the sections in which entries live. */
-export interface EntryConfig { shape: "heading" | "field-header"; sections: readonly string[] }
+export interface EntryConfig { shape: "heading" | "field-header"; sections: readonly string[]; managedFields?: readonly string[] }
 /** Kind-specific storage and projection mechanism, excluding its field schema. */
 export interface KindMechanism {
   merge: "single-writer" | "line" | "entry";
@@ -75,6 +76,8 @@ const once: KindMechanism = {
   ...never, inRepo: unhomed,
 };
 
+const receipt: KindMechanism = { ...once, writerVerbs: ["merge", "sync", "route", "resolve", "errand-open", "errand-link", "errand-abandon"] };
+
 /** Every role explicitly declares its mechanism and interim home. */
 export const KIND_MECHANISMS = {
   "work-item/meta": artifact("meta", "single-writer"),
@@ -84,10 +87,10 @@ export const KIND_MECHANISMS = {
   "work-item/spec": artifact("spec", "line"),
   "work-item/notes": artifact("notes", "line"),
   "work-item/companion": prose({ substrate: "tracked", finder: "companions" }, "projection-defined"),
-  "work-item/description": entry(unhomed),
-  "work-item/inbound": entry(unhomed),
+  "work-item/description": entry(unhomed, ENTRY_CONFIGS["work-item/description"]),
+  "work-item/inbound": entry(unhomed, ENTRY_CONFIGS["work-item/inbound"]),
   "cohort/document": prose({ substrate: "tracked", address: { kind: "cohort-document" } }, { kind: "cohort-document" }),
-  "project-inbox/inbox": { ...entry({ substrate: "tracked", address: { kind: "inbox", scope: "project" } }, { shape: "heading", sections: ["Inbox"] }), projection: { kind: "inbox", scope: "project" } },
+  "project-inbox/inbox": { ...entry({ substrate: "tracked", address: { kind: "inbox", scope: "project" } }, ENTRY_CONFIGS["project-inbox/inbox"]), projection: { kind: "inbox", scope: "project" } },
   "review/candidate": machine({ substrate: "tracked", address: { kind: "candidate-record" } }),
   "review/integration-boundary": machine({ substrate: "tracked", address: { kind: "integration-boundary-record" } }),
   "review/evidence": machine(unhomed),
@@ -97,10 +100,10 @@ export const KIND_MECHANISMS = {
   "project-registry/identity": { ...machine(unhomed), writerRule: "create-only" },
   "project-registry/counter": { ...machine(unhomed), writerRule: "cas" },
   "lineage/transition": { ...machine({ substrate: "tracked", address: { kind: "transition-record" } }), writerRule: "create-only" },
-  "personal/inbox": { ...entry({ substrate: "personal", address: { kind: "inbox", scope: "identity" } }, { shape: "heading", sections: ["Errand", "Work Unit"] }), projection: { kind: "inbox", scope: "identity" } },
-  "personal/working-memory": { ...entry({ substrate: "personal", address: { kind: "user-document", document: "working-memory" } }, { shape: "field-header", sections: ["Memories"] }), projection: { kind: "user-document", document: "working-memory" } },
+  "personal/inbox": { ...entry({ substrate: "personal", address: { kind: "inbox", scope: "identity" } }, ENTRY_CONFIGS["personal/inbox"]), projection: { kind: "inbox", scope: "identity" } },
+  "personal/working-memory": { ...entry({ substrate: "personal", address: { kind: "user-document", document: "working-memory" } }, ENTRY_CONFIGS["personal/working-memory"]), projection: { kind: "user-document", document: "working-memory" } },
   "personal/document": prose({ substrate: "personal", finder: "personal-documents" }, "projection-defined"),
-  "personal/errand-queue": entry(unhomed),
+  "personal/errand-queue": entry(unhomed, ENTRY_CONFIGS["personal/errand-queue"]),
   "personal/session-context": { ...prose({ substrate: "personal", address: { kind: "user-document", document: "session-notes" } }, { kind: "user-document", document: "session-notes" }), interim: true },
   "claims/groom": machine(transient),
   "claims/housekeep": machine(transient),
@@ -116,8 +119,8 @@ export const KIND_MECHANISMS = {
   "claims/conflict-record": once,
   "project-machinery/conflict-record": once,
   "constitution/conflict-record": once,
-  "project-inbox/routing-receipt": once,
-  "personal/routing-receipt": once,
+  "project-inbox/routing-receipt": receipt,
+  "personal/routing-receipt": receipt,
 } satisfies Record<KindId, KindMechanism>;
 
 /** A registered role with a replaceable parser slot and ordered format. */

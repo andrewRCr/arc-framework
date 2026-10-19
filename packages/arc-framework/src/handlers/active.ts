@@ -9,6 +9,12 @@
  * @module
  */
 
+import { openDefaultStore } from "./lifecycle-shared.js";
+import type { StoreInFlightEntry, DeriveStoreInFlightOptions } from "../lib/git/in-flight-store.js";
+import type { Store } from "../lib/store/contract.js";
+import type { GitExec } from "../lib/git/exec.js";
+import type { WorktreeRosterEntry } from "../lib/git/worktree-roster.js";
+import { createLocusPorts } from "../lib/locus/lifecycle-ports.js";
 import { readdir, readFile } from "node:fs/promises";
 
 import * as p from "../lib/terminal.js";
@@ -33,6 +39,7 @@ import { createGitExec, createGitExecInput } from "../lib/io-context.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { requireArcProjectRoot } from "./shared.js";
+import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
 
 export interface ActiveStatusCliOptions {
   sessionInit?: boolean;
@@ -65,11 +72,17 @@ export const activeCommandInputPolicyDeclarations = [
 ] satisfies readonly CommandInputDeclaration[];
 
 /** Render one oracle entry with its lifecycle and local/remote location. */
-export function formatActiveInFlightLine(entry: InFlightEntry): string {
-  const where = entry.worktreePath ?? (entry.remoteOnly ? "remote-only" : "no worktree");
+export function formatActiveInFlightLine(entry: InFlightEntry | StoreInFlightEntry): string {
+  const locationUnknown = entry.marks?.some(mark => mark === "indeterminate" || mark === "location-ambiguous") === true;
+  const where = entry.worktreePath ?? (locationUnknown ? "location unknown" : entry.remoteOnly ? "remote-only" : "no worktree");
   return entry.kind === "work-unit"
-    ? `${entry.branch}  (${entry.state})  ${where}`
-    : `${entry.branch}  (errand)  ${where}`;
+    ? `${entry.branch ?? entry.name}  (${entry.state}${entry.scheduling === "paused" ? ", paused" : ""})  ${where}`
+    : `${entry.branch ?? entry.slug}  (errand)  ${where}`;
+}
+
+/** Render one active work-unit registration for the human roster. */
+export function formatActiveRosterLine(entry: WorktreeRosterEntry): string {
+  return `${entry.branch ?? entry.workUnit}  (${entry.state ?? "unknown"})  ${entry.worktreePath}`;
 }
 
 export async function handleActiveStatus(
@@ -134,9 +147,7 @@ export async function handleActiveRoster(
   if (result.entries.length === 0) {
     p.note("No other work units in flight.", "In-flight");
   } else {
-    const lines = result.entries.map(
-      (e) => `${e.branch}  (${e.state ?? "unknown"})  ${e.worktreePath}`,
-    );
+    const lines = result.entries.map(formatActiveRosterLine);
     p.note(lines.join("\n"), "In-flight");
   }
   p.outro("Done.");
@@ -154,7 +165,8 @@ export async function handleActiveInFlight(
   const { settings } = await readConfigSettings(cwd);
   const teamMode = settings["team.mode"] === "true";
   const localOnly = Boolean(opts.local) || opts.fetch === false;
-  const parkedSlugs = listParkedSlugs(
+  const store = openDefaultStore(cwd, exec);
+  const parkedSlugs = store.capabilities.stateOffBranch ? new Set<string>() : listParkedSlugs(
     await buildLifecycleIndex({
       cwd,
       fs: {
@@ -164,7 +176,12 @@ export async function handleActiveInFlight(
     }),
   );
 
+  const locusPorts = store.capabilities.stateOffBranch ? createLocusPorts({ cwd, exec, store }) : undefined;
+  const roster = await readInFlightRoster({ cwd, store, exec, identity, baseBranch: settings["branch.base"] });
   const result = await runActiveInFlightExpansion({
+    store,
+    ...(roster === undefined ? {} : { roster }),
+    ...(locusPorts === undefined ? {} : { findHoldingCheckout: (name: string) => locusPorts.findHoldingCheckout({ name, resolveLegacy: () => Promise.resolve(null) }) }),
     exec,
     execInput: createGitExecInput(interaction?.subprocess),
     cwd,
@@ -202,4 +219,9 @@ export async function handleActiveInFlight(
   if (result.candidateExpansion.status === "partial" || result.candidateExpansion.status === "failed") {
     process.exitCode = 1;
   }
+}
+
+async function readInFlightRoster(input: { cwd: string; store: Store; exec: GitExec; identity: string | null; baseBranch: string }): Promise<DeriveStoreInFlightOptions["roster"]> {
+  if (!input.store.capabilities.stateOffBranch || input.identity === null) return undefined;
+  return (await runDerivedLocusStateProbe({ ...input, identity: input.identity })).roster;
 }
