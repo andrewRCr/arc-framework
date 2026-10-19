@@ -643,9 +643,12 @@ canonical JSON on standard output, with its reason and remedy on standard error.
 - _Outcome:_ Both capability arms run through the actual handler. A real temporary claim and scripted Git prove that
   the handler-built teardown context releases the held origin after terminal persistence without a continuation.
 
-### `[ ]` **6.3 The dispatch end to end** — validate exit criterion at segment scope
+### `[x]` **6.3 The dispatch end to end** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
+- _Outcome:_ On merged base `4f36aff63`, the installed CLI retains repository-backed decomposition and emits the
+  dormant forms as canonical refusals. Injected checked-store handler scenarios cover every mode, typed continuations,
+  and held-origin claim release through production cleanup; the complete decomposition unit and CLI suites pass.
 
 ## **Phase 7:** Verification
 
