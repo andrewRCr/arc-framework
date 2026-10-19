@@ -94,7 +94,7 @@ import {
   type HostedReservationDischarge,
   type HostedReservationDischargeReader,
 } from "../review-gate/policy/hosted-reservation-discharge.js";
-import type { DeliveryReviewMemberTerminus } from
+import { DeliveryReviewMemberTerminusSchema, type DeliveryReviewMemberTerminus } from
   "../review-gate/policy/review-terminus.js";
 import {
   projectHostedReservationPolicyProgress,
@@ -1112,7 +1112,7 @@ export function createIntegrationCheckpointDependencies(options: ReviewInvocatio
         targets: deliveryTargets,
         discharges,
         progress,
-        ownerTermini: publicationBoundary.deliveryReviewTermini,
+        ownerTermini: DeliveryReviewMemberTerminusSchema.array().parse(publicationBoundary.deliveryReviewTermini),
         ownerTerminusAdvances,
       });
       const candidateCoordinate = await readCoordinate(input.exec, input.cwd, currentness.recognizedRevision);

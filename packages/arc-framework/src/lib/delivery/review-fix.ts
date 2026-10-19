@@ -24,7 +24,7 @@ import type {
 } from "./review-fix-verification.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
 import { projectDeliveryPublicReviewContinuation } from "./public-review-continuation.js";
-import type { IntegrationBoundaryLocus } from
+import type { PublishedIntegrationBoundaryLocus } from
   "../../scripts/review-gate/policy/integration-boundary-locus.js";
 import {
   ApprovedDispositionRecordSchema,
@@ -168,24 +168,24 @@ export function advanceDeliveryReviewFixResponse(input: {
   }
 }
 
-export type DeliveryReviewFixBoundaryCarryResult =
+export type DeliveryReviewFixBoundaryCarryResult<TBoundary extends PublishedIntegrationBoundaryLocus = PublishedIntegrationBoundaryLocus> =
   | {
       readonly status: "carried";
-      readonly boundary: IntegrationBoundaryLocus;
+      readonly boundary: TBoundary;
       readonly candidateId: CanonicalDigest;
       readonly stateRevision: number;
     }
   | { readonly status: "refused"; readonly reason: string };
 
 /** Carry one Candidate identity's public review boundary across a proven correction response. */
-export function carryDeliveryReviewFixPublicBoundary(input: {
+export function carryDeliveryReviewFixPublicBoundary<TBoundary extends PublishedIntegrationBoundaryLocus>(input: {
   readonly plan: DeliveryPlanV1;
   readonly state: DeliveryRevisionedRecord<DeliveryStateV1>;
-  readonly boundary: IntegrationBoundaryLocus;
+  readonly boundary: TBoundary;
   readonly candidateId: CanonicalDigest;
   readonly sourceCandidateSubjectDigest: string;
   readonly candidateSubjectDigest: CanonicalDigest;
-}): DeliveryReviewFixBoundaryCarryResult {
+}): DeliveryReviewFixBoundaryCarryResult<TBoundary> {
   const boundary = input.boundary;
   if (boundary.mode !== "integration-boundary"
     || boundary.locus !== "delivery-status-required"

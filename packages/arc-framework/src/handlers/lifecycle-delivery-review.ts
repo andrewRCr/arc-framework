@@ -63,7 +63,8 @@ import {
   projectCorrectiveDeliveryStatusBoundary,
   recoverAttestedOwnerTerminusBoundary,
   recoverAttestedSingletonPublicationBoundary,
-  type IntegrationBoundaryLocus,
+  parseIntegrationBoundaryLocus,
+  type PublishedIntegrationBoundaryLocus,
 } from "../scripts/review-gate/policy/integration-boundary-locus.js";
 import { attestArgv, attestNewRootArgv, spineRemedy } from "../scripts/integration/spine-refusal.js";
 import { SlugSchema, validateManagedPath } from "../lib/kernel/index.js";
@@ -130,12 +131,24 @@ export interface AttestOptions {
 
 /** Attest the current verified work-unit subject without changing lifecycle State. */
 function convergenceResumeAfterAttest(
-  existingBoundary: IntegrationBoundaryLocus | null,
+  existingBoundary: PublishedIntegrationBoundaryLocus | null,
   publication: Parameters<AttestContext["publish"]>[0],
   boundaryMatches: boolean,
-): IntegrationBoundaryLocus | null {
+): PublishedIntegrationBoundaryLocus | null {
   if (existingBoundary === null || !boundaryMatches
     || existingBoundary.locus !== "candidate-convergence-verification-pending") return null;
+  const subject = {
+    workUnit: publication.name,
+    candidateId: publication.candidateId,
+    candidateSubjectDigest: publication.candidateSubjectDigest,
+  };
+  if (existingBoundary.schemaVersion === 2) return projectCandidateReviewResumeBoundary({
+    ...subject,
+    reservation: existingBoundary.reservation,
+    terminus: existingBoundary.terminus,
+    deliveryReviewTermini: existingBoundary.deliveryReviewTermini,
+    postAttestContinuation: existingBoundary.nextAction.postAttestContinuation,
+  }, 2);
   return projectCandidateReviewResumeBoundary({
     workUnit: publication.name,
     candidateId: publication.candidateId,
@@ -706,7 +719,7 @@ export async function publishCandidateWithReviewBoundary(
     candidateId: candidate.candidateId,
     candidateSubjectDigest: candidate.candidateSubjectDigest,
     candidateCurrent: candidate.candidateCurrent,
-    boundary,
+    boundary: parseIntegrationBoundaryLocus(boundary),
     refreshCandidateAuthorization: async () => {
       const refreshed = await readCandidateAuthorization();
       if (refreshed === null) {
@@ -720,7 +733,8 @@ export async function publishCandidateWithReviewBoundary(
     },
     readStandardLaneOwnerVersion,
     claimPublicationBoundary: async (publicationBoundary) => {
-      if ((boundary.locus === "candidate-publish-ready" || boundary.locus === "publication-pending")
+      if (boundary.schemaVersion === 1
+        && (boundary.locus === "candidate-publish-ready" || boundary.locus === "publication-pending")
         && boundary.standardLaneOwnerVersion !== await readStandardLaneOwnerVersion()) {
         throw new Error("standard review progress changed after publication readiness was recorded");
       }

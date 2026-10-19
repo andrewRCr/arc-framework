@@ -14,7 +14,7 @@ import { recordKey } from "../../../../../../helpers/store/model.js";
 import { createReviewHarness } from "../../../../../../helpers/store/review-harness.js";
 import { candidateFixture } from "../../../../../../helpers/store/tracked-write-fixture.js";
 import { IntegrationBoundaryLocusV2Schema } from "../../../../../../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
-import { boundaryV2Fixture } from "../../../../../../fixtures/review-boundary.js";
+import { boundaryLoci, boundaryV2Fixture } from "../../../../../../fixtures/review-boundary.js";
 
 it("reads the explicit filesystem boundary and exact byte version", async () => {
   const boundary = parseIntegrationBoundaryLocus(boundaryFixture());
@@ -81,4 +81,19 @@ it("writes a native boundary through checked storage with its opaque compare-and
   expect(stored.result.version).not.toMatch(/^sha256:/u);
   await expect(writeSubmissionBoundary("/unavailable", boundary, null, input)).rejects.toBeInstanceOf(SubmissionBoundaryVersionConflictError);
   await expect(writeSubmissionBoundary("/unavailable", boundary, stored.result.version, input)).resolves.toContain("example.boundary.json");
+});
+
+it.each(boundaryLoci)("reads native %s content with the exact opaque store version", async (locus) => {
+  const h = createReviewHarness(), candidate = candidateFixture();
+  const primary = await h.seedMeta("example");
+  await h.seedCandidate(primary.reference.owner, candidate);
+  const boundary = IntegrationBoundaryLocusV2Schema.parse({ ...boundaryV2Fixture(locus),
+    candidateId: candidate.attestation.candidateId, candidateSubjectDigest: candidate.subject.subjectDigest });
+  await h.seedBoundary(primary.reference.owner, boundary);
+  const stored = await h.store.read({ reference: recordReferences["review/integration-boundary"](primary.reference.owner) });
+  if (stored.status !== "ok") throw new Error("Expected checked native boundary");
+  const input = { store: h.store, owner: primary.reference.owner };
+  await expect(readSubmissionBoundaryVersioned("/unavailable", "example", input))
+    .resolves.toEqual({ boundary, version: stored.result.version });
+  await expect(readSubmissionBoundary("/unavailable", "example", input)).resolves.toEqual(boundary);
 });

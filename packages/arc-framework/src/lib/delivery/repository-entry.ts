@@ -29,7 +29,7 @@ import {
   type DeliveryCandidateRenewalInspectionResult,
   type DeliveryReopenInspectionResult,
 } from "./entry-inspection.js";
-import type { IntegrationBoundaryLocus } from
+import type { PublishedIntegrationBoundaryLocus } from
   "../../scripts/review-gate/policy/integration-boundary-locus.js";
 import {
   RepositoryDeliveryPlanStore,
@@ -303,7 +303,7 @@ export async function inspectRepositoryDeliveryReopen(input: RepositoryDeliveryI
  */
 export async function inspectRepositoryDeliveryCandidateRenewal(
   input: RepositoryDeliveryInspectionInput & {
-    readonly sourceBoundary: IntegrationBoundaryLocus | null;
+    readonly sourceBoundary: PublishedIntegrationBoundaryLocus | null;
   },
 ): Promise<DeliveryCandidateRenewalInspectionResult> {
   return inspectDeliveryCandidateRenewal(

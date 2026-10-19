@@ -1,7 +1,7 @@
 /** Bind ordinary work-unit preparation and replay to the live reserved review obligation. */
 import { readSubmissionBoundaryVersioned, type SubmissionBoundaryReadOptions } from "../../../lib/store/kinds/review/integration-boundary/access.js";
 import type { ReviewInvocationInput } from "./invocation.js";
-import type { IntegrationBoundaryLocus } from "../policy/integration-boundary-locus.js";
+import type { PublishedIntegrationBoundaryLocus } from "../policy/integration-boundary-locus.js";
 import type { LocalReviewAuthority } from "../core/local-review-authority.js";
 import { canonicalize } from "../../../lib/kernel/index.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
@@ -17,7 +17,7 @@ import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
 /** Read one work unit's current Candidate boundary, optionally requiring an already resolved lineage. */
 export async function readLocalWorkUnitBoundary(
   cwd: string, workUnitId: string, candidateId?: string, options?: SubmissionBoundaryReadOptions,
-): Promise<IntegrationBoundaryLocus> {
+): Promise<PublishedIntegrationBoundaryLocus> {
   const boundary = (await readSubmissionBoundaryVersioned(cwd, workUnitId, options)).boundary;
   if (boundary === null || boundary.workUnit !== workUnitId) {
     throw new Error("Candidate lineage authority is unavailable for local review");

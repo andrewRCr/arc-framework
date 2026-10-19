@@ -50,7 +50,6 @@ import {
   projectCandidateReviewBoundary,
   recoverPrePublicationBoundary,
   recoverIntegratingBoundary,
-  type IntegrationBoundaryLocus,
   type PublishedIntegrationBoundaryLocus,
 } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
 import type { PendingCandidateReviewFixAuthority } from
@@ -266,7 +265,7 @@ export async function projectCheckoutSubjectMeta(options: {
   const inferredSessionType = options.metaRoot.kind === "completed" || options.workUnit?.record.placement?.kind === "completed"
     ? "integration"
     : inferSessionType(record.state, taskListPath, record.branch);
-  let integrationBoundary: IntegrationBoundaryLocus | null = null;
+  let integrationBoundary: PublishedIntegrationBoundaryLocus | null = null;
   if (record.candidateId !== null && candidateSubjectDigest !== null && record.state === "Integrating") {
     const stored = await readHeldSubmissionBoundary(options);
     const exactDurableBoundary = !requireExactDurableBoundary
@@ -494,7 +493,7 @@ async function readStoreTaskCursor(store: Store, primary: import("../store/read.
 }
 
 async function readHeldSubmissionBoundary(options: Pick<Parameters<typeof projectCheckoutSubjectMeta>[0],
-  "cwd" | "subjectKey" | "io" | "store" | "workUnit">): Promise<IntegrationBoundaryLocus | null> {
+  "cwd" | "subjectKey" | "io" | "store" | "workUnit">): Promise<PublishedIntegrationBoundaryLocus | null> {
   const { cwd, subjectKey: workUnit, io, store } = options;
   if (store?.capabilities.stateOffBranch === true) {
     const owner = options.workUnit?.record.reference.owner;

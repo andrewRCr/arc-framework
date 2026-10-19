@@ -351,7 +351,7 @@ describe("delivery review-fix routing", () => {
       .toMatchObject({ status: "already-recorded", hostedFixTarget: null });
   });
 
-  it("carries the same Candidate boundary across the acknowledged state revision", () => {
+  it.each([1, 2] as const)("carries the same version %s Candidate boundary across the acknowledged state revision", (schemaVersion) => {
     const { plan, state } = fixture();
     const before = projectDeliveryPublicReviewContinuation({ plan, state, stateRevision: 9 });
     if (before.status !== "projected") throw new Error("fixture continuation must project");
@@ -379,14 +379,17 @@ describe("delivery review-fix routing", () => {
         count: 1,
       },
     };
-    const publication = projectPublicationBoundary({
+    const publicationInput = {
       workUnit: plan.workUnitId,
       branch: "feat/example",
       candidateId: sourceCandidateId,
       candidateSubjectDigest: CanonicalDigestSchema.parse(`sha256:${"f".repeat(64)}`),
       reservation,
       changeRequest: null,
-    });
+    };
+    const publication = schemaVersion === 2
+      ? projectPublicationBoundary({ ...publicationInput, readinessBinding: null }, 2)
+      : projectPublicationBoundary(publicationInput);
     const boundary = projectCorrectiveDeliveryStatusBoundary({
       workUnit: plan.workUnitId,
       candidateId,
@@ -408,6 +411,7 @@ describe("delivery review-fix routing", () => {
       candidateId,
       stateRevision: 10,
       boundary: {
+        schemaVersion,
         candidateId,
         candidateSubjectDigest,
         locus: "delivery-status-required",

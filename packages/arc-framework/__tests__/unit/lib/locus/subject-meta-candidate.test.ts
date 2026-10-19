@@ -7,12 +7,14 @@ import { projectCheckoutSubjectMeta, type SubjectMetaIO } from "../../../../src/
 import { readStoreWorkUnitEvidence } from "../../../../src/lib/locus/store-work-unit-evidence.js";
 import { writeMetaCurrentWorkflow } from "../../../../src/lib/store/kinds/meta/writers.js";
 import { recordReferences } from "../../../../src/lib/store/identity.js";
-import { createCandidateAttestation, createCandidateSubjectSnapshot, serializeCandidateManagedRecord } from "../../../../src/lib/work-unit/candidate-attestation.js";
+import { parseCandidateManagedRecord, createCandidateAttestation, createCandidateSubjectSnapshot, serializeCandidateManagedRecord } from "../../../../src/lib/work-unit/candidate-attestation.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { ReferenceBackend } from "../../../helpers/store/reference-backend.js";
 import { recordKey } from "../../../helpers/store/model.js";
 import { createMemoryRemote } from "../../../helpers/store/sync.js";
 import { projectDurableCandidateTarget } from "../../../helpers/candidate.js";
+
+import { projectCandidateReviewBoundary } from "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
@@ -167,4 +169,16 @@ it("keeps stored boundary absence when a checkout file holds stale fix authority
   await writeFile(join(dirname(h.localCandidatePath), "demo.boundary.json"), JSON.stringify(stale));
   expect(await projectCheckoutSubjectMeta(h.options)).toMatchObject({ kind: "resolved",
     integrationBoundary: { locus: "candidate-review-pending" } });
+});
+
+it("projects a checked native boundary from the selected work item without a boundary file", async () => {
+  const h = await fixture();
+  await h.seed(h.reference, h.authoritative.content);
+  const record = parseCandidateManagedRecord(h.authoritative.content);
+  if (record === null) throw new Error("Expected the produced Candidate");
+  const boundary = projectCandidateReviewBoundary({ workUnit: "demo", candidateId: record.attestation.candidateId,
+    candidateSubjectDigest: record.subject.subjectDigest }, 2);
+  await h.seed(recordReferences["review/integration-boundary"](h.meta.reference.owner), JSON.stringify(boundary));
+  expect(await projectCheckoutSubjectMeta(h.options)).toMatchObject({ kind: "resolved", sessionType: "prepublication",
+    integrationBoundary: boundary });
 });

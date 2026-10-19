@@ -130,6 +130,7 @@ import {
   type PrePublicationReviewEnvelope,
   type PrePublicationReviewRequest,
 } from "../scripts/review-gate/policy/pre-publication-procedure.js";
+import { OwnerAcceptedReviewTerminusSchema } from "../scripts/review-gate/policy/review-terminus.js";
 import {
   CandidateReviewResumeBoundarySchema,
   IntegrationBoundaryLocusSchema,
@@ -1109,7 +1110,10 @@ async function acceptDeliveryReviewTerminus(
     }
   };
   const result = await resolveDeliveryReviewTerminusAcceptance(request, {
-    readBoundary: (workUnitId) => readSubmissionBoundaryVersioned(root, workUnitId, { store: reviewRecordStore, owner: bound.workItem }),
+    readBoundary: async (workUnitId) => {
+      const snapshot = await readSubmissionBoundaryVersioned(root, workUnitId, { store: reviewRecordStore, owner: bound.workItem });
+      return { ...snapshot, boundary: snapshot.boundary === null ? null : parseIntegrationBoundaryLocus(snapshot.boundary) };
+    },
     readOwnerAuthority,
     readCurrentOffer: async (workUnitId) => {
       const status = await resolveReviewStatusForWorkUnit({
@@ -4274,7 +4278,7 @@ export interface ReviewPrePublicationHandlerDependencies {
   readText(source: string): Promise<string>;
   readRootGitHead(root: string): Promise<string>;
   readCandidate(root: string, workUnit: string): Promise<CandidateRead>;
-  readBoundary(root: string, workUnit: string): Promise<VersionedSubmissionBoundary<IntegrationBoundaryLocus>>;
+  readBoundary(root: string, workUnit: string): Promise<VersionedSubmissionBoundary>;
   readStandardLaneOwnerVersion(root: string, candidateId: CanonicalDigest, headSha: string): Promise<number>;
   withStandardLaneLock<T>(
     root: string, candidateId: CanonicalDigest, headSha: string, action: () => Promise<T>,
@@ -4480,7 +4484,7 @@ function defaultPrePublicationDependencies(
         carried = applyCarriedOwnerAcceptedTerminus(carried, {
           candidateId: existing.candidateId,
           candidateSubjectDigest: existing.candidateSubjectDigest,
-          terminus: existing.terminus,
+          terminus: OwnerAcceptedReviewTerminusSchema.parse(existing.terminus),
         });
       }
       return carried;
@@ -4783,7 +4787,8 @@ export async function handleReviewPrePublication(
         return;
       }
       const readyLaneUnchanged = !matchingBoundary
-        || (advancedBoundary.standardLaneOwnerVersion !== undefined
+        || (advancedBoundary.schemaVersion === 1
+          && advancedBoundary.standardLaneOwnerVersion !== undefined
           && advancedBoundary.standardLaneOwnerVersion
             === await dependencies.readStandardLaneOwnerVersion(
               root, advancedBoundary.candidateId, currentRootHead,

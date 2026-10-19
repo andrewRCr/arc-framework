@@ -1,5 +1,5 @@
 /** Review obligations for publication boundaries without a hosted-review reservation. */
-import type { IntegrationBoundaryLocus } from "../../lib/store/kinds/review/integration-boundary/schema.js";
+import type { ReviewIntegrationBoundary } from "../../lib/store/kinds/review/integration-boundary/schema.js";
 import type { RoutedReviewObligation } from "./status.js";
 
 /**
@@ -12,7 +12,7 @@ import type { RoutedReviewObligation } from "./status.js";
  * @returns The settled obligation, the outstanding one carrying the boundary's continuation, or a block for a
  *   locus that cannot exist without a reservation.
  */
-export function readUnreservedObligation(boundary: IntegrationBoundaryLocus): RoutedReviewObligation {
+export function readUnreservedObligation(boundary: ReviewIntegrationBoundary): RoutedReviewObligation {
   switch (boundary.locus) {
     case "candidate-publish-ready":
     case "publication-pending":

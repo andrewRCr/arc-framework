@@ -10,7 +10,7 @@ import { parseIntegrationBoundaryLocus } from "../../../../../scripts/review-gat
 import { readReviewRecord, resolveReviewRecordAccess, unwrapReviewRecordResult, type ReviewRecordAccessOptions } from "../access-shared.js";
 import { SubmissionBoundaryVersionConflictError } from "../errors.js";
 import { resolveSubmissionBoundaryPath } from "../paths.js";
-import { IntegrationBoundaryLocusV2Schema, type ReviewIntegrationBoundary, type IntegrationBoundaryLocus, type VersionedSubmissionBoundary } from "./schema.js";
+import { IntegrationBoundaryLocusV2Schema, type ReviewIntegrationBoundary, type VersionedSubmissionBoundary } from "./schema.js";
 
 export { SubmissionBoundaryVersionConflictError };
 export type { SubmissionBoundaryReader, SubmissionBoundaryStoreFs };
@@ -22,21 +22,24 @@ export type SubmissionBoundaryWriteOptions = ReviewRecordAccessOptions<Submissio
 
 /** Read a boundary paired with its exact backend version. */
 export async function readSubmissionBoundaryVersioned(cwd: string, name: string,
-  input?: SubmissionBoundaryReader | SubmissionBoundaryReadOptions): Promise<VersionedSubmissionBoundary<IntegrationBoundaryLocus>> {
+  input?: SubmissionBoundaryReader | SubmissionBoundaryReadOptions): Promise<VersionedSubmissionBoundary> {
   const workUnit = SlugSchema.parse(name);
   const access = resolveReviewRecordAccess(cwd, input);
   if ("fs" in access) return readFileBoundaryVersioned(cwd, workUnit, access.fs);
   const stored = await readReviewRecord(access.store,
     recordReferences["review/integration-boundary"](access.owner ?? OwnerIdentitySchema.parse({ type: "work-item", name: workUnit })));
   if (stored === null) return { boundary: null, version: null };
-  const boundary = parseIntegrationBoundaryLocus(JSON.parse(stored.content) as unknown);
+  const content: unknown = JSON.parse(stored.content);
+  const native = access.store.capabilities.stateOffBranch && content !== null && typeof content === "object"
+    && "schemaVersion" in content && content.schemaVersion === 2;
+  const boundary = native ? IntegrationBoundaryLocusV2Schema.parse(content) : parseIntegrationBoundaryLocus(content);
   if (boundary.workUnit !== workUnit) throw new Error("Submission boundary work unit does not match its path");
   return { boundary, version: stored.version };
 }
 
 /** Read a validated boundary, retaining established absence as null. */
 export async function readSubmissionBoundary(cwd: string, name: string,
-  input?: SubmissionBoundaryReader | SubmissionBoundaryReadOptions): Promise<IntegrationBoundaryLocus | null> {
+  input?: SubmissionBoundaryReader | SubmissionBoundaryReadOptions): Promise<ReviewIntegrationBoundary | null> {
   return (await readSubmissionBoundaryVersioned(cwd, name, input)).boundary;
 }
 

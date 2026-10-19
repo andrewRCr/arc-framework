@@ -9,7 +9,7 @@ import type { CanonicalDigest } from "../kernel/index.js";
 import {
   ResolveDeliveryStatusActionSchema,
   ContinuePublicationActionSchema,
-  type IntegrationBoundaryLocus,
+  type PublishedIntegrationBoundaryLocus,
 } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
 import {
   projectDeliveryPublicReviewContinuation,
@@ -424,7 +424,7 @@ type ReadState =
   | { readonly status: "ok"; readonly value: DeliveryStateV1 | null; readonly revision: number | null }
   | { readonly status: "refused" };
 type ReadIntegrationBoundary =
-  | { readonly status: "ok"; readonly value: IntegrationBoundaryLocus | null }
+  | { readonly status: "ok"; readonly value: PublishedIntegrationBoundaryLocus | null }
   | { readonly status: "refused" };
 type ReadCandidate =
   | {
@@ -482,7 +482,7 @@ export type DeliveryCandidateRenewalInspectionResult =
  */
 export async function inspectDeliveryCandidateRenewal(
   workUnitId: string,
-  sourceBoundary: IntegrationBoundaryLocus | null,
+  sourceBoundary: PublishedIntegrationBoundaryLocus | null,
   dependencies: DeliveryEntryInspectionDependencies,
 ): Promise<DeliveryCandidateRenewalInspectionResult> {
   const workUnit = SlugSchema.parse(workUnitId);

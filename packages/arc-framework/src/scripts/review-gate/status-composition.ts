@@ -1,4 +1,5 @@
 /** Production composition for exact-target review status. */
+import { DeliveryReviewMemberTerminusSchema } from "./policy/review-terminus.js";
 import { ProjectIdentityError } from "../../lib/store/project-identity.js";
 import { deriveHostedReviewTarget } from "./policy/hosted-review-target.js";
 
@@ -646,7 +647,7 @@ export async function readRoutedObligation(
           || !isDeliveryReviewMemberDischargedByOwnerTerminus({
             target: memberTarget,
             discharge,
-            ownerTermini: boundary.deliveryReviewTermini,
+            ownerTermini: DeliveryReviewMemberTerminusSchema.array().parse(boundary.deliveryReviewTermini),
             ownerTerminusAdvances,
           }));
       });
@@ -762,7 +763,7 @@ export async function readRoutedObligation(
           expectedRecordVersion: RecordVersionSchema.parse(versionedRecord.version),
           candidateId: record.attestation.candidateId,
         },
-        ownerTermini: boundary.deliveryReviewTermini,
+        ownerTermini: DeliveryReviewMemberTerminusSchema.array().parse(boundary.deliveryReviewTermini),
         ownerTerminusAdvances,
       });
     }
