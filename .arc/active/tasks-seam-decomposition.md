@@ -195,24 +195,12 @@ row to the tasks that build it.
           and stale maps name a fresh preflight; flag corrections retain the exact map operand in typed argv.
         - Held entries, source conflicts, and a stored cut refuse again at binding and admit the same map after repair.
 
-    - `[ ]` **2.4.b Names — D14**
+    - `[x]` **2.4.b Names — D14**
 
-        - Each member's slug and each new cohort document's name is free: no live work item holds it, nor any open
-          cohort document, since work items and cohorts share the one namespace, which the reference backend does not
-          enforce; and no record holds it as a former slug.
-        - No new cohort document takes a completed cohort's name: the reference backend resolves that name to the
-          completed record (`canonicalReference`), so a create expecting absence is stale there, and the check keeps a
-          map landing alike on both backends, stricter than D2's reuse of a completed name. A member's slug a completed
-          cohort holds passes.
-        - The map's own names are distinct: no member's slug names a cohort document the cut creates, and no two
-          documents it creates share a name, a `subcohort` placement's segments among them.
-        - A cohort document the cut would create under the origin's name, as a `cohort` placement or either segment of
-          a `subcohort` one, refuses, naming another cohort name in the map.
-        - Build `test-first` (one behavior at a time):
-            - each held name refuses — by a live work item, a live cohort, a former slug, another name in the map, and
-              the origin's, and a new cohort document's by a completed cohort — and the checks pass after another name
-              is chosen
-            - a member's slug that only a completed cohort holds passes
+        - `checkDecomposeNames` rejects live holders, former slugs, duplicate map names, and new cohort names held by
+          completed cohorts or the origin. A member may reuse a completed cohort's name.
+        - Full-path cohort observations distinguish reused open documents from new documents, including subcohort
+          parents; unreadable inventory preserves its repair instead of implying availability.
 
     - `[ ]` **2.4.c Allocations and homes — § 7**
 

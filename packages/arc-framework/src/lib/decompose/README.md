@@ -32,3 +32,7 @@ for every source and dependency decision, without changing any record or history
 
 `bind-map.ts` decodes completed maps and compares their complete machine with freshly admitted preflight facts.
 Wrong-shape continuations carry the supplied map operand unchanged; stale and unsupported maps name a fresh preflight.
+
+`check-names.ts` checks member and newly created cohort names across live work items, former slugs, cohort documents,
+and the map itself. It retains complete cohort observations for topology and Purpose checks, distinguishing reused open
+documents from new ones and the completed-cohort exception for member names.
