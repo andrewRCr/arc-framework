@@ -64,6 +64,8 @@ describe("review-gate canonical serializer inventory", () => {
       "policy/hosted-reservation-discharge.ts",
       "policy/hosted-reservation-support.ts",
       "policy/incremental-coverage-basis.ts",
+      "policy/integration-boundary-locus-shared.ts",
+      "policy/integration-boundary-locus-v2.ts",
       "policy/integration-boundary-locus.ts",
       "policy/local-review-coverage-selection.ts",
       "policy/local-review-guidance.ts",

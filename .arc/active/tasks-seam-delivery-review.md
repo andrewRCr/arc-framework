@@ -150,7 +150,7 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
           version one's projections and legacy normalization. Version two has named decisions, explicit readiness
           bindings at publication loci, merge verification, and post-attest continuations without projection
           dispositions. Both schemas initialize independently; the public codec dispatches by version and exposes the
-          opaque versioned read shape.
+          opaque versioned read shape. The canonical caller inventory includes both extracted modules.
 
     - `[x]` **1.6.c The boundary's write check**
 
