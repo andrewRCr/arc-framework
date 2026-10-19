@@ -46,20 +46,10 @@ under `lib/decompose/`, and the kind folder imports its decoder from there, as t
 - _Note:_ `production-schema-registry.ts`, the production schema IDs, and `authored-metadata.test.ts` serialize with
   `seam-locus` (§ 1.3).
 
-    - `[ ]` **1.2.a The machine half — § 3.2**
+    - `[x]` **1.2.a The machine half — § 3.2**
 
-        - `preflightId`, `origin` (slug and UID), `sourceKind`, `planningProfile`, `sourceUnits`, `incomingEdges`, and
-          `outgoingEdges`; version 3's `source.logicalBranch`, `source.ref`, `source.head`, and `resultBase` go.
-        - The identity functions under `schemaVersion: 4`: a source unit's ID digests its locator alone, whose
-          `artifact` names the origin's record by basename; an incoming edge's digests the dependent's UID; an outgoing
-          edge's digests the provider's UID, or its slug where it resolves to no single owner, as `v3OutgoingEdgeId`
-          digests it under 3; and `preflightId` digests the rest of the machine half. Each is exported, as version 3
-          exports its own (`v3SourceId`, `v3IncomingEdgeId`, `v3OutgoingEdgeId`, `v3PreflightId`).
-        - Build `test-first` (one behavior at a time):
-            - a source ID changes with the locator and with nothing else
-            - an incoming edge ID survives the dependent's rename and any change to its other edges
-            - an outgoing edge whose provider resolves to no single owner keeps its slug identity
-            - `preflightId` changes with every machine field
+        - `cut-map-machine.ts` defines the strict record-bound envelope and exported identities: source locators alone,
+          dependent UIDs, provider UIDs or unresolved slugs, and the complete machine facts for `preflightId`.
 
     - `[ ]` **1.2.b The authoring half — § 3.3**
 
