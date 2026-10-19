@@ -1,8 +1,8 @@
 # Metadata: projected-markdown-checks
 
-| **State**     | **Owner** | **Branch**                       | **Class** | **Priority** |
-| ------------- | --------- | -------------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/projected-markdown-checks` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
 - **Cohort:** `state-storage`
 - **Depends On:** [none]
@@ -13,15 +13,15 @@
 - **Review Rubric:** [none]
 - **Candidate:** `sha256:e7aa19c360ec8535f0dabd7d857219e8bfc496767b1a37696008695067a73819`
 
-- **Current Workflow:** `integrate-work-unit`
+- **Current Workflow:** [none]
 - **Last Completed:** Task 6.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
+- **Next Action:** —
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/1040>
+- **Completed:** 2026-10-18
 
 ## Release Notes Entry
 
