@@ -109,10 +109,6 @@ async function resolveViewArtifactUnchecked(
     return presentOrAbsent(kind, path, null, dependencies);
   }
 
-  if (kind === "session-notes" && options.forSlug !== undefined && dependencies.stateOffBranch === true) {
-    return resolveSessionContextArtifact(options, options.forSlug, dependencies);
-  }
-
   const target = await resolveTarget(options, dependencies);
   if (target.status === "completed") {
     return error(kind ?? "view", `Work unit "${target.slug}" is completed; completed viewing is unsupported.`);

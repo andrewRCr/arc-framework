@@ -518,19 +518,14 @@ its code. `notes-seam-status-roadmap.md` § Phase 7 — `arc view` records the p
   path and editor behavior. Conflict notices reach stderr at every destination, including no-file refusals, while
   default viewing renders the furthest unprojected record without creating files.
 
-### `[ ]` **7.5 Open session notes as the work unit's meta, with no identity — § 6.4**
+### `[x]` **7.5 Open session notes as the work unit's meta, with no identity — § 6.4**
 
 - _Goal:_ From the flip `session-notes` opens the work unit's meta, resolved as the `meta` kind is through Task 7.3's
   port, reading no identity, and the in-repo arm keeps its resolver call and its missing-identity refusal.
 
-- **Additional Context:** `notes-seam-status-roadmap.md` § Phase 7 — `arc view`
-
-    - This arm replaces locus's session-notes arm from the flip: the handler's resolver call, its `sessionContexts` map
-      and `readFile` override, and the short-circuit in `resolveViewArtifactUnchecked`.
-    - Build `test-first` (one behavior at a time):
-        - `session-notes` with no identity opens the meta from the flip
-        - a conflicted meta renders as Task 7.4 states
-        - the in-repo arm with no identity still refuses
+- _Outcome:_ Session notes use the same store meta selector without an identity, including conflicted current-side
+  content and its inspection notices. Removed the flip-specific resolver short-circuit and virtual file mapping; the
+  in-repo resolver and missing-identity refusal remain.
 
 ### `[ ]` **7.6 `arc view` from the flip** — validate exit criterion at segment scope
 

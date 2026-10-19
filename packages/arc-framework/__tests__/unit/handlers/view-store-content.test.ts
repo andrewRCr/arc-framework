@@ -63,3 +63,22 @@ it.each([true, false].flatMap(projected => ["display", "path", "editor"].map(des
   else if (destination === "editor" && projected) expect(await readFile(opened, "utf8")).toBe(projection);
   else { expect(result.stdout).toBe(""); expect(result.stderr).toContain("has no file in this checkout"); }
 });
+
+it("opens session notes from the work unit's meta without an identity", async () => {
+  const f = await fixture();
+  const options = { ...f.options, kind: "session-notes", identity: null };
+  const artifact = await resolveViewArtifact(options, f.deps);
+  expect(artifact).toMatchObject({ status: "resolved", source: "store", content: f.meta.content, ref: f.meta.version, workUnit: "demo" });
+  const output = await runView(options, f.bindings);
+  expect(output.exitCode).toBe(0); expect(output.stdout).toContain(f.meta.content.trim());
+  expect(output.stderr).toBe("");
+});
+
+it("renders a conflicted session meta's current side and its inspection remedy without an identity", async () => {
+  const f = await fixture();
+  const current = await conflictViewRecord(f, f.meta, f.meta.content.replaceAll("test-user", "local-owner"), f.meta.content.replaceAll("test-user", "incoming-owner"));
+  if (current.conflicts.length === 0) throw new Error("Expected genuine metadata conflict evidence");
+  const output = await runView({ ...f.options, kind: "session-notes", identity: null }, f.bindings);
+  expect(output.exitCode).toBe(0); expect(output.stdout).toContain(current.content.trim());
+  for (const conflict of current.conflicts) expect(output.stderr).toContain(`arc status --conflicts ${formatConflictToken(conflict)}`);
+});
