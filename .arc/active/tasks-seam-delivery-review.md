@@ -242,7 +242,7 @@ retires.
   owner's placement survives access-denied diagnostics from another tier and foreign-branch acquisition failure;
   missing review bytes still return not-found before placement, and saved-tree reads retain their revision.
 
-### `[ ]` **2.3 Move the paths, the typed access, and the Candidate history read to `lib/store/kinds/review/` — § 3.1**
+### `[x]` **2.3 Move the paths, the typed access, and the Candidate history read to `lib/store/kinds/review/` — § 3.1**
 
 - _Goal:_ Callers find the Candidate's and boundary's paths, their typed reads and writes, and the Candidate's history
   in `lib/store/kinds/review/`, the paths resolved through the layout's addresses, the reads and writes through the
@@ -260,14 +260,11 @@ retires.
           Shared conflict errors retain adapter identity. Candidate versions and checkpoint comparisons are opaque,
           with explicit digest parsing at the two published fields.
 
-    - `[ ]` **2.3.c The Candidate history read**
+    - `[x]` **2.3.c The Candidate history read**
 
-        - One read returns a Candidate's supersession chain and a record's revision; its in-repo arm is
-          `readRepositoryCandidateSupersessionChain` and `readRepositoryCandidateRecordRevision`, which the store
-          re-exports. Its arm from the flip is 4.8's.
-        - Build `test-first` (one behavior at a time):
-            - over a scripted repository, the chain and the revision name the scripted commits, a version a merge commit
-              introduced included, where the store's `history` drops it
+        - Moved supersession and revision reads to `candidate/history.ts`, with adapter re-exports and bounded parsing
+          helpers. The plain path log preserves linked versions introduced by merge commits that the generic store's
+          rename-following history can omit, while existing refusals and revision bindings remain intact.
 
 ### `[ ]` **2.4 Reroute the work-unit, lifecycle, delivery, and locus callers — § 3.1, § 14.2**
 

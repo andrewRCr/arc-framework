@@ -25,3 +25,6 @@ The shared error constructors preserve version-conflict identity across typed ac
 
 Boundary access reads and writes version-one content; its public versioned shape can select a content version through
 its type parameter. Store versions remain opaque, while repository-backed versions remain byte digests.
+
+`candidate/history.ts` reads supersession chains and exact record revisions through the repository's plain path log,
+retaining Candidate versions introduced by merge commits that rename-following history can omit.

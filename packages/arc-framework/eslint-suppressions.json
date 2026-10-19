@@ -1928,11 +1928,6 @@
       "count": 1
     }
   },
-  "src/lib/work-unit/candidate-record-store.ts": {
-    "sonarjs/cognitive-complexity": {
-      "count": 1
-    }
-  },
   "src/lib/work-unit/completed-index.ts": {
     "arc/surface-names": {
       "count": 2
