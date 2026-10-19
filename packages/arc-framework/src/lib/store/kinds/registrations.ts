@@ -1,34 +1,17 @@
-/** One production registration set shared by storage backends. */
+/** Complete production parser and write-check set for storage backends. */
+import type { RegisteredKind } from "../registry.js";
+import { IN_REPO_REGISTRATIONS } from "./in-repo-registrations.js";
+import { REVIEW_OUTCOME_REGISTRATION } from "./review/outcome/registration.js";
+import { REVIEW_DECISION_REGISTRATION } from "./review/decision/registration.js";
+import { REVIEW_EVIDENCE_REGISTRATION } from "./review/evidence/registration.js";
+import { REVIEW_ADVERSARIAL_PASS_REGISTRATION } from "./review/adversarial-pass/registration.js";
+import { REVIEW_CANDIDATE_REGISTRATION } from "./review/candidate/registration.js";
+import { REVIEW_INTEGRATION_BOUNDARY_REGISTRATION } from "./review/integration-boundary/registration.js";
 
-import { ENTRY_REGISTRATIONS, ROUTING_RECEIPT_REGISTRATIONS } from "./entry-registration.js";
-import { FAMILY_REGISTRY, KIND_MECHANISMS, type RegisteredKind } from "../registry.js";
-import { familyOf, type KindId } from "../catalog.js";
-import { checkRecordLinks } from "./record-links.js";
-import { ERRAND_RECORD_REGISTRATION } from "./errand-record/registration.js";
-import { META_REGISTRATION } from "./meta/registration.js";
-import { LINEAGE_REGISTRATION } from "./lineage/registration.js";
-import { TASK_LIST_REGISTRATION } from "./task-list/registration.js";
-import { DESIGN_REGISTRATIONS } from "./design/registration.js";
-import { COHORT_REGISTRATION } from "./cohort/registration.js";
+export { RECORD_LINK_KINDS } from "./in-repo-registrations.js";
 
-/** Projecting kinds whose stored Markdown receives the shared link checks. */
-export const RECORD_LINK_KINDS: readonly KindId[] = (Object.keys(KIND_MECHANISMS) as KindId[]).filter(kind =>
-  KIND_MECHANISMS[kind].projection !== "never" && FAMILY_REGISTRY[familyOf(kind)].ref !== null
-  && kind !== "personal/errand-queue");
-
-function composeLinkChecks(registrations: readonly RegisteredKind[]): readonly RegisteredKind[] {
-  const covered = new Set(RECORD_LINK_KINDS);
-  const registered = new Set(registrations.map(item => item.kind));
-  return [
-    ...registrations.map((item): RegisteredKind => covered.has(item.kind) ? {
-      ...item,
-      check: async input => [...await item.check?.(input) ?? [], ...await checkRecordLinks(input)],
-    } : item),
-    ...RECORD_LINK_KINDS.filter(kind => !registered.has(kind)).map(kind => ({ kind, check: checkRecordLinks })),
-  ];
-}
-
-/** Parsers, write checks, and anchors owned by each record kind. */
-export const PRODUCTION_REGISTRATIONS: readonly RegisteredKind[] = composeLinkChecks([
-  ...ENTRY_REGISTRATIONS, ...ROUTING_RECEIPT_REGISTRATIONS, ERRAND_RECORD_REGISTRATION, META_REGISTRATION, LINEAGE_REGISTRATION, TASK_LIST_REGISTRATION, ...DESIGN_REGISTRATIONS, COHORT_REGISTRATION,
-]);
+/** All kind-owned codecs and semantic admission checks. */
+export const PRODUCTION_REGISTRATIONS: readonly RegisteredKind[] = [
+  ...IN_REPO_REGISTRATIONS,
+  REVIEW_OUTCOME_REGISTRATION, REVIEW_DECISION_REGISTRATION, REVIEW_EVIDENCE_REGISTRATION, REVIEW_ADVERSARIAL_PASS_REGISTRATION, REVIEW_CANDIDATE_REGISTRATION, REVIEW_INTEGRATION_BOUNDARY_REGISTRATION,
+];

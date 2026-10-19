@@ -29,6 +29,16 @@ function violations(path: string, text: string, predicate: ArchitecturePredicate
 }
 
 describe("raw state helper ratchet", () => {
+  it.each(["outcome", "decision", "evidence", "adversarial-pass", "candidate", "integration-boundary"])(
+    "keeps the %s registration behind the store while exposing pure review operations", (kind) => {
+      const module = `lib/store/kinds/review/${kind}/registration.ts`;
+      expect(violations("handlers/outside.ts", `import "../${module.replace(/\.ts$/u, ".js")}";`, "store-raw-state"))
+        .toEqual([`raw state helper ${module} outside the store`]);
+      expect(violations("lib/store/kinds/registrations.ts", `import "./review/${kind}/registration.js";`, "store-raw-state"))
+        .toEqual([]);
+      expect(violations("handlers/outside.ts", 'import { ReviewOutcomeSchema } from "../lib/store/kinds/review/index.js";', "store-raw-state"))
+        .toEqual([]);
+    });
   it("keeps Errand registration behind the store boundary", () => {
     expect(violations("handlers/outside.ts",
       'import { ERRAND_RECORD_REGISTRATION } from "../lib/store/kinds/errand-record/registration.js";', "store-raw-state"))

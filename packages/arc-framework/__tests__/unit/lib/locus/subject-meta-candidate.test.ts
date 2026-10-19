@@ -10,6 +10,7 @@ import { recordReferences } from "../../../../src/lib/store/identity.js";
 import { createCandidateAttestation, createCandidateSubjectSnapshot, serializeCandidateManagedRecord } from "../../../../src/lib/work-unit/candidate-attestation.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { ReferenceBackend } from "../../../helpers/store/reference-backend.js";
+import { recordKey } from "../../../helpers/store/model.js";
 import { createMemoryRemote } from "../../../helpers/store/sync.js";
 import { projectDurableCandidateTarget } from "../../../helpers/candidate.js";
 
@@ -84,7 +85,11 @@ it("reports the Store's missing-record condition and remedy, then resumes after 
 
 it("keeps a malformed stored Candidate unresolved despite a valid checkout copy", async () => {
   const h = await fixture();
-  const saved = await h.seed(h.reference, "invalid Candidate JSON");
+  const saved = await h.seed(h.reference, h.authoritative.content);
+  // Corrupt persisted bytes below write admission to exercise retained-data reads and repair.
+  const stored = h.store.state.records.get(recordKey(saved.reference));
+  if (stored === undefined) throw new Error("Expected the persisted Candidate");
+  stored.content = "invalid Candidate JSON";
   await writeFile(h.localCandidatePath, h.authoritative.content);
   expect(await projectCheckoutSubjectMeta(h.options)).toMatchObject({ kind: "unresolved", code: "subject-unresolved", message: expect.stringMatching(/Candidate.*Repair.*retry/iu) });
   lifecycleSuccess(await h.store.write({ action: "put", reference: saved.reference, expected: saved.version,

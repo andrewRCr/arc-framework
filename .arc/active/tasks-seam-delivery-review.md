@@ -163,43 +163,17 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
           withdrawals, and pending attempts. Backend versions and byte formatting do not affect the binding; incomplete
           listings yield no digest. Stored outcomes suppress pending leftovers, including re-keyed hosted admissions.
 
-### `[ ]` **1.7 Register the six kinds — § 2.5**
+### `[x]` **1.7 Register the six kinds — § 2.5**
 
 - _Goal:_ `PRODUCTION_REGISTRATIONS` installs each review kind's parser, and each but the Candidate's write check, so
   every backend built on it parses and checks through them, while the in-repo implementation, built on a list that
   imports no review registration, reads today's Candidate and boundary records with their keys and own-key check as
   today.
 
-    - One `registration.ts` per kind through `defineKindRegistration`, joining `PRODUCTION_REGISTRATIONS`
-      (`lib/store/kinds/registrations.ts`); the schemas, keys, and derivations are public through
-      `lib/store/kinds/review/index.ts`.
-    - Each `registration.ts` joins `RAW_STATE_MODULES` (the package's `eslint/architecture-imports.ts`), which lists
-      them by hand, with a case in `__tests__/unit/eslint-architecture-imports.test.ts`.
-    - `createInRepoContext` (`lib/store/in-repo/context.ts`) builds its registry from a narrower list, today's
-      registrations in a module that imports no review registration, since a parser is synchronous and cannot load
-      lazily and the in-repo implementation runs no write check. Its read codec keeps its deferred Candidate and
-      boundary decode (`decodeTrackedContent`, `lib/store/in-repo/read-codec.ts`), which already returns their keys, so
-      `read.ts` and `list.ts` keep their own-key check and `in-repo-boundary.test.ts`'s deferred list stays as it is.
-      `__tests__/integration/store-registered-reads.test.ts`, which mocks `kinds/registrations.js` to reach the in-repo
-      context's registry, mocks the narrower module instead, the export its mock replaces renamed with it.
-    - `lib/store/kinds/README.md` gains the review rows, and `lib/store/kinds/review/README.md` names the folder's
-      kinds and what each holds.
-    - Build `test-first` (one behavior at a time):
-        - the production registry holds a parser for each of the six kinds and a write check for each but the
-          Candidate
-        - the in-repo backend's static import closure holds no review registration and no module the deferred list
-          names
-        - an in-repo read of today's Candidate record and boundary returns their fields, a record whose key names
-          another work unit still refuses `identity-mismatch`, and the conformance cases
-          `diagnostic-key-mismatch:review/candidate` and `diagnostic-key-mismatch:review/integration-boundary` pass
-        - an in-repo write of today's boundary lands byte for byte as today with the registrations in place
-        - over a reference backend built on the production registry (`createKindRegistry(PRODUCTION_REGISTRATIONS)`,
-          as the lifecycle harness builds one), a successor evidence record and its predecessor's mark land in one
-          `batch`, and a second successor refuses
-
-    - The reference conformance fixture installs its own test registry, and the in-repo implementation runs no
-      write check, so the production registrations reach a backend's checks in tests only through the wiring test above
-      and 4.2's harness.
+- _Outcome:_ Registered all six review codecs and five write checks in the complete production list, with public
+  schemas and derivations and private registration imports. The in-repo list preserves deferred decoding, own-key
+  refusals, and existing writer bytes. Production-backed batch tests exercise reciprocal succession and atomic refusal
+  of a second successor.
 
 ### `[ ]` **1.8 Take the planned locus change's landing, and re-ground the tasks built on it — § 12.1, § 12.4, § 14.4**
 
