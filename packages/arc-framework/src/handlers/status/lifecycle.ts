@@ -10,8 +10,7 @@ import { readGitBlobEntry } from "../../lib/io-context.js";
 import type { StoreRefusal } from "../../lib/store/refusal.js";
 import type { LifecycleIndexOutcome } from "../../lib/store/lifecycle-index.js";
 import type { Store } from "../../lib/store/contract.js";
-import { createStore } from "../../lib/store/create.js";
-import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
+import type { StoreSyncPort } from "../../lib/store/operational-sync.js";
 import { readLifecycleView } from "../../lib/store/lifecycle-view.js";
 import { readLifecycleDesign } from "../../lib/store/lifecycle-design.js";
 import { readWorkUnit, usesOffBranchState } from "../../lib/store/lifecycle-write.js";
@@ -34,26 +33,24 @@ import {
 } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
 import { readIdentityPointers } from "../identity-pointers.js";
 import type { StatusCliOptions } from "./input.js";
+import type { SessionStatusContext } from "./session-context.js";
 
 /**
  * Render one lifecycle subject from local or explicitly live evidence.
- * @param cwd - Project checkout root.
- * @param exec - Request Git executor.
+ * @param context - Selected operational store, synchronization port and checkout readers.
  * @param slug - Validated work-unit slug.
  * @param opts - Validated status options.
  * @returns Completion after writing the lifecycle query.
  */
 export async function handleLifecycleStatus(
-  cwd: string,
-  exec: GitExec,
+  context: SessionStatusContext,
   slug: string,
   opts: StatusCliOptions,
-  store?: Store,
   ports?: StoreLifecycleStatusPorts,
 ): Promise<void> {
-  store ??= createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec }));
-  if (usesOffBranchState(store)) {
-    await handleStoreLifecycleStatus(store, slug, opts, { cwd, exec }, ports);
+  const { cwd, exec, store } = context;
+  if (store !== undefined && usesOffBranchState(store)) {
+    await handleStoreLifecycleStatus(store, slug, opts, { cwd, exec, sync: context.storeSync }, ports);
     return;
   }
   const json = Boolean(opts.json);
@@ -244,8 +241,8 @@ async function resolveSlugOperationalBoundary(options: {
 
 /** Render lifecycle truth without composing code-ref or materialized-artifact evidence. */
 async function handleStoreLifecycleStatus(store: Store, slug: string, opts: StatusCliOptions,
-  local: { cwd: string; exec: GitExec }, ports?: StoreLifecycleStatusPorts): Promise<void> {
-  const refreshWarnings = opts.fetch === true ? (await pullStoreStatus(ports)).map(warning => warning.rendered) : [];
+  local: { cwd: string; exec: GitExec; sync?: StoreSyncPort }, ports?: StoreLifecycleStatusPorts): Promise<void> {
+  const refreshWarnings = opts.fetch === true ? (await pullStoreStatus(local)).map(warning => warning.rendered) : [];
   const view = await readLifecycleView(store);
   if (view.status === "refused") {
     renderStoreQueryRefusal(view.refusal, opts);
@@ -265,7 +262,7 @@ async function handleStoreLifecycleStatus(store: Store, slug: string, opts: Stat
   const query = resolveSlugQuery(view.result.index, record.status === "ok" ? record.result.reference.owner.name : slug);
   const fields = record.status === "ok" ? ParsedMetaRecordSchema.safeParse(record.result.fields) : undefined;
   const design = record.status === "ok" ? await readLifecycleDesign(store, record.result) : { record: null, content: null, warnings: [] };
-  const locus = await readStoreStatusLocus({ ...local, store, slug: query.slug, fetch: false }, ports);
+  const locus = await readStoreStatusLocus({ ...local, store, slug: query.slug }, ports);
   const warnings = [...design.warnings, ...lifecycleListingWarnings(view.result.listing), ...locus.warnings, ...refreshWarnings];
   const designFields = ParsedDesignRecordSchema.safeParse(design.record?.fields);
   const purpose = extractPurposeSentence(designFields.success ? designFields.data.purpose : null);

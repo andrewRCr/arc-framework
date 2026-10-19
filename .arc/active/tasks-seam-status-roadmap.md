@@ -317,20 +317,15 @@ first; the flags' help text stays until the cutover rewrites it.
   warnings in JSON and their text on stderr. Local/default renders do not pull; Commander flag precedence and quiet
   unbound-port rendering are covered through the session context.
 
-### `[ ]` **4.3 Build the status context before a slug query dispatches — § 7**
+### `[x]` **4.3 Build the status context before a slug query dispatches — § 7**
 
 - _Goal:_ `handleStatus` (`handlers/status.ts`) builds the session context before it dispatches a slug and hands the
   slug query's arm the context's store and port, so no handler builds a second store and the in-repo arm's output is
   unchanged.
 
-    - `handleLifecycleStatus` (`handlers/status/lifecycle.ts`) takes the session context in place of `cwd`, `exec`, and
-      its optional store: the store arm reads `store` and `storeSync` from it, and the in-repo arm only `cwd` and `exec`;
-      `findHoldingCheckout` and `readInFlightWarnings` stay its test ports.
-    - The store-arm tests (`unit/handlers/status/store-locus.test.ts`, `unit/work-unit/store-read-consumers.test.ts`)
-      build their context through `createSessionStatusContext`'s `operational` input.
-    - Build `test-first` (one behavior at a time):
-        - a slug query with an injected store reads that store and pulls through that port
-        - the in-repo slug query's output is unchanged
+- _Outcome:_ Slug dispatch now receives the invocation's session context; its store arm refreshes through `storeSync`
+  and constructs no store. Existing store consumers use production contexts with scripted identity evidence. The
+  registered CLI exercise observes the selected store's refreshed owner, with existing in-repo status coverage retained.
 
 ### `[ ]` **4.4 Read the slug query's state, derived position, and scope window from the store — § 4**
 

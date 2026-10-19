@@ -16,6 +16,7 @@ import { ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs, writeWorktreeM
 import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { dispatchRegisteredCli } from "../helpers/registered-cli.js";
+import { runHandlerAt } from "../helpers/handler.js";
 
 const binding = vi.hoisted(() => ({ store: null as Store | null, sync: null as StoreSyncPort | null }));
 vi.mock("../../src/handlers/status/session-context.js", async importOriginal => {
@@ -53,6 +54,21 @@ async function session(h: Awaited<ReturnType<typeof fixture>>, sync: StoreSyncPo
     return JSON.parse(output);
   } finally { binding.store = null; binding.sync = null; out.mockRestore(); process.chdir(cwd); process.exitCode = exit; }
 }
+
+it("dispatches a registered slug query through the session's selected store and synchronization port", async () => {
+  const h = await fixture();
+  binding.store = h.store;
+  binding.sync = createStoreSyncPort({ pull: async () => {
+    lifecycleSuccess(await h.store.write({ ...recordPut(h.meta, { content: writeMetaOwner(h.meta.content, SlugSchema.parse("bob")) }),
+      provenance: { verb: "pull", lifecycleAction: "pull" } }));
+    return { status: "pulled" };
+  } });
+  try {
+    const result = await runHandlerAt(h.cwd, () => dispatchRegisteredCli(["--no-input", "status", "demo", "--fetch", "--json"]));
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ slug: "demo", state: "planning", owner: "bob" });
+  } finally { binding.store = null; binding.sync = null; }
+}, 30_000);
 
 it("returns the refreshed owner when base-distance work runs during a delayed pull", async () => {
   const h = await fixture();

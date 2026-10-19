@@ -2,6 +2,11 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { handleLifecycleStatus } from "../../../../src/handlers/status/lifecycle.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
+import { createTestStatusContext } from "../../../helpers/status-context.js";
+import type { Store } from "../../../../src/lib/store/contract.js";
+import type { StoreLifecycleStatusPorts } from "../../../../src/handlers/status/store-locus.js";
+import type { StatusCliOptions } from "../../../../src/handlers/status/input.js";
+import type { StoreSyncPort } from "../../../../src/lib/store/operational-sync.js";
 import { createStoreSyncPort } from "../../../../src/lib/store/operational-sync.js";
 import { recordReferences } from "../../../../src/lib/store/identity.js";
 import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
@@ -9,6 +14,10 @@ import { writeMetaDesign } from "../../../../src/lib/store/kinds/meta/writers.js
 import { renderMetaFile } from "../../../../src/lib/store/kinds/meta/writers.js";
 import { createMemoryRemote } from "../../../helpers/store/sync.js";
 import { ReferenceBackend } from "../../../helpers/store/reference-backend.js";
+async function runStatus(slug: string, opts: StatusCliOptions, store: Store, ports: StoreLifecycleStatusPorts & { sync?: StoreSyncPort } = {}) {
+  const context = await createTestStatusContext({ store, sync: ports.sync });
+  return handleLifecycleStatus(context, slug, opts, ports);
+}
 afterEach(() => { vi.restoreAllMocks(); process.exitCode = undefined; });
 it("refuses a disputed named primary while preserving healthy and missing queries, then resumes after resolution", async () => {
   const h = createLifecycleHarness(), meta = await h.seedMeta("demo", { owner: "starter", state: "Planning", currentWorkflow: "draft-design" });
@@ -28,7 +37,7 @@ it("refuses a disputed named primary while preserving healthy and missing querie
   const output = vi.spyOn(process.stdout, "write").mockReturnValue(true);
   const query = async (slug: string) => {
     output.mockClear();
-    await handleLifecycleStatus("/current", async () => { throw new Error("Injected ports own local reads"); }, slug, { json: true }, h.store,
+    await runStatus(slug, { json: true }, h.store,
       { findHoldingCheckout: async () => "/holder", readInFlightWarnings: async () => [] });
     return JSON.parse(String(output.mock.calls[0]?.[0])) as Record<string, unknown>;
   };
@@ -53,20 +62,20 @@ it("adds an anchored holder, in-flight warnings and fetch reachability without c
   const ports = {
     findHoldingCheckout: async () => "/anchored-holder", readInFlightWarnings: async () => ["Malformed Errand other; repair its record."], sync,
   };
-  await handleLifecycleStatus("/current", async () => { throw new Error("Injected ports own local reads"); }, "demo", { json: true, fetch: true }, h.store, {
+  await runStatus("demo", { json: true, fetch: true }, h.store, {
     ...ports,
   });
   expect(JSON.parse(String(output.mock.calls[0]?.[0]))).toMatchObject({ slug: "demo", state: "active", owner: "alice", integrationBoundary: null,
     worktreePath: "/anchored-holder", warnings: ["Malformed Errand other; repair its record.", "Offline Reconnect"] });
   offline = false; output.mockClear();
-  await handleLifecycleStatus("/current", async () => { throw new Error("Injected ports own local reads"); }, "demo", { json: true, fetch: true }, h.store, ports);
+  await runStatus("demo", { json: true, fetch: true }, h.store, ports);
   expect(JSON.parse(String(output.mock.calls[0]?.[0]))).toMatchObject({ owner: "alice", state: "active", worktreePath: "/anchored-holder",
     warnings: ["Malformed Errand other; repair its record."] });
 });
 it("reports a rejected holder lookup's condition instead of claiming no checkout", async () => {
   const h = createLifecycleHarness(); await h.seedMeta("demo");
   const output = vi.spyOn(process.stdout, "write").mockReturnValue(true);
-  await handleLifecycleStatus("/current", async () => { throw new Error("Injected ports own local reads"); }, "demo", { json: true }, h.store, {
+  await runStatus("demo", { json: true }, h.store, {
     findHoldingCheckout: async () => { throw new Error("Marker inventory unreadable; repair /holder marker."); }, readInFlightWarnings: async () => [],
   });
   expect(JSON.parse(String(output.mock.calls[0]?.[0]))).toMatchObject({ worktreePath: "Marker inventory unreadable; repair /holder marker." });
@@ -76,7 +85,7 @@ it("fetches before reading lifecycle, ownership and design facts", async () => {
   const meta = await h.seedMeta("demo", { state: "Planning", currentWorkflow: "generate-tasks", owner: "alice", design: ["spec-demo.md"] });
   const design = await h.seed(recordReferences["work-item/spec"](meta.reference.owner), "# Specification\n\n**Purpose:** Prior purpose.\n");
   const output = vi.spyOn(process.stdout, "write").mockReturnValue(true);
-  await handleLifecycleStatus("/current", async () => { throw new Error("Injected ports own local reads"); }, "demo", { json: true, fetch: true }, h.store, {
+  await runStatus("demo", { json: true, fetch: true }, h.store, {
     findHoldingCheckout: async () => null, readInFlightWarnings: async () => [],
     sync: createStoreSyncPort({ pull: async () => {
       lifecycleSuccess(await h.store.batch({ writes: [
@@ -91,7 +100,7 @@ it("fetches before reading lifecycle, ownership and design facts", async () => {
 it("retains local status without invoking the pull port when fetch is absent", async () => {
   const h = createLifecycleHarness(); await h.seedMeta("demo", { owner: "alice" });
   const output = vi.spyOn(process.stdout, "write").mockReturnValue(true);
-  await handleLifecycleStatus("/current", async () => { throw new Error("Injected ports own local reads"); }, "demo", { json: true }, h.store, {
+  await runStatus("demo", { json: true }, h.store, {
     findHoldingCheckout: async () => null, readInFlightWarnings: async () => [],
     sync: createStoreSyncPort({ pull: async () => { throw new Error("Local status must not pull"); } }),
   });
@@ -110,7 +119,7 @@ it("retains remote designation choices and command in fetched status, then refre
     } }) };
   const query = async () => {
     output.mockClear();
-    await handleLifecycleStatus("/current", async () => { throw new Error("Unexpected Git"); }, "demo", { json: true, fetch: true }, h.store, ports);
+    await runStatus("demo", { json: true, fetch: true }, h.store, ports);
     return JSON.parse(String(output.mock.calls[0]?.[0])) as { warnings: string[] };
   };
   expect((await query()).warnings).toEqual(["Remote backup needs a store designation. Choose the state role. arc store remote backup state"]);
@@ -126,7 +135,7 @@ it("reports the first sentence of a companion design's parsed purpose", async ()
   lifecycleSuccess(await h.store.write({ ...recordPut(meta, { content: writeMetaDesign(meta.content, ["spec-demo-prd.md"]) }),
     provenance: { verb: "repoint-design", lifecycleAction: "spec-finalized" } }));
   const output = vi.spyOn(process.stdout, "write").mockReturnValue(true);
-  await handleLifecycleStatus("/current", async () => { throw new Error("Injected ports own local reads"); }, "demo", { json: true }, h.store, {
+  await runStatus("demo", { json: true }, h.store, {
     findHoldingCheckout: async () => null, readInFlightWarnings: async () => [],
   });
   expect(JSON.parse(String(output.mock.calls[0]?.[0]))).toMatchObject({ purpose: "Read `file.name` safely." });

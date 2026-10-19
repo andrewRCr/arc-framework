@@ -12,10 +12,9 @@ import type { ProjectReadinessWarning } from "../../lib/status/project-view.js";
 export interface StoreLifecycleStatusPorts {
   findHoldingCheckout?: (slug: string) => Promise<string | null>;
   readInFlightWarnings?: () => Promise<string[]>;
-  sync?: StoreSyncPort;
 }
 /** Refresh Store state before acquiring the lifecycle and checkout facts to render. */
-export async function pullStoreStatus(ports: StoreLifecycleStatusPorts = {}): Promise<ProjectReadinessWarning[]> {
+export async function pullStoreStatus(ports: { sync?: StoreSyncPort } = {}): Promise<ProjectReadinessWarning[]> {
   const pull = await (ports.sync ?? createStoreSyncPort()).pull();
   if (pull.status === "pulled" || pull.status === "noop" || pull.status === "no-remote") return [];
   const orientation = describeStorePull(pull);
@@ -25,16 +24,15 @@ export async function pullStoreStatus(ports: StoreLifecycleStatusPorts = {}): Pr
   return [{ code: "pull-incomplete", rendered: parts.join(" ") }];
 }
 /** Keep a failed holder observation visible in the path field rather than fabricating absence. */
-export async function readStoreStatusLocus(input: { cwd: string; exec: GitExec; store: Store; slug: string; fetch: boolean },
+export async function readStoreStatusLocus(input: { cwd: string; exec: GitExec; store: Store; slug: string },
   ports: StoreLifecycleStatusPorts = {}): Promise<{ worktreePath?: string; warnings: string[] }> {
   const locus = createLocusPorts(input);
   const find = ports.findHoldingCheckout ?? ((name: string) => locus.findHoldingCheckout({ name, resolveLegacy: () => Promise.resolve(null) }));
-  const warnings = input.fetch ? (await pullStoreStatus(ports)).map(warning => warning.rendered) : [];
   let worktreePath: string | null;
   try { worktreePath = await find(input.slug); }
   catch (error) { worktreePath = error instanceof Error ? error.message : String(error); }
   const quality = ports.readInFlightWarnings === undefined ? await defaultWarnings(input, find) : await ports.readInFlightWarnings();
-  return { ...(worktreePath === null ? {} : { worktreePath }), warnings: [...quality, ...warnings] };
+  return { ...(worktreePath === null ? {} : { worktreePath }), warnings: quality };
 }
 async function defaultWarnings(input: { store: Store; cwd: string; exec: GitExec }, findHoldingCheckout: (slug: string) => Promise<string | null>): Promise<string[]> {
   const identity = await resolveIdentity({ exec: input.exec });

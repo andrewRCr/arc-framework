@@ -183,11 +183,11 @@ export async function handleStatus(
     objectAccess: "local-only",
   });
 
+  const context = await createSessionStatusContext(cwd, exec, transitionExec, localOnlyTransitionExec, interaction);
   if (slug !== undefined) {
-    await handleLifecycleStatus(cwd, exec, slug, opts);
+    await handleLifecycleStatus(context, slug, opts);
     return;
   }
-  const context = await createSessionStatusContext(cwd, exec, transitionExec, localOnlyTransitionExec, interaction);
   if (opts.sessionHandoff) return handleSessionHandoffStatus(context, opts);
   if (opts.recover) return handleRecoverStatus(context, opts);
   if (opts.sessionInit) return handleSessionInitStatus(context, opts);
