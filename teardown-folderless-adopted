@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "teardown-folderless-adopted",
+  "claimId": "d7589cbcff1a7efb23ec63da68edb894",
+  "createdAt": "2026-10-19T22:10:40.360Z",
+  "updatedAt": "2026-10-19T22:10:40.360Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "teardown-folderless-adopted",
+  "branch": "chore/teardown-folderless-adopted",
+  "origin": "inbox",
+  "originEntry": "Print the removal by path, not `git switch`, for an adopted branch's folderless registration at teardown",
+  "originEntrySourceDigest": "sha256:459e8b66b71f24851623a9c3a3c8e33f226b52440bce4c6d9826f6c54352512c",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
