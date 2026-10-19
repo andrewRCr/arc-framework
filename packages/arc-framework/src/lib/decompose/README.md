@@ -21,3 +21,8 @@ canonically ordered allocation units with content digests.
 `edge-facts.ts` caches identity lookups during acquisition and projects stable machine edges afterward. Incoming
 dependents use current names and UIDs; outgoing providers keep authored slugs and resolve through live aliases or
 terminal lineage, retaining slug identity when resolution is absent or ambiguous.
+
+`start-guards.ts` refuses a second stored cut and held inbound entries only when starting a cut. Source conflicts,
+copy prerequisites, lifecycle eligibility, and declared-profile checks stay in reusable derivation; acquisition checks
+source conflicts before requiring complete inventory so a conflicted meta retains its specific repair evidence.
+`machine-facts.ts` composes and authenticates the complete machine without further I/O.

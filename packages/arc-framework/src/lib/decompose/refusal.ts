@@ -5,7 +5,7 @@ import { RemedySchema, StoreRefusalSchema, type StoreRefusal } from "../store/re
 /** Domain conditions over records; repository candidates and Git pins have no role here. */
 export const DecomposeReasonSchema = z.enum([
   "cut-in-flight", "inbound-held", "origin-state", "planning-profile", "source-artifact",
-  "source-unit-duplicate", "machine-envelope", "source-conflict", "inventory-incomplete",
+  "source-unit-duplicate", "outgoing-edge-duplicate", "machine-envelope", "source-conflict", "inventory-incomplete",
   "invalid-structure", "unsupported-version", "incomplete-authoring", "machine-order", "machine-identity",
   "authoring-identity", "authoring-order", "source-shape", "companion-disposition", "destination-coverage",
   "placement-cardinality", "shape-cardinality", "stale-machine", "wrong-shape-mode", "name-collision",

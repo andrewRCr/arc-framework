@@ -15,6 +15,7 @@ import { ArcError } from "../kernel/errors.js";
 import type { Store } from "../store/contract.js";
 import type { LifecycleIndexOutcome } from "../store/lifecycle-index.js";
 import { acquireDecomposeEdges, type DecomposeEdgeObservations } from "./edge-facts.js";
+import { checkDecomposeSourceConflicts } from "./source-conflicts.js";
 
 /** Inputs retained for pure derivation and later prepared-write revalidation. */
 export interface DecomposeOriginRecords {
@@ -38,17 +39,19 @@ export async function acquireDecomposeOrigin(ctx: DecomposeContext, slug: string
   const primary = group.result.find(record => sameReference(record.reference, selected.result.reference));
   if (primary === undefined) return { status: "refused", reason: "source-artifact", class: "recoverable",
     locus: slug, remedy: { text: "Restore the origin's primary record, then retry." } };
+  const artifacts = group.result.flatMap(record => {
+    if (record.reference.kind === "work-item/meta") return [];
+    const path = lifecycleRecordPath(primary, record);
+    return path === null ? [] : [{ basename: posix.basename(path), record }];
+  });
+  const conflicts = checkDecomposeSourceConflicts({ primary, artifacts });
+  if (conflicts !== undefined) return conflicts;
   const view = await readLifecycleView(store);
   if (view.status === "refused") return decomposeStoreRefusal(view.refusal);
   const incomplete = inventoryRefusal(store, view.result.listing);
   if (incomplete !== undefined) return incomplete;
   const map = await store.read({ reference: recordReferences["work-item/cut-map"](primary.reference.owner) });
   if (map.status === "refused" && map.refusal.code !== "not-found") return decomposeStoreRefusal(map.refusal);
-  const artifacts = group.result.flatMap(record => {
-    if (record.reference.kind === "work-item/meta") return [];
-    const path = lifecycleRecordPath(primary, record);
-    return path === null ? [] : [{ basename: posix.basename(path), record }];
-  });
   const incomingCandidates = view.result.entries.filter(entry => entry.reference.owner.type === "person"
     || entry.reference.owner.uid === undefined || !excludedOwnerUids.has(entry.reference.owner.uid));
   const edges = await acquireDecomposeEdges(ctx, { primary, incomingCandidates });

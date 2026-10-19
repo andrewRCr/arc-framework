@@ -12,12 +12,16 @@ import { SlugSchema } from "../kernel/index.js";
 import type { StoreRecord } from "../store/read.js";
 import { renderV3DecomposeArgv } from "../work-unit/decompose-command-renderer.js";
 import { decomposeDiscardArgv } from "./command-argv.js";
+import { checkDecomposeSourceConflicts } from "./source-conflicts.js";
+import { checkDecomposeScaffoldSource } from "./source-guards.js";
 
 /** Machine facts established without dependency lookup or start-only guards. */
 export type DecomposeSourceFacts = Pick<CutMapMachine, "origin" | "sourceKind" | "planningProfile" | "sourceUnits">;
 
 /** Derive source facts from one acquired record group without further I/O. */
 export function deriveDecomposeSource(input: DecomposeOriginRecords): DecomposeResult<DecomposeSourceFacts> {
+  const conflicts = checkDecomposeSourceConflicts(input);
+  if (conflicts !== undefined) return conflicts;
   const primary = input.primary, owner = primary.reference.owner;
   const meta = readLifecycleMetaFields(primary);
   if (meta.status === "refused") return decomposeStoreRefusal(meta.refusal);
@@ -32,6 +36,8 @@ export function deriveDecomposeSource(input: DecomposeOriginRecords): DecomposeR
       : `Run ${renderV3DecomposeArgv(["arc", "reopen", owner.name])} for an Integrating origin, then ${renderV3DecomposeArgv(["arc", "deactivate", owner.name])} for a retirement; or ${renderV3DecomposeArgv(decomposeDiscardArgv(owner.name))} to discard an in-flight cut.` } };
   const profile = decomposePlanningProfile(input, meta.result);
   if (profile.status === "refused") return profile;
+  const scaffold = checkDecomposeScaffoldSource(input, meta.result, profile.result);
+  if (scaffold !== undefined) return scaffold;
   const units = sourceUnits(input, sourceKind, profile.result);
   if (units.status === "refused") return units;
   return { status: "ok", result: { origin: { slug: SlugSchema.parse(owner.name), uid: owner.uid }, sourceKind,

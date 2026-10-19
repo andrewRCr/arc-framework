@@ -141,16 +141,11 @@ row to the tasks that build it.
           cohorts, and write-back edits through production writers and checks. `withCompetingBatch` injects one
           competing write before native batch admission, or an explicit refusal for cross-type name races.
 
-### `[ ]` **2.2 Preflight an origin through the store — § 5, § 3.2**
+### `[x]` **2.2 Preflight an origin through the store — § 5, § 3.2**
 
 - _Goal:_ Preflight derives an origin's machine half from the store alone — its primary, its whole artifact group, and
   the dependents the complete lifecycle listing names — reading nothing from Git, and refuses an origin no cut can
   start from, naming the repair.
-
-- _Shape:_ Acquisition and derivation are separate exports. Acquisition reads the group, the listing, and the lookups
-  once; derivation computes the machine half over records already acquired, with the start guards — a stored map and
-  held entries — apart from it, so the terminal batch (task 3.3) and the re-binding (task 5.2) derive over their own
-  acquisition and skip the guards.
 
     - `[x]` **2.2.a Acquire the origin**
 
@@ -173,47 +168,13 @@ row to the tasks that build it.
           terminal lineage and retain slug identity for absent/ambiguous resolution; other store refusals ride whole.
           `deriveDecomposeEdges` projects the observations into stable, canonically ordered machine edges.
 
-    - `[ ]` **2.2.d What preflight refuses**
+    - `[x]` **2.2.d What preflight refuses**
 
-        - An origin holding a stored map, naming `--finish`, `--revise`, and `--discard`.
-        - An origin whose inbound list holds an entry, naming each by its `_Id:_` from the list's entries
-          (`splitEntryList`, `lib/store/concurrency/entries.ts`), or by its position where it has none, and admitting
-          while no grammar is declared.
-        - An Integrating origin, naming `arc reopen <origin>`, then for a retirement `arc deactivate <origin>`, and an
-          archived one, terminally, naming no repair, each as today's source-kind selection refuses
-          it (`source-predecessor`). No origin is parked from the flip: `arc park` refuses `unsupported` there
-          (`runPark`), and the import makes a parked work unit a paused one, one parked from Planning being a stub
-          already (`spec-seam-lifecycle.md` § 8.9), so there is no parked refusal, and a paused origin proceeds.
-        - An origin no member can be made from, naming the locus to repair: a `Design` naming no profile's artifacts, an
-          artifact it names that is absent, a `Task List` disagreeing with the profile, or an artifact the scanner
-          rejects, as `inferPlanningProfile` and `sourceUnits` refuse today; a design record every member copies whose
-          first line is no level-one heading, as `scaffold-title-missing` refuses today (`retitleScaffold`); or an
-          `Owner`, `Priority`, or `Origin` missing from the meta each member copies, as
-          `scaffold-source-meta-incomplete` refuses today, where `renderMetaFile` would otherwise throw on a missing
-          `Owner`.
-        - An origin whose meta or a source record holds an open conflict, naming each from the acquired record's
-          `conflicts` by its token, `<family>/<owner type>/<owner name>/<id>`, and its subject, the remedy its
-          resolution through the projection: its markers resolved in the file that shows them, which write-back
-          persists, or otherwise `arc save --resolve <token>` from a checkout projecting the subject.
-          `storage-projection` registers that command. The remedy's text is static: it names the command exactly when
-          the source registers a top-level `save` with `--resolve`, and holds no `arc save` literal until then. An
-          integration test holds the pairing, reading the command inventory the command-surface test reads
-          (`loadRepositoryCommandInputSnapshot`, `lib/command-input/repository-inventory.ts`), so whichever change
-          merges the other second meets that test failing until the remedy matches (§ 18). The stored map's own
-          conflict is task 5.5's.
-        - All but the first two are the derivation's rather than start guards, so the terminal batch and the re-binding
-          meet them too.
-        - A remedy names only a command `cli.ts` registers, as the command-surface test requires
-          (`__tests__/integration/command-surface-documentation.test.ts`). `arc route`, in the held-entry remedies here
-          and in tasks 3.3.b and 5.1.b, is `seam-locus`'s, so the branch merges base holding it before this task
-          (§ 18).
-        - Build `test-first` (one behavior at a time):
-            - each refusal fires, and preflight passes after its remedy
-            - held entries refuse only under a supplied grammar, an entry with no `_Id:_` named by its position
-            - a conflict filed on the origin's draft refuses, naming its token and subject, and preflight passes once a
-              write under `write-back` names it in `resolves`
-            - the remedy names `arc save --resolve <token>` exactly when the command inventory registers a top-level
-              `save` with `--resolve`, in a test under `__tests__/integration/` beside the command-surface test
+        - Added separate stored-cut/inbound start guards, shared scaffold prerequisites, and source-conflict repairs
+          naming every token and subject. Origin meta conflicts are reported before generic inventory failure; the
+          conflict remedy stays paired with command registration. Source/profile/state failures name their repairs.
+        - `deriveDecomposeMachine` authenticates the complete acquired source and edge facts without I/O and reports
+          duplicate provider-generation aliases at Depends On for repair before retry.
 
 ### `[ ]` **2.3 Emit the starter map — § 5, § 3.3**
 
