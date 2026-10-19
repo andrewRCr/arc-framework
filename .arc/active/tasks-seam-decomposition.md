@@ -500,34 +500,12 @@ first place to reauthor; and a stored map conflicted by a sync resolves through 
   whole group, the cut's new cohort documents, and the stored map, writing no lineage, and its preview lists each
   existing home and existing cohort coordination the map allocated to as left edited.
 
-    - `[ ]` **5.1.a The batch**
+    - `[x]` **5.1.a The batch**
 
-        - The stored map read by the origin's slug (§ 4); with none, the refusal names `--execute <cut-map>` or
-          `--extract <cut-map>`.
-        - Each stub found by its map slug, which `lookup` resolves through a rename, and a member only where the cut
-          created it, as task 3.1 finds one, an item that took a gone member's slug left untouched; its whole group
-          acquired at its versions (`acquireLifecycleRecords`), under task 3.5's authority with the discard as its mode;
-          edges the additive batch settled stay settled.
-        - The acquired records revalidated (`revalidateLifecycleRecords`) and the prepared writes alone applied in one
-          batch (`batchLifecycleWrites`), as task 4.3.a applies an extraction's. A stub's conflict record is never
-          removed itself: it is write-once, removable only by its writer verbs (`once`, `lib/store/registry.ts`), so it
-          is named in the `resolves` of its subject's removal, which closes it.
-        - A version conflict at the batch names a fresh `--discard` preview and approval, as text.
-        - Build `test-first` (one behavior at a time):
-            - the preview writes nothing and lists each existing home and existing cohort coordination left edited
-            - a stale authority refuses, naming `--discard` for a fresh preview, and a matching one lands exactly the
-              previewed writes
-            - a version conflict at the applied batch, staged through task 2.1.c's store wrapper, names a fresh
-              `--discard` preview and approval, and writes nothing
-            - the members and documents remain only in `history`
-            - a stub renamed during authoring is removed
-            - an item that took the slug of a member abandoned since is neither listed in the preview nor removed
-            - a sibling stub renamed to an abandoned member's slug is listed and removed once
-            - over task 3.7's read-counting wrapper, the preview and the apply each read the `history` of the stored map
-              and of each item a member's slug finds once, and the rest as task 3.7 counts, unchanged over long record
-              histories and many unrelated work items
-            - a stub holding a conflict record from a sync is removed, its conflict closed
-            - with no stored map, the discard refuses, naming `--execute <cut-map>` or `--extract <cut-map>`
+        - `discard-plan.ts` authenticates member generations and cohort births, acquires whole groups, and prepares
+          exact removals with conflict closures. `discard.ts` previews existing destinations left edited, binds approval
+          to observed versions and writes, revalidates, and applies one batch. Renames, slug reuse, real sync conflicts,
+          history retention, stale approval, batch conflicts, and flat observation counts are covered.
 
     - `[ ]` **5.1.b What a discard or revision refuses — § 9.3**
 

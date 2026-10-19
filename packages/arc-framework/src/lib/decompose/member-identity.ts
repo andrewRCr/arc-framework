@@ -20,7 +20,7 @@ export function isDecomposeMemberBirth(slug: string, history: readonly HistoryEn
 export async function acquireDecomposeMembers(store: Store, map: CutMap, storedMap: StoreRecord): Promise<DecomposeResult<readonly DecomposeTerminalMember[]>> {
   const history = await store.history({ reference: storedMap.reference });
   if (history.status === "refused") return decomposeStoreRefusal(history.refusal);
-  const batches = currentCutBatches(history.result);
+  const batches = decomposeCurrentCutBatches(history.result);
   const histories: { record: StoreRecord; entries: HistoryEntry[] }[] = [];
   const members: DecomposeTerminalMember[] = [];
   for (const destination of map.authoring.destinations) {
@@ -51,7 +51,8 @@ async function memberHistory(store: Store, record: StoreRecord,
   return { status: "ok", result: history.result };
 }
 
-function currentCutBatches(history: readonly HistoryEntry[]): ReadonlySet<string> {
+/** Batch identities belonging to the currently stored cut, after its latest removal. */
+export function decomposeCurrentCutBatches(history: readonly HistoryEntry[]): ReadonlySet<string> {
   const removal = history.findIndex(entry => entry.version === null);
   const current = removal < 0 ? history : history.slice(0, removal);
   return new Set(current.flatMap(entry => "verb" in entry.provenance && entry.provenance.verb === "decompose"
