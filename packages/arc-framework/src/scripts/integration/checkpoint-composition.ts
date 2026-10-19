@@ -38,7 +38,7 @@ import {
 import {
   readCandidateRecordVersion,
   readCandidateRecordVersioned,
-} from "../../lib/work-unit/candidate-record-store.js";
+} from "../../lib/store/kinds/review/candidate/access.js";
 import {
   projectGitCandidateEffectiveTarget,
   readGitCandidateTargetBase,
@@ -63,10 +63,8 @@ import {
 import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
 import { canonicalize } from "../../lib/kernel/index.js";
 import { resolveSlugQuery } from "../../lib/work-unit/lifecycle-query.js";
-import {
-  readSubmissionBoundary,
-  resolveSubmissionBoundaryPath,
-} from "../../lib/work-unit/submission-boundary-store.js";
+import { readSubmissionBoundary } from "../../lib/store/kinds/review/integration-boundary/access.js";
+import { resolveSubmissionBoundaryPath } from "../../lib/store/kinds/review/paths.js";
 import { GhDeliveryHostPort } from "../delivery/hosts/github.js";
 import {
   observeChangeRequestMergeAdmission,
@@ -487,6 +485,7 @@ export function createIntegrationCheckpointDependencies(input: {
   rawExec?: RawGitExec;
   lifecycleStorage?: IntegrationLifecycleStoragePort;
 }): IntegrationCheckpointDependencies {
+  const reviewRecordStore = createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec }));
   let settingsPromise: ReturnType<typeof readConfigSettings> | null = null;
   const settings = () => {
     settingsPromise ??= readConfigSettings(input.cwd);
@@ -494,8 +493,8 @@ export function createIntegrationCheckpointDependencies(input: {
   };
   const rawExec = input.rawExec ?? createRawGitExec(input.cwd);
   const candidateContext = createCheckpointCandidateContext({
-    readRecord: (workUnit) => readCandidateRecordVersioned(input.cwd, workUnit),
-    readVersion: (workUnit) => readCandidateRecordVersion(input.cwd, workUnit),
+    readRecord: (workUnit) => readCandidateRecordVersioned(input.cwd, workUnit, { store: reviewRecordStore }),
+    readVersion: (workUnit) => readCandidateRecordVersion(input.cwd, workUnit, { store: reviewRecordStore }),
     project: async ({ workUnit, baseRevision, record }) => {
       const config = await settings();
       const effective = await projectGitCandidateEffectiveTarget({
@@ -518,7 +517,7 @@ export function createIntegrationCheckpointDependencies(input: {
     identityPromise ??= resolveIdentity({ exec: input.exec });
     return identityPromise;
   };
-  const composeLineageReview = createLineageReviewComposer(input);
+  const composeLineageReview = createLineageReviewComposer({ ...input, store: reviewRecordStore });
   const deliveryLookup = new RepositoryDeliveryMemberLookup({ exec: input.exec, cwd: input.cwd });
   const deliveryHost = new GhDeliveryHostPort(hostedGhRunner);
   const readHostedReservationDischarge = createHostedReservationDischargeReader({
@@ -534,7 +533,7 @@ export function createIntegrationCheckpointDependencies(input: {
     return openChangeRequestPromise;
   };
   const lifecycleStorage = input.lifecycleStorage ?? createStoreLifecycleStorage({
-    store: createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec })),
+    store: reviewRecordStore,
     checkoutRoot: input.cwd,
   });
   // Retain the record binding beside each published summary, including interleaved snapshot reads.
@@ -545,7 +544,7 @@ export function createIntegrationCheckpointDependencies(input: {
   const boundary = (workUnit: string) => {
     let value = boundaries.get(workUnit);
     if (value === undefined) {
-      value = readSubmissionBoundary(input.cwd, workUnit);
+      value = readSubmissionBoundary(input.cwd, workUnit, { store: reviewRecordStore });
       boundaries.set(workUnit, value);
     }
     return value;

@@ -9,10 +9,9 @@ import {
   candidateReviewResponses,
   parseCandidateManagedRecord,
 } from "../../lib/work-unit/candidate-attestation.js";
-import {
-  readCandidateRecord,
-  resolveCandidateRecordRelativePath,
-} from "../../lib/work-unit/candidate-record-store.js";
+import { readCandidateRecord } from "../../lib/store/kinds/review/candidate/access.js";
+import { resolveCandidateRecordRelativePath } from "../../lib/store/kinds/review/paths.js";
+import type { Store } from "../../lib/store/contract.js";
 import { projectGitCandidateEffectiveTarget } from "../../lib/work-unit/git-candidate-effective-target.js";
 import {
   currentApprovedDispositionNode,
@@ -85,6 +84,7 @@ async function requireExactTargetObjects(input: { cwd: string; exec: GitExec }, 
 export async function composeCandidateResponseConfirmation(input: {
   cwd: string;
   exec: GitExec;
+  store?: Store;
   workUnit: string;
   approvedHead: string;
   approvedBase: string;
@@ -105,7 +105,7 @@ export async function composeCandidateResponseConfirmation(input: {
   if (currentHead.trim() !== input.approvedHead) {
     throw new Error(`The private disposition ${dispositionId} does not bind the current checkout head.`);
   }
-  const candidate = await readCandidateRecord(input.cwd, input.workUnit);
+  const candidate = await readCandidateRecord(input.cwd, input.workUnit, { store: input.store, exec: input.exec });
   const { stdout: committedCandidateBytes } = await input.exec("git", [
     "show",
     `${input.approvedHead}:${resolveCandidateRecordRelativePath(input.workUnit)}`,

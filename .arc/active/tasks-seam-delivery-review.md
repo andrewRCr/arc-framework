@@ -296,16 +296,14 @@ retires.
           their Git runners. Delivery lifecycle, record-effect, and base-drift classifiers use the pure review paths;
           fixed-revision and index proof reads, staging, and existing test assertions remain intact.
 
-### `[ ]` **2.5 Reroute the integration callers — § 3.1, § 14.2**
+### `[x]` **2.5 Reroute the integration callers — § 3.1, § 14.2**
 
 - _Goal:_ No integration module imports the Candidate or boundary store, and the checkpoint, its confirmation, and its
   lineage review compose as today.
 
-    - `scripts/integration/checkpoint-composition.ts`, `candidate-response-confirmation.ts`, and
-      `lineage-review-composition.ts`; `checkpoint-delivery-composition.test.ts`'s stubs of the versioned and
-      version-only Candidate reads and of `readSubmissionBoundary` move to the typed access's module, their call-count
-      assertions unchanged.
-    - Each batch prunes the suppressions its reroute leaves unused.
+- _Outcome:_ Checkpoint composition shares its store across lifecycle, Candidate, boundary, and lineage reads;
+  lineage passes it into private response confirmation. Standalone confirmation uses its caller's store or Git runner.
+  Fixed-head and index proofs remain intact, and the relocated checkpoint stubs retain their call-count assertions.
 
 ### `[ ]` **2.6 Reroute the review gate's callers — § 3.1, § 14.2**
 

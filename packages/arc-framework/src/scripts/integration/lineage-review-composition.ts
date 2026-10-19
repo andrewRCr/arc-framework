@@ -4,7 +4,10 @@ import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
 import type { GitExec } from "../../lib/git/index.js";
 import { createRawGitExec } from "../../lib/io-context.js";
-import { readCandidateRecord } from "../../lib/work-unit/candidate-record-store.js";
+import type { Store } from "../../lib/store/contract.js";
+import { createStore } from "../../lib/store/create.js";
+import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
+import { readCandidateRecord } from "../../lib/store/kinds/review/candidate/access.js";
 import { candidateReviewResponses } from "../../lib/work-unit/candidate-attestation.js";
 import {
   projectGitCandidateEffectiveTarget,
@@ -145,11 +148,13 @@ function composeApprovedSettlementAction(input: {
 export function createLineageReviewComposer(input: {
   cwd: string;
   exec: GitExec;
+  store?: Store;
 }): (
   workUnit: string,
   approvedHead: string,
   approvedBase: string,
 ) => Promise<LineageReviewComposition> {
+  const reviewRecordStore = input.store ?? createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec }));
   const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
   const dispositionIndex = new LocalApprovedDispositionRecordStore(publisher);
   const operationStore = new LocalReviewOperationStateStore(publisher);
@@ -161,7 +166,7 @@ export function createLineageReviewComposer(input: {
     approvedHead: string,
     approvedBase: string,
   ): Promise<LineageReviewComposition> => {
-    const record = await readCandidateRecord(input.cwd, workUnit);
+    const record = await readCandidateRecord(input.cwd, workUnit, { store: reviewRecordStore });
     if (record === null) {
       throw new Error("The managed Candidate record disappeared during checkpoint composition.");
     }
@@ -204,6 +209,7 @@ export function createLineageReviewComposer(input: {
       const privateProof = ordinaryOrder === undefined
         ? await composeCandidateResponseConfirmation({
             ...input,
+            store: reviewRecordStore,
             workUnit,
             approvedHead,
             approvedBase,

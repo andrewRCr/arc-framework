@@ -2553,16 +2553,13 @@
     }
   },
   "src/scripts/integration/candidate-response-confirmation.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    },
     "max-lines-per-function": {
       "count": 1
     }
   },
   "src/scripts/integration/checkpoint-composition.ts": {
     "arc/store-raw-state": {
-      "count": 3
+      "count": 2
     },
     "max-lines": {
       "count": 1
@@ -2610,9 +2607,6 @@
     }
   },
   "src/scripts/integration/lineage-review-composition.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    },
     "max-lines-per-function": {
       "count": 1
     },

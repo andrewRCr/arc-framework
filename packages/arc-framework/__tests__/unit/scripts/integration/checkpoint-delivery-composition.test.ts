@@ -63,8 +63,8 @@ vi.mock("../../../../src/lib/work-unit/candidate-effective-target.js", async (im
   ...await importOriginal<typeof import("../../../../src/lib/work-unit/candidate-effective-target.js")>(),
   projectEffectiveCandidateCurrentness: mocks.projectEffectiveCandidateCurrentness,
 }));
-vi.mock("../../../../src/lib/work-unit/candidate-record-store.js", async (importOriginal) => ({
-  ...await importOriginal<typeof import("../../../../src/lib/work-unit/candidate-record-store.js")>(),
+vi.mock("../../../../src/lib/store/kinds/review/candidate/access.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../../../src/lib/store/kinds/review/candidate/access.js")>(),
   readCandidateRecordVersion: mocks.readCandidateRecordVersion,
   readCandidateRecordVersioned: mocks.readCandidateRecordVersioned,
 }));
@@ -77,8 +77,8 @@ vi.mock("../../../../src/lib/work-unit/git-candidate-effective-target.js", async
   projectGitCandidateEffectiveTarget: mocks.projectGitCandidateEffectiveTarget,
   readGitCandidateTargetBase: mocks.readGitCandidateTargetBase,
 }));
-vi.mock("../../../../src/lib/work-unit/submission-boundary-store.js", async (importOriginal) => ({
-  ...await importOriginal<typeof import("../../../../src/lib/work-unit/submission-boundary-store.js")>(),
+vi.mock("../../../../src/lib/store/kinds/review/integration-boundary/access.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../../../src/lib/store/kinds/review/integration-boundary/access.js")>(),
   readSubmissionBoundary: mocks.readSubmissionBoundary,
 }));
 vi.mock("../../../../src/scripts/delivery/hosts/github.js", () => ({
