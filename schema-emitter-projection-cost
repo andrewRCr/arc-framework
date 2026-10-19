@@ -3,7 +3,7 @@
   "slug": "schema-emitter-projection-cost",
   "claimId": "8d9cf8e9d810efc0ad4c4cf1a36f0ce9",
   "createdAt": "2026-10-19T19:12:51.332Z",
-  "updatedAt": "2026-10-19T19:12:51.332Z",
+  "updatedAt": "2026-10-19T19:48:20.203Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Reduce repeated whole-registry projection in schema-emitter unit tests while preserving canonical schema assertions and investigating recent timeout onset.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Reduce repeated whole-registry projection in schema-emitter unit tests",
   "originEntrySourceDigest": "sha256:4ad0249f39aa16ebcf1ed8268c3126a169d269a433f2275f0965def55c505fbf",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "fix/schema-emitter-projection-cost",
+    "headSha": "c9b7256713b8baba7bd69874f223978b4fc5a8c8"
+  }
 }
