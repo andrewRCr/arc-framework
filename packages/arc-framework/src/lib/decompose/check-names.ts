@@ -1,5 +1,6 @@
-/** Shared work-item and cohort namespace admission for additive decomposition. */
+/** Shared work-item and cohort namespace admission for decomposition. */
 import type { Store } from "../store/contract.js";
+import { sameReference, type RecordReference } from "../store/identity.js";
 import type { StoreRecord } from "../store/read.js";
 import type { CutMap } from "./cut-map-schema.js";
 import type { DecomposeResult, DecomposeRefusal } from "./refusal.js";
@@ -17,8 +18,8 @@ export interface DecomposeNames {
 }
 interface AcquiredName { name: string; locus: string; cohort: boolean }
 
-/** Prove each acquired name free before planning any creation. */
-export async function checkDecomposeNames(store: Store, map: CutMap): Promise<DecomposeResult<DecomposeNames>> {
+/** Prove names free for creation, allowing only authenticated retained member generations. */
+export async function checkDecomposeNames(store: Store, map: CutMap, retainedMembers: readonly RecordReference[] = []): Promise<DecomposeResult<DecomposeNames>> {
   const cohorts = await acquireDecomposeCohortInventory(store);
   if (cohorts.status === "refused") return cohorts;
   const newCohorts = placementCohorts(map.authoring.placement).filter(({ path }) =>
@@ -38,19 +39,20 @@ export async function checkDecomposeNames(store: Store, map: CutMap): Promise<De
     seen.add(named.name);
   }
   for (const named of names) {
-    const refusal = await checkNamespaceName(store, named, cohorts.result);
+    const refusal = await checkNamespaceName(store, named, cohorts.result, retainedMembers);
     if (refusal !== undefined) return refusal;
   }
   return { status: "ok", result: { cohorts: cohorts.result, newCohorts } };
 }
 
 async function checkNamespaceName(store: Store, named: AcquiredName,
-  cohorts: readonly DecomposeCohortObservation[]): Promise<DecomposeRefusal | undefined> {
+  cohorts: readonly DecomposeCohortObservation[], retainedMembers: readonly RecordReference[]): Promise<DecomposeRefusal | undefined> {
   const held = cohorts.find(({ record }) => record.reference.owner.name === named.name
     && (named.cohort || record.placement?.kind !== "completed"));
   if (held !== undefined) return nameCollision(named.name, named.locus, "a cohort document");
   const lookup = await store.lookup({ kind: "slug", slug: SlugSchema.parse(named.name) });
   if (lookup.status === "refused") return lookup.refusal.code === "not-found" ? undefined : decomposeStoreRefusal(lookup.refusal);
+  if (!named.cohort && retainedMembers.some(reference => sameReference(reference, lookup.result.reference))) return undefined;
   const holder = await store.read({ reference: lookup.result.reference });
   if (holder.status === "refused") return decomposeStoreRefusal(holder.refusal);
   if (holder.result.reference.owner.name !== named.name || holder.result.placement?.kind !== "completed") {

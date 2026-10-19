@@ -530,24 +530,11 @@ first place to reauthor; and a stored map conflicted by a sync resolves through 
   `Depends On` and `Cohort`, and replacing the stored map at its version — leaving unseeded edges and authored content
   as they stand.
 
-    - `[ ]` **5.3.a Bind and check the revised map**
+    - `[x]` **5.3.a Bind and check the revised map**
 
-        - Decoded as § 3.4 decodes, its machine half equal to a fresh one taken as task 5.2 takes it; a cohort document
-          the stored map created counts as the cut's for the Purpose rule.
-        - Added stubs and documents pass task 2.4's name checks, and the revised map the rest of § 6 step 2's, a
-          placement naming a cohort after the origin among them.
-        - With no stored map, the revision refuses, naming `--execute <cut-map>` or `--extract <cut-map>`.
-        - Build `test-first` (one behavior at a time):
-            - a revised map that fails decode, or is version 3, refuses at the failing rule's locus, and one whose
-              machine half differs from a fresh one refuses, naming `--revise`; each passes its checks once corrected
-            - each of task 2.4's checks refuses at a revision as at the additive batch, and the checks pass once the
-              map is corrected: a held name, a carried rule, an allocation into a file the operator may not edit, an
-              existing home resolving to nothing, to completed work, or to an Errand, a `document` home, a started home
-              taking an edge, an edge whose provider does not resolve, a Purpose against the rule, and a placement
-              naming a cohort after the origin
-            - a revised map adding a member that takes a slug the origin's own edge names refuses, and the revision
-              lands once that edge is settled and the map re-bound through `--revise`
-            - a cohort document the stored map created counts as the cut's for the Purpose rule
+        - `bindDecomposeRevisionMap` decodes and binds to fresh revision facts; `admitDecomposeRevision` repeats additive
+          admission while allowing retained member names by authenticated reference and Purpose for cut-owned cohorts.
+          Owned documents remain observed rather than recreated; invalid maps and stale facts retain revision remedies.
 
     - `[ ]` **5.3.b The batch**
 

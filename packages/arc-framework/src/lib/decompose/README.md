@@ -22,6 +22,10 @@ and existing destinations left edited, binds approval to observed versions, reva
 headings, and stable edge identities; renamed dependents and providers receive fresh names without losing decisions.
 `revision-starter-report.ts` closes the carried and reauthoring result shapes.
 
+`bind-revision.ts` requires completed revision authoring and an exact fresh machine. `revision-admission.ts` repeats
+name, allocation, home, topology, Purpose, and written-edge checks, admitting retained names only by authenticated
+record reference and carrying Purpose for cut-owned documents without recreating them.
+
 `removal-guards.ts` shares started-member, nested-cut, and held-entry admission with revision. `removal-holders.ts`
 counts the surviving lifecycle state after prepared edits, `removal-edges.ts` protects dependency and pause holders,
 and `removal-cohorts.ts` keeps documents until their open work items and child cohorts leave.

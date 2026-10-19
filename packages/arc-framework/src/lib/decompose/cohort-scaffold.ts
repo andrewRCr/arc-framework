@@ -21,10 +21,10 @@ export interface DecomposeCohortScaffolds {
 
 /** Validate placement and prepare only the cohort documents absent from the acquired store. */
 export function planDecomposeCohorts(ctx: DecomposeContext, map: CutMap,
-  names: DecomposeNames): DecomposeResult<DecomposeCohortScaffolds> {
+  names: DecomposeNames, ownedCohorts: ReadonlySet<string> = new Set()): DecomposeResult<DecomposeCohortScaffolds> {
   const topology = planDecomposeTopology(map, names);
   if (topology.status === "refused") return topology;
-  const purposes = checkDecomposePurposes(map, names);
+  const purposes = checkDecomposePurposes(map, names, ownedCohorts);
   if (purposes !== undefined) return purposes;
   const placement = map.authoring.placement;
   const cohorts: DecomposeCohortScaffolds["cohorts"][number][] = [], writes: Mutation[] = [];
