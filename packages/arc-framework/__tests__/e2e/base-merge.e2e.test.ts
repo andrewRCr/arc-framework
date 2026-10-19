@@ -1,7 +1,7 @@
 /** `arc base merge` exact-base behavior against a real remote. */
 
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -19,13 +19,19 @@ import {
 const execFileAsync = promisify(execFile);
 const cleanup: string[] = [];
 
-async function fixture(): Promise<{ repo: string; oldBase: string; newBase: string }> {
+async function fixture(options: { archiveActive?: boolean } = {}): Promise<{
+  repo: string; oldBase: string; newBase: string;
+}> {
   const repo = await createTempRepo("arc-base-merge-");
   const publisher = await mkdtemp(join(tmpdir(), "arc-base-merge-publisher-"));
   const remote = await mkdtemp(join(tmpdir(), "arc-base-merge-remote-"));
   cleanup.push(repo, publisher, remote);
 
   expect((await runArcNoTty(["init", "--yes", "--name", "test-project"], repo)).exitCode).toBe(0);
+  if (options.archiveActive) {
+    await mkdir(join(repo, ".arc/active"), { recursive: true });
+    await writeFile(join(repo, ".arc/active/notes-archived.md"), "archived\n", "utf8");
+  }
   await git(repo, ["add", "."]);
   await git(repo, ["commit", "-m", "init"]);
   const oldBase = await git(repo, ["rev-parse", "HEAD"]);
@@ -35,12 +41,20 @@ async function fixture(): Promise<{ repo: string; oldBase: string; newBase: stri
   await git(repo, ["push", "-u", "origin", "main"]);
   await git(repo, ["switch", "-c", "feat/current"]);
   await writeFile(join(repo, "feature.txt"), "feature\n", "utf8");
-  await git(repo, ["add", "feature.txt"]);
+  if (options.archiveActive) {
+    await writeFile(join(repo, ".arc/active/notes-archived.md"), "archived\nbranch edit\n", "utf8");
+    await writeFile(join(repo, ".arc/active/notes-current.md"), "current\n", "utf8");
+  }
+  await git(repo, ["add", "feature.txt", ...(options.archiveActive ? [".arc/active"] : [])]);
   await git(repo, ["commit", "-m", "feature"]);
 
   await execFileAsync("git", ["clone", "--branch", "main", remote, publisher]);
   await git(publisher, ["config", "user.email", "publisher@test.com"]);
   await git(publisher, ["config", "user.name", "Publisher"]);
+  if (options.archiveActive) {
+    await mkdir(join(publisher, ".arc/completed"), { recursive: true });
+    await git(publisher, ["mv", ".arc/active", ".arc/completed/archived"]);
+  }
   await writeFile(join(publisher, "remote.txt"), "advance\n", "utf8");
   await git(publisher, ["add", "remote.txt"]);
   await git(publisher, ["commit", "-m", "advance remote"]);
@@ -66,6 +80,26 @@ afterEach(async () => {
 });
 
 describe("arc base merge", () => {
+  it.each(["conflict", "true"])("keeps live artifacts in place while following file renames (%s)", async (setting) => {
+    const { repo, newBase } = await fixture({ archiveActive: true });
+    await git(repo, ["config", "merge.directoryRenames", setting]);
+    const featureHead = await git(repo, ["rev-parse", "HEAD"]);
+
+    const result = await runArcNoTty([
+      "base", "merge", "--expected-base", newBase, "--expected-head", featureHead,
+    ], repo);
+
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ state: "merged" });
+    expect(await git(repo, ["ls-files", "--", ".arc/active"]))
+      .toBe(".arc/active/notes-current.md");
+    expect(await readFile(join(repo, ".arc/active/notes-current.md"), "utf8")).toBe("current\n");
+    expect(await readFile(join(repo, ".arc/completed/archived/notes-archived.md"), "utf8"))
+      .toBe("archived\nbranch edit\n");
+    expect(await git(repo, ["config", "merge.directoryRenames"])).toBe(setting);
+    expect(await git(repo, ["status", "--porcelain"])).toBe("");
+  });
+
   it("rejects a moved checkpoint Candidate head without changing the worktree", async () => {
     const { repo, newBase } = await fixture();
     const featureHead = await git(repo, ["rev-parse", "HEAD"]);
