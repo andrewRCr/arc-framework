@@ -10,9 +10,13 @@ import type { ProjectReadinessRecord } from "./project-view.js";
  * @returns One advisory line, or null when no distant horizon applies.
  */
 export function projectHorizonAdvisory(
-  record: Pick<ProjectReadinessRecord, "slug" | "priority" | "scheduling">,
+  record: Pick<ProjectReadinessRecord, "slug" | "priority" | "scheduling" | "pause">,
   state: LifecycleState,
 ): string | null {
+  if (record.pause !== undefined) {
+    return `\`${record.slug}\` is paused (${record.priority}); an entry routed here waits for its resumption. `
+      + "Resume it or send a separable part now?";
+  }
   if (state === "parked" || record.scheduling === "parked") {
     return `\`${record.slug}\` is parked (${record.priority}); an entry routed here waits for its resumption. `
       + "Resume it or send a separable part now?";

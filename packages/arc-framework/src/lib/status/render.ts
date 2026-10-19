@@ -37,10 +37,16 @@ export interface StatusViewRow {
   dependsOn?: readonly string[];
   /** Cohort membership; absent → em-dash cell. */
   cohort?: string;
+  /** Free-text pause context; escaped only when these new cells render. */
+  pauseReason?: string;
+  pauseWaitsOn?: string;
+  pauseOpen?: boolean;
+  pauseMark?: string;
 }
 
 /** A render-standard column. */
-export type StatusColumn = "workUnit" | "state" | "class" | "priority" | "owner" | "dependsOn" | "cohort";
+export type StatusColumn = "workUnit" | "state" | "class" | "priority" | "owner" | "dependsOn" | "cohort"
+  | "pauseReason" | "pauseWaitsOn" | "pauseOpen" | "pauseMark";
 
 /**
  * The `STATUS.USER` (in-flight-mine) column set — Owner omitted (constant
@@ -112,7 +118,15 @@ const COLUMN_HEADERS: Record<StatusColumn, string> = {
   owner: "Owner",
   dependsOn: "Depends on",
   cohort: "Cohort",
+  pauseReason: "Reason",
+  pauseWaitsOn: "Waits on",
+  pauseOpen: "Open to takers",
+  pauseMark: "Mark",
 };
+
+function pauseText(value: string | undefined): string {
+  return value === undefined || value.trim() === "" ? EM_DASH : value.replace(/\s*\r?\n\s*/gu, " ").replaceAll("|", "\\|");
+}
 
 /** Resolve one column's cell value for a row. */
 function cellOf(row: StatusViewRow, column: StatusColumn): string {
@@ -130,6 +144,10 @@ function cellOf(row: StatusViewRow, column: StatusColumn): string {
       return row.owner ?? EM_DASH;
     case "dependsOn":
       return row.dependsOn && row.dependsOn.length > 0 ? row.dependsOn.join(", ") : EM_DASH;
+    case "pauseReason": return pauseText(row.pauseReason);
+    case "pauseWaitsOn": return pauseText(row.pauseWaitsOn);
+    case "pauseOpen": return row.pauseOpen === undefined ? EM_DASH : String(row.pauseOpen);
+    case "pauseMark": return pauseText(row.pauseMark);
     case "cohort":
       // Display the leaf segment for a nested cohort; the full path is retained
       // on the row for membership and the sort key.

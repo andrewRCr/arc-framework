@@ -282,6 +282,8 @@ export interface ComposeProjectReadinessViewOptions {
   readinessProvider?: ProjectReadinessProvider;
   /** Acquired meanings of edges absent from this record graph. */
   dependencyResolutions?: ProjectDependencyResolutions;
+  /** Marks acquired from the pause-marking function, never computed by the composer. */
+  pausedMarks?: ReadonlyMap<string, ProjectReadinessPauseMarks>;
 }
 
 /** Render result plus structured warnings for the caller to surface separately. */
@@ -325,6 +327,11 @@ export const PROJECT_READINESS_COLUMNS = [
   "owner",
   "dependsOn",
   "cohort",
+] as const satisfies readonly StatusColumn[];
+
+/** Pause rows retain the in-flight columns before their durable waiting context. */
+export const PROJECT_PAUSED_COLUMNS = [
+  ...PROJECT_IN_FLIGHT_COLUMNS, "pauseReason", "pauseWaitsOn", "pauseOpen", "pauseMark",
 ] as const satisfies readonly StatusColumn[];
 
 const DEFAULT_FS: ProjectViewFs = {
@@ -1013,12 +1020,17 @@ export interface ProjectReadinessBlockedRecord {
   resolvedTargets: readonly string[];
 }
 
+/** A record whose validated pause made it eligible for the Paused tier. */
+export type ProjectReadinessPausedRecord = ProjectReadinessRecord & { pause: MetaPause };
+/** Caller-supplied marks carried by the pause-marking function's result. */
+export type ProjectReadinessPauseMarks = readonly ("resumable" | "review-due")[];
+
 /** Shared record tiers and their dependency facts, before render-row construction. */
 export interface ProjectReadinessTierClassification {
   inFlight: ProjectReadinessRecord[];
   ready: ProjectReadinessRecord[];
   blocked: ProjectReadinessBlockedRecord[];
-  paused: ProjectReadinessRecord[];
+  paused: ProjectReadinessPausedRecord[];
   parked: ProjectReadinessRecord[];
   facts: ProjectReadinessFact[];
   warnings: ProjectReadinessWarning[];
@@ -1047,11 +1059,18 @@ export function classifyProjectReadinessRecords(
     inFlight: unpaused.filter(record => record.location === "active" && record.scheduling !== "parked"),
     ready: planned.filter(isReady),
     blocked: planned.filter(record => !isReady(record)).map(record => ({ record, unsatisfied: unsatisfiedFor(classification, record.slug), resolvedTargets: classification.resolvedTargetsBySlug.get(record.slug) ?? [] })),
-    paused: records.filter(record => record.pause !== undefined),
+    paused: records.filter((record): record is ProjectReadinessPausedRecord => record.pause !== undefined),
     parked: unpaused.filter(record => record.scheduling === "parked" || (record.location === "planned" && record.state === "Active")),
     facts,
     warnings: [...classification.warnings, ...elevatedDerivationWarnings(options.derivationWarnings ?? [], index)],
   };
+}
+
+function pausedRowOf(record: ProjectReadinessPausedRecord, unsatisfied: readonly string[], marks: ProjectReadinessPauseMarks = []): StatusViewRow {
+  const waiting = record.pause.waitsOn;
+  return { ...rowOf(record, unsatisfied, true), pauseReason: record.pause.reason,
+    pauseWaitsOn: waiting === null ? "" : waiting.kind === "work-unit" ? waiting.slug : waiting.text,
+    pauseOpen: record.pause.open, pauseMark: marks.join(", ") };
 }
 
 /**
@@ -1074,6 +1093,7 @@ export function composeProjectReadinessViewResult(
   const blocked = new Map(tiers.blocked.map(item => [item.record.slug,
     { row: rowOf(item.record, item.unsatisfied, false), resolvedTargets: [...item.resolvedTargets] }]));
   const parked = tiers.parked.map(record => rowOf(record, unsatisfied(record), false));
+  const paused = tiers.paused.map(record => pausedRowOf(record, unsatisfied(record), options.pausedMarks?.get(record.slug)));
   const blockedGroups = blockedDepths(blocked);
 
   const lines = [
@@ -1107,6 +1127,10 @@ export function composeProjectReadinessViewResult(
     for (const depth of [...blockedGroups.keys()].sort((a, b) => a - b)) {
       lines.push(`### Depth ${depth}`, "", renderStatusTable(blockedGroups.get(depth) ?? [], PROJECT_READINESS_COLUMNS), "");
     }
+  }
+
+  if (paused.length > 0) {
+    lines.push("## Paused", "", renderStatusTable(paused, PROJECT_PAUSED_COLUMNS), "");
   }
 
   if (parked.length > 0) {

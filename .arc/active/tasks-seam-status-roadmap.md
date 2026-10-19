@@ -130,24 +130,15 @@ the measurements.
   optional diagnostics. Default readiness reuses that classification; depth follows resolved targets while rows and
   facts retain written edges. Supplied retirement and read-failure warnings have dedicated codes.
 
-### `[ ]` **2.4 Render the Paused tier, its marks, and the paused horizon advisory — § 2.3**
+### `[x]` **2.4 Render the Paused tier, its marks, and the paused horizon advisory — § 2.3**
 
 - _Goal:_ The composer renders a Paused tier, printed only when it has rows, in the In Flight tier's columns plus the
   pause's reason, what it waits on, whether it is open to takers, and the mark it is given, and the horizon advisory's
   paused arm takes precedence over every other arm.
 
-    - `StatusViewRow` and `StatusColumn` (`lib/status/render.ts`) gain the four pause cells, each with its header and
-      `cellOf` case; free-text cells escape `|` and fold newlines, and an empty cell renders the em dash.
-    - The composer takes an optional map of marks by slug (`resumable`, `review-due`), the shape
-      `markPausedWorkItem` returns, and computes none itself.
-    - `projectHorizonAdvisory` (`lib/status/project-horizon.ts`) reads the record's pause, its paused arm first:
-      "`<slug>` is paused (P<n>); an entry routed here waits for its resumption. Resume it or send a separable part now?"
-    - Build `test-first` (one behavior at a time):
-        - a paused record's row carries its reason, a work unit or a note or nothing for what it waits on, its open
-          flag, and its mark, or the em dash with none
-        - a reason holding `|` or a newline renders inside its cell
-        - the Paused tier prints only with rows, and a paused fact row keeps its derived lifecycle state and carries the
-          paused advisory
+- _Outcome:_ The conditional Paused tier adds reason, waiting context, open flag, and supplied mark cells to the
+  in-flight columns. Free-text cells fold newlines and escape pipes; empty cells use the em dash. The paused horizon
+  advisory takes precedence while fact rows retain their lifecycle state.
 
 ### `[ ]` **2.5 Make the render stamp optional, and add the warning codes — § 2.1**
 
