@@ -15,8 +15,8 @@ import { resolveTaskListPath } from "../commands/active.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { canonicalize } from "../lib/kernel/canonical/canonical-json.js";
 import { CanonicalDigestSchema } from "../lib/kernel/schema/vocabulary.js";
-import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
-import { LocalReviewOperationStateStore } from "../scripts/review-gate/hosts/local/operation-state-store.js";
+import { resolveReviewInvocation } from "../scripts/review-gate/runtime/invocation.js";
+import { createReviewCompositionContext } from "../scripts/review-gate/runtime/composition-context.js";
 import {
   resolveRepositoryIdentity,
   withRepositoryReviewOperationLock,
@@ -178,6 +178,7 @@ export async function handleAttest(
   const base = await resolveVerbBase(context, input.json === true);
   if (base === null) return;
   const { executor, settings } = await buildExecutor(base);
+  const reviewInvocation = resolveReviewInvocation({ ...base, exec: base.io.exec, store: executor.store, projectId: executor.projectId });
   let metaPath = resolveArcPath({
     kind: "work-unit-artifact",
     placement: { kind: "active", scope: { kind: "project" } },
@@ -279,20 +280,18 @@ export async function handleAttest(
   if (terminal.status === "found") {
     lastCompleted = `Task ${terminal.item.id} — ${terminal.item.title}`;
   }
-  const boundarySnapshot = await readSubmissionBoundaryVersioned(base.cwd, input.name, { store: executor.store });
+  const boundarySnapshot = await readSubmissionBoundaryVersioned(base.cwd, input.name, { store: executor.store, owner: reviewInvocation.workItem });
+  const inspectRenewal = () => inspectRepositoryDeliveryCandidateRenewal({
+    ...reviewInvocation, cwd: base.cwd, taskListPath: validateManagedPath(taskListPath),
+    workUnitId: input.name, baseBranch: settings["branch.base"], exec: base.io.exec,
+    sourceBoundary: boundarySnapshot.boundary,
+  });
   let deliveryRenewal: Awaited<ReturnType<typeof inspectRepositoryDeliveryCandidateRenewal>> = {
     status: "not-applicable",
   };
   if (meta.state === "Integrating" || meta.state === "Shipped") {
     try {
-      deliveryRenewal = await inspectRepositoryDeliveryCandidateRenewal({
-        cwd: base.cwd,
-        taskListPath: validateManagedPath(taskListPath),
-        workUnitId: input.name,
-        baseBranch: settings["branch.base"],
-        exec: base.io.exec,
-        sourceBoundary: boundarySnapshot.boundary,
-      });
+      deliveryRenewal = await inspectRenewal();
     } catch {
       deliveryRenewal = { status: "refused", reason: "evidence-unavailable" };
     }
@@ -361,7 +360,7 @@ export async function handleAttest(
       actor: base.identity,
       now: () => new Date().toISOString(),
       verificationEvidenceRef: (slug) => `tasks-${slug}.md#verification`,
-      readRecord: (slug) => readCandidateRecordVersioned(base.cwd, slug, { store: executor.store }),
+      readRecord: (slug) => readCandidateRecordVersioned(base.cwd, slug, { store: executor.store, owner: reviewInvocation.workItem }),
       currentTarget: () => Promise.resolve(subject.target),
       effectiveTarget: (slug, record) => projectGitCandidateEffectiveTarget({
         cwd: base.cwd,
@@ -372,8 +371,8 @@ export async function handleAttest(
         rawExec: createRawGitExec(base.cwd),
       }),
       inspectReRootReviewAuthority: async (_slug, candidateId) => {
-        const publisher = new RepositoryGitCommonStatePublisher(base.io.exec, base.cwd);
-        const store = new LocalReviewOperationStateStore(publisher);
+        const { publisher, family } = createReviewCompositionContext({ ...reviewInvocation, cwd: base.cwd, exec: base.io.exec });
+        const store = family.ports.inFlight;
         const repositoryId = await resolveRepositoryIdentity(publisher);
         for (const lane of ["frontline", "standard"] as const) {
           const owner = await readLaneProgressOwner(store, {
@@ -402,14 +401,7 @@ export async function handleAttest(
       publish: async (publication) => {
         let deliveryLocus: ReturnType<typeof projectCorrectiveDeliveryStatusBoundary> | null = null;
         if (deliveryRenewal.status === "ready") {
-          const fresh = await inspectRepositoryDeliveryCandidateRenewal({
-            cwd: base.cwd,
-            taskListPath: validateManagedPath(taskListPath),
-            workUnitId: input.name,
-            baseBranch: settings["branch.base"],
-            exec: base.io.exec,
-            sourceBoundary: boundarySnapshot.boundary,
-          });
+          const fresh = await inspectRenewal();
           if (fresh.status !== "ready") {
             throw new DeliveryCandidateRenewalRefusal(
               fresh.status === "refused" ? fresh.reason : "delivery evidence disappeared",
@@ -438,7 +430,7 @@ export async function handleAttest(
           publication.name,
           publication.record,
           publication.expectedRecordVersion,
-          { store: executor.store },
+          { store: executor.store, owner: reviewInvocation.workItem },
         );
         const priorMeta = parseMetaRecord(metaContent);
         const existingBoundary = boundarySnapshot.boundary;
@@ -493,7 +485,7 @@ export async function handleAttest(
           base.cwd,
           locus,
           boundarySnapshot.version,
-          { store: executor.store },
+          { store: executor.store, owner: reviewInvocation.workItem },
         );
         await base.io.writeFile(absoluteMetaPath, metaContent);
         await base.io.exec("git", ["add", "--", recordPath, metaPath, boundaryPath], { cwd: base.cwd });
@@ -542,14 +534,14 @@ export async function handleAttest(
   }
 
   if (result.status === "unchanged") {
-    const currentBoundary = await readSubmissionBoundaryVersioned(base.cwd, input.name, { store: executor.store });
+    const currentBoundary = await readSubmissionBoundaryVersioned(base.cwd, input.name, { store: executor.store, owner: reviewInvocation.workItem });
     if (currentBoundary.boundary?.candidateId !== result.locus.candidateId
       || currentBoundary.boundary.candidateSubjectDigest !== result.locus.candidateSubjectDigest) {
       const boundaryPath = await writeSubmissionBoundary(
         base.cwd,
         result.locus,
         currentBoundary.version,
-        { store: executor.store },
+        { store: executor.store, owner: reviewInvocation.workItem },
       );
       await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
     }
@@ -636,10 +628,11 @@ export async function publishCandidateWithReviewBoundary(
   const { lastCompleted, action } = input;
 
   const { executor, settings } = await buildExecutor(base);
+  const reviewInvocation = resolveReviewInvocation({ ...base, exec: base.io.exec, store: executor.store, projectId: executor.projectId });
   if (!await permitUnpausedPublication(executor.store, target, input.json === true)) return;
   const rawGit = createRawGitExec(base.cwd);
   const readCandidateAuthorization = async () => {
-    const record = await readCandidateRecord(base.cwd, target, { store: executor.store });
+    const record = await readCandidateRecord(base.cwd, target, { store: executor.store, owner: reviewInvocation.workItem });
     if (record === null) return null;
     const effective = await projectGitCandidateEffectiveTarget({
       cwd: base.cwd,
@@ -676,9 +669,9 @@ export async function publishCandidateWithReviewBoundary(
     return;
   }
   const record = candidate.record;
-  const publisher = new RepositoryGitCommonStatePublisher(base.io.exec, base.cwd);
+  const { publisher, family } = createReviewCompositionContext({ ...reviewInvocation, cwd: base.cwd, exec: base.io.exec });
   const repositoryId = await resolveRepositoryIdentity(publisher);
-  const operationStore = new LocalReviewOperationStateStore(publisher);
+  const operationStore = family.ports.inFlight;
   const currentHead = async () => (await base.io.exec("git", ["rev-parse", "HEAD"], {
     cwd: base.cwd,
   })).stdout.trim();
@@ -686,7 +679,7 @@ export async function publishCandidateWithReviewBoundary(
     lane: "standard", repositoryId, headSha: await currentHead(),
     lineage: { kind: "candidate", candidateId: candidate.candidateId },
   })).version;
-  const boundarySnapshot = await readSubmissionBoundaryVersioned(base.cwd, target, { store: executor.store });
+  const boundarySnapshot = await readSubmissionBoundaryVersioned(base.cwd, target, { store: executor.store, owner: reviewInvocation.workItem });
   const boundary = boundarySnapshot.boundary;
   if (boundary === null) {
     refuseWithRemedy(
@@ -735,7 +728,7 @@ export async function publishCandidateWithReviewBoundary(
         base.cwd,
         publicationBoundary,
         boundarySnapshot.version,
-        { store: executor.store },
+        { store: executor.store, owner: reviewInvocation.workItem },
       );
       await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
     },
@@ -750,7 +743,7 @@ export async function publishCandidateWithReviewBoundary(
   if (result.status === "unchanged") {
     if (canonicalize(result.boundary) !== canonicalize(boundary)) {
       const boundaryPath = await writeSubmissionBoundary(
-        base.cwd, result.boundary, boundarySnapshot.version, { store: executor.store },
+        base.cwd, result.boundary, boundarySnapshot.version, { store: executor.store, owner: reviewInvocation.workItem },
       );
       await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
     }
@@ -840,6 +833,7 @@ export async function permitDeliveryReopen(
   let delivery;
   try {
     delivery = await inspectRepositoryDeliveryReopen({
+      ...resolveReviewInvocation({ ...base, exec: base.io.exec }),
       cwd: base.cwd,
       taskListPath,
       workUnitId: target,

@@ -8,6 +8,7 @@ import { createStore } from "../lib/store/create.js";
 import { createDefaultStorePorts } from "../lib/store/default-ports.js";
 import type { LocusPorts } from "../lib/work-unit/locus-ports.js";
 import type { Store } from "../lib/store/contract.js";
+import type { OwnerIdentity } from "../lib/store/identity.js";
 import type { GitExec } from "../lib/git/exec.js";
 import * as p from "../lib/terminal.js";
 import { z } from "zod";
@@ -59,6 +60,10 @@ export interface VerbBase {
   locusPorts?: LocusPorts;
   /** Optional store injection preserved through executor binding. */
   store?: Store;
+  /** Already resolved project identity shared with nested operations. */
+  projectId?: () => Promise<string>;
+  /** Exact work-item generation selected by the invocation. */
+  workItem?: OwnerIdentity;
   /** Ephemeral provenance of this exact default instance; replacing it preserves injection. */
   defaultStoreBinding?: { store: Store; reopen: (cwd: string, exec: GitExec) => Store };
   identity: string;
@@ -137,6 +142,7 @@ export async function buildExecutor(base: VerbBase) {
     cwd: base.cwd,
     ...(base.locusPorts === undefined ? {} : { locusPorts: base.locusPorts }),
     ...(base.store === undefined ? {} : { store: base.store }),
+    ...(base.projectId === undefined ? {} : { projectId: base.projectId }),
     ...(reopenStore === undefined ? {} : { reopenStore }),
     io: base.io,
     identity: base.identity,
