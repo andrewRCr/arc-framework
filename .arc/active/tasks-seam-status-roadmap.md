@@ -251,24 +251,15 @@ one renderer, built in Task 3.6: stderr `Error [<code>]: <condition> <remedy>` a
   marks, and diagnostics from one lifecycle view. Unreadable and refused inventories retain actionable status refusals;
   absent inventories render empty input. The shared title preserves the existing header without freshness fields.
 
-### `[ ]` **3.6 Dispatch `--project` on the context's store, refusing the staged write from the flip — § 7, § 2.5**
+### `[x]` **3.6 Dispatch `--project` on the context's store, refusing the staged write from the flip — § 7, § 2.5**
 
 - _Goal:_ `handleProjectStatus` branches on `usesOffBranchState` over the session context's store: from the flip it
   renders Task 3.5's acquisition through the composer and writes no file; before the flip it runs today's code; and
   `--project --staged`, with or without `--write`, refuses `unsupported` from the flip naming `arc status --project`.
 
-    - Build the shared status refusal renderer (`handlers/status/`) this task's, Task 5.3's, Task 6.1's, and Task 6.3's
-      refusals use. Its refusal is status's own `{ code, condition, remedy }`: a store refusal passes its code,
-      condition, and remedy through; an `unreadable` listing, which carries no code, takes `listing-unreadable` with its
-      condition and remedy; and a mode refusing takes `unsupported`, since no `UNSUPPORTED_CASES` case
-      (`lib/store/refusal.ts`) describes a view mode. Its `--json` shape is the one the slug query's store arm prints
-      (`renderStoreQueryRefusal`).
-    - Text mode prints each warning to stderr as today; `--json` writes `{ markdown, warnings, facts }`.
-    - Build `test-first` (one behavior at a time):
-        - with a reference-backend store injected through `createSessionStatusContext`, `--project` renders the tiers
-          and writes nothing
-        - `--project` over an `unreadable` listing refuses with its remedy, exit 1, in text and `--json`
-        - `--project --staged` and `--project --staged --write` refuse from the flip; before the flip they run as today
+- _Outcome:_ Project status dispatches on the selected store's capability and renders without writes, using the
+  configured pause-review age. The shared refusal renderer emits actionable stderr plus the JSON refusal when requested;
+  staged mode refuses `unsupported` with the on-demand command as its remedy. In-repo rendering stays on its existing arm.
 
 ### `[ ]` **3.7 The project view from the flip** — validate exit criterion at segment scope
 

@@ -6,6 +6,9 @@ import { resolveAllSettings, type ResolvedSettingsResult } from "../../lib/confi
 import { projectTransientInFlightRead, readTransientInFlightIndexes } from "../../lib/errand/record.js";
 import { retryTransientFileSystemRefusal } from "../../lib/fs.js";
 import { assembleStatusUserView } from "../../lib/status/assemble-user-view.js";
+import { readStoreProjectViewInput } from "../../lib/status/store-project-input.js";
+import type { Store } from "../../lib/store/contract.js";
+import { usesOffBranchState } from "../../lib/store/lifecycle-write.js";
 import {
   composeProjectReadinessViewResult,
   resolveProjectReadinessRenderStamp,
@@ -22,6 +25,8 @@ import { listParkedSlugs } from "../../lib/work-unit/lifecycle-resolver.js";
 import { transitionOverlayCompositionInput } from "../../lib/work-unit/transition-overlay.js";
 import type { StatusCliOptions } from "./input.js";
 import type { SessionStatusContext } from "./session-context.js";
+import { positive } from "./store-session.js";
+import { renderStatusViewRefusal } from "./refusal.js";
 function writeProjectReadinessWarnings(warnings: readonly ProjectReadinessWarning[]): void {
   for (const warning of warnings) process.stderr.write(`warning: ${warning.rendered}\n`);
 }
@@ -123,6 +128,10 @@ export async function handleProjectStatus(context: SessionStatusContext, opts: S
   const { cwd, exec, io, identity, lifecycleFs } = context;
   const json = Boolean(opts.json);
   const resolved = await resolveAllSettings({ cwd, exec, readFile: io.readFile });
+  if (context.store !== undefined && usesOffBranchState(context.store)) {
+    await handleStoreProjectStatus(context.store, opts, resolved);
+    return;
+  }
   if (opts.staged) {
     await handleStagedProjectStatus(context, opts, resolved);
     return;
@@ -162,4 +171,22 @@ export async function handleProjectStatus(context: SessionStatusContext, opts: S
   writeProjectReadinessWarnings(result.warnings);
   process.stdout.write(`${result.markdown}\n`);
   return;
+}
+
+async function handleStoreProjectStatus(store: Store, opts: StatusCliOptions, resolved: ResolvedSettingsResult): Promise<void> {
+  if (opts.staged) {
+    renderStatusViewRefusal({ code: "unsupported",
+      condition: "Staged project status is unavailable when state lives off the branch.",
+      remedy: { text: "Use arc status --project to render the current store view." } }, opts);
+    return;
+  }
+  const input = await readStoreProjectViewInput({ store,
+    reviewAfterDays: positive(resolved.settings["pause.review_after_days"], 14) });
+  if (input.status === "refused") { renderStatusViewRefusal(input.refusal, opts); return; }
+  const result = composeProjectReadinessViewResult(input.result);
+  if (opts.json) process.stdout.write(`${JSON.stringify(result)}\n`);
+  else {
+    writeProjectReadinessWarnings(result.warnings);
+    process.stdout.write(`${result.markdown}\n`);
+  }
 }
