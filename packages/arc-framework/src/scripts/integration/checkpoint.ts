@@ -957,6 +957,8 @@ export type DeliveryDriftClassificationResult =
     });
 
 export interface IntegrationCheckpointDependencies {
+  /** Boundary format selected by the invocation backend. */
+  readonly boundarySchemaVersion: 1 | 2;
   readDrift(workUnit: string): Promise<BaseDriftResult>;
   classifyDeliveryDrift(workUnit: string, drift: BaseDriftResult): Promise<DeliveryDriftClassificationResult>;
   readMovementObservation(workUnit: string, drift: BaseDriftResult): Promise<{
@@ -1361,6 +1363,7 @@ export async function checkpointIntegration(
           request.workUnit,
           candidate.convergenceScope,
           checkpointPostAttestContinuation(request.workUnit, candidate.recognizedRevision),
+          dependencies.boundarySchemaVersion,
         ),
         payload: { candidate },
       });
@@ -1452,6 +1455,7 @@ export async function checkpointIntegration(
         request.workUnit,
         candidate.convergenceScope,
         checkpointPostAttestContinuation(request.workUnit, candidate.recognizedRevision),
+        dependencies.boundarySchemaVersion,
       ),
       payload: { candidate },
     });

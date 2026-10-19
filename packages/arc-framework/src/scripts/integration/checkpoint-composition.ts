@@ -548,6 +548,7 @@ export function createIntegrationCheckpointDependencies(options: ReviewInvocatio
   };
 
   return {
+    boundarySchemaVersion: reviewRecordStore.capabilities.stateOffBranch ? 2 : 1,
     readDrift: async (workUnit) => {
       const config = await settings();
       return runBaseDrift({
