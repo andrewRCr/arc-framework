@@ -3,7 +3,7 @@
   "slug": "procedure-judgment-bounds",
   "claimId": "a3bbfef46ce4ecae208f2c3303dbcca1",
   "createdAt": "2026-10-19T17:28:51.429Z",
-  "updatedAt": "2026-10-19T19:05:28.270Z",
+  "updatedAt": "2026-10-19T19:11:40.806Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Clarify CLI action bounds and agent recommendations when inputs require judgment.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "State in `strategy-procedure-evolution` that the CLI bounds options where its inputs are judgment",
   "originEntrySourceDigest": "sha256:00c8d98bba802e8106a199b98d43be64541667fe9ab60d9128ff6d0c47ccdc36",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/procedure-judgment-bounds",
+    "headSha": "897cf1f3271ddbd12647ca39915f4fdbe1123a9f"
+  }
 }
