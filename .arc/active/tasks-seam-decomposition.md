@@ -166,21 +166,12 @@ row to the tasks that build it.
           `decomposePlanningProfile` follows Design alone and validates its artifacts and optional Task List; pause
           and incidental artifacts leave source selection unchanged.
 
-    - `[ ]` **2.2.c The edges**
+    - `[x]` **2.2.c The edges**
 
-        - Incoming: one per dependent — an open work item, completed records aside, whose `Depends On` names the
-          origin by its slug or by a former slug that `lookup` resolves to it — carrying the dependent's slug and UID.
-        - Outgoing: one per provider the origin's `Depends On` names, resolved by `lookup` on its slug, a former slug
-          included, then by lineage lookup (`{kind: "lineage", origin}`, `lib/store/lookup.ts`), keeping its slug alone
-          where it resolves to nothing or to several.
-        - Build `test-first` (one behavior at a time):
-            - a dependent naming the origin by a former slug yields its edge, and a completed one yields none
-            - a provider renamed, abandoned, or decomposed resolves to its UID, as does one renamed and then retired
-              where the edge names its last slug
-            - a provider resolving to nothing or to several keeps its slug identity — one renamed and then retired
-              among them where the edge still names a slug it held before the rename, which neither lookup finds once
-              its primary is removed and its lineage carries the new name — and a lookup refused for any other reason
-              passes through as a store refusal
+        - Acquired edge observations resolve incoming aliases by origin UID, omit completed dependents, and preserve
+          replacement generations while excluding cut members. Outgoing providers resolve through live aliases or
+          terminal lineage and retain slug identity for absent/ambiguous resolution; other store refusals ride whole.
+          `deriveDecomposeEdges` projects the observations into stable, canonically ordered machine edges.
 
     - `[ ]` **2.2.d What preflight refuses**
 

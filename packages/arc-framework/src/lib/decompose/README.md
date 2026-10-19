@@ -17,3 +17,7 @@ available for other checks. Start-only guards and pure machine derivation consum
 `source-profile.ts` validates Design and Task List against stored artifact basenames. `source-facts.ts` derives the
 record-bound source identity and kind, scans all planning artifacts or only an Active origin's design, and produces
 canonically ordered allocation units with content digests.
+
+`edge-facts.ts` caches identity lookups during acquisition and projects stable machine edges afterward. Incoming
+dependents use current names and UIDs; outgoing providers keep authored slugs and resolve through live aliases or
+terminal lineage, retaining slug identity when resolution is absent or ambiguous.

@@ -14,6 +14,7 @@ import { requireCompleteInventory } from "../store/lifecycle-storage.js";
 import { ArcError } from "../kernel/errors.js";
 import type { Store } from "../store/contract.js";
 import type { LifecycleIndexOutcome } from "../store/lifecycle-index.js";
+import { acquireDecomposeEdges, type DecomposeEdgeObservations } from "./edge-facts.js";
 
 /** Inputs retained for pure derivation and later prepared-write revalidation. */
 export interface DecomposeOriginRecords {
@@ -22,6 +23,7 @@ export interface DecomposeOriginRecords {
   artifacts: readonly { basename: string; record: StoreRecord }[];
   lifecycleEntries: readonly LifecycleEntry[];
   incomingCandidates: readonly LifecycleEntry[];
+  edges: DecomposeEdgeObservations;
   storedMap?: StoreRecord;
 }
 
@@ -47,9 +49,12 @@ export async function acquireDecomposeOrigin(ctx: DecomposeContext, slug: string
     const path = lifecycleRecordPath(primary, record);
     return path === null ? [] : [{ basename: posix.basename(path), record }];
   });
+  const incomingCandidates = view.result.entries.filter(entry => entry.reference.owner.type === "person"
+    || entry.reference.owner.uid === undefined || !excludedOwnerUids.has(entry.reference.owner.uid));
+  const edges = await acquireDecomposeEdges(ctx, { primary, incomingCandidates });
+  if (edges.status === "refused") return edges;
   return { status: "ok", result: { primary, records: group.result, artifacts, lifecycleEntries: view.result.entries,
-    incomingCandidates: view.result.entries.filter(entry => entry.reference.owner.type === "person"
-      || entry.reference.owner.uid === undefined || !excludedOwnerUids.has(entry.reference.owner.uid)),
+    incomingCandidates, edges: edges.result,
     ...(map.status === "ok" ? { storedMap: map.result } : {}) } };
 }
 

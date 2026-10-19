@@ -27,9 +27,9 @@ export function createDecomposeHarness() {
       if (renamed.status !== "renamed") throw new Error(JSON.stringify(renamed));
       return lifecycleSuccess(await h.store.read({ reference: primary.reference }));
     },
-    seedRetiredWorkUnit: async (slug: string, transition: Pick<LineageRecord, "kind" | "successors"> = { kind: "abandon", successors: [] }): Promise<StoreRecord> => {
+    seedRetiredWorkUnit: async (subject: string | StoreRecord, transition: Pick<LineageRecord, "kind" | "successors"> = { kind: "abandon", successors: [] }): Promise<StoreRecord> => {
       if (transition.kind === "rename") throw new Error("Use the rename fixture for a rename.");
-      const primary = await seedStub(slug);
+      const primary = typeof subject === "string" ? await seedStub(subject) : subject;
       const owner = primary.reference.owner;
       if (owner.type !== "work-item" || owner.uid === undefined) throw new Error("Expected a generated work-item identity.");
       const reference = recordReferences["lineage/transition"](owner);
