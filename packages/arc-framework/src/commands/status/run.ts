@@ -21,6 +21,8 @@
  * @module
  */
 
+import { runPausedWork } from "../../lib/session-init/paused-work.js";
+import { runInboundBackPressure } from "../../lib/session-init/inbound-back-pressure.js";
 import type {
   HandoffPathSet,
   HandoffSurfacePaths,
@@ -36,6 +38,7 @@ import type {
   SessionInitBaseBranchSyncValue,
   SessionInitBaseDistanceValue,
   SessionInitProbeResult,
+  SessionInitProbes,
   SessionInitRetiredSubdirsValue,
   SessionInitUserValue,
   SessionInitWorktreeValue,
@@ -126,7 +129,7 @@ export async function runSessionInitStatus(
 ): Promise<SessionInitProbeResult> {
   const { identity, role, probes, workingMemoryPath } = options;
 
-  type RawUser = SessionResult<UserSessionInitStatusResult>;
+  type RawUser = SessionResult<import("./types.js").SessionInitUserProbeValue>;
   type RawErrandState = SessionResult<
     import("../../lib/session-init/errand-state.js").ErrandStateResult
   >;
@@ -186,6 +189,7 @@ export async function runSessionInitStatus(
     && derivedLocusState.value.active?.subject.kind === "work-unit"
       ? derivedLocusState.value.active.subject.key
       : null;
+  const dormantState = await probeDormantSessionState(probes, identity, owningWorkUnitId);
   const deliveryPositionProbe = probes.deliveryPosition;
   const deliveryPosition = owningWorkUnitId === null
     ? undefined
@@ -213,7 +217,7 @@ export async function runSessionInitStatus(
     && worktreeIdentity.kind === "primary"
     ? identity
     : null;
-  const compactionAdvisoryProbe = probes.compactionAdvisory;
+  const compactionAdvisoryProbe = options.stateOffBranch ? undefined : probes.compactionAdvisory;
   const [errandSweep, inboxState, compactionAdvisory] = primaryIdentity === null
     ? [undefined, undefined, undefined]
     : await Promise.all([
@@ -228,9 +232,9 @@ export async function runSessionInitStatus(
   // because local HEAD is behind origin, attach the qualifier to user
   // so downstream consumers can reason about reachability.
   const qualifiedUser: RawUser =
-    user.ok && user.value.state === "clean" &&
+    user.ok && isNotesSessionUser(user.value) && user.value.state === "clean" &&
       worktree.ok && worktree.value.state === "remote-ahead"
-      ? mapSlot(user, (value) => ({ ...value, qualifier: "clean-at-current-head" as const }))
+      ? mapSlot(user, (value) => isNotesSessionUser(value) ? ({ ...value, qualifier: "clean-at-current-head" as const }) : value)
       : user;
 
   // Patch-equal supersession refinement — only meaningful when the worktree has
@@ -249,6 +253,7 @@ export async function runSessionInitStatus(
   const recommendations = composeSessionInitRecommendations({
     worktree,
     user: qualifiedUser,
+    stateOffBranch: options.stateOffBranch,
     dirty,
     config,
     supersession,
@@ -314,6 +319,7 @@ export async function runSessionInitStatus(
     retiredSubdirs !== null && retiredSubdirs.ok ? retiredSubdirs.value : null,
     notesLoadPolicy,
     dirty.ok ? dirty.value : { state: "clean", fileCount: 0 },
+    options.stateOffBranch,
   );
   const enrichedRetiredSubdirs =
     retiredSubdirs === null
@@ -330,7 +336,7 @@ export async function runSessionInitStatus(
   // verdict finalizes `loadNeeded` (the safe sub-case upgrades it) and any
   // advisory `notesDriftSurface`.
   const activePath = active.ok ? active.value.path : null;
-  const activeWuName = metaWorkUnitNameFromActive(activePath);
+  const activeWuName = options.stateOffBranch ? owningWorkUnitId : metaWorkUnitNameFromActive(activePath);
   const currentWuReconcile =
     active.ok
     && active.value.resolution === "single"
@@ -347,17 +353,17 @@ export async function runSessionInitStatus(
       ? await remote.run("userReferenceReconcile", (context) =>
         probes.userReferenceReconcile(context, { slug: activeWuName }))
       : undefined;
-  const notesVerdict = qualifiedUser.ok && qualifiedUser.value.notesDrift
+  const notesVerdict = qualifiedUser.ok && isNotesSessionUser(qualifiedUser.value) && qualifiedUser.value.notesDrift
     ? resolveCleanArmNotesVerdict({ ...qualifiedUser.value.notesDrift, activeWuName })
     : null;
 
-  const enrichedUser = mapSlot(qualifiedUser, (value) => ({
+  const enrichedUser = mapSlot(qualifiedUser, (value) => isNotesSessionUser(value) ? ({
         ...value,
         recommendedAction: recommendations.user.recommendedAction,
         recommendedPromptText: recommendations.user.recommendedPromptText,
         ...(notesVerdict ? { loadNeeded: notesVerdict.loadNeeded } : {}),
         ...(notesVerdict?.driftSurface ? { notesDriftSurface: notesVerdict.driftSurface } : {}),
-      } satisfies SessionInitUserValue));
+      } satisfies SessionInitUserValue) : value);
 
   // Two-stage orchestration seam. The eager `Promise.all` above is the first
   // stage. The expensive slots below are the second: the in-flight roster fires
@@ -538,6 +544,7 @@ export async function runSessionInitStatus(
       ? { materializableWorkUnits: toProbe(materializableWorkUnits) }
       : {}),
     ...(inboxState !== undefined ? { inboxState: toProbe(inboxState) } : {}),
+    ...dormantState,
     ...(partialPushMarker !== null ? { partialPushMarker: toProbe(partialPushMarker) } : {}),
     ...(compactionAdvisory !== undefined ? { compactionAdvisory: toProbe(compactionAdvisory) } : {}),
     ...(inFlightComposition !== undefined ? { inFlightComposition } : {}),
@@ -692,7 +699,8 @@ function composeSessionInitRecommendations(slots: {
     import("../../lib/git/worktree-sync.js").WorktreeSyncStatusResult
     | import("../../lib/git/worktree-sync.js").WorktreeSnapshotAnalysisResult
   >;
-  user: SessionResult<import("../user/types.js").UserSessionInitStatusResult>;
+  user: SessionResult<import("./types.js").SessionInitUserProbeValue>;
+  stateOffBranch?: boolean;
   dirty: SessionResult<DirtyStateResult>;
   config: SessionResult<import("../config/types.js").ConfigSessionInitResult>;
   supersession: import("../../lib/git/supersession.js").SupersessionResult | null;
@@ -707,7 +715,8 @@ function composeSessionInitRecommendations(slots: {
   const settings = slots.config.value.settings;
   return inferSessionInitRecommendations({
     worktree: slots.worktree.value,
-    user: slots.user.ok ? slots.user.value : null,
+    user: slots.user.ok && isNotesSessionUser(slots.user.value) ? slots.user.value : null,
+    stateOffBranch: slots.stateOffBranch,
     worktreePullPolicy: normalizeWorktreePolicy(settings["session.init_pull.worktree"]),
     notesPullPolicy: normalizeNotesPolicy(settings["session.init_pull.notes"]),
     dirty: slots.dirty.value,
@@ -802,14 +811,14 @@ export async function runSessionHandoffStatus(
   const handoffActiveWuName = derivedLocusState.ok
     ? derivedLocusState.value.active?.subject.key ?? null
     : null;
-  const handoffNotesVerdict = user.ok && user.value.notesDrift
+  const handoffNotesVerdict = user.ok && isNotesSessionUser(user.value) && user.value.notesDrift
     ? resolveCleanArmNotesVerdict({ ...user.value.notesDrift, activeWuName: handoffActiveWuName })
     : null;
-  const enrichedUser = mapSlot(user, (value) => ({
+  const enrichedUser = mapSlot(user, (value) => isNotesSessionUser(value) ? ({
         ...value,
         ...(handoffNotesVerdict ? { loadNeeded: handoffNotesVerdict.loadNeeded } : {}),
         ...(handoffNotesVerdict?.driftSurface ? { notesDriftSurface: handoffNotesVerdict.driftSurface } : {}),
-      } satisfies SessionUserValue));
+      } satisfies SessionUserValue) : value);
 
   const recommendedSummaryLine = worktree.ok
     ? inferRecommendedSummaryLine({
@@ -877,13 +886,32 @@ function composeHandoffPathSet(options: {
   if (surfaces === null) {
     return { ok: true, value: { sessionNotes: null, workingMemory: null } };
   }
+  return toProbe(composeSlot("compose-handoff-path-set", "pathSet", () => ({
+    sessionNotes: options.activeWuName !== null
+      ? surfaces.sessionNotesPath(options.activeWuName)
+      : null,
+    workingMemory: surfaces.workingMemoryPath,
+  })));
+}
+
+
+async function probeDormantSessionState(
+  probes: SessionInitProbes,
+  identity: string | null,
+  workUnitId: string | null,
+): Promise<Pick<SessionInitProbeResult, "pausedWork" | "inboundBackPressure">> {
+  const [pausedWork, inboundBackPressure] = await Promise.all([
+    identity === null ? undefined : safeProbe("pausedWork", () =>
+      probes.pausedWork === undefined ? Promise.resolve(runPausedWork()) : probes.pausedWork(identity)),
+    workUnitId === null ? undefined : safeProbe("inboundBackPressure", () =>
+      probes.inboundBackPressure === undefined ? Promise.resolve(runInboundBackPressure()) : probes.inboundBackPressure(workUnitId)),
+  ]);
   return {
-    ok: true,
-    value: {
-      sessionNotes: options.activeWuName !== null
-        ? surfaces.sessionNotesPath(options.activeWuName)
-        : null,
-      workingMemory: surfaces.workingMemoryPath,
-    },
+    ...(pausedWork !== undefined ? { pausedWork: toProbe(pausedWork) } : {}),
+    ...(inboundBackPressure !== undefined ? { inboundBackPressure: toProbe(inboundBackPressure) } : {}),
   };
+}
+
+function isNotesSessionUser(value: import("./types.js").SessionInitUserProbeValue): value is UserSessionInitStatusResult {
+  return value !== null && "state" in value;
 }

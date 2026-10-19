@@ -2,7 +2,7 @@
 import type { WorktreeMarker } from "../git/worktree-marker.js";
 
 /** Exclusivity refusal identifies the checkout that already holds this work unit. */
-export type MarkerExclusivityResult = { kind: "clear" } | { kind: "refused"; checkoutPath: string; reason: string };
+export type MarkerExclusivityResult = { kind: "clear" } | { kind: "refused"; checkoutPath?: string; reason: string };
 /** Exact generation written by an anchored claim, or its non-writing refusal. */
 export type AnchoredMarkerWriteResult =
   | { kind: "created" | "replaced"; bytes: Buffer }
@@ -24,5 +24,5 @@ export function createDefaultLocusPorts(): LocusPorts {
 /** Refuse a duplicate claim with the work-or-release repair before any marker write. */
 export async function requireMarkerExclusivity(ports: LocusPorts | undefined, request: { name: string; checkoutPath?: string }): Promise<void> {
   const result = await (ports ?? createDefaultLocusPorts()).checkMarkerExclusivity(request);
-  if (result.kind === "refused") throw new Error(`${result.reason} Checkout ${result.checkoutPath} already holds ${request.name}; work there, or release it there with arc locus release.`);
+  if (result.kind === "refused") throw new Error(result.reason);
 }

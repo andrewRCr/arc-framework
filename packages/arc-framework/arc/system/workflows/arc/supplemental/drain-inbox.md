@@ -101,11 +101,12 @@ route-discovered-work:
   the record floor regardless of capture-time character, and validate coupling and scope boundaries. `WU_Target`
   is the first candidate to check, never a destination decided by existence. Retain any unclear Errand pair with
   all four record answers for the Owner at § 3.
-- **In-flight target adoption.** Only a gated `hold` into a started work unit takes the method binding's
-  owner-adoption route. Leave it in `USER-INBOX` with `_Hold: true`, re-stamp `_Created:` to the adoption date,
-  and carry the target and `_Shapes:_` for its owning session. Surface the handoff or the binding's named wait at
-  § 3; never write to the base branch's stale backlog copy. A failed or ambiguous status lookup stops with its
-  diagnostic, never with a checkout-local path guess.
+- **In-flight target adoption.** Only a gate-confirmed `hold` into a started work unit takes the method binding's
+  owner-adoption route. A live target's message to its session routes the concern in place of the capture: draft it
+  for the plan. Without one, leave it in `USER-INBOX` with `_Hold: true`, re-stamp `_Created:` to the adoption date,
+  and carry the target and `_Shapes:_` for its owning session. Surface the handoff or the binding's named wait at § 3;
+  never write to the base branch's stale backlog copy. A failed or ambiguous status lookup stops with its diagnostic,
+  never with a checkout-local path guess.
 - **Group by concern.** Consolidate `new-stub` outcomes sharing one logical concern into one stub, and propose the
   grouping with its rationale. Entry count alone never establishes concern identity.
 - **Commitment (new stubs).** Propose `provisional` unless the Owner commits to sequencing the work unit at § 3,
@@ -133,8 +134,8 @@ route-discovered-work:
 > `workflow-interlock`: Stop before any write. Present the full routing plan — each concern's outcome or unclear
 > Errand pair with its four record answers, `_Shapes:_` for each fold or hold, the coupled target's CLI horizon
 > advisory verbatim, and any wait named by the binding. Include groupings, new-stub commitment levels, owner-adoption
-> handoffs, atomic dispositions, destination-path overlap advisories, and any split plan (§ 4). Await explicit
-> confirmation before routing (§ 5).
+> handoffs with any message to a live target, atomic dispositions, destination-path overlap advisories, and any split
+> plan (§ 4). Await explicit confirmation before routing (§ 5).
 
 For each routed-into backlog stub already holding entries, show one line with its held count, oldest entry's date,
 and an offer to re-triage it this sweep. The Owner picks targets; return their held entries to § 2's re-triage
@@ -160,15 +161,17 @@ title in v1; idempotent); use `--inbox-entry-file <path>` (`-` reads stdin) for 
 the removal with its routing writes. Held entries in a picked stub take the re-triage routes below instead of inbox
 removal.
 
-- **Existing-stub home** — a gated `fold` or `hold` into a backlog stub's `draft-*`. Follow the method's integration
-  modes: the drain folds only a trivially additive, on-topic note; otherwise append the entry to the draft's
+- **Existing-stub home** — a gate-confirmed `fold` or `hold` into a backlog stub's `draft-*`. Follow the method's
+  integration modes: the drain folds only a trivially additive, on-topic note; otherwise append the entry to the draft's
   `## Inbound Buffer — Pending Integration` section, with `routed from <origin>, <date>` and `_Shapes:_`. Create
   the section after Origin/Purpose, set off by `---`, when absent. The owner folds or dispositions every held entry
   before the draft is ready, at drafting's readiness exit and spec entry; the drain never performs that owner's pass.
-- **In-flight owner adoption** — only a gated `hold` into a started target. Make no routing write; set `_Hold: true`,
-  re-stamp `_Created:` to the adoption date, and keep the target and `_Shapes:_` in the capture for its owning session.
-  Follow the method binding's named gap for another person's started target, with the wait confirmed at § 3.
-  Never append to the base branch's stale backlog copy.
+- **In-flight owner adoption** — only a gate-confirmed `hold` into a started target. Make no routing write. Once the
+  writes are done, send each confirmed message to a live target and then remove its capture line, or remove the line
+  and hand the message to the Owner to relay as the turn's last act. A message that does not go, or that its target
+  declines, restores its capture. Keep every other capture with `_Hold: true`, `_Created:` re-stamped to the adoption
+  date, and its target and `_Shapes:_` for its owning session. Follow the method binding's named gap for another
+  person's started target, with the wait confirmed at § 3. Never append to the base branch's stale backlog copy.
 - **New stub** — carry out a `new-stub` outcome, or one grouped set sharing a concern, through `arc stub` at the
   confirmed commitment level. Always write a `draft-*` beside the meta, carrying the concern and opening with a
   one-sentence Purpose; name it through `arc stub --design`. A provisional stub carries no design authority.
@@ -186,9 +189,9 @@ removal.
 
 - `dismiss` removes the held entry.
 - `hold <other>` moves it to another backlog stub's draft with provenance and `_Shapes:_`. For a started target,
-  follow the method binding's in-flight new-home rule: the runner's own target takes a pre-routed `_Hold` capture
-  for owner adoption after removal here; another person's target waits, rewritten here as `hold <host>` naming
-  the decided destination.
+  follow the method binding's in-flight new-home rule: after removal here, the runner's own target takes the
+  in-flight owner-adoption route above — its confirmed message when live, otherwise a pre-routed `_Hold` capture;
+  another person's target waits, rewritten here as `hold <host>` naming the decided destination.
 - `new-stub` takes the new-stub route above and removes the old entry.
 - `errand` takes the homeless-atomic route and removes the old entry.
 - `hold <host>` keeps the entry, or rewrites only the residual of a split in place.
@@ -206,8 +209,9 @@ never as a dispositions table in the target's draft.
   established is the fork point, not the write target: full protection forbids committing the shared paths to
   the base branch itself. The planning-routing writes (existing-stub edits, new provisional stubs, the
   homeless-atomic flush) are then **one coherent concern** and batch into a **single auto-merge PR** per lane
-  off that branch (split per § 4 if large). Open it with a **lean grooming-PR body** — a one-line Summary
-  plus the § 3 routing plan (what routed where); no Spec / Out-of-Scope / Follow-Up sections.
+  off that branch (split per § 4 if large). Run `arc check increment` before each routing commit.
+  Open it with a **lean grooming-PR body** — a one-line Summary plus the § 3 routing plan (what routed where);
+  no Spec / Out-of-Scope / Follow-Up sections.
 
   Before creating each routing PR, invoke `arc review planning-grooming resolve -` with its exact base ref,
   diff-base SHA, head SHA, and only the caller-owned content kind, risk, determinacy, ownership, and surface
@@ -216,7 +220,8 @@ never as a dispositions table in the target's draft.
 
     - `exempt / none` — skip both review lanes and continue to PR creation.
     - `review-required / continue-review` — reuse its exact target, routing, and obligation payload in the
-      reviewed-lane settlement from [run-errand][run-errand]; do not retype those projections.
+      reviewed-lane [code review][code-findings-round] through [run-errand][run-errand];
+      do not retype those projections.
     - `not-eligible / continue-review` — enter that reviewed-lane settlement through ordinary fact composition.
     - A command error carries no action; stop.
 
@@ -238,18 +243,18 @@ never as a dispositions table in the target's draft.
   > (exact settled head, matching adapter target, checks, resolved lane) and await explicit integration approval —
   > never infer it from the § 3 routing confirmation, which approved the _routing_, not the merge.
 
-  After approval, re-read the PR's exact base and head SHAs. If the head differs from the adapter target surfaced
-  at the interlock, invalidate approval and return to the opened-target adapter resolution and integration
-  interlock. Otherwise run `arc review planning-lane <base-sha> <head-sha>`. Only literal `planning` permits arming
-  auto-merge; `reviewed` follows the reviewed-lane settlement in [`run-errand`][run-errand], while command failure
-  or malformed output stops. Foreign ownership or another confidently recognized review condition may still move
-  a planning result to reviewed without another permission stop, but never the reverse. For a literal `planning`
-  result, invoke `arc review merge-method resolve` and continue only from `validated / use-method`. Retain the
-  returned `method` as the sole merge-method input; `blocked / stop` stops with the lock still held. Immediately
-  before arming, invoke `arc merge lock release -` for the exact target — as on the errand grooming lane, auto-merge
-  cannot be armed on a locked PR. `released / proceed` and `no-lock / none` both continue by invoking
-  `gh pr merge <pr-number> --auto --<method> --match-head-commit <head-sha>` with that exact returned method and the
-  release payload's head; `blocked / stop` invalidates approval.
+  After approval, re-read the PR's exact base and head SHAs. If the head differs from the adapter target surfaced at the
+  interlock, invalidate approval and return to the opened-target adapter resolution and integration interlock. Otherwise
+  run `arc review planning-lane <base-sha> <head-sha>`. Only literal `planning` permits arming auto-merge; `reviewed`
+  follows the reviewed-lane [code review][code-findings-round] through [`run-errand`][run-errand], while command failure
+  or malformed output stops. Foreign ownership or another confidently recognized review condition may still move a
+  planning result to reviewed without another permission stop, but never the reverse. For a literal `planning` result,
+  invoke `arc review merge-method resolve` and continue only from `validated / use-method`. Retain the returned `method`
+  as the sole merge-method input; `blocked / stop` stops with the lock still held. Immediately before arming, invoke
+  `arc merge lock release -` for the exact target — as on the errand grooming lane, auto-merge cannot be armed on a
+  locked PR. `released / proceed` and `no-lock / none` both continue by invoking `gh pr merge <pr-number> --auto
+  --<method> --match-head-commit <head-sha>` with that exact returned method and the release payload's head; `blocked /
+  stop` invalidates approval.
 
   **A released PR is not a head-authorized PR.** Draft is a property of the pull request rather than of a commit,
   so the release says the lock came off — never that it came off for one head. Both continuing actions carry the
@@ -257,7 +262,8 @@ never as a dispositions table in the target's draft.
   after the release inherits nothing. Every way out of the released window that is not armed auto-merge re-locks
   first, per that lane.
 - **Partially protected** — every routing write is a **direct base-branch commit** with no PR or merge-wait;
-  keep coherent commit boundaries (the § 4 split shape). No lanes, no review-chunking.
+  keep coherent commit boundaries (the § 4 split shape). Run `arc check increment` before each direct routing commit.
+  No lanes, no review-chunking.
 
 ### 6. Execution transition — committed atomics → `run-errand`
 
@@ -303,14 +309,15 @@ session, by this sweep — idempotent backstops to the authoritative removal in 
 ### 7. Confirm the drain is complete
 
 The drain **closes on dispositions, not on a physically empty file.** Verify every entry has a terminal
-disposition — **routed** / **dismissed** / **flushed** (line removed with the write), **retained** (`_Hold:_`,
-line stays), **owner-adoption** (live target; line stays for its owning session), or **execute-bound** (dispatched
-in-flight, or pending a fresh `--errand` — line stays until the errand completes). No entry is left
-**un-triaged**. The lines that remain are only the retained, owner-adoption, and execute-bound entries; their async
-tail is owned by the target's session or by `run-errand` plus session-init's in-flight sweep, not the drain. Report
-what routed where, which entries were retained or handed to live owners, and which errands are in flight. Surface
-shared-inbox (`ATOMIC-INBOX`) aging as an advisory while there — reminder nudges for personal captures and
-in-flight-errand staleness belong to session-init orientation, not the drain.
+disposition — **routed** / **dismissed** / **flushed** (line removed with the write or the message to a live target),
+**retained** (`_Hold:_`, line stays), **owner-adoption** (started target; line stays for its owning session), or
+**execute-bound** (dispatched in-flight, or pending a fresh `--errand` — line stays until the errand completes). No
+entry is left **un-triaged**. The lines that remain are only the retained, owner-adoption, and execute-bound entries;
+their async tail is owned by the target's session or by `run-errand` plus session-init's in-flight sweep, not the
+drain. Report what routed where, which messages went to which sessions, which entries were retained or handed to
+their owners, and which errands are in flight. Surface shared-inbox (`ATOMIC-INBOX`) aging as an advisory while there
+— reminder nudges for personal captures and in-flight-errand staleness belong to session-init orientation, not the
+drain.
 
 ---
 
@@ -321,3 +328,5 @@ in-flight-errand staleness belong to session-init orientation, not the drain.
 [cheap-branch]: ../../../../reference/strategies/arc/strategy-work-organization.md#cheap-branch-path
 [branch-modes]: ../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes
 [auto-lane]: ../../../../reference/strategies/arc/strategy-work-organization.md#auto-merge-lane
+
+[code-findings-round]: ../../../methods/code-review.md#findings-round

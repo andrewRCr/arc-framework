@@ -1,7 +1,7 @@
 /** Lossless generic Markdown entry splitting and stable managed identity stamping. */
 
 /** Role-based entry grammars; callers supply the sections that hold entries. */
-export interface EntryListConfig { readonly shape: "heading" | "field-header"; readonly sections: readonly string[] }
+export interface EntryListConfig { readonly shape: "heading" | "field-header"; readonly sections: readonly string[]; readonly managedFields?: readonly string[] }
 /** A detected entry, with its trailing separator kept separately from its identity-bearing bytes. */
 export interface ListEntry {
   readonly kind: "entry";
@@ -31,7 +31,7 @@ export function splitEntryList(content: string, config: EntryListConfig): SplitE
     if (started === null) return;
     if (consumed < started.offset) parts.push({kind:"outside",bytes:content.slice(consumed,started.offset)});
     const block = content.slice(started.offset,end);
-    const commentStart = trailingComments(block);
+    const commentStart = entryContentEnd(block);
     const raw = block.slice(0,commentStart);
     const separator = raw.match(/(?:\r?\n[ \t]*)+$/u)?.[0] ?? "";
     const bytes = raw.slice(0,raw.length-separator.length);
@@ -87,7 +87,11 @@ export function readEntryId(bytes: string): string | undefined {
 }
 
 
-function trailingComments(block: string): number {
+/** Find the start of document-level closed comments following an entry's content.
+ * @param block - Entry block whose trailing closed comments are outside its content.
+ * @returns First trailing comment offset, or the block length when none follows.
+ */
+export function entryContentEnd(block: string): number {
   let end = block.length;
   for (const comment of [...block.matchAll(/<!--[\s\S]*?-->/gu)].reverse()) {
     if (block.slice(comment.index+comment[0].length,end).trim().length > 0) break;

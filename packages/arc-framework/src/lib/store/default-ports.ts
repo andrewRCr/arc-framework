@@ -7,18 +7,19 @@ import { GitProcessError } from "../git/process-error.js";
 import { createExecaGitExec, createExecaGitExecInput } from "../git/process-executor.js";
 import { withAdvisoryLock } from "../advisory-lock.js";
 import { withTrackedWriteLock } from "./tracked-lock.js";
+import type { Slug } from "../kernel/index.js";
 import type { StorePorts } from "./ports.js";
 
 /** Bind production I/O without consulting repository configuration or topology.
  * @param input - Checkout and optional already-bound Git adapters.
  * @returns All required store ports, each policy or lock resolved only when used.
  */
-export function createDefaultStorePorts(input: { checkoutRoot: string; exec?: GitExec; execInput?: GitExecInput }): StorePorts {
+export function createDefaultStorePorts(input: { checkoutRoot: string; exec?: GitExec; execInput?: GitExecInput; identity?: Slug }): StorePorts {
   const baseExec = input.exec ?? createExecaGitExec();
   const exec: GitExec = (command, args, options) => baseExec(command, args, { cwd: input.checkoutRoot, ...options });
   const baseInput = input.execInput ?? createExecaGitExecInput();
   const execInput: GitExecInput = (args, content, options) => baseInput(args, content, { cwd: input.checkoutRoot, ...options });
-  const identity = () => resolveIdentity({ exec });
+  const identity = () => input.identity === undefined ? resolveIdentity({ exec }) : Promise.resolve(input.identity);
   return {
     checkoutRoot: input.checkoutRoot, exec, execInput, identity, remote: () => configuredStateRemote(exec),
     clock: () => new Date(),

@@ -139,7 +139,7 @@ function harness(results: readonly ReviewResult[]) {
   });
   const resultReader: ReviewResultReader = { readResult };
   const readResponseEvidence = vi.fn<IncrementalCoverageBasisDependencies["readResponseEvidence"]>(async () => ({
-    status: "performed" as const,
+    status: "performed" as const, hasFix: false,
     requiredFindings: [],
   }));
   const confirmApplicability = vi.fn<IncrementalCoverageBasisDependencies["confirmApplicability"]>(
@@ -342,7 +342,7 @@ describe("incremental coverage basis", () => {
     });
     const incomplete = harness([predecessor]);
     incomplete.readResponseEvidence.mockResolvedValue({
-      status: "incomplete",
+      status: "incomplete", hasFix: false,
       requiredFindings: [instruction(predecessor.producerId, "F1")],
     });
     await expect(resolveIncrementalCoverageBasis(incremental, incomplete)).resolves.toMatchObject({
@@ -352,7 +352,7 @@ describe("incremental coverage basis", () => {
 
     const omitted = harness([predecessor]);
     omitted.readResponseEvidence.mockResolvedValue({
-      status: "performed",
+      status: "performed", hasFix: false,
       requiredFindings: [
         instruction(predecessor.producerId, "F1"),
         instruction(predecessor.producerId, "F2"),
@@ -386,7 +386,7 @@ describe("incremental coverage basis", () => {
     });
     const dependencies = harness([complete, middle]);
     dependencies.readResponseEvidence.mockImplementation(async (predecessor) => ({
-      status: "performed",
+      status: "performed", hasFix: false,
       requiredFindings: predecessor.producerId === complete.producerId
         ? [instruction(complete.producerId, "F-root")]
         : [],
@@ -449,7 +449,7 @@ describe("incremental coverage basis", () => {
     });
     const dependencies = harness([complete, middle]);
     dependencies.readResponseEvidence.mockImplementation(async (predecessor) => ({
-      status: "performed",
+      status: "performed", hasFix: false,
       requiredFindings: predecessor.producerId === complete.producerId
         ? [instruction(complete.producerId, "F-root")]
         : [],
@@ -487,7 +487,7 @@ describe("incremental coverage basis", () => {
     });
     const dependencies = harness([complete, middle]);
     dependencies.readResponseEvidence.mockImplementation(async (predecessor) => ({
-      status: "performed",
+      status: "performed", hasFix: false,
       requiredFindings: [instruction(predecessor.producerId, "F1")],
     }));
 
@@ -516,7 +516,7 @@ describe("incremental coverage basis", () => {
     });
     const dependencies = harness([complete]);
     dependencies.readResponseEvidence.mockResolvedValue({
-      status: "performed",
+      status: "performed", hasFix: false,
       requiredFindings: [instruction(complete.producerId, "F1")],
     });
 

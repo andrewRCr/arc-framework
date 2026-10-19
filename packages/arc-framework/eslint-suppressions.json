@@ -106,7 +106,7 @@
   },
   "src/cli.ts": {
     "arc/surface-names": {
-      "count": 11
+      "count": 9
     },
     "max-lines": {
       "count": 1
@@ -206,9 +206,6 @@
     }
   },
   "src/commands/status/schema.ts": {
-    "max-lines": {
-      "count": 1
-    },
     "max-lines-per-function": {
       "count": 1
     },
@@ -252,7 +249,7 @@
       "count": 1
     },
     "arc/surface-names": {
-      "count": 5
+      "count": 4
     }
   },
   "src/commands/user/paired-push.ts": {
@@ -408,7 +405,7 @@
   },
   "src/handlers/errand.ts": {
     "arc/store-raw-state": {
-      "count": 3
+      "count": 2
     },
     "arc/surface-names": {
       "count": 2
@@ -454,9 +451,6 @@
     }
   },
   "src/handlers/join.ts": {
-    "jsdoc/require-jsdoc": {
-      "count": 1
-    },
     "sonarjs/cognitive-complexity": {
       "count": 1
     }
@@ -608,11 +602,6 @@
       "count": 1
     }
   },
-  "src/handlers/status/session-context.ts": {
-    "arc/surface-names": {
-      "count": 1
-    }
-  },
   "src/handlers/status/views.ts": {
     "arc/store-raw-state": {
       "count": 1
@@ -645,7 +634,7 @@
       "count": 1
     },
     "arc/surface-names": {
-      "count": 8
+      "count": 4
     },
     "jsdoc/require-jsdoc": {
       "count": 7
@@ -780,9 +769,6 @@
     }
   },
   "src/lib/compaction-seed/emitter.ts": {
-    "arc/surface-names": {
-      "count": 1
-    },
     "max-lines-per-function": {
       "count": 1
     },
@@ -1056,11 +1042,6 @@
       "count": 1
     }
   },
-  "src/lib/errand/abandon-runtime.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    }
-  },
   "src/lib/errand/close-head-lock.ts": {
     "sonarjs/cognitive-complexity": {
       "count": 1
@@ -1072,9 +1053,6 @@
     }
   },
   "src/lib/errand/close-runtime.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    },
     "sonarjs/cognitive-complexity": {
       "count": 1
     }
@@ -1108,18 +1086,8 @@
       "count": 1
     }
   },
-  "src/lib/errand/leave-runtime.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    }
-  },
   "src/lib/errand/leave.ts": {
     "sonarjs/cognitive-complexity": {
-      "count": 1
-    }
-  },
-  "src/lib/errand/link-runtime.ts": {
-    "arc/store-raw-state": {
       "count": 1
     }
   },
@@ -1470,11 +1438,6 @@
       "count": 1
     }
   },
-  "src/lib/recover/audit.ts": {
-    "arc/surface-names": {
-      "count": 2
-    }
-  },
   "src/lib/recover/integration-correction.ts": {
     "sonarjs/cognitive-complexity": {
       "count": 2
@@ -1504,14 +1467,6 @@
     }
   },
   "src/lib/release/interlock-validation.ts": {
-    "arc/surface-names": {
-      "count": 1
-    }
-  },
-  "src/lib/release/wu-resolution.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    },
     "arc/surface-names": {
       "count": 1
     }
@@ -1821,14 +1776,6 @@
       "count": 1
     }
   },
-  "src/lib/user-reference-reconcile.ts": {
-    "arc/surface-names": {
-      "count": 1
-    },
-    "sonarjs/cognitive-complexity": {
-      "count": 1
-    }
-  },
   "src/lib/user-surface-migration.ts": {
     "sonarjs/cognitive-complexity": {
       "count": 1
@@ -1872,7 +1819,7 @@
   },
   "src/lib/user-sync/inbox-writer.ts": {
     "arc/surface-names": {
-      "count": 19
+      "count": 8
     },
     "sonarjs/cognitive-complexity": {
       "count": 1
@@ -3069,7 +3016,7 @@
       "count": 1
     },
     "sonarjs/cognitive-complexity": {
-      "count": 3
+      "count": 2
     }
   },
   "src/scripts/review-gate/runtime/respond-composition.ts": {

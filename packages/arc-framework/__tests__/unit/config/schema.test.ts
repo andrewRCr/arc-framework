@@ -208,6 +208,9 @@ describe("ARC config field catalog", () => {
       "hooks.body_max_lines",
       "hooks.body_max_line_length",
       "inbox.remind_after_days",
+      "inbound.retriage_after_entries",
+      "inbound.retriage_after_days",
+      "pause.review_after_days",
       "integration.stale_after_days",
       "review.frontline_max_passes",
       "review.standard_max_passes",
@@ -287,6 +290,9 @@ describe("ARC config field catalog", () => {
       ["sync.auto_pull", "false"],
       ["archive.cadence", "with-integration"],
       ["inbox.remind_after_days", "1"],
+      ["inbound.retriage_after_entries", "10"],
+      ["inbound.retriage_after_days", "30"],
+      ["pause.review_after_days", "14"],
       ["integration.stale_after_days", "2"],
     ];
 

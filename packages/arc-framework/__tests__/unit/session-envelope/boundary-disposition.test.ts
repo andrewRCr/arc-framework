@@ -101,7 +101,7 @@ describe("session-envelope output boundaries", () => {
                 const derived = value.derivedLocusState as {
                     value: { roster: Array<Record<string, unknown>> };
                 };
-                derived.value.roster[0]!.unownedEvidence = { deep: { retained: true } };
+                derived.value.roster[0]!.diagnostics = [{ code: "fixture", message: "retained nested payload" }];
             },
         ],
         [
@@ -118,7 +118,7 @@ describe("session-envelope output boundaries", () => {
                 const derived = value.derivedLocusState as {
                     value: { roster: Array<Record<string, unknown>> };
                 };
-                derived.value.roster[0]!.unownedEvidence = { deep: { retained: true } };
+                derived.value.roster[0]!.diagnostics = [{ code: "fixture", message: "retained nested payload" }];
             },
         ],
         [
@@ -129,9 +129,7 @@ describe("session-envelope output boundaries", () => {
                 const recover = value.recover as {
                     derivedLocusState: { value: { roster: Array<Record<string, unknown>> } };
                 };
-                recover.derivedLocusState.value.roster[0]!.unownedEvidence = {
-                    deep: { retained: true },
-                };
+                recover.derivedLocusState.value.roster[0]!.diagnostics = [{ code: "fixture", message: "retained nested payload" }];
             },
         ],
     ] as const)(
@@ -149,7 +147,7 @@ describe("session-envelope output boundaries", () => {
                 stdout: expectedBytes,
             });
             expect(result.stdout).toContain(
-                '"unownedEvidence":{"deep":{"retained":true}}',
+                '"message":"retained nested payload"',
             );
         },
     );

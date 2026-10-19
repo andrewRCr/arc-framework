@@ -328,14 +328,15 @@ inside the change already under review discharges that: fix it and name the corr
 
 ### Route by urgency × isolation
 
-**Otherwise, route by urgency × isolation** — a coarse _inline / errand-now / inbox-defer_ call. The finer
+**Otherwise, route by urgency × isolation** — a coarse _inline / message / errand-now / inbox-defer_ call. The finer
 destination (existing stub, new stub, standalone errand, flush to shared) resolves later, at drain.
 
-| The concern is…       | Can I write its home here? | Route                                                  |
-| --------------------- | -------------------------- | ------------------------------------------------------ |
-| The current WU's own  | Yes — you're on its branch | Fix **inline**. Never capture.                         |
-| Out-of-WU, **urgent** | No — isolation needed now  | **Errand now** — own session (`arc-session --errand`). |
-| Out-of-WU, not urgent | No — defer the write       | **Capture** to `USER-INBOX` (via `arc-inbox`).         |
+| The concern is…                        | Can I write its home here? | Route                                                  |
+| -------------------------------------- | -------------------------- | ------------------------------------------------------ |
+| The current WU's own                   | Yes — you're on its branch | Fix **inline**. Never capture.                         |
+| Another WU's, live (it has a checkout) | No — its session owns it   | **Message** its session now (via `arc-inbox`).         |
+| Out-of-WU, **urgent**                  | No — isolation needed now  | **Errand now** — own session (`arc-session --errand`). |
+| Out-of-WU, not urgent                  | No — defer the write       | **Capture** to `USER-INBOX` (via `arc-inbox`).         |
 
 In-WU multi-step discovery folds into the active task list (an existing task, a new subtask, or a new task; a
 whole new phase may mean it isn't this WU's — ask). Errand-vs-Work-Unit classification follows

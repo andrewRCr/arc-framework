@@ -1,3 +1,5 @@
+import { firstReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
+import { withReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
 /** Candidate-hosted reservation capacity and additional-pass admission. */
 
 import { describe, expect, it } from "vitest";
@@ -307,7 +309,7 @@ function candidatePredecessor(input: {
 
 describe("Candidate hosted reservation admission", () => {
   it("refuses an unscoped CodeRabbit correction before hosted capacity is spent", () => {
-    expect(() => assertCandidateHostedReservationPolicyAdmission({
+    expect(() => assertCandidateHostedReservationPolicyAdmission(withReviewNextPassContext({
       reservation,
       discharge: {
         discharged: false,
@@ -321,12 +323,13 @@ describe("Candidate hosted reservation admission", () => {
       coverage: "incremental",
       maxPasses: 2,
       logicalPass: 1,
-    })).toThrow(/cannot carry an exact correction scope/u);
+    }))).toThrow(/local fix check on delegated-agent/u);
   });
 
   it("excludes prior-head terminals when rechecking Candidate capacity at the pass ceiling", () => {
     const target = { repository: "owner/repo", pullRequest: 42, headSha: CURRENT_HEAD };
     const input = {
+      nextPassContext: { ...firstReviewNextPassContext, completePasses: 2 },
       reservation,
       discharge: {
         discharged: false,
@@ -353,8 +356,8 @@ describe("Candidate hosted reservation admission", () => {
       logicalPass: 3,
     };
 
-    expect(() => assertCandidateHostedReservationPolicyAdmission(input)).toThrow(/approval-required/u);
-    expect(() => assertCandidateHostedReservationPolicyAdmission({
+    expect(() => assertCandidateHostedReservationPolicyAdmission(withReviewNextPassContext(input))).toThrow(/approval-required/u);
+    expect(() => assertCandidateHostedReservationPolicyAdmission(withReviewNextPassContext({
       ...input,
       ceilingOverride: {
         target,
@@ -362,7 +365,7 @@ describe("Candidate hosted reservation admission", () => {
         exhaustedPassCount: 2,
         nextPass: 3,
       },
-    })).not.toThrow();
+    }))).not.toThrow();
   });
 
   it("admits a third Candidate pass after two settled same-head passes from different sources", async () => {
@@ -383,6 +386,7 @@ describe("Candidate hosted reservation admission", () => {
     };
 
     await expect(assertEvidenceBoundCandidateHostedReservationPolicyAdmission(input, {
+      nextPassContext: { ...firstReviewNextPassContext, completePasses: input.progress.completedPasses },
       resultReader: { readResult: () => Promise.reject(new Error("past pass must not be read")) },
       dispositionStore: {
         readDispositionRecord: () => Promise.resolve(null),
@@ -407,6 +411,7 @@ describe("Candidate hosted reservation admission", () => {
       },
     };
     const dependencies = {
+      nextPassContext: { ...firstReviewNextPassContext, completePasses: input.progress.completedPasses },
       resultReader: { readResult: async () => predecessor.result },
       dispositionStore: {
         readDispositionRecord: async () => predecessor.disposition,
@@ -423,7 +428,7 @@ describe("Candidate hosted reservation admission", () => {
       },
     };
 
-    expect(() => assertCandidateHostedReservationPolicyAdmission(input))
+    expect(() => assertCandidateHostedReservationPolicyAdmission(withReviewNextPassContext(input)))
       .toThrow(/preceding-producer-mismatch/u);
     await expect(assertEvidenceBoundCandidateHostedReservationPolicyAdmission({
       ...input,
@@ -440,7 +445,7 @@ describe("Candidate hosted reservation admission", () => {
       progress: { completedPasses: 1, attempts: [{ ...predecessor.attempt, terminalProducer: false }] },
     }, dependencies)).rejects.toThrow(/exact latest completed terminal producer/u);
     await expect(assertEvidenceBoundCandidateHostedReservationPolicyAdmission(input, dependencies))
-      .rejects.toThrow(/approval-required\/obtain-ceiling-override/u);
+      .rejects.toThrow(/verified, completed predecessor \(unavailable\/stop\)/u);
   });
 
   it.each(["minor", "major"] as const)("admits an additional Candidate pass after exact clean or settled %s "
@@ -460,6 +465,7 @@ describe("Candidate hosted reservation admission", () => {
         },
       };
       const dependencies = {
+        nextPassContext: { ...firstReviewNextPassContext, completePasses: input.progress.completedPasses },
         resultReader: { readResult: async () => predecessor.result },
         dispositionStore: {
           readDispositionRecord: async () => predecessor.disposition,
@@ -519,8 +525,9 @@ describe("Candidate hosted reservation admission", () => {
       logicalPass: 1,
     };
 
-    expect(() => assertCandidateHostedReservationPolicyAdmission(input)).not.toThrow();
+    expect(() => assertCandidateHostedReservationPolicyAdmission(withReviewNextPassContext(input))).not.toThrow();
     await expect(assertEvidenceBoundCandidateHostedReservationPolicyAdmission(input, {
+      nextPassContext: { ...firstReviewNextPassContext, completePasses: input.progress.completedPasses },
       resultReader: {
         readResult: () => Promise.reject(new Error("no terminal producer expected")),
       },

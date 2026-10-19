@@ -42,7 +42,7 @@ export function fixesMaterialFinding(findings: readonly ConvergenceFinding[]): b
 }
 
 /** One terminal pass's verified outcome, derived from its producer and approved dispositions; never caller-asserted. */
-export const VerifiedTerminalReviewSignalSchema = z.strictObject({
+const TerminalReviewSignalSchema = z.strictObject({
   reviewOperationId: ReviewIdentifierSchema,
   confirmedFindingCount: z.number().int().nonnegative(),
   maxConfirmedSeverity: ReviewSeveritySchema.nullable(),
@@ -64,5 +64,12 @@ export const VerifiedTerminalReviewSignalSchema = z.strictObject({
       path: ["materialFix"],
     });
   }
-}).readonly();
+});
+export const VerifiedTerminalReviewSignalSchema = TerminalReviewSignalSchema.readonly();
 export type VerifiedTerminalReviewSignal = z.infer<typeof VerifiedTerminalReviewSignalSchema>;
+
+/** Repository-derived coverage is internal policy evidence, outside the persisted terminal signal. */
+export const InternalVerifiedTerminalReviewSignalSchema = TerminalReviewSignalSchema.safeExtend({
+  effectiveCoverage: z.enum(["complete", "incremental"]).nullable(),
+}).readonly();
+export type InternalVerifiedTerminalReviewSignal = z.infer<typeof InternalVerifiedTerminalReviewSignalSchema>;

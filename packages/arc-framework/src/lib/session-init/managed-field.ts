@@ -11,26 +11,13 @@
  * @module
  */
 
-/** Matches a managed field's backtick-delimited value: `` _Field:_ `value` ``. */
-const managedValue = (field: string): RegExp => new RegExp(`_${field}:_\\s*\`([^\`]*)\``);
+import { managedFieldValue } from "../store/kinds/entry-fields.js";
+export { managedFieldValue } from "../store/kinds/entry-fields.js";
 
-/**
- * Read a managed field's backtick-delimited value from an entry's raw markdown.
- *
- * @param raw - The entry's raw markdown block.
- * @param field - The managed field name (e.g. `Remind`, `Hold`, `Created`).
- * @returns The value, or `undefined` when the field is absent or not backtick-delimited.
- */
-export function managedFieldValue(raw: string, field: string): string | undefined {
-  return managedValue(field).exec(raw)?.[1];
-}
-
-/**
- * Whether a managed boolean flag is set to `true` on an entry.
- *
- * @param raw - The entry's raw markdown block.
- * @param field - The managed flag name (e.g. `Remind`, `Hold`).
- * @returns `true` only when the field's value is exactly `true`.
+/** Read whether a legacy managed flag is exactly true.
+ * @param raw - Entry text.
+ * @param field - Literal field name.
+ * @returns Whether the flag is set.
  */
 export function managedFlagIsTrue(raw: string, field: string): boolean {
   return managedFieldValue(raw, field) === "true";

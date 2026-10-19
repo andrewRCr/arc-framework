@@ -55,8 +55,8 @@ describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
 
   // Keep this expected count hand-maintained: a catalog addition or omission must not
   // change both sides of the completeness check.
-  it("enumerates the 35 agent-consumable keys", () => {
-    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(35);
+  it("enumerates the 38 agent-consumable keys", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(38);
   });
 
   it("excludes all hooks.* keys", () => {
@@ -196,6 +196,9 @@ describe("readConfigSettings — user-supplied values", () => {
       "archive.cadence: manual",
       "user.notes_push: manual",
       "inbox.remind_after_days: 7",
+      "inbound.retriage_after_entries: 8",
+      "inbound.retriage_after_days: 20",
+      "pause.review_after_days: 6",
       "integration.stale_after_days: 5",
     ].join("\n");
     await writeFile(fixture.configPath, content);

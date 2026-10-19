@@ -1,3 +1,4 @@
+import { withReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
 import { describe, expect, it } from "vitest";
 import { CanonicalDigestSchema } from "../../../../../src/lib/kernel/index.js";
 
@@ -249,7 +250,7 @@ describe("hosted review request", () => {
       nextPass: 3,
     };
     const capacity = (override: ReviewCeilingOverride) => {
-      assertStandardReviewExecutionAdmission({
+      assertStandardReviewExecutionAdmission(withReviewNextPassContext({
         target: override.target,
         frontlineActive: false,
         standardReview: STANDARD_REVIEW,
@@ -265,7 +266,7 @@ describe("hosted review request", () => {
             nextPass: override.nextPass,
           },
         },
-      });
+      }));
     };
     const requested = await requestHostedReview({
       schemaVersion: 1,

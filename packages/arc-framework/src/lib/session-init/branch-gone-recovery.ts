@@ -13,7 +13,11 @@
  */
 
 import { isLandedInBase, isLandedInBaseStrict } from "../git/branch-containment.js";
-import { isWorktreeClean } from "../git/worktree-cleanup.js";
+import { stat } from "node:fs/promises";
+import { checkWorktreeRemoval, type ProjectionRemovalSlots } from "../git/worktree-removal.js";
+import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
+import { missingRegistrationActions } from "./missing-worktree-folders.js";
+import type { SessionAction } from "./actions.js";
 import { readWorktreeMarker } from "../git/worktree-marker.js";
 import type { GitExec } from "../git/exec.js";
 import {
@@ -43,6 +47,12 @@ import { projectCleanupRemoteEvidence, type CleanupBaseEvidence } from "./cleanu
 export const RECOVERY_RECENCY_DAYS = 30;
 
 export interface RunBranchGoneRecoveryOptions {
+  /** The same reader-owned checkout rows used by session entry. */
+  derivedRoster: readonly DerivedCheckoutRow[] | null;
+  /** Projection policy used by read-only removal observations. */
+  projectionRemovalSlots?: ProjectionRemovalSlots;
+  /** Filesystem boundary for checkout folder observations. */
+  folderExists?: (path: string) => Promise<boolean>;
   /** Pre-computed, identity-filtered roster from the session-init roster slot. */
   roster: WorktreeRosterResult;
   /** The branch-gone branch — excluded from candidates (cannot recover onto it). */
@@ -78,11 +88,18 @@ export async function runBranchGoneRecovery(
   const worktreeEntries = roster.entries.filter((entry) => entry.branch !== currentBranch);
   const primaryWorktreePath = worktreeEntries.length === 0 ? null : await resolvePrimaryWorktreePath(exec);
 
-  const worktreeCandidates = await Promise.all(
+  if (options.derivedRoster === null) throw new Error("Recovery checkout observations are unavailable.");
+  const rows = new Map(options.derivedRoster.map((row) => [row.checkout.path, row]));
+  const missingFolders: { worktreePath: string; branch: string; actions: SessionAction[] }[] = [];
+  const candidates = await Promise.all(
     worktreeEntries.map((entry) =>
       buildWorktreeCandidate(entry, {
         exec,
         readMarker,
+        row: rows.get(entry.worktreePath),
+        folderExists: options.folderExists,
+        projectionRemovalSlots: options.projectionRemovalSlots,
+        missingFolders,
         userSurfaceFs,
         integrationTarget,
         primaryWorktreePath,
@@ -95,7 +112,8 @@ export async function runBranchGoneRecovery(
   // The fallback tier: recent branches that are not the gone branch, not the
   // base (that resolves through the explicit main-fallback), and not already
   // represented by a local worktree candidate.
-  const represented = new Set(worktreeCandidates.map((candidate) => candidate.branch));
+  const worktreeCandidates = candidates.filter((candidate): candidate is CascadeCandidate => candidate !== null);
+  const represented = new Set(roster.entries.map((entry) => entry.branch));
   const recentBranchCandidates: CascadeCandidate[] = recentBranches
     .filter(
       (branch) =>
@@ -103,7 +121,7 @@ export async function runBranchGoneRecovery(
     )
     .map((branch) => ({ branch, proposedAction: "switch" }));
 
-  return resolveCascade({
+  const result = resolveCascade({
     worktreeCandidates,
     recentBranchCandidates,
     pendingBranchCount: options.recentPendingBranchCount,
@@ -116,9 +134,14 @@ export async function runBranchGoneRecovery(
       ? { remoteEvidence: "exact" }
       : projectCleanupRemoteEvidence(baseBranch, options.baseEvidence),
   });
+  return missingFolders.length === 0 ? result : { ...result, missingFolders };
 }
 
 interface CandidateContext {
+  row: DerivedCheckoutRow | undefined;
+  folderExists?: (path: string) => Promise<boolean>;
+  projectionRemovalSlots?: ProjectionRemovalSlots;
+  missingFolders: { worktreePath: string; branch: string; actions: SessionAction[] }[];
   exec: GitExec;
   readMarker: (worktreePath: string) => Promise<WorktreeMarkerReadResult>;
   userSurfaceFs: UserSurfaceMigrationFs;
@@ -131,16 +154,35 @@ interface CandidateContext {
 async function buildWorktreeCandidate(
   entry: WorktreeRosterEntry,
   ctx: CandidateContext,
-): Promise<CascadeCandidate> {
-  // A worktree with no resolved meta is main / admin — always a switch
-  // destination, so the marker / clean / merged gathering is skipped.
-  if (entry.metaFilePath === undefined) {
-    return { branch: entry.branch, worktreePath: entry.worktreePath, proposedAction: "switch" };
+): Promise<CascadeCandidate | null> {
+  if (entry.branch === undefined) return null;
+  if (ctx.row === undefined) {
+    return { branch: entry.branch, worktreePath: entry.worktreePath, proposedAction: "external" };
+  }
+  if (!ctx.row.checkout.folderPresent) {
+    const check = await checkWorktreeRemoval({ exec: ctx.exec, checkoutPath: entry.worktreePath,
+      disposition: "remove", check: ctx.projectionRemovalSlots?.check, folderExists: ctx.folderExists });
+    if (check.kind === "missing" || (check.kind === "refused" && check.reason === "locked" && !check.folderPresent)) {
+      ctx.missingFolders.push({ worktreePath: entry.worktreePath, branch: entry.branch,
+        actions: missingRegistrationActions(entry.worktreePath, { locked: check.kind === "refused" }) });
+    }
+    return null;
+  }
+  if (ctx.row.kind === "unresolved-checkout" || ctx.row.diagnostics.length > 0) {
+    return { branch: entry.branch, worktreePath: entry.worktreePath, proposedAction: "external",
+      diagnostics: ctx.row.diagnostics.length > 0 ? ctx.row.diagnostics
+        : [{ code: "unresolved-checkout", message: "Checkout role could not be established." }] };
+  }
+  // Main / admin destinations need a fresh folder observation, without
+  // gathering marker, cleanliness or removal authority.
+  if (entry.workUnit === undefined && entry.metaFilePath === undefined) {
+    return { branch: entry.branch, worktreePath: entry.worktreePath,
+      proposedAction: await administrativeFolderAction(entry.worktreePath, ctx.folderExists) };
   }
 
-  const [marker, clean, merged, userSurfacesSafe] = await Promise.all([
+  const [marker, removalCheck, merged, userSurfacesSafe] = await Promise.all([
     ctx.readMarker(entry.worktreePath),
-    isWorktreeClean({ exec: ctx.exec, cwd: entry.worktreePath }),
+    checkWorktreeRemoval({ exec: ctx.exec, checkoutPath: entry.worktreePath, disposition: "remove", check: ctx.projectionRemovalSlots?.check, folderExists: ctx.folderExists }),
     resolveCandidateMerged(ctx, entry.branch),
     linkedIdentityGlobalUserSurfacesAreSafe({
       primaryWorktreePath: ctx.primaryWorktreePath,
@@ -149,17 +191,20 @@ async function buildWorktreeCandidate(
     }),
   ]);
 
-  return {
-    branch: entry.branch,
-    worktreePath: entry.worktreePath,
-    proposedAction: determineCandidateAction({
-      isMainOrAdmin: false,
-      marker,
-      clean,
-      userSurfacesSafe,
-      merged: merged ?? false,
-    }),
-  };
+  const proposedAction = determineCandidateAction({ isMainOrAdmin: false, marker, removalCheck,
+    userSurfacesSafe, merged: merged ?? false });
+  const candidate = { branch: entry.branch, worktreePath: entry.worktreePath };
+  if (proposedAction !== "removable") return { ...candidate, proposedAction };
+  const workUnitName = marker.kind === "present" ? marker.marker.wuName : undefined;
+  return workUnitName === undefined ? { ...candidate, proposedAction: "external" }
+    : { ...candidate, proposedAction, workUnitName };
+}
+
+async function administrativeFolderAction(path: string, folderExists: CandidateContext["folderExists"]): Promise<"switch" | "external"> {
+  try {
+    const present = folderExists === undefined ? (await stat(path)).isDirectory() : await folderExists(path);
+    return present ? "switch" : "external";
+  } catch { return "external"; }
 }
 
 async function resolveCandidateMerged(ctx: CandidateContext, branch: string): Promise<boolean | null> {

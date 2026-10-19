@@ -3,6 +3,7 @@ purpose: Execute an out-of-work-unit errand end to end as a re-enterable Launch 
 audience: agent
 arc:
   methods:
+    - code-review
     - assess-evidence-applicability
     - route-discovered-work
     - classify-work-unit
@@ -11,11 +12,6 @@ arc:
     - commit-format
     - pull-request-format
     - commit-footer
-    - frontline-review
-    - standard-review
-    - implementation-audit
-    - review-triage
-    - review-response
 ---
 
 # Workflow: Run Errand
@@ -152,12 +148,13 @@ route-discovered-work:
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop before routing the discovered concern. Show the outcome, `_Shapes:_`, any unclear pair
-> with its four record answers, the coupled target's horizon advisory verbatim, and any named wait; await approval
-> before carrying out that route through the method's binding.
+> with its four record answers, the coupled target's horizon advisory verbatim, any message to a live target, and any
+> named wait; await approval before carrying out that route through the method's binding.
 
-Build captures with `arc-inbox`'s entry shape: `hold <wu>` and `new-stub` become pre-routed captures; `errand` waits
-as a `§ Errand` capture unless the Owner runs it as its own Errand; `capture` has its home undecided; `dismiss` writes
-nothing. Keep the method's writer line: this Errand's change stays its own concern.
+Build captures with `arc-inbox`'s entry shape: `hold <wu>` and `new-stub` become pre-routed captures, though a live
+target's confirmed message replaces its capture; `errand` waits as a `§ Errand` capture unless the Owner runs it as its
+own Errand; `capture` has its home undecided; `dismiss` writes nothing. Keep the method's writer line: this Errand's
+change stays its own concern.
 
 **Explicit abandon.** On explicit direction to discard a safely preserved generation, invoke
 `arc errand abandon <slug> --json`. A full identity and its local review tail abandon only when the verb proves
@@ -259,17 +256,20 @@ remote base all name the same exact head. Any tracked change continues through t
    `scopeSelection` to `{ mode: "whole-target", target: <immutable-policy-target> }`; chunk selection is not an
    Errand review action. Pass that exact whole-target selection to `arc review resolve -`.
    Configured standard-source order is the default. For an explicit Owner selection of a configured source, pass
-   `invocation: { mode: "force", sourceId: "<source-id>" }` on every policy call for that target; the resulting
-   Errand binding carries that source and its ordered fallbacks through hosted request and await.
+   `invocation: { mode: "force", sourceId: "<source-id>" }` on every policy call for that target until a look fixes a
+   material finding. Then drop a forced hosted invocation and follow the driver's local action; a forced hosted source
+   refuses. The Errand binding carries the selected source and its ordered fallbacks through hosted request and await.
 
-   A converged result replays as complete: a clean pass, or one whose approved dispositions fix no confirmed `critical`
-   or `major` finding. If the Owner explicitly authorizes another named standard pass, carry the exact target, preceding
-   producer, completed-pass count, and next ordinal as `additionalPassAuthorization` through `arc review resolve -`.
-   Carry the full authorization on hosted admission, or its targetless fields under
-   `policyJudgment.additionalPassAuthorization` on local preparation. For an open PR,
-   `arc review status --target <targetRef> --additional-pass '<authorization>'` reports the outstanding review. A fresh
-   decision is required for each later pass; the same decision covers a named above-ceiling pass. A later material
-   result enters the ordinary response route.
+   Apply [code-review's convergence procedure][code-convergence] to each concluded look or eligible plain commit.
+   Carry an authorized additional complete pass as `additionalPassAuthorization` on resolve/hosted admission, or its
+   targetless fields as `policyJudgment.additionalPassAuthorization` on local prepare. At the open PR, the exact
+   `arc review status --target <targetRef> --additional-pass '<authorization>'` scope reports that outstanding review.
+
+   **Clean-fix-check successor.** Before standard source dispatch, apply [code-review's successor
+   decision][code-successor-decision] with the exact Errand subject. An open PR supplies the
+   [Errand stop continuation][code-errand-stop]; before PR creation, supply this surface's explicit stop limit.
+
+   Findings rounds use `arc check increment` for this Errand and `standalone (code review)` as their commit context.
 
    Resolve frontline, then the pre-PR standard lane. Follow only the driver's typed `state` / `nextAction`:
 
@@ -285,52 +285,24 @@ remote base all name the same exact head. Any tracked change continues through t
      `invocation` with `{ "mode": "skip" }` and re-invoke the same request. Dispatch the returned state again; only from
      `ready / run-frontline`, invoke `arc review frontline run -` with the ready resolution and the target's
      `{ kind, baseRef, diffBaseSha, headSha }` projection.
+   - `ready / hosted-request` — follow the selected provider through Step 4's hosted dispatch, including the complete
+     pass selected by configured rank after a converged look.
+   - `coverage-required / select-coverage` — apply [code-review's coverage selection][code-coverage-selection].
+     Its declined pre-PR look continues to Step 3; at the open PR use the exact Errand stop continuation.
    - `ready / local-prepare` — if the Owner declined the pass a fix triggers, prepare nothing; continue to Step 3 and
-     offer the Owner-directed review stop at the open PR. Otherwise invoke `arc review local prepare -`; submit
-     evaluator-owned result content through `arc review local attest -`, with runtime-owned bindings injected from the
-     immutable operation.
-   - `findings / respond` — run [`review-triage`][review-triage], include the effective policy as
-     `proposal.severityGatingPolicy`, submit the proposal through the first `arc review respond -` call, emit
-     `payload.dispositionReportText`, obtain complete-set approval, submit the exact
-     approved set through the second `arc review respond -` call, and perform only its returned action through
-     [`review-response`][review-response]. Preserve the `ready-to-fix` authorization's `approvedVerification` through
-     re-entry and changed-target continuation; it does not select fewer checks here. Retain any returned
-     `payload.policyRequest` carrying `conditionalPassAuthorizationId` unchanged for the named next-pass admission.
-   - `approval-required / obtain-ceiling-override` — surface the exact one-pass consequence and
-     `Approve (or redirect)?`; return only exact approval to the same target/lane call.
+     offer the Owner-directed review stop at the open PR. Otherwise invoke `arc review local prepare -` and apply
+     [code-review's coverage selection][code-coverage-selection] whenever it asks. Run
+     [the local operation][code-local-operation] only from its returned ready action.
+   - `findings / respond` — apply [code-review's findings round][code-findings-round] with the exact producer and
+     this Errand's verification/context. Complete its committed verified-fix replay before any push.
+   - `approval-required / obtain-ceiling-override` — apply [code-review's ceiling override][code-ceiling-override]
+     with this exact target/lane call and the available Errand stop continuation. The Errand carries an approved
+     consequence into its named hosted, local, or frontline admission.
    - `stale-target / select-scope` — recompose the exact target, bind its whole-target scope, and rerun the driver.
    - `blocked | unavailable | invalid-override / stop` — surface the typed diagnostics and stop.
 
-   Resume local operations with `arc review local resume -` and reduce with `arc review reduce -`. A command error
-   envelope carries no action unless it names a `remedy`: then render `remedy.text` and continue only through
-   `remedy.argv`, passing any `remedy.stdin` unchanged. Approval is required before any finding-driven fix,
-   durable deferral, channel settlement, or other mutation/commitment. A complete no-action record-only set must
-   be approved for its exact target before continuing. Approved fixes request `arc check increment`, commit atomically,
-   push, and create a new target; the complete-set approval is the fix round's structured gate, so where the
-   configured interlocks release them the commit, push, and approved settlement follow without another stop
-   ([DEV-RULES.ARC § Review-Increment Invariant][review-increment-invariant]). Never carry clearance or merge
-   authority.
-
-   > [!CAUTION]
-   > `commit-interlock` release — commit the approved fixes as `taskCommit`:
-
-   ```text
-   <type>(<scope>): <what the approved fixes change>
-
-   Review disposition set: <identity>
-   - <finding identity>: <verified severity> / <disposition> — <rationale>
-
-   Context: standalone (code review)
-   ```
-
-   > [!CAUTION]
-   > `push-interlock` release — `workflowPush`: `origin <branch>`.
-
-   A frontline `operator-repair` result replays on the same run request. Inspect its reason and operation ID;
-   another provider invocation requires an explicit Owner decision. On approval, re-run
-   `arc review frontline resolve -` for a fresh ready resolution, then `arc review frontline run -` with that
-   resolution and `retryOfOperationId` from the prior operation. A `review reduce` result with
-   `retryable / operator-repair` supplies that ID.
+   Use [code-review's local operation][code-local-operation] for resume, reduction, command remedies, and a
+   frontline operator-repair; retain the returned operation and exact whole-target bindings.
 
 3. **Resolve the Errand PR** before creation. Invoke the exact-head resolver:
 
@@ -392,133 +364,40 @@ remote base all name the same exact head. Any tracked change continues through t
    exact head.
 
    Bind the opened target's `scopeSelection` directly to whole-target and invoke `arc review resolve -` for each
-   incomplete lane. If the Owner has directed that no further standard-review pass be spent, take the exact
+   incomplete lane. Before either standard-lane ready source dispatch, apply the clean-fix-check successor check above.
+   If the Owner has directed that no further standard-review pass be spent, take the exact
    Owner-directed review stop below only from `ready / hosted-request`, `ready / local-prepare`, or
-   `approval-required / obtain-ceiling-override`; stop before source dispatch. Every other driver state retains its
-   typed action. Otherwise, on `ready / hosted-request`, read `arc review status --target <targetRef>` with any ceiling
-   override or additional-pass authorization the driver call carried. When it returns
-   `review-required / review-hosted-request` with an `action` naming the selected provider, pass that action unchanged
-   to `arc review hosted request -`: after an approved fix it carries `coverage: incremental` over only the fix range
-   when that provider can, and its `detail` names the coverage. Status offers no request for a head with no recorded
-   review, so for the Errand's first pass, hand it the driver result's own `action` unchanged instead. When neither
-   result carries an `action`, stop: neither verb recognized this checkout as the Errand's subject.
+   `approval-required / obtain-ceiling-override`, or `coverage-required / select-coverage` once
+   `payload.responseRequired` is false; stop before source dispatch. Every other driver state follows the resolve
+   dispatch above, and an unperformed response enters its disposition protocol first. On `ready / hosted-request`, read
+   `arc review status --target <targetRef>` with any ceiling override or additional-pass authorization the driver call
+   carried. When it returns `review-required / review-hosted-request` with an `action` naming the selected provider,
+   pass that action unchanged to `arc review hosted request -`. A hosted source runs only the lane's first pass or the
+   complete pass after a converged look, with `coverage: complete`; fix checks and delta checks run locally. Status
+   offers no request for a head with no recorded review, so for the Errand's first pass, hand it the driver result's own
+   `action` unchanged instead. When neither result carries an `action`, stop: neither verb recognized this checkout as
+   the Errand's subject.
 
-   - `requested / await` — pass the returned `action` unchanged to `arc review hosted await -`; omitted timing uses
-     the project's configured bounded-call defaults.
-   - `pending / await` — retain the newly returned `action` through the diagnostic below, then pass it unchanged to
-     `arc review hosted await -` for one more bounded call. Repeat this typed continuation until
-     `pending / inspect-or-extend` or another terminal outcome; do not build an independent polling schedule.
-   - `pending / inspect-or-extend` — unattended waiting reached its configured attention threshold. Retain the
-     request for the diagnostic below, then stop. Submitting `action` unchanged checks once; on explicit direction,
-     add `continueAfterAttention: true` to that action for one more bounded call. Neither path requests another review
-     or records a provider outcome.
+   For `requested / await` and pending results, apply [code-review's hosted await and
+   settlement][code-hosted-await-and-settlement] to the returned exact action.
 
-   For either pending outcome, run one short exact-head diagnostic observation before continuing or stopping:
-
-   ```bash
-   arc review checks await \
-     --repository <action.handle.target.repository> \
-     --pull-request <action.handle.target.pullRequest> \
-     --head-sha <action.handle.target.headSha> \
-     --timeout-ms 10000 \
-     --poll-interval-ms 10000
-   ```
-
-   Surface failed required `checks` and any `diagnosticFailures`; when either is present, begin read-only diagnosis by
-   inspecting every returned `failureLogs.logs[].path` before deciding the failure, and surface `failureLogs.failures`
-   when retrieval is partial or unavailable. `unavailable / retry` surfaces `cause`, `detail`, current `checks`, and
-   `diagnosticFailures`, retains the same hosted-review `action`, and ends this foreground attempt. `pending / await`,
-   `green / complete`, and `not-required / complete` retain the same hosted-review `action`; only that action re-enters
-   hosted await. `failed / stop`, stale or mismatched targets, and blocked reads stop with the action intact. This
-   observation does not become review settlement, feed the review driver, move the exact head, or
-   release the draft lock. Before any push that moves the reviewed head while this action is pending, including a fix
-   for a failure this observation found, re-enter the action through hosted await until it concludes and handle its
-   result first, so its findings join the same push. At `pending / inspect-or-extend`, push only on explicit Owner
-   direction, which gives up that result.
-
-   Before feeding any `clean`, `findings`, or `settled-findings` attempt to the driver, set `completedPasses` to
-   the `pass` from the driver envelope that authorized it. A completed attempt consumes that pass; pending chunk
-   series and non-pass outcomes retain the prior count.
+   Before feeding any `clean`, `findings`, or `settled-findings` attempt to the driver, set `completedPasses` to the
+   `pass` from the driver envelope that authorized it. A completed review advances that logical coordinate; pending
+   chunk series and non-pass outcomes retain the prior count. Only complete coverage counts toward the standard ceiling;
+   fix checks run outside it.
 
    - `clean / complete` — feed the returned `attempt` unchanged to `arc review resolve -`; its
      `reviewOperationId` identifies the producer, while `hostedResultId` identifies the result content.
-   - `findings / triage` — run [`review-triage`][review-triage], include the effective policy as
-     `proposal.severityGatingPolicy`, submit the proposal through the first `arc review respond -` call, emit
-     `payload.dispositionReportText`, obtain complete-set approval, submit the exact approved set through the second
-     `arc review respond -` call, and perform only its returned action through [`review-response`][review-response].
-     That approval is the fix round's structured gate, so the steps below follow without another stop where the
-     configured interlocks release them ([DEV-RULES.ARC § Review-Increment Invariant][review-increment-invariant]). When
-     the approved call returns `payload.hostedSettlementPlan` for `settlement: reply-and-resolve` findings, execute its
-     phases in order: invoke `arc review hosted settle -` for every ID in the active phase, passing
-     `payload.hostedSettlementPlan.actorIdentity` unchanged as the settlement actor. Settle each `beforeFixFindingIds`
-     entry against the unchanged originating `target` with `fixTarget: null`, and require every result to complete
-     before any approved fix changes the head. Then apply and verify the approved fixes, then commit and push them:
+   - `findings / triage` — apply [code-review's findings round][code-findings-round] with the Errand verification
+     request and standalone context. Complete the committed verified-fix replay before push, then the remaining
+     [hosted settlement][code-hosted-settlement]. Re-enter this resolve/status route only after response completion.
+   - `rate-limited | transient-unavailable / try-next-source` — feed that safe outcome to the same driver call.
+   - Ambiguous delivery, stale target, malformed output, source failure, or terminal failure stops; never replay an
+     uncertain request.
 
-     > [!CAUTION]
-     > `commit-interlock` release — commit the approved fixes as `taskCommit`:
-
-     ```text
-     <type>(<scope>): <what the approved fixes change>
-
-     Review disposition set: <identity>
-     - <finding identity>: <verified severity> / <disposition> — <rationale>
-
-     Context: standalone (code review)
-     ```
-
-     > [!CAUTION]
-     > `push-interlock` release — `workflowPush`: `origin <branch>`.
-
-     After an approved fix is pushed, load [pull-request-format][pull-request-format] before editing the open
-     description. Update every section and qualifying decision the fix made inaccurate. For a design link, run
-     `git diff --quiet <pinned> HEAD -- <paths>` over every linked path of a layered design, and
-     `git merge-base --is-ancestor <pinned> HEAD`. Re-pin to the current design when either test fails; diagnose
-     command errors rather than treating them as successful checks. With no design link, skip the link checks.
-     On GitHub, apply the description with `gh pr edit <n> --body-file <path>` before review re-entry.
-
-     Then settle every `afterFixFindingIds` entry against the originating `target` plus the changed `fixTarget` verified
-     for the current head. A `settlement: not-applicable` finding appears in neither phase and remains triage-only:
-     never invoke `hosted settle`, post a reply or compensating summary comment, or resolve anything for it. Retain any
-     returned `payload.policyRequest` carrying `conditionalPassAuthorizationId` unchanged and pass its exact ceiling
-     override into the named hosted, local, or frontline admission; never reconstruct the authorization ID. On
-     `head-pending / retry`, surface `remedy.text` and end this foreground attempt. A later re-entry passes
-     `remedy.stdin` unchanged through `remedy.argv`. On re-entry, re-invoke the exact settlement request.
-     `already-settled / complete` advances the durable attempt only after the verb verifies the exact approved reply,
-     actor, comment, and resolved thread with no host mutation; every stop state remains a stop. After the required
-     phases complete, follow the approved response continuation and, after a fix, the verified-fix response continuation
-     through the owning status or resolve action. A hosted response that settles with no fix returns
-     `settled | already-settled / continue-review`; continue from its `payload.policy` when present. Do not feed the
-     same findings to the driver again. If the Owner declined the pass the fix triggers, resolve the lane at the new
-     head as usual and, from `ready / hosted-request`, present the Owner-directed review stop offer below instead of
-     requesting the pass.
-   - `rate-limited | transient-unavailable / try-next-source` — feed that safe outcome to the same driver call; it
-     may select the next configured source without consuming the pass.
-   - Any ambiguous delivery, stale target, malformed output, source failure, or terminal failure stops. Never replay
-     an uncertain request.
-
-   **Owner-directed review stop (open PR only).** When the Owner explicitly asks to end further standard-review
-   spending, declines at a disposition turn the pass a fix triggers, or redirects an
-   `approval-required / obtain-ceiling-override` decision, present one exact offer before treating that direction as
-   approval. Re-read `arc review status --target <targetRef>` to validate the
-   current Errand binding; `review-required` is expected, but a refusal or pending/response action stops. Name the
-   current Errand key and claim, repository and PR, base ref and OID, head SHA, at least one completed same-claim
-   standard-review pass and its disposition/settlement state, the complete current PR diff, and the change since
-   the last completely reviewed head. State the residual risk and that `arc review status` will remain
-   `review-required`: this is Owner acceptance, not a clean provider result or an ARC terminus. Stop if any review
-   request is pending, a known finding lacks an approved disposition or required channel settlement, an authorized
-   fix remains unfinished, the earlier reviewed head is not an ancestor of this head, or the evidence is incomplete.
-   Ask for explicit acceptance of that exact residual risk; an earlier approval to fix, commit, or spend a pass does
-   not answer this offer.
-
-   On acceptance, request no further standard-review pass for those exact coordinates and continue to the reviewed
-   merge lane below, not auto-merge. Do not submit a fabricated `clean` attempt, `terminus`, or `ceilingOverride` to
-   the review commands. Recheck the Errand claim, PR, base OID, head, and known review/response state at Step 5 and
-   immediately before release. A changed claim, PR, or head, or a new finding, voids this decision and returns to this
-   exact offer. A base that alone moved keeps it under the disjoint-drift condition: the accepted base OID is an
-   ancestor of the new base OID, and `arc base drift --json` reads the exact accepted head with `movement: disjoint`.
-   Name the new base OID at the next report. A rewound base or any other drift reading voids it. This conversational
-   authority is not durable: after a context loss or session re-entry, obtain it again if the exact approval and its
-   coordinates cannot be recovered.
+   **Owner-directed review stop (open PR only).** Apply [code-review's Errand stop][code-errand-stop] with the
+   current claim, repository/PR, base/head, reviewed delta, and completed response. Its accepted continuation goes
+   to the reviewed merge lane below; recheck its exact authority at Step 5 and immediately before release.
 
    On interruption, retain the returned operation ID and follow the last typed `state` / `nextAction`. Resume a
    suspended local operation with `arc review local resume -`; re-invoke the owning idempotent verb for frontline,
@@ -527,11 +406,10 @@ remote base all name the same exact head. Any tracked change continues through t
 
    After every target movement, return through the routed review action and dispatch its typed continuation. Do not
    classify movement or choose review scope from prose. When Step 6 supplies a `supplemental` recommendation, request
-   the hosted pass the review status offers; when it supplies `fresh`, repeat the complete applicable review. If an
-   adapter reports `effectiveCoverage: complete` for the supplemental request, accept the broader review and disclose
-   the upgrade. Under an Owner-directed review stop, a changed target, or a base movement the disjoint-drift condition
-   above does not keep, requires a new exact offer describing the changed delta and the returned review-applicability
-   result; never carry the prior acceptance forward.
+   complete pass the review status offers; when it supplies `fresh`, repeat the complete applicable review. Under an
+   Owner-directed review stop, a changed target, or a base movement the [Errand stop's disjoint-drift
+   condition][code-errand-stop] does not keep, requires a new exact offer describing the changed delta and the returned
+   review-applicability result; never carry the prior acceptance forward.
 
    After an approved base reconcile (Step 6's `merged / run-quality-gates`), read the new head's
    `arc review status --target <targetRef>` before resolving review. A `settled` routed obligation completes the
@@ -760,11 +638,18 @@ idempotent and may return the next file-ordered execute-bound offer.
 [promote-errand-to-wu]: ../work-unit-lifecycle/planning/init-work-unit.md#promote-errand-to-work-unit-path
 [commit-format]: ../../../methods/commit-format.md
 [commit-footer]: ../../../methods/commit-footer.md
-[review-response]: ../../../methods/review-response.md
-[review-triage]: ../../../methods/review-triage.md
 [errand-class]: ../../../../reference/strategies/arc/strategy-work-organization.md#errand-work-class
 [auto-lane]: ../../../../reference/strategies/arc/strategy-work-organization.md#auto-merge-lane
 [route-discovered-work]: ../../../methods/route-discovered-work.md
 [classify-work-unit]: ../../../methods/classify-work-unit.md
-[review-increment-invariant]: ../../../rules/DEV-RULES.ARC.md#review-increment-invariant
 [pull-request-format]: ../../../methods/pull-request-format.md
+
+[code-convergence]: ../../../methods/code-review.md#convergence
+[code-successor-decision]: ../../../methods/code-review.md#successor-decision
+[code-coverage-selection]: ../../../methods/code-review.md#coverage-selection
+[code-ceiling-override]: ../../../methods/code-review.md#ceiling-override
+[code-findings-round]: ../../../methods/code-review.md#findings-round
+[code-hosted-await-and-settlement]: ../../../methods/code-review.md#hosted-await-and-settlement
+[code-hosted-settlement]: ../../../methods/code-review.md#hosted-settlement
+[code-errand-stop]: ../../../methods/code-review.md#errand-stop
+[code-local-operation]: ../../../methods/code-review.md#local-operation

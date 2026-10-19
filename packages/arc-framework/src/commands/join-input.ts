@@ -1,13 +1,14 @@
 /** Canonical acquisition and schema contract for `arc join`. */
 
 import { z } from "zod";
-import { joinIdentityPromptSite } from "../prompts/identity-prompt-sites.js";
+import { joinStoreDesignationSite } from "../prompts/join-store-designation.js";
+import { joinIdentityPromptSite, joinIdentityInUsePromptSite } from "../prompts/identity-prompt-sites.js";
 import { joinRolePromptSite, joinToolsPromptSite } from "../prompts/join-prompts.js";
 
 import { CommandToolListSchema } from "./init-input.js";
 import { normalizeCommandIdentity } from "../lib/command-input/identity.js";
 import type { InputResolution } from "../lib/command-input/resolution.js";
-import type { CommandInputDeclaration } from "../lib/command-input/declaration.js";
+import { declareInteractionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 
 /** Complete canonical input for fresh join and personal reconfiguration. */
@@ -48,9 +49,16 @@ export const joinCommandInputPolicyDeclarations = [{
   commandPath: "join",
   aliases: [],
   sites: [
+    joinIdentityInUsePromptSite,
     joinRolePromptSite,
     joinToolsPromptSite,
     joinIdentityPromptSite,
+    joinStoreDesignationSite,
+    declareInteractionSite({ file: "handlers/join.ts", kind: "subprocess", callee: "execa", occurrence: 1 }, {
+      acquisition: "subprocess", schemaOwnership: "none", cancellation: "not-applicable",
+      automation: { noInput: "disable-terminal-input", flags: [], acceptedSyntax: [] },
+      mutationBoundary: "store remote designation", subprocess: "terminal-prompts",
+    }),
   ],
 }] satisfies readonly CommandInputDeclaration[];
 

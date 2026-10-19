@@ -1,3 +1,4 @@
+import { localPendingBinding } from "../fixtures/lane-pending-binding.js";
 /** Local Git proof for the committed Candidate review-response continuation. */
 
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -228,6 +229,7 @@ describe("committed Candidate response continuation", () => {
     }
     const pending = { ...coordinates, headSha: input.toHeadSha, attemptId: "next", logicalPass: 2,
       changeRequestId: "pull/1", sourceId: "delegated-agent", outcome: "pending" as const, consumedPass: false,
+      local: localPendingBinding({ operationId: "next", repositoryId: "repo", headSha: input.toHeadSha }),
       conditionalPendingAdmission: { authorizationId: captured.authorizationId, repositoryId: "repo",
         lane: "standard" as const, lineage, producedHeadSha: input.toHeadSha, nextPass: 2, admissionId: "next",
         now: coordinates.now, confirmDispositionSetCurrent: async () => true } };

@@ -26,6 +26,8 @@
  * @module
  */
 
+import { inspectCheckoutMarker } from "../locus/marker-occupancy.js";
+import { decodeWorktreeMarkerOwnership } from "../git/worktree-marker.js";
 import { resolveCurrentWorkUnit } from "../store/current-work-unit.js";
 import type { Store } from "../store/contract.js";
 import type { StoreRecord } from "../store/read.js";
@@ -80,6 +82,7 @@ function candidateSlug(candidate: MetaFileCandidate): string | null {
 
 /** Dependencies for {@link makeWorktreeOccupancyGuard}. */
 export interface WorktreeOccupancyDeps {
+  identity?: string;
   /** The same operational store bound by the lifecycle invocation. */
   store?: Store;
   /** The worktree root whose `active/` is checked for occupancy. */
@@ -152,7 +155,7 @@ export function makeWorktreeOccupancyGuard(deps: WorktreeOccupancyDeps): GuardVa
     // (in-place, or a branch-creating spawn) materializes here and is checked.
     if (!materializesInCurrentCheckout(inputs)) return { ok: true };
 
-    if (deps.store !== undefined) return readStoreOccupancy(deps.cwd, deps.store, slug);
+    if (deps.store !== undefined) return readStoreOccupancy(deps.cwd, deps.store, slug, deps.identity);
     const { candidates } = await deps.readActiveMetaCandidates(deps.cwd);
 
     for (const candidate of candidates) {
@@ -211,8 +214,18 @@ export function makePauseGuard(store?: Store, basis?: StoreRecord): GuardValidat
 }
 
 /** Enforce identity-based occupancy using the bound store's resolver. */
-async function readStoreOccupancy(cwd: string, store: Store, slug: string): Promise<GuardResult> {
-      const current = await resolveCurrentWorkUnit({ cwd: cwd, store: store });
+async function readStoreOccupancy(cwd: string, store: Store, slug: string, identity?: string): Promise<GuardResult> {
+  if (usesOffBranchState(store)) {
+    const occupancy = await inspectCheckoutMarker({ cwd, store, identity });
+    if (occupancy.kind === "unreadable") return { ok: false, message: occupancy.reason };
+    if (occupancy.kind === "occupied") {
+      const ownership = decodeWorktreeMarkerOwnership(occupancy.marker.marker);
+      const own = occupancy.marker.marker.husk === undefined && ownership.kind === "current"
+        && ownership.subject.kind === "work-unit" && ownership.subject.name === slug;
+      if (!own) return { ok: false, message: occupancy.reason };
+    }
+  }
+  const current = await resolveCurrentWorkUnit({ cwd, store });
   if (current.status === "none" && current.warnings.length === 0) return { ok: true };
   if (current.status !== "resolved" || current.candidate.record === undefined) return {
     ok: false, message: `Unable to resolve this checkout's work-unit occupancy. ${current.warnings.join(" ")}`,

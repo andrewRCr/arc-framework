@@ -18,6 +18,7 @@
 import type { Store } from "../lib/store/contract.js";
 import type { LocusPorts } from "../lib/work-unit/locus-ports.js";
 import { usesOffBranchState } from "../lib/store/lifecycle-write.js";
+import { runColdStartArm as coldStart } from "./start-cold.js";
 import { handleStoreStart } from "./start-store.js";
 import { lstat, readFile, readdir, rm, rmdir } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
@@ -29,10 +30,8 @@ import {
   buildCreateNewCeremonyCommitMessage,
   buildGraduateCeremonyCommitMessage,
   resolveStartDispatch,
-  runColdStart,
   runCreateNew,
   runGraduate,
-  deriveColdStartWuName,
 } from "../commands/start.js";
 import { expandActiveInFlight } from "../commands/active.js";
 import { validateClass } from "../lib/kernel/schema/vocabulary.js";
@@ -41,7 +40,6 @@ import { readConfigSettings } from "../lib/config/status-reader.js";
 import type { GitExec } from "../lib/git/exec.js";
 import { refreshBase } from "../lib/git/refresh-base.js";
 import { countAheadBehindRef } from "../lib/git/worktree-sync.js";
-import { isProtectedBranch } from "../lib/release/interlock-validation.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
 import { renderWorktreeEntryRecipe } from "../lib/harness/worktree-entry.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
@@ -80,7 +78,6 @@ import {
   isHandledError,
   requireArcProjectRoot,
   runWithInteractionProgress,
-  resolveCurrentBranchName,
   resolveUserIdentity,
 } from "./shared.js";
 import { resolveWorktreeLocation } from "../lib/git/worktree-location.js";
@@ -182,7 +179,9 @@ export async function handleStart(
 
   const executor = buildExecutorContext({ cwd, io, identity, teamMode: false, internalTemplateDir: getInternalTemplatePath(), ...overrides });
   if (usesOffBranchState(executor.store)) {
-    await handleStoreStart(input, { cwd, io, identity, interaction: context, executor, locusPorts: overrides.locusPorts, admitColdStart: overrides.admitColdStart });
+    await handleStoreStart(input, { cwd, io, identity, interaction: context, executor, admitColdStart: overrides.admitColdStart ?? (async coldInput => coldStart(coldInput.name, coldInput, {
+      io, cwd, identity, interaction: context, store: executor.store, locusPorts: executor.locusPorts,
+    })) });
     return;
   }
 
@@ -342,6 +341,7 @@ export async function handleStart(
 /** Shared ambient context the arms resolve once. */
 interface ArmContext {
   store?: Store;
+  locusPorts?: LocusPorts;
   io: ReturnType<typeof createUserIOContext>;
   cwd: string;
   identity: string;
@@ -921,69 +921,6 @@ async function resume(wuName: string, opts: StartOptions, ctx: ArmContext): Prom
 
   p.note([`Work unit: ${wuName}`, `Meta:      ${result.metaPath}`].join("\n"), "Resumed");
   reportAdvisories(result.outcome);
-  p.outro("Done.");
-}
-
-/** Cold-start arm (`--here`) — scaffold a Planning meta into the current worktree. */
-async function coldStart(
-  name: string | undefined,
-  opts: StartOptions,
-  ctx: ArmContext,
-): Promise<void> {
-  const branch = await resolveCurrentBranchName(ctx.io.exec);
-  if (!branch) {
-    p.log.error(
-      "Cannot resolve the current branch (detached HEAD?). Check out a branch before cold-starting.",
-    );
-    process.exitCode = 1;
-    return;
-  }
-
-  // On a protected base, cold-start cuts `plan/<name>` rather than scaffolding
-  // onto the base — word the offer for it.
-  const { settings } = await readConfigSettings(ctx.cwd);
-  const onProtectedBase = isProtectedBranch(settings, branch);
-
-  const previewName = deriveColdStartWuName(name, branch) ?? "(name from branch)";
-  const prompt = onProtectedBase
-    ? `Protected base '${branch}' — cut plan/${previewName} and cold-start "${previewName}" onto it?`
-    : `Cold-start work unit "${previewName}" on branch ${branch} in this worktree?`;
-  const confirmation = await confirmStep(coldStartPromptSite, ctx.interaction, prompt);
-  if (confirmation.kind !== "answered" || !confirmation.value) {
-    p.log.info("Cold-start cancelled.");
-    return;
-  }
-
-  const outcome = await runWithInteractionProgress(ctx.interaction,
-    "Scaffolding planning meta...",
-    "Cold-start scaffold complete.",
-    () => runColdStart(
-      { io: ctx.io, internalTemplateDir: getInternalTemplatePath() },
-      { worktreePath: ctx.cwd, branch, identity: ctx.identity, name, from: opts.from },
-    ),
-    (r) => r.ok,
-    "Cold-start failed.",
-  );
-  if (!outcome.ok) {
-    p.log.error(outcome.reason);
-    process.exitCode = 1;
-    return;
-  }
-
-  const r = outcome.value;
-  const lines = [
-    `Work unit: ${r.wuName}`,
-    `Branch:    ${r.branch}${r.cutFromBase ? ` (cut off protected base ${r.cutFromBase})` : ""}`,
-    `Meta:      ${projectActiveMetaPath(r.wuName)}`,
-  ];
-  if (r.origin) lines.push(`Origin:    ${r.origin}`);
-  if (r.passthrough) {
-    lines.push(
-      `Spec input (${r.passthrough.kind}): ${r.passthrough.value}`,
-      "  → read as input to the work unit’s own draft during planning",
-    );
-  }
-  p.note(lines.join("\n"), "Cold-started");
   p.outro("Done.");
 }
 

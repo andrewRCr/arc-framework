@@ -40,6 +40,8 @@ beforeAll(async () => {
   await symlink("target-directory", join(root, "docs/directory-link.md"), "dir");
   await symlink(outside, join(root, "docs/escaping-link.md"), "file");
   await execa("git", ["init", "-q"], { cwd: root });
+  await write(".git/administration.md", "# Git administration\n");
+  await symlink("../.git/administration.md", join(root, "docs/git-admin-link.md"), "file");
   await execa("git", ["add", "."], { cwd: root });
   await execa("git", ["-c", "user.name=Test User", "-c", "user.email=test@example.com",
     "commit", "-q", "-m", "baseline"], { cwd: root });
@@ -102,6 +104,43 @@ it("retains native lint findings for included files", async () => {
   const result = await lint(["docs/invalid.md"]);
   expect(result.exitCode).toBe(1);
   expect(result.stderr).toContain("MD012");
+});
+
+it("reads an ignored explicit file only with the requested option", async () => {
+  const path = ".arc/active/ignored-lint/page.md";
+  await write(".arc/active/ignored-lint/.gitignore", "*.md\n");
+  await write(path, "# Projected\n\n\n");
+  const refused = await lint([path]);
+  expect(refused.exitCode).toBe(1);
+  expect(refused.stderr).toContain("ignored or excluded");
+  const findings = await lint(["--allow-ignored", path]);
+  expect(findings.exitCode, findings.stdout + findings.stderr).toBe(1);
+  expect(findings.stderr).toContain(`${path}:`);
+  expect(findings.stderr).toContain("MD012");
+  await write(path, "# Corrected\n");
+  expect((await lint(["--allow-ignored", path])).exitCode).toBe(0);
+});
+
+it.each([
+  [".arc/user/andrew/nested/WORKING-MEMORY.md", "excluded"],
+  [".arc/.hidden/temp-probe.md", "excluded"],
+  [".git/administration.md", "excluded"],
+  ["docs/git-admin-link.md", "Git administration"],
+  ["../outside.md", "Invalid repository-relative"],
+  ["docs/directory-link.md", "not a regular file"],
+  ["docs/escaping-link.md", "escapes the repository"],
+])("keeps read boundaries with --allow-ignored for %s", async (path, reason) => {
+  if (path.startsWith(".git/") || path.startsWith(".arc/")) await write(path, "# Excluded\n");
+  const result = await lint(["--allow-ignored", path]);
+  expect(result.exitCode).toBe(1);
+  expect(result.stderr).toContain(reason);
+  expect(result.stdout).not.toContain("Linting:");
+});
+
+it("keeps contained symlink lint reads available with --allow-ignored", async () => {
+  const result = await lint(["--allow-ignored", "docs/contained-link.md"]);
+  expect(result.exitCode, result.stderr).toBe(0);
+  expect(lintedFileCount(result.stdout)).toBe(1);
 });
 
 

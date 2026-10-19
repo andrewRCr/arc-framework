@@ -331,3 +331,12 @@ describe("resolveViewArtifact", () => {
     });
   });
 });
+
+it("views an off-branch named session context without projected metadata or workspace files", async () => {
+  const dependencies = deps({ stateOffBranch: true,
+    resolveExplicitTarget: vi.fn(async () => { throw new Error("No checkout lifecycle metadata"); }),
+    resolveSessionNotes: vi.fn(async () => ({ status: "resolved" as const, path: "/repo/.arc/active/meta-feature.md" })),
+    pathExists: async () => { throw new Error("Named session context must not probe workspace files"); } });
+  expect(await resolve("session-notes", dependencies, { forSlug: "feature" }))
+    .toEqual({ status: "resolved", kind: "session-notes", path: "/repo/.arc/active/meta-feature.md", workUnit: "feature" });
+});

@@ -1,6 +1,13 @@
 /** Intentional concise list summaries for the registered visible command tree. */
 
 export const COMMAND_SUMMARIES: Readonly<Record<string, string>> = {
+  "inbox": "List entries in an inbox or work item",
+  "route": "Move or insert a routed entry",
+  "locus release": "Release the checkout's work-item occupancy",
+  "errand queue": "List the execution queue",
+  "errand queue set": "Replace the execution queue",
+  "handoff": "Manage session handoff state",
+  "handoff write": "Write anchored session handoff state",
   "check": "Run standalone repository checks",
   "check commit-msg": "Validate a commit message",
   "check gate": "Run a declared check gate",
@@ -180,6 +187,8 @@ export const COMMAND_SUMMARIES: Readonly<Record<string, string>> = {
   "review merge-method": "Manage the configured merge method",
   "review checks await": "Await required checks for a pull-request head",
   "review checks": "Manage required status checks",
+  "review lane": "Read review lineage history",
+  "review lane read": "Read lineage rejections and standard-lane facts",
   "review readiness": "Validate lifecycle readiness for a head",
   "review planning-lane": "Classify a Git change for planning clearance",
   "review planning-grooming resolve": "Resolve a planning-grooming review exemption",

@@ -45,6 +45,7 @@ interface UnderwrapInputs {
   readonly root: string;
   readonly paths: readonly string[];
   readonly worktree: boolean;
+  readonly allowIgnored: boolean;
   readonly exec: GitExec;
   readonly readBlob: ReadIndexedBlob;
 }
@@ -58,7 +59,8 @@ async function readUnderwrapStrings(options: UnderwrapInputs): Promise<Record<st
     if (isMarkdownPathExcluded(path)) throw new ArcError(`Markdown path is excluded: ${path}`, "markdown.excluded-path");
   }
   if (options.worktree) {
-    await validateExplicitMarkdownPaths({ root: options.root, paths, operation: "lint-read", exec: options.exec, lstat, realpath });
+    await validateExplicitMarkdownPaths({ root: options.root, paths, operation: "lint-read", exec: options.exec, lstat, realpath,
+      allowIgnoredPaths: options.allowIgnored ? new Set(paths) : undefined });
     process.stderr.write("Working-tree feedback only; does not certify the Git index.\n");
   }
   const strings: Record<string, string> = {};
@@ -75,7 +77,10 @@ async function readUnderwrapStrings(options: UnderwrapInputs): Promise<Record<st
 export async function main(cwd = process.cwd(), receivedPaths: readonly string[] = process.argv.slice(2)): Promise<number> {
   try {
     const { values, positionals } = parseArgs({ args: [...receivedPaths], allowPositionals: true,
-      options: { worktree: { type: "boolean", default: false } } });
+      options: { worktree: { type: "boolean", default: false }, "allow-ignored": { type: "boolean", default: false } } });
+    if (values["allow-ignored"] && !values.worktree) {
+      throw new ArcError("--allow-ignored requires --worktree and explicit Markdown paths", "markdown.invalid-option");
+    }
     if (values.worktree && positionals.length === 0) {
       throw new ArcError("--worktree requires at least one Markdown path", "markdown.empty-selection");
     }
@@ -83,7 +88,8 @@ export async function main(cwd = process.cwd(), receivedPaths: readonly string[]
     const exec: GitExec = (command, args, options) => gitExec(command, args, { ...options, indexFile });
     const root = await resolveMarkdownRepositoryRoot({ cwd, exec, realpath });
     const readBlob: ReadIndexedBlob = (repoRoot, path) => readGitBlobBytes(repoRoot, null, path, { indexFile });
-    const strings = await readUnderwrapStrings({ root, paths: positionals, worktree: values.worktree, exec, readBlob });
+    const strings = await readUnderwrapStrings({ root, paths: positionals, worktree: values.worktree,
+      allowIgnored: values["allow-ignored"], exec, readBlob });
     if (Object.keys(strings).length === 0) {
       process.stderr.write("No changed indexed Markdown files to check for under-wrapping.\n");
       return 5;

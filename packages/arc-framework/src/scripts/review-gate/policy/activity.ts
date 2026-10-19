@@ -44,8 +44,8 @@ function recordAt(value: unknown): Record<string, unknown> | null {
 
 /** Resolve registered method files and bind their booleans through the injected routing port. */
 export function bindReviewMethodActivity(port: ReviewMethodFilePort): BoundReviewMethodActivity {
-  const selfReview = resolveMethodActivation("self-review", port);
-  const frontlineReview = resolveMethodActivation("frontline-review", port);
+  const selfReview = resolveMethodActivation("code-review-author", port);
+  const frontlineReview = resolveMethodActivation("code-review-frontline", port);
   const activity = { selfReview: selfReview.active, frontlineReview: frontlineReview.active };
   return {
     activityPort: { readReviewMethodActivity: () => activity },

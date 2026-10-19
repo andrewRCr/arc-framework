@@ -95,7 +95,7 @@ describe("GitHub change-request lifecycle port", () => {
       { command: "gh", match: { predicate: (args) => args[0] === "pr" && args.includes("--search") },
         responses: [{ stdout: JSON.stringify([pull({ headRefName: "chore/renamed" })]), stderr: "" }] },
     ]);
-    await expect(createGhChangeRequestLifecyclePort(exec).read(configured, changeRequest))
+    await expect(createGhChangeRequestLifecyclePort(exec, undefined, true).read(configured, changeRequest))
       .resolves.toMatchObject({ kind: "changed-head" });
   });
 
@@ -159,4 +159,13 @@ describe("transient change-request tail retirement", () => {
       lifecycle: { ...exact, changeRequest } as ChangeRequestLifecycleEvidence,
     })(new Map([[groom.slug, groom]]))).toMatchObject({ kind: "refused" });
   });
+});
+
+it("retains the host's actual merge commit separately from the Errand head", async () => {
+  const headSha = "a".repeat(40), mergeSha = "b".repeat(40);
+  const exec = async () => ({ stdout: JSON.stringify([{ number: 1, state: "MERGED", baseRefName: "main", headRefName: "chore/fix-it",
+    headRefOid: headSha, reviewDecision: null, mergeCommit: { oid: mergeSha } }]), stderr: "" });
+  const lifecycle = await createGhChangeRequestLifecyclePort(exec, undefined, true).read({ repositoryRef: "org/repo", hostRef: "github.com", baseRef: "main" },
+    { repositoryRef: "org/repo", hostRef: "github.com", baseRef: "main", headRef: "chore/fix-it", headSha });
+  expect(lifecycle).toMatchObject({ kind: "merged", mergeCommitSha: mergeSha });
 });

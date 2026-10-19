@@ -43,6 +43,7 @@ function seed(overrides: Partial<CompactionSeed> = {}): CompactionSeed {
     repoRoot: "/repo",
     branch: "feat/compaction-recovery",
     head: "72d145021bf4166fa70efc5b9fd11916cf0a359a",
+    stateVersion: null,
     dirty: true,
     activeWorkUnit: "compaction-recovery",
     metaPath: ".arc/active/meta-compaction-recovery.md",
@@ -71,8 +72,14 @@ function seed(overrides: Partial<CompactionSeed> = {}): CompactionSeed {
 }
 
 describe("CompactionSeed schema", () => {
+  it("refuses the retired seed version explicitly", () => {
+    expect(parseCompactionSeedJson(JSON.stringify({ ...seed(), schemaVersion: 1 }))).toMatchObject({
+      ok: false, error: { kind: "schema-version-mismatch", message: "compaction seed schemaVersion must be 2, got 1" },
+    });
+  });
+
   it("pins the schema version literal", () => {
-    const version: CompactionSeedSchemaVersion = 1;
+    const version: CompactionSeedSchemaVersion = 2;
 
     expect(version).toBe(COMPACTION_SEED_SCHEMA_VERSION);
   });
@@ -95,7 +102,7 @@ describe("CompactionSeed schema", () => {
     };
     const value = seed({ locus });
     expect(parseCompactionSeedJson(stringifyCompactionSeed(value))).toEqual({ ok: true, seed: value });
-    expect(value.schemaVersion).toBe(1);
+    expect(value.schemaVersion).toBe(2);
     expect(JSON.stringify(value)).not.toMatch(/recordId|leaseId|sessionHomePath/u);
   });
 
@@ -257,6 +264,7 @@ describe("CompactionSeed schema", () => {
       "repoRoot",
       "branch",
       "head",
+      "stateVersion",
       "dirty",
       "activeWorkUnit",
       "metaPath",
@@ -278,7 +286,7 @@ describe("CompactionSeed schema", () => {
     }
   });
 
-  it.each([0, 2])("rejects schema version %s with the actual version", (schemaVersion) => {
+  it.each([0, 3])("rejects schema version %s with the actual version", (schemaVersion) => {
     const result = parseCompactionSeedJson(JSON.stringify({ ...seed(), schemaVersion }));
 
     expect(result.ok).toBe(false);

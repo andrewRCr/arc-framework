@@ -40,7 +40,9 @@ vi.mock("../../../../../src/scripts/review-gate/policy/lane-policy-config.js", (
   resolveConfiguredLanePolicy: async () => ({ sources: ["codex-pr"], maxPasses: 3 }),
 }));
 vi.mock("../../../../../src/scripts/review-gate/runtime/local-prepare-composition.js", () => ({
-  createLocalPrepareDependencies: () => ({ operationStore: {} }),
+  createLocalPrepareDependencies: () => ({ operationStore: {
+    readOperation: async () => ({ state: null, version: null }),
+  } }),
 }));
 vi.mock("../../../../../src/scripts/review-gate/hosts/local/review-result-reader-composition.js", () => ({
   createRepositoryReviewResultReader: () => ({
@@ -79,7 +81,7 @@ const projection = {
   reasons: ["sensitive-change-set"] as const,
   rubricVersion: "standard-review/v1",
   rubricDigest: digest("rubric"),
-  retrigger: "full-final" as const,
+  retrigger: "incremental" as const,
   count: 1 as const,
 };
 

@@ -1,6 +1,7 @@
 /** Public result contract for Errand terminal operations. */
 
 import { z } from "zod";
+import { QueueOfferProblemSchema } from "../inbox/offer.js";
 
 import { SlugSchema } from "../kernel/index.js";
 import {
@@ -26,6 +27,8 @@ export const ErrandTerminalGenerationSchema = z.union([
 ]);
 
 const common = {
+  leftOut: z.array(QueueOfferProblemSchema).optional(),
+  skipped: z.array(QueueOfferProblemSchema).optional(),
   operation: ErrandTerminalOperationSchema,
   recommendedPromptText: LocusOpaqueTextSchema,
 };

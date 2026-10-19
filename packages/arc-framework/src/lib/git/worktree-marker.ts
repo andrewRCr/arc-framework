@@ -12,6 +12,7 @@
  * @module
  */
 
+import { isValidOriginBinding } from "../locus/origin-binding.js";
 import { RecordReferenceSchema, RecordVersionSchema } from "../store/identity.js";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
@@ -24,8 +25,6 @@ import { SlugSchema } from "../kernel/index.js";
 import { resolveArcPath } from "../layout/index.js";
 import {
   LocusAbsolutePathSchema,
-  LocusDigestSchema,
-  LocusOpaqueTextSchema,
   LocusTokenSchema,
 } from "../locus/schema/limits.js";
 import type {
@@ -137,10 +136,12 @@ interface WorktreeMarkerBase {
   createdAt: string;
   /** Optional machine-local checkout to return to after transient completion. */
   parentCheckoutPath?: string;
-  /** Exact partial-Errand inbox entry, present only with its source digest. */
+  /** Exact partial-Errand inbox entry, bound to a source digest or observed version. */
   originEntry?: string;
   /** Digest binding {@link WorktreeMarkerBase.originEntry} to its capture source. */
   originEntrySourceDigest?: string;
+  /** Observed entry version for a qualified inbox identity. */
+  originEntryVersion?: string;
   /** Optional proof that ARC completed the terminal detach transition. */
   husk?: WorktreeHuskStamp;
   /** Exact deferred directory move for a renamed spawned worktree. */
@@ -267,16 +268,10 @@ export function isWorktreeMarker(value: unknown): value is WorktreeMarker {
   const parentValid = marker.parentCheckoutPath === undefined
     || LocusAbsolutePathSchema.safeParse(marker.parentCheckoutPath).success;
   const partial = isPartialErrandWorktreeSubject(marker.createdFor);
-  const hasOriginEntry = marker.originEntry !== undefined;
-  const hasOriginDigest = marker.originEntrySourceDigest !== undefined;
-  const originValid = partial
-    ? hasOriginEntry === hasOriginDigest
-      && (!hasOriginEntry
-        || (LocusOpaqueTextSchema.safeParse(marker.originEntry).success
-          && LocusDigestSchema.safeParse(marker.originEntrySourceDigest).success))
-    : !hasOriginEntry && !hasOriginDigest;
+  const originValid = isValidOriginBinding(marker, partial);
   const primaryOccupancyValid = marker.spawnedByArc !== false
-    || ((isTransientWorktreeSubject(marker.createdFor) || partial)
+    || ((isTransientWorktreeSubject(marker.createdFor) || partial
+      || (isWorktreeMarkerSubject(marker.createdFor) && marker.createdFor.kind === "work-unit"))
       && marker.husk === undefined
       && marker.renameMovePending === undefined
       && marker.decompositionCandidate === undefined);

@@ -673,3 +673,15 @@ describe("detectStagedForeignWrites", () => {
     ]);
   });
 });
+
+it("returns before any Git or store read when operational state is off branch", async () => {
+  const { createLifecycleHarness } = await import("../../helpers/store/lifecycle-harness.js");
+  const h = createLifecycleHarness();
+  const store = new Proxy(h.store, { get(target, key) {
+    if (key === "capabilities") return target.capabilities;
+    throw new Error(`No state access expected: ${String(key)}`);
+  } });
+  expect(await detectStagedForeignWrites({ store, exec: throwingExec,
+    get roster(): OverlapRoster { throw new Error("No roster read expected"); },
+    paths: [".arc/active/meta-other.md"], baseBranch: "main", originatingWorktreePath: "/caller" })).toEqual({ overlaps: [] });
+});

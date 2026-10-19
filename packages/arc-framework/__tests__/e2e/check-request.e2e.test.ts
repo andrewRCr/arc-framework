@@ -163,3 +163,12 @@ it("renders check help successfully without running a declared check", async () 
   expect(result.stdout).toContain("--range");
   await expect(readFile(join(root, "receipt.json"))).rejects.toMatchObject({ code: "ENOENT" });
 });
+
+it.each(["increment", "segment", "run"])("describes projected selection scope in check %s help", async form => {
+  const root = await fixture();
+  const result = await runArc(["check", form, "--help"], root);
+  expect(result.exitCode, result.stderr).toBe(0);
+  expect(result.stdout).toContain("selection");
+  expect(result.stdout).toContain(form === "run" ? "whole" : "changed");
+  await expect(readFile(join(root, "receipt.json"))).rejects.toMatchObject({ code: "ENOENT" });
+});

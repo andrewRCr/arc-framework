@@ -1,4 +1,5 @@
 /** Review command handlers driven in this process, for setup a test does not assert on at the CLI boundary. */
+import { withReviewReport } from "../fixtures/review-report-input.js";
 
 import {
   handleReviewLocalAttest,
@@ -62,7 +63,7 @@ export const inProcessReview = {
   reduce: (root: string, request: unknown): Promise<InProcessReviewEnvelope> => invoke(root, request, (boundary) =>
     handleReviewReduce("-", { ...boundary, reduce: (input) =>
       reduceReviewCommand(input, createReduceDependencies({ cwd: root, exec: makeGitExec(root) })) })),
-  respond: (root: string, request: unknown): Promise<InProcessReviewEnvelope> => invoke(root, request, (boundary) =>
+  respond: (root: string, request: unknown): Promise<InProcessReviewEnvelope> => invoke(root, withReviewReport(request), (boundary) =>
     handleReviewRespond("-", { ...boundary, respond: (input) =>
       respondToReviewCommand(input, createRespondDependencies({ cwd: root, exec: makeGitExec(root) })) })),
 };

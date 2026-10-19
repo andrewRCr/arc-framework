@@ -1,7 +1,16 @@
 /** Machine-readable review workflow handlers. */
+import { ReviewLaneReadRequestSchema, ReviewLaneReadEnvelopeSchema, type ReviewLaneReadRequest } from "../scripts/review-gate/lane-read-schema.js";
+import { readReviewLane } from "../scripts/review-gate/runtime/lane-read-composition.js";
+import { reviewDiscoverableCommandInputSchema } from "./review-request-schema.js";
+import { confirmReviewCorrectionLeg } from "../scripts/review-gate/policy/review-next-pass.js";
+
+import { readResolveNextPassContext, readHostedErrandNextPassContext } from "./review-next-pass-context.js";
+import { resolveEvidenceBoundReviewPolicyContinuation } from "../scripts/review-gate/policy/review-policy-evidence.js";
+import type { EvidenceBoundReviewPolicyDependencies } from "../scripts/review-gate/policy/review-policy-evidence.js";
 
 import { createCandidateResponseHeadContinuationReader } from
   "../scripts/review-gate/runtime/candidate-response-head-continuation.js";
+import { deriveReviewChunkingSubject } from "../scripts/review-gate/policy/review-chunking-subject.js";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { z, ZodError, type ZodType } from "zod";
@@ -33,7 +42,6 @@ import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
 import type { GitExec } from "../lib/git/exec.js";
 import { canonicalDigest, canonicalize, CanonicalDigestSchema, type CanonicalDigest } from "../lib/kernel/index.js";
-import { lookupKernelSchema } from "../lib/kernel/schema/generate.js";
 import { SlugSchema } from "../lib/kernel/schema/slug.js";
 import {
   readCandidateRecord,
@@ -51,20 +59,7 @@ import {
   resolveCurrentHostedReviewErrand,
 } from "./review-locus-context.js";
 import type { SpineRemedy } from "../scripts/integration/spine-refusal.js";
-import {
-  REVIEW_FRONTLINE_RESOLVE_REQUEST_SCHEMA_ID,
-  REVIEW_HOSTED_AWAIT_REQUEST_SCHEMA_ID,
-  REVIEW_HOSTED_REQUEST_REQUEST_SCHEMA_ID,
-  REVIEW_HOSTED_SETTLE_REQUEST_SCHEMA_ID,
-  REVIEW_LOCAL_ATTEST_REQUEST_SCHEMA_ID,
-  REVIEW_LOCAL_PREPARE_REQUEST_SCHEMA_ID,
-  REVIEW_LOCAL_RESUME_REQUEST_SCHEMA_ID,
-  REVIEW_READINESS_REQUEST_SCHEMA_ID,
-  REVIEW_REDUCE_REQUEST_SCHEMA_ID,
-  REVIEW_RESOLVE_REQUEST_SCHEMA_ID,
-  REVIEW_RESPOND_REQUEST_SCHEMA_ID,
-  REVIEW_TERMINUS_ACCEPT_REQUEST_SCHEMA_ID,
-} from "../scripts/review-gate/request-command-schemas.js";
+
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import {
   FrontlineResolveEnvelopeSchema,
@@ -84,25 +79,21 @@ import {
   type ReviewPrePublicationRefusalCode,
 } from "../scripts/review-gate/core/review-command-envelope.js";
 import {
-  REVIEW_CHUNKING_RESOLVE_REQUEST_SCHEMA_ID,
   ReviewChunkingResolveCommandRequestSchema,
   ReviewChunkingResolveRequestSchema,
   type ReviewChunkingResolveCommandRequest,
   type ReviewChunkingResolveRequest,
 } from "../scripts/review-gate/core/review-chunking-command-schema.js";
 import {
-  REVIEW_PLANNING_GROOMING_RESOLVE_REQUEST_SCHEMA_ID,
   ReviewPlanningGroomingResolveRequestSchema,
   type ReviewPlanningGroomingResolveRequest,
 } from "../scripts/review-gate/core/planning-grooming-command-schema.js";
 import {
-  REVIEW_FRONTLINE_RUN_REQUEST_SCHEMA_ID,
   FrontlineRunCommandRequestSchema,
   FrontlineRunRequestSchema,
   type FrontlineRunCommandRequest,
   type FrontlineRunRequest,
 } from "../scripts/review-gate/core/frontline-run-command-schema.js";
-import { createProductionSchemaRegistry } from "../production-schema-registry.js";
 import { DeliveryBindingLookup } from "../scripts/review-gate/core/delivery-binding-lookup.js";
 import { ReviewTargetSchema, type ReviewTarget } from
   "../scripts/review-gate/core/gate-contract-v2-schema.js";
@@ -355,14 +346,16 @@ import {
   RespondRequestSchema,
   respondToReviewCommand,
 } from "../scripts/review-gate/runtime/respond-command.js";
-import { uncommittedVerifiedFixRemedy } from "../scripts/review-gate/runtime/respond-remedy.js";
+import { reviewRespondRemedy } from "../scripts/review-gate/runtime/respond-remedy.js";
 import {
   HostedReviewAdmissionError,
+  HostedIncrementalCoverageError,
   StaleLaneAttemptsError,
   hostedRequestAdmissionRemedy,
   localPrepareAdmissionRemedy,
   reviewResolveError,
   reviewResolveRemedy,
+  requireReviewSourceSelection,
 } from "../scripts/review-gate/runtime/review-policy-remedy.js";
 import { ReviewDriverAdmissionError } from "../scripts/review-gate/policy/review-execution-admission.js";
 import { createReduceDependencies } from "../scripts/review-gate/runtime/reduce-composition.js";
@@ -418,7 +411,6 @@ import {
   ReviewStatusWrongRouteError,
   resolveReviewStatusForWorkUnit,
 } from "../scripts/review-gate/status-composition.js";
-import { assertErrandHostedCorrectionRequest } from "../scripts/review-gate/status-errand.js";
 import { spineRemedy } from "../scripts/integration/spine-refusal.js";
 import {
   ReviewStatusCommandResultSchema,
@@ -451,15 +443,6 @@ function reviewCommandInputSchema(): z.ZodType<{ input: string }> {
   }).strict();
 }
 
-function reviewDiscoverableCommandInputSchema() {
-  return z.strictObject({
-    input: z.string().trim().min(1).optional(),
-    schema: z.literal(true).optional(),
-  }).refine((input) => (input.input === undefined) !== (input.schema === undefined), {
-    message: "Provide exactly one JSON request source or --schema.",
-  });
-}
-
 /** Request-source operand schema shared by the review handlers' own validation. */
 export const ReviewCommandInputSchema = reviewCommandInputSchema();
 
@@ -481,6 +464,7 @@ export const REVIEW_PUBLIC_REQUEST_SCHEMA_PATHS = [
   "review respond",
   "review hosted request",
   "review readiness",
+  "review lane read",
   "review frontline resolve",
   "review hosted settle",
   "review local prepare",
@@ -1624,56 +1608,33 @@ function defaultReviewResolveDependencies(exec: GitExec): ReviewResolveHandlerDe
   };
 }
 
-async function resolveConfiguredReviewPolicy(
-  request: ReviewPolicyCommandRequest,
-  root: string,
-  exec: GitExec,
-): Promise<unknown> {
-  const { settings } = await readConfigSettings(root);
-  const { sources, maxPasses } = await resolveConfiguredLanePolicy({
-    lane: request.lane,
-    settings,
-    preferences: createLocalFrontlineSourcePreferenceReader({
-      cwd: root,
-      exec,
-      readFile: (path) => readFile(path, "utf8"),
-    }),
-  });
-  const publisher = new RepositoryGitCommonStatePublisher(exec, root);
-  const operationStore = new LocalReviewOperationStateStore(publisher);
-  const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
-  const readResponsePerformance = (predecessor: ReviewResult) =>
-    readLaneResponsePerformance(operationStore, predecessor);
-  const resultReader = createRepositoryReviewResultReader(publisher);
-  const phaseClosed = await errandFrontlinePhaseClosed(request, {
-    root, exec, publisher, operationStore, resultReader, dispositionStore,
-  });
-  const errandVehicle = await errandStandardVehicle(request, { root, exec });
-  return resolveEvidenceBoundReviewPolicy(request, {
-    sources,
-    maxPasses,
-    ...(phaseClosed ? { frontlinePhaseClosed: true } : {}),
-    ...(errandVehicle ? { errandVehicle: true } : {}),
-    resultReader,
-    dispositionStore,
-    readResponsePerformance,
-    confirmIncrementalApplicability: async (predecessor, current) => {
-      const active = await resolveActiveWu({ cwd: root });
-      const candidate = current.admission.lineage.kind === "candidate"
-        && active.status === "resolved" && active.name !== ""
-        ? await readCandidateRecord(root, active.name)
-        : null;
-      const observeTarget = async () => {
-          const confirmation = await confirmLocalReviewTarget({
-            exec,
-            cwd: root,
-            attemptedTarget: current.target,
-          });
-          if (confirmation.state !== "current") {
-            throw new Error("review producer target no longer matches the current exact target");
-          }
-          return confirmation.target;
-      };
+function createResolveContributionConfirmation(input: {
+  root: string;
+  exec: GitExec;
+  request: ReviewPolicyCommandRequest;
+  baseRef: string;
+  dispositionStore: LocalApprovedDispositionRecordStore;
+  readResponsePerformance: NonNullable<EvidenceBoundReviewPolicyDependencies["readResponsePerformance"]>;
+}): NonNullable<EvidenceBoundReviewPolicyDependencies["confirmIncrementalApplicability"]> {
+  const { root, exec, request, dispositionStore, readResponsePerformance } = input;
+  return async (predecessor, current) => {
+    const active = await resolveActiveWu({ cwd: root });
+    const candidate = current.admission.lineage.kind === "candidate"
+      && active.status === "resolved" && active.name !== ""
+      ? await readCandidateRecord(root, active.name)
+      : null;
+    const observeTarget = async () => {
+        const confirmation = await confirmLocalReviewTarget({
+          exec,
+          cwd: root,
+          attemptedTarget: current.target,
+        });
+        if (confirmation.state !== "current") {
+          throw new Error("review producer target no longer matches the current exact target");
+        }
+        return confirmation.target;
+    };
+    const confirmGrounds = async () => {
       if (request.target.pullRequest === null
         && current.admission.lineage.kind === "head-bound"
         && current.admission.lineage.vehicleKind === "errand") {
@@ -1700,7 +1661,49 @@ async function resolveConfiguredReviewPolicy(
         exec: createRawGitExec(root),
         observeTarget,
       });
-    },
+    };
+    return confirmReviewCorrectionLeg({ predecessor, currentTarget: current.target,
+      currentLineage: current.admission.lineage, currentResult: current, dispositionStore, readResponsePerformance,
+      rangeProof: { cwd: root, exec }, candidateProof: { candidate, cwd: root, exec, baseRef: input.baseRef, observeTarget }, confirmGrounds });
+  };
+}
+
+async function resolveConfiguredReviewPolicy(
+  request: ReviewPolicyCommandRequest,
+  root: string,
+  exec: GitExec,
+): Promise<unknown> {
+  const { settings } = await readConfigSettings(root);
+  const { sources, maxPasses } = await resolveConfiguredLanePolicy({
+    lane: request.lane,
+    settings,
+    preferences: createLocalFrontlineSourcePreferenceReader({
+      cwd: root,
+      exec,
+      readFile: (path) => readFile(path, "utf8"),
+    }),
+  });
+  const publisher = new RepositoryGitCommonStatePublisher(exec, root);
+  const operationStore = new LocalReviewOperationStateStore(publisher);
+  const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
+  const readResponsePerformance = (predecessor: ReviewResult) =>
+    readLaneResponsePerformance(operationStore, predecessor);
+  const resultReader = createRepositoryReviewResultReader(publisher);
+  const phaseClosed = await errandFrontlinePhaseClosed(request, {
+    root, exec, publisher, operationStore, resultReader, dispositionStore,
+  });
+  const errandVehicle = await errandStandardVehicle(request, { root, exec });
+  const dependencies: EvidenceBoundReviewPolicyDependencies = {
+    sources,
+    maxPasses,
+    ...(phaseClosed ? { frontlinePhaseClosed: true } : {}),
+    ...(errandVehicle ? { errandVehicle: true } : {}),
+    resultReader,
+    dispositionStore,
+    readResponsePerformance,
+    confirmIncrementalApplicability: createResolveContributionConfirmation({
+      root, exec, request, dispositionStore, readResponsePerformance, baseRef: settings["branch.base"],
+    }),
     confirmTarget: async (attemptedTarget) => {
       const confirmation = await confirmLocalReviewTarget({
         exec,
@@ -1720,7 +1723,17 @@ async function resolveConfiguredReviewPolicy(
       }
       return confirmation.target;
     },
+  };
+  if (request.lane === "frontline" || sources.length === 0 || request.standardReview.obligation === "exempt") {
+    return resolveEvidenceBoundReviewPolicy(request, dependencies);
+  }
+  const nextPassContext = await readResolveNextPassContext({
+    request, root, exec, operationStore, resultReader, dispositionStore, configuredSources: sources,
+    confirmApplicability: dependencies.confirmIncrementalApplicability,
   });
+  return resolveEvidenceBoundReviewPolicyContinuation(request, {
+    terminalResponsePerformed: !nextPassContext.responseDue,
+  }, { ...dependencies, nextPassContext });
 }
 
 export interface ReviewReadinessHandlerDependencies {
@@ -1795,6 +1808,23 @@ export async function handleReviewReadiness(
       root,
     ),
   });
+}
+
+export interface ReviewLaneReadHandlerDependencies extends ReviewHandlerBoundary {
+  read(request: ReviewLaneReadRequest, root: string): Promise<unknown>;
+}
+
+/** Emit one read-only lane result for the authenticated checkout subject. */
+export async function handleReviewLaneRead(source: string,
+  overrides: Partial<ReviewLaneReadHandlerDependencies> = {}, suppliedContext?: InteractionContext,
+): Promise<void> {
+  const context = suppliedContext ?? resolveProcessInteractionContext({ noInput: false, machineReadable: true, yes: "absent" });
+  const exec = createGitExec(context.subprocess);
+  const dependencies = { ...defaultReviewHandlerBoundary(),
+    read: (request: ReviewLaneReadRequest, root: string) => readReviewLane(request, { cwd: root, exec }), ...overrides };
+  await executeReviewHandler({ mode: "review-lane-read", source, requestSchema: ReviewLaneReadRequestSchema,
+    resultSchema: ReviewLaneReadEnvelopeSchema, dependencies,
+    execute: (request, root) => dependencies.read(ReviewLaneReadRequestSchema.parse(request), root) });
 }
 
 /** Modes carried by the review-command family and by the merge-lock family that split from it. */
@@ -1981,7 +2011,8 @@ export async function handleReviewResolve(
     execute: (request, root) => dependencies.resolve(
       ReviewPolicyCommandRequestSchema.parse(request),
       root,
-    ).catch((error: unknown) => { throw reviewResolveError(error, request); }),
+    ).then(result => requireReviewSourceSelection(result, ReviewPolicyCommandRequestSchema.parse(request)))
+      .catch((error: unknown) => { throw reviewResolveError(error, request); }),
     remedyFor: reviewResolveRemedy,
   });
 }
@@ -2765,8 +2796,10 @@ function defaultReviewChunkingResolveDependencies(context: InteractionContext): 
       const derive = (coordinates: ReviewChunkingResolveRequest["target"]) =>
         deriveLocalReviewTargetFromCoordinates({ exec, cwd: root, repositoryId, coordinates });
       return ReviewChunkingResolveCommandRequestSchema.parse({
-        ...request,
-        target: await derive(request.target),
+        schemaVersion: request.schemaVersion,
+        target: await deriveReviewChunkingSubject({
+          exec, raw: createRawGitExec(root), cwd: root, repositoryId, request,
+        }),
         ...(request.scopeSelection === undefined
           ? {}
           : {
@@ -2937,47 +2970,7 @@ export async function handleReviewFrontlineRun(
   });
 }
 
-export type ReviewPublicRequestSchemaId =
-  | typeof REVIEW_CHUNKING_RESOLVE_REQUEST_SCHEMA_ID
-  | typeof REVIEW_PLANNING_GROOMING_RESOLVE_REQUEST_SCHEMA_ID
-  | typeof REVIEW_FRONTLINE_RUN_REQUEST_SCHEMA_ID
-  | typeof REVIEW_RESOLVE_REQUEST_SCHEMA_ID
-  | typeof REVIEW_HOSTED_AWAIT_REQUEST_SCHEMA_ID
-  | typeof REVIEW_REDUCE_REQUEST_SCHEMA_ID
-  | typeof REVIEW_RESPOND_REQUEST_SCHEMA_ID
-  | typeof REVIEW_HOSTED_REQUEST_REQUEST_SCHEMA_ID
-  | typeof REVIEW_READINESS_REQUEST_SCHEMA_ID
-  | typeof REVIEW_FRONTLINE_RESOLVE_REQUEST_SCHEMA_ID
-  | typeof REVIEW_HOSTED_SETTLE_REQUEST_SCHEMA_ID
-  | typeof REVIEW_LOCAL_PREPARE_REQUEST_SCHEMA_ID
-  | typeof REVIEW_LOCAL_ATTEST_REQUEST_SCHEMA_ID
-  | typeof REVIEW_LOCAL_RESUME_REQUEST_SCHEMA_ID
-  | typeof REVIEW_TERMINUS_ACCEPT_REQUEST_SCHEMA_ID;
-
-/** Emit one public request root together with only the registry documents its refs require. */
-export function handleReviewRequestSchema(
-  schemaId: ReviewPublicRequestSchemaId,
-  source?: string,
-  overrides: Pick<ReviewHandlerBoundary, "write" | "setExitCode"> = {
-    write: (text) => process.stdout.write(text),
-    setExitCode: (code) => { process.exitCode = code; },
-  },
-): void {
-  try {
-    reviewDiscoverableCommandInputSchema().parse({ input: source, schema: true });
-    const result = lookupKernelSchema(createProductionSchemaRegistry(), schemaId);
-    if (result.status === "unknown") throw new Error(`Review request schema unavailable: ${schemaId}`);
-    const schema = result.schema;
-    overrides.write(`${JSON.stringify({ rootId: schema.$id, schemas: { [schemaId]: schema } })}\n`);
-  } catch (error) {
-    overrides.write(`${JSON.stringify({
-      rootId: `urn:arc:schema:${schemaId}`,
-      schemas: {},
-      error: error instanceof Error ? error.message : String(error),
-    })}\n`);
-    overrides.setExitCode(1);
-  }
-}
+export { handleReviewRequestSchema, type ReviewPublicRequestSchemaId } from "./review-request-schema.js";
 
 export interface ReviewLocalPrepareHandlerDependencies {
   resolveRoot(cwd: string): string | null;
@@ -3015,6 +3008,8 @@ function repositoryPrecondition(reason: LocalTargetInvalidReason) {
 }
 
 function reviewCommandDiagnostics(error: unknown, message: string) {
+  if (error instanceof ReviewDriverAdmissionError) return error.diagnostics;
+  if (error instanceof HostedReviewAdmissionError) return error.admission.diagnostics;
   if (error instanceof LocalTargetDerivationError) {
     return [{ code: "repository-precondition" as const, message, precondition: repositoryPrecondition(error.reason) }];
   }
@@ -3213,7 +3208,7 @@ export async function handleReviewRespond(
     resultSchema: RespondEnvelopeSchema,
     dependencies,
     execute: dependencies.respond,
-    remedyFor: uncommittedVerifiedFixRemedy,
+    remedyFor: reviewRespondRemedy,
   });
 }
 
@@ -3541,6 +3536,7 @@ async function executeDefaultHostedRequest(
         admitCapacity: true,
         ...(request.invocation === undefined ? {} : { invocation: request.invocation }),
       });
+      if (request.coverage === "incremental") throw new HostedIncrementalCoverageError(context.statusTarget);
       const supersessionAncestors = await hostedCandidateSupersessionAncestors({
         root,
         exec,
@@ -3597,6 +3593,7 @@ async function executeDefaultHostedRequest(
             reservation: context.reservation,
             snapshot: await context.store.readOperationSnapshot(),
             repositoryId: context.repositoryId,
+            currentReviewTarget: context.reviewTarget,
             target: request.target,
             vehicle: deliveryVehicle,
             provider: request.provider,
@@ -3619,6 +3616,8 @@ async function executeDefaultHostedRequest(
             dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
             confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),
             readResponsePerformance: (predecessor) => readLaneResponsePerformance(context.store, predecessor),
+            confirmCurrentApplicability: predecessor =>
+              dischargeReader.confirmCurrentIncrementalApplicability(dischargeInput, predecessor),
             confirmIncrementalApplicability: (predecessor, current) => (
               dischargeReader.confirmIncrementalApplicability(
                 dischargeInput,
@@ -3713,20 +3712,6 @@ async function executeDefaultHostedRequest(
           });
           return;
         }
-        await assertErrandHostedCorrectionRequest({
-          publisher,
-          store: context.store,
-          errand: {
-            slug: context.errandBinding.key,
-            claimId: context.errandBinding.claimId,
-            branch: context.errandBinding.branch,
-          },
-          request,
-          standardReview,
-          attempts: progress?.attempts ?? [],
-          reviewTarget: context.reviewTarget,
-          statusTarget: context.statusTarget,
-        });
         const currentAttempts = progress?.attempts.filter((attempt): attempt is typeof attempt & {
           outcome: Exclude<typeof attempt.outcome, "pending">;
         } => attempt.headSha === request.target.headSha && attempt.outcome !== "pending") ?? [];
@@ -3735,6 +3720,11 @@ async function executeDefaultHostedRequest(
         )) === true) {
           throw new Error("Hosted review capacity is already held by a pending request.");
         }
+        const resultReader = createRepositoryReviewResultReader(publisher);
+        const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
+        const nextPassContext = await readHostedErrandNextPassContext({ cwd: root, exec, configuredSources: policy.sources,
+          progress, target: context.reviewTarget,
+          lineage: context.lineage, standardReview, operationStore: context.store, resultReader, dispositionStore });
         const latestAttempt = currentAttempts.at(-1);
         const admission = await assertEvidenceBoundReviewExecutionAdmission({
           target: request.target,
@@ -3756,13 +3746,22 @@ async function executeDefaultHostedRequest(
         }, {
           terminalResponsePerformed: latestAttempt?.outcome === "settled-findings",
         }, {
-          sourceId: request.provider,
-          nextAction: "hosted-request",
+          sourceId: request.provider, nextAction: "hosted-request",
         }, {
-          sources,
+          sources: latestAttempt?.terminalProducer === true
+            ? [latestAttempt.sourceId, ...sources.filter(source => source !== latestAttempt.sourceId)] : sources,
+          selectionSources: sources,
+          configuredSources: policy.sources,
           maxPasses: policy.maxPasses,
-          resultReader: createRepositoryReviewResultReader(publisher),
-          dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+          resultReader,
+          nextPassContext,
+          chosenCoverage: "complete",
+          dispositionStore,
+          confirmIncrementalApplicability: (predecessor, current) => confirmReviewCorrectionLeg({
+            predecessor, currentTarget: current.target, currentLineage: current.admission.lineage, currentResult: current,
+            dispositionStore, rangeProof: { cwd: root, exec },
+            readResponsePerformance: producer => readLaneResponsePerformance(context.store, producer),
+          }),
           confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),
           readResponsePerformance: (predecessor) => readLaneResponsePerformance(context.store, predecessor),
         });
@@ -3836,7 +3835,7 @@ async function executeDefaultHostedRequest(
             if (error instanceof HostedRequestOwnerCollision) return { state: "ambiguous-delivery" };
             // The open change request's status re-reads what the driver admits instead.
             if (error instanceof ReviewDriverAdmissionError) {
-              throw new HostedReviewAdmissionError(error, context.statusTarget);
+              throw new HostedReviewAdmissionError(error, context.statusTarget, context.errandBinding !== null);
             }
             throw error;
           }

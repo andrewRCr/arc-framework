@@ -2,12 +2,12 @@
 
 import { z } from "zod";
 
-import { DerivedLocusFrameValueViewSchema } from "./status/schema.js";
+import { DerivedLocusFrameSchema } from "../lib/locus/derived-schema.js";
 import type { DerivedCheckoutRow } from "../lib/locus/derived-roster.js";
 import type { DerivedLocusFrame } from "../lib/locus/derived-reader.js";
 
 const LocusEnvelopeSchema = z.discriminatedUnion("ok", [
-  DerivedLocusFrameValueViewSchema.extend({ mode: z.literal("locus"), ok: z.literal(true) }),
+  DerivedLocusFrameSchema.extend({ mode: z.literal("locus"), ok: z.literal(true) }),
   z.strictObject({
     mode: z.literal("locus"),
     ok: z.literal(false),
@@ -20,7 +20,7 @@ export type LocusEnvelope = ({ readonly mode: "locus"; readonly ok: true } & Der
 
 /** Validate one producer result before it reaches stdout. */
 export function validateLocusEnvelope(value: unknown): LocusEnvelope {
-  return LocusEnvelopeSchema.parse(value) as LocusEnvelope;
+  return LocusEnvelopeSchema.parse(value);
 }
 
 /** Render the worktree-derived roster without retired occupancy vocabulary. */

@@ -1,0 +1,145 @@
+/** Personal scratch follows logical work-unit names without merging people's files. */
+import { describeRecordConflicts } from "./store/conflict-diagnostics.js";
+import { lstat, readdir, rename } from "node:fs/promises";
+import { join } from "node:path";
+import { z } from "zod";
+import { ParsedMetaRecordSchema } from "./active/meta-schema.js";
+import { SlugSchema } from "./kernel/index.js";
+import { materializeArcPath, resolveArcPath } from "./layout/index.js";
+import { parseLineageRecord } from "./store/kinds/lineage/parser.js";
+import type { Store } from "./store/contract.js";
+import type { StoreRecord } from "./store/read.js";
+import type { LineageRecord } from "./store/kinds/lineage/schema.js";
+import { sameReference } from "./store/identity.js";
+import { readTerminalReferenceAliases } from "./work-unit/terminal-reference-aliases.js";
+
+/** Input rooted in the checkout this session enters. */
+export interface ScratchReconcileInput { cwd: string; identity: string; store: Store }
+/** Read-only scratch changes and findings suitable for the user-reference slot. */
+export const ScratchReconcilePlanSchema = z.strictObject({
+  moves: z.array(z.strictObject({ from: z.string(), to: z.string() })),
+  advisories: z.array(z.strictObject({ path: z.string(), reason: z.enum(["ended", "missing", "occupied"]),
+    text: z.string(), destination: z.string().optional() })),
+});
+/** A plan never contains deletion or merging of personal content. */
+export type ScratchReconcilePlan = z.infer<typeof ScratchReconcilePlanSchema>;
+
+/** Resolve each existing folder through the operational store without writing. */
+export async function planScratchReconcile(input: ScratchReconcileInput): Promise<ScratchReconcilePlan> {
+  const plan: ScratchReconcilePlan = { moves: [], advisories: [] };
+  if (!input.store.capabilities.stateOffBranch) return plan;
+  const userRoot = materializeArcPath(input.cwd, resolveArcPath({ kind: "user-root", identity: SlugSchema.parse(input.identity) }));
+  const root = join(userRoot, "scratch", "work-unit");
+  if (!await directoryExists(root)) return plan;
+  const folders = (await readdir(root, { withFileTypes: true })).filter(entry => entry.isDirectory())
+    .sort((left, right) => Buffer.compare(Buffer.from(left.name), Buffer.from(right.name)));
+  for (const folder of folders) await planFolder(input.store, root, folder.name, plan);
+  return plan;
+}
+
+/** Re-plan immediately before moving; directory rename refuses any nonempty destination. */
+export async function applyScratchReconcile(input: ScratchReconcileInput): Promise<ScratchReconcilePlan> {
+  const plan = await planScratchReconcile(input);
+  for (const move of plan.moves) {
+    if (await directoryExists(move.to) && (await readdir(move.to)).length > 0) {
+      throw new Error(`Scratch destination ${move.to} now holds content. Combine ${move.from} and ${move.to} manually, then retry.`);
+    }
+    await rename(move.from, move.to);
+  }
+  return plan;
+}
+async function planFolder(store: Store, root: string, name: string, plan: ScratchReconcilePlan): Promise<void> {
+  const path = join(root, name);
+  const slug = SlugSchema.safeParse(name);
+  const lookup = slug.success ? await store.lookup({ kind: "slug", slug: slug.data }) : null;
+  if (lookup === null || (lookup.status === "refused" && lookup.refusal.code === "not-found")) {
+    if (slug.success && await hasTerminalLineage(store, slug.data)) plan.advisories.push(endedAdvisory(path, name));
+    else plan.advisories.push({ path, reason: "missing", text: `No work unit resolves from scratch folder ${path}. Inspect this folder; its contents remain yours.` });
+    return;
+  }
+  if (lookup.status === "refused") throw new Error(`${lookup.refusal.condition} ${lookup.refusal.remedy.text}`);
+  const read = await store.read({ reference: lookup.result.reference });
+  if (read.status === "refused") throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
+  const record = read.result;
+  if (record.reference.kind !== "work-item/meta" || record.conflicts.length > 0) throw new Error(`Scratch folder ${path} resolves to an unresolved work-unit record. Repair the record, then retry.${describeRecordConflicts(record.conflicts)}`);
+  const fields = ParsedMetaRecordSchema.parse(record.fields);
+  if (record.placement?.kind === "completed" || fields.state === "Shipped") {
+    plan.advisories.push(endedAdvisory(path, record.reference.owner.name));
+    return;
+  }
+  if (record.reference.owner.name === name) return;
+  const destination = join(root, SlugSchema.parse(record.reference.owner.name));
+  if (await directoryExists(destination) && (await readdir(destination)).length > 0) {
+    plan.advisories.push({ path, destination, reason: "occupied", text: `Combine scratch folders ${path} and ${destination} manually; both contain personal content and remain in place.` });
+    return;
+  }
+  plan.moves.push({ from: path, to: destination });
+}
+async function directoryExists(path: string): Promise<boolean> {
+  try {
+    const stat = await lstat(path);
+    if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error(`Scratch path ${path} is not an ordinary directory. Inspect it before reconciling.`);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+function endedAdvisory(path: string, name: string): ScratchReconcilePlan["advisories"][number] {
+  return { path, reason: "ended", text: `Work unit '${name}' has ended. Remove scratch folder ${path} once nothing in it is wanted.` };
+}
+async function hasTerminalLineage(store: Store, origin: string): Promise<boolean> {
+  const lookup = await store.lookup({ kind: "lineage", origin });
+  if (lookup.status === "refused") {
+    if (lookup.refusal.code === "not-found") {
+      const record = await terminalAliasRecord(store, origin);
+      return record !== null && checkedLineage(record, origin).kind !== "rename";
+    }
+    throw new Error(`${lookup.refusal.condition} ${lookup.refusal.remedy.text}`);
+  }
+  const read = await store.read({ reference: lookup.result.reference });
+  if (read.status === "refused") throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
+  const lineage = checkedLineage(read.result, origin);
+  return lineage.kind === "abandon" || lineage.kind === "decompose";
+}
+
+async function terminalAliasRecord(store: Store, origin: string): Promise<StoreRecord | null> {
+  const records = await terminalAliasRecords(store, origin);
+  const aliases = await readTerminalReferenceAliases(store, records);
+  if (aliases.status === "refused") throw new Error(`${aliases.refusal.condition} ${aliases.refusal.remedy.text}`);
+  const targets = aliases.result.get(origin) ?? [], target = targets[0];
+  if (targets.length > 1) throw new Error(`Ambiguous terminal history for scratch folder '${origin}': ${targets.join(", ")}. Name the intended work unit, then retry.`);
+  if (target === undefined) return null;
+  const candidates = records.filter(record => record.reference.owner.name === target), candidate = candidates[0];
+  if (candidates.length !== 1 || candidate === undefined) throw new Error(`Ambiguous terminal generation for scratch folder '${origin}'. Repair its lineage history, then retry.`);
+  const lookup = await store.lookup({ kind: "lineage", origin: target });
+  if (lookup.status === "refused") throw new Error(`${lookup.refusal.condition} ${lookup.refusal.remedy.text}`);
+  const read = await store.read({ reference: lookup.result.reference });
+  if (read.status === "refused") throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
+  if (!sameReference(lookup.result.reference, candidate.reference) || !sameReference(read.result.reference, candidate.reference)) {
+    throw new Error(`Terminal history for scratch folder '${origin}' changed. Read its lineage again and retry.`);
+  }
+  return read.result;
+}
+
+async function terminalAliasRecords(store: Store, origin: string): Promise<readonly StoreRecord[]> {
+  const listed = await store.list({ family: "lineage", kind: "lineage/transition" });
+  if (listed.status === "refused") throw new Error(`${listed.refusal.condition} ${listed.refusal.remedy.text}`);
+  const listing = listed.result;
+  if (listing.status === "absent") return [];
+  if (listing.status === "unreadable") throw new Error(`${listing.condition} ${listing.remedy.text}`);
+  if (listing.missed || listing.diagnostics.length > 0) throw new Error(`Terminal history for scratch folder '${origin}' is incomplete. ${listing.diagnostics.map(item => `${item.condition} ${item.remedy.text}`).join(" ")} Repair the lineage inventory and retry.`);
+  return listing.records.filter(record => checkedLineage(record, origin).kind !== "rename");
+}
+
+function checkedLineage(record: StoreRecord, origin: string): LineageRecord {
+  const lineage = parseLineageRecord(record.content);
+  if (record.conflicts.length > 0) throw new Error(`Terminal lineage for '${origin}' has unresolved conflicts: ${record.conflicts.map(reference => JSON.stringify(reference)).join(", ")}. Resolve the named conflict records, then retry scratch reconciliation.`);
+  if (lineage === null || record.reference.owner.type !== "work-item"
+    || lineage.origin.name !== record.reference.owner.name
+    || (lineage.origin.uid !== undefined && lineage.origin.uid !== record.reference.owner.uid)) {
+    throw new Error(`Terminal lineage for '${origin}' is unresolved. Repair its record, then retry scratch reconciliation.`);
+  }
+  return lineage;
+}

@@ -1,7 +1,7 @@
 /** Canonical acquisition and schema contract for `arc init`. */
 
 import { z } from "zod";
-import { initIdentityPromptSite } from "../prompts/identity-prompt-sites.js";
+import { initIdentityPromptSite, initIdentityInUsePromptSite } from "../prompts/identity-prompt-sites.js";
 import { initToolsPromptSite, initNamePromptSite, initPmPromptSite, initTeamPromptSite } from "../prompts/init-prompts.js";
 import { reconfigureNamePromptSite, reconfigurePmPromptSite, reconfigureTeamPromptSite } from "../prompts/reconfigure-prompts.js";
 import { bulkRemovalPromptSite, fileRemovalPromptSite } from "../prompts/removal-prompts.js";
@@ -71,6 +71,7 @@ export const initCommandInputPolicyDeclarations = [{
   commandPath: "init",
   aliases: [],
   sites: [
+    initIdentityInUsePromptSite,
     initIdentityPromptSite,
     initToolsPromptSite,
     initNamePromptSite,

@@ -170,10 +170,24 @@ function transientContext(
   };
 }
 
+type RecoveryParentWorkUnitContext = NonNullable<DerivedCheckoutRow["context"]> & { workflow: string; workUnit: string };
+
+/** Resolve inherited context only for the exact selected transient and its healthy marker parent. */
+export function resolveRecoveryParentContext(state: DerivedLocusFrame, frame: RecoveryLocusFrame): RecoveryParentWorkUnitContext | null {
+  if (frame.kind !== "resolved" || frame.subject.kind === "work-unit" || state.entering.kind !== "selected") return null;
+  const row = state.entering.row;
+  if (row.kind !== "transient" || row.subject.kind === "work-unit"
+    || row.checkout.path !== frame.checkoutPath || row.parentCheckoutPath !== frame.parentCheckoutPath
+    || row.subject.kind !== frame.subject.kind || row.subject.key !== frame.subject.key
+    || row.subject.claimId !== frame.subject.claimId || transientWorkflow(row.subject).name !== frame.workflow) return null;
+  const parent = resolveParentWorkUnit(state.roster, row.parentCheckoutPath);
+  return parent?.sessionType === frame.sessionType ? parent : null;
+}
+
 function resolveParentWorkUnit(
   rows: readonly DerivedCheckoutRow[],
   parentCheckoutPath: string | null,
-): (NonNullable<DerivedCheckoutRow["context"]> & { workflow: string }) | null {
+): RecoveryParentWorkUnitContext | null {
   if (parentCheckoutPath === null) return null;
   const matches = rows.filter((row) => row.checkout.path === parentCheckoutPath);
   const parent = matches.length === 1 ? matches[0] : undefined;
@@ -183,7 +197,7 @@ function resolveParentWorkUnit(
     || parent.diagnostics.length > 0
     || parent.context === null
     || parent.context.workflow === null) return null;
-  return { ...parent.context, workflow: parent.context.workflow };
+  return { ...parent.context, workflow: parent.context.workflow, workUnit: parent.subject.key };
 }
 
 function requireWorkUnitContext(

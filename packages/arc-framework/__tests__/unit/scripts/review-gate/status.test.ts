@@ -1,3 +1,4 @@
+import { withReviewNextPassContext } from "../../../fixtures/review-next-pass.js";
 /** Exact-target review status reduction. */
 
 import { describe, expect, it } from "vitest";
@@ -134,7 +135,7 @@ function readyAdmission(
   admissionTarget = hostedAction.target,
   completedPasses = 0,
 ) {
-  return resolveReviewPolicy({
+  return resolveReviewPolicy(withReviewNextPassContext({
     schemaVersion: 1,
     target: admissionTarget,
     lane: "standard",
@@ -150,7 +151,7 @@ function readyAdmission(
     maxPasses: 2,
     completedPasses,
     attempts: [],
-  });
+  }));
 }
 
 function reviewApplicabilityDecision(priorAttemptId = "attempt-prior") {
@@ -533,8 +534,10 @@ describe("review status", () => {
         nextSource: null,
         applicability: projection,
       };
-    }, { confirmIncrementalApplicability: async () => "applicable" as const });
+    }, { confirmIncrementalApplicability: async () => "applicable" as const,
+      confirmCurrentIncrementalApplicability: async () => "applicable" as const });
     const obligation = await composePublishedSingletonReview({
+      statusRoute: { kind: "target", target },
       cwd: "/repo",
       exec: (() => Promise.reject(new Error("unexpected Git read"))) as never,
       settings: {} as never,
@@ -768,7 +771,7 @@ describe("review status", () => {
   });
 
   it("routes the driver's exact member-pass ceiling consequence without another request", async () => {
-    const policy = resolveReviewPolicy({
+    const policy = resolveReviewPolicy(withReviewNextPassContext({
       schemaVersion: 1,
       target: hostedAction.target,
       lane: "standard",
@@ -784,7 +787,7 @@ describe("review status", () => {
       maxPasses: 2,
       completedPasses: 2,
       attempts: [],
-    });
+    }));
     const obligation = composeDeliveryReviewObligation({
       targets: [deliveryTarget(hostedAction.target)],
       discharges: [deliveryDischarge({
@@ -851,7 +854,7 @@ describe("review status", () => {
   });
 
   it("binds a ceiling stop to one submit-ready exact member terminus offer", async () => {
-    const policy = resolveReviewPolicy({
+    const policy = resolveReviewPolicy(withReviewNextPassContext({
       schemaVersion: 1,
       target: hostedAction.target,
       lane: "standard",
@@ -867,7 +870,7 @@ describe("review status", () => {
       maxPasses: 2,
       completedPasses: 2,
       attempts: [],
-    });
+    }));
     const obligation = composeDeliveryReviewObligation({
       targets: [deliveryTarget(hostedAction.target)],
       discharges: [deliveryDischarge({
@@ -1009,7 +1012,7 @@ describe("review status", () => {
   });
 
   it("offers the exact member terminus beside delegated local preparation after one complete pass", async () => {
-    const policy = resolveReviewPolicy({
+    const policy = resolveReviewPolicy(withReviewNextPassContext({
       schemaVersion: 1,
       target: hostedAction.target,
       lane: "standard",
@@ -1025,7 +1028,7 @@ describe("review status", () => {
       maxPasses: 2,
       completedPasses: 1,
       attempts: [],
-    });
+    }));
     const obligation = composeDeliveryReviewObligation({
       targets: [deliveryTarget(hostedAction.target)],
       discharges: [deliveryDischarge({
@@ -1536,7 +1539,7 @@ describe("review status", () => {
   });
 
   it("routes the driver's delegated-agent fallback for the exact outstanding member", async () => {
-    const policy = resolveReviewPolicy({
+    const policy = resolveReviewPolicy(withReviewNextPassContext({
       schemaVersion: 1,
       target: hostedAction.target,
       lane: "standard",
@@ -1552,7 +1555,7 @@ describe("review status", () => {
       maxPasses: 2,
       completedPasses: 0,
       attempts: [],
-    });
+    }));
     const obligation = composeDeliveryReviewObligation({
       targets: [deliveryTarget(hostedAction.target)],
       discharges: [deliveryDischarge({
@@ -1589,7 +1592,7 @@ describe("review status", () => {
       mode: "chunked" as const,
       target: hostedAction.target,
     };
-    const policy = resolveReviewPolicy({
+    const policy = resolveReviewPolicy(withReviewNextPassContext({
       schemaVersion: 1,
       target: hostedAction.target,
       lane: "standard",
@@ -1606,7 +1609,7 @@ describe("review status", () => {
       completedPasses: 0,
       attempts: [],
       scopeSelection,
-    });
+    }));
     const obligation = composeDeliveryReviewObligation({
       targets: [deliveryTarget(hostedAction.target)],
       discharges: [deliveryDischarge({
@@ -1640,7 +1643,7 @@ describe("review status", () => {
       exhaustedPassCount: 3,
       nextPass: 4,
     };
-    const policy = resolveReviewPolicy({
+    const policy = resolveReviewPolicy(withReviewNextPassContext({
       schemaVersion: 1,
       target: hostedAction.target,
       lane: "standard",
@@ -1658,7 +1661,7 @@ describe("review status", () => {
       attempts: [],
       scopeSelection,
       ceilingOverride,
-    });
+    }));
     const discharge = deliveryDischarge({
       discharged: false,
       detail: "The oversized member requires chunked local review.",
@@ -1738,7 +1741,7 @@ describe("review status", () => {
     })).not.toHaveProperty("localAction.correctionScope");
   });
 
-  it("requires an exact scope before dispatching native CodeRabbit correction coverage", async () => {
+  it("refuses hosted incremental coverage even with an exact correction scope", async () => {
     const correctionScope = {
       schemaVersion: 1 as const,
       predecessorProducerId: "hosted/attempt-1",
@@ -1761,18 +1764,18 @@ describe("review status", () => {
 
     expect(coderabbit).toMatchObject({
       state: "blocked",
-      reason: "coverage-unsupported",
+      reason: "hosted-incremental-unsupported",
       conjunction: { members: [{ state: "outstanding" }] },
     });
     await expect(resolveReviewStatus({ target }, port({ routedObligation: coderabbit }))).resolves.toMatchObject({
       state: "blocked",
-      reason: "coverage-unsupported",
+      reason: "hosted-incremental-unsupported",
       remedy: {
-        invariant: "The selected review carrier cannot preserve the admitted correction scope.",
-        text: expect.stringContaining("Re-run with complete coverage"),
+        invariant: "Hosted review requests use complete coverage; fix checks run locally.",
+        text: expect.stringContaining("local fix check"),
         argv: [
           "arc", "review", "status", "--work-unit", "example",
-          "--coverage", "complete",
+          "--source", "delegated-agent",
         ],
       },
     });
@@ -1789,12 +1792,8 @@ describe("review status", () => {
       })],
       requestCoverage: "incremental",
     })).toMatchObject({
-      state: "review-required",
-      action: {
-        provider: "coderabbit-pr",
-        coverage: "incremental",
-        correctionScope,
-      },
+      state: "blocked",
+      reason: "hosted-incremental-unsupported",
     });
 
     expect(composeDeliveryReviewObligation({
@@ -1809,8 +1808,8 @@ describe("review status", () => {
       })],
       requestCoverage: "incremental",
     })).toMatchObject({
-      state: "review-required",
-      action: { provider: "codex-pr", coverage: "incremental", correctionScope },
+      state: "blocked",
+      reason: "hosted-incremental-unsupported",
     });
   });
 
@@ -1849,7 +1848,7 @@ describe("review status", () => {
 
     expect(obligation).toMatchObject({
       state: "coverage-required",
-      coverageSelectionAction,
+      coverageSelectionAction: { ...coverageSelectionAction, interactionText: expect.stringContaining(coverageSelectionAction.interactionText) },
       conjunction: {
         members: [{ progress: { completedPasses: 1, passCeiling: 2 } }],
       },
@@ -1857,14 +1856,14 @@ describe("review status", () => {
     await expect(resolveReviewStatus({ target }, port({ routedObligation: obligation }))).resolves.toMatchObject({
       state: "coverage-required",
       nextAction: "select-coverage",
-      coverageSelectionAction,
+      coverageSelectionAction: { ...coverageSelectionAction, interactionText: expect.stringContaining(coverageSelectionAction.interactionText) },
       deliveryCursor: {
         currentMember: { progress: { completedPasses: 1, passCeiling: 2 } },
       },
     });
   });
 
-  it("consumes an exact coverage choice into the next admitted request", () => {
+  it.each(["pair", "coverage"] as const)("consumes a listed %s choice into the next admitted request", selection => {
     const coverageSelectionAction = {
       schemaVersion: 1 as const,
       kind: "review-coverage-selection" as const,
@@ -1887,15 +1886,31 @@ describe("review status", () => {
         requestAdmission: readyAdmission("coderabbit-pr"),
       })],
       requestCoverage: "complete",
-      requestInvocation: { mode: "force", sourceId: "coderabbit-pr" },
+      ...(selection === "pair" ? { requestInvocation: { mode: "force" as const, sourceId: "coderabbit-pr" } } : {}),
     })).toMatchObject({
       state: "review-required",
       action: {
         provider: "coderabbit-pr",
         coverage: "complete",
-        invocation: { mode: "force", sourceId: "coderabbit-pr" },
+        ...(selection === "pair" ? { invocation: { mode: "force", sourceId: "coderabbit-pr" } } : {}),
       },
     });
+  });
+
+  it.each(["unlisted pair", "unlisted coverage", "ambiguous coverage"])("refuses %s and names the listed coverage choices", selection => {
+    const obligation = composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({ discharged: false, detail: "Choose a local review.", nextSource: null,
+        coverageSelectionAction: { schemaVersion: 1, kind: "review-coverage-selection", workUnitId: memberVehicle.workUnitId,
+          sourceId: "coderabbit-pr", pass: 1, completedPasses: 1, consumedPass: true,
+          choices: [{ sourceId: "delegated-agent", coverage: "complete" },
+            ...(selection === "ambiguous coverage" ? [{ sourceId: "codex-pr", coverage: "complete" as const }] : [])],
+          interactionText: "Choose one complete pass." } })],
+      requestCoverage: selection === "ambiguous coverage" ? "complete" : "incremental",
+      ...(selection === "unlisted pair" ? { requestInvocation: { mode: "force" as const, sourceId: "coderabbit-pr" } } : {}),
+    });
+    expect(obligation).toMatchObject({ state: "blocked", detail: expect.stringContaining("delegated-agent / complete") });
+    expect(obligation).not.toHaveProperty("coverageSelectionAction");
   });
 
   it("refuses a chunked selection whose exact member target has moved", () => {
@@ -2001,7 +2016,7 @@ describe("review status", () => {
       exhaustedPassCount: 2,
       nextPass: 3,
     };
-    const policy = resolveReviewPolicy({
+    const policy = resolveReviewPolicy(withReviewNextPassContext({
       schemaVersion: 1,
       target: hostedAction.target,
       lane: "standard",
@@ -2018,7 +2033,7 @@ describe("review status", () => {
       completedPasses: 2,
       attempts: [],
       ceilingOverride,
-    });
+    }));
     const obligation = composeDeliveryReviewObligation({
       targets: [deliveryTarget(hostedAction.target)],
       discharges: [deliveryDischarge({
@@ -2046,7 +2061,7 @@ describe("review status", () => {
       exhaustedPassCount: 2,
       nextPass: 3,
     };
-    const policy = resolveReviewPolicy({
+    const policy = resolveReviewPolicy(withReviewNextPassContext({
       schemaVersion: 1,
       target: hostedAction.target,
       lane: "standard",
@@ -2063,7 +2078,7 @@ describe("review status", () => {
       completedPasses: 2,
       attempts: [],
       ceilingOverride,
-    });
+    }));
     const obligation = composeDeliveryReviewObligation({
       targets: [deliveryTarget(hostedAction.target)],
       discharges: [deliveryDischarge({

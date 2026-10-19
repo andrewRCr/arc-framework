@@ -1276,3 +1276,13 @@ describe("checkout subject projection", () => {
   });
 
 });
+
+it("honors an in-repo task pointer naming another file", async () => {
+  const { options, files } = fixture();
+  const selected = options.candidates[0];
+  if (selected === undefined) throw new Error("Expected one subject");
+  selected.text = selected.text.replace("`tasks-demo.md`", "`tasks-alternative.md`");
+  files.set("/repo-wt/.arc/active/tasks-alternative.md", "## **Phase 1:** Alternate\n\n### `[ ]` **1.9 Follow the pointer**\n");
+  const result = await projectCheckoutSubjectMeta(options);
+  expect(result).toMatchObject({ kind: "resolved", taskListPath: ".arc/active/tasks-alternative.md", taskCursor: { status: "found", cursor: { leaf: { id: "1.9" } } } });
+});

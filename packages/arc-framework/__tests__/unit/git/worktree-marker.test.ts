@@ -171,6 +171,14 @@ describe("worktree-marker", () => {
     },
   );
 
+  it("round-trips an anchored work-unit claim", async () => {
+    const marker: WorktreeMarker = { spawnedByArc: false, createdFor: { kind: "work-unit", name: "widget" },
+      spawningIdentity: "andrew", createdAt: "2026-05-25T00:00:00.000Z" };
+    await writeWorktreeMarker(cwd, marker);
+    expect(await readWorktreeMarker(cwd)).toEqual({ kind: "present", marker });
+    expect(decodeWorktreeMarkerOwnership(marker)).toMatchObject({ kind: "current", subject: marker.createdFor });
+  });
+
   it("round-trips unified primary and partial transient occupancy", async () => {
     const primary: WorktreeMarker = {
       spawnedByArc: false,

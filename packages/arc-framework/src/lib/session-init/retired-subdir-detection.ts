@@ -17,6 +17,7 @@
  * @module
  */
 
+import type { Store } from "../store/contract.js";
 import { join } from "node:path";
 
 import { z } from "zod";
@@ -32,6 +33,7 @@ import type { RemoteHeadSnapshotResult } from "../git/remote-ref-reader.js";
 import type { CleanupBaseEvidence } from "./cleanup-remote-evidence.js";
 
 export interface RunRetiredSubdirDetectionOptions {
+  store?: Store;
   /** Repository root containing `.arc/`. */
   cwd: string;
   /** Notes-owning identity whose `user/{identity}/` subdirs are scanned. */
@@ -61,6 +63,7 @@ export type RetiredSubdirDetectionResult = z.infer<typeof RetiredSubdirDetection
 
 /** Supplied prerequisites for retired-subdirectory analysis against advertised base evidence. */
 export interface AnalyzeRetiredSubdirSnapshotOptions {
+  store?: Store;
   exec: GitExec;
   localSubdirs: readonly string[];
   baseBranch: string;
@@ -73,6 +76,7 @@ export interface AnalyzeRetiredSubdirSnapshotOptions {
 export async function analyzeRetiredSubdirSnapshot(
   options: AnalyzeRetiredSubdirSnapshotOptions,
 ): Promise<RetiredSubdirDetectionResult> {
+  if (options.store?.capabilities.stateOffBranch === true) return { candidates: [] };
   if (!options.remoteSyncEnabled || options.snapshot.kind === "unreachable") return { candidates: [] };
   const baseOid = options.snapshot.tips[options.baseBranch];
   if (baseOid === undefined) return { candidates: [] };
@@ -105,6 +109,7 @@ export async function analyzeRetiredSubdirSnapshot(
 export async function runRetiredSubdirDetection(
   options: RunRetiredSubdirDetectionOptions,
 ): Promise<RetiredSubdirDetectionResult> {
+  if (options.store?.capabilities.stateOffBranch === true) return { candidates: [] };
   const { cwd, identity, baseBranch, exec, readDir, readFile } = options;
   const userDir = join(cwd, ".arc", "user", identity);
 

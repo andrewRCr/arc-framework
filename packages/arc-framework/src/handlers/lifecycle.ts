@@ -1178,7 +1178,7 @@ async function resolveMaterializeCandidate(
   base: VerbBase,
   settings: Awaited<ReturnType<typeof readConfigSettings>>["settings"],
   slug: string | undefined,
-): Promise<MaterializableWorkUnit | null> {
+): Promise<(MaterializableWorkUnit & { branch: string }) | null> {
   if (base.io.execInput === undefined) {
     refuse("remote materialization discovery requires stdin-capable Git I/O");
     return null;
@@ -1209,7 +1209,8 @@ async function resolveMaterializeCandidate(
     return null;
   }
   const { entries } = result;
-  const { candidates } = findMaterializableWorkUnits({ entries, identity: base.identity });
+  const { candidates: discovered } = findMaterializableWorkUnits({ entries, identity: base.identity });
+  const candidates = discovered.filter((candidate): candidate is MaterializableWorkUnit & { branch: string } => candidate.branch !== undefined);
   if (!target) {
     refuse(`\`arc materialize <slug>\` requires a work-unit name.\n\n${formatMaterializeCandidates(candidates)}`);
     return null;

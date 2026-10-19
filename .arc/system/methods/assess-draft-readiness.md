@@ -6,7 +6,8 @@ override-active: false
 
 # Method: assess-draft-readiness
 
-> - **Workflow:** [draft-design.md][draft-design], [create-spec.md][create-spec]
+> - **Workflow:** [planning-review](planning-review.md), [draft-design.md][draft-design], and
+>   [create-spec.md][create-spec].
 > - **When:** A planning stage decides whether a draft is ready to formalize into a spec — `draft-design` at
 >   loop-exit (ready ends the shaping loop), `create-spec` at entry (ready proceeds to discovery). One judgment,
 >   two fire points.

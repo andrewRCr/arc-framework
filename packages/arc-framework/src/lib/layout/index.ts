@@ -1,5 +1,6 @@
 /** Public API for semantic ARC layout projection and materialization. */
 
+export { identifyArcFileAddress } from "./file-identification.js";
 export { LayoutError } from "./errors.js";
 export type { LayoutErrorCode } from "./errors.js";
 export {
@@ -10,6 +11,12 @@ export {
 export { materializeArcPath } from "./materialization.js";
 export { LAYOUT_SCHEMA_IDS, createLayoutRegistry } from "./registry.js";
 export { resolveArcPath } from "./projection.js";
+export {
+  PROJECTED_LIFECYCLE_ROOTS,
+  PROJECTED_PERSONAL_ROOT,
+  isProjectedPath,
+  isProjectedLifecyclePath,
+} from "./projected-roots.js";
 export {
   TEMPLATE_BINDING_SUFFIX,
   resolveTemplateOutputBindings,

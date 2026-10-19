@@ -6,7 +6,8 @@ override-active: false
 
 # Method: design-audit
 
-> - **Workflow:** [draft-design.md][draft-design], [create-spec.md][create-spec]
+> - **Workflow:** [planning-review](planning-review.md) and the
+>   [standalone design audit](../.internal/skills/arc-design-audit/SKILL.md).
 > - **When:** A planning boundary validates a settled design — draft readiness or spec finalization, where the
 >   `adversarial-review` mechanism runs this rubric — or an ad-hoc standalone re-check re-validates a design whose
 >   world may have moved, via the [`arc-design-audit` door][arc-design-audit-skill].
@@ -76,8 +77,8 @@ The two methods divide labor along the artifact/design line and compose rather t
 
 - [`spec-review`][spec-review] verifies the **artifact** — the just-written spec is coherent, complete, and its
   claims about shipped behavior hold at source. It deliberately disclaims re-litigating the design.
-- `design-audit` validates the **design** — the thing self-review disclaims. When a `spec-review` pass surfaces a
-  finding that _reopens design_ (a masked decision, an unsettled fundamental), this rubric is that route's
+- `design-audit` validates the **design** — the thing `code-review-author` disclaims. When a `spec-review` pass surfaces
+  a finding that _reopens design_ (a masked decision, an unsettled fundamental), this rubric is that route's
   destination: the reopened question is re-validated here, never papered over in the artifact.
 
 Run `spec-review` to certify the record; run `design-audit` to certify the decisions it records. Neither subsumes
@@ -108,8 +109,6 @@ draft or spec grooming — not around it via downstream patches.
 
 ---
 
-[draft-design]: ../workflows/arc/draft-design.md
-[create-spec]: ../workflows/arc/create-spec.md
 [assess-design-proportionality]: assess-design-proportionality.md
 [spec-review]: spec-review.md
 [adversarial-review]: adversarial-review.md
