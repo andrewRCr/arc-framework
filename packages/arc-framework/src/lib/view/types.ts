@@ -6,6 +6,7 @@
 
 import type { Location } from "../work-unit/lifecycle-state.js";
 import type { Slug } from "../kernel/index.js";
+import type { RecordReference } from "../store/identity.js";
 import type { WorkUnitPlacement } from "../layout/index.js";
 
 export const VIEW_KINDS = [
@@ -39,7 +40,7 @@ export interface ResolvedViewTarget {
   location: Location;
   metaPath: string;
   taskListPath: string | null;
-  artifactSource?: { kind: "checkout"; cwd: string } | { kind: "ref"; ref: string };
+  artifactSource?: { kind: "checkout"; cwd: string } | { kind: "ref"; ref: string } | { kind: "store"; reference: RecordReference };
 }
 
 export type ViewTargetResult =

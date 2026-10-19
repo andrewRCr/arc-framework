@@ -478,24 +478,15 @@ its file; tests of a present file use temporary directories, since `pathExists` 
 flip read records through one optional port on `ViewArtifactDependencies` (Task 7.3), so the in-repo resolution keeps
 its code. `notes-seam-status-roadmap.md` § Phase 7 — `arc view` records the pieces of locus's arm this phase replaces.
 
-### `[ ]` **7.1 Resolve `--for` through the store, a completed work unit included — § 6.1**
+### `[x]` **7.1 Resolve `--for` through the store, a completed work unit included — § 6.1**
 
 - _Goal:_ From the flip `--for <slug>` reads the work unit through `readWorkUnit`, resolving a former slug and a reused
   slug's live holder, opening a completed work unit, and refusing an ambiguous slug with the lookup's condition and
   remedy and the route to a completed holder's projected file under `completed/`.
 
-- **Additional Context:** `notes-seam-status-roadmap.md` § Phase 7 — `arc view`
-
-    - The target carries its meta record's reference as a third `artifactSource` kind, `{ kind: "store", reference }`
-      (`lib/view/types.ts`, importing `RecordReference` as a type), with the record's placement and location and its
-      `metaPath` from `workItemArtifactPath`. Its paths root at the checkout, as `viewWorkUnitArtifactPath`
-      (`lib/view/started-artifacts.ts`) roots every source but a ref or another checkout.
-    - `not-found`, and a slug naming an Errand (`record-malformed`), refuse as an unknown target does today; the
-      completed refusal stays the in-repo arm's.
-    - Build `test-first` (one behavior at a time):
-        - a former slug and a reused slug resolve to the live work unit
-        - a completed work unit opens; two completed holders refuse naming the `completed/` route
-        - a slug naming an Errand refuses as an unknown target
+- _Outcome:_ `resolveStoreViewTarget` reads current and former names through `readWorkUnit`, retaining the selected
+  reference and shared projected placement. Completed targets open, ambiguous lookups retain their repair route and
+  completed-file advice, and malformed metadata preserves its diagnostic instead of becoming an unknown target.
 
 ### `[ ]` **7.2 Refuse with a remedy where no default target resolves — § 6.1**
 

@@ -3,6 +3,7 @@
  *
  * @module
  */
+import { resolveStoreViewTarget } from "./view-store.js";
 import { describeRecordConflicts } from "../lib/store/conflict-diagnostics.js";
 
 import { execFile, spawn } from "node:child_process";
@@ -286,6 +287,7 @@ export function createViewDependencies(
       return adaptActiveViewTarget(result, await resolveCurrentBranch(cwd, exec));
     },
     resolveExplicitTarget: async ({ slug }) => {
+      if (store.capabilities.stateOffBranch) return resolveStoreViewTarget({ cwd, store, slug });
       const composition = await resolveCallerComposedLifecycleIndex({
         cwd, exec, identity, acquisitionPolicy: "local",
         fs: {
