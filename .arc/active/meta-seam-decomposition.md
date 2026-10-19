@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** [none]
-- **Next Task:** Task 1.1 — Move the locator schema and source-ID function into the scanner (line ~26)
+- **Last Completed:** Task 6.3 — The dispatch end to end (Phase 6 complete)
+- **Next Task:** Task 7.1 — Complete verification (line ~655)
 - **Blockers:** [none]
 
-- **Next Action:** Reconcile with fresh main, then audit spec and full task list before Task 1.1
+- **Next Action:** Start Task 7.1 in a fresh session — load and follow `verify-work-unit.md`
 
 - **PR URL:** [none]
 - **Completed:** [none]
