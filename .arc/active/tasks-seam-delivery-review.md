@@ -59,16 +59,13 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
           under one extra-pass decision. Unavailable and malformed listings refuse with actionable diagnostics; moving
           Errand heads and independently numbered sources retain their existing behavior.
 
-    - `[ ]` **1.2.R Preserve frontline source-binding identity**
+    - `[x]` **1.2.R Preserve frontline source-binding identity**
 
         - _Goal:_ The portable frontline outcome retains the original canonical `sourceBindingId` required by
           disposition matching, without carrying executable paths or arguments (A7).
-        - Add the required digest to the frontline binding and retain it in production-derived fixtures.
-        - Build `test-first` (one behavior at a time):
-            - a command source with a Candidate/member response binding retains its original source digest through
-              parsing and serialization, while executable paths and arguments remain absent
-            - a missing or malformed `sourceBindingId` refuses
-            - a disposition set bound to the original source digest still matches the portable result's context
+        - _Outcome:_ The frontline binding requires its recorded canonical source digest. Production-derived fixtures
+          retain command and response identities; an existing approved set still matches after portable serialization,
+          while missing or malformed digests refuse and executable paths and arguments remain absent.
 
     - `[ ]` **1.2.c The pass-count and settled derivations**
 

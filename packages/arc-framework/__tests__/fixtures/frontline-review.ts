@@ -2,6 +2,8 @@
 
 import type { LaneSubjectLineage } from "../../src/scripts/review-gate/core/lane-admission.js";
 import type { NormalizedReviewFinding } from "../../src/scripts/review-gate/core/finding-records.js";
+import type { BoundFrontlineResponseBinding } from "../../src/scripts/review-gate/core/frontline-response-binding.js";
+import { computeFrontlineSourceBindingId } from "../../src/scripts/review-gate/policy/frontline-operation.js";
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
 import { createFrontlineAdmission } from "../../src/scripts/review-gate/core/frontline-admission.js";
 import { createFrontlineOutcomeRecord } from "../../src/scripts/review-gate/core/advisory-records.js";
@@ -17,7 +19,8 @@ export function createFrontlineFixture(target: ReviewTarget = createReviewTarget
   schemaVersion: 2, semanticsVersion: "review-gate/v2", kind: "change-set", repositoryId: "repo-1",
   baseRef: "main", diffBaseSha: "a".repeat(40), diffBaseTree: "b".repeat(40),
   headSha: "c".repeat(40), headTree: "d".repeat(40),
-}), options: { lineage?: LaneSubjectLineage; findings?: readonly NormalizedReviewFinding[] } = {}) {
+}), options: { lineage?: LaneSubjectLineage; findings?: readonly NormalizedReviewFinding[];
+  responseBinding?: BoundFrontlineResponseBinding } = {}) {
   const source = { sourceId: "coderabbit-cli", kind: "command" as const, executable: "reviewer", argv: ["--plain"] };
   const lineage = options.lineage ?? { kind: "head-bound" as const, vehicleKind: "review-target" as const,
     vehicleIdentity: target.targetId, headSha: target.headSha };
@@ -35,12 +38,13 @@ export function createFrontlineFixture(target: ReviewTarget = createReviewTarget
   const outcomeRecord = createFrontlineOutcomeRecord({ schemaVersion: 1, semanticsVersion: "review-advisory/v1",
     repositoryId: target.repositoryId, operationId: admission.operationId, sourceIdentity: source.sourceId,
     executableIdentity: { digest: canonicalDigest({ executable: source.executable }), qualifiedVersion: "reviewer/1.0.0" },
-    outcome });
+    outcome, ...(options.responseBinding === undefined ? {} : { responseBinding: options.responseBinding }) });
   const run = FrontlineRunStateSchema.parse({ schemaVersion: 1, semanticsVersion: "review-operation/v1",
     operationId: admission.operationId, updatedAt: "2026-10-13T00:00:00Z", kind: "frontline-run",
     repositoryId: target.repositoryId, targetId: target.targetId, sourceIdentity: source.sourceId, lineage,
     logicalPass: 1, retryGeneration: 0, outcome: outcome.outcome, policyVersion: admission.policyVersion,
-    sourceBindingId: canonicalDigest({ domain: "arc.review-gate.frontline-source-binding/v1", source }) });
+    sourceBindingId: computeFrontlineSourceBindingId(source, options.responseBinding),
+    ...(options.responseBinding === undefined ? {} : { responseBinding: options.responseBinding }) });
   const lane = LaneProgressStateSchema.parse({ schemaVersion: 1, semanticsVersion: "review-operation/v1",
     operationId: "lane-progress-frontline", updatedAt: "2026-10-13T00:01:00Z", kind: "lane-progress",
     lane: "frontline", repositoryId: target.repositoryId, lineage, completedPasses: 1,

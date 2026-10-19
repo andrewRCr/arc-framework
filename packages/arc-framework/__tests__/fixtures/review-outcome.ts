@@ -36,7 +36,7 @@ export function hostedOutcome(options: HostedHandleFixtureInput & {
 }
 
 export function frontlineOutcome(options: Parameters<typeof createFrontlineFixture>[1] = {}) {
-  const { admission, outcomeRecord } = createFrontlineFixture(undefined, options);
+  const { admission, outcomeRecord, run } = createFrontlineFixture(undefined, options);
   return {
     schemaVersion: 1, attemptId: admission.operationId, lane: "frontline", lineage: admission.lineage,
     logicalPass: 1, retryGeneration: 0, source: { sourceId: outcomeRecord.sourceIdentity, kind: "frontline" },
@@ -45,8 +45,10 @@ export function frontlineOutcome(options: Parameters<typeof createFrontlineFixtu
     frontline: {
       admission: { ...admission, frontlineReview: { ...admission.frontlineReview,
         source: { sourceId: outcomeRecord.sourceIdentity, kind: "command", capability: null } } },
+      sourceBindingId: run.sourceBindingId,
       outcomeDigest: outcomeRecord.outcomeDigest, executableIdentity: outcomeRecord.executableIdentity,
       reason: outcomeRecord.outcome.reason,
+      ...(outcomeRecord.responseBinding === undefined ? {} : { responseBinding: outcomeRecord.responseBinding }),
     },
   };
 }

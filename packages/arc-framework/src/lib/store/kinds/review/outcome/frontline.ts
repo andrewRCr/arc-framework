@@ -38,6 +38,7 @@ export const PortableFrontlineAdmissionSchema = z.strictObject({
 export const FrontlineOutcomeBindingSchema = z.strictObject({
   admission: PortableFrontlineAdmissionSchema,
   outcomeDigest: FrontlineAdmissionSchema.shape.policyVersion,
+  sourceBindingId: FrontlineAdmissionSchema.shape.policyVersion,
   executableIdentity: FrontlineExecutableIdentitySchema.nullable(),
   reason: z.union([
     z.null(), FrontlineUnavailableReasonSchema, FrontlineFailedReasonSchema,
