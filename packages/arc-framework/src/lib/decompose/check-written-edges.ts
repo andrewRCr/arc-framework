@@ -11,8 +11,8 @@ import { readLifecycleMetaFields } from "../store/lifecycle-write.js";
 import { renderV3DecomposeArgv } from "../work-unit/decompose-command-renderer.js";
 import { decomposeReviseArgv } from "./command-argv.js";
 import type { StoreRecord } from "../store/read.js";
-import { sameOwner } from "../store/identity.js";
 import { decomposeMapRuleRefusal } from "./map-rule-refusal.js";
+import { decomposeDependencyContributions } from "./dependency-contributions.js";
 
 interface WrittenEdge { provider: string; recipient: string; locus: string }
 
@@ -30,9 +30,9 @@ export async function checkDecomposeWrittenEdges(ctx: DecomposeContext, map: Cut
       message: `The origin's original edge still names ${JSON.stringify(takenProvider)}, which this cut would give to a new member.`,
       remedy: { text: originEdgeRepair(facts.origin) } };
   }
-  const started = checkStartedHomes(facts, projection) ?? checkStartedDependents(map, facts);
+  const started = checkStartedHomes(map, facts) ?? checkStartedDependents(map, facts);
   if (started !== undefined) return started;
-  for (const edge of writtenEdges(map, projection)) {
+  for (const edge of writtenEdges(map, facts, projection)) {
     if (members.has(edge.provider)) continue;
     const refusal = await checkWrittenProvider(ctx, facts.origin, edge, fields.result.dependsOn.includes(edge.provider));
     if (refusal !== undefined) return refusal;
@@ -40,12 +40,22 @@ export async function checkDecomposeWrittenEdges(ctx: DecomposeContext, map: Cut
   return undefined;
 }
 
-function checkStartedHomes(facts: DecomposeDependencyFacts, projection: DecomposeDependencyProjection): DecomposeRefusal | undefined {
+function checkStartedHomes(map: CutMap, facts: DecomposeDependencyFacts): DecomposeRefusal | undefined {
+  const recipients = new Map<string, string>();
+  for (const destination of map.authoring.destinations) {
+    if (destination.kind === "existing-home" && destination.target.kind === "work-unit") {
+      recipients.set(destination.target.slug, `home:${destination.destinationId}`);
+    }
+  }
+  const contributions = decomposeDependencyContributions(map, recipients);
   for (const home of facts.homes) {
     if (!home.started) continue;
-    const edit = projection.edits.find(candidate => sameOwner(candidate.primary.reference.owner, home.primary.reference.owner));
-    if (edit === undefined || !edit.afterTargets.some(provider => !edit.beforeTargets.includes(provider))) continue;
-    return decomposeMapRuleRefusal("started-edge", edit.locus,
+    const fields = readLifecycleMetaFields(home.primary);
+    if (fields.status === "refused") return decomposeStoreRefusal(fields.refusal);
+    const edge = contributions.find(candidate => candidate.kind !== "incoming" && candidate.recipient === `home:${home.destinationId}`
+      && !fields.result.dependsOn.includes(candidate.provider));
+    if (edge === undefined) continue;
+    return decomposeMapRuleRefusal("started-edge", edge.locus,
       `Leave the new edge to ${home.primary.reference.owner.name}'s owner, or choose a stub recipient in the map, then retry.`);
   }
   return undefined;
@@ -80,22 +90,26 @@ async function checkWrittenProvider(ctx: DecomposeContext, origin: StoreRecord, 
       : "Choose drop for this edge's disposition, or choose another provider that resolves by slug, then retry." } };
 }
 
-function writtenEdges(map: CutMap, projection: DecomposeDependencyProjection): WrittenEdge[] {
+function writtenEdges(map: CutMap, facts: DecomposeDependencyFacts, projection: DecomposeDependencyProjection): WrittenEdge[] {
+  const recipients = new Map<string, string>();
+  for (const destination of map.authoring.destinations) {
+    if (destination.kind === "new-member") recipients.set(destination.slug, `member:${destination.slug}`);
+    else if (destination.kind === "existing-home" && destination.target.kind === "work-unit") {
+      const owner = facts.homes.find(home => home.destinationId === destination.destinationId)?.primary.reference.owner;
+      if (owner?.type === "work-item" && owner.uid !== undefined) recipients.set(destination.target.slug, owner.uid);
+    }
+  }
+  const contributions = decomposeDependencyContributions(map, recipients);
+  const locus = (recipient: string, provider: string, fallback: string): string => contributions.find(candidate =>
+    candidate.recipient === recipient && (candidate.kind === "incoming"
+      ? candidate.replacements.includes(provider) : candidate.provider === provider))?.locus ?? fallback;
   return [
     ...projection.members.flatMap(member => member.dependsOn.map(provider => ({ provider, recipient: member.slug,
-      locus: memberEdgeLocus(map, member.slug, provider) }))),
+      locus: locus(`member:${member.slug}`, provider, "authoring.destinations") }))),
     ...projection.edits.flatMap(edit => edit.afterTargets.filter(provider => !edit.beforeTargets.includes(provider))
-      .map(provider => ({ provider, recipient: edit.primary.reference.owner.name, locus: edit.locus }))),
+      .map(provider => ({ provider, recipient: edit.primary.reference.owner.name,
+        locus: locus(edit.primary.reference.owner.type === "work-item" ? edit.primary.reference.owner.uid ?? "" : "", provider, edit.locus) }))),
   ];
-}
-
-function memberEdgeLocus(map: CutMap, member: string, provider: string): string {
-  const outgoing = map.machine.outgoingEdges.findIndex(edge => edge.provider.slug === provider);
-  if (outgoing >= 0) return `authoring.outgoingDispositions.${outgoing}.disposition`;
-  const external = map.authoring.externalEdges.findIndex(edge => edge.from === member && edge.to === provider);
-  if (external >= 0) return `authoring.externalEdges.${external}.to`;
-  const internal = map.authoring.internalEdges.findIndex(edge => edge.from === member && edge.to === provider);
-  return internal >= 0 ? `authoring.internalEdges.${internal}.to` : "authoring.destinations";
 }
 
 async function decomposedProvider(ctx: DecomposeContext, slug: string): Promise<

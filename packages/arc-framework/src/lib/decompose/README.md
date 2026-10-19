@@ -104,3 +104,8 @@ unresolved locators to revision. Destination bodies and recomputed occurrence or
 `source-binding.ts` compares current-kind source units by identity and digest and dependencies by stable edge ID,
 allowing metadata grooming, provider renames, and changes outside the current scan. Shared inbound admission in
 `start-guards.ts` names held entries with their individual routing versions when a grammar is supplied.
+
+`terminal-edges.ts` acquires current dependency recipients, prepares terminal edits, and repeats provider and
+started-recipient admission with stored-cut revision remedies. Started-home intent is checked before omitted writes
+can hide it; provider checks cover actual terminal additions while member seeds remain under seeded-field validation.
+Written-provider refusals point to the contribution that introduced that provider, even when one edit combines edges.

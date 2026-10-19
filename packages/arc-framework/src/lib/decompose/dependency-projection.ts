@@ -27,7 +27,7 @@ interface Recipient {
 /** Project dependencies by recipient UID; terminal planning excludes members whose seeds already landed. */
 export function projectDecomposeDependencies(map: CutMap, facts: DecomposeDependencyFacts,
   phase: "additive" | "terminal" = "additive"): DecomposeResult<DecomposeDependencyProjection> {
-  const rule = checkDecomposeDependencyRules(map, facts);
+  const rule = checkDecomposeDependencyRules(map, facts, phase);
   if (rule !== undefined) return rule;
   const acquired = recipientState(map, facts);
   if (acquired.status === "refused") return acquired;

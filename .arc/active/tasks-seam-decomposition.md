@@ -319,14 +319,11 @@ that step fails; and the preview afterward reports the cut landed, naming its me
           authenticated member's name and seeded Cohort; only a common admissible placement offers revision.
           Reverse renames and forbidden origin edges name their repairs; other member grooming passes.
 
-### `[ ]` **3.3 Check the content — § 8.4**
+### `[x]` **3.3 Check the content — § 8.4**
 
 - _Goal:_ Every allocation resolves exactly once in its destination, every record of a retiring group is accounted for,
   the origin's rescan still matches the map's units and edges, the origin's inbound list holds no entry, and every edge
   the batch writes resolves — each failure refusing before anything is written, naming its repair.
-
-- _Note:_ See `notes-seam-decomposition.md` § A1 — destination locator semantics for the scanner's occurrence matching
-  and source probe; the executable cases below realize spec § 8.4 and Success Criterion 9.
 
     - `[x]` **3.3.a Conservation over records**
 
@@ -341,15 +338,11 @@ that step fails; and the preview afterward reports the cut landed, naming its me
           member-generation exclusion and allowing unscanned edits. Shared inbound admission names every held entry;
           routing remedies now carry each entry's executable version rather than the enclosing record's version.
 
-    - `[ ]` **3.3.c Edges again**
+    - `[x]` **3.3.c Edges again**
 
-        - A started home that would take a new edge refuses, as at the additive batch; every edge the batch writes
-          resolves by slug, so a provider ended between the batches refuses before the approval, naming `--revise`.
-        - Build `test-first` (one behavior at a time):
-            - a home started since the additive batch that the map gives a new edge refuses, naming the edge for its
-              owner and `--revise`
-            - a provider abandoned since the additive batch refuses, naming `--revise`, and the revision that drops or
-              retargets its edge is task 5.3's
+        - `prepareDecomposeTerminalEdges` repeats started-recipient admission over authored contributions and validates
+          actual terminal provider writes, with exact contribution loci and revision remedies. Member seeds remain
+          outside terminal provider checks; native store failures retain their recovery information unchanged.
 
 ### `[ ]` **3.4 Write the retirement through the lifecycle executor — § 8.5, § 11, § 12**
 
