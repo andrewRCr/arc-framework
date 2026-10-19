@@ -63,15 +63,12 @@ symbols to re-ground when that change ships.
           record's decoded Purpose. Companion-designed status reports its first sentence, while the existing in-repo
           extractor cases retain their outputs.
 
-### `[ ]` **1.3 Hold the layout's work-unit kind list to the registry — § 8.3**
+### `[x]` **1.3 Hold the layout's work-unit kind list to the registry — § 8.3**
 
 - _Goal:_ Renaming or removing a `WorkUnitArtifactKindSchema` name, or the `work-item/*` kind it maps to, fails a test.
 
-    - A conformance test under `__tests__/unit/layout/` holds one table typed `Record<WorkUnitArtifactKind, KindId>`
-      (`tasks` to `work-item/task-list` among it): each `WorkUnitArtifactKindSchema` option has an entry, each mapped kind
-      is registered, and its registry descriptor's layout artifact (`KIND_MECHANISMS`, `lib/store/registry.ts`) names
-      the same artifact, modelled on the typed `it.each` in `__tests__/unit/lib/store/registry.test.ts`.
-    - `lib/layout` gains no import; the test imports both modules, as that test does.
+    - `layout/work-unit-kinds.test.ts` maps every declared artifact through one typed table to a registered kind and
+      checks both projection and in-repo layout roles, including `tasks` → `work-item/task-list`.
 
 ### `[ ]` **1.4 Before the flip — the three fixes** — validate exit criterion at segment scope
 
