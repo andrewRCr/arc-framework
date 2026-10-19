@@ -1548,15 +1548,10 @@ _Mode:_ `slice` through Phase 17 — closes on state moved between remotes, ever
 
 - _Note:_ Each case here asserts the remotes and the moving clones' records; the clones that then follow are 17.2.b's.
 
-    - `[ ]` **16.5.a Crossing moves**
-        - Build `test-first` (one behavior at a time):
-            - two clones moving off one remote at once to two other remotes end on one, the second's move ending before
-              its switch and reporting the copy it leaves
-            - two clones moving between two remotes in opposite directions at once end on one, the push coming second
-              losing its lease and its move ending before its switch
-            - two crossing moves whose copies each carry the other's commit back both go on, one forwarding record landing
-            - a copy losing its lease to a later move's forwarding record at its destination runs again from step 1 and
-              ends there, that record staying
+    - `[x]` **16.5.a Crossing moves**
+        - Native competing moves settle through registry leases before either losing clone switches. Overtaken moves
+          release their journals, report every leftover, and preserve the winner’s forwarding route on abandoned copies.
+          Crossed copies continue until a forward lands; propagation retains the last landed copy’s lease across retries.
 
     - `[ ]` **16.5.b Moves back and moves ended**
         - Build `test-first` (one behavior at a time):

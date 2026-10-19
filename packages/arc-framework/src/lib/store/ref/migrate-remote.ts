@@ -4,7 +4,7 @@ import type { StoreMigrateResult } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
 import { readRefDesignation } from "./designation.js";
 import { captureMoveRemote } from "./migrate-remote-target.js";
-import { migrationCodeContext, readMoveRecord, type MoveRemote, type RecordedRemote } from "./migrate-record.js";
+import { migrationCodeContext, readMoveRecord, type MoveRemote, type RecordedRemote, type RemoteMoveRecord } from "./migrate-record.js";
 import { readRefRepository } from "./repository.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { fetchLayoutObjects } from "./migrate-layout-build.js";
@@ -13,6 +13,7 @@ import { deleteRemoteSource } from "./migrate-remote-delete.js";
 import { forwardRemoteMove } from "./migrate-remote-forward.js";
 import { switchRemoteMove, remoteSwitchComplete } from "./migrate-remote-switch.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
+import { endRemoteMove } from "./migrate-remote-end.js";
 
 /** Copy under the caller's move lock and retain the exact record until forwarding and switching finish. */
 export async function moveRefRemote(context: RefBackendContext, store: Store, to?: string, trial = false, resume?: RecordedRemote): Promise<StoreMigrateResult> {
@@ -33,10 +34,22 @@ async function performRemoteMove(context: RefBackendContext, code: RefBackendCon
   const physical = await readRefRepository(context);
   const local = await readSyncRefs(physical, "refs/arc/project/registry");
   await fetchLayoutObjects(code, physical.repository?.gitDir ?? physical.repository?.commonDir ?? "", local);
-  let active = resume;
+  const active = resume;
   if (active && await remoteSwitchComplete(context, active)) return finishRemoteMove(code, active, remoteCopyReport(await readCopiedRemoteRefs(code, "state"), new Map(), []));
+  return runRemoteMoveRounds(context, code, store, transports, local, trial, active);
+}
+
+async function runRemoteMoveRounds(context: RefBackendContext, code: RefBackendContext, store: Store,
+  transports: Pick<RemoteMoveRecord, "source" | "destination">, local: ReadonlyMap<string, string>, trial: boolean, active?: RecordedRemote): Promise<StoreMigrateResult> {
   for (;;) {
     const copied = await copyRemoteMove(code, transports.source, transports.destination, local, trial, active);
+    if (copied.ended) {
+      if (!copied.recorded) throw new Error("An ended remote move has no record");
+      const ended = await endRemoteMove(code, copied.recorded, copied);
+      if (ended) return { status: "ok", result: ended };
+      active = copied.recorded;
+      continue;
+    }
     if (trial) { await clearRemoteGathering(code); return { status: "ok", result: copied.report }; }
     if (!copied.recorded) throw new Error("A copied remote move has no record");
     active = copied.recorded;

@@ -20,7 +20,7 @@ const copyRoot = "refs/arc/tmp/migrate/remote/copy/";
 const copiedRoot = "refs/arc/tmp/migrate/copied/";
 const deletedRecordRef = "refs/arc/tmp/migrate/deleted-record";
 /** One completed copy and the source basis retained for forwarding and deletion. */
-export interface RemoteCopy { recorded?: RecordedRemote; report: MigrateReport; source: Map<string, string>; destination: Map<string, string> }
+export interface RemoteCopy { recorded?: RecordedRemote; ended?: "source-forwarded" | "destination-forwarded" | "moved-back"; report: MigrateReport; source: Map<string, string>; destination: Map<string, string> }
 
 /** The caller holds only the move lock; all merge commits target temporary refs in the code repository. */
 export async function copyRemoteMove(code: RefBackendContext, source: MoveRemote, destination: MoveRemote,
@@ -28,23 +28,15 @@ export async function copyRemoteMove(code: RefBackendContext, source: MoveRemote
   let recorded = resume;
   const firstRun = resume === undefined;
   for (;;) {
-    const observed = await captureMoveHeads(code, source);
-    await code.migrateStep?.("remote.fetch-source");
-    const incoming = await fetchMigrationRemote(code, source, true);
-    const ownForwarding = await checkSourceForwarding(code, incoming, source, recorded);
-    if (ownForwarding && recorded) {
-      const destinationRefs = await fetchMigrationRemote(code, destination, false);
-      await checkCopyProject(code, local, destinationRefs, incoming, destination);
+    const basis = await readRemoteCopyBasis(code, source, destination, local, recorded);
+    const { incoming, held, observed } = basis;
+    if (basis.ended) return { recorded, ended: basis.ended, report: remoteCopyReport(new Map(), new Map(), []), source: incoming, destination: held };
+    if (basis.ownForwarding && recorded) {
       const planned = await readSyncRefs(code, copyRoot);
       const refs = new Map([...planned].map(([ref, tip]) => ["refs/arc/" + ref.slice(copyRoot.length), tip]));
-      return { recorded, report: remoteCopyReport(refs, destinationRefs, []), source: incoming, destination: destinationRefs };
+      return { recorded, report: remoteCopyReport(refs, held, []), source: incoming, destination: held };
     }
-    await code.migrateStep?.("remote.fetch-destination");
-    const controls = await fetchMigrationRemote(code, destination, false);
-    await checkCopyProject(code, local, controls, incoming, destination);
-    const held = await fetchMigrationRemote(code, destination, true);
-    // Repeat the control check on the same complete snapshot used to construct the copy.
-    await checkCopyProject(code, local, held, incoming, destination);
+    await retainKnownCopyVersion(code, recorded, held);
     await code.migrateStep?.("remote.build");
     const prepared = await buildRemoteCopy(code, incoming, held);
     const report = remoteCopyReport(prepared.refs, held, prepared.notices);
@@ -56,26 +48,63 @@ export async function copyRemoteMove(code: RefBackendContext, source: MoveRemote
     const pushed = await atomicMigrationPush(code, destination.pushUrl, changes);
     if (lostCopyLease(pushed)) continue;
     if (pushed.status !== "refs" || pushed.refs.some(row => row.status !== "ok")) {
-      if (firstRun && pushed.status !== "unreachable") { await removeMoveRecord(code, recorded); await clearRemoteGathering(code, true); }
-      throw new MigrationRefusal(migrationPushRefusal(pushed));
+      await refuseCopyPush(code, recorded, pushed, firstRun);
     }
-    await retainCopiedTips(code, incoming, observed, held.get(FORWARDING_REF));
+    await retainCopiedTips(code, incoming, observed, prepared.registry, held.get(FORWARDING_REF));
     await code.migrateStep?.("remote.copied");
     return { recorded, report, source: incoming, destination: held };
   }
 }
 
-async function checkSourceForwarding(code: RefBackendContext, incoming: ReadonlyMap<string, string>, source: MoveRemote, recorded?: RecordedRemote): Promise<boolean> {
+async function refuseCopyPush(code: RefBackendContext, recorded: RecordedRemote, pushed: PushOutcome, firstRun: boolean): Promise<never> {
+  if (firstRun && pushed.status !== "unreachable") { await removeMoveRecord(code, recorded); await clearRemoteGathering(code, true); }
+  throw new MigrationRefusal(migrationPushRefusal(pushed));
+}
+
+async function readRemoteCopyBasis(code: RefBackendContext, source: MoveRemote, destination: MoveRemote,
+  local: ReadonlyMap<string, string>, recorded?: RecordedRemote) {
+  const observed = await captureMoveHeads(code, source);
+  await code.migrateStep?.("remote.fetch-source");
+  const incoming = await fetchMigrationRemote(code, source, true);
+  const forwarding = await checkSourceForwarding(code, incoming, source, recorded);
+  if (forwarding === "ended") return { incoming, observed, held: await fetchMigrationRemote(code, destination, true), ended: "source-forwarded" as const };
+  await code.migrateStep?.("remote.fetch-destination");
+  const controls = await fetchMigrationRemote(code, destination, false);
+  const controlEnd = await destinationEndReason(code, local, controls, incoming, destination, recorded);
+  if (controlEnd) return { incoming, observed, held: await fetchMigrationRemote(code, destination, true), ended: controlEnd };
+  if (forwarding === "own") return { incoming, observed, held: controls, ownForwarding: true };
+  const held = await fetchMigrationRemote(code, destination, true);
+  // Classify the complete snapshot as well: another move may land between these acquisitions.
+  const ended = await destinationEndReason(code, local, held, incoming, destination, recorded);
+  return { incoming, observed, held, ended };
+}
+
+async function destinationEndReason(code: RefBackendContext, local: ReadonlyMap<string, string>, held: ReadonlyMap<string, string>,
+  incoming: ReadonlyMap<string, string>, destination: MoveRemote, recorded?: RecordedRemote): Promise<RemoteCopy["ended"]> {
+  if (await checkCopyProject(code, local, held, incoming, destination, recorded)) return "destination-forwarded";
+  if (recorded && await meetsMoveBack(code, incoming, held, recorded)) return "moved-back";
+  return undefined;
+}
+
+async function meetsMoveBack(code: RefBackendContext, incoming: ReadonlyMap<string, string>, destination: ReadonlyMap<string, string>, recorded: RecordedRemote): Promise<boolean> {
+  const registry = incoming.get(registryRef);
+  const forwarding = await readForwardingRecord(code, destination.get(FORWARDING_REF), recorded.record.destination.name);
+  if (forwarding.status === "refused") throw new MigrationRefusal(forwarding.refusal);
+  return forwarding.result !== null && registry !== undefined && await registryHoldsMove(code, recorded.record.registryCommit, registry);
+}
+
+async function checkSourceForwarding(code: RefBackendContext, incoming: ReadonlyMap<string, string>, source: MoveRemote, recorded?: RecordedRemote): Promise<"own" | "none" | "ended"> {
   const forwarding = await readForwardingRecord(code, incoming.get(FORWARDING_REF), source.name);
   if (forwarding.status === "refused") throw new MigrationRefusal(forwarding.refusal);
-  if (forwarding.result && recorded?.record.registryCommit === forwarding.result.registryCommit) return true;
+  if (forwarding.result && recorded?.record.registryCommit === forwarding.result.registryCommit) return "own";
+  if (forwarding.result && recorded) return "ended";
   if (forwarding.result) throw new MigrationRefusal({ code: "moved", class: "recoverable", condition: `State moved from ${source.name}.`,
     remedy: { text: "Bring in the tracked pointer change and run arc store migrate to follow, then use --to from the remote it follows to.", argv: ["arc", "store", "migrate"] } });
-  return false;
+  return "none";
 }
 
 async function checkCopyProject(code: RefBackendContext, local: ReadonlyMap<string, string>, destination: ReadonlyMap<string, string>,
-  source: ReadonlyMap<string, string>, remote: MoveRemote): Promise<void> {
+  source: ReadonlyMap<string, string>, remote: MoveRemote, recorded?: RecordedRemote): Promise<boolean> {
   const forwarding = await readForwardingRecord(code, destination.get(FORWARDING_REF), remote.name);
   if (forwarding.status === "refused") throw new MigrationRefusal(forwarding.refusal);
   const [stored, origin, other] = await Promise.all([local, source, destination].map(refs => copyProjectId(code, refs)));
@@ -87,9 +116,11 @@ async function checkCopyProject(code: RefBackendContext, local: ReadonlyMap<stri
     condition: `${origin && stored && origin !== stored ? "The migration source" : `Remote ${remote.name}`} belongs to project ${foreign}; this store belongs to ${localId}.`, remedy: { text: "Choose a destination for this project, then retry --to." } } });
   const registry = source.get(registryRef);
   if (forwarding.result && (!registry || !await registryHoldsMove(code, forwarding.result.registryCommit, registry))) {
+    if (recorded) return true;
     throw new MigrationRefusal({ code: "moved", class: "recoverable", condition: `${FORWARDING_REF} on ${remote.name} belongs to a different line of moves.`,
       remedy: { text: "Use arc store migrate --to <remote> naming the remote the state moved to: one without a forwarding record whose registry holds this record's commit." } });
   }
+  return false;
 }
 
 async function buildRemoteCopy(code: RefBackendContext, incoming: ReadonlyMap<string, string>, destination: ReadonlyMap<string, string>) {
@@ -134,9 +165,10 @@ export function migrationPushRefusal(outcome: PushOutcome): Extract<import("../c
     remedy: { text: "Enable atomic pushes and repair the receiver's hook or permissions, then retry arc store migrate." } } };
 }
 
-async function retainCopiedTips(code: RefBackendContext, source: ReadonlyMap<string, string>, observed: ReadonlyMap<string, string>, deleted?: string): Promise<void> {
+async function retainCopiedTips(code: RefBackendContext, source: ReadonlyMap<string, string>, observed: ReadonlyMap<string, string>, registry: string, deleted?: string): Promise<void> {
   const prior = await readSyncRefs(code, copiedRoot);
   const retained = new Map([...source].filter(([ref]) => ref !== FORWARDING_REF).map(([ref, tip]) => [copiedRoot + "state/" + ref.slice("refs/arc/".length), tip]));
+  retained.set(copiedRoot + "registry", registry);
   for (const [name, tip] of observed) {
     const suffix = name.slice(name.indexOf("/") + 1), live = "refs/arc/" + suffix;
     const paired = live.includes("/history/") ? live.replace("/history/", "/") : live.replace(/^refs\/arc\/(work|cohort)\//u, "refs/arc/history/$1/");
@@ -148,6 +180,19 @@ async function retainCopiedTips(code: RefBackendContext, source: ReadonlyMap<str
   await requireLayoutTransaction(code, [...[...retained].map(([ref, next]) => ({ ref, next, expected: prior.get(ref) ?? null })),
     ...[...prior].filter(([ref]) => !retained.has(ref)).map(([ref, expected]) => ({ ref, expected, delete: true as const }))]);
   await retainDeletedRecord(code, kept);
+}
+
+async function retainKnownCopyVersion(code: RefBackendContext, recorded: RecordedRemote | undefined, held: ReadonlyMap<string, string>): Promise<void> {
+  const registry = held.get(registryRef);
+  if (!recorded || !registry || !await registryHoldsMove(code, recorded.record.registryCommit, registry)) return;
+  const ref = copiedRoot + "registry", expected = (await readSyncRefs(code, ref)).get(ref) ?? null;
+  await requireLayoutTransaction(code, [{ ref, next: recorded.record.registryCommit, expected }]);
+}
+
+/** Use the last landed copy for forwarding leases even after a later copy attempt replaced the journal. */
+export async function readRemoteCopyVersion(code: RefBackendContext, fallback: string): Promise<string> {
+  const ref = copiedRoot + "registry";
+  return (await readSyncRefs(code, ref)).get(ref) ?? fallback;
 }
 
 /** Drop temporary migration data only after a definitive first-copy refusal. */
