@@ -338,10 +338,14 @@ first; the flags' help text stays until the cutover rewrites it.
   The shared production roster adapter resolves store-only metadata and identity-scoped claims; its new imports are
   recorded in the foundation inventory.
 
-### `[ ]` **4.5 Freshness and the slug query** — validate exit criterion at segment scope
+### `[x]` **4.5 Freshness and the slug query** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base, where Task 4.1.b's condition is read again, with
   `arc check segment` green.
+
+- _Outcome:_ Merged fresh base `c67daedd6`; the sync union still excludes `incomplete` and notices. The reference-store
+  handler exercise covered every current pull result, refresh ordering, both flag precedences and quiet unbound refresh;
+  the slug exercise preserved live reuse, parsed purpose, derived position, scope and pause behavior without file writes.
 
 ## **Phase 5:** The user view from the flip
 
