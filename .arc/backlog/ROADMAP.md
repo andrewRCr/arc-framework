@@ -16,16 +16,14 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | State      | Work unit                       | Priority | Owner  | Depends on                      | Cohort        |
 | ---------- | ------------------------------- | -------- | ------ | ------------------------------- | ------------- |
 | `Planning` | storage-projection              | P1       | andrew | seam-locus, storage-ref-backend | state-storage |
-| `Planning` | storage-ref-backend             | P1       | andrew | seam-locus                      | state-storage |
-| `Planning` | seam-decomposition              | P1       | andrew | —                               | storage-seam  |
-| `Planning` | seam-delivery-review            | P1       | andrew | —                               | storage-seam  |
-| `Active`   | seam-locus                      | P1       | andrew | —                               | storage-seam  |
-| `Planning` | seam-status-roadmap             | P1       | andrew | —                               | storage-seam  |
+| `Active`   | storage-ref-backend             | P1       | andrew | seam-locus                      | state-storage |
+| `Active`   | seam-decomposition              | P1       | andrew | —                               | storage-seam  |
+| `Active`   | seam-delivery-review            | P1       | andrew | —                               | storage-seam  |
+| `Planning` | seam-status-roadmap             | P1       | andrew | seam-locus                      | storage-seam  |
 | `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —                               | —             |
 | `Planning` | decomposition-doctrine          | P1       | andrew | —                               | —             |
 | `Planning` | delivery-rebuild-continuity     | P1       | andrew | —                               | —             |
 | `Planning` | review-checkout-lifecycle       | P1       | andrew | —                               | —             |
-| `Planning` | review-coverage-cadence         | P1       | andrew | —                               | —             |
 | `Planning` | stub-mint-to-launch             | P1       | andrew | —                               | —             |
 
 ## Ready
@@ -39,11 +37,13 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | host-policy-evidence                | P1       | andrew | —          | review-protocol-alignment  |
 | review-evaluator-isolation          | P1       | andrew | —          | review-protocol-alignment  |
 | review-source-authority             | P1       | andrew | —          | review-protocol-alignment  |
+| seam-locus                          | P1       | andrew | —          | storage-seam               |
 | cross-worktree-git-state-safety     | P1       | andrew | —          | —                          |
 | delivery-intent-integrity           | P1       | andrew | —          | —                          |
 | locus-claim-revalidation            | P1       | andrew | —          | —                          |
 | recovery-hardening                  | P1       | andrew | —          | —                          |
 | recurring-errand-pr-resolution      | P1       | andrew | —          | —                          |
+| review-coverage-cadence             | P1       | andrew | —          | —                          |
 | review-operation-state-isolation    | P1       | andrew | —          | —                          |
 | session-init-performance            | P1       | andrew | —          | —                          |
 | verification-falsification-contract | P1       | andrew | —          | —                          |
