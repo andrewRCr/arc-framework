@@ -3,7 +3,7 @@
   "slug": "base-merge-directory-renames",
   "claimId": "887a5ece99a7861b9ec7f73f54a58497",
   "createdAt": "2026-10-19T21:29:06.934Z",
-  "updatedAt": "2026-10-19T21:29:06.934Z",
+  "updatedAt": "2026-10-19T22:08:35.563Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Disable directory-rename inference for ARC base merges so active work-unit artifacts retain their paths while explicit file renames still merge.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Keep a base merge from moving a branch's active artifacts into an archived work unit's folder",
   "originEntrySourceDigest": "sha256:6eec0313aabb8bae673ae13099d11e3816e196ae5531a4ddfe053fe7e0a59cdd",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/base-merge-directory-renames",
+    "headSha": "13fb22d41fccbd84e790675bd184bdd3854f63cd"
+  }
 }
