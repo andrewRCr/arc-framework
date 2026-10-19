@@ -2577,6 +2577,7 @@ async function persistComposition(root: string, approvedHead: string): Promise<s
     const baseRevision = await git(root, ["rev-parse", "main^{commit}"]);
     const dependencies = createIntegrationCheckpointDependencies({ cwd: root, exec: gitExec });
     await dependencies.readCandidate("example", baseRevision);
+    const lifecycle = await dependencies.readLifecycle("example");
     const persisted = await dependencies.createHandle({
       workUnit: "example",
       approvedHead,
@@ -2590,15 +2591,7 @@ async function persistComposition(root: string, approvedHead: string): Promise<s
         requirements: [{ id: "candidate-convergence", state: "satisfied", detail: "Converged." }],
       },
       statusSummary: {
-        lifecycle: {
-          workUnit: SlugSchema.parse("example"),
-          storageVersion: approvedHead,
-          archiveCadence: "manual",
-          state: "integrating",
-          position: { phase: "Integrating", location: "active" },
-          artifactFacts: [],
-          complete: true,
-        },
+        lifecycle,
         changeRequest: {
           repository: "owner/repo",
           pullRequest: 42,
@@ -2638,6 +2631,8 @@ function registerReviewBearingIntegration(it: typeof vitestIt): void {
     const { root, approvedHead } = await settledReviewLineage();
     const handle = await persistComposition(root, approvedHead);
     const production = createIntegrationMergeDependencies({ cwd: root, exec: gitExec, workUnit: "example" });
+    const checkpoint = await inRepository(root, async () => production.readCheckpoint("example", handle));
+    if (checkpoint === null) throw new Error("Expected the persisted checkpoint");
     const target: IntegrationMergeTarget = {
       repository: "owner/repo",
       pullRequest: 42,
@@ -2651,7 +2646,7 @@ function registerReviewBearingIntegration(it: typeof vitestIt): void {
       readStatus: async () => ({
         actualHead: approvedHead,
         lifecycleComplete: true,
-        lifecycleVersion: approvedHead,
+        lifecycleVersion: checkpoint.lifecycleVersion,
         target,
       }),
       refreshTarget: async () => target,

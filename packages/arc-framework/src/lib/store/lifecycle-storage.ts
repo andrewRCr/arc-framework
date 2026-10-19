@@ -7,12 +7,17 @@ import { SlugSchema } from "../kernel/schema/slug.js";
 import { identifyWorkUnitArtifactPath, resolveArcPath, type WorkUnitArtifactKind, type WorkUnitPlacement } from "../layout/index.js";
 import type { ProjectViewFs, ProjectViewDirEntry } from "../status/project-view.js";
 import type { Store } from "./contract.js";
-import { RecordReferenceSchema, type StateVersion } from "./identity.js";
+import { RecordReferenceSchema, type RecordVersion, type StateVersion } from "./identity.js";
 import { listLifecycleIndex, type LifecycleEntry, type LifecycleIndexOutcome } from "./lifecycle-index.js";
 import type { StoreResult } from "./refusal.js";
 
 /** One lifecycle version and its record-backed filesystem projection. */
-export interface StoreLifecycleSnapshot { version: StateVersion; fs: ProjectViewFs }
+export interface StoreLifecycleSnapshot {
+  version: StateVersion;
+  fs: ProjectViewFs;
+  /** The selected meta record's version at this snapshot, or absence from its inventory. */
+  metaVersion(workUnit: string): RecordVersion | null;
+}
 /** Lifecycle storage accepted structurally by checkpoint and merge composition. */
 export interface StoreLifecycleStorage { readSnapshot(): Promise<StoreLifecycleSnapshot> }
 /** Bind lifecycle snapshots to a logical store without observing it during construction.
@@ -25,7 +30,8 @@ export function createStoreLifecycleStorage(input: { store: Store; checkoutRoot:
     const listing = unwrap(await listLifecycleIndex(input.store, { asOf: version }));
     requireCompleteInventory(input.store, listing);
     const entries = listing.status === "complete" ? listing.index.entries() : [];
-    return { version, fs: snapshotFs(input, version, entries) };
+    const metaVersions = new Map<string, RecordVersion>(entries.map((entry) => [entry.reference.owner.name, entry.version]));
+    return { version, fs: snapshotFs(input, version, entries), metaVersion: (workUnit) => metaVersions.get(workUnit) ?? null };
   } };
 }
 /** Refuse a write-driving inventory unless every lifecycle record was observed. */

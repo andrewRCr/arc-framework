@@ -214,49 +214,23 @@ in-repo arms and are not routed through the store: `handlers/delivery-execution.
 pairs with its `git show HEAD:` read (`handlers/review.ts`), the two halves of one replay against `HEAD` that 6.5.c
 retires.
 
-### `[ ]` **2.1 Bind the integration checkpoint to the meta record and the code head — § 3.2**
+### `[x]` **2.1 Bind the integration checkpoint to the meta record and the code head — § 3.2**
 
 - _Goal:_ The checkpoint records the version of the work unit's meta record it attested, read as of the lifecycle
   snapshot's state version, beside the approved head, and merge compares those, so a write to any other record between
   checkpoint and merge no longer stales it, and a checkpoint written before the change invalidates as `head-mismatch`.
 
-- _Note:_ In-repo the meta's version still derives from `HEAD`, so today's verdicts are unchanged there; the binding
-  shows only over a store whose versions move independently. This is the one behavior change before the flip, so the
-  tests that pin today's value change with it, each named below.
+    - `[x]` **2.1.a The snapshot gives the meta record's version, and the checkpoint records it**
 
-    - `[ ]` **2.1.a The snapshot gives the meta record's version, and the checkpoint records it**
+        - Added the snapshot's meta-version lookup over its listed records. Checkpoint persistence retains the exact
+          record binding beside the published namespace version, including interleaved lifecycle reads. Missing
+          acquisition requires re-reading the lifecycle snapshot before retrying; injected ports and fixtures carry it.
 
-        - `StoreLifecycleSnapshot` (`lib/store/lifecycle-storage.ts`) gives a work unit's meta record version by slug
-          from the entries it already listed at its state version, so injected lifecycle storage carries it too.
-        - `scripts/integration/checkpoint-composition.ts` records that version in `lifecycleVersion`, whose name and
-          schema stay (`IntegrationCheckpointCompositionRecordSchema`, `checkpoint-store.ts`), in place of the
-          snapshot's whole version.
-        - The published lifecycle summary keeps `storageVersion` as the snapshot's whole version
-          (`IntegrationLifecycleSummarySchema`, `scripts/integration/checkpoint.ts`); the meta record's version travels
-          beside it, outside the published summary, from the snapshot to the checkpoint's record and to `readStatus`.
-        - The Candidate record's version stays asserted on its own (`assertRecordVersion`).
-        - Build `test-first` (one behavior at a time):
-            - the snapshot gives each listed work unit's meta record version, and none for a work unit it did not list
-            - the checkpoint records the meta record's version
+    - `[x]` **2.1.b Merge compares the meta record's version and the code head**
 
-    - `[ ]` **2.1.b Merge compares the meta record's version and the code head**
-
-        - `readStatus` (`scripts/integration/merge-composition.ts`) returns the meta record's version as
-          `lifecycleVersion`, and `merge.ts` compares it where it compares `lifecycleVersion` today.
-        - The tests that change with the value: `store-lifecycle-storage.test.ts`'s `readStatus` assertions of
-          `lifecycleVersion` as `HEAD` and its two injected snapshots, which gain the meta record's version; the
-          `readStatus` stubs and checkpoint fixtures in `merge.test.ts`, `checkpoint-store.test.ts`, and
-          `candidate-lineage-suite.ts`; and `checkpoint-lifecycle-artifacts.test.ts`'s injected snapshot, its
-          `storageVersion` assertion unchanged.
-        - Build `test-first` (one behavior at a time):
-            - over the reference backend (`__tests__/helpers/store/reference-backend.ts`) passed as the store, with a
-              scripted Git runner for the head and branch, merge refuses `head-mismatch` when the work unit's meta
-              record moved after the checkpoint
-            - it refuses when the code head moved
-            - it passes when only an unrelated record moved — another work unit's meta, or a review record
-            - a checkpoint holding `HEAD` as its `lifecycleVersion` invalidates as `head-mismatch`, whose next action is
-              to checkpoint again
-            - over the in-repo implementation, today's merge scenarios pass unchanged
+        - Merge composition selects the snapshot's meta version, including absence; the existing comparison retains
+          code-head checks and invalidates old HEAD-bound checkpoints with the re-checkpoint remedy. Reference-store
+          cases cover selected-meta movement, unrelated writes, and retry; in-repo fixtures use record versions.
 
 ### `[ ]` **2.2 Read a review record's placement from the reading checkout's own tree — § 3.1**
 

@@ -531,7 +531,7 @@ export interface IntegrationMergeDependencies {
   readStatus(workUnit: string): Promise<{
     actualHead: string;
     lifecycleComplete: boolean;
-    lifecycleVersion: string;
+    lifecycleVersion: string | null;
     target: IntegrationMergeTarget;
   }>;
   readMerged(target: IntegrationMergeTarget): Promise<boolean>;

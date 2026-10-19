@@ -310,7 +310,7 @@ export function createIntegrationMergeDependencies(input: {
       return {
         actualHead,
         lifecycleComplete: lifecycle.complete,
-        lifecycleVersion: lifecycle.storageVersion,
+        lifecycleVersion: snapshot.metaVersion(workUnit),
         target,
       };
     },

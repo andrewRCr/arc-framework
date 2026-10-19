@@ -23,7 +23,7 @@ function composition() {
       headRef: "feat/example",
       headSha: oid("a"),
     },
-    lifecycleVersion: oid("a"),
+    lifecycleVersion: "meta-example:v1",
     settlementPlan: composeCanonicalSettlementPlan([]),
     mergeMethod: {
       schemaVersion: 1 as const,

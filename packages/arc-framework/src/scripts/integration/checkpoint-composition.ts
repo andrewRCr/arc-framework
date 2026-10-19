@@ -295,6 +295,8 @@ export type IntegrationLifecycleReadFs = NonNullable<
 export interface IntegrationLifecycleStorageSnapshot {
   version: string;
   fs: IntegrationLifecycleReadFs;
+  /** Version of the selected work unit's meta record in this snapshot. */
+  metaVersion(workUnit: string): string | null;
 }
 
 export interface IntegrationLifecycleStoragePort {
@@ -535,6 +537,8 @@ export function createIntegrationCheckpointDependencies(input: {
     store: createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec })),
     checkoutRoot: input.cwd,
   });
+  // Retain the record binding beside each published summary, including interleaved snapshot reads.
+  const lifecycleRecordVersions = new Map<string, string | null>();
   const candidate = (workUnit: string, baseRevision: string): Promise<CachedCandidate | null> =>
     candidateContext.readEffective(workUnit, baseRevision);
   const boundaries = new Map<string, ReturnType<typeof readSubmissionBoundary>>();
@@ -777,6 +781,7 @@ export function createIntegrationCheckpointDependencies(input: {
     readLifecycle: async (workUnit) => {
       const config = await settings();
       const snapshot = await lifecycleStorage.readSnapshot();
+      lifecycleRecordVersions.set(JSON.stringify([workUnit, snapshot.version]), snapshot.metaVersion(workUnit));
       return readLifecycleSummary(
         input.cwd,
         workUnit,
@@ -1417,6 +1422,10 @@ export function createIntegrationCheckpointDependencies(input: {
           observedRecordVersion: recordVersion.observedRecordVersion,
         };
       }
+      const lifecycleVersion = lifecycleRecordVersions.get(JSON.stringify([workUnit, statusSummary.lifecycle.storageVersion]));
+      if (lifecycleVersion === undefined || lifecycleVersion === null) {
+        throw new Error("The work unit's lifecycle record version was not established. Read its lifecycle snapshot and recompose the checkpoint before retrying.");
+      }
       const resolvedIdentity = await identity();
       if (resolvedIdentity === null) {
         throw new Error("An ARC identity is required to persist the integration checkpoint.");
@@ -1434,7 +1443,7 @@ export function createIntegrationCheckpointDependencies(input: {
             headRef: statusSummary.changeRequest.headRef,
             headSha: statusSummary.changeRequest.headSha,
           },
-          lifecycleVersion: statusSummary.lifecycle.storageVersion,
+          lifecycleVersion,
           settlementPlan,
           mergeMethod: ValidatedMergeMethodSchema.parse(mergeMethod),
         },
