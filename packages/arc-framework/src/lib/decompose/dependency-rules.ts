@@ -20,7 +20,23 @@ export function checkDecomposeDependencyRules(map: CutMap, facts: DecomposeDepen
   const self = map.authoring.internalEdges.findIndex(edge => edge.from === edge.to);
   if (self >= 0) return decomposeMapRuleRefusal("self-dependency", `authoring.internalEdges.${self}`,
     "Remove the self dependency or choose a different prerequisite destination, then retry.");
-  return checkExternalEdges(map, facts, originNames, phase);
+  return checkIncomingSelfEdges(map, facts) ?? checkExternalEdges(map, facts, originNames, phase);
+}
+
+function checkIncomingSelfEdges(map: CutMap, facts: DecomposeDependencyFacts): DecomposeRefusal | undefined {
+  for (const [index, authored] of map.authoring.incomingDispositions.entries()) {
+    if (authored.disposition.kind !== "replace") continue;
+    const edge = map.machine.incomingEdges.find(candidate => candidate.edgeId === authored.edgeId);
+    if (edge === undefined) continue;
+    const dependent = facts.dependents.find(record => record.reference.owner.type === "work-item"
+      && record.reference.owner.uid === edge.dependent.uid);
+    if (dependent === undefined) continue;
+    const ownNames = new Set<string>([dependent.reference.owner.name, ...(dependent.aliases ?? [])]);
+    if (!authored.disposition.replacementTargets.some(target => ownNames.has(target))) continue;
+    return decomposeMapRuleRefusal("self-dependency", `authoring.incomingDispositions.${index}.disposition`,
+      `Choose a provider other than ${dependent.reference.owner.name} and its aliases, or drop this incoming edge with a reason, then retry.`);
+  }
+  return undefined;
 }
 
 function checkExternalEdges(map: CutMap, facts: DecomposeDependencyFacts, originNames: ReadonlySet<string>,

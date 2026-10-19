@@ -46,7 +46,8 @@ the terminal batch; started meta and task-list allocations and document homes re
 
 `dependency-facts.ts` acquires recipient records and external provider observations. `dependency-contributions.ts`
 orders all authored contributions, and `dependency-projection.ts` applies them by recipient UID, rejecting redundant
-provider slots through `dependency-rules.ts` and the projection checks. `dependency-slot.ts` preserves unrelated edge
+provider slots through `dependency-rules.ts` and the projection checks. Incoming replacements exclude the recipient's
+canonical name and aliases before either batch. `dependency-slot.ts` preserves unrelated edge
 order while replacing all origin spellings. Terminal projection emits only stub-dependent and stub-home edits.
 
 `check-written-edges.ts` validates providers in the intended after-state and protects started recipients. Original
@@ -113,3 +114,7 @@ Written-provider refusals point to the contribution that introduced that provide
 `lineage-plan.ts` projects admitted retirement records into create-only lineage with current names, known generations,
 and the origin's exact retired branch links. Renamed dependents match by UID; current and retired provider records
 retain the versions that establish their names for revalidation.
+
+`retirement-records.ts` prepares one metadata mutation per stub recipient, explicit stored-map removal, and at-cap
+fan-out append or reuse through the cohort writer. Started recipients retain their edges, and a dependent's own
+stored cut remains available for revision after its provider changes. Every acquired recipient stays version-bound.

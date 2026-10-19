@@ -363,27 +363,12 @@ that step fails; and the preview afterward reports the cut landed, naming its me
           allocations, and exact retired branch links into a create-only record accepted by teardown. Renamed live and
           retired providers retain current names and proof records for revalidation; renamed dependents match by UID.
 
-    - `[ ]` **3.4.b The edges and the fan-out**
+    - `[x]` **3.4.b The edges and the fan-out**
 
-        - Each stub dependent's `Depends On` and each stub home's new edges through task 2.4.d's projection, run over
-          the stub dependents and stub homes alone, and `writeMetaDependsOn`; under an `at-cap` placement the fan-out
-          block on its subcohort document (the placement's two-segment `parent`) through task 1.4's writer, naming the
-          members by their map slugs, a renamed member having refused (task 3.2.b), with its reuse and lone-marker
-          results; and the stored map's removal.
-        - A lone marker or a different block on the subcohort document, left by a hand edit between the batches,
-          refuses before anything is written (`conflicting-at-cap-provenance`, `planAtCap`,
-          `decompose-v3-topology.ts`), naming the block's repair or removal through write-back, then `--finish`.
-        - A stub dependent holding a stored map of its own takes its rewritten edge like any other, and its own cut
-          re-binds through `--revise` (§ 8.4).
-        - Build `test-first` (one behavior at a time):
-            - a stub dependent's edge is replaced or dropped by its disposition; an in-flight dependent's is left
-            - an incoming replacement naming its own dependent refuses as a self dependency before additive writes,
-              including a home's former-name alias; correcting the replacement admits the cut
-            - a stub dependent holding a stored map of its own takes its rewritten edge, and its own cut's `--finish`
-              then refuses, naming `--revise`
-            - the fan-out block names the members by their map slugs
-            - a block already present, seeded by hand, is reused, and a lone marker or a different block refuses, the
-              batch landing once the block is repaired
+        - `prepareDecomposeRetirementRecords` combines stub-recipient edits, map removal, and cohort-kind fan-out
+          append or reuse. Started dependents retain their edges; another cut's map survives its dependent's rewrite
+          and detects the changed provider binding. Incoming self replacements, including aliases, refuse before
+          additive writes; conflicting fan-out markers admit continuation after write-back repair.
 
     - `[ ]` **3.4.c The checkout, the executor, and teardown**
 
