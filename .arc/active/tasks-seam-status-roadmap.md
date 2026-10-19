@@ -440,21 +440,14 @@ were not read with no identity, and writes `{ conflicts, warnings }` with `--jso
   generation, and preserves matches beside omission warnings. Only complete reads prove an unknown token; no match
   after diagnostics, missed inventory or decode failure refuses as incomplete with the evidence and retry route.
 
-### `[ ]` **6.4 Render each conflict shape, and its `--json` result — § 5**
+### `[x]` **6.4 Render each conflict shape, and its `--json` result — § 5**
 
 - _Goal:_ Each conflict shows its token, subject record, both sides' labels, and both sides' content in its shape, and
   `--json` writes `{ conflicts, warnings }`, under § 2.4's freshness.
 
-    - A hunk shows its line range, base text, and each side's content; an entry its ID, base section, and each side's
-      section and content; a whole record each side's value, or that the side removed it.
-    - `--json` writes the matched records as the store lists them, each with its token, and the warnings as strings;
-      `--fetch` pulls first through Task 4.1, and `--local` and `--no-fetch` render locally.
-    - Build `test-first` (one behavior at a time):
-        - each of the three shapes renders its fields and both labels
-        - a whole-record side that removed the record says so
-        - `--json` carries each record with its token
-        - text and `--json` retain each listing diagnostic and the `missed` warning beside good records; failed token
-          reads retain their condition and repair route
+- _Outcome:_ The registered conflict handler renders each preserved shape and removal, emits raw listed records with
+  tokens and string warnings as `{ conflicts, warnings }`, and retains failed-token repair evidence. Explicit refresh
+  precedes acquisition once; local flags suppress it, and failed refresh remains advisory beside local records.
 
 ### `[ ]` **6.5 The conflict view** — validate exit criterion at segment scope
 

@@ -118,7 +118,7 @@ import { StatusCommandInputSchema, type StatusCliOptions } from "./status/input.
 import { handleLifecycleStatus } from "./status/lifecycle.js";
 import { createSessionStatusContext, readWorkingMemoryFromStore } from "./status/session-context.js";
 import { handleCompositeStatus, handleRecoverStatus, handleSessionHandoffStatus } from "./status/session.js";
-import { renderStatusViewRefusal } from "./status/refusal.js";
+import { handleConflictStatus } from "./status/conflicts.js";
 import { handleProjectStatus, handleUserStatus } from "./status/views.js";
 
 export {
@@ -195,11 +195,7 @@ export async function handleStatus(
   if (opts.sessionInit) return handleSessionInitStatus(context, opts);
   if (opts.user) return handleUserStatus(context, opts);
   if (opts.project) return handleProjectStatus(context, opts);
-  if (opts.conflicts !== undefined && opts.conflicts !== false) {
-    renderStatusViewRefusal({ code: "unsupported", condition: "This store keeps conflicts in tracked files.",
-      remedy: { text: "Use git status to inspect Git conflicts." } }, opts);
-    return;
-  }
+  if (opts.conflicts !== undefined && opts.conflicts !== false) return handleConflictStatus(context, opts);
   await handleCompositeStatus(context, opts);
 }
 
