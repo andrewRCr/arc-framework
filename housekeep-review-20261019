@@ -3,14 +3,20 @@
   "slug": "housekeep-review-20261019",
   "claimId": "a7d2fff1a86a1b286c7a0e7546d68856",
   "createdAt": "2026-10-19T16:06:53.340Z",
-  "updatedAt": "2026-10-19T16:06:53.340Z",
+  "updatedAt": "2026-10-19T16:32:04.389Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Route the approved review procedure and policy captures into their existing backlog design buffers.",
   "branch": "chore/housekeep-review-20261019",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/housekeep-review-20261019",
+    "headSha": "95b29e0317ecfb79f9cee6af75a6ea2f5f23b46e"
+  }
 }
