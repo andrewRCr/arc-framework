@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 
 import { buildInFlightMineSlice } from "../../../src/lib/status/in-flight-mine.js";
 import type { InFlightEntry } from "../../../src/lib/git/in-flight-derivation.js";
+import type { StoreInFlightErrand, StoreInFlightWorkUnit } from "../../../src/lib/git/in-flight-store.js";
 
 /** A minimal in-flight work-unit entry, overridable per field. */
 function wu(name: string, over: Partial<InFlightEntry> = {}): InFlightEntry {
@@ -17,6 +18,36 @@ function wu(name: string, over: Partial<InFlightEntry> = {}): InFlightEntry {
 }
 
 describe("buildInFlightMineSlice", () => {
+  it("drops a branchless store Errand", () => {
+    const entry: StoreInFlightErrand = {
+      kind: "errand", slug: "fix-typo", owner: "andrew", remoteOnly: false,
+    };
+
+    expect(buildInFlightMineSlice([entry])).toEqual([]);
+  });
+
+  it("renders a branchless store work unit", () => {
+    const entry: StoreInFlightWorkUnit = {
+      kind: "work-unit", name: "planning", state: "Planning",
+      remoteOnly: false, dependsOn: [], class: "Heavy", priority: "P2",
+    };
+
+    expect(buildInFlightMineSlice([entry])).toEqual([
+      { workUnit: "planning", state: "Planning", dependsOn: [], class: "Heavy", priority: "P2" },
+    ]);
+  });
+
+  it("renders paused store scheduling over the lifecycle state", () => {
+    const entry: StoreInFlightWorkUnit = {
+      kind: "work-unit", name: "paused", state: "Active", scheduling: "paused",
+      branch: "feat/paused", remoteOnly: false, dependsOn: [],
+    };
+
+    expect(buildInFlightMineSlice([entry])).toEqual([
+      { workUnit: "paused", state: "Paused", dependsOn: [] },
+    ]);
+  });
+
   it("maps work-unit entries to render rows and drops errands", () => {
     const entries: InFlightEntry[] = [
       wu("alpha", { state: "Active", cohort: "ranger" }),

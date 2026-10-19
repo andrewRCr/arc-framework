@@ -148,17 +148,14 @@ the measurements.
 - _Outcome:_ Without `renderedRef`, the title leads directly into the description with one blank line and no stamp
   block. The warning union carries all six store-view codes; stamped in-repo renders retain their frozen bytes.
 
-### `[ ]` **2.6 Give the in-flight builder a paused arm and a branchless entry — § 3**
+### `[x]` **2.6 Give the in-flight builder a paused arm and a branchless entry — § 3**
 
 - _Goal:_ `buildInFlightMineSlice` accepts the store's in-flight entries, rendering `Paused` where an entry's scheduling
   is `paused` and an entry with no branch, and still drops Errands.
 
-    - Widen its parameter to `InFlightEntry | StoreInFlightEntry` (`lib/status/in-flight-mine.ts`), as
-      `lib/session-init/errand-state.ts` does.
-    - Build `test-first` (one behavior at a time):
-        - a paused store entry renders `Paused`; a parked in-repo entry still renders `Parked`
-        - an entry with no branch renders its row
-        - a store Errand is dropped
+- _Outcome:_ The builder accepts either in-flight entry type, renders paused scheduling as `Paused`, and maps
+  branchless store work units through the same field normalization and dependency filter. Store Errands remain absent;
+  parked in-repo entries retain their existing rendering.
 
 ### `[ ]` **2.7 Close a paused work unit's scope window — § 4**
 
