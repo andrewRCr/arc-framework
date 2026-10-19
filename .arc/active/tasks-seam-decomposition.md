@@ -57,24 +57,11 @@ under `lib/decompose/`, and the kind folder imports its decoder from there, as t
           Cohort Purpose fields are optional structural values; starter construction and parsing preserve every
           machine identity and reject a corrupt machine envelope.
 
-    - `[ ]` **1.2.c Decoding — § 3.4**
+    - `[x]` **1.2.c Decoding — § 3.4**
 
-        - Carry `decodeV3DecomposeCutMap`'s rules: machine order and identity, authoring identity and order,
-          `source-shape`, `companion-disposition`, destination coverage, and placement and shape cardinality, each
-          issue keeping its code and path. The rules carry, not the function: one function per rule group, each
-          within the size gate and none suppressed, since version 3's decoder is the function behind its module's two
-          size suppressions (`eslint-suppressions.json`).
-        - A map is parsed, never refused for its formatting, so `map:non-canonical` has no counterpart; a map at
-          `schemaVersion: 3` reports an issue code of its own, apart from `invalid-structure`, which the batches turn
-          into the refusal naming `--preflight`.
-        - The decoder and its result, exported: accepted with the map, or rejected with one issue's code, path, and
-          message, as version 3's (`V3DecomposeCutMapDecodeResult`). A version-4 fixture factory beside
-          `__tests__/fixtures/decompose-v3.ts` builds valid maps from the exports for later tasks' tests.
-        - Build `test-first` (one behavior at a time):
-            - each carried rule refuses with its code and path
-            - a valid map in non-canonical bytes decodes
-            - a version-3 map reports the version issue, apart from a malformed map
-            - a version-4 map fails version 3's decoder as any malformed map does
+        - `decodeCutMap` composes separate structural, machine, authoring, source, reference, and cardinality rule
+          groups with the carried issue codes and paths. Version 3 receives `unsupported-version`; parsed JSON need
+          not use canonical bytes. Shared version-4 factories supply scanner-derived maps and extraction fixtures.
 
     - `[ ]` **1.2.d Publish the schema — § 15**
 
