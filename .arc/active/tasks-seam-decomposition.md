@@ -61,16 +61,12 @@ under `lib/decompose/`, and the kind folder imports its decoder from there, as t
           version 3. Production identity and authored-root inventories include it; strict Ajv projection and fresh-build
           CLI discovery cover both generations.
 
-### `[ ]` **1.3 Register the `work-item/cut-map` kind — § 4, § 17.1, § 17.2**
+### `[x]` **1.3 Register the `work-item/cut-map` kind — § 4, § 17.1, § 17.2**
 
 - _Goal:_ `work-item/cut-map` is a registered, never-projected, single-writer machine kind — one record per work item,
   holding the completed map as canonical JSON and parsed as § 3.4 decodes it, its bytes written by the verb alone —
   that the reference backend serves and the in-repo implementation lists absent and refuses `unsupported`, so no record
   of it can exist before the flip.
-
-- _Note:_ Its files that `storage-ref-backend`, `seam-locus`, or `storage-projection` also rewrites — the catalog, the
-  registry and its test, `registrations.ts`, `lifecycle-rename.ts`, and the architecture-imports module and its test —
-  serialize with them (§ 1.3); merge base first where any has landed.
 
     - `[x]` **1.3.a The shape and the mechanism**
 
@@ -84,18 +80,11 @@ under `lib/decompose/`, and the kind folder imports its decoder from there, as t
           the production registration set and registration imports behind the store boundary. Production-backed
           writes return parsed fields, refuse malformed maps with their issue path, and retain removed bytes in history.
 
-    - `[ ]` **1.3.c Keep the stored map out of rename's reference sweep — § 4**
+    - `[x]` **1.3.c Keep the stored map out of rename's reference sweep — § 4**
 
-        - Store rename sweeps every record of the groups it acquires — its own and every backlog stub's, a stored map
-          among them — rewriting backticked artifact names (`planRenameReferences`, `prepareStoreRename`,
-          `lib/store/lifecycle-rename.ts`), which would change a locator whose heading names one and leave the map
-          undecodable.
-        - Rename leaves the `work-item/cut-map` record's content out of its sweep, re-putting its owner's own record
-          under the new name with its bytes unchanged.
-        - Build `test-first` (one behavior at a time):
-            - a stub origin's stored map keeps its bytes when the origin is renamed, and when another work item is
-              renamed whose artifact a heading in the origin's draft names in backticks
-            - every other record the sweep reaches is rewritten as today
+        - Rename omits saved maps from both prose rewriting and shared paired-reference ambiguity checks. Owned
+          maps are re-put under the new owner name with their exact bytes; foreign maps remain unchanged while normal
+          draft references advance through the existing sweep.
 
 ### `[ ]` **1.4 Add the cohort kind's at-cap fan-out writer — § 17.2**
 

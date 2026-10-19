@@ -99,10 +99,13 @@ async function acquireRenameGroups(store: Store, primary: StoreRecord): Promise<
   }
   return { status: "ok", result: records };
 }
+function renameSweepRecords(records: readonly StoreRecord[]): StoreRecord[] {
+  return records.filter(record => record.reference.kind !== "work-item/cut-map");
+}
 function renameProjection(records: StoreRecord[], primary: StoreRecord) {
   const contents = new Map(records.map((record) => [record, record.content]));
   const paths = new Map<string, StoreRecord>();
-  for (const record of records) {
+  for (const record of renameSweepRecords(records)) {
     const own = record.reference.owner.type !== "person" && primary.reference.owner.type !== "person" && record.reference.owner.uid === primary.reference.owner.uid;
     const groupPrimary = own ? primary : records.find((candidate) => candidate.reference.kind === "work-item/meta" && candidate.reference.owner.type !== "person" && record.reference.owner.type !== "person" && candidate.reference.owner.uid === record.reference.owner.uid);
     const projected = groupPrimary === undefined ? null : lifecycleRecordPath(groupPrimary, record);
@@ -152,7 +155,7 @@ function malformed(primary: StoreRecord, condition: string): StoreResult<never> 
 
 async function checkSharedPairedReferences(store: Store, records: readonly StoreRecord[], primary: StoreRecord,
   artifactRenames: ReadonlyMap<string, string>, source: string, target: string): Promise<StoreResult<never> | undefined> {
-  const shared = records.filter((record) => !sameOwner(record.reference.owner, primary.reference.owner));
+  const shared = renameSweepRecords(records).filter((record) => !sameOwner(record.reference.owner, primary.reference.owner));
   const interpretations = await readPairedReferenceOwners(store, shared, new Set());
   if (interpretations.status === "refused") return interpretations;
   for (const [filename, owners] of interpretations.result) {
