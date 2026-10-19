@@ -114,13 +114,26 @@ Codex Review: Didn't find any major issues. You're on a roll.`);
 
 function requestedCodexHandle(): ReturnType<typeof createHostedHandleFixture> {
   return createHostedHandleFixture({
-    provider: "codex-pr", target,
+    provider: "codex-pr", target, actorIdentity: "1234",
     artifact: {
       kind: "issue-comment", id: "IC_1",
       url: "https://github.com/owner/repo/pull/42#issuecomment-1",
       createdAt: "2026-07-23T12:00:00.000Z",
     },
   });
+}
+
+function requestComment(overrides: Partial<HostedGitHubIssueComment> = {}): HostedGitHubIssueComment {
+  const handle = requestedCodexHandle();
+  return {
+    id: handle.artifact.id,
+    url: handle.artifact.url,
+    actorIdentity: handle.admission.actorIdentity,
+    body: "@codex review",
+    createdAt: handle.artifact.createdAt,
+    updatedAt: handle.artifact.createdAt,
+    ...overrides,
+  };
 }
 
 describe("Codex hosted adapter", () => {
@@ -431,7 +444,7 @@ describe("Codex hosted adapter", () => {
   it("ends the wait when a completion receipt omits the reviewed commit", async () => {
     const receipt = unboundReceipt();
     const adapter = new CodexHostedAdapter(port({
-      readIssueComments: () => Promise.resolve([receipt]),
+      readIssueComments: () => Promise.resolve([requestComment(), receipt]),
     }));
     const result = await adapter.observe(requestedCodexHandle());
 
@@ -445,6 +458,57 @@ describe("Codex hosted adapter", () => {
   });
 
   it.each([
+    ["missing request", null],
+    ["changed request body", { body: "unrelated comment" }],
+    ["changed request actor", { actorIdentity: "someone-else" }],
+    ["changed request URL", { url: "https://github.com/owner/repo/pull/42#issuecomment-other" }],
+    ["changed request time", { createdAt: "2026-07-23T11:59:00.000Z" }],
+    ["edited request", { updatedAt: "2026-07-23T12:01:00.000Z" }],
+  ] as const)("keeps unbound completion pending with %s", async (_name, overrides) => {
+    const adapter = new CodexHostedAdapter(port({
+      readIssueComments: () => Promise.resolve([
+        ...(overrides === null ? [] : [requestComment(overrides)]), unboundReceipt(),
+      ]),
+    }));
+
+    await expect(adapter.observe(requestedCodexHandle())).resolves.toEqual({ kind: "pending" });
+  });
+
+  it.each([
+    "2026-07-23T11:59:00.000Z",
+    "2026-07-23T12:00:00.000Z",
+    "2026-07-23T12:01:00.000Z",
+  ])("keeps overlapping request generations pending for a competing request at %s", async (createdAt) => {
+    const adapter = new CodexHostedAdapter(port({
+      readIssueComments: () => Promise.resolve([
+        requestComment(), requestComment({ id: "IC_2", body: "@codex review these changes",
+          createdAt, updatedAt: createdAt }), unboundReceipt(),
+      ]),
+    }));
+
+    await expect(adapter.observe(requestedCodexHandle())).resolves.toEqual({ kind: "pending" });
+  });
+
+  it("does not end an unbound wait without a retained request handle", async () => {
+    const adapter = new CodexHostedAdapter(port({
+      readIssueComments: () => Promise.resolve([requestComment(), unboundReceipt()]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toEqual({ kind: "pending" });
+  });
+
+  it("preserves unbound completion when a later request follows the receipt", async () => {
+    const adapter = new CodexHostedAdapter(port({
+      readIssueComments: () => Promise.resolve([
+        requestComment(), unboundReceipt(), requestComment({ id: "IC_2",
+          createdAt: "2026-07-23T12:06:00.000Z", updatedAt: "2026-07-23T12:06:00.000Z" }),
+      ]),
+    }));
+
+    await expect(adapter.observe(requestedCodexHandle())).resolves.toMatchObject({ kind: "terminal-failure" });
+  });
+
+  it.each([
     ["another actor", { actorIdentity: "someone-else" }],
     ["another app", { appId: "someone-else" }],
     ["an edited comment", { updatedAt: "2026-07-23T12:06:00.000Z" }],
@@ -454,7 +518,7 @@ describe("Codex hosted adapter", () => {
     ["unmarked wording", { body: "Codex Review: Didn't find any major issues." }],
   ] as const)("ignores unbound completion from %s", async (_name, overrides) => {
     const adapter = new CodexHostedAdapter(port({
-      readIssueComments: () => Promise.resolve([{ ...unboundReceipt(), ...overrides }]),
+      readIssueComments: () => Promise.resolve([requestComment(), { ...unboundReceipt(), ...overrides }]),
     }));
 
     await expect(adapter.observe(requestedCodexHandle())).resolves.toEqual({ kind: "pending" });
@@ -463,6 +527,7 @@ describe("Codex hosted adapter", () => {
   it.each(["clean", "findings"] as const)("prefers exact-head %s evidence over an unbound receipt", async (kind) => {
     const adapter = new CodexHostedAdapter(port({
       readIssueComments: () => Promise.resolve([
+        requestComment(), requestComment({ id: "IC_2" }),
         unboundReceipt(),
         ...(kind === "clean" ? [cleanComment(
           `Codex Review: Didn't find any major issues.\n\nReviewed commit: \`${HEAD}\``,
