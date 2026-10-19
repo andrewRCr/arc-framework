@@ -118,3 +118,12 @@ retain the versions that establish their names for revalidation.
 `retirement-records.ts` prepares one metadata mutation per stub recipient, explicit stored-map removal, and at-cap
 fan-out append or reuse through the cohort writer. Started recipients retain their edges, and a dependent's own
 stored cut remains available for revision after its provider changes. Every acquired recipient stays version-bound.
+
+`retirement-plan.ts` composes terminal admission, content conservation, source binding, lineage, and additional writes
+while retaining their version guards. `retirement-checkout.ts` finds the origin's holder and applies its marker-selected
+removal or release checks before persistence, preserving projection repairs.
+
+`retirement.ts` applies the prepared plan through the lifecycle executor, which supplies primary removal and record
+revalidation. Incomplete executor inventory is read again for its typed repair; version conflicts require a fresh
+finish preview. Teardown runs after persistence, surfaces preservation notices, and retains an executable continuation
+when physical cleanup fails. A stub with no holder or branch link needs no physical cleanup.

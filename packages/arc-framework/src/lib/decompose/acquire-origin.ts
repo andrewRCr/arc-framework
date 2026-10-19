@@ -48,7 +48,7 @@ export async function acquireDecomposeOrigin(ctx: DecomposeContext, slug: string
   if (conflicts !== undefined) return conflicts;
   const view = await readLifecycleView(store);
   if (view.status === "refused") return decomposeStoreRefusal(view.refusal);
-  const incomplete = inventoryRefusal(store, view.result.listing);
+  const incomplete = decomposeInventoryRefusal(store, view.result.listing);
   if (incomplete !== undefined) return incomplete;
   const map = await store.read({ reference: recordReferences["work-item/cut-map"](primary.reference.owner) });
   if (map.status === "refused" && map.refusal.code !== "not-found") return decomposeStoreRefusal(map.refusal);
@@ -61,7 +61,8 @@ export async function acquireDecomposeOrigin(ctx: DecomposeContext, slug: string
     ...(map.status === "ok" ? { storedMap: map.result } : {}) } };
 }
 
-function inventoryRefusal(store: Store, listing: LifecycleIndexOutcome): DecomposeRefusal | undefined {
+/** Preserve the complete lifecycle inventory's own repair information. */
+export function decomposeInventoryRefusal(store: Store, listing: LifecycleIndexOutcome): DecomposeRefusal | undefined {
   try { requireCompleteInventory(store, listing); }
   catch (error) {
     if (!(error instanceof ArcError)

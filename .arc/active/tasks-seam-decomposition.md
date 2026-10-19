@@ -344,18 +344,13 @@ that step fails; and the preview afterward reports the cut landed, naming its me
           actual terminal provider writes, with exact contribution loci and revision remedies. Member seeds remain
           outside terminal provider checks; native store failures retain their recovery information unchanged.
 
-### `[ ]` **3.4 Write the retirement through the lifecycle executor — § 8.5, § 11, § 12**
+### `[x]` **3.4 Write the retirement through the lifecycle executor — § 8.5, § 11, § 12**
 
 - _Goal:_ A retirement's terminal batch is the `decompose` transition's arm from the flip: after the removal check on
   any checkout holding the origin, one batch writes `decompose` lineage with `retiredBranches`, removes the primary and
   the stored map, rewrites stub dependents, writes stub homes' edges, and appends any at-cap fan-out block, every
   acquired record revalidated at its version just before it; then teardown's store arm removes or releases the
   checkout, leaving `arc teardown <origin>` where it fails.
-
-- _Approach:_ Follow `runStoreAbandon` (`lib/work-unit/verbs/abandon-store.ts`): `executeTransition` with verb
-  `decompose`, whose edges from a stub and a started Planning work unit declare removal and Git steps after the batch
-  (`lifecycle-transitions.ts`), `storeTransition.additionalWrites` for the batch's other writes, `preparedRecords` for
-  the records the executor revalidates, and `provenance` naming the terminal batch.
 
     - `[x]` **3.4.a The lineage record**
 
@@ -370,33 +365,12 @@ that step fails; and the preview afterward reports the cut landed, naming its me
           and detects the changed provider binding. Incoming self replacements, including aliases, refuse before
           additive writes; conflicting fan-out markers admit continuation after write-back repair.
 
-    - `[ ]` **3.4.c The checkout, the executor, and teardown**
+    - `[x]` **3.4.c The checkout, the executor, and teardown**
 
-        - Before the batch, the removal check on a checkout on this machine holding a started origin
-          (`findWorkUnitHoldingCheckout`, `checkRetiringCheckout`), refusing with its own remedy
-          (`describeRemovalRefusal`). A spawned checkout selected for removal requires Git cleanliness; a retained
-          checkout anchored with `arc start --here` takes the release disposition, which checks the projection without
-          requiring Git cleanliness (`checkWorktreeRemoval`).
-        - The executor runs with the primary's current name and adds the primary's removal itself
-          (`executeStoreTransition`, `lifecycle-store-executor.ts`), so `additionalWrites` never names the primary,
-          which a batch naming one record twice would refuse; each of its rejections maps into task 2.1.b's refusals, a
-          version conflict naming a fresh `--finish` preview. Its own listing check returns a guard-stage rejection
-          carrying only the error's text (`requireCompleteInventory`), so on a guard-stage rejection the verb reads the
-          listing again and reports the listing refusal where it is unreadable or incomplete.
-        - After the batch, a Git step running `runStoreTeardown`, its retry `arc teardown <origin>`, passed every time
-          since the `decompose` edge requires one and returning at once for a stub with no checkout and no branch link,
-          as `runStoreAbandon`'s does; teardown's notices, such as a kept `plan/<slug>` branch holding unlanded commits,
-          surface in the result as abandonment surfaces them.
-        - Build `test-first` (one behavior at a time):
-            - a dirty spawned holding checkout selected for removal refuses before anything is written
-            - a dirty retained holding checkout passes the release checks, and teardown releases its claim while
-              preserving its files; a refused projection check on that checkout refuses before the batch
-            - a failed teardown step leaves the continuation, and `arc teardown <origin>` completes it
-            - a listing made incomplete before the executor's own read refuses as the listing refusal, recoverable, and
-              `--finish` lands once the listing is whole
-            - a stub with no links runs only the holding-checkout lookup; a started origin runs the lookup and the
-              removal check before the batch and teardown's own calls after it, over `retirement-harness.ts`'s scripted
-              executor, which refuses any call it does not expect
+        - `prepareDecomposeRetirement` composes terminal checks and marker-selected checkout admission. The executor
+          removes the primary, revalidates selected records, and persists one terminal batch. Inventory refusals retain
+          their repairs; version conflicts name a fresh finish preview. Teardown releases retained claims, preserves
+          files and unlanded planning branches, and leaves an executable continuation after physical cleanup fails.
 
 ### `[ ]` **3.5 Preview and apply under an apply authority — § 8.7**
 
