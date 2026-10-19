@@ -266,6 +266,8 @@ planning-review:
   prior-findings:  # recorded history; fresh-loop first pass takes ended-loop findings, not folds, as context
 ```
 
+Run `arc check increment` over the saved specification and report its result at Gate 1.
+
 > [!IMPORTANT]
 > `workflow-interlock` — Gate 1 (review / iterate): Stop after the spec is saved and checked with `spec-review`.
 > Surface the spec location and the spec-check findings for a full read and feedback. Iteration loops here against the saved
@@ -307,7 +309,9 @@ Documents).
 
 After substeps 1-3, stage all edits — spec save (Write and save), draft deletion + `notes-*` migration, meta update.
 
-Run [planning-review's post-settle reread][planning-reread] as the last step before this commit.
+Run [planning-review's post-settle reread][planning-reread] as the final review before this commit. When notes
+migration or later authored-text edits, including the reread, changed files after the first request, run
+`arc check increment` again before the commit.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:

@@ -209,8 +209,9 @@ never as a dispositions table in the target's draft.
   established is the fork point, not the write target: full protection forbids committing the shared paths to
   the base branch itself. The planning-routing writes (existing-stub edits, new provisional stubs, the
   homeless-atomic flush) are then **one coherent concern** and batch into a **single auto-merge PR** per lane
-  off that branch (split per § 4 if large). Open it with a **lean grooming-PR body** — a one-line Summary
-  plus the § 3 routing plan (what routed where); no Spec / Out-of-Scope / Follow-Up sections.
+  off that branch (split per § 4 if large). Run `arc check increment` before each routing commit.
+  Open it with a **lean grooming-PR body** — a one-line Summary plus the § 3 routing plan (what routed where);
+  no Spec / Out-of-Scope / Follow-Up sections.
 
   Before creating each routing PR, invoke `arc review planning-grooming resolve -` with its exact base ref,
   diff-base SHA, head SHA, and only the caller-owned content kind, risk, determinacy, ownership, and surface
@@ -261,7 +262,8 @@ never as a dispositions table in the target's draft.
   after the release inherits nothing. Every way out of the released window that is not armed auto-merge re-locks
   first, per that lane.
 - **Partially protected** — every routing write is a **direct base-branch commit** with no PR or merge-wait;
-  keep coherent commit boundaries (the § 4 split shape). No lanes, no review-chunking.
+  keep coherent commit boundaries (the § 4 split shape). Run `arc check increment` before each direct routing commit.
+  No lanes, no review-chunking.
 
 ### 6. Execution transition — committed atomics → `run-errand`
 

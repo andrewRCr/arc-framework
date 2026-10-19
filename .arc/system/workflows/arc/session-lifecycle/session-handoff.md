@@ -227,6 +227,9 @@ Update session state files before ending session:
     <project markdown lint on the staged file>  # fix + re-stage on failure
     ```
 
+    Run `arc check increment` before the handoff commit. Correct and re-stage this meta edit if its checks fail;
+    record failures in unfinished state or code as remaining work in the handoff notes, without a fix-now/defer stop.
+
     **Compose the commit message** from the codified subject + body templates. Position-string
     selection is field-delta driven (minimal judgment):
 

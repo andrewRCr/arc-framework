@@ -207,6 +207,8 @@ planning-review:
   prior-findings:  # recorded history; fresh-loop first pass takes ended-loop findings, not folds, as context
 ```
 
+On a draft-producing path, run `arc check increment` before readiness approval and report its result.
+
 > [!IMPORTANT]
 > `workflow-interlock`: Stop when the draft (or determinacy confirmation) is ready. Surface it for review; await
 > approval before persisting `Class` and committing the capture.
@@ -248,7 +250,9 @@ What is staged sets the commit shape: a `medium` / `high` path bundles the `draf
 `Design` writes; a `low` path that produced no draft writes only the meta, landing as a dedicated `chore(arc):`
 commit (see [DEV-RULES.ARC][dev-rules-arc] § Meta-file commit shape).
 
-Run [planning-review's post-settle reread][planning-reread] as the last step before this commit.
+Run [planning-review's post-settle reread][planning-reread] as the final review before this commit. If draft text
+changed after the first request, including review amendments or this reread, run `arc check increment` again before
+the capture commit.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:

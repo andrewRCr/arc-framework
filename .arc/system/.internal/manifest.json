@@ -741,6 +741,16 @@
       "classification": "Configurable",
       "layer": "core",
       "pristine_hash": "a780f8a3bbe2f837ccc9ad4f75b2fec49e662ac88ff5af94ae11bb3756bb57f0"
+    },
+    "system/workflows/arc/work-unit-lifecycle/resume-work-unit.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "f2173759edf26eb20d52029eecc35cebc31595f00cb09d16c052e2617ec172d3"
+    },
+    "system/workflows/arc/work-unit-lifecycle/deactivate-work-unit.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "597e96777cd46892c44a9ac5ceae8d7ece891cce270e718293ea5dee8dfee139"
     }
   }
 }

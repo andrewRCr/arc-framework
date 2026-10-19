@@ -88,6 +88,30 @@ describe("changed indexed Markdown under-wrap check", () => {
     expect(messages.join("")).toContain("--worktree requires at least one Markdown path");
   });
 
+  it("reads ignored worktree operands only on explicit request", async () => {
+    const path = ".arc/active/current/notes-unit.md";
+    await write(".gitignore", ".arc/active/\n");
+    await write(path, bad);
+    expect(await main(root, ["--worktree", path])).toBe(1);
+    expect(messages.join("")).toContain("ignored or excluded");
+    messages = [];
+    expect(await main(root, ["--worktree", "--allow-ignored", path])).toBe(1);
+    expect(messages.join("")).toContain(`${path}:1 ARC001`);
+    await write(path, good);
+    messages = [];
+    expect(await main(root, ["--worktree", "--allow-ignored", path])).toBe(0);
+    expect(messages.join("")).not.toContain("ARC001");
+  });
+
+  it("keeps ignored admission restricted to explicit worktree reads", async () => {
+    expect(await main(root, ["--allow-ignored", "guide.md"])).toBe(1);
+    expect(messages.join("")).toContain("--allow-ignored requires --worktree");
+    messages = [];
+    await write(".arc/completed/excluded.md", bad);
+    expect(await main(root, ["--worktree", "--allow-ignored", ".arc/completed/excluded.md"])).toBe(1);
+    expect(messages.join("")).toContain("Markdown path is excluded");
+  });
+
   it("keeps working-tree feedback available while checker and dependency inputs are being edited", async () => {
     const checker = entryPaths[0]!;
     await write(checker, `${await readFile(join(root, checker), "utf8")}\n// Local edit.\n`);

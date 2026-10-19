@@ -156,6 +156,9 @@ frontline operator-repair, retaining the pre-publication command's opaque resume
 For every durable producer findings action, run [code-review's findings round][code-findings-round] with its exact
 source and the following Candidate-owned verification/authoring continuation.
 
+When an approved fix includes authored state text the Markdown checks read, run `arc check increment` before its
+commit; ordinary corrections and spec-changing amendments use this same request.
+
 Approved fixes request `arc check gate commit`. Before their `verifiedFix` replay, a `focused` scope also requests
 `arc check gate push --range --force`, and `full` requests `arc check gate merge --force` over the new target; Candidate
 convergence verification repeats it. Disclose applicability from the actual delta: `targeted` for confidently narrow
@@ -187,9 +190,9 @@ The verb reads `Next Action` from the boundary it writes and `Last Completed` fr
 `--last-completed "{work}"` or `--action "{pointer}"` only when that read refuses or is wrong.
 
 The executor fires `Active → Integrating`, writes the composed orientation, regenerates ROADMAP, and stages the
-publication boundary with any reservation. An advisory-only reconcile stops before transition; edit and rerun, or
-obtain explicit direction to retain all advisories and use `--allow-advisories`. Confirm ROADMAP changed only for
-the state flip.
+publication boundary with any reservation. An advisory-only reconcile stops before transition; edit, run
+`arc check increment`, and rerun `arc publish`, or obtain explicit direction to retain all advisories and use
+`--allow-advisories`. Confirm ROADMAP changed only for the state flip.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:

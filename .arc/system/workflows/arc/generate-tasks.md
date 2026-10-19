@@ -573,6 +573,9 @@ Later candidate eligibility still owns materialization.
 If the task or design inventory drifted, run `arc delivery plan abandon --json` and recreate from current inputs.
 Never patch the machine-owned snapshot or publish stale authoring state.
 
+Run [planning-review's post-settle reread][planning-reread] over the settled task list, then run `arc check increment`
+and report its result at the pre-save approval.
+
 > [!IMPORTANT]
 > `workflow-interlock`: Stop after the pre-save checklist passes. Surface the task list location for review;
 > await direction before the meta update and commit.
@@ -583,7 +586,8 @@ to write the resolved `**Class:**`, derived `**Task List:**`, and terminal `**Ne
 model in one call. generate-tasks is the planning terminus, so no stage advance or boundary sentinel; `activate`
 sets `Current Workflow` to `process-task-loop`. Bundle this write with the task list in the ceremony commit.
 
-Run [planning-review's post-settle reread][planning-reread] as the last step before this commit.
+Run [planning-review's post-settle reread][planning-reread] as the final review before this commit. If authored text
+changed after the first request, including this reread, run `arc check increment` again before the commit.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:

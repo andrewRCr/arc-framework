@@ -127,7 +127,7 @@ Your execution strategy — what gets built in what order, and why. Backlog sour
 decisions and dependency chains so you can plan work deliberately rather than reactively. ROADMAP renders a
 project status cache from those sources.
 
-**Generated view**: [ROADMAP.md][roadmap] → goes in `backlog/`
+**Generated view**: `backlog/ROADMAP.md`
 
 **Think through**:
 
@@ -192,4 +192,3 @@ artifacts, and helps you create a PRD and task list for your first work unit. Fr
 [quick-ref]: ../../../../reference/QUICK-REFERENCE.md
 [dev-rules]: ../../../../system/rules/DEV-RULES.PROJECT.md
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
-[roadmap]: ../../../../backlog/ROADMAP.md

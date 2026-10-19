@@ -138,7 +138,8 @@ const checkCmd = program
 
 checkCmd
   .command("run")
-  .description("Run declared checks by id")
+  .description("Run declared checks by id. A selection check receives the whole selection with no scope or --all, "
+    + "named paths with --paths, and changed selection with --changed, --staged, or --range.")
   .argument("<ids...>", "Declared check identifiers")
   .option("--json", "Emit a versioned JSON envelope")
   .option("--force", "Run selected checks without reusing passes")
@@ -180,7 +181,7 @@ checkCmd
 
 checkCmd
   .command("segment")
-  .description("Run checks over the unpublished segment")
+  .description("Run commit and push checks over the unpublished segment, plus changed projected selection feedback")
   .option("--json", "Emit a versioned JSON envelope")
   .option("--force", "Run selected checks without reusing passes")
   .option("--dry-run", "Forecast checks without executing them")
@@ -211,7 +212,7 @@ checkCmd
 
 checkCmd
   .command("increment")
-  .description("Run checks reached by the current increment")
+  .description("Run commit checks, early push file feedback, and changed projected selection feedback")
   .option("--json", "Emit a versioned JSON envelope")
   .option("--force", "Run selected checks without reusing passes")
   .option("--dry-run", "Forecast checks without executing them")

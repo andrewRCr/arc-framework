@@ -18,10 +18,10 @@ design needs rework, the feature was cancelled. The activation itself is the onl
 
 ## Case Matrix
 
-|                        | No task work executed                       | Some task work executed           |
-| ---------------------- | ------------------------------------------- | --------------------------------- |
-| **Not merged to base** | **Case A** — this workflow (or A-delete)    | **Case B** — see § Case B below   |
-| **Merged to base**     | **Case C** — see § Case C below             | **Case D** → integrate or clean   |
+|                        | No task work executed                    | Some task work executed         |
+| ---------------------- | ---------------------------------------- | ------------------------------- |
+| **Not merged to base** | **Case A** — this workflow (or A-delete) | **Case B** — see § Case B below |
+| **Merged to base**     | **Case C** — see § Case C below          | **Case D** → integrate or clean |
 
 **Case A** has two variants — the user chooses; surface the variant decision when invoking the workflow:
 
@@ -217,8 +217,9 @@ locally since it lives on base. No dedicated workflow ships for this; reverse it
 2. Reverse the activation's meta-file edits — the inverse of [`activate-work-unit.md`][activate] Step 3:
    `**State:** Active → Planning`, `**Branch:**` back to `plan/{name}`, and the Next Action back to a planning
    pointer.
-3. Open the PR, note the deactivation in its description, and merge once approved. If the activation also renamed
-   the live branch, rename it back per the Case A branch-rename routing above.
+3. Run `arc check increment` before committing the reversed meta fields for the deactivation PR. Open the PR, note
+   the deactivation in its description, and merge once approved. If the activation also renamed the live branch,
+   rename it back per the Case A branch-rename routing above.
 
 ---
 

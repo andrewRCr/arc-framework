@@ -95,8 +95,9 @@ already gone.
 Before selecting the merged-PR tail, verify the meta contains Completion Notes and any applicable Release Notes.
 Under `with-integration`, the resolver reports `shipped` in `completed`. A merged PR proves only that the merge ran,
 not that composition or archival ran. If a required product is absent, preserve the branch and worktree; do not
-invoke `arc user close` or `arc teardown`. Land the missing products through a lifecycle-only repair change request,
-then re-enter this guard.
+invoke `arc user close` or `arc teardown`. Before the repair commit, run `arc check increment` when the repair
+includes authored text the checks read; repairs confined to completed files are exempt. Land the missing products
+through a lifecycle-only repair change request, then re-enter this guard.
 
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `-u origin {type}/{name}`.
@@ -311,6 +312,10 @@ before `review-settled`.
 
 After every target movement, re-enter through `arc review status` and dispatch its typed action. Do not classify
 movement or choose review scope from prose; follow the applicability procedure above when its typed stop is returned.
+
+Before any review-fix commit, run `arc check increment` when the fix includes authored state text the checks read;
+completed-only repairs remain exempt.
+
 Request `arc check gate commit` after every review-driven change. Before an approved fix's `verifiedFix` replay,
 which attests the approved scope as performed, a `focused` scope also requests `arc check gate push --range --force`
 and a `full` scope `arc check gate merge --force` over the new target. A new target invalidates clearance and merge
@@ -456,7 +461,10 @@ arc wu reconcile {name} --apply --json
 ```
 
 `pending` surfaces every advisory reference immediately and requires direction to retain them or a correction and
-rerun. `conflict` stops on its typed reason. `clean` continues to the checkpoint below. On `applied`, request
+rerun. After correcting authored text the checks read, run `arc check increment` before rerunning reconcile;
+completed-only corrections remain exempt.
+
+`conflict` stops on its typed reason. `clean` continues to the checkpoint below. On `applied`, request
 `arc check gate commit` over the staged correction, then commit:
 
 > [!CAUTION]
@@ -625,8 +633,10 @@ dismiss it or request re-review before merge. `approval-required` names a host a
 > an instruction to invoke merge this turn while those checks are pending. Close with `Approve (or redirect)?`.
 
 If direction requests a composition correction instead of merge authorization, keep the candidate unmerged. Append
-the requested composition correction — never amend or rewrite the pushed head — rerun affected gates and routing,
-push through the configured release route, and rebuild the checkpoint over the new head.
+the requested composition correction — never amend or rewrite the pushed head. Before committing a correction
+that includes authored state text the checks read, run `arc check increment`; completed-only repairs are exempt.
+Then rerun affected gates and routing, push through the configured release route, and rebuild the checkpoint over the
+new head.
 
 After approval, if the interlock surfaced required checks as not green, do not invoke merge this turn. Retain the
 authorized checkpoint and re-enter once they are green. If required checks were green at the interlock, invoke:
