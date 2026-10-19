@@ -293,10 +293,12 @@ vi.mock("../../../src/lib/work-unit/verbs/publish.js", () => ({
 const mockReadCandidateRecord = vi.fn();
 const mockReadRepositoryCandidateRecordRevision = vi.fn();
 const mockWriteCandidateRecord = vi.fn();
-vi.mock("../../../src/lib/work-unit/candidate-record-store.js", () => ({
+vi.mock("../../../src/lib/store/kinds/review/candidate/access.js", () => ({
   readCandidateRecord: (...a: unknown[]) => mockReadCandidateRecord(...a),
-  readRepositoryCandidateRecordRevision: (...a: unknown[]) => mockReadRepositoryCandidateRecordRevision(...a),
   writeCandidateRecord: (...a: unknown[]) => mockWriteCandidateRecord(...a),
+}));
+vi.mock("../../../src/lib/store/kinds/review/candidate/history.js", () => ({
+  readRepositoryCandidateRecordRevision: (...a: unknown[]) => mockReadRepositoryCandidateRecordRevision(...a),
 }));
 const mockResolveRepositoryIdentity = vi.fn();
 vi.mock("../../../src/scripts/review-gate/hosts/local/git-common-state.js", async (orig) => ({
@@ -329,7 +331,7 @@ vi.mock("../../../src/lib/work-unit/git-candidate-effective-target.js", () => ({
 }));
 const mockReadSubmissionBoundaryVersioned = vi.fn();
 const mockWriteSubmissionBoundary = vi.fn();
-vi.mock("../../../src/lib/work-unit/submission-boundary-store.js", () => ({
+vi.mock("../../../src/lib/store/kinds/review/integration-boundary/access.js", () => ({
   readSubmissionBoundaryVersioned: (...a: unknown[]) => mockReadSubmissionBoundaryVersioned(...a),
   writeSubmissionBoundary: (...a: unknown[]) => mockWriteSubmissionBoundary(...a),
 }));

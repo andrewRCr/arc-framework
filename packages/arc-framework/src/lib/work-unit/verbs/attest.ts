@@ -22,7 +22,7 @@ import {
   projectStagedCandidateCurrentness,
   type CandidateEffectiveTargetProjection,
 } from "../candidate-effective-target.js";
-import type { VersionedCandidateRecord } from "../candidate-record-store.js";
+import type { VersionedCandidateRecord } from "../../store/kinds/review/candidate/schema.js";
 import { SlugSchema } from "../../kernel/schema/slug.js";
 import {
   IntegrationBoundaryLocusSchema,

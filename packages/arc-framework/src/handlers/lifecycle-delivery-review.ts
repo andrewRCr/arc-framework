@@ -41,9 +41,9 @@ import {
 import {
   readCandidateRecord,
   readCandidateRecordVersioned,
-  readRepositoryCandidateRecordRevision,
   writeCandidateRecord,
-} from "../lib/work-unit/candidate-record-store.js";
+} from "../lib/store/kinds/review/candidate/access.js";
+import { readRepositoryCandidateRecordRevision } from "../lib/store/kinds/review/candidate/history.js";
 import { projectGitCandidateEffectiveTarget } from "../lib/work-unit/git-candidate-effective-target.js";
 import {
   inspectRepositoryDeliveryCandidateRenewal,
@@ -56,7 +56,7 @@ import {
 import {
   readSubmissionBoundaryVersioned,
   writeSubmissionBoundary,
-} from "../lib/work-unit/submission-boundary-store.js";
+} from "../lib/store/kinds/review/integration-boundary/access.js";
 import {
   projectCandidateReviewBoundary,
   projectCandidateReviewResumeBoundary,
@@ -177,7 +177,7 @@ export async function handleAttest(
   if (input === null) return;
   const base = await resolveVerbBase(context, input.json === true);
   if (base === null) return;
-  const { settings } = await buildExecutor(base);
+  const { executor, settings } = await buildExecutor(base);
   let metaPath = resolveArcPath({
     kind: "work-unit-artifact",
     placement: { kind: "active", scope: { kind: "project" } },
@@ -279,7 +279,7 @@ export async function handleAttest(
   if (terminal.status === "found") {
     lastCompleted = `Task ${terminal.item.id} — ${terminal.item.title}`;
   }
-  const boundarySnapshot = await readSubmissionBoundaryVersioned(base.cwd, input.name);
+  const boundarySnapshot = await readSubmissionBoundaryVersioned(base.cwd, input.name, { store: executor.store });
   let deliveryRenewal: Awaited<ReturnType<typeof inspectRepositoryDeliveryCandidateRenewal>> = {
     status: "not-applicable",
   };
@@ -361,7 +361,7 @@ export async function handleAttest(
       actor: base.identity,
       now: () => new Date().toISOString(),
       verificationEvidenceRef: (slug) => `tasks-${slug}.md#verification`,
-      readRecord: (slug) => readCandidateRecordVersioned(base.cwd, slug),
+      readRecord: (slug) => readCandidateRecordVersioned(base.cwd, slug, { store: executor.store }),
       currentTarget: () => Promise.resolve(subject.target),
       effectiveTarget: (slug, record) => projectGitCandidateEffectiveTarget({
         cwd: base.cwd,
@@ -438,6 +438,7 @@ export async function handleAttest(
           publication.name,
           publication.record,
           publication.expectedRecordVersion,
+          { store: executor.store },
         );
         const priorMeta = parseMetaRecord(metaContent);
         const existingBoundary = boundarySnapshot.boundary;
@@ -492,6 +493,7 @@ export async function handleAttest(
           base.cwd,
           locus,
           boundarySnapshot.version,
+          { store: executor.store },
         );
         await base.io.writeFile(absoluteMetaPath, metaContent);
         await base.io.exec("git", ["add", "--", recordPath, metaPath, boundaryPath], { cwd: base.cwd });
@@ -540,13 +542,14 @@ export async function handleAttest(
   }
 
   if (result.status === "unchanged") {
-    const currentBoundary = await readSubmissionBoundaryVersioned(base.cwd, input.name);
+    const currentBoundary = await readSubmissionBoundaryVersioned(base.cwd, input.name, { store: executor.store });
     if (currentBoundary.boundary?.candidateId !== result.locus.candidateId
       || currentBoundary.boundary.candidateSubjectDigest !== result.locus.candidateSubjectDigest) {
       const boundaryPath = await writeSubmissionBoundary(
         base.cwd,
         result.locus,
         currentBoundary.version,
+        { store: executor.store },
       );
       await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
     }
@@ -636,7 +639,7 @@ export async function publishCandidateWithReviewBoundary(
   if (!await permitUnpausedPublication(executor.store, target, input.json === true)) return;
   const rawGit = createRawGitExec(base.cwd);
   const readCandidateAuthorization = async () => {
-    const record = await readCandidateRecord(base.cwd, target);
+    const record = await readCandidateRecord(base.cwd, target, { store: executor.store });
     if (record === null) return null;
     const effective = await projectGitCandidateEffectiveTarget({
       cwd: base.cwd,
@@ -683,7 +686,7 @@ export async function publishCandidateWithReviewBoundary(
     lane: "standard", repositoryId, headSha: await currentHead(),
     lineage: { kind: "candidate", candidateId: candidate.candidateId },
   })).version;
-  const boundarySnapshot = await readSubmissionBoundaryVersioned(base.cwd, target);
+  const boundarySnapshot = await readSubmissionBoundaryVersioned(base.cwd, target, { store: executor.store });
   const boundary = boundarySnapshot.boundary;
   if (boundary === null) {
     refuseWithRemedy(
@@ -732,6 +735,7 @@ export async function publishCandidateWithReviewBoundary(
         base.cwd,
         publicationBoundary,
         boundarySnapshot.version,
+        { store: executor.store },
       );
       await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
     },
@@ -745,7 +749,9 @@ export async function publishCandidateWithReviewBoundary(
   }
   if (result.status === "unchanged") {
     if (canonicalize(result.boundary) !== canonicalize(boundary)) {
-      const boundaryPath = await writeSubmissionBoundary(base.cwd, result.boundary, boundarySnapshot.version);
+      const boundaryPath = await writeSubmissionBoundary(
+        base.cwd, result.boundary, boundarySnapshot.version, { store: executor.store },
+      );
       await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
     }
     if (input.json === true) {

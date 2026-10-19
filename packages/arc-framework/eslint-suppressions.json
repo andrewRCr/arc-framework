@@ -457,7 +457,7 @@
   },
   "src/handlers/lifecycle-delivery-review.ts": {
     "arc/store-raw-state": {
-      "count": 3
+      "count": 2
     },
     "arc/work-unit-paths": {
       "count": 1

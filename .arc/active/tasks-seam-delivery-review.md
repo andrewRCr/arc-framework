@@ -275,11 +275,11 @@ retires.
     - Each batch runs a whole-project `lint:ts` and prunes the `store-raw-state` suppressions its reroute leaves unused
       (`--prune-suppressions`), since an unused suppression fails the run.
 
-    - `[ ]` **2.4.a Attest, the publication claim, and the reopen permit**
+    - `[x]` **2.4.a Attest, the publication claim, and the reopen permit**
 
-        - `handleAttest`, `claimPublicationBoundary`, and `permitDeliveryReopen`
-          (`handlers/lifecycle-delivery-review.ts`), and `lib/work-unit/verbs/attest.ts`, whose result and remedy keep
-          the Candidate record's commit (`recordRevision`, `candidateRecordRevision`) in-repo.
+        - Attest and publication reads and writes use typed access with the executor's store; Candidate history uses
+          its relocated Git reader. The attest core takes its versioned type from the public schema, while result
+          revision bindings, reopen behavior, and existing test assertions remain intact.
 
     - `[ ]` **2.4.b The Candidate's own verbs**
 
