@@ -281,9 +281,11 @@ retires.
           its relocated Git reader. The attest core takes its versioned type from the public schema, while result
           revision bindings, reopen behavior, and existing test assertions remain intact.
 
-    - `[ ]` **2.4.b The Candidate's own verbs**
+    - `[x]` **2.4.b The Candidate's own verbs**
 
-        - `handlers/candidate.ts`, `lib/work-unit/candidate-applicability-resolution.ts`, and `commands/rename.ts`.
+        - Candidate applicability binds one store to the invocation's Git runner for all typed reads and writes;
+          rename forwards its existing store and runner. Both applicability cores take their versioned type from the
+          public schema; selection replay, publication-state refusal, and the existing assertions remain intact.
 
     - `[ ]` **2.4.c The subject's readers**
 

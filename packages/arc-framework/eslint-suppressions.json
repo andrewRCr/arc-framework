@@ -174,7 +174,7 @@
   },
   "src/commands/rename.ts": {
     "arc/store-raw-state": {
-      "count": 3
+      "count": 2
     },
     "arc/surface-names": {
       "count": 1
@@ -334,9 +334,6 @@
     }
   },
   "src/handlers/candidate.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    },
     "max-lines-per-function": {
       "count": 1
     }

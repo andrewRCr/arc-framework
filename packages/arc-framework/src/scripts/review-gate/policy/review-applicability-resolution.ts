@@ -11,7 +11,7 @@ import {
   type CandidateManagedRecordV1,
   type CandidateReviewApplicabilitySelectionV1,
 } from "../../../lib/work-unit/candidate-attestation.js";
-import type { VersionedCandidateRecord } from "../../../lib/work-unit/candidate-record-store.js";
+import type { VersionedCandidateRecord } from "../../../lib/store/kinds/review/candidate/schema.js";
 import { ReviewContributionApplicabilitySelectorSchema } from
   "../../../lib/work-unit/review-applicability-selector.js";
 import {

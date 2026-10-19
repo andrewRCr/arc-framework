@@ -19,6 +19,9 @@ import {
 } from "../lib/delivery/review-vehicle.js";
 import { deliveryReviewFixRecordDigest } from "../lib/delivery/review-fix-record-effects.js";
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
+import { createStore } from "../lib/store/create.js";
+import { createDefaultStorePorts } from "../lib/store/default-ports.js";
+import { resolveCandidateRecordRelativePath } from "../lib/store/kinds/review/paths.js";
 import { SlugSchema } from "../lib/kernel/schema/slug.js";
 import {
   CandidateApplicabilityResolutionInputSchema,
@@ -28,9 +31,8 @@ import {
 import {
   CandidateRecordVersionConflictError,
   readCandidateRecordVersioned,
-  resolveCandidateRecordRelativePath,
   writeCandidateRecord,
-} from "../lib/work-unit/candidate-record-store.js";
+} from "../lib/store/kinds/review/candidate/access.js";
 import { projectGitCandidateApplicability } from "../lib/work-unit/git-candidate-applicability.js";
 import { readGitCandidateTargetBase } from "../lib/work-unit/git-candidate-effective-target.js";
 import {
@@ -140,6 +142,7 @@ async function executeCandidateApplicabilityResolution(
   const { settings } = await readConfigSettings(root);
   const baseBranch = settings["branch.base"];
   const git = createGitExec(interaction?.subprocess);
+  const store = createStore(createDefaultStorePorts({ checkoutRoot: root, exec: git }));
   const rawGit = createRawGitExec(root);
   const readObjectId = async (expression: string): Promise<string> => (
     await git("git", ["rev-parse", "--verify", expression], {
@@ -176,7 +179,7 @@ async function executeCandidateApplicabilityResolution(
   ): Promise<"written" | "version-conflict"> => {
     await requireMutationOwner();
     try {
-      await writeCandidateRecord(root, name, record, expectedVersion);
+      await writeCandidateRecord(root, name, record, expectedVersion, { store });
       return "written";
     } catch (error) {
       if (error instanceof CandidateRecordVersionConflictError) return "version-conflict";
@@ -192,7 +195,7 @@ async function executeCandidateApplicabilityResolution(
     const requests = reviewApplicabilityResolutionInputsFromCommand(input);
     const memberLookup = new RepositoryDeliveryMemberLookup({ cwd: root, exec: git });
     const context = {
-      readRecord: () => readCandidateRecordVersioned(root, name),
+      readRecord: () => readCandidateRecordVersioned(root, name, { store }),
       projectApplicability: (selector: ReviewApplicabilityResolutionInput["selector"]) => (
         projectGitReviewContributionApplicability({
           selector,
@@ -234,7 +237,7 @@ async function executeCandidateApplicabilityResolution(
       : await resolveReviewApplicabilityBatch(context, requests);
   } else {
     resolution = await resolveCandidateApplicability({
-      readRecord: () => readCandidateRecordVersioned(root, name),
+      readRecord: () => readCandidateRecordVersioned(root, name, { store }),
       currentTarget,
       currentBase,
       projectApplicability: (request) => projectGitCandidateApplicability({

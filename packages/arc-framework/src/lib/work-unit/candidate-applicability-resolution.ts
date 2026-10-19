@@ -19,7 +19,7 @@ import {
   type CandidateLineageTarget,
   type CandidateManagedRecordV1,
 } from "./candidate-attestation.js";
-import type { VersionedCandidateRecord } from "./candidate-record-store.js";
+import type { VersionedCandidateRecord } from "../store/kinds/review/candidate/schema.js";
 import { SpineRemedySchema } from "../../scripts/integration/spine-refusal.js";
 
 const DigestSchema = CanonicalDigestSchema;
