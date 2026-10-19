@@ -13,7 +13,6 @@ import {
   resolveProjectReadinessComposition,
   resolveProjectReadinessViewInput,
   type ProjectReadinessProvider,
-  type ProjectReadinessRecordCandidate,
   type ProjectViewFs,
 } from "../../../src/lib/status/project-view.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
@@ -23,6 +22,7 @@ import {
   createValidatedTransitionOverlay,
   transitionOverlayCompositionInput,
 } from "../../../src/lib/work-unit/transition-overlay.js";
+import { meta, oracleMeta, makeInFlightExec, record, inFlightRecord } from "../../helpers/status-view-fixtures.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 let root: string | undefined;
@@ -41,91 +41,6 @@ function vanishingFs(vanished: string): ProjectViewFs {
 async function writeMeta(path: string, content: string): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, content);
-}
-
-function meta(slug: string, state: string, fields: { owner?: string; priority?: string; cohort?: string; dependsOn?: string } = {}): string {
-  const owner = fields.owner ?? "andrew";
-  const priority = fields.priority ?? "P3";
-  const cohort = fields.cohort ?? "[none]";
-  const dependsOn = fields.dependsOn ?? "[none]";
-  return [
-    `# Metadata: ${slug}`,
-    "",
-    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
-    "| --------- | --------- | ---------- | --------- | ------------ |",
-    `| \`${state}\` | \`${owner}\` | [none] | \`Heavy\` | \`${priority}\` |`,
-    "",
-    `- **Cohort:** ${cohort}`,
-    `- **Depends On:** ${dependsOn}`,
-    "",
-    "---",
-    "",
-  ].join("\n");
-}
-
-function oracleMeta(
-  fields: {
-    state?: string;
-    owner?: string;
-    branch: string;
-    priority?: string;
-    cohort?: string;
-    dependsOn?: string;
-  },
-): string {
-  return [
-    "# Metadata: oracle",
-    "",
-    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
-    "| --------- | --------- | ---------- | --------- | ------------ |",
-    `| ${fields.state ?? "Active"} | ${fields.owner ?? "andrew"} | ${fields.branch} | — | ${fields.priority ?? "[none]"} |`,
-    "",
-    `- **Cohort:** ${fields.cohort ?? "[none]"}`,
-    `- **Depends On:** ${fields.dependsOn ?? "[none]"}`,
-    "",
-    "---",
-  ].join("\n");
-}
-
-function makeInFlightExec(opts: {
-  remoteRefs?: string[];
-  worktrees?: Array<{ path: string; branch: string }>;
-  metas?: Record<string, string>;
-}): GitExec {
-  const metas = opts.metas ?? {};
-  const remoteRefs = opts.remoteRefs ?? [];
-  const worktreeList = (opts.worktrees ?? [])
-    .map((worktree) => [
-      `worktree ${worktree.path}`,
-      "HEAD 1111111111111111111111111111111111111111",
-      `branch refs/heads/${worktree.branch}`,
-    ].join("\n"))
-    .join("\n\n");
-  return vi.fn(async (_cmd, args): Promise<ExecResult> => {
-    if (args[0] === "for-each-ref") {
-      return {
-        stdout: remoteRefs.map((branch) => `refs/remotes/origin/${branch}\tsha-${branch}`).join("\n"),
-        stderr: "",
-      };
-    }
-    if (args[0] === "worktree") {
-      return { stdout: worktreePorcelainZ(worktreeList), stderr: "" };
-    }
-    if (args[0] === "ls-remote") throw new Error("local-ref project render must not read the network");
-    if (args[0] === "ls-tree" && args.includes("--name-only")) {
-      const ref = args[args.indexOf("--name-only") + 1] ?? "";
-      const paths = Object.keys(metas)
-        .filter((target) => target.startsWith(`${ref}:`))
-        .map((target) => target.slice(target.indexOf(":") + 1));
-      return { stdout: paths.join("\n"), stderr: "" };
-    }
-    if (args[0] === "show") {
-      const target = args[1] ?? "";
-      if (target in metas) return { stdout: metas[target] ?? "", stderr: "" };
-      return { stdout: "", stderr: "" };
-    }
-    return { stdout: "", stderr: "" };
-  });
 }
 
 describe("composeProjectReadinessView", () => {
@@ -1230,33 +1145,4 @@ function sectionBetween(markdown: string, start: string, end: string): string {
   const startIndex = markdown.indexOf(start);
   const endIndex = markdown.indexOf(end, startIndex + start.length);
   return markdown.slice(startIndex, endIndex === -1 ? undefined : endIndex);
-}
-
-function record(
-  slug: string,
-  fields: Partial<ProjectReadinessRecordCandidate> = {},
-): ProjectReadinessRecordCandidate {
-  return {
-    slug,
-    location: "planned",
-    state: "Planning",
-    priority: "P3",
-    dependsOn: [],
-    ...fields,
-  };
-}
-
-function inFlightRecord(
-  slug: string,
-  fields: Partial<ProjectReadinessRecordCandidate> = {},
-): ProjectReadinessRecordCandidate {
-  return record(slug, {
-    location: "active",
-    source: {
-      kind: "in-flight-meta",
-      location: "active",
-      path: `origin/feat/${slug}:.arc/active/meta-${slug}.md`,
-    },
-    ...fields,
-  });
 }

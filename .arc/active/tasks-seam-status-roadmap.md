@@ -70,9 +70,13 @@ symbols to re-ground when that change ships.
     - `layout/work-unit-kinds.test.ts` maps every declared artifact through one typed table to a registered kind and
       checks both projection and in-repo layout roles, including `tasks` → `work-item/task-list`.
 
-### `[ ]` **1.4 Before the flip — the three fixes** — validate exit criterion at segment scope
+### `[x]` **1.4 Before the flip — the three fixes** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base, with `arc check segment` green.
+
+- _Outcome:_ With the latest base already merged, real-CLI user status, session-init, and recovery resolve the Git-name
+  fallback; both-absent probes retain the actionable refusal. Checkout-bound review claims, companion-purpose status,
+  and the layout-to-registry mapping close the remaining exit behaviors.
 
 ## **Phase 2:** The pure modules' additions, the in-repo render unchanged
 
@@ -90,30 +94,21 @@ composer's suppressions belong to in-repo acquisition, so extracting the tier cl
 composer inside the size and complexity gate; `notes-seam-status-roadmap.md` § Phase 2 — the pure modules records
 the measurements.
 
-### `[ ]` **2.1 Pin today's in-repo renders byte for byte — § 1.4**
+### `[x]` **2.1 Pin today's in-repo renders byte for byte — § 1.4**
 
 - _Goal:_ A test fails on any byte change to the in-repo project view and its `--json` facts, the staged and ROADMAP
   renders, decomposition's render, or the user view, over fixtures that reach every tier and warning.
 
-- _Note:_ Land this task's commit before any other Phase 2 edit. Its fixtures set `arc.identity`, so no render reaches
-  the identity fallback Phase 1 changes, and its literals equal the merged base's output.
+    - `[x]` **2.1.a Share the status fixture builders**
 
-- **Additional Context:** `notes-seam-status-roadmap.md` § Phase 2 — the pure modules
+        - `helpers/status-view-fixtures.ts` shares the project metadata, readiness records, local-ref executor, and
+          user-view metadata and executor builders. Both original suites retain their assertions.
 
-    - `[ ]` **2.1.a Share the status fixture builders**
+    - `[x]` **2.1.b Capture the renders as literals**
 
-        - Move the builders the byte-identity test needs from `project-view.test.ts` and `user-view.test.ts` into a helper
-          under `__tests__/helpers/`, leaving both tests' assertions unchanged.
-
-    - `[ ]` **2.1.b Capture the renders as literals**
-
-        - A new `__tests__/unit/status/in-repo-render-identity.test.ts` compares exact strings and objects, captured
-          before any other Phase 2 edit, for: `composeProjectReadinessViewResult` over records reaching In Flight,
-          Ready, Blocked at depths 1 and 2, Parked (a parked pointer and a planned meta whose `State` is Active), and
-          the `dangling-dependency`, `stale-location-unshipped`, and `oracle-degraded` warnings, with its `--json`
-          facts; `renderRoadmapFromIndexViewResult` and `renderRoadmapFromIndexResult` over an index exec;
-          `renderTrackedProjectReadinessViewResult`; decomposition's render (`renderGitV3RepositoryTreeRoadmap`); and
-          `runStatusUserView` over a stub exec.
+        - `in-repo-render-identity.test.ts` compares frozen strings and facts for the composer, both staged render
+          APIs, tracked ROADMAP, decomposition, and user status. Its configured-identity fixtures reach all project
+          tiers, both blocked depths, and all three warning codes; literals precede production changes in this phase.
 
 ### `[ ]` **2.2 Export the tier classification, and carry a record's source, Class, and pause — § 2.1, § 3**
 
