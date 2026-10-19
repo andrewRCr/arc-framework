@@ -1451,14 +1451,14 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
   capture IDs. Existing native link cases retain keyless exclusions by project and SHA in both layouts while omitting
   keyless task captures; generic conformance and source comparisons remain intact.
 
-### `[ ]` **15.R3 Errand branch comparison coverage — § 14.7 (A19)**
+### `[x]` **15.R3 Errand branch comparison coverage — § 14.7 (A19)**
 
 - _Goal:_ Amendment A19's branch comparisons resolve imported Errands through both stores for every admitted branch
   prefix, without a transform allowance for `fix/`, `chore/`, `refactor/`, or `hotfix/`.
 
-    - Runs after 15.4; reuse its branch-link comparison fixtures and add only missing prefix coverage
-    - Verify each branch resolves to its Errand and is linked as `created`; retain the legitimate allowances for
-      locally absent branches and names outside `<prefix>/<slug>`
+- _Outcome:_ One independent source/target fixture pair covers `fix/`, `chore/`, `refactor/`, and `hotfix/` Errands.
+  Every branch resolves to the same Errand through both stores and imports as `created` with no exclusions; the
+  existing missing-branch refusals and adopted-name behavior remain covered without a new transform allowance.
 
 ### `[ ]` **15.3.R Session synchronization port binding — § 6.1, § 12 (A14)**
 

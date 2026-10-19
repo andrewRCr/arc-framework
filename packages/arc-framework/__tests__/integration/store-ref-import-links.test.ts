@@ -24,30 +24,44 @@ async function projectId(store: Store): Promise<string> {
   return parsed.projectId;
 }
 
-it("links an Errand's recorded fix branch with no exclusions and the same source lookup", async () => {
+it("links every admitted Errand branch prefix as created with the same source lookup", async () => {
+  const prefixes = ["fix", "chore", "refactor", "hotfix"] as const;
   const h = await importComparisonFixture("default", async fixture => {
-    await fixture.git("git", ["switch", "-c", "fix/example"]);
-    await writeFile(join(fixture.root, "errand.txt"), "Errand code\n");
-    await fixture.git("git", ["add", "errand.txt"]);
-    await fixture.git("git", ["commit", "-m", "Fix the example"]);
-    await fixture.git("git", ["switch", "main"]);
-    const timestamp = "2026-01-01T00:00:00.000Z";
-    const record = TransientIdentityRecordSchema.parse({ version: 3, claimId: "1".repeat(32), createdAt: timestamp,
-      updatedAt: timestamp, kind: "errand", purpose: "errand", slug: "example", branch: "fix/example",
-      intent: "Fix the example", origin: "description", originEntry: null, state: "open", savedHead: null, changeRequest: null });
     const io = { exec: fixture.ports.exec, execInput: fixture.ports.execInput, identity: "andrew" };
-    const blob = await hashBlob(io.execInput, serializeTransientIdentityRecord(record));
-    await writeTreeCommit(io, new Map([[record.slug, blob]]), "Seed transient identity", [], null);
+    const entries = new Map<string, string>();
+    for (const [index, prefix] of prefixes.entries()) {
+      const slug = `${prefix}-example`, branch = `${prefix}/${slug}`;
+      await fixture.git("git", ["switch", "-c", branch]);
+      await writeFile(join(fixture.root, "errand.txt"), `${prefix} Errand code\n`);
+      await fixture.git("git", ["add", "errand.txt"]);
+      await fixture.git("git", ["commit", "-m", `Change the ${prefix} example`]);
+      await fixture.git("git", ["switch", "main"]);
+      const timestamp = "2026-01-01T00:00:00.000Z";
+      const record = TransientIdentityRecordSchema.parse({ version: 3, claimId: String(index + 1).repeat(32), createdAt: timestamp,
+        updatedAt: timestamp, kind: "errand", purpose: "errand", slug, branch,
+        intent: "Change the example", origin: "description", originEntry: null, state: "open", savedHead: null, changeRequest: null });
+      entries.set(slug, await hashBlob(io.execInput, serializeTransientIdentityRecord(record)));
+    }
+    await writeTreeCommit(io, entries, "Seed transient identities", [], null);
   });
   const source = createStore(createDefaultStorePorts({ checkoutRoot: h.source.root }));
-  const before = success(await source.lookup({ kind: "ref", repository: h.source.root, ref: "fix/example" }));
   expect(await h.target.migrate()).toMatchObject({ status: "ok" });
   const repository = await projectId(h.store);
-  const after = success(await h.store.lookup({ kind: "ref", repository, ref: "fix/example" }));
-  expect(after.reference.kind).toBe(before.reference.kind);
-  expect(after.reference.owner.name).toBe(before.reference.owner.name);
-  const record = success(await h.store.read({ reference: after.reference }));
-  expect(record.links?.branches).toEqual([{ repository, ref: "fix/example", linkedAs: "created", excluded: [] }]);
+  for (const prefix of prefixes) {
+    const slug = `${prefix}-example`, ref = `${prefix}/${slug}`;
+    const beforeResult = await source.lookup({ kind: "ref", repository: h.source.root, ref });
+    const afterResult = await h.store.lookup({ kind: "ref", repository, ref });
+    expect.soft(beforeResult.status, ref).toBe("ok");
+    expect.soft(afterResult.status, ref).toBe("ok");
+    if (beforeResult.status !== "ok" || afterResult.status !== "ok") continue;
+    const before = beforeResult.result, after = afterResult.result;
+    expect(before.reference.kind).toBe("work-item/record");
+    expect(before.reference.owner.name).toBe(slug);
+    expect(after.reference.kind).toBe(before.reference.kind);
+    expect(after.reference.owner.name).toBe(before.reference.owner.name);
+    const record = success(await h.store.read({ reference: after.reference }));
+    expect.soft(record.links?.branches, ref).toEqual([{ repository, ref, linkedAs: "created", excluded: [] }]);
+  }
 }, 30_000);
 
 it.each(["merge", "missing-author", "unreadable-patch"] as const)("omits a %s footer commit from task captures", async problem => {
