@@ -3,14 +3,20 @@
   "slug": "housekeep-storage-20261019",
   "claimId": "8ef6d2e8b96b4986fe691032ddaf3b4b",
   "createdAt": "2026-10-19T16:06:23.487Z",
-  "updatedAt": "2026-10-19T16:06:23.487Z",
+  "updatedAt": "2026-10-19T16:31:33.920Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Route the approved storage and lifecycle inbox captures, mint the committed prerequisite and provisional design stubs, and preserve cutover coordination.",
   "branch": "chore/housekeep-storage-20261019",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/housekeep-storage-20261019",
+    "headSha": "d7a5c39ab2f847d00049efa38f2bf71260f72902"
+  }
 }
