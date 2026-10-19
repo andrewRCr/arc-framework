@@ -1,6 +1,7 @@
 /** Unit coverage for exact-bound Candidate applicability selection writes. */
 
 import { describe, expect, it } from "vitest";
+import { RecordVersionSchema } from "../../../src/lib/store/identity.js";
 import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import { canonicalDigest } from "../../../src/lib/kernel/canonical/canonical-json.js";
@@ -32,7 +33,7 @@ function subject(source: string) {
   }]);
 }
 
-function harness() {
+function harness(version: string = VERSION) {
   const rootSubject = subject("root");
   const currentSubject = subject("current");
   const attestation = createCandidateAttestation({
@@ -74,7 +75,7 @@ function harness() {
   });
   if (decision.state !== "decision-required") throw new Error("expected a bounded decision");
   const context: CandidateApplicabilityResolutionContext = {
-    readRecord: async () => ({ record: stored, version: VERSION }),
+    readRecord: async () => ({ record: stored, version }),
     currentTarget: async (baseRevision) => baseRevision === SHA_B
       ? currentTarget
       : { revision: SHA_C, subject: subject("wrong-base") },
@@ -88,7 +89,7 @@ function harness() {
   };
   const input = {
     schemaVersion: 1 as const,
-    expectedRecordVersion: VERSION,
+    expectedRecordVersion: RecordVersionSchema.parse(version),
     candidateId: request.candidateId,
     priorTarget: request.baselineTarget,
     currentTarget: request.currentTarget,
@@ -235,4 +236,10 @@ describe("resolveCandidateApplicability", () => {
       nextAction: "rerun",
     });
   });
+});
+
+it.each([VERSION, "backend:candidate/7"])("resolves Candidate applicability with exact opaque version %s", async (version) => {
+  const h = harness(version);
+  await expect(resolveCandidateApplicability(h.context, h.input)).resolves.toMatchObject({ state: "resolved", choice: "covered" });
+  expect(h.record().transitions).toHaveLength(1);
 });

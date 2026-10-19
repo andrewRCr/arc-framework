@@ -12,7 +12,7 @@ export const AttestationOrderingRecoverySchema = z.strictObject({
   candidateSubjectDigest: CanonicalDigestSchema,
   reviewedHead: GitObjectIdSchema,
   currentHead: GitObjectIdSchema,
-  expectedBoundaryVersion: CanonicalDigestSchema,
+  expectedBoundaryVersion: RecordVersionSchema,
 });
 export const PrePublicationReplayInputSchema = z.strictObject({
   candidateId: CanonicalDigestSchema.optional(),

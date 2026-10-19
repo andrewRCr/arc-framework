@@ -22,7 +22,7 @@ import {
 } from "../../lib/git/index.js";
 import { createRawGitExec } from "../../lib/io-context.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
-import { CanonicalDigestSchema } from "../../lib/kernel/schema/vocabulary.js";
+import { RecordVersionSchema } from "../../lib/store/identity.js";
 import type { VersionedCandidateRecord } from "../../lib/store/kinds/review/candidate/schema.js";
 import { createUserSurfaceResolver } from "../../lib/user-surfaces.js";
 import { resolveComposedLifecycleIndex } from "../../lib/work-unit/composed-lifecycle-index.js";
@@ -820,7 +820,7 @@ export function createIntegrationCheckpointDependencies(options: ReviewInvocatio
       }
       return {
         schemaVersion: 1,
-        expectedRecordVersion: CanonicalDigestSchema.parse(value.recordVersion),
+        expectedRecordVersion: RecordVersionSchema.parse(value.recordVersion),
         candidateId: decision.candidateId,
         priorTarget,
         currentTarget,

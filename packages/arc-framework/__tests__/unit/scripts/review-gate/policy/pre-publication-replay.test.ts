@@ -1,6 +1,6 @@
 /** Persisted replay inputs share their original decoder with the import. */
 import { expect, it } from "vitest";
-import { decodePrePublicationReplay, encodePrePublicationReplayV2, decodePrePublicationReplayV2 } from "../../../../../src/scripts/review-gate/policy/pre-publication-replay.js";
+import { AttestationOrderingRecoverySchema, decodePrePublicationReplay, encodePrePublicationReplayV2, decodePrePublicationReplayV2 } from "../../../../../src/scripts/review-gate/policy/pre-publication-replay.js";
 import { PrePublicationLaneJudgmentsSchema } from "../../../../../src/scripts/review-gate/policy/pre-publication-request.js";
 
 it.each([
@@ -34,4 +34,10 @@ it.each([
   expect(decodePrePublicationReplay(Buffer.from(JSON.stringify(original)).toString("base64url"))).toEqual(original);
   expect(() => encodePrePublicationReplayV2(original)).toThrow();
   expect(() => decodePrePublicationReplayV2(Buffer.from(JSON.stringify(original)).toString("base64url"))).toThrow();
+});
+
+it.each([`sha256:${"a".repeat(64)}`, "backend:boundary/7"])("accepts the published ordering recovery's stored version %s", version => {
+  const recovery = { candidateId: `sha256:${"a".repeat(64)}`, candidateSubjectDigest: `sha256:${"b".repeat(64)}`,
+    reviewedHead: "c".repeat(40), currentHead: "d".repeat(40), expectedBoundaryVersion: version };
+  expect(AttestationOrderingRecoverySchema.parse(recovery).expectedBoundaryVersion).toBe(version);
 });

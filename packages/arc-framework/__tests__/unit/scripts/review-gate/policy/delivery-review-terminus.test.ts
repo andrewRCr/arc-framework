@@ -187,3 +187,8 @@ describe("delivery review Owner terminus", () => {
     expect(writeBoundary).not.toHaveBeenCalled();
   });
 });
+
+it.each([offer.expectedBoundaryVersion, "backend:boundary/7"])("preserves exact terminus offer version %s", version => {
+  expect(DeliveryReviewTerminusOfferSchema.parse({ ...offer, expectedBoundaryVersion: version }).expectedBoundaryVersion).toBe(version);
+  expect(DeliveryReviewTerminusOfferSchema.safeParse({ ...offer, expectedBoundaryVersion: "" }).success).toBe(false);
+});

@@ -1,6 +1,7 @@
 /** Exact-bound Candidate applicability selection over the versioned Candidate record seam. */
 
 import { z } from "zod";
+import { RecordVersionSchema } from "../store/identity.js";
 
 import { canonicalize } from "../kernel/canonical/canonical-json.js";
 import { CanonicalDigestSchema } from "../kernel/schema/vocabulary.js";
@@ -26,7 +27,7 @@ const DigestSchema = CanonicalDigestSchema;
 const ObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
 const ResolutionInputCommon = {
   schemaVersion: z.literal(1),
-  expectedRecordVersion: DigestSchema,
+  expectedRecordVersion: RecordVersionSchema,
   candidateId: DigestSchema,
   priorTarget: CandidateLineageTargetSchema,
   currentTarget: CandidateLineageTargetSchema,

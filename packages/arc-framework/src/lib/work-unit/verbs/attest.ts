@@ -1,6 +1,7 @@
 /** Candidate proposal orchestration over storage-neutral repository boundaries. */
 
 import { z } from "zod";
+import { RecordVersionSchema } from "../../store/identity.js";
 import { CanonicalDigestSchema } from "../../kernel/schema/vocabulary.js";
 import type { CanonicalDigest } from "../../kernel/canonical/canonical-json.js";
 
@@ -218,11 +219,11 @@ export const AttestResultSchema = z.union([
     attemptId: z.string().trim().min(1),
     outcome: z.enum(["pending", "partial", "findings", "ambiguous-delivery"]),
     reviewHeadSha: CandidateGitObjectIdSchema,
-    recordRevision: CandidateGitObjectIdSchema,
+    recordRevision: RecordVersionSchema,
     nextAction: z.strictObject({
       kind: z.literal("recover-owning-branch-review"),
       reviewHeadSha: CandidateGitObjectIdSchema,
-      candidateRecordRevision: CandidateGitObjectIdSchema,
+      candidateRecordRevision: RecordVersionSchema,
       reviewArgv: z.tuple([z.literal("arc"), z.literal("review"),
         z.literal("pre-publication"), SlugSchema]),
     }),

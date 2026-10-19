@@ -1,6 +1,7 @@
 /** Exact member-scoped transport for an explicit Work Unit Owner review terminus. */
 
 import { z } from "zod";
+import { RecordVersionSchema } from "../../../lib/store/identity.js";
 import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
 import { canonicalize } from "../../../lib/kernel/canonical/canonical-json.js";
@@ -27,7 +28,7 @@ export const DeliveryReviewTerminusOfferSchema = z.strictObject({
   kind: z.literal("delivery-member-owner-terminus"),
   workUnitId: SlugSchema,
   remote: z.string().trim().min(1),
-  expectedBoundaryVersion: DigestSchema,
+  expectedBoundaryVersion: RecordVersionSchema,
   candidateId: DigestSchema,
   candidateSubjectDigest: DigestSchema,
   target: HostedTargetSchema,

@@ -111,7 +111,7 @@ async function pendingHarness(approvedVerification: "focused" | "full") {
 }
 
 describe("runAttest", () => {
-  it("keeps the predecessor Candidate current while a review attempt needs settlement", async () => {
+  it.each([REVISION, "backend:candidate/7"])("keeps the live predecessor current at record version %s", async (version) => {
     const fixture = harness();
     await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
     const predecessorId = fixture.state().storedRecord?.attestation.candidateId;
@@ -121,16 +121,16 @@ describe("runAttest", () => {
       ...fixture.context,
       inspectReRootReviewAuthority: async () => ({
         lane: "standard", attemptId: "pending-review", outcome: "pending",
-        reviewHeadSha: CHANGED_REVISION, recordRevision: REVISION,
+        reviewHeadSha: CHANGED_REVISION, recordRevision: version,
       }),
     }, { name: "example", lifecycle: "Active", newRoot: true });
     expect(refused).toMatchObject({
       status: "refused", reason: "re-root-live-review", candidateId: predecessorId,
       lane: "standard", attemptId: "pending-review", outcome: "pending",
-      reviewHeadSha: CHANGED_REVISION, recordRevision: REVISION,
+      reviewHeadSha: CHANGED_REVISION, recordRevision: version,
       nextAction: {
         kind: "recover-owning-branch-review",
-        reviewHeadSha: CHANGED_REVISION, candidateRecordRevision: REVISION,
+        reviewHeadSha: CHANGED_REVISION, candidateRecordRevision: version,
         reviewArgv: ["arc", "review", "pre-publication", "example"],
       },
     });

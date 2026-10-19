@@ -1,6 +1,7 @@
 /** Exact-bound review applicability selection over the canonical Candidate record. */
 
 import { z } from "zod";
+import { RecordVersionSchema } from "../../../lib/store/identity.js";
 import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
 import { canonicalize } from "../../../lib/kernel/canonical/canonical-json.js";
@@ -23,7 +24,7 @@ const DigestSchema = CanonicalDigestSchema;
 
 export const ReviewApplicabilityResolutionInputSchema = z.strictObject({
   schemaVersion: z.literal(1),
-  expectedRecordVersion: DigestSchema,
+  expectedRecordVersion: RecordVersionSchema,
   candidateId: DigestSchema,
   selector: ReviewContributionApplicabilitySelectorSchema,
   projectionDigest: DigestSchema,
@@ -45,7 +46,7 @@ export const ReviewApplicabilitySelectionOfferSchema = z.strictObject({
   schemaVersion: z.literal(1),
   kind: z.literal("review-applicability-selection"),
   workUnitId: z.string().trim().min(1),
-  expectedRecordVersion: DigestSchema,
+  expectedRecordVersion: RecordVersionSchema,
   candidateId: DigestSchema,
   projection: ReviewApplicabilityDecisionProjectionSchema,
   choices: z.tuple([z.literal("covered"), z.literal("review-required")]),
@@ -59,7 +60,7 @@ export const ReviewApplicabilitySelectionBatchOfferSchema = z.strictObject({
   schemaVersion: z.literal(1),
   kind: z.literal("review-applicability-selection-batch"),
   workUnitId: z.string().trim().min(1),
-  expectedRecordVersion: DigestSchema,
+  expectedRecordVersion: RecordVersionSchema,
   candidateId: DigestSchema,
   projections: z.array(ReviewApplicabilityDecisionProjectionSchema).min(2),
   choices: z.tuple([z.literal("covered"), z.literal("review-required")]),

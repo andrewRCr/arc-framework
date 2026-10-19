@@ -20,7 +20,7 @@ import { isGitProcessError } from "../../lib/git/process-error.js";
 import { isGitObjectId } from "../../lib/git/object-id.js";
 import { createRawGitExec } from "../../lib/io-context.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
-import { CanonicalDigestSchema } from "../../lib/kernel/schema/vocabulary.js";
+import { RecordVersionSchema } from "../../lib/store/identity.js";
 import { resolveReviewInvocation, type ReviewInvocationInput, type ReviewInvocationOptions } from "./runtime/invocation.js";
 import { createReviewCompositionContext } from "./runtime/composition-context.js";
 import { readCandidateRecordVersioned } from "../../lib/store/kinds/review/candidate/access.js";
@@ -759,7 +759,7 @@ export async function readRoutedObligation(
           : { requestInvocation: { mode: "force" as const, sourceId: judgment.sourceId } }),
         applicabilityContext: {
           workUnitId: workUnit,
-          expectedRecordVersion: CanonicalDigestSchema.parse(versionedRecord.version),
+          expectedRecordVersion: RecordVersionSchema.parse(versionedRecord.version),
           candidateId: record.attestation.candidateId,
         },
         ownerTermini: boundary.deliveryReviewTermini,
@@ -773,7 +773,7 @@ export async function readRoutedObligation(
       ...invocation,
       statusRoute: options.statusRoute ?? { kind: "target", target },
       cwd, exec, settings, reservation, record, workUnit,
-      recordVersion: CanonicalDigestSchema.parse(versionedRecord.version),
+      recordVersion: RecordVersionSchema.parse(versionedRecord.version),
       baseRevision: singletonDiffBase,
       target: { repository: target.repository, pullRequest, headSha: target.headSha },
       ...(judgment === undefined ? {} : { judgment }),

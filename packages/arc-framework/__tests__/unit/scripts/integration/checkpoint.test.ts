@@ -1,6 +1,7 @@
 /** Integration checkpoint verdict behavior. */
 
 import { describe, expect, it } from "vitest";
+import { RecordVersionSchema } from "../../../../src/lib/store/identity.js";
 import { checkpointDependencies as dependencies } from "../../../helpers/integration-checkpoint.js";
 
 import {
@@ -132,7 +133,7 @@ describe("integration checkpoint", () => {
     deps.readCandidate = async () => decision;
     const resolutionSelector = {
       schemaVersion: 1 as const,
-      expectedRecordVersion: digest("f"),
+      expectedRecordVersion: RecordVersionSchema.parse(digest("f")),
       candidateId: request.candidateId,
       priorTarget: request.baselineTarget,
       currentTarget: request.currentTarget,
@@ -865,13 +866,13 @@ describe("integration checkpoint", () => {
       });
   });
 
-  it("returns a typed recompose result when the Candidate record moves before persistence", async () => {
+  it.each([[digest("a"), digest("b")], ["backend:candidate/7", "backend:candidate/8"]])("recomposes a moved Candidate at versions %s and %s", async (expected, observed) => {
     const deps = dependencies();
     deps.readDrift = async () => CLEAN_DRIFT;
     deps.createHandle = async () => ({
       status: "recompose-required",
-      expectedRecordVersion: digest("a"),
-      observedRecordVersion: digest("b"),
+      expectedRecordVersion: expected,
+      observedRecordVersion: observed,
     });
 
     await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
@@ -891,8 +892,8 @@ describe("integration checkpoint", () => {
           argv: ["arc", "integrate", "checkpoint", "example"],
         },
         payload: {
-          expectedRecordVersion: digest("a"),
-          observedRecordVersion: digest("b"),
+          expectedRecordVersion: expected,
+          observedRecordVersion: observed,
         },
       });
   });

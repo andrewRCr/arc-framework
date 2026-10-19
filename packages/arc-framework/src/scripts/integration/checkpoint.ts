@@ -1,6 +1,7 @@
 /** Typed integration checkpoint reduction over canonical boundary evidence. */
 
 import { z } from "zod";
+import { RecordVersionSchema } from "../../lib/store/identity.js";
 import { describeCheckpointReconciliation } from "./checkpoint-reconciliation-detail.js";
 
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
@@ -835,8 +836,8 @@ export const IntegrationCheckpointResultSchema = z.union([
     reason: z.literal("candidate-record-moved"),
     remedy: SpineRemedySchema,
     payload: z.strictObject({
-      expectedRecordVersion: DigestSchema,
-      observedRecordVersion: DigestSchema.nullable(),
+      expectedRecordVersion: RecordVersionSchema,
+      observedRecordVersion: RecordVersionSchema.nullable(),
     }),
   }),
   CandidatePublicationCheckpointResultSchema,
@@ -1649,9 +1650,9 @@ export async function checkpointIntegration(
         coordinates,
         remedy: checkpointRemedy("composition-unavailable", request.workUnit),
         payload: {
-          expectedRecordVersion: CanonicalDigestSchema.parse(handleResult.expectedRecordVersion),
+          expectedRecordVersion: RecordVersionSchema.parse(handleResult.expectedRecordVersion),
           observedRecordVersion: handleResult.observedRecordVersion === null
-            ? null : CanonicalDigestSchema.parse(handleResult.observedRecordVersion),
+            ? null : RecordVersionSchema.parse(handleResult.observedRecordVersion),
         },
       });
     }
