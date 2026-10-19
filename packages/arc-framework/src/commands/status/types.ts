@@ -189,8 +189,8 @@ export type StatusIdentity = z.infer<typeof StatusIdentitySchema>;
 /**
  * Per-probe failure reason.
  *
- * - `identity-missing` — user probe short-circuited because `arc.identity`
- *   was absent. Other probes do not use identity and never emit this kind.
+ * - `identity-missing` — user probe short-circuited because neither `arc.identity`
+ *   nor Git `user.name` resolved an identity. Other probes do not use identity and never emit this kind.
  * - `runtime` — probe threw (e.g., a filesystem failure during active roster inspection on a partial
  *   install). `message` is the `Error.message` or stringified value.
  */
@@ -475,7 +475,7 @@ export interface SessionRecoverProbeResult {
 export interface StatusProbes {
   /**
    * User-sync probe. Receives `identity` at call time so the composite can
-   * short-circuit the user slot when `arc.identity` is absent without ever
+   * short-circuit the user slot when no identity resolves from `arc.identity` or Git `user.name` without ever
    * invoking this function.
    */
   user: (identity: string) => Promise<UserStatusResult>;

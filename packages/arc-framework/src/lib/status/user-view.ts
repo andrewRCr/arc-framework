@@ -121,7 +121,7 @@ export async function runStatusUserView(
 
   if (identity === null) {
     return {
-      output: "Status (User) requires `arc.identity` to be set in git config.",
+      output: "Status (User) requires an identity resolved from `arc.identity` or Git `user.name`. Set one with `git config arc.identity <name>`.",
       source: "no-identity",
       warnings: [],
     };

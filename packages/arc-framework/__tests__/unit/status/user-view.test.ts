@@ -339,6 +339,8 @@ describe("runStatusUserView", () => {
     });
 
     expect(result.source).toBe("no-identity");
+    expect(result.output).toContain("Git `user.name`");
+    expect(result.output).toContain("git config arc.identity <name>");
     expect(vi.mocked(exec)).not.toHaveBeenCalled();
   });
 });

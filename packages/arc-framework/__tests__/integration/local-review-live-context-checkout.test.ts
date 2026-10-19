@@ -5,6 +5,8 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { serializeTransientIdentityRecord, TransientIdentityRecordV3Schema } from "../../src/lib/errand/identity-record.js";
 import { readLocalReviewLiveContext } from "../../src/scripts/review-gate/hosts/local/live-context.js";
+import { resolveProjectErrandOracleContext } from "../../src/lib/status/project-oracle-context.js";
+import { renderRoadmapFromIndexViewResult } from "../../src/lib/status/roadmap-regeneration-assert.js";
 import { execFileAsync, makeGitExec } from "../helpers/integration.js";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
 
@@ -51,6 +53,32 @@ async function repository(state: ClaimState, claimId: string): Promise<string> {
 }
 
 describe("local review checkout identity", () => {
+  it.each(["open", "malformed"] as const)("uses the selected checkout's fallback identity for %s claims", async state => {
+    const target = await repository(state, targetClaim);
+    const other = await repository("open", otherClaim);
+    for (const root of [target, other]) await git(root, ["config", "--unset", "arc.identity"]);
+    await git(target, ["config", "user.name", "Andrew"]);
+    await git(other, ["config", "user.name", "Another Person"]);
+    const read = readLocalReviewLiveContext({ cwd: target, exec: makeGitExec(other) });
+    if (state === "malformed") await expect(read).rejects.toThrow();
+    else await expect(read).resolves.toMatchObject({
+      context: { activeIdentity: "andrew", errand: { identity: slug, claimId: targetClaim } },
+    });
+  });
+
+  it("classifies the fallback identity's claims for project renders", async () => {
+    const target = await repository("open", targetClaim);
+    await git(target, ["config", "--unset", "arc.identity"]);
+    await git(target, ["config", "user.name", "Andrew"]);
+    const exec = makeGitExec(target);
+    const context = await resolveProjectErrandOracleContext(exec);
+    expect(context.errandRecordsComplete).toBe(true);
+    expect(context.errandSlugByBranch.get(branch)).toBe(slug);
+    const view = await renderRoadmapFromIndexViewResult({ cwd: target, exec });
+    expect(view.indeterminate).toBe(false);
+    expect(view.result.warnings).not.toContainEqual(expect.objectContaining({ code: "oracle-degraded" }));
+  });
+
   it.each(["open", "awaiting-merge"] as const)(
     "selects the supplied checkout's %s claim instead of the executor's default", async (state) => {
       const target = await repository(state, targetClaim);

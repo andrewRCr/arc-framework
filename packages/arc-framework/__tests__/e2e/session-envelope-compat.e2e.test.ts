@@ -22,7 +22,7 @@ import {
   WORKTREE_TOKEN,
   type SessionEnvelopeFixture,
 } from "../helpers/session-envelope-compat.js";
-import { runArcNoTty } from "./helpers.js";
+import { git, runArcNoTty } from "./helpers.js";
 
 const GOLDEN_DIR = join(import.meta.dirname, "..", "fixtures", "session-envelope");
 const UPDATE_GOLDENS = process.env.UPDATE_SESSION_ENVELOPE_GOLDENS === "1";
@@ -150,7 +150,7 @@ describe("session envelope wire compatibility", () => {
       ok: false,
       error: {
         kind: "identity-missing",
-        message: "User probe skipped: `arc.identity` is not configured in git config.",
+        message: "User probe skipped: no identity resolved from `arc.identity` or Git `user.name`. Set one with `git config arc.identity <name>`.",
       },
     });
     for (const key of [
@@ -163,6 +163,14 @@ describe("session envelope wire compatibility", () => {
       expect(normalized).not.toHaveProperty(key);
     }
     await expectGolden("session-init-identity-missing.json", normalized);
+  });
+
+  it("carries the Git name fallback without the identity-absent arm", async () => {
+    fixture = await prepareSessionEnvelopeFixture("identity-missing");
+    await git(fixture.cwd, ["config", "user.name", "Fallback User"]);
+    const normalized = await capture(fixture, ["status", "--session-init", "--json"]);
+    expect(normalized.identity).toMatchObject({ identity: "fallback-user" });
+    expect(normalized.user).toMatchObject({ ok: true });
   });
 });
 

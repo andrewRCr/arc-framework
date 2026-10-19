@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
     createRecoverStatusProbes: vi.fn(),
     auditRecoveryState: vi.fn(),
     gitConfigGet: vi.fn(),
-    readConfiguredIdentity: vi.fn(),
+    resolveIdentity: vi.fn(),
     readFile: vi.fn(),
     resolveUserSurfaceResolver: vi.fn(),
     resolveRecoverySeedCheckout: vi.fn(),
@@ -36,7 +36,7 @@ vi.mock("../../../src/lib/recover/report.js", () => ({
 }));
 vi.mock("../../../src/lib/git/index.js", () => ({
     gitConfigGet: mocks.gitConfigGet,
-    readConfiguredIdentity: mocks.readConfiguredIdentity,
+    resolveIdentity: mocks.resolveIdentity,
 }));
 vi.mock("../../../src/lib/io-context.js", () => ({
     createUserIOContext: () => ({
@@ -72,7 +72,7 @@ beforeEach(() => {
     mocks.gitConfigGet.mockImplementation((_exec: unknown, key: string) =>
         Promise.resolve(key === "arc.role" ? "maintainer" : undefined),
     );
-    mocks.readConfiguredIdentity.mockResolvedValue("test-user");
+    mocks.resolveIdentity.mockResolvedValue("test-user");
     mocks.resolveUserSurfaceResolver.mockResolvedValue({
         identityGlobalRoot: "/repo/.arc/user/test-user",
     });
@@ -92,13 +92,13 @@ describe("recovery persisted-seed boundary", () => {
     it("preserves configured identity absence and read-failure as identity-missing", async () => {
         for (const outcome of [null, new Error("git unavailable")]) {
             stdout = "";
-            if (outcome instanceof Error) mocks.readConfiguredIdentity.mockRejectedValueOnce(outcome);
-            else mocks.readConfiguredIdentity.mockResolvedValueOnce(outcome);
+            if (outcome instanceof Error) mocks.resolveIdentity.mockRejectedValueOnce(outcome);
+            else mocks.resolveIdentity.mockResolvedValueOnce(outcome);
 
             await handleRecoverAudit({ json: true });
 
             expect(JSON.parse(stdout)).toMatchObject({
-                verdict: { stopReasons: [{ kind: "identity-missing" }] },
+                verdict: { stopReasons: [{ kind: "identity-missing", message: expect.stringContaining("git config arc.identity <name>") }] },
             });
         }
     });
@@ -107,7 +107,7 @@ describe("recovery persisted-seed boundary", () => {
         const error = Object.assign(new Error("Configured ARC identity is invalid"), {
             code: "identity.invalid",
         });
-        mocks.readConfiguredIdentity.mockRejectedValue(error);
+        mocks.resolveIdentity.mockRejectedValue(error);
 
         await expect(handleRecoverAudit({ json: true })).rejects.toBe(error);
         expect(mocks.resolveUserSurfaceResolver).not.toHaveBeenCalled();

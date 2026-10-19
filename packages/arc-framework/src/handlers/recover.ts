@@ -98,7 +98,7 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?
       seedPath: null,
       reason: {
         kind: "identity-missing",
-        message: "arc.identity is not configured; compaction seed path cannot be resolved",
+        message: "No identity resolved from `arc.identity` or Git `user.name`; set one with `git config arc.identity <name>` to resolve the compaction seed path.",
       },
     }), Boolean(opts.json));
     return;

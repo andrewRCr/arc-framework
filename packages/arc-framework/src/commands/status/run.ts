@@ -97,7 +97,7 @@ function buildIdentity(identity: string | null, role: string | null): StatusIden
  * Run the full-mode composite probe.
  *
  * Parallel orchestration via `Promise.all` over three probe slots. Identity is
- * read in the handler (`git config arc.identity` / `arc.role`) and passed as
+ * resolved in the handler (`arc.identity`, falling back to Git `user.name`, plus `arc.role`) and passed as
  * pointers; when `identity` is `null` the user slot resolves to an
  * `identity-missing` {@link Probe} error without invoking the user probe.
  */

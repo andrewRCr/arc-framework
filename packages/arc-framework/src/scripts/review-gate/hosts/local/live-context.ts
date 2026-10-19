@@ -14,7 +14,7 @@ import {
   projectTransientInFlightRead,
   readTransientInFlightIndexes,
 } from "../../../../lib/errand/record.js";
-import { readConfiguredIdentity } from "../../../../lib/git/identity.js";
+import { resolveIdentity } from "../../../../lib/git/identity.js";
 import type { LocalReviewLiveContext } from "./review-authority.js";
 
 export interface ResolvedLocalReviewLiveContext {
@@ -27,7 +27,8 @@ export async function readLocalReviewLiveContext(input: {
   exec: GitExec;
   cwd: string;
 }): Promise<ResolvedLocalReviewLiveContext> {
-  const activeIdentity = await readConfiguredIdentity(input.exec, input.cwd);
+  const exec: GitExec = (command, args, options) => input.exec(command, args, { ...options, cwd: input.cwd });
+  const activeIdentity = await resolveIdentity({ exec });
   const branch = (await input.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
     cwd: input.cwd,
   })).stdout.trim();
@@ -52,7 +53,6 @@ export async function readLocalReviewLiveContext(input: {
       meta,
     };
   }
-  const exec: GitExec = (command, args, options) => input.exec(command, args, { ...options, cwd: input.cwd });
   const transient = projectTransientInFlightRead(
     await readTransientInFlightIndexes({ exec, identity: activeIdentity }),
   );

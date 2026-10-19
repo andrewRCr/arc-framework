@@ -24,49 +24,26 @@ and completion note, so Success Criterion 1's "unchanged but for" stays checkabl
 merged with the unshipped locus change; `notes-seam-status-roadmap.md` § Grounding baseline for the task list names the
 symbols to re-ground when that change ships.
 
-### `[ ]` **1.1 Resolve one identity in status, its Errand context, and the review gate's local host — § 8.1**
+### `[x]` **1.1 Resolve one identity in status, its Errand context, and the review gate's local host — § 8.1**
 
 - _Goal:_ With `arc.identity` unset, every `arc status` mode, `arc base drift`, `arc recover audit`, the in-repo ROADMAP
   renders that read the Errand context, and the review gate's local host resolve the slugified `user.name`, and every
   message that named `arc.identity` as required names the unresolved identity and how to set one.
 
-- **Additional Context:** `notes-seam-status-roadmap.md` § Phase 1 — the identity, purpose, and kind-list fixes
+    - `[x]` **1.1.a Resolve the three readers through `resolveIdentity`**
 
-    - `[ ]` **1.1.a Resolve the three readers through `resolveIdentity`**
+        - Status and ROADMAP resolve the fallback identity with their existing error policies. Local review binds
+          identity and claim reads to the supplied checkout; real-repository coverage retains malformed-claim failures.
 
-        - `readIdentityPointers` (`handlers/identity-pointers.ts`) and `resolveProjectErrandOracleContext`
-          (`lib/status/project-oracle-context.ts`) call `resolveIdentity({ exec })` (`lib/git/identity.ts`) with no
-          prompt, each keeping its catch; `readLocalReviewLiveContext` (`scripts/review-gate/hosts/local/live-context.ts`)
-          resolves through an `exec` bound to `input.cwd`, as the one it builds for its claims read, so the read stays
-          pinned to the repository root.
-        - Update the mocks that stop matching: `unit/handlers/recover-envelope-boundary.test.ts`,
-          `unit/handlers/start.test.ts`, and `unit/scripts/review-gate/hosts/local/live-context.test.ts`.
-        - Build `test-first` (one behavior at a time):
-            - `readIdentityPointers` returns `arc.identity` when set, the slugified `user.name` when it is unset, and
-              null when both are unset; an invalid `arc.identity` still refuses `identity.invalid`
-            - `renderRoadmapFromIndexViewResult` with `arc.identity` unset classifies the fallback identity's Errand
-              claims, as `arc status --project` does
-            - the review gate's local host resolves the fallback identity at the repository root, and an incomplete
-              claims read for it throws where a null identity read nothing
+    - `[x]` **1.1.b Name the unresolved identity in the messages and the label**
 
-    - `[ ]` **1.1.b Name the unresolved identity in the messages and the label**
+        - Missing-identity messages name both resolution sources and the configuration remedy. Status labels the
+          resolved value `identity:`; the package strategy and its rendered project copy describe the same fallback.
 
-        - `runStatusUserView` (`lib/status/user-view.ts`), `handleRecoverAudit` (`handlers/recover.ts`), and
-          `SessionIdentityMissingError` (`commands/status/result-composition.ts`) say no identity resolved from
-          `arc.identity` or Git `user.name`, naming `git config arc.identity <name>`; the JSDoc in
-          `commands/status/types.ts` and `commands/status/run.ts` follows.
-        - `renderIdentity` (`commands/status/format.ts`) labels the line `identity:`, set or not;
-          `unit/status-format.test.ts` follows.
-        - Edit the identity-missing short-circuit's table cell in the package source's
-          `strategy-session-operations.md`, re-padding the table, then sync it to the project copy.
+    - `[x]` **1.1.c Keep session-init's identity-absent arm for both values unset**
 
-    - `[ ]` **1.1.c Keep session-init's identity-absent arm for both values unset**
-
-        - `helpers/session-envelope-compat.ts` unsets `user.name` beside `arc.identity`; regenerate
-          `fixtures/session-envelope/session-init-identity-missing.json` with `UPDATE_SESSION_ENVELOPE_GOLDENS=1` and
-          update `e2e/session-envelope-compat.e2e.test.ts`.
-        - Add an end-to-end case: with `arc.identity` unset and `user.name` set, `arc status --session-init --json`
-          carries the fallback identity and fires no identity-absent arm.
+        - The identity-missing fixture unsets both configuration sources; its golden retains the absent arm with the
+          actionable message. CLI coverage also carries a Git-name fallback through session-init without that arm.
 
 ### `[ ]` **1.2 Read a design's parsed purpose through one selection and one extractor — § 8.2**
 

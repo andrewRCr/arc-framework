@@ -40,7 +40,7 @@ function renderIdentity(identity: StatusIdentity): string {
   const value = (v: string | null): string => (v === null ? "(unset)" : v);
   return [
     "Identity:",
-    `  arc.identity: ${value(identity.identity)}`,
+    `  identity: ${value(identity.identity)}`,
     `  arc.role:     ${value(identity.role)}`,
   ].join("\n");
 }

@@ -154,6 +154,7 @@ export async function prepareSessionEnvelopeFixture(
       cwd = await setupBranchGoneFixture(state);
     } else {
       await git(state.repo, ["config", "--unset", "arc.identity"]);
+      await git(state.repo, ["config", "--unset", "user.name"]);
     }
 
     let cleaned = false;
