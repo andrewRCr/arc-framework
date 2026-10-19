@@ -13,6 +13,7 @@ import { parseMetaRecord } from "../../../src/lib/active/meta-reader.js";
 import { testProvenance } from "../../helpers/store/suite-tools.js";
 import { createMemoryRemote } from "../../helpers/store/sync.js";
 import { ReferenceBackend } from "../../helpers/store/reference-backend.js";
+import { recordKey } from "../../helpers/store/model.js";
 
 it("returns an unreadable lifecycle inventory as a refusal with its remedy", async () => {
   const h = createLifecycleHarness();
@@ -64,6 +65,26 @@ it("discloses a conflicted meta and its conflict references as an omitted record
   const warning = outcome.result.sourceWarnings[0]?.rendered ?? "";
   expect(warning).toContain(JSON.stringify(disputed.conflicts[0]));
   expect(warning).toMatch(/conflict.*omits.*resolve/iu);
+});
+
+it("names every omitted meta even when its backend diagnostic has generic repair text", async () => {
+  const h = createLifecycleHarness();
+  for (const slug of ["first", "second"]) {
+    const meta = await h.seedMeta(slug);
+    h.store.state.faults.set(recordKey(meta.reference), { reference: meta.reference, kind: "unknown-format-version" });
+  }
+  const listing = lifecycleSuccess(await h.store.list({ family: "work-item", kind: "work-item/meta" }));
+  if (listing.status !== "complete" || listing.diagnostics.length !== 2) throw new Error("Expected two omitted records");
+  const outcome = await readStoreProjectViewInput({ store: h.store, reviewAfterDays: 14 });
+  if (outcome.status === "refused") throw new Error(outcome.refusal.condition);
+  const result = composeProjectReadinessViewResult(outcome.result);
+  expect(result.facts).toEqual([]);
+  for (const diagnostic of listing.diagnostics) {
+    const warning = result.warnings.find(value => value.rendered.includes(diagnostic.key));
+    expect(warning).toMatchObject({ code: "listing-diagnostic", rendered: expect.stringContaining(diagnostic.condition) });
+    expect(warning?.rendered).toContain(diagnostic.remedy.text);
+    expect(warning?.rendered).toContain("omits");
+  }
 });
 
 it("composes placement-based In Flight and paused rows from the same selected entries", async () => {

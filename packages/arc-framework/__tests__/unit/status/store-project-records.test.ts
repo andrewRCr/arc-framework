@@ -94,6 +94,7 @@ it("keeps readable purposes while reporting an omitted design record's diagnosti
   expect(result.records[0]?.purpose).toBe("Readable intent.");
   expect(result.warnings).toEqual([{ code: "listing-diagnostic", rendered: expect.stringMatching(/Draft read unavailable.*Repair the draft and retry/iu) }]);
   expect(result.warnings[0]?.rendered).toMatch(/omit/iu);
+  expect(result.warnings[0]?.rendered).toContain("withheld-design");
 });
 
 it("uses one complete design inventory per kind for every work unit", async () => {

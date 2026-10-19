@@ -136,7 +136,7 @@ export async function storeLineageEnumeration(store: Store): Promise<StoreResult
   } };
   if (listing.result.diagnostics.length > 0) return { status: "refused", refusal: {
     code: "namespace-corrupt", class: "terminal", namespace: "lineage",
-    condition: listing.result.diagnostics.map(diagnostic => diagnostic.condition).join(" "),
+    condition: listing.result.diagnostics.map(diagnostic => `${diagnostic.key}: ${diagnostic.condition}`).join(" "),
     remedy: { text: listing.result.diagnostics.map(diagnostic => diagnostic.remedy.text).join(" ") },
   } };
   if (listing.result.missed) {

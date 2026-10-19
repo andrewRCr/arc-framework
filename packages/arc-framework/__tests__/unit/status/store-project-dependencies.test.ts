@@ -254,14 +254,14 @@ it.each([false, true])("retains every lineage listing diagnostic and recovers af
     const result = await h.store.list(input);
     if (input.family !== "lineage" || repaired || result.status !== "ok" || result.result.status !== "complete") return result;
     return { status: "ok", result: { ...result.result, missed, diagnostics: [
-      { kind: "unreadable", key: "first", condition: "First lineage record unavailable.", remedy: { text: "Restore the first record." } },
-      { kind: "unknown-format-version", key: "second", condition: "Second lineage format unsupported.", remedy: { text: "Upgrade the lineage reader." } },
+      { kind: "unreadable", key: "omitted-lineage-first", condition: "First lineage record unavailable.", remedy: { text: "Restore the first record." } },
+      { kind: "unknown-format-version", key: "omitted-lineage-second", condition: "Second lineage format unsupported.", remedy: { text: "Upgrade the lineage reader." } },
     ] } };
   };
   const result = await project(store);
   expect(result.warnings).toHaveLength(1);
   expect(result.warnings[0]).toMatchObject({ code: "store-read-failed", workUnit: "dependent", dependency: "former" });
-  for (const text of ["First lineage record unavailable.", "Restore the first record.",
+  for (const text of ["omitted-lineage-first", "omitted-lineage-second", "First lineage record unavailable.", "Restore the first record.",
     "Second lineage format unsupported.", "Upgrade the lineage reader."]) expect(result.warnings[0]?.rendered).toContain(text);
   expect(result.facts.find(fact => fact.slug === "dependent")?.readiness).toBe("blocked");
   repaired = true;

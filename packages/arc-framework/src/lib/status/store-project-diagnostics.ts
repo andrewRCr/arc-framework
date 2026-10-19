@@ -11,5 +11,5 @@ export function storeReadFailureWarning(failure: { condition: string; remedy: Re
 /** Retain listing diagnostics and disclose that their records are omitted from the view. */
 export function listingDiagnosticWarnings(diagnostics: readonly ListingDiagnostic[]): ProjectReadinessWarning[] {
   return diagnostics.map(diagnostic => ({ code: "listing-diagnostic",
-    rendered: `${diagnostic.condition} The view omits this record. ${diagnostic.remedy.text}` }));
+    rendered: `${diagnostic.key}: ${diagnostic.condition} The view omits this record. ${diagnostic.remedy.text}` }));
 }

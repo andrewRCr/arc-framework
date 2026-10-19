@@ -54,8 +54,10 @@ export async function readLifecycleDesign(store: Store, meta: StoreRecord): Prom
   if (!fields.success) return { ...absent, warnings: ["Metadata fields are invalid; Design is unavailable."] };
   if (fields.data.design.length === 0) return { ...absent, warnings: [] };
   const listing = await store.list({ family: "work-item", owner: meta.reference.owner });
-  if (listing.status === "refused") return { ...absent, warnings: [listing.refusal.condition] };
-  if (listing.result.status !== "complete") return { ...absent, warnings: listing.result.status === "unreadable" ? [listing.result.condition] : [] };
+  if (listing.status === "refused") return { ...absent, warnings: [`${listing.refusal.condition} ${listing.refusal.remedy.text}`] };
+  if (listing.result.status !== "complete") return { ...absent, warnings: listing.result.status === "unreadable"
+    ? [`${listing.result.condition} ${listing.result.remedy.text}`] : [] };
   const record = selectLifecycleDesign(meta, listing.result.records);
-  return { record, content: record?.content ?? null, warnings: listing.result.diagnostics.map(diagnostic => diagnostic.condition) };
+  return { record, content: record?.content ?? null, warnings: listing.result.diagnostics
+    .map(diagnostic => `${diagnostic.key}: ${diagnostic.condition} ${diagnostic.remedy.text}`) };
 }

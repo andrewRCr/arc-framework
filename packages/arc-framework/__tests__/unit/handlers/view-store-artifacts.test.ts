@@ -13,6 +13,7 @@ import { writeMetaDesign } from "../../../src/lib/store/kinds/meta/writers.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 import type { ViewKind } from "../../../src/lib/view/types.js";
+import { recordKey } from "../../helpers/store/model.js";
 
 const folders: string[] = [];
 afterEach(async () => { await Promise.all(folders.splice(0).map(path => rm(path, { recursive: true, force: true }))); });
@@ -103,4 +104,42 @@ it.each(["refused", "unreadable", "diagnostic", "missed"] as const)("preserves a
   expect(result.message).toContain(failure === "missed" ? "retry arc view inbox --project" : problem.remedy.text);
   f.store.list = list;
   expect(await resolveViewArtifact(options, f.deps)).toMatchObject({ status: "resolved", kind: "inbox", content: record.content });
+});
+
+it.each(["refused", "unreadable"] as const)("preserves a %s design inventory's own remedy and resumes after repair", async failure => {
+  const f = await fixture(), meta = await f.seedMeta("demo", { design: ["spec-demo.md"] });
+  const spec = await f.seed(recordReferences["work-item/spec"](meta.reference.owner), "# Spec\n\n**Purpose:** Selected design.\n");
+  const list = f.store.list.bind(f.store);
+  const problem = { condition: "Design index is unavailable.", remedy: { text: "Restore the design index from its backup, then retry." } };
+  f.store.list = async input => input.owner === undefined ? list(input) : failure === "refused"
+    ? { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: "work-item", ...problem } }
+    : { status: "ok", result: { status: "unreadable", ...problem } };
+  const options = { cwd: f.cwd, kind: "design", project: false, identity: null, forSlug: "demo" };
+  const result = await resolveViewArtifact(options, f.deps);
+  expect(result).toMatchObject({ status: "error", message: expect.stringContaining(`${problem.condition} ${problem.remedy.text}`) });
+  f.store.list = list;
+  expect(await resolveViewArtifact(options, f.deps)).toMatchObject({ status: "resolved", content: spec.content });
+});
+
+it.each([false, true])("retains every design diagnostic's key and remedy, readable selection=%s", async readable => {
+  const f = await fixture(), meta = await f.seedMeta("demo", { design: ["spec-demo.md"] });
+  const spec = await f.seed(recordReferences["work-item/spec"](meta.reference.owner), "# Spec\n\n**Purpose:** Selected design.\n");
+  const draft = await f.seed(recordReferences["work-item/draft"](meta.reference.owner), "# Draft\n\n**Purpose:** Draft design.\n");
+  const companion = await f.seed(recordReferences["work-item/companion"](meta.reference.owner, "spec-rfc"), "# RFC\n\n**Purpose:** Companion design.\n");
+  for (const record of [readable ? draft : spec, companion]) {
+    f.store.state.faults.set(recordKey(record.reference), { reference: record.reference, kind: "unknown-format-version" });
+  }
+  const listing = lifecycleSuccess(await f.store.list({ family: "work-item", owner: meta.reference.owner }));
+  if (listing.status !== "complete" || listing.diagnostics.length !== 2) throw new Error("Expected both diagnosed design records");
+  const options = { cwd: f.cwd, kind: "design", project: false, identity: null, forSlug: "demo" };
+  const result = await resolveViewArtifact(options, f.deps);
+  expect(result.status).toBe(readable ? "resolved" : "error");
+  const rendered = result.status === "error" ? result.message : result.warnings?.join(" ") ?? "";
+  for (const diagnostic of listing.diagnostics) {
+    expect(rendered).toContain(diagnostic.key);
+    expect(rendered).toContain(diagnostic.condition);
+    expect(rendered).toContain(diagnostic.remedy.text);
+  }
+  f.store.state.faults.clear();
+  expect(await resolveViewArtifact(options, f.deps)).toMatchObject({ status: "resolved", content: spec.content, warnings: [] });
 });
