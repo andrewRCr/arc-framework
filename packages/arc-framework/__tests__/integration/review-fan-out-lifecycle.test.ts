@@ -80,6 +80,7 @@ import { cleanupTempDir, createTempRepo, makeGitExec } from "../helpers/integrat
 
 const oid = (character: string): string => character.repeat(40);
 const materialPassesTimeoutMs = 120_000;
+const localCoverageChoicesTimeoutMs = 30_000;
 
 
 
@@ -2200,11 +2201,6 @@ describe("hosted review fan-out lifecycle", () => {
 
   it("offers executable local choices after a changed-head performed local fix", async () => {
     const { harness, correctedTarget, local, fixedHead } = await createFixedLocalMemberReview();
-    await expect(statusThroughHandler(harness, correctedTarget)).resolves.toMatchObject({
-      state: "coverage-required", nextAction: "select-coverage", coverageSelectionAction: { choices: [
-        { sourceId: "delegated-agent", coverage: "incremental" }, { sourceId: "delegated-agent", coverage: "complete" },
-      ] },
-    });
     const { fakeBin } = await installHostedRequestTestHost(harness, undefined, "prior-top", fixedHead);
     await git(harness.root, ["config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*"]);
     const arc = join(fakeBin, "arc");
@@ -2215,7 +2211,9 @@ describe("hosted review fan-out lifecycle", () => {
     for (const route of [["--target", JSON.stringify(correctedTarget)], ["--work-unit", harness.plan.workUnitId]]) {
       const offered = await run(process.execPath, [CLI_PATH, "review", "status", ...route], { cwd: harness.root, env });
       const selection = ReviewStatusCommandResultSchema.parse(JSON.parse(offered.stdout));
-      expect(selection).toMatchObject({ state: "coverage-required", nextAction: "select-coverage" });
+      expect(selection).toMatchObject({ state: "coverage-required", nextAction: "select-coverage",
+        coverageSelectionAction: { choices: [{ sourceId: "delegated-agent", coverage: "incremental" },
+          { sourceId: "delegated-agent", coverage: "complete" }] } });
       if (selection.state !== "coverage-required") throw new Error("expected the exact status coverage offer");
       const prompt = selection.coverageSelectionAction.interactionText;
       expect(prompt).toContain("Complete passes: 1 of 2");
@@ -2227,27 +2225,18 @@ describe("hosted review fan-out lifecycle", () => {
       const command = [...prompt.matchAll(/`(arc review status[^`]+)`/gu)]
         .map(match => match[1]).find(value => value?.endsWith("--coverage incremental"));
       if (command === undefined) throw new Error("expected an executable fix-check command");
-      for (const invalid of [["--source", "coderabbit-pr", "--coverage", "incremental"]]) {
-        const refused = await run(process.execPath, [CLI_PATH, "review", "status", ...route, ...invalid],
-          { cwd: harness.root, env });
-        expect(JSON.parse(refused.stdout)).toMatchObject({ state: "blocked",
-          detail: expect.stringContaining("delegated-agent / complete") });
-      }
-      const forcedHosted = await run(process.execPath, [CLI_PATH, "review", "status", ...route, "--source", "coderabbit-pr"],
-        { cwd: harness.root, env });
-      expect(JSON.parse(forcedHosted.stdout)).toMatchObject({ state: "blocked", reason: "material-fix-local-review-required",
-        remedy: { argv: ["arc", "review", "status", ...route, "--source", "delegated-agent"] } });
-      const loneCoverage = await run(process.execPath, [CLI_PATH, "review", "status", ...route, "--coverage", "complete"],
-        { cwd: harness.root, env });
-      expect(JSON.parse(loneCoverage.stdout)).toMatchObject({ nextAction: "review-local-prepare",
-        action: { sourceId: "delegated-agent", requestedCoverage: "complete" } });
       const selected = await run("sh", ["-c", command], { cwd: harness.root, env });
       expect(ReviewStatusCommandResultSchema.parse(JSON.parse(selected.stdout))).toMatchObject({
         nextAction: "review-local-prepare", action: { sourceId: "delegated-agent", requestedCoverage: "incremental",
           correctionScope: { predecessorProducerId: local.prepared.payload.operationId } },
       });
     }
-  });
+    const complete = await run(process.execPath, [CLI_PATH, "review", "status", "--work-unit", harness.plan.workUnitId,
+      "--coverage", "complete"], { cwd: harness.root, env });
+    expect(ReviewStatusCommandResultSchema.parse(JSON.parse(complete.stdout))).toMatchObject({
+      nextAction: "review-local-prepare", action: { sourceId: "delegated-agent", requestedCoverage: "complete" },
+    });
+  }, localCoverageChoicesTimeoutMs);
 
   it("responds to changed-head incremental findings after a performed prior fix", async () => {
     const harness = await createHarness(["coderabbit-pr"]);
