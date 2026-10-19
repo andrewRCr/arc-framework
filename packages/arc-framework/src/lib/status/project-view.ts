@@ -137,7 +137,7 @@ export interface ProjectReadinessWarning {
   rendered: string;
 }
 
-/** Resolution acquired for a written dependency absent from the listed record graph. */
+/** Acquired dependency identity, including a current primary that supersedes an archived namesake. */
 export type ProjectDependencyResolution =
   | { kind: "listed"; slug: string }
   /** Exact generation outside the standing graph; its namesake supplies no classification or depth. */
@@ -841,17 +841,20 @@ interface DependencyEdgeClassification {
   warning?: ProjectReadinessWarning;
 }
 
-function missingDependencyWarning(dependent: string, dependency: string): ProjectReadinessWarning {
+/** Report an unsatisfied edge whose current target is no work unit. */
+export function missingDependencyWarning(dependent: string, dependency: string): ProjectReadinessWarning {
   return { code: "dangling-dependency", workUnit: dependent, dependency,
     rendered: `\`${dependent}\` depends on missing work unit \`${dependency}\`; treating the edge as blocked.` };
 }
 
 function classifyDependencyEdge(dependent: string, dependency: string, index: LifecycleIndex,
   resolutions?: ProjectDependencyResolutions): DependencyEdgeClassification {
-  const listed = resolveSlugQuery(index, dependency);
-  if (listed.state !== "nonexistent") return { satisfied: listed.shipped, resolvedTarget: dependency };
   const resolution = resolutions?.get(dependent)?.get(dependency);
-  if (resolution === undefined) return { satisfied: false, resolvedTarget: dependency, warning: missingDependencyWarning(dependent, dependency) };
+  if (resolution === undefined) {
+    const listed = resolveSlugQuery(index, dependency);
+    return listed.state !== "nonexistent" ? { satisfied: listed.shipped, resolvedTarget: dependency }
+      : { satisfied: false, resolvedTarget: dependency, warning: missingDependencyWarning(dependent, dependency) };
+  }
   switch (resolution.kind) {
     case "verdict": return { satisfied: resolution.satisfied };
     case "unsatisfied": return { satisfied: false, ...(resolution.warning === undefined ? {} : { warning: resolution.warning }) };

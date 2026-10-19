@@ -1,11 +1,11 @@
-/** Resolve unlisted dependency names through store identities and terminal lineage. */
+/** Resolve dependency names outside the live standing graph through store identities and terminal lineage. */
 import type { Store } from "../store/contract.js";
 import type { RecordReference } from "../store/identity.js";
 import { identityKey, type LifecycleEntry } from "../store/lifecycle-index.js";
 import type { Remedy, StoreResult } from "../store/refusal.js";
 import { queryRetiredOriginDisposition, storeLineageEnumeration, type StoreLineageEnumeration } from "../work-unit/store-reconcile-context.js";
 import { SlugSchema } from "../kernel/index.js";
-import type { ProjectDependencyResolution, ProjectDependencyResolutions } from "./project-view.js";
+import { missingDependencyWarning, type ProjectDependencyResolution, type ProjectDependencyResolutions } from "./project-view.js";
 import { storeReadFailureWarning } from "./store-project-diagnostics.js";
 import { deriveState } from "../work-unit/lifecycle-resolver.js";
 
@@ -17,16 +17,17 @@ export interface StoreProjectDependencyOptions {
   failClosedNames: ReadonlySet<string>;
 }
 
-/** Resolve only edges absent from the standing graph while preserving their written names. */
+/** Resolve unlisted and archived-target edges while preserving their written names. */
 export async function resolveStoreProjectDependencies(options: StoreProjectDependencyOptions): Promise<ProjectDependencyResolutions> {
   const resolver = new StoreDependencyResolver(options);
   const resolutions = new Map<string, Map<string, ProjectDependencyResolution>>();
   for (const dependent of options.standingEntries) {
     const edges = new Map<string, ProjectDependencyResolution>();
     for (const edge of dependent.fields.dependsOn) {
-      if (resolver.names.has(edge)) continue;
+      if (resolver.liveNames.has(edge)) continue;
       const resolution = await resolver.resolve(dependent, edge);
-      if (resolution !== undefined) edges.set(edge, resolution);
+      edges.set(edge, resolution ?? { kind: "unsatisfied",
+        warning: missingDependencyWarning(dependent.reference.owner.name, edge) });
     }
     resolutions.set(dependent.reference.owner.name, edges);
   }
@@ -36,13 +37,15 @@ export async function resolveStoreProjectDependencies(options: StoreProjectDepen
 type ResolutionStep = ProjectDependencyResolution | { kind: "retarget"; slug: string } | undefined;
 
 class StoreDependencyResolver {
-  readonly names: ReadonlySet<string>;
+  readonly liveNames: ReadonlySet<string>;
+  readonly completedNames: ReadonlySet<string>;
   readonly standing: ReadonlyMap<string, LifecycleEntry>;
   readonly entries: ReadonlyMap<string, LifecycleEntry>;
   private lineage?: Promise<StoreResult<StoreLineageEnumeration>>;
 
   constructor(readonly options: StoreProjectDependencyOptions) {
-    this.names = new Set(options.standingEntries.map(entry => entry.reference.owner.name));
+    this.liveNames = new Set(options.standingEntries.filter(entry => entry.location !== "completed").map(entry => entry.reference.owner.name));
+    this.completedNames = new Set(options.standingEntries.filter(entry => entry.location === "completed").map(entry => entry.reference.owner.name));
     this.standing = new Map(options.standingEntries.map(entry => [identityKey(entry.reference.owner), entry]));
     this.entries = new Map(options.entries.map(entry => [identityKey(entry.reference.owner), entry]));
   }
@@ -68,12 +71,17 @@ class StoreDependencyResolver {
   }
 
   private async resolveName(dependent: LifecycleEntry, written: string, name: string): Promise<ResolutionStep> {
-    if (this.names.has(name)) return { kind: "listed", slug: name };
+    if (this.liveNames.has(name)) return { kind: "listed", slug: name };
     const slug = SlugSchema.safeParse(name);
     if (!slug.success) return undefined;
     if (this.options.failClosedNames.has(name)) return { kind: "unsatisfied" };
     const lookup = await this.options.store.lookup({ kind: "slug", slug: slug.data });
     if (lookup.status === "ok") return this.found(lookup.result.reference);
+    if (lookup.refusal.code === "ambiguous-match" && this.completedNames.has(name)
+      && lookup.refusal.candidates.every(reference => reference.kind === "work-item/meta"
+        && this.entries.get(identityKey(reference.owner))?.location === "completed")) {
+      return { kind: "listed", slug: name };
+    }
     if (lookup.refusal.code !== "not-found") return this.failed(dependent, written, lookup.refusal);
     return this.resolveRetired(dependent, written, name);
   }
