@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** [none]
-- **Next Task:** Task 1.1 — Resolve one identity in status, its Errand context, and the review gate's local host (line ~27)
+- **Last Completed:** Task 7.6 — `arc view` from the flip; Phase 7 complete
+- **Next Task:** Task 8.1 — Complete verification (line ~539)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1.a — Resolve the three readers through resolveIdentity
+- **Next Action:** Start Task 8.1 in a fresh session — load and follow `verify-work-unit.md`
 
 - **PR URL:** [none]
 - **Completed:** [none]
