@@ -157,17 +157,14 @@ the measurements.
   branchless store work units through the same field normalization and dependency filter. Store Errands remain absent;
   parked in-repo entries retain their existing rendering.
 
-### `[ ]` **2.7 Close a paused work unit's scope window — § 4**
+### `[x]` **2.7 Close a paused work unit's scope window — § 4**
 
 - _Goal:_ Given a pause, `projectScopeWindow` returns a null window on the `lifecycle` basis with the reason that a
   routed concern waits for its resumption, whatever the work unit's checkout or state.
 
-    - A third, optional parameter (`lib/status/slug-position.ts`), checked before the checkout window; the in-repo arm
-      never passes it.
-    - Build `test-first` (one behavior at a time):
-        - a paused work unit with a resolvable checkout position gets the null `lifecycle` window
-        - a paused Planning or Active work unit with no position gets the same
-        - the existing cases, which pass no pause, are unchanged
+- _Outcome:_ The optional pause precedes checkout-derived and lifecycle windows, yielding a null lifecycle window
+  whose reason defers routed concerns until resumption. Planning and Active cases cover both checkout and no-checkout
+  inputs; callers that supply no pause retain their existing windows.
 
 ### `[ ]` **2.8 Carry a listed record's former slugs on its lifecycle entry — § 2.1**
 
