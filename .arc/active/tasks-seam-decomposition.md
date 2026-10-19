@@ -236,40 +236,12 @@ row to the tasks that build it.
   every edge the members' slugs trip, and the stored map with expected absence, removing nothing, and the verb reports
   what it wrote with each destination's authoring requirements and the next step.
 
-    - `[ ]` **2.5.a Members and their copies**
+    - `[x]` **2.5.a Members and their copies**
 
-        - Each member's meta through `renderMetaFile`, placed backlog planned and seeded as today's scaffold seeds it
-          (`scaffoldMemberProfile`, `decompose-v3-repository-plan.ts`): `State` Planning, `Owner` and `Priority` from
-          the origin, `Class` from its destination, `Origin` from the origin's own, `Design` from the profile, `Cohort`
-          the full path or none, its seeded `Depends On` from the projection (task 2.4.d), and `Current Workflow` its
-          first workflow — `draft-design` under a draft profile, `generate-tasks` otherwise — which `Next Action`
-          names.
-        - Beside it, a copy of each design record the profile names — a draft, a spec, or a paired spec's two
-          companions, the paired spec's two companions being the copies `meta.design-entry` requires in the same batch,
-          since `checkMetaDesignEntry` passes over a work unit's own draft and spec names
-          (`lib/store/kinds/meta/reference-rules.ts`) — and of the task list or notes where an allocation targets that
-          companion on the member, each copy's title, its first line, retitled where it holds the origin slug and kept
-          as it is otherwise, as `retitleScaffold` retitles it. A task list or notes it would copy with no title line
-          refuses before anything is written (`scaffold-title-missing`), as task 2.2.d refuses such a design record.
-        - So does a task list whose copy carries a diagnostic the task-list write checks report: with no prior version,
-          `checkTaskListSegmentation` and `checkTaskListDescriptor` count every diagnostic as added
-          (`lib/store/kinds/task-list/shape-rules.ts`), so the verb runs them over each copy first and refuses naming
-          the origin's task list and each diagnostic, where the store's refusal would name a member copy never written.
-        - So does a task list whose copy would carry a completed task, marked `[x]`. The store refuses any write that
-          drops a completed task, a removal included (`checkTaskListCompletedIdentifier`,
-          `lib/store/kinds/task-list/integrity-rules.ts`), so no hand edit could trim it from the member's copy and no
-          discard or revision could remove that stub. The refusal names the origin's task list and each completed task,
-          the remedy being to target the member's draft, spec, or notes in the map instead. A deferred task, which a
-          write may drop, passes.
-        - Build `test-first` (one behavior at a time):
-            - each seeded field matches its source, under each planning profile
-            - a companion copy lands only where an allocation targets it
-            - a copy whose title does not hold the origin slug lands unchanged
-            - a task list an allocation would copy with no title line refuses, and the batch lands once it has one
-            - a task list carrying a diagnostic the write checks report refuses, naming the origin's task list, and the
-              batch lands once it is repaired
-            - a task list carrying a completed task refuses, naming the origin's task list and the task, and the batch
-              lands once the map targets the member's notes instead; one carrying a deferred task lands
+        - `planDecomposeMembers` prepares expected-absence member metadata and design copies for all three profiles,
+          preserving inherited source fields and canonical companion identities while seeding cohort, edges, and workflow.
+        - `copyDecomposeArtifact` retitles only the first line and copies task lists or notes only where allocated.
+          Missing titles, task-list diagnostics, and completed tasks refuse at the source artifact; deferred tasks pass.
 
     - `[ ]` **2.5.b Cohort documents — topology**
 

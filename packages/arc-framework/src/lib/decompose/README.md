@@ -59,3 +59,7 @@ slug guard to refuse.
 
 `check-purposes.ts` requires a substantive Purpose only for newly created cohort documents, checking a subcohort's
 parent separately and directing edits to reused documents through write-back.
+
+`member-scaffold.ts` prepares new member metadata, declared design copies, and allocated task-list or notes copies.
+`scaffold-copy.ts` preserves artifact bodies while retitling the first line and rejects missing titles, task-list
+creation diagnostics, and completed tasks that would prevent later removal of the copy.
