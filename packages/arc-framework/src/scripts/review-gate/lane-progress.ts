@@ -997,7 +997,7 @@ export async function readAdmittedLocalLaneAttempt(
  * @returns The recorded pass count and ordered attempts, or an unrecorded result.
  */
 export async function readLaneProgress(
-  store: ReviewOperationStateStore,
+  store: Pick<ReviewOperationStateStore, "readOperation">,
   input: {
     lane: LaneProgressState["lane"];
     repositoryId: string;

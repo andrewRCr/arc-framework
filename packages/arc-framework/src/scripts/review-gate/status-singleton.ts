@@ -4,11 +4,9 @@ import { selectReviewSources } from "./policy/review-source-eligibility.js";
 import { projectSingletonLocalCoverageRefusal, projectReviewSourceRefusal } from "./status-driver-refusal.js";
 import type { ReviewStatusRoute } from "./status-route.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
-import type { GitExec } from "../../lib/git/exec.js";
-import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
+import { resolveReviewInvocation, type ReviewInvocationInput } from "./runtime/invocation.js";
+import { createReviewCompositionContext } from "./runtime/composition-context.js";
 import type { CandidateManagedRecordV1 } from "../../lib/work-unit/candidate-attestation.js";
-import { LocalReviewOperationStateStore } from "./hosts/local/operation-state-store.js";
-import { LocalApprovedDispositionRecordStore } from "./hosts/local/disposition-record-store.js";
 import { createRepositoryReviewResultReader } from "./hosts/local/review-result-reader-composition.js";
 import { readLaneResponsePerformance } from "./lane-progress.js";
 import { resolveConfiguredLanePolicy } from "./policy/lane-policy-config.js";
@@ -21,10 +19,8 @@ import type { StandardReviewReservationV1 } from "./policy/integration-boundary-
 import { composeSingletonReviewObligation, type RoutedReviewObligation } from "./status.js";
 import type { ReviewStatusPolicyJudgment } from "./status-judgment.js";
 
-interface PublishedSingletonInput {
+interface PublishedSingletonInput extends ReviewInvocationInput {
   statusRoute: ReviewStatusRoute;
-  cwd: string;
-  exec: GitExec;
   settings: Awaited<ReturnType<typeof readConfigSettings>>["settings"];
   reservation: StandardReviewReservationV1;
   record: CandidateManagedRecordV1;
@@ -42,7 +38,8 @@ interface PublishedSingletonInput {
  * @param input - Current Candidate, reservation, exact PR, and repository-backed discharge reader.
  * @returns The status obligation and any fully composed hosted request action.
  */
-export async function composePublishedSingletonReview(input: PublishedSingletonInput): Promise<RoutedReviewObligation> {
+export async function composePublishedSingletonReview(options: PublishedSingletonInput): Promise<RoutedReviewObligation> {
+  const input = { ...options, ...resolveReviewInvocation(options) };
   const { target, reservation, readDischarge } = input;
   const dischargeInput = {
     reservation,
@@ -88,8 +85,8 @@ async function resolveSingletonRequest(
   dischargeInput: Parameters<HostedReservationDischargeReader>[0],
 ): Promise<NonNullable<Parameters<typeof composeSingletonReviewObligation>[0]["request"]>> {
   if (discharge.nextSource === null) throw new Error("The singleton review source is unavailable.");
-  const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
-  const store = new LocalReviewOperationStateStore(publisher);
+  const { publisher, family } = createReviewCompositionContext(input);
+  const store = family.ports.inFlight;
   const policy = await resolveConfiguredLanePolicy({
     lane: "standard",
     settings: input.settings,
@@ -112,7 +109,7 @@ async function resolveSingletonRequest(
     ...(invocation === undefined ? {} : { invocation }),
   }, {
     resultReader: createRepositoryReviewResultReader(publisher),
-    dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+    dispositionStore: family.ports.dispositions,
     readResponsePerformance: (predecessor) => readLaneResponsePerformance(store, predecessor),
     confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),
     confirmIncrementalApplicability: (predecessor, current) => (
