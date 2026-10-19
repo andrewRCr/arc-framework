@@ -48,3 +48,11 @@ the terminal batch; started meta and task-list allocations and document homes re
 orders all authored contributions, and `dependency-projection.ts` applies them by recipient UID, rejecting redundant
 provider slots through `dependency-rules.ts` and the projection checks. `dependency-slot.ts` preserves unrelated edge
 order while replacing all origin spellings. Terminal projection emits only stub-dependent and stub-home edits.
+
+`check-written-edges.ts` validates providers in the intended after-state and protects started recipients. Original
+provider names taken by members require owner settlement before a fresh preflight or revision.
+
+`slug-settlement.ts` prepares prior-generation stub-edge dispositions without writing them. `retired-edge.ts` follows
+lineage recursively, discharges completed or Integrating providers, and retains each observed record version.
+`retired-lineage.ts` resolves authenticated terminal former names; protected or unresolved edges remain for the store's
+slug guard to refuse.

@@ -217,38 +217,13 @@ row to the tasks that build it.
           dependents, and homes. Slot replacement preserves unrelated order and aliases; terminal projection writes
           only stub dependents and stub homes, leaving existing member seeds and started recipients alone.
 
-    - `[ ]` **2.4.e Edges the cut writes**
+    - `[x]` **2.4.e Edges the cut writes**
 
-        - Every edge the cut writes — a member's, a stub home's, and a stub dependent's from an incoming `replace` —
-          resolves by slug in the batch's after-state, as `meta.depends-on` checks (`checkMetaDependsOn`); a provider
-          abandoned, decomposed, or ambiguous refuses, naming `drop` or another provider, and for the origin's own edge
-          on a decomposed provider, its reconcile or `Depends On` edit first, then a fresh `--preflight`, or `--revise`
-          once the map is stored.
-        - The origin's own edge on a provider whose slug a member takes refuses, whatever that provider's state, shipped
-          included, naming the same settlement first — reconcile for a started origin, a `Depends On` edit for a stub —
-          then a fresh `--preflight`, or `--revise` once the map is stored: a slug lookup in the after-state would find
-          the member, and settling the edge in the batch would change an edge the terminal batch binds (task 3.3.b). No
-          other edge the cut writes can then name that slug: a member's or stub home's edge on a provider outside the
-          map comes from the origin's own, through an outgoing `targets` disposition, or from an external edge, which
-          refuses `redundant-external-edge` when it names a member's slug (task 2.4.d). An internal edge to that member
-          names it by design.
-        - Each edge a member's new slug trips in an open stub other than the origin is settled in the batch, so the
-          check runs over the edges as the settling leaves them, by a settling plan this task builds under
-          `lib/decompose/`, which task 2.5.c's settler writes. The plan holds each such edge, at its stub's read
-          version, with its prior target and disposition as task 2.5.c states them, computed over the before-state; an
-          in-flight work unit's edge, a stub holding a stored map of its own, whose edges its cut's terminal batch binds
-          (task 3.3.b), a dependent the lineage did not map, or a chain reconcile cannot resolve to one disposition
-          stays out for `work-item.slug-edges` to refuse, whose remedy names choosing another slug. The plan imports
-          nothing from `transition-disposition-query.ts`, whose input type comes from a module the deletion pass removes
-          (`transition-record-enumeration.ts`).
-        - A started home that would take a new edge refuses, leaving the edge to its owner; in an extraction, so does a
-          started dependent given any disposition that moves its edge off the origin (§ 8.6).
-        - Build `test-first` (one behavior at a time):
-            - each refusal fires, and the checks pass after its remedy
-            - a provider among the map's own members passes
-            - the origin's own edge on a provider whose slug a member takes refuses — shipped, abandoned, or
-              decomposed — and the checks pass over a fresh starter once that edge is settled
-            - an internal edge to a member that takes a shipped work unit's slug stays on the member
+        - Provider checks admit planned member generations and completed providers while protecting started homes and
+          extraction dependents. Reused original provider names require owner settlement and a fresh preflight or revision.
+        - The read-only slug-settlement plan retains dependent versions and prior provider generations, recursively follows
+          lineage and authenticated former names, and discharges satisfied providers. Protected, unmapped, ambiguous, cyclic,
+          or self-dependent edges stay outside the plan for the store's slug guard.
 
     - `[ ]` **2.4.f Purpose**
 

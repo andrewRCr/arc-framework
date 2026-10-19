@@ -27,7 +27,8 @@ export function createDecomposeHarness() {
       if (renamed.status !== "renamed") throw new Error(JSON.stringify(renamed));
       return lifecycleSuccess(await h.store.read({ reference: primary.reference }));
     },
-    seedRetiredWorkUnit: async (subject: string | StoreRecord, transition: Pick<LineageRecord, "kind" | "successors"> = { kind: "abandon", successors: [] }): Promise<StoreRecord> => {
+    seedRetiredWorkUnit: async (subject: string | StoreRecord, transition: Pick<LineageRecord, "kind" | "successors">
+      & Partial<Pick<LineageRecord, "incoming" | "outgoing">> = { kind: "abandon", successors: [] }): Promise<StoreRecord> => {
       if (transition.kind === "rename") throw new Error("Use the rename fixture for a rename.");
       const primary = typeof subject === "string" ? await seedStub(subject) : subject;
       const owner = primary.reference.owner;
@@ -35,8 +36,8 @@ export function createDecomposeHarness() {
       const reference = recordReferences["lineage/transition"](owner);
       lifecycleSuccess(await h.store.batch({ provenance: { verb: transition.kind, lifecycleAction: transition.kind }, writes: [
         { action: "put", reference, expected: null, content: writeLineageRecord({ schemaVersion: 2,
-          origin: { name: owner.name, uid: owner.uid }, ...transition, incoming: [], retiredBranches: [],
-          ...(transition.kind === "decompose" ? { outgoing: [] } : {}) }) },
+          origin: { name: owner.name, uid: owner.uid }, ...transition, incoming: transition.incoming ?? [], retiredBranches: [],
+          ...(transition.kind === "decompose" ? { outgoing: transition.outgoing ?? [] } : {}) }) },
         { action: "remove", reference: primary.reference, expected: primary.version },
       ] }));
       return lifecycleSuccess(await h.store.read({ reference }));
