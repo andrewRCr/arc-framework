@@ -176,15 +176,13 @@ row to the tasks that build it.
         - `deriveDecomposeMachine` authenticates the complete acquired source and edge facts without I/O and reports
           duplicate provider-generation aliases at Depends On for repair before retry.
 
-### `[ ]` **2.3 Emit the starter map — § 5, § 3.3**
+### `[x]` **2.3 Emit the starter map — § 5, § 3.3**
 
 - _Goal:_ `--preflight` returns the machine half with an author slot for every authoring decision, as canonical JSON,
   writing nothing.
 
-    - Build `test-first` (one behavior at a time):
-        - the starter decodes as a version-4 starter, and its `preflightId` matches its machine half
-        - a second preflight over unchanged records returns identical bytes
-        - preflight leaves every record's `history` unchanged
+- _Outcome:_ `preflight.ts` composes fresh acquisition, new-cut admission, and pure machine derivation into canonical
+  starter JSON. Repeated reads preserve identical bytes, every record's history, and the store state version.
 
 ### `[ ]` **2.4 Bind the completed map and check it before writing — § 6, § 7**
 

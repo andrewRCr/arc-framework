@@ -26,3 +26,6 @@ terminal lineage, retaining slug identity when resolution is absent or ambiguous
 copy prerequisites, lifecycle eligibility, and declared-profile checks stay in reusable derivation; acquisition checks
 source conflicts before requiring complete inventory so a conflicted meta retains its specific repair evidence.
 `machine-facts.ts` composes and authenticates the complete machine without further I/O.
+
+`preflight.ts` repeats new-cut admission over fresh observations and emits a canonical starter map with author slots
+for every source and dependency decision, without changing any record or history.
