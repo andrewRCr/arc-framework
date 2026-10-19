@@ -100,3 +100,7 @@ that prove those decisions for revalidation.
 `conservation.ts` resolves each allocation's complete saved locator against its current member, home, or cohort
 record. It shares artifact scans, retains the current resolved content and selected record versions, and directs
 unresolved locators to revision. Destination bodies and recomputed occurrence ordinals remain authorable.
+
+`source-binding.ts` compares current-kind source units by identity and digest and dependencies by stable edge ID,
+allowing metadata grooming, provider renames, and changes outside the current scan. Shared inbound admission in
+`start-guards.ts` names held entries with their individual routing versions when a grammar is supplied.

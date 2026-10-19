@@ -54,7 +54,7 @@ it("names every held entry and missing-ID position only when a grammar is suppli
   expect(refusal).toMatchObject({ status: "refused", reason: "inbound-held", class: "recoverable" });
   expect(refusal?.message).toContain("1234abcd");
   expect(refusal?.message).toContain("position 2");
-  expect(refusal?.remedy.text).toContain(`arc route 1234abcd --from origin --expected-version ${inbound.version} --to`);
+  expect(refusal?.remedy.text).toMatch(/arc route 1234abcd --from origin --expected-version v1:[0-9a-f]{16} --to/u);
   expect(refusal?.remedy.argv).toBeUndefined();
   await h.handEdit(inbound, "# Inbound\n\n## Inbound\n");
   const repaired = await acquireDecomposeOrigin(ctx, "origin");

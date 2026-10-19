@@ -335,17 +335,11 @@ that step fails; and the preview afterward reports the cut landed, naming its me
           pass; unresolved locators name the allocation and revision. Source conflicts refuse through shared acquisition;
           an actual promoted origin retains its description outside the scanned content inventory.
 
-    - `[ ]` **3.3.b The origin bound by content**
+    - `[x]` **3.3.b The origin bound by content**
 
-        - Rescan for the origin's current kind and require exactly the map's units by content digest and its edges by
-          `edgeId`, leaving out the members task 3.1's member test accepts; a write the scan does not cover passes.
-        - The acquired inbound list holds no entry, beside the write check `lineage.inbound-held`, each named by its
-          `_Id:_` and admitting while no grammar is declared.
-        - Build `test-first` (one behavior at a time):
-            - an added, changed, or removed unit or edge refuses, naming `--revise`, a dependent added since and a
-              companion record added since among them
-            - a write to the origin's meta other than its `Depends On` passes
-            - an entry routed to the origin between the batches refuses under a supplied grammar
+        - `checkDecomposeSourceBinding` compares current-kind source IDs and digests and stable edge IDs, retaining
+          member-generation exclusion and allowing unscanned edits. Shared inbound admission names every held entry;
+          routing remedies now carry each entry's executable version rather than the enclosing record's version.
 
     - `[ ]` **3.3.c Edges again**
 
