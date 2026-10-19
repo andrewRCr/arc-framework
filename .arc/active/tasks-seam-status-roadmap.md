@@ -261,9 +261,13 @@ one renderer, built in Task 3.6: stderr `Error [<code>]: <condition> <remedy>` a
   configured pause-review age. The shared refusal renderer emits actionable stderr plus the JSON refusal when requested;
   staged mode refuses `unsupported` with the on-demand command as its remedy. In-repo rendering stays on its existing arm.
 
-### `[ ]` **3.7 The project view from the flip** — validate exit criterion at segment scope
+### `[x]` **3.7 The project view from the flip** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds, with `arc check segment` green.
+
+- _Outcome:_ The reference-store handler exercise rendered every tier, depth bands and pause marks; selected the live
+  reused slug; omitted clashed and malformed records with diagnostics; and retained alias, cut and abandoned dependency
+  meanings. Text and JSON refusals preserved remedies, staged mode refused, and the store and fixture files stayed unchanged.
 
 ## **Phase 4:** Freshness and the slug query
 
