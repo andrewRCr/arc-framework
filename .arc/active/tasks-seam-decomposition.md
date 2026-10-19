@@ -116,7 +116,7 @@ registry, so the kinds' write checks judge each batch, and a hand edit is a writ
 (`HAND_EDIT_VERBS`). Each task builds its own rows of § 14; `notes-seam-decomposition.md` § Refusal coverage maps every
 row to the tasks that build it.
 
-### `[ ]` **2.1 Build the store version's context and refusals — § 13, § 14**
+### `[x]` **2.1 Build the store version's context and refusals — § 13, § 14**
 
 - _Goal:_ Every mode of the store version takes one context and returns one typed result or refusal whose remedy says
   whether it is terminal and names the command that repairs it — a typed action where running it as given repairs the
@@ -135,16 +135,11 @@ row to the tasks that build it.
         - Stored-map finish, revision, and discard argv builders use the retained renderer; batch provenance names
           `decompose` with its additive, terminal, discard, or revise action.
 
-    - `[ ]` **2.1.c Test support**
+    - `[x]` **2.1.c Test support**
 
-        - Helpers beside `createLifecycleHarness` (`__tests__/helpers/store/`) seeding what the phases' tests need — a
-          rename leaving a former slug, a retirement's lineage, a completed work unit and cohort, a cohort document,
-          and a hand edit under `write-back` provenance — as `retirement-harness.ts` seeds a retirement.
-        - A store wrapper that, just before forwarding a batch, applies a competing write, so the backend refuses the
-          batch as it would a race (task 2.6). For a cross-type race — a work item taking a new cohort document's name,
-          or a cohort document taking a member's slug — the reference backend admits both writes, keeping names per type
-          (`ownerNameKey`, `__tests__/helpers/store/model.ts`), so the wrapper applies the competing write and then
-          returns a given refusal in the batch's place, as the ref backend refuses it (D14).
+        - `createDecomposeHarness` seeds renamed identities, terminal lineage, completed work units, open/completed
+          cohorts, and write-back edits through production writers and checks. `withCompetingBatch` injects one
+          competing write before native batch admission, or an explicit refusal for cross-type name races.
 
 ### `[ ]` **2.2 Preflight an origin through the store — § 5, § 3.2**
 

@@ -33,3 +33,7 @@ reject a test-backend dependency.
 Registered write checks receive versions of their own kind. A primary role replacement runs the removed kind's
 check without a next version and the created kind's check without a prior version, over the same before and after
 views. Both rule sets contribute to the deterministic refusal before any prepared state is published.
+
+`createDecomposeHarness` supplies production-checked rename, retirement, completion, cohort, and write-back fixtures.
+`withCompetingBatch` injects one competing write before forwarding a batch. Its optional refusal models cross-type
+name collisions explicitly, because the reference backend admits work-item and cohort names independently.
