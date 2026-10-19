@@ -7,6 +7,7 @@ import { scriptGitExec } from "../../../../helpers/git-exec-fake.js";
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import type { IncrementalReviewScope } from "../../../../../src/scripts/review-gate/core/incremental-review-scope.js";
 import type { ReviewResult } from "../../../../../src/scripts/review-gate/core/review-result.js";
+import { resolveReviewPolicy } from "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
 
 function input(predecessor: ReviewResult | null, severity: "major" | "minor" = "major", performed = true,
   retrigger: "full-final" | "incremental" = "full-final"): ReviewNextPassInput & { currentTarget: ReviewResult["target"] } {
@@ -44,6 +45,7 @@ function input(predecessor: ReviewResult | null, severity: "major" | "minor" = "
 
 function localCorrectionResult(predecessor: ReviewResult, scope: IncrementalReviewScope): ReviewResult {
   if (predecessor.kind === "frontline") throw new Error("expected standard producer");
+  const logicalPass = predecessor.admission.logicalPass + 1;
   const { targetId: ignored, ...coordinates } = predecessor.target;
   void ignored;
   const target = createReviewTarget({ ...coordinates, headSha: scope.headSha, headTree: "1".repeat(40) });
@@ -56,16 +58,16 @@ function localCorrectionResult(predecessor: ReviewResult, scope: IncrementalRevi
     repositoryId: target.repositoryId, targetId: target.targetId, requirementId: requirement.requirementId,
     carrier: { kind: "local-change-set", adapterId: "delegated-agent", changeRequestId: null },
     authorIdentity: "author", evaluatorIdentity: "delegated-agent", lineageId: canonicalDigest(predecessor.admission.lineage),
-    logicalPass: 2, generation: 0, requestMechanism: "subagent" });
-  return { kind: "attested-local", producerId: "local/delta", repositoryId: target.repositoryId, target,
+    logicalPass, generation: 0, requestMechanism: "subagent" });
+  return { kind: "attested-local", producerId: `local/delta-${logicalPass}`, repositoryId: target.repositoryId, target,
     sourceIdentity: "delegated-agent", originalOutcome: "findings",
     findings: [{ findingId: "finding-1", severity: "major", locus: "src/delta.ts:1",
       evidenceUrlOrId: "local:finding-1", sourceOrdinal: 1 }], resultDigest: canonicalDigest({ request, scope }),
-    admission: { lineage: predecessor.admission.lineage, logicalPass: 2, retryGeneration: 0,
+    admission: { lineage: predecessor.admission.lineage, logicalPass, retryGeneration: 0,
       requestedCoverage: "incremental", effectiveCoverage: "incremental", scopeMode: "whole-target",
       policyVersion: requirement.policyVersion, correctionScope: scope },
     vehicle: { kind: "work-unit", identity: "example" }, requirement, request,
-    receiptRef: "receipts/local-delta", localSourceRef: "sources/local-delta" };
+    receiptRef: `receipts/local-delta-${logicalPass}`, localSourceRef: `sources/local-delta-${logicalPass}` };
 }
 
 function rangeProof(request: ReviewNextPassInput & { currentTarget: ReviewResult["target"] }) {
@@ -321,4 +323,49 @@ it("binds a correction predecessor to the finished logical attempt rather than t
   expect((await deriveReviewNextPassContext(matching)).incremental?.basis).toBe("fix-check");
   expect((await deriveReviewNextPassContext({ ...matching, completedPasses: matching.completedPasses + 1 })).incremental)
     .toBeNull();
+});
+
+it("admits repeated material fix checks at the ceiling with the complete correction history", async () => {
+  const original = findingsHostedResult(["major"]);
+  let predecessor: ReviewResult = { ...original, admission: { ...original.admission,
+    lineage: { kind: "candidate", candidateId: canonicalDigest({ candidate: "repeated-fixes" }) } } };
+  const results = new Map<string, ReviewResult>();
+  const records = new Map<string, ReturnType<typeof approvedRecord>>();
+  const performances = new Map<string, ReturnType<typeof performedFix>>();
+  const requiredProducers: string[] = [];
+
+  for (const seed of ["e", "f", "1"]) {
+    results.set(predecessor.producerId, predecessor);
+    requiredProducers.push(predecessor.producerId);
+    const record = approvedRecord(predecessor, [{ sourceVerification: "verified", verifiedSeverity: "major", disposition: "fix" }]);
+    records.set(predecessor.producerId, record);
+    const { targetId: ignored, ...coordinates } = predecessor.target;
+    void ignored;
+    const currentTarget = createReviewTarget({ ...coordinates, headSha: seed.repeat(40), headTree: "1".repeat(40) });
+    performances.set(predecessor.producerId, { ...performedFix(predecessor, record), producedHeadSha: currentTarget.headSha });
+    const request = { ...input(predecessor), currentTarget,
+      resultReader: { readResult: async (id: string) => {
+        const result = results.get(id);
+        if (result === undefined) throw new Error(`Missing producer ${id}`);
+        return result;
+      } },
+      dispositionStore: { readDispositionRecord: async (id: string) => records.get(id) ?? null,
+        appendDispositionRecord: async () => { throw new Error("read-only derivation"); } },
+      readResponsePerformance: async (result: ReviewResult) => performances.get(result.producerId) ?? null,
+    };
+    const nextPassContext = await deriveReviewNextPassContext(request);
+    expect(nextPassContext).toMatchObject({ completePasses: 1, convergence: "unconverged", responseDue: false,
+      incremental: { basis: "fix-check", scope: { predecessorProducerId: predecessor.producerId,
+        headSha: currentTarget.headSha } } });
+    const scope = nextPassContext.incremental?.scope;
+    if (scope === undefined) throw new Error("Expected the proved correction chain");
+    expect(scope.requiredFindings.map(finding => finding.producerId).sort()).toEqual([...requiredProducers].sort());
+    expect(resolveReviewPolicy({ schemaVersion: 1,
+      target: { repository: "owner/repository", pullRequest: null, headSha: currentTarget.headSha },
+      lane: "standard", standardReview: request.standardReview, sources: ["delegated-agent"], maxPasses: 1,
+      completedPasses: predecessor.admission.logicalPass, attempts: [], nextPassContext,
+    })).toMatchObject({ state: "ready", payload: { pass: predecessor.admission.logicalPass + 1,
+      sourceId: "delegated-agent", ceilingOverrideApplied: false } });
+    predecessor = localCorrectionResult(predecessor, scope);
+  }
 });
