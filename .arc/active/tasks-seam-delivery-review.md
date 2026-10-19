@@ -371,24 +371,11 @@ alone.
 - **Additional Context:** `spec-storage-ref-backend.md` § 10.8, on `feat/storage-ref-backend` — `ReviewMappingInput`,
   `ReviewMappingResult`, and the listing's conventions.
 
-    - `[ ]` **3.1.a The input, the result, and work-item resolution**
+    - `[x]` **3.1.a The input, the result, and work-item resolution**
 
-        - The input and result types meet the port's by shape; the table's Errand rows carry each Errand's claim ID
-          (§ 11).
-        - A record's work item resolves from the slug or vehicle today's records name — a Candidate's work unit,
-          through its supersession chain for a superseded Candidate's ID; a delivery member's work unit; an Errand's
-          claim ID — to the UID the table gives it; a name the table lacks, or a row marked not live, is no live work,
-          whose facts are left behind before any other rule (§ 11.1, § 11.3).
-        - A hosted result's producer ID, its acknowledged `attemptId`, resolves to its attempt's outcome key where an
-          evidence record's `result` cites it; the disposition set and the `approved-fix` decision keep it as recorded
-          (§ 11.3).
-        - Build `test-first` (one behavior at a time):
-            - a superseded Candidate's ID resolves to its work unit through the chain
-            - a delivery member, and an Errand by its claim ID, resolve to their work items
-            - a name the table lacks, and a row marked not live, resolve to no live work, and their facts are left
-              behind, a pending attempt among them
-            - a hosted result cited by its acknowledged attempt ID resolves to its outcome key, while the disposition
-              set citing it keeps its ID
+        - Structural import types and pure resolvers join validated Candidate history, delivery-member slugs, and
+          Errand claims to live imported identities. Missing or ended owners classify as left behind; hosted result
+          joins normalize outcome keys while retaining the approved set's original producer identity and content.
 
     - `[ ]` **3.1.b The listing**
 

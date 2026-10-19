@@ -28,3 +28,7 @@ its type parameter. Store versions remain opaque, while repository-backed versio
 
 `candidate/history.ts` reads supersession chains and exact record revisions through the repository's plain path log,
 retaining Candidate versions introduced by merge commits that rename-following history can omit.
+
+`mapping-types.ts` describes the pure import's supplied source bytes, work-item table, returned records, and listing.
+`mapping-work-items.ts` joins live work-unit and Errand identities to legacy lineages, including Candidate supersession.
+`mapping-result.ts` resolves approved producer IDs to outcome keys while retaining the approved disposition content.
