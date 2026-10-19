@@ -4,9 +4,18 @@ import { delimiter, join } from "node:path";
 import { expect, it } from "vitest";
 import { createReviewRepositoryHarness } from "../helpers/store/review-differential.js";
 import { TransientIdentityRecordSchema } from "../../src/lib/errand/identity-record.js";
-import { handleReviewLocalPrepare, handleReviewFrontlineResolve, handleReviewHostedAwait, handleReviewLaneRead, handleReviewStatus } from "../../src/handlers/review.js";
+import { handleReviewLocalPrepare, handleReviewFrontlineResolve, handleReviewHostedAwait, handleReviewLaneRead, handleReviewStatus, handleReviewReduce } from "../../src/handlers/review.js";
 
 import { ProjectIdentityError } from "../../src/lib/store/project-identity.js";
+
+import { inProcessReview, localReviewResult } from "../helpers/in-process-review.js";
+import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
+import { createPrePublicationCompositionDependencies } from "../../src/scripts/review-gate/policy/pre-publication-composition.js";
+
+import { LocalPrepareEnvelopeSchema } from "../../src/scripts/review-gate/core/review-command-envelope.js";
+
+import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
+import { createRepositoryReviewResultReader } from "../../src/scripts/review-gate/hosts/local/review-result-reader-composition.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 async function fixture() {
@@ -226,4 +235,47 @@ it("reports project identity through the status failure arm and resumes after re
     if (originalPath === undefined) delete process.env.PATH; else process.env.PATH = originalPath;
     await h.cleanup();
   }
+}, 30_000);
+
+it("preserves a lazy receipt identity refusal through public reduction and resumes after repair", async () => {
+  const h = await fixture(), originalCwd = process.cwd();
+  try {
+    process.chdir(h.cwd);
+    const identity = await h.reference.seedProject(projectId);
+    const prepared = LocalPrepareEnvelopeSchema.parse(await inProcessReview.prepare(h.cwd, { schemaVersion: 1, evaluatorIdentity: "reviewer", routingFacts: {},
+      policyJudgment: { scopeMode: "whole-target", invocation: { mode: "force", sourceId: "delegated-agent" } } }, h.invocation));
+    if (prepared.state !== "ready") throw new Error(`Expected prepared review: ${JSON.stringify(prepared)}`);
+    const payload = prepared.payload;
+    await inProcessReview.attest(h.cwd, localReviewResult(payload, "identity-repair-review", []), h.invocation);
+    lifecycleSuccess(await h.reference.store.write({ action: "remove", reference: identity.reference,
+      expected: identity.version, provenance: { verb: "remove-fixture-identity", lifecycleAction: "remove" } }));
+    const readResult = () => createRepositoryReviewResultReader(
+      new RepositoryGitCommonStatePublisher(h.native.exec, h.cwd), h.invocation).readResult(payload.operationId);
+    await expect(readResult()).rejects.toBeInstanceOf(ProjectIdentityError);
+    const request = { schemaVersion: 1, operationId: payload.operationId };
+    const invoke = async () => {
+      const output: string[] = [];
+      await handleReviewReduce("-", { resolveRoot: () => h.cwd, readText: async () => JSON.stringify(request),
+        write: text => { output.push(text); }, setExitCode: () => {} }, undefined, h.invocation);
+      return JSON.parse(output.join(""));
+    };
+    const refused = await invoke();
+    expect(refused, JSON.stringify(refused)).toMatchObject({ error: { code: "project-identity-unavailable" }, remedy: {
+      argv: ["arc", "review", "reduce", "-"], stdin: request,
+      text: expect.stringContaining("Restore the project's unique, valid identity record") } });
+    await h.reference.seedProject(projectId);
+    expect(await readResult()).toMatchObject({ kind: "attested-local", originalOutcome: "clean" });
+    expect(await invoke()).toMatchObject({ mode: "review-reduce", state: "advisory-complete" });
+  } finally { process.chdir(originalCwd); await h.cleanup(); }
+}, 30_000);
+
+it("keeps immutable-target identity failures typed across pre-publication composition and repairs", async () => {
+  const h = await fixture();
+  const dependencies = () => createPrePublicationCompositionDependencies({ cwd: h.cwd, exec: h.native.exec, ...h.invocation });
+  try {
+    await expect(dependencies().deriveImmutableTarget(h.head)).rejects.toBeInstanceOf(ProjectIdentityError);
+    await h.reference.seedProject(projectId);
+    expect(await dependencies().deriveImmutableTarget(h.head)).toMatchObject({ status: "resolved",
+      target: { repositoryId: projectId, headSha: h.head } });
+  } finally { await h.cleanup(); }
 }, 30_000);

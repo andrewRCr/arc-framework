@@ -1,4 +1,5 @@
 /** Production composition for the typed pre-publication review procedure. */
+import { ProjectIdentityError } from "../../../lib/store/project-identity.js";
 import { createReviewCompositionContext } from "../runtime/composition-context.js";
 import { resolveReviewInvocation, type ReviewInvocationInput } from "../runtime/invocation.js";
 import { confirmReviewCorrectionLeg } from "./review-next-pass.js";
@@ -737,6 +738,7 @@ export function createPrePublicationCompositionDependencies(options: ReviewInvoc
           }),
         };
       } catch (error) {
+        if (error instanceof ProjectIdentityError) throw error;
         return { status: "unavailable", reason: describe(error) };
       }
     },
@@ -747,6 +749,7 @@ export function createPrePublicationCompositionDependencies(options: ReviewInvoc
       try {
         live = await readLocalReviewLiveContext(input);
       } catch (error) {
+        if (error instanceof ProjectIdentityError) throw error;
         return { status: "refused", reason: `The Work Unit Owner could not be resolved: ${describe(error)}` };
       }
       if (live.context.workUnit?.identity !== name) {

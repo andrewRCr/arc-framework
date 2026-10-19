@@ -1,6 +1,7 @@
 /** Read-only reduction over durable local and frontline advisory review records. */
 
 import { z } from "zod";
+import { ProjectIdentityError } from "../../../lib/store/project-identity.js";
 
 import {
   currentApprovedDispositionNode,
@@ -442,7 +443,7 @@ export class DurableReviewReductionPort implements ReviewReductionPort {
       }
       throw new ReduceCommandError("operation kind is not reducible");
     } catch (error) {
-      if (error instanceof ReduceCommandError) throw error;
+      if (error instanceof ReduceCommandError || error instanceof ProjectIdentityError) throw error;
       throw new ReduceCommandError(
         error instanceof Error ? error.message : "review reduction cannot validate durable state",
       );
@@ -459,7 +460,7 @@ export async function reduceReviewCommand(
   try {
     return await dependencies.reductionPort.reduce(request.operationId);
   } catch (error) {
-    if (error instanceof ReduceCommandError) throw error;
+    if (error instanceof ReduceCommandError || error instanceof ProjectIdentityError) throw error;
     throw new ReduceCommandError(
       error instanceof Error ? error.message : "review reduction cannot validate durable state",
     );

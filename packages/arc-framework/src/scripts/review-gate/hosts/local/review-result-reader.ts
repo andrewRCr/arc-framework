@@ -1,5 +1,6 @@
 /** Git-common composition of immutable local, frontline, and hosted producer evidence. */
 
+import { ProjectIdentityError } from "../../../../lib/store/project-identity.js";
 import { canonicalDigest, canonicalize, type CanonicalDigest } from "../../../../lib/kernel/index.js";
 import { FrontlineOutcomeRecordSchema, type FrontlineOutcomeRecord } from "../../core/advisory-records.js";
 import { validateReviewReceipt } from "../../core/gate-contract-v2.js";
@@ -300,7 +301,7 @@ export class LocalReviewResultReader implements ReviewResultReader {
       }
       throw new LocalReviewResultReaderError("missing-result");
     } catch (error) {
-      if (error instanceof LocalReviewResultReaderError) throw error;
+      if (error instanceof LocalReviewResultReaderError || error instanceof ProjectIdentityError) throw error;
       throw new LocalReviewResultReaderError(
         "corrupt-result",
         error instanceof Error ? error.message : "producer result cannot be validated",
