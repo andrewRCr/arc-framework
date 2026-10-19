@@ -1,13 +1,12 @@
 /** Read-only checkout composition for lineage facts and rejected findings. */
-import type { GitExec } from "../../../lib/git/exec.js";
+import { resolveReviewInvocation, type ReviewInvocationInput } from "./invocation.js";
+import { createReviewCompositionContext } from "./composition-context.js";
+import type { ApprovedDispositionRecordReader, ReviewInFlightPort } from "../core/ports.js";
 import { readConfigSettings } from "../../../lib/config/status-reader.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
 import { createLocalReviewCandidateReader } from "./local-prepare-composition.js";
 import { readSubmissionBoundaryVersioned } from "../../../lib/store/kinds/review/integration-boundary/access.js";
-import type { Store } from "../../../lib/store/contract.js";
-import { createStore } from "../../../lib/store/create.js";
-import { createDefaultStorePorts } from "../../../lib/store/default-ports.js";
 import { spineRemedy } from "../../integration/spine-refusal.js";
 import { createReviewTarget } from "../core/gate-contract-v2.js";
 import type { LaneProgressState } from "../core/operation-state-schema.js";
@@ -16,8 +15,6 @@ import { readLocalReviewLiveContext, type ResolvedLocalReviewLiveContext } from 
 import { readRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import { deriveLocalReviewTarget, deriveLocalReviewTargetFacts } from "../hosts/local/repository-target.js";
 import { LocalReviewAuthorityError } from "../hosts/local/review-authority.js";
-import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-store.js";
-import { LocalApprovedDispositionRecordStore } from "../hosts/local/disposition-record-store.js";
 import { createReadOnlyRepositoryReviewResultReader } from "../hosts/local/review-result-reader-composition.js";
 import { countCompleteLogicalPasses, readLaneResponsePerformance } from "../lane-progress.js";
 import { deriveReviewNextPassContext } from "../policy/review-next-pass.js";
@@ -29,15 +26,13 @@ import { resolveLocalPolicyTarget, createLocalContributionConfirmation } from ".
 import { readReviewLaneHistory } from "./lane-history.js";
 import { readLocalDeltaAdmissionSurface } from "./local-reserved-obligation.js";
 
-interface LaneReadBoundary {
-  readonly cwd: string; readonly exec: GitExec; readonly store?: Store;
-}
+type LaneReadBoundary = ReviewInvocationInput;
 
 async function readNextContext(input: LaneReadBoundary & {
   candidateReader: ReturnType<typeof createLocalReviewCandidateReader>;
   target: ReturnType<typeof createReviewTarget>; lineage: LaneSubjectLineage; progress: readonly LaneProgressState[];
-  workUnitId?: string; sources: readonly string[]; operationStore: LocalReviewOperationStateStore;
-  dispositionStore: LocalApprovedDispositionRecordStore; publisher: RepositoryGitCommonStatePublisher;
+  workUnitId?: string; sources: readonly string[]; operationStore: ReviewInFlightPort;
+  dispositionStore: ApprovedDispositionRecordReader; publisher: RepositoryGitCommonStatePublisher;
 }): Promise<ReviewNextPassContext> {
   const completePasses = input.progress.filter(owner => owner.lane === "standard")
     .reduce((count, owner) => count + countCompleteLogicalPasses(owner.attempts), 0);
@@ -48,7 +43,7 @@ async function readNextContext(input: LaneReadBoundary & {
   const predecessor = await resultReader.readResult(terminal.attemptId);
   if (predecessor.kind === "frontline") throw new Error("standard lane contains a frontline producer");
   const { obligation, reasons, rubricVersion, rubricDigest, retrigger, count } = predecessor.requirement;
-  const boundary = input.workUnitId === undefined ? null : (await readSubmissionBoundaryVersioned(input.cwd, input.workUnitId, { store: input.store, exec: input.exec })).boundary;
+  const boundary = input.workUnitId === undefined ? null : (await readSubmissionBoundaryVersioned(input.cwd, input.workUnitId, { store: input.store, exec: input.exec, owner: input.workItem })).boundary;
   const standardReview = boundary?.reservation?.obligation ?? { obligation, reasons, rubricVersion, rubricDigest, retrigger, count };
   const candidate = input.lineage.kind === "candidate" && input.workUnitId !== undefined
     ? await input.candidateReader.read(input.workUnitId) : null;
@@ -79,10 +74,10 @@ async function readResolvedLane(request: ReviewLaneReadRequest, input: LaneReadB
   const coordinates = await deriveLocalReviewTargetFacts({ ...input, baseRef: settings["branch.base"],
     ...(member === null ? {} : { memberCoordinates: { headSha: member.head, diffBaseSha: member.base } }) });
   const lineage = await resolver.resolveLineage(vehicle, coordinates.headSha, undefined, member ?? undefined);
-  const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
+  const { publisher, family } = createReviewCompositionContext(input);
   const repositoryId = await readRepositoryIdentity(publisher);
-  const operationStore = new LocalReviewOperationStateStore(publisher);
-  const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
+  const operationStore = family.ports.inFlight;
+  const dispositionStore = family.ports.dispositions;
   const history = repositoryId === null ? { progress: [], inheritedLineages: [], dispositions: [] }
     : await readReviewLaneHistory({ resolveSupersessionAncestors: resolver.resolveSupersessionAncestors,
       store: operationStore, dispositionStore, repositoryId, headSha: coordinates.headSha, lineage, workUnitId });
@@ -98,8 +93,7 @@ async function readResolvedLane(request: ReviewLaneReadRequest, input: LaneReadB
 /** Read the authenticated checkout subject without publishing any review state. */
 export async function readReviewLane(request: ReviewLaneReadRequest, input: LaneReadBoundary): Promise<ReviewLaneReadEnvelope> {
   try {
-    const store = input.store ?? createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec }));
-    return await readResolvedLane(request, { ...input, store });
+    return await readResolvedLane(request, { ...input, ...resolveReviewInvocation(input) });
   }
   catch (error) {
     const code = error instanceof LocalReviewAuthorityError ? error.reason

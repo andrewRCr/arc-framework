@@ -953,7 +953,7 @@ export { readCandidateInheritedLaneProgress } from "./lane-progress-supersession
 
 /** Read exact performed-response evidence from its existing lane-owner attempt. */
 export async function readLaneResponsePerformance(
-  store: ReviewOperationStateStore,
+  store: Pick<ReviewOperationStateStore, "readOperation">,
   predecessor: ReviewResult,
 ): Promise<LaneResponsePerformance | null> {
   const owner = await readLaneProgressOwner(store, {

@@ -1,5 +1,5 @@
 /** Shared checkout vehicle, lineage, and Candidate inheritance resolution for local review consumers. */
-import type { GitExec } from "../../../lib/git/exec.js";
+import type { ReviewInvocationInput } from "./invocation.js";
 import type { CandidateManagedRecordV1, CandidateSupersessionAncestor } from "../../../lib/work-unit/candidate-attestation.js";
 import { LaneSubjectLineageSchema } from "../core/lane-admission.js";
 import { resolveLocalReviewVehicle } from "../hosts/local/review-authority.js";
@@ -15,9 +15,7 @@ export interface LocalReviewCandidateReader {
 }
 
 /** Bind the same authenticated subject resolver to prepare and read-only commands. */
-export function createLocalReviewSubjectResolver(input: {
-  readonly cwd: string;
-  readonly exec: GitExec;
+export function createLocalReviewSubjectResolver(input: ReviewInvocationInput & {
   readonly readOnly?: boolean;
   readonly candidateReader: LocalReviewCandidateReader;
   readonly readLive: () => Promise<ResolvedLocalReviewLiveContext>;
@@ -41,7 +39,8 @@ export function createLocalReviewSubjectResolver(input: {
         });
       }
       if (vehicle.kind === "work-unit") {
-        const boundary = await readLocalWorkUnitBoundary(input.cwd, vehicle.identity);
+        const boundary = await readLocalWorkUnitBoundary(input.cwd, vehicle.identity, undefined,
+          { store: input.store, exec: input.exec, owner: input.workItem });
         return LaneSubjectLineageSchema.parse({
           kind: "candidate",
           candidateId: boundary.candidateId,

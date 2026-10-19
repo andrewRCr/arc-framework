@@ -2,7 +2,11 @@
 import type { GitExec } from "../lib/git/exec.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
-import { createStore, createDefaultStorePorts, RecordReferenceSchema } from "../lib/store/index.js";
+import { recordReferences, OwnerIdentitySchema } from "../lib/store/identity.js";
+import { readCandidateRecord } from "../lib/store/kinds/review/candidate/access.js";
+import { unwrapReviewRecordResult } from "../lib/store/kinds/review/access-shared.js";
+import { readRepositoryCandidateSupersessionChain } from "../lib/store/kinds/review/candidate/history.js";
+import { resolveReviewInvocation, type ReviewInvocationInput, type ReviewInvocationOptions } from "../scripts/review-gate/runtime/invocation.js";
 import { CandidateManagedRecordV1Schema, resolveCandidateSupersessionAncestors } from "../lib/work-unit/candidate-attestation.js";
 import { readLocalReviewLiveContext } from "../scripts/review-gate/hosts/local/live-context.js";
 import { resolveRepositoryIdentity } from "../scripts/review-gate/hosts/local/git-common-state.js";
@@ -12,8 +16,7 @@ import type { LaneProgressState } from "../scripts/review-gate/core/operation-st
 import type { ReviewTarget } from "../scripts/review-gate/core/gate-contract-v2-schema.js";
 import type { StandardReviewObligationProjection } from "../scripts/review-gate/policy/standard-review-projection-schema.js";
 import { projectReviewPolicyAttempt } from "../scripts/review-gate/policy/review-policy-driver.js";
-import type { LocalReviewOperationStateStore } from "../scripts/review-gate/hosts/local/operation-state-store.js";
-import type { ApprovedDispositionRecordStore, ReviewResultReader } from "../scripts/review-gate/core/ports.js";
+import type { ApprovedDispositionRecordReader, ReviewOperationStateStore, ReviewResultReader } from "../scripts/review-gate/core/ports.js";
 import type { LaneSubjectLineage } from "../scripts/review-gate/core/lane-admission.js";
 import type { ReviewPolicyCommandRequest } from "../scripts/review-gate/policy/review-policy-driver.js";
 import { deriveReviewNextPassContext, deriveReviewNextPassContextFromAttempts } from "../scripts/review-gate/policy/review-next-pass.js";
@@ -22,20 +25,16 @@ import type { ReviewResult } from "../scripts/review-gate/core/review-result.js"
 import type { ReviewNextPassContext } from "../scripts/review-gate/policy/review-next-pass-schema.js";
 import { selectErrandCorrectionPredecessor } from "../scripts/review-gate/status-errand.js";
 
-async function readCandidateContext(root: string, exec: GitExec, workUnit: string | undefined) {
+async function readCandidateContext(input: ReviewInvocationInput, workUnit: string | undefined) {
   if (workUnit === undefined) return { candidate: null, ancestors: [] };
-  const store = createStore(createDefaultStorePorts({ checkoutRoot: root, exec }));
-  const reference = RecordReferenceSchema.parse({ owner: { type: "work-item", name: workUnit }, kind: "review/candidate" });
-  const read = await store.read({ reference });
-  if (read.status === "refused") {
-    if (read.refusal.code === "not-found") return { candidate: null, ancestors: [] };
-    throw new Error(read.refusal.condition);
-  }
-  const candidate = CandidateManagedRecordV1Schema.parse(read.result.fields);
-  if (candidate.attestation.supersedes === undefined) return { candidate, ancestors: [] };
-  const history = await store.history({ reference });
-  if (history.status === "refused") throw new Error(history.refusal.condition);
-  const records = history.result.flatMap(entry => {
+  const { store } = resolveReviewInvocation(input);
+  const candidate = await readCandidateRecord(input.cwd, workUnit, { store, exec: input.exec, owner: input.workItem });
+  if (candidate === null || candidate.attestation.supersedes === undefined) return { candidate, ancestors: [] };
+  if (!store.capabilities.stateOffBranch) return { candidate, ancestors: await readRepositoryCandidateSupersessionChain({
+    ...input, workUnit, record: candidate,
+  }) };
+  const reference = recordReferences["review/candidate"](input.workItem ?? OwnerIdentitySchema.parse({ type: "work-item", name: workUnit }));
+  const records = unwrapReviewRecordResult(await store.history({ reference })).flatMap(entry => {
     if (entry.content === null) return [];
     try {
       const parsed = CandidateManagedRecordV1Schema.safeParse(JSON.parse(entry.content));
@@ -46,17 +45,18 @@ async function readCandidateContext(root: string, exec: GitExec, workUnit: strin
 }
 
 /** Read the command's exact producer lineage, including Candidate supersession owners. */
-export async function readResolveNextPassContext(input: {
+export async function readResolveNextPassContext(input: ReviewInvocationOptions & {
   readonly request: ReviewPolicyCommandRequest;
   readonly configuredSources: readonly string[];
   readonly confirmApplicability?: (predecessor: ReviewResult, current: ReviewResult) => Promise<IncrementalPredecessorApplicability>;
   readonly root: string;
   readonly exec: GitExec;
-  readonly operationStore: LocalReviewOperationStateStore;
+  readonly operationStore: Pick<ReviewOperationStateStore, "readOperation">;
   readonly resultReader: ReviewResultReader;
-  readonly dispositionStore: ApprovedDispositionRecordStore;
+  readonly dispositionStore: ApprovedDispositionRecordReader;
 }): Promise<ReviewNextPassContext> {
   const { request, root, exec, operationStore, resultReader, dispositionStore } = input;
+  const invocation = { cwd: root, exec, ...resolveReviewInvocation({ ...input, cwd: root }) };
   const terminal = request.attempts.at(-1);
   const terminalResult = terminal?.outcome === "clean" || terminal?.outcome === "findings"
     ? await resultReader.readResult(terminal.reviewOperationId) : null;
@@ -64,9 +64,9 @@ export async function readResolveNextPassContext(input: {
     ?? await resolveRepositoryIdentity(new RepositoryGitCommonStatePublisher(exec, root));
   const settings = (await readConfigSettings(root)).settings;
   const target = await deriveLocalReviewTarget({ exec, cwd: root, repositoryId, baseRef: settings["branch.base"] });
-  const live = await readLocalReviewLiveContext({ cwd: root, exec });
+  const live = await readLocalReviewLiveContext(invocation);
   const workUnit = live.context.workUnit?.identity;
-  const { candidate, ancestors } = await readCandidateContext(root, exec, workUnit);
+  const { candidate, ancestors } = await readCandidateContext(invocation, workUnit);
   const lineage: LaneSubjectLineage = terminalResult?.admission.lineage ?? (candidate !== null
     ? { kind: "candidate", candidateId: candidate.attestation.candidateId }
     : { kind: "head-bound", vehicleKind: live.context.errand === null ? "review-target" : "errand",
@@ -106,9 +106,9 @@ export async function readHostedErrandNextPassContext(input: {
   readonly target: ReviewTarget;
   readonly lineage: LaneSubjectLineage;
   readonly standardReview: StandardReviewObligationProjection;
-  readonly operationStore: LocalReviewOperationStateStore;
+  readonly operationStore: Pick<ReviewOperationStateStore, "readOperation">;
   readonly resultReader: ReviewResultReader;
-  readonly dispositionStore: ApprovedDispositionRecordStore;
+  readonly dispositionStore: ApprovedDispositionRecordReader;
 }): Promise<ReviewNextPassContext> {
   const attempts = input.progress?.attempts.filter(attempt => attempt.headSha === input.target.headSha
     && attempt.outcome !== "pending") ?? [];
