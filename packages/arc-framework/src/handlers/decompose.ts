@@ -37,6 +37,11 @@ import { type InteractionContext } from "../lib/command-input/interaction-contex
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { refuse } from "./lifecycle-shared.js";
 import { RemedySchema } from "../lib/store/refusal.js";
+import { createStore } from "../lib/store/create.js";
+import { createDefaultStorePorts } from "../lib/store/default-ports.js";
+import { usesOffBranchState } from "../lib/store/lifecycle-write.js";
+import type { Store } from "../lib/store/contract.js";
+import type { LocusPorts } from "../lib/work-unit/locus-ports.js";
 
 export {
   DECOMPOSE_MACHINE_READABLE_KEYS,
@@ -87,6 +92,8 @@ export const DecomposeCommandInputSchema = z.object({
     });
   }
 });
+/** Validated decomposition invocation, including optional-value Commander forms. */
+export type DecomposeCommandInput = z.infer<typeof DecomposeCommandInputSchema>;
 
 function v3DecomposeInvocation(
   input: z.infer<typeof DecomposeCommandInputSchema>,
@@ -146,7 +153,7 @@ const DecomposeDispatchRefusalSchema = z.strictObject({
   status: z.literal("refused"), reason: z.string().min(1), class: z.enum(["recoverable", "terminal"]),
   locus: z.string().min(1).optional(), remedy: RemedySchema,
 });
-type DecomposeDispatchRefusal = z.infer<typeof DecomposeDispatchRefusalSchema>;
+export type DecomposeDispatchRefusal = z.infer<typeof DecomposeDispatchRefusalSchema>;
 
 function emitDecomposeOutcome(result: { status: "ok"; result: unknown } | DecomposeDispatchRefusal): void {
   const payload: unknown = result.status === "refused" ? result : typeof result.result === "string" ? JSON.parse(result.result) : result.result;
@@ -202,6 +209,7 @@ export async function handleDecompose(
   origin: string | undefined,
   opts: DecomposeOptions,
   context?: InteractionContext,
+  overrides: { store?: Store; locusPorts?: LocusPorts } = {},
 ): Promise<void> {
   const parsed = DecomposeCommandInputSchema.safeParse({ origin: origin?.trim(), ...opts });
   if (!parsed.success) {
@@ -220,6 +228,13 @@ export async function handleDecompose(
     process.exitCode = 1;
     return;
   }
+  const io = createUserIOContext(context?.subprocess);
+  const store = overrides.store ?? createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec: io.exec }));
+  if (usesOffBranchState(store)) {
+    const { runStoreDecomposeCommand } = await import("./decompose-store.js");
+    emitDecomposeOutcome(await runStoreDecomposeCommand(parsed.data, { cwd, io, store, locusPorts: overrides.locusPorts }));
+    return;
+  }
   const dispatchRefusal = inRepoDecomposeDispatchRefusal(parsed.data);
   if (dispatchRefusal !== undefined) { emitDecomposeOutcome(dispatchRefusal); return; }
   const invocation = v3DecomposeInvocation(parsed.data);
@@ -227,7 +242,6 @@ export async function handleDecompose(
   try {
     const { settings, warnings } = await readConfigSettings(cwd);
     for (const warning of warnings) process.stderr.write(`${warning}\n`);
-    const io = createUserIOContext(context?.subprocess);
     if (parsed.data.preflight === true) {
       const result = await createGitV3DecomposePreflight({
         cwd,

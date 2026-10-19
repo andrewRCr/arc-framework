@@ -620,48 +620,28 @@ canonical JSON on standard output, with its reason and remedy on standard error.
 - _Outcome:_ The built command and handler agree on dormant-mode refusals, optional operands beside apply authority,
   and complete help. Existing repository-backed handler cases retain their behavior.
 
-### `[ ]` **6.2 Branch `handleDecompose` once on the capability — § 2**
+### `[x]` **6.2 Branch `handleDecompose` once on the capability — § 2**
 
 - _Goal:_ `handleDecompose` reads `capabilities` from a store opened without an identity and branches once: the in-repo
   arm runs today's code for today's modes, and the arm from the flip builds the lifecycle executor and task 2.1.a's
   context and runs the store version for every mode but `--advance-base`.
 
-    - `[ ]` **6.2.a The store seam**
+    - `[x]` **6.2.a The store seam**
 
-        - The store opened as `handlers/plan.ts` opens it (`createStore(createDefaultStorePorts(...))`), which reports
-          its capabilities with no I/O, and one `usesOffBranchState` branch.
-        - `handleDecompose` takes `overrides: { store?, locusPorts? }`, as `handleStart` does (`handlers/start.ts`), so
-          a test injects the reference backend and scripted locus reads.
-        - The arm from the flip imports the store version lazily, so the in-repo arm loads no `lib/decompose/` module.
-        - Build `test-first` (one behavior at a time):
-            - over an injected store reporting `stateOffBranch: false` whose `read`, `list`, `lookup`, `write`,
-              `batch`, and `history` all throw, each in-repo mode reaches today's adapter, mocked as
-              `lifecycle-verbs.test.ts` mocks it, and the store is never called
+        - `handleDecompose` opens a lazy identity-free store or retains the injected store, branches once on its
+          capability, and loads the store adapter lazily. Existing adapter cases use a tracked-state store whose
+          operations all throw and retain their original refusal and retry behavior.
 
-    - `[ ]` **6.2.b The arm from the flip**
+    - `[x]` **6.2.b The arm from the flip**
 
-        - `VerbBase` built from the opened or injected store, the root, and the operator's identity
-          (`resolveUserIdentity`), rather than through `resolveVerbBase`, which opens a default store of its own and
-          refuses in the lifecycle verbs' envelope; a missing identity refuses through task 6.1.c's emitter.
-        - The executor built as the lifecycle handlers build it (`buildExecutor`, `handlers/lifecycle-shared.ts`), and
-          task 2.1.a's context from it and the base: teardown's store context and the checkout removal, as
-          `handleStoreAbandon` passes them (`createStoreTeardownContext(base, executor)`, `removal: { exec }`,
-          `handlers/abandon-store.ts`); the cohort template, read as today's handler reads it; the inbound grammar; and
-          `branch.base`.
-        - Each mode's map read once from its path and passed parsed beside that path (task 2.1.a), each mode routed to
-          the store version, and its result or refusal emitted through task 6.1.c's emitter; no ROADMAP is claimed,
-          rendered, or checked.
-        - `--advance-base` refuses `unsupported`, naming `--finish`; `--finish <cut-map>` refuses, naming
-          `arc decompose <origin> --finish` as a typed action.
-        - Build `test-first` (one behavior at a time):
-            - a retirement runs every mode through the handler over an injected reference backend
-            - a started Planning origin's teardown step runs through the seam the handler built, over scripted Git
-            - each refusal above
-            - results and refusals emit as canonical JSON with their reason and remedy on standard error
+        - `decompose-store.ts` builds the operator base, production executor, inbound grammar, template, and cleanup
+          context, reads map operands once, and routes every stored-cut mode through the shared outcome emitter.
+          Additive output uses its closed authoring report; native refusals retain their class and recovery information.
+          Handler scenarios retire and release a held Planning checkout, preserve its personal files, and exercise
+          extraction, both revision forms, discard, identity repair, map repair, and typed finish continuations.
 
-    - _Note:_ A new unit file calling `vi.mock` joins `__tests__/helpers/isolated-unit-mock-files.ts`, which
-      `isolated-mock-files.guard.test.ts` enforces. `lifecycle-verbs.test.ts` mocks `executor-context.js` and
-      `node:fs/promises` whole, so the arm from the flip is tested in a file of its own.
+- _Outcome:_ Both capability arms run through the actual handler. A real temporary claim and scripted Git prove that
+  the handler-built teardown context releases the held origin after terminal persistence without a continuation.
 
 ### `[ ]` **6.3 The dispatch end to end** — validate exit criterion at segment scope
 

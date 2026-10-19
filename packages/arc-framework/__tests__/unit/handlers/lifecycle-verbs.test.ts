@@ -17,6 +17,7 @@ import {
 } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { canonicalize } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import { spineRemedy } from "../../../src/scripts/integration/spine-refusal.js";
+import type { Store } from "../../../src/lib/store/contract.js";
 
 const mockLogError = vi.fn();
 const mockLogInfo = vi.fn();
@@ -864,6 +865,9 @@ describe("handleDecompose", () => {
       ["arc", "decompose", "mono", "--advance-base", "cut-map.json"],
     ],
   ] as const)("converts a thrown %s failure to the core refusal", async (mode, options, adapter, argv) => {
+    const forbidden = async (): Promise<never> => { throw new Error("Tracked-state dispatch must not call the store."); };
+    const store: Store = { capabilities: { stateOffBranch: false }, read: forbidden, list: forbidden, lookup: forbidden,
+      write: forbidden, batch: forbidden, history: forbidden, version: forbidden, changes: forbidden, sync: forbidden };
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
     const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
     const locus = `${mode} exploded`;
@@ -880,7 +884,7 @@ describe("handleDecompose", () => {
       remedy,
     };
 
-    await handleDecompose("mono", options);
+    await handleDecompose("mono", options, undefined, { store });
 
     expect(stdoutWrite).toHaveBeenCalledWith(`${canonicalize(refusal)}\n`);
     expect(stderrWrite).toHaveBeenCalledWith(`unexpected-error\n${remedy.text}\n`);
@@ -891,7 +895,7 @@ describe("handleDecompose", () => {
     process.exitCode = undefined;
     adapter.mockRejectedValue(new Error(""));
 
-    await handleDecompose("mono", options);
+    await handleDecompose("mono", options, undefined, { store });
 
     expect(stdoutWrite).toHaveBeenCalledWith(`${canonicalize({
       status: "refused",
