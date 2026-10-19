@@ -233,18 +233,14 @@ one renderer, built in Task 3.6: stderr `Error [<code>]: <condition> <remedy>` a
           and shares one lazy lineage observation. Retired edges retain dependent-specific dispositions and repair
           guidance; withheld names fail closed, while missing work and Errands keep dangling warnings.
 
-### `[ ]` **3.4 Mark each paused row through the marking function — § 2.3**
+### `[x]` **3.4 Mark each paused row through the marking function — § 2.3**
 
 - _Goal:_ Each paused standing record gets the marks `markPausedWorkItem` returns under `pause.review_after_days`, and a
   marking that fails leaves its row unmarked with a `store-read-failed` warning carrying the failure's text.
 
-    - The acquisition takes the setting as a number. The handler dispatching it reads `pause.review_after_days`
-      through `handlers/status/store-session.ts`'s parser (`positive`), exported for it rather than copied, so
-      `lib/status/` imports no handler. Pass `MetaPauseSchema.parse(entry.fields.pause)`.
-    - Build `test-first` (one behavior at a time):
-        - a pause waiting on a shipped work unit is `resumable`; one waiting on an abandoned one is `review-due`
-        - a pause waiting on nothing is `review-due` past the setting's age from `since`
-        - a marking that throws leaves the row unmarked and warns
+- _Outcome:_ `readStoreProjectPauseMarks` parses each pause and delegates marking with the configured review age.
+  Failed marking leaves its row unmarked and retains the failure text as a source warning. The session handler exports
+  its existing positive-integer parser for dispatch reuse.
 
 ### `[ ]` **3.5 Acquire the project view from the store, with its completeness — § 2.1**
 
