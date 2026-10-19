@@ -4,22 +4,21 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { GitExec } from "../../../../lib/git/exec.js";
+import { resolveReviewInvocation, type ReviewInvocationInput } from "../../runtime/invocation.js";
 import { RepositoryGitCommonStatePublisher } from "../../../../lib/git-common-state.js";
 import type { ReviewTarget } from "../../core/gate-contract-v2-schema.js";
 import { resolveRepositoryIdentity } from "./git-common-state.js";
 import { deriveLocalReviewTarget } from "./repository-target.js";
 
 /** Materialize and independently re-derive one exact frontline execution target. */
-export async function prepareFrontlineTargetMaterialization(input: {
-  exec: GitExec;
-  cwd: string;
+export async function prepareFrontlineTargetMaterialization(options: ReviewInvocationInput & {
   target: ReviewTarget;
 }): Promise<{
   target: ReviewTarget;
   reviewRoot: string;
   release(): Promise<void>;
 }> {
+  const input = { ...options, ...resolveReviewInvocation(options) };
   const temporaryRoot = await mkdtemp(join(tmpdir(), "arc-frontline-review-"));
   const reviewRoot = join(temporaryRoot, "checkout");
   let added = false;
@@ -39,7 +38,7 @@ export async function prepareFrontlineTargetMaterialization(input: {
     });
     added = true;
     const repositoryId = await resolveRepositoryIdentity(
-      new RepositoryGitCommonStatePublisher(input.exec, reviewRoot),
+      new RepositoryGitCommonStatePublisher(input.exec, input.cwd),
     );
     const target = await deriveLocalReviewTarget({
       exec: input.exec,

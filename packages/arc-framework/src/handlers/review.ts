@@ -1,12 +1,15 @@
 /** Machine-readable review workflow handlers. */
 import { decodePrePublicationReplay, replayTokenFromAction, type PrePublicationReplayInput } from "../scripts/review-gate/policy/pre-publication-replay.js";
 import { ReviewLaneReadRequestSchema, ReviewLaneReadEnvelopeSchema, type ReviewLaneReadRequest } from "../scripts/review-gate/lane-read-schema.js";
+import { createReviewInvocationResolver, resolveReviewInvocation, type ReviewInvocationOptions, type ReviewInvocationContext } from "../scripts/review-gate/runtime/invocation.js";
+import { createReviewCompositionContext } from "../scripts/review-gate/runtime/composition-context.js";
 import { readReviewLane } from "../scripts/review-gate/runtime/lane-read-composition.js";
 import { reviewDiscoverableCommandInputSchema } from "./review-request-schema.js";
 import { confirmReviewCorrectionLeg } from "../scripts/review-gate/policy/review-next-pass.js";
 
 import { readResolveNextPassContext, readHostedErrandNextPassContext } from "./review-next-pass-context.js";
 import { resolveEvidenceBoundReviewPolicyContinuation } from "../scripts/review-gate/policy/review-policy-evidence.js";
+import type { ApprovedDispositionRecordReader, ReviewOperationStateStore } from "../scripts/review-gate/core/ports.js";
 import type { EvidenceBoundReviewPolicyDependencies } from "../scripts/review-gate/policy/review-policy-evidence.js";
 
 import { createCandidateResponseHeadContinuationReader } from
@@ -49,8 +52,6 @@ import {
 } from "../lib/store/kinds/review/candidate/access.js";
 import { readRepositoryCandidateSupersessionChain } from "../lib/store/kinds/review/candidate/history.js";
 import type { Store } from "../lib/store/contract.js";
-import { createStore } from "../lib/store/create.js";
-import { createDefaultStorePorts } from "../lib/store/default-ports.js";
 import type {
   CandidateManagedRecordV1,
   CandidateSupersessionAncestor,
@@ -292,7 +293,6 @@ import {
   "../scripts/review-gate/policy/hosted-reservation-admission.js";
 import { createHostedReservationDischargeReader } from
   "../scripts/review-gate/policy/hosted-reservation-discharge.js";
-import { LocalReviewOperationStateStore } from "../scripts/review-gate/hosts/local/operation-state-store.js";
 import { HostedRequestOwnerIndex, type HostedRequestOwnerIndexRecord } from
   "../scripts/review-gate/hosts/local/hosted-request-owner-index.js";
 import {
@@ -301,7 +301,6 @@ import {
 } from "../scripts/review-gate/hosts/local/git-common-state.js";
 import {
   confirmCurrentDispositionSet,
-  LocalApprovedDispositionRecordStore,
 } from "../scripts/review-gate/hosts/local/disposition-record-store.js";
 import { currentApprovedDispositionNode } from "../scripts/review-gate/core/advisory-records.js";
 import { createRepositoryReviewResultReader } from
@@ -906,12 +905,14 @@ export async function handleReviewStatus(
   options: ReviewStatusOptions,
   interaction?: InteractionContext,
   overrides: Partial<ReviewStatusHandlerDependencies> = {},
+  invocation: ReviewInvocationOptions = {},
 ): Promise<void> {
   const exec = createGitExec(interaction?.subprocess);
+  const invocationFor = createReviewInvocationResolver(exec, invocation);
   const dependencies: ReviewStatusHandlerDependencies = {
     resolveRoot: (cwd) => resolveArcRoot(cwd),
-    resolve: (root, request) => resolveReviewStatus(request, createReviewStatusPort({ cwd: root, exec })),
-    resolveWorkUnit: (root, request) => resolveReviewStatusForWorkUnit({ cwd: root, exec, ...request }),
+    resolve: (root, request) => resolveReviewStatus(request, createReviewStatusPort({ ...invocationFor(root), cwd: root, exec })),
+    resolveWorkUnit: (root, request) => resolveReviewStatusForWorkUnit({ ...invocationFor(root), cwd: root, exec, ...request }),
     write: (text) => process.stdout.write(text),
     setExitCode: (code) => { process.exitCode = code; },
     ...overrides,
@@ -1072,15 +1073,17 @@ async function acceptDeliveryReviewTerminus(
   request: DeliveryReviewTerminusAcceptanceInput,
   root: string,
   interaction?: InteractionContext,
+  invocation: ReviewInvocationOptions = {},
 ): Promise<DeliveryReviewTerminusAcceptanceResult> {
   const exec = createGitExec(interaction?.subprocess);
-  const reviewRecordStore = createStore(createDefaultStorePorts({ checkoutRoot: root, exec }));
-  const ownerDependencies = createPrePublicationCompositionDependencies({ cwd: root, exec, store: reviewRecordStore });
+  const bound = resolveReviewInvocation({ ...invocation, cwd: root, exec });
+  const reviewRecordStore = bound.store;
+  const ownerDependencies = createPrePublicationCompositionDependencies({ ...bound, cwd: root, exec });
   const readOwnerAuthority = async (workUnitId: string) => {
     const direct = await ownerDependencies.readOwnerTerminusAuthority(workUnitId);
     if (direct.status === "authorized") return direct;
     try {
-      const completed = await readCompletedReviewTerminusOwner(root, workUnitId, exec);
+      const completed = await readCompletedReviewTerminusOwner(root, workUnitId, exec, bound);
       if (completed === null) return direct;
       if (completed.owner === null) {
         return { status: "refused" as const, reason: "The completed Work Unit has no Owner." };
@@ -1097,10 +1100,11 @@ async function acceptDeliveryReviewTerminus(
     }
   };
   const result = await resolveDeliveryReviewTerminusAcceptance(request, {
-    readBoundary: (workUnitId) => readSubmissionBoundaryVersioned(root, workUnitId, { store: reviewRecordStore }),
+    readBoundary: (workUnitId) => readSubmissionBoundaryVersioned(root, workUnitId, { store: reviewRecordStore, owner: bound.workItem }),
     readOwnerAuthority,
     readCurrentOffer: async (workUnitId) => {
       const status = await resolveReviewStatusForWorkUnit({
+        ...bound,
         cwd: root,
         exec,
         store: reviewRecordStore,
@@ -1113,7 +1117,7 @@ async function acceptDeliveryReviewTerminus(
       try {
         return {
           status: "written",
-          path: await writeSubmissionBoundary(root, boundary, expectedVersion, { store: reviewRecordStore }),
+          path: await writeSubmissionBoundary(root, boundary, expectedVersion, { store: reviewRecordStore, owner: bound.workItem }),
         };
       } catch (error) {
         if (error instanceof SubmissionBoundaryVersionConflictError) return { status: "version-conflict" };
@@ -1134,10 +1138,11 @@ export async function handleReviewTerminusAccept(
   source: string,
   interaction?: InteractionContext,
   overrides: Partial<ReviewTerminusAcceptHandlerDependencies> = {},
+  invocation: ReviewInvocationOptions = {},
 ): Promise<void> {
   const dependencies: ReviewTerminusAcceptHandlerDependencies = {
     ...defaultReviewHandlerBoundary(),
-    accept: acceptDeliveryReviewTerminus,
+    accept: (request, root, context) => acceptDeliveryReviewTerminus(request, root, context, invocation),
     ...overrides,
   };
   await executeReviewHandler({
@@ -1459,11 +1464,13 @@ export interface ReviewPlanningGroomingResolveHandlerDependencies {
 }
 
 function defaultReviewPlanningGroomingResolveDependencies(
+  invocation: ReviewInvocationOptions = {},
 ): ReviewPlanningGroomingResolveHandlerDependencies {
   return {
     ...defaultReviewHandlerBoundary(),
     resolve: async (request, root, interaction) => {
       const exec = createGitExec(interaction.subprocess);
+      const bound = resolveReviewInvocation({ ...invocation, cwd: root, exec });
       const publisher = new RepositoryGitCommonStatePublisher(exec, root);
       const [repositoryId, config] = await Promise.all([
         resolveRepositoryIdentity(publisher),
@@ -1477,7 +1484,7 @@ function defaultReviewPlanningGroomingResolveDependencies(
       });
       const [changeSet, live] = await Promise.all([
         resolveChangeSet(createRawGitExec(root), target.diffBaseSha, target.headSha),
-        readLocalReviewLiveContext({ exec, cwd: root }),
+        readLocalReviewLiveContext({ ...bound, exec, cwd: root }),
       ]);
       const context = live.context.workUnit === null && live.context.errand !== null
         ? (() => {
@@ -1508,6 +1515,7 @@ export async function handleReviewPlanningGroomingResolve(
   source: string,
   overrides: Partial<ReviewPlanningGroomingResolveHandlerDependencies> = {},
   suppliedContext?: InteractionContext,
+  invocation: ReviewInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false,
@@ -1515,7 +1523,7 @@ export async function handleReviewPlanningGroomingResolve(
     yes: "absent",
   });
   const dependencies = {
-    ...defaultReviewPlanningGroomingResolveDependencies(),
+    ...defaultReviewPlanningGroomingResolveDependencies(invocation),
     ...overrides,
   };
   await executeReviewHandler({
@@ -1575,17 +1583,17 @@ function errandFrontlineLineage(claimId: string, headSha: string): LaneSubjectLi
  */
 async function errandFrontlinePhaseClosed(
   request: ReviewPolicyCommandRequest,
-  input: {
+  input: ReviewInvocationOptions & {
     root: string;
     exec: GitExec;
     publisher: RepositoryGitCommonStatePublisher;
-    operationStore: LocalReviewOperationStateStore;
+    operationStore: ReviewOperationStateStore;
     resultReader: ReviewResultReader;
-    dispositionStore: LocalApprovedDispositionRecordStore;
+    dispositionStore: ApprovedDispositionRecordReader;
   },
 ): Promise<boolean> {
   if (request.lane !== "frontline" || request.target.pullRequest !== null) return false;
-  const live = await readLocalReviewLiveContext({ exec: input.exec, cwd: input.root });
+  const live = await readLocalReviewLiveContext({ ...input, exec: input.exec, cwd: input.root });
   if (live.context.workUnit !== null || live.context.errand === null) return false;
   return frontlinePhaseClosed(input.operationStore, {
     repositoryId: await resolveRepositoryIdentity(input.publisher),
@@ -1601,33 +1609,34 @@ async function errandFrontlinePhaseClosed(
  */
 async function errandStandardVehicle(
   request: ReviewPolicyCommandRequest,
-  input: { root: string; exec: GitExec },
+  input: ReviewInvocationOptions & { root: string; exec: GitExec },
 ): Promise<boolean> {
   if (request.lane !== "standard" || request.target.pullRequest === null) return false;
-  return readIndexedHostedReviewErrand(input.root, input.exec).then(() => true, () => false);
+  return readIndexedHostedReviewErrand(input.root, input.exec, input).then(() => true, () => false);
 }
 
-function defaultReviewResolveDependencies(exec: GitExec): ReviewResolveHandlerDependencies {
+function defaultReviewResolveDependencies(exec: GitExec, invocation: ReviewInvocationOptions = {}): ReviewResolveHandlerDependencies {
+  const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
     ...defaultReviewHandlerBoundary(),
-    resolve: (request, root) => resolveConfiguredReviewPolicy(request, root, exec),
+    resolve: (request, root) => resolveConfiguredReviewPolicy(request, root, exec, invocationFor(root)),
   };
 }
 
-function createResolveContributionConfirmation(input: {
+function createResolveContributionConfirmation(input: ReviewInvocationOptions & {
   root: string;
   exec: GitExec;
   request: ReviewPolicyCommandRequest;
   baseRef: string;
-  dispositionStore: LocalApprovedDispositionRecordStore;
+  dispositionStore: ApprovedDispositionRecordReader;
   readResponsePerformance: NonNullable<EvidenceBoundReviewPolicyDependencies["readResponsePerformance"]>;
 }): NonNullable<EvidenceBoundReviewPolicyDependencies["confirmIncrementalApplicability"]> {
   const { root, exec, request, dispositionStore, readResponsePerformance } = input;
   return async (predecessor, current) => {
-    const active = await resolveActiveWu({ cwd: root });
+    const active = await resolveActiveWu({ cwd: root, store: input.store, projectId: input.projectId });
     const candidate = current.admission.lineage.kind === "candidate"
       && active.status === "resolved" && active.name !== ""
-      ? await readCandidateRecord(root, active.name, { exec })
+      ? await readCandidateRecord(root, active.name, { exec, store: input.store, owner: input.workItem })
       : null;
     const observeTarget = async () => {
         const confirmation = await confirmLocalReviewTarget({
@@ -1644,7 +1653,7 @@ function createResolveContributionConfirmation(input: {
       if (request.target.pullRequest === null
         && current.admission.lineage.kind === "head-bound"
         && current.admission.lineage.vehicleKind === "errand") {
-        const live = await readLocalReviewLiveContext({ exec, cwd: root }).catch(() => null);
+        const live = await readLocalReviewLiveContext({ ...input, exec, cwd: root }).catch(() => null);
         return confirmErrandFixResponseApplicability({
           predecessor,
           currentTarget: current.target,
@@ -1678,6 +1687,7 @@ async function resolveConfiguredReviewPolicy(
   request: ReviewPolicyCommandRequest,
   root: string,
   exec: GitExec,
+  invocation: ReviewInvocationOptions = {},
 ): Promise<unknown> {
   const { settings } = await readConfigSettings(root);
   const { sources, maxPasses } = await resolveConfiguredLanePolicy({
@@ -1689,16 +1699,17 @@ async function resolveConfiguredReviewPolicy(
       readFile: (path) => readFile(path, "utf8"),
     }),
   });
-  const publisher = new RepositoryGitCommonStatePublisher(exec, root);
-  const operationStore = new LocalReviewOperationStateStore(publisher);
-  const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
+  const bound = resolveReviewInvocation({ ...invocation, cwd: root, exec });
+  const { publisher, family } = createReviewCompositionContext({ ...bound, cwd: root, exec });
+  const operationStore = family.ports.inFlight;
+  const dispositionStore = family.ports.dispositions;
   const readResponsePerformance = (predecessor: ReviewResult) =>
     readLaneResponsePerformance(operationStore, predecessor);
-  const resultReader = createRepositoryReviewResultReader(publisher);
+  const resultReader = createRepositoryReviewResultReader(publisher, bound);
   const phaseClosed = await errandFrontlinePhaseClosed(request, {
-    root, exec, publisher, operationStore, resultReader, dispositionStore,
+    ...bound, root, exec, publisher, operationStore, resultReader, dispositionStore,
   });
-  const errandVehicle = await errandStandardVehicle(request, { root, exec });
+  const errandVehicle = await errandStandardVehicle(request, { ...bound, root, exec });
   const dependencies: EvidenceBoundReviewPolicyDependencies = {
     sources,
     maxPasses,
@@ -1708,7 +1719,7 @@ async function resolveConfiguredReviewPolicy(
     dispositionStore,
     readResponsePerformance,
     confirmIncrementalApplicability: createResolveContributionConfirmation({
-      root, exec, request, dispositionStore, readResponsePerformance, baseRef: settings["branch.base"],
+      ...bound, root, exec, request, dispositionStore, readResponsePerformance, baseRef: settings["branch.base"],
     }),
     confirmTarget: async (attemptedTarget) => {
       const confirmation = await confirmLocalReviewTarget({
@@ -1734,7 +1745,7 @@ async function resolveConfiguredReviewPolicy(
     return resolveEvidenceBoundReviewPolicy(request, dependencies);
   }
   const nextPassContext = await readResolveNextPassContext({
-    request, root, exec, operationStore, resultReader, dispositionStore, configuredSources: sources,
+    ...bound, request, root, exec, operationStore, resultReader, dispositionStore, configuredSources: sources,
     confirmApplicability: dependencies.confirmIncrementalApplicability,
   });
   return resolveEvidenceBoundReviewPolicyContinuation(request, {
@@ -1823,11 +1834,12 @@ export interface ReviewLaneReadHandlerDependencies extends ReviewHandlerBoundary
 /** Emit one read-only lane result for the authenticated checkout subject. */
 export async function handleReviewLaneRead(source: string,
   overrides: Partial<ReviewLaneReadHandlerDependencies> = {}, suppliedContext?: InteractionContext,
+  invocation: ReviewInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({ noInput: false, machineReadable: true, yes: "absent" });
   const exec = createGitExec(context.subprocess);
   const dependencies = { ...defaultReviewHandlerBoundary(),
-    read: (request: ReviewLaneReadRequest, root: string) => readReviewLane(request, { cwd: root, exec }), ...overrides };
+    read: (request: ReviewLaneReadRequest, root: string) => readReviewLane(request, { ...resolveReviewInvocation({ ...invocation, cwd: root, exec }), cwd: root, exec }), ...overrides };
   await executeReviewHandler({ mode: "review-lane-read", source, requestSchema: ReviewLaneReadRequestSchema,
     resultSchema: ReviewLaneReadEnvelopeSchema, dependencies,
     execute: (request, root) => dependencies.read(ReviewLaneReadRequestSchema.parse(request), root) });
@@ -2001,13 +2013,14 @@ export async function handleReviewResolve(
   source: string,
   overrides: Partial<ReviewResolveHandlerDependencies> = {},
   suppliedContext?: InteractionContext,
+  invocation: ReviewInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false,
     machineReadable: true,
     yes: "absent",
   });
-  const dependencies = { ...defaultReviewResolveDependencies(createGitExec(context.subprocess)), ...overrides };
+  const dependencies = { ...defaultReviewResolveDependencies(createGitExec(context.subprocess), invocation), ...overrides };
   await executeReviewHandler({
     mode: "review-resolve",
     source,
@@ -2220,7 +2233,7 @@ function createHostedAdapters(): {
 
 type HostedProgressVehicle = HostedRequestVehicle | HostedErrandProgressBinding;
 
-async function resolveHostedProgressContext(input: {
+async function resolveHostedProgressContext(input: ReviewInvocationOptions & {
   root: string;
   exec: GitExec;
   publisher: RepositoryGitCommonStatePublisher;
@@ -2231,6 +2244,7 @@ async function resolveHostedProgressContext(input: {
   admitCapacity: boolean;
   invocation?: HostedRequestEnvelope["invocation"];
 }) {
+  const bound = resolveReviewInvocation({ ...input, cwd: input.root });
   const settings = input.settings ?? (await readConfigSettings(input.root)).settings;
   const baseRef = settings["branch.base"];
   const repositoryId = await resolveRepositoryIdentity(input.publisher);
@@ -2288,9 +2302,9 @@ async function resolveHostedProgressContext(input: {
     || !new Set([baseRef, ...acceptableBaseRefs]).has(changeRequest.candidate.baseRefName)) {
     throw new Error("Hosted review target does not identify the current open change request.");
   }
-  const store = new LocalReviewOperationStateStore(input.publisher);
+  const store = createReviewCompositionContext({ ...bound, cwd: input.root, exec: input.exec }).family.ports.inFlight;
   if (input.vehicle?.kind === "errand") {
-    const current = await resolveCurrentHostedReviewErrand(input.root, branch, baseRef, input.exec);
+    const current = await resolveCurrentHostedReviewErrand(input.root, branch, baseRef, input.exec, bound);
     const lineage = LaneSubjectLineageSchema.parse({
       kind: "head-bound",
       vehicleKind: "errand",
@@ -2371,19 +2385,20 @@ async function resolveHostedProgressContext(input: {
     };
   }
 
-  const active = member === null ? await resolveActiveWu({ cwd: input.root }) : null;
+  const active = member === null ? await resolveActiveWu({ cwd: input.root, store: bound.store, projectId: bound.projectId }) : null;
   const workUnitId = member?.workUnitId
     ?? (active?.status === "resolved" && active.name !== "" ? active.name : null);
   if (workUnitId === null) {
     throw new Error("Hosted review progress requires one active work unit or an explicit vehicle.");
   }
-  const reviewRecordStore = createStore(createDefaultStorePorts({ checkoutRoot: input.root, exec: input.exec }));
-  const boundary = (await readSubmissionBoundaryVersioned(input.root, workUnitId, { store: reviewRecordStore })).boundary;
+  const reviewRecordStore = bound.store;
+  const boundary = (await readSubmissionBoundaryVersioned(input.root, workUnitId, { store: reviewRecordStore, owner: bound.workItem })).boundary;
   if (boundary?.reservation === null || boundary?.reservation === undefined) {
     throw new Error("Hosted review progress requires the carried standard-review reservation.");
   }
   const reservation = boundary.reservation;
   const candidate = await createPrePublicationCompositionDependencies({
+    ...bound,
     cwd: input.root,
     exec: input.exec,
     store: reviewRecordStore,
@@ -2391,7 +2406,7 @@ async function resolveHostedProgressContext(input: {
   if (candidate.status !== "current") {
     throw new Error("Hosted review reservation requires a current Candidate.");
   }
-  const candidateRecord = await readCandidateRecord(input.root, workUnitId, { store: reviewRecordStore });
+  const candidateRecord = await readCandidateRecord(input.root, workUnitId, { store: reviewRecordStore, owner: bound.workItem });
   if (candidateRecord === null) {
     throw new Error("Hosted review reservation requires the canonical Candidate record.");
   }
@@ -2526,26 +2541,29 @@ async function resolveFrontlineSupersessionAncestors(
   root: string,
   exec: GitExec,
   lineage: LaneSubjectLineage,
+  invocation: ReviewInvocationOptions = {},
 ): Promise<readonly CandidateSupersessionAncestor[]> {
   if (lineage.kind !== "candidate") return [];
-  const live = await readLocalReviewLiveContext({ exec, cwd: root });
+  const bound = resolveReviewInvocation({ ...invocation, cwd: root, exec });
+  const live = await readLocalReviewLiveContext({ ...bound, exec, cwd: root });
   const workUnitId = live.context.workUnit?.identity;
   if (workUnitId === undefined) {
     throw new Error("frontline Candidate supersession authority is unavailable");
   }
-  const record = await readCandidateRecord(root, workUnitId, { exec });
+  const record = await readCandidateRecord(root, workUnitId, { exec, store: bound.store, owner: bound.workItem });
   if (record === null || record.attestation.candidateId !== lineage.candidateId) {
     throw new Error("frontline Candidate supersession authority is unavailable");
   }
-  return readRepositoryCandidateSupersessionChain({ cwd: root, workUnit: workUnitId, record, exec });
+  return readRepositoryCandidateSupersessionChain({ ...bound, cwd: root, workUnit: workUnitId, record, exec });
 }
 
 async function deriveFrontlineCommandRequest(
   request: FrontlineResolveRequest,
   root: string,
   exec: GitExec,
+  invocation: ReviewInvocationOptions = {},
 ): Promise<FrontlineCommandRequest> {
-  const publisher = new RepositoryGitCommonStatePublisher(exec, root);
+  const { publisher } = createReviewCompositionContext({ ...invocation, cwd: root, exec });
   const repositoryId = await resolveRepositoryIdentity(publisher);
   return FrontlineCommandRequestSchema.parse({
     ...request,
@@ -2561,7 +2579,7 @@ class PlannedFrontlineMemberRefreshError extends Error {
   }
 }
 
-async function resolveDeliveryMemberFrontlineLineage(input: {
+async function resolveDeliveryMemberFrontlineLineage(input: ReviewInvocationOptions & {
   root: string;
   exec: GitExec;
   target: FrontlineCommandRequest["target"];
@@ -2582,7 +2600,7 @@ async function resolveDeliveryMemberFrontlineLineage(input: {
     ref: `refs/heads/${settings["branch.base"]}`,
   });
   if (delivery.status === "planned") {
-    const composed = await createPrePublicationCompositionDependencies({ cwd: root, exec })
+    const composed = await createPrePublicationCompositionDependencies({ ...input, cwd: root, exec })
       .readDeliveryReviewTargets(vehicle.workUnitId);
     const matches = composed.status === "composed" && composed.planId === vehicle.planId
       ? composed.targets.filter((member) => (
@@ -2632,15 +2650,15 @@ async function resolveDeliveryMemberFrontlineLineage(input: {
   });
 }
 
-async function resolveCandidateFrontlineLineage(input: {
+async function resolveCandidateFrontlineLineage(input: ReviewInvocationOptions & {
   root: string;
   exec: GitExec;
-  operationStore: LocalReviewOperationStateStore;
+  operationStore: ReviewOperationStateStore;
   workUnit: string;
   target: FrontlineCommandRequest["target"];
 }) {
   const { root, exec, operationStore, workUnit, target } = input;
-  const boundary = (await readSubmissionBoundaryVersioned(root, workUnit, { exec })).boundary;
+  const boundary = (await readSubmissionBoundaryVersioned(root, workUnit, { exec, store: input.store, owner: input.workItem })).boundary;
   if (boundary === null || boundary.workUnit !== workUnit) {
     throw new Error("frontline Candidate lineage authority is unavailable");
   }
@@ -2659,7 +2677,7 @@ async function resolveCandidateFrontlineLineage(input: {
     && canonicalize(attempt.frontline.admission.target) === canonicalize(target)) === true) {
     return lineage;
   }
-  const composition = createPrePublicationCompositionDependencies({ cwd: root, exec });
+  const composition = createPrePublicationCompositionDependencies({ ...input, cwd: root, exec });
   const candidate = await composition.readCandidate(workUnit);
   const currentTarget = candidate.status === "current" && candidate.candidateId === boundary.candidateId
     ? await composition.deriveImmutableTarget(candidate.headSha)
@@ -2671,15 +2689,17 @@ async function resolveCandidateFrontlineLineage(input: {
   return lineage;
 }
 
-function defaultFrontlineResolveDependencies(context: InteractionContext): ReviewFrontlineResolveHandlerDependencies {
+function defaultFrontlineResolveDependencies(context: InteractionContext, invocation: ReviewInvocationOptions = {}): ReviewFrontlineResolveHandlerDependencies {
   const exec = createGitExec(context.subprocess);
+  const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
     ...defaultReviewHandlerBoundary(),
-    deriveRequest: (request, root) => deriveFrontlineCommandRequest(request, root, exec),
+    deriveRequest: (request, root) => deriveFrontlineCommandRequest(request, root, exec, invocationFor(root)),
     resolve: async (request, root) => {
-      const publisher = new RepositoryGitCommonStatePublisher(exec, root);
-      const operationStore = new LocalReviewOperationStateStore(publisher);
-      const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
+      const bound = invocationFor(root);
+      const { publisher, family } = createReviewCompositionContext({ ...bound, cwd: root, exec });
+      const operationStore = family.ports.inFlight;
+      const dispositionStore = family.ports.dispositions;
       try {
         return await resolveFrontlineCommand(request, {
         preferences: createLocalFrontlineSourcePreferenceReader({
@@ -2705,19 +2725,19 @@ function defaultFrontlineResolveDependencies(context: InteractionContext): Revie
           dispositionSetId,
         ),
         readSettledFindingsAdvice: settledFrontlineAdviceReader(
-          createRepositoryReviewResultReader(publisher), dispositionStore,
+          createRepositoryReviewResultReader(publisher, bound), dispositionStore,
         ),
         resolveLineage: async (target, vehicle) => {
-          const live = await readLocalReviewLiveContext({ exec, cwd: root });
+          const live = await readLocalReviewLiveContext({ ...bound, exec, cwd: root });
           if (vehicle !== undefined) {
             return resolveDeliveryMemberFrontlineLineage({
-              root, exec, target, vehicle,
+              ...bound, root, exec, target, vehicle,
               activeWorkUnit: live.context.workUnit?.identity ?? null,
             });
           }
           if (live.context.workUnit !== null) {
             return resolveCandidateFrontlineLineage({
-              root, exec, operationStore, workUnit: live.context.workUnit.identity, target,
+              ...bound, root, exec, operationStore, workUnit: live.context.workUnit.identity, target,
             });
           }
           if (live.context.errand === null) {
@@ -2726,7 +2746,7 @@ function defaultFrontlineResolveDependencies(context: InteractionContext): Revie
           return errandFrontlineLineage(live.context.errand.claimId, target.headSha);
         },
         resolveSupersessionAncestors: (lineage) =>
-          resolveFrontlineSupersessionAncestors(root, exec, lineage),
+          resolveFrontlineSupersessionAncestors(root, exec, lineage, bound),
         readMaxPasses: async () => Number((
           await readConfigSettings(root)
         ).settings["review.frontline_max_passes"]),
@@ -2762,13 +2782,14 @@ export async function handleReviewFrontlineResolve(
   source: string,
   overrides: Partial<ReviewFrontlineResolveHandlerDependencies> = {},
   suppliedContext?: InteractionContext,
+  invocation: ReviewInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false,
     machineReadable: true,
     yes: "absent",
   });
-  const dependencies = { ...defaultFrontlineResolveDependencies(context), ...overrides };
+  const dependencies = { ...defaultFrontlineResolveDependencies(context, invocation), ...overrides };
   await executeReviewHandler({
     mode: "review-frontline-resolve",
     source,
@@ -2794,8 +2815,9 @@ export interface ReviewChunkingResolveHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultReviewChunkingResolveDependencies(context: InteractionContext): ReviewChunkingResolveHandlerDependencies {
+function defaultReviewChunkingResolveDependencies(context: InteractionContext, invocation: ReviewInvocationOptions = {}): ReviewChunkingResolveHandlerDependencies {
   const exec = createGitExec(context.subprocess);
+  const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
     ...defaultReviewHandlerBoundary(),
     deriveRequest: async (request, root) => {
@@ -2822,7 +2844,7 @@ function defaultReviewChunkingResolveDependencies(context: InteractionContext): 
       const publisher = new RepositoryGitCommonStatePublisher(exec, root);
       const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
       const stateStore = new RepositoryDeliveryStateStore(publisher);
-      const active = await resolveActiveWu({ cwd: root });
+      const active = await resolveActiveWu({ cwd: root, ...invocationFor(root) });
       const workUnitId = active.status === "resolved" && active.name !== ""
         ? active.name
         : active.status === "none"
@@ -2855,13 +2877,14 @@ export async function handleReviewChunkingResolve(
   source: string,
   overrides: Partial<ReviewChunkingResolveHandlerDependencies> = {},
   suppliedContext?: InteractionContext,
+  invocation: ReviewInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false,
     machineReadable: true,
     yes: "absent",
   });
-  const dependencies = { ...defaultReviewChunkingResolveDependencies(context), ...overrides };
+  const dependencies = { ...defaultReviewChunkingResolveDependencies(context, invocation), ...overrides };
   await executeReviewHandler({
     mode: "review-chunking-resolve",
     source,
@@ -2884,12 +2907,13 @@ export interface ReviewFrontlineRunHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultFrontlineRunDependencies(context: InteractionContext): ReviewFrontlineRunHandlerDependencies {
+function defaultFrontlineRunDependencies(context: InteractionContext, invocation: ReviewInvocationOptions = {}): ReviewFrontlineRunHandlerDependencies {
   const exec = createGitExec(context.subprocess);
+  const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
     ...defaultReviewHandlerBoundary(),
     deriveRequest: async (request, root) => {
-      const publisher = new RepositoryGitCommonStatePublisher(exec, root);
+      const { publisher } = createReviewCompositionContext({ ...invocationFor(root), cwd: root, exec });
       const repositoryId = await resolveRepositoryIdentity(publisher);
       const target = await deriveLocalReviewTargetFromCoordinates({
         exec,
@@ -2900,7 +2924,7 @@ function defaultFrontlineRunDependencies(context: InteractionContext): ReviewFro
       if (request.responseBinding === undefined) {
         return FrontlineRunCommandRequestSchema.parse({ ...request, target });
       }
-      const composition = createPrePublicationCompositionDependencies({ cwd: root, exec });
+      const composition = createPrePublicationCompositionDependencies({ ...invocationFor(root), cwd: root, exec });
       const [candidate, delivery, candidateTarget] = await Promise.all([
         composition.readCandidate(request.responseBinding.candidate.workUnit),
         composition.readDeliveryReviewTargets(request.responseBinding.candidate.workUnit),
@@ -2940,7 +2964,7 @@ function defaultFrontlineRunDependencies(context: InteractionContext): ReviewFro
     },
     run: (request, root) => runFrontlineReviewCommand(
       request,
-      createFrontlineRunDependencies({ exec, cwd: root, interaction: context.subprocess }),
+      createFrontlineRunDependencies({ ...invocationFor(root), exec, cwd: root, interaction: context.subprocess }),
     ),
   };
 }
@@ -2957,13 +2981,14 @@ export async function handleReviewFrontlineRun(
   source: string,
   overrides: Partial<ReviewFrontlineRunHandlerDependencies> = {},
   suppliedContext?: InteractionContext,
+  invocation: ReviewInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false,
     machineReadable: true,
     yes: "absent",
   });
-  const dependencies = { ...defaultFrontlineRunDependencies(context), ...overrides };
+  const dependencies = { ...defaultFrontlineRunDependencies(context, invocation), ...overrides };
   await executeReviewHandler({
     mode: "review-frontline-run",
     source,
@@ -2988,13 +3013,14 @@ export interface ReviewLocalPrepareHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultLocalPrepareDependencies(context: InteractionContext): ReviewLocalPrepareHandlerDependencies {
+function defaultLocalPrepareDependencies(context: InteractionContext, invocation: ReviewInvocationOptions = {}): ReviewLocalPrepareHandlerDependencies {
   const exec = createGitExec(context.subprocess);
+  const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
     ...defaultReviewHandlerBoundary(),
     prepare: (request, root) => prepareLocalReview(
       request,
-      createLocalPrepareDependencies({ exec, cwd: root }),
+      createLocalPrepareDependencies({ ...invocationFor(root), exec, cwd: root }),
     ),
   };
 }
@@ -3066,13 +3092,14 @@ export async function handleReviewLocalPrepare(
   source: string,
   overrides: Partial<ReviewLocalPrepareHandlerDependencies> = {},
   suppliedContext?: InteractionContext,
+  invocation: ReviewInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false,
     machineReadable: true,
     yes: "absent",
   });
-  const dependencies = { ...defaultLocalPrepareDependencies(context), ...overrides };
+  const dependencies = { ...defaultLocalPrepareDependencies(context, invocation), ...overrides };
   await executeReviewHandler({
     mode: "review-local-prepare",
     source,
@@ -3092,13 +3119,14 @@ export interface ReviewLocalAttestHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultLocalAttestDependencies(context: InteractionContext): ReviewLocalAttestHandlerDependencies {
+function defaultLocalAttestDependencies(context: InteractionContext, invocation: ReviewInvocationOptions = {}): ReviewLocalAttestHandlerDependencies {
   const exec = createGitExec(context.subprocess);
+  const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
     ...defaultReviewHandlerBoundary(),
     attest: (request, root) => attestLocalReviewCommand(
       request,
-      createLocalAttestDependencies({ exec, cwd: root }),
+      createLocalAttestDependencies({ ...invocationFor(root), exec, cwd: root }),
     ),
   };
 }
@@ -3114,13 +3142,14 @@ export async function handleReviewLocalAttest(
   source: string,
   overrides: Partial<ReviewLocalAttestHandlerDependencies> = {},
   suppliedContext?: InteractionContext,
+  invocation: ReviewInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false,
     machineReadable: true,
     yes: "absent",
   });
-  const dependencies = { ...defaultLocalAttestDependencies(context), ...overrides };
+  const dependencies = { ...defaultLocalAttestDependencies(context, invocation), ...overrides };
   await executeReviewHandler({
     mode: "review-local-attest",
     source,
@@ -3139,13 +3168,14 @@ export interface ReviewLocalResumeHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultLocalResumeDependencies(context: InteractionContext): ReviewLocalResumeHandlerDependencies {
+function defaultLocalResumeDependencies(context: InteractionContext, invocation: ReviewInvocationOptions = {}): ReviewLocalResumeHandlerDependencies {
   const exec = createGitExec(context.subprocess);
+  const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
     ...defaultReviewHandlerBoundary(),
     resume: (request, root) => resumeLocalReviewCommand(
       request,
-      createLocalResumeDependencies({ exec, cwd: root }),
+      createLocalResumeDependencies({ ...invocationFor(root), exec, cwd: root }),
     ),
   };
 }
@@ -3161,13 +3191,14 @@ export async function handleReviewLocalResume(
   source: string,
   overrides: Partial<ReviewLocalResumeHandlerDependencies> = {},
   suppliedContext?: InteractionContext,
+  invocation: ReviewInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false,
     machineReadable: true,
     yes: "absent",
   });
-  const dependencies = { ...defaultLocalResumeDependencies(context), ...overrides };
+  const dependencies = { ...defaultLocalResumeDependencies(context, invocation), ...overrides };
   await executeReviewHandler({
     mode: "review-local-resume",
     source,
@@ -3186,13 +3217,14 @@ export interface ReviewRespondHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultRespondDependencies(context: InteractionContext): ReviewRespondHandlerDependencies {
+function defaultRespondDependencies(context: InteractionContext, invocation: ReviewInvocationOptions = {}): ReviewRespondHandlerDependencies {
   const exec = createGitExec(context.subprocess);
+  const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
     ...defaultReviewHandlerBoundary(),
     respond: (request, root) => respondToReviewCommand(
       request,
-      createRespondDependencies({ exec, cwd: root }),
+      createRespondDependencies({ ...invocationFor(root), exec, cwd: root }),
     ),
   };
 }
@@ -3202,13 +3234,14 @@ export async function handleReviewRespond(
   source: string,
   overrides: Partial<ReviewRespondHandlerDependencies> = {},
   suppliedContext?: InteractionContext,
+  invocation: ReviewInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false,
     machineReadable: true,
     yes: "absent",
   });
-  const dependencies = { ...defaultRespondDependencies(context), ...overrides };
+  const dependencies = { ...defaultRespondDependencies(context, invocation), ...overrides };
   await executeReviewHandler({
     mode: "review-respond",
     source,
@@ -3228,13 +3261,14 @@ export interface ReviewReduceHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultReduceDependencies(context: InteractionContext): ReviewReduceHandlerDependencies {
+function defaultReduceDependencies(context: InteractionContext, invocation: ReviewInvocationOptions = {}): ReviewReduceHandlerDependencies {
   const exec = createGitExec(context.subprocess);
+  const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
     ...defaultReviewHandlerBoundary(),
     reduce: (request, root) => reduceReviewCommand(
       request,
-      createReduceDependencies({ exec, cwd: root }),
+      createReduceDependencies({ ...invocationFor(root), exec, cwd: root }),
     ),
   };
 }
@@ -3244,13 +3278,14 @@ export async function handleReviewReduce(
   source: string,
   overrides: Partial<ReviewReduceHandlerDependencies> = {},
   suppliedContext?: InteractionContext,
+  invocation: ReviewInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false,
     machineReadable: true,
     yes: "absent",
   });
-  const dependencies = { ...defaultReduceDependencies(context), ...overrides };
+  const dependencies = { ...defaultReduceDependencies(context, invocation), ...overrides };
   await executeReviewHandler({
     mode: "review-reduce",
     source,
@@ -3272,7 +3307,7 @@ export interface ReviewHostedRequestHandlerDependencies extends HostedReviewHand
   request(input: unknown): Promise<unknown>;
 }
 
-async function hostedCandidateSupersessionAncestors(input: {
+async function hostedCandidateSupersessionAncestors(input: ReviewInvocationOptions & {
   root: string;
   exec: GitExec;
   lineage: LaneSubjectLineage;
@@ -3284,6 +3319,7 @@ async function hostedCandidateSupersessionAncestors(input: {
     throw new Error("Hosted Candidate supersession authority is unavailable");
   }
   return readRepositoryCandidateSupersessionChain({
+    ...input,
     cwd: input.root,
     workUnit: input.candidateRecord.attestation.workUnit,
     record: input.candidateRecord,
@@ -3291,9 +3327,9 @@ async function hostedCandidateSupersessionAncestors(input: {
   });
 }
 
-async function indexedErrandClaimIsCurrent(root: string, expectedClaimId: string, exec: GitExec): Promise<boolean> {
+async function indexedErrandClaimIsCurrent(root: string, expectedClaimId: string, exec: GitExec, invocation: ReviewInvocationOptions = {}): Promise<boolean> {
   try {
-    return (await readIndexedHostedReviewErrand(root, exec)).claimId === expectedClaimId;
+    return (await readIndexedHostedReviewErrand(root, exec, invocation)).claimId === expectedClaimId;
   } catch {
     return false;
   }
@@ -3386,7 +3422,7 @@ function projectIndexedMatches(
 }
 
 async function readIndexedOwnerAttempts(
-  store: LocalReviewOperationStateStore,
+  store: Pick<ReviewOperationStateStore, "readOperation">,
   owner: HostedRequestOwnerIndexRecord,
   request: HostedRequestEnvelope,
 ): Promise<LaneProgressState["attempts"]> {
@@ -3399,7 +3435,7 @@ async function readIndexedOwnerAttempts(
 }
 
 async function indexedOwnerPassCompleted(
-  store: LocalReviewOperationStateStore,
+  store: Pick<ReviewOperationStateStore, "readOperation">,
   owner: HostedRequestOwnerIndexRecord,
 ): Promise<boolean> {
   const { state } = await store.readOperation(owner.operationId);
@@ -3412,7 +3448,8 @@ async function indexedOwnerPassCompleted(
 
 /** A prior admission owns its replay even when the current branch or Candidate has moved. */
 async function readDurableHostedRequestReplay(input: {
-  store: LocalReviewOperationStateStore;
+  invocation?: ReviewInvocationOptions;
+  store: Pick<ReviewOperationStateStore, "readOperation">;
   index: HostedRequestOwnerIndex;
   repositoryId: string;
   request: HostedRequestEnvelope;
@@ -3422,7 +3459,7 @@ async function readDurableHostedRequestReplay(input: {
   const owner = await input.index.read(input.repositoryId, input.request);
   if (owner === null) return null;
   if (owner.lineage.kind === "head-bound" && owner.lineage.vehicleKind === "errand"
-    && !await indexedErrandClaimIsCurrent(input.root, owner.lineage.vehicleIdentity, input.exec)) {
+    && !await indexedErrandClaimIsCurrent(input.root, owner.lineage.vehicleIdentity, input.exec, input.invocation)) {
     return { state: "ambiguous-delivery" };
   }
   const { state } = await input.store.readOperation(owner.operationId);
@@ -3437,7 +3474,7 @@ async function readDurableHostedRequestReplay(input: {
 
 class HostedRequestOwnerCollision extends Error {}
 
-async function resumeReservedHostedRequest(input: {
+async function resumeReservedHostedRequest(input: ReviewInvocationOptions & {
   root: string;
   exec: GitExec;
   publisher: RepositoryGitCommonStatePublisher;
@@ -3451,6 +3488,7 @@ async function resumeReservedHostedRequest(input: {
   let current;
   try {
     current = await resolveHostedProgressContext({
+      ...input,
       root,
       exec,
       publisher,
@@ -3467,7 +3505,7 @@ async function resumeReservedHostedRequest(input: {
     || canonicalize(current.reviewTarget) !== canonicalize(replay.admission.reviewTarget)) {
     return projectHostedRequestAdmissionResolution(request, { state: "ambiguous-delivery" });
   }
-  const store = new LocalReviewOperationStateStore(publisher);
+  const store = current.store;
   return requestHostedReview(request, {
     adapters,
     deliveryMemberLookup: new RepositoryDeliveryMemberLookup({ exec, cwd: root }),
@@ -3503,8 +3541,11 @@ async function executeDefaultHostedRequest(
   exec: GitExec,
   adapters: readonly HostedReviewAdapter[],
   port: ReturnType<typeof createHostedAdapters>["port"],
+  invocation: ReviewInvocationOptions = {},
 ): Promise<unknown> {
   if (root === null || publisher === null) throw new Error("Hosted review requires an ARC project.");
+  const bound = resolveReviewInvocation({ ...invocation, cwd: root, exec });
+  const { family } = createReviewCompositionContext({ ...bound, cwd: root, exec });
   const request = HostedRequestEnvelopeSchema.parse(input);
   const index = new HostedRequestOwnerIndex(publisher);
   const repositoryId = await resolveRepositoryIdentity(publisher);
@@ -3515,7 +3556,8 @@ async function executeDefaultHostedRequest(
     10_000,
     async () => {
       const replay = await readDurableHostedRequestReplay({
-        store: new LocalReviewOperationStateStore(publisher),
+        store: family.ports.inFlight,
+        invocation: bound,
         index,
         repositoryId,
         request,
@@ -3523,7 +3565,7 @@ async function executeDefaultHostedRequest(
         exec,
       });
       if (replay?.state === "admitted") {
-        return resumeReservedHostedRequest({ root, exec, publisher, index, repositoryId, request, replay, adapters });
+        return resumeReservedHostedRequest({ ...bound, root, exec, publisher, index, repositoryId, request, replay, adapters });
       }
       if (replay !== null) {
         const result = projectHostedRequestAdmissionResolution(request, replay);
@@ -3534,6 +3576,7 @@ async function executeDefaultHostedRequest(
       const deliveryMemberLookup = new RepositoryDeliveryMemberLookup({ exec, cwd: root });
       const settings = (await readConfigSettings(root)).settings;
       const context = await resolveHostedProgressContext({
+        ...bound,
         root,
         exec,
         publisher,
@@ -3546,6 +3589,7 @@ async function executeDefaultHostedRequest(
       });
       if (request.coverage === "incremental") throw new HostedIncrementalCoverageError(context.statusTarget);
       const supersessionAncestors = await hostedCandidateSupersessionAncestors({
+        ...bound,
         root,
         exec,
         lineage: context.lineage,
@@ -3576,6 +3620,7 @@ async function executeDefaultHostedRequest(
             throw new Error("Hosted delivery-member review requires a carried reservation.");
           }
           const dischargeReader = createHostedReservationDischargeReader({
+            ...bound,
             cwd: root,
             exec,
             delivery: deliveryMemberLookup,
@@ -3620,8 +3665,8 @@ async function executeDefaultHostedRequest(
             ...(request.additionalPassAuthorization === undefined ? {}
               : { additionalPassAuthorization: request.additionalPassAuthorization }),
           }, {
-            resultReader: createRepositoryReviewResultReader(publisher),
-            dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+            resultReader: createRepositoryReviewResultReader(publisher, bound),
+            dispositionStore: family.ports.dispositions,
             confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),
             readResponsePerformance: (predecessor) => readLaneResponsePerformance(context.store, predecessor),
             confirmCurrentApplicability: predecessor =>
@@ -3670,6 +3715,7 @@ async function executeDefaultHostedRequest(
         }
         if (context.candidateRecord !== null) {
           const dischargeReader = createHostedReservationDischargeReader({
+            ...bound,
             cwd: root,
             exec,
             host: new GhDeliveryHostPort(hostedGhRunner),
@@ -3706,8 +3752,8 @@ async function executeDefaultHostedRequest(
             ...(request.additionalPassAuthorization === undefined ? {}
               : { additionalPassAuthorization: request.additionalPassAuthorization }),
           }, {
-            resultReader: createRepositoryReviewResultReader(publisher),
-            dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+            resultReader: createRepositoryReviewResultReader(publisher, bound),
+            dispositionStore: family.ports.dispositions,
             confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),
             readResponsePerformance: (predecessor) => readLaneResponsePerformance(context.store, predecessor),
             confirmIncrementalApplicability: (predecessor, current) => (
@@ -3728,8 +3774,8 @@ async function executeDefaultHostedRequest(
         )) === true) {
           throw new Error("Hosted review capacity is already held by a pending request.");
         }
-        const resultReader = createRepositoryReviewResultReader(publisher);
-        const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
+        const resultReader = createRepositoryReviewResultReader(publisher, bound);
+        const dispositionStore = family.ports.dispositions;
         const nextPassContext = await readHostedErrandNextPassContext({ cwd: root, exec, configuredSources: policy.sources,
           progress, target: context.reviewTarget,
           lineage: context.lineage, standardReview, operationStore: context.store, resultReader, dispositionStore });
@@ -3782,7 +3828,7 @@ async function executeDefaultHostedRequest(
         deliveryMemberLookup,
         ...(context.errandBinding === null ? {} : { errandBinding: context.errandBinding }),
         admitRequest: async (admittedRequest, progressVehicle) => {
-          const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
+          const dispositionStore = family.ports.dispositions;
           try {
             const admitted = await withRepositoryReviewOperationLock(
               exec,
@@ -3868,14 +3914,15 @@ async function executeDefaultHostedRequest(
   );
 }
 
-function defaultHostedRequestDependencies(context: InteractionContext): ReviewHostedRequestHandlerDependencies {
+function defaultHostedRequestDependencies(context: InteractionContext, invocation: ReviewInvocationOptions = {}): ReviewHostedRequestHandlerDependencies {
   const { adapters, port } = createHostedAdapters();
   const root = resolveArcRoot(process.cwd());
   const exec = createGitExec(context.subprocess);
+  const bound = root === null ? invocation : resolveReviewInvocation({ ...invocation, cwd: root, exec });
   const publisher = root === null ? null : new RepositoryGitCommonStatePublisher(exec, root);
   return {
     ...defaultHostedHandlerBoundary(),
-    request: (input) => executeDefaultHostedRequest(input, root, publisher, exec, adapters, port),
+    request: (input) => executeDefaultHostedRequest(input, root, publisher, exec, adapters, port, bound),
   };
 }
 
@@ -3883,13 +3930,14 @@ export async function handleReviewHostedRequest(
   source: string,
   overrides: Partial<ReviewHostedRequestHandlerDependencies> = {},
   suppliedContext?: InteractionContext,
+  invocation: ReviewInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false,
     machineReadable: true,
     yes: "absent",
   });
-  const dependencies = { ...defaultHostedRequestDependencies(context), ...overrides };
+  const dependencies = { ...defaultHostedRequestDependencies(context, invocation), ...overrides };
   await executeHostedReviewHandler({
     mode: "review-hosted-request",
     source,
@@ -3912,17 +3960,18 @@ export interface ReviewHostedAwaitHandlerDependencies extends HostedReviewHandle
   awaitResult(input: unknown): Promise<unknown>;
 }
 
-function defaultHostedAwaitDependencies(context: InteractionContext): ReviewHostedAwaitHandlerDependencies {
+function defaultHostedAwaitDependencies(context: InteractionContext, invocation: ReviewInvocationOptions = {}): ReviewHostedAwaitHandlerDependencies {
   const { observers } = createHostedAdapters();
   const root = resolveArcRoot(process.cwd());
   const exec = createGitExec(context.subprocess);
+  const bound = root === null ? invocation : resolveReviewInvocation({ ...invocation, cwd: root, exec });
   const publisher = root === null ? null : new RepositoryGitCommonStatePublisher(exec, root);
   return {
     ...defaultHostedHandlerBoundary(),
     awaitResult: async (input) => {
       if (publisher === null || root === null) throw new Error("Hosted review requires an ARC project.");
       const request = HostedAwaitEnvelopeSchema.parse(input);
-      const store = new LocalReviewOperationStateStore(publisher);
+      const store = createReviewCompositionContext({ ...bound, cwd: root, exec }).family.ports.inFlight;
       const repositoryId = await resolveRepositoryIdentity(publisher);
       if (request.handle.admission.repositoryId !== repositoryId) {
         throw new Error("Hosted await does not match the current repository.");
@@ -3973,13 +4022,14 @@ export async function handleReviewHostedAwait(
   source: string,
   overrides: Partial<ReviewHostedAwaitHandlerDependencies> = {},
   suppliedContext?: InteractionContext,
+  invocation: ReviewInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false,
     machineReadable: true,
     yes: "absent",
   });
-  const dependencies = { ...defaultHostedAwaitDependencies(context), ...overrides };
+  const dependencies = { ...defaultHostedAwaitDependencies(context, invocation), ...overrides };
   await executeHostedReviewHandler({
     mode: "review-hosted-await",
     source,
@@ -4049,7 +4099,7 @@ async function hostedSettlementHeadContinuation(input: {
 }
 
 async function readHostedSettlementAttempt(
-  store: LocalReviewOperationStateStore,
+  store: Pick<ReviewOperationStateStore, "readOperation">,
   reference: { operationId: string; durableRef: string },
 ): Promise<{ state: LaneProgressState; attempt: LaneProgressState["attempts"][number] }> {
   const { state } = await store.readOperation(reference.operationId);
@@ -4061,10 +4111,11 @@ async function readHostedSettlementAttempt(
   return { state, attempt };
 }
 
-function defaultHostedSettleDependencies(context: InteractionContext): ReviewHostedSettleHandlerDependencies {
+function defaultHostedSettleDependencies(context: InteractionContext, invocation: ReviewInvocationOptions = {}): ReviewHostedSettleHandlerDependencies {
   const { port } = createHostedAdapters();
   const root = resolveArcRoot(process.cwd());
   const exec = createGitExec(context.subprocess);
+  const bound = root === null ? invocation : resolveReviewInvocation({ ...invocation, cwd: root, exec });
   const publisher = root === null ? null : new RepositoryGitCommonStatePublisher(exec, root);
   return {
     ...defaultHostedHandlerBoundary(),
@@ -4072,7 +4123,8 @@ function defaultHostedSettleDependencies(context: InteractionContext): ReviewHos
       if (root === null || publisher === null) throw new Error("Hosted settlement requires an ARC project.");
       const request = HostedSettleEnvelopeSchema.parse(input);
       const reference = parseReviewSourceReference(request.response.attemptRef, "hosted");
-      const operationStore = new LocalReviewOperationStateStore(publisher);
+      const { family } = createReviewCompositionContext({ ...bound, cwd: root, exec });
+      const operationStore = family.ports.inFlight;
       const { state: initial, attempt: initialAttempt } = await readHostedSettlementAttempt(operationStore, reference);
       return withRepositoryReviewOperationLock(
         exec,
@@ -4094,7 +4146,7 @@ function defaultHostedSettleDependencies(context: InteractionContext): ReviewHos
           if (bindingMismatch !== null) {
             throw new Error(`Hosted settlement does not match its approved findings attempt: ${bindingMismatch}.`);
           }
-          const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
+          const dispositionStore = family.ports.dispositions;
           const dispositionRecord = await dispositionStore.readDispositionRecord(attempt.attemptId);
           const confirmResponseHeadContinuation = createCandidateResponseHeadContinuationReader({
             cwd: root, exec, dispositionStore, operationStore,
@@ -4157,13 +4209,14 @@ export async function handleReviewHostedSettle(
   source: string,
   overrides: Partial<ReviewHostedSettleHandlerDependencies> = {},
   suppliedContext?: InteractionContext,
+  invocation: ReviewInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false,
     machineReadable: true,
     yes: "absent",
   });
-  const dependencies = { ...defaultHostedSettleDependencies(context), ...overrides };
+  const dependencies = { ...defaultHostedSettleDependencies(context, invocation), ...overrides };
   await executeHostedReviewHandler({
     mode: "review-hosted-settle",
     source,
@@ -4239,7 +4292,7 @@ async function recoverProjectedPublicationBoundary(
   }
 }
 
-async function persistAcceptedFrontlineSkip(input: {
+async function persistAcceptedFrontlineSkip(input: ReviewInvocationOptions & {
   root: string;
   workUnit: string;
   candidateId: CanonicalDigest;
@@ -4247,6 +4300,7 @@ async function persistAcceptedFrontlineSkip(input: {
   headSha: string;
   exec: GitExec;
 }): Promise<void> {
+  const invocation = resolveReviewInvocation({ ...input, cwd: input.root });
   const lineage = { kind: "candidate" as const, candidateId: input.candidateId };
   await withRepositoryReviewOperationLock(input.exec, input.root, laneContinuationOperationId({
     lane: "frontline",
@@ -4255,16 +4309,14 @@ async function persistAcceptedFrontlineSkip(input: {
     lineage,
   }), 10_000, async () => {
     const [record, observedHead] = await Promise.all([
-      readCandidateRecord(input.root, input.workUnit, { exec: input.exec }),
+      readCandidateRecord(input.root, input.workUnit, { store: invocation.store, owner: invocation.workItem, exec: input.exec }),
       input.exec("git", ["rev-parse", "HEAD"], { cwd: input.root }),
     ]);
     if (record?.attestation.candidateId !== input.candidateId
       || observedHead.stdout.trim() !== input.headSha) {
       throw new Error("accepted frontline skip no longer matches the current Candidate target");
     }
-    const store = new LocalReviewOperationStateStore(
-      new RepositoryGitCommonStatePublisher(input.exec, input.root),
-    );
+    const store = createReviewCompositionContext({ ...invocation, cwd: input.root, exec: input.exec }).family.ports.inFlight;
     const owner = await readLaneProgressOwner(store, {
       lane: "frontline",
       repositoryId: input.repositoryId,
@@ -4328,21 +4380,21 @@ function buildPrePublicationResumeCommand(input: {
   return `arc review pre-publication ${input.workUnit} --resume ${resume}`;
 }
 
-function prePublicationStandardLaneAccess(exec: GitExec): Pick<
+function prePublicationStandardLaneAccess(exec: GitExec, invocationFor: (root: string) => ReviewInvocationContext): Pick<
   ReviewPrePublicationHandlerDependencies, "readStandardLaneOwnerVersion" | "withStandardLaneLock"
 > {
   return {
     readStandardLaneOwnerVersion: async (root, candidateId, headSha) => {
-      const publisher = new RepositoryGitCommonStatePublisher(exec, root);
+      const { publisher, family } = createReviewCompositionContext({ ...invocationFor(root), cwd: root, exec });
       const repositoryId = await resolveRepositoryIdentity(publisher);
-      const store = new LocalReviewOperationStateStore(publisher);
+      const store = family.ports.inFlight;
       return (await readLaneProgressOwnerVersioned(store, {
         lane: "standard", repositoryId, headSha,
         lineage: { kind: "candidate", candidateId },
       })).version;
     },
     withStandardLaneLock: async (root, candidateId, headSha, action) => {
-      const publisher = new RepositoryGitCommonStatePublisher(exec, root);
+      const { publisher } = createReviewCompositionContext({ ...invocationFor(root), cwd: root, exec });
       const repositoryId = await resolveRepositoryIdentity(publisher);
       return withRepositoryReviewOperationLock(exec, root, laneContinuationOperationId({
         lane: "standard", repositoryId, headSha,
@@ -4354,18 +4406,12 @@ function prePublicationStandardLaneAccess(exec: GitExec): Pick<
 
 function defaultPrePublicationDependencies(
   interaction?: InteractionContext,
+  invocation: ReviewInvocationOptions = {},
 ): ReviewPrePublicationHandlerDependencies {
   const boundary = defaultReviewHandlerBoundary();
   const exec = createGitExec(interaction?.subprocess);
-  const reviewRecordStores = new Map<string, Store>();
-  const recordStoreFor = (root: string): Store => {
-    let store = reviewRecordStores.get(root);
-    if (store === undefined) {
-      store = createStore(createDefaultStorePorts({ checkoutRoot: root, exec }));
-      reviewRecordStores.set(root, store);
-    }
-    return store;
-  };
+  const invocationFor = createReviewInvocationResolver(exec, invocation);
+  const recordStoreFor = (root: string): Store => invocationFor(root).store;
   const boundarySnapshots = new Map<string, Awaited<ReturnType<typeof readSubmissionBoundaryVersioned>>>();
   return {
     resolveRoot: (cwd) => boundary.resolveRoot(cwd),
@@ -4373,17 +4419,17 @@ function defaultPrePublicationDependencies(
     readRootGitHead: async (root) => GitObjectIdSchema.parse(
       (await exec("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim(),
     ),
-    readCandidate: (root, workUnit) => createPrePublicationCompositionDependencies({ cwd: root, exec, store: recordStoreFor(root) })
+    readCandidate: (root, workUnit) => createPrePublicationCompositionDependencies({ ...invocationFor(root), cwd: root, exec })
       .readCandidate(workUnit),
     readBoundary: async (root, workUnit) => {
-      const snapshot = await readSubmissionBoundaryVersioned(root, workUnit, { store: recordStoreFor(root) });
+      const snapshot = await readSubmissionBoundaryVersioned(root, workUnit, { store: recordStoreFor(root), owner: invocationFor(root).workItem });
       boundarySnapshots.set(workUnit, snapshot);
       return snapshot;
     },
-    ...prePublicationStandardLaneAccess(exec),
+    ...prePublicationStandardLaneAccess(exec, invocationFor),
     compose: async (root, input, judgment) => {
       const snapshot = boundarySnapshots.get(input.name)
-        ?? await readSubmissionBoundaryVersioned(root, input.name, { store: recordStoreFor(root) });
+        ?? await readSubmissionBoundaryVersioned(root, input.name, { store: recordStoreFor(root), owner: invocationFor(root).workItem });
       boundarySnapshots.set(input.name, snapshot);
       const composition = await composePrePublicationReviewRequest(
         {
@@ -4395,7 +4441,7 @@ function defaultPrePublicationDependencies(
             ? {}
             : { frontlineCeilingHeadSha: judgment.frontlineCeilingHeadSha }),
         },
-        createPrePublicationCompositionDependencies({ cwd: root, exec, store: recordStoreFor(root) }),
+        createPrePublicationCompositionDependencies({ ...invocationFor(root), cwd: root, exec }),
       );
       const existing = snapshot.boundary;
       let carried = composition;
@@ -4417,7 +4463,7 @@ function defaultPrePublicationDependencies(
     },
     persistBoundary: async (root, settled) => {
       const snapshot = boundarySnapshots.get(settled.workUnit)
-        ?? await readSubmissionBoundaryVersioned(root, settled.workUnit, { store: recordStoreFor(root) });
+        ?? await readSubmissionBoundaryVersioned(root, settled.workUnit, { store: recordStoreFor(root), owner: invocationFor(root).workItem });
       const existing = snapshot.boundary;
       const preservesReservation = existing !== null
         && existing.candidateId === settled.candidateId
@@ -4427,18 +4473,19 @@ function defaultPrePublicationDependencies(
         && settled.terminus === null;
       const path = await writeSubmissionBoundary(root, parseIntegrationBoundaryLocus(preservesReservation
         ? { ...settled, reservation: existing.reservation }
-        : settled), snapshot.version, { store: recordStoreFor(root) });
+        : settled), snapshot.version, { store: recordStoreFor(root), owner: invocationFor(root).workItem });
       await exec("git", ["add", "--", path], { cwd: root });
     },
     persistAcceptedFrontlineSkip: (root, accepted) => persistAcceptedFrontlineSkip({
+      ...invocationFor(root),
       root,
       ...accepted,
       exec,
     }),
     recoverAttestationOrdering: async (root, recovered, expectedVersion) => {
-      const path = await writeSubmissionBoundary(root, recovered, expectedVersion, { store: recordStoreFor(root) });
+      const path = await writeSubmissionBoundary(root, recovered, expectedVersion, { store: recordStoreFor(root), owner: invocationFor(root).workItem });
       await exec("git", ["add", "--", path], { cwd: root });
-      boundarySnapshots.set(recovered.workUnit, await readSubmissionBoundaryVersioned(root, recovered.workUnit, { store: recordStoreFor(root) }));
+      boundarySnapshots.set(recovered.workUnit, await readSubmissionBoundaryVersioned(root, recovered.workUnit, { store: recordStoreFor(root), owner: invocationFor(root).workItem }));
     },
     write: (text) => {
       boundary.write(text);
@@ -4473,8 +4520,9 @@ export async function handleReviewPrePublication(
   options: ReviewPrePublicationOptions,
   overrides: Partial<ReviewPrePublicationHandlerDependencies> = {},
   interaction?: InteractionContext,
+  invocation: ReviewInvocationOptions = {},
 ): Promise<void> {
-  const dependencies = { ...defaultPrePublicationDependencies(interaction), ...overrides };
+  const dependencies = { ...defaultPrePublicationDependencies(interaction, invocation), ...overrides };
   const target = SlugSchema.safeParse(name.trim());
   const remedyFor = (code: ReviewPrePublicationRefusalCode): SpineRemedy => target.success
     ? prePublicationRemedy(code, target.data)

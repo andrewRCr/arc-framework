@@ -476,7 +476,7 @@ export function createPrePublicationCompositionDependencies(options: ReviewInvoc
   const publisher = context.publisher;
   const rawGit = createRawGitExec(input.cwd);
   const store = context.family.ports.inFlight;
-  const resultReader = createRepositoryReviewResultReader(publisher);
+  const resultReader = createRepositoryReviewResultReader(publisher, input);
   const dispositionStore = context.family.ports.dispositions;
   const deliveryMemberLookup = new RepositoryDeliveryMemberLookup(input);
   const deliveryReviewTargetDependencies = createPreBindingDeliveryReviewTargetDependencies(input);

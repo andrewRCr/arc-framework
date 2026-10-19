@@ -598,7 +598,7 @@ export async function readRoutedObligation(
       const { publisher, family } = createReviewCompositionContext({ ...invocation, cwd, exec });
       const store = family.ports.inFlight;
       const dispositionStore = family.ports.dispositions;
-      const resultReader = createRepositoryReviewResultReader(publisher);
+      const resultReader = createRepositoryReviewResultReader(publisher, invocation);
       const snapshot = await store.readOperationSnapshot();
       const repositoryId = await resolveRepositoryIdentity(publisher);
       const policy = await resolveConfiguredLanePolicy({

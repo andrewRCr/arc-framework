@@ -39,7 +39,7 @@ async function readNextContext(input: LaneReadBoundary & {
   const terminal = input.progress.filter(owner => owner.lane === "standard").flatMap(owner => owner.attempts)
     .filter(attempt => attempt.terminalProducer).at(-1);
   if (terminal === undefined) return { completePasses, convergence: "none", responseDue: false, incremental: null };
-  const resultReader = createReadOnlyRepositoryReviewResultReader(input.publisher, input.target.repositoryId);
+  const resultReader = createReadOnlyRepositoryReviewResultReader(input.publisher, input.target.repositoryId, input);
   const predecessor = await resultReader.readResult(terminal.attemptId);
   if (predecessor.kind === "frontline") throw new Error("standard lane contains a frontline producer");
   const { obligation, reasons, rubricVersion, rubricDigest, retrigger, count } = predecessor.requirement;

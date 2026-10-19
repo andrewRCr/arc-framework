@@ -593,7 +593,7 @@ export function createHostedReservationDischargeReader(options: ReviewInvocation
   const publisher = context.publisher;
   const store = context.family.ports.inFlight;
   const dispositions = context.family.ports.dispositions;
-  const resultReader = createRepositoryReviewResultReader(publisher);
+  const resultReader = createRepositoryReviewResultReader(publisher, input);
   let maxPassesPromise: Promise<number> | null = null;
   const maxPasses = () => {
     maxPassesPromise ??= readConfigSettings(input.cwd).then(({ settings }) => (

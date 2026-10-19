@@ -267,7 +267,7 @@ function createBoundLocalPrepareDependencies(input: ReviewInvocationInput & Retu
   const operationStore = family.ports.inFlight;
   const sourceStore = new RepositoryLocalReviewSourceStore(publisher);
   const dispositionStore = family.ports.dispositions;
-  const resultReader = createRepositoryReviewResultReader(publisher);
+  const resultReader = createRepositoryReviewResultReader(publisher, input);
   const sweepAdapter = new RepositoryLocalReviewSourceSweepAdapter(input.exec, input.cwd);
   let receiptStore: Promise<LocalForwardReviewReceiptStore> | null = null;
   const receipts = () => {

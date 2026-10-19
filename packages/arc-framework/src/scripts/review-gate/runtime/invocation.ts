@@ -32,3 +32,17 @@ export function resolveReviewInvocation(input: ReviewInvocationInput): ReviewInv
   return { store, projectId: input.projectId ?? createProjectIdentityReader(store),
     ...(input.workItem === undefined ? {} : { workItem: input.workItem }) };
 }
+
+/** Retain one bound invocation for each checkout resolved by a handler's deferred callbacks. */
+export function createReviewInvocationResolver(exec: GitExec, options: ReviewInvocationOptions = {}):
+  (cwd: string) => ReviewInvocationContext {
+  const contexts = new Map<string, ReviewInvocationContext>();
+  return cwd => {
+    let context = contexts.get(cwd);
+    if (context === undefined) {
+      context = resolveReviewInvocation({ ...options, cwd, exec });
+      contexts.set(cwd, context);
+    }
+    return context;
+  };
+}

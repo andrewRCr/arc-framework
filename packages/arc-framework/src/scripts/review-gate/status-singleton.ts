@@ -108,7 +108,7 @@ async function resolveSingletonRequest(
     additionalPassAuthorization: input.judgment?.additionalPassAuthorization,
     ...(invocation === undefined ? {} : { invocation }),
   }, {
-    resultReader: createRepositoryReviewResultReader(publisher),
+    resultReader: createRepositoryReviewResultReader(publisher, input),
     dispositionStore: family.ports.dispositions,
     readResponsePerformance: (predecessor) => readLaneResponsePerformance(store, predecessor),
     confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),

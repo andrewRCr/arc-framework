@@ -30,7 +30,7 @@ export function createReduceDependencies(options: ReviewInvocationInput): Reduce
     operationStore: prepare.operationStore,
     sourceStore: prepare.sourceStore,
     outcomeStore: new LocalFrontlineOutcomeStore(publisher),
-    resultReader: createRepositoryReviewResultReader(publisher),
+    resultReader: createRepositoryReviewResultReader(publisher, input),
     dispositionStore: family.ports.dispositions,
     readReceiptEntries: async (targetId) => (await receipts()).readReceiptEntries(targetId),
     confirmTarget: (target) => prepare.confirmTarget(target),

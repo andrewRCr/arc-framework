@@ -40,7 +40,7 @@ export function createLocalResumeDependencies(input: {
       ),
     },
     dispositionStore: family.ports.dispositions,
-    resultReader: createRepositoryReviewResultReader(publisher),
+    resultReader: createRepositoryReviewResultReader(publisher, context),
     confirmTarget: (target) => prepare.confirmTarget(target),
     materialize: (source) => ensureLocalReviewSourceMaterialized({
       exec: input.exec,

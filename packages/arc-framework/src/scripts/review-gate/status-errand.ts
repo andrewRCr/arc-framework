@@ -1,6 +1,6 @@
 /** Positive Errand identity and exact-head lane progress for review status. */
 
-import { resolveReviewInvocation, type ReviewInvocationInput } from "./runtime/invocation.js";
+import { resolveReviewInvocation, type ReviewInvocationInput, type ReviewInvocationOptions } from "./runtime/invocation.js";
 import { createReviewCompositionContext } from "./runtime/composition-context.js";
 import { projectReviewDriverRefusal } from "./status-driver-refusal.js";
 import { readTransientIdentitySnapshot } from "../../lib/errand/identity-snapshot.js";
@@ -547,6 +547,7 @@ async function currentErrandDiffBase(
 
 /** Carry one claim's spent passes into the status of a new, unreviewed head. */
 async function readUnreviewedErrandHead(input: {
+  readonly invocation?: ReviewInvocationOptions;
   readonly dispositionStore: ApprovedDispositionRecordReader;
   cwd: string;
   exec: GitExec;
@@ -584,7 +585,7 @@ async function readUnreviewedErrandHead(input: {
   });
   const policyTarget = { repository: target.repository, pullRequest: input.pullRequest,
     headSha: target.headSha };
-  const resultReader = createRepositoryReviewResultReader(input.publisher);
+  const resultReader = createRepositoryReviewResultReader(input.publisher, input.invocation);
   const result = await resultReader.readResult(historical.attemptId).catch((error: unknown) => {
     if (error instanceof LocalReviewResultReaderError
       && (error.code === "missing-producer" || error.code === "missing-result")) return null;
@@ -800,6 +801,7 @@ export async function readErrandRoutedObligation(options: ReviewInvocationInput 
     }
     if (progress.attempts.length === 0 && progress.completedPasses > 0) {
       const continuation = await readUnreviewedErrandHead({
+        invocation: input,
         dispositionStore,
         cwd: input.cwd, exec, rawExec: input.rawExec, publisher, store, repositoryId, errand: selected.record,
         target: input.target, pullRequest: input.pullRequest, sourceId: input.sourceId,
@@ -888,7 +890,7 @@ export async function readErrandRoutedObligation(options: ReviewInvocationInput 
       return { state: "review-required", detail: "The exact Errand standard-review lane is not settled." };
     }
     const terminal = latest.attempt;
-    const resultReader = createRepositoryReviewResultReader(publisher);
+    const resultReader = createRepositoryReviewResultReader(publisher, input);
     const result = await resultReader.readResult(terminal.attemptId);
     if (result.kind === "frontline" || result.admission.lineage.kind !== "head-bound"
       || result.admission.lineage.vehicleKind !== "errand"
