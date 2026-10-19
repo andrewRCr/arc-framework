@@ -395,22 +395,17 @@ that step fails; and the preview afterward reports the cut landed, naming its me
   lineage; no-map and abandoned origins retain their distinct refusals. Shared acquisition caches preserve normal-run
   observations while the executor still revalidates against the original store.
 
-### `[ ]` **3.7 Keep a cut's reads flat — § 8.1, Goal 7**
+### `[x]` **3.7 Keep a cut's reads flat — § 8.1, Goal 7**
 
 - _Goal:_ Each batch reads the origin's group, the selected cohort documents, the existing homes, and the dependents the
   listing names a fixed number of times each, and the `history` of the stored map and of each item a member's slug finds
   once per run, those counts unchanged by the records' history or by unrelated work items, and nothing from Git but
   § 11's locus reads.
 
-    - A new read-counting store wrapper in `__tests__/helpers/store/`, counting `read`, `list`, `lookup`, and `history`
-      by reference, built as `archive-store.test.ts`'s fault-injecting proxies are, which stay as they are. The counts
-      prove how often each record is read, not what one `history` read costs, which is the backend's (the spec's
-      Cross-cutting Performance).
-    - Write checks read through the backend's own view, so the counts are the verb's and the executor's: in a
-      retirement, the executor's lifecycle listing, its read of the primary, and its revalidation before the batch
-      (`executeStoreTransition`).
-    - Assert each batch's counts over a cut, then over the same cut with long record histories and many unrelated work
-      items.
+- _Outcome:_ `createCountingStore` counts public read, list, lookup, and history requests while binding backend writes
+  to their own view. A checked at-cap cut proves stable additive, preview, and apply counts under longer histories and
+  growth in unrelated work, with exact terminal record-read budgets and one map/member history query per run. The
+  scripted Git boundary admits no calls.
 
 ### `[ ]` **3.8 A retirement end to end** — validate exit criterion at segment scope
 
