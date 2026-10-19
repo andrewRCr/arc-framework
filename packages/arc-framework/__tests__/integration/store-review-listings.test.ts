@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { trackedWriteFixture, candidateFixture, boundaryFixture } from "../helpers/store/tracked-write-fixture.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { success } from "../helpers/store/suite-tools.js";
+import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 
 const locations = ["active","planned","provisional","completed"] as const;
 const placements = [
@@ -83,5 +84,28 @@ describe.each(["review/candidate","review/integration-boundary"] as const)("%s o
       .toMatchObject({status:"complete",records:[saved]});
     expect(success(await h.store.list({family:"review",kind,filter:{locations:["completed"]}}))).toMatchObject({status:"absent"});
     expect(success(await h.store.list({family:"review",kind,filter:{heldHere:true}}))).toMatchObject({status:"absent"});
+  });
+
+  it("reads its held completed owner despite a failed foreign branch acquisition", async () => {
+    const h = await fixture();
+    await h.exec("git", ["checkout", "-b", "feat/foreign"]);
+    await put(h.root, ".arc/active/meta-foreign.md", makeMetaFixture("foreign", { branch: "feat/foreign" }));
+    await h.exec("git", ["add", "."]);
+    await h.exec("git", ["commit", "-m", "Save foreign owner"]);
+    await h.exec("git", ["checkout", "main"]);
+    await put(h.root, ".arc/completed/2026-q4/01_example/meta-example.md", makeMetaFixture("example", { state: "Shipped" }));
+    success(await h.plant());
+    const actual = h.ports.exec;
+    h.ports.exec = async (command, args, options) => {
+      if (args[0] === "ls-tree" && args.includes("--full-tree") && args.some((arg) => arg.includes("feat/foreign"))) {
+        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "Foreign object acquisition failed" });
+      }
+      return actual(command, args, options);
+    };
+    await expect(h.store.read({ reference: h.reference("work-item/meta", "missing") }))
+      .rejects.toMatchObject({ code: "store.lifecycle-incomplete" });
+    await expect(h.store.read({ reference: h.recordReference })).resolves.toMatchObject({ status: "ok", result: {
+      placement: { kind: "completed", quarter: "2026-q4", sequence: "01" },
+    } });
   });
 });

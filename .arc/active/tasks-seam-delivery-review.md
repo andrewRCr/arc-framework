@@ -232,23 +232,15 @@ retires.
           code-head checks and invalidates old HEAD-bound checkpoints with the re-checkpoint remedy. Reference-store
           cases cover selected-meta movement, unrelated writes, and retry; in-repo fixtures use record versions.
 
-### `[ ]` **2.2 Read a review record's placement from the reading checkout's own tree — § 3.1**
+### `[x]` **2.2 Read a review record's placement from the reading checkout's own tree — § 3.1**
 
 - _Goal:_ Wherever today's store read returns a Candidate or boundary record, the store's in-repo read returns it too:
   its placement comes from the reading checkout's flat-active meta, then the tree's other lifecycle tiers, before any
   composed selection that could refuse `store.lifecycle-incomplete`.
 
-    - `lib/store/in-repo/read.ts` takes a review record's placement from `heldMetaSources` over the working tree before
-      `selectMeta`'s composed selection (`requireComposedMetaSelection`); a tier the tree cannot read refuses nothing
-      for a record whose meta another tier holds. The listing already takes held metas first (`metaListingSources`,
-      `list.ts`).
-    - Build `test-first` (one behavior at a time):
-        - a record whose meta is flat-active reads at placement `active`
-        - a record whose meta sits only in the same tree's `completed/` reads at its completed placement with no
-          composed lifecycle read
-        - an absent record file reads as not found before any placement
-        - a branch-level acquisition failure elsewhere refuses nothing for a record whose meta the tree holds
-        - an unreadable lifecycle tier refuses nothing for a record whose meta another tier holds
+- _Outcome:_ Review reads select flat-active metadata, then held-tree metadata, before composed lifecycle. A held
+  owner's placement survives access-denied diagnostics from another tier and foreign-branch acquisition failure;
+  missing review bytes still return not-found before placement, and saved-tree reads retain their revision.
 
 ### `[ ]` **2.3 Move the paths, the typed access, and the Candidate history read to `lib/store/kinds/review/` — § 3.1**
 
