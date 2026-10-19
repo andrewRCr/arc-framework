@@ -288,34 +288,16 @@ removes the primary and the stored map, rewrites stub dependents, writes home ed
 fan-out block, in one batch; the teardown step completes over the lineage record, as `arc teardown <origin>` does after
 that step fails; and the preview afterward reports the cut landed, naming its members.
 
-### `[ ]` **3.1 Acquire the terminal batch's records — § 8.1**
+### `[x]` **3.1 Acquire the terminal batch's records — § 8.1**
 
 - _Goal:_ The terminal batch reads each record it needs once, through the store, at its version — the stored map by the
   origin's slug, the origin's whole group, each member's meta, the cohort documents the map names, the existing homes,
   and the stub dependents the listing finds, the members left out — and keeps those versions as its guards.
 
-    - The stored map through `lookup` on the origin's slug and the kind's singleton reference for that owner (§ 4), read
-      once, since the origin's group listing already holds it (`acquireLifecycleRecords`); a member by its map slug,
-      which `lookup` resolves through a rename, and the member only where its primary's creation entry in `history`
-      names that slug as the owner it was created under and carries the `batchId` of an entry naming `decompose` in the
-      stored map's `history` since the map was last created — the additive batch or a revision
-      (`StoredProvenanceSchema`, `lib/store/links.ts`) — an entry with no `batchId` matching none: an item that took the
-      slug of a member abandoned since, or a sibling renamed to it, is not that member, which leaves the member gone
-      (task 3.2.b). The member test is one function, whose accepted owners are the members task 2.2.a's scan leaves out,
-      and each record's `history` is read once per run of the verb.
-    - Each existing home resolved through `lookup` before its records are acquired, as task 2.4.c resolves it: one
-      resolving to nothing, to a completed work unit, or to an Errand refuses before anything is written, naming
-      `--revise` to retarget its allocations.
-    - No stored map refuses, naming `--execute` or `--extract`, but for a landed cut (task 3.6). A stored map conflicted
-      by a sync takes task 5.5's refusal, which this task does not build.
-    - Build `test-first` (one behavior at a time):
-        - each record is acquired once, at the version the batch then guards
-        - no stored map refuses, and the acquisition passes after the additive batch
-        - a member abandoned since and its slug taken by a new stub reads as gone, the new stub untouched
-        - a sibling stub renamed to an abandoned member's slug is not taken as that member, which reads as gone, and is
-          found by its own map slug as a member renamed
-        - a stored map created again after an earlier cut of the same origin admits only the current cut's members
-        - a home abandoned or shipped since the additive batch refuses, naming `--revise`
+- _Outcome:_ `acquireDecomposeTerminal` shares version-bound observations across the complete origin, members,
+  cohorts, homes, and current stub dependents. `isDecomposeMemberBirth` authenticates each member's birth name and
+  batch against the current map incarnation; only those owners leave the incoming scan, and each history is read
+  once. Closed homes name `--revise`; a missing map names the additive modes.
 
 ### `[ ]` **3.2 Check the origin's current kind and the seeded fields — § 8.2, § 8.3**
 

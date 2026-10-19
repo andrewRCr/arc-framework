@@ -79,3 +79,10 @@ instructions without a content write; the next action authors destinations befor
 `additive-recheck.ts` repeats binding and admission after persistence refuses, explaining competing stored cuts and
 name acquisitions before returning a store failure. An unexplained version conflict retains its complete store
 refusal and adds the exact additive retry action; other failures preserve their original recovery information.
+
+`acquire-terminal.ts` acquires a stored cut's complete preparation inputs and version guards. `read-cache.ts`
+shares listed and individually read records within preparation; revalidation uses the original store.
+`member-identity.ts` authenticates members by their birth names and creation batches against decomposition history
+since the map's latest creation, sharing history reads for aliases. Accepted member generations alone leave the
+incoming scan. `acquire-terminal-targets.ts` retains named cohort documents and complete open-home groups, directing
+closed-home allocations through revision.
