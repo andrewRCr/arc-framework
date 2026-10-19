@@ -3,20 +3,14 @@
   "slug": "isolate-check-selection-receipts",
   "claimId": "ac5d15b118b95c9a6ccdec2263283ac3",
   "createdAt": "2026-10-19T13:46:59.225Z",
-  "updatedAt": "2026-10-19T14:16:13.084Z",
+  "updatedAt": "2026-10-19T15:00:32.841Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Give concurrently executing check-selection fixture commands separate receipts so assertions do not depend on completion order.",
   "branch": "chore/isolate-check-selection-receipts",
   "origin": "description",
   "originEntry": null,
-  "state": "awaiting-merge",
+  "state": "open",
   "savedHead": null,
-  "changeRequest": {
-    "repositoryRef": "andrewRCr/arc-framework",
-    "hostRef": "github.com",
-    "baseRef": "main",
-    "headRef": "chore/isolate-check-selection-receipts",
-    "headSha": "d515380d28945b915b359bca061fc7072e5fae20"
-  }
+  "changeRequest": null
 }
