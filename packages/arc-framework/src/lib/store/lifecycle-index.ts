@@ -106,7 +106,8 @@ function indexedListing(result: StoreResult<ListingOutcome>): StoreResult<Lifecy
   return { status: "ok", result: { ...evidence, index, diagnostics,
     missed: evidence.missed || diagnostics.length > evidence.diagnostics.length } };
 }
-function identityKey(owner: OwnerIdentity): string {
+/** Stable grouping key shared by lifecycle entries and their identity-owned companion records. */
+export function identityKey(owner: OwnerIdentity): string {
   return JSON.stringify([owner.type, owner.type !== "person" && owner.uid !== undefined ? ["uid", owner.uid] : ["name", owner.name]]);
 }
 function lifecycleEntry(record: StoreRecord): LifecycleEntry | ListingDiagnostic | undefined {

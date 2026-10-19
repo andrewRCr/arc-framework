@@ -205,23 +205,15 @@ one renderer, built in Task 3.6: stderr `Error [<code>]: <condition> <remedy>` a
   orders archived holders by quarter and numeric sequence, and omits clashes with holder-specific diagnostics.
   Name-bearing meta diagnostics withhold every namesake; record-key diagnostics leave unrelated entries intact.
 
-### `[ ]` **3.2 Map standing entries to readiness records, purposes from one listing per design kind — § 2.1**
+### `[x]` **3.2 Map standing entries to readiness records, purposes from one listing per design kind — § 2.1**
 
 - _Goal:_ Each standing entry becomes a readiness record carrying its slug, location, state, owner, validated priority,
   `dependsOn`, cohort, the store source, Class, pause, and its own work unit's design purpose, with each design kind
   listed once per render.
 
-    - List `work-item/spec`, `work-item/draft`, and `work-item/companion` once each with no owner, group by the owner's
-      identity through `identityKey` (`lib/store/lifecycle-index.ts`), exported for it, the UID where present, as
-      lifecycle's view keys entries, and select each work unit's design through Task 1.2's selection and extractor.
-    - An `absent` design listing adds nothing; a refused or `unreadable` one empties every purpose and adds a
-      `store-read-failed` warning with its condition and remedy; a complete one's diagnostics add `listing-diagnostic`
-      warnings.
-    - Build `test-first` (one behavior at a time):
-        - a standing entry maps every field, priority validated as `validatePriority` does
-        - a reused slug's purpose comes from its own work unit's design, not the completed holder's
-        - an `unreadable` design listing renders every purpose empty with one warning, over a `Store` wrapper
-        - three design listings are made per render, however many work units
+- _Outcome:_ `readStoreProjectRecords` maps parsed lifecycle fields and groups three design inventories through the
+  exported `identityKey`, preserving generation-specific purposes. Failed inventories clear all purposes with repair
+  warnings; complete listings retain their readable purposes and disclose omitted records through shared diagnostics.
 
 ### `[ ]` **3.3 Resolve an unlisted edge by slug, then by lineage origin — § 2.2**
 
