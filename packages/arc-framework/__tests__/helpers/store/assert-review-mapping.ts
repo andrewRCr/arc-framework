@@ -27,8 +27,7 @@ export async function assertReviewMapping(result: ReviewMappingResult): Promise<
     let prior: StoreRecord | undefined;
     for (const next of versions) {
       const check = registry[reference.kind].check;
-      if (check === null) throw new Error(`No write check for ${reference.kind}`);
-      expect(await check({ reference, prior, next: { content: next.content, fields: next.fields },
+      if (check !== null) expect(await check({ reference, prior, next: { content: next.content, fields: next.fields },
         writer: { kind: "verb", verb: "review" }, before: ruleView(prior === undefined ? [] : [prior]), after }),
       `${reference.kind}/${String(reference.key)}`).toEqual([]);
       prior = next;

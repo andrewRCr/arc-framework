@@ -10,6 +10,7 @@ import type { ReviewMappingSource } from "./mapping-listing.js";
 export interface ReviewMappingSources {
   discarded: Map<string, string>;
   operations: Map<string, ReviewOperationState>;
+  operationVersions: Map<string, number>;
   frontline: Map<string, FrontlineOutcomeRecord>;
   receipts: { source: string; receipts: ReviewReceiptV2[] }[];
 }
@@ -23,7 +24,10 @@ function indexOperation(source: Extract<ReviewMappingSource, { kind: "gate" }>, 
   index: ReviewMappingSources): void {
   const record = ReviewOperationStoreRecordSchema.parse(decodeReviewMappingSource(source));
   if (record.operationId !== record.state.operationId) throw new Error(`Operation identity mismatch: ${source.source}`);
-  if (record.state.repositoryId === projectId) index.operations.set(source.source, record.state);
+  if (record.state.repositoryId === projectId) {
+    index.operations.set(source.source, record.state);
+    index.operationVersions.set(source.source, record.version);
+  }
   else index.discarded.set(source.source, "Record names another repository ID.");
 }
 
@@ -44,7 +48,7 @@ function indexReceipts(source: Extract<ReviewMappingSource, { kind: "gate" }>, p
 
 /** Gather join inputs from active source namespaces belonging to the adopted repository. */
 export function indexReviewMappingSources(sources: readonly ReviewMappingSource[], projectId: string): ReviewMappingSources {
-  const index: ReviewMappingSources = { discarded: new Map(), operations: new Map(), frontline: new Map(), receipts: [] };
+  const index: ReviewMappingSources = { discarded: new Map(), operations: new Map(), operationVersions: new Map(), frontline: new Map(), receipts: [] };
   for (const source of sources) {
     if (source.kind !== "gate" || !source.source.endsWith(".json")) continue;
     if (source.source.startsWith("arc/review-gate/operations/")) indexOperation(source, projectId, index);

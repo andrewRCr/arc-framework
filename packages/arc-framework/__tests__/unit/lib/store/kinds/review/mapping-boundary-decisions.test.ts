@@ -179,14 +179,21 @@ it("refuses replay lane judgments that their original authority rejects", () => 
 
 it.each(["response", "post-attestation", "both", "convergence"])("recovers saved replay choices once from %s", async (location) => {
   const { input, boundary } = boundaryInput();
+  const { createLocalMappingFixture } = await import("../../../../../fixtures/review-mapping.js");
+  const fixture = await createLocalMappingFixture({ imported: input,
+    lineage: { kind: "candidate", candidateId: boundary.candidateId }, vehicle: { kind: "work-unit", identity: "example" } });
+  await fixture.conclude();
+  input.gate = fixture.input().gate;
+  const producer = await fixture.resultReader.readResult(fixture.state.operationId);
+  if (producer.kind !== "attested-local") throw new Error("Expected native local response");
   const token = Buffer.from(JSON.stringify({ lanes: { standard: { additionalPassAuthorization: {
     headSha: "b".repeat(40), precedingProducerId: "producer-2", completedPasses: 2, nextPass: 3 } } } })).toString("base64url");
   const command = `arc review pre-publication example --resume ${token}`;
   const nextAction = { kind: "continue-pre-publication-review", command, interactionText: "Resume review." } as const;
   const { bindReviewSourceReference } = await import("../../../../../../src/scripts/review-gate/core/review-source-reference.js");
   const response = { kind: "continue-pre-publication-review", command: "arc review respond -", interactionText: "Respond.",
-    resumeCommand: command, responseOperationId: "producer-2", responseSource: { kind: "attested-local",
-      receiptRef: bindReviewSourceReference({ kind: "attested-local", operationId: "producer-2", durableRef: "receipt-2" }) } };
+    resumeCommand: command, responseOperationId: producer.producerId, responseSource: { kind: "attested-local",
+      receiptRef: bindReviewSourceReference({ kind: "attested-local", operationId: producer.producerId, durableRef: producer.receiptRef }) } };
   const continuation = { reviewedHead: "b".repeat(40), nextAction, projectionDisposition: "keep-staged-until-publication" } as const;
   const { createRunConvergenceVerificationAction } = await import("../../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js");
   input.candidates[0]!.boundary = JSON.stringify(IntegrationBoundaryLocusSchema.parse(location === "convergence"
@@ -199,7 +206,8 @@ it.each(["response", "post-attestation", "both", "convergence"])("recovers saved
   expect(decisions).toHaveLength(1);
   expect(JSON.parse(decisions[0]!.contents[0]!)).toMatchObject({ choice: { kind: "extra-pass", passCount: 2,
     precondition: { kind: "additional", precedingProducerId: "producer-2" } } });
-  expect(result.listing.find(({ source }) => !source.includes("@"))?.records)
-    .toEqual([decisions[0]!.reference]);
+  const boundaryRecord = result.records.find(({ reference }) => reference.kind === "review/integration-boundary")!;
+  expect(result.listing.find(({ records }) => records.some((reference) => reference.kind === "review/integration-boundary"))?.records)
+    .toEqual([decisions[0]!.reference, boundaryRecord.reference]);
   await assertReviewMapping(result);
 });

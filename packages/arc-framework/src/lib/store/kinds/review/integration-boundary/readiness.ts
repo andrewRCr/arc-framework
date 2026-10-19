@@ -1,7 +1,7 @@
 /** Canonical review-progress binding for publication readiness. */
 import { canonicalDigest, sortByCanonicalBytes, type CanonicalDigest } from "../../../../kernel/index.js";
 import { laneSubjectOwner, type LaneSubjectOwner } from "../../../../../scripts/review-gate/core/lane-admission.js";
-import type { ListingOutcome } from "../../../read.js";
+import type { ListingOutcome, StoreRecord } from "../../../read.js";
 import { parseReviewOutcome } from "../outcome/parser.js";
 import { reviewOutcomeKey } from "../outcome/key.js";
 import { parseReviewEvidence } from "../evidence/parser.js";
@@ -13,10 +13,15 @@ export interface ReadinessInFlightAttempt {
   attemptId: string;
   hosted?: { admission: { admissionId: string } };
 }
+/** Completeness evidence plus only the stored fields the canonical binding reads. */
+export type ReviewReadinessListing = Exclude<ListingOutcome, { status: "complete" }>
+  | (Omit<Extract<ListingOutcome, { status: "complete" }>, "records"> & {
+    records: readonly Pick<StoreRecord, "reference" | "content">[];
+  });
 export interface ReviewReadinessInput {
-  outcomes: ListingOutcome;
-  evidence: ListingOutcome;
-  decisions: ListingOutcome;
+  outcomes: ReviewReadinessListing;
+  evidence: ReviewReadinessListing;
+  decisions: ReviewReadinessListing;
   subjectOwner: LaneSubjectOwner;
   inFlight: readonly ReadinessInFlightAttempt[];
 }
@@ -57,7 +62,7 @@ function bindingEntries(records: readonly BindingRecord<unknown>[]) {
   return sortByCanonicalBytes(records.map(({ key, digest }) => ({ key, digest })));
 }
 
-function readListing<T>(listing: ListingOutcome, kind: string, parse: (content: string) => T | null,
+function readListing<T>(listing: ReviewReadinessListing, kind: string, parse: (content: string) => T | null,
   keyOf: (value: T) => string): BindingRecord<T>[] {
   if (listing.status === "absent") return [];
   if (listing.status === "unreadable") throw new Error(`${kind}: ${listing.condition}`);

@@ -362,7 +362,7 @@ Candidates supplied, is what exercises the mapping over real records. Its table 
 the review gate's lineages name, since this clone's Errand ref holds none and an Errand's records name it by claim ID
 alone.
 
-### `[ ]` **3.1 Build the mapping's module, its work-item resolution, and its listing — § 11, § 11.1, § 11.3, § 11.4**
+### `[x]` **3.1 Build the mapping's module, its work-item resolution, and its listing — § 11, § 11.1, § 11.3, § 11.4**
 
 - _Goal:_ A pure function takes the project ID, the review gate's folder, each live work unit's Candidate versions and
   boundary, and the import's work-item table, and returns records on their work items with their keys and a listing that
@@ -383,15 +383,11 @@ alone.
           entry per materialization folder. Per-source listings retain partial-mapping reasons and references, classify
           discarded sources with reasons, and omit every mapped reference for an in-flight source.
 
-    - `[ ]` **3.1.c A mapped set is valid**
+    - `[x]` **3.1.c A mapped set is valid**
 
-        - The module stays registry-free and checks nothing at runtime: its tests run each returned record through its
-          kind's parser and its write check with the returned set as the after-view, through the production registry,
-          3.8's run does so over this repository's records, and the import's own parse of what it writes is the
-          runtime backstop (§ 11.4).
-        - Build `test-first` (one behavior at a time):
-            - every record the mapping returns parses under its kind and passes its kind's write check over the returned
-              set
+        - Complete mapped sets cover outcomes, evidence, decisions, whole Candidate histories, and version-two
+          boundaries. Tests validate every returned version through the production parser and each registered write
+          check over the complete after-view; Candidate validation remains parser-owned and the mapping registry-free.
 
 ### `[x]` **3.2 Map lane progress, receipts, and frontline outcomes to outcomes, and leave working state behind — § 11.2**
 
@@ -426,38 +422,16 @@ alone.
   replay decoder and lane schema recover extra passes and unstored termini, whose basis uses mapped settlement and
   Candidate ancestry; duplicate decisions coalesce while every contributing source retains its reference.
 
-### `[ ]` **3.5 Map a live work unit's Candidate versions and boundary — § 11.2**
+### `[x]` **3.5 Map a live work unit's Candidate versions and boundary — § 11.2**
 
 - _Goal:_ A live work unit's every Candidate version maps whole, oldest first, and its boundary at its current content
   maps to version 2, keeping the publication state it holds today.
 
-    - 3.4's module (`rg/policy/pre-publication-replay.ts`) gains, beside today's replay schema and decoder, the
-      `--resume` token's schema from the flip, holding the call's own inputs alone, with its encoder and decoder
-      (6.2.c); the schema from the flip types its ordering recovery's `expectedBoundaryVersion` as a store version
-      (`RecordVersionSchema`).
-    - A next action's `responseOperationId` stays as recorded, the attempt ID its result's outcome keeps, and its
-      `responseSource`'s durable part resolves to that result's outcome key through the resolution 3.3 gives an
-      evidence record's source reference, a hosted one keeping its acknowledged `attemptId` (§ 9.3).
-    - Build `test-first` (one behavior at a time):
-        - every replayed Candidate version maps to a `review/candidate` version, transitions whole, and a review response
-          later versions repeat joins its evidence record once
-        - a Candidate version failing today's schema, and one whose supersession chain does not resolve, list as left
-          behind with their reason (§ 11.2)
-        - the boundary maps to version 2 with its terminus names, `responseOperationId` kept as recorded,
-          `responseSource`'s durable part resolved to its result's outcome key (a hosted one's kept), and `"merge"` in
-          place of `"tier-3"`
-        - a policy-review `candidate-review-pending` boundary maps to version 2's review-resume variant with no
-          `policy`, keeping its reservation and post-attest continuation (§ 9.1)
-        - a post-attest continuation maps without `projectionDisposition`, and no mapped boundary keeps
-          `standardLaneOwnerVersion` (§ 9.1)
-        - a next action's token is re-encoded with the call's own inputs alone and decodes under the replay schema from
-          the flip
-        - `readinessBinding` is computed over the imported records when `standardLaneOwnerVersion` equals the standard
-          lane's current progress version, and is `null` otherwise, its absence included
-        - a computed `readinessBinding` equals the one 1.6.d recomputes from the stored records
-        - a reopened work unit's `publication-pending` boundary keeps its publication state
-        - `resolveCandidateSupersessionAncestors` over the mapped versions returns the chain
-          `readRepositoryCandidateSupersessionChain` returns
+- _Outcome:_ Accepted Candidate versions retain complete source bytes and chronology; refused schemas or supersession
+  chains keep per-version reasons. Boundary conversion preserves every locus, reservation, and continuation while
+  naming imported termini, retaining hosted producer references, and encoding only caller inputs in saved tokens.
+  Readiness joins native lane versions to the canonical imported-content binding without backend metadata; stale or
+  absent recorded versions remain unbound. Candidate ancestry retains the repository reader's identities and budgets.
 
 ### `[ ]` **3.6 Pass the mapping into the import's port where the import landed first — § 11, § 14.2**
 

@@ -1,6 +1,6 @@
 /** Persisted replay inputs share their original decoder with the import. */
 import { expect, it } from "vitest";
-import { decodePrePublicationReplay } from "../../../../../src/scripts/review-gate/policy/pre-publication-replay.js";
+import { decodePrePublicationReplay, encodePrePublicationReplayV2, decodePrePublicationReplayV2 } from "../../../../../src/scripts/review-gate/policy/pre-publication-replay.js";
 import { PrePublicationLaneJudgmentsSchema } from "../../../../../src/scripts/review-gate/policy/pre-publication-request.js";
 
 it.each([
@@ -14,4 +14,24 @@ it.each([
   const decoded = decodePrePublicationReplay(token);
   expect(PrePublicationLaneJudgmentsSchema.parse(decoded.lanes)).toEqual(lanes);
   expect(decoded.frontlineCeilingHeadSha).toBe("b".repeat(40));
+});
+
+it("round-trips caller inputs with an opaque stored boundary version", () => {
+  const identity = { candidateId: `sha256:${"a".repeat(64)}`, candidateSubjectDigest: `sha256:${"b".repeat(64)}` };
+  const input = { ...identity, selfReview: "settled", changeSet: { code: true },
+    lanes: { frontline: { scopeMode: "whole-target", invocation: { mode: "skip" } } },
+    attestationOrderingRecovery: { ...identity, reviewedHead: "c".repeat(40), currentHead: "d".repeat(40),
+      expectedBoundaryVersion: "backend-version-7" } };
+  expect(decodePrePublicationReplayV2(encodePrePublicationReplayV2(input))).toEqual(input);
+});
+
+it.each([
+  { standard: { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 } } },
+  { standard: { additionalPassAuthorization: { headSha: "c".repeat(40), precedingProducerId: "producer-2", completedPasses: 2, nextPass: 3 } } },
+  { standard: { terminus: { mode: "owner-accepted" } } },
+])("refuses a stored replay containing a review choice: %j", (lanes) => {
+  const original = { lanes };
+  expect(decodePrePublicationReplay(Buffer.from(JSON.stringify(original)).toString("base64url"))).toEqual(original);
+  expect(() => encodePrePublicationReplayV2(original)).toThrow();
+  expect(() => decodePrePublicationReplayV2(Buffer.from(JSON.stringify(original)).toString("base64url"))).toThrow();
 });

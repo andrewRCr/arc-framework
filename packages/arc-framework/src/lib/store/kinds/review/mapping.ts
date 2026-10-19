@@ -1,9 +1,10 @@
 /** Pure translation of legacy repository review facts to portable records. */
-import { collectReviewMappingSources, reviewMappingListingEntry } from "./mapping-listing.js";
+import { collectReviewMappingSources } from "./mapping-listing.js";
 import { createReviewMappingWorkItemResolver } from "./mapping-work-items.js";
 import { indexReviewMappingSources } from "./mapping-sources.js";
+import { mapReviewCandidateSources } from "./mapping-candidates.js";
 import { mapReviewOperations } from "./mapping-operations.js";
-import { mapReviewBoundaryDecisions } from "./mapping-boundary-decisions.js";
+import { mapReviewBoundarySource } from "./mapping-boundary.js";
 import { coalesceReviewDecisionRecords } from "./mapping-decisions.js";
 import { mapReviewEvidenceSource } from "./mapping-evidence.js";
 import { reviewMappingJoinedSourceListing } from "./mapping-source-listing.js";
@@ -21,13 +22,14 @@ export function mapReviewRecords(input: ReviewMappingInput): ReviewMappingResult
     records.push(...evidence.records);
     sourceListings.set(source.source, evidence.listing);
   }
+  const candidates = mapReviewCandidateSources(sources);
+  records.push(...candidates.records);
+  for (const entry of candidates.listing) sourceListings.set(entry.source, entry);
   for (const source of sources) {
     if (source.kind !== "boundary") continue;
-    const mapped = mapReviewBoundaryDecisions(source, { input, outcomes, records });
-    records.push(...mapped);
-    sourceListings.set(source.source, reviewMappingListingEntry({ source: source.source,
-      records: mapped.map(({ reference }) => reference),
-      leftBehind: source.workItem.live ? [] : ["No live work item owns this review fact."] }));
+    const mapped = mapReviewBoundarySource(source, { input, outcomes, records, indexed });
+    records.push(...mapped.records);
+    sourceListings.set(source.source, mapped.listing);
   }
   return { records: coalesceReviewDecisionRecords(records),
     listing: sources.map((source) => sourceListings.get(source.source)

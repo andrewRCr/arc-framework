@@ -51,3 +51,9 @@ and hosted acknowledgment. `mapping-boundary-decisions.ts` preserves Candidate/m
 replay termini derive their logical pass basis from mapped outcomes, evidence, and Candidate ancestry. The replay
 schema, decoder, and exact command-token parser are shared with the legacy handler. Duplicate decisions retain one
 record and all contributing source references.
+
+`mapping-candidates.ts` retains accepted whole source versions in order and classifies schema or supersession refusals
+per version. `mapping-boundary.ts` converts every live boundary locus to version two, names imported termini, preserves
+response operations and hosted producer IDs, and rewrites saved tokens with caller inputs alone. Readiness compares the
+recorded native lane version before deriving the canonical digest over imported record content; its shared listing
+input carries completeness evidence without requiring backend metadata. Missing or stale recorded versions stay unbound.

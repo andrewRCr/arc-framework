@@ -1,5 +1,9 @@
 /** Pure schema and decoding for persisted pre-publication replay inputs. */
 import { z } from "zod";
+import { RecordVersionSchema } from "../../../lib/store/identity.js";
+import { canonicalize } from "../../../lib/kernel/canonical/canonical-json.js";
+import { ReviewLaneJudgmentSchema } from "./review-policy-driver.js";
+import { PrePublicationLaneJudgmentsSchema } from "./pre-publication-request.js";
 import { CanonicalDigestSchema } from "../../../lib/kernel/index.js";
 import { GitObjectIdSchema, ReviewTargetSchema } from "../core/gate-contract-v2-schema.js";
 
@@ -44,3 +48,29 @@ export function replayTokenFromAction(command: string, workUnit: string): string
   return z.string().regex(/^[A-Za-z0-9_-]+$/u).parse(argv[5]);
 }
 
+
+const ReplayCallLaneSchema = ReviewLaneJudgmentSchema.unwrap().pick({ scopeMode: true, invocation: true });
+const ReplayCallLanesSchema = PrePublicationLaneJudgmentsSchema.pipe(z.strictObject({
+  frontline: ReplayCallLaneSchema.optional(), standard: ReplayCallLaneSchema.optional(),
+}));
+export const AttestationOrderingRecoveryV2Schema = AttestationOrderingRecoverySchema.extend({
+  expectedBoundaryVersion: RecordVersionSchema,
+});
+export const PrePublicationReplayInputV2Schema = z.strictObject({
+  candidateId: CanonicalDigestSchema.optional(), candidateSubjectDigest: CanonicalDigestSchema.optional(),
+  selfReview: z.literal("settled").optional(), changeSet: z.json().optional(),
+  lanes: ReplayCallLanesSchema.optional(), scopeJudgmentTarget: ReviewTargetSchema.optional(),
+  attestationOrderingRecovery: AttestationOrderingRecoveryV2Schema.optional(),
+}).refine((replay) => (replay.candidateId === undefined) === (replay.candidateSubjectDigest === undefined),
+  "Candidate replay identity requires both Candidate ID and subject digest");
+export type PrePublicationReplayInputV2 = z.infer<typeof PrePublicationReplayInputV2Schema>;
+
+/** Encode caller-owned inputs with opaque store ordering versions and no saved review decisions. */
+export function encodePrePublicationReplayV2(input: unknown): string {
+  return Buffer.from(canonicalize(PrePublicationReplayInputV2Schema.parse(input)), "utf8").toString("base64url");
+}
+
+/** Decode a store-backed continuation under its strict caller-input schema. */
+export function decodePrePublicationReplayV2(token: string): PrePublicationReplayInputV2 {
+  return PrePublicationReplayInputV2Schema.parse(JSON.parse(Buffer.from(token, "base64url").toString("utf8")));
+}
