@@ -8,6 +8,7 @@
 import { makeInteractionContext } from "../helpers/interaction-context.js";
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "vitest";
 
+import { createLifecycleHarness } from "../helpers/store/lifecycle-harness.js";
 import { UserFacingError } from "../../src/lib/errors.js";
 
 // --- Mocks ---
@@ -768,6 +769,15 @@ describe("handleUserOpen", () => {
     mockFindStaleUserWuSubdirs.mockResolvedValue([]);
     mockRunUserOpen.mockResolvedValue(undefined);
     process.exitCode = undefined;
+  });
+
+  it("refuses off-branch workspace creation with the meta handoff remedy", async () => {
+    const h = createLifecycleHarness();
+    await handleUserOpen("feature-x", makeTestContext(), h.store);
+    expect(process.exitCode).toBe(1);
+    expect(mockLog.error).toHaveBeenCalledWith(expect.stringMatching(/unsupported.*meta.*session context.*arc handoff write/iu));
+    expect(mockRunUserOpen).not.toHaveBeenCalled();
+    expect(mockReconcileRetiredSubdirsStandalone).not.toHaveBeenCalled();
   });
 
   it("opens the WU subdir without prompting when no stale subdirs exist", async () => {

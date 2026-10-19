@@ -1,5 +1,13 @@
 /** Checkout-directed projection of one exact work-unit metadata subject. */
 
+import type { Store } from "../store/contract.js";
+import { readStoreSubjectCandidate } from "./subject-meta-candidate.js";
+import type { StoreWorkUnitEvidence } from "./store-work-unit-evidence.js";
+import { WorkUnitReadPlacementSchema } from "../store/placement.js";
+import { workItemArtifactPath } from "../store/lifecycle-storage.js";
+import { cohortDocumentPath } from "../store/lifecycle-record-path.js";
+import { recordReferences, OwnerIdentitySchema } from "../store/identity.js";
+import { ParsedMetaPauseSchema, type ParsedMetaPause } from "../active/meta-schema.js";
 import { join, relative, sep } from "node:path";
 
 import {
@@ -28,6 +36,7 @@ import {
   type LoadSetWorkUnitStage,
 } from "../load-set/projection.js";
 import type { LoadSetManifest } from "../load-set/types.js";
+import { resolveTaskListCursor } from "../task-list/cursor.js";
 import { resolveActiveCohortDocPath } from "../session-init/cohort-doc.js";
 import {
   resolveTaskListCursorFromFile,
@@ -83,6 +92,8 @@ export type SubjectMetaProjection =
       kind: "resolved";
       metaPath: string;
       owner: string | null;
+      pause?: ParsedMetaPause | null;
+      unclosedTaskCommits?: import("./unclosed-task-commits.js").UnclosedTaskCommits;
       branch: string | null;
       sessionType: SessionType | null;
       workflow: string | null;
@@ -98,6 +109,8 @@ export type SubjectMetaProjection =
 /** Select one exact subject meta and derive its workflow state with reads pinned to its checkout. */
 export async function projectCheckoutSubjectMeta(options: {
   cwd: string;
+  store?: Store;
+  workUnit?: Extract<StoreWorkUnitEvidence, { kind: "present" }>;
   subjectKey: string;
   identity: string;
   identityGlobalUserDir?: string | null;
@@ -108,14 +121,16 @@ export async function projectCheckoutSubjectMeta(options: {
   foreignCheckout?: boolean;
   io: SubjectMetaIO;
 }): Promise<SubjectMetaProjection> {
-  const expectedPath = options.metaRoot.kind === "maintainer"
+  const expectedPath = options.workUnit !== undefined
+    ? workItemArtifactPath(options.subjectKey, "meta", WorkUnitReadPlacementSchema.parse(options.workUnit.record.placement), options.workUnit.fields.cohort)
+    : options.metaRoot.kind === "maintainer"
     ? `.arc/active/meta-${options.subjectKey}.md`
     : options.metaRoot.kind === "contributor"
       ? `.arc/user/${options.metaRoot.identity}/active/meta-${options.subjectKey}.md`
       : normalizedRelative(options.cwd, options.metaRoot.path);
   const matches = options.candidates.filter((candidate) =>
     normalizedRelative(options.cwd, candidate.path) === expectedPath);
-  if (matches.length !== 1) {
+  if (options.workUnit === undefined && matches.length !== 1) {
     return {
       kind: "unresolved",
       code: "subject-unresolved",
@@ -124,7 +139,7 @@ export async function projectCheckoutSubjectMeta(options: {
     };
   }
   const selected = matches[0];
-  if (selected === undefined || selected.kind === "error") {
+  if (options.workUnit === undefined && (selected === undefined || selected.kind === "error")) {
     return {
       kind: "unresolved",
       code: "subject-unresolved",
@@ -135,7 +150,9 @@ export async function projectCheckoutSubjectMeta(options: {
 
   let record;
   try {
-    record = parseMetaRecord(selected.text);
+    record = options.workUnit === undefined
+      ? parseMetaRecord(selected?.kind === "read" ? selected.text : "")
+      : { ...options.workUnit.fields, branch: options.workUnit.branch };
   } catch (error) {
     return {
       kind: "unresolved",
@@ -160,8 +177,17 @@ export async function projectCheckoutSubjectMeta(options: {
     || (record.state === "Active" && record.currentWorkflow === "prepare-work-unit");
   if (record.candidateId !== null && candidateAuthorityRequired) {
     try {
-      const candidatePath = resolveCandidateRecordRelativePath(options.subjectKey);
-      const candidateContent = await options.io.readFile(join(options.cwd, candidatePath));
+      const candidateStore = options.store?.capabilities.stateOffBranch === true ? options.store : null;
+      let candidatePath: string;
+      let candidateContent: string;
+      if (candidateStore !== null) {
+        if (options.workUnit === undefined) throw new Error("The work-unit authority for this Candidate is unavailable. Re-read the work unit through the Store, then retry.");
+        candidatePath = `review/candidate for ${options.workUnit.record.reference.owner.name}`;
+        candidateContent = await readStoreSubjectCandidate(candidateStore, options.workUnit.record.reference.owner);
+      } else {
+        candidatePath = resolveCandidateRecordRelativePath(options.subjectKey);
+        candidateContent = await options.io.readFile(join(options.cwd, candidatePath));
+      }
       const candidateRecord = parseCandidateManagedRecord(candidateContent);
       if (candidateRecord === null) {
         if (options.foreignCheckout === true) {
@@ -175,7 +201,8 @@ export async function projectCheckoutSubjectMeta(options: {
             metaPath: expectedPath,
           };
         }
-        throw new Error(`Candidate record could not be read under this build's schema: ${candidatePath}`);
+        throw new Error(`Candidate record could not be read under this build's schema: ${candidatePath}`
+          + (candidateStore === null ? "" : ". Repair the stored Candidate record, then retry."));
       }
       if (candidateRecord.attestation.candidateId !== record.candidateId) {
         throw new Error("Candidate metadata does not match the managed Candidate record.");
@@ -219,9 +246,21 @@ export async function projectCheckoutSubjectMeta(options: {
       };
     }
   }
-  const inferredSessionType = options.metaRoot.kind === "completed"
+  const storedTasks = options.workUnit !== undefined && options.store !== undefined
+    ? await readStoreTaskCursor(options.store, options.workUnit.record, options.subjectKey, record.cohort, record.taskList)
+    : null;
+  if (storedTasks?.kind === "unresolved") {
+    return { kind: "unresolved", code: "subject-unresolved", message: storedTasks.message, metaPath: expectedPath };
+  }
+  const taskListPath = storedTasks === null ? resolveTaskListPath(expectedPath, record.taskList) : storedTasks.path;
+  const taskCursor = storedTasks !== null ? storedTasks.cursor : taskListPath === null ? null
+    : await resolveTaskListCursorFromFile({
+      cwd: options.cwd, taskListPath, readFile: (path) => options.io.readFile(path),
+      realpath: (path) => options.io.realpath(path), lstat: (path) => options.io.lstat(path),
+    });
+  const inferredSessionType = options.metaRoot.kind === "completed" || options.workUnit?.record.placement?.kind === "completed"
     ? "integration"
-    : inferSessionType(record.state, record.taskList, record.branch);
+    : inferSessionType(record.state, taskListPath, record.branch);
   let integrationBoundary: IntegrationBoundaryLocus | null = null;
   if (record.candidateId !== null && candidateSubjectDigest !== null && record.state === "Integrating") {
     const stored = await readSubmissionBoundary(options.cwd, options.subjectKey, {
@@ -262,16 +301,6 @@ export async function projectCheckoutSubjectMeta(options: {
       });
     }
   }
-  const taskListPath = resolveTaskListPath(expectedPath, record.taskList);
-  const taskCursor = taskListPath === null
-    ? null
-    : await resolveTaskListCursorFromFile({
-        cwd: options.cwd,
-        taskListPath,
-        readFile: (path) => options.io.readFile(path),
-        realpath: (path) => options.io.realpath(path),
-        lstat: (path) => options.io.lstat(path),
-      });
   let deliveryCorrection: DeliveryCorrectionProjection = { status: "none" };
   if (inferredSessionType === "integration"
     && taskListPath !== null
@@ -318,15 +347,22 @@ export async function projectCheckoutSubjectMeta(options: {
     candidateRenewalRequired: requireExactDurableBoundary,
     deliveryCorrection,
   });
-  const cohortDocPath = await resolveActiveCohortDocPath({
+  const storedCohort = options.workUnit !== undefined && options.store !== undefined
+    ? await readStoreCohortDoc(options.store, record.cohort)
+    : null;
+  if (storedCohort?.kind === "conflicted") {
+    return { kind: "unresolved", code: "subject-unresolved", message: storedCohort.message, metaPath: expectedPath };
+  }
+  const cohortDocPath = storedCohort === null ? await resolveActiveCohortDocPath({
     cwd: options.cwd,
     activeMetaPath: expectedPath,
     fs: options.io,
-  });
+  }) : storedCohort.path;
   return {
     kind: "resolved",
     metaPath: expectedPath,
     owner: normalizePointer(record.owner),
+    ...(options.workUnit === undefined ? {} : { pause: ParsedMetaPauseSchema.nullable().parse(record.pause) }),
     branch: normalizePointer(record.branch),
     sessionType,
     workflow: workflowFor(sessionType, workUnitStage),
@@ -337,6 +373,10 @@ export async function projectCheckoutSubjectMeta(options: {
     cohortDocPath,
     loadSet: resolveLoadSetManifest({
       identity: options.identity,
+      ...(options.workUnit === undefined ? {} : {
+        workUnit: { slug: options.subjectKey, placement: WorkUnitReadPlacementSchema.parse(options.workUnit.record.placement), cohort: record.cohort },
+        stateOffBranch: options.store?.capabilities.stateOffBranch === true,
+      }),
       workingMemoryPath: options.identityGlobalUserDir === undefined || options.identityGlobalUserDir === null
         ? options.identityGlobalUserDir
         : join(options.identityGlobalUserDir, "WORKING-MEMORY.md"),
@@ -416,4 +456,37 @@ function projectWorkUnitStage(input: {
     return "verification-closeout";
   }
   return null;
+}
+
+type StoreCohortDocument = { kind: "read"; path: string | null } | { kind: "conflicted"; message: string };
+
+async function readStoreCohortDoc(store: Store, cohort: string | null): Promise<StoreCohortDocument> {
+  if (cohort === null) return { kind: "read", path: null };
+  const name = cohort.split("/").at(-1);
+  const reference = recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name }));
+  const read = await store.read({ reference });
+  if (read.status === "refused") {
+    if (read.refusal.code === "not-found") return { kind: "read", path: null };
+    throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
+  }
+  if (read.result.conflicts.length > 0) return { kind: "conflicted", message:
+    `The cohort document has unresolved conflicts: ${read.result.conflicts.map(reference => JSON.stringify(reference)).join(", ")}. Resolve the named conflict records, then retry session entry.` };
+  return { kind: "read", path: cohortDocumentPath(read.result) };
+}
+
+type StoreTaskCursor = { kind: "read"; path: string | null; cursor: TaskListCursorFileResult | null }
+  | { kind: "unresolved"; message: string };
+
+async function readStoreTaskCursor(store: Store, primary: import("../store/read.js").StoreRecord,
+  slug: string, cohort: string | null, declaration: string | null): Promise<StoreTaskCursor> {
+  const read = await store.read({ reference: recordReferences["work-item/task-list"](primary.reference.owner) });
+  if (read.status === "refused") {
+    if (read.refusal.code === "not-found") return declaration === null ? { kind: "read", path: null, cursor: null }
+      : { kind: "unresolved", message: `The declared task list ${JSON.stringify(declaration)} is unavailable: ${read.refusal.condition} Restore the task-list record or repair its meta declaration, then retry session entry.` };
+    throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
+  }
+  if (read.result.conflicts.length > 0) return { kind: "unresolved", message:
+    `The task list has unresolved conflicts: ${read.result.conflicts.map(reference => JSON.stringify(reference)).join(", ")}. Resolve the named conflict records, then retry session entry.` };
+  const path = workItemArtifactPath(slug, "tasks", WorkUnitReadPlacementSchema.parse(primary.placement), cohort);
+  return { kind: "read", path, cursor: resolveTaskListCursor(read.result.content) };
 }

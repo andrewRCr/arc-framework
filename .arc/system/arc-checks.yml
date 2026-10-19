@@ -32,14 +32,18 @@ checks:
       - .arc/system/methods/commit-footer.md
       - .arc/system/methods/commit-format.md
       - .arc/system/methods/design-audit.md
-      - .arc/system/methods/frontline-review.md
-      - .arc/system/methods/standard-review.md
+      - .arc/system/methods/code-review-frontline.md
+      - .arc/system/methods/code-review-standard.md
       - .arc/system/methods/implementation-audit.md
       - .arc/system/methods/review-chunking.md
-      - .arc/system/methods/self-review.md
+      - .arc/system/methods/code-review-author.md
       - .arc/system/methods/issue-triage.md
       - .arc/system/methods/resolve-plan-segmentation.md
       - .arc/system/methods/resolve-planning-depth.md
+      - .arc/system/methods/review-model.md
+      - .arc/system/methods/planning-review.md
+      - .arc/system/methods/code-review.md
+      - .arc/system/methods/verification-review.md
       - .arc/system/methods/review-response.md
       - .arc/system/methods/review-triage.md
       - .arc/system/methods/session-state.md
@@ -84,6 +88,42 @@ checks:
           import {readFileSync} from 'node:fs';import {createHash} from 'node:crypto';const
           hash=createHash('sha256');for(const path of
           [".arc/system/.internal/manifest.json","packages/arc-framework/init-recipe.json"])hash.update(path).update(readFileSync(path));process.stdout.write(hash.digest('hex'));
+  lint:md:selection:
+    command: [npm, run, -s, lint:md:file, --, --allow-ignored]
+    mode: selection
+    inputs:
+      - '**/*.md'
+      - '!**/node_modules/**'
+      - '!**/.venv*/**'
+      - '!**/venv/**'
+      - '!.arc/completed/**'
+      - '!.arc/user/**/WORKING-MEMORY.md'
+      - '!.arc/user/**/USER-INBOX.md'
+      - '!.arc/**/temp-*.md'
+      - '!arc/**'
+  lint:md:underwrap:selection:
+    command: [npm, run, -s, lint:md:underwrap, --, --worktree, --allow-ignored]
+    mode: selection
+    inputs:
+      - '**/*.md'
+      - '!**/node_modules/**'
+      - '!**/.venv*/**'
+      - '!**/venv/**'
+      - '!.arc/completed/**'
+      - '!.arc/user/*/WORKING-MEMORY.md'
+      - '!.arc/user/*/USER-INBOX.md'
+      - '!.arc/**/temp-*.md'
+      - '!arc/**'
+      - '!packages/arc-framework/__tests__/fixtures/**'
+      - '!**/.venv*'
+  lint:arc:links:selection:
+    command: [npm, run, -s, lint:arc:links, --]
+    mode: selection
+    inputs:
+      - '.arc/**/*.md'
+      - '!.arc/completed/**'
+      - '!.arc/**/*.template.md'
+      - '!.arc/**/template-*.md'
   lint:md:staged:
     command:
       - npm

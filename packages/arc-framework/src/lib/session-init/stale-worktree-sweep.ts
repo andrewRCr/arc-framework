@@ -15,12 +15,16 @@
  * @module
  */
 
+import type { z } from "zod";
+import { StaleWorktreeSweepResultSchema } from "./stale-worktree-sweep-schema.js";
+import type { Store } from "../store/contract.js";
+import { readStoreCompletedEvidence } from "../store/lifecycle-completed.js";
+import { selectStoreCleanupTopology, selectStoreWorktreeCleanup } from "./store-worktree-selection.js";
 import type { GitExec } from "../git/exec.js";
 import { isLandedInBaseStrict } from "../git/branch-containment.js";
 import {
   decideHuskCleanup,
   decideWorktreeCleanup,
-  isWorktreeClean,
   type HuskCleanupDecision,
   type WorktreeCleanupDecision,
 } from "../git/worktree-cleanup.js";
@@ -31,12 +35,16 @@ import {
   type WorktreeMarkerReadResult,
   type WorktreeSubject,
 } from "../git/worktree-marker.js";
+import { checkWorktreeRemoval, type ProjectionRemovalSlots } from "../git/worktree-removal.js";
+import { readMissingWorktreeFolders } from "./missing-worktree-folders.js";
+import { workUnitTeardownAction, type SessionAction } from "./actions.js";
 import type { WorktreeIdentity } from "../git/worktree-identity.js";
 import type { ProtectionMode } from "../git/write-context.js";
 import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
 import {
   resolvePrimaryWorktreePath,
   scanRegisteredWorktrees,
+  type RegisteredWorktree,
   type RegisteredWorktreeScanResult,
   type WorktreeRosterEntry,
   type WorktreeRosterResult,
@@ -58,14 +66,12 @@ import {
 import {
   projectRenameMoveRemedy,
   runLandedRetirementSweep,
-  type LandedRetirementResidue,
   type RenameMoveResidue,
 } from "./lifecycle-residue-sweep.js";
 import { locusWorkUnitAtPath } from "./locus-classification.js";
 import {
   projectCleanupRemoteEvidence,
   type CleanupBaseEvidence,
-  type CleanupRemoteEvidence,
 } from "./cleanup-remote-evidence.js";
 
 export interface StaleWorktreeSweepInput {
@@ -102,7 +108,7 @@ export function findStaleWorktreeCandidates(
     return { candidates: [], warnings: roster.warnings };
   }
   return {
-    candidates: roster.entries.filter((entry) => isShippedWorkUnit(entry.branch, shipped)),
+    candidates: roster.entries.filter((entry) => entry.branch !== undefined && isShippedWorkUnit(entry.branch, shipped)),
     warnings: roster.warnings,
   };
 }
@@ -110,13 +116,15 @@ export function findStaleWorktreeCandidates(
 /** Incomplete evidence blocks cleanup without claiming a negative merge proof. */
 export type EvidenceUnavailableDecision = { action: "blocked"; reason: "evidence-unavailable" };
 /** One swept worktree paired with its marker-gated cleanup disposition. */
-export type StaleWorktreeReport =
+export type StaleWorktreeReport = (
   | {
       kind: "branched";
       worktreePath: string;
       branch: string;
-      decision: WorktreeCleanupDecision | EvidenceUnavailableDecision;
+      decision: Exclude<WorktreeCleanupDecision, { action: "missing" }> | EvidenceUnavailableDecision;
     }
+  | { kind: "detached"; worktreePath: string; branch: null; workUnit: string;
+      decision: Exclude<WorktreeCleanupDecision, { action: "missing" }> | EvidenceUnavailableDecision; }
   | {
       kind: "husk";
       worktreePath: string;
@@ -125,21 +133,18 @@ export type StaleWorktreeReport =
       stampedBranch: string;
       stamp: DecodedWorktreeHuskStamp;
       completedWorkUnit: string | null;
-      decision: HuskCleanupDecision | EvidenceUnavailableDecision;
-    };
+      decision: HuskCleanupDecision | EvidenceUnavailableDecision | { action: "blocked"; reason: "locked" | "unobservable" };
+    }) & { actions?: SessionAction[] };
 
-export type StaleWorktreeSweepResult = CleanupRemoteEvidence & {
-  /** Lingering shipped-WU worktrees, each with its cleanup disposition. */
-  worktrees: StaleWorktreeReport[];
-  /** Validated deferred rename moves that can run only from outside their source worktrees. */
-  renameMoves: RenameMoveResidue[];
-  /** Still-branched retirements projected from authoritative base evidence. */
-  retirements: LandedRetirementResidue[];
-  /** Roster warnings, passed through untouched. */
-  warnings: string[];
-};
+export type StaleWorktreeSweepResult = z.infer<typeof StaleWorktreeSweepResultSchema>;
 
 export interface RunStaleWorktreeSweepOptions {
+  store?: Store;
+  projectId?: () => Promise<string>;
+  /** Projection policy used by each read-only removal check. */
+  projectionRemovalSlots?: ProjectionRemovalSlots;
+  /** Filesystem boundary for checkout folder observations. */
+  folderExists?: (path: string) => Promise<boolean>;
   /** Identity-filtered in-flight worktree roster (reused from the session-init roster slot). */
   roster: WorktreeRosterResult;
   /** Physical-worktree identity of the calling session. */
@@ -196,7 +201,7 @@ export async function runStaleWorktreeSweep(
 
   const derivedRoster = options.derivedRoster;
   if (derivedRoster === null) {
-    return { ...projectedEvidence, worktrees: [], renameMoves: [], retirements: [], warnings: roster.warnings };
+    return { ...projectedEvidence, worktrees: [], missingFolders: [], renameMoves: [], retirements: [], warnings: roster.warnings };
   }
 
   if (
@@ -204,7 +209,7 @@ export async function runStaleWorktreeSweep(
     && options.teamMode === true
     && (options.identity === null || options.identity === undefined)
   ) {
-    return { ...projectedEvidence, worktrees: [], renameMoves: [], retirements: [], warnings: roster.warnings };
+    return { ...projectedEvidence, worktrees: [], missingFolders: [], renameMoves: [], retirements: [], warnings: roster.warnings };
   }
 
   let shipped: ReadonlySet<string>;
@@ -213,7 +218,7 @@ export async function runStaleWorktreeSweep(
   let analysisExec = exec;
   const baseEvidence = options.baseEvidence;
   if (baseEvidence === undefined) {
-    shipped = await readShippedWorkUnitsFromRef(exec, integrationTarget);
+    shipped = options.store?.capabilities.stateOffBranch ? new Set() : await readShippedWorkUnitsFromRef(exec, integrationTarget);
   } else if (!baseEvidence.remoteSyncEnabled || baseEvidence.snapshot.kind === "unreachable") {
     shipped = new Set();
   } else {
@@ -243,22 +248,33 @@ export async function runStaleWorktreeSweep(
           });
           mergeBase = baseOid;
           exactBaseOid = baseOid;
-          shipped = await readShippedWorkUnitsFromExactRef(analysisExec, baseOid);
+          shipped = options.store?.capabilities.stateOffBranch ? new Set() : await readShippedWorkUnitsFromExactRef(analysisExec, baseOid);
         }
       }
     }
+  }
+  const storeWarnings: string[] = [];
+  if (options.store?.capabilities.stateOffBranch) {
+    const completed = await readStoreCompletedEvidence(options.store);
+    shipped = completed.status === "unavailable" ? new Set() : new Set(completed.records.keys());
+    if (completed.status !== "available") storeWarnings.push("Completed work-unit inventory is incomplete; repair the store and retry cleanup.");
   }
   // Incomplete advertised-base evidence leaves `shipped` empty, so no entry
   // qualifies and the sweep reports nothing. Enumerating the whole roster here
   // would render active, never-shipped worktrees as cleanup residue; the
   // slot-level `remoteEvidence` already carries the degradation, and the
   // envelope schema refuses a `removable` decision on anything but `exact`.
-  const selected = worktreeIdentity.kind === "primary"
+  const selected = !options.store?.capabilities.stateOffBranch && worktreeIdentity.kind === "primary"
     ? findStaleWorktreeCandidates({ roster, shipped, worktreeIdentity })
     : { candidates: [], warnings: roster.warnings };
-  const warnings = [...selected.warnings];
+  const warnings = [...selected.warnings, ...storeWarnings];
   const scan = await (options.scanWorktrees ?? scanRegisteredWorktrees)(exec);
-  const retainedRoleCandidates = worktreeIdentity.kind === "primary" && scan.ok
+  const cleanupTopology = !scan.ok ? [] : options.store?.capabilities.stateOffBranch
+    ? selectStoreCleanupTopology(derivedRoster, scan.worktrees, warnings) : scan.worktrees;
+  const storeSelection = options.store?.capabilities.stateOffBranch && scan.ok
+    ? await selectStoreWorktreeCleanup({ ...options, store: options.store, derivedRoster, topology: cleanupTopology, readMarker }) : null;
+  warnings.push(...(storeSelection?.warnings ?? []));
+  const retainedRoleCandidates = !options.store?.capabilities.stateOffBranch && worktreeIdentity.kind === "primary" && scan.ok
     ? scan.worktrees.flatMap((entry): WorktreeRosterEntry[] => {
         if (entry.primary || entry.branch === null) return [];
         const owned = locusWorkUnitAtPath(derivedRoster, entry.path);
@@ -267,59 +283,47 @@ export async function runStaleWorktreeSweep(
           : [];
       })
     : [];
+  const missingPaths = new Set(derivedRoster.filter((row) => !row.checkout.folderPresent).map((row) => row.checkout.path));
+  const missingFolders = worktreeIdentity.kind === "primary" ? await readMissingWorktreeFolders({
+    store: options.store, projectId: options.projectId, warnings, rows: derivedRoster, shipped, exec, check: options.projectionRemovalSlots?.check, folderExists: options.folderExists,
+  }) : [];
   const candidates = [...new Map(
-    [...selected.candidates, ...retainedRoleCandidates].map((entry) => [entry.worktreePath, entry]),
-  ).values()];
-  const primaryWorktreePath = candidates.length === 0 ? null : await resolvePrimaryWorktreePath(exec);
+    [...selected.candidates, ...retainedRoleCandidates, ...(storeSelection?.ended.flatMap(({ checkout }) => checkout.branch === null ? [] : [{ worktreePath: checkout.path, branch: checkout.branch }]) ?? [])].filter((entry): entry is WorktreeRosterEntry & { branch: string } => entry.branch !== undefined).map((entry) => [entry.worktreePath, entry]),
+  ).values()].filter((entry) => !missingPaths.has(entry.worktreePath));
+  const primaryWorktreePath = candidates.length === 0 && !storeSelection?.ended.length ? null : await resolvePrimaryWorktreePath(exec);
 
-  const worktrees: StaleWorktreeReport[] = await Promise.all(
-    candidates.map(async (entry) => {
-      const [marker, clean, merged, userSurfacesSafe] = await Promise.all([
-        readMarker(entry.worktreePath),
-        isWorktreeClean({ exec, cwd: entry.worktreePath }),
-        exactBaseOid === null
-          ? Promise.resolve(false)
-          : isLandedInBaseStrict(analysisExec, entry.branch, mergeBase),
-        linkedIdentityGlobalUserSurfacesAreSafe({
-          primaryWorktreePath,
-          worktreePath: entry.worktreePath,
-          fs: userSurfaceFs,
-        }),
-      ]);
-      const localDecision = decideWorktreeCleanup({ marker, clean, userSurfacesSafe, merged, context: "shipped" });
-      const decision = exactBaseOid === null
-        && localDecision.action === "blocked"
-        && localDecision.reason === "unmerged"
-        ? { action: "blocked" as const, reason: "evidence-unavailable" as const }
-        : localDecision;
-      return {
-        kind: "branched" as const,
-        worktreePath: entry.worktreePath,
-        branch: entry.branch,
-        decision,
-      };
-    }),
-  );
+  const worktrees: StaleWorktreeReport[] = await Promise.all(candidates.map((entry) => inspectBranchedRemoval(entry, {
+    options, readMarker, userSurfaceFs, primaryWorktreePath, exactBaseOid, analysisExec, mergeBase,
+  })));
+
+  worktrees.push(...(storeSelection?.releases ?? []));
+  for (const { checkout, name } of storeSelection?.ended ?? []) {
+    if (checkout.branch !== null || missingPaths.has(checkout.path)) continue;
+    const report = await inspectBranchedRemoval({ worktreePath: checkout.path, branch: checkout.head }, { options, readMarker, userSurfaceFs, primaryWorktreePath, exactBaseOid, analysisExec, mergeBase });
+    worktrees.push({ ...report, kind: "detached", branch: null, workUnit: name });
+  }
 
   if (!scan.ok) {
     warnings.push(`Could not scan registered worktrees: ${scan.message}`);
-    return { ...projectedEvidence, worktrees, renameMoves: [], retirements: [], warnings };
+    return { ...projectedEvidence, worktrees, missingFolders, renameMoves: [], retirements: [], warnings };
   }
 
   const renameMoves: RenameMoveResidue[] = [];
   const branchedMarkers = new Map<string, WorktreeMarkerReadResult>();
-  for (const entry of scan.worktrees) {
-    if (entry.detached || entry.branch === null) continue;
+  for (const entry of cleanupTopology) {
+    const branched = !entry.detached && entry.branch !== null;
+    if (!branched && !options.store?.capabilities.stateOffBranch) continue;
     let marker: WorktreeMarkerReadResult;
     try {
       marker = await readMarker(entry.path);
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
-      warnings.push(`Could not read branched worktree marker at ${entry.path}: ${detail}`);
+      warnings.push(`Could not read ${branched ? "branched" : "detached"} worktree marker at ${entry.path}: ${detail}`);
       continue;
     }
     if (
       marker.kind === "present"
+      && !options.store?.capabilities.stateOffBranch
       && options.teamMode === true
       && options.identity !== null
       && options.identity !== undefined
@@ -327,22 +331,24 @@ export async function runStaleWorktreeSweep(
     ) {
       continue;
     }
-    branchedMarkers.set(entry.path, marker);
+    if (branched) branchedMarkers.set(entry.path, marker);
     const projected = projectRenameMoveRemedy(entry, marker, scan.worktrees);
     if (projected !== null) renameMoves.push(projected);
   }
   const retirementSweep = await runLandedRetirementSweep({
-    topology: scan.worktrees,
+    store: options.store, projectId: options.projectId,
+    topology: cleanupTopology,
     markers: branchedMarkers,
     baseBranch,
     protection: options.protection ?? "partial",
     exec,
     readBlob: options.readBlob,
+    projectionRemovalSlots: options.projectionRemovalSlots,
     ...(options.baseEvidence === undefined ? {} : { baseEvidence: options.baseEvidence }),
   });
   warnings.push(...retirementSweep.warnings);
 
-  for (const entry of scan.worktrees) {
+  for (const entry of cleanupTopology) {
     if (!entry.detached || entry.path === options.excludeWorktreePath) continue;
     let marker: WorktreeMarkerReadResult;
     try {
@@ -361,54 +367,142 @@ export async function runStaleWorktreeSweep(
     ) {
       continue;
     }
-    const stamp = marker.marker.husk;
-    const clean = await isWorktreeClean({ exec, cwd: entry.path });
-    let decoded = decodeWorktreeHuskStamp(stamp);
-    let decision: HuskCleanupDecision | EvidenceUnavailableDecision = decideHuskCleanup({ marker, clean, head: entry.head });
-    let evidenceValid = decoded.kind !== "current";
-    let evidenceUnavailable = false;
-    if (decoded.kind === "current") {
-      if (exactBaseOid === null) {
-        evidenceUnavailable = true;
-        warnings.push(`Retirement evidence at ${entry.path} could not be revalidated without exact base evidence.`);
-      } else {
-        evidenceValid = await (options.revalidateEvidence === undefined
-          ? revalidateDecodedHuskRetirementEvidenceStrict(exec, stamp, decoded, exactBaseOid, options.readBlob)
-          : options.revalidateEvidence(stamp, decoded, exactBaseOid));
-      }
-    }
-    if (decoded.kind === "current" && evidenceUnavailable) {
-      decision = { action: "blocked", reason: "evidence-unavailable" };
-    } else if (
-      decoded.kind === "current"
-      && !evidenceValid
-    ) {
-      decoded = { kind: "manual-only", reason: "evidence-mismatch" };
-      decision = { action: "blocked", reason: "evidence-mismatch" };
-    }
-    if (exactBaseOid === null && decision.action === "removable") {
-      decision = { action: "blocked", reason: "evidence-unavailable" };
-    }
-    worktrees.push({
-      kind: "husk",
-      worktreePath: entry.path,
-      branch: null,
-      subject: stamp.subject,
-      stampedBranch: stamp.branch,
-      stamp: decoded,
-      completedWorkUnit:
-        stamp.subject.kind === "work-unit" && shipped.has(stamp.subject.name)
-          ? stamp.subject.name
-          : null,
-      decision,
-    });
+    const report = await inspectHuskRemoval({ entry, marker, options, exactBaseOid, shipped, warnings });
+    if (report !== null) worktrees.push(withHuskActions(report, worktreeIdentity));
   }
 
   return {
     ...projectedEvidence,
     worktrees,
+    missingFolders,
     renameMoves,
     retirements: retirementSweep.retirements,
     warnings,
   };
+}
+
+
+async function inspectBranchedRemoval(entry: WorktreeRosterEntry & { branch: string }, context: {
+  options: RunStaleWorktreeSweepOptions;
+  readMarker: (path: string) => Promise<WorktreeMarkerReadResult>;
+  userSurfaceFs: UserSurfaceMigrationFs;
+  primaryWorktreePath: string | null;
+  exactBaseOid: string | null;
+  analysisExec: GitExec;
+  mergeBase: string;
+}): Promise<Extract<StaleWorktreeReport, { kind: "branched" }>> {
+  const { options, readMarker, userSurfaceFs, primaryWorktreePath, exactBaseOid, analysisExec, mergeBase } = context;
+  const { exec } = options;
+  const [marker, removalCheck, merged, userSurfacesSafe] = await Promise.all([
+    readMarker(entry.worktreePath),
+    checkWorktreeRemoval({ exec, checkoutPath: entry.worktreePath, disposition: "remove", check: options.projectionRemovalSlots?.check, folderExists: options.folderExists }),
+    exactBaseOid === null
+      ? Promise.resolve(false)
+      : isLandedInBaseStrict(analysisExec, entry.branch, mergeBase),
+    linkedIdentityGlobalUserSurfacesAreSafe({
+      primaryWorktreePath,
+      worktreePath: entry.worktreePath,
+      fs: userSurfaceFs,
+    }),
+  ]);
+  const localDecision = decideWorktreeCleanup({ marker, removalCheck, userSurfacesSafe, merged, context: "shipped" });
+  const decision = exactBaseOid === null
+    && localDecision.action === "blocked"
+    && localDecision.reason === "unmerged"
+    ? { action: "blocked" as const, reason: "evidence-unavailable" as const }
+    : localDecision.action === "missing" ? { action: "external" as const } : localDecision;
+  const report = { kind: "branched" as const, worktreePath: entry.worktreePath, branch: entry.branch, decision };
+  if (decision.action !== "removable") return report;
+  const name = marker.kind === "present" ? marker.marker.wuName : undefined;
+  return name === undefined ? { ...report, decision: { action: "external" as const } }
+    : { ...report, actions: [workUnitTeardownAction(name)] };
+}
+
+async function inspectHuskRemoval(context: {
+  entry: RegisteredWorktree;
+  marker: Extract<WorktreeMarkerReadResult, { kind: "present" }>;
+  options: RunStaleWorktreeSweepOptions;
+  exactBaseOid: string | null;
+  shipped: ReadonlySet<string>;
+  warnings: string[];
+}): Promise<Extract<StaleWorktreeReport, { kind: "husk" }> | null> {
+  const { entry, marker, options, exactBaseOid, shipped, warnings } = context;
+  const { exec } = options;
+  const stamp = marker.marker.husk;
+  if (stamp === undefined) return null;
+  const removalCheck = await checkWorktreeRemoval({ exec, checkoutPath: entry.path, disposition: "remove",
+    check: options.projectionRemovalSlots?.check, folderExists: options.folderExists });
+  if (removalCheck.kind === "missing") return null;
+  const clean = removalCheck.kind === "removable";
+  let decoded = decodeWorktreeHuskStamp(stamp);
+  let decision: Extract<StaleWorktreeReport, { kind: "husk" }>["decision"] = removalCheck.kind === "refused"
+    && (removalCheck.reason === "unobservable" || removalCheck.reason === "locked")
+    ? { action: "blocked", reason: removalCheck.reason }
+    : decideHuskCleanup({ marker, clean, head: entry.head });
+  const removalBlocked = removalCheck.kind === "refused"
+    && (removalCheck.reason === "unobservable" || removalCheck.reason === "locked");
+  if (decoded.kind === "current" && !removalBlocked) {
+    const evidence = await inspectCurrentHuskEvidence({ entry, stamp, decoded, options, exactBaseOid, warnings });
+    if (evidence === "unavailable") decision = { action: "blocked", reason: "evidence-unavailable" };
+    if (evidence === "invalid") {
+      decoded = { kind: "manual-only", reason: "evidence-mismatch" };
+      decision = { action: "blocked", reason: "evidence-mismatch" };
+    }
+  }
+  if (exactBaseOid === null && decision.action === "removable") {
+    decision = { action: "blocked", reason: "evidence-unavailable" };
+  }
+  return {
+    kind: "husk",
+    worktreePath: entry.path,
+    branch: null,
+    subject: stamp.subject,
+    stampedBranch: stamp.branch,
+    stamp: decoded,
+    completedWorkUnit:
+      stamp.subject.kind === "work-unit" && shipped.has(stamp.subject.name)
+        ? stamp.subject.name
+        : null,
+    decision,
+  };
+}
+
+async function inspectCurrentHuskEvidence(context: {
+  entry: RegisteredWorktree;
+  stamp: NonNullable<Extract<WorktreeMarkerReadResult, { kind: "present" }>["marker"]["husk"]>;
+  decoded: Extract<DecodedWorktreeHuskStamp, { kind: "current" }>;
+  options: RunStaleWorktreeSweepOptions;
+  exactBaseOid: string | null;
+  warnings: string[];
+}): Promise<"valid" | "invalid" | "unavailable"> {
+  const { entry, stamp, decoded, options, exactBaseOid, warnings } = context;
+  if (exactBaseOid === null) {
+    warnings.push(`Retirement evidence at ${entry.path} could not be revalidated without exact base evidence.`);
+    return "unavailable";
+  }
+  const valid = await (options.revalidateEvidence === undefined
+    ? revalidateDecodedHuskRetirementEvidenceStrict(options.exec, stamp, decoded, exactBaseOid, options.readBlob)
+    : options.revalidateEvidence(stamp, decoded, exactBaseOid));
+  return valid ? "valid" : "invalid";
+}
+
+function withHuskActions(
+  report: Extract<StaleWorktreeReport, { kind: "husk" }>,
+  locus: WorktreeIdentity,
+): StaleWorktreeReport {
+  if (report.stamp.kind === "manual-only") {
+    return { ...report, actions: [{ text: `Inspect husk \`${report.worktreePath}\` (${report.stamp.reason}); cleanup requires a manual decision.` }] };
+  }
+  if (report.decision.action !== "removable") return report;
+  const subject = report.subject;
+  if (subject.kind === "work-unit") {
+    const argv = ["arc", "teardown", subject.name,
+      ...(locus.kind === "linked" ? ["--husk", report.worktreePath] : [])];
+    return { ...report, actions: [{ text: argv.join(" "), argv }] };
+  }
+  if (subject.kind === "branch" && locus.kind === "primary") {
+    return { ...report, actions: [{ text: `arc teardown --branch ${subject.ref}`,
+      argv: ["arc", "teardown", "--branch", subject.ref] }] };
+  }
+  return { ...report, actions: [{ text: `Husk \`${report.worktreePath}\` belongs to ${subject.kind} \`${subject.kind === "branch" ? subject.ref : subject.slug}\`; cleanup is manual because no exact husk cleanup driver serves it here.` }] };
 }

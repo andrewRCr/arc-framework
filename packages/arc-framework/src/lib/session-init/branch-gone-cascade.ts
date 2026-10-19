@@ -24,8 +24,11 @@
  */
 
 import { z } from "zod";
+import { SessionActionsSchema } from "./actions.js";
+import { DerivedCheckoutDiagnosticSchema } from "../locus/derived-schema.js";
 
 import { decideWorktreeCleanup } from "../git/worktree-cleanup.js";
+import type { RemovalCheck } from "../git/worktree-removal.js";
 import type { WorktreeMarkerReadResult } from "../git/worktree-marker.js";
 import { RemoteFailureReasonSchema, type RemoteFailureReason } from "../kernel/index.js";
 import type { CleanupRemoteEvidence } from "./cleanup-remote-evidence.js";
@@ -49,11 +52,13 @@ export const CascadeCandidateSchema = z.discriminatedUnion("proposedAction", [
     branch: NON_EMPTY_TEXT,
     worktreePath: NON_EMPTY_TEXT,
     proposedAction: z.literal("removable"),
+    workUnitName: NON_EMPTY_TEXT,
   }),
   z.strictObject({
     branch: NON_EMPTY_TEXT,
     worktreePath: NON_EMPTY_TEXT,
     proposedAction: z.literal("external"),
+    diagnostics: z.array(DerivedCheckoutDiagnosticSchema).readonly().optional(),
   }),
 ]);
 
@@ -78,23 +83,32 @@ export type RecoveryRefreshRemedy = z.infer<typeof RecoveryRefreshRemedySchema>;
  * head whose object is missing, refreshable) or `unproven` (candidates exist but
  * their merged status could not be established, so the operator chooses).
  */
+/** Missing registrations corroborated by the removal check; actions remain offer-only. */
+export const RecoveryMissingFoldersSchema = z.array(z.strictObject({
+  worktreePath: z.string(), branch: z.string(), actions: SessionActionsSchema,
+}));
+
 const ResolvedCascadeResolutionSchema = z.strictObject({
   kind: z.literal("resolved"),
+  missingFolders: RecoveryMissingFoldersSchema.optional(),
   remoteEvidence: z.literal("exact"),
   candidate: CascadeCandidateSchema,
 });
 const SurfaceCascadeResolutionSchema = z.strictObject({
   kind: z.literal("surface"),
+  missingFolders: RecoveryMissingFoldersSchema.optional(),
   remoteEvidence: z.literal("exact"),
   candidates: z.array(CascadeCandidateSchema).min(2),
 });
 const MainFallbackCascadeResolutionSchema = z.strictObject({
   kind: z.literal("main-fallback"),
+  missingFolders: RecoveryMissingFoldersSchema.optional(),
   remoteEvidence: z.literal("exact"),
   baseBranch: NON_EMPTY_TEXT,
 });
 const PendingCascadeResolutionSchema = z.strictObject({
   kind: z.literal("pending"),
+  missingFolders: RecoveryMissingFoldersSchema.optional(),
   remoteEvidence: z.literal("pending-fetch"),
   candidates: z.array(CascadeCandidateSchema),
   pendingBranchCount: z.number().int().positive(),
@@ -102,6 +116,7 @@ const PendingCascadeResolutionSchema = z.strictObject({
 });
 const UnprovenCascadeResolutionSchema = z.strictObject({
   kind: z.literal("unproven"),
+  missingFolders: RecoveryMissingFoldersSchema.optional(),
   remoteEvidence: z.enum(["pending-fetch", "unreachable", "not-applicable"]),
   failureReason: RemoteFailureReasonSchema.optional(),
   // May be empty: an incomplete projection cannot distinguish "no candidates"
@@ -122,6 +137,7 @@ export const CascadeResolutionSchema = z.discriminatedUnion("kind", [
 export type CascadeResolution = z.infer<typeof CascadeResolutionSchema>;
 
 const RecoveryRecommendationFields = {
+  actions: SessionActionsSchema.optional(),
   recommendedAction: z.enum(["switch", "prompt", "surface"]),
   recommendedPromptText: z.string(),
 };
@@ -300,8 +316,8 @@ export interface CandidateActionInputs {
   isMainOrAdmin: boolean;
   /** Result of reading the candidate worktree's ownership marker. */
   marker: WorktreeMarkerReadResult;
-  /** Whether the candidate worktree's tree is clean. */
-  clean: boolean;
+  /** Read-only checkout removal observation. */
+  removalCheck: RemovalCheck;
   /** Whether ignored identity-global user surfaces are absent or safely mergeable. */
   userSurfacesSafe?: boolean;
   /** Whether the candidate's branch is merged into the integration target. */
@@ -321,10 +337,12 @@ export interface CandidateActionInputs {
  * @returns The candidate action
  */
 export function determineCandidateAction(inputs: CandidateActionInputs): CandidateAction {
+  if (inputs.removalCheck.kind === "missing"
+    || (inputs.removalCheck.kind === "refused" && inputs.removalCheck.reason === "locked" && !inputs.removalCheck.folderPresent)) return "external";
   if (inputs.isMainOrAdmin) return "switch";
   const decision = decideWorktreeCleanup({
     marker: inputs.marker,
-    clean: inputs.clean,
+    removalCheck: inputs.removalCheck,
     userSurfacesSafe: inputs.userSurfacesSafe,
     merged: inputs.merged,
     context: "shipped",
@@ -333,7 +351,9 @@ export function determineCandidateAction(inputs: CandidateActionInputs): Candida
     case "removable":
       return "removable";
     case "blocked":
-      return "switch";
+      return decision.reason === "unobservable" ? "external" : "switch";
+    case "missing":
+      return "external";
     case "external":
       return "external";
   }

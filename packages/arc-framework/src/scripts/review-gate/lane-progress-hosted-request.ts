@@ -212,8 +212,8 @@ function hostedPassHold(
       attemptedProviders: [request.provider],
       state: "terminal-failure",
       nextAction: "stop",
-      reason: `hosted pass ${logicalPass} already ended in terminal failure at this head from ${failed.sourceId} `
-        + `(attempt ${failed.attemptId}): ${failureReason}; a request at a later head starts the pass again`,
+      reason: `hosted attempt ${logicalPass} already ended in terminal failure at this head from ${failed.sourceId} `
+        + `(attempt ${failed.attemptId}): ${failureReason}; a request at a later head starts another attempt`,
     },
   };
 }

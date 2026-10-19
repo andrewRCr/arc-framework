@@ -30,6 +30,7 @@ export function selectRequestChecks(checks: CheckDeclaration["checks"], form: Ch
   const deadline = checkRequestDeadline(form);
   return Object.entries(checks).filter(([id, check]) => {
     if (form.kind === "run") return form.ids.includes(id);
+    if (check.mode === "selection") return form.kind === "increment" || form.kind === "segment";
     if (check.gate !== undefined && deadline !== undefined && membership[deadline].includes(check.gate)) return true;
     return form.kind === "increment" && check.gate === "push" && check.mode === "files";
   });

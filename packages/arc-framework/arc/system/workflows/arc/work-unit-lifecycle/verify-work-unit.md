@@ -3,9 +3,8 @@ purpose: Execute the task list's verification phase — merge quality gate, succ
 audience: agent
 arc:
   methods:
-    - validate-criteria
-    - self-review
-    - review-triage
+    - code-review
+    - verification-review
     - commit-footer
     - review-chunking
     - route-discovered-work
@@ -51,10 +50,8 @@ Before the Candidate exists, clean the WU content:
 - Apply [`clean-work-unit.md`][clean] `§ Task List Temporal-Noise Pass` when the task list carries temporal markers,
   ad-hoc inline status, or accumulated scratchpad content.
 
-If the [`self-review` method][self-review] is effectively active, execute it against the local aggregate diff vs
-the base branch. Classify findings per [`review-triage`][review-triage], present the standalone non-producer report,
-obtain approval for the complete disposition set, and commit approved fixes per [`commit-footer`][commit-footer]
-before continuing. Do not invoke the producer-backed response command or fabricate producer evidence.
+Run [code-review's author check][code-author-check] over the aggregate diff before the merge gate below.
+Its approved fixes must land before this verification's evidence is gathered.
 
 When the task list carries a Delivery Plan, inspect every member-close scale-attention result before the terminal
 merge quality gate. Each completed member must record the resolver's exact target, state, and disposition, plus metrics
@@ -69,13 +66,30 @@ Request `arc check gate merge --force` before the final local attestation.
 
 ## Step 2 — Validate Success Criteria at Work-Unit Scope
 
+Before the criteria walk or its first independent reviewer, invoke `arc review changeset resolve -` over the complete
+work-unit diff, including local edits, using `validate-criteria` § Verification subject for its exact coordinates.
+This also applies without a Delivery Plan. Dispatch on the resolver's typed state/action pair:
+
+- `disabled / none`, `below-threshold / continue-review`, or `scope-selected / continue-review` — continue.
+- `consider-chunks / select-review-scope` — render `recommendedActionText`, then apply
+  [`review-chunking`][review-chunking]. Select bounded scopes or an explicit capable whole-target route before launch.
+  Keep the selected criteria and verification rubric unchanged.
+- `delivery-bound / continue-review` — use the bound member scopes as seeds, assess the selected member or seam's
+  attention burden under `review-chunking`, and resolve any uncovered verification scope before launch.
+- `evidence-unavailable / continue-review`, command failure, or an unsupported result — preserve the diagnostic and
+  resolve the missing measurement or scope evidence before launch; never treat it as below threshold.
+
+Retain the returned target, state, metrics when supplied, and scope disposition with the criteria report. Reuse an
+unchanged exact-subject result. This check creates no review evidence and leaves the independent companion's offer
+intact; the committed member-close and post-materialization checks retain their own boundaries.
+
 Inspect the task list for a Delivery Plan, then run the criteria walk at work-unit scope with exactly one of these
 criteria shapes.
 
 Without a Delivery Plan:
 
 ```yaml
-validate-criteria:
+verification-review:
   scope:
     kind: work-unit
     criteria: task list's complete flat Success Criteria section
@@ -86,7 +100,7 @@ validate-criteria:
 With a Delivery Plan:
 
 ```yaml
-validate-criteria:
+verification-review:
   scope:
     kind: work-unit
     criteria:
@@ -96,27 +110,8 @@ validate-criteria:
     reachability: complete work-unit tree
 ```
 
-Without a Delivery Plan, open the upstream design/spec artifact and compare every flat criterion against actual
-outcomes in the complete diff and tree. With a Delivery Plan, the method dispositions member groups from their
-recorded reports and walks only the seam group and union coherence against the complete tree.
-
-**Method fire-point** · [`adversarial-review`][adversarial-review], declared by `validate-criteria`: After the
-primary walk for either criteria shape, load its adversarial companion.
-
-> [!IMPORTANT]
-> `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Novel`; offer neutrally at
-> `Light` / `Heavy`. Offer the pass and await the call — user decides; decline keeps the primary report.
->
-> ```yaml
-> adversarial-review:
->   rubric:          # selected work-unit Success Criteria slice
->   artifacts:       # upstream design + task list with markings withheld + complete diff and reachable tree
->   orientation:
->     - AGENT-BRIEF.ARC
->     - AGENT-BRIEF.PROJECT
->   pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3
->   prior-findings:  # pass two onward; omitted on pass one
-> ```
+Run [verification-review][verification-review] over the selected scope, including its [author criteria
+walk][verification-walk] and [independent companion][verification-companion].
 
 Consume the resulting report, then mark each criterion in the task list's Success Criteria section (see
 [task-list-formatting strategy][task-list-formatting] § Success Criteria Section for format) using the three-state
@@ -186,12 +181,11 @@ verification-task exception). Cover both:
 
 ---
 
-[adversarial-review]: ../../../methods/adversarial-review.md
+[verification-review]: ../../../methods/verification-review.md
+[verification-walk]: ../../../methods/verification-review.md#author-criteria-walk
+[verification-companion]: ../../../methods/verification-review.md#independent-companion
 [task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
 [clean]: ../supplemental/clean-work-unit.md
-[self-review]: ../../../methods/self-review.md
-[review-triage]: ../../../methods/review-triage.md
-[commit-footer]: ../../../methods/commit-footer.md
 [review-chunking]: ../../../methods/review-chunking.md
 [route-discovered-work]: ../../../methods/route-discovered-work.md
 [prepare-work-unit]: prepare-work-unit.md
@@ -199,3 +193,5 @@ verification-task exception). Cover both:
 [amend-design]: ../supplemental/amend-design.md
 [amend-design-gate]: ../supplemental/amend-design.md#entry-gate
 [process-task-loop]: ../process-task-loop.md
+
+[code-author-check]: ../../../methods/code-review.md#author-check

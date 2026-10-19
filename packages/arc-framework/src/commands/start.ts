@@ -26,6 +26,7 @@
  * @module
  */
 
+import { runStoreColdStart } from "./start-cold-store.js";
 import { basename, join } from "node:path";
 import { usesOffBranchState } from "../lib/store/lifecycle-write.js";
 import { IncompleteWorktreePreparationError, describeWorktreePreparationFailure } from "../lib/work-unit/incomplete-worktree-preparation.js";
@@ -35,7 +36,7 @@ import { runStoreGraduate } from "./start-store.js";
 import { nodeEditorDocumentsFs, writeEditorDocumentsOrThrow } from "../lib/schema-command/editor-documents.js";
 
 import { parseSpecInput } from "../lib/active/spec-input-parser.js";
-import { readActiveMetaCandidates, validateMetaFieldBlockShape, type MetaFieldName } from "../lib/active/meta-reader.js";
+import { validateMetaFieldBlockShape, type MetaFieldName } from "../lib/active/meta-reader.js";
 import {
   BEGIN_CURRENT_WORKFLOW_SENTINEL,
 } from "../lib/active/current-workflow-consistency.js";
@@ -44,7 +45,8 @@ import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
 import { SlugSchema } from "../lib/kernel/index.js";
 import { resolveArcPath } from "../lib/layout/index.js";
 import { isProtectedBranch } from "../lib/release/interlock-validation.js";
-import { resolveActiveWu } from "../lib/release/wu-resolution.js";
+import { resolveCurrentWorkUnit } from "../lib/store/current-work-unit.js";
+import { workItemArtifactPath } from "../lib/store/lifecycle-storage.js";
 import { branchToWorkUnitSlug } from "../lib/work-unit/work-unit-slug.js";
 import {
   buildLifecycleIndex,
@@ -555,12 +557,11 @@ export function deriveColdStartWuName(
 }
 
 async function coldStartOccupancyRefusal(worktreePath: string): Promise<string | null> {
-  const active = await resolveActiveWu({ cwd: worktreePath });
-  if (active.status === "none") return null;
-  const existing = active.status === "resolved"
-    ? active.name || active.path
-    : (await readActiveMetaCandidates(worktreePath)).candidates.map((candidate) => candidate.path).join(", ")
-      || active.hint;
+  const active = await resolveCurrentWorkUnit({ cwd: worktreePath });
+  if (active.status === "none") return active.warnings.length === 0 ? null : active.warnings.join("; ");
+  const existing = active.status === "resolved" ? active.candidate.reference.owner.name
+    : active.candidates.map(candidate => workItemArtifactPath(candidate.reference.owner.name, "meta",
+      { kind: "active" }, candidate.record?.cohort ?? null)).join(", ");
   const occupancy = active.status === "resolved" ? "an active work unit" : "multiple active work units";
   return `worktree already has ${occupancy} (${existing}); `
     + "resolve the existing work-unit occupancy before retrying; "
@@ -587,9 +588,11 @@ export async function runColdStart(
       ok: false,
       reason:
         `could not derive a clean work-unit name from branch '${params.branch}'; `
-        + "pass an explicit name",
+        + "pass an explicit name with arc start <slug> --new --here",
     };
   }
+
+  if (usesOffBranchState(ctx.store)) return runStoreColdStart(ctx, params, wuName, coldStartSeed(params.from));
 
   // On a protected base under `branch.protection: full`, scaffolding directly
   // onto `branch.base` is disallowed — but rather than bare-refusing, cut

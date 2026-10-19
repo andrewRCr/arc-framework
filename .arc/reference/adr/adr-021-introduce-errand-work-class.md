@@ -125,7 +125,7 @@ work from "atomic-tier WU" to "Errand."
 
 **Operational conventions (named here, ratified at the cohort PRDs).** The plumbing that makes the
 Errand class safe and cheap is owned by the agile-parallelism cohort and detailed in
-[`cohort-agile-parallelism.md`][cohort]:
+`cohort-agile-parallelism.md`:
 
 - **Worktree Foundation** — the cheap ephemeral-branch mechanism for Errands, and the concurrency
   oracle's hook (in-flight detection from remote refs + open PRs, path/content-based, all-owner). The
@@ -232,5 +232,4 @@ Neither record is superseded.
 [adr-019]: adr-019-work-unit-lifecycle-reform.md
 [adr-020]: adr-020-adopt-principle-anchored-scalable-core.md
 [adr-027]: adr-027-refine-errand-model.md
-[cohort]: ../../completed/2026-q3/18a_cohort-agile-parallelism/cohort-agile-parallelism.md
 [adr-037]: adr-037-decide-errand-boundary-by-record-test.md

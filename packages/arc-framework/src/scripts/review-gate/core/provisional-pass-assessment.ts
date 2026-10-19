@@ -27,6 +27,7 @@ export const ProvisionalPassAssessmentSchema = z.strictObject({
   status: z.literal("provisional"),
   lane: z.enum(["frontline", "standard"]),
   admittedLogicalPass: ReviewPassSchema,
+  ceilingPassCount: z.number().int().nonnegative(),
   configuredMaxPasses: ReviewPassSchema,
   proposedSignal: z.strictObject({
     confirmedFindingCount: z.number().int().nonnegative(),
@@ -40,13 +41,13 @@ export const ProvisionalPassAssessmentSchema = z.strictObject({
   nextPassAuthority: z.literal("none"),
   summaryText: z.string().trim().min(1),
 }).superRefine((assessment, context) => {
-  const position = assessment.admittedLogicalPass < assessment.configuredMaxPasses
+  const position = assessment.ceilingPassCount < assessment.configuredMaxPasses
     ? "below-ceiling"
-    : assessment.admittedLogicalPass === assessment.configuredMaxPasses
+    : assessment.ceilingPassCount === assessment.configuredMaxPasses
       ? "at-ceiling"
       : "above-ceiling";
   if (assessment.capPosition !== position) {
-    context.addIssue({ code: "custom", path: ["capPosition"], message: "must match the admitted pass and ceiling" });
+    context.addIssue({ code: "custom", path: ["capPosition"], message: "must match the counted passes and ceiling" });
   }
   const signal = assessment.proposedSignal;
   if ((signal.confirmedFindingCount === 0) !== (signal.maxConfirmedSeverity === null)) {
@@ -68,7 +69,9 @@ export const ProvisionalPassAssessmentSchema = z.strictObject({
       message: "a material fix needs another pass",
     });
   }
-  if (passFollows && (consequence === "next-pass") !== (position === "below-ceiling")) {
+  const incremental = assessment.fixConsequence.kind === "next-pass"
+    && assessment.fixConsequence.coverage === "incremental-when-proven";
+  if (passFollows && !incremental && (consequence === "next-pass") !== (position === "below-ceiling")) {
     context.addIssue({
       code: "custom",
       path: ["fixConsequence"],

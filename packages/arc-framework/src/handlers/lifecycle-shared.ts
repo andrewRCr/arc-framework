@@ -115,7 +115,8 @@ export async function resolveVerbBase(context?: InteractionContext, json = false
   if (!cwd) return null;
   return bindDefaultVerbStore({ identity, cwd, io });
 }
-function openDefaultStore(cwd: string, exec: GitExec): Store {
+/** Open the operational store over the command's selected checkout. */
+export function openDefaultStore(cwd: string, exec: GitExec): Store {
   return createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec }));
 }
 function bindDefaultVerbStore(base: Pick<VerbBase, "identity" | "cwd" | "io">): VerbBase {

@@ -12,6 +12,9 @@
  * @module
  */
 
+import type { Store } from "../../lib/store/contract.js";
+import { deriveStoreInFlight, type StoreInFlightEntry } from "../../lib/git/in-flight-store.js";
+import type { DeriveStoreInFlightOptions } from "../../lib/git/in-flight-store.js";
 import { z } from "zod";
 
 import type { GitExec, GitExecInput } from "../../lib/git/exec.js";
@@ -86,6 +89,10 @@ export const ActiveInFlightEvidenceSchema = z.discriminatedUnion("remoteEvidence
 export type ActiveInFlightEvidence = z.infer<typeof ActiveInFlightEvidenceSchema>;
 
 export interface ActiveInFlightOptions {
+  store?: Store;
+  projectId?: () => Promise<string>;
+  roster?: DeriveStoreInFlightOptions["roster"];
+  findHoldingCheckout?: DeriveStoreInFlightOptions["findHoldingCheckout"];
   exec: GitExec;
   /** Repository checkout used to resolve repository-common candidate claims. */
   cwd?: string;
@@ -113,9 +120,9 @@ export interface ActiveInFlightExpansionOptions extends ActiveInFlightOptions {
   execInput: GitExecInput;
 }
 
-interface ActiveInFlightResultCore {
+interface ActiveInFlightResultCore<Entry = InFlightEntry> {
   /** Identity-filtered in-flight work units and errands, in oracle (input-branch) order. */
-  entries: InFlightEntry[];
+  entries: Entry[];
   /** Structured diagnostics emitted while deriving the in-flight set. */
   warnings: InFlightWarning[];
   /** Agreed mutable input snapshot used by fire-time probes. */
@@ -129,7 +136,7 @@ interface ActiveInFlightResultCore {
 }
 
 /** Complete explicit in-flight result with evidence-qualified expansion state. */
-export type ActiveInFlightResult = ActiveInFlightResultCore & ActiveInFlightEvidence;
+export type ActiveInFlightResult<Entry = InFlightEntry> = ActiveInFlightResultCore<Entry> & ActiveInFlightEvidence;
 
 /** Strict supplied-evidence analysis retained for lifecycle composition. */
 export type ActiveInFlightExpansionAnalysis = AnalyzeInFlightSnapshotResult & ActiveInFlightEvidence;
@@ -140,9 +147,13 @@ export type ActiveInFlightExpansionAnalysis = AnalyzeInFlightSnapshotResult & Ac
  * @param options - Explicit acquisition dependencies plus in-flight classification policy.
  * @returns Evidence-qualified entries derived from the captured remote OIDs.
  */
-export async function runActiveInFlightExpansion(
-  options: ActiveInFlightExpansionOptions,
-): Promise<ActiveInFlightResult> {
+export function runActiveInFlightExpansion(options: ActiveInFlightExpansionOptions & { store: Store }): Promise<ActiveInFlightResult<StoreInFlightEntry>>;
+export function runActiveInFlightExpansion(options: ActiveInFlightExpansionOptions): Promise<ActiveInFlightResult>;
+export async function runActiveInFlightExpansion(options: ActiveInFlightExpansionOptions): Promise<ActiveInFlightResult | (ActiveInFlightResult<StoreInFlightEntry>)> {
+  if (options.store?.capabilities.stateOffBranch) {
+    const result = await deriveStoreInFlight({ ...options, store: options.store });
+    return { ...result, remoteEvidence: "not-applicable", candidateExpansion: { status: "not-requested", pendingBranchCount: 0 } };
+  }
   if (options.localOnly) return runActiveInFlight(options);
 
   const analysis = await expandActiveInFlight(options);
@@ -187,9 +198,13 @@ export async function runActiveInFlightExpansion(
  * @param options - Explicit live-acquisition dependencies and classification policy.
  * @returns Full strict analysis plus evidence-qualified candidate expansion.
  */
-export async function expandActiveInFlight(
-  options: Omit<ActiveInFlightExpansionOptions, "localOnly">,
-): Promise<ActiveInFlightExpansionAnalysis> {
+export function expandActiveInFlight(options: Omit<ActiveInFlightExpansionOptions, "localOnly"> & { store: Store }): Promise<Omit<ActiveInFlightExpansionAnalysis, "entries"> & { entries: StoreInFlightEntry[] }>;
+export function expandActiveInFlight(options: Omit<ActiveInFlightExpansionOptions, "localOnly">): Promise<ActiveInFlightExpansionAnalysis>;
+export async function expandActiveInFlight(options: Omit<ActiveInFlightExpansionOptions, "localOnly">): Promise<ActiveInFlightExpansionAnalysis | (Omit<ActiveInFlightExpansionAnalysis, "entries"> & { entries: StoreInFlightEntry[] })> {
+  if (options.store?.capabilities.stateOffBranch) {
+    const result = await deriveStoreInFlight({ ...options, store: options.store });
+    return { ...result, remoteEvidence: "not-applicable", candidateExpansion: { status: "not-requested", pendingBranchCount: 0 }, pendingBranchCount: 0 };
+  }
   const { exec, execInput, cwd, identity, teamMode, baseBranch, parkedSlugs, timeoutMs, prSource } = options;
   const transientInFlight = projectTransientInFlightRead(
     await readTransientInFlightIndexes({ exec, identity }),
@@ -295,9 +310,13 @@ export async function expandActiveInFlight(
  * @param options - Injected git adapter plus resolved identity, team mode, and mode flag.
  * @returns The in-flight work units and errands, with the network-reachability flag.
  */
-export async function runActiveInFlight(
-  options: ActiveInFlightOptions,
-): Promise<ActiveInFlightResult> {
+export function runActiveInFlight(options: ActiveInFlightOptions & { store: Store }): Promise<ActiveInFlightResult<StoreInFlightEntry>>;
+export function runActiveInFlight(options: ActiveInFlightOptions): Promise<ActiveInFlightResult>;
+export async function runActiveInFlight(options: ActiveInFlightOptions): Promise<ActiveInFlightResult | (ActiveInFlightResult<StoreInFlightEntry>)> {
+  if (options.store?.capabilities.stateOffBranch) {
+    const result = await deriveStoreInFlight({ ...options, store: options.store });
+    return { ...result, remoteEvidence: "not-applicable", candidateExpansion: { status: "not-requested", pendingBranchCount: 0 } };
+  }
   const { exec, identity, teamMode, localOnly, baseBranch, parkedSlugs, timeoutMs, prSource } = options;
   // An online read takes Errand records from the remote identity ref, so an Errand opened on another machine
   // classifies before its record reaches this machine; the fetched read falls back to the local ref offline,

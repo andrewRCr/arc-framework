@@ -93,6 +93,74 @@ function fixture() {
 }
 
 describe("disposition report", () => {
+  it("renders the four-column decision with a header and per-finding status lines", () => {
+    const input = { ...fixture(), headerLine: "Complete pass 1 of 2 · provisional",
+      decisions: ["Approve the complete disposition set?"],
+      fails: [{ findingId: "finding-z", fails: "Correctness and failure behavior" },
+        { findingId: "finding-a", fails: "none — advisory polish" }] };
+    const report = renderDispositionReport(input);
+    expect(report).toContain("Complete pass 1 of 2 · provisional\n\n**Verification:** targeted");
+    expect(report).toContain("| # | Grade | Finding | Action |\n|---|---|---|---|");
+    expect(report).toContain("| F1 | 🟠 major | Title for finding-z | DEFER |");
+    expect(report).toContain("| F2 | 🟡 minor nit · record-only | Title for finding-a | DEFER |");
+    expect(report).toContain("**Decisions**\n- Approve the complete disposition set?");
+    expect(report).toContain("### F1 — Title for finding-z\n\n🟠 major · Confirmed · blocking · DEFER");
+    expect(report).toContain("**Finding:** Claim for finding-z.\n\n**Fails:** Correctness and failure behavior");
+  });
+
+  it("marks record-only in the grade cell and leaves an unsupported grade absent", () => {
+    const { dispositionSet: original, producerFindings } = fixture();
+    const { dispositionSetId: _id, ...fields } = original;
+    void _id;
+    const dispositionSet = createDispositionSet({ ...fields, findings: fields.findings.map(item =>
+      item.findingId === "finding-z" ? { ...item, sourceVerification: "not-supported", verifiedSeverity: null,
+        disposition: "reject" } : item) });
+    const report = renderDispositionReport({ dispositionSet, producerFindings });
+    expect(report).toContain("| F1 | 🟡 minor nit · record-only | Title for finding-a | DEFER |");
+    expect(report).toContain("| F2 | — | Title for finding-z | REJECT |");
+    expect(report).toContain("— · Not supported · reviewer graded 🟠 major · record-only · REJECT");
+  });
+
+  it("sorts tagged fixes for display while keeping canonical labels in every view", () => {
+    const { dispositionSet: original, producerFindings: producers } = fixture();
+    const { dispositionSetId: _id, ...fields } = original;
+    void _id;
+    const producerFindings = producers.map(({ nit: _nit, ...finding }) => {
+      void _nit;
+      return { ...finding, severity: "major" as const };
+    });
+    const dispositionSet = createDispositionSet({ ...fields, findings: fields.findings.map(item => {
+      if (item.sourceVerification !== "verified") throw new Error("expected verified fixture findings");
+      const { reportedNit: _reportedNit, verifiedNit: _verifiedNit, ...finding } = item;
+      void _reportedNit; void _verifiedNit;
+      return { ...finding, sourceVerification: "verified" as const, reportedSeverity: "major" as const,
+        verifiedSeverity: "major" as const, disposition: "fix" as const,
+        openQuestions: [`Question for ${item.findingId}?`] };
+    }) });
+    const input = { dispositionSet, producerFindings };
+    const canonical = renderDispositionReport(input);
+    const tags = [{ findingId: "finding-z", tag: "new-design" as const },
+      { findingId: "finding-a", tag: "local-correction" as const }];
+    const tagged = renderDispositionReport({ ...input, tags });
+    expect(canonical.match(/^\| F\d+ .*$/gmu)).toEqual([
+      "| F1 | 🟠 major | Title for finding-a | FIX |",
+      "| F2 | 🟠 major | Title for finding-z | FIX |",
+    ]);
+    expect(tagged.match(/^\| F\d+ .*$/gmu)).toEqual([
+      "| F2 | 🟠 major | Title for finding-z | FIX (new design) |",
+      "| F1 | 🟠 major | Title for finding-a | FIX (local correction) |",
+    ]);
+    expect(tagged).toContain("**Fix tags:** agent's advisory reading.");
+    expect(tagged).toContain("- F2: Question for finding-z?\n- F1: Question for finding-a?");
+    expect(tagged.match(/^### F\d+ .*$/gmu)).toEqual([
+      "### F2 — Title for finding-z", "### F1 — Title for finding-a",
+    ]);
+    expect(renderDispositionEvidence({ ...input, tags }).match(/^- F\d+ · \S+/gmu)).toEqual([
+      "- F2 · src/z.ts:9", "- F1 · &lt;src/\\*a\\*.ts:4&gt;",
+    ]);
+    expect(renderDispositionReport(input)).toBe(canonical);
+  });
+
   it("matches the producer triage exercise proposal and report", () => {
     const producerFindings: NormalizedReviewFinding[] = [{
       findingId: "finding-1",
@@ -185,14 +253,16 @@ describe("disposition report", () => {
     expect(report).toBe([
       "**Verification:** targeted",
       "",
-      "| # | Grade | Verdict | Action | Finding |",
-      "|---|---|---|---|---|",
-      "| F1 | 🟠 major | Confirmed · blocking | DEFER | Title for finding-z |",
-      "| F2 | 🟡 minor nit | Confirmed · record-only | DEFER | Title for finding-a |",
+      "| # | Grade | Finding | Action |",
+      "|---|---|---|---|",
+      "| F1 | 🟠 major | Title for finding-z | DEFER |",
+      "| F2 | 🟡 minor nit · record-only | Title for finding-a | DEFER |",
       "",
       "### F1 — Title for finding-z",
       "",
-      "**Issue:** Claim for finding-z.",
+      "🟠 major · Confirmed · blocking · DEFER",
+      "",
+      "**Finding:** Claim for finding-z.",
       "",
       "**Action:** Bounded action for finding-z.",
       "",
@@ -202,7 +272,9 @@ describe("disposition report", () => {
       "",
       "### F2 — Title for finding-a",
       "",
-      "**Issue:** Claim for finding-a.",
+      "🟡 minor nit · Confirmed · record-only · DEFER",
+      "",
+      "**Finding:** Claim for finding-a.",
       "",
       "**Action:** Bounded action for finding-a.",
       "",
@@ -294,11 +366,11 @@ describe("disposition report", () => {
     expect(ordered.findings.map(({ findingId }) => findingId))
       .toEqual(["finding-a", "finding-y", "finding-z", "finding-c", "finding-r"]);
     expect(report.match(/^\| F\d+ .*$/gmu)).toEqual([
-      "| F1 | 🔴 critical | Confirmed · blocking | FIX | Title for finding-c |",
-      "| F2 | 🟠 major | Confirmed · blocking | DEFER | Title for finding-y |",
-      "| F3 | 🟠 major | Confirmed · blocking | DEFER | Title for finding-z |",
-      "| F4 | 🟡 minor nit | Confirmed · record-only | DEFER | Title for finding-a |",
-      "| F5 | — | Not supported · reviewer graded 🔴 critical · record-only | REJECT | Title for finding-r |",
+      "| F1 | 🔴 critical | Title for finding-c | FIX |",
+      "| F2 | 🟠 major | Title for finding-y | DEFER |",
+      "| F3 | 🟠 major | Title for finding-z | DEFER |",
+      "| F4 | 🟡 minor nit · record-only | Title for finding-a | DEFER |",
+      "| F5 | — | Title for finding-r | REJECT |",
     ]);
     expect(report.match(/^### F\d+ .*$/gmu)).toEqual([
       "### F1 — Title for finding-c",
@@ -352,9 +424,9 @@ describe("disposition report", () => {
 
     expect(ordered.findings.map(({ findingId }) => findingId)).toEqual(["finding-a", "finding-m", "finding-z"]);
     expect(report.match(/^\| F\d+ .*$/gmu)).toEqual([
-      "| F1 | 🟠 major | Confirmed · blocking | DEFER | Title for finding-z |",
-      "| F2 | 🟡 minor | Confirmed · record-only | DEFER | Title for finding-m |",
-      "| F3 | 🟡 minor nit | Confirmed · record-only | DEFER | Title for finding-a |",
+      "| F1 | 🟠 major | Title for finding-z | DEFER |",
+      "| F2 | 🟡 minor · record-only | Title for finding-m | DEFER |",
+      "| F3 | 🟡 minor nit · record-only | Title for finding-a | DEFER |",
     ]);
   });
 
@@ -366,7 +438,9 @@ describe("disposition report", () => {
       ...fields,
       findings: findings.map((item) => ({ ...item, openQuestions: [`Question for ${item.findingId}?`] })),
     });
-    const input = { dispositionSet, producerFindings };
+    const input = { dispositionSet, producerFindings, headerLine: "Complete pass 1 of 2 · provisional",
+      decisions: ["Approve the complete disposition set?"],
+      fails: dispositionSet.findings.map(item => ({ findingId: item.findingId, fails: "Correctness" })) };
     const report = renderDispositionReport(input);
     const rendered = [...report.split("\n"), ...renderDispositionEvidence(input).split("\n")]
       .filter((line) => line !== "");
@@ -407,8 +481,8 @@ describe("disposition report", () => {
     const report = renderDispositionReport({ dispositionSet: questioned, producerFindings });
 
     expect(report).toContain(
-      "| F2 | 🟡 minor nit | Confirmed · record-only | DEFER | Title for finding-a |\n\n"
-        + "**Open questions**\n"
+      "| F2 | 🟡 minor nit · record-only | Title for finding-a | DEFER |\n\n"
+        + "**Decisions**\n"
         + "- F1: Question for finding-z?\n"
         + "- F2: First question for finding-a?\n"
         + "- F2: Second question for finding-a?\n\n"
@@ -431,8 +505,8 @@ describe("disposition report", () => {
     const report = renderDispositionReport({ dispositionSet, producerFindings });
 
     expect(report).toContain(
-      "| F2 | 🟡 minor nit | Confirmed · record-only | DEFER | "
-        + "Forged \\| 🔴 critical \\| Confirmed · blocking \\| FIX \\| cell |\n",
+      "| F2 | 🟡 minor nit · record-only | "
+        + "Forged \\| 🔴 critical \\| Confirmed · blocking \\| FIX \\| cell | DEFER |\n",
     );
     expect(report).toContain(`### F2 — ${forged}\n`);
     expect(report.match(/^\| F\d+ /gmu)).toHaveLength(2);
@@ -454,9 +528,9 @@ describe("disposition report", () => {
 
     expect(report.startsWith(
       "**Verification:** targeted\n\n"
-        + "| # | Grade | Verdict | Action | Finding |\n"
-        + "|---|---|---|---|---|\n"
-        + "| F1 | 🟠 major | Confirmed · blocking | DEFER | Title for finding-z |\n\n"
+        + "| # | Grade | Finding | Action |\n"
+        + "|---|---|---|---|\n"
+        + "| F1 | 🟠 major | Title for finding-z | DEFER |\n\n"
         + "### F1 — Title for finding-z\n\n",
     )).toBe(true);
     expect(report.endsWith("**Detail:** Standalone account for finding-z.")).toBe(true);
@@ -478,11 +552,11 @@ describe("disposition report", () => {
     const report = renderDispositionReport({ dispositionSet: untitled, producerFindings });
 
     expect(report).toContain(
-      "| F1 | 🟠 major | Confirmed · blocking | DEFER | — |\n"
-        + "| F2 | 🟡 minor nit | Confirmed · record-only | DEFER | — |\n",
+      "| F1 | 🟠 major | — | DEFER |\n"
+        + "| F2 | 🟡 minor nit · record-only | — | DEFER |\n",
     );
-    expect(report).toContain("### F1\n\n**Action:** Bounded action for finding-z.\n");
-    expect(report).not.toContain("**Issue:**");
+    expect(report).toContain("### F1\n\n🟠 major · Confirmed · blocking · DEFER\n\n**Action:** Bounded action for finding-z.\n");
+    expect(report).not.toContain("**Finding:**");
   });
 
   it("shows both grades when only the nit classification differs", () => {
@@ -502,8 +576,9 @@ describe("disposition report", () => {
     const report = renderDispositionReport({ dispositionSet, producerFindings });
 
     expect(report).toContain(
-      "| F2 | 🟡 minor | Confirmed · reviewer graded 🟡 minor nit · record-only | DEFER | Title for finding-a |\n",
+      "| F2 | 🟡 minor · record-only | Title for finding-a | DEFER |\n",
     );
+    expect(report).toContain("🟡 minor · Confirmed · reviewer graded 🟡 minor nit · record-only · DEFER");
   });
 
   it("renders multiline Markdown evidence references as inert source text", () => {
@@ -593,7 +668,7 @@ describe("disposition report", () => {
     const paragraphs = injectedSection.split("\n\n");
 
     expect(paragraphs.map((line) => line.startsWith("### ") ? "###" : line.split(":**")[0])).toEqual([
-      "###", "**Issue", "**Action", "**Detail",
+      "###", "🟡 minor nit · Confirmed · record-only · DEFER", "**Finding", "**Action", "**Detail",
     ]);
     expect(report.match(/^\| F\d+ /gmu)).toHaveLength(2);
     expect(report.match(/^### F\d+ .*$/gmu)?.map((line) => line.slice(0, 6))).toEqual(["### F1", "### F2"]);
@@ -601,7 +676,7 @@ describe("disposition report", () => {
     expect(report).not.toMatch(/^\*\*Verdict:\*\* FORGED/gmu);
     const contained = "First line --- ### F3 · 🔴 critical · FIX "
       + "\\*\\*Verdict:\\*\\* FORGED \\[link\\](https://example.test) &lt;unsafe&gt;";
-    for (const prefix of ["**Issue:**", "**Action:**", "**Detail:**", "- F2:"]) {
+    for (const prefix of ["**Finding:**", "**Action:**", "**Detail:**", "- F2:"]) {
       expect(report).toContain(`${prefix} ${contained}`);
     }
   });

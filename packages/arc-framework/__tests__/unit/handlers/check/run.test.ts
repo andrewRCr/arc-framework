@@ -6,12 +6,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CheckDeclarationSchema } from "../../../../src/lib/checks/declaration.js";
 import { declaredChecksExitCode, runDeclaredRequest, type DeclaredCheckResult, type DeclaredCheckDependencies } from "../../../../src/handlers/check/run.js";
-import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
+import { readProjectedSelection } from "../../../../src/lib/checks/projected-selection.js";
+import { scriptGitExec, scriptRawGitExec } from "../../../helpers/git-exec-fake.js";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 
-async function fixture(checks: Record<string, { fixes?: boolean; no_evidence_exit?: number; mode?: "files"; inputs?: string[] }>, failSecondTreeWrite = false) {
+async function fixture(checks: Record<string, { fixes?: boolean; no_evidence_exit?: number; mode?: "files" | "selection"; root?: string; runtime_inputs?: string[][]; inputs?: string[] }>, failSecondTreeWrite = false) {
   const root = await mkdtemp(join(tmpdir(), "arc-check-scheduling-"));
   roots.push(root);
   await mkdir(join(root, ".git"));
@@ -23,7 +24,9 @@ async function fixture(checks: Record<string, { fixes?: boolean; no_evidence_exi
     [id, { command: [id], cache: false, inputs: [], ...check }])) });
   const git = scriptGitExec([
     { match: ["rev-parse", "--verify", "--end-of-options", "HEAD^{commit}"], responses: [{ stdout: "a".repeat(40), stderr: "" }] },
+    { match: ["rev-parse", "--path-format=absolute", "--git-path", "MERGE_HEAD"], responses: [{ stdout: join(root, ".git/MERGE_HEAD") }] },
     { match: ["rev-parse", "--git-path", "index"], responses: [{ stdout: join(root, ".git/index"), stderr: "" }] },
+    { match: { prefix: ["rev-list"] }, responses: [{ stdout: "" }] },
     { match: ["add", "-A"], responses: [{ stdout: "", stderr: "" }] },
     { match: ["write-tree"], responses: failSecondTreeWrite
       ? [{ stdout: "b".repeat(40) }, { failure: { exitCode: 128, stderr: "index write failed" } }]
@@ -248,4 +251,145 @@ it("keeps a completed batch failure when a later batch cannot run", async () => 
   await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids } })).resolves.toMatchObject({
     kind: "result", exitCode: 1, result: { checks: [{ outcome: "failed", output: "lint violation\nssh disconnected" }] },
   });
+});
+
+
+it("keeps the unconnected projected selection empty and successful", async () => {
+  expect(await readProjectedSelection("/unused", { changed: false })).toEqual({ status: "ok", paths: [] });
+  expect(await readProjectedSelection("/unused", { changed: true })).toEqual({ status: "ok", paths: [] });
+});
+
+it.each([
+  { request: { form: { kind: "increment" } }, changed: true },
+  { request: { form: { kind: "segment" } }, changed: true },
+  { request: { form: { kind: "run", ids: ["selected"] } }, changed: false },
+  { request: { form: { kind: "run", ids: ["selected"] }, scope: { kind: "all" } }, changed: false },
+  { request: { form: { kind: "run", ids: ["selected"] }, scope: { kind: "changed" } }, changed: true },
+  { request: { form: { kind: "run", ids: ["selected"] }, scope: { kind: "staged" } }, changed: true },
+  { request: { form: { kind: "run", ids: ["selected"] }, scope: { kind: "range" } }, changed: true },
+] satisfies { request: import("../../../../src/lib/checks/request.js").CheckRequest; changed: boolean }[])("resolves projected scope for $request", async ({ request, changed }) => {
+  const { root, io } = await fixture({ selected: { mode: "selection" } });
+  io.readProjectedSelection = (_root, options) => Promise.resolve({ status: "unavailable", reason: options.changed === changed ? "expected scope" : "wrong scope" });
+  const result = await runDeclaredRequest(root, io, request);
+  if (result.kind === "error") throw new Error(result.error.message);
+  expect(result).toMatchObject({ kind: "result", exitCode: 2,
+    result: { checks: [{ id: "selected", outcome: "couldn't run", reason: "expected scope" }] } });
+});
+
+it("shares one unavailable projected read and recovers on the same request", async () => {
+  const { root, io, ids } = await fixture({ selected: { mode: "selection" }, second: { mode: "selection" }, ordinary: {} });
+  let reads = 0;
+  io.readProjectedSelection = () => { reads++; return Promise.reject(new Error("selection index unreadable")); };
+  const request = { form: { kind: "run" as const, ids }, serial: true };
+  await expect(runDeclaredRequest(root, io, request)).resolves.toMatchObject({ kind: "result", exitCode: 2,
+    result: { checks: [
+      { id: "selected", outcome: "couldn't run", reason: expect.stringContaining("selection index unreadable") },
+      { id: "second", outcome: "couldn't run", reason: expect.stringContaining("selection index unreadable") },
+      { id: "ordinary", outcome: "passed" },
+    ] } });
+  expect(reads).toBe(1);
+  io.readProjectedSelection = () => Promise.resolve({ status: "ok", paths: [] });
+  await expect(runDeclaredRequest(root, io, request)).resolves.toMatchObject({ kind: "result", exitCode: 0,
+    result: { checks: [{ outcome: "not selected", reason: "no files to check" },
+      { outcome: "not selected", reason: "no files to check" }, { outcome: "passed" }] } });
+});
+
+it("does not read projected state without a requested selection check", async () => {
+  const { root, io, ids } = await fixture({ ordinary: {} });
+  let reads = 0;
+  io.readProjectedSelection = () => { reads++; return Promise.reject(new Error("not requested")); };
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids } })).resolves.toMatchObject({ exitCode: 0 });
+  expect(reads).toBe(0);
+});
+
+async function projectedFixture() {
+  const result = await fixture({ selected: { mode: "selection", inputs: ["**"], root: "tools", runtime_inputs: [["node", "--version"]] }, ordinary: {} });
+  let paths: string[] = [];
+  result.io.rawGit = scriptRawGitExec([
+    { match: ["hash-object", "--stdin"], responses: [{ stdout: Buffer.from("a".repeat(40)) }] },
+    { match: { prefix: ["update-index"] }, responses: [({ options }) => {
+      paths = Buffer.from(options?.input ?? []).toString("utf8").split("\0").filter(Boolean).map(entry => entry.slice(entry.indexOf("\t") + 1));
+      return { stdout: Buffer.alloc(0) };
+    }] },
+    { match: { prefix: ["ls-files"] }, responses: [() => ({ stdout: Buffer.from(paths.join("\0") + (paths.length ? "\0" : "")) })] },
+  ]).exec;
+  result.io.readProjectedSelection = () => Promise.resolve({ status: "ok", paths: [
+    ".arc/active/current/meta-unit.md", ".arc/active/in-flight/other/notes-other.md",
+  ] });
+  result.io.execute = (command, _cwd, content) => Promise.resolve({ started: true, exitCode: 0,
+    output: JSON.stringify({ command, content: content ?? null }) });
+  return result;
+}
+
+it("intersects named directories with projected paths and keeps root-relative literal arguments", async () => {
+  const { root, io } = await projectedFixture();
+  const result = await runDeclaredRequest(root, io, { form: { kind: "run", ids: ["selected"] }, ci: true,
+    scope: { kind: "paths", paths: [".arc/active/current", ".arc/missing.md"] } });
+  expect(result).toMatchObject({ kind: "result", exitCode: 0, result: { checks: [{ outcome: "passed",
+    output: JSON.stringify({ command: ["selected", "../.arc/active/current/meta-unit.md"], content: null }),
+    record: { status: "not-recordable" },
+  }] } });
+});
+
+
+it("executes projected paths every time without pass or runtime evidence", async () => {
+  const { root, io } = await projectedFixture();
+  io.runtime = () => Promise.reject(new Error("selection must not read runtime evidence"));
+  io.passes = { get: () => Promise.reject(new Error("selection must not read passes")),
+    put: () => Promise.reject(new Error("selection must not write passes")) };
+  let executions = 0;
+  io.execute = command => Promise.resolve({ started: true, exitCode: 0, output: JSON.stringify({ executions: ++executions, command }) });
+  for (const run of [1, 2]) {
+    const result = await runDeclaredRequest(root, io, { form: { kind: "run", ids: ["selected"] } });
+    expect(result).toMatchObject({ exitCode: 0, kind: "result", result: { checks: [{ outcome: "passed",
+      record: { status: "not-recordable" }, output: JSON.stringify({ executions: run, command: ["selected",
+        "../.arc/active/current/meta-unit.md", "../.arc/active/in-flight/other/notes-other.md"] }) }] } });
+  }
+});
+
+it.each(["increment", "segment"] as const)("retries failed %s selection feedback with changed scope", async kind => {
+  const { root, io } = await projectedFixture();
+  io.execute = () => Promise.resolve({ started: true, exitCode: 1, output: "bad Markdown" });
+  expect(await runDeclaredRequest(root, io, { form: { kind } })).toMatchObject({ kind: "result", exitCode: 1,
+    result: { checks: [{ outcome: "failed", kind: "feedback", remedy: "arc check run selected --changed" }] } });
+});
+
+it("keeps ordinary serial results when projected matching fails, then recovers", async () => {
+  const { root, io } = await projectedFixture();
+  const original = io.rawGit;
+  if (!original) throw new Error("Missing matcher fixture");
+  io.rawGit = () => Promise.reject(new Error("temporary index denied"));
+  const request = { form: { kind: "run" as const, ids: ["selected", "ordinary"] }, serial: true };
+  expect(await runDeclaredRequest(root, io, request)).toMatchObject({ kind: "result", exitCode: 2,
+    result: { checks: [{ outcome: "couldn't run", reason: expect.stringContaining("temporary index denied"),
+      remedy: "arc check run selected --all" }, { id: "ordinary", outcome: "passed" }] } });
+  io.rawGit = original;
+  expect(await runDeclaredRequest(root, io, request)).toMatchObject({ kind: "result", exitCode: 0,
+    result: { checks: [{ outcome: "passed" }, { outcome: "passed" }] } });
+});
+
+it("forecasts bounded projected batches without execution", async () => {
+  const { root, io } = await projectedFixture();
+  const paths = Array.from({ length: 300 }, (_, i) => `.arc/active/current/${i}-${"a".repeat(100)}.md`);
+  io.readProjectedSelection = () => Promise.resolve({ status: "ok", paths });
+  io.execute = () => Promise.reject(new Error("dry run must not execute"));
+  const result = await runDeclaredRequest(root, io, { form: { kind: "run", ids: ["selected"] }, dryRun: true });
+  expect(result).toMatchObject({ kind: "result", exitCode: 0, result: { checks: [{ outcome: "would run", mode: "selection" }] } });
+  if (result.kind !== "result") throw new Error(result.error.message);
+  const batches = result.result.checks[0]?.batches ?? [];
+  expect(batches.length).toBeGreaterThan(1);
+  expect(batches.flatMap(batch => batch.slice(1))).toEqual(paths.map(path => `../${path}`));
+});
+
+
+it("runs projected files against their live content when staged and worktree trees differ", async () => {
+  const { root, io } = await projectedFixture();
+  const git = io.git;
+  let writes = 0;
+  io.git = (command, args, options) => args[0] === "write-tree"
+    ? Promise.resolve({ stdout: (++writes === 1 ? "b" : "d").repeat(40) }) : git(command, args, options);
+  const result = await runDeclaredRequest(root, io, { form: { kind: "run", ids: ["selected"] }, scope: { kind: "staged" } });
+  expect(result).toMatchObject({ kind: "result", exitCode: 0, result: { checks: [{ outcome: "passed",
+    output: JSON.stringify({ command: ["selected", "../.arc/active/current/meta-unit.md",
+      "../.arc/active/in-flight/other/notes-other.md"], content: null }) }] } });
 });

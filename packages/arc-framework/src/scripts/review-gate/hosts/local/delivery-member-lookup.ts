@@ -103,6 +103,7 @@ export class RepositoryDeliveryMemberLookup implements DeliveryMemberLookup, Del
 DeliveryDischargeTargetLookup, DeliveryReservationRecordLookup, DeliveryTerminalRecordLookup {
   private readonly plans: RepositoryDeliveryPlanStore<DeliveryPlanV1>;
   private readonly store: RepositoryDeliveryStateStore;
+  private readonly readOnly: boolean;
   private readonly transitionSource: DeliveryRenameTransitionSource;
 
   /**
@@ -112,8 +113,10 @@ DeliveryDischargeTargetLookup, DeliveryReservationRecordLookup, DeliveryTerminal
     readonly exec: GitExec;
     readonly cwd: string;
     readonly transitionSource?: DeliveryRenameTransitionSource;
+    readonly readOnly?: boolean;
   }) {
     const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
+    this.readOnly = input.readOnly === true;
     this.plans = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
     this.store = new RepositoryDeliveryStateStore(publisher);
     this.transitionSource = input.transitionSource
@@ -169,7 +172,7 @@ DeliveryDischargeTargetLookup, DeliveryReservationRecordLookup, DeliveryTerminal
     // throws outside a repository. Containing both is what makes the port total.
     let resolution;
     try {
-      resolution = await this.store.resolveMember({ selector });
+      resolution = await (this.readOnly ? this.store.resolveMemberReadOnly({ selector }) : this.store.resolveMember({ selector }));
     } catch {
       return { status: "unavailable" };
     }

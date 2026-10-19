@@ -1,12 +1,14 @@
 /** Explicit shared-selector worktree execution for markdownlint-cli2. */
 
-import { matchesGlob, relative, resolve, sep } from "node:path";
+import { relative, resolve, sep } from "node:path";
 
 import type { GitExec } from "../git/index.js";
+import type { RawGitExec } from "../git/exec.js";
 import { ArcError, type ManagedPath } from "../kernel/index.js";
 import { validateMarkdownPath } from "./authority.js";
 import { loadWorktreeMarkdownConfigurations } from "./configuration.js";
-import { enumerateTrackedMarkdownPaths, MARKDOWN_SELECTION, validateExplicitMarkdownPaths,
+import { selectMarkdownlintPaths } from "./lint-selection.js";
+import { enumerateTrackedMarkdownPaths, validateExplicitMarkdownPaths,
   type ValidateExplicitMarkdownPathsOptions } from "./selection.js";
 
 /** Worktree markdownlint process boundary. */
@@ -47,6 +49,8 @@ export async function runWorktreeMarkdownlint(
 /** Filesystem boundaries and explicit operands for focused worktree linting. */
 export interface RunExplicitMarkdownlintOptions extends RunWorktreeMarkdownlintOptions {
   readonly paths: readonly string[];
+  readonly allowIgnored?: boolean;
+  readonly rawGit: RawGitExec;
   readonly lstat: ValidateExplicitMarkdownPathsOptions["lstat"];
   readonly realpath: ValidateExplicitMarkdownPathsOptions["realpath"];
 }
@@ -62,15 +66,17 @@ export async function runExplicitMarkdownlint(
   const candidates = options.paths.map(path => validateMarkdownPath(
     relative(options.root, resolve(options.root, path)).split(sep).join("/"),
   ));
+  const included = new Set(await selectMarkdownlintPaths(options.root, candidates, options.rawGit));
   for (const path of candidates) {
-    if (MARKDOWN_SELECTION.ignores.some(pattern => matchesGlob(path, pattern))) {
+    if (!included.has(path)) {
       throw new ArcError(
         `Markdown path is excluded by .markdownlint-cli2.jsonc: ${path}. Choose an included Markdown file.`,
         "markdown.excluded",
       );
     }
   }
-  const paths = await validateExplicitMarkdownPaths({ ...options, paths: candidates, operation: "lint-read" });
+  const paths = await validateExplicitMarkdownPaths({ ...options, paths: candidates, operation: "lint-read",
+    allowIgnoredPaths: options.allowIgnored ? new Set(candidates) : undefined });
   await loadWorktreeMarkdownConfigurations({ ...options, markdownPaths: paths });
   const exitCode = await options.executeLinter(options.root, ["--no-globs", "--", ...paths.map(path => `:${path}`)]);
   return { exitCode, paths };

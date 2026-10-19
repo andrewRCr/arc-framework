@@ -18,9 +18,11 @@ interface ReportEntry {
   label: string;
   item: DispositionReportItem;
   finding: NormalizedReviewFinding;
+  fails?: string;
+  tag?: "new-design" | "local-correction";
 }
 
-const TABLE_HEAD = ["| # | Grade | Verdict | Action | Finding |", "|---|---|---|---|---|"];
+const TABLE_HEAD = ["| # | Grade | Finding | Action |", "|---|---|---|---|"];
 
 /** ARC grade rank, most severe first; an unsupported finding carries no ARC grade and ranks last. */
 function gradeRank(item: DispositionReportItem): number {
@@ -53,27 +55,40 @@ function tableCell(value: string): string {
   return escapeReviewFindingDisplayText(value).replaceAll("|", "\\|");
 }
 
-/** The finding's decision row: label, ARC grade, verdict with gating, disposition, and title. */
-function renderRow({ label, item }: ReportEntry): string {
-  const grade = item.sourceVerification === "not-supported"
-    ? "—"
-    : displaySeverity(item.verifiedSeverity, item.verifiedNit);
-  const title = item.title === undefined ? "—" : tableCell(item.title);
-  return `| ${label} | ${grade} | ${renderVerdict(item)} | ${item.disposition.toUpperCase()} | ${title} |`;
+/** The verified grade, with record-only standing retained in the decision table. */
+function renderGrade(item: DispositionReportItem): string {
+  if (item.sourceVerification === "not-supported") return "—";
+  return displaySeverity(item.verifiedSeverity, item.verifiedNit)
+    + (item.gating === "record-only" ? " · record-only" : "");
 }
 
-/** Every open question, labelled by its finding — the one part of the report that asks the approver. */
-function renderOpenQuestions(entries: readonly ReportEntry[]): string[] {
-  const questions = entries.flatMap(({ label, item }) => item.openQuestions
-    .map((question) => `- ${label}: ${escapeReviewFindingDisplayText(question)}`));
-  return questions.length === 0 ? [] : ["**Open questions**", ...questions, ""];
+/** A fix tag is an advisory display note, never a different disposition. */
+function renderAction(item: DispositionReportItem, tag?: ReportEntry["tag"]): string {
+  return item.disposition === "fix" && tag !== undefined
+    ? `FIX (${tag.replaceAll("-", " ")})` : item.disposition.toUpperCase();
+}
+
+/** The finding's labelled grade, title, and action. */
+function renderRow({ label, item, tag }: ReportEntry): string {
+  const title = item.title === undefined ? "—" : tableCell(item.title);
+  return `| ${label} | ${renderGrade(item)} | ${title} | ${renderAction(item, tag)} |`;
+}
+
+/** Gather caller-owned decisions and every labelled finding question in one block. */
+function renderDecisions(entries: readonly ReportEntry[], decisions: readonly string[] = []): string[] {
+  const lines = [...decisions.map(line => `- ${escapeReviewFindingDisplayText(line)}`),
+    ...entries.flatMap(({ label, item }) => item.openQuestions
+      .map(question => `- ${label}: ${escapeReviewFindingDisplayText(question)}`))];
+  return lines.length === 0 ? [] : ["**Decisions**", ...lines, ""];
 }
 
 /** One paragraph per descriptor field, so each scans on its own line once rendered. */
-function renderSection({ label, item }: ReportEntry): string {
+function renderSection({ label, item, fails, tag }: ReportEntry): string {
   const title = item.title === undefined ? "" : ` — ${escapeReviewFindingDisplayText(item.title)}`;
-  const paragraphs = [`### ${label}${title}`];
-  if (item.issue !== undefined) paragraphs.push(`**Issue:** ${escapeReviewFindingDisplayText(item.issue)}`);
+  const grade = item.sourceVerification === "not-supported" ? "—" : displaySeverity(item.verifiedSeverity, item.verifiedNit);
+  const paragraphs = [`### ${label}${title}`, `${grade} · ${renderVerdict(item)} · ${renderAction(item, tag)}`];
+  if (item.issue !== undefined) paragraphs.push(`**Finding:** ${escapeReviewFindingDisplayText(item.issue)}`);
+  if (fails !== undefined) paragraphs.push(`**Fails:** ${escapeReviewFindingDisplayText(fails)}`);
   paragraphs.push(
     `**Action:** ${escapeReviewFindingDisplayText(item.recommendation)}`,
     `**Detail:** ${escapeReviewFindingDisplayText(item.rationale)}`,
@@ -106,6 +121,12 @@ function validateCorrespondence(item: DispositionReportItem, finding: Normalized
 interface DispositionReportInput {
   dispositionSet: DispositionSet;
   producerFindings: readonly NormalizedReviewFinding[];
+  headerLine?: string;
+  decisions?: readonly string[];
+  includeDecisions?: boolean;
+  loopReading?: readonly string[];
+  fails?: readonly { findingId: string; fails: string }[];
+  tags?: readonly { findingId: string; tag: "new-design" | "local-correction" }[];
 }
 
 /** Validate exact producer correspondence and label each finding in decision order. */
@@ -125,34 +146,44 @@ function reportEntries(input: DispositionReportInput): { dispositionSet: Disposi
       throw new Error(`disposition finding '${item.findingId}' has no producer correspondence`);
     }
     validateCorrespondence(item, finding);
-    return { label: `F${index + 1}`, item, finding };
+    const fails = input.fails?.find(anchor => anchor.findingId === item.findingId)?.fails;
+    const tag = input.tags?.find(note => note.findingId === item.findingId)?.tag;
+    return { label: `F${index + 1}`, item, finding,
+      ...(fails === undefined ? {} : { fails }), ...(tag === undefined ? {} : { tag }) };
   });
+  entries.sort((left, right) => Number(left.item.gating !== "blocking") - Number(right.item.gating !== "blocking")
+    || gradeRank(left.item) - gradeRank(right.item)
+    || Number(right.tag === "new-design") - Number(left.tag === "new-design"));
   return { dispositionSet, entries };
 }
 
 /**
- * Render the decision view of one canonical disposition set: the table, open questions, and one section per finding.
+ * Render one labelled disposition set with its optional header, advisory notes, and complete decision block.
  *
- * @param input - Canonical set and complete producer finding array.
+ * @param input - Canonical set, exact producer findings, and optional presentation inputs.
  * @returns One standalone deterministic Markdown report, without the evidence block.
  */
 export function renderDispositionReport(input: DispositionReportInput): string {
   const { dispositionSet, entries } = reportEntries(input);
   return [
+    ...(input.headerLine === undefined ? [] : [escapeReviewFindingDisplayText(input.headerLine), ""]),
     `**Verification:** ${dispositionSet.proposedVerification}`,
     "",
+    ...(input.tags === undefined || input.tags.length === 0 ? [] : ["**Fix tags:** agent's advisory reading.", ""]),
     ...TABLE_HEAD,
     ...entries.map(renderRow),
     "",
-    ...renderOpenQuestions(entries),
+    ...(input.includeDecisions === false ? [] : renderDecisions(entries, input.decisions)),
     entries.map(renderSection).join("\n\n---\n\n"),
+    ...(input.loopReading === undefined ? [] : ["", "**Loop reading (advisory)**",
+      ...input.loopReading.map(line => `- ${escapeReviewFindingDisplayText(line)}`)]),
   ].join("\n");
 }
 
 /**
  * Render the evidence behind one canonical disposition set, labelled as its report labels each finding.
  *
- * @param input - Canonical set and complete producer finding array.
+ * @param input - Canonical set, exact producer findings, and optional presentation inputs.
  * @returns One deterministic Markdown evidence block: locus, producer source, and ARC verification per finding.
  */
 export function renderDispositionEvidence(input: DispositionReportInput): string {

@@ -1,4 +1,7 @@
 /** Lane policy-request composition for the typed pre-publication review procedure. */
+import { deriveReviewNextPassContextFromAttempts, latestCompletedLaneAttempt } from "./review-next-pass.js";
+import type { PerformedResponseProofInput } from "./performed-response-proof.js";
+
 
 import { z } from "zod";
 import { canonicalize, type CanonicalDigest } from "../../../lib/kernel/canonical/canonical-json.js";
@@ -38,6 +41,7 @@ import {
   type ReviewLaneJudgment,
 } from "./review-policy-driver.js";
 import {
+  bindReviewPolicyContinuationEvidence,
   bindReviewPolicyEvidence,
   readIncrementalPredecessorResponseEvidence,
   ReviewProducerScopeMismatchError,
@@ -201,6 +205,7 @@ export interface PrePublicationCompositionDependencies {
   resultReader: ReviewResultReader;
   dispositionStore: ApprovedDispositionRecordStore;
   readResponsePerformance(predecessor: ReviewResult): Promise<LaneResponsePerformance | null>;
+  readCandidateCorrectionProof?(workUnit: string): Promise<PerformedResponseProofInput["candidateProof"]>;
   confirmIncrementalApplicability(
     workUnit: string,
     predecessor: ReviewResult,
@@ -603,6 +608,20 @@ function routingInput(
   return { ...supplied, schemaVersion: 1, assurance, activity };
 }
 
+async function readCandidateCorrectionContext(
+  dependencies: PrePublicationCompositionDependencies, workUnit: string, sources: readonly string[],
+) {
+  const candidateProof = await dependencies.readCandidateCorrectionProof?.(workUnit);
+  return { candidateProof, rangeProof: candidateProof,
+    deltaAdmission: { sources, surface: "pre-publication" as const } };
+}
+
+function standardNextPassProgress(progress: LaneProgressProjection) {
+  if (progress.status !== "recorded") return { completePasses: 0 };
+  const earlier = latestCompletedLaneAttempt(progress.attempts) ?? progress.historicalAttempt;
+  return { completePasses: progress.completePasses, predecessorOperationId: earlier?.attemptId };
+}
+
 /**
  * Compose both lane policy requests for one work unit from repository state and author judgment.
  *
@@ -802,7 +821,7 @@ export async function composePrePublicationReviewRequest(
       policyInput, dependencies, terminalAttempts[lane],
     );
     pendingSources[lane] = pendingSource;
-    return bindReviewPolicyEvidence(policyInput, {
+    const evidenceDependencies = {
       allowUnapprovedFindings: pendingSource !== null,
       terminalResponseSettled: settledTerminalResponse(terminalAttempts[lane], pendingSource),
       sources: policy.sources,
@@ -811,8 +830,8 @@ export async function composePrePublicationReviewRequest(
         ? {} : { historicalProducerId: historicalAttempt.attemptId }),
       resultReader: dependencies.resultReader,
       dispositionStore: dependencies.dispositionStore,
-      readResponsePerformance: (predecessor) => dependencies.readResponsePerformance(predecessor),
-      confirmIncrementalApplicability: (predecessor, current) =>
+      readResponsePerformance: (predecessor: ReviewResult) => dependencies.readResponsePerformance(predecessor),
+      confirmIncrementalApplicability: (predecessor: ReviewResult, current: ReviewResult) =>
         current.admission.lineage.kind === "delivery-member"
           && predecessor.repositoryId === current.repositoryId
           && laneSubjectOwnerMatches(predecessor.admission.lineage, current.admission.lineage)
@@ -824,7 +843,22 @@ export async function composePrePublicationReviewRequest(
       confirmTarget: () => exactTarget === null
         ? Promise.reject(new Error("terminal review progress requires a current exact review target"))
         : Promise.resolve(exactTarget),
+    };
+    if (lane === "frontline") return bindReviewPolicyEvidence(policyInput, evidenceDependencies);
+    const currentLineage = lineage ?? { kind: "candidate" as const, candidateId: candidate.candidateId };
+    const nextPassContext = await deriveReviewNextPassContextFromAttempts({
+      attempts: policyInput.attempts, completedPasses: policyInput.completedPasses, ...standardNextPassProgress(rawProgress),
+      currentTarget: exactTarget, currentLineage, standardReview,
+      resultReader: dependencies.resultReader, dispositionStore: dependencies.dispositionStore,
+      readResponsePerformance: evidenceDependencies.readResponsePerformance,
+      confirmApplicability: evidenceDependencies.confirmIncrementalApplicability,
+      confirmCurrentApplicability: predecessor => exactTarget === null ? Promise.resolve("unavailable")
+        : dependencies.confirmPriorProducerApplicability(input.workUnit, predecessor, exactTarget, currentLineage, policyTarget),
+      ...await readCandidateCorrectionContext(dependencies, input.workUnit, policy.sources),
     });
+    return bindReviewPolicyContinuationEvidence(policyInput, {
+      terminalResponsePerformed: evidenceDependencies.terminalResponseSettled,
+    }, { ...evidenceDependencies, nextPassContext });
   };
   const withCeilingOverride = <Request extends Awaited<ReturnType<typeof composeLane>>>(
     lane: ReviewLane,

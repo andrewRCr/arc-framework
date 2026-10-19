@@ -1,3 +1,5 @@
+import { firstReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
+import { withReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
 import { describe, expect, it } from "vitest";
 
 import { createStandardReviewReservation } from
@@ -50,8 +52,9 @@ describe("Candidate hosted PR replacement", () => {
       maxPasses: 2,
       logicalPass: 1,
     };
-    expect(() => assertCandidateHostedReservationPolicyAdmission(input)).not.toThrow();
+    expect(() => assertCandidateHostedReservationPolicyAdmission(withReviewNextPassContext(input))).not.toThrow();
     await expect(assertEvidenceBoundCandidateHostedReservationPolicyAdmission(input, {
+      nextPassContext: firstReviewNextPassContext,
       resultReader: { readResult: () => Promise.reject(new Error("old PR must not be read")) },
       dispositionStore: {
         readDispositionRecord: () => Promise.resolve(null),
@@ -67,9 +70,10 @@ describe("Candidate hosted PR replacement", () => {
           hosted: { target } }],
       },
     };
-    expect(() => assertCandidateHostedReservationPolicyAdmission(currentPending))
+    expect(() => assertCandidateHostedReservationPolicyAdmission(withReviewNextPassContext(currentPending)))
       .toThrow(/already held by a pending request/u);
     await expect(assertEvidenceBoundCandidateHostedReservationPolicyAdmission(currentPending, {
+      nextPassContext: firstReviewNextPassContext,
       resultReader: { readResult: () => Promise.reject(new Error("pending request")) },
       dispositionStore: {
         readDispositionRecord: () => Promise.resolve(null),

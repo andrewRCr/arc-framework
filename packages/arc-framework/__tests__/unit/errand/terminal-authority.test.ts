@@ -37,6 +37,7 @@ function transientRow(path = "/repo/repair"): DerivedCheckoutRow {
   return {
     kind: "transient",
     checkout: {
+      folderPresent: true,
       path,
       head: "b".repeat(40),
       branch: `chore/${SUBJECT.slug}`,
@@ -68,6 +69,7 @@ function foreignEnteringRow(): DerivedCheckoutRow {
   return {
     kind: "free-primary",
     checkout: {
+      folderPresent: true,
       path: "/repo",
       head: "d".repeat(40),
       branch: "main",
@@ -89,6 +91,7 @@ function partialRow(): DerivedCheckoutRow {
   return {
     kind: "transient",
     checkout: {
+      folderPresent: true,
       path: "/repo",
       head: "e".repeat(40),
       branch: "main",

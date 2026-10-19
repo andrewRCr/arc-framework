@@ -50,7 +50,7 @@ describe("runInboxState", () => {
   it("sets housekeepNeeded when at least one entry is routable", () => {
     const content = ["## Errand", "", atomicEntry("only entry"), "## Work Unit", ""].join("\n");
 
-    expect(runInboxState({ content }).housekeepNeeded).toBe(true);
+    expect(runInboxState({ content })).toMatchObject({ housekeepNeeded: true, actions: [{ text: "arc-session --housekeep" }] });
   });
 
   it("reports an empty inbox as zero count with housekeepNeeded false", () => {
@@ -115,7 +115,7 @@ describe("runInboxState", () => {
       backlogEntry("pending backlog item"),
     ].join("\n");
 
-    expect(runInboxState({ content })).toEqual({ routableCount: 2, executeBoundCount: 2, housekeepNeeded: true });
+    expect(runInboxState({ content })).toEqual({ routableCount: 2, executeBoundCount: 2, housekeepNeeded: true, actions: [{ text: "arc-session --housekeep" }] });
   });
 
   it("reports housekeeping unnecessary when every entry is execute-bound", () => {
@@ -224,7 +224,7 @@ describe("runInboxState", () => {
       .replace("- _Disposition:_ `execute-bound`", "- _Disposition:_ execute-bound");
     const content = ["## Errand", "", malformed, "## Work Unit", ""].join("\n");
 
-    expect(runInboxState({ content })).toEqual({ routableCount: 1, executeBoundCount: 0, housekeepNeeded: true });
+    expect(runInboxState({ content })).toEqual({ routableCount: 1, executeBoundCount: 0, housekeepNeeded: true, actions: [{ text: "arc-session --housekeep" }] });
   });
 });
 

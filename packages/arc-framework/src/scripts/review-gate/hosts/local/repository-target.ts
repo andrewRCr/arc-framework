@@ -102,7 +102,7 @@ async function resolveObject(
 
 /** Derive the change set from the checkout: its HEAD, its working tree, and the base's merge base. */
 async function deriveFromCheckout(
-  input: LocalTargetDerivationInput,
+  input: Omit<LocalTargetDerivationInput, "repositoryId">,
   baseRef: string,
 ): Promise<DerivedCoordinates> {
   const head = await resolveObject(input, "HEAD", "unborn-repository");
@@ -203,23 +203,21 @@ export async function deriveLocalReviewTargetFromCoordinates(input: {
 export async function deriveLocalReviewTarget(
   input: LocalTargetDerivationInput,
 ): Promise<ReviewTarget> {
+  return createReviewTarget({ schemaVersion: 2, semanticsVersion: "review-gate/v2",
+    repositoryId: input.repositoryId, ...await deriveLocalReviewTargetFacts(input) });
+}
+
+/** Read exact Git coordinates without minting a repository identity or persisting a target. */
+export async function deriveLocalReviewTargetFacts(
+  input: Omit<LocalTargetDerivationInput, "repositoryId">,
+): Promise<DerivedCoordinates & { baseRef: string; kind: "change-set" | "delivery-member" }> {
   const baseRef = input.baseRef.trim();
   if (baseRef === "") throw new LocalTargetDerivationError("invalid-base");
   await readGit(input, ["check-ref-format", `refs/heads/${baseRef}`], "invalid-base");
-
   const coordinates = input.memberCoordinates;
   const derived = coordinates === undefined
-    ? await deriveFromCheckout(input, baseRef)
-    : await resolveMemberCoordinates(input, coordinates);
-
-  return createReviewTarget({
-    schemaVersion: 2,
-    semanticsVersion: "review-gate/v2",
-    kind: coordinates === undefined ? "change-set" : "delivery-member",
-    repositoryId: input.repositoryId,
-    baseRef,
-    ...derived,
-  });
+    ? await deriveFromCheckout(input, baseRef) : await resolveMemberCoordinates(input, coordinates);
+  return { kind: coordinates === undefined ? "change-set" : "delivery-member", baseRef, ...derived };
 }
 
 /**

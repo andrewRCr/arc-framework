@@ -2,13 +2,15 @@
 
 import { z } from "zod";
 import { RemoteFailureReasonSchema } from "../kernel/index.js";
-import { RecordReferenceSchema } from "./identity.js";
+import { RecordReferenceSchema, StateVersionSchema } from "./identity.js";
 import { LookupInputSchema } from "./lookup.js";
 
 /** Human remedy, and executable arguments when one command advances. */
 export const RemedySchema = z.strictObject({ text: z.string().trim().min(1), argv: z.array(z.string()).min(1).optional() });
 /** A human correction, optionally accompanied by executable arguments. */
 export type Remedy = z.infer<typeof RemedySchema>;
+/** A retired subject's narrowly named history ref, as declared by the reference backend. */
+export const HistoryRefSchema = z.templateLiteral(["refs/arc/history/", z.enum(["work", "cohort"]), "/", z.uuid()]);
 /** Recoverable and terminal reasons for an unsupported interim operation. */
 export const UNSUPPORTED_CASES = {
   "cross-substrate-batch": "recoverable",
@@ -36,6 +38,8 @@ export const PublishFailureSchema = z.discriminatedUnion("code", [
 ]);
 /** A local refusal, including the interim backend's narrowly assigned unsupported cases. */
 export const LocalRefusalSchema = z.discriminatedUnion("code", [
+  z.strictObject({ code: z.literal("state-unresolvable"), ...recoverable, stateVersion: StateVersionSchema.optional(),
+    historyRefs: z.array(HistoryRefSchema), reference: RecordReferenceSchema.optional(), field: z.string().min(1).optional() }),
   z.strictObject({ code: z.literal("not-found"), ...recoverable, reference: RecordReferenceSchema.optional(), lookup: LookupInputSchema.optional() })
     .refine((value) => value.reference !== undefined || value.lookup !== undefined, "Name the missing record or lookup"),
   z.strictObject({ code: z.literal("version-conflict"), ...recoverable, records: z.array(RecordReferenceSchema).min(1) }),

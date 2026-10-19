@@ -160,7 +160,7 @@ describe("recovery-audit report schema", () => {
       });
     assertSchemaRefuses(RecoverAuditReportSchema, {
         ...report("ready"),
-        seed: { ...(report("ready").seed as object), schemaVersion: 2 },
+        seed: { ...(report("ready").seed as object), schemaVersion: 3 },
       });
   });
 

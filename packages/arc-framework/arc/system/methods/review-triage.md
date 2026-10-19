@@ -3,6 +3,7 @@ name: review-triage
 description: Source-verified severity and disposition contract for review findings
 arc:
   methods:
+    - review-model
     - disposition-report
 related:
   - disposition-report
@@ -11,8 +12,7 @@ override-active: false
 
 # Method: review-triage
 
-> - **Workflow:** [prepare-work-unit.md][prepare-work-unit], [integrate-work-unit.md][integrate-work-unit],
->   [verify-work-unit.md][verify-work-unit], [deliver-stack.md][deliver-stack], [run-errand.md][run-errand]
+> - **Workflow:** [code-review](code-review.md), including its non-producer author check.
 > - **When:** Agent processes findings from any code review
 >
 > - **Contract:** For every finding, verify it independently against source, record severity and disposition, and
@@ -25,9 +25,18 @@ override-active: false
 
 ## review-triage.default
 
+Apply [review-model][review-model] before running or assessing this review.
+
 Process the complete finding set in three ordered legs.
 
 ### 1. Verify against source
+
+Before verifying findings from a review lane, run `arc review lane read -`, deriving its request from
+`arc review lane read --schema`. For a delivery member, supply its exact head as `memberHeadObjectId`. Follow a refusal's
+remedy before continuing. Compare each new finding with the lineage's earlier rejections and check whether each
+applicable rejection's reason still holds against current source. Keep the returned rejections, reasons, and earlier
+verdicts in the primary agent's triage context; withhold them from the evaluator. Author self-review outside any lane
+does not run this read.
 
 Verify every finding against source using the primary agent's own judgment. Record whether the finding is valid and
 the evidence that supports that decision. An invalid or misunderstood finding still receives an explicit `reject`
@@ -84,6 +93,14 @@ governing caller. The command resolves the durable producer, applies the input p
 `payload.dispositionEvidenceText`. The returned `payload.proposal` does not repeat the input-only
 `severityGatingPolicy`; its exact canonical finding gates and `policyVersion` are part of the approval binding.
 
+Supply the separate `report` beside `proposal`: one `tags` entry per fix (`new-design` or `local-correction`),
+one `fails` anchor per finding, the `successorRecommendation`, origin counts, and one of
+[review-model's loop readings][loop-reading] with its rationale. Key tags and anchors by finding identity. Lift a
+local reviewer's `Fails:` line from its referenced report; for a hosted source, supply the rubric anchor while
+verifying it, as the agent's reading. Use the supplied rubric's item names, or `none` with a reason. These judgments
+are advisory and outside the canonical set's identity. The approved call carries the same tags again; only those tags
+are stored, as an immutable advisory note beside the set. Verified-fix and settlement replays read that note.
+
 Author each finding's narrative so the report stands without the raw review:
 
 - `title` — the issue in a phrase; it names the finding in the decision table and heads its section.
@@ -108,25 +125,28 @@ durable disposition record holds them. A code-review report adds three things to
 - F{ordinal} · <locus> · <native label, when available> · source #{sourceOrdinal} · <originating reference> · verified at <ARC source-verification references>
 ```
 
-The command orders findings blocking before record-only, then by ARC grade, with a nit after other minor findings and
-unsupported findings last, keeping canonical order among equals. It retains producer-native labels, capture ordinals,
-and references beside the report-local `F` labels, and escapes only the characters that would otherwise open inline
-Markdown, plus `|` in a table cell.
+The command assigns stable `F` labels in canonical grade and gating order before ordering the display by fix tag.
+Labels remain the same in the proposal, approved report, and replay. Tags forecast what a fix implies; they are the
+agent's reading, never an approved judgment. Keep them distinct from observed fix-round signals. Producer-native
+labels, capture ordinals, and references remain beside the report-local labels.
 
-For a findings proposal, present the CLI's `provisionalPassAssessment.summaryText` beside the verbatim disposition
-report in the same turn. It is the pass line — the lane, admitted pass, configured ceiling, confirmed-finding signal,
-and what approving a `FIX` does: the head moves, and the line names the pass the fixed head then needs with its
-expected coverage, or says the lane closes, another pass needs a ceiling decision, or review status at that head
-decides. It states where review stands and is provisional until verified response and coverage resolve the next
-action. Follow it with the agent's recommendation to stop or to request a named next pass, from the expected signal
-and cost. Every decision the approver is asked to make carries that recommendation. When the pass line says a fix
-triggers another pass, the recommendation also covers that pass, as spend the approver may decline. A decline leaves
-the disposition approval unchanged; the governing caller honors it at the new head through its Owner review stop (an
-Errand's Owner-directed review stop, a work unit's Owner-accepted terminus), confirmed there once before any pass is
-dispatched. Disposition approval and next-pass authorization stay distinct decisions, though one prompt may ask both:
-the approver may approve the set and decline the pass. A disposition approval alone never grants a pass above the
-ceiling; follow the typed policy continuation and obtain explicit approval for the named activity and pass if it
-returns `approval-required / obtain-ceiling-override`.
+The report's provisional header names the lane's position and signal: standard `complete pass N of M` or `fix check,
+round N since pass M`, with frontline's recorded pass and ceiling. When a fix moves the head, the line names the fix
+check or complete pass the fixed head then needs. Its single Decisions block carries complete-set approval, open
+questions, bounded offers, and the agent's successor recommendation. Supply a clear recommendation for each decision
+from expected signal and cost, including at the ceiling. When the pass line says a fix requires a fix check or complete
+pass, the recommendation also covers that activity, as spend the approver may decline. Emit the composed report without
+adding a second pass line or Decisions block. The loop reading combines the CLI's trend with the agent's origin counts
+and reading; it is advice, never admission or convergence evidence.
+
+A fix check verifies repairs and a complete pass looks for what remains undiscovered. Recommend the fix check on the
+approved fixes' merits, even when a complete pass follows. Converge the rounds before a successor complete pass;
+`full-final` stays open after a clean fix check, while incremental closure requires the policy's proved chain.
+Disposition approval and each next activity's authorization remain distinct, even when one prompt asks both. A decline
+leaves the approved set unchanged; the governing caller honors the Owner's stop at the new head (an Errand's
+Owner-directed review stop or a work unit's Owner-accepted terminus), confirmed there once before any pass is
+dispatched. Follow `approval-required / obtain-ceiling-override` for a complete pass beyond the ceiling. Fix and delta
+checks spend no complete-pass allowance and neither consume nor inherit a conditional complete-pass authorization.
 
 Obtain complete-set approval over the report and canonical identity before the caller's second `arc review respond -`
 invocation. Approval records the exact target, producer result, policy/rubric context, proposing actor, verification
@@ -134,13 +154,13 @@ scope, complete dispositions, approving actor, and approval time. Conversational
 Any changed finding, judgment, scope, disposition, narrative, target, or newly surfaced mismatch requires a new
 proposal and approval. A partial approval may never be widened, and no path may apply an individual fix early.
 
-For a set with a `fix`, the complete-set approval is the fix round's structured gate
-([DEV-RULES.ARC § Review-Increment Invariant][review-increment-invariant]). Close the report with a prompt that names
-what approval releases under the caller's `arc.commitInterlock` and `arc.pushInterlock` settings, and only that — for
-example `Approve: 3 fixes → verify → commit → push → settle 2 threads → standard pass 2?`. After the round, report the
-fix, its commit, the settled threads, and the next pass as information, not a gate. The round returns to the approver
-when the performed fix exceeds the approved scope, a verification or gate failure is not a deterministic same-concern
-correction, host state is ambiguous, or a new finding arrives.
+For a set with a `fix`, the complete-set approval is the fix round's structured gate ([DEV-RULES.ARC § Review-Increment
+Invariant][review-increment-invariant]). Close the report with a prompt that names what approval releases under the
+caller's `arc.commitInterlock` and `arc.pushInterlock` settings, and only that — for example `Approve: 3 fixes → verify
+→ commit → push → settle 2 threads → local fix check, round 1 since pass 1?`. After the round, report the fix, its
+commit, the settled threads, and the next pass as information, not a gate. The round returns to the approver when the
+performed fix exceeds the approved scope, a verification or gate failure is not a deterministic same-concern correction,
+host state is ambiguous, or a new finding arrives.
 
 Author self-review remains a non-producer path. Identify its standalone report as author self-review and compose it in
 the [disposition-report][disposition-report] shape, giving each verdict its gating as the command does. Omit rather than
@@ -153,14 +173,15 @@ audience-visible record supplied by the caller. For a producer-backed fix commit
 `Review disposition set: <identity>` and summarizes each included finding as
 `<identity>: <verified severity or not-supported> / <disposition> — <rationale>`; the approved set remains the
 authority when a channel has a richer durable record. For author self-review, use the canonical `(code review)`
-context footer from `self-review`; its report-local labels do not create a producer disposition-set identity.
+context footer from [code-review's author check][code-author-check]; its report-local labels do not create a producer
+disposition-set identity.
 
 ---
 
 [disposition-report]: disposition-report.md
-[integrate-work-unit]: ../workflows/arc/work-unit-lifecycle/integrate-work-unit.md
-[prepare-work-unit]: ../workflows/arc/work-unit-lifecycle/prepare-work-unit.md
-[verify-work-unit]: ../workflows/arc/work-unit-lifecycle/verify-work-unit.md
-[deliver-stack]: ../workflows/arc/supplemental/deliver-stack.md
-[run-errand]: ../workflows/arc/supplemental/run-errand.md
 [review-increment-invariant]: ../rules/DEV-RULES.ARC.md#review-increment-invariant
+
+[review-model]: review-model.md
+[code-author-check]: code-review.md#author-check
+
+[loop-reading]: review-model.md#loop-reading

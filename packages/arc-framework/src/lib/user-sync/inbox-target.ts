@@ -12,7 +12,8 @@
  */
 
 import { managedFlagIsTrue } from "../session-init/managed-field.js";
-import { parseCrossWuEntries, stripHtmlComments } from "./parser.js";
+import { parsePersonalInboxEntries, stripHtmlComments } from "../store/kinds/personal-inbox.js";
+import { targetNamedByLine } from "../store/kinds/entry-fields.js";
 import type { CrossWuEntry } from "./schema.js";
 
 /** One capture whose target line names the requested work unit. */
@@ -29,17 +30,12 @@ export interface InboxTargetListing {
   readonly diagnostics: readonly string[];
 }
 
-const TARGET_LINE = /^- (?:`WU_Target:\s*([^`]+)`|_WU_Target:_\s*`([^`]+)`|WU_Target:\s*(.+))/u;
-const TARGET_VALUE = /^([a-z0-9]+(?:-[a-z0-9]+)*)(?:\s+\((?:planned|provisional)\))?\s*$/u;
-
 /** The top-level target lines in a block of inbox text that name `target`. */
 function linesNamingTarget(text: string, target: string): string[] {
   const lines: string[] = [];
   for (const line of text.split("\n")) {
     const trimmed = line.trimEnd();
-    const match = TARGET_LINE.exec(trimmed);
-    const value = (match?.[1] ?? match?.[2] ?? match?.[3])?.trim();
-    if (value !== undefined && TARGET_VALUE.exec(value)?.[1] === target) lines.push(trimmed);
+    if (targetNamedByLine(trimmed) === target) lines.push(trimmed);
   }
   return lines;
 }
@@ -75,7 +71,7 @@ export function listInboxEntriesNamingTarget(content: string, target: string): I
   const entries: InboxTargetEntry[] = [];
   const diagnostics: string[] = [];
   const readLines: string[] = [];
-  for (const parse of parseCrossWuEntries(content, "user-inbox")) {
+  for (const parse of parsePersonalInboxEntries(content)) {
     if (!parse.ok) {
       diagnostics.push(parse.reason);
       continue;

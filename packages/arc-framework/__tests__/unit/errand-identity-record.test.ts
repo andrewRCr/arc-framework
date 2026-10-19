@@ -168,3 +168,9 @@ describe("invalid identity records", () => {
       .toEqual({ kind: "unknown-version", version: 99 });
   });
 });
+
+it("round-trips a qualified inbox origin with a null source digest through the record and locus projection", () => {
+  const record = TransientIdentityRecordSchema.parse(ordinary({ origin: "inbox", originEntry: "personal:abcd1234", originEntrySourceDigest: null }));
+  expect(deserializeTransientIdentityRecord(serializeTransientIdentityRecord(record), record.slug)).toEqual({ kind: "valid", record });
+  expect(projectLocusIdentity(record)).toMatchObject({ origin: "inbox", originEntry: "personal:abcd1234", originEntrySourceDigest: null });
+});

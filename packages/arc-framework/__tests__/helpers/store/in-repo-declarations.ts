@@ -100,6 +100,7 @@ export const inRepoDeclarations: FixtureDeclarations = {
   syncRetryCount: 4, syncWaitedMs: 30,
   rejectingContentUnavailable: Object.fromEntries((Object.keys(KIND_REGISTRY) as KindId[]).filter((kind) => families.includes(KIND_REGISTRY[kind].family) && !["review/candidate", "review/integration-boundary", "lineage/transition", "work-item/record", "claims/groom", "claims/housekeep"].includes(kind)).map((kind) => [kind, KIND_REGISTRY[kind].inRepo.substrate === "personal" ? personalRaw : KIND_REGISTRY[kind].inRepo.substrate === "tracked" ? raw : unhomed])),
   refusalExclusions: {
+    "state-unresolvable": "The in-repo adapter reports unsupported/uncovered-state-version and has no retired-subject history refs; named history-ref recovery is tested through a scripted Store wrapper.",
     "namespace-corrupt": "Tracked and personal files have no shared namespace index; unreadable transient ref structure throws an operation error instead of this typed refusal.",
     "unsupported:held-here": "Tracked listing supports checkout held-here selection.",
   },

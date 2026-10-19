@@ -20,8 +20,8 @@ declared method graph; methods carry their own nested dependencies, and each loa
 and may produce evidence eligible for a review obligation, but an agent workflow can be bypassed by a host-UI merge.
 Host-side merge controls are distinct from agent-layer discipline: a required status check is fail-closed repo
 configuration; draft-state lock (`merge.lock: draft`) is a per-PR structural hold whose installation is procedural.
-**Never infer merge safety from `self-review`, `frontline-review`, a clean report, or passing local checks** ·
-`[invariant]`.
+**Never infer merge safety from `code-review-author`, `code-review-frontline`, a clean report, or passing local checks**
+· `[invariant]`.
 
 **Release wrappers:** `arc release commit` / `arc release push` are the canonical commit/push
 invocation shape when active (`arc.releaseOptedIn: true` plus harness allowlist). After the interlock-validation

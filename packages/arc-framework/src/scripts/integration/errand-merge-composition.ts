@@ -1,5 +1,9 @@
 /** Production composition for the exact-effect Errand terminal merge. */
 
+import type { Store } from "../../lib/store/contract.js";
+import { createStore } from "../../lib/store/create.js";
+import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
+import { readStoreTerminalBasis, storeTerminalAcquisitionRefusal, missingStoreTerminalSubject } from "../../lib/errand/store-terminal-basis.js";
 import {
   BaseMovementObservationSchema,
   composeEvidenceDelta,
@@ -126,27 +130,36 @@ export function composeErrandFinalPlan(input: {
   };
 }
 
-/**
- * Select one exact current Errand identity from complete derived locus authority.
- *
- * @param frame - Fresh entering-checkout and shared identity evidence
- * @param slug - Approved Errand slug
- * @returns The exact current Errand identity for terminal merge
- */
-export function selectCurrentErrandMergeIdentity(
-  frame: Pick<Awaited<ReturnType<typeof runDerivedLocusStateProbe>>,
-    "entering" | "identityDiscovery" | "roster">,
-  slug: string,
-): {
-  readonly slug: ReturnType<typeof SlugSchema.parse>;
-  readonly claimId: string;
-  readonly branch: string;
-  readonly generation: string;
-} {
+/** Frame facts used for exact entering Errand selection. */
+type MergeIdentityFrame = Pick<Awaited<ReturnType<typeof runDerivedLocusStateProbe>>, "entering" | "identityDiscovery" | "roster">;
+/** Current generation of the exact entering Errand. */
+export interface CurrentErrandMergeIdentity { readonly slug: ReturnType<typeof SlugSchema.parse>; readonly claimId: string; readonly branch: string; readonly generation: string }
+/** Preserve legacy synchronous selection; an explicit store supplies the asynchronous exact proof. */
+export function selectCurrentErrandMergeIdentity(frame: MergeIdentityFrame, slug: string): CurrentErrandMergeIdentity;
+export function selectCurrentErrandMergeIdentity(frame: MergeIdentityFrame, slug: string, store: Store): Promise<CurrentErrandMergeIdentity>;
+export function selectCurrentErrandMergeIdentity(frame: MergeIdentityFrame, slug: string, store?: Store): CurrentErrandMergeIdentity | Promise<CurrentErrandMergeIdentity> {
+  return store === undefined ? selectFromCheckout(frame, slug) : selectWithStore(frame, slug, store);
+}
+async function selectWithStore(frame: MergeIdentityFrame, slug: string, store: Store): Promise<CurrentErrandMergeIdentity> {
+  if (!store.capabilities.stateOffBranch) return selectFromCheckout(frame, slug);
+  if (frame.identityDiscovery.kind !== "store") throw new IntegrationBindingChangedError("identity", "Independent Store Errands and claims acquisitions are unavailable.");
+  const inventory = storeTerminalAcquisitionRefusal(frame.identityDiscovery);
+  if (inventory !== null) throw new IntegrationBindingChangedError("identity", inventory);
+  const row = frame.entering.kind === "selected" ? frame.entering.row : null;
+  if (row?.subject?.kind !== "errand" || row.subject.key !== slug) {
+    const unresolved = missingStoreTerminalSubject(slug, frame.identityDiscovery.errands.kind === "complete" ? frame.identityDiscovery.errands.diagnostics : []);
+    if (unresolved.kind === "refused") throw new IntegrationBindingChangedError("identity", unresolved.message);
+    return selectFromCheckout(frame, slug, true);
+  }
+  const basis = await readStoreTerminalBasis({ store, discovery: frame.identityDiscovery, subject: { slug, claimId: row.subject.claimId } });
+  if (basis.kind === "refused") throw new IntegrationBindingChangedError("identity", basis.message);
+  return selectFromCheckout(frame, slug, true);
+}
+function selectFromCheckout(frame: MergeIdentityFrame, slug: string, storeBasis = false): CurrentErrandMergeIdentity {
   if (frame.entering.kind !== "selected") {
     throw new Error("The entering checkout does not resolve to one current Errand identity.");
   }
-  if (frame.identityDiscovery.kind !== "complete" || frame.identityDiscovery.diagnostics.length > 0) {
+  if (!storeBasis && (frame.identityDiscovery.kind !== "complete" || frame.identityDiscovery.diagnostics.length > 0)) {
     throw new IntegrationBindingChangedError(
       "identity", "The shared Errand identity basis is incomplete.",
     );
@@ -186,8 +199,10 @@ export function createErrandMergeDependencies(input: {
   readonly slug: string;
   readonly hostedRunner?: HostedProcessRunner;
   readonly changeRequestPort?: ChangeRequestResolutionPort;
+  readonly store?: Store;
 }): ErrandMergeDependencies {
   const slug = SlugSchema.parse(input.slug);
+  const store = input.store ?? createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec, identity: SlugSchema.parse(input.identity) }));
   const runner = input.hostedRunner ?? hostedGhRunner;
   const common = createIntegrationMergeDependencies({
     cwd: input.cwd,
@@ -226,11 +241,12 @@ export function createErrandMergeDependencies(input: {
       const config = await readConfigSettings(input.cwd);
       const frame = await runDerivedLocusStateProbe({
         cwd: input.cwd,
+        store,
         identity: input.identity,
         baseBranch: config.settings["branch.base"],
         exec: input.exec,
       });
-      return selectCurrentErrandMergeIdentity(frame, slug);
+      return selectCurrentErrandMergeIdentity(frame, slug, store);
     },
     readMerged: async (target) => ({
       merged: await common.readMerged(target),

@@ -6,7 +6,7 @@ import { checkArgumentBatches, checkFileArguments } from "./batching.js";
 /** Complete invocation metadata for one declared check. */
 export interface CheckForecast {
   cwd: string;
-  mode: "project" | "files";
+  mode: CheckDeclaration["checks"][string]["mode"];
   shell: boolean;
   fixes: boolean;
   ciOnly: boolean;

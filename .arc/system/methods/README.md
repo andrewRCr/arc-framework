@@ -18,10 +18,10 @@ it is independent of `override-active` (whether an override is populated) and `o
 Unregistered methods must omit `active`. Missing or malformed project activation emits a diagnostic and falls back
 to the registered package default.
 
-| Activatable method | Package default | Activity                                            |
-| ------------------ | --------------- | --------------------------------------------------- |
-| self-review        | `true`          | Author-side aggregate diff preflight                |
-| frontline-review   | `false`         | Advisory distinct-context review before PR creation |
+| Activatable method    | Package default | Activity                                            |
+| --------------------- | --------------- | --------------------------------------------------- |
+| code-review-author    | `true`          | Author-side aggregate diff preflight                |
+| code-review-frontline | `false`         | Advisory distinct-context review before PR creation |
 
 **Loading model:** Method defaults and overrides always load on-demand at their fire-points. Session-init does not
 read methods; the `override-active` frontmatter field is consumed by the framework-repo CI audit, docs generation,
@@ -32,6 +32,24 @@ and [Session Operations Strategy § Method Loading][session-ops-methods].
 
 **Classification:** Configurable — preserved through three-way merge during framework updates. For the full
 configurability model, see [Configurability Architecture Strategy][config-arch].
+
+## Review family
+
+[review-model](review-model.md#review-family) defines the layers and their authority boundaries.
+
+- **Review types:** [planning-review](planning-review.md), [code-review](code-review.md), and
+  [verification-review](verification-review.md).
+- **Checks:** [assess-draft-readiness](assess-draft-readiness.md),
+  [assess-design-proportionality](assess-design-proportionality.md), [source-grounding](source-grounding.md),
+  [spec-review](spec-review.md), [task-audit](task-audit.md), [design-audit](design-audit.md),
+  [implementation-audit](implementation-audit.md), [validate-criteria](validate-criteria.md), and
+  [code-review-author](code-review-author.md), code review's author check.
+- **Vehicles:** [adversarial-review](adversarial-review.md), [code-review-frontline](code-review-frontline.md), and
+  [code-review-standard](code-review-standard.md).
+- **Findings:** [review-triage](review-triage.md), [review-response](review-response.md), and
+  [disposition-report](disposition-report.md).
+- **Routing:** [classify-review-risk](classify-review-risk.md), [review-chunking](review-chunking.md), and
+  [assess-evidence-applicability](assess-evidence-applicability.md) at a moved target.
 
 ## Related Methods
 
@@ -47,10 +65,14 @@ when populating any `.override` section. Methods not listed here are independent
 | commit-format                 | commit-footer, pull-request-format                                                     | Both govern the commit message                       |
 | pull-request-format           | commit-format                                                                          | Title grammar and decision content                   |
 | commit-footer                 | commit-format                                                                          | Both govern the commit message                       |
-| frontline-review              | adversarial-review, implementation-audit, review-chunking, review-triage               | Advisory review mechanism, scope, and lens           |
-| standard-review               | adversarial-review, implementation-audit, review-chunking, review-triage               | Satisfying standard, mechanism, and lens             |
-| review-chunking               | frontline-review, standard-review                                                      | Bounded review-scope consumers                       |
-| self-review                   | review-triage                                                                          | Uses review-triage for findings                      |
+| code-review-frontline         | adversarial-review, implementation-audit, review-chunking, review-triage               | Advisory review mechanism, scope, and lens           |
+| code-review-standard          | adversarial-review, implementation-audit, review-chunking, review-triage               | Satisfying standard, mechanism, and lens             |
+| review-chunking               | code-review-frontline, code-review-standard                                            | Bounded review-scope consumers                       |
+| code-review-author            | code-review                                                                            | Pure author check; shared caller owns findings       |
+| code-review                   | code-review-author, code-review-frontline, code-review-standard, review-model          | Code review dispatch procedures                      |
+| planning-review               | adversarial-review, review-model                                                       | Planning stage checks, independent offer, and reread |
+| verification-review           | validate-criteria, adversarial-review, review-model                                    | Criteria walk and independent companion              |
+| review-model                  | adversarial-review, review-triage, review-response                                     | Shared passes, rounds, convergence, and cadence      |
 | review-response               | review-triage                                                                          | Consumes approved finding dispositions               |
 | review-triage                 | disposition-report                                                                     | Renders code-review findings in its shape            |
 | disposition-report            | review-triage, adversarial-review                                                      | Shared finding-set presentation                      |
@@ -61,7 +83,7 @@ when populating any `.override` section. Methods not listed here are independent
 | design-audit                  | assess-design-proportionality                                                          | Broader fit and material proportionality             |
 | testing-standards             | test-first                                                                             | Planning/execution seam split                        |
 | test-first                    | testing-standards                                                                      | Planning/execution seam split                        |
-| validate-criteria             | adversarial-review                                                                     | Criteria walk and fresh-context companion            |
+| validate-criteria             | verification-review                                                                    | Pure criteria check and scoped review caller         |
 
 ---
 

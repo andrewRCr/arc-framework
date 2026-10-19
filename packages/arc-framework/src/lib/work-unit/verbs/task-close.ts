@@ -143,7 +143,14 @@ async function readTaskInventory(store: Store): Promise<TaskRefusal | undefined>
   return undefined;
 }
 
-function unlinkedTaskRefusal(meta: StoreRecord, relation: Exclude<LinkedCheckoutBranch, { kind: "linked" }>, slug: string, repository: string): TaskRefusal {
+/** Compose the same branch condition and repair for close and its read-only commit listing.
+ * @param meta - Selected work-unit record and its branch links.
+ * @param relation - The checkout's unresolved relationship to those links.
+ * @param slug - Work unit whose lifecycle may need repair.
+ * @param repository - Current project's stable identity.
+ * @returns The close's exact refusal and ordered human repair.
+ */
+export function unlinkedTaskRefusal(meta: StoreRecord, relation: Exclude<LinkedCheckoutBranch, { kind: "linked" }>, slug: string, repository: string): TaskRefusal {
   const fields = ParsedMetaRecordSchema.parse(meta.fields);
   const repair = relation.kind === "ambiguous" ? `Repair duplicate branch links for ${relation.branch} in this project, then retry arc task close.`
     : relation.kind === "no-link" ? fields.state === "Planning" ? "Run arc activate." : `Run arc deactivate ${slug}, then arc activate.`

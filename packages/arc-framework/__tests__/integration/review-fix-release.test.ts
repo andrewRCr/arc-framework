@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { codeReviewSection } from "../helpers/code-review-section.js";
 import { softWrappedProse } from "../helpers/soft-wrapped-prose.js";
 
 const PACKAGE_ROOT = resolve(import.meta.dirname, "../..");
@@ -36,51 +37,52 @@ describe("review-fix round release", () => {
     const triage = shipped("system/methods/review-triage.md");
     const response = shipped("system/methods/review-response.md");
 
-    expect(triage).toMatch(softWrappedProse("Approve: 3 fixes → verify → commit → push → settle 2 threads → standard pass 2?"));
+    expect(triage).toMatch(softWrappedProse("Approve: 3 fixes → verify → commit → push → settle 2 threads → local fix check, round 1 since pass 1?"));
     expect(triage).toMatch(softWrappedProse("as information, not a gate"));
     expect(triage).toMatch(softWrappedProse(
-      "Disposition approval and next-pass authorization stay distinct decisions, though one prompt may ask both",
+      "Disposition approval and each next activity's authorization remain distinct, even when one prompt asks both",
     ));
     expect(triage).not.toMatch(softWrappedProse("Keep disposition approval separate from next-pass authorization."));
     expect(response).toMatch(softWrappedProse("whose commit the complete-set approval releases where `arc.commitInterlock` allows"));
     expect(response).not.toMatch(softWrappedProse("return control to the caller's commit interlock"));
   });
 
-  it("states the release at every caller that triages review findings", () => {
-    const callers: ReadonlyArray<readonly [string, number]> = [
+  it("reaches one shared release from every producer-backed findings arm", () => {
+    const method = shipped("system/methods/code-review.md");
+    for (const [path, arms] of [
       ["system/workflows/arc/supplemental/run-errand.md", 2],
       ["system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md", 2],
       ["system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md", 1],
       ["system/workflows/arc/supplemental/deliver-stack.md", 1],
-      ["system/methods/self-review.md", 1],
-    ];
-
-    for (const [path, arms] of callers) {
+    ] as const) {
       const caller = shipped(path);
-      expect(occurrences(caller, "the fix round's structured gate"), path).toBeGreaterThanOrEqual(arms);
-      expect(caller, path).toContain("[review-increment-invariant]: ");
+      const body = caller.slice(0, caller.lastIndexOf("\n---\n"));
+      expect(occurrences(body, "[code-findings-round]"), path).toBeGreaterThanOrEqual(arms);
+      const round = codeReviewSection(caller, "findings-round", method);
+      expect(occurrences(round, "the fix round's structured gate")).toBe(1);
+      expect(method).toContain("[review-increment-invariant]: ");
+      expect(caller).not.toContain("the fix round's structured gate");
     }
+    const author = shipped("system/methods/code-review-author.md");
+    expect(author).toContain("code-review.md#author-check");
+    expect(author).not.toContain("structured gate");
   });
 
-  it("routes every review-fix commit and push site through a release class", () => {
+  it("owns each author and producer fix release once while callers retain lifecycle commits", () => {
     const commit = "`commit-interlock` release — commit the approved fixes as `taskCommit`:";
-    const errand = shipped("system/workflows/arc/supplemental/run-errand.md");
-    const integrate = shipped("system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md");
+    const method = shipped("system/methods/code-review.md");
     const prepare = shipped("system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md");
-    const selfReview = shipped("system/methods/self-review.md");
     const authoring = shipped("reference/strategies/arc/strategy-workflow-authoring.md");
     const rules = shipped("system/rules/DEV-RULES.ARC.md");
-
-    expect(occurrences(errand, commit)).toBe(2);
-    expect(occurrences(errand, "`push-interlock` release — `workflowPush`: `origin <branch>`.")).toBe(2);
-
-    expect(errand).not.toMatch(softWrappedProse("**Extensions** · `#pre-push-review`"));
-    expect(errand).toMatch(softWrappedProse("Then apply and verify the approved fixes, then commit and push them:"));
-    expect(occurrences(integrate, commit)).toBe(1);
-    expect(integrate).toMatch(softWrappedProse("Then apply and verify the approved fixes, then commit and push them:"));
-    expect(occurrences(prepare, commit)).toBe(1);
-    expect(prepare).toMatch(softWrappedProse("then commit its staged Candidate response as `taskCommit`"));
-    expect(occurrences(selfReview, commit)).toBe(1);
+    expect(occurrences(method, commit)).toBe(2);
+    expect(occurrences(method, "`push-interlock` release — `workflowPush`:")).toBe(1);
+    for (const path of [
+      "system/workflows/arc/supplemental/run-errand.md",
+      "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+      "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md",
+      "system/methods/code-review-author.md",
+    ]) expect(occurrences(shipped(path), commit), path).toBe(0);
+    expect(prepare).toMatch(softWrappedProse("Commit its staged Candidate response as `taskCommit`"));
     expect(authoring).toMatch(softWrappedProse("and review-fix commits a complete-set disposition approval releases"));
     expect(authoring).toMatch(softWrappedProse("and review-fix pushes"));
     expect(rules).toMatch(softWrappedProse(

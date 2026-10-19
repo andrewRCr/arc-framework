@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+import { createReferenceFixture } from "../../helpers/store/reference-fixture.js";
 import type { UserIOContext } from "../../../src/commands/user/types.js";
 
 const mockBuildLifecycleIndex = vi.fn();
@@ -381,4 +382,13 @@ describe("buildExecutorContext — git executor cwd default + override", () => {
 
     expect(io.exec).toHaveBeenCalledWith("git", ["status", "--short"], { cwd: "/repo.plan-foo" });
   });
+});
+
+it("binds off-branch locus operations and preserves their record through checkout rebinding", async () => {
+  const context = buildExecutorContext({ cwd: "/repo", io: fakeIo(), identity: "andrew", teamMode: false,
+    internalTemplateDir: "/templates", store: createReferenceFixture().store });
+  expect(context.locusPorts).toBeDefined();
+  expect(context.withCwd?.("/other").locusPorts).toBe(context.locusPorts);
+  const clear = await context.locusPorts?.checkMarkerExclusivity({ name: "demo" });
+  expect(clear).toMatchObject({ kind: "refused", reason: expect.stringContaining("Git lists") });
 });

@@ -11,8 +11,9 @@ override-active: false
 
 # Method: spec-review
 
-> - **Workflow:** [create-spec.md][create-spec], [generate-tasks.md][generate-tasks],
->   [decompose-work-unit.md][decompose-work-unit], [amend-design.md][amend-design]
+> - **Workflow:** [planning-review](planning-review.md), [create-spec.md][create-spec],
+>   [generate-tasks.md][generate-tasks], [decompose-work-unit.md][decompose-work-unit], and
+>   [amend-design.md][amend-design].
 > - **When:** A new specification set or a bounded batch of substantive changes to any existing specification is
 >   ready for its existing approval or release boundary.
 >

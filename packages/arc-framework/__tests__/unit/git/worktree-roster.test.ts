@@ -646,11 +646,11 @@ describe("scanRegisteredWorktrees", () => {
       },
     });
 
-    expect(await scanRegisteredWorktrees(exec)).toEqual({
+    expect(await scanRegisteredWorktrees(exec, () => Promise.resolve({}))).toEqual({
       ok: true,
       worktrees: [
-        { path: "/home/dev/repo", head: "aaa", branch: "main", detached: false, primary: true },
-        { path: "/home/dev/repo.husk", head: "bbb", branch: null, detached: true, primary: false },
+        { folderPresent: true, path: "/home/dev/repo", head: "aaa", branch: "main", detached: false, primary: true },
+        { folderPresent: true, path: "/home/dev/repo.husk", head: "bbb", branch: null, detached: true, primary: false },
       ],
     });
 
@@ -660,7 +660,12 @@ describe("scanRegisteredWorktrees", () => {
 
   it("retains the registration's lock and reason", async () => {
     const { exec } = buildExec({ [WORKTREE_LIST]: { stdout: "worktree /repo\0HEAD abc\0branch refs/heads/main\0locked owner\0\0", stderr: "" } });
-    expect(await scanRegisteredWorktrees(exec)).toEqual({ ok: true, worktrees: [{ path: "/repo", head: "abc", branch: "main", detached: false, primary: true, locked: "owner" }] });
+    expect(await scanRegisteredWorktrees(exec, () => Promise.resolve({}))).toEqual({
+      ok: true,
+      worktrees: [{
+        path: "/repo", head: "abc", branch: "main", detached: false, primary: true, folderPresent: true, locked: "owner",
+      }],
+    });
   });
 
   it("returns an explicit failure instead of fabricating an empty candidate set", async () => {

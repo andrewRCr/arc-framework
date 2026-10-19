@@ -77,6 +77,7 @@ import { relocateArtifacts } from "./mutators/relocate-artifacts.js";
 import { setPhase } from "./mutators/set-phase.js";
 import type { CurrentWuReconcileHost } from "./side-effects/discharge-dep-edges.js";
 import { withdrawPr, preparePrWithdrawal, type RecoverablePrWithdrawalHandler } from "./side-effects/withdraw-pr.js";
+import { createLocusPorts } from "../locus/lifecycle-ports.js";
 import type { LocusPorts } from "./locus-ports.js";
 import { linkedWorkBranch } from "./linked-work-branch.js";
 import { readWorkUnit, usesOffBranchState } from "../store/lifecycle-write.js";
@@ -132,6 +133,7 @@ export function buildExecutorContext(
   // first as the default, `...opts` last so a supplied `opts.cwd` overrides it.
   const exec: GitExec = (cmd, args, opts) => io.exec(cmd, args, { cwd, ...opts });
   const store = deps.store ?? deps.reopenStore?.(cwd, exec) ?? createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec }));
+  const locusPorts = deps.locusPorts ?? (usesOffBranchState(store) ? createLocusPorts({ cwd, exec, store }) : undefined);
   const projectId = deps.projectId ?? (usesOffBranchState(store) ? createProjectIdentityReader(store) : undefined);
   const transitionExec = deps.transitionExec ?? createExecaRawGitExec(cwd);
   const readTeardownSelection = identity === null
@@ -204,9 +206,9 @@ export function buildExecutorContext(
     cwd,
     store,
     execRaw: transitionExec,
-    ...(deps.locusPorts === undefined ? {} : { locusPorts: deps.locusPorts }),
+    ...(locusPorts === undefined ? {} : { locusPorts }),
     ...(projectId === undefined ? {} : { projectId }),
-    withCwd: (nextCwd) => buildExecutorContext({ ...deps, cwd: nextCwd, projectId,
+    withCwd: (nextCwd) => buildExecutorContext({ ...deps, cwd: nextCwd, projectId, locusPorts,
       ...(deps.reopenStore === undefined ? {} : { store: undefined }) }),
     exec,
     indexFs,
@@ -233,7 +235,7 @@ export function buildExecutorContext(
       return reconcileWorkUnitWorktree({
         exec,
         store,
-        ...(deps.locusPorts === undefined ? {} : { locusPorts: deps.locusPorts }),
+        ...(locusPorts === undefined ? {} : { locusPorts }),
         chdir: (dir) => { process.chdir(at(dir)); },
         fs: nodeReconcileWorkUnitWorktreeFs,
         ...(readTeardownSelection === undefined ? {} : { readTeardownSelection }),
@@ -312,7 +314,7 @@ export function buildExecutorContext(
 
     currentWuReconcile: buildCurrentWuReconcile({ cwd, io, exec, transitionExec, indexFs, at, store }),
 
-    guardValidators: buildFootgunGuards({ cwd, store, readActiveMetaCandidates }),
+    guardValidators: buildFootgunGuards({ cwd, store, identity: identity ?? undefined, readActiveMetaCandidates }),
 
     sideEffects: {
       ...buildStatusSideEffects({

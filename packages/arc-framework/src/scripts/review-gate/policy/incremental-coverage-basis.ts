@@ -14,12 +14,13 @@ import type { ReviewResult } from "../core/review-result.js";
 
 /** Response evidence needed before a predecessor may support narrower review. */
 export type IncrementalPredecessorResponseEvidence =
-  | { readonly status: "performed"; readonly requiredFindings: readonly IncrementalReviewFindingInstruction[] }
-  | { readonly status: "incomplete"; readonly requiredFindings: readonly IncrementalReviewFindingInstruction[] };
+  | { readonly status: "performed"; readonly hasFix: boolean; readonly requiredFindings: readonly IncrementalReviewFindingInstruction[] }
+  | { readonly status: "incomplete"; readonly hasFix: boolean; readonly requiredFindings: readonly IncrementalReviewFindingInstruction[] };
 
 /** Current-target applicability result for one immutable predecessor producer. */
 export type IncrementalPredecessorApplicability =
   | "applicable"
+  | "range-proven"
   | "review-required"
   | "unavailable";
 
@@ -53,9 +54,10 @@ export function buildIncrementalCorrectionScope(input: {
   readonly predecessor: ReviewResult;
   readonly currentHeadSha: string;
   readonly response: IncrementalPredecessorResponseEvidence;
+  readonly applicability?: IncrementalPredecessorApplicability;
 }): IncrementalReviewScope | null {
   const { predecessor, response } = input;
-  if (predecessor.kind === "frontline" || response.status !== "performed") return null;
+  if (predecessor.kind === "frontline" || response.status !== "performed" || (!response.hasFix && input.applicability !== "range-proven")) return null;
   const predecessorScope = predecessor.admission.correctionScope;
   const basisHeadSha = predecessor.admission.effectiveCoverage === "complete"
     ? predecessor.target.headSha
@@ -91,6 +93,10 @@ export function buildIncrementalCorrectionScope(input: {
   });
 }
 
+function correctionLegHolds(applicability: IncrementalPredecessorApplicability): boolean {
+  return applicability === "applicable" || applicability === "range-proven";
+}
+
 /**
  * Build the next correction scope only after the predecessor's complete coverage chain validates.
  *
@@ -108,11 +114,11 @@ export async function resolveIncrementalCorrectionScope(input: {
     input.predecessor,
     input.currentHeadSha,
   ).catch(() => "unavailable" as const);
-  if (applicability !== "applicable") return null;
+  if (!correctionLegHolds(applicability)) return null;
   const response = await dependencies.readResponseEvidence(input.predecessor).catch(() => null);
   return response === null ? null : buildIncrementalCorrectionScope({
     ...input,
-    response,
+    response, applicability,
   });
 }
 
@@ -251,14 +257,14 @@ async function resolveCoverageChain(
     if (predecessorFailure !== null) return predecessorFailure;
     const applicability = await dependencies.confirmApplicability(predecessor, result)
       .catch(() => "unavailable" as const);
-    if (applicability !== "applicable") {
+    if (!correctionLegHolds(applicability)) {
       return inadequate(
         applicability === "review-required" ? "applicability-required" : "applicability-unavailable",
         { producerId: predecessor.producerId },
       );
     }
     const response = await dependencies.readResponseEvidence(predecessor)
-      .catch(() => ({ status: "incomplete" as const, requiredFindings: [] }));
+      .catch(() => ({ status: "incomplete" as const, hasFix: false, requiredFindings: [] }));
     if (response.status !== "performed") {
       return inadequate("response-incomplete", { producerId: predecessor.producerId });
     }

@@ -572,6 +572,17 @@ describe("singleton hosted review after publication", () => {
         },
       });
       if (selected.nextAction !== "review-hosted-request") throw new Error("expected selected hosted request");
+      const refused = await withHost(fixture.bin, async () => runHandlerAt(fixture.root, async () => {
+        await handleReviewHostedRequest("-", { readText: async () => JSON.stringify({
+          ...selected.action, coverage: "incremental", correctionScope: {
+            schemaVersion: 1, predecessorProducerId: "prior-review", predecessorHeadSha: "a".repeat(40),
+            basisHeadSha: "a".repeat(40), headSha: fixture.headSha, requiredFindings: [],
+          },
+        }) });
+      }));
+      expect(refused.exitCode, refused.stdout + refused.stderr).toBe(1);
+      expect(JSON.parse(refused.stdout)).toMatchObject({ error: { code: "invalid-input" },
+        remedy: { text: expect.stringContaining("local fix check") } });
       const requested = await withHost(fixture.bin, async () => runHandlerAt(fixture.root, async () => {
         await handleReviewHostedRequest("-", { readText: async () => JSON.stringify(selected.action) });
       }));

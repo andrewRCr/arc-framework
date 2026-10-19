@@ -1,5 +1,9 @@
 /** Orchestration for declared repository check requests. */
 import { tmpdir } from "node:os";
+import type { RawGitExec } from "../../lib/git/exec.js";
+import { createExecaRawGitExec } from "../../lib/git/process-executor.js";
+import { matchPathList, type PathListSelection } from "../../lib/checks/path-list.js";
+import { readProjectedSelection, requestProjectedSelection, type ProjectedSelectionReader } from "../../lib/checks/projected-selection.js";
 import type { PushRefDisposition } from "../../lib/checks/push.js";
 import { resolve } from "node:path";
 import { checkArgumentBatches, checkFileArguments } from "../../lib/checks/batching.js";
@@ -72,6 +76,8 @@ export interface CheckContentContext { base?: string; tree: string; merged?: rea
 
 /** Repository and command boundaries injected into check orchestration. */
 export interface DeclaredCheckDependencies extends CheckKeyIO {
+  rawGit?: RawGitExec;
+  readProjectedSelection?: ProjectedSelectionReader;
   platform: NodeJS.Platform;
   availableParallelism(): number;
   passes: CheckPassStore;
@@ -177,12 +183,15 @@ async function executeResolvedRequest(
   }
   coordinates.worktreeTree = coordinates.snapshot?.tree ?? (coordinates.scope.kind === "staged" || request.form.kind === "pre-push" ? await stagedWorktreeTree(io.git, root) : tree);
   const selection = await resolveCheckSelection(io, root, declaration.value, request, coordinates, declaration.location);
+  const projected: PathListSelection = entries.some(([, check]) => check.mode === "selection")
+    ? await requestProjectedSelection(io.readProjectedSelection ?? readProjectedSelection, root, request)
+    : { status: "ok", paths: [] };
   const refusal = await partiallyStagedRefusal(io, { root, request, entries, coordinates, selection, globalInputs: declaration.value.global_inputs });
   if (refusal !== undefined) return { kind: "error", exitCode: 2, error: { kind: "refused", message: refusal } };
   const jobs = entries.map(([id, check], position) => ({ id, check, position }));
   const outcomes: Array<{ position: number; result: DeclaredCheckResult }> = [];
   const run = async ({ id, check, position }: (typeof jobs)[number]) => {
-    const result = await runRequestedCheck({ id, check, root, resolved: coordinates, selection, selectionTree: tree, indexViews, definition: declaration.value, kind: checkResultKind(request.form, check) }, io, request);
+    const result = await runRequestedCheck({ id, check, root, projected, resolved: coordinates, selection, selectionTree: tree, indexViews, definition: declaration.value, kind: checkResultKind(request.form, check) }, io, request);
     if (request.dryRun) {
       const last = await io.reports?.latest(id);
       if (last) result.lastCostMs = last.costMs;
@@ -206,11 +215,30 @@ async function executeResolvedRequest(
 }
 
 
-async function runRequestedCheck(
-  { id, check, root, resolved, selection, kind, definition, indexViews, selectionTree }: { selectionTree: string; indexViews: CheckIndexViews; definition: CheckDeclaration; kind: CheckResultKind; id: string; check: CheckDeclaration["checks"][string]; root: string; resolved: ResolvedCheckRequest; selection: CheckSelection },
+interface RequestedCheck {
+  selectionTree: string;
+  indexViews: CheckIndexViews;
+  definition: CheckDeclaration;
+  kind: CheckResultKind;
+  id: string;
+  check: CheckDeclaration["checks"][string];
+  root: string;
+  resolved: ResolvedCheckRequest;
+  selection: CheckSelection;
+  projected: PathListSelection;
+}
+
+async function runRequestedCheck(context: RequestedCheck,
   io: DeclaredCheckDependencies, request: CheckRequest,
 ): Promise<DeclaredCheckResult> {
+  const { id, check, kind } = context;
   if (isSkippedHookCheck(request, id)) return { id, kind, outcome: "skipped", reason: "ARC_SKIP" };
+  return check.mode === "selection" ? runProjectedCheck(context, io, request) : runGitCheck(context, io, request);
+}
+
+async function runGitCheck(context: RequestedCheck, io: DeclaredCheckDependencies,
+  request: CheckRequest): Promise<DeclaredCheckResult> {
+  const { id, check, root, resolved, selection, kind, definition, indexViews, selectionTree } = context;
   let { tree } = resolved;
   let forecast = request.dryRun ? resolveCheckForecast(check, root, [], io.platform) : {};
   const selected = selectCheckInputs({ id, check, request, resolved, selection });
@@ -239,6 +267,25 @@ async function runRequestedCheck(
   }
   if (mergedIn.length > 0) result.mergedIn = mergedIn;
   return { ...result, ...forecast };
+}
+
+async function runProjectedCheck(context: RequestedCheck, io: DeclaredCheckDependencies,
+  request: CheckRequest): Promise<DeclaredCheckResult> {
+  const { id, kind, check, root, projected, resolved } = context;
+  const forecast = request.dryRun ? resolveCheckForecast(check, root, [], io.platform) : {};
+  const remedy = checkRetryCommand({ id, request, resolved, widenedFiles: false, selection: true });
+  if (projected.status === "unavailable") return { id, kind, ...forecast, outcome: "couldn't run", reason: projected.reason, remedy };
+  const scope = resolved.scope;
+  const candidates = scope.kind === "paths" ? projected.paths.filter(path => scope.paths.some(name =>
+    name === "." || path === name || path.startsWith(`${name}/`))) : projected.paths;
+  const selected = await matchPathList({ git: io.rawGit ?? createExecaRawGitExec(root) }, root, candidates, check.inputs);
+  if (selected.status === "unavailable") return { id, kind, ...forecast, outcome: "couldn't run", reason: selected.reason, remedy };
+  const paths = [...selected.paths];
+  if (paths.length === 0) return { id, kind, ...forecast, outcome: "not selected", reason: "no files to check" };
+  const result = await executeSelectedCheck({ ...context, tree: resolved.tree, paths,
+    divergent: [], coordinates: resolved }, io, request);
+  if (result.outcome === "failed" || result.outcome === "couldn't run") result.remedy = remedy;
+  return { ...result, ...(request.dryRun ? resolveCheckForecast(check, root, paths, io.platform) : {}) };
 }
 
 const MERGED_IN_ONLY = "every changed file was merged in unchanged";

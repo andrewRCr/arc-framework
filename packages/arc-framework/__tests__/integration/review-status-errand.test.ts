@@ -1,3 +1,6 @@
+import { readHostedErrandNextPassContext } from "../../src/handlers/review-next-pass-context.js";
+import { deriveLocalReviewTargetFromCoordinates } from "../../src/scripts/review-gate/hosts/local/repository-target.js";
+
 /** Exact Errand review-status composition from identity and durable lane progress. */
 
 import { execFile } from "node:child_process";
@@ -295,6 +298,8 @@ describe("Errand review status", () => {
     const headSha = await git(root, ["rev-parse", "HEAD"]);
     const headTree = await git(root, ["rev-parse", "HEAD^{tree}"]);
     await git(root, ["update-ref", `refs/remotes/origin/${branch}`, base]);
+    await mkdir(join(root, ".arc/system"), { recursive: true });
+    await writeFile(join(root, ".arc/system/arc-config.yml"), "review.standard_sources: [codex-pr]\n");
     const exec = makeGitExec(root);
     const rawExec = createRawGitExec(root);
     const publisher = new RepositoryGitCommonStatePublisher(exec, root);
@@ -414,7 +419,7 @@ describe("Errand review status", () => {
         target: hostedTarget, lane: "standard", precedingProducerId: hostedLaneAttemptId(handle),
         completedPasses: 1, nextPass: 2,
       },
-    })).resolves.toMatchObject({ state: "review-required", detail: expect.stringContaining("ready/hosted-request") });
+    })).resolves.toMatchObject({ state: "review-required", action: { provider: "codex-pr", coverage: "complete" } });
     await expect(readRoutedObligation(root, exec, target, 42, undefined, earlierBase))
       .resolves.toMatchObject({ state: "review-required" });
     await expect(readRoutedObligation(root, exec, target, 42, undefined, headSha))
@@ -731,7 +736,7 @@ describe("Errand review status", () => {
     { responsePerformed: true, predecessorMatches: true, expected: "settled" },
     { responsePerformed: false, predecessorMatches: true, expected: "review-required" },
     { responsePerformed: true, predecessorMatches: false, expected: "review-required" },
-  ] as const)("credits a provider-proven Errand correction only with its exact chain ($expected)",
+  ] as const)("reads a historical provider-proven Errand correction under incremental only with its exact chain ($expected)",
     async ({ responsePerformed, predecessorMatches, expected }) => {
       const root = await createTempRepoCore({ prefix: "arc-review-status-incremental-", identity: "andrew" });
       roots.push(root);
@@ -757,6 +762,8 @@ describe("Errand review status", () => {
       await git(root, ["commit", "-m", "reviewed change"]);
       const firstHead = await git(root, ["rev-parse", "HEAD"]);
       const firstTree = await git(root, ["rev-parse", "HEAD^{tree}"]);
+      await mkdir(join(root, ".arc/system"), { recursive: true });
+      await writeFile(join(root, ".arc/system/arc-config.yml"), "review.standard_sources: [coderabbit-pr, delegated-agent]\nreview.standard_max_passes: 4\n");
       const exec = makeGitExec(root);
       const rawExec = createRawGitExec(root);
       const publisher = new RepositoryGitCommonStatePublisher(exec, root);
@@ -768,7 +775,7 @@ describe("Errand review status", () => {
         reasons: ["sensitive-change-set" as const],
         rubricVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
         rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
-        retrigger: "full-final" as const,
+        retrigger: "incremental" as const,
         count: 1 as const,
       };
       const vehicle = {
@@ -1040,7 +1047,7 @@ describe("Errand review status", () => {
       rubricVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
       rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest, retrigger: "full-final", count: 1,
     };
-    const resolveStandard = async (checkout: string): Promise<unknown> => {
+    const resolveStandard = async (checkout: string, expectedExitCodes: number[] = []): Promise<unknown> => {
       const output: string[] = [];
       const exitCodes: number[] = [];
       const previousCwd = process.cwd();
@@ -1059,7 +1066,7 @@ describe("Errand review status", () => {
       } finally {
         process.chdir(previousCwd);
       }
-      expect(exitCodes).toEqual([]);
+      expect(exitCodes, output.join("")).toEqual(expectedExitCodes);
       return JSON.parse(output.join(""));
     };
     const expectNoAction = async (checkout: string): Promise<void> => {
@@ -1078,9 +1085,12 @@ describe("Errand review status", () => {
     await expectNoAction(root);
     // A housekeeping routing checkout is not the ordinary Errand that hosted Errand review binds.
     await expectNoAction(routingRoot);
-    // An Errand whose identity record cannot be read is not established, and the request still resolves.
+    // An unreadable identity cannot provide the required repository-derived policy context.
     await recordIdentities({ [errand.slug]: "not an identity record\n" });
-    await expectNoAction(errandRoot);
+    await expect(resolveStandard(errandRoot, [1])).resolves.toHaveProperty("error");
+    await recordIdentities({ [errand.slug]: serializeTransientIdentityRecord(errand) });
+    await expect(resolveStandard(errandRoot)).resolves.toMatchObject({ state: "ready", nextAction: "hosted-request",
+      action: { provider: "codex-pr", coverage: "complete" } });
   });
 
   it("shows the claim-wide ceiling after two reviews on earlier Errand heads", async () => {
@@ -1201,10 +1211,17 @@ describe("Errand review status", () => {
       schemaVersion: 1, target: approvedTarget, lane: "standard", frontlineActive: false,
       standardReview, completedPasses: owner.completedPasses, attempts: [],
     };
+    const resultReader = createRepositoryReviewResultReader(publisher);
+    const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
+    const nextPassContext = await readHostedErrandNextPassContext({ cwd: root, exec, configuredSources: ["codex-pr"], progress: owner,
+      target: await deriveLocalReviewTargetFromCoordinates({ cwd: root, exec, repositoryId,
+        coordinates: { kind: "change-set", baseRef: "main", diffBaseSha: base, headSha: thirdHead } }),
+      lineage: { kind: "head-bound", vehicleKind: "errand", vehicleIdentity: claimId, headSha: thirdHead },
+      standardReview, operationStore: store, resultReader, dispositionStore });
     const dependencies = {
-      sources: ["codex-pr"], maxPasses: 2,
-      resultReader: createRepositoryReviewResultReader(publisher),
-      dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+      sources: ["codex-pr"], maxPasses: 2, nextPassContext,
+      resultReader,
+      dispositionStore,
       readResponsePerformance: (producer: Parameters<typeof readLaneResponsePerformance>[1]) =>
         readLaneResponsePerformance(store, producer),
       confirmTarget: async (current: Parameters<typeof createReviewRequirement>[0]["target"]) => current,

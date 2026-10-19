@@ -115,6 +115,7 @@ function buildLocusGuidanceSummary(value: LocusSessionGuidance): string | null {
   if (value.kind === "unavailable") return value.message;
   const lines = [
     value.currentFrame,
+    value.pause,
     value.primaryAvailability,
     value.recovery,
     value.reconciliation,
@@ -137,7 +138,8 @@ export function buildSessionInitStatusSummary(result: SessionInitProbeResult): s
     ...(locusGuidance === null
       ? []
       : [`Session locus:\n${locusGuidance.split("\n").map((line) => `  ${line}`).join("\n")}`]),
-    renderSlot("User", result.user, buildUserSessionInitStatusSummary),
+    ...(result.user.ok && result.user.value === null ? [] : [renderSlot("User", result.user, value =>
+      value === null ? "" : "status" in value ? value.summary : buildUserSessionInitStatusSummary(value))]),
     renderSlot("Worktree", result.worktree, buildWorktreeSessionInitSummary),
     renderSlot("Config", result.config, buildConfigSessionInitSummary),
     renderSlot("Release Routing", result.releaseRouting, buildReleaseRoutingSummary),

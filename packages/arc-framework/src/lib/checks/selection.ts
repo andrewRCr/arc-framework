@@ -27,6 +27,7 @@ export async function resolveCheckSelection(
   const { base, tree, scope } = resolved;
   const own = new Map<string, InputSelection>();
   for (const [id, check] of Object.entries(declaration.checks)) {
+    if (check.mode === "selection") continue;
     if (scope.kind !== "all" || boundedDefaultMergeCheck(request, check)) {
       own.set(id, await ownInputChange(io, root, resolved, check.inputs));
     }

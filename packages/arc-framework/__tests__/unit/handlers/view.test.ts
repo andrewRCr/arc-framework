@@ -237,3 +237,22 @@ describe("resolveExplicitViewTarget", () => {
     })).resolves.toEqual({ status: "unavailable", slug: "invalid" });
   });
 });
+
+it("renders selected-store session context and prints its projected path with no checkout metadata", async () => {
+  const { createLifecycleHarness } = await import("../../helpers/store/lifecycle-harness.js");
+  const { createViewDependencies } = await import("../../../src/handlers/view.js");
+  const { resolveViewArtifact } = await import("../../../src/lib/view-artifact.js");
+  const { runView } = await import("../../../src/commands/view.js");
+  const h = createLifecycleHarness();
+  const record = await h.seedMeta("demo", { state: "Planning", currentWorkflow: "draft-design" });
+  const deps = createViewDependencies("/linked", async () => { throw new Error("No projected checkout files"); },
+    async () => { throw new Error("No Git metadata discovery"); }, "andrew", h.store);
+  const input = { cwd: "/linked", kind: "session-notes", identity: "andrew", project: false, forSlug: "demo", nonInteractive: true };
+  const bindings = { resolveArtifact: (options: Parameters<typeof resolveViewArtifact>[0]) => resolveViewArtifact(options, deps), readFile: deps.readFile };
+  const result = await runView(input, bindings);
+  expect(result.exitCode).toBe(0);
+  expect(result.stdout).toContain("Planning");
+  expect(await deps.readFile("/linked/.arc/active/meta-demo.md")).toBe(record.content);
+  expect(await runView({ ...input, path: true }, bindings))
+    .toEqual({ stdout: "/linked/.arc/active/meta-demo.md\n", stderr: "", exitCode: 0 });
+});

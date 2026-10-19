@@ -217,8 +217,9 @@ locally since it lives on base. No dedicated workflow ships for this; reverse it
 2. Reverse the activation's meta-file edits — the inverse of [`activate-work-unit.md`][activate] Step 3:
    `**State:** Active → Planning`, `**Branch:**` back to `plan/{name}`, and the Next Action back to a planning
    pointer.
-3. Open the PR, note the deactivation in its description, and merge once approved. If the activation also renamed
-   the live branch, rename it back per the Case A branch-rename routing above.
+3. Run `arc check increment` before committing the reversed meta fields for the deactivation PR. Open the PR, note
+   the deactivation in its description, and merge once approved. If the activation also renamed the live branch,
+   rename it back per the Case A branch-rename routing above.
 
 ---
 

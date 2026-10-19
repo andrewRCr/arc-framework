@@ -133,6 +133,7 @@ export const ArcLayoutAddressSchema = z.discriminatedUnion("kind", [
   }),
   z.strictObject({ kind: z.literal("procedure-root"), family: ProcedureFamilySchema }),
   z.strictObject({ kind: z.literal("project-document"), document: ProjectDocumentKindSchema }),
+  z.strictObject({ kind: z.literal("user-root"), identity: SlugSchema }),
   z.strictObject({
     kind: z.literal("user-document"),
     identity: SlugSchema,

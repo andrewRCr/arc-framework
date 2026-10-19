@@ -73,6 +73,9 @@ const VALIDATION_DOMAIN_ORDER = [
 
 const OPTIONAL_INTEGER_KEYS = [
   "inbox.remind_after_days",
+  "inbound.retriage_after_entries",
+  "inbound.retriage_after_days",
+  "pause.review_after_days",
   "integration.stale_after_days",
 ] as const;
 

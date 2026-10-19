@@ -4,9 +4,10 @@
  * @module
  */
 
+import { confirmPersonalIdentity } from "./identity-setup.js";
 import { checkBootstrapSummary } from "../lib/checks/bootstrap.js";
 import * as p from "../lib/terminal.js";
-import { initIdentityPromptSite } from "../prompts/identity-prompt-sites.js";
+import { initIdentityPromptSite, initIdentityInUsePromptSite } from "../prompts/identity-prompt-sites.js";
 import { readFile } from "node:fs/promises";
 
 import { runInit, buildPostInitMessage, isArcInstalled } from "../commands/init.js";
@@ -101,6 +102,7 @@ export async function handleInit(
       recipe,
       prompts,
       identityResult,
+      confirmIdentityInUse: confirmPersonalIdentity(initIdentityInUsePromptSite, context),
     });
 
     if (!result) {
