@@ -312,9 +312,11 @@ retires.
 
     - Each batch prunes the suppressions its reroute leaves unused.
 
-    - `[ ]` **2.6.a The review handler**
+    - `[x]` **2.6.a The review handler**
 
-        - `handlers/review.ts`'s Candidate and boundary reads and writes.
+        - The review handler uses typed access, relocated history, pure paths, and the public V1 boundary type.
+          Terminus, hosted-progress, and prepublication boundary operations reuse bound stores; Git history,
+          fixed-HEAD replay, staging, and existing test assertions remain intact.
 
     - `[ ]` **2.6.b The policy modules**
 

@@ -45,8 +45,11 @@ import { canonicalDigest, canonicalize, CanonicalDigestSchema, type CanonicalDig
 import { SlugSchema } from "../lib/kernel/schema/slug.js";
 import {
   readCandidateRecord,
-  readRepositoryCandidateSupersessionChain,
-} from "../lib/work-unit/candidate-record-store.js";
+} from "../lib/store/kinds/review/candidate/access.js";
+import { readRepositoryCandidateSupersessionChain } from "../lib/store/kinds/review/candidate/history.js";
+import type { Store } from "../lib/store/contract.js";
+import { createStore } from "../lib/store/create.js";
+import { createDefaultStorePorts } from "../lib/store/default-ports.js";
 import type {
   CandidateManagedRecordV1,
   CandidateSupersessionAncestor,
@@ -131,11 +134,11 @@ import {
 } from "../scripts/review-gate/policy/integration-boundary-locus.js";
 import {
   readSubmissionBoundaryVersioned,
-  resolveSubmissionBoundaryPath,
   SubmissionBoundaryVersionConflictError,
   writeSubmissionBoundary,
-  type VersionedSubmissionBoundary,
-} from "../lib/work-unit/submission-boundary-store.js";
+} from "../lib/store/kinds/review/integration-boundary/access.js";
+import { resolveSubmissionBoundaryPath } from "../lib/store/kinds/review/paths.js";
+import type { VersionedSubmissionBoundary } from "../lib/store/kinds/review/integration-boundary/schema.js";
 import { createReviewRequirement } from "../scripts/review-gate/core/gate-contract-v2.js";
 import { GitObjectIdSchema } from "../scripts/review-gate/core/gate-contract-v2-schema.js";
 import type { ReviewResult } from "../scripts/review-gate/core/review-result.js";
@@ -1070,6 +1073,7 @@ async function acceptDeliveryReviewTerminus(
   interaction?: InteractionContext,
 ): Promise<DeliveryReviewTerminusAcceptanceResult> {
   const exec = createGitExec(interaction?.subprocess);
+  const reviewRecordStore = createStore(createDefaultStorePorts({ checkoutRoot: root, exec }));
   const ownerDependencies = createPrePublicationCompositionDependencies({ cwd: root, exec });
   const readOwnerAuthority = async (workUnitId: string) => {
     const direct = await ownerDependencies.readOwnerTerminusAuthority(workUnitId);
@@ -1092,7 +1096,7 @@ async function acceptDeliveryReviewTerminus(
     }
   };
   const result = await resolveDeliveryReviewTerminusAcceptance(request, {
-    readBoundary: (workUnitId) => readSubmissionBoundaryVersioned(root, workUnitId),
+    readBoundary: (workUnitId) => readSubmissionBoundaryVersioned(root, workUnitId, { store: reviewRecordStore }),
     readOwnerAuthority,
     readCurrentOffer: async (workUnitId) => {
       const status = await resolveReviewStatusForWorkUnit({
@@ -1107,7 +1111,7 @@ async function acceptDeliveryReviewTerminus(
       try {
         return {
           status: "written",
-          path: await writeSubmissionBoundary(root, boundary, expectedVersion),
+          path: await writeSubmissionBoundary(root, boundary, expectedVersion, { store: reviewRecordStore }),
         };
       } catch (error) {
         if (error instanceof SubmissionBoundaryVersionConflictError) return { status: "version-conflict" };
@@ -1621,7 +1625,7 @@ function createResolveContributionConfirmation(input: {
     const active = await resolveActiveWu({ cwd: root });
     const candidate = current.admission.lineage.kind === "candidate"
       && active.status === "resolved" && active.name !== ""
-      ? await readCandidateRecord(root, active.name)
+      ? await readCandidateRecord(root, active.name, { exec })
       : null;
     const observeTarget = async () => {
         const confirmation = await confirmLocalReviewTarget({
@@ -2371,7 +2375,8 @@ async function resolveHostedProgressContext(input: {
   if (workUnitId === null) {
     throw new Error("Hosted review progress requires one active work unit or an explicit vehicle.");
   }
-  const boundary = (await readSubmissionBoundaryVersioned(input.root, workUnitId)).boundary;
+  const reviewRecordStore = createStore(createDefaultStorePorts({ checkoutRoot: input.root, exec: input.exec }));
+  const boundary = (await readSubmissionBoundaryVersioned(input.root, workUnitId, { store: reviewRecordStore })).boundary;
   if (boundary?.reservation === null || boundary?.reservation === undefined) {
     throw new Error("Hosted review progress requires the carried standard-review reservation.");
   }
@@ -2383,7 +2388,7 @@ async function resolveHostedProgressContext(input: {
   if (candidate.status !== "current") {
     throw new Error("Hosted review reservation requires a current Candidate.");
   }
-  const candidateRecord = await readCandidateRecord(input.root, workUnitId);
+  const candidateRecord = await readCandidateRecord(input.root, workUnitId, { store: reviewRecordStore });
   if (candidateRecord === null) {
     throw new Error("Hosted review reservation requires the canonical Candidate record.");
   }
@@ -2525,7 +2530,7 @@ async function resolveFrontlineSupersessionAncestors(
   if (workUnitId === undefined) {
     throw new Error("frontline Candidate supersession authority is unavailable");
   }
-  const record = await readCandidateRecord(root, workUnitId);
+  const record = await readCandidateRecord(root, workUnitId, { exec });
   if (record === null || record.attestation.candidateId !== lineage.candidateId) {
     throw new Error("frontline Candidate supersession authority is unavailable");
   }
@@ -2632,7 +2637,7 @@ async function resolveCandidateFrontlineLineage(input: {
   target: FrontlineCommandRequest["target"];
 }) {
   const { root, exec, operationStore, workUnit, target } = input;
-  const boundary = (await readSubmissionBoundaryVersioned(root, workUnit)).boundary;
+  const boundary = (await readSubmissionBoundaryVersioned(root, workUnit, { exec })).boundary;
   if (boundary === null || boundary.workUnit !== workUnit) {
     throw new Error("frontline Candidate lineage authority is unavailable");
   }
@@ -4226,7 +4231,7 @@ export interface ReviewPrePublicationHandlerDependencies {
   readText(source: string): Promise<string>;
   readRootGitHead(root: string): Promise<string>;
   readCandidate(root: string, workUnit: string): Promise<CandidateRead>;
-  readBoundary(root: string, workUnit: string): Promise<VersionedSubmissionBoundary>;
+  readBoundary(root: string, workUnit: string): Promise<VersionedSubmissionBoundary<IntegrationBoundaryLocus>>;
   readStandardLaneOwnerVersion(root: string, candidateId: CanonicalDigest, headSha: string): Promise<number>;
   withStandardLaneLock<T>(
     root: string, candidateId: CanonicalDigest, headSha: string, action: () => Promise<T>,
@@ -4284,7 +4289,7 @@ async function persistAcceptedFrontlineSkip(input: {
     lineage,
   }), 10_000, async () => {
     const [record, observedHead] = await Promise.all([
-      readCandidateRecord(input.root, input.workUnit),
+      readCandidateRecord(input.root, input.workUnit, { exec: input.exec }),
       input.exec("git", ["rev-parse", "HEAD"], { cwd: input.root }),
     ]);
     if (record?.attestation.candidateId !== input.candidateId
@@ -4386,6 +4391,15 @@ function defaultPrePublicationDependencies(
 ): ReviewPrePublicationHandlerDependencies {
   const boundary = defaultReviewHandlerBoundary();
   const exec = createGitExec(interaction?.subprocess);
+  const reviewRecordStores = new Map<string, Store>();
+  const recordStoreFor = (root: string): Store => {
+    let store = reviewRecordStores.get(root);
+    if (store === undefined) {
+      store = createStore(createDefaultStorePorts({ checkoutRoot: root, exec }));
+      reviewRecordStores.set(root, store);
+    }
+    return store;
+  };
   const boundarySnapshots = new Map<string, Awaited<ReturnType<typeof readSubmissionBoundaryVersioned>>>();
   return {
     resolveRoot: (cwd) => boundary.resolveRoot(cwd),
@@ -4396,14 +4410,14 @@ function defaultPrePublicationDependencies(
     readCandidate: (root, workUnit) => createPrePublicationCompositionDependencies({ cwd: root, exec })
       .readCandidate(workUnit),
     readBoundary: async (root, workUnit) => {
-      const snapshot = await readSubmissionBoundaryVersioned(root, workUnit);
+      const snapshot = await readSubmissionBoundaryVersioned(root, workUnit, { store: recordStoreFor(root) });
       boundarySnapshots.set(workUnit, snapshot);
       return snapshot;
     },
     ...prePublicationStandardLaneAccess(exec),
     compose: async (root, input, judgment) => {
       const snapshot = boundarySnapshots.get(input.name)
-        ?? await readSubmissionBoundaryVersioned(root, input.name);
+        ?? await readSubmissionBoundaryVersioned(root, input.name, { store: recordStoreFor(root) });
       boundarySnapshots.set(input.name, snapshot);
       const composition = await composePrePublicationReviewRequest(
         {
@@ -4437,7 +4451,7 @@ function defaultPrePublicationDependencies(
     },
     persistBoundary: async (root, settled) => {
       const snapshot = boundarySnapshots.get(settled.workUnit)
-        ?? await readSubmissionBoundaryVersioned(root, settled.workUnit);
+        ?? await readSubmissionBoundaryVersioned(root, settled.workUnit, { store: recordStoreFor(root) });
       const existing = snapshot.boundary;
       const preservesReservation = existing !== null
         && existing.candidateId === settled.candidateId
@@ -4447,7 +4461,7 @@ function defaultPrePublicationDependencies(
         && settled.terminus === null;
       const path = await writeSubmissionBoundary(root, parseIntegrationBoundaryLocus(preservesReservation
         ? { ...settled, reservation: existing.reservation }
-        : settled), snapshot.version);
+        : settled), snapshot.version, { store: recordStoreFor(root) });
       await exec("git", ["add", "--", path], { cwd: root });
     },
     persistAcceptedFrontlineSkip: (root, accepted) => persistAcceptedFrontlineSkip({
@@ -4456,9 +4470,9 @@ function defaultPrePublicationDependencies(
       exec,
     }),
     recoverAttestationOrdering: async (root, recovered, expectedVersion) => {
-      const path = await writeSubmissionBoundary(root, recovered, expectedVersion);
+      const path = await writeSubmissionBoundary(root, recovered, expectedVersion, { store: recordStoreFor(root) });
       await exec("git", ["add", "--", path], { cwd: root });
-      boundarySnapshots.set(recovered.workUnit, await readSubmissionBoundaryVersioned(root, recovered.workUnit));
+      boundarySnapshots.set(recovered.workUnit, await readSubmissionBoundaryVersioned(root, recovered.workUnit, { store: recordStoreFor(root) }));
     },
     write: (text) => {
       boundary.write(text);

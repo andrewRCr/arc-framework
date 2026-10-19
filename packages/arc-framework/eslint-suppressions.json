@@ -544,9 +544,6 @@
     }
   },
   "src/handlers/review.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    },
     "jsdoc/require-jsdoc": {
       "count": 3
     },
