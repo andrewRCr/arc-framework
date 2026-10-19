@@ -29,6 +29,8 @@ export async function prepareDecomposeDiscard(ctx: DecomposeContext, origin: str
   const selected = await acquireDecomposeStoredCut(store, origin);
   if (selected.status === "refused") return selected;
   const { map, primary, storedMap } = selected.result;
+  const originGroup = await acquireLifecycleRecords(store, primary.reference.owner.name);
+  if (originGroup.status === "refused") return decomposeStoreRefusal(originGroup.refusal);
   const members = await acquireDecomposeMembers(store, map, storedMap);
   if (members.status === "refused") return members;
   const cohorts = await acquireDecomposeCutCohorts(store, map, storedMap);
@@ -42,7 +44,7 @@ export async function prepareDecomposeDiscard(ctx: DecomposeContext, origin: str
     if (group.status === "refused") return decomposeStoreRefusal(group.refusal);
     removed.push(...group.result);
   }
-  const records = [primary, ...removed].filter((record, index, all) =>
+  const records = [...originGroup.result, ...removed].filter((record, index, all) =>
     all.findIndex(other => sameReference(other.reference, record.reference)) === index);
   const allocated = new Set(map.authoring.sourceAllocations.flatMap(allocation =>
     allocation.disposition.kind === "target" ? [allocation.disposition.destinationId] : []));

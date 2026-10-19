@@ -37,6 +37,9 @@ export async function acquireDecomposeTerminal(ctx: DecomposeContext, origin: st
   const storedMap = group.result.find(record => record.reference.kind === "work-item/cut-map");
   if (storedMap === undefined) return { status: "refused", reason: "no-stored-map", class: "recoverable", locus: origin,
     remedy: { text: "Start the cut with --execute or --extract and a completed preflight map, then finish the stored cut." } };
+  if (storedMap.conflicts.length > 0) return { status: "refused", reason: "stored-map-conflict", class: "recoverable", locus: origin,
+    message: "The stored cut map has an open sync conflict.",
+    remedy: { text: `Keep the current map by resolving its conflict with arc decompose ${origin} --discard or arc decompose ${origin} --revise.` } };
   const decoded = decodeCutMap(JSON.parse(storedMap.content));
   if (decoded.status === "rejected") return { status: "refused", reason: decoded.issue.code, class: "recoverable",
     locus: decoded.issue.path || "$", message: decoded.issue.message, remedy: { text: "Restore the stored cut map through --revise, then finish it." } };

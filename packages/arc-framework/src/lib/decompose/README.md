@@ -10,10 +10,10 @@ cohort template, inbound grammar, and terminal cleanup boundaries. Map inputs re
 information lifted unchanged. `command-argv.ts` builds stored-map continuations for the shared command renderer.
 `provenance.ts` distinguishes additive, terminal, discard, and revision batches in record history.
 
-`stored-cut.ts` reads current authoring independently of start and finish admission. When the current map is absent,
-it uses finish's terminal lineage or removed-map history to refuse mutation of a landed cut, preserving live reused
-generations and discard history as ordinary missing-map cases. `discard-plan.ts` acquires
-authenticated whole member groups and new cohort documents proved by `cut-cohorts.ts` against the cut's creation
+`stored-cut.ts` reads current authoring independently of start and finish admission. When the current map is absent, it
+uses finish's terminal lineage or removed-map history to refuse mutation of a landed cut, preserving live reused
+generations and discard history as ordinary missing-map cases. `discard-plan.ts` acquires the whole origin group,
+authenticated whole member groups, and new cohort documents proved by `cut-cohorts.ts` against the cut's creation
 history. `removal-records.ts` closes conflicts through their subjects' removals. `discard.ts` previews exact removals
 and existing destinations left edited, binds approval to observed versions, revalidates, and applies only those writes.
 `discard-report.ts` defines its closed preview and application reports.
@@ -114,12 +114,12 @@ instructions without a content write; the next action authors destinations befor
 name acquisitions before returning a store failure. An unexplained version conflict retains its complete store
 refusal and adds the exact additive retry action; other failures preserve their original recovery information.
 
-`acquire-terminal.ts` acquires a stored cut's complete preparation inputs and version guards. `read-cache.ts`
-shares listed records, reads, lookups, and histories within preparation; revalidation uses the original store.
-`member-identity.ts` authenticates members by their birth names and creation batches against decomposition history
-since the map's latest creation, sharing history reads for aliases. Accepted member generations alone leave the
-incoming scan. `acquire-terminal-targets.ts` retains named cohort documents and complete open-home groups, directing
-closed-home allocations through revision.
+`acquire-terminal.ts` refuses open stored-map conflicts with discard and revision remedies before acquiring a cut's
+complete terminal preparation inputs and version guards. `read-cache.ts` shares listed records, reads, lookups, and
+histories within preparation; revalidation uses the original store. `member-identity.ts` authenticates members by their
+birth names and creation batches against decomposition history since the map's latest creation, sharing history reads
+for aliases. Accepted member generations alone leave the incoming scan. `acquire-terminal-targets.ts` retains named
+cohort documents and complete open-home groups, directing closed-home allocations through revision.
 
 `check-terminal-origin.ts` admits the origin's current lifecycle state for the cut's shape before deriving source facts.
 It repeats the shared scaffold floor and gives typed deactivation, reopening, revision, or discard actions when the

@@ -555,28 +555,13 @@ first place to reauthor; and a stored map conflicted by a sync resolves through 
 - _Outcome:_ Stored-cut acquisition shares finish's terminal evidence to refuse discard and both revision forms with
   the recorded member names. Live reused origin generations and discard history retain their missing-map refusal.
 
-### `[ ]` **5.5 Resolve a stored map conflicted by a sync — § 10**
+### `[x]` **5.5 Resolve a stored map conflicted by a sync — § 10**
 
 - _Goal:_ Where two clones' additive batches each stored a map, `--finish` refuses on the conflict, naming `--discard`
   and `--revise`, which resolve it, keeping the current map.
-
-    - The refusal reads the stored map's open conflicts (`read.conflicts`), since the store refuses no write to a
-      conflicted record; task 3.1's acquisition calls it.
-    - The sync files the conflict record in the origin's group (`storeConflicts`, `__tests__/helpers/store/merge.ts`),
-      which the discard and the revision acquire and revalidate but never put; each names it in the `resolves` of the
-      stored map's removal or replacement, which closes it.
-    - Two reference stores share one memory remote (`createMemoryRemote`, `__tests__/helpers/store/sync.ts`), each
-      syncing after its additive batch.
-    - The other cut's stubs and cohort documents are stated outcomes, its stubs removed by `arc abandon <member>`.
-      Where the two cuts share a member slug or a new cohort document's name, this backend's sync itself refuses
-      `ambiguous-match` (`indexIdentities`, in `prepareReconciliation`), since each clone mints its own owner's UID
-      (`canonicalReference`, `__tests__/helpers/store/model.ts`); the test asserts it as a stated outcome, and the
-      clash at lookup that § 10 describes is the ref backend's.
-    - Build `test-first` (one behavior at a time):
-        - `--finish` refuses on the conflict, naming `--discard` and `--revise`
-        - `--discard`, and in a second run `--revise <cut-map>`, resolves it, leaving no conflict record
-        - two cuts sharing a member slug leave the sync refusing `ambiguous-match`, as do two sharing a new cohort
-          document's name
+- _Outcome:_ Independent checked clones reproduce map conflicts and native identity clashes. Finish refuses the
+  conflicted map; discard and revision revalidate the conflict records and close them through the map subject alone.
+  The unselected cut remains intact, its stubs abandon normally, and its empty cohort remains open.
 
 ### `[ ]` **5.6 Refuse abandoning an origin mid-cut — § 10**
 
