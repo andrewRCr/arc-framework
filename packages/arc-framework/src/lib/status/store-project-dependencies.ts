@@ -91,8 +91,10 @@ class StoreDependencyResolver {
   private async resolveRetired(dependent: LifecycleEntry, written: string, name: string): Promise<ResolutionStep> {
     const lineage = await (this.lineage ??= storeLineageEnumeration(this.options.store));
     if (lineage.status === "refused") return this.failed(dependent, written, lineage.refusal);
-    const result = await queryRetiredOriginDisposition(this.options.store, dependent.reference.owner, lineage.result,
+    const disposition = await queryRetiredOriginDisposition(this.options.store, dependent.reference.owner, lineage.result,
       { origin: name, dependentSlug: dependent.reference.owner.name });
+    if (disposition.status === "refused") return this.failed(dependent, written, disposition.refusal);
+    const result = disposition.result;
     if (result.status === "ambiguous" || result.status === "namespace-corrupt") return this.failed(dependent, written, {
       condition: result.status === "ambiguous" ? `Lineage for retired origin ${name} is ambiguous.`
         : `Lineage evidence for retired origin ${name} is incomplete or malformed.`,

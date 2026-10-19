@@ -17,6 +17,7 @@ import { selectStandingLifecycleEntries } from "../../../src/lib/status/store-pr
 import { readStoreProjectRecords } from "../../../src/lib/status/store-project-records.js";
 import { resolveStoreProjectDependencies } from "../../../src/lib/status/store-project-dependencies.js";
 import { composeProjectReadinessViewResult } from "../../../src/lib/status/project-view.js";
+import { runStoreRename } from "../../../src/lib/work-unit/verbs/rename-store.js";
 
 async function project(store: Store) {
   const view = lifecycleSuccess(await readLifecycleView(store));
@@ -51,7 +52,7 @@ async function lineageRenameChain(terminal: string, secondDependent = false) {
   return h;
 }
 
-async function retiredOriginFixture(disposition: "replace" | "drop" | "unmapped" | "abandoned" = "replace", formerAlias = false) {
+async function retiredOriginFixture(disposition: "replace" | "drop" | "unmapped" | "abandoned" = "replace", formerAlias = false, uidBound = true) {
   const h = createLifecycleHarness();
   let origin = await h.seedMeta(formerAlias ? "former-origin" : "origin");
   await h.seedMeta("member");
@@ -72,7 +73,7 @@ async function retiredOriginFixture(disposition: "replace" | "drop" | "unmapped"
       content: writeLineageRecord(disposition === "abandoned"
         ? { schemaVersion: 2, origin: { name: SlugSchema.parse("origin") }, kind: "abandon", successors: [], incoming: [] }
         : { schemaVersion: 2, origin: { name: SlugSchema.parse("origin") }, kind: "decompose",
-        successors: [{ name: SlugSchema.parse("member") }], outgoing: [], incoming: disposition === "unmapped" ? [] : [{ dependent: { name: owner.name, uid: owner.uid },
+        successors: [{ name: SlugSchema.parse("member") }], outgoing: [], incoming: disposition === "unmapped" ? [] : [{ dependent: { name: owner.name, ...(uidBound ? { uid: owner.uid } : {}) },
           disposition: disposition === "replace" ? { kind: "replace", replacementTargets: [{ name: SlugSchema.parse("member") }] }
             : { kind: "drop", reason: "No longer needed." } }] }) },
   ], { verb: disposition === "abandoned" ? "abandon" : "decompose",
@@ -238,10 +239,54 @@ it("shares one incomplete lineage observation and warns for every dependent reac
   const result = await project(store);
   expect(result.warnings.map(warning => warning.code)).toEqual(["store-read-failed", "store-read-failed"]);
   expect(result.warnings.map(warning => warning.workUnit)).toEqual(["dependent", "other-dependent"]);
-  for (const warning of result.warnings) expect(warning.rendered).toMatch(/lineage.*repair.*retry/iu);
+  for (const warning of result.warnings) expect(warning.rendered).toBe("Lineage unavailable. Restore the lineage index.");
   for (const slug of ["dependent", "other-dependent"]) {
     expect(result.facts.find(fact => fact.slug === slug)?.readiness).toBe("blocked");
   }
+  expect((await project(store)).warnings).toEqual([]);
+});
+
+it.each([false, true])("retains every lineage listing diagnostic and recovers after repair, missed=%s", async missed => {
+  const h = await lineageRenameChain("current");
+  const store = Object.create(h.store) as Store;
+  let repaired = false;
+  store.list = async input => {
+    const result = await h.store.list(input);
+    if (input.family !== "lineage" || repaired || result.status !== "ok" || result.result.status !== "complete") return result;
+    return { status: "ok", result: { ...result.result, missed, diagnostics: [
+      { kind: "unreadable", key: "first", condition: "First lineage record unavailable.", remedy: { text: "Restore the first record." } },
+      { kind: "unknown-format-version", key: "second", condition: "Second lineage format unsupported.", remedy: { text: "Upgrade the lineage reader." } },
+    ] } };
+  };
+  const result = await project(store);
+  expect(result.warnings).toHaveLength(1);
+  expect(result.warnings[0]).toMatchObject({ code: "store-read-failed", workUnit: "dependent", dependency: "former" });
+  for (const text of ["First lineage record unavailable.", "Restore the first record.",
+    "Second lineage format unsupported.", "Upgrade the lineage reader."]) expect(result.warnings[0]?.rendered).toContain(text);
+  expect(result.facts.find(fact => fact.slug === "dependent")?.readiness).toBe("blocked");
+  repaired = true;
+  expect((await project(store)).warnings).toEqual([]);
+});
+
+it("retains a refused dependent identity lookup's repair route and recovers after repair", async () => {
+  const h = await retiredOriginFixture("replace", false, false);
+  expect(await runStoreRename({ store: h.store, cwd: "/memory", baseBranch: "main",
+    exec: async () => { throw new Error("No Git needed"); }, locusPorts: {
+      findHoldingCheckout: async () => null, checkMarkerExclusivity: async () => ({ kind: "clear" }),
+      writeAnchoredMarker: async () => ({ kind: "unadmitted" }),
+    } }, { sourceSlug: "dependent", targetSlug: "current-dependent" })).toMatchObject({ status: "renamed" });
+  const store = Object.create(h.store) as Store;
+  let repaired = false;
+  store.lookup = async input => !repaired && input.kind === "slug" && input.slug === "dependent"
+    ? { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: "work-item",
+      condition: "Dependent identity unavailable.", remedy: { text: "Restore the dependent index." } } }
+    : h.store.lookup(input);
+  const result = await project(store);
+  expect(result.warnings).toEqual([{ code: "store-read-failed", workUnit: "current-dependent", dependency: "origin",
+    rendered: "Dependent identity unavailable. Restore the dependent index." }]);
+  expect(result.facts.find(fact => fact.slug === "current-dependent")?.readiness).toBe("blocked");
+  repaired = true;
+  expect((await project(store)).warnings).toMatchObject([{ code: "dependency-retired", workUnit: "current-dependent", dependency: "origin" }]);
 });
 
 it.each([false, true])("keeps a withheld meta unsatisfied without a dangling warning, former alias=%s", async alias => {
