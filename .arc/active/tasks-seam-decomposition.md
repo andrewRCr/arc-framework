@@ -23,20 +23,14 @@ still takes the kinds before the schema (§ 1.3), an order of review rather than
 under `lib/decompose/`, and the kind folder imports its decoder from there, as the meta kind imports
 `lib/active/meta-schema.ts`.
 
-### `[ ]` **1.1 Move the locator schema and source-ID function into the scanner — § 1.3**
+### `[x]` **1.1 Move the locator schema and source-ID function into the scanner — § 1.3**
 
 - _Goal:_ The scanner carries into the store version with no import from version 3's schema module, while version 3
   keeps every name it exports and every test passes unchanged.
 
-    - Move `V3DecomposeLocatorSchema` and `v3SourceId` from `decompose-v3-schema.ts` into `decompose-content.ts` with
-      `HeadingIdentitySchema`, which only the locator uses; names stay. The basename and managed-path schemas the two
-      rest on are built in the scanner over its own checks (`isArtifactBasename`, `isManagedPath`), and version 3 keeps
-      its `BasenameSchema` and `ManagedPathSchema` for its other fields.
-    - `decompose-v3-schema.ts` imports both from the scanner and re-exports them, so every module, test, and fixture
-      importing them from there — `decompose-v3-preflight.ts`, `decompose-v3-thinning.ts`, `decompose-v3-finish.ts`,
-      and `__tests__/fixtures/decompose-v3.ts` among them — imports as it does today, and the scanner imports nothing
-      from the schema module.
-    - Version 3's decode tests and the scanner's pass with no test file changed.
+- _Outcome:_ The scanner owns `V3DecomposeLocatorSchema`, `HeadingIdentitySchema`, and `v3SourceId`, with local
+  basename and managed-path checks. Version 3 imports and re-exports the public names; its consumers and tests keep
+  their existing imports.
 
 ### `[ ]` **1.2 Define the `cut-map` schema at version 4 — § 3, § 15**
 
