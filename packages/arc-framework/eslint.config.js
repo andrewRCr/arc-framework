@@ -134,8 +134,8 @@ const architectureBans = [
   },
   {
     files: [src("commands/active/status.ts")],
-    paths: ["../../lib/config/status-reader.js", "../../lib/work-unit/submission-boundary-store.js",
-      "../../lib/work-unit/candidate-record-store.js", "../../lib/work-unit/candidate-attestation.js",
+    paths: ["../../lib/config/status-reader.js", "../../lib/store/kinds/review/integration-boundary/access.js",
+      "../../lib/store/kinds/review/candidate/access.js", "../../lib/work-unit/candidate-attestation.js",
       "../../lib/work-unit/git-candidate-effective-target.js", "../../scripts/review-gate/policy/integration-boundary-locus.js",
       "../../scripts/review-gate/policy/candidate-review-fix-continuation.js"].map((name) => ({ name, allowTypeImports: true })),
   },

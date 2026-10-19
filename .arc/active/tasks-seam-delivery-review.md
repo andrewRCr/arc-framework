@@ -287,18 +287,11 @@ retires.
           rename forwards its existing store and runner. Both applicability cores take their versioned type from the
           public schema; selection replay, publication-state refusal, and the existing assertions remain intact.
 
-    - `[ ]` **2.4.c The subject's readers**
+    - `[x]` **2.4.c The subject's readers**
 
-        - `lib/work-unit/git-candidate-subject.ts` and `commands/active/status.ts`, whose dynamic import of the stores
-          stays dynamic, so `cli-loading-boundary.test.ts`'s deferred-module list swaps their specifiers for the typed
-          access's, and the package's `eslint.config.js` bans a static import of the typed access's module in
-          `commands/active/status.ts` in place of the two stores'.
-        - `lib/locus/subject-meta.ts` reads another checkout's records through its injected IO (`SubjectMetaIO`), the
-          in-repo arm it keeps wherever it is given no store that reports `stateOffBranch` (7.6): it takes the resolvers
-          and a pure boundary parse from `lib/store/kinds/review/`, keeping its absent-file reads as `null` and its
-          work-unit and path checks.
-        - _Note:_ Both subject readers already carry the shipped locus changes; preserve their store-aware paths
-          while rerouting the in-repo adapters (§ 14.4).
+        - Active status keeps typed record access lazy, with its lint ban and loading inventory. Subject paths use review
+          resolvers; boundary reads retain injected I/O, V1 parsing, absence, and owner checks. The shipped store-backed
+          Candidate authority and owner-generation binding remain intact.
 
     - `[ ]` **2.4.d Delivery and the path classifiers**
 

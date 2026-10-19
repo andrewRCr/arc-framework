@@ -119,7 +119,7 @@
   },
   "src/commands/active/status.ts": {
     "arc/store-raw-state": {
-      "count": 2
+      "count": 1
     },
     "arc/surface-names": {
       "count": 2
@@ -1376,7 +1376,7 @@
   },
   "src/lib/locus/subject-meta.ts": {
     "arc/store-raw-state": {
-      "count": 2
+      "count": 1
     },
     "arc/surface-names": {
       "count": 2
@@ -2116,9 +2116,6 @@
     }
   },
   "src/lib/work-unit/git-candidate-subject.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    },
     "arc/surface-names": {
       "count": 1
     },

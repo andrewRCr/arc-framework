@@ -3,6 +3,8 @@ import { parseIntegrationBoundaryLocus } from "../../../../../scripts/review-gat
 import { IntegrationBoundaryLocusV2Schema, type ReviewIntegrationBoundary } from "./schema.js";
 import { z } from "zod";
 
+export { parseIntegrationBoundaryLocus };
+
 /** Parse a persisted boundary under its declared format version. */
 export function parseReviewIntegrationBoundary(content: string): ReviewIntegrationBoundary | null {
   const decoded = decodeReviewIntegrationBoundary(content);

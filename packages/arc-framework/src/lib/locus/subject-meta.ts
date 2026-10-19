@@ -30,7 +30,8 @@ import {
   type CandidateEffectiveChangedProjection,
   type CandidateTargetProjector,
 } from "../work-unit/candidate-effective-target.js";
-import { resolveCandidateRecordRelativePath } from "../work-unit/candidate-record-store.js";
+import { resolveCandidateRecordRelativePath, resolveSubmissionBoundaryPath } from "../store/kinds/review/paths.js";
+import { parseIntegrationBoundaryLocus } from "../store/kinds/review/integration-boundary/parser.js";
 import {
   resolveLoadSetManifest,
   type LoadSetWorkUnitStage,
@@ -43,7 +44,6 @@ import {
   type TaskListCursorFileResult,
 } from "../task-list/file-cursor.js";
 import type { DormantMetaEvidence } from "./derived-lifecycle-evidence.js";
-import { readSubmissionBoundary } from "../work-unit/submission-boundary-store.js";
 import {
   projectCandidateFixResumeBoundary,
   projectCandidateReviewBoundary,
@@ -263,9 +263,7 @@ export async function projectCheckoutSubjectMeta(options: {
     : inferSessionType(record.state, taskListPath, record.branch);
   let integrationBoundary: IntegrationBoundaryLocus | null = null;
   if (record.candidateId !== null && candidateSubjectDigest !== null && record.state === "Integrating") {
-    const stored = await readSubmissionBoundary(options.cwd, options.subjectKey, {
-      readFile: (path) => options.io.readFile(path),
-    });
+    const stored = await readHeldSubmissionBoundary(options.cwd, options.subjectKey, options.io);
     const exactDurableBoundary = !requireExactDurableBoundary
       || stored?.candidateSubjectDigest === candidateSubjectDigest;
     integrationBoundary = record.branch === null || !exactDurableBoundary
@@ -285,9 +283,7 @@ export async function projectCheckoutSubjectMeta(options: {
         candidateSubjectDigest,
       });
     } else {
-      const stored = await readSubmissionBoundary(options.cwd, options.subjectKey, {
-        readFile: (path) => options.io.readFile(path),
-      });
+      const stored = await readHeldSubmissionBoundary(options.cwd, options.subjectKey, options.io);
       const recovered = recoverPrePublicationBoundary({
         stored,
         workUnit: options.subjectKey,
@@ -489,4 +485,18 @@ async function readStoreTaskCursor(store: Store, primary: import("../store/read.
     `The task list has unresolved conflicts: ${read.result.conflicts.map(reference => JSON.stringify(reference)).join(", ")}. Resolve the named conflict records, then retry session entry.` };
   const path = workItemArtifactPath(slug, "tasks", WorkUnitReadPlacementSchema.parse(primary.placement), cohort);
   return { kind: "read", path, cursor: resolveTaskListCursor(read.result.content) };
+}
+
+async function readHeldSubmissionBoundary(cwd: string, workUnit: string,
+  io: Pick<SubjectMetaIO, "readFile">): Promise<IntegrationBoundaryLocus | null> {
+  const path = resolveSubmissionBoundaryPath(workUnit);
+  try {
+    const content = await io.readFile(join(cwd, path));
+    const boundary = parseIntegrationBoundaryLocus(JSON.parse(content) as unknown);
+    if (boundary.workUnit !== workUnit) throw new Error("Submission boundary work unit does not match its path");
+    return boundary;
+  } catch (error) {
+    if ((error as { code?: unknown }).code === "ENOENT") return null;
+    throw error;
+  }
 }

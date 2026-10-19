@@ -390,8 +390,8 @@ async function projectCandidateIntegrationBoundary(
       recoverIntegratingBoundary,
     },
   ] = await Promise.all([
-    import("../../lib/work-unit/submission-boundary-store.js"),
-    import("../../lib/work-unit/candidate-record-store.js"),
+    import("../../lib/store/kinds/review/integration-boundary/access.js"),
+    import("../../lib/store/kinds/review/candidate/access.js"),
     import("../../lib/work-unit/candidate-attestation.js"),
     import("../../scripts/review-gate/policy/integration-boundary-locus.js"),
   ]);
