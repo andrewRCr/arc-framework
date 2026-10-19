@@ -41,3 +41,48 @@ export async function storedLocalApproval() {
   return { harness, fixture, original, outcome, owner: primary.reference.owner,
     evidence: createReviewEvidencePort(harness.store, primary.reference.owner) };
 }
+
+/** Produce a pending Candidate fix and import its actual producer and approval into one checked store. */
+export async function storedCandidateApproval(candidate: import("../../src/lib/work-unit/candidate-attestation.js").CandidateManagedRecordV1) {
+  const { serializeCandidateManagedRecord } = await import("../../src/lib/work-unit/candidate-attestation.js");
+  const { ApprovedDispositionRecordSchema } = await import("../../src/scripts/review-gate/core/advisory-records.js");
+  const { createFixAuthorization } = await import("../../src/scripts/review-gate/core/fix-authorization.js");
+  const { writeMetaCurrentWorkflow } = await import("../../src/lib/store/kinds/meta/writers.js");
+  const repositoryId = "123e4567-e89b-42d3-a456-426614174099";
+  const harness = createLifecycleHarness();
+  const initialMeta = await harness.seedMeta(candidate.attestation.workUnit, { candidateId: candidate.attestation.candidateId,
+    taskList: `tasks-${candidate.attestation.workUnit}.md` });
+  const owner = initialMeta.reference.owner;
+  if (owner.type !== "work-item" || owner.uid === undefined) throw new Error("Expected stored work-item generation");
+  await harness.seed(recordReferences["work-item/task-list"](owner),
+    "# Task List\n\n## **Phase 1:** Build\n\n### `[x]` **1.1 Build feature**\n");
+  lifecycleSuccess(await harness.store.write({ action: "put", reference: initialMeta.reference,
+    expected: initialMeta.version, placement: { kind: "active" },
+    content: writeMetaCurrentWorkflow(initialMeta.content, "prepare-work-unit"),
+    provenance: { verb: "prepare-work-unit", lifecycleAction: "prepare" } }));
+  const meta = lifecycleSuccess(await harness.store.read({ reference: initialMeta.reference }));
+  await harness.seed(recordReferences["project-registry/identity"](OwnerIdentitySchema.parse({
+    type: "project", name: "test-project", uid: repositoryId,
+  })), "{}");
+  const fixture = await createLocalMappingFixture({ repositoryId,
+    lineage: { kind: "candidate", candidateId: candidate.attestation.candidateId },
+    vehicle: { kind: "work-unit", identity: owner.name },
+    imported: { workItems: [{ kind: "work-unit", slug: owner.name, uid: owner.uid, live: true }],
+      candidates: [{ workItem: owner.uid, versions: [{ commit: "a".repeat(40),
+        content: serializeCandidateManagedRecord(candidate) }], boundary: null }] } });
+  await fixture.conclude();
+  const producer = await fixture.resultReader.readResult(fixture.state.operationId);
+  const initial = approvedRecord(producer, [{ sourceVerification: "verified", verifiedSeverity: "major", disposition: "fix" }]);
+  const original = ApprovedDispositionRecordSchema.parse({ ...initial,
+    candidate: { workUnit: owner.name, candidateId: candidate.attestation.candidateId },
+    approvedDispositionLineage: initial.approvedDispositionLineage.map(node => ({ ...node,
+      fixAuthorization: createFixAuthorization({ dispositionState: node.approvedDisposition, oldTarget: producer.target }) })) });
+  const input = fixture.input();
+  input.gate.push({ path: `arc/review-gate/evidence/disposition-${canonicalDigest({ operationId: original.operationId }).slice(7)}.json`,
+    bytes: new TextEncoder().encode(JSON.stringify(original)) });
+  const mapped = mapReviewRecords(input);
+  lifecycleSuccess(await harness.store.batch({ writes: mapped.records.map(({ reference, contents }) => ({
+    action: "put", reference, expected: null, content: contents[0]!,
+  })), provenance: { verb: "review", lifecycleAction: "create" } }));
+  return { harness, owner, meta, fixture, original, producer, candidate };
+}

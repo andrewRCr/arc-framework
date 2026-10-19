@@ -133,9 +133,10 @@ export async function runDerivedLocusStateProbe(
       pathExists: (path) => access(path).then(() => true, () => false),
       realpath,
       lstat,
-      projectDeliveryCorrection: async ({ cwd, workUnitId, taskListPath }) => {
+      projectDeliveryCorrection: async ({ cwd, workUnitId, taskListPath, workItem }) => {
         const result = await inspectRepositoryDeliveryEntry({
           cwd,
+          store, projectId, workItem,
           taskListPath,
           request: { workUnitId: SlugSchema.parse(workUnitId), entryMode: "integrating" },
           baseBranch: options.baseBranch,
@@ -151,9 +152,10 @@ export async function runDerivedLocusStateProbe(
         exec: options.exec,
         rawExec: createRawGitExec(cwd),
       }),
-      readPendingCandidateReviewFixAuthority: ({ cwd, workUnitId, candidate }) =>
+      readPendingCandidateReviewFixAuthority: ({ cwd, workUnitId, candidate, workItem }) =>
         readPendingCandidateReviewFixAuthority({
           cwd,
+          store, projectId, workItem,
           exec: options.exec,
           workUnitId,
           candidate,

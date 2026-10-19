@@ -112,3 +112,47 @@ it("surfaces non-absence store conditions and remedies, then reads after repair"
   h.store.state.corrupt = false;
   await expect(readCandidateRecord("/unavailable", "example", { store: h.store })).resolves.toBeNull();
 });
+
+it("retains the selected work-item generation after its slug is reused", async () => {
+  const h = createLifecycleHarness();
+  const first = await h.seedMeta("example");
+  const record = candidateFixture();
+  const stored = await h.seed(recordReferences["review/candidate"](first.reference.owner), serializeCandidateManagedRecord(record));
+  lifecycleSuccess(await h.store.write({ action: "remove", reference: first.reference, expected: first.version,
+    provenance: { verb: "remove", lifecycleAction: "remove" } }));
+  const second = await h.seedMeta("example");
+  const replacement = { ...record, attestation: createCandidateAttestation({ ...record.attestation,
+    subject: record.subject, attestedAt: "2026-08-13T14:00:00.000Z" }) };
+  await h.seed(recordReferences["review/candidate"](second.reference.owner), serializeCandidateManagedRecord(replacement));
+  const options = { store: h.store, owner: first.reference.owner };
+  expect(await readCandidateRecordVersioned("/unavailable", "example", options)).toEqual({ record, version: stored.version });
+  expect(await readCandidateRecordVersion("/unavailable", "example", options)).toBe(stored.version);
+});
+
+it("refuses conflicted Candidate authority and resumes after resolution", async () => {
+  const { createMemoryRemote } = await import("../../../../../../helpers/store/sync.js");
+  const { ReferenceBackend } = await import("../../../../../../helpers/store/reference-backend.js");
+  const h = createLifecycleHarness();
+  const meta = await h.seedMeta("example");
+  const reference = recordReferences["review/candidate"](meta.reference.owner);
+  const record = candidateFixture();
+  await h.seed(reference, serializeCandidateManagedRecord(record));
+  const remote = createMemoryRemote(); h.store.context.publication.remote = remote;
+  lifecycleSuccess(await h.store.sync());
+  const writer = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
+  for (const [store, attestedAt] of [[h.store, "2026-08-13T14:00:00.000Z"], [writer, "2026-08-14T14:00:00.000Z"]] as const) {
+    const before = lifecycleSuccess(await store.read({ reference }));
+    const changed = { ...record, attestation: createCandidateAttestation({ ...record.attestation, subject: record.subject, attestedAt }) };
+    lifecycleSuccess(await store.write({ action: "put", reference, expected: before.version,
+      content: serializeCandidateManagedRecord(changed), provenance: { verb: "review", lifecycleAction: "edit" } }));
+  }
+  lifecycleSuccess(await h.store.sync());
+  const disputed = lifecycleSuccess(await h.store.read({ reference }));
+  expect(disputed.conflicts.length).toBeGreaterThan(0);
+  await expect(readCandidateRecord("/unavailable", "example", { store: h.store, owner: meta.reference.owner }))
+    .rejects.toThrow(/conflict.*Resolve.*retry/isu);
+  lifecycleSuccess(await h.store.write({ action: "put", reference, expected: disputed.version,
+    content: disputed.content, resolves: disputed.conflicts, provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
+  expect(await readCandidateRecord("/unavailable", "example", { store: h.store, owner: meta.reference.owner }))
+    .toEqual(JSON.parse(disputed.content));
+});

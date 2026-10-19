@@ -8,8 +8,11 @@ import { validateManagedPath } from "../kernel/index.js";
 import { resolveActiveWu } from "../release/wu-resolution.js";
 import type { GitExec } from "../git/exec.js";
 import { createRawGitExec } from "../io-context.js";
-import { createStore } from "../store/create.js";
-import { createDefaultStorePorts } from "../store/default-ports.js";
+import type { Store } from "../store/contract.js";
+import { recordReferences } from "../store/identity.js";
+import { describeRecordConflicts } from "../store/conflict-diagnostics.js";
+import { resolveReviewInvocation, type ReviewInvocationOptions } from "../../scripts/review-gate/runtime/invocation.js";
+import { createReviewCompositionContext } from "../../scripts/review-gate/runtime/composition-context.js";
 import { projectGitCandidateEffectiveTarget } from "../work-unit/git-candidate-effective-target.js";
 import { readCandidateRecord } from "../store/kinds/review/candidate/access.js";
 import { readSubmissionBoundary } from "../store/kinds/review/integration-boundary/access.js";
@@ -46,10 +49,7 @@ import {
   GitDeliveryRenameTransitionSource,
   resolveExistingDeliveryPlan,
 } from "./plan-resolution.js";
-import { LocalApprovedDispositionRecordStore } from
-  "../../scripts/review-gate/hosts/local/disposition-record-store.js";
-
-export interface RepositoryDeliveryInspectionInput {
+export interface RepositoryDeliveryInspectionInput extends ReviewInvocationOptions {
   readonly cwd: string;
   /** Validated repository-relative task-list path. */
   readonly taskListPath: string;
@@ -58,11 +58,21 @@ export interface RepositoryDeliveryInspectionInput {
   readonly exec: GitExec;
 }
 
+async function readInspectionTaskList(input: Pick<RepositoryDeliveryInspectionInput, "cwd" | "taskListPath" | "workItem">,
+  store: Store): Promise<string> {
+  if (!store.capabilities.stateOffBranch) return readFile(join(input.cwd, input.taskListPath), "utf8");
+  if (input.workItem === undefined) throw new Error("Resolve the selected work item before inspecting its task list.");
+  const read = await store.read({ reference: recordReferences["work-item/task-list"](input.workItem) });
+  if (read.status === "refused") throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
+  if (read.result.conflicts.length > 0) throw new Error(`The task list has unresolved conflicts.${describeRecordConflicts(read.result.conflicts)}`);
+  return read.result.content;
+}
+
 function createRepositoryDeliveryInspectionDependencies(
   input: RepositoryDeliveryInspectionInput,
 ): DeliveryEntryInspectionDependencies {
   const workUnitId = input.workUnitId;
-  const reviewRecordStore = createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec }));
+  const { store: reviewRecordStore } = resolveReviewInvocation(input);
   const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
   const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
   const stateStore = new RepositoryDeliveryStateStore(publisher);
@@ -74,7 +84,7 @@ function createRepositoryDeliveryInspectionDependencies(
     : { status: "established" as const, ref: `refs/heads/${base}` };
 
   return {
-    readTaskList: () => readFile(join(input.cwd, input.taskListPath), "utf8"),
+    readTaskList: () => readInspectionTaskList(input, reviewRecordStore),
     resolvePlan: async () => {
       const result = await resolveExistingDeliveryPlan({
         planStore: { enumerateCurrent: () => planStore.enumerateCurrentReadOnly() },
@@ -110,10 +120,10 @@ function createRepositoryDeliveryInspectionDependencies(
     },
     readIntegrationBoundary: async () => ({
       status: "ok",
-      value: await readSubmissionBoundary(input.cwd, workUnitId, { store: reviewRecordStore }),
+      value: await readSubmissionBoundary(input.cwd, workUnitId, { store: reviewRecordStore, owner: input.workItem }),
     }),
     readCandidate: async (terminalCoordinates) => {
-      const record = await readCandidateRecord(input.cwd, workUnitId, { store: reviewRecordStore });
+      const record = await readCandidateRecord(input.cwd, workUnitId, { store: reviewRecordStore, owner: input.workItem });
       if (record === null) return { status: "ok", value: null };
       try {
         const projected = await projectGitCandidateEffectiveTarget({
@@ -185,14 +195,15 @@ async function classifyTerminalDelta(
 }
 
 /** Inspect one exact work unit through repository-backed read-only delivery stores. */
-export async function inspectRepositoryDeliveryEntry(input: {
+export async function inspectRepositoryDeliveryEntry(options: {
   readonly cwd: string;
   /** Validated repository-relative task-list path. */
   readonly taskListPath: string;
   readonly request: DeliveryEntryInspectionRequest;
   readonly baseBranch: string;
   readonly exec: GitExec;
-}): Promise<DeliveryEntryInspectionResult> {
+} & ReviewInvocationOptions): Promise<DeliveryEntryInspectionResult> {
+  const input = { ...options, ...resolveReviewInvocation(options) };
   const inspected = await inspectDeliveryEntry(input.request, createRepositoryDeliveryInspectionDependencies({
     ...input,
     workUnitId: input.request.workUnitId,
@@ -201,10 +212,10 @@ export async function inspectRepositoryDeliveryEntry(input: {
     || inspected.status === "review-fix-verification-required") {
     return inspected;
   }
-  const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
+  const { publisher, family } = createReviewCompositionContext(input);
   let records;
   try {
-    records = await new LocalApprovedDispositionRecordStore(publisher).listDispositionRecords();
+    records = await family.ports.dispositions.listDispositionRecords();
   } catch {
     return {
       status: "refused",
@@ -232,7 +243,7 @@ export async function inspectRepositoryDeliveryEntry(input: {
   const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
   const stateStore = new RepositoryDeliveryStateStore(publisher);
   const [taskList, planRead, stateRead] = await Promise.all([
-    readFile(join(input.cwd, input.taskListPath), "utf8").catch(() => null),
+    readInspectionTaskList(input, input.store).catch(() => null),
     planStore.readCurrent(selection.planId),
     stateStore.read(selection.planId),
   ]);

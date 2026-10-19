@@ -126,3 +126,45 @@ it("does not fall back to checkout acquisition when off-branch work-unit authori
     name: "meta-demo.md", path: join(h.options.cwd, ".arc/active/meta-demo.md"), text: h.meta.content }] });
   expect(result).toMatchObject({ kind: "unresolved", code: "subject-unresolved", message: expect.stringMatching(/work-unit authority.*retry/iu) });
 });
+
+it("retains the selected generation when reading pending Candidate fix authority", async () => {
+  const { storedCandidateApproval } = await import("../../../fixtures/review-family-access.js");
+  const { candidateFixture } = await import("../../../helpers/store/tracked-write-fixture.js");
+  const { projectCandidateApplicabilityDecision } = await import("../../../helpers/candidate.js");
+  const { scriptGitExec } = await import("../../../helpers/git-exec-fake.js");
+  const { readPendingCandidateReviewFixAuthority } = await import(
+    "../../../../src/scripts/review-gate/policy/candidate-review-fix-continuation.js");
+  const h = await storedCandidateApproval(candidateFixture("demo"));
+  const cwd = await mkdtemp(join(tmpdir(), "arc-subject-pending-fix-")); roots.push(cwd);
+  const workUnit = await readStoreWorkUnitEvidence({ store: h.harness.store, slug: "demo",
+    head: "a".repeat(40), projectId: async () => h.producer.repositoryId });
+  if (workUnit.kind !== "present") throw new Error(JSON.stringify(workUnit));
+  lifecycleSuccess(await h.harness.store.write({ action: "remove", reference: h.meta.reference,
+    expected: h.meta.version, provenance: { verb: "remove", lifecycleAction: "remove" } }));
+  await h.harness.seedMeta("demo");
+  const io: SubjectMetaIO = { readFile: path => readFile(path, "utf8"),
+    pathExists: path => access(path).then(() => true, () => false), realpath, lstat,
+    projectCandidateTarget: projectCandidateApplicabilityDecision,
+    projectDeliveryCorrection: async () => ({ status: "none" }),
+    readPendingCandidateReviewFixAuthority: input => readPendingCandidateReviewFixAuthority({ ...input,
+      store: h.harness.store, exec: scriptGitExec([]).exec }) };
+  expect(await projectCheckoutSubjectMeta({ cwd, store: h.harness.store, workUnit, subjectKey: "demo",
+    identity: "andrew", metaRoot: { kind: "maintainer" }, candidates: [], io }))
+    .toMatchObject({ kind: "resolved", sessionType: "prepublication",
+      integrationBoundary: { locus: "candidate-fix-pending", candidateId: h.candidate.attestation.candidateId } });
+});
+
+it("keeps stored boundary absence when a checkout file holds stale fix authority", async () => {
+  const { parseCandidateManagedRecord } = await import("../../../../src/lib/work-unit/candidate-attestation.js");
+  const { projectCandidateFixResumeBoundary } = await import(
+    "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js");
+  const h = await fixture();
+  await h.seed(h.reference, h.authoritative.content);
+  const record = parseCandidateManagedRecord(h.authoritative.content);
+  if (record === null) throw new Error("Expected native Candidate fixture");
+  const stale = projectCandidateFixResumeBoundary({ workUnit: "demo", candidateId: h.authoritative.id,
+    candidateSubjectDigest: record.subject.subjectDigest });
+  await writeFile(join(dirname(h.localCandidatePath), "demo.boundary.json"), JSON.stringify(stale));
+  expect(await projectCheckoutSubjectMeta(h.options)).toMatchObject({ kind: "resolved",
+    integrationBoundary: { locus: "candidate-review-pending" } });
+});

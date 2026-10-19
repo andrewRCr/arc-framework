@@ -25,7 +25,7 @@ export async function readCandidateRecordVersioned(cwd: string, name: string,
   const access = resolveReviewRecordAccess(cwd, options);
   if ("fs" in access) return readFileCandidateRecordVersioned(cwd, workUnit, access.fs);
   const stored = await readReviewRecord(access.store,
-    recordReferences["review/candidate"](OwnerIdentitySchema.parse({ type: "work-item", name: workUnit })));
+    recordReferences["review/candidate"](access.owner ?? OwnerIdentitySchema.parse({ type: "work-item", name: workUnit })));
   if (stored === null) return { record: null, version: null };
   const path = resolveCandidateRecordRelativePath(workUnit);
   const record = parseCandidateManagedRecord(stored.content);
@@ -47,7 +47,7 @@ export async function readCandidateRecordVersion(cwd: string, name: string,
   const access = resolveReviewRecordAccess(cwd, options);
   if ("fs" in access) return readFileCandidateRecordVersion(cwd, workUnit, access.fs);
   return (await readReviewRecord(access.store,
-    recordReferences["review/candidate"](OwnerIdentitySchema.parse({ type: "work-item", name: workUnit }))))?.version ?? null;
+    recordReferences["review/candidate"](access.owner ?? OwnerIdentitySchema.parse({ type: "work-item", name: workUnit }))))?.version ?? null;
 }
 
 /** Prepare one Candidate put for the caller's atomic batch. */

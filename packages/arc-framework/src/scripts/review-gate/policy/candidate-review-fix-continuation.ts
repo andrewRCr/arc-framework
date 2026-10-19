@@ -4,7 +4,6 @@ import {
   candidateReviewResponses,
   type CandidateManagedRecordV1,
 } from "../../../lib/work-unit/candidate-attestation.js";
-import type { GitExec } from "../../../lib/git/exec.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import { canonicalize, SlugSchema, sortByCanonicalBytes } from "../../../lib/kernel/index.js";
 import {
@@ -17,9 +16,10 @@ import { frontlineResponseBindingMatchesTarget } from
   "../core/frontline-response-binding.js";
 import { parseReviewSourceReference } from "../core/review-source-reference.js";
 import { LocalFrontlineOutcomeStore } from "../hosts/local/frontline-outcome-store.js";
-import { LocalApprovedDispositionRecordStore } from "../hosts/local/disposition-record-store.js";
 import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-store.js";
 import { computeFrontlineSourceBindingId } from "./frontline-operation.js";
+import { createReviewCompositionContext, type ReviewCompositionContext } from "../runtime/composition-context.js";
+import type { ReviewInvocationInput, ReviewInvocationOptions } from "../runtime/invocation.js";
 
 export type PendingCandidateReviewFixAuthority =
   | { readonly status: "none" }
@@ -41,7 +41,7 @@ export type CandidateReviewFixAuthorityReader = (input: {
   readonly cwd: string;
   readonly workUnitId: string;
   readonly candidate: CandidateManagedRecordV1;
-}) => Promise<PendingCandidateReviewFixAuthority>;
+} & ReviewInvocationOptions) => Promise<PendingCandidateReviewFixAuthority>;
 
 type PendingCandidateReviewFixRecord =
   | Exclude<PendingCandidateReviewFixAuthority, { readonly status: "selected" }>
@@ -189,20 +189,27 @@ async function readReviewedTarget(
   return attempt.hosted.reviewTarget;
 }
 
+async function readSelectedTarget(context: ReviewCompositionContext,
+  selected: Extract<PendingCandidateReviewFixRecord, { readonly status: "selected" }>): Promise<ReviewTarget | null> {
+  if (context.family.mode === "in-repo") return readReviewedTarget(context.publisher, selected);
+  const evidence = await context.family.ports.evidence.read(selected.record.currentDispositionSetId);
+  if (evidence === null) return null;
+  const outcome = await context.family.ports.outcomes.read(evidence.value.result.outcomeKey);
+  return outcome?.value.target ?? null;
+}
+
 /**
  * Read pending Candidate review-fix authority from repository-common advisory and source state.
  *
  * @param input - Repository, work-unit, and Candidate coordinates for the authority read.
  * @returns One source-validated pending authority, no authority, or a fail-closed refusal.
  */
-export async function readPendingCandidateReviewFixAuthority(input: {
-  readonly cwd: string;
-  readonly exec: GitExec;
+export async function readPendingCandidateReviewFixAuthority(input: ReviewInvocationInput & {
   readonly workUnitId: string;
   readonly candidate: CandidateManagedRecordV1;
 }): Promise<PendingCandidateReviewFixAuthority> {
-  const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
-  const records = await new LocalApprovedDispositionRecordStore(publisher).listDispositionRecords();
+  const context = createReviewCompositionContext(input);
+  const records = await context.family.ports.dispositions.listDispositionRecords();
   const selected = selectPendingCandidateReviewFixRecord({
     workUnitId: input.workUnitId,
     candidate: input.candidate,
@@ -210,7 +217,7 @@ export async function readPendingCandidateReviewFixAuthority(input: {
   });
   if (selected.status !== "selected") return selected;
   try {
-    const reviewedTarget = await readReviewedTarget(publisher, selected);
+    const reviewedTarget = await readSelectedTarget(context, selected);
     const authorization = currentApprovedDispositionNode(selected.record).fixAuthorization;
     if (reviewedTarget === null || authorization === null
       || reviewedTarget.targetId !== authorization.oldTargetId

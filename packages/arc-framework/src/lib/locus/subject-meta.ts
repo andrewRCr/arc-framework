@@ -6,7 +6,7 @@ import type { StoreWorkUnitEvidence } from "./store-work-unit-evidence.js";
 import { WorkUnitReadPlacementSchema } from "../store/placement.js";
 import { workItemArtifactPath } from "../store/lifecycle-storage.js";
 import { cohortDocumentPath } from "../store/lifecycle-record-path.js";
-import { recordReferences, OwnerIdentitySchema } from "../store/identity.js";
+import { recordReferences, OwnerIdentitySchema, type OwnerIdentity } from "../store/identity.js";
 import { ParsedMetaPauseSchema, type ParsedMetaPause } from "../active/meta-schema.js";
 import { join, relative, sep } from "node:path";
 
@@ -31,6 +31,7 @@ import {
   type CandidateTargetProjector,
 } from "../work-unit/candidate-effective-target.js";
 import { resolveCandidateRecordRelativePath, resolveSubmissionBoundaryPath } from "../store/kinds/review/paths.js";
+import { readSubmissionBoundary } from "../store/kinds/review/integration-boundary/access.js";
 import { parseIntegrationBoundaryLocus } from "../store/kinds/review/integration-boundary/parser.js";
 import {
   resolveLoadSetManifest,
@@ -62,11 +63,13 @@ export interface SubjectMetaIO {
   projectCandidateTarget: CandidateTargetProjector;
   readPendingCandidateReviewFixAuthority(input: {
     cwd: string;
+    workItem?: OwnerIdentity;
     workUnitId: string;
     candidate: NonNullable<ReturnType<typeof parseCandidateManagedRecord>>;
   }): Promise<PendingCandidateReviewFixAuthority>;
   projectDeliveryCorrection(input: {
     cwd: string;
+    workItem?: OwnerIdentity;
     workUnitId: string;
     taskListPath: string;
   }): Promise<DeliveryCorrectionProjection>;
@@ -220,6 +223,7 @@ export async function projectCheckoutSubjectMeta(options: {
       } else if (effective.state === "changed" || effective.state === "decision-required") {
         const pending = await options.io.readPendingCandidateReviewFixAuthority({
           cwd: options.cwd,
+          ...(options.workUnit === undefined ? {} : { workItem: options.workUnit.record.reference.owner }),
           workUnitId: options.subjectKey,
           candidate: candidateRecord,
         });
@@ -263,7 +267,7 @@ export async function projectCheckoutSubjectMeta(options: {
     : inferSessionType(record.state, taskListPath, record.branch);
   let integrationBoundary: IntegrationBoundaryLocus | null = null;
   if (record.candidateId !== null && candidateSubjectDigest !== null && record.state === "Integrating") {
-    const stored = await readHeldSubmissionBoundary(options.cwd, options.subjectKey, options.io);
+    const stored = await readHeldSubmissionBoundary(options);
     const exactDurableBoundary = !requireExactDurableBoundary
       || stored?.candidateSubjectDigest === candidateSubjectDigest;
     integrationBoundary = record.branch === null || !exactDurableBoundary
@@ -283,7 +287,7 @@ export async function projectCheckoutSubjectMeta(options: {
         candidateSubjectDigest,
       });
     } else {
-      const stored = await readHeldSubmissionBoundary(options.cwd, options.subjectKey, options.io);
+      const stored = await readHeldSubmissionBoundary(options);
       const recovered = recoverPrePublicationBoundary({
         stored,
         workUnit: options.subjectKey,
@@ -305,6 +309,7 @@ export async function projectCheckoutSubjectMeta(options: {
     try {
       deliveryCorrection = await options.io.projectDeliveryCorrection({
         cwd: options.cwd,
+        ...(options.workUnit === undefined ? {} : { workItem: options.workUnit.record.reference.owner }),
         workUnitId: options.subjectKey,
         taskListPath,
       });
@@ -487,8 +492,14 @@ async function readStoreTaskCursor(store: Store, primary: import("../store/read.
   return { kind: "read", path, cursor: resolveTaskListCursor(read.result.content) };
 }
 
-async function readHeldSubmissionBoundary(cwd: string, workUnit: string,
-  io: Pick<SubjectMetaIO, "readFile">): Promise<IntegrationBoundaryLocus | null> {
+async function readHeldSubmissionBoundary(options: Pick<Parameters<typeof projectCheckoutSubjectMeta>[0],
+  "cwd" | "subjectKey" | "io" | "store" | "workUnit">): Promise<IntegrationBoundaryLocus | null> {
+  const { cwd, subjectKey: workUnit, io, store } = options;
+  if (store?.capabilities.stateOffBranch === true) {
+    const owner = options.workUnit?.record.reference.owner;
+    if (owner === undefined) throw new Error("Restore the selected work-unit authority before reading its boundary.");
+    return readSubmissionBoundary(cwd, workUnit, { store, owner });
+  }
   const path = resolveSubmissionBoundaryPath(workUnit);
   try {
     const content = await io.readFile(join(cwd, path));

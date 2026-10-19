@@ -286,11 +286,9 @@ it("recovers an Integrating Candidate's boundary and session type from its work-
   await seed(h.fixture, recordReferences["review/candidate"](owner), candidate);
   const boundary = projectPublicationBoundary({ workUnit: name, branch: "main", candidateId: attestation.candidateId,
     candidateSubjectDigest: subject.subjectDigest, reservation: null, changeRequest: null });
+  await seed(h.fixture, recordReferences["review/integration-boundary"](owner), JSON.stringify(boundary));
   const localIO: SubjectMetaIO = { ...subjectMetaIO, projectCandidateTarget: projectDurableCandidateTarget,
-    readFile: async path => {
-      if (path === `/repo/.arc/system/.internal/candidates/${name}.boundary.json`) return JSON.stringify(boundary);
-      throw Object.assign(new Error("Missing projection"), { code: "ENOENT" });
-    } };
+    readFile: async () => { throw new Error("Checkout projections are not authoritative"); } };
   expect((await frame(h.io, localIO)).active?.context).toMatchObject({ branch: "main", sessionType: "integration", integrationBoundary: boundary });
 });
 

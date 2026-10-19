@@ -245,3 +245,37 @@ describe("Candidate review-fix continuation", () => {
     })).toEqual({ status: "refused", reason: "candidate-review-fix-response-invalid" });
   });
 });
+
+it("uses the supplied work-item store when local files hold another pending response", async ({ onTestFinished }) => {
+  const { mkdtemp, mkdir, writeFile, rm } = await import("node:fs/promises");
+  const { join } = await import("node:path");
+  const { tmpdir } = await import("node:os");
+  const { scriptGitExec } = await import("../../../../helpers/git-exec-fake.js");
+  const { createLifecycleHarness } = await import("../../../../helpers/store/lifecycle-harness.js");
+  const { readPendingCandidateReviewFixAuthority } = await import(
+    "../../../../../src/scripts/review-gate/policy/candidate-review-fix-continuation.js");
+  const commonDir = await mkdtemp(join(tmpdir(), "arc-pending-candidate-"));
+  onTestFinished(() => rm(commonDir, { recursive: true, force: true }));
+  const candidate = candidateRecord();
+  const directory = join(commonDir, "arc/review-gate/evidence");
+  await mkdir(directory, { recursive: true });
+  await writeFile(join(directory, "disposition-earlier.json"), JSON.stringify(approvedRecord(candidate)));
+  const h = createLifecycleHarness();
+  const meta = await h.seedMeta("example");
+  const input = { cwd: "/unavailable", exec: scriptGitExec([
+    { match: ["rev-parse", "--git-common-dir"], responses: [{ stdout: commonDir }] },
+  ]).exec, workUnitId: "example", candidate, store: h.store, workItem: meta.reference.owner };
+  expect(await readPendingCandidateReviewFixAuthority(input)).toEqual({ status: "none" });
+});
+
+it("validates pending Candidate authority from stored outcomes and approved evidence", async () => {
+  const { storedCandidateApproval } = await import("../../../../fixtures/review-family-access.js");
+  const { scriptGitExec } = await import("../../../../helpers/git-exec-fake.js");
+  const { readPendingCandidateReviewFixAuthority } = await import(
+    "../../../../../src/scripts/review-gate/policy/candidate-review-fix-continuation.js");
+  const { harness, owner, candidate, original, producer } = await storedCandidateApproval(candidateRecord());
+  const result = await readPendingCandidateReviewFixAuthority({ cwd: "/unavailable", exec: scriptGitExec([]).exec,
+    store: harness.store, workItem: owner, workUnitId: "example", candidate });
+  expect(result).toEqual({ status: "selected", candidateId: candidate.attestation.candidateId,
+    operationId: original.operationId, reviewedHead: producer.target.headSha, reviewedTarget: producer.target });
+});

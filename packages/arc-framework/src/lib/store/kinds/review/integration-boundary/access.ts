@@ -27,7 +27,7 @@ export async function readSubmissionBoundaryVersioned(cwd: string, name: string,
   const access = resolveReviewRecordAccess(cwd, input);
   if ("fs" in access) return readFileBoundaryVersioned(cwd, workUnit, access.fs);
   const stored = await readReviewRecord(access.store,
-    recordReferences["review/integration-boundary"](OwnerIdentitySchema.parse({ type: "work-item", name: workUnit })));
+    recordReferences["review/integration-boundary"](access.owner ?? OwnerIdentitySchema.parse({ type: "work-item", name: workUnit })));
   if (stored === null) return { boundary: null, version: null };
   const boundary = parseIntegrationBoundaryLocus(JSON.parse(stored.content) as unknown);
   if (boundary.workUnit !== workUnit) throw new Error("Submission boundary work unit does not match its path");
