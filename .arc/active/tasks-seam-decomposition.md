@@ -548,14 +548,12 @@ first place to reauthor; and a stored map conflicted by a sync resolves through 
           Revision exercises every shared removal boundary through refusal and native repair; when no retained member
           can receive held entries, its remedy first requires keeping a routing recipient in the map.
 
-### `[ ]` **5.4 Refuse the discard and revision of a landed cut — § 8.7**
+### `[x]` **5.4 Refuse the discard and revision of a landed cut — § 8.7**
 
 - _Goal:_ `--discard` and `--revise` on a landed cut, in either shape, refuse terminally, reporting it landed and
   naming its members as `--finish` reports them (tasks 3.6, 4.3).
-
-    - Build `test-first` (one behavior at a time):
-        - after a retirement's terminal batch and after an extraction's, `--discard` and `--revise` each refuse
-          terminally, naming the members, and write nothing
+- _Outcome:_ Stored-cut acquisition shares finish's terminal evidence to refuse discard and both revision forms with
+  the recorded member names. Live reused origin generations and discard history retain their missing-map refusal.
 
 ### `[ ]` **5.5 Resolve a stored map conflicted by a sync — § 10**
 

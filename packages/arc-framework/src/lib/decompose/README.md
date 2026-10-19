@@ -10,7 +10,9 @@ cohort template, inbound grammar, and terminal cleanup boundaries. Map inputs re
 information lifted unchanged. `command-argv.ts` builds stored-map continuations for the shared command renderer.
 `provenance.ts` distinguishes additive, terminal, discard, and revision batches in record history.
 
-`stored-cut.ts` reads current authoring independently of start and finish admission. `discard-plan.ts` acquires
+`stored-cut.ts` reads current authoring independently of start and finish admission. When the current map is absent,
+it uses finish's terminal lineage or removed-map history to refuse mutation of a landed cut, preserving live reused
+generations and discard history as ordinary missing-map cases. `discard-plan.ts` acquires
 authenticated whole member groups and new cohort documents proved by `cut-cohorts.ts` against the cut's creation
 history. `removal-records.ts` closes conflicts through their subjects' removals. `discard.ts` previews exact removals
 and existing destinations left edited, binds approval to observed versions, revalidates, and applies only those writes.
