@@ -123,7 +123,11 @@ export type ProjectReadinessWarningCode =
   | "oracle-degraded"
   | "stale-location-unshipped"
   | "dependency-retired"
-  | "store-read-failed";
+  | "store-read-failed"
+  | "listing-diagnostic"
+  | "pull-incomplete"
+  | "pull-notice"
+  | "slug-clash";
 
 /** A project-readiness warning produced from dependency or provenance classification. */
 export interface ProjectReadinessWarning {
@@ -266,8 +270,8 @@ export interface ResolveProjectReadinessRenderStampOptions {
 
 /** Options for {@link composeProjectReadinessView}. */
 export interface ComposeProjectReadinessViewOptions {
-  /** Freshness marker to print in the header. */
-  renderedRef: string | ProjectReadinessRenderStamp;
+  /** Optional repository-file freshness marker to print in the header. */
+  renderedRef?: string | ProjectReadinessRenderStamp;
   /** H1 text without the leading `#`. */
   title: string;
   /** Already-resolved project-readiness records. */
@@ -1099,8 +1103,7 @@ export function composeProjectReadinessViewResult(
   const lines = [
     `# ${options.title}`,
     "",
-    renderStamp(options.renderedRef),
-    "",
+    ...(options.renderedRef === undefined ? [] : [renderStamp(options.renderedRef), ""]),
     "This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a",
     "unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many",
     "unsatisfied dependency hops separate them from a startable root. Within each tier, rows are ordered by",

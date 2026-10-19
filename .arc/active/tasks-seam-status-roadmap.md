@@ -140,16 +140,13 @@ the measurements.
   in-flight columns. Free-text cells fold newlines and escape pipes; empty cells use the em dash. The paused horizon
   advisory takes precedence while fact rows retain their lifecycle state.
 
-### `[ ]` **2.5 Make the render stamp optional, and add the warning codes — § 2.1**
+### `[x]` **2.5 Make the render stamp optional, and add the warning codes — § 2.1**
 
 - _Goal:_ With no `renderedRef` the composer's header carries no stamp lines, and `ProjectReadinessWarningCode` admits
   `listing-diagnostic`, `store-read-failed`, `dependency-retired`, `pull-incomplete`, `pull-notice`, and `slug-clash`.
 
-    - With no stamp, drop the stamp's blockquote and the blank line after it, so the title is followed by the view's
-      description.
-    - Build `test-first` (one behavior at a time):
-        - a render with no `renderedRef` has no stamp lines and no doubled blank line
-        - a render with one matches Task 2.1's literals
+- _Outcome:_ Without `renderedRef`, the title leads directly into the description with one blank line and no stamp
+  block. The warning union carries all six store-view codes; stamped in-repo renders retain their frozen bytes.
 
 ### `[ ]` **2.6 Give the in-flight builder a paused arm and a branchless entry — § 3**
 
