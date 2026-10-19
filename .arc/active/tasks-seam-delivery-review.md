@@ -76,42 +76,11 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
   digest of its content so the same decision recorded twice names one record, and its parser and write check refuse an
   envelope incomplete for its choice and a withdrawal that cites nothing it may withdraw.
 
-    - `[ ]` **1.3.a The envelope, its parser, and its key**
+    - `[x]` **1.3.a The envelope, its parser, and its key**
 
-        - Fields per § 5.1: `subject`, `lane`, `choice` (`extra-pass` with `passCount` and its `ceiling`, `additional`,
-          or `approved-fix` precondition; `terminus`; `lane-skip`; `withdrawal` naming a decision's key), `decidedBy`,
-          `decidedAt`, and `basis`. The decider, time, head, and subject digest are nullable, for a decision the import
-          maps from a source that recorded none; a terminus on a Candidate has no head from either writer (§ 5.1). An
-          `approved-fix` extra pass always carries its decider, as today's authorization does (`authorizedBy`,
-          `ConditionalPassAuthorizationIdentitySchema`, `rg/core/operation-state-schema.ts`; § 5.10).
-        - A terminus's basis is `{ passCount }`, the pass count its offer counted; every other choice's basis is
-          `null`, its choice and subject carrying what it was computed from (§ 5.1).
-        - The `approved-fix` precondition holds the producer as today's records name it — a hosted result by its
-          acknowledged `attemptId` — with the repository identity, the approved disposition set, the head the producer
-          reviewed, and the producer's logical pass as the exhausted pass count (`repositoryId`, `dispositionSetId`,
-          `originatingHeadSha`, `exhaustedPassCount`). Its subject is its lineage at `originatingHeadSha`, with no
-          subject digest, and its `passCount` the producer's logical pass, whichever writer
-          records it (§ 5.1).
-        - The parser refuses an `extra-pass` whose precondition is incomplete for its kind, and an `approved-fix` one
-          with no decider or whose subject's head is not its `originatingHeadSha`.
-        - The key digests subject, lane, choice, decider, and basis, never the time; an `approved-fix` extra pass is
-          keyed by today's `authorizationId` (`computeConditionalPassAuthorizationId`,
-          `rg/core/operation-state-schema.ts`) over the decider and its precondition, the next pass one past the
-          exhausted count, so every request that cites it still resolves.
-        - Build `test-first` (one behavior at a time):
-            - each choice parses, and a decision with no decider, time, head, or subject digest parses
-            - an extra pass whose precondition is incomplete for its kind refuses to parse, as does an `approved-fix`
-              one with no decider or whose subject's head is not its `originatingHeadSha`
-            - the same decision recorded at two times has one key, and a different decider, basis, or subject has
-              another, but for an `approved-fix` extra pass, keyed by its authorization ID
-            - the same answer given twice makes one key, and an imported terminus and a live one at the same pass count
-              make one key
-            - a terminus whose basis is not `{ passCount }`, and any other choice whose basis is not `null`, refuses to
-              parse
-            - an `approved-fix` decision's key equals `computeConditionalPassAuthorizationId` over the same inputs, a
-              hosted producer named by its `hosted/` attempt ID among them
-            - with completed logical count 2 and complete-coverage count 1, every extra-pass choice binds logical
-              count 2 and admits logical pass 3; the approved-fix key keeps that producer's logical ordinal
+        - Added strict decision envelopes, an issue-bearing JSON codec, and time-independent content keys. Termini
+          carry their counted basis; approved-fix decisions retain the original producer and logical ordinal and reuse
+          the production authorization key. Historical attribution stays nullable except for the required authorizer.
 
     - `[ ]` **1.3.b The write check**
 
