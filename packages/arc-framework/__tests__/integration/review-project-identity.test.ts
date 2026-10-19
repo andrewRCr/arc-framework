@@ -3,6 +3,7 @@ import { chmod, mkdir, writeFile } from "node:fs/promises";
 import { delimiter, join } from "node:path";
 import { expect, it } from "vitest";
 import { createReviewRepositoryHarness } from "../helpers/store/review-differential.js";
+import { ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { TransientIdentityRecordSchema } from "../../src/lib/errand/identity-record.js";
 import { handleReviewLocalPrepare, handleReviewFrontlineResolve, handleReviewHostedAwait, handleReviewLaneRead, handleReviewStatus, handleReviewReduce } from "../../src/handlers/review.js";
 
@@ -40,6 +41,9 @@ async function fixture() {
   if (record.kind !== "errand" || record.purpose !== "errand") throw new Error("Expected ordinary Errand");
   const primary = await h.reference.seedErrand(record);
   await h.seedErrandRef(record, "test-user");
+  await ensureWorktreeMarkerIgnored(cwd, exec, nodeWorktreeMarkerIgnoreFs);
+  await writeWorktreeMarker(cwd, { spawnedByArc: false, spawningIdentity: "test-user", createdAt: record.createdAt,
+    createdFor: { kind: "errand", slug: record.slug, claimId: record.claimId }, provisioning: "ready" });
   const invocation = { store: h.reference.store, workItem: primary.reference.owner };
   return { ...h, cwd, base, head, invocation };
 }

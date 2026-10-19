@@ -2379,5 +2379,7 @@ rewrite, and deletion pass (§ 11.2, § 12.6, § 14.3).
   _Trigger:_ 3.8 segment. _Work:_ 3.R. _Revalidated:_ 3.8.
 - **A10** — 2026-10-19 — design: retain no-fix settlement headers. _Supersedes:_ § 6.2 performance and § 6.5 fix ownership.
   _Trigger:_ 3.8 segment. _Work:_ 1.R. _Revalidated:_ 3.8.
+- **A11** — 2026-10-19 — task: bind native ports after vehicle resolution. _Supersedes:_ none.
+  _Trigger:_ 4.4 must-stop. _Work:_ 4.4.R. _Revalidated:_ pending → 4.11.
 
 ---

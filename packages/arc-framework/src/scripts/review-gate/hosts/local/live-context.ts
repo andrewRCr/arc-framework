@@ -17,11 +17,14 @@ import {
   readTransientInFlightIndexes,
 } from "../../../../lib/errand/record.js";
 import { readConfiguredIdentity } from "../../../../lib/git/identity.js";
+import { readReviewCheckoutErrand, type ReviewCheckoutErrand } from "./review-errand.js";
 import type { LocalReviewLiveContext } from "./review-authority.js";
 
 export interface ResolvedLocalReviewLiveContext {
   context: LocalReviewLiveContext;
   meta: MetaRecord | null;
+  /** Exact native claim retained for consumers with a narrower lifecycle filter. */
+  errandRecord?: ReviewCheckoutErrand;
 }
 
 /** Resolve the current branch to exactly one WU meta or Errand identity record. */
@@ -31,12 +34,9 @@ export async function readLocalReviewLiveContext(input: ReviewInvocationInput): 
     cwd: input.cwd,
   })).stdout.trim();
   if (input.store?.capabilities.stateOffBranch === true) {
-    const selected = await readReviewWorkUnitByRef({ store: input.store, projectId: input.projectId }, branch);
-    if (selected !== null) return { context: { activeIdentity,
-      workUnit: { identity: selected.name, owner: selected.meta.owner }, errand: null }, meta: selected.meta };
+    return readStoredLiveContext({ ...input, store: input.store }, activeIdentity, branch);
   }
-  const active = input.store?.capabilities.stateOffBranch === true
-    ? { candidates: [] } : await readActiveMetaCandidates(input.cwd);
+  const active = await readActiveMetaCandidates(input.cwd);
   const matching = active.candidates.filter((candidate) => candidate.branch === branch);
   if (matching.length > 1) throw new Error("multiple active work units match the current branch");
   if (matching.length === 1) {
@@ -76,4 +76,17 @@ export async function readLocalReviewLiveContext(input: ReviewInvocationInput): 
     },
     meta: null,
   };
+}
+
+async function readStoredLiveContext(input: ReviewInvocationInput & { store: NonNullable<ReviewInvocationInput["store"]> },
+  activeIdentity: string | null, branch: string): Promise<ResolvedLocalReviewLiveContext> {
+  const selected = await readReviewWorkUnitByRef({ store: input.store, projectId: input.projectId }, branch);
+  if (selected !== null) return { context: { activeIdentity,
+    workUnit: { identity: selected.name, owner: selected.meta.owner }, errand: null }, meta: selected.meta };
+  const record = await readReviewCheckoutErrand({ cwd: input.cwd, store: input.store });
+  const activeErrand = record !== null && record.branch === branch
+    && (record.state === "open" || record.state === "awaiting-merge") ? record : null;
+  return { context: { activeIdentity, workUnit: null,
+    errand: activeErrand === null ? null : { identity: activeErrand.slug, claimId: activeErrand.claimId } }, meta: null,
+    ...(activeErrand === null ? {} : { errandRecord: activeErrand }) };
 }

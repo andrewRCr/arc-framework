@@ -535,6 +535,21 @@ points forward without rewriting its completed result. The mapping, settlement d
 retain their existing shapes; Task 3.8 reruns its real-record scenario. Bounded author spec review and grounding-only
 task audit apply at low depth; the independent planning offer is omitted.
 
+## A11 — Native defaults must select an owner before family binding
+
+At `7e52aac2b`, `resolveReviewInvocation` only retains an optional supplied `workItem`, and
+`createReviewCompositionContext` immediately calls `bindReviewFamilyPorts`, which refuses a native Store without it.
+`createLocalPrepareDependencies`, `createRespondDependencies`, and the other runtime constructors bind the family before
+these roots reach their asynchronous vehicle-selection callbacks. Passing a Store and project-ID reader therefore
+proves context propagation but cannot exercise the native default without an independently supplied owner.
+
+The design already requires the opposite order in § 2.3: a root binds to the work item its invocation's authenticated
+vehicle resolved, and the family adds no refusal. `readReviewWorkUnitByRef` retains the exact primary owner;
+`Store.lookup` resolves Errand claims, `RepositoryDeliveryMemberLookup` resolves delivery members, and
+`resolveCandidateMutationOwner` with `resolveCompletedCandidateWorkUnits` supplies completed-owner selection. The
+correction changes binding order and retains those selected generations, with no new owner policy. Task 4.4.R follows
+the boundary and attestation footing before the in-flight and result implementations depend on it.
+
 ## Neighbors
 
 The spec names no other work unit. These are the ones its descriptive references mean, and what each owns where it

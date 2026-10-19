@@ -634,6 +634,11 @@ function createBoundRespondDependencies(input: ReviewInvocationInput & ReviewInv
       const branch = (await input.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
         cwd: input.cwd,
       })).stdout.trim();
+      if (input.store.capabilities.stateOffBranch) {
+        const record = live.errandRecord;
+        return record?.state === "open" && record.branch === branch
+          ? { key: record.slug, claimId: record.claimId, branch: record.branch } : null;
+      }
       const projected = projectTransientInFlightRead(await readTransientInFlightIndexes({
         exec: input.exec,
         identity: live.context.activeIdentity,

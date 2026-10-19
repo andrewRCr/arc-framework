@@ -540,6 +540,8 @@ family's schemas are store schemas, never entries in the review gate's published
 
     - `[x]` **4.1.b The composition roots**
 
+        - _Amended in:_ 4.4.R (A11)
+
         - Handler, runtime, policy, status, lifecycle, delivery, integration, and result-reader roots retain one
           invocation Store, project-ID reader, and selected work-item owner through their nested helpers. Family
           ports select the backend; read-only consumers use core ports while writable adapters retain their existing
@@ -649,18 +651,12 @@ family's schemas are store schemas, never entries in the review gate's published
               resolve the work unit with no meta file, and the originating top is the linked branch's ref where the
               checkout is on it and `null` where it is not
 
-    - `[ ]` **4.4.b The Errand reads**
+    - `[x]` **4.4.b The Errand reads**
 
-        - `readLocalReviewLiveContext` (`rg/hosts/local/live-context.ts`) and `resolveActiveErrand`
-          (`rg/runtime/respond-composition.ts`) take the checkout's Errand claim from its marker, which already carries
-          it (`claimId`, `lib/git/worktree-marker.ts`), and resolve the record through `CheckoutClaimSchema`'s `errand`
-          arm (`lib/store/lookup.ts`), each keeping its state filter.
-        - Build `test-first` (one behavior at a time):
-            - an open Errand's checkout resolves for review and for respond, and an awaiting-merge one for review only
-            - a lookup refusal other than `not-found` refuses review, naming the record and what was reported, and
-              review succeeds once the record is repaired
-            - a malformed listing entry alone refuses nothing, and an empty lookup beside one refuses naming its
-              diagnostics and remedies, and review succeeds once the entry is repaired
+        - Live review and respond resolve the marker's exact claim through the invocation's Store, retaining the
+          selected primary and each caller's state filter. Non-missing lookup and read refusals name the Errand and
+          carry the Store's repair guidance. An exact claim remains usable beside malformed inventory entries; an
+          incomplete miss refuses with its diagnostics and remedies and resolves after repair.
 
     - `[x]` **4.4.c The assurance read**
 
@@ -851,6 +847,35 @@ family's schemas are store schemas, never entries in the review gate's published
             - from the flip the review-fix inspection reads an active work unit's stored meta and task list with neither
               file in the checkout, and, given its owner, a completed work unit's
             - a work unit whose meta names no task list refuses as today
+
+### `[ ]` **4.4.R Bind native family ports after authenticated vehicle resolution — § 2.3**
+
+- _Goal:_ Default native review binds the family's ports to the exact work item its invocation resolves, without
+  requiring a caller-supplied `workItem`, adding no family refusal or owner-selection policy (A11).
+
+- **Additional Context:** `notes-seam-delivery-review.md` § A11. The boundary and attestation footing in 4.5–4.6 precedes
+  the complete native handler proof; the work-unit and Errand selections are 4.4's.
+
+    - `[ ]` **4.4.R.a Bind the selected primary before family access**
+
+        - Re-enumerate composition roots that call `createReviewCompositionContext` or `bindReviewFamilyPorts` before
+          their asynchronous vehicle selection. Bind after the invocation's established selection, retaining the same
+          Store, project-ID reader, and exact primary owner from its lookup. Local work-unit branches use
+          `readReviewWorkUnitByRef`; Errands use their marker's exact claim; explicit delivery or hosted vehicles use
+          their resolved work item. Completed-owner reads keep the exact generation they selected. An already supplied
+          owner remains bound; an unresolved vehicle keeps its existing refusal rather than choosing an unrelated owner.
+        - Keep the repository arm's current synchronous adapters and behavior. No scan of unrelated work items, fallback
+          owner, or Candidate-ID-derived owner substitutes for the authenticated vehicle.
+
+    - `[ ]` **4.4.R.b Prove native defaults without owner injection**
+
+        - Build `test-first` over the checked review harness with Store and project-ID reader supplied, and no supplied
+          `workItem`: default local preparation and its continuation, frontline resolution and run, hosted request and
+          handle continuation, pre-publication, read-only lane, and status resolve the expected primary and reach their
+          normal result after repair. Exercise ordinary work units, Errands, explicit delivery/hosted vehicles, and a
+          reused slug with an exact selected generation at the boundaries that choose them; retain the repository-arm
+          regressions. Use the production vehicle and primary lookup, with no stand-in owner resolver or weakened
+          write checks. The native work-unit proof uses 4.5–4.6's Candidate and version 2 boundary.
 
 ### `[ ]` **4.7 Keep in-flight state in a namespace of its own — § 4.7**
 
