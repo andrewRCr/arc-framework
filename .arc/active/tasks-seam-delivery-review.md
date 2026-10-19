@@ -530,40 +530,13 @@ family's schemas are store schemas, never entries in the review gate's published
   production opening the checkout's store, a test injecting any `Store` — and binds the family's ports from it, with no
   behavior changing before the flip.
 
-    - `[ ]` **4.1.a The ports**
+    - `[x]` **4.1.a The ports**
 
-        - `rg/core/ports.ts` gains outcome, evidence, decision, and in-flight ports, which take over from the flip what
-          `ForwardReviewReceiptStore`, `FrontlineOutcomeStore`, `ApprovedDispositionRecordStore` and its index, and
-          `ReviewOperationStateStore` and its snapshot index serve today. A root binds them to the work item its
-          invocation resolved (§ 2.3):
-            - outcome — a create-only write, a read by key, and a listing of a lineage's outcomes in one lane on the
-              work item, with the listing's completeness;
-            - evidence — a create, an advance at an expected version, a read by disposition set, and a listing; and from
-              the flip a read by producer composing today's approved-disposition record from that producer's evidence
-              records, bound as `ApprovedDispositionRecordStore`'s `readDispositionRecord`, so its every reader —
-              frontline closure (`settledFrontlineAdviceReader`, `rg/policy/frontline-phase.ts`), reduction's local arm,
-              resume's check, respond, and policy evidence among them — keeps its input (§ 6.6);
-            - decision — a create-only write, a read by key, and a listing;
-            - in-flight — `ReviewOperationStateStore` and its snapshot over `in-flight/` (4.7), whose `readOperation` on
-              a lane-progress ID composes the work item's outcomes whose lane and lineage recompute that ID
-              (`laneProgressOperationId`) with the in-flight record, which holds only attempts under way, and whose
-              snapshot composes every lane-progress record on the work item (§ 4.7).
-        - Every write is also available as the `put` a caller adds to its `batch`.
-        - The review gate imports the family's schemas from `lib/store/kinds/review/`; `rg/core/register-review-schemas.ts`
-          registers none of them, so the registry's IDs stay as today.
-        - Build `test-first` (one behavior at a time):
-            - in-repo the ports bind today's stores, and an existing local review's records come out as today's
-            - over the reference backend the ports read and write the family's records on the bound work item, and a
-              listing that missed entries reports itself incomplete
-            - from the flip, the test seeding the reference backend's project ID as the clone's repository ID, as the
-              import adopts it (§ 2.4), the composed approved-disposition record equals the one today's store holds for
-              the same approvals and performances but for its source's `receiptRef` or `outcomeRef`, whose durable part
-              names the cited outcome's key, and a local source's `localSourceRef`, the cited outcome's `sourceDigest`
-              (§ 9.3), a hosted source's `attemptRef` unchanged; its readers' verdicts through it are 4.10's and 5.6.a's
-              tests, once the result readers bind the same references
-            - the composed lineage nodes preserve each set's optional tags exactly, so approved-response replay and
-              earlier-round reports read the same stored forecasts, including historical absence
-            - a write's `put` lands in the caller's batch with the batch's other writes
+        - Typed outcome, evidence, and decision ports bind one supplied store and work item, preserve listing
+          completeness and repair guidance, and expose prepared puts for atomic batches. Evidence advances retain
+          opaque versions; composed native approvals preserve lineage order, optional tags, authorizations, performed
+          responses, and portable source bindings. Repository selection retains today's adapters, and working state
+          keeps its separate numeric CAS and snapshot contract. The family's schemas remain outside the review registry.
 
     - `[ ]` **4.1.b The composition roots**
 

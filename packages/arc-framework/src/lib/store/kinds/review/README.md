@@ -23,6 +23,16 @@ an explicitly supplied store, or open the checkout's store with the supplied Git
 directly or under `fs`, retains filesystem-adapter behavior. Their prepared puts join the caller's own atomic batch.
 The shared error constructors preserve version-conflict identity across typed access and filesystem adapters.
 
+`outcome/access.ts`, `evidence/access.ts`, and `decision/access.ts` bind portable facts to one supplied store and work
+item. Creates and evidence advances also expose prepared puts for an invocation's atomic batch. Listings distinguish
+complete results from missed entries and unavailable observations, retaining the reported repair guidance.
+`evidence/composed-record.ts` reconstructs native approved-disposition reads from a producer's evidence chain and
+outcome, preserving optional tags, authorizations, and performed responses. Local and frontline command references
+resolve to outcome keys; hosted references keep their acknowledged producer identity and lane-operation binding.
+
+The review gate's `runtime/family-ports.ts` selects these ports from the invocation's backend capability. Repository
+adapters remain selected before off-branch storage; working-state publication retains its separate numeric CAS port.
+
 Boundary access reads and writes version-one content; its public versioned shape can select a content version through
 its type parameter. Store versions remain opaque, while repository-backed versions remain byte digests.
 

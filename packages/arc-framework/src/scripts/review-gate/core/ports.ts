@@ -9,6 +9,54 @@ import type {
 } from "./advisory-records.js";
 import type { ReviewReduceEnvelope } from "./review-command-envelope.js";
 import type { ReviewResult } from "./review-result.js";
+import type { RecordReference, RecordVersion } from "../../../lib/store/identity.js";
+import type { Mutation } from "../../../lib/store/write.js";
+import type { ReviewOutcome } from "../../../lib/store/kinds/review/outcome/schema.js";
+import type { ReviewEvidence } from "../../../lib/store/kinds/review/evidence/schema.js";
+import type { ReviewDecision } from "../../../lib/store/kinds/review/decision/schema.js";
+import type { LaneSubjectLineage } from "./lane-admission.js";
+
+/** One portable review fact with its backend mutation basis. */
+export interface StoredReviewFact<T> {
+  reference: RecordReference;
+  version: RecordVersion;
+  value: T;
+}
+
+/** A complete fact selection or an explicit failure to establish completeness. */
+export type ReviewFactListing<T> =
+  | { status: "complete"; records: readonly StoredReviewFact<T>[] }
+  | { status: "incomplete" | "unavailable"; reason: string };
+
+/** One durable put, ready to join an invocation's atomic batch. */
+export type ReviewFactPut = Extract<Mutation, { action: "put" }>;
+
+/** Create-only access to a work item's immutable review facts. */
+export interface ReviewFactPort<T> {
+  read(key: string): Promise<StoredReviewFact<T> | null>;
+  list(): Promise<ReviewFactListing<T>>;
+  create(value: T): Promise<StoredReviewFact<T>>;
+  prepareCreate(value: T): ReviewFactPut;
+}
+
+/** Ended producer results, optionally selected by exact lineage and lane. */
+export interface ReviewOutcomePort extends Omit<ReviewFactPort<ReviewOutcome>, "list"> {
+  list(selection?: { lineage: LaneSubjectLineage; lane: ReviewOutcome["lane"] }): Promise<ReviewFactListing<ReviewOutcome>>;
+}
+
+/** Approved responses with version-bound monotonic advances and legacy composed reads. */
+export interface ReviewEvidencePort extends ReviewFactPort<ReviewEvidence> {
+  advance(value: ReviewEvidence, expectedVersion: RecordVersion): Promise<StoredReviewFact<ReviewEvidence>>;
+  prepareAdvance(value: ReviewEvidence, expectedVersion: RecordVersion): ReviewFactPut;
+  readDispositionRecord(producerId: string): Promise<ApprovedDispositionRecord | null>;
+  listDispositionRecords(): Promise<readonly ApprovedDispositionRecord[]>;
+}
+
+/** Immutable decisions keyed by their canonical content. */
+export type ReviewDecisionPort = ReviewFactPort<ReviewDecision>;
+
+/** Numeric working-state CAS and completeness-preserving operation observations. */
+export type ReviewInFlightPort = ReviewOperationStateStore & ReviewOperationStateSnapshotIndex;
 
 /** Versioned forward receipt snapshot, optionally filtered to one target. */
 export interface ForwardReceiptLedger {

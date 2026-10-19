@@ -24,10 +24,11 @@ export function mappingOperation(state: ReviewOperationState, version = 1) {
 }
 
 export async function createLocalMappingFixture(context: {
+  repositoryId?: string;
   lineage?: LaneSubjectLineage; vehicle?: LocalReviewAuthority["vehicle"];
   imported?: Pick<ReviewMappingInput, "workItems" | "candidates">;
 } = {}) {
-  const fixture = createLocalReviewPreparationFixture();
+  const fixture = createLocalReviewPreparationFixture(context);
   const vehicle = context.vehicle ?? { kind: "errand" as const, identity: mappingErrand.slug, claimId: mappingErrand.claimId };
   fixture.dependencies.resolveLineage = async (_vehicle, headSha) => context.lineage ?? ({ kind: "head-bound", vehicleKind: "errand",
     vehicleIdentity: mappingErrand.claimId, headSha });
