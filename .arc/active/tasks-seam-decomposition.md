@@ -78,23 +78,11 @@ under `lib/decompose/`, and the kind folder imports its decoder from there, as t
           single-writer, never projected, and unhomed in-repo. Automatic conformance and dispatch enrollment covers
           the kind; the registry's unhomed inventory includes it.
 
-    - `[ ]` **1.3.b The kind folder and its registration**
+    - `[x]` **1.3.b The kind folder and its registration**
 
-        - `lib/store/kinds/cut-map/` with a parser decoding through task 1.2's decoder, following the lineage kind's
-          (`decodeLineageContent`, `lib/store/kinds/lineage/parser.ts`), a `registration.ts` with no write check, an
-          `index.ts` exporting the decode and a writer rendering a map as canonical JSON, as the lineage kind exports
-          `writeLineageRecord`, and a README, with its row in the kinds README.
-        - Add the registration to `PRODUCTION_REGISTRATIONS` (`lib/store/kinds/registrations.ts`), and its
-          `registration.ts` to `RAW_STATE_MODULES` (`eslint/architecture-imports.ts`) with its case in
-          `eslint-architecture-imports.test.ts`, as every kind's registration has, each entry placed as § 1.3 places it.
-        - The conformance suite runs every single-writer kind through its fixture's own parser
-          (`createReferenceFixture`), so the production parser is proven by the second test below alone. That test
-          seeds the owner's meta first, since a record other than the primary needs its owner's placement, and reads
-          `history` through a UID-bearing reference taken before the removal.
-        - Build `test-first` (one behavior at a time):
-            - the parser decodes a completed version-4 map and refuses a malformed one, naming the issue's path
-            - over the production registry, the reference backend writes and reads the record, and its `history` keeps
-              it after removal
+        - The cut-map kind exposes a pure completed-map decoder and canonical writer, with its semantic parser in
+          the production registration set and registration imports behind the store boundary. Production-backed
+          writes return parsed fields, refuse malformed maps with their issue path, and retain removed bytes in history.
 
     - `[ ]` **1.3.c Keep the stored map out of rename's reference sweep — § 4**
 
