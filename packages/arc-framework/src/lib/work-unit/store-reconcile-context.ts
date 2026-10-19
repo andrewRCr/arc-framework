@@ -50,9 +50,9 @@ export async function createStoreReconcilePrepareContext(store: Store, slug: str
         return { status: "unique", disposition: { kind: "retarget", targetSlug: lookup.result.reference.owner.name } };
       }
       if (lookup.status === "refused" && lookup.refusal.code !== "not-found") return { status: "namespace-corrupt" };
-      const targets = lookup.status === "refused" ? lineage.result.aliases.get(input.origin) : undefined;
-      if (targets !== undefined && targets.length !== 1) return { status: "ambiguous" };
-      return queryStoreDisposition(store, primary, lineage.result.enumeration, { ...input, origin: targets?.[0] ?? input.origin });
+      return lookup.status === "refused"
+        ? queryRetiredOriginDisposition(store, primary.reference.owner, lineage.result, input)
+        : queryStoreDisposition(store, primary.reference.owner, lineage.result.enumeration, input);
     },
     listArtifactPaths: () => Promise.resolve([...byPath.keys()]),
     readFile: (path) => {
@@ -62,7 +62,7 @@ export async function createStoreReconcilePrepareContext(store: Store, slug: str
     },
   } } };
 }
-async function queryStoreDisposition(store: Store, primary: StoreRecord, enumeration: TransitionRecordEnumerationResult,
+async function queryStoreDisposition(store: Store, dependentOwner: OwnerIdentity, enumeration: TransitionRecordEnumerationResult,
   input: TransitionDispositionQuery): Promise<TransitionDispositionQueryResult> {
   if (enumeration.status !== "valid") return { status: "namespace-corrupt" };
   const group = enumeration.groups.find(({ origin }) => origin === input.origin);
@@ -70,7 +70,7 @@ async function queryStoreDisposition(store: Store, primary: StoreRecord, enumera
   if (record?.kind !== "decompose") return queryTransitionDisposition(enumeration, input);
   const matches = new Set<string>();
   for (const { dependent } of record.incoming) {
-    const match = await readDependentMatch(store, primary.reference.owner, input.dependentSlug, dependent);
+    const match = await readDependentMatch(store, dependentOwner, input.dependentSlug, dependent);
     if (match.status === "refused") {
       return { status: match.refusal.code === "ambiguous-match" ? "ambiguous" : "namespace-corrupt" };
     }
@@ -121,9 +121,12 @@ function artifactAliasCandidates(records: readonly StoreRecord[]): Set<string> {
   return candidates;
 }
 
-async function storeLineageEnumeration(store: Store): Promise<StoreResult<{
+/** Authenticated terminal transitions and former names from one complete lineage inventory. */
+export interface StoreLineageEnumeration {
   enumeration: TransitionRecordEnumerationResult; aliases: ReadonlyMap<string, readonly string[]>;
-}>> {
+}
+/** Acquire the lineage inventory shared by reconciliation and advisory dependency views. */
+export async function storeLineageEnumeration(store: Store): Promise<StoreResult<StoreLineageEnumeration>> {
   const listing = await store.list({ family: "lineage", kind: "lineage/transition" });
   if (listing.status === "refused") return listing;
   if (listing.result.status === "absent") return { status: "ok", result: { enumeration: { status: "valid", groups: [] }, aliases: new Map() } };
@@ -136,4 +139,13 @@ async function storeLineageEnumeration(store: Store): Promise<StoreResult<{
   if (enumeration.status !== "valid") return { status: "ok", result: { enumeration, aliases: new Map() } };
   const aliases = await readTerminalReferenceAliases(store, listing.result.records);
   return aliases.status === "refused" ? aliases : { status: "ok", result: { enumeration, aliases: aliases.result } };
+}
+
+/** Query a missing origin using authenticated terminal aliases and the dependent's stable identity. */
+export async function queryRetiredOriginDisposition(
+  store: Store, dependent: OwnerIdentity, lineage: StoreLineageEnumeration, input: TransitionDispositionQuery,
+): Promise<TransitionDispositionQueryResult> {
+  const targets = lineage.aliases.get(input.origin);
+  if (targets !== undefined && targets.length !== 1) return { status: "ambiguous" };
+  return queryStoreDisposition(store, dependent, lineage.enumeration, { ...input, origin: targets?.[0] ?? input.origin });
 }

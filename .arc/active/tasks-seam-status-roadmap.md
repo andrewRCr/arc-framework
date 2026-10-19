@@ -224,16 +224,11 @@ one renderer, built in Task 3.6: stderr `Error [<code>]: <condition> <remedy>` a
 - **Additional Context:** `notes-seam-status-roadmap.md` § Phases 3 and 4 — the project view's acquisition, freshness,
   and the slug query
 
-    - `[ ]` **3.3.a Share the reconcile's retired-origin query**
+    - `[x]` **3.3.a Share the reconcile's retired-origin query**
 
-        - Extract `queryDisposition`'s `not-found` branch (`createStoreReconcilePrepareContext`,
-          `lib/work-unit/store-reconcile-context.ts`) into an exported function over `storeLineageEnumeration`'s result,
-          also exported: the terminal-alias selection, then `queryStoreDisposition`, taking the dependent's owner rather
-          than its primary record, since `readDependentMatch` reads only the owner. `queryDisposition` keeps calling it.
-        - Build `test-first` (one behavior at a time):
-            - `unit/work-unit/store-reconcile-context.test.ts` and
-              `unit/work-unit/side-effects/discharge-dep-edges.test.ts` pass unchanged
-            - the extracted query gives a cut's disposition for a dependent matched by UID after its rename
+        - Exported `storeLineageEnumeration` and `queryRetiredOriginDisposition`; reconciliation calls the same
+          terminal-alias selection and disposition matcher with the dependent's owner identity. The extracted query
+          retains a renamed dependent's UID-bound cut disposition.
 
     - `[ ]` **3.3.b Resolve each unlisted edge**
 
