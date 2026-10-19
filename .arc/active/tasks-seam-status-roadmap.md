@@ -422,34 +422,14 @@ were not read with no identity, and writes `{ conflicts, warnings }` with `--jso
   command-input registration and grouped help. Before the capability flips it uses the shared text/JSON refusal naming
   `git status`; the existing exclusion-message, help and inventory assertions include the new mode.
 
-### `[ ]` **6.2 List every open conflict of a listed item — § 5**
+### `[x]` **6.2 List every open conflict of a listed item — § 5**
 
 - _Goal:_ With no token, the view lists every open conflict across the ten families' conflict-record kinds, each by its
   token, the personal and claims families read for the resolved identity.
 
-- **Additional Context:** `notes-seam-status-roadmap.md` § Phases 5 and 6 — the user view and the conflict view
-
-    - A token module under `lib/status/` formats `<family>/<owner type>/<owner name>/<id>` and parses it, the ID being
-      the remainder after three segments; Task 7.4 reuses it.
-    - Each listing passes its kind, and no owner but the personal and claims families', which name the identity; with
-      none they list `absent` and the view warns that those two were not read, naming `git config arc.identity <name>`.
-    - A refused `store.list` or an `unreadable` listing refuses through the shared renderer with its condition and
-      remedy. An `absent` listing is empty. A complete listing's diagnostics become warnings naming the family and
-      each omitted record's key, condition, and remedy; `missed: true` without diagnostics warns that the family is
-      incomplete, naming repair of its inventory and `arc status --conflicts` to retry. Good records remain visible.
-    - Decode each record's content against `ConflictRecordSchema`; one that does not decode is omitted with a warning
-      naming its token and `arc store conflict`.
-    - Build `test-first` (one behavior at a time):
-        - conflicts of each shape across a project, a work-item, and a personal family list with their tokens
-        - with no identity, the personal and claims families are not read and the view warns
-        - with two persons' records present, personal and claims listings receive the resolved person's owner and
-          include only that person's conflicts
-        - a refused or `unreadable` family listing refuses with its condition and remedy
-        - an `absent` family listing adds no records or read-failure warning
-        - a complete listing with diagnostics shows its good records and every omission's family, key, condition,
-          and remedy; `missed` without diagnostics adds the family-incomplete warning
-        - a record that does not decode is omitted with its warning
-        - the token round-trips through format and parse, an ID holding `/` among them
+- _Outcome:_ `readStoreConflicts` enumerates the catalog's ten conflict roles and scopes personal and claims reads to
+  the resolved person. Family refusal, unreadability, omitted keys, unqualified incompleteness and content-decode
+  failures retain their repair routes beside good records; public tokens preserve complete IDs while omitting UIDs.
 
 ### `[ ]` **6.3 Show the conflicts one token names — § 5**
 
