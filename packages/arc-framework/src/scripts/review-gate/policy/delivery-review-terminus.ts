@@ -88,6 +88,11 @@ export const DeliveryReviewTerminusAcceptanceResultSchema = z.union([
   z.strictObject({
     ...AcceptedResultShape,
     state: z.literal("recorded"),
+    nextAction: z.literal("continue"),
+  }),
+  z.strictObject({
+    ...AcceptedResultShape,
+    state: z.literal("recorded"),
     nextAction: z.literal("commit-boundary"),
     boundaryPath: z.string().trim().min(1),
   }),

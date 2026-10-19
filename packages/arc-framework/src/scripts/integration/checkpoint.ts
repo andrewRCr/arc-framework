@@ -38,7 +38,7 @@ import {
 } from "../review-gate/change-request.js";
 import {
   NO_HOSTED_REVIEW_RESERVATION_DETAIL,
-  RunConvergenceVerificationActionSchema,
+  PublishedRunConvergenceVerificationActionSchema,
   createRunConvergenceVerificationAction,
   type PostAttestContinuation,
 } from "../review-gate/policy/integration-boundary-locus.js";
@@ -547,7 +547,7 @@ const IntegrationCheckpointBlockedResultSchema = z.discriminatedUnion("reason", 
     state: z.literal("blocked"),
     nextAction: z.literal("run-convergence-verification"),
     reason: z.literal("candidate-convergence-pending"),
-    action: RunConvergenceVerificationActionSchema,
+    action: PublishedRunConvergenceVerificationActionSchema,
     payload: z.strictObject({
       candidate: z.custom<Extract<CandidateCurrentnessProjection, { status: "current" }>>(),
     }),

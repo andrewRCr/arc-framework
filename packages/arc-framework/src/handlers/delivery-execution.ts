@@ -1361,15 +1361,15 @@ const ResultSchema = z.union([
     candidate: z.strictObject({
       candidateId: DeliveryCanonicalDigestSchema,
       verificationId: DeliveryCanonicalDigestSchema,
-      recordPath: z.string().min(1),
+      recordPath: z.string().min(1).optional(),
     }),
     nextAction: z.literal("resolve-delivery-status"),
     boundaryCarry: z.strictObject({
-      path: z.string().min(1),
+      path: z.string().min(1).optional(),
       candidateId: DeliveryCanonicalDigestSchema,
       stateRevision: z.number().int().positive(),
     }),
-    recordEffects: z.array(ReviewFixRecordEffectSchema).length(2),
+    recordEffects: z.array(ReviewFixRecordEffectSchema).length(2).optional(),
   }),
   z.strictObject({
     status: z.literal("published"),
@@ -1638,6 +1638,8 @@ const ResultSchema = z.union([
     detail: z.string().min(1).max(1_000).optional(),
   }),
 ]);
+/** Published result contract shared by delivery execution and its callers. */
+export const DeliveryExecutionResultSchema = ResultSchema;
 export type DeliveryExecutionResult = z.infer<typeof ResultSchema>;
 
 function invalidServiceResult(result: unknown): z.infer<typeof InvalidServiceResultRefusalSchema> {

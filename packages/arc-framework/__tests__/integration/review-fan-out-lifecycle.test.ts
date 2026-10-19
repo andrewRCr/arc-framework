@@ -1312,7 +1312,7 @@ describe("hosted review fan-out lifecycle", () => {
             path: await writeSubmissionBoundary(harness.root, boundary, expectedVersion),
           }),
         });
-        if (result.state === "recorded") {
+        if (result.state === "recorded" && result.nextAction === "commit-boundary") {
           await harness.exec("git", ["add", "--", result.boundaryPath], { cwd: harness.root });
         }
         return result;
@@ -1571,7 +1571,9 @@ describe("hosted review fan-out lifecycle", () => {
       }),
     });
     expect(accepted).toMatchObject({ state: "recorded", nextAction: "commit-boundary" });
-    if (accepted.state !== "recorded") throw new Error("expected recorded final member terminus");
+    if (accepted.state !== "recorded" || accepted.nextAction !== "commit-boundary") {
+      throw new Error("expected tracked final member terminus");
+    }
     await git(harness.root, ["add", accepted.boundaryPath]);
     await git(harness.root, ["commit", "--only", accepted.boundaryPath, "-m", "record final terminus"]);
     const advancedTerminalHead = await git(harness.root, ["rev-parse", "HEAD"]);

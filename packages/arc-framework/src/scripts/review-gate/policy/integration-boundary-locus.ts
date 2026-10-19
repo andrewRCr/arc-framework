@@ -46,7 +46,7 @@ const LegacyContinueHostedReviewActionSchema = z.strictObject({
   command: z.literal("arc review status --target '{targetRef}' --json"),
   interactionText: z.string().trim().min(1),
 });
-export const RunConvergenceVerificationActionSchema = z.strictObject({
+const RunConvergenceVerificationActionFieldsSchema = z.strictObject({
   kind: z.literal("run-convergence-verification"),
   requiredScope: z.enum(["focused", "full"]),
   verificationKind: z.enum(["focused", "tier-3"]),
@@ -54,9 +54,12 @@ export const RunConvergenceVerificationActionSchema = z.strictObject({
   attestArgv: z.array(z.string().trim().min(1)).length(8),
   ...ActionFields,
   postAttestContinuation: PostAttestContinuationSchema,
-}).superRefine((action, context) => {
-  const expectedKind = action.requiredScope === "focused" ? "focused" : "tier-3";
-  if (action.verificationKind !== expectedKind) {
+});
+
+function validateConvergenceAction(action: { requiredScope: "focused" | "full"; verificationKind: string;
+  attestArgv: string[]; command: string }, context: z.RefinementCtx): void {
+  const kinds = action.requiredScope === "focused" ? ["focused"] : ["tier-3", "merge"];
+  if (!kinds.includes(action.verificationKind)) {
     context.addIssue({
       code: "custom",
       path: ["verificationKind"],
@@ -82,7 +85,16 @@ export const RunConvergenceVerificationActionSchema = z.strictObject({
       message: "convergence attest command must display the exact required argv",
     });
   }
-});
+}
+export const RunConvergenceVerificationActionSchema = RunConvergenceVerificationActionFieldsSchema.superRefine(validateConvergenceAction);
+/** Published actions accept either backend's verification kind and projection-independent continuation. */
+export const PublishedPostAttestContinuationSchema = PostAttestContinuationSchema.partial({ projectionDisposition: true });
+export type PublishedPostAttestContinuation = z.infer<typeof PublishedPostAttestContinuationSchema>;
+/** Widened transport contract; persisted boundary versions retain their own strict schemas. */
+export const PublishedRunConvergenceVerificationActionSchema = RunConvergenceVerificationActionFieldsSchema.extend({
+  verificationKind: z.enum(["focused", "tier-3", "merge"]),
+  postAttestContinuation: PublishedPostAttestContinuationSchema,
+}).superRefine(validateConvergenceAction);
 
 /**
  * Compose a substitution-required convergence-verification action for one work unit.
@@ -91,17 +103,23 @@ export const RunConvergenceVerificationActionSchema = z.strictObject({
  * @param requiredScope - Scope required to satisfy the pending convergence.
  * @returns An action whose evidence placeholder must be replaced before invocation.
  */
+export function createRunConvergenceVerificationAction(workUnit: string, requiredScope: "focused" | "full",
+  postAttestContinuation: PostAttestContinuation): z.infer<typeof RunConvergenceVerificationActionSchema>;
+/** Compose an action with a continuation that can omit checkout projection bookkeeping. */
+export function createRunConvergenceVerificationAction(workUnit: string, requiredScope: "focused" | "full",
+  postAttestContinuation: PublishedPostAttestContinuation): z.infer<typeof PublishedRunConvergenceVerificationActionSchema>;
+/** Validate the emitted action through the public transport contract. */
 export function createRunConvergenceVerificationAction(
   workUnit: string,
   requiredScope: "focused" | "full",
-  postAttestContinuation: PostAttestContinuation,
-): z.infer<typeof RunConvergenceVerificationActionSchema> {
+  postAttestContinuation: PublishedPostAttestContinuation,
+): z.infer<typeof PublishedRunConvergenceVerificationActionSchema> {
   const attestArgv = attestConvergenceArgv(
     workUnit,
     requiredScope,
     CANDIDATE_VERIFICATION_EVIDENCE_PLACEHOLDER,
   );
-  return RunConvergenceVerificationActionSchema.parse({
+  return PublishedRunConvergenceVerificationActionSchema.parse({
     kind: "run-convergence-verification",
     requiredScope,
     verificationKind: requiredScope === "focused" ? "focused" : "tier-3",

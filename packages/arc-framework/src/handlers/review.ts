@@ -1011,6 +1011,7 @@ export async function stageDeliveryReviewTerminusBoundary(input: {
   readonly exec: GitExec;
   readonly result: DeliveryReviewTerminusAcceptanceResult;
 }): Promise<DeliveryReviewTerminusAcceptanceResult> {
+  if (input.result.state === "recorded" && input.result.nextAction === "continue") return input.result;
   const boundaryPath = resolveSubmissionBoundaryPath(input.workUnitId);
   if (input.result.state === "recorded") {
     if (input.result.boundaryPath !== boundaryPath) {

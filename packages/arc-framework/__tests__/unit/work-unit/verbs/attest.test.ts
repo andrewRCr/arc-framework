@@ -917,3 +917,16 @@ describe("runAttest", () => {
     expect(content).toContain("- **Next Action:** —\n");
   });
 });
+
+it.each(["root", "re-root", "convergence"] as const)("accepts merge verification for a published %s refusal", async operation => {
+  const h = operation === "convergence" ? (await pendingHarness("full")).fixture : harness();
+  if (operation === "re-root") {
+    await runAttest(h.context, { name: "example", lifecycle: "Active" });
+    h.setCurrentTarget({ revision: CHANGED_REVISION, subject: subject("unexplained") });
+  }
+  const result = await runAttest(h.context, { name: "example", lifecycle: "Active", scope: "focused" });
+  if (result.status !== "refused" || !("requiredScope" in result)) throw new Error("Expected full verification refusal");
+  expect(result.requiredScope).toBe("full");
+  expect(AttestResultSchema.parse({ ...result, nextAction: { ...result.nextAction, verificationKind: "merge" } }))
+    .toMatchObject({ nextAction: { verificationKind: "merge" } });
+});

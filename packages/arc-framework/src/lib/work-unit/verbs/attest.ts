@@ -79,7 +79,7 @@ const AttestScopeSchema = z.enum(["focused", "full"]);
 const AttestConvergenceVerificationActionSchema = z.strictObject({
   kind: z.literal("run-verification"),
   scope: AttestScopeSchema,
-  verificationKind: z.enum(["focused", "tier-3"]),
+  verificationKind: z.enum(["focused", "tier-3", "merge"]),
   verificationEvidenceRequired: z.literal(true),
   attestArgv: z.tuple([
     z.literal("arc"),
@@ -92,8 +92,8 @@ const AttestConvergenceVerificationActionSchema = z.strictObject({
     z.literal("--json"),
   ]),
 }).superRefine((action, context) => {
-  const expectedKind = action.scope === "focused" ? "focused" : "tier-3";
-  if (action.verificationKind !== expectedKind) {
+  const allowedKinds = action.scope === "focused" ? ["focused"] : ["tier-3", "merge"];
+  if (!allowedKinds.includes(action.verificationKind)) {
     context.addIssue({
       code: "custom",
       path: ["verificationKind"],
@@ -111,7 +111,7 @@ const AttestConvergenceVerificationActionSchema = z.strictObject({
 const AttestRootVerificationActionFields = {
   kind: z.literal("run-verification"),
   scope: z.literal("full"),
-  verificationKind: z.literal("tier-3"),
+  verificationKind: z.enum(["tier-3", "merge"]),
   verificationEvidenceRequired: z.literal(false),
 };
 const AttestRootVerificationActionSchema = z.discriminatedUnion("operation", [

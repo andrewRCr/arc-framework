@@ -1,6 +1,8 @@
 /** Exact member-scoped Owner terminus acceptance. */
 
 import { describe, expect, it, vi } from "vitest";
+import { scriptGitExec } from "../../../../helpers/git-exec-fake.js";
+import { stageDeliveryReviewTerminusBoundary } from "../../../../../src/handlers/review.js";
 
 import { DeliveryReviewMemberVehicleSchema } from
   "../../../../../src/lib/delivery/review-vehicle.js";
@@ -8,6 +10,7 @@ import { IntegrationBoundaryLocusSchema } from
   "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
   DeliveryReviewTerminusAcceptanceInputSchema,
+  DeliveryReviewTerminusAcceptanceResultSchema,
   DeliveryReviewTerminusOfferSchema,
   resolveDeliveryReviewTerminusAcceptance,
 } from "../../../../../src/scripts/review-gate/policy/delivery-review-terminus.js";
@@ -191,4 +194,21 @@ describe("delivery review Owner terminus", () => {
 it.each([offer.expectedBoundaryVersion, "backend:boundary/7"])("preserves exact terminus offer version %s", version => {
   expect(DeliveryReviewTerminusOfferSchema.parse({ ...offer, expectedBoundaryVersion: version }).expectedBoundaryVersion).toBe(version);
   expect(DeliveryReviewTerminusOfferSchema.safeParse({ ...offer, expectedBoundaryVersion: "" }).success).toBe(false);
+});
+
+it("accepts a recorded terminus that continues without a tracked boundary path", async () => {
+  const original = await resolveDeliveryReviewTerminusAcceptance(request, {
+    readBoundary: async () => ({ boundary, version: offer.expectedBoundaryVersion }),
+    readOwnerAuthority: async () => ({ status: "authorized", ownerIdentity: "andrew" }),
+    readCurrentOffer: async () => offer,
+    writeBoundary: async () => ({ status: "written", path: "boundary.json" }),
+  });
+  if (original.state !== "recorded" || !("boundaryPath" in original)) throw new Error("Expected recorded boundary");
+  const { boundaryPath: ignored, ...fields } = original;
+  void ignored;
+  const native = { ...fields, nextAction: "continue" };
+  const accepted = DeliveryReviewTerminusAcceptanceResultSchema.parse(native);
+  expect(accepted).toEqual(native);
+  await expect(stageDeliveryReviewTerminusBoundary({ root: "/unavailable", workUnitId: "example",
+    exec: scriptGitExec([]).exec, result: accepted })).resolves.toEqual(accepted);
 });

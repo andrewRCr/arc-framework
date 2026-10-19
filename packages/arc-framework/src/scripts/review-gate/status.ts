@@ -68,7 +68,7 @@ import {
 import type { DeliveryReviewMemberTerminus } from "./policy/review-terminus.js";
 import {
   ContinuePrePublicationActionSchema,
-  RunConvergenceVerificationActionSchema,
+  PublishedRunConvergenceVerificationActionSchema,
   RunSelfReviewActionSchema,
 } from "./policy/integration-boundary-locus.js";
 import {
@@ -277,7 +277,7 @@ const RoutedReviewCoverageRequiredSchema = z.strictObject({
 const PrePublicationContinuationSchema = z.discriminatedUnion("kind", [
   RunSelfReviewActionSchema,
   ContinuePrePublicationActionSchema,
-  RunConvergenceVerificationActionSchema,
+  PublishedRunConvergenceVerificationActionSchema,
 ]);
 
 export const RoutedReviewObligationSchema = z.union([
