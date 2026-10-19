@@ -390,9 +390,13 @@ listing refuses.
   warnings and shared refusals, and no cache writes. Its default membership reader uses the selected store's production
   checkout roster; failed roster evidence remains advisory and degraded. The in-repo arm retains its text behavior.
 
-### `[ ]` **5.4 The user view from the flip** — validate exit criterion at segment scope
+### `[x]` **5.4 The user view from the flip** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds, with `arc check segment` green.
+
+- _Outcome:_ The handler scenario over the reference store and injected membership reader exercised branchless and
+  paused rows, Ready Class and clash omission, provider and degraded warnings, text stderr, identityless success and
+  refused-listing repair. The checkout inventory remained unchanged with no derived cache file.
 
 ## **Phase 6:** The conflict view
 
