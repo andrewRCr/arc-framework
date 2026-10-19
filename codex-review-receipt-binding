@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "codex-review-receipt-binding",
+  "claimId": "441e6595579f7f431eb4be9d1b70679d",
+  "createdAt": "2026-10-19T17:50:00.589Z",
+  "updatedAt": "2026-10-19T17:50:00.589Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Handle completed Codex clean receipts without indefinite pending or invented reviewed-commit evidence.",
+  "branch": "fix/codex-review-receipt-binding",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
