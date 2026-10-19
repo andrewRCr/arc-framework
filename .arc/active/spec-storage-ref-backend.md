@@ -3690,8 +3690,9 @@ remote.
   resolves through both to the same work unit and tasks; and each live work unit's and open Errand's branch with the
   in-repo implementation's `lookup` by ref, each passed its own repository — the project ID, and the checkout — so each
   resolves through both to the same item, a meta with no branch, and one whose `Branch` names the base branch, getting
-  no link, but for an Errand's branch other than `chore/`, which the in-repo `lookup` reads as a work unit's slug
-  (`isTransientLookup`, `lib/store/in-repo/transient-lookup.ts`) and the store resolves to the Errand. Each link records
+  no link. Every admitted Errand branch prefix compares normally: `isTransientLookup` and `matchesLookup`
+  (`lib/store/in-repo/transient-lookup.ts`) resolve the record's branch over `ERRAND_BRANCH_TYPES`
+  (`lib/errand/branch-type.ts`), including `fix/`, `refactor/`, and `hotfix/` (A19). Each link records
   `created` or `adopted` by its name, an Errand's `fix/<slug>` among the created, and reads the tip that contains the
   other, a remote-only branch the remote's tip; a work unit's `excluded` holds the branch's non-merge commits not on
   base less those its footers capture, and an Errand's is empty; and a branch neither side holds, and one whose tips
@@ -4171,5 +4172,8 @@ open:
 
 - **A18** — 2026-10-19 — design: align import verification with production entry and link contracts.
   _Supersedes:_ §§ 14.1, 14.7 grammar premises. _Trigger:_ door. _Work:_ 15.R2. _Revalidated:_ pending → 15.10.
+
+- **A19** — 2026-10-19 — design: compare every admitted Errand branch prefix without a transform allowance.
+  _Supersedes:_ § 14.7 non-chore Errand exception. _Trigger:_ door. _Work:_ 15.R3. _Revalidated:_ pending → 15.10.
 
 ---

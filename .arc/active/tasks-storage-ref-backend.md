@@ -1443,20 +1443,19 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
       captures the closed alone; each capture the project ID as its repository, and its SHA with the copy key
       `computeCopyKeys` (`lib/git/copy-key.ts`) gives it, and none wherever it gives none: a merge commit, one with no
       readable author, and one whose patch is empty or the clone cannot produce
-    - The in-repo `lookup` by ref finds a branch only where it exists locally, reads an Errand's records only for a
-      `chore/` branch (`isTransientLookup`, `lib/store/in-repo/transient-lookup.ts`), and takes any other branch's slug
-      from its name (`branchToWorkUnitSlug`), so the comparator's allowance names three links a transform difference: one
-      whose branch is absent locally, one whose branch is not named `<prefix>/<slug>`, and an Errand's on a `fix/`,
-      `refactor/`, or `hotfix/` branch, which the in-repo `lookup` reads as a work unit's slug
+    - The in-repo `lookup` by ref finds a branch only where it exists locally, resolves an Errand's record branch
+      over `ERRAND_BRANCH_TYPES` (`isTransientLookup` and `matchesLookup`, `lib/store/in-repo/transient-lookup.ts`),
+      and takes other branches' slugs from their names (`branchToWorkUnitSlug`). The comparator allows a transform
+      difference only for a branch absent locally or one not named `<prefix>/<slug>`
     - Build `test-first` (one behavior at a time):
         - its links compare clean through 14.4's harness under the allowance above: every captured commit resolves
           through the store's `lookup` by commit to the same work unit, and to the closed subset of the tasks the in-repo
           `lookupCommit` returns, each capture's copy key the one `computeCopyKeys` gives
-        - each live work unit's branch, and each Errand's `chore/` branch, that exists locally under `<prefix>/<slug>`
+        - each live work unit's branch, and each Errand's admitted branch, that exists locally under `<prefix>/<slug>`
           resolves through both implementations' `lookup` by ref to the same item, each passed its own repository, and a
           meta with no branch, or one naming the base branch, gets no link
-        - each Errand 15.3.a re-homes links its record's `branch`, and one on a `fix/<slug>` branch resolves through the
-          store's `lookup` by ref to the Errand, the comparator reporting the in-repo answer under its allowance
+        - each imported Errand links its record's `branch`, and one on a `fix/<slug>` branch resolves through both
+          implementations' `lookup` by ref to the Errand without a comparator allowance
         - a `plan/<slug>`, a `feat/<slug>`, and an Errand's `fix/<slug>` branch link `created`, and a branch named
           otherwise `adopted`
         - a work unit's link excludes the branch's non-merge commits not on base less those its footers capture, over the
@@ -1626,6 +1625,15 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
           carries `Inbox: personal`, and has a valid rank preserving the original marks' file order
         - verify that the imported branch link retains a keyless exclusion by repository and SHA, including a
           non-merge empty commit, without relaxing the omission rule for keyless task captures
+
+### `[ ]` **15.R3 Errand branch comparison coverage — § 14.7 (A19)**
+
+- _Goal:_ Amendment A19's branch comparisons resolve imported Errands through both stores for every admitted branch
+  prefix, without a transform allowance for `fix/`, `chore/`, `refactor/`, or `hotfix/`.
+
+    - Runs after 15.4; reuse its branch-link comparison fixtures and add only missing prefix coverage
+    - Verify each branch resolves to its Errand and is linked as `created`; retain the legitimate allowances for
+      locally absent branches and names outside `<prefix>/<slug>`
 
 ### `[ ]` **15.10 Every source the import carries** — validate exit criterion at segment scope
 
