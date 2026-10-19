@@ -13,7 +13,7 @@ import type { ActiveSessionInitResultSchema } from "./schema.js";
 import type { GitExec } from "../../lib/git/index.js";
 import type { Slug } from "../../lib/kernel/index.js";
 import type { WorkUnitPlacement } from "../../lib/layout/index.js";
-import type { IntegrationBoundaryLocus } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
+import type { PublishedIntegrationBoundaryLocus } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
 import type { CandidateTargetProjector } from "../../lib/work-unit/candidate-effective-target.js";
 import type { CandidateReviewFixAuthorityReader } from
   "../../scripts/review-gate/policy/candidate-review-fix-continuation.js";
@@ -52,7 +52,7 @@ export interface MetaFileCandidate {
   filename: string;
   branch: string | null;
   candidateId?: string | null;
-  integrationBoundary?: IntegrationBoundaryLocus | null;
+  integrationBoundary?: PublishedIntegrationBoundaryLocus | null;
   /** Raw `**State:**` value verbatim — e.g. `Active`, `Integrating`, `Paused (2026-04-12)`. */
   state: string | null;
   /** Raw `**Next Task:**` value — triple-anchor format `Task X.Y — title (line ~N)`. */

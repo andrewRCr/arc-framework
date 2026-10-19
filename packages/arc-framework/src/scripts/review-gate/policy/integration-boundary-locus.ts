@@ -330,6 +330,9 @@ export const IntegrationBoundaryLocusSchema = z.union([
   DeliveryStatusRequiredBoundarySchema,
 ]);
 export type IntegrationBoundaryLocus = z.infer<typeof IntegrationBoundaryLocusSchema>;
+/** Published boundary-bearing outputs carry the format held by their record. */
+export const PublishedIntegrationBoundaryLocusSchema = z.union([IntegrationBoundaryLocusSchema, IntegrationBoundaryLocusV2Schema]);
+export type PublishedIntegrationBoundaryLocus = z.infer<typeof PublishedIntegrationBoundaryLocusSchema>;
 
 /** Parse one structural integration boundary. */
 export function parseIntegrationBoundaryLocus(input: unknown): IntegrationBoundaryLocus {

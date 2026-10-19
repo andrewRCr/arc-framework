@@ -51,6 +51,7 @@ import {
   recoverPrePublicationBoundary,
   recoverIntegratingBoundary,
   type IntegrationBoundaryLocus,
+  type PublishedIntegrationBoundaryLocus,
 } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
 import type { PendingCandidateReviewFixAuthority } from
   "../../scripts/review-gate/policy/candidate-review-fix-continuation.js";
@@ -106,7 +107,7 @@ export type SubjectMetaProjection =
       workUnitStage?: LoadSetWorkUnitStage | null;
       cohortDocPath: string | null;
       loadSet: LoadSetManifest;
-      integrationBoundary: IntegrationBoundaryLocus | null;
+      integrationBoundary: PublishedIntegrationBoundaryLocus | null;
     };
 
 /** Select one exact subject meta and derive its workflow state with reads pinned to its checkout. */

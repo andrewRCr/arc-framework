@@ -10,7 +10,7 @@ import { parseIntegrationBoundaryLocus } from "../../../../../scripts/review-gat
 import { readReviewRecord, resolveReviewRecordAccess, unwrapReviewRecordResult, type ReviewRecordAccessOptions } from "../access-shared.js";
 import { SubmissionBoundaryVersionConflictError } from "../errors.js";
 import { resolveSubmissionBoundaryPath } from "../paths.js";
-import type { IntegrationBoundaryLocus, VersionedSubmissionBoundary } from "./schema.js";
+import { IntegrationBoundaryLocusV2Schema, type ReviewIntegrationBoundary, type IntegrationBoundaryLocus, type VersionedSubmissionBoundary } from "./schema.js";
 
 export { SubmissionBoundaryVersionConflictError };
 export type { SubmissionBoundaryReader, SubmissionBoundaryStoreFs };
@@ -41,20 +41,21 @@ export async function readSubmissionBoundary(cwd: string, name: string,
 }
 
 /** Prepare one integration-boundary put for the caller's atomic batch. */
-export function prepareSubmissionBoundaryPut(boundary: IntegrationBoundaryLocus,
+export function prepareSubmissionBoundaryPut(boundary: ReviewIntegrationBoundary,
   expectedVersion: string | null, selectedOwner?: OwnerIdentity): Extract<Mutation, { action: "put" }> {
-  const value = parseIntegrationBoundaryLocus(boundary);
+  const value = boundary.schemaVersion === 1 ? parseIntegrationBoundaryLocus(boundary) : IntegrationBoundaryLocusV2Schema.parse(boundary);
   const owner = selectedOwner ?? OwnerIdentitySchema.parse({ type: "work-item", name: value.workUnit });
   return { action: "put", reference: recordReferences["review/integration-boundary"](owner),
     expected: expectedVersion === null ? null : RecordVersionSchema.parse(expectedVersion), content: canonicalize(value) };
 }
 
 /** Version-check and persist one integration boundary. */
-export async function writeSubmissionBoundary(cwd: string, boundary: IntegrationBoundaryLocus, expectedVersion: string | null,
+export async function writeSubmissionBoundary(cwd: string, boundary: ReviewIntegrationBoundary, expectedVersion: string | null,
   input?: SubmissionBoundaryStoreFs | SubmissionBoundaryWriteOptions): Promise<string> {
   const access = resolveReviewRecordAccess(cwd, input);
-  if ("fs" in access) return writeFileBoundary(cwd, boundary, expectedVersion, access.fs);
-  const result = await access.store.write({ ...prepareSubmissionBoundaryPut(boundary, expectedVersion, access.owner),
+  if ("fs" in access) return writeFileBoundary(cwd, parseIntegrationBoundaryLocus(boundary), expectedVersion, access.fs);
+  const value = access.store.capabilities.stateOffBranch ? boundary : parseIntegrationBoundaryLocus(boundary);
+  const result = await access.store.write({ ...prepareSubmissionBoundaryPut(value, expectedVersion, access.owner),
     provenance: { verb: "write-submission-boundary", lifecycleAction: "edit" } });
   if (result.status === "refused" && result.refusal.code === "version-conflict") throw new SubmissionBoundaryVersionConflictError();
   unwrapReviewRecordResult(result);

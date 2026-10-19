@@ -63,7 +63,7 @@ import { RecoveryLocusFrameSchema, resolveRecoveryParentContext } from "../../li
 import { ReleaseRoutingValueSchema } from "../../lib/release/routing.js";
 import { assertSessionEnvelopeContract } from "../../lib/session-envelope/validation.js";
 import { DeliveryPositionViewSchema } from "../../lib/session-init/delivery-position.js";
-import { IntegrationBoundaryLocusSchema } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
+import { PublishedIntegrationBoundaryLocusSchema } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
 
 // Keep composition declarations bounded while retaining each producer-owned inferred payload.
 const DerivedLocusFrameWireSchema: z.ZodType<
@@ -382,7 +382,7 @@ function worktreeValue(value: SessionInitEnvelopeValue): Record<string, unknown>
 
 function phaseAcceptsBoundary(
   sessionType: "planning" | "execution" | "prepublication" | "integration" | null,
-  boundary: z.infer<typeof IntegrationBoundaryLocusSchema> | null,
+  boundary: z.infer<typeof PublishedIntegrationBoundaryLocusSchema> | null,
   workflow: string | null,
   completedRecovery = false,
 ): boolean {

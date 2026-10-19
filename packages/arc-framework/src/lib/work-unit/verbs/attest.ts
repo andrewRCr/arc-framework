@@ -26,7 +26,7 @@ import {
 import type { VersionedCandidateRecord } from "../../store/kinds/review/candidate/schema.js";
 import { SlugSchema } from "../../kernel/schema/slug.js";
 import {
-  IntegrationBoundaryLocusSchema,
+  PublishedIntegrationBoundaryLocusSchema,
   type IntegrationBoundaryLocus,
 } from "../../../scripts/review-gate/policy/integration-boundary-locus.js";
 
@@ -184,7 +184,7 @@ export const AttestResultSchema = z.union([
     operation: z.enum(["root", "re-root"]),
     recordPath: z.string().trim().min(1),
     metaPath: z.string().trim().min(1),
-    locus: IntegrationBoundaryLocusSchema,
+    locus: PublishedIntegrationBoundaryLocusSchema,
   }),
   z.strictObject({
     status: z.literal("attested"),
@@ -193,11 +193,11 @@ export const AttestResultSchema = z.union([
     verificationEvidenceRef: z.string().trim().min(1),
     recordPath: z.string().trim().min(1),
     metaPath: z.string().trim().min(1),
-    locus: IntegrationBoundaryLocusSchema,
+    locus: PublishedIntegrationBoundaryLocusSchema,
   }),
   z.strictObject({
     status: z.literal("unchanged"),
-    locus: IntegrationBoundaryLocusSchema,
+    locus: PublishedIntegrationBoundaryLocusSchema,
   }),
   z.strictObject({
     status: z.literal("blocked"),

@@ -29,7 +29,7 @@ import { resolveCallerComposedLifecycleIndex } from "../../lib/work-unit/compose
 import { resolveSlugQuery, type SlugStateQuery } from "../../lib/work-unit/lifecycle-query.js";
 import {
   parseIntegrationBoundaryLocus,
-  type IntegrationBoundaryLocus,
+  type PublishedIntegrationBoundaryLocus,
 } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
 import { readIdentityPointers } from "../identity-pointers.js";
 import type { StatusCliOptions } from "./input.js";
@@ -129,7 +129,7 @@ function formatSlugStateQuery(
   query: SlugStateQuery,
   enrichment: {
     purpose?: string | null;
-    integrationBoundary?: IntegrationBoundaryLocus | null;
+    integrationBoundary?: PublishedIntegrationBoundaryLocus | null;
     derivedPosition?: DerivedSlugPosition | null;
     scopeWindow?: ScopeWindowFact;
     worktreePath?: string;
@@ -196,7 +196,7 @@ async function resolveSlugOperationalBoundary(options: {
   worktreePath: string | undefined;
   exec: GitExec;
 }): Promise<{
-  integrationBoundary: IntegrationBoundaryLocus | null;
+  integrationBoundary: PublishedIntegrationBoundaryLocus | null;
   warnings: string[];
 }> {
   if (options.state !== "active" && options.state !== "integrating") {
