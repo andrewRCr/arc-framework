@@ -1123,9 +1123,10 @@ this phase puts publication's claim and reopen's boundary write in their transit
             - Native status records grants before unrecorded-lane returns and relays their keys without another write.
               Policy composition resolves their exact claim, head, host binding, and logical count; automatic grants
               leave incremental admission free while explicit contradictory inputs retain policy refusal.
-        - `[ ]` **6.2.a.3 Local preparation**
-            - Resolve explicit and stored judgments before pending replay and delivery admission, retaining exact
-              subject evidence and logical-count applicability.
+        - `[x]` **6.2.a.3 Local preparation**
+            - Production preparation binds explicit and stored judgments before pending replay, validates referenced
+              authority, and resumes an additional pass after its separate coverage choice. Pending operations retain
+              their immutable targets and identities; fresh delivery inputs retain exact driver validation.
         - `[ ]` **6.2.a.4 Frontline resolution**
             - Record and relay ordinary ceiling authority before pending replay, with exact head reach and native
               allowance projection.
@@ -1135,6 +1136,8 @@ this phase puts publication's claim and reopen's boundary write in their transit
         - `[ ]` **6.2.a.6 Publication status**
             - Compose singleton and delivery-member grants at their selected targets before pure policy and preserve
               references in emitted continuation actions.
+            - Prove that returned native delivery references survive local driver admission comparison while all
+              target, grant, coverage, and pass constraints remain binding.
 
         - The calls that write the decision, recording the active identity unchecked (§ 5.7): `arc review
           pre-publication --lanes` (`ReviewLaneJudgmentSchema`, `rg/policy/review-policy-driver.ts`) and `arc review

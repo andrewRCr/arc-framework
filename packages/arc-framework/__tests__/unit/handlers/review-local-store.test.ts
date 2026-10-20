@@ -25,7 +25,9 @@ import type { Store } from "../../../src/lib/store/contract.js";
 import { createStore } from "../../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
 import type { OwnerIdentity } from "../../../src/lib/store/identity.js";
-import { SlugSchema } from "../../../src/lib/kernel/index.js";
+import { SlugSchema, canonicalDigest } from "../../../src/lib/kernel/index.js";
+import { createReviewDecisionPort } from "../../../src/lib/store/kinds/review/decision/access.js";
+import { reviewDecisionKey } from "../../../src/lib/store/kinds/review/decision/key.js";
 import { performedEvidenceFixture } from "../../fixtures/review-evidence.js";
 import { composeReviewDispositionRecord } from "../../../src/lib/store/kinds/review/evidence/composed-record.js";
 import { publishNativeReviewApproval } from "../../../src/scripts/review-gate/runtime/native-review-approval.js";
@@ -227,6 +229,56 @@ it.each(["work-unit", "errand"] as const)("prepares a native %s review without a
   const result = await h.run();
   expect(result, JSON.stringify(result)).toMatchObject({ state: "ready", nextAction: "launch-review",
     payload: { operationRef: expect.any(String) } });
+});
+
+async function completedFirstNativeLocalPass() {
+  const h = await fixture(true, "errand", false);
+  const first = LocalPrepareEnvelopeSchema.parse(await h.run());
+  if (first.state !== "ready" || first.payload.operationRef === undefined) throw new Error(JSON.stringify(first));
+  expect(await h.attest(first.payload.operationId, undefined, { status: "complete", result: "clean",
+    evaluatorIdentity: "fresh-reviewer", reviewRunId: "completed-first-pass", applicabilityId: null, findings: [] }))
+    .toMatchObject({ state: "attested-current" });
+  return { h, first, owner: parseNativeReviewOperationReference(first.payload.operationRef).workItem };
+}
+
+it("records an additional pass and validates its exact reference before replaying native local preparation", async () => {
+  const { h, first, owner } = await completedFirstNativeLocalPass();
+  const judgment = { additionalPassAuthorization: { headSha: first.payload.target.headSha,
+    precedingProducerId: first.payload.operationId, completedPasses: 1, nextPass: 2 } };
+  const nextRequest = { ...h.request, coverageAdmission: { requestedCoverage: "complete" }, policyJudgment: judgment };
+  const second = LocalPrepareEnvelopeSchema.parse(await h.run(nextRequest));
+  expect(second).toMatchObject({ state: "ready" });
+  if (second.state !== "ready") throw new Error(JSON.stringify(second));
+  expect((await h.operations.readOperation(second.payload.operationId)).state).toMatchObject({ logicalPass: 2 });
+  const decisions = createReviewDecisionPort(h.store, owner), listing = await decisions.list();
+  if (listing.status !== "complete") throw new Error(listing.reason);
+  expect(listing.records).toHaveLength(1);
+  const decision = listing.records[0]!, key = reviewDecisionKey(decision.value);
+  expect(decision.value).toMatchObject({ decidedBy: "test-user", choice: { kind: "extra-pass", passCount: 1,
+    precondition: { kind: "additional", precedingProducerId: first.payload.operationId, targetBinding: { kind: "call-target" } } } });
+  const version = lifecycleSuccess(await h.store.version());
+  const relay = (decisionKey: string) => ({ ...nextRequest, policyJudgment: { additionalPassAuthorization: {
+    ...judgment.additionalPassAuthorization, decisionKey } } });
+  expect(await h.run(relay(canonicalDigest({ missing: true })))).toMatchObject({ error: { code: "invalid-input" } });
+  const replayed = await h.run(relay(key));
+  expect(replayed, JSON.stringify(replayed)).toMatchObject({ state: "ready", payload: { operationId: second.payload.operationId,
+    request: { requestId: second.payload.request.requestId } } });
+  expect(lifecycleSuccess(await h.store.version())).toBe(version);
+  expect(await decisions.read(key)).toEqual(decision);
+});
+
+it("admits a stored additional pass after the local coverage choice without another judgment", async () => {
+  const { h, first } = await completedFirstNativeLocalPass();
+  const choice = await h.run({ ...h.request, policyJudgment: { additionalPassAuthorization: {
+    headSha: first.payload.target.headSha, precedingProducerId: first.payload.operationId, completedPasses: 1, nextPass: 2 } } });
+  expect(choice, JSON.stringify(choice)).toMatchObject({ state: "coverage-required" });
+  const version = lifecycleSuccess(await h.store.version());
+  const second = LocalPrepareEnvelopeSchema.parse(await h.run({ ...h.request, coverageAdmission: { requestedCoverage: "complete" } }));
+  expect(second).toMatchObject({ state: "ready" });
+  if (second.state !== "ready") throw new Error(JSON.stringify(second));
+  expect(second.payload.operationId).not.toBe(first.payload.operationId);
+  expect((await h.operations.readOperation(second.payload.operationId)).state).toMatchObject({ logicalPass: 2 });
+  expect(lifecycleSuccess(await h.store.version())).toBe(version);
 });
 
 it.each(["work-unit", "errand"] as const)("resumes the prepared native %s review while it awaits its reviewer", async vehicle => {

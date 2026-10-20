@@ -16,8 +16,9 @@ import { resolveNativeInvocationExtraPassJudgment } from "./native-extra-pass.js
 import type { NativeExtraPassResolution } from "./native-extra-pass.js";
 
 /** Bind resolved targetless projections at use while leaving explicit incremental grants subject to policy refusal. */
-export function projectNativePolicyGrants(request: ReviewPolicyCommandRequest, resolved: NativeExtraPassResolution,
-  incremental: boolean): ReviewPolicyCommandRequest {
+export function projectNativePolicyGrants<Request extends Pick<ReviewPolicyCommandRequest,
+  "target" | "lane" | "ceilingOverride" | "additionalPassAuthorization">>(request: Request, resolved: NativeExtraPassResolution,
+  incremental: boolean): Request {
   const ceiling = resolved.judgment?.ceilingOverride, additional = resolved.judgment?.additionalPassAuthorization;
   return { ...request,
     ...(ceiling === undefined || (incremental && request.ceilingOverride === undefined) ? {} : {

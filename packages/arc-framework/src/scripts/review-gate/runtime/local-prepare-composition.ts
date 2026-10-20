@@ -1,4 +1,6 @@
 /** Production adapters for the local review prepare command. */
+import { validateLocalDeliveryAdmission } from "./local-prepare-delivery-admission.js";
+import { createNativeLocalPassJudgmentResolver } from "./native-local-pass-judgments.js";
 import { bindJudgment } from "../policy/review-execution-admission.js";
 import { requireNativeReviewDecisionReferences } from "../policy/review-grant-references.js";
 import { readLocalReviewReceipts } from "./local-outcome-receipts.js";
@@ -22,7 +24,6 @@ import { readConfigSettings } from "../../../lib/config/status-reader.js";
 import { createReviewCompositionContext } from "./composition-context.js";
 import { resolveReviewInvocation, type ReviewInvocationInput } from "./invocation.js";
 import { getFrameworkVersion } from "../../../lib/version.js";
-import { canonicalize } from "../../../lib/kernel/index.js";
 import {
   resolveRepositoryIdentity,
   withRepositoryLocalReviewLock,
@@ -72,9 +73,6 @@ import {
 import { createRepositoryReviewResultReader } from
   "../hosts/local/review-result-reader-composition.js";
 import type { LocalPrepareDependencies } from "./local-prepare.js";
-import { resolveReviewStatus } from "../status.js";
-import { createReviewStatusPort } from "../status-composition.js";
-import { readSubmissionBoundaryVersioned } from "../../../lib/store/kinds/review/integration-boundary/access.js";
 import { readCandidateRecord } from "../../../lib/store/kinds/review/candidate/access.js";
 import { readRepositoryCandidateSupersessionChain } from "../../../lib/store/kinds/review/candidate/history.js";
 
@@ -270,6 +268,21 @@ function createBoundLocalPrepareDependencies(input: LocalReviewInvocationInput &
   const memberLookup = new RepositoryDeliveryMemberLookup(input);
   const methodFiles = createLocalReviewMethodFilePort({ cwd: input.cwd });
   const rubricPort = createLocalReviewRubricBindingPort({ cwd: input.cwd });
+  const subjects = createLocalReviewSubjectResolver({ ...input, readLive, candidateReader: createLocalReviewCandidateReader(input) });
+  const deriveTarget: LocalPrepareDependencies["deriveTarget"] = async (repositoryId, member) => {
+    const config = await readConfigSettings(input.cwd);
+    const boundary = {
+      exec: input.exec,
+      cwd: input.cwd,
+      baseRef: config.settings["branch.base"],
+      repositoryId,
+    };
+    return member === undefined
+      ? deriveLocalReviewTarget(boundary)
+      : composeDeliveryMemberTarget({ ...boundary, member });
+  };
+  const validateDeliveryAdmission: LocalPrepareDependencies["validateDeliveryAdmission"] =
+    admission => validateLocalDeliveryAdmission(input, admission);
 
   return {
     laneSourceId: "delegated-agent",
@@ -299,18 +312,8 @@ function createBoundLocalPrepareDependencies(input: LocalReviewInvocationInput &
     readCurrentHeadSha: async () => (await input.exec("git", ["rev-parse", "HEAD"], {
       cwd: input.cwd,
     })).stdout.trim(),
-    deriveTarget: async (repositoryId, member) => {
-      const config = await readConfigSettings(input.cwd);
-      const boundary = {
-        exec: input.exec,
-        cwd: input.cwd,
-        baseRef: config.settings["branch.base"],
-        repositoryId,
-      };
-      return member === undefined
-        ? deriveLocalReviewTarget(boundary)
-        : composeDeliveryMemberTarget({ ...boundary, member });
-    },
+    deriveTarget,
+
     confirmTarget: (target) => confirmLocalReviewTarget({
       exec: input.exec,
       cwd: input.cwd,
@@ -331,7 +334,8 @@ function createBoundLocalPrepareDependencies(input: LocalReviewInvocationInput &
         memberLookup,
       },
     ),
-    ...createLocalReviewSubjectResolver({ ...input, readLive, candidateReader: createLocalReviewCandidateReader(input) }),
+    ...subjects,
+    resolvePassJudgments: createNativeLocalPassJudgmentResolver({ input, operationStore, subjects, deriveTarget, validateDeliveryAdmission }),
     composeAssurance: async (authority: LocalReviewAuthority) => {
       const live = await readLive();
       // A member's assurance is its owning work unit's: same meta, same work
@@ -371,36 +375,8 @@ function createBoundLocalPrepareDependencies(input: LocalReviewInvocationInput &
     },
     ...localHistoryDependencies({ input, resultReader, dispositionStore, operationStore }),
     readReservedWorkUnitObligation: (vehicle, lineage) => readReservedWorkUnitObligation(input.cwd, vehicle, lineage, { store: input.store, exec: input.exec, owner: input.workItem }),
-    validateDeliveryAdmission: async (admission) => {
-      const before = await readSubmissionBoundaryVersioned(input.cwd, admission.vehicle.workUnitId, { store: input.store, owner: input.workItem });
-      const reservation = before.boundary?.reservation;
-      if (reservation === null || reservation === undefined
-        || reservation.target.kind !== "delivery"
-        || reservation.target.workUnitId !== admission.vehicle.workUnitId
-        || reservation.target.planId !== admission.vehicle.planId
-        || !reservation.sources.includes(admission.sourceId)) {
-        throw new Error("Local delivery-member review has no matching standard-review reservation.");
-      }
-      const current = await resolveReviewStatus({
-        target: admission.statusTarget,
-        ...(admission.ceilingOverride === undefined
-          ? {}
-          : { ceilingOverride: admission.ceilingOverride }),
-        ...(admission.additionalPassAuthorization === undefined ? {}
-          : { additionalPassAuthorization: admission.additionalPassAuthorization }),
-        coverage: admission.requestedCoverage,
-        sourceId: admission.sourceId,
-      }, createReviewStatusPort(input));
-      if (current.nextAction !== "review-local-prepare"
-        || canonicalize(current.action) !== canonicalize(admission)) {
-        throw new Error("Local delivery-member review no longer has exact driver admission.");
-      }
-      const after = await readSubmissionBoundaryVersioned(input.cwd, admission.vehicle.workUnitId, { store: input.store, owner: input.workItem });
-      if (after.version !== before.version) {
-        throw new Error("Local delivery-member review authority changed during admission validation.");
-      }
-      return reservation.obligation;
-    },
+    validateDeliveryAdmission,
+
     describeSource: (operationId, target, coverageAdmission) => createLocalReviewSourceDescriptor({
       exec: input.exec,
       cwd: input.cwd,

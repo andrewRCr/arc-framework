@@ -149,6 +149,7 @@ type AssuranceComposition =
   | { status: "refused"; diagnostics: readonly string[] };
 
 export interface LocalPrepareDependencies {
+  resolvePassJudgments?: (request: LocalPrepareRequest) => Promise<LocalPrepareRequest>;
   sweep(): Promise<void>;
   withLocalReviewLock<T>(action: () => Promise<T>): Promise<T>;
   withLaneOperationLock<T>(input: {
@@ -924,8 +925,9 @@ export async function prepareLocalReview(
   requestInput: unknown,
   dependencies: LocalPrepareDependencies,
 ): Promise<z.infer<typeof LocalPrepareEnvelopeSchema>> {
-  const request = LocalPrepareRequestSchema.parse(requestInput);
+  let request = LocalPrepareRequestSchema.parse(requestInput);
   requireNativeReviewDecisionReferences(() => dependencies.operationStore.stateOffBranch === true, request.policyJudgment, request.deliveryAdmission);
+  request = await dependencies.resolvePassJudgments?.(request) ?? request;
   const stableReplay = await retryLaneOwnerConflicts(() => resolveStablePendingLocalReplay(
     request, dependencies, (context) => replayPendingLocalAdmission({ ...context, dependencies }),
   ));
