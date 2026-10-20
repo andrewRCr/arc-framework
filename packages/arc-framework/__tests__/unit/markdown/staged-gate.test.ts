@@ -108,6 +108,39 @@ describe("staged Markdown checker alignment", () => {
     })).resolves.toEqual([entry, runtime, mixed]);
   });
 
+  describe.each([
+    { name: "a value binding named type", firstImport: 'import type from "./first.js"', use: "console.log(type, second)" },
+    { name: "a side-effect import", firstImport: 'import "./first.js"', use: "console.log(second)" },
+  ])("adjacent semicolonless imports with $name", ({ firstImport, use }) => {
+    const entry = "packages/arc-framework/src/checker.ts";
+    const first = "packages/arc-framework/src/first.ts";
+    const second = "packages/arc-framework/src/second.ts";
+    const sources = new Map([
+      [entry, `${firstImport}\nimport { second } from "./second.js"\n${use}\n`],
+      [first, "export default 1;\n"],
+      [second, "export const second = 2;\n"],
+    ]);
+    const options = {
+      root: "/repo", entryPaths: [entry],
+      readBlob: async (_root: string, path: string): Promise<Uint8Array | null> => {
+        const source = sources.get(path);
+        return source === undefined ? null : Buffer.from(source);
+      },
+    };
+
+    it("discovers both runtime dependencies", async () => {
+      await expect(resolveIndexedMarkdownCheckerPaths(options)).resolves.toEqual([entry, first, second]);
+    });
+
+    it("refuses a byte mismatch in the first dependency", async () => {
+      await expect(assertIndexedMarkdownCheckerAlignment({
+        ...options,
+        readFile: async path => Buffer.from(path === `/repo/${first}`
+          ? "export default 9;\n" : sources.get(path.slice("/repo/".length))!),
+      })).rejects.toThrow(`Indexed Markdown checker differs from executing worktree bytes: ${first}`);
+    });
+  });
+
   it.each(["missing", "invalid-utf8", "unsupported-import", "read-failure"])("refuses invalid bulk checker inputs (%s)", async failure => {
     const entry = "packages/arc-framework/src/scripts/checker.ts";
     const readFailure = new Error("Bulk object read failed");

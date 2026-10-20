@@ -8,7 +8,7 @@ import type { ReadIndexedBlob, ReadIndexedBlobs } from "./indexed-snapshot.js";
 import { MARKDOWN_RUNTIME_IMPLEMENTATION_PATHS } from "./staged-gate.js";
 
 const STATIC_MODULE_SPECIFIER_RE =
-  /^\s*(?<declaration>(?:import|export)\s+(?:type\s+)?(?:[^;]*?\s+from\s+)?)["'](?<specifier>[^"']+)["']/gmu;
+  /^\s*(?<declaration>(?:import|export)\s+(?:[^;"']*?\s+from\s+)?)["'](?<specifier>[^"']+)["']/gmu;
 const DYNAMIC_MODULE_SPECIFIER_RE = /\bimport\s*\(\s*["'](?<specifier>[^"']+)["']\s*\)/gu;
 // `type` can be a value binding; discard only explicit erased declaration forms.
 const TYPE_ONLY_DECLARATION_RE =
