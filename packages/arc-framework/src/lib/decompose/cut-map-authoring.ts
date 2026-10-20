@@ -8,6 +8,7 @@ import { V3DecomposeLocatorSchema } from "../work-unit/decompose-content.js";
 
 const DecomposeSlugSchema: z.ZodType<string, string> = SlugSchema;
 const NonEmptyStringSchema = z.string().refine((value) => value.trim() !== "", "must be non-empty");
+const DestinationIdSchema = NonEmptyStringSchema.normalize("NFC");
 const ManagedPathSchema = z.string().refine(
   (value: string): boolean => isManagedPath(value),
   "must be a managed repository-relative path",
@@ -48,18 +49,18 @@ const ExistingTargetSchema = z.discriminatedUnion("kind", [
 const DestinationSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("new-member"),
-    destinationId: NonEmptyStringSchema,
+    destinationId: DestinationIdSchema,
     slug: DecomposeSlugSchema,
     workClass: WorkClassSchema,
   }),
   z.strictObject({
     kind: z.literal("existing-home"),
-    destinationId: NonEmptyStringSchema,
+    destinationId: DestinationIdSchema,
     target: ExistingTargetSchema,
   }),
   z.strictObject({
     kind: z.literal("cohort-coordination"),
-    destinationId: NonEmptyStringSchema,
+    destinationId: DestinationIdSchema,
     cohort: CohortPathSchema,
   }),
 ]);
@@ -67,7 +68,7 @@ const DropSchema = z.strictObject({ kind: z.literal("drop"), reason: NonEmptyStr
 const SourceDispositionSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("target"),
-    destinationId: NonEmptyStringSchema,
+    destinationId: DestinationIdSchema,
     targetLocator: V3DecomposeLocatorSchema,
   }),
   z.strictObject({ kind: z.literal("retained-origin") }),
