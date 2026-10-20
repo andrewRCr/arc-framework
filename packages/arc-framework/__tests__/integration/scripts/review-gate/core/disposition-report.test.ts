@@ -218,7 +218,12 @@ describe("disposition report", () => {
       dispositionSet,
     });
     expect(exerciseReport).toBeDefined();
-    expect(exerciseReport).toBe(renderDispositionReport({ dispositionSet, producerFindings }));
+    expect(exerciseReport).toBe(renderDispositionReport({ dispositionSet, producerFindings,
+      header: { title: "Standard complete pass 1 of 2", details: ["1 not supported"] },
+      fails: [{ findingId: "finding-1", fails: "none — the cited branch is unreachable" }],
+      decisions: ["Next: Do not request another standard pass from this unsupported finding; request a named next "
+        + "pass only if it identifies a new expected signal worth the reviewer cost."],
+      closer: "Approve: 1 reject?" }));
     expect(exerciseEvidence).toBe(renderDispositionEvidence({ dispositionSet, producerFindings }));
   });
 

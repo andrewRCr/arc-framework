@@ -2,11 +2,13 @@
 
 The assessment should establish that:
 
-- the report renders no table for its single finding; the finding's section heads with its stable label and title,
-  and its open question sits in the closing Decisions block;
+- the report leads with the lane position and the unsupported count, renders no table for its single finding, and
+  heads the finding's section with its stable label and title;
 - the finding's status line carries the unsupported grade marker, its `Not supported` verdict beside the reviewer's
-  reported grade, and the `REJECT` action, then the section states the finding before the full action and detail
-  behind the verdict;
+  reported grade, the `REJECT` action, and the `none` anchor with its reason, then the section states the finding
+  before the full action and detail behind the verdict;
+- the Decisions block carries the agent's stop recommendation and the open question, and the report ends with one
+  question asking to approve the single rejection, naming no verification, commit, or next pass;
 - the separate evidence text, offered on request rather than shown in the report, preserves the native label, capture
   ordinal, source reference, and report-local finding label without conflating them, and keeps ARC's verification
   reference distinct from the producer source;
