@@ -568,7 +568,7 @@ through rename and slug reuse; mismatched references refuse and succeed after co
   dual-seed the retained Errand ref. Differential observations compare independently read lane and outcome counts,
   detect an omitted result, and agree after its restoration.
 
-### `[ ]` **4.3 Take the project ID as the review gate's repository identity from the flip — § 2.4**
+### `[x]` **4.3 Take the project ID as the review gate's repository identity from the flip — § 2.4**
 
 - _Goal:_ From the flip `resolveRepositoryIdentity` resolves the project ID through the invocation's project-ID reader,
   so two clones' records of one target agree; on a clone holding no project ID every review command refuses
@@ -581,47 +581,12 @@ through rename and slug reuse; mismatched references refuse and succeed after co
           on the project ID; a fresh invocation succeeds after the missing record is restored. The repository arm
           retains its existing UUID and deterministic minting behavior.
 
-    - `[ ]` **4.3.b Its callers and the refusal**
+    - `[x]` **4.3.b Its callers and the refusal**
 
-        - Every module that calls `resolveRepositoryIdentity` passes the reader its invocation binds, including
-          `readResolveNextPassContext` (`handlers/review-next-pass-context.ts`) and the lazily resolved sites
-          (`receiptStore ??=`, `repositoryIdPromise ??=`). Re-enumerate direct callers rather than pinning a stale count.
-        - The read-only `readRepositoryIdentity` call in `rg/runtime/lane-read-composition.ts` also resolves through
-          the project-ID reader from the flip, minting no clone-local identity; its own refused envelope reports the
-          typed code in `payload.code`, with the port's detail and remedy (§ 2.4), without a generic error variant.
-        - Each caller reports the typed error through its own failure surface (§ 2.4): review commands through their
-          envelope, as `project-identity-unavailable` (`ReviewCommandErrorCodeSchema`,
-          `rg/core/review-command-error-codes.ts`) with a remedy-carrying variant for each mode (`remedialErrorVariant`,
-          `rg/core/review-command-envelope.ts`), the plain variants each mode builds from every code (`errorVariant`,
-          `ReviewCommandErrorEnvelopeSchema`) excluding it, so no envelope carries it without a remedy; review status,
-          which is no command mode, through its own failure arm as `reason` `status-unavailable`, its `detail` naming
-          `project-identity-unavailable` and its `remedy` built from the port's (`ReviewStatusCommandResultSchema`,
-          `rg/status.ts`), which delivery's review status reads carry as today; attest's re-root and publish through
-          their lifecycle refusal (`refuseWithRemedy`, `handlers/lifecycle-shared.ts`), as
-          `lib/work-unit/verbs/task-close.ts` reports it; and the checkpoint and merge in their operation refusal's
-          detail (`handlers/integration.ts`).
-        - The review commands' variants and review status's failure arm carry a spine remedy (`SpineRemedySchema`,
-          `scripts/integration/spine-refusal.ts`), each built from the port's text and the refusal's invariant. Its argv
-          is the port's where the port's remedy carries one, as a store refusal's can (`lib/store/project-identity.ts`)
-          and as `refuseWithRemedy` keeps it, and otherwise the command's own argv to re-run, as review status's
-          failures wrap theirs today (`spineRemedy`, `handlers/review.ts`); where that argv ends in `-`, the submitted
-          request is its `stdin`, as today's review remedies replay theirs (`uncommittedVerifiedFixRemedy`,
-          `rg/runtime/respond-remedy.ts`; `reviewResolveRemedy`, `rg/runtime/review-policy-remedy.ts`).
-        - Build `test-first` (one behavior at a time):
-            - a local, a frontline, and a hosted review command each refuse `project-identity-unavailable` on a clone
-              holding no project ID, their remedy carrying the port's text and the command's own argv, and a command
-              reading its request from standard input replaying the submitted request as its `stdin`
-            - where the port's remedy carries an argv, as a store refusal's can, a review command's remedy and review
-              status's carry that argv
-            - a review command envelope carrying `project-identity-unavailable` without a remedy refuses to parse
-            - review status there returns its failure arm with `status-unavailable`, a `detail` naming
-              `project-identity-unavailable`, and a remedy carrying the port's text and the status command's own argv,
-              its published schema unchanged
-            - attest's re-root and publish refuse with the port's remedy, and the checkpoint and merge carry it in
-              their refusal's detail
-            - each succeeds once the clone holds it
-            - the read-only lane command refuses `project-identity-unavailable` through its existing refused envelope
-              and succeeds once the ID is available, while its in-repo absent-identity behavior stays unchanged
+        - Direct and lazy identity reads retain the invocation's project-ID reader. Command, status, and integration
+          refusals keep port text and commands, with submitted requests retained for stdin retries; remedy-free identity
+          error envelopes refuse. Native policy, lifecycle, checkpoint, and merge re-entry resumes after project
+          restoration, retaining exact primary owners and unchanged native boundaries.
 
 ### `[ ]` **4.4 Resolve the checkout's work unit and Errand through the store from the flip — § 12.4**
 

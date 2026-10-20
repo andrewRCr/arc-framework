@@ -17,6 +17,10 @@ import {
 } from "../scripts/integration/checkpoint.js";
 import { createIntegrationCheckpointDependencies } from "../scripts/integration/checkpoint-composition.js";
 import { createIntegrationMergeDependencies } from "../scripts/integration/merge-composition.js";
+import { resolveReviewInvocation, type ReviewInvocationInput, type ReviewInvocationOptions } from "../scripts/review-gate/runtime/invocation.js";
+import { resolveNamedReviewWorkUnitInvocation } from "../scripts/review-gate/runtime/review-work-unit.js";
+import { ProjectIdentityError } from "../lib/store/project-identity.js";
+import { spineRemedy } from "../scripts/integration/spine-refusal.js";
 import {
   IntegrationMergeResultSchema,
   mergeIntegration,
@@ -87,8 +91,17 @@ export interface IntegrationMergeHandlerDependencies {
 }
 
 function stableOperationFailureDetail(error: unknown): string {
-  const detail = (error instanceof Error ? error.message : String(error)).replace(/\s+/gu, " ").trim();
+  const message = error instanceof ProjectIdentityError && error.failure.remedy.argv !== undefined
+    ? spineRemedy(error.failure.reason, error.failure.remedy.text, error.failure.remedy.argv).text
+    : error instanceof Error ? error.message : String(error);
+  const detail = message.replace(/\s+/gu, " ").trim();
   return (detail || "The integration operation failed without diagnostic detail.").slice(0, 4_096);
+}
+
+async function resolveIntegrationReviewInvocation(options: ReviewInvocationInput, workUnit: string): Promise<ReviewInvocationInput> {
+  const input = { ...options, ...resolveReviewInvocation(options) };
+  if (input.store.capabilities.stateOffBranch) await input.projectId();
+  return resolveNamedReviewWorkUnitInvocation(input, workUnit);
 }
 
 /** Run the integration checkpoint for one exact work-unit name. */
@@ -97,13 +110,14 @@ export async function handleIntegrationCheckpoint(
   _options: IntegrationCheckpointOptions,
   interaction?: InteractionContext,
   overrides: Partial<IntegrationCheckpointHandlerDependencies> = {},
+  invocation: ReviewInvocationOptions = {},
 ): Promise<void> {
   const exec = createGitExec(interaction?.subprocess);
   const dependencies: IntegrationCheckpointHandlerDependencies = {
     resolveRoot: () => resolveArcRoot(),
-    checkpoint: (root, workUnit) => checkpointIntegration(
+    checkpoint: async (root, workUnit) => checkpointIntegration(
       { schemaVersion: 1, workUnit },
-      createIntegrationCheckpointDependencies({ cwd: root, exec }),
+      createIntegrationCheckpointDependencies(await resolveIntegrationReviewInvocation({ ...invocation, cwd: root, exec }, workUnit)),
     ),
     write: (text) => process.stdout.write(text),
     setExitCode: (code) => { process.exitCode = code; },
@@ -146,13 +160,14 @@ export async function handleIntegrationMerge(
   options: IntegrationMergeOptions,
   interaction?: InteractionContext,
   overrides: Partial<IntegrationMergeHandlerDependencies> = {},
+  invocation: ReviewInvocationOptions = {},
 ): Promise<void> {
   const exec = createGitExec(interaction?.subprocess);
   const dependencies: IntegrationMergeHandlerDependencies = {
     resolveRoot: () => resolveArcRoot(),
-    merge: (root, workUnit, checkpoint) => mergeIntegration(
+    merge: async (root, workUnit, checkpoint) => mergeIntegration(
       { schemaVersion: 1, workUnit, checkpointHandle: checkpoint },
-      createIntegrationMergeDependencies({ cwd: root, exec, workUnit }),
+      createIntegrationMergeDependencies({ ...await resolveIntegrationReviewInvocation({ ...invocation, cwd: root, exec }, workUnit), workUnit }),
     ),
     write: (text) => process.stdout.write(text),
     setExitCode: (code) => { process.exitCode = code; },

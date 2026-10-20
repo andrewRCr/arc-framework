@@ -6,7 +6,7 @@ import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-s
 import { LocalAttestCommandError, LocalAttestRequestSchema } from "./local-attest-command.js";
 import { LocalResumeCommandError, LocalResumeRequestSchema } from "./local-resume-command.js";
 import { resolveReviewOperationInvocation, ReviewContinuationReferenceError } from "./continuation-invocation.js";
-import { resolveReviewInvocation, type ReviewInvocationInput } from "./invocation.js";
+import { resolveReviewInvocation, type ReviewInvocationInput, type ReviewInvocationContext } from "./invocation.js";
 import { readLocalReviewLiveContext, type ResolvedLocalReviewLiveContext } from "../hosts/local/live-context.js";
 import { resolveLocalReviewVehicle } from "../hosts/local/review-authority.js";
 
@@ -14,6 +14,16 @@ import { resolveLocalReviewVehicle } from "../hosts/local/review-authority.js";
 export interface LocalReviewInvocationInput extends ReviewInvocationInput {
   localLiveContext?: Promise<ResolvedLocalReviewLiveContext>;
   rawGit?: RawGitExec;
+}
+
+/** Retain the current primary for policy reads while leaving vehicle admission with its existing consumer. */
+export async function resolveReviewPolicyInvocation(options: ReviewInvocationInput): Promise<ReviewInvocationInput & ReviewInvocationContext> {
+  const input = { ...options, ...resolveReviewInvocation(options) };
+  if (!input.store.capabilities.stateOffBranch) return input;
+  await input.projectId();
+  if (input.workItem !== undefined) return input;
+  const live = await readLocalReviewLiveContext(input);
+  return { ...input, ...(live.workItem === undefined ? {} : { workItem: live.workItem }) };
 }
 
 /** Resolve the existing local vehicle, retaining its exact primary while preserving an already bound owner. */

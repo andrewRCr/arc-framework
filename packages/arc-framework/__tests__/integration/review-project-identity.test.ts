@@ -5,7 +5,9 @@ import { expect, it } from "vitest";
 import { createReviewRepositoryHarness } from "../helpers/store/review-differential.js";
 import { ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { TransientIdentityRecordSchema } from "../../src/lib/errand/identity-record.js";
-import { handleReviewLocalPrepare, handleReviewFrontlineResolve, handleReviewHostedAwait, handleReviewLaneRead, handleReviewStatus, handleReviewReduce } from "../../src/handlers/review.js";
+import { handleReviewLocalPrepare, handleReviewFrontlineResolve, handleReviewHostedAwait, handleReviewLaneRead, handleReviewStatus, handleReviewReduce, handleReviewResolve } from "../../src/handlers/review.js";
+import { resolveReviewRouting } from "../../src/scripts/review-gate/policy/routing.js";
+import { projectStandardReviewObligation } from "../../src/scripts/review-gate/policy/standard-review-projection.js";
 
 import { ProjectIdentityError } from "../../src/lib/store/project-identity.js";
 
@@ -47,6 +49,29 @@ async function fixture() {
   const invocation = { store: h.reference.store, workItem: primary.reference.owner };
   return { ...h, cwd, base, head, invocation };
 }
+
+it("repairs default policy resolution without injecting the Errand owner", async () => {
+  const h = await fixture(), originalCwd = process.cwd();
+  const target = { repository: "owner/repo", pullRequest: null, headSha: h.head };
+  const request = { schemaVersion: 1, target, lane: "standard", frontlineActive: false,
+    standardReview: projectStandardReviewObligation(resolveReviewRouting({}).decision), completedPasses: 0,
+    attempts: [], scopeSelection: { mode: "whole-target", target } };
+  const run = async () => {
+    let output = "";
+    await handleReviewResolve("-", { resolveRoot: () => h.cwd, readText: async () => JSON.stringify(request),
+      write: value => { output += value; }, setExitCode: () => {} }, undefined, { store: h.reference.store });
+    return JSON.parse(output) as unknown;
+  };
+  try {
+    process.chdir(h.cwd);
+    expect(await run()).toMatchObject({ error: { code: "project-identity-unavailable" },
+      remedy: { argv: ["arc", "review", "resolve", "-"], stdin: request } });
+    await h.reference.seedProject(projectId);
+    const result = await run();
+    expect(result, JSON.stringify(result)).toMatchObject({ mode: "review-resolve", state: "ready",
+      payload: { sourceId: "delegated-agent" } });
+  } finally { process.chdir(originalCwd); await h.cleanup(); }
+}, 30_000);
 
 it("refuses local preparation without a project ID, carries its request, then prepares after repair", async () => {
   const h = await fixture(), originalCwd = process.cwd();

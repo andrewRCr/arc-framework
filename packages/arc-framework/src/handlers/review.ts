@@ -8,7 +8,7 @@ import { resolveHostedAwaitInvocation, resolveHostedRequestInvocation, retainHos
   hostedRequestIndexWorkItem } from "../scripts/review-gate/runtime/hosted-invocation.js";
 import { resolveReviewSourceInvocation } from "../scripts/review-gate/runtime/source-invocation.js";
 import { retainReviewOperationReference, reviewContinuationRequestError, resolveReviewOperationInvocation } from "../scripts/review-gate/runtime/continuation-invocation.js";
-import { resolveLocalReviewInvocation, resolveLocalReviewResumeInvocation, resolveLocalReviewAttestInvocation } from "../scripts/review-gate/runtime/local-review-invocation.js";
+import { resolveLocalReviewInvocation, resolveLocalReviewResumeInvocation, resolveLocalReviewAttestInvocation, resolveReviewPolicyInvocation } from "../scripts/review-gate/runtime/local-review-invocation.js";
 import { resolveReduceInvocation } from "../scripts/review-gate/runtime/reduce-invocation.js";
 import { resolveFrontlineRunInvocation } from "../scripts/review-gate/runtime/frontline-invocation.js";
 import { createReviewCompositionContext } from "../scripts/review-gate/runtime/composition-context.js";
@@ -1720,7 +1720,7 @@ async function resolveConfiguredReviewPolicy(
       readFile: (path) => readFile(path, "utf8"),
     }),
   });
-  const bound = resolveReviewInvocation({ ...invocation, cwd: root, exec });
+  const bound = await resolveReviewPolicyInvocation({ ...invocation, cwd: root, exec });
   const { publisher, family } = createReviewCompositionContext({ ...bound, cwd: root, exec });
   const operationStore = family.ports.inFlight;
   const dispositionStore = family.ports.dispositions;
