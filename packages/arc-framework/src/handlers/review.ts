@@ -3,7 +3,9 @@ import { ProjectIdentityError } from "../lib/store/project-identity.js";
 import { projectIdentitySpineRemedy, reviewProjectIdentityRequestRemedy } from "../scripts/review-gate/runtime/project-identity-remedy.js";
 import { decodePrePublicationReplay, replayTokenFromAction, type PrePublicationReplayInput } from "../scripts/review-gate/policy/pre-publication-replay.js";
 import { ReviewLaneReadRequestSchema, ReviewLaneReadEnvelopeSchema, type ReviewLaneReadRequest } from "../scripts/review-gate/lane-read-schema.js";
-import { createReviewInvocationResolver, resolveReviewInvocation, type ReviewInvocationOptions, type ReviewInvocationContext } from "../scripts/review-gate/runtime/invocation.js";
+import { createReviewInvocationResolver, resolveReviewInvocation, type ReviewInvocationOptions, type ReviewInvocationContext, type ReviewInvocationInput } from "../scripts/review-gate/runtime/invocation.js";
+import { resolveHostedAwaitInvocation, resolveHostedRequestInvocation, retainHostedRequestReference, retainHostedAwaitReference,
+  hostedRequestIndexWorkItem } from "../scripts/review-gate/runtime/hosted-invocation.js";
 import { retainReviewOperationReference, reviewContinuationRequestError, resolveReviewOperationInvocation } from "../scripts/review-gate/runtime/continuation-invocation.js";
 import { resolveLocalReviewInvocation, resolveLocalReviewResumeInvocation, resolveLocalReviewAttestInvocation } from "../scripts/review-gate/runtime/local-review-invocation.js";
 import { resolveReduceInvocation } from "../scripts/review-gate/runtime/reduce-invocation.js";
@@ -58,6 +60,7 @@ import {
 } from "../lib/store/kinds/review/candidate/access.js";
 import { readRepositoryCandidateSupersessionChain } from "../lib/store/kinds/review/candidate/history.js";
 import type { Store } from "../lib/store/contract.js";
+import { sameOwner } from "../lib/store/identity.js";
 import type {
   CandidateManagedRecordV1,
   CandidateSupersessionAncestor,
@@ -2207,8 +2210,9 @@ function emitHostedReviewError(
   remedy?: SpineRemedy,
 ): void {
   const remedyFor = remedy === undefined ? undefined : () => remedy;
+  const requestError = reviewContinuationRequestError(mode, error, phase === "request");
   dependencies.write(
-    `${JSON.stringify(reviewCommandError(mode, error, phase, ReviewCommandErrorEnvelopeSchema, remedyFor))}\n`,
+    `${JSON.stringify(reviewCommandError(mode, requestError, phase, ReviewCommandErrorEnvelopeSchema, remedyFor))}\n`,
   );
   dependencies.setExitCode(1);
 }
@@ -2240,12 +2244,12 @@ function defaultHostedHandlerBoundary(): HostedReviewHandlerBoundary {
   };
 }
 
-function createHostedAdapters(): {
+function createHostedAdapters(runner: HostedProcessRunner = hostedGhRunner): {
   adapters: readonly HostedReviewAdapter[];
   observers: readonly HostedReviewObserver[];
   port: HostedSettlementPort;
 } {
-  const port = new GhHostedReviewPort(hostedGhRunner);
+  const port = new GhHostedReviewPort(runner);
   const adapters = [
     new CodeRabbitHostedAdapter(port),
     new CodexHostedAdapter(port),
@@ -3048,6 +3052,12 @@ export { handleReviewRequestSchema, type ReviewPublicRequestSchemaId } from "./r
 /** Operational authority and optional external Git boundaries for review handlers. */
 export interface ReviewHandlerInvocationOptions extends ReviewInvocationOptions { exec?: GitExec; rawGit?: RawGitExec }
 
+/** Originating checkout and GitHub process boundaries for hosted handlers. */
+export interface HostedReviewHandlerInvocationOptions extends ReviewHandlerInvocationOptions {
+  cwd?: string;
+  hostedRunner?: HostedProcessRunner;
+}
+
 export interface ReviewLocalPrepareHandlerDependencies {
   resolveRoot(cwd: string): string | null;
   readText(source: string): Promise<string>;
@@ -3437,7 +3447,8 @@ function indexedLaneMatchesOwner(
   return state.lane === "standard"
     && state.repositoryId === owner.repositoryId
     && state.operationId === owner.operationId
-    && laneSubjectOwnerMatches(state.lineage, owner.lineage);
+    && laneSubjectOwnerMatches(state.lineage, owner.lineage)
+    && (owner.workItem === undefined || (state.workItem !== undefined && sameOwner(state.workItem, owner.workItem)));
 }
 
 function indexedAttemptMatches(
@@ -3504,13 +3515,13 @@ async function indexedOwnerPassCompleted(
 async function readDurableHostedRequestReplay(input: {
   invocation?: ReviewInvocationOptions;
   store: Pick<ReviewOperationStateStore, "readOperation">;
-  index: HostedRequestOwnerIndex;
+  owner: HostedRequestOwnerIndexRecord | null;
   repositoryId: string;
   request: HostedRequestEnvelope;
   root: string;
   exec: GitExec;
 }): Promise<HostedRequestAdmissionResolution | null> {
-  const owner = await input.index.read(input.repositoryId, input.request);
+  const owner = input.owner;
   if (owner === null) return null;
   if (owner.lineage.kind === "head-bound" && owner.lineage.vehicleKind === "errand"
     && !await indexedErrandClaimIsCurrent(input.root, owner.lineage.vehicleIdentity, input.exec, input.invocation)) {
@@ -3524,6 +3535,18 @@ async function readDurableHostedRequestReplay(input: {
   if (state.completedPasses > owner.completedPassesAtAdmission) return null;
   const matches = state.attempts.filter((attempt) => indexedAttemptMatches(attempt, owner, input.request));
   return projectIndexedMatches(matches, owner, input.request);
+}
+
+async function readHostedRequestContext(input: ReviewInvocationInput & {
+  index: HostedRequestOwnerIndex; repositoryId: string; request: HostedRequestEnvelope;
+}) {
+  const owner = await input.index.read(input.repositoryId, input.request);
+  const selected = await resolveHostedRequestInvocation(input, input.request, owner);
+  const context = createReviewCompositionContext(selected);
+  const replay = await readDurableHostedRequestReplay({ owner, invocation: context,
+    store: context.family.ports.inFlight, repositoryId: input.repositoryId, request: input.request,
+    root: input.cwd, exec: input.exec });
+  return { ...context, replay };
 }
 
 class HostedRequestOwnerCollision extends Error {}
@@ -3560,7 +3583,7 @@ async function resumeReservedHostedRequest(input: ReviewInvocationOptions & {
     return projectHostedRequestAdmissionResolution(request, { state: "ambiguous-delivery" });
   }
   const store = current.store;
-  return requestHostedReview(request, {
+  const result = await requestHostedReview(request, {
     adapters,
     deliveryMemberLookup: new RepositoryDeliveryMemberLookup({ exec, cwd: root }),
     ...(replay.admission.vehicle?.kind === "errand"
@@ -3586,6 +3609,7 @@ async function resumeReservedHostedRequest(input: ReviewInvocationOptions & {
       });
     },
   });
+  return retainHostedRequestReference({ ...input, cwd: root }, result);
 }
 
 async function executeDefaultHostedRequest(
@@ -3596,35 +3620,28 @@ async function executeDefaultHostedRequest(
   adapters: readonly HostedReviewAdapter[],
   port: ReturnType<typeof createHostedAdapters>["port"],
   invocation: ReviewInvocationOptions = {},
+  runner: HostedProcessRunner = hostedGhRunner,
 ): Promise<unknown> {
   if (root === null || publisher === null) throw new Error("Hosted review requires an ARC project.");
-  const bound = resolveReviewInvocation({ ...invocation, cwd: root, exec });
-  const { family } = createReviewCompositionContext({ ...bound, cwd: root, exec });
+  const initial = resolveReviewInvocation({ ...invocation, cwd: root, exec });
   const request = HostedRequestEnvelopeSchema.parse(input);
   const index = new HostedRequestOwnerIndex(publisher);
-  const repositoryId = await resolveRepositoryIdentity(publisher, undefined, bound);
+  const repositoryId = await resolveRepositoryIdentity(publisher, undefined, initial);
   return withRepositoryReviewOperationLock(
     exec,
     root,
     index.lockId(repositoryId, request),
     10_000,
     async () => {
-      const replay = await readDurableHostedRequestReplay({
-        store: family.ports.inFlight,
-        invocation: bound,
-        index,
-        repositoryId,
-        request,
-        root,
-        exec,
-      });
+      const { family, replay, ...bound } = await readHostedRequestContext({ ...initial, cwd: root, exec,
+        index, repositoryId, request });
       if (replay?.state === "admitted") {
         return resumeReservedHostedRequest({ ...bound, root, exec, publisher, index, repositoryId, request, replay, adapters });
       }
       if (replay !== null) {
         const result = projectHostedRequestAdmissionResolution(request, replay);
         if (result === null) throw new Error("Hosted request replay unexpectedly admitted fresh dispatch.");
-        return result;
+        return retainHostedRequestReference({ ...bound, cwd: root, exec }, result);
       }
       const deliveryVehicle = request.vehicle?.kind === "delivery-member" ? request.vehicle : null;
       const deliveryMemberLookup = new RepositoryDeliveryMemberLookup({ exec, cwd: root });
@@ -3678,7 +3695,7 @@ async function executeDefaultHostedRequest(
             cwd: root,
             exec,
             delivery: deliveryMemberLookup,
-            host: new GhDeliveryHostPort(hostedGhRunner),
+            host: new GhDeliveryHostPort(runner),
           });
           const dischargeInput = {
             reservation: context.reservation,
@@ -3772,7 +3789,7 @@ async function executeDefaultHostedRequest(
             ...bound,
             cwd: root,
             exec,
-            host: new GhDeliveryHostPort(hostedGhRunner),
+            host: new GhDeliveryHostPort(runner),
           });
           const dischargeInput = {
             reservation: context.reservation,
@@ -3908,6 +3925,7 @@ async function executeDefaultHostedRequest(
                   // Reserve after read-only validation, before conditional authority is consumed.
                   const reservation = await index.reserve({
                     repositoryId: context.repositoryId,
+                    workItem: hostedRequestIndexWorkItem(bound),
                     request: admittedRequest,
                     lineage: context.lineage,
                     logicalPass: capacity.logicalPass,
@@ -3963,20 +3981,20 @@ async function executeDefaultHostedRequest(
           });
         },
       });
-      return result;
+      return retainHostedRequestReference({ ...bound, cwd: root, exec }, result);
     },
   );
 }
 
-function defaultHostedRequestDependencies(context: InteractionContext, invocation: ReviewInvocationOptions = {}): ReviewHostedRequestHandlerDependencies {
-  const { adapters, port } = createHostedAdapters();
-  const root = resolveArcRoot(process.cwd());
-  const exec = createGitExec(context.subprocess);
+function defaultHostedRequestDependencies(context: InteractionContext, invocation: HostedReviewHandlerInvocationOptions = {}): ReviewHostedRequestHandlerDependencies {
+  const { adapters, port } = createHostedAdapters(invocation.hostedRunner);
+  const root = resolveArcRoot(invocation.cwd ?? process.cwd());
+  const exec = invocation.exec ?? createGitExec(context.subprocess);
   const bound = root === null ? invocation : resolveReviewInvocation({ ...invocation, cwd: root, exec });
   const publisher = root === null ? null : new RepositoryGitCommonStatePublisher(exec, root);
   return {
     ...defaultHostedHandlerBoundary(),
-    request: (input) => executeDefaultHostedRequest(input, root, publisher, exec, adapters, port, bound),
+    request: (input) => executeDefaultHostedRequest(input, root, publisher, exec, adapters, port, bound, invocation.hostedRunner),
   };
 }
 
@@ -3984,7 +4002,7 @@ export async function handleReviewHostedRequest(
   source: string,
   overrides: Partial<ReviewHostedRequestHandlerDependencies> = {},
   suppliedContext?: InteractionContext,
-  invocation: ReviewInvocationOptions = {},
+  invocation: HostedReviewHandlerInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false,
@@ -4014,10 +4032,10 @@ export interface ReviewHostedAwaitHandlerDependencies extends HostedReviewHandle
   awaitResult(input: unknown): Promise<unknown>;
 }
 
-function defaultHostedAwaitDependencies(context: InteractionContext, invocation: ReviewInvocationOptions = {}): ReviewHostedAwaitHandlerDependencies {
-  const { observers } = createHostedAdapters();
-  const root = resolveArcRoot(process.cwd());
-  const exec = createGitExec(context.subprocess);
+function defaultHostedAwaitDependencies(context: InteractionContext, invocation: HostedReviewHandlerInvocationOptions = {}): ReviewHostedAwaitHandlerDependencies {
+  const { observers } = createHostedAdapters(invocation.hostedRunner);
+  const root = resolveArcRoot(invocation.cwd ?? process.cwd());
+  const exec = invocation.exec ?? createGitExec(context.subprocess);
   const bound = root === null ? invocation : resolveReviewInvocation({ ...invocation, cwd: root, exec });
   const publisher = root === null ? null : new RepositoryGitCommonStatePublisher(exec, root);
   return {
@@ -4025,8 +4043,9 @@ function defaultHostedAwaitDependencies(context: InteractionContext, invocation:
     awaitResult: async (input) => {
       if (publisher === null || root === null) throw new Error("Hosted review requires an ARC project.");
       const request = HostedAwaitEnvelopeSchema.parse(input);
-      const store = createReviewCompositionContext({ ...bound, cwd: root, exec }).family.ports.inFlight;
-      const repositoryId = await resolveRepositoryIdentity(publisher, undefined, bound);
+      const selected = await resolveHostedAwaitInvocation({ ...bound, cwd: root, exec }, request);
+      const store = createReviewCompositionContext(selected).family.ports.inFlight;
+      const repositoryId = await resolveRepositoryIdentity(publisher, undefined, selected);
       if (request.handle.admission.repositoryId !== repositoryId) {
         throw new Error("Hosted await does not match the current repository.");
       }
@@ -4052,7 +4071,7 @@ function defaultHostedAwaitDependencies(context: InteractionContext, invocation:
         && resolved.hostedResultId === null) {
         throw new Error("Hosted terminal result was not durably sealed.");
       }
-      return result.state === "clean" || result.state === "findings"
+      const published = result.state === "clean" || result.state === "findings"
         ? {
             ...result,
             responseSourceRef: bindReviewSourceReference({
@@ -4068,6 +4087,7 @@ function defaultHostedAwaitDependencies(context: InteractionContext, invocation:
             }),
           }
         : result;
+      return retainHostedAwaitReference(selected, published);
     },
   };
 }
@@ -4076,7 +4096,7 @@ export async function handleReviewHostedAwait(
   source: string,
   overrides: Partial<ReviewHostedAwaitHandlerDependencies> = {},
   suppliedContext?: InteractionContext,
-  invocation: ReviewInvocationOptions = {},
+  invocation: HostedReviewHandlerInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false,

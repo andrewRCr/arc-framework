@@ -1,6 +1,8 @@
 /** Keyed owner lookup for a hosted request before current checkout context is consulted. */
 
 import { z } from "zod";
+import type { OwnerIdentity } from "../../../../lib/store/identity.js";
+import { NativeReviewOperationReferenceSchema } from "../../core/review-operation-reference.js";
 import { CanonicalDigestSchema } from "../../../../lib/kernel/schema/vocabulary.js";
 
 import type { GitCommonStatePublisher } from "../../../../lib/git-common-state.js";
@@ -14,6 +16,7 @@ const IndexRecordSchema = z.strictObject({
   semanticsVersion: z.literal("hosted-request-owner-index/v1"),
   fingerprint: CanonicalDigestSchema,
   repositoryId: z.string().min(1),
+  workItem: NativeReviewOperationReferenceSchema.shape.workItem.optional(),
   lineage: LaneSubjectLineageSchema,
   operationId: z.string().min(1),
   logicalPass: z.number().int().positive(),
@@ -75,6 +78,7 @@ export class HostedRequestOwnerIndex {
 
   async reserve(input: {
     repositoryId: string;
+    workItem?: OwnerIdentity;
     request: HostedRequestEnvelope;
     lineage: LaneSubjectLineage;
     logicalPass: number;
@@ -88,6 +92,7 @@ export class HostedRequestOwnerIndex {
       semanticsVersion: "hosted-request-owner-index/v1",
       fingerprint: digest,
       repositoryId: input.repositoryId,
+      ...(input.workItem === undefined ? {} : { workItem: input.workItem }),
       lineage: input.lineage,
       operationId: expectedOperationId(input.repositoryId, input.request, input.lineage),
       logicalPass: input.logicalPass,

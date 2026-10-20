@@ -17,6 +17,7 @@ export class ReviewContinuationReferenceError extends Error {
 export function reviewContinuationRequestError(mode: string, error: unknown, requestPhase: boolean): unknown {
   if (!requestPhase) return error;
   const producers: Partial<Record<string, string>> = {
+    "review-hosted-await": "arc review hosted request",
     "review-frontline-run": "arc review frontline resolve",
     "review-local-resume": "arc review local prepare",
     "review-local-attest": "arc review local prepare",
