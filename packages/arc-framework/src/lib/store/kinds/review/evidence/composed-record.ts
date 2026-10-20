@@ -1,4 +1,5 @@
 /** Reconstruct native approved-disposition reads from portable producer evidence. */
+import type { OwnerIdentity } from "../../../identity.js";
 import { ApprovedDispositionRecordSchema, type ApprovedDispositionRecord, type ApprovedDispositionLineageNode } from
   "../../../../../scripts/review-gate/core/advisory-records.js";
 import { bindReviewSourceReference } from "../../../../../scripts/review-gate/core/review-source-reference.js";
@@ -42,22 +43,22 @@ function lineageNode(value: ReviewEvidence, outcome: ReviewOutcome): ApprovedDis
     predecessorDispositionSetId: value.predecessorDispositionSetId, successorDispositionSetId: value.successorDispositionSetId };
 }
 
-function producerSource(outcome: ReviewOutcome): ApprovedDispositionRecord["source"] {
+function producerSource(outcome: ReviewOutcome, workItem: OwnerIdentity): ApprovedDispositionRecord["source"] {
   if (outcome.local !== undefined) return { kind: "attested-local",
-    receiptRef: bindReviewSourceReference({ kind: "attested-local", operationId: outcome.attemptId,
+    receiptRef: bindReviewSourceReference({ repositoryId: outcome.target.repositoryId, workItem, kind: "attested-local", operationId: outcome.attemptId,
       durableRef: reviewOutcomeKey(outcome) }), localSourceRef: outcome.local.sourceDigest };
   if (outcome.frontline !== undefined) return { kind: "frontline",
-    outcomeRef: bindReviewSourceReference({ kind: "frontline", operationId: outcome.attemptId,
+    outcomeRef: bindReviewSourceReference({ repositoryId: outcome.target.repositoryId, workItem, kind: "frontline", operationId: outcome.attemptId,
       durableRef: reviewOutcomeKey(outcome) }) };
   const sealed = outcome.hosted?.sealedResult;
   if (sealed === undefined) throw new Error("Restore the sealed hosted result before reading its approvals.");
-  return { kind: "hosted", attemptRef: bindReviewSourceReference({ kind: "hosted", operationId: laneProgressOperationId({
+  return { kind: "hosted", attemptRef: bindReviewSourceReference({ repositoryId: outcome.target.repositoryId, workItem, kind: "hosted", operationId: laneProgressOperationId({
     lane: outcome.lane, repositoryId: outcome.target.repositoryId, headSha: outcome.target.headSha, lineage: outcome.lineage,
   }), durableRef: outcome.attemptId }), hostedResultId: sealed.hostedResultId };
 }
 
 /** Compose one producer's approvals with command-compatible portable source coordinates. */
-export function composeReviewDispositionRecord(outcome: ReviewOutcome, evidence: readonly ReviewEvidence[]): ApprovedDispositionRecord {
+export function composeReviewDispositionRecord(outcome: ReviewOutcome, evidence: readonly ReviewEvidence[], owner: OwnerIdentity): ApprovedDispositionRecord {
   const ordered = orderedEvidence(evidence);
   const value = ordered[0];
   const tail = ordered.at(-1);
@@ -68,7 +69,7 @@ export function composeReviewDispositionRecord(outcome: ReviewOutcome, evidence:
     candidate: binding !== null && "candidate" in binding ? binding.candidate : null,
     errand: binding?.kind === "errand" ? binding.errand : null,
     deliveryMember: binding !== null && "deliveryMember" in binding ? binding.deliveryMember : null,
-    source: producerSource(outcome),
+    source: producerSource(outcome, owner),
     currentDispositionSetId: tail.dispositionSet.dispositionSetId,
     approvedDispositionLineage: ordered.map((entry) => lineageNode(entry, outcome)),
   });

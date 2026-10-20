@@ -1,4 +1,5 @@
 /** Default local review handlers select native checkout authority before binding durable ports. */
+import { createRepositoryReviewResultReader } from "../../../src/scripts/review-gate/hosts/local/review-result-reader-composition.js";
 import { withReviewReport } from "../../fixtures/review-report-input.js";
 import type { LocalReviewEvaluatorResult } from "../../../src/scripts/review-gate/core/local-review-result.js";
 import { parseReviewSourceReference } from "../../../src/scripts/review-gate/core/review-source-reference.js";
@@ -122,7 +123,12 @@ async function fixture(project = true, vehicle: "work-unit" | "errand" = "errand
   const referenceFor = (operationId: string, override?: ContinuationOverride) => override === undefined
     ? references.get(operationId) : override.operationRef;
   const operations = new LocalReviewOperationStateStore(new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd));
-  return { ...checkout, claimId, request, operations, respond: async (input: unknown) => {
+  return { ...checkout, claimId, request, operations, readResult: async (operationId: string, workItem?: OwnerIdentity) => {
+    const reference = parseNativeReviewOperationReference(references.get(operationId) ?? "");
+    return createRepositoryReviewResultReader(new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd), {
+      store: checkout.store, workItem: workItem ?? reference.workItem, projectId: createProjectIdentityReader(checkout.store),
+    }).readResult(operationId);
+  }, respond: async (input: unknown) => {
     let output = "";
     await handleReviewRespond("-", { resolveRoot: () => checkout.cwd, readText: async () => JSON.stringify(input),
       write: text => { output += text; }, setExitCode: () => {} }, undefined,
@@ -458,4 +464,19 @@ it.each(["work-unit", "errand"] as const)("binds a %s response proposal from the
         rationale: "The selected source supports the finding.", recommendation: "Retain the target facts.", openQuestions: [] })) } });
   const response = await h.respond(request);
   expect(response, JSON.stringify(response)).toMatchObject({ state: "awaiting-approval", nextAction: "obtain-approval" });
+});
+
+it("retains the selected native result owner and refuses another owner before returning its evidence", async () => {
+  const h = await fixture(true, "errand", false);
+  const prepared = LocalPrepareEnvelopeSchema.parse(await h.run());
+  if (prepared.state !== "ready" || prepared.payload.operationRef === undefined) throw new Error(JSON.stringify(prepared));
+  const owner = parseNativeReviewOperationReference(prepared.payload.operationRef).workItem;
+  const attested = await h.attest(prepared.payload.operationId, undefined, { status: "complete", result: "findings",
+    evaluatorIdentity: "fresh-reviewer", reviewRunId: "completed-run", applicabilityId: null,
+    findings: [{ findingId: "source-retention", severity: "major", locus: "src/example.ts:7", evidenceUrlOrId: "source:src/example.ts:7" }] });
+  expect(attested, JSON.stringify(attested)).toMatchObject({ state: "attested-current" });
+  expect(await h.readResult(prepared.payload.operationId)).toMatchObject({ workItem: owner });
+  const other = await h.seedMeta("another", { branch: null });
+  await expect(h.readResult(prepared.payload.operationId, other.reference.owner)).rejects.toThrow(/owner/u);
+  expect(await h.readResult(prepared.payload.operationId)).toMatchObject({ workItem: owner });
 });

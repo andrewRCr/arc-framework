@@ -1,6 +1,7 @@
 /** Opaque command references that bind durable review records to their operation. */
 
 import { z } from "zod";
+import { sameOwner, type OwnerIdentity } from "../../../lib/store/identity.js";
 
 import { ReviewIdentifierSchema } from "./gate-contract-v2-schema.js";
 import { NativeReviewOperationReferenceSchema } from "./review-operation-reference.js";
@@ -75,4 +76,16 @@ export function parseReviewSourceReference(
     operationId: ReviewIdentifierSchema.parse(operationId),
     durableRef: DurableReferenceSchema.parse(durableRef),
   };
+}
+
+/** Selected storage coordinates supplied by an already bound reader or composition. */
+export interface ReviewSourceReferenceOwner { repositoryId: string; workItem: OwnerIdentity }
+
+/** Decode a source within its bound owner, preserving legacy internal calls and repository rejection. */
+export function parseReviewSourceReferenceForOwner(reference: string, kind: BoundReviewSourceReference["kind"],
+  owner?: ReviewSourceReferenceOwner): BoundReviewSourceReference {
+  const parsed = parseReviewSourceReference(reference, kind, owner !== undefined);
+  if ("workItem" in parsed && (owner === undefined || parsed.repositoryId !== owner.repositoryId
+    || !sameOwner(parsed.workItem, owner.workItem))) throw new Error("review source reference owner mismatch");
+  return parsed;
 }

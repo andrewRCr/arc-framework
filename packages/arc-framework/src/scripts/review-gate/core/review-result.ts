@@ -1,5 +1,6 @@
 /** Immutable producer results normalized across local, frontline, and hosted review sources. */
 
+import type { OwnerIdentity } from "../../../lib/store/identity.js";
 import type { DeliveryReviewMemberVehicle } from "../../../lib/delivery/review-vehicle.js";
 import type { CanonicalDigest } from "../../../lib/kernel/index.js";
 import type { FrontlineExecutableIdentity } from "./advisory-records.js";
@@ -33,6 +34,8 @@ export interface ReviewResultAdmissionContext {
 }
 
 interface ReviewResultBase {
+  /** Selected native storage owner; excluded from every producer and approval identity. */
+  workItem?: OwnerIdentity;
   producerId: string;
   repositoryId: string;
   target: ReviewTarget;

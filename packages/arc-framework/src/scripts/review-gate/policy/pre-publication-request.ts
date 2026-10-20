@@ -529,24 +529,27 @@ export function currentDispositionSettled(
 
 /** Preserve a bound response route until the approved disposition and exact lane settlement both finish. */
 export function projectPendingResponseSource(
-  result: Pick<Extract<ReviewResult, { kind: "attested-local" }>, "kind" | "producerId" | "receiptRef">
+  result: (Pick<Extract<ReviewResult, { kind: "attested-local" }>, "kind" | "producerId" | "receiptRef">
     | Pick<Extract<ReviewResult, { kind: "frontline" }>, "kind" | "producerId" | "outcomeRef">
-    | Pick<Extract<ReviewResult, { kind: "hosted" }>, "kind" | "producerId" | "laneOperationId">,
+    | Pick<Extract<ReviewResult, { kind: "hosted" }>, "kind" | "producerId" | "laneOperationId">) & Partial<Pick<ReviewResult, "repositoryId" | "workItem">>,
   responseStatus: "performed" | "incomplete",
   terminalSettled: boolean,
 ): z.infer<typeof ReviewResponseSettlementSourceSchema> | null {
   if (responseStatus === "performed" && terminalSettled) return null;
+  if (result.workItem !== undefined && result.repositoryId === undefined) throw new Error("Restore the native result's project identity.");
+  const owner = result.workItem !== undefined && result.repositoryId !== undefined
+    ? { repositoryId: result.repositoryId, workItem: result.workItem } : {};
   if (result.kind === "attested-local") {
-    return { kind: "attested-local", receiptRef: bindReviewSourceReference({
+    return { kind: "attested-local", receiptRef: bindReviewSourceReference({ ...owner,
       kind: "attested-local", operationId: result.producerId, durableRef: result.receiptRef,
     }) };
   }
   if (result.kind === "frontline") {
-    return { kind: "frontline", outcomeRef: bindReviewSourceReference({
+    return { kind: "frontline", outcomeRef: bindReviewSourceReference({ ...owner,
       kind: "frontline", operationId: result.producerId, durableRef: result.outcomeRef,
     }) };
   }
-  return { kind: "hosted", attemptRef: bindReviewSourceReference({
+  return { kind: "hosted", attemptRef: bindReviewSourceReference({ ...owner,
     kind: "hosted", operationId: result.laneOperationId, durableRef: result.producerId,
   }) };
 }

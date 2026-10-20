@@ -1,3 +1,4 @@
+import { OwnerIdentitySchema } from "../../../../../../../src/lib/store/identity.js";
 import { describe, expect, it } from "vitest";
 import { storedLocalApproval } from "../../../../../../fixtures/review-family-access.js";
 import { bindReviewSourceReference } from "../../../../../../../src/scripts/review-gate/core/review-source-reference.js";
@@ -13,13 +14,16 @@ import { ReviewEvidenceSchema } from "../../../../../../../src/lib/store/kinds/r
 import { laneProgressOperationId } from "../../../../../../../src/scripts/review-gate/lane-progress.js";
 import { createProjectIdentityReader } from "../../../../../../../src/lib/store/project-identity.js";
 
+const owner = OwnerIdentitySchema.parse({ type: "work-item", name: "example",
+  uid: "14bc6336-193b-4d7a-9380-1b4ca79a714b" });
+
 describe("composed approved disposition records", () => {
   it("reproduces the native local approval with portable source coordinates", async () => {
-    const { evidence, original, outcome, fixture, harness } = await storedLocalApproval();
+    const { evidence, original, outcome, fixture, harness, owner } = await storedLocalApproval();
     expect(await createProjectIdentityReader(harness.store)()).toBe(fixture.state.repositoryId);
     expect(await evidence.readDispositionRecord(original.operationId)).toEqual({ ...original, source: {
       kind: "attested-local", receiptRef: bindReviewSourceReference({ kind: "attested-local",
-        operationId: original.operationId, durableRef: reviewOutcomeKey(outcome) }),
+        operationId: original.operationId, durableRef: reviewOutcomeKey(outcome), repositoryId: outcome.target.repositoryId, workItem: owner }),
       localSourceRef: fixture.state.sourceDigest,
     } });
   });
@@ -48,7 +52,7 @@ describe("composed approved disposition records", () => {
   });
 
   it("orders a native approval lineage by edges and preserves each set's optional tags", async () => {
-    const { evidence, original, outcome, harness } = await storedLocalApproval();
+    const { evidence, original, outcome, harness, owner } = await storedLocalApproval();
     const prior = (await evidence.read(original.currentDispositionSetId))!;
     const { dispositionSetId: ignored, ...fields } = prior.value.dispositionSet;
     void ignored;
@@ -82,28 +86,28 @@ describe("composed approved disposition records", () => {
     const composed = await evidence.readDispositionRecord(original.operationId);
     expect(composed).toEqual({ ...expected, source: { kind: "attested-local",
       receiptRef: bindReviewSourceReference({ kind: "attested-local", operationId: original.operationId,
-        durableRef: reviewOutcomeKey(outcome) }), localSourceRef: outcome.local!.sourceDigest } });
+        durableRef: reviewOutcomeKey(outcome), repositoryId: outcome.target.repositoryId, workItem: owner }), localSourceRef: outcome.local!.sourceDigest } });
     expect(composed?.approvedDispositionLineage[0]).not.toHaveProperty("advisoryFixTags");
   });
 
   it.each(["errand", "delivery-member"] as const)("retains the complete native %s performed response", (kind) => {
     const { outcome, value } = performedEvidenceFixture(kind);
-    const composed = composeReviewDispositionRecord(outcome, [ReviewEvidenceSchema.parse(value)]);
+    const composed = composeReviewDispositionRecord(outcome, [ReviewEvidenceSchema.parse(value)], owner);
     const node = composed.approvedDispositionLineage[0]!;
     expect(kind === "errand" ? node.errandFixResponse : node.deliveryMemberFixResponse).toEqual(value.performance.fixResponse);
     expect(node.fixAuthorization?.fixAuthorizationId).toBe(value.performance.fixResponse!.fixConsumption.fixAuthorizationId);
     if (outcome.hosted !== undefined) expect(composed.source).toEqual({ kind: "hosted",
       attemptRef: bindReviewSourceReference({ kind: "hosted", operationId: laneProgressOperationId({
         lane: outcome.lane, repositoryId: outcome.target.repositoryId, headSha: outcome.target.headSha, lineage: outcome.lineage,
-      }), durableRef: outcome.attemptId }), hostedResultId: outcome.hosted.sealedResult!.hostedResultId });
+      }), durableRef: outcome.attemptId, repositoryId: outcome.target.repositoryId, workItem: owner }), hostedResultId: outcome.hosted.sealedResult!.hostedResultId });
     expect(ApprovedDispositionRecordSchema.safeParse(composed).success).toBe(true);
   });
 
   it("binds frontline source coordinates to the stored outcome while retaining its private-member owner", () => {
     const { outcome, value } = privateMemberEvidenceFixture();
-    const composed = composeReviewDispositionRecord(outcome, [value]);
+    const composed = composeReviewDispositionRecord(outcome, [value], owner);
     expect(composed.source).toEqual({ kind: "frontline", outcomeRef: bindReviewSourceReference({
-      kind: "frontline", operationId: outcome.attemptId, durableRef: reviewOutcomeKey(outcome),
+      kind: "frontline", operationId: outcome.attemptId, durableRef: reviewOutcomeKey(outcome), repositoryId: outcome.target.repositoryId, workItem: owner,
     }) });
     if (value.binding?.kind !== "candidate-member") throw new Error("Expected native private-member binding");
     expect(composed.candidate).toEqual(value.binding.candidate);

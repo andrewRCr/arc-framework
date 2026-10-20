@@ -23,7 +23,7 @@ export function createReviewEvidencePort(store: Store, owner: OwnerIdentity): Re
     if (first === undefined) return null;
     const outcome = await outcomes.read(first.result.outcomeKey);
     if (outcome === null) throw new Error(`Restore outcome ${first.result.outcomeKey} before reading its approved responses.`);
-    return composeReviewDispositionRecord(outcome.value, evidence);
+    return composeReviewDispositionRecord(outcome.value, evidence, outcome.reference.owner);
   };
   return { read: access.read, list: access.list,
     create: (value) => access.write(value, null), prepareCreate: (value) => access.prepare(value, null),

@@ -1,5 +1,6 @@
 /** Git-common composition of immutable local, frontline, and hosted producer evidence. */
 
+import { sameOwner, type OwnerIdentity } from "../../../../lib/store/identity.js";
 import { ProjectIdentityError } from "../../../../lib/store/project-identity.js";
 import { canonicalDigest, canonicalize, type CanonicalDigest } from "../../../../lib/kernel/index.js";
 import { FrontlineOutcomeRecordSchema, type FrontlineOutcomeRecord } from "../../core/advisory-records.js";
@@ -259,10 +260,21 @@ export class LocalReviewResultReaderError extends Error {
 
 /** Dependencies composed from the existing native source stores. */
 export interface LocalReviewResultReaderDependencies {
+  /** Exact native owner selected before binding this reader. */
+  workItem?: OwnerIdentity;
   operationIndex: ReviewOperationStateSnapshotIndex;
   receiptIndex: ForwardReviewReceiptIndex;
   outcomeStore: FrontlineOutcomeStore;
   sourceStore: LocalReviewSourceStore;
+}
+
+function producerOwnerRecords(candidate: ProducerCandidate, records: ReviewOperationStateSnapshotRecord[],
+  workItem?: OwnerIdentity): ReviewOperationStateSnapshotRecord[] {
+  if (workItem === undefined) return records;
+  if (candidate.record.state.workItem === undefined || !sameOwner(candidate.record.state.workItem, workItem)) {
+    throw new LocalReviewResultReaderError("corrupt-result", "Restore the producer under its selected native owner.");
+  }
+  return records.filter(record => record.state.workItem !== undefined && sameOwner(record.state.workItem, workItem));
 }
 
 /** Resolve exact immutable producer evidence without introducing another persistence owner. */
@@ -278,7 +290,7 @@ export class LocalReviewResultReader implements ReviewResultReader {
           `operation snapshot is ${snapshot.status}: ${snapshot.reason}`,
         );
       }
-      const records = snapshot.records.map((record) => ({
+      let records = snapshot.records.map((record) => ({
         version: record.version,
         state: ReviewOperationStateSchema.parse(record.state),
       }));
@@ -290,16 +302,14 @@ export class LocalReviewResultReader implements ReviewResultReader {
         throw new LocalReviewResultReaderError("ambiguous-result");
       }
       const candidate = candidates[0];
-      if (candidate?.kind === "local-review") {
-        return await this.readLocalResult(candidate.record, records);
-      }
-      if (candidate?.kind === "frontline-run") {
-        return await this.readFrontlineResult(candidate.record, records);
-      }
-      if (candidate?.kind === "hosted") {
-        return this.readHostedResult(candidate.record, candidate.attempt);
-      }
-      throw new LocalReviewResultReaderError("missing-result");
+      if (candidate === undefined) throw new LocalReviewResultReaderError("missing-result");
+      const workItem = this.dependencies.workItem;
+      records = producerOwnerRecords(candidate, records, workItem);
+      const result = candidate.kind === "local-review" ? await this.readLocalResult(candidate.record, records)
+        : candidate.kind === "frontline-run" ? await this.readFrontlineResult(candidate.record, records)
+          : this.readHostedResult(candidate.record, candidate.attempt);
+      return workItem === undefined ? result : { ...result, workItem };
+
     } catch (error) {
       if (error instanceof LocalReviewResultReaderError || error instanceof ProjectIdentityError) throw error;
       throw new LocalReviewResultReaderError(
