@@ -4,19 +4,23 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { readGitBlobEntries } from "../../src/lib/io-context.js";
+import { environmentForGitCwd, readGitBlobEntries } from "../../src/lib/io-context.js";
 import {
   assertIndexedMarkdownCheckerAlignment,
   resolveIndexedMarkdownCheckerPaths,
 } from "../../src/lib/markdown/checker-alignment.js";
 import { createIndexedMarkdownReader } from "../../src/lib/markdown/indexed-reader.js";
 
-const git = promisify(execFile);
+const execute = promisify(execFile);
 let root: string;
+const git = (args: readonly string[], indexFile?: string) => execute("git", [...args], {
+  cwd: root,
+  env: { ...environmentForGitCwd(root), ...(indexFile === undefined ? {} : { GIT_INDEX_FILE: indexFile }) },
+});
 
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), "arc-bulk-index-"));
-  await git("git", ["init", "-q"], { cwd: root });
+  await git(["init", "-q"]);
 });
 
 afterEach(async () => {
@@ -30,11 +34,11 @@ describe("bulk Git blob reads", () => {
     const restaged = "export const value = 2;\n";
     await mkdir(join(root, "packages/arc-framework/src"), { recursive: true });
     await writeFile(join(root, path), original);
-    await git("git", ["add", "--", path], { cwd: root });
+    await git(["add", "--", path]);
     const reader = createIndexedMarkdownReader();
     const runtimePaths = await resolveIndexedMarkdownCheckerPaths({ root, ...reader, entryPaths: [path] });
     await writeFile(join(root, path), restaged);
-    await git("git", ["add", "--", path], { cwd: root });
+    await git(["add", "--", path]);
     await writeFile(join(root, path), original);
     const options = { root, ...reader, readFile, runtimePaths };
 
@@ -50,11 +54,11 @@ describe("bulk Git blob reads", () => {
     const mainBytes = Buffer.from("main index\0bytes\n");
     const alternateBytes = Buffer.from("alternate index\0bytes\n");
     await writeFile(join(root, path), mainBytes);
-    await git("git", ["add", "--", path], { cwd: root });
+    await git(["add", "--", path]);
     const indexFile = join(root, ".git", "alternate-index");
     await writeFile(indexFile, await readFile(join(root, ".git", "index")));
     await writeFile(join(root, path), alternateBytes);
-    await git("git", ["add", "--", path], { cwd: root, env: { ...process.env, GIT_INDEX_FILE: indexFile } });
+    await git(["add", "--", path], indexFile);
     const mainIndex = await readFile(join(root, ".git", "index"));
     const alternateIndex = await readFile(indexFile);
     const options = { objectAccess: "local-only" as const, indexFile };
