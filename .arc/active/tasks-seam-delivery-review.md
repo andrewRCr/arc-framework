@@ -907,68 +907,35 @@ this extension, following the 4.11 local proof.
   proves complete pass 1 plus incremental pass 2 admits logical pass 3, retains one complete pass, and advances the
   request-owner index from the derived logical count.
 
-### `[ ]` **5.3 Write evidence at approval, performance, settlement, and succession — § 6, § 9.3**
+### `[x]` **5.3 Write evidence at approval, performance, settlement, and succession — § 6, § 9.3**
 
 - _Goal:_ From the flip `arc review respond` writes one evidence record per approved disposition set, its binding
   resolved at the first write, advances it in place as its response is performed and settled, and marks its predecessor
   in the batch that creates a successor, so the current set is the one no record succeeds.
 
-    - The lane-progress transitions respond calls write evidence from the flip: `settleLaneAttempt` and
-      `recordLaneResponsePerformance` (`rg/lane-progress.ts`), and `bindHostedAttemptDisposition`,
-      `supersedeHostedAttemptDisposition`, and `completeHostedAttemptIfReady` (`rg/lane-progress-hosted-settlement.ts`,
-      `rg/hosted-response-completion.ts`).
+    - `[x]` **5.3.a Approval and its binding**
 
-    - `[ ]` **5.3.a Approval and its binding**
+        - Approval publishes one producer-bound evidence record per disposition set across all three sources, including
+          private Candidate/member bindings and initial uncarried record-only hosted receipts. Replay retains the first
+          binding and advisory tags, including absence, while composed reads recover the same approved response.
 
-        - `settleNewApprovedResponse` (`rg/runtime/respond-command.ts`) writes the record, resolving the binding as
-          § 6.1 states it, and decodes the result's source reference to its outcome (§ 9.3); a replay reads it again.
-        - `createPendingResponseDispositionNode` supplies optional tags at that first write, outside the approved set
-          and its identity (§ 6.2). Every replay and advance preserves them, including absence; successors record their
-          own tags without changing earlier nodes.
-        - A hosted set's record is created with its first settlement entries `record-only` and uncarried, as
-          `validInitialHostedDisposition` (`rg/hosts/local/operation-state-store.ts`) requires of the first binding
-          today; the write check leaves this to the verb (1.4.b).
-        - Build `test-first` (one behavior at a time):
-            - an approved local, frontline, and hosted response each write one evidence record naming its result's
-              outcome key
-            - a hosted set's record is created with its first entries `record-only` and uncarried
-            - a response for a frontline review of a private member binds the Candidate with the member
-            - a response no binding resolves writes a record with none, and a replay changes nothing
-            - supplied tags persist at approval; a replay reads them instead of incoming report tags, and a historical
-              record with no tags stays without them after performance, settlement, projection, and succession
+    - `[x]` **5.3.b Performance and the Candidate response**
 
-    - `[ ]` **5.3.b Performance and the Candidate response**
+        - Native response storage advances complete fix facts and performance together, preserving the original
+          approval, binding, tags, and immutable outcome. Matching replay adds no version; Candidate performance binds
+          its response ID once, retaining its original timestamp and refusing a replacement.
 
-        - Today a fix response is two writes: its facts appended to the disposition record (`errandFixResponse`,
-          `deliveryMemberFixResponse`), then its performance (`recordPerformedResponse`, `rg/runtime/respond-command.ts`;
-          `LaneResponsePerformanceSchema`). From the flip both are one `performance` write, so no response is ever half
-          recorded, and a replay that finds a matching performance returns today's envelope and writes nothing; a
-          Candidate lineage adds `candidateResponseId` once.
-        - Build `test-first` (one behavior at a time):
-            - a performed fix advances its record once with its facts and its performance, and a second performance
-              refuses
-            - a respond replayed after its performance is written returns today's envelope and writes nothing
-            - the Candidate response's ID is added once and never changed
+    - `[x]` **5.3.c Hosted settlement**
 
-    - `[ ]` **5.3.c Hosted settlement**
+        - Hosted settlement appends each exact receipt once through the default settle handler and native response
+          transitions. Conflicting receipts and unverified response heads refuse with a successful repair path;
+          complete sealed-finding coverage derives settled state, and succession carries retained host proof.
 
-        - Settlement appends its entries to the record, `settleHostedAttemptFinding`
-          (`rg/lane-progress-hosted-settlement.ts`), which `arc review hosted settle` calls (`handlers/review.ts`),
-          among its writers.
-        - Build `test-first` (one behavior at a time):
-            - each settled finding appends one entry, replied and resolved, through `arc review hosted settle` as
-              through respond
-            - a successor's record starts with its predecessor's entries, carried
-            - a hosted `findings` outcome reads as settled once its record's settlement covers every sealed finding
+    - `[x]` **5.3.d Succession and the current set**
 
-    - `[ ]` **5.3.d Succession and the current set**
-
-        - Approving a successor writes it and marks its predecessor in one `batch`; the readers of
-          `dispositionSetLineage` and its tail pointers read the current set as the one no record succeeds.
-        - Build `test-first` (one behavior at a time):
-            - a successor approval marks its predecessor, and a second successor to one set refuses
-            - a successor over a set with a performed response refuses
-            - `arc review respond` clears `policyProjectionPending` as today
+        - Successor approval atomically creates its record and marks its exact unperformed predecessor. Current-set
+          composition follows reciprocal edges; second successors and performed predecessors refuse with a replay
+          route. Policy-projection completion preserves both lineage records and their captured advisory tags.
 
 ### `[ ]` **5.4 Write, consume, and withdraw `approved-fix` extra passes — § 5.4, § 5.5, § 5.7**
 
