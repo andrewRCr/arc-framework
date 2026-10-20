@@ -27,7 +27,7 @@ export async function publishNativeReviewApproval(input: NativeReviewApprovalInp
     || node.successorDispositionSetId !== null) throw new Error("Initial approval requires one unsuperseded response.");
   const id = node.approvedDisposition.dispositionSet.dispositionSetId;
   const prior = await input.evidence.read(id);
-  if (prior !== null) return replayApproval(prior, node, input.evidence);
+  if (prior !== null) return replayNativeReviewApproval(prior, node, input.evidence);
   if (node.errandFixResponse !== null || node.deliveryMemberFixResponse !== null) {
     throw new Error("Record approval before publishing a performed response.");
   }
@@ -35,10 +35,11 @@ export async function publishNativeReviewApproval(input: NativeReviewApprovalInp
   if (listing.status !== "complete") throw new Error(listing.reason);
   const stored = listing.records.find(({ value }) => value.attemptId === record.operationId);
   if (stored === undefined) throw new Error("Restore the exact producer outcome before approving its response.");
-  return input.evidence.create(initialApproval(record, node, stored.value, input.now()));
+  return input.evidence.create(createNativeReviewApprovalEvidence(record, node, stored.value, input.now()));
 }
 
-function initialApproval(record: ApprovedDispositionRecord, node: ApprovedDispositionLineageNode,
+/** Build one approval from its exact immutable producer and captured response binding. */
+export function createNativeReviewApprovalEvidence(record: ApprovedDispositionRecord, node: ApprovedDispositionLineageNode,
   outcome: ReviewOutcome, now: string): ReviewEvidence {
   const set = node.approvedDisposition.dispositionSet;
   const settlement = initialHostedSettlement(node, outcome, now);
@@ -63,7 +64,8 @@ function initialHostedSettlement(node: ApprovedDispositionLineageNode, outcome: 
     performedAt: now, carriedFromDispositionSetId: null })) };
 }
 
-async function replayApproval(prior: StoredReviewFact<ReviewEvidence>, node: ApprovedDispositionLineageNode,
+/** Replay a recorded approval or complete its one pending policy projection without changing its first binding. */
+export async function replayNativeReviewApproval(prior: StoredReviewFact<ReviewEvidence>, node: ApprovedDispositionLineageNode,
   evidence: ReviewEvidencePort): Promise<StoredReviewFact<ReviewEvidence>> {
   if (canonicalize({ dispositionSet: prior.value.dispositionSet, approval: prior.value.approval })
     !== canonicalize({ dispositionSet: node.approvedDisposition.dispositionSet, approval: node.approvedDisposition.approval })) {
