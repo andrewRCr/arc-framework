@@ -524,6 +524,10 @@ item the invocation resolved (§ 2.3); the in-flight port composes today's lane-
 its arm once on `capabilities.stateOffBranch`, an absent store keeping the in-repo arm, as the lifecycle verbs do. The
 family's schemas are store schemas, never entries in the review gate's published-schema registry.
 
+_Scenario extension (A13):_ The local completion scenario also re-enters its CLI-produced references after ended
+working-state pruning and from a second clone, with the original source files absent. It retains the admitted UID
+through rename and slug reuse; mismatched references refuse and succeed after correction (4.R2.d, § 9.3).
+
 ### `[x]` **4.1 Give the review gate's composition roots the store and the family's ports — § 2.3, § 3.3**
 
 - _Goal:_ Every review-gate composition root that reads or writes a review fact holds the store its invocation opens —
@@ -681,6 +685,8 @@ family's schemas are store schemas, never entries in the review gate's published
 
     - `[x]` **4.5.a The widened published schemas**
 
+        - _Amended in:_ 4.R2 (A13)
+
         - Published boundary outputs and publish's unchanged result admit both formats. Pre-publication's native
           envelope keeps variant-typed policy, while strict V1 boundaries retain their original action rules.
           Published actions accept `merge` and projection-free continuations; record versions stay opaque, and
@@ -761,6 +767,8 @@ family's schemas are store schemas, never entries in the review gate's published
 - _Goal:_ Default native review binds the family's ports to the exact work item its invocation resolves, without
   requiring a caller-supplied `workItem`, adding no family refusal or owner-selection policy (A11).
 
+- _Amended in:_ 4.R2 (A13)
+
 - **Additional Context:** `notes-seam-delivery-review.md` § A11. The boundary and attestation footing in 4.5–4.6 precedes
   the complete native handler proof; the work-unit and Errand selections are 4.4's.
 
@@ -793,6 +801,64 @@ family's schemas are store schemas, never entries in the review gate's published
 
 - _Outcome:_ Typed listings report incomplete authority with every exact conflict reference. Both composed approval
   readers refuse conflicted evidence and resume once its conflict records are resolved.
+
+### `[ ]` **4.R2 Carry native continuation ownership in command references — § 2.3, § 4.7, § 9.3**
+
+- _Goal:_ CLI-produced native references retain the exact project and work-item owner through re-entry, working-state
+  pruning, and clone changes without altering stable result keys or adding owner-selection or authorization policy
+  (A13).
+
+- **Additional Context:** `notes-seam-delivery-review.md` § A13. The codec and binding footing in a–c precedes 4.7;
+  d follows 4.10's native local result reader. The remaining lanes use the same contract in 5.1–5.6.
+
+    - `[ ]` **4.R2.a Build the owner-bearing codecs and widen their published embeddings**
+
+        - Add distinct versioned native operation and source-reference codecs with closed, validated payloads holding
+          the project ID, a work-item handle with required UID, and the stable operation/admission and durable result
+          coordinates § 9.3 defines. Preserve the in-repo codec and every existing identifier and outcome-key recipe.
+        - Widen request, result, and submit-ready action schemas for `operationRef` beside operation IDs, ready
+          frontline resolutions, and hosted handles; hosted-await actions carry it outside the handle. Admit omitted
+          `sourceRef` only for the native ended replay whose local source record is absent. In-repo emission stays
+          unchanged; the omitted-source variant requires its native `operationRef`.
+        - Build `test-first`: round trips retain the exact UID and result coordinates; malformed, wrong-kind, and
+          ID-mismatched references refuse; long legal slugs and existing maximum-length operation IDs round-trip
+          without changing those IDs; schemas admit the native additions and keep existing repository fixtures.
+
+    - `[ ]` **4.R2.b Bind native continuation roots from their produced reference**
+
+        - Local attest/resume/reduce bind from `operationRef`; frontline run uses its ready resolution's reference;
+          hosted await uses the reference beside its handle and validates its admission ID. Source-bound respond and
+          settle bind from their native source reference. Retain the same Store and project-ID reader, compare an
+          already bound owner by exact UID, and run the command's existing actor, claim, target, and source checks.
+        - Native public continuation inputs require the produced reference. Missing project identity keeps its typed
+          remedy; missing/malformed references and coordinate mismatches refuse `invalid-input` with the matching
+          producer-reference remedy and succeed after repair. No current-checkout fallback, unrelated-owner scan,
+          Candidate-ID-derived owner, or new permanent locator index fills the gap. Pending execution still requires
+          its actual machine-local state. The existing hosted request index retains its selected owner for replay
+          without changing its fingerprint or identity derivations.
+        - Build `test-first` through actual native producer and default handler paths without owner injection:
+          ordinary work units, Errands, frontline admission, and hosted handle continuation bind their selected UID;
+          reference/ID, project, and supplied-owner mismatches refuse and continue after correction; repository roots
+          reject native locators and keep their existing valid inputs and outputs.
+
+    - `[ ]` **4.R2.c Propagate native references through result and response composition**
+
+        - Re-enumerate source-reference producers and consumers. Carry the exact owner through composed evidence,
+          pre-publication, hosted discharge, earlier applicability, Candidate fix continuation, delivery execution,
+          and integration response confirmation and lineage review, as well as direct review commands. Match hosted
+          acknowledged attempt IDs to outcomes only within the referenced owner. Import keeps legacy decoding and fact
+          keys; native reference construction for imported results takes its owner from the stored record.
+        - Build `test-first` for native composed-source agreement with its producer, same-owner hosted resolution, and
+          refusal of cross-owner substitutions. Keep repository codec and source/disposition regressions.
+
+    - `[ ]` **4.R2.d Prove local completed re-entry after pruning and on a second clone**
+
+        - After 4.10, use the actual native admission, outcome writer, and default continuation/result paths. Remove
+          ended working state and read the same result, then repeat from another checkout sharing only the portable
+          Store. Retain the original UID across rename or slug reuse. Read outcome and evidence without the original
+          operation, source, or receipt files, emit no invented `sourceRef`, and report the actual local working-state
+          version or zero. Re-entry launches no evaluator. The 4.11 scenario closes the local proof; 5.8 covers the
+          remaining lanes' completed result and response paths.
 
 ### `[ ]` **4.7 Keep in-flight state in a namespace of its own — § 4.7**
 
@@ -956,6 +1022,8 @@ family's schemas are store schemas, never entries in the review gate's published
   command source reference whose durable part is the outcome key, so a local review's result reads back as today with
   no published schema changed.
 
+- _Amended in:_ 4.R2 (A13)
+
     - `LocalReviewResultReader` (`rg/hosts/local/review-result-reader.ts`) and reduction's local source
       (`rg/runtime/reduce-command.ts`) read the outcome; local attest and resume bind `receiptRef`
       (`bindReviewSourceReference`) with the outcome key as its durable part, their `sourceRef` staying the source
@@ -965,6 +1033,8 @@ family's schemas are store schemas, never entries in the review gate's published
     - The reader recomputes the result's digest (`localResultDigest`) from the outcome — its attempt ID, its receipt as
       recorded, and its admission fields, `guidanceDigest` among them and `laneSourceId` the outcome's source — in place
       of the operation state and the receipt store (§ 4.2).
+    - Native continuation inputs and emitted sources use 4.R2's owner-bearing references; completed replay omits a
+      source-store reference only where the original source record is absent (§ 9.3, A13).
     - Build `test-first` (one behavior at a time):
         - from the flip, the reference local attest returns resolves to its outcome through the result reader and
           through reduction
@@ -972,7 +1042,7 @@ family's schemas are store schemas, never entries in the review gate's published
           review
         - from the flip a disposition approved on one clone matches its local result read on a second clone, and still
           matches once the source's pin is released
-        - the attest, resume, and reduce envelopes parse under today's schemas from the flip
+        - the attest, resume, and reduce envelopes parse under the widened published schemas (4.R2.a) from the flip
         - from the flip reduction's local arm and resume's check read the same verdicts through the composed
           approved-disposition record (4.1.a) as in-repo
         - in-repo, both read the receipt as today
@@ -1003,6 +1073,11 @@ the policy modules that branch on today's `LaneProgressState` keep their inputs,
 modules that read or write the family's records, or today's stores, directly. Each reader's tests also run over the
 review harness's differential mode (4.2), the same reviews run in-repo and from the flip, in the integration tier.
 
+_Scenario extension (A13):_ Frontline and hosted completed references also survive pruning and a second clone without
+original execution files. Result, response, reservation, delivery, and integration consumers retain the reference's
+exact project and owner; mismatched references refuse and succeed after correction (§ 9.3). The 5.8 verifier includes
+this extension, following the 4.11 local proof.
+
 ### `[ ]` **5.1 Write frontline outcomes and skip decisions, and derive the window — § 4.2, § 4.7, § 5.6, § 5.9**
 
 - _Goal:_ From the flip a frontline attempt that ends writes its outcome where its run writes its result today, its
@@ -1021,6 +1096,8 @@ review harness's differential mode (4.2), the same reviews run in-repo and from 
         - From the flip the run envelope's `outcomeRef` (`rg/runtime/frontline-run-command.ts`) binds the attempt's
           outcome key as its durable part (`bindReviewSourceReference`) in place of the frontline outcome record's
           reference, as the composed approved-disposition record's frontline source does (4.1.a, § 9.3).
+        - Ready resolutions and run outputs retain 4.R2's native owner references. Completed run replay reads the
+          exact owner's outcome after pending state is pruned, without launching a provider again (§ 9.3, A13).
         - A frontline admission citing no `approved-fix` extra pass numbers its pass one past the derived count, its
           chain's included, and takes the larger of one past the highest generation among its pass's attempts, stored or
           in flight, and the version of the in-flight record for its lane and lineage owner
@@ -1087,6 +1164,10 @@ review harness's differential mode (4.2), the same reviews run in-repo and from 
       (`rg/lane-progress-hosted-request.ts`), and the owner index's `completedPassesAtAdmission`
       (`rg/hosts/local/hosted-request-owner-index.ts`) is compared with the derived count where `handlers/review.ts`
       compares it with lane progress's today.
+    - Request handles and submit-ready await actions carry `operationRef` outside the hashed handle. Await binds the
+      retained owner and admission ID, and completed replay reads the stored outcome without provider-run files or a
+      new evaluator. Reserved/admitted request-index replay retains the selected owner outside its fingerprint
+      (4.R2, § 9.3, A13).
     - A hosted reference (`attemptRef`) resolves to the outcome holding its `attemptId` (§ 9.3), in hosted settlement
       (`readHostedSettlementAttempt`, `handlers/review.ts`) and wherever it is decoded.
     - Build `test-first` (one behavior at a time):
@@ -1238,6 +1319,11 @@ review harness's differential mode (4.2), the same reviews run in-repo and from 
 - _Goal:_ From the flip every reader that reads the family's records or today's stores directly — to compose a review
   result, a lane's state, a reservation, or status — reads outcomes, evidence, and decisions through the store and
   reaches today's verdicts.
+
+    - Every source-reference producer and consumer uses 4.R2's native owner-bearing codec (§ 9.3, A13), including
+      composed approved sources, pre-publication, hosted discharge, earlier applicability, pending fix, delivery,
+      integration, reduction, and respond. Hosted acknowledged attempt lookup stays within the selected owner. Exercise
+      completed result/response paths after pruning and from a second clone, plus cross-owner refusal and repair.
 
     - `[ ]` **5.6.a The result readers**
 
@@ -1939,6 +2025,8 @@ prerequisites have landed, and every earlier task is independent of the remainin
         - through the production probe, an Integrating subject projects delivery correction with no materialized
           task-list, Candidate, or boundary file; an Active changed target resolves pending-fix authority from its
           stored outcome and evidence with no legacy disposition record, using the exact selected owner in each case
+        - a pending fix's native source reference agrees with its stored producer after execution-state pruning and
+          rename or slug reuse; a substituted owner refuses and the matching reference restores the normal projection
 
 ### `[ ]` **7.7 Delivery and integration at the flip** — validate exit criterion at segment scope
 
@@ -2052,3 +2140,8 @@ prerequisites have landed, and every earlier task is independent of the remainin
 - `[ ]` Imported Errand and member evidence with no `fix` disposition retains its native performance header without a
   fix response. Performed Errand or member fixes require their complete authorized transition, and a set with no fix
   refuses either fix-response object (spec, A10).
+
+- `[ ]` Native operation and source references retain the exact project and work-item UID through pruning and clone
+  changes without changing stable IDs or result keys. Production local completed re-entry/reduction and frontline and
+  hosted result/response reads use them without original working files; rename and slug reuse retain the selected
+  generation. Invalid reference coordinates refuse actionably and succeed after correction (spec, A13).

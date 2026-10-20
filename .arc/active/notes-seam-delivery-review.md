@@ -562,6 +562,37 @@ checks its raw listing independently. The shared correction retains the ports' e
 uses `describeRecordConflicts` for exact identities and recovery guidance. Task 4.R corrects 4.1.a before the lane
 compositions depend on its listings; no kind, decision, reach rule, or publication policy changes.
 
+## A13 — Continuation references retain their native owner
+
+At `13a4bb5e0`, `resolveLocalReviewResumeInvocation`, `resolveLocalReviewAttestInvocation`, and
+`resolveReduceInvocation` obtain their exact owner from `LocalReviewOperationStateStore`;
+`resolveFrontlineRunInvocation` reads its saved admission through `readValidatedFrontlineAdmission` before binding.
+`bindReviewSourceReference` carries only source kind, operation ID, and durable reference. The new in-flight namespace
+must make today's operation files inert and prune ended attempts, while native results remain readable from stored
+outcomes. A reference needs the owner before the family can read those facts.
+
+The superseded § 2.3 premise was: “Every consumer of today's operation snapshot is already scoped to its invocation's
+vehicle, so a port bound to one work item serves each (§ 4.7).” Operation-based re-entry has no current-vehicle check to
+reuse. Requiring one would change those commands' policy, and scanning unrelated work items or deriving an owner from a
+Candidate ID would violate the selected-owner contract. The previous § 9.3 source-reference contract named operation
+and durable coordinates without specifying their owner; its native form now retains that owner explicitly. Goal 8's
+“**No observable change before the flip**” exception list and the pre-flip schema exclusion also expand to the additive
+continuation schemas, while their in-repo emissions stay unchanged.
+
+The approved correction adds portable native operation and source locators, with the project ID and the full storage
+handle whose UID selects the generation. Existing IDs, outcome keys, approval identities, and provider-handle hashes
+stay unchanged. `operationRef` travels beside IDs or handles rather than inside their identity preimages. Source
+references retain their opaque string fields and carry the native owner in their versioned encoding. Existing hosted
+request-index replay retains the selected owner without a new locator index. No new review kind or stored fact is
+introduced; reference possession adds no authorization.
+
+The public schemas admit these additions before the flip but the repository arm emits none. Native ended replay uses
+outcomes and evidence without needing pruned source/materialization data; a missing local `sourceRef` is omitted rather
+than fabricated. Pending execution continues to require its actual local state. The local proof follows the native
+outcome reader, and the existing Phase 5 scenario exercises the remaining lanes. Prior import mapping, stable keys,
+passed pre-flip scenarios, and the six-kind family remain unaffected; the completed schema-widening task takes an
+additive amendment pointer. The bounded amendment composes existing identities and reference codecs at medium depth.
+
 ## Neighbors
 
 The spec names no other work unit. These are the ones its descriptive references mean, and what each owns where it
