@@ -960,16 +960,11 @@ this extension, following the 4.11 local proof.
   after pruning and on a fresh checkout; exact replay preserves evidence versions and outcomes. Verification-only
   responses remain Candidate transitions, with no evidence write. Repository delivery acknowledgment paths remain intact.
 
-### `[ ]` **5.6 Compose review results, policy evidence, reduction, and status from records — § 4, § 6, § 9.3, § 14.2**
+### `[x]` **5.6 Compose review results, policy evidence, reduction, and status from records — § 4, § 6, § 9.3, § 14.2**
 
 - _Goal:_ From the flip every reader that reads the family's records or today's stores directly — to compose a review
   result, a lane's state, a reservation, or status — reads outcomes, evidence, and decisions through the store and
   reaches today's verdicts.
-
-    - Every source-reference producer and consumer uses 4.R2's native owner-bearing codec (§ 9.3, A13), including
-      composed approved sources, pre-publication, hosted discharge, earlier applicability, pending fix, delivery,
-      integration, reduction, and respond. Hosted acknowledged attempt lookup stays within the selected owner. Exercise
-      completed result/response paths after pruning and from a second clone, plus cross-owner refusal and repair.
 
     - `[x]` **5.6.a The result readers**
 
@@ -1000,18 +995,16 @@ this extension, following the 4.11 local proof.
           currentness checks. Foreign-owner references refuse and retry with the matching reference succeeds;
           checkpoint reservation progress uses the bound family's composed snapshot.
 
-    - `[ ]` **5.6.e Status**
+    - `[x]` **5.6.e Status**
 
-        - `rg/status-composition.ts`, `rg/status-errand.ts`, and `rg/status-singleton.ts` read the family; Errand
-          status's vehicle read stays on the identity's Errand ref (`readTransientIdentitySnapshot`), the cutover's to
-          move (§ 14.4).
-        - `rg/runtime/lane-read-composition.ts` and its lane-history and next-pass projections read the same composed
-          outcomes, evidence, and decisions through 4.1.b's bound ports, including inherited history and stored tags.
-        - Build `test-first` (one behavior at a time):
-            - an Errand's and a singleton's review status reach today's verdicts from the family's records, the Errand
-              seeded in the store and its identity's Errand ref (4.2)
-            - the read-only lane command renders the same rejected findings and two-count history from stored
-              records with no legacy operation, disposition, or boundary files, and leaves the store unchanged
+        - Work-unit and Errand status bind the selected generation's review family. Native lane history reads stored
+          rejections, complete and incremental looks, and performed fix evidence without legacy operation, outcome,
+          disposition, or boundary files. Two completed looks retain one complete-pass count, and repeated reads leave
+          the store unchanged; default status and lane handlers preserve identity and vehicle refusal/repair paths.
+
+- _Outcome:_ Result, policy, reservation, integration, and status readers share the selected native family. Completed
+  reads retain exact source ownership and approved policy snapshots without local execution files; inherited history,
+  rejection explanations, and complete-pass counts remain derived.
 
 ### `[ ]` **5.7 Add `arc review adversarial record` — § 7.2**
 
