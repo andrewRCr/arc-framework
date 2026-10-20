@@ -1,5 +1,6 @@
 /** Leased, clone-local records that preserve migration direction and transport targets across a switch. */
 
+import { ForwardingRecordSchema } from "./forwarding-record.js";
 import { CommitShaSchema } from "../links.js";
 import { z } from "zod";
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
@@ -21,7 +22,14 @@ const LayoutRecordSchema = z.strictObject({ kind: z.literal("layout"), source: L
 const RemoteSchema = z.strictObject({ name: z.string().min(1), fetchUrl: z.string().min(1), pushUrl: z.string().min(1), repository: z.enum(["code", "backing"]) });
 const RemoteRecordSchema = z.strictObject({ kind: z.literal("remote"), source: RemoteSchema, destination: RemoteSchema,
   registryCommit: CommitShaSchema });
-const MoveRecordSchema = z.union([LayoutRecordSchema, RemoteRecordSchema]);
+const FollowRecordSchema = z.strictObject({ kind: z.literal("follow"), source: RemoteSchema, destination: RemoteSchema,
+  answer: SettingSchema.shape.role, forwarding: ForwardingRecordSchema, forwardingTip: CommitShaSchema,
+  sourceLayout: LayoutSchema, destinationLayout: LayoutSchema });
+const MoveRecordSchema = z.union([LayoutRecordSchema, RemoteRecordSchema, FollowRecordSchema]);
+/** A follow retains the exact judged control and the person's publication answer. */
+export type FollowMoveRecord = z.infer<typeof FollowRecordSchema>;
+/** The follow's compare-and-swap basis stays in the code repository across layout changes. */
+export interface RecordedFollow { record: FollowMoveRecord; tip: string }
 /** Captured transport targets remain usable after the designation repoints a remote. */
 export type MoveRemote = z.infer<typeof RemoteSchema>;
 /** A remote record binds restart to the move commit actually copied to its destination. */

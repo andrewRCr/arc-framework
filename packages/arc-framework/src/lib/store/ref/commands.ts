@@ -6,12 +6,13 @@ import { StoreMigrateInputSchema, StoreRemoteInputSchema, type StoreMigrateInput
 import type { RefBackendContext } from "./context.js";
 import { designatedStoreLayout } from "./layout-state.js";
 import { readRefDesignation } from "./designation.js";
-import { migrationCodeContext, readMoveRecord } from "./migrate-record.js";
+import { migrationCodeContext, readMoveRecord, type RecordedMove, type RecordedFollow } from "./migrate-record.js";
 import { moveRefRemote } from "./migrate-remote.js";
 import { moveRefLayout } from "./migrate-layout.js";
 import { AdvisoryLockTimeoutError } from "../../advisory-lock.js";
 import { applyRefRemoteSetting, remoteView } from "./remote-setting.js";
 import { guardRefFollowSetting, readRefFollowDue } from "./follow-due.js";
+import { resumeRefFollow } from "./follow.js";
 import { judgeRefFollow } from "./follow-candidates.js";
 
 /** No-target migration reconciles the physical store with its explicitly recorded roles. */
@@ -28,6 +29,7 @@ export async function runRefMigrate(context: RefBackendContext, store: Store, in
     const existing = await readMoveRecord(await migrationCodeContext(context));
     if (existing.status === "refused") return existing;
     if (existing.result?.record.kind === "remote") return moveRefRemote(context, store, parsed.data.to, parsed.data.trial, { record: existing.result.record, tip: existing.result.tip });
+    if (existing.result?.record.kind === "follow") return resumeFollowRequest(context, store, { record: existing.result.record, tip: existing.result.tip }, parsed.data.to);
     let finished: MigrateReport | undefined;
     if (existing.result?.record.kind === "layout") {
       const resumed = await moveRefLayout(context, store, existing.result.record.destination, existing.result.record.setting, { record: existing.result.record, tip: existing.result.tip });
@@ -62,23 +64,33 @@ export async function runRefRemote(context: RefBackendContext, store: Store, inp
     const existing = await readMoveRecord(await migrationCodeContext(context));
     if (existing.status === "refused") return existing;
     let completed: MigrateReport | undefined;
-    if (existing.result?.record.kind === "remote") {
-      const resumed = await moveRefRemote(context, store, undefined, false, { record: existing.result.record, tip: existing.result.tip });
-      if (resumed.status !== "ok") return resumed.status === "refused" ? resumed : invalidCommand("Finish the recorded move before setting a role.");
+    if (existing.result) {
+      const resumed = await finishRecordedMove(context, store, existing.result);
+      if (resumed.status === "refused") return resumed;
       completed = resumed.result;
     }
-    if (existing.result?.record.kind === "layout") {
-      const finished = await moveRefLayout(context, store, existing.result.record.destination, existing.result.record.setting, { record: existing.result.record, tip: existing.result.tip });
-      if (finished.status === "refused") return finished;
-      completed = finished.result;
-    }
-    const follow = await guardRefFollowSetting(context, setting.remote, setting.role);
+    const follow = await guardRefFollowSetting(context, store, setting.remote, setting.role);
     if (follow) return follow;
     const applied = await applyRefRemoteSetting(context, store, setting, input.ownState);
     if (applied.status === "ok" && completed) applied.result.report = applied.result.report
       ? combineLayoutReports(completed, applied.result.report) : completed;
     return applied;
   });
+}
+
+async function resumeFollowRequest(context: RefBackendContext, store: Store, recorded: RecordedFollow, to?: string): Promise<import("../commands.js").StoreCommandResult<MigrateReport>> {
+  if (to) return { status: "refused", refusal: { code: "move-unfinished", class: "recoverable",
+    condition: "A follow is recorded; finish its retained answer before requesting another remote migration or trial.",
+    remedy: { text: "Run arc store migrate with no target to finish the recorded follow, then retry the requested migration.", argv: ["arc", "store", "migrate"] } } };
+  return resumeRefFollow(context, store, recorded);
+}
+
+async function finishRecordedMove(context: RefBackendContext, store: Store, existing: RecordedMove): Promise<import("../commands.js").StoreCommandResult<MigrateReport>> {
+  const { record, tip } = existing;
+  if (record.kind === "follow") return resumeRefFollow(context, store, { record, tip });
+  if (record.kind === "layout") return moveRefLayout(context, store, record.destination, record.setting, { record, tip });
+  const resumed = await moveRefRemote(context, store, undefined, false, { record, tip });
+  return resumed.status === "designation-needed" ? invalidCommand("Finish the recorded move before setting a role.") : resumed;
 }
 
 async function withMigrationLock<T>(context: RefBackendContext, operation: () => Promise<T>): Promise<T | Extract<StoreRemoteResult, { status: "refused" }>> {

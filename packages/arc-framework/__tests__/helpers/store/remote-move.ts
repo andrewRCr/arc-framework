@@ -62,7 +62,7 @@ export async function capturePeerState(h: Awaited<ReturnType<typeof switchFixtur
 
 export async function landPreparedOldPush(h: Awaited<ReturnType<typeof switchFixture>>, before: ReadonlyMap<string, string>, after: ReadonlyMap<string, string>) {
   const changed = [...new Set([...before.keys(), ...after.keys()])].filter(ref => before.get(ref) !== after.get(ref));
-  await h.b.exec("git", ["push", "--atomic", ...changed.map(ref => `--force-with-lease=${ref}:${before.get(ref) ?? ""}`), "--", h.origin,
+  await h.b.git(["push", "--atomic", ...changed.map(ref => `--force-with-lease=${ref}:${before.get(ref) ?? ""}`), "--", h.origin,
     ...changed.map(ref => `${after.get(ref) ?? ""}:${ref}`)]);
 }
 

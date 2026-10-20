@@ -62,7 +62,8 @@ function remoteLayout(remote: MoveRemote, codeRemote: string | null): StoreLayou
   return remote.repository === "code" && remote.name === codeRemote ? "default" : "separate";
 }
 
-async function installCopiedHeads(code: RefBackendContext, target: RefBackendContext, remote: string): Promise<void> {
+/** Carry retained comparison heads into the destination's physical store. */
+export async function installCopiedHeads(code: RefBackendContext, target: RefBackendContext, remote: string): Promise<void> {
   for (const [part, root] of [["tracking", `refs/arc-remotes/${remote}/`], ["seen", `refs/arc/tmp/seen/${remote}/`]] as const) {
     const captured = await readCopiedRemoteRefs(code, part), prior = await readSyncRefs(target, root);
     await fetchLayoutObjects(target, code.repository?.commonDir ?? "", captured);
@@ -72,10 +73,11 @@ async function installCopiedHeads(code: RefBackendContext, target: RefBackendCon
   }
 }
 
-async function configureBacking(target: RefBackendContext, destination: MoveRemote): Promise<void> {
+/** Configure the physical backing remote at a switch, preserving the explicit answer. */
+export async function configureBacking(target: RefBackendContext, destination: MoveRemote, role: "push" | "read" | "off" = "push"): Promise<void> {
   const names = (await target.exec("git", ["remote"], { cwd: target.checkoutRoot })).stdout.split(/\r?\n/u);
   await target.exec("git", ["remote", names.includes("backing") ? "set-url" : "add", "backing", destination.fetchUrl], { cwd: target.checkoutRoot });
-  await target.exec("git", ["config", "remote.backing.arc-state", "push"], { cwd: target.checkoutRoot });
+  await target.exec("git", ["config", "remote.backing.arc-state", role], { cwd: target.checkoutRoot });
 }
 
 async function applyRemoteDesignation(context: RefBackendContext, code: RefBackendContext, recorded: RecordedRemote): Promise<void> {
@@ -89,7 +91,8 @@ async function applyRemoteDesignation(context: RefBackendContext, code: RefBacke
   }
 }
 
-async function remoteLayoutCleanupComplete(code: RefBackendContext, source: StoreLayout, destination: StoreLayout): Promise<boolean> {
+/** Require the source layout and interrupted build directories to be fully cleaned. */
+export async function remoteLayoutCleanupComplete(code: RefBackendContext, source: StoreLayout, destination: StoreLayout): Promise<boolean> {
   if (source === destination) return true;
   if (destination === "separate" && (await layoutRefs(code)).size) return false;
   const common = code.repository?.commonDir;

@@ -9,7 +9,7 @@ import { directoryExists } from "./designation.js";
 import { bindRefRepository } from "./repository-context.js";
 import { readRefRepository } from "./repository.js";
 import { migrationCodeContext, saveMoveRecord, removeMoveRecord, type RecordedLayout,
-  type LayoutMoveRecord, type StoreLayout, type LayoutSetting, type RecordedRemote } from "./migrate-record.js";
+  type LayoutMoveRecord, type StoreLayout, type LayoutSetting, type RecordedMove } from "./migrate-record.js";
 import { buildLayoutMove, layoutRefs, fetchLayoutObjects, requireLayoutTransaction, clearLayoutGathering, type LayoutBuild } from "./migrate-layout-build.js";
 
 interface LayoutMoveState {
@@ -35,7 +35,7 @@ export interface LayoutSwitchConfiguration {
 
 /** Borrow the remote move's record while retaining the layout engine's commit serialization. */
 export async function moveRefLayoutAsSwitch(context: RefBackendContext, store: Store, source: StoreLayout,
-  destination: StoreLayout, parent: RecordedRemote, configuration: LayoutSwitchConfiguration): Promise<StoreCommandResult<MigrateReport>> {
+  destination: StoreLayout, parent: RecordedMove, configuration: LayoutSwitchConfiguration): Promise<StoreCommandResult<MigrateReport>> {
   const release = await context.lock("layout");
   try { return await moveHeldLayout(context, store, destination, undefined,
     { record: { kind: "layout", source, destination }, tip: parent.tip }, configuration); }

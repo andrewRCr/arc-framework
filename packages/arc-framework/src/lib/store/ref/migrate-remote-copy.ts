@@ -164,8 +164,9 @@ export function migrationPushRefusal(outcome: PushOutcome): Extract<import("../c
     remedy: { text: "Enable atomic pushes and repair the receiver's hook or permissions, then retry arc store migrate." } } };
 }
 
-async function retainCopiedTips(code: RefBackendContext, source: ReadonlyMap<string, string>, observed: ReadonlyMap<string, string>,
-  copied: { registry: string; report: MigrateReport; destination: ReadonlyMap<string, string> }): Promise<void> {
+/** Pin a landed copy and comparison heads for an enclosing move or follow. */
+export async function retainCopiedTips(code: RefBackendContext, source: ReadonlyMap<string, string>, observed: ReadonlyMap<string, string>,
+  copied: { registry: string; report: MigrateReport; destination: ReadonlyMap<string, string>; headBasis?: ReadonlyMap<string, string> }): Promise<void> {
   const prior = await readSyncRefs(code, copiedRoot);
   const retained = new Map([...source].filter(([ref]) => ref !== FORWARDING_REF).map(([ref, tip]) => [copiedRoot + "state/" + ref.slice("refs/arc/".length), tip]));
   retained.set(copiedRoot + "registry", copied.registry);
@@ -173,7 +174,8 @@ async function retainCopiedTips(code: RefBackendContext, source: ReadonlyMap<str
   for (const [name, tip] of observed) {
     const suffix = name.slice(name.indexOf("/") + 1), live = "refs/arc/" + suffix;
     const paired = live.includes("/history/") ? live.replace("/history/", "/") : live.replace(/^refs\/arc\/(work|cohort)\//u, "refs/arc/history/$1/");
-    const candidates = [...new Set([source.get(live), source.get(paired)])].filter((value): value is string => value !== undefined);
+    const headBasis = copied.headBasis ?? source;
+    const candidates = [...new Set([headBasis.get(live), headBasis.get(paired)])].filter((value): value is string => value !== undefined);
     for (const current of candidates) if (await syncRefIsAncestor(code, tip, current)) { retained.set(copiedRoot + name, tip); break; }
   }
   const kept = copied.destination.get(FORWARDING_REF) ?? prior.get(copiedRoot + "deleted-record") ?? (await readSyncRefs(code, deletedRecordRef)).get(deletedRecordRef);
@@ -222,7 +224,8 @@ export async function readRemoteCopyReport(code: RefBackendContext): Promise<Mig
   return MigrateReportSchema.parse(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(object.bytes)));
 }
 
-async function captureMoveHeads(code: RefBackendContext, remote: MoveRemote): Promise<Map<string, string>> {
+/** Capture this clone's last comparison heads before a source listing. */
+export async function captureMoveHeads(code: RefBackendContext, remote: MoveRemote): Promise<Map<string, string>> {
   const physical = await readRefRepository(code.repository?.source ?? code), captured = new Map<string, string>();
   for (const [root, kind] of [[`refs/arc-remotes/${remote.name}/`, "tracking"], [`refs/arc/tmp/seen/${remote.name}/`, "seen"]] as const) {
     for (const [ref, tip] of await readSyncRefs(physical, root)) captured.set(`${kind}/${ref.slice(root.length)}`, tip);

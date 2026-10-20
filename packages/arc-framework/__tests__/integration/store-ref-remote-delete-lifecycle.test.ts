@@ -5,27 +5,9 @@ import { invokeStoreMigrate } from "../helpers/store/migrate-command.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
-import { HistoryRefSchema, RecordReferenceSchema, type Store, type RecordReference } from "../../src/lib/store/index.js";
-import { writeLineageRecord } from "../../src/lib/store/kinds/lineage/index.js";
+import { HistoryRefSchema, RecordReferenceSchema } from "../../src/lib/store/index.js";
+import { abandonRemoteWork } from "../helpers/store/remote-lifecycle.js";
 
-type MoveFixture = Awaited<ReturnType<typeof switchFixture>>;
-
-async function abandon(h: MoveFixture, store: Store, reference: RecordReference, side: MoveFixture["a"], branch: string) {
-  const owner = reference.owner;
-  if (owner.type !== "work-item" || !owner.uid) throw new Error("No minted work item");
-  await side.exec("git", ["branch", branch, "HEAD"]);
-  const branches = [{ repository: h.origin, ref: `refs/heads/${branch}`, linkedAs: "created" as const, excluded: [] }];
-  const primary = success(await store.read({ reference }));
-  success(await store.write({ action: "put", reference, expected: primary.version, content: primary.content, placement: { kind: "active" },
-    links: { ...primary.links, branches }, provenance }));
-  const content = writeLineageRecord({ schemaVersion: 2, origin: { name: owner.name, uid: owner.uid }, kind: "abandon", successors: [], incoming: [], retiredBranches: branches });
-  const lineage = RecordReferenceSchema.parse({ kind: "lineage/transition", owner });
-  success(await store.batch({ writes: [
-    { action: "remove", reference, expected: success(await store.read({ reference })).version },
-    { action: "put", reference: lineage, expected: null, content },
-  ], provenance: { verb: "abandon", lifecycleAction: "abandon" } }));
-  return content;
-}
 
 it.each(["write", "archive", "abandon"] as const)("reconciles the mover's abandonment with a late source %s", async mode => {
   const h = await switchFixture();
@@ -47,12 +29,12 @@ it.each(["write", "archive", "abandon"] as const)("reconciles the mover's abando
   const live = `refs/arc/work/${owner.uid}`, history = HistoryRefSchema.parse(`refs/arc/history/work/${owner.uid}`);
   const moved = await invokeStoreMigrate(["--to", h.to], { ...h.ports, migrateStep: async step => {
     if (step !== "remote.switched") return;
-    ownLineage = await abandon(h, h.store, created.reference, h.a, "mover-end");
+    ownLineage = await abandonRemoteWork(h, h.store, created.reference, h.a, "mover-end");
     success(await h.store.push());
     if (mode === "abandon") {
       await h.b.git(["fetch", "--refmap=", "--no-tags", "--", h.origin, "refs/arc/project/registry:refs/arc/project/registry"]);
       const beforeTerminal = await capturePeerState(h);
-      publishedLineage = await abandon(h, h.b.store, created.reference, h.b, "teammate-end");
+      publishedLineage = await abandonRemoteWork(h, h.b.store, created.reference, h.b, "teammate-end");
       await landPreparedOldPush(h, beforeTerminal, await capturePeerState(h));
     } else await landPreparedOldPush(h, before, after);
   } });

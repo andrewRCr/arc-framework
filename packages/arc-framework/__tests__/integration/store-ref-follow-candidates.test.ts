@@ -3,39 +3,21 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { createStoreCommandPorts } from "../../src/commands/store-ports.js";
-import { createRefStore, RecordReferenceSchema } from "../../src/lib/store/index.js";
-import { createRemoteMover, identity, switchFixture, personal, provenance } from "../helpers/store/remote-move.js";
+import { createRefStore } from "../../src/lib/store/index.js";
+import { createRemoteMover, identity, switchFixture, provenance } from "../helpers/store/remote-move.js";
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
 import { plantRef } from "../helpers/store/ref-plant.js";
+import { followFixture } from "../helpers/store/follow.js";
 import { invokeStoreMigrate } from "../helpers/store/migrate-command.js";
 import { invokeStoreRemote } from "../helpers/store/remote-command.js";
 import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 import { success } from "../helpers/store/suite-tools.js";
 
-async function followFixture() {
-  const h = await switchFixture();
-  success(await h.b.store.pull());
-  const config = join(h.b.root, ".arc", "system", "arc-config.yml");
-  await mkdir(join(h.b.root, ".arc", "system"), { recursive: true });
-  await writeFile(config, "# The invoking checkout's pointer.\n");
-  const production = createStoreCommandPorts(h.b.root);
-  const ports = { ...production, ...h.b.ports, backingRepository: production.backingRepository };
-  const store = createRefStore(ports);
-  const unpublished = RecordReferenceSchema.parse({ ...personal, key: "follower-only.md" });
-  success(await store.write({ action: "put", reference: unpublished, expected: null, content: "Unpublished follower data.\n", provenance }));
-  expect((await invokeStoreMigrate(["--to", h.to], h.ports)).status).toBe("ok");
-  expect(success(await store.pull()).states).toContainEqual(expect.objectContaining({ status: "moved", remote: "origin" }));
-  const pointer = `# The invoking checkout's pointer.\nstorage.backing_repository: ${JSON.stringify(h.destinationDirectory)}\n`;
-  await writeFile(config, pointer);
-  return { ...h, follower: { ...h.b, ports, store, config, pointer, unpublished } };
-}
 
 it("guards settings while a follow is due and always permits switching the departed remote off", async () => {
   const h = await followFixture(), follower = h.follower;
   const other = (await invokeStoreRemote(["origin", "push", "--json"], { cwd: follower.root, ports: follower.ports })).result;
   expect(other).toMatchObject({ status: "refused", refusal: { code: "role-conflict", remedy: { argv: ["arc", "store", "migrate"] } } });
-  const answer = (await invokeStoreRemote(["backing", "push", "--json"], { cwd: follower.root, ports: follower.ports })).result;
-  expect(answer).toMatchObject({ status: "refused", refusal: { code: "unsupported" } });
   expect((await follower.exec("git", ["config", "remote.origin.arc-state"])).stdout.trim()).toBe("push");
   const off = (await invokeStoreRemote(["origin", "off", "--json"], { cwd: follower.root, ports: follower.ports })).result;
   expect(off.status, JSON.stringify(off)).toBe("ok");
@@ -119,8 +101,13 @@ it.each([false, true])("judges a read follower by the departed project while own
   expect(success(await store.pull()).pulls).toContainEqual(expect.objectContaining({ remote: "upstream", status: "failed", failure: expect.objectContaining({ code: "refused" }) }));
   await writeFile(config, `storage.backing_repository: ${JSON.stringify(h.destinationDirectory)}\n`);
   const judgment = await invokeStoreMigrate([], ports);
-  if (!ownPush) expect(judgment).toMatchObject({ status: "designation-needed", remote: "backing", remedy: { argv: ["arc", "store", "remote", "backing", "read"] } });
-  else {
+  if (!ownPush) {
+    expect(judgment).toMatchObject({ status: "designation-needed", remote: "backing", remedy: { argv: ["arc", "store", "remote", "backing", "read"] } });
+    expect((await invokeStoreRemote(["backing", "push", "--json"], { cwd: own.a.root, ports })).result).toMatchObject({ status: "refused", refusal: { code: "store", refusal: { code: "identity-mismatch" } } });
+    expect((await own.a.exec("git", ["config", "remote.upstream.arc-state"])).stdout.trim()).toBe("read");
+    expect((await invokeStoreRemote(["backing", "read", "--json"], { cwd: own.a.root, ports })).result.status).toBe("ok");
+    expect(success(await store.pull()).pulls).toContainEqual(expect.objectContaining({ remote: "backing", role: "read", status: "pulled" }));
+  } else {
     expect(judgment).toMatchObject({ status: "refused", refusal: { code: "follow-refused", remedy: { text: expect.stringMatching(/another.*remote|read source/iu) } } });
     expect((await invokeStoreRemote(["upstream", "off", "--json"], { cwd: own.a.root, ports })).result.status).toBe("ok");
     await own.a.exec("git", ["remote", "add", "moved-source", h.destinationDirectory]);
@@ -189,8 +176,6 @@ it("names every accepted code remote regardless of role and asks once only one r
   await writeFile(follower.config, "# The state moved back to code remotes.\n");
   const several = await invokeStoreMigrate([], follower.ports);
   expect(several).toMatchObject({ status: "refused", refusal: { code: "follow-refused", condition: expect.stringMatching(/first.*second/u) } });
-  expect((await invokeStoreRemote(["second", "read", "--json"], { cwd: follower.root, ports: follower.ports })).result)
-    .toMatchObject({ status: "refused", refusal: { code: "unsupported" } });
   await follower.exec("git", ["remote", "remove", "second"]);
   expect(await invokeStoreMigrate([], follower.ports)).toMatchObject({ status: "designation-needed", remote: "first",
     remedy: { argv: ["arc", "store", "remote", "first", "push"] } });

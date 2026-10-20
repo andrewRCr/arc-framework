@@ -1597,45 +1597,10 @@ _Exit criterion:_ Every case of § 14.6 and § 14.7 passes.
     - Its copies, before the switch and clearing after it, run 13.1's copy, the destination's refs the local side and the
       old remote's the incoming
 
-    - `[ ]` **17.2.a The follow's steps**
-        - Build `test-first` (one behavior at a time):
-            - the follow asks on a TTY, never carrying the old role, and without one reports `designation-needed` whose
-              answering command completes it, the recommended answer carrying the old remote's role
-            - the `arc store migrate` handler asks on a terminal through an injected prompt and runs the answer, and
-              without one reports `designation-needed`, changing nothing
-            - while a follow is due, a setting naming a remote the follow names runs the follow with that remote and
-              answer, and with several candidates accepted, `arc store remote <remote> push` naming one completes the
-              follow onto it
-            - on `push` the follower ends in the layout the move calls for, the old remote `off`, `backing` repointed or
-              removed, and on `read` or `off` with the old source `off`; each switch drops the forwarding record's tracking
-              ref; a follower holding `backing` follows a move back to the code remote
-            - interrupted after each step, rerunning its answering command completes it, and one interrupted between the
-              directory's rename and the designation's change finishes on a no-target rerun in its record's direction
-            - a no-target rerun holding a move's record while a follow is due finishes the move first
-            - a teammate's push landing after the mover's last listing stays on the old remote until that teammate
-              follows, and leaves with the follow
-            - a sync in a follower's second worktree, pulled before its switch, pushes nothing to the old remote after it
-              and repeats against the new one
-            - a `push` follow's listing that finds no forwarding record changes nothing and drops the stale tracking
-              ref, and one finding another record refuses `moved`, changing nothing
-            - a follow interrupted after its copy and before its switch copies again on a rerun and changes nothing more,
-              and one interrupted between its switch and its deletes finishes them from its record, syncing meanwhile and
-              reporting `move-unfinished`
-            - a `push` follow between two backing repositories deletes only on the old repository's URL, keeping the old
-              repository's record apart from the candidate's for its listing's comparison, and interrupted after its
-              switch finishes its deletes on a rerun and follows nothing more
-            - a rerun of a `push` follow's deletes after another clone moved the state back onto the old remote deletes
-              nothing there and ends, its record going and the follow coming due
-            - a follow whose destination a later move left after its candidate read copies nothing there and refuses
-              `moved`
-            - the follow's clearing copy against a new remote whose ref a follower's push moved merges there, and against
-              one where the mover abandoned an item after its switch while a teammate's write, archive, or abandon of it
-              landed on the old remote, applies each as § 10.4 has it
-            - a clone that reopened an archived item before the move's switch, and a follower before its follow, each
-              delete the copied history ref at their next push to the new remote
-            - two checkouts of one clone after the clone moved or followed, the other holding the pointer's change, each
-              sync with the one state remote in its one layout, reporting no state, a no-target `arc store migrate` from
-              either changes nothing, and `arc store remote` there shows the same roles
+    - `[x]` **17.2.a The follow's steps**
+        - Recorded explicit roles, fresh licensed copies, restartable layout switches, and leased clearing through
+          `follow*.ts`; wired the terminal question through the migration handler. Native callers cover late writes,
+          lifecycle merges, interrupted steps, move-back races, and a second worktree's publication retry.
 
     - `[ ]` **17.2.b Every clone following the moves of Phase 16**
         - Build `test-first` (one behavior at a time):

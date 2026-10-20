@@ -5,6 +5,7 @@ import { StoreConflictInputSchema, StoreMigrateInputSchema, StoreRemoteInputSche
 import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { storeOwnStatePromptSite } from "./store-remote.js";
+import { storeFollowPromptSite } from "./store-migrate.js";
 
 /** CLI migration inputs retain the engine's validated fields and add output selection. */
 export const StoreMigrateCommandInputSchema = StoreMigrateInputSchema.extend({ json: z.boolean().optional() });
@@ -32,5 +33,6 @@ export const storeCommandInputPolicyDeclarations = ["store conflict", "store mig
   commandPath, aliases: [], sites: [declareCliOptionSite("json", {
     acquisition: "machine-mode", schemaOwnership: "owned", schemaField: "json", cancellation: "not-applicable",
     automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] }, mutationBoundary: "output selection", subprocess: "none",
-  }), ...commandPath === "store remote" ? [storeOwnStatePromptSite] : []],
+  }), ...commandPath === "store remote" ? [storeOwnStatePromptSite] : [],
+  ...commandPath === "store migrate" ? [storeFollowPromptSite] : []],
 }));
