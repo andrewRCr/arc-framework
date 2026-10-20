@@ -801,47 +801,17 @@ through rename and slug reuse; mismatched references refuse and succeed after co
           version or zero. Re-entry launches no evaluator. The 4.11 scenario closes the local proof; 5.8 covers the
           remaining lanes' completed result and response paths.
 
-### `[ ]` **4.7 Keep in-flight state in a namespace of its own — § 4.7**
+### `[x]` **4.7 Keep in-flight state in a namespace of its own — § 4.7**
 
 - _Goal:_ From the flip operation records hold only in-flight execution state, in `in-flight/`, one record per lane and
   lineage owner, so no record of today's shapes reaches the new schemas, an attempt whose outcome is stored never counts
   as in flight, no pass holds two attempts under way or one after its finished outcome, and the in-repo arm still reads
   today's records.
 
-    - `in-flight/` joins the closed namespace list (`lib/git-common-state.ts`, its type and its schema), apart from
-      `operations/`.
-    - An in-flight store beside `LocalReviewOperationStateStore`, which stays the in-repo arm, keys each record as
-      `laneProgressOperationId` keys lane progress — by lane and lineage owner (`laneSubjectOwner`), which leaves the
-      head out of every head-bound lineage, so only a review target, whose identity names its head, has a record per
-      head — and versions it as today; a record emptied of attempts persists, so its version continues. Each attempt
-      under way keeps a pending attempt's fields today (`LaneAttemptSchema`, `rg/core/operation-state-schema.ts`) — its
-      attempt ID, head, change request, source, and source binding, a hosted attempt's admission and handle among them —
-      with its logical pass, generation, scope mode, coverage admission, and `admittedBy`. The frontline run state, a
-      local attempt's guidance, whose digest its outcome keeps (1.2.a), its reviewer instructions, and review
-      suspensions live there too; the hosted request owner index stays in `identity/`.
-    - An attempt whose outcome is stored reads as ended, and the next write to its record drops it, matching a hosted
-      attempt by its admission's ID, which keys its outcome, since its acknowledgement re-keys its attempt ID by its
-      handle.
-    - The record's writers: `recordLaneAttempt` (`rg/lane-progress.ts`), whose write of an attempt under way lands here
-      from the flip, and the three that write lane progress directly today, each only an attempt under way —
-      `publishHostedPendingAdmission` and `acknowledgeHostedRequest` (`rg/lane-progress-hosted-request.ts`), which 5.2
-      moves, and `withdrawLockedAdmission` (`rg/policy/frontline-pending-admission.ts`), which 5.4 moves (§ 4.7).
-    - The record's schema refuses two attempts under way at one logical pass, and admission refuses an attempt at a
-      pass whose outcome has finished (§ 4.8), the two rules `validatePassCounts` enforces over lane progress today.
-    - Admission reads a lane's attempts in flight from there, as it reads lane progress today.
-    - Build `test-first` (one behavior at a time):
-        - from the flip, an in-flight local attempt is recorded under `in-flight/` and nothing is written to
-          `operations/`
-        - an admitted attempt records the decision that admitted it
-        - a local, a frontline, and a hosted attempt under way compose back as today's pending attempt, binding included
-        - an attempt whose outcome is stored reads as ended, and the record's next write drops it, an acknowledged
-          hosted attempt matched to its outcome by its admission's ID
-        - a record whose last attempt is dropped persists, and its next write's version follows the last
-        - one record holds an Errand's attempts at two heads, and a review target's record is its head's alone
-        - a second attempt under way at one logical pass refuses, in any lane
-        - a local admission at a pass whose outcome has finished refuses
-        - a clone whose `operations/` holds records of today's shapes reads its review state from the flip, and the
-          snapshot read of `in-flight/` never meets them (`readOperationSnapshot`)
+- _Outcome:_ UID-bound execution records persist under `in-flight/`, composing local, frontline, and hosted pending
+  admissions with portable outcomes and evidence. Ended attempts disappear on the next write without losing the
+  record's version. Duplicate pending passes and finished-pass admissions refuse; Errand records span heads while
+  exact review targets remain separate. Legacy operation files stay outside native snapshot parsing.
 
 ### `[x]` **4.8 Read the Candidate's supersession chain through `history` from the flip — § 8.4**
 
