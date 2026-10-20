@@ -30,6 +30,7 @@ import { prepareRefAnchors } from "./write-anchors.js";
 import { stampCompletedWrites, refreshCompletedChanges } from "./write-completed.js";
 import { planRefRetirements, sweepRefRetirements, retirementRefChanges } from "./write-retirement.js";
 import { prepareRefConflicts } from "./write-conflicts.js";
+import { proposedRefCreatedOwners } from "./write-creation.js";
 import { refAdmissionBasisChanged } from "./write-admission.js";
 
 import { prepareRefRenames } from "./write-rename.js";
@@ -69,7 +70,8 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
   const completed = await prepareRefConflicts(context, prepared.result, groups, results);
   const step = await commitRefStep(context, async (physical): Promise<StoreResult<BatchResult> | "retry"> => {
     if (await refAdmissionBasisChanged(physical, tips)) return "retry";
-    const broken = await checkRefWrites(physical, prepared.result, completed, tips, provenance, observations);
+    const proposedCreatedOwners = proposedRefCreatedOwners(resolved, prepared.result, completed);
+    const broken = await checkRefWrites(physical, prepared.result, completed, tips, provenance, proposedCreatedOwners, observations);
     if (broken) return { status: "refused", refusal: broken };
     sweepRefRetirements(retirements.result, groups, completed);
     const committed = await prepareRefCommits(physical, prepared.result, refWriteTargets(context, resolved), groups, completed, tips, provenance, batchId);

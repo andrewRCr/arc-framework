@@ -1,5 +1,6 @@
 /** Run registered admission checks against final prepared record bytes. */
 
+import type { CreatedOwner } from "../creation-receipt.js";
 import type { BatchInput, RecordObservation } from "../write.js";
 import type { RecordReference } from "../identity.js";
 import type { StoreRefusal, StoreResult } from "../refusal.js";
@@ -14,7 +15,7 @@ import { checkRefObservations } from "./write-observations.js";
 /** Check every caller mutation in order, retaining the original and final bytes. */
 export async function checkRefWrites(context: RefBackendContext, writes: readonly PreparedRefMutation[],
   groups: ReadonlyMap<string, RefWriteGroup>, tips: ReadonlyMap<string, string>, provenance: BatchInput["provenance"],
-  observations: readonly RecordObservation[] = []): Promise<StoreRefusal | undefined> {
+  proposedCreatedOwners: readonly CreatedOwner[], observations: readonly RecordObservation[] = []): Promise<StoreRefusal | undefined> {
   const { before, after } = createRefWriteViews(context, tips, groups);
   const observed = await checkRefObservations(context, before, observations);
   if (observed) return observed;
@@ -34,7 +35,7 @@ export async function checkRefWrites(context: RefBackendContext, writes: readonl
     const prior = priorSide.result, next = nextSide.result;
     const check = context.registry[reference.kind].check;
     if (!check) continue;
-    results.push({ reference, rules: await check({ reference, before, after, observations,
+    results.push({ reference, rules: await check({ reference, before, after, observations, proposedCreatedOwners,
       writer: deriveWriteCheckWriter(provenance), ...(prior ? { prior } : {}),
       ...(next ? { next: { content: next.content, fields: next.fields } } : {}) }) });
   }

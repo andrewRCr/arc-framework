@@ -430,10 +430,10 @@ and 15 for every served family, but for the assertions 4.4.d excludes by name, a
 - _Goal:_ Supply exact backend-owned candidate births and whole accepted-batch receipts to checks and bounded
   history queries, then verify the production admission rule before moving-remote segment verification.
 
-    - `[ ]` **4.R2.a Derive exact proposed owner births**
-        - Retain native fresh-allocation evidence and intersect it with actual proposed primary creations at
-          final admission; every check receives the same complete array, including known-empty. Rebuilds recompute
-          it and re-resolution discards obsolete evidence. Build test-first for birth/non-birth, rejection, and retry.
+    - `[x]` **4.R2.a Derive exact proposed owner births**
+        - Resolved attempts retain fresh allocations; final locked admission derives one canonical complete
+          inventory from actual proposed primary creations and supplies it to every check, including known-empty.
+          Re-resolution rebuilds evidence, refused allocations publish nothing, and existing generations stay out.
 
     - `[ ]` **4.R2.b Publish strict accepted receipts**
         - Build test-first for the dedicated canonical trailer codec and ordinary single/multi-owner commits;

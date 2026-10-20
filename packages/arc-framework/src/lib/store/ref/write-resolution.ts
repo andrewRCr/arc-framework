@@ -22,7 +22,7 @@ import { readLiveRefOwners, type LiveRefOwners } from "./live-owners.js";
 /** Canonical mutation and its concrete ref/tree address. */
 export interface ResolvedMutation { mutation: Mutation; home: StoredRecordHome; prior?: { reference: RecordReference; home: StoredRecordHome } }
 /** One resolved owner generation per name, with its captured mutation basis. */
-export interface ResolvedBatch { writes: ResolvedMutation[]; tips: Map<string, string>; archived?: readonly ArchivedFolder[]; retained?: readonly RefWriteTarget[] }
+export interface ResolvedBatch { writes: ResolvedMutation[]; freshOwners: readonly OwnerIdentity[]; tips: Map<string, string>; archived?: readonly ArchivedFolder[]; retained?: readonly RefWriteTarget[] }
 /** A ref/tree coordinate that the batch may change directly or through resolution. */
 export interface RefWriteTarget { reference: RecordReference; home: StoredRecordHome }
 
@@ -83,7 +83,7 @@ export async function resolveRefWrites(context: RefBackendContext, writes: reado
   if (unknownClaim) return { status: "refused", refusal: unknownClaim };
   const clash = checkLiveNamespace(resolved, owners);
   if (clash) return { status: "refused", refusal: clash };
-  return { status: "ok", result: { writes: resolved, tips, archived: archived.result, retained: retained.result } };
+  return { status: "ok", result: { writes: resolved, freshOwners: [...fresh.values()], tips, archived: archived.result, retained: retained.result } };
 }
 
 function resolveOwner(reference: RecordReference, owners: readonly OwnerIdentity[], fresh: Map<string, OwnerIdentity>): StoreResult<OwnerIdentity> {
