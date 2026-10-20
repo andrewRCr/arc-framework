@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "session-output-rehome",
+  "claimId": "db3aa275e670daaf1eab02e7c262e8bf",
+  "createdAt": "2026-10-20T16:57:10.756Z",
+  "updatedAt": "2026-10-20T16:57:10.756Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Re-home the session-output discipline entry from documentation-surface-routing into cli-output-contract's inbound buffer",
+  "branch": "chore/session-output-rehome",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
