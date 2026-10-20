@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "indexed-markdown-read-batching",
+  "claimId": "3249f7365fadfadc0f7aff598e6c205a",
+  "createdAt": "2026-10-20T01:24:01.470Z",
+  "updatedAt": "2026-10-20T01:24:01.470Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "indexed-markdown-read-batching",
+  "branch": "chore/indexed-markdown-read-batching",
+  "origin": "inbox",
+  "originEntry": "Batch indexed Markdown checker blob reads",
+  "originEntrySourceDigest": "sha256:fc2dc7750b0aef7c1d616e5781472e29ca1c68900d674f227c8b790a14db951b",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
