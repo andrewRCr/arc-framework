@@ -2,6 +2,8 @@
  * Adapter-bound interaction and confirmation policy for one CLI invocation.
  */
 
+import { runWithMachineOutput } from "../machine-output-scope.js";
+
 /** How a command-local `--yes` spelling participates in authority. */
 export type YesSignal = "absent" | "compatibility" | "authority";
 
@@ -154,6 +156,9 @@ export function resolveCommandInteractionContext(
 /**
  * Wrap a Commander action so command code receives one pre-resolved interaction context.
  *
+ * A machine-readable invocation runs its action in a machine-output scope, so terminal presentation goes to stderr
+ * and stdout carries only the command's document.
+ *
  * @param policy - Command-owned interaction declarations.
  * @param action - Command adapter invoked with context followed by Commander values.
  * @returns Commander-compatible action callback.
@@ -165,6 +170,8 @@ export function withInteractionContext<Args extends readonly unknown[], Result>(
   return (...args) => {
     const command = args.at(-1) as InteractionCommand | undefined;
     if (command === undefined) throw new TypeError("Interaction action requires a Commander action command");
-    return action(resolveCommandInteractionContext(command, policy), ...args.slice(0, -1) as unknown as Args);
+    const context = resolveCommandInteractionContext(command, policy);
+    const run = (): Result => action(context, ...args.slice(0, -1) as unknown as Args);
+    return context.machineReadable ? runWithMachineOutput(run) : run();
   };
 }
