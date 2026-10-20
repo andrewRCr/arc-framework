@@ -5,12 +5,14 @@ import { acquireStoreErrands } from "../../../../lib/errand/store-discovery.js";
 import type { Store } from "../../../../lib/store/contract.js";
 import type { StoreRecord } from "../../../../lib/store/read.js";
 import { CheckoutClaimSchema } from "../../../../lib/store/lookup.js";
-import { sameReference, type RecordReference } from "../../../../lib/store/identity.js";
+import { sameReference, type RecordReference, type OwnerIdentity } from "../../../../lib/store/identity.js";
 import { describeRecordConflicts } from "../../../../lib/store/conflict-diagnostics.js";
 import type { StoreRefusal } from "../../../../lib/store/refusal.js";
 
 /** An ordinary Errand whose exact generation was corroborated by its stored primary. */
 export type ReviewCheckoutErrand = Extract<TransientIdentityRecord, { kind: "errand"; purpose: "errand" }>;
+/** Authenticated claim content and the exact primary generation returned by its lookup. */
+export interface ReviewCheckoutErrandSelection { record: ReviewCheckoutErrand; workItem: OwnerIdentity }
 type ErrandClaim = { kind: "errand"; slug: string; claimId: string };
 
 async function missingClaim(store: Store, claim: ErrandClaim): Promise<null> {
@@ -38,7 +40,7 @@ function claimRefusal(claim: ErrandClaim, refusal: StoreRefusal): Error {
   return new Error(`Errand ${claim.slug} (${claim.claimId}): ${refusal.condition} ${refusal.remedy.text}`);
 }
 
-async function readClaim(store: Store, reference: RecordReference, claim: ErrandClaim): Promise<ReviewCheckoutErrand | null> {
+async function readClaim(store: Store, reference: RecordReference, claim: ErrandClaim): Promise<ReviewCheckoutErrandSelection | null> {
   const read = await store.read({ reference });
   if (read.status === "refused") {
     if (read.refusal.code === "not-found") return missingClaim(store, claim);
@@ -46,11 +48,11 @@ async function readClaim(store: Store, reference: RecordReference, claim: Errand
   }
   if (read.result.conflicts.length > 0) throw new Error(
     `Errand ${claim.slug} has unresolved conflicts.${describeRecordConflicts(read.result.conflicts)}`);
-  return decodeClaim(read.result, reference, claim);
+  return { record: decodeClaim(read.result, reference, claim), workItem: read.result.reference.owner };
 }
 
 /** Read a marker-selected Errand, consulting inventory diagnostics only after an authoritative miss. */
-export async function readReviewCheckoutErrand(input: { cwd: string; store: Store }): Promise<ReviewCheckoutErrand | null> {
+export async function readReviewCheckoutErrandSelection(input: { cwd: string; store: Store }): Promise<ReviewCheckoutErrandSelection | null> {
   const marker = await readWorktreeMarker(input.cwd);
   if (marker.kind === "absent") return null;
   if (marker.kind === "malformed") throw new Error(`The checkout claim is unreadable: ${marker.message}. Repair the checkout marker, then retry.`);
@@ -62,4 +64,9 @@ export async function readReviewCheckoutErrand(input: { cwd: string; store: Stor
   if (found.status === "refused" && found.refusal.code === "not-found") return missingClaim(input.store, claim);
   if (found.status === "refused") throw claimRefusal(claim, found.refusal);
   return readClaim(input.store, found.result.reference, claim);
+}
+
+/** Read the authenticated Errand content without exposing storage coordinates to content-only callers. */
+export async function readReviewCheckoutErrand(input: { cwd: string; store: Store }): Promise<ReviewCheckoutErrand | null> {
+  return (await readReviewCheckoutErrandSelection(input))?.record ?? null;
 }

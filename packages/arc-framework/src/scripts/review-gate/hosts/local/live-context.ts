@@ -3,6 +3,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
+import type { OwnerIdentity } from "../../../../lib/store/identity.js";
 import type { GitExec } from "../../../../lib/git/exec.js";
 import { readReviewWorkUnitByRef } from "../../../../lib/store/review-work-unit.js";
 import type { ReviewInvocationInput } from "../../runtime/invocation.js";
@@ -17,12 +18,14 @@ import {
   readTransientInFlightIndexes,
 } from "../../../../lib/errand/record.js";
 import { readConfiguredIdentity } from "../../../../lib/git/identity.js";
-import { readReviewCheckoutErrand, type ReviewCheckoutErrand } from "./review-errand.js";
+import { readReviewCheckoutErrandSelection, type ReviewCheckoutErrand } from "./review-errand.js";
 import type { LocalReviewLiveContext } from "./review-authority.js";
 
 export interface ResolvedLocalReviewLiveContext {
   context: LocalReviewLiveContext;
   meta: MetaRecord | null;
+  /** Exact native primary selected by the branch link or checkout claim. */
+  workItem?: OwnerIdentity;
   /** Exact native claim retained for consumers with a narrower lifecycle filter. */
   errandRecord?: ReviewCheckoutErrand;
 }
@@ -82,11 +85,12 @@ async function readStoredLiveContext(input: ReviewInvocationInput & { store: Non
   activeIdentity: string | null, branch: string): Promise<ResolvedLocalReviewLiveContext> {
   const selected = await readReviewWorkUnitByRef({ store: input.store, projectId: input.projectId }, branch);
   if (selected !== null) return { context: { activeIdentity,
-    workUnit: { identity: selected.name, owner: selected.meta.owner }, errand: null }, meta: selected.meta };
-  const record = await readReviewCheckoutErrand({ cwd: input.cwd, store: input.store });
+    workUnit: { identity: selected.name, owner: selected.meta.owner }, errand: null }, meta: selected.meta, workItem: selected.record.reference.owner };
+  const selection = await readReviewCheckoutErrandSelection({ cwd: input.cwd, store: input.store });
+  const record = selection?.record ?? null;
   const activeErrand = record !== null && record.branch === branch
     && (record.state === "open" || record.state === "awaiting-merge") ? record : null;
   return { context: { activeIdentity, workUnit: null,
     errand: activeErrand === null ? null : { identity: activeErrand.slug, claimId: activeErrand.claimId } }, meta: null,
-    ...(activeErrand === null ? {} : { errandRecord: activeErrand }) };
+    ...(activeErrand === null ? {} : { errandRecord: activeErrand, workItem: selection?.workItem }) };
 }

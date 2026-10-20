@@ -1,4 +1,5 @@
 /** Read-only checkout composition for lineage facts and rejected findings. */
+import type { RawGitExec } from "../../../lib/git/exec.js";
 import { resolveReviewInvocation, type ReviewInvocationInput } from "./invocation.js";
 import { createReviewCompositionContext } from "./composition-context.js";
 import type { ApprovedDispositionRecordReader, ReviewInFlightPort } from "../core/ports.js";
@@ -28,7 +29,7 @@ import { readLocalDeltaAdmissionSurface } from "./local-reserved-obligation.js";
 import { ProjectIdentityError } from "../../../lib/store/project-identity.js";
 import { projectIdentitySpineRemedy } from "./project-identity-remedy.js";
 
-type LaneReadBoundary = ReviewInvocationInput;
+type LaneReadBoundary = ReviewInvocationInput & { rawGit?: RawGitExec };
 
 async function readNextContext(input: LaneReadBoundary & {
   candidateReader: ReturnType<typeof createLocalReviewCandidateReader>;
@@ -68,6 +69,10 @@ async function readNextContext(input: LaneReadBoundary & {
 async function readResolvedLane(request: ReviewLaneReadRequest, input: LaneReadBoundary): Promise<ReviewLaneReadEnvelope> {
   let live: Promise<ResolvedLocalReviewLiveContext> | undefined;
   const readLive = () => live ??= readLocalReviewLiveContext(input);
+  if (input.store?.capabilities.stateOffBranch === true && input.workItem === undefined) {
+    const selected = await readLive();
+    if (selected.workItem !== undefined) input.workItem = selected.workItem;
+  }
   const candidateReader = createLocalReviewCandidateReader(input);
   const resolver = createLocalReviewSubjectResolver({ ...input, readLive, readOnly: true, candidateReader });
   const { vehicle, member } = await resolver.resolveVehicle(request.memberHeadObjectId);
@@ -89,7 +94,7 @@ async function readResolvedLane(request: ReviewLaneReadRequest, input: LaneReadB
     : await readNextContext({ ...input, ...history, target, lineage, workUnitId, candidateReader,
       sources: parseReviewSourceIds(settings["review.standard_sources"]), operationStore, dispositionStore, publisher });
   return projectReviewLaneRead({ ...history, lineage, nextPassContext, target: coordinates,
-    ceiling: Number(settings["review.standard_max_passes"]), exec: createRawGitExec(input.cwd) });
+    ceiling: Number(settings["review.standard_max_passes"]), exec: input.rawGit ?? createRawGitExec(input.cwd) });
 }
 
 /** Read the authenticated checkout subject without publishing any review state. */
