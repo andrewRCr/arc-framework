@@ -4,6 +4,7 @@ import { projectIdentitySpineRemedy, reviewProjectIdentityRequestRemedy } from "
 import { decodePrePublicationReplay, replayTokenFromAction, type PrePublicationReplayInput } from "../scripts/review-gate/policy/pre-publication-replay.js";
 import { ReviewLaneReadRequestSchema, ReviewLaneReadEnvelopeSchema, type ReviewLaneReadRequest } from "../scripts/review-gate/lane-read-schema.js";
 import { createReviewInvocationResolver, resolveReviewInvocation, type ReviewInvocationOptions, type ReviewInvocationContext } from "../scripts/review-gate/runtime/invocation.js";
+import { retainReviewOperationReference, reviewContinuationRequestError, resolveReviewOperationInvocation } from "../scripts/review-gate/runtime/continuation-invocation.js";
 import { resolveLocalReviewInvocation, resolveLocalReviewResumeInvocation, resolveLocalReviewAttestInvocation } from "../scripts/review-gate/runtime/local-review-invocation.js";
 import { resolveReduceInvocation } from "../scripts/review-gate/runtime/reduce-invocation.js";
 import { resolveFrontlineRunInvocation } from "../scripts/review-gate/runtime/frontline-invocation.js";
@@ -2221,7 +2222,8 @@ function emitReviewCommandError(
   remedy?: SpineRemedy,
 ): void {
   const remedyFor = remedy === undefined ? undefined : () => remedy;
-  dependencies.write(`${JSON.stringify(reviewCommandError(mode, error, phase, errorSchema, remedyFor))}\n`);
+  const requestError = reviewContinuationRequestError(mode, error, phase === "request");
+  dependencies.write(`${JSON.stringify(reviewCommandError(mode, requestError, phase, errorSchema, remedyFor))}\n`);
   dependencies.setExitCode(1);
 }
 
@@ -2729,7 +2731,7 @@ function defaultFrontlineResolveDependencies(context: InteractionContext, invoca
         const { publisher, family } = createReviewCompositionContext({ ...bound, cwd: root, exec });
         const operationStore = family.ports.inFlight;
         const dispositionStore = family.ports.dispositions;
-        return await resolveFrontlineCommand(request, {
+        const result = await resolveFrontlineCommand(request, {
         preferences: createLocalFrontlineSourcePreferenceReader({
           cwd: root,
           exec,
@@ -2780,6 +2782,7 @@ function defaultFrontlineResolveDependencies(context: InteractionContext, invoca
         ).settings["review.frontline_max_passes"]),
         now: () => new Date().toISOString(),
       });
+        return await retainReviewOperationReference({ ...bound, cwd: root, exec }, result);
       } catch (error) {
         if (!(error instanceof PlannedFrontlineMemberRefreshError)) throw error;
         return FrontlineResolveEnvelopeSchema.parse({
@@ -2941,8 +2944,12 @@ function defaultFrontlineRunDependencies(context: InteractionContext, invocation
   return {
     ...defaultReviewHandlerBoundary(),
     deriveRequest: async (request, root) => {
+      const initial = { ...invocationFor(root), cwd: root, exec };
+      const bound = request.resolution.state === "ready" ? await resolveReviewOperationInvocation(initial,
+        { operationId: request.resolution.payload.admission.operationId, operationRef: request.resolution.payload.operationRef },
+        "arc review frontline resolve") : initial;
       const publisher = new RepositoryGitCommonStatePublisher(exec, root);
-      const repositoryId = await resolveRepositoryIdentity(publisher, undefined, invocationFor(root));
+      const repositoryId = await resolveRepositoryIdentity(publisher, undefined, bound);
       const target = await deriveLocalReviewTargetFromCoordinates({
         exec,
         cwd: root,
@@ -2992,12 +2999,13 @@ function defaultFrontlineRunDependencies(context: InteractionContext, invocation
         },
       });
     },
-    run: async (request, root) => runFrontlineReviewCommand(
-      request,
-      createFrontlineRunDependencies({
-        ...await resolveFrontlineRunInvocation({ ...invocationFor(root), exec, cwd: root }, request), interaction: context.subprocess,
-      }),
-    ),
+    run: async (request, root) => {
+      const input = await resolveFrontlineRunInvocation({ ...invocationFor(root), exec, cwd: root }, request);
+      const result = await runFrontlineReviewCommand(request, createFrontlineRunDependencies({
+        ...input, interaction: context.subprocess,
+      }));
+      return retainReviewOperationReference(input, result);
+    },
   };
 }
 
@@ -3053,10 +3061,10 @@ function defaultLocalPrepareDependencies(context: InteractionContext, invocation
   const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
     ...defaultReviewHandlerBoundary(),
-    prepare: async (request, root) => prepareLocalReview(
-      request,
-      createLocalPrepareDependencies(await resolveLocalReviewInvocation({ ...invocationFor(root), exec, cwd: root, rawGit: invocation.rawGit })),
-    ),
+    prepare: async (request, root) => {
+      const input = await resolveLocalReviewInvocation({ ...invocationFor(root), exec, cwd: root, rawGit: invocation.rawGit });
+      return retainReviewOperationReference(input, await prepareLocalReview(request, createLocalPrepareDependencies(input)));
+    },
   };
 }
 
@@ -3170,10 +3178,10 @@ function defaultLocalAttestDependencies(context: InteractionContext, invocation:
   const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
     ...defaultReviewHandlerBoundary(),
-    attest: async (request, root) => attestLocalReviewCommand(
-      request,
-      createLocalAttestDependencies(await resolveLocalReviewAttestInvocation({ ...invocationFor(root), exec, cwd: root }, request)),
-    ),
+    attest: async (request, root) => {
+      const input = await resolveLocalReviewAttestInvocation({ ...invocationFor(root), exec, cwd: root }, request);
+      return retainReviewOperationReference(input, await attestLocalReviewCommand(request, createLocalAttestDependencies(input)));
+    },
   };
 }
 
@@ -3219,10 +3227,10 @@ function defaultLocalResumeDependencies(context: InteractionContext, invocation:
   const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
     ...defaultReviewHandlerBoundary(),
-    resume: async (request, root) => resumeLocalReviewCommand(
-      request,
-      createLocalResumeDependencies(await resolveLocalReviewResumeInvocation({ ...invocationFor(root), exec, cwd: root }, request)),
-    ),
+    resume: async (request, root) => {
+      const input = await resolveLocalReviewResumeInvocation({ ...invocationFor(root), exec, cwd: root }, request);
+      return retainReviewOperationReference(input, await resumeLocalReviewCommand(request, createLocalResumeDependencies(input)));
+    },
   };
 }
 
@@ -3312,10 +3320,10 @@ function defaultReduceDependencies(context: InteractionContext, invocation: Revi
   const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
     ...defaultReviewHandlerBoundary(),
-    reduce: async (request, root) => reduceReviewCommand(
-      request,
-      createReduceDependencies(await resolveReduceInvocation({ ...invocationFor(root), exec, cwd: root }, request)),
-    ),
+    reduce: async (request, root) => {
+      const input = await resolveReduceInvocation({ ...invocationFor(root), exec, cwd: root }, request);
+      return retainReviewOperationReference(input, await reduceReviewCommand(request, createReduceDependencies(input)));
+    },
   };
 }
 

@@ -14,12 +14,18 @@ import { createReviewHarness } from "../../helpers/store/review-harness.js";
 import { createReviewCheckout } from "../../helpers/store/review-checkout.js";
 import { LocalReviewOperationStateStore } from "../../../src/scripts/review-gate/hosts/local/operation-state-store.js";
 import { RepositoryGitCommonStatePublisher } from "../../../src/lib/git-common-state.js";
+import { bindNativeReviewOperationReference, parseNativeReviewOperationReference } from "../../../src/scripts/review-gate/core/review-operation-reference.js";
+import type { Store } from "../../../src/lib/store/contract.js";
+import { createStore } from "../../../src/lib/store/create.js";
+import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
+import type { OwnerIdentity } from "../../../src/lib/store/identity.js";
 import { SlugSchema } from "../../../src/lib/kernel/index.js";
 
+interface ContinuationOverride { operationRef?: string; workItem?: OwnerIdentity; store?: Store }
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 async function fixture(project = true, vehicle: "work-unit" | "errand" = "errand", exempt = true) {
   const h = createReviewHarness();
-  if (project) await h.seedProject(projectId);
+  const projectRecord = project ? await h.seedProject(projectId) : null;
   const claimId = "1".repeat(32), branch = vehicle === "errand" ? "chore/repair" : "topic/opaque";
   if (vehicle === "errand") {
     const errand = TransientIdentityRecordSchema.parse({ version: 3, kind: "errand", purpose: "errand", slug: "repair",
@@ -96,35 +102,47 @@ async function fixture(project = true, vehicle: "work-unit" | "errand" = "errand
   } };
   const rawGit = scriptRawGitExec([{ match: ["diff", "--numstat", "-z", "-M", "-C", "--find-copies-harder", `${base}..${head}`, "--"],
     responses: [{ stdout: Buffer.from("1\t0\tsrc/example.ts\0") }] }]).exec;
+  const references = new Map<string, string>();
+  const referenceFor = (operationId: string, override?: ContinuationOverride) => override === undefined
+    ? references.get(operationId) : override.operationRef;
   const operations = new LocalReviewOperationStateStore(new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd));
-  return { ...checkout, claimId, request, operations, advanceHead: () => { currentHead = advancedHead; }, reduce: async (operationId: string) => {
+  return { ...checkout, claimId, request, operations, removeProject: async () => {
+    if (projectRecord === null) throw new Error("Expected project identity");
+    lifecycleSuccess(await h.store.write({ action: "remove", reference: projectRecord.reference, expected: projectRecord.version,
+      provenance: { verb: "remove", lifecycleAction: "remove" } }));
+  }, advanceHead: () => { currentHead = advancedHead; }, reduce: async (operationId: string, override?: ContinuationOverride) => {
     let output = "";
     await handleReviewReduce("-", { resolveRoot: () => checkout.cwd,
-      readText: async () => JSON.stringify({ schemaVersion: 1, operationId }),
+      readText: async () => JSON.stringify({ schemaVersion: 1, operationId, operationRef: referenceFor(operationId, override) }),
       write: text => { output += text; }, setExitCode: () => {} },
-    undefined, { ...checkout, projectId: createProjectIdentityReader(checkout.store) });
+    undefined, { ...checkout, store: override?.store ?? checkout.store, workItem: override?.workItem, projectId: createProjectIdentityReader(checkout.store) });
     return JSON.parse(output) as unknown;
-  }, setIdentity: (identity: string) => { activeIdentity = identity; }, attest: async (operationId: string) => {
+  }, setIdentity: (identity: string) => { activeIdentity = identity; }, attest: async (operationId: string, override?: ContinuationOverride) => {
     let output = "";
     await handleReviewLocalAttest("-", { resolveRoot: () => checkout.cwd,
-      readText: async () => JSON.stringify({ schemaVersion: 1, operationId, result: { status: "partial", result: null,
+      readText: async () => JSON.stringify({ schemaVersion: 1, operationId, operationRef: referenceFor(operationId, override), result: { status: "partial", result: null,
         evaluatorIdentity: "fresh-reviewer", reviewRunId: "test-run", applicabilityId: null, findings: [] } }),
       write: text => { output += text; }, setExitCode: () => {} },
-    undefined, { ...checkout, projectId: createProjectIdentityReader(checkout.store) });
+    undefined, { ...checkout, store: override?.store ?? checkout.store, workItem: override?.workItem, projectId: createProjectIdentityReader(checkout.store) });
     return JSON.parse(output) as unknown;
-  }, resume: async (operationId: string) => {
+  }, resume: async (operationId: string, override?: ContinuationOverride) => {
     let output = "";
     await handleReviewLocalResume("-", { resolveRoot: () => checkout.cwd,
-      readText: async () => JSON.stringify({ schemaVersion: 1, operationId }),
+      readText: async () => JSON.stringify({ schemaVersion: 1, operationId, operationRef: referenceFor(operationId, override) }),
       write: text => { output += text; }, setExitCode: () => {} },
-    undefined, { ...checkout, projectId: createProjectIdentityReader(checkout.store) });
+    undefined, { ...checkout, store: override?.store ?? checkout.store, workItem: override?.workItem, projectId: createProjectIdentityReader(checkout.store) });
     return JSON.parse(output) as unknown;
   }, run: async () => {
     let output = "";
     await handleReviewLocalPrepare("-", { resolveRoot: () => checkout.cwd,
       readText: async () => JSON.stringify(request), write: text => { output += text; }, setExitCode: () => {} },
     undefined, { ...checkout, rawGit, projectId: createProjectIdentityReader(checkout.store) });
-    return JSON.parse(output) as unknown;
+    const result = JSON.parse(output) as unknown;
+    const prepared = LocalPrepareEnvelopeSchema.safeParse(result);
+    if (prepared.success && prepared.data.state === "ready" && prepared.data.payload.operationRef !== undefined) {
+      references.set(prepared.data.payload.operationId, prepared.data.payload.operationRef);
+    }
+    return result;
   } };
 }
 it.each(["work-unit", "errand"] as const)("selects the actual stored %s before reporting exempt preparation", async vehicle => {
@@ -154,7 +172,8 @@ it("retains project-identity recovery and completes exempt preparation after rep
 it.each(["work-unit", "errand"] as const)("prepares a native %s review without an injected owner", async vehicle => {
   const h = await fixture(true, vehicle, false);
   const result = await h.run();
-  expect(result, JSON.stringify(result)).toMatchObject({ state: "ready", nextAction: "launch-review" });
+  expect(result, JSON.stringify(result)).toMatchObject({ state: "ready", nextAction: "launch-review",
+    payload: { operationRef: expect.any(String) } });
 });
 
 it.each(["work-unit", "errand"] as const)("resumes the prepared native %s review while it awaits its reviewer", async vehicle => {
@@ -183,20 +202,55 @@ it.each(["work-unit", "errand"] as const)("retains the selected %s generation wi
   const prepared = LocalPrepareEnvelopeSchema.parse(await h.run());
   if (prepared.state !== "ready") throw new Error(JSON.stringify(prepared));
   expect((await h.operations.readOperation(prepared.payload.operationId)).state).toMatchObject({ workItem: selected.reference.owner });
+  expect(parseNativeReviewOperationReference(prepared.payload.operationRef ?? "")).toEqual({ repositoryId: projectId,
+    operationId: prepared.payload.operationId, workItem: selected.reference.owner });
 });
 
-it("keeps the unavailable-operation refusal without current checkout occupancy", async () => {
-  const h = await fixture();
-  await unlink(resolveWorktreeMarkerPath(h.cwd));
-  expect(await h.reduce("missing-operation")).toMatchObject({ error: {
-    code: "corrupt-state", message: "review operation is unavailable",
+it.each(["resume", "attest", "reduce"] as const)("requires the producer reference for native %s and retries after repair", async command => {
+  const h = await fixture(true, "errand", false);
+  const prepared = LocalPrepareEnvelopeSchema.parse(await h.run());
+  if (prepared.state !== "ready") throw new Error(JSON.stringify(prepared));
+  h.advanceHead();
+  const version = lifecycleSuccess(await h.store.version());
+  const refused = await h[command](prepared.payload.operationId, {});
+  expect(refused).toMatchObject({ error: { code: "invalid-input", message: expect.stringContaining("matching reference") } });
+  expect(lifecycleSuccess(await h.store.version())).toBe(version);
+  expect(await h[command](prepared.payload.operationId)).toMatchObject({
+    state: command === "attest" ? "not-attestable" : "stale-target",
+    payload: { operationRef: prepared.payload.operationRef },
+  });
+});
+
+it.each(["resume", "attest", "reduce"] as const)("refuses a foreign project reference for native %s and retries", async command => {
+  const h = await fixture(true, "errand", false);
+  const prepared = LocalPrepareEnvelopeSchema.parse(await h.run());
+  if (prepared.state !== "ready" || prepared.payload.operationRef === undefined) throw new Error(JSON.stringify(prepared));
+  const reference = parseNativeReviewOperationReference(prepared.payload.operationRef);
+  const operationRef = bindNativeReviewOperationReference({ ...reference, repositoryId: "another-project" });
+  h.advanceHead();
+  expect(await h[command](prepared.payload.operationId, { operationRef })).toMatchObject({ error: {
+    code: "invalid-input", message: expect.stringContaining("matching reference"),
   } });
-  expect(await h.attest("missing-operation")).toMatchObject({ error: {
-    code: "corrupt-state", message: "local review operation is unavailable",
+  expect(await h[command](prepared.payload.operationId)).toMatchObject({
+    state: command === "attest" ? "not-attestable" : "stale-target",
+    payload: { operationRef: prepared.payload.operationRef },
+  });
+});
+
+it.each(["resume", "attest", "reduce"] as const)("checks an already bound owner for native %s and retries", async command => {
+  const h = await fixture(true, "errand", false);
+  const prepared = LocalPrepareEnvelopeSchema.parse(await h.run());
+  if (prepared.state !== "ready" || prepared.payload.operationRef === undefined) throw new Error(JSON.stringify(prepared));
+  const other = await h.seedMeta("other");
+  h.advanceHead();
+  expect(await h[command](prepared.payload.operationId, { operationRef: prepared.payload.operationRef,
+    workItem: other.reference.owner })).toMatchObject({ error: {
+    code: "invalid-input", message: expect.stringContaining("matching reference"),
   } });
-  expect(await h.resume("missing-operation")).toMatchObject({ error: {
-    code: "corrupt-state", message: "local review operation is unavailable",
-  } });
+  expect(await h[command](prepared.payload.operationId)).toMatchObject({
+    state: command === "attest" ? "not-attestable" : "stale-target",
+    payload: { operationRef: prepared.payload.operationRef },
+  });
 });
 
 it("reports a missing saved owner and resumes after its working state is repaired", async () => {
@@ -259,4 +313,77 @@ it("reports reduction's missing saved owner and reduces after its working state 
   await h.operations.publishOperation(saved.state, corrupt.version);
   h.advanceHead();
   expect(await h.reduce(prepared.payload.operationId)).toMatchObject({ state: "stale-target", nextAction: "prepare-current-target" });
+});
+
+it.each(["resume", "attest", "reduce"] as const)("gives reference repair guidance for malformed native %s inputs", async command => {
+  const h = await fixture(true, "errand", false);
+  const prepared = LocalPrepareEnvelopeSchema.parse(await h.run());
+  if (prepared.state !== "ready" || prepared.payload.operationRef === undefined) throw new Error(JSON.stringify(prepared));
+  const reference = parseNativeReviewOperationReference(prepared.payload.operationRef);
+  for (const operationRef of ["arc-review-operation:v1:broken", bindNativeReviewOperationReference({
+    ...reference, operationId: "another-operation",
+  })]) {
+    expect(await h[command](prepared.payload.operationId, { operationRef })).toMatchObject({ error: {
+      code: "invalid-input", message: expect.stringContaining("matching reference"),
+    } });
+  }
+  h.advanceHead();
+  expect(await h[command](prepared.payload.operationId)).toMatchObject({
+    state: command === "attest" ? "not-attestable" : "stale-target",
+  });
+});
+
+it.each(["resume", "attest", "reduce"] as const)("retains project-identity recovery before native %s reference selection", async command => {
+  const h = await fixture(true, "errand", false);
+  const prepared = LocalPrepareEnvelopeSchema.parse(await h.run());
+  if (prepared.state !== "ready") throw new Error(JSON.stringify(prepared));
+  await h.removeProject();
+  const version = lifecycleSuccess(await h.store.version());
+  expect(await h[command](prepared.payload.operationId, {})).toMatchObject({ error: { code: "project-identity-unavailable" },
+    remedy: { stdin: { schemaVersion: 1, operationId: prepared.payload.operationId } } });
+  expect(lifecycleSuccess(await h.store.version())).toBe(version);
+  await h.seedProject(projectId);
+  h.advanceHead();
+  expect(await h[command](prepared.payload.operationId)).toMatchObject({
+    state: command === "attest" ? "not-attestable" : "stale-target",
+  });
+});
+
+it.each(["resume", "attest", "reduce"] as const)("checks the pending operation owner against native %s locators", async command => {
+  const h = await fixture(true, "errand", false);
+  const prepared = LocalPrepareEnvelopeSchema.parse(await h.run());
+  if (prepared.state !== "ready" || prepared.payload.operationRef === undefined) throw new Error(JSON.stringify(prepared));
+  const other = await h.seedMeta("other");
+  const operationRef = bindNativeReviewOperationReference({ ...parseNativeReviewOperationReference(prepared.payload.operationRef),
+    workItem: other.reference.owner });
+  for (const workItem of [undefined, other.reference.owner]) {
+    expect(await h[command](prepared.payload.operationId, { operationRef, workItem })).toMatchObject({ error: {
+      code: "invalid-input", message: expect.stringContaining("matching reference"),
+    } });
+  }
+  h.advanceHead();
+  expect(await h[command](prepared.payload.operationId)).toMatchObject({
+    state: command === "attest" ? "not-attestable" : "stale-target",
+  });
+});
+
+it.each(["resume", "attest", "reduce"] as const)("rejects native locators at repository roots for %s", async command => {
+  const h = await fixture(true, "errand", false);
+  const prepared = LocalPrepareEnvelopeSchema.parse(await h.run());
+  if (prepared.state !== "ready") throw new Error(JSON.stringify(prepared));
+  const store = createStore(createDefaultStorePorts({ checkoutRoot: h.cwd, exec: h.exec }));
+  expect(await h[command](prepared.payload.operationId, { operationRef: prepared.payload.operationRef, store }))
+    .toMatchObject({ error: { code: "invalid-input", message: expect.stringContaining("matching reference") } });
+});
+
+it.each(["resume", "attest", "reduce"] as const)("retains an already bound internal owner for native %s", async command => {
+  const h = await fixture(true, "errand", false);
+  const prepared = LocalPrepareEnvelopeSchema.parse(await h.run());
+  if (prepared.state !== "ready" || prepared.payload.operationRef === undefined) throw new Error(JSON.stringify(prepared));
+  const { workItem } = parseNativeReviewOperationReference(prepared.payload.operationRef);
+  h.advanceHead();
+  expect(await h[command](prepared.payload.operationId, { workItem })).toMatchObject({
+    state: command === "attest" ? "not-attestable" : "stale-target",
+    payload: { operationRef: prepared.payload.operationRef },
+  });
 });

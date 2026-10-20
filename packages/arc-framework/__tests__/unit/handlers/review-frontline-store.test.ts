@@ -14,6 +14,11 @@ import { RepositoryGitCommonStatePublisher } from "../../../src/lib/git-common-s
 import { LocalReviewOperationStateStore } from "../../../src/scripts/review-gate/hosts/local/operation-state-store.js";
 import { laneProgressOperationId } from "../../../src/scripts/review-gate/lane-progress.js";
 import { lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
+import { bindNativeReviewOperationReference, parseNativeReviewOperationReference } from "../../../src/scripts/review-gate/core/review-operation-reference.js";
+import type { Store } from "../../../src/lib/store/contract.js";
+import type { OwnerIdentity } from "../../../src/lib/store/identity.js";
+import { createStore } from "../../../src/lib/store/create.js";
+import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
 import { SlugSchema } from "../../../src/lib/kernel/index.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
@@ -80,26 +85,32 @@ async function fixture(project = true, vehicle: "errand" | "work-unit" = "errand
       activity: { selfReview: true, frontlineReview: false } },
     invocation: mode === "skip" ? { mode } : { mode, sourceId: "coderabbit-cli" },
   });
+  const references = new Map<string, string>();
   return { ...checkout, claimId, request, reduce: async (operationId: string) => {
     let output = "";
     await handleReviewReduce("-", { resolveRoot: () => checkout.cwd,
-      readText: async () => JSON.stringify({ schemaVersion: 1, operationId }),
+      readText: async () => JSON.stringify({ schemaVersion: 1, operationId, operationRef: references.get(operationId) }),
       write: text => { output += text; }, setExitCode: () => {} },
     undefined, { ...checkout, projectId: createProjectIdentityReader(checkout.store) });
     return JSON.parse(output) as unknown;
-  }, run: async (resolution: unknown) => {
+  }, run: async (resolution: unknown, bound: { workItem?: OwnerIdentity; store?: Store } = {}) => {
     let output = "";
     await handleReviewFrontlineRun("-", { resolveRoot: () => checkout.cwd,
       readText: async () => JSON.stringify({ schemaVersion: 1, target: request("force").target, resolution }),
       write: text => { output += text; }, setExitCode: () => {} },
-    undefined, { ...checkout, projectId: createProjectIdentityReader(checkout.store) });
+    undefined, { ...checkout, store: bound.store ?? checkout.store, workItem: bound.workItem, projectId: createProjectIdentityReader(checkout.store) });
     return JSON.parse(output) as unknown;
   }, resolve: async (mode: "skip" | "force" = "skip") => {
     let output = "";
     await handleReviewFrontlineResolve("-", { resolveRoot: () => checkout.cwd,
       readText: async () => JSON.stringify(request(mode)), write: text => { output += text; }, setExitCode: () => {} },
     undefined, { ...checkout, projectId: createProjectIdentityReader(checkout.store) });
-    return JSON.parse(output) as unknown;
+    const result = JSON.parse(output) as unknown;
+    const parsed = FrontlineResolveEnvelopeSchema.safeParse(result);
+    if (parsed.success && parsed.data.state === "ready" && parsed.data.payload.operationRef !== undefined) {
+      references.set(parsed.data.payload.admission.operationId, parsed.data.payload.operationRef);
+    }
+    return result;
   } };
 }
 
@@ -118,7 +129,8 @@ it.each(["errand", "work-unit"] as const)("runs the saved native %s admission wi
   vi.stubEnv("PATH", "");
   onTestFinished(() => { vi.unstubAllEnvs(); });
   const result = await h.run(resolution);
-  expect(result, JSON.stringify(result)).toMatchObject({ state: "unavailable", nextAction: "operator-repair" });
+  expect(result, JSON.stringify(result)).toMatchObject({ state: "unavailable", nextAction: "operator-repair",
+    payload: { operationRef: resolution.payload.operationRef } });
 });
 
 it("runs the admitted work-unit generation after its name is reused", async () => {
@@ -171,6 +183,8 @@ it.each(["errand", "work-unit"] as const)("retains the selected %s generation wi
   const saved = await operations.readOperation(laneProgressOperationId({ lane: "frontline", repositoryId: projectId,
     headSha: head, lineage: admission.lineage }));
   expect(saved.state).toMatchObject({ workItem: selected.reference.owner });
+  expect(parseNativeReviewOperationReference(resolution.payload.operationRef ?? "")).toEqual({ repositoryId: projectId,
+    operationId: admission.operationId, workItem: selected.reference.owner });
 });
 
 it.each(["skip", "force"] as const)("resolves a native Errand's %s without an injected owner", async mode => {
@@ -208,4 +222,36 @@ it.each(["errand", "work-unit"] as const)("reduces the saved native %s frontline
   const result = await h.reduce(resolution.payload.admission.operationId);
   expect(result, JSON.stringify(result)).toMatchObject({ state: "retryable", nextAction: "operator-repair" });
   expect(lifecycleSuccess(await h.store.version())).toBe(version);
+});
+
+it.each(["missing", "foreign-project", "bound-owner", "pending-owner", "malformed", "wrong-id"] as const)(
+  "refuses a %s frontline continuation reference and runs after correction", async invalid => {
+    const h = await fixture();
+    const resolution = FrontlineResolveEnvelopeSchema.parse(await h.resolve("force"));
+    if (resolution.state !== "ready" || resolution.payload.operationRef === undefined) throw new Error(JSON.stringify(resolution));
+    const reference = parseNativeReviewOperationReference(resolution.payload.operationRef);
+    const other = await h.seedMeta("other");
+    const operationRef = invalid === "missing" ? undefined : invalid === "malformed" ? "arc-review-operation:v1:broken"
+      : bindNativeReviewOperationReference({ ...reference,
+        repositoryId: invalid === "foreign-project" ? "another-project" : reference.repositoryId,
+        operationId: invalid === "wrong-id" ? "another-operation" : reference.operationId,
+        workItem: invalid === "pending-owner" ? other.reference.owner : reference.workItem });
+    vi.stubEnv("PATH", "");
+    onTestFinished(() => { vi.unstubAllEnvs(); });
+    expect(await h.run({ ...resolution, payload: { ...resolution.payload, operationRef } },
+      { workItem: invalid === "bound-owner" ? other.reference.owner : undefined })).toMatchObject({ error: {
+        code: "invalid-input", message: expect.stringContaining("matching reference"),
+      } });
+    expect(await h.run(resolution)).toMatchObject({ state: "unavailable", nextAction: "operator-repair",
+      payload: { operationRef: resolution.payload.operationRef } });
+  });
+
+it("rejects a native frontline locator at a repository root", async () => {
+  const h = await fixture();
+  const resolution = FrontlineResolveEnvelopeSchema.parse(await h.resolve("force"));
+  if (resolution.state !== "ready") throw new Error(JSON.stringify(resolution));
+  const store = createStore(createDefaultStorePorts({ checkoutRoot: h.cwd, exec: h.exec }));
+  expect(await h.run(resolution, { store })).toMatchObject({ error: {
+    code: "invalid-input", message: expect.stringContaining("matching reference"),
+  } });
 });
