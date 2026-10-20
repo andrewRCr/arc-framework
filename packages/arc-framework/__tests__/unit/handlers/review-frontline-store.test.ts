@@ -30,11 +30,20 @@ import { approveDispositionState } from "../../../src/scripts/review-gate/core/d
 import { createReviewEvidencePort } from "../../../src/lib/store/kinds/review/evidence/access.js";
 import { projectStandardReviewObligation } from "../../../src/scripts/review-gate/policy/standard-review-projection.js";
 import { createReviewDecisionPort } from "../../../src/lib/store/kinds/review/decision/access.js";
+import { reviewDecisionKey } from "../../../src/lib/store/kinds/review/decision/key.js";
+import { composeReviewDispositionRecord } from "../../../src/lib/store/kinds/review/evidence/composed-record.js";
+import { performedEvidenceFixture } from "../../fixtures/review-evidence.js";
+import { publishNativeReviewApproval } from "../../../src/scripts/review-gate/runtime/native-review-approval.js";
+import { publishNativeReviewPerformance } from "../../../src/scripts/review-gate/runtime/native-review-performance.js";
+import type { FrontlineResolveRequest } from "../../../src/scripts/review-gate/policy/frontline-command-schema.js";
+import { canonicalDigest } from "../../../src/lib/kernel/index.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 const head = "a".repeat(40), base = "b".repeat(40);
 async function fixture(project = true, vehicle: "errand" | "work-unit" = "errand", findings = false) {
   const h = createReviewHarness();
+  const advancedHead = "e".repeat(40);
+  let currentHead = head;
   if (project) await h.seedProject(projectId);
   const claimId = "1".repeat(32), branch = vehicle === "errand" ? "chore/repair" : "topic/opaque";
   if (vehicle === "work-unit") {
@@ -60,21 +69,21 @@ async function fixture(project = true, vehicle: "errand" | "work-unit" = "errand
   }
   const checkout = await createReviewCheckout(h, { script: [
     { match: ["check-ref-format", "refs/heads/main"], responses: [{ stdout: "" }] },
-    ...[head, base].flatMap(revision => [
+    ...[head, base, advancedHead].flatMap(revision => [
       { match: ["rev-parse", "--verify", revision], responses: [{ stdout: revision }] },
       { match: ["cat-file", "-t", revision], responses: [{ stdout: "commit" }] },
-      { match: ["rev-parse", `${revision}^{tree}`], responses: [{ stdout: "c".repeat(40) }] },
+      { match: ["rev-parse", `${revision}^{tree}`], responses: [{ stdout: (revision === advancedHead ? "f" : "c").repeat(40) }] },
     ]),
     { match: ["config", "--get-all", "arc.frontlineSources"], responses: [{ failure: { exitCode: 1 } }] },
     { match: ["for-each-ref", "--format=%(objectname)", "refs/remotes/origin/main"], responses: [{ stdout: base }] },
-    { match: ["rev-parse", "--verify", "HEAD^{commit}"], responses: [{ stdout: head }] },
-    { match: ["rev-parse", "HEAD"], responses: [{ stdout: head }] },
+    { match: ["rev-parse", "--verify", "HEAD^{commit}"], responses: [() => ({ stdout: currentHead })] },
+    { match: ["rev-parse", "HEAD"], responses: [() => ({ stdout: currentHead })] },
     { match: ["rev-parse", "--verify", `${head}^{commit}`], responses: [{ stdout: head }] },
     { match: ["merge-base", "--all", head, base], responses: [{ stdout: base }] },
     { match: ["merge-base", "--all", "refs/heads/main", head], responses: [{ stdout: base }] },
     { match: ["diff", "--cached", "--name-only", "-z", base, "--"], responses: [{ stdout: "" }] },
     { match: ["diff", "--name-only", "-z", base, head, "--"], responses: [{ stdout: "" }] },
-    { match: ["rev-parse", "--verify", "HEAD"], responses: [{ stdout: head }] },
+    { match: ["rev-parse", "--verify", "HEAD"], responses: [() => ({ stdout: currentHead })] },
     { match: ["rev-parse", "--verify", "refs/heads/main"], responses: [{ stdout: base }] },
     { match: ["merge-base", "--all", base, head], responses: [{ stdout: base }] },
     { match: ["status", "--porcelain=v2", "--untracked-files=normal"], responses: [{ stdout: "" }] },
@@ -98,7 +107,7 @@ async function fixture(project = true, vehicle: "errand" | "work-unit" = "errand
   await checkout.occupy(branch, vehicle === "errand" ? { kind: "errand", slug: "repair", claimId }
     : { kind: "work-unit", name: "example" });
   const request = (mode: "skip" | "force") => ({ schemaVersion: 1,
-    target: { kind: "change-set", baseRef: "main", diffBaseSha: base, headSha: head },
+    target: { kind: "change-set", baseRef: "main", diffBaseSha: base, headSha: currentHead },
     changeSet: { schemaVersion: 1, changeSetState: "known", contentKind: "code-bearing", reviewRisk: "routine",
       changeDeterminacy: "ordinary", ownership: "self", surfaceAuthority: "ordinary",
       assurance: { workContext: vehicle, workClass: vehicle === "errand" ? "none" : "Light" },
@@ -106,7 +115,7 @@ async function fixture(project = true, vehicle: "errand" | "work-unit" = "errand
     invocation: mode === "skip" ? { mode } : { mode, sourceId: "coderabbit-cli" },
   });
   const references = new Map<string, string>();
-  return { ...checkout, claimId, request, respond: async (input: unknown) => {
+  return { ...checkout, claimId, request, advanceHead: () => { currentHead = advancedHead; }, respond: async (input: unknown) => {
     let output = "";
     await handleReviewRespond("-", { resolveRoot: () => checkout.cwd, readText: async () => JSON.stringify(input),
       write: text => { output += text; }, setExitCode: () => {} }, undefined,
@@ -127,10 +136,11 @@ async function fixture(project = true, vehicle: "errand" | "work-unit" = "errand
       write: text => { output += text; }, setExitCode: () => {} },
     undefined, { ...checkout, codeRabbit, store: bound.store ?? checkout.store, workItem: bound.workItem, projectId: createProjectIdentityReader(checkout.store) });
     return JSON.parse(output) as unknown;
-  }, resolve: async (mode: "skip" | "force" = "skip") => {
+  }, resolve: async (mode: "skip" | "force" = "skip", policyJudgment?: FrontlineResolveRequest["policyJudgment"]) => {
     let output = "";
     await handleReviewFrontlineResolve("-", { resolveRoot: () => checkout.cwd,
-      readText: async () => JSON.stringify(request(mode)), write: text => { output += text; }, setExitCode: () => {} },
+      readText: async () => JSON.stringify({ ...request(mode), ...(policyJudgment === undefined ? {} : { policyJudgment }) }),
+      write: text => { output += text; }, setExitCode: () => {} },
     undefined, { ...checkout, projectId: createProjectIdentityReader(checkout.store) });
     const result = JSON.parse(output) as unknown;
     const parsed = FrontlineResolveEnvelopeSchema.safeParse(result);
@@ -322,8 +332,42 @@ async function completedFindings(vehicle: "work-unit" | "errand" = "errand") {
   const workItem = parseNativeReviewOperationReference(resolution.payload.operationRef).workItem;
   const saved = await createReviewOutcomePort(h.store, workItem).read(result.payload.operationId);
   if (saved?.value.outcome !== "findings") throw new Error("Expected produced findings");
-  return { ...h, resolution, result, findings: saved.value.findings };
+  return { ...h, resolution, result, outcome: saved.value, findings: saved.value.findings };
 }
+
+it("records an ordinary frontline ceiling pass and validates references before pending replay", async () => {
+  const h = await completedFindings();
+  const workItem = parseNativeReviewOperationReference(h.resolution.payload.operationRef ?? "").workItem;
+  const outcomes = createReviewOutcomePort(h.store, workItem), evidence = createReviewEvidencePort(h.store, workItem);
+  const performed = performedEvidenceFixture("errand", h.outcome).value;
+  if (performed.performance === undefined) throw new Error("Expected performed fix evidence");
+  const approved = { ...performed, binding: { kind: "errand" as const, errand: { key: SlugSchema.parse("repair"), claimId: h.claimId, branch: "chore/repair" } },
+    performance: undefined };
+  const input = { outcomes, evidence, readProjectId: createProjectIdentityReader(h.store),
+    record: composeReviewDispositionRecord(h.outcome, [approved], workItem), now: () => "2026-10-20T13:00:00Z" };
+  await publishNativeReviewApproval(input);
+  const record = composeReviewDispositionRecord(h.outcome, [{ ...approved, performance: performed.performance }], workItem);
+  await publishNativeReviewPerformance({ ...input, record, performance: performed.performance });
+  h.advanceHead();
+  await writeFile(join(h.cwd, ".arc/system/arc-config.yml"), "branch.base: main\nreview.frontline_max_passes: 1\n");
+  const grant = { exhaustedPassCount: 1, nextPass: 2 };
+  const raw = await h.resolve("force", { ceilingOverride: grant });
+  expect(raw, JSON.stringify(raw)).toMatchObject({ state: "ready", payload: { pass: 2, maxPasses: 2 } });
+  const admitted = FrontlineResolveEnvelopeSchema.parse(raw);
+  if (admitted.state !== "ready") throw new Error(JSON.stringify(admitted));
+  const decisions = createReviewDecisionPort(h.store, workItem), listing = await decisions.list();
+  if (listing.status !== "complete") throw new Error(listing.reason);
+  expect(listing.records).toHaveLength(1);
+  const decision = listing.records[0]!, key = reviewDecisionKey(decision.value);
+  expect(decision.value).toMatchObject({ decidedBy: "test-user", lane: "frontline", subject: { headSha: "e".repeat(40) },
+    choice: { kind: "extra-pass", passCount: 1, precondition: { kind: "ceiling", targetBinding: { kind: "call-target" } } } });
+  const version = lifecycleSuccess(await h.store.version());
+  expect(await h.resolve("force", { ceilingOverride: { ...grant, decisionKey: canonicalDigest({ missing: true }) } }))
+    .toMatchObject({ error: { code: "invalid-input" } });
+  expect(await h.resolve("force", { ceilingOverride: { ...grant, decisionKey: key } }))
+    .toMatchObject({ state: "ready", payload: { admission: { operationId: admitted.payload.admission.operationId } } });
+  expect(lifecycleSuccess(await h.store.version())).toBe(version);
+});
 
 it.each(["run", "reduce"] as const)("retains the native frontline source owner through %s findings", async command => {
   const h = await completedFindings();

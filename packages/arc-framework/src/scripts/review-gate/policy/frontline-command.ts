@@ -71,6 +71,7 @@ interface FrontlineCommandDependencies {
   preferences: FrontlineSourcePreferenceReader;
   registry: FrontlineSourceRegistry;
   operationStore: ReviewOperationStateStore;
+  resolvePassJudgments?: (request: FrontlineCommandRequest, lineage: LaneSubjectLineage) => Promise<FrontlineCommandRequest>;
   recordInitialSkip?: (lineage: LaneSubjectLineage, target: ReviewTarget) => Promise<void>;
   resolveLineage(
     target: ReviewTarget,
@@ -311,10 +312,11 @@ async function resolveFrontlineSelection(
 ) {
   const routing = resolveReviewRouting(parsed.changeSet);
   const configuredMaxPasses = ReviewPassSchema.parse(await dependencies.readMaxPasses());
-  const conditionalCeiling = parsed.policyJudgment?.ceilingOverride;
-  const maxPasses = conditionalCeiling?.conditionalPassAuthorizationId === undefined
-    ? configuredMaxPasses
-    : ReviewPassSchema.parse(Math.max(configuredMaxPasses, conditionalCeiling.nextPass));
+  const ceiling = parsed.policyJudgment?.ceilingOverride;
+  const granted = ceiling !== undefined && (ceiling.conditionalPassAuthorizationId !== undefined
+    || (dependencies.resolvePassJudgments !== undefined && ceiling.decisionKey !== undefined));
+  const maxPasses = granted
+    ? ReviewPassSchema.parse(Math.max(configuredMaxPasses, ceiling.nextPass)) : configuredMaxPasses;
   const semantic = await resolveFrontlineReview({
     methodActive: routing.facts.activity.frontlineReview,
     routerAction: routing.decision.frontlineAction,
@@ -378,6 +380,7 @@ async function resolveFrontlineCommandWithinLock(
   lineage: LaneSubjectLineage,
   dependencies: FrontlineCommandDependencies,
 ): Promise<FrontlineCommandResult> {
+  parsed = await dependencies.resolvePassJudgments?.(parsed, lineage) ?? parsed;
   const { version: ownerVersion, state: owner, replay } =
     await readFrontlineOwnerForResolution(parsed, lineage, dependencies);
   if (replay !== null) return replay;

@@ -17,12 +17,12 @@ import { confirmErrandFixResponseApplicability, confirmPrivateCandidateCorrectio
 
 /** Resolve the exact public or private change-request target without publishing state. */
 export async function resolveLocalPolicyTarget(
-  input: { cwd: string; exec: GitExec },
+  input: { cwd: string; exec: GitExec; headRef?: string },
   repositoryId: string,
   target: ReviewTarget,
   baseRef: string,
 ) {
-  const branch = (await input.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+  const branch = input.headRef ?? (await input.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
     cwd: input.cwd,
   })).stdout.trim();
   if (branch === "" || branch === "HEAD") {

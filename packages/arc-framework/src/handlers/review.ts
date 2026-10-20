@@ -192,6 +192,7 @@ import {
 import { readLocalReviewLiveContext } from
   "../scripts/review-gate/hosts/local/live-context.js";
 import { recordNativeFrontlineSkip, createNativeFrontlineSkipRecorder } from "../scripts/review-gate/runtime/native-frontline-window.js";
+import { createNativeFrontlinePassJudgmentResolver } from "../scripts/review-gate/runtime/native-frontline-pass-judgments.js";
 import {
   projectReviewPolicyAttempt,
   resolveReviewPolicy,
@@ -2614,6 +2615,7 @@ function defaultFrontlineResolveDependencies(context: InteractionContext, invoca
         registry: new FrontlineSourceRegistry([CODERABBIT_FRONTLINE_REGISTRATION]),
         operationStore,
         recordInitialSkip: createNativeFrontlineSkipRecorder({ ...bound, cwd: root, exec }, operationStore.nativeFacts),
+        resolvePassJudgments: createNativeFrontlinePassJudgmentResolver({ ...bound, cwd: root, exec }, operationStore),
         withLaneOperationLock: (operationId, action) => withRepositoryReviewOperationLock(
           exec,
           root,
@@ -2652,9 +2654,7 @@ function defaultFrontlineResolveDependencies(context: InteractionContext, invoca
         },
         resolveSupersessionAncestors: (lineage) =>
           resolveFrontlineSupersessionAncestors(root, exec, lineage, bound),
-        readMaxPasses: async () => Number((
-          await readConfigSettings(root)
-        ).settings["review.frontline_max_passes"]),
+        readMaxPasses: async () => Number((await readConfigSettings(root)).settings["review.frontline_max_passes"]),
         now: () => new Date().toISOString(),
       });
         return await retainReviewOperationReference({ ...bound, cwd: root, exec }, result);

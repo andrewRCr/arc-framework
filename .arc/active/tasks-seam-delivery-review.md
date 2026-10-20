@@ -1127,9 +1127,10 @@ this phase puts publication's claim and reopen's boundary write in their transit
             - Production preparation binds explicit and stored judgments before pending replay, validates referenced
               authority, and resumes an additional pass after its separate coverage choice. Pending operations retain
               their immutable targets and identities; fresh delivery inputs retain exact driver validation.
-        - `[ ]` **6.2.a.4 Frontline resolution**
-            - Record and relay ordinary ceiling authority before pending replay, with exact head reach and native
-              allowance projection.
+        - `[x]` **6.2.a.4 Frontline resolution**
+            - Native frontline resolution records and relays ordinary ceiling authority before pending replay,
+              preserving exact head reach and window closure. Delivery policy targets use the member's retained
+              branch; matching references preserve the admission, and invalid references refuse before replay.
         - `[ ]` **6.2.a.5 Hosted requests**
             - Resolve ordinary grants before fresh capacity admission while keeping reserved replay and provider
               actor identity separate from the judgment's active identity.
