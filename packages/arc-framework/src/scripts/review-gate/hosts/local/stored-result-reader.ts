@@ -25,12 +25,33 @@ export class StoredReviewResultReader implements ReviewResultReader {
       if (stored === undefined) throw new LocalReviewResultReaderError("missing-producer");
       if (stored.value.target.repositoryId !== projectId || stored.reference.owner.type !== "work-item"
         || stored.reference.owner.uid === undefined) throw new LocalReviewResultReaderError("corrupt-result", "Restore the producer under its selected project and exact work-item owner.");
-      return localResult(stored.value, stored.reference.owner);
+      return stored.value.frontline === undefined ? localResult(stored.value, stored.reference.owner)
+        : frontlineResult(stored.value, stored.reference.owner);
     } catch (error) {
       if (error instanceof LocalReviewResultReaderError || error instanceof ProjectIdentityError) throw error;
       throw new LocalReviewResultReaderError("corrupt-result", error instanceof Error ? error.message : "producer result cannot be validated");
     }
   }
+}
+
+function frontlineResult(outcome: ReviewOutcome, workItem: OwnerIdentity): ReviewResult {
+  const frontline = outcome.frontline;
+  if (frontline === undefined || (outcome.outcome !== "clean" && outcome.outcome !== "findings")) {
+    throw new LocalReviewResultReaderError("missing-result", "The producer has no immutable frontline verdict.");
+  }
+  const admission = frontline.admission;
+  return { kind: "frontline", workItem, producerId: outcome.attemptId, repositoryId: outcome.target.repositoryId,
+    target: outcome.target, sourceIdentity: outcome.source.sourceId, originalOutcome: outcome.outcome,
+    findings: outcome.findings, resultDigest: frontline.outcomeDigest,
+    admission: { lineage: outcome.lineage, logicalPass: outcome.logicalPass, retryGeneration: outcome.retryGeneration,
+      requestedCoverage: outcome.requestedCoverage, effectiveCoverage: outcome.effectiveCoverage,
+      scopeMode: "whole-target", policyVersion: admission.policyVersion },
+    outcomeRef: reviewOutcomeKey(outcome), sourceBindingId: frontline.sourceBindingId,
+    executableIdentity: frontline.executableIdentity,
+    outcome: { schemaVersion: 1, semanticsVersion: "frontline-review/v1", source: admission.frontlineReview.source,
+      target: outcome.target, pass: outcome.logicalPass, maxPasses: admission.maxPasses,
+      outcome: outcome.outcome, findings: outcome.findings, reason: null },
+    ...(frontline.responseBinding === undefined ? {} : { responseBinding: frontline.responseBinding }) };
 }
 
 function localResult(outcome: ReviewOutcome, workItem: OwnerIdentity): ReviewResult {

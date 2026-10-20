@@ -95,12 +95,12 @@ export async function createLocalMappingFixture(context: {
   return { ...fixture, state, receipts, input, conclude, moveHead, prepare, resultReader };
 }
 
-export async function createFrontlineMappingFixture() {
+export async function createFrontlineMappingFixture(repositoryId = "repo-1", result: "clean" | "findings" = "findings") {
   const { createFrontlineFixture } = await import("./frontline-review.js");
   const { createReviewTarget } = await import("../../src/scripts/review-gate/core/gate-contract-v2.js");
   const { FrontlineOutcomeStoreRecordSchema } = await import("../../src/scripts/review-gate/core/repository-record-schemas.js");
   const target = createReviewTarget({ schemaVersion: 2, semanticsVersion: "review-gate/v2", kind: "delivery-member",
-    repositoryId: "repo-1", baseRef: "main", diffBaseSha: "a".repeat(40), diffBaseTree: "b".repeat(40),
+    repositoryId, baseRef: "main", diffBaseSha: "a".repeat(40), diffBaseTree: "b".repeat(40),
     headSha: "c".repeat(40), headTree: "d".repeat(40) });
   const vehicle = DeliveryReviewMemberVehicleSchema.parse({ kind: "delivery-member", workUnitId: "example", planId: "123e4567-e89b-42d3-a456-426614174002",
     deliverableId: `sha256:${"7".repeat(64)}` as const, head: target.headSha });
@@ -110,8 +110,8 @@ export async function createFrontlineMappingFixture() {
   const fixture = createFrontlineFixture(target, { lineage, responseBinding: {
     candidate: { workUnit: vehicle.workUnitId, candidateId: `sha256:${"8".repeat(64)}`, target: createReviewTarget({
       ...coordinates, kind: "change-set" }) }, deliveryMember: vehicle,
-  }, findings: [{ findingId: "frontline-finding", severity: "minor", locus: "src/example.ts:2",
-    evidenceUrlOrId: "frontline-finding", sourceOrdinal: 1 }] });
+  }, ...(result === "clean" ? {} : { findings: [{ findingId: "frontline-finding", severity: "minor" as const,
+    locus: "src/example.ts:2", evidenceUrlOrId: "frontline-finding", sourceOrdinal: 1 }] }) });
   const record = FrontlineOutcomeStoreRecordSchema.parse({ schemaVersion: 1, semanticsVersion: "frontline-outcome-store/v1",
     operationId: fixture.admission.operationId, version: 1, record: fixture.outcomeRecord });
   const input = { projectId: target.repositoryId, candidates: [],

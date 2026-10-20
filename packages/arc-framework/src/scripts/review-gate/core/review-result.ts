@@ -15,7 +15,7 @@ import type { LaneSubjectLineage } from "./lane-admission.js";
 import type { LocalReviewState } from "./operation-state-schema.js";
 import type { DeliveryLocalReviewAdmission } from
   "../policy/delivery-local-review-admission.js";
-import type { FrontlineExecutionOutcome } from "../policy/frontline-outcome.js";
+import type { FrontlineReviewOutcome } from "../policy/frontline-outcome.js";
 import type { HostedCoverageEvidence } from "../hosted/await.js";
 import type { HostedReviewCoverage, HostedTarget } from "../hosted/request.js";
 import type { ReviewScopeMode } from "./review-primitives.js";
@@ -57,13 +57,13 @@ export interface LocalReviewResult extends ReviewResultBase {
   deliveryAdmission?: DeliveryLocalReviewAdmission;
 }
 
-/** Complete immutable frontline outcome and its executable admission context. */
+/** Immutable frontline outcome with its recorded source identity and portable admission context. */
 export interface FrontlineReviewResult extends ReviewResultBase {
   kind: "frontline";
   outcomeRef: string;
   sourceBindingId: CanonicalDigest;
   executableIdentity: FrontlineExecutableIdentity | null;
-  outcome: FrontlineExecutionOutcome;
+  outcome: FrontlineReviewOutcome;
   responseBinding?: BoundFrontlineResponseBinding;
 }
 

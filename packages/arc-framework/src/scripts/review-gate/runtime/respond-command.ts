@@ -99,7 +99,7 @@ import {
 import {
   projectFrontlineFollowUpAdvice,
 } from "../policy/frontline-follow-up.js";
-import type { FrontlineExecutionOutcome } from "../policy/frontline-outcome.js";
+import type { FrontlineReviewOutcome } from "../policy/frontline-outcome.js";
 import type { DeliveryLocalReviewAdmission } from
   "../policy/delivery-local-review-admission.js";
 import {
@@ -484,7 +484,7 @@ interface ResolvedResponseSource {
   operationId: string;
   repositoryId: string;
   target: ReviewTarget;
-  findings: FrontlineExecutionOutcome["findings"];
+  findings: FrontlineReviewOutcome["findings"];
   sourceIdentity: string;
   source: ApprovedDispositionRecord["source"];
   dispositionContext: DispositionSourceContext;
@@ -492,7 +492,7 @@ interface ResolvedResponseSource {
   laneLineage?: LaneSubjectLineage;
   deliveryAdmission?: DeliveryLocalReviewAdmission;
   responseBinding?: BoundFrontlineResponseBinding;
-  frontlineOutcome?: FrontlineExecutionOutcome;
+  frontlineOutcome?: FrontlineReviewOutcome;
   hostedAttempt?: {
     operationId: string;
     attemptId: string;

@@ -7,7 +7,7 @@ import { validateDispositionState } from "../core/dispositions.js";
 import { ReviewTargetSchema, type ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import { fixesMaterialFinding } from "../core/review-convergence.js";
 import { ReviewPassSchema, type ReviewPass } from "../core/review-pass.js";
-import { FrontlineExecutionOutcomeSchema } from "./frontline-outcome.js";
+import { FrontlineReviewOutcomeSchema } from "./frontline-outcome.js";
 
 export type FrontlineFollowUpDecision =
   | { action: "follow-up"; pass: ReviewPass; target: ReviewTarget }
@@ -37,7 +37,7 @@ export function projectFrontlineFollowUpAdvice(input: {
   outcome: unknown;
   dispositionState?: ApprovedDispositionSet | null;
 }): FrontlineFollowUpAdvice {
-  const outcome = FrontlineExecutionOutcomeSchema.parse(input.outcome);
+  const outcome = FrontlineReviewOutcomeSchema.parse(input.outcome);
   if (outcome.outcome !== "findings") {
     return { action: "stop", reason: `outcome-${outcome.outcome}` };
   }
@@ -86,7 +86,7 @@ export function resolveFrontlineFollowUp(input: {
   if (advice.action === "stop") return advice;
 
   const changedTarget = ReviewTargetSchema.parse(input.changedTarget);
-  const outcome = FrontlineExecutionOutcomeSchema.parse(input.outcome);
+  const outcome = FrontlineReviewOutcomeSchema.parse(input.outcome);
   if (changedTarget.targetId === outcome.target.targetId) {
     return { action: "stop", reason: "target-unchanged" };
   }
