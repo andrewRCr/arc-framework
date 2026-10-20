@@ -52,7 +52,7 @@ export function mergeLineText(input: MergeTextInput): MergeTextResult {
   }
   const finalNewline = input.current.endsWith("\n") === input.base.endsWith("\n")
     ? input.incoming.endsWith("\n") : input.current.endsWith("\n");
-  return {content:alignMergedTables(result,currentLines,comparisons.a).join("\n") + (finalNewline ? "\n" : ""),conflicts};
+  return {content:alignMergedTables(result,currentLines,comparisons.a,current).join("\n") + (finalNewline ? "\n" : ""),conflicts};
 }
 
 function sameLines(left: readonly string[], right: readonly string[]): boolean {

@@ -121,8 +121,8 @@ function renderAligned(table: Table, current: Table): string[] {
   });
 }
 
-/** Re-align merged tables only when their surviving source lines identify an aligned current table. */
-export function alignMergedTables(source: string[], currentLines: readonly (number | undefined)[], current: TableComparison): string[] {
+/** Re-align changed merged tables when their surviving source lines identify an aligned current table. */
+export function alignMergedTables(source: string[], currentLines: readonly (number | undefined)[], current: TableComparison, currentSource: readonly string[]): string[] {
   const currentTables = new Map(current.tables.flatMap((table) => table.rows.map((row) => [row.index,table] as const)));
   for (const table of compareTablePadding(source).tables) {
     const candidates = new Set(table.rows.flatMap((row) => {
@@ -133,6 +133,10 @@ export function alignMergedTables(source: string[], currentLines: readonly (numb
     if (candidates.size !== 1) continue;
     const original = [...candidates][0];
     if (original?.aligned !== true) continue;
+    if (table.rows.every((row) => {
+      const index = currentLines[row.index];
+      return index !== undefined && source[row.index] === currentSource[index];
+    })) continue;
     const rendered = renderAligned(table,original);
     for (const [index,row] of table.rows.entries()) source[row.index] = rendered[index] ?? source[row.index] ?? "";
   }

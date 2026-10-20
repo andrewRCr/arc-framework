@@ -131,6 +131,24 @@ describe("Markdown table padding", () => {
       .toEqual({content:`New opening\nExtra\n\n${table(15,"current-wide","incoming-longer")}\n\nBetween\n\n${table(20,"edit")}\n`,conflicts:[]});
   });
 
+  it.each(["\n","\r\n"])("preserves untouched table bytes beside prose-only edits: %j", (newline) => {
+    const unchanged = "| A | B |\n| - | - |\n| x | y |";
+    const document = (opening:string,footer:string) => `${opening}\n\n${unchanged}\n\n${footer}\n`.replaceAll("\n",newline);
+    const base = document("Opening","Footer");
+    const current = document("Current opening\nExtra","Footer");
+    const incoming = document("Opening","Incoming footer");
+    expect(mergeLineText(input(base,current,incoming)))
+      .toEqual({content:document("Current opening\nExtra","Incoming footer"),conflicts:[]});
+  });
+
+  it("preserves an untouched table while repadding another edited table", () => {
+    const unchanged = "| A | B |\n| - | - |\n| x | y |";
+    const document = (opening:string,body:string) => `${opening}\n\n${unchanged}\n\nBetween\n\n${body}`;
+    const result = mergeLineText(input(document("Opening",table(5)),
+      document("Current opening",table(12,"current-wide")),document("Opening",table(15,"a","incoming-longer"))));
+    expect(result).toEqual({content:document("Current opening",table(15,"current-wide","incoming-longer")),conflicts:[]});
+  });
+
   it.each(["\n","\r\n"])("preserves current container prefixes and newline bytes: %j", (newline) => {
     const wrap = (text:string) => text.split("\n").map((line)=>`> ${line}`).join(newline)+newline;
     expect(mergeLineText(input(wrap(table(5)),wrap(table(12,"current-wide")),wrap(table(15,"a","incoming-longer")))))
