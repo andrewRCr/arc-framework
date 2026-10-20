@@ -4,7 +4,7 @@ import { projectIdentitySpineRemedy, reviewProjectIdentityRequestRemedy } from "
 import { decodePrePublicationReplay, replayTokenFromAction, type PrePublicationReplayInput } from "../scripts/review-gate/policy/pre-publication-replay.js";
 import { ReviewLaneReadRequestSchema, ReviewLaneReadEnvelopeSchema, type ReviewLaneReadRequest } from "../scripts/review-gate/lane-read-schema.js";
 import { createReviewInvocationResolver, resolveReviewInvocation, type ReviewInvocationOptions, type ReviewInvocationContext } from "../scripts/review-gate/runtime/invocation.js";
-import { resolveLocalReviewInvocation, resolveLocalReviewResumeInvocation } from "../scripts/review-gate/runtime/local-review-invocation.js";
+import { resolveLocalReviewInvocation, resolveLocalReviewResumeInvocation, resolveLocalReviewAttestInvocation } from "../scripts/review-gate/runtime/local-review-invocation.js";
 import { resolveFrontlineRunInvocation } from "../scripts/review-gate/runtime/frontline-invocation.js";
 import { createReviewCompositionContext } from "../scripts/review-gate/runtime/composition-context.js";
 import { readReviewLane } from "../scripts/review-gate/runtime/lane-read-composition.js";
@@ -3164,14 +3164,14 @@ export interface ReviewLocalAttestHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultLocalAttestDependencies(context: InteractionContext, invocation: ReviewInvocationOptions = {}): ReviewLocalAttestHandlerDependencies {
-  const exec = createGitExec(context.subprocess);
+function defaultLocalAttestDependencies(context: InteractionContext, invocation: ReviewHandlerInvocationOptions = {}): ReviewLocalAttestHandlerDependencies {
+  const exec = invocation.exec ?? createGitExec(context.subprocess);
   const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
     ...defaultReviewHandlerBoundary(),
-    attest: (request, root) => attestLocalReviewCommand(
+    attest: async (request, root) => attestLocalReviewCommand(
       request,
-      createLocalAttestDependencies({ ...invocationFor(root), exec, cwd: root }),
+      createLocalAttestDependencies(await resolveLocalReviewAttestInvocation({ ...invocationFor(root), exec, cwd: root }, request)),
     ),
   };
 }
@@ -3187,7 +3187,7 @@ export async function handleReviewLocalAttest(
   source: string,
   overrides: Partial<ReviewLocalAttestHandlerDependencies> = {},
   suppliedContext?: InteractionContext,
-  invocation: ReviewInvocationOptions = {},
+  invocation: ReviewHandlerInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false,

@@ -7,7 +7,7 @@ import { IntegrationBoundaryLocusV2Schema } from "../../../src/scripts/review-ga
 import { lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { expect, it, onTestFinished } from "vitest";
 import { LocalPrepareEnvelopeSchema } from "../../../src/scripts/review-gate/core/review-command-envelope.js";
-import { handleReviewLocalPrepare, handleReviewLocalResume } from "../../../src/handlers/review.js";
+import { handleReviewLocalPrepare, handleReviewLocalResume, handleReviewLocalAttest } from "../../../src/handlers/review.js";
 import { TransientIdentityRecordSchema } from "../../../src/lib/errand/identity-record.js";
 import { scriptRawGitExec } from "../../helpers/git-exec-fake.js";
 import { createReviewHarness } from "../../helpers/store/review-harness.js";
@@ -92,7 +92,15 @@ async function fixture(project = true, vehicle: "work-unit" | "errand" = "errand
   const rawGit = scriptRawGitExec([{ match: ["diff", "--numstat", "-z", "-M", "-C", "--find-copies-harder", `${base}..${head}`, "--"],
     responses: [{ stdout: Buffer.from("1\t0\tsrc/example.ts\0") }] }]).exec;
   const operations = new LocalReviewOperationStateStore(new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd));
-  return { ...checkout, claimId, request, operations, setIdentity: (identity: string) => { activeIdentity = identity; }, resume: async (operationId: string) => {
+  return { ...checkout, claimId, request, operations, setIdentity: (identity: string) => { activeIdentity = identity; }, attest: async (operationId: string) => {
+    let output = "";
+    await handleReviewLocalAttest("-", { resolveRoot: () => checkout.cwd,
+      readText: async () => JSON.stringify({ schemaVersion: 1, operationId, result: { status: "partial", result: null,
+        evaluatorIdentity: "fresh-reviewer", reviewRunId: "test-run", applicabilityId: null, findings: [] } }),
+      write: text => { output += text; }, setExitCode: () => {} },
+    undefined, { ...checkout, projectId: createProjectIdentityReader(checkout.store) });
+    return JSON.parse(output) as unknown;
+  }, resume: async (operationId: string) => {
     let output = "";
     await handleReviewLocalResume("-", { resolveRoot: () => checkout.cwd,
       readText: async () => JSON.stringify({ schemaVersion: 1, operationId }),
@@ -168,6 +176,9 @@ it.each(["work-unit", "errand"] as const)("retains the selected %s generation wi
 it("keeps the unavailable-operation refusal without current checkout occupancy", async () => {
   const h = await fixture();
   await unlink(resolveWorktreeMarkerPath(h.cwd));
+  expect(await h.attest("missing-operation")).toMatchObject({ error: {
+    code: "corrupt-state", message: "local review operation is unavailable",
+  } });
   expect(await h.resume("missing-operation")).toMatchObject({ error: {
     code: "corrupt-state", message: "local review operation is unavailable",
   } });
@@ -182,9 +193,24 @@ it("reports a missing saved owner and resumes after its working state is repaire
   const { workItem, ...unbound } = saved.state;
   if (workItem === undefined) throw new Error("Expected selected owner");
   const corrupt = await h.operations.publishOperation(unbound, saved.version);
+  expect(await h.attest(prepared.payload.operationId)).toMatchObject({ error: {
+    code: "corrupt-state", message: "local review operation has no selected work item",
+  } });
   expect(await h.resume(prepared.payload.operationId)).toMatchObject({ error: {
     code: "corrupt-state", message: "local review operation has no selected work item",
   } });
   await h.operations.publishOperation(saved.state, corrupt.version);
+  expect(await h.attest(prepared.payload.operationId)).toMatchObject({ state: "not-attestable", nextAction: "rerun-review" });
   expect(await h.resume(prepared.payload.operationId)).toMatchObject({ state: "suspended", nextAction: "wait" });
+});
+
+it.each(["work-unit", "errand"] as const)("attests a partial saved %s result without current checkout occupancy", async vehicle => {
+  const h = await fixture(true, vehicle, false);
+  const prepared = LocalPrepareEnvelopeSchema.parse(await h.run());
+  if (prepared.state !== "ready") throw new Error(JSON.stringify(prepared));
+  await unlink(resolveWorktreeMarkerPath(h.cwd));
+  h.setIdentity("another-user");
+  const result = await h.attest(prepared.payload.operationId);
+  expect(result, JSON.stringify(result)).toMatchObject({ state: "not-attestable", nextAction: "rerun-review",
+    payload: { operationId: prepared.payload.operationId, result: { status: "partial" } } });
 });
