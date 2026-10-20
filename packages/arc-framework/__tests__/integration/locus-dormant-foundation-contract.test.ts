@@ -49,8 +49,11 @@ describe("activated locus foundation import boundaries", () => {
       "src/lib/locus/roster.ts",
       "src/lib/locus/state.ts",
     ]);
-    expect(productionReferences().filter((reference) =>
-      activated.has(reference.consumer) && forbidden.has(reference.target))).toEqual([]);
+    const references = [...activated].flatMap((path) => {
+      const absolute = join(packageRoot, path);
+      return referencesOf(absolute, readFileSync(absolute, "utf8"));
+    });
+    expect(references.filter((reference) => forbidden.has(reference.target))).toEqual([]);
   });
 });
 
