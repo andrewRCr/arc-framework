@@ -18,6 +18,7 @@ export const UNSUPPORTED_CASES = {
   "work-item-kind-required": "recoverable",
   "held-here": "recoverable",
   "unhomed-kind": "terminal",
+  "batch-observations": "terminal",
   "personal-history": "terminal",
   "links-write": "terminal",
   "placement-move": "terminal",

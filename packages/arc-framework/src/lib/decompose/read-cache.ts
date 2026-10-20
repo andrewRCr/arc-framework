@@ -3,9 +3,10 @@ import type { Store } from "../store/contract.js";
 import type { StoreRecord } from "../store/read.js";
 import { sameReference } from "../store/identity.js";
 import type { RecordReference } from "../store/identity.js";
+import type { DecomposeReadStore } from "./read-store.js";
 
 /** Reuse listed and individually read records during preparation; revalidation uses the original store. */
-export function decomposeReadCache(store: Store, initial: readonly StoreRecord[] = []): Store {
+export function decomposeReadCache<T extends DecomposeReadStore>(store: T, initial: readonly StoreRecord[] = []): T {
   const records: StoreRecord[] = [...initial];
   const lookup = cachedLookup(store), history = cachedHistory(store);
   const lists = new Map<string, ReturnType<Store["list"]>>();
@@ -42,7 +43,7 @@ export function decomposeReadCache(store: Store, initial: readonly StoreRecord[]
   } });
 }
 
-function cachedLookup(store: Store): Store["lookup"] {
+function cachedLookup(store: Pick<Store, "lookup">): Store["lookup"] {
   const values = new Map<string, ReturnType<Store["lookup"]>>();
   return input => {
     const key = JSON.stringify(input);
@@ -54,7 +55,7 @@ function cachedLookup(store: Store): Store["lookup"] {
   };
 }
 
-function cachedHistory(store: Store): Store["history"] {
+function cachedHistory(store: Pick<Store, "history">): Store["history"] {
   const values: { reference: RecordReference; result: ReturnType<Store["history"]> }[] = [];
   return input => {
     const prior = values.find(value => sameReference(value.reference, input.reference));

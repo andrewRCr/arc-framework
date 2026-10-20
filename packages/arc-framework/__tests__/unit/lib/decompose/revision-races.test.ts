@@ -1,5 +1,6 @@
 /** Revision admission repeats after a competing batch and preserves native failures. */
 import { expect, it } from "vitest";
+import { observedDecomposeWrite } from "../../../helpers/store/decompose-batch.js";
 import { createDecomposeTerminalFixture } from "../../../fixtures/decompose-terminal.js";
 import { lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { withCompetingBatch } from "../../../helpers/store/decompose-harness.js";
@@ -83,7 +84,7 @@ it("fails native map-version admission atomically and applies after a fresh prev
   const plan = await preview(h, map);
   h.ctx.executor.store = withCompetingBatch(h.store, async () => {
     const stored = lifecycleSuccess(await h.store.read({ reference: h.applied.storedMap }));
-    lifecycleSuccess(await h.store.write({ ...recordPut(stored), provenance: { verb: "decompose", lifecycleAction: "revise" } }));
+    lifecycleSuccess(await observedDecomposeWrite(h.store, { ...recordPut(stored), provenance: { verb: "decompose", lifecycleAction: "revise" } }));
   });
   const before = lifecycleSuccess(await h.store.version());
   expect(await runStoreDecomposeRevision(h.ctx, "origin", { cutMap: map, cutMapPath: "revised.json" }, { applyAuthority: plan.applyAuthority }))

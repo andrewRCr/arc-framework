@@ -22,7 +22,7 @@ export function cohortMember(cohort: string | null = "group", completed = false)
 export function cohortRuleInput(next: StoreRecord | null = cohortDoc(), prior: StoreRecord | null = null, after: readonly StoreRecord[] = [], before: readonly StoreRecord[] = []): WriteCheckInput {
   const reference = next?.reference ?? prior?.reference;
   if (reference === undefined) throw new Error("A cohort write needs a version.");
-  return { reference, writer: { kind: "hand-edit" }, before: ruleView([...(prior === null ? [] : [prior]), ...before]),
+  return { reference, observations: [], writer: { kind: "hand-edit" }, before: ruleView([...(prior === null ? [] : [prior]), ...before]),
     after: ruleView([...(next === null ? [] : [next]), ...after]),
     ...(prior === null ? {} : { prior: { content: prior.content, fields: prior.fields } }),
     ...(next === null ? {} : { next: { content: next.content, fields: next.fields } }) };

@@ -8,6 +8,7 @@ import { decomposeRemovalReferences } from "./removal-records.js";
 import { revalidateLifecycleRecords } from "../work-unit/prepared-lifecycle-write.js";
 import { batchLifecycleWrites } from "../store/lifecycle-write.js";
 import { decomposeProvenance } from "./provenance.js";
+import { observeRecords } from "../store/record-observations.js";
 import { freshDecomposeRevisionRemedy, recheckDecomposeRevisionRefusal } from "./revision-recheck.js";
 import { sortByCanonicalBytes } from "../kernel/canonical/canonical-json.js";
 
@@ -27,7 +28,7 @@ export async function runStoreDecomposeRevision(ctx: DecomposeContext, origin: s
     locus: "applyAuthority", remedy: freshDecomposeRevisionRemedy(origin, input.cutMapPath) };
   const valid = await revalidateLifecycleRecords(ctx.executor.store, plan.records);
   if (valid.status === "refused") return recheckDecomposeRevisionRefusal(ctx, origin, input, valid.refusal);
-  const applied = await batchLifecycleWrites(ctx.executor.store, plan.writes, decomposeProvenance("revise"));
+  const applied = await batchLifecycleWrites(ctx.executor.store, plan.writes, decomposeProvenance("revise"), observeRecords(plan.records));
   return applied.status === "refused" ? recheckDecomposeRevisionRefusal(ctx, origin, input, applied.refusal)
     : { status: "ok", result: DecomposeRevisionAppliedSchema.parse({ kind: "revised", ...details }) };
 }

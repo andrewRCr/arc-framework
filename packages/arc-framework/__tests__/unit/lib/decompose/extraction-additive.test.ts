@@ -1,5 +1,6 @@
 /** A surviving origin participates in the same checked additive batch as its members. */
 import { expect, it } from "vitest";
+import { fileDecomposeConflict } from "../../../fixtures/decompose-conflict.js";
 import { createDecomposeOriginFixture } from "../../../fixtures/decompose-origin.js";
 import { completeCutMapFixture } from "../../../fixtures/decompose-v4.js";
 import { lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
@@ -111,5 +112,31 @@ it.each(["Planning", "Active"] as const)("keeps the %s origin and all companions
   for (const reference of [recordReferences["work-item/task-list"](member.reference.owner),
     recordReferences["work-item/notes"](member.reference.owner), recordReferences["work-item/companion"](member.reference.owner, "review")]) {
     expect(await h.store.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  }
+});
+
+
+it.each(["work-item/notes", "work-item/task-list"] as const)("extracts from Active while retaining unrelated %s conflict bytes and history", async kind => {
+  const h = createDecomposeHarness();
+  const primary = await h.seedMeta("origin", { state: "Active", currentWorkflow: "process-task-loop",
+    design: ["spec-origin.md"], taskList: "tasks-origin.md" });
+  await h.seed(recordReferences["work-item/spec"](primary.reference.owner), "# Origin\n\n## Scope\n\nExtracted scope.\n");
+  const tasks = await h.seed(recordReferences["work-item/task-list"](primary.reference.owner),
+    "# Task List: Origin\n\n## **Phase 1:** Work\n\n### `[ ]` **1.1 Do work**\n");
+  const notes = await h.seed(recordReferences["work-item/notes"](primary.reference.owner), "# Notes\n\nRetained decisions.\n");
+  const { subject, conflict } = await fileDecomposeConflict(h.store, kind === "work-item/notes" ? notes : tasks);
+  const histories = await Promise.all([subject, conflict].map(async record => lifecycleSuccess(await h.store.history({ reference: record.reference }))));
+  const ctx = decomposeContext(h.store);
+  const fresh = await prepareDecomposePreflight(ctx, "origin");
+  if (fresh.status === "refused") throw new Error(JSON.stringify(fresh));
+  const map = completeCutMapFixture(fresh.result.machine, true);
+  for (const allocation of map.authoring.sourceAllocations) if (allocation.disposition.kind === "target") {
+    allocation.disposition.targetLocator.artifact = "spec-member-a.md";
+  }
+  const applied = await runStoreDecomposeAdditive(ctx, "origin", "extract", { cutMap: map, cutMapPath: "cut.json" });
+  expect(applied, JSON.stringify(applied)).toMatchObject({ status: "ok" });
+  for (const [index, record] of [subject, conflict].entries()) {
+    expect(lifecycleSuccess(await h.store.read({ reference: record.reference }))).toEqual(record);
+    expect(lifecycleSuccess(await h.store.history({ reference: record.reference }))).toEqual(histories[index]);
   }
 });

@@ -33,10 +33,22 @@ function projectedRecord(record: StoreRecord, writes: readonly Mutation[]): Stor
     ...(write.placement === undefined ? {} : { placement: write.placement }) }];
 }
 
+/** A proposed holder retains semantic fields without inventing a future stored version. */
+export type DecomposeSurvivingMember = Pick<LifecycleEntry, "reference" | "fields"> & { proposedCreation?: boolean };
+
 /** Preserve unreadable and incomplete inventory evidence while selecting surviving open work. */
-export async function acquireDecomposeSurvivingMembers(store: Store, writes: readonly Mutation[]): Promise<DecomposeResult<readonly LifecycleEntry[]>> {
+export async function acquireDecomposeSurvivingMembers(store: Store, writes: readonly Mutation[]): Promise<DecomposeResult<readonly DecomposeSurvivingMember[]>> {
   const view = await readLifecycleView(decomposeSurvivingStore(store, writes));
   if (view.status === "refused") return decomposeStoreRefusal(view.refusal);
   const incomplete = decomposeInventoryRefusal(store, view.result.listing);
-  return incomplete ?? { status: "ok", result: view.result.entries.filter(entry => entry.placement.kind !== "completed") };
+  if (incomplete !== undefined) return incomplete;
+  const members: DecomposeSurvivingMember[] = view.result.entries.filter(entry => entry.placement.kind !== "completed");
+  for (const write of writes) {
+    if (write.action !== "put" || write.reference.kind !== "work-item/meta" || write.expected !== null) continue;
+    const parsed = parseLifecycleMetaContent(write.content);
+    if (!parsed.success || write.placement === undefined) return { status: "refused", reason: "invalid-structure", class: "recoverable",
+      locus: write.reference.owner.name, remedy: { text: "Restore the new member's metadata and placement in the revised map, then retry." } };
+    if (write.placement.kind !== "completed") members.push({ reference: write.reference, fields: parsed.data, proposedCreation: true });
+  }
+  return { status: "ok", result: members };
 }

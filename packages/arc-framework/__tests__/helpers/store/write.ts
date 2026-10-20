@@ -18,6 +18,8 @@ import { mergeBase, mergeContents, persistedContent, storeConflicts } from "./me
 import { withStateQueue } from "./state-queue.js";
 import { checkPreparedWrites } from "./write-checks.js";
 import { indexIdentities } from "./identities.js";
+import { checkRecordObservations } from "../../../src/lib/store/record-observations.js";
+import { readReference } from "./read.js";
 
 function detachedWrite(write: WriteInput): WriteInput {
   return { ...write, reference: structuredClone(write.reference), provenance: structuredClone(write.provenance),
@@ -264,9 +266,12 @@ export async function writeReference(context: ReferenceContext, input: WriteInpu
 export async function batchReference(context: ReferenceContext, input: BatchInput): Promise<StoreResult<BatchResult>> {
   const provenance = structuredClone(input.provenance);
   const writes = input.writes.map((write) => detachedWrite({ ...write, provenance }));
+  const observations = structuredClone(input.observations ?? []);
   return withStateQueue(context.state, async () => {
     const namespace = namespaceAdmission(context.state);
     if (namespace) return refused(namespace);
+    const observed = await checkRecordObservations({ read: async (reading) => readReference(context, reading) }, observations);
+    if (observed.status === "refused") return observed;
     const prepared = { ...context, state: structuredClone(context.state) };
     const mutations = prepareGenerations(prepared, writes);
     const keys = new Set<string>();
@@ -287,7 +292,7 @@ export async function batchReference(context: ReferenceContext, input: BatchInpu
     const identities = indexIdentities(prepared.state.records);
     if (identities.status === "refused") return identities;
     prepared.state.identities = identities.result;
-    const checkRefusal = await checkPreparedWrites(context, prepared, results.map((result) => result.reference), provenance);
+    const checkRefusal = await checkPreparedWrites(context, prepared, results.map((result) => result.reference), provenance, observations);
     if (checkRefusal) return refused(checkRefusal);
     Object.assign(context.state, prepared.state);
     return ok(structuredClone({ batchId, writes: results }));

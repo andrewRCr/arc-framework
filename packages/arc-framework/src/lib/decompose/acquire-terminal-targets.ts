@@ -12,6 +12,7 @@ import { OwnerIdentitySchema, recordReferences } from "../store/identity.js";
 import { parseCohortDocument } from "../store/kinds/cohort/index.js";
 import { decomposeStoreRefusal } from "./refusal.js";
 import { decomposeReviseArgv } from "./command-argv.js";
+import { checkDecomposeRecordConflicts } from "./source-conflicts.js";
 import { renderV3DecomposeArgv } from "../work-unit/decompose-command-renderer.js";
 
 /** An existing home and its complete version-bound artifact group. */
@@ -35,7 +36,7 @@ export async function acquireDecomposeTerminalHomes(ctx: DecomposeContext, map: 
 }
 
 /** Acquire each named cohort document, retaining its parsed path and exact version. */
-export async function acquireDecomposeTerminalCohorts(store: Store, map: CutMap): Promise<DecomposeResult<readonly DecomposeCohortObservation[]>> {
+export async function acquireDecomposeTerminalCohorts(store: Pick<Store, "read">, map: CutMap): Promise<DecomposeResult<readonly DecomposeCohortObservation[]>> {
   const placement = map.authoring.placement;
   const path = placement.kind === "direct-member" ? null : placement.kind === "at-cap" ? placement.parent : placement.cohort;
   const paths = path === null ? [] : path.includes("/") ? [path.split("/")[0] ?? path, path] : [path];
@@ -44,6 +45,8 @@ export async function acquireDecomposeTerminalCohorts(store: Store, map: CutMap)
     const owner = OwnerIdentitySchema.parse({ type: "cohort", name: path.split("/").at(-1) });
     const record = await store.read({ reference: recordReferences["cohort/document"](owner) });
     if (record.status === "refused") return decomposeStoreRefusal(record.refusal);
+    const conflicts = checkDecomposeRecordConflicts([record.result], "cohort decision");
+    if (conflicts !== undefined) return conflicts;
     const parsed = parseCohortDocument(record.result.content);
     const expectedParent = path.includes("/") ? path.split("/")[0] : null;
     if (!parsed.success || parsed.data.parent !== expectedParent || record.result.placement?.kind === "completed") {

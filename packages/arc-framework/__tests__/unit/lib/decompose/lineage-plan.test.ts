@@ -1,5 +1,6 @@
 /** Decomposition lineage keeps exact branch authority and current generation references. */
 import { expect, it } from "vitest";
+import { observedDecomposeBatch } from "../../../helpers/store/decompose-batch.js";
 import { createDecomposeTerminalFixture } from "../../../fixtures/decompose-terminal.js";
 import { lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { readWorkUnit, recordPut } from "../../../../src/lib/store/lifecycle-write.js";
@@ -27,7 +28,7 @@ it.each([false, true])("persists exact retired branches and supplies executable 
   if (prepared.status === "refused") throw new Error(JSON.stringify(prepared));
   expect(prepared.result.lineage.retiredBranches).toEqual(branches);
   const { primary, storedMap } = input.result.acquired;
-  lifecycleSuccess(await h.store.batch({ provenance: { verb: "decompose", lifecycleAction: "terminal" }, writes: [
+  lifecycleSuccess(await observedDecomposeBatch(h.store, { provenance: { verb: "decompose", lifecycleAction: "terminal" }, writes: [
     prepared.result.write, { action: "remove", reference: primary.reference, expected: primary.version },
     { action: "remove", reference: storedMap.reference, expected: storedMap.version },
   ] }));

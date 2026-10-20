@@ -180,3 +180,18 @@ it("requires a retained routing recipient when all old members would leave, then
     { action: "put", reference: destination, expected: null, content: inbound.content }], provenance: { verb: "route", lifecycleAction: "route" } }));
   await apply(h, map);
 });
+
+
+it("refuses a revised-map edge from a new member to a removed member before issuing authority", async () => {
+  const h = await createDecomposeTerminalFixture();
+  const map = dropSecond(h);
+  map.authoring.externalEdges = [{ from: "member-c", to: "member-b" }];
+  const before = lifecycleSuccess(await h.store.version());
+  expect(await preview(h, map)).toMatchObject({ status: "refused", reason: "removed-stub-held",
+    message: expect.stringContaining("member-c.Depends On → member-b"),
+    remedy: { text: expect.stringContaining("revised map") } });
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  expect(await readWorkUnit(h.store, "member-c")).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  map.authoring.externalEdges = [];
+  await apply(h, map);
+});

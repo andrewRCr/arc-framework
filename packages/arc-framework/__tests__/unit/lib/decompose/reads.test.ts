@@ -1,5 +1,6 @@
 /** Query counts remain fixed as record histories and unrelated work grow. */
 import { expect, it } from "vitest";
+import { observedDecomposeWrite } from "../../../helpers/store/decompose-batch.js";
 import { createDecomposeReadFixture } from "../../../fixtures/decompose-reads.js";
 import { createCountingStore, type StoreReadObservation } from "../../../helpers/store/counting-store.js";
 import { lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
@@ -59,7 +60,7 @@ async function lengthenHistories(h: Awaited<ReturnType<typeof createDecomposeRea
     lifecycleSuccess(await h.store.batch({ writes: edited.map(record => recordPut(record)),
       provenance: { verb: "write-back", lifecycleAction: "edit" } }));
     const map = records.find(record => record.reference.kind === "work-item/cut-map");
-    if (map !== undefined) lifecycleSuccess(await h.store.write({ ...recordPut(map),
+    if (map !== undefined) lifecycleSuccess(await observedDecomposeWrite(h.store, { ...recordPut(map),
       provenance: { verb: "decompose", lifecycleAction: "revise" } }));
     records = await Promise.all(records.map(async record => lifecycleSuccess(await h.store.read({ reference: record.reference }))));
   }

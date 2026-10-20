@@ -7,10 +7,12 @@ import { readLifecycleMetaFields } from "../store/lifecycle-write.js";
 import { decomposeStoreRefusal } from "./refusal.js";
 import { decomposeReviseArgv } from "./command-argv.js";
 import { renderV3DecomposeArgv } from "../work-unit/decompose-command-renderer.js";
+import { checkDecomposeRecordConflicts } from "./source-conflicts.js";
 import { planDecomposeTopology } from "./topology.js";
+type PlacementInput = Pick<DecomposeTerminalRecords, "map" | "acquired" | "members" | "cohorts">;
 
 /** Validate authenticated members before checking their seeded dependency providers. */
-export function checkDecomposeMemberPlacement(input: DecomposeTerminalRecords): DecomposeRefusal | undefined {
+export function checkDecomposeMemberPlacement(input: PlacementInput): DecomposeRefusal | undefined {
   const fields: { slug: string; fields: ParsedMetaRecord }[] = [];
   for (const member of input.members) {
     if (member.primary === null) {
@@ -23,6 +25,8 @@ export function checkDecomposeMemberPlacement(input: DecomposeTerminalRecords): 
       return { status: "refused", reason: "member-renamed", class: "recoverable", locus: member.slug,
         remedy: { text: `Restore the member's map name with ${renderV3DecomposeArgv(argv)} before finishing; rename it again after the cut lands.`, argv } };
     }
+    const conflicts = checkDecomposeRecordConflicts([member.primary], "member decision");
+    if (conflicts !== undefined) return conflicts;
     const parsed = readLifecycleMetaFields(member.primary);
     if (parsed.status === "refused") return decomposeStoreRefusal(parsed.refusal);
     fields.push({ slug: member.slug, fields: parsed.result });
@@ -37,7 +41,7 @@ export function checkDecomposeMemberPlacement(input: DecomposeTerminalRecords): 
     remedy: { text: `Restore Cohort to ${JSON.stringify(topology.result.memberCohort ?? "[none]")} on ${changed.slug} through write-back${revision}, then finish the cut.` } };
 }
 
-function canReviseCohort(input: DecomposeTerminalRecords, cohorts: readonly (string | null)[]): boolean {
+function canReviseCohort(input: PlacementInput, cohorts: readonly (string | null)[]): boolean {
   const cohort = cohorts[0];
   if (cohort === undefined || !cohorts.every(value => value === cohort)) return false;
   const placement: CutMap["authoring"]["placement"] = cohort === null ? { kind: "direct-member" }

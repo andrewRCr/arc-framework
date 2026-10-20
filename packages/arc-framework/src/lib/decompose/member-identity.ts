@@ -17,7 +17,8 @@ export function isDecomposeMemberBirth(slug: string, history: readonly HistoryEn
 }
 
 /** Resolve map names, retaining only the generations created by this cut's additive or revision batches. */
-export async function acquireDecomposeMembers(store: Store, map: CutMap, storedMap: StoreRecord): Promise<DecomposeResult<readonly DecomposeTerminalMember[]>> {
+export async function acquireDecomposeMembers(store: Pick<Store, "history" | "lookup" | "read">, map: CutMap,
+  storedMap: StoreRecord): Promise<DecomposeResult<readonly DecomposeTerminalMember[]>> {
   const history = await store.history({ reference: storedMap.reference });
   if (history.status === "refused") return decomposeStoreRefusal(history.refusal);
   const batches = decomposeCurrentCutBatches(history.result);
@@ -41,7 +42,7 @@ export async function acquireDecomposeMembers(store: Store, map: CutMap, storedM
   return { status: "ok", result: members };
 }
 
-async function memberHistory(store: Store, record: StoreRecord,
+async function memberHistory(store: Pick<Store, "history">, record: StoreRecord,
   histories: { record: StoreRecord; entries: HistoryEntry[] }[]): Promise<DecomposeResult<HistoryEntry[]>> {
   const prior = histories.find(item => sameReference(item.record.reference, record.reference));
   if (prior !== undefined) return { status: "ok", result: prior.entries };

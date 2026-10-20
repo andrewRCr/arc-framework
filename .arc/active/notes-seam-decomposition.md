@@ -4,6 +4,7 @@
 
 - [Corrections to the consumer map](#corrections-to-the-consumer-map)
 - [Destination locator semantics](#a1--destination-locator-semantics)
+- [Atomic observation admission](#a4--atomic-observation-admission)
 - [Refusal coverage](#refusal-coverage)
 - [Verification evidence](#verification-evidence)
 
@@ -466,3 +467,60 @@ The first representative real cut remains the `storage-cutover` rehearsal specif
 `spec-seam-decomposition.md` § 18; no essential proof is assigned to an assumed Errand.
 
 ---
+
+## A4 — atomic observation admission
+
+The atomic-observation finding changes the shared batch contract as specified in § 8.8 of
+`spec-seam-decomposition.md`. The native kind rule closes relevant-inventory races; strict read observations avoid
+merge semantics and unauthorized guard puts. Snapshot-bound history reuses the current-cut member-birth proof.
+The once-per-run history count is superseded forward; the original criterion remains preserved.
+
+Superseded statements:
+
+> No write check is needed: being never projected, it takes no hand edit, and its single writer is the verb.
+>
+> Within the apply, revalidation by version guards the gap between its own acquisition and its batch.
+
+`applyPreparedLifecycleWrite` manufactures puts for unwritten observations; merge kinds can merge stale puts, while
+write-once conflict records refuse them. `publicRecord` derives conflict refs independently of the subject version.
+The new basis therefore compares version and conflict set, without writing either the observation or its conflicts.
+
+The ref provider's `commitRefWrites` currently checks immutable captured tips before `commitRefStep` takes the layout
+publication lock. Changed-ref CAS alone cannot freeze an outsider or a newly created incoming ref. The provider must
+validate scoped admission under its final publication boundary, audit every publisher, and preserve lock ordering.
+Those backend changes are an expected contract before cutover, not part of this checkout's implementation.
+
+The review-fix increment tests observations and final-gap races on the reference backend before runtime implementation,
+then changes only the five approved finding scopes. All prior criteria reports remain historical evidence until the
+new head passes full verification. The amendment review and later code fix-check round are separate evidence.
+
+### Approved response implementation
+
+The independent A4 amendment review completed without findings before runtime edits. Its report and exact-footprint
+manifest are retained with the local review evidence. Subsequent prose changes only repair Markdown wrapping.
+
+The shared batch schema accepts strict nonmutating observations. The reference store evaluates them inside its
+state queue before mutation preparation; in-repo dispatch refuses nonempty observations before substrate I/O.
+Registered checks receive validated observations, trusted lifecycle action, and before-state history. The cut-map
+check repeats the relevant source, incoming/outgoing identity, inbound, member-birth, placement, and removed-group
+predicates. Callers submit only their exact prepared writes, with the complete captured observation basis.
+
+Focused evidence covers stale mergeable observations, presence/absence changes, conflict-set changes at unchanged
+subject versions, retained write-once conflict records, and registered before-only history. Checked final-gap races
+cover new and newly interested dependents, empty origin/removal companions, allocated destination edits, and new
+inbound records. Each refuses without batch effects and completes after repair and fresh preparation; an irrelevant
+new owner remains admissible. Malformed observation envelopes refuse generation omissions, duplicates, wrong conflict
+kinds, extra fields, and callbacks. Reconstruction runs preserve the new APIs while restoring only the narrow failing
+behavior; their behavioral failures and restored green runs are retained with the fix evidence.
+
+The other approved corrections reject disputed destination/cohort content and terminal lineage, preserving the named
+conflict and a resolution remedy. Retirement, extraction, and each shared landed-report consumer recover after explicit
+resolution. Revision removal previews now include newly created metadata as semantic holder facts, without inventing
+future stored versions; an invalid new member edge names correction in the revised map before authority is issued.
+
+Task criterion 6 is superseded, with its original wording preserved. Criterion 15 is supported by the focused
+regressions and source walk: each cut writes one map mutation, whose single native admission acquires the current cut's
+map/member birth histories once through its own read cache; preparation retains its independent bounded pass. Existing
+history-growth tests pass across additive, terminal, revision, and discard. The primary also traced outgoing identity
+relookup at native admission; native ref publication and its race evidence remain the provider's cutover obligation.
+Full verification and the approved independent code fix-check bind the resulting committed target separately.

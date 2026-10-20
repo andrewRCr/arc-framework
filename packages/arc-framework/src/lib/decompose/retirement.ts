@@ -10,6 +10,7 @@ import { readLifecycleView } from "../store/lifecycle-view.js";
 import { decomposeInventoryRefusal } from "./acquire-origin.js";
 import { executeTransition } from "../work-unit/lifecycle-executor.js";
 import { decomposeProvenance } from "./provenance.js";
+import { observeRecords } from "../store/record-observations.js";
 import { decomposeStoreRefusal } from "./refusal.js";
 import { decomposeFinishArgv } from "./command-argv.js";
 import { renderV3DecomposeArgv } from "../work-unit/decompose-command-renderer.js";
@@ -34,7 +35,7 @@ export async function applyDecomposeRetirement(ctx: DecomposeContext, plan: Deco
   let cleanup: TeardownResult | undefined;
   const outcome = await executeTransition(ctx.executor, { verb: "decompose", slug: name, inputs: {
     storeTransition: { primary, additionalWrites: [plan.lineage.write, ...plan.recordPlan.writes],
-      preparedRecords: plan.records, provenance: decomposeProvenance("terminal"),
+      preparedRecords: plan.records, observations: observeRecords(plan.records), provenance: decomposeProvenance("terminal"),
       gitSteps: [{ name: "retire-checkout-and-created-ref-set", retryCommand: ["arc", "teardown", name], run: async () => {
         if (plan.checkout === null && (primary.links?.branches?.length ?? 0) === 0) return;
         if (ctx.storeTeardown === undefined) throw Error("Bind the checkout/ref cleanup boundaries, then retry teardown.");

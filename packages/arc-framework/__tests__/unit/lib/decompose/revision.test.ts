@@ -1,5 +1,6 @@
 /** Revision approval binds exact current-cut differences while preserving authoring. */
 import { expect, it } from "vitest";
+import { observedDecomposeWrite } from "../../../helpers/store/decompose-batch.js";
 import { createDecomposeOriginFixture } from "../../../fixtures/decompose-origin.js";
 import { createDecomposeTerminalFixture } from "../../../fixtures/decompose-terminal.js";
 import { lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
@@ -162,7 +163,7 @@ async function measureRevision(scaled: boolean) {
     for (const reference of [h.applied.storedMap, ...members.map(member => member.reference)]) {
       for (let index = 0; index < 12; index++) {
         const record = lifecycleSuccess(await h.store.read({ reference }));
-        lifecycleSuccess(await h.store.write({ ...recordPut(record), provenance: reference.kind === "work-item/cut-map"
+        lifecycleSuccess(await observedDecomposeWrite(h.store, { ...recordPut(record), provenance: reference.kind === "work-item/cut-map"
           ? { verb: "decompose", lifecycleAction: "revise" } : { verb: "write-back", lifecycleAction: "edit" } }));
       }
     }

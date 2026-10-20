@@ -14,6 +14,7 @@ import { decomposeStoreRefusal } from "./refusal.js";
 import { revalidateLifecycleRecords } from "../work-unit/prepared-lifecycle-write.js";
 import { batchLifecycleWrites } from "../store/lifecycle-write.js";
 import { decomposeProvenance } from "./provenance.js";
+import { observeRecords } from "../store/record-observations.js";
 
 /** Remove an approved cut's member groups, new cohort documents, and stored map. */
 export async function runStoreDecomposeDiscard(ctx: DecomposeContext, origin: string,
@@ -30,7 +31,7 @@ export async function runStoreDecomposeDiscard(ctx: DecomposeContext, origin: st
     locus: "applyAuthority", remedy: freshDiscardRemedy(details.origin.slug) };
   const valid = await revalidateLifecycleRecords(ctx.executor.store, plan.records);
   if (valid.status === "refused") return discardRejection(plan, valid.refusal);
-  const applied = await batchLifecycleWrites(ctx.executor.store, plan.writes, decomposeProvenance("discard"));
+  const applied = await batchLifecycleWrites(ctx.executor.store, plan.writes, decomposeProvenance("discard"), observeRecords(plan.records));
   return applied.status === "refused" ? discardRejection(plan, applied.refusal)
     : { status: "ok", result: DecomposeDiscardAppliedSchema.parse({ kind: "discarded", ...details }) };
 }

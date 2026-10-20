@@ -9,7 +9,8 @@ import { batchLifecycleWrites, readWorkUnit, recordPut } from "../store/lifecycl
 /** Every selected input keeps its exact version even when no edit is needed. */
 export interface PreparedLifecycleWrite { records: readonly StoreRecord[]; writes: readonly Mutation[] }
 /** Acquire the whole artifact group plus explicitly selected cohort documents. */
-export async function acquireLifecycleRecords(store: Store, slug: string, additional: readonly RecordReference[] = []): Promise<StoreResult<readonly StoreRecord[]>> {
+export async function acquireLifecycleRecords(store: Pick<Store, "lookup" | "read" | "list">, slug: string,
+  additional: readonly RecordReference[] = []): Promise<StoreResult<readonly StoreRecord[]>> {
   const meta = await readWorkUnit(store, slug);
   if (meta.status === "refused") return meta;
   const listing = await store.list({ family: "work-item", owner: meta.result.reference.owner });

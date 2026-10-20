@@ -18,11 +18,17 @@ export interface DecomposeEdgeObservations { incoming: readonly Dependent[]; out
 /** Resolve dependencies once over the acquired inventory and the store's identity lookups. */
 export async function acquireDecomposeEdges(ctx: DecomposeContext,
   input: Pick<DecomposeOriginRecords, "primary" | "incomingCandidates">): Promise<DecomposeResult<DecomposeEdgeObservations>> {
+  return acquireDecomposeEdgesFromStore(ctx.executor.store, input);
+}
+
+/** Resolve the same edge identities from a preparation or atomic admission lookup view. */
+export async function acquireDecomposeEdgesFromStore(store: Pick<Store, "lookup">,
+  input: Pick<DecomposeOriginRecords, "primary" | "incomingCandidates">): Promise<DecomposeResult<DecomposeEdgeObservations>> {
   const origin = input.primary.reference.owner;
   const fields = readLifecycleMetaFields(input.primary);
   if (fields.status === "refused") return decomposeStoreRefusal(fields.refusal);
   if (origin.type !== "work-item" || origin.uid === undefined) return missingGeneration(origin.name);
-  const lookup = cachedLookup(ctx.executor.store);
+  const lookup = cachedLookup(store);
   const incoming = await incomingOwners(input.incomingCandidates, origin.uid, lookup);
   if (incoming.status === "refused") return incoming;
   const outgoing = await outgoingOwners(fields.result.dependsOn, lookup);
@@ -30,7 +36,7 @@ export async function acquireDecomposeEdges(ctx: DecomposeContext,
   return { status: "ok", result: { incoming: incoming.result, outgoing: outgoing.result } };
 }
 
-function cachedLookup(store: Store): Store["lookup"] {
+function cachedLookup(store: Pick<Store, "lookup">): Store["lookup"] {
   const cache = new Map<string, ReturnType<Store["lookup"]>>();
   return input => {
     const key = JSON.stringify(input);

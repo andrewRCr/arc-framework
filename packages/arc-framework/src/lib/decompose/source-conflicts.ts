@@ -1,9 +1,10 @@
-/** Conflict evidence shared by origin acquisition and pure source derivation. */
+/** Open-conflict refusals for records consumed by decomposition decisions. */
 import type { DecomposeOriginRecords } from "./acquire-origin.js";
 import type { DecomposeRefusal } from "./refusal.js";
 import { decomposeStoreRefusal } from "./refusal.js";
 import { readLifecycleMetaFields } from "../store/lifecycle-write.js";
 import { familyOf } from "../store/catalog.js";
+import type { StoreRecord } from "../store/read.js";
 import type { RecordReference } from "../store/identity.js";
 
 /** Projection repair available for source conflicts in the registered command surface. */
@@ -16,13 +17,19 @@ export function checkDecomposeSourceConflicts(input: Pick<DecomposeOriginRecords
   const active = input.primary.placement?.kind === "active" && meta.result.state === "Active";
   const source = input.artifacts.filter(artifact => !active || meta.result.design.includes(artifact.basename));
   const records = [input.primary, ...source.map(artifact => artifact.record)];
+  const conflicts = checkDecomposeRecordConflicts(records, "source");
+  return conflicts === undefined ? undefined : { ...conflicts, reason: "source-conflict" };
+}
+
+/** Refuse disputed content before deriving an operation's decision from its selected side. */
+export function checkDecomposeRecordConflicts(records: readonly StoreRecord[], subject: string): DecomposeRefusal | undefined {
   const conflicts = records.flatMap(record => record.conflicts.map(reference => ({
     token: conflictToken(reference),
     subject: JSON.stringify(record.reference),
   })));
   if (conflicts.length === 0) return undefined;
-  return { status: "refused", reason: "source-conflict", class: "recoverable", locus: conflicts[0]?.token,
-    message: `Open source conflicts: ${conflicts.map(conflict => `${conflict.token} on ${conflict.subject}`).join("; ")}.`,
+  return { status: "refused", reason: "record-conflict", class: "recoverable", locus: conflicts[0]?.token,
+    message: `Open ${subject} conflicts: ${conflicts.map(conflict => `${conflict.token} on ${conflict.subject}`).join("; ")}.`,
     remedy: { text: DECOMPOSE_SOURCE_CONFLICT_REMEDY } };
 }
 

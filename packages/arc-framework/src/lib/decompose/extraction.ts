@@ -10,6 +10,7 @@ import { planDecomposeSourceThinning } from "./thinning.js";
 import { readLifecycleMetaFields, recordPut, batchLifecycleWrites } from "../store/lifecycle-write.js";
 import { writeMetaCohort } from "../store/kinds/meta/writers.js";
 import { revalidateLifecycleRecords } from "../work-unit/prepared-lifecycle-write.js";
+import { observeRecords } from "../store/record-observations.js";
 import { decomposeStoreRefusal } from "./refusal.js";
 import { decomposeProvenance } from "./provenance.js";
 import type { StoreRefusal } from "../store/refusal.js";
@@ -49,7 +50,7 @@ export async function prepareDecomposeExtraction(ctx: DecomposeContext, origin: 
 export async function applyDecomposeExtraction(ctx: DecomposeContext, plan: DecomposeExtractionPlan): Promise<DecomposeResult<BatchResult>> {
   const valid = await revalidateLifecycleRecords(ctx.executor.store, plan.records);
   if (valid.status === "refused") return extractionRejection(plan, valid.refusal);
-  const batch = await batchLifecycleWrites(ctx.executor.store, plan.writes, decomposeProvenance("terminal"));
+  const batch = await batchLifecycleWrites(ctx.executor.store, plan.writes, decomposeProvenance("terminal"), observeRecords(plan.records));
   return batch.status === "refused" ? extractionRejection(plan, batch.refusal) : batch;
 }
 

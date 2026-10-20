@@ -47,7 +47,7 @@ function copyCoordinates(owner: OwnerIdentity, source: RecordReference): { refer
 
 function checkTaskCopy(ctx: DecomposeContext, reference: RecordReference, source: string, content: string): DecomposeRefusal | undefined {
   const input = { reference, next: { content, fields: parseTaskListRecord(content) }, writer: { kind: "verb" as const, verb: "decompose" },
-    before: ctx.executor.store, after: ctx.executor.store };
+    before: ctx.executor.store, after: ctx.executor.store, observations: [] };
   const diagnostics = [...checkTaskListDescriptor(input), ...checkTaskListSegmentation(input)];
   if (diagnostics.length > 0) return { status: "refused", reason: "scaffold-task-list", class: "recoverable", locus: source,
     message: diagnostics.map(item => `${item.rule}: ${item.condition}`).join("\n"),

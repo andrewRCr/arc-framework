@@ -2,14 +2,14 @@
 import type { Store } from "../store/contract.js";
 import type { StoreRecord } from "../store/read.js";
 import type { Mutation } from "../store/write.js";
-import type { LifecycleEntry } from "../store/lifecycle-index.js";
+import type { DecomposeSurvivingMember } from "./removal-holders.js";
 import type { DecomposeRefusal } from "./refusal.js";
 import { acquireDecomposeCohortInventory } from "./check-names.js";
 import { decomposeSurvivingStore } from "./removal-holders.js";
 
 /** Report every open holder of the cohort documents the prepared batch removes. */
 export async function checkDecomposeRemovalCohorts(store: Store, removed: readonly StoreRecord[],
-  writes: readonly Mutation[], members: readonly LifecycleEntry[]): Promise<DecomposeRefusal | undefined> {
+  writes: readonly Mutation[], members: readonly DecomposeSurvivingMember[]): Promise<DecomposeRefusal | undefined> {
   if (removed.length === 0) return undefined;
   const cohorts = await acquireDecomposeCohortInventory(decomposeSurvivingStore(store, writes));
   if (cohorts.status === "refused") return cohorts;

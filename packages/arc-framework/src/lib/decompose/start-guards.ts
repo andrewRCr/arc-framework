@@ -16,7 +16,8 @@ export function checkDecomposeStart(ctx: DecomposeContext, input: DecomposeOrigi
 }
 
 /** Require held entries to be integrated or routed whenever the caller supplies their grammar. */
-export function checkDecomposeInbound(ctx: DecomposeContext, input: Pick<DecomposeOriginRecords, "primary" | "records">): DecomposeRefusal | undefined {
+export function checkDecomposeInbound(ctx: Pick<DecomposeContext, "inboundGrammar">,
+  input: Pick<DecomposeOriginRecords, "primary" | "records">): DecomposeRefusal | undefined {
   const origin = input.primary.reference.owner.name;
   if (ctx.inboundGrammar === undefined) return undefined;
   for (const record of input.records) {

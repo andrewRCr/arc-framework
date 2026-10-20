@@ -119,6 +119,10 @@ members, would buy nothing here.
 9. **No ratchet floor grows:** the store version adds no `store-raw-state`, `surface-names`, or `work-unit-paths` entry
    to `eslint-suppressions.json`.
 
+Amended 2026-10-19 (A4) — Goal 7's history-count clause allows one preparation pass and one atomic admission pass
+over the stored map and each currently resolved member. Criterion 10 replaces criterion 6's once-per-run clause;
+all other bounded-read and Git-isolation requirements remain.
+
 ## Non-Goals
 
 _Editable in place until activation, then frozen; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
@@ -367,22 +371,20 @@ The additive batch stores the completed map as a record on the origin, so a half
 - **The kind** is `work-item/cut-map`: one record per work item (`singleton("work-item")`), a machine record
   (`machine(unhomed)`) — single-writer, never projected, and with no in-repo home, which the arm from the flip never
   needs. Its content is the completed map as canonical JSON; its parser decodes it as § 3.4 does, and it registers in
-  the production set. No write check is needed: being never projected, it takes no hand edit, and its single writer is
-  the verb. Other verbs' writes on its owner keep its bytes: a prepared write acquires it with the rest of the group and
-  re-puts it unchanged (`applyPreparedLifecycleWrite`), and a rename re-puts it under its owner's new name, its
-  reference sweep (`planRenameReferences`) passing over it (`prepareStoreRename`), since rewriting a backticked artifact
-  name in a locator would leave the map undecodable.
-- **Its stored path** is `cut-map-<uid>.json` on the work item's ref, ending in its owner's UID, as a never-projected
-  kind's name does (`errand-<uid>.json`; the ref backend's § 3.2).
-- **Its life.** The additive batch creates it with expected absence. A revision replaces it at its version (§ 9.2). The
-  terminal batch, in either shape, and the discard remove it. In a retirement the batch that ends the origin would also
-  remove it on the ref backend, which removes every record on an ended item's ref (its § 7.4); the batch removes it
-  explicitly anyway, so no backend, the reference backend among them, leaves a current map, the one record the verb
-  reads by the origin (below). Removed, it stays readable through the origin's `history` by UID.
-- **One cut per origin.** Preflight refuses an origin holding the record, naming the terminal batch, the revision, and
-  the discard (§ 5).
-- **Read by the origin's slug:** `lookup` resolves the slug to the origin's primary, and the verb reads the kind's
-  singleton reference for that owner.
+  the production set. Its native `cut-map.atomic-binding` write check enforces the source and inventory admission of §
+  8.8 (A4); it remains never projected and takes no hand edit. Other verbs' writes on its owner keep its bytes: a
+  prepared write acquires it with the rest of the group and re-puts it unchanged (`applyPreparedLifecycleWrite`), and a
+  rename re-puts it under its owner's new name, its reference sweep (`planRenameReferences`) passing over it
+  (`prepareStoreRename`), since rewriting a backticked artifact name in a locator would leave the map undecodable. -
+  **Its stored path** is `cut-map-<uid>.json` on the work item's ref, ending in its owner's UID, as a never-projected
+  kind's name does (`errand-<uid>.json`; the ref backend's § 3.2). - **Its life.** The additive batch creates it with
+  expected absence. A revision replaces it at its version (§ 9.2). The terminal batch, in either shape, and the discard
+  remove it. In a retirement the batch that ends the origin would also remove it on the ref backend, which removes every
+  record on an ended item's ref (its § 7.4); the batch removes it explicitly anyway, so no backend, the reference
+  backend among them, leaves a current map, the one record the verb reads by the origin (below). Removed, it stays
+  readable through the origin's `history` by UID. - **One cut per origin.** Preflight refuses an origin holding the
+  record, naming the terminal batch, the revision, and the discard (§ 5). - **Read by the origin's slug:** `lookup`
+  resolves the slug to the origin's primary, and the verb reads the kind's singleton reference for that owner.
 
 ### 5. Preflight
 
@@ -426,39 +428,40 @@ extraction's; each refuses the other's shape, naming the other flag. Neither has
 
 1. **Read and bind.** The map is read once from its path and decoded (§ 3.4). The verb repeats preflight (§ 5) and
    requires the map's machine half to equal the fresh one; a difference refuses, naming `--preflight` for a fresh
-   starter.
-2. **Check before writing.** Each member's slug and each new cohort document's name is free: no live work item holds
-   it, nor any open cohort document, since both share one namespace (D14; expected absence); no record holds it as a
-   former slug (`work-item.former-slug`); and no new cohort document takes a completed cohort's name. That last is
-   stricter than D2, which frees a name once its record completes: the reference backend resolves a completed cohort's
-   name to its record (`canonicalReference`), so a create expecting absence there is stale, and the rule keeps a map
-   landing alike on every backend. The map's own names are distinct too: no member's slug is the name of a cohort
-   document the cut creates, and no two documents it creates share a name, the segments of a `subcohort` placement
-   among them. The live origin holds its own slug, so a cohort named after it refuses (below).
-   The map's ownership, edge, and placement rules carry from today's conservation and topology (§ 13), each
-   refusing at its locus in the map. Each existing home resolves to an open work
-   unit, and each allocation targets a file the operator may edit (§ 7); its target locator resolves at the terminal
-   batch (§ 8.4), since authoring writes the content it names. Every `Depends On` edge the cut writes must resolve by
-   slug, since `meta.depends-on` checks each new edge so (`checkMetaDependsOn`): a member's, from an outgoing `targets`
-   disposition or an internal or external edge, a stub home's, from either, and a stub dependent's, from an incoming
-   `replace`. So each such edge's provider must be one a slug lookup resolves in the batch's after-state, where the check
-   looks it up (`input.after`): the map's own members pass, as does a completed work item; a provider abandoned or
-   decomposed, which a slug lookup no longer finds, or one resolving to no single owner (§ 3.2) refuses, naming `drop`
-   or another provider. The origin's own edge on a provider whose slug a member takes refuses too, whatever that
-   provider's state, shipped included: a slug lookup in the after-state would find the member, and settling the edge in
-   the batch would change an edge the terminal batch binds (§ 8.4). Where it is the origin's own edge, on a decomposed
-   provider or on one whose slug a member takes, the remedy is first to settle that edge with the disposition reconcile
-   gives it: for a started origin through its reconcile (`arc wu reconcile --apply`, record kinds § 5.3), which runs
-   only from the checkout holding a started work unit (`resolveCurrentWorkUnit`, `handlers/reconcile.ts`), and for a
-   stub by editing its `Depends On` through write-back, as anyone may; then a fresh `--preflight`, or once the map is
-   stored a revision, which re-binds the changed edge (§ 9.4). Once the origin no longer names that slug, no edge the
-   cut writes does: a member's or a stub home's edge on a provider outside the map comes from the origin's own, through
-   an outgoing `targets` disposition, or from an external edge, which refuses when it names a member's slug
-   (`redundant-external-edge`, `decompose-v3-conservation.ts`); an internal edge to that member names it by design. A
-   started existing home takes no new edge, its remedy to leave the edge to the home's owner. A `document` home refuses,
-   its remedy to allocate that content to a work item or a member. In an extraction, a started dependent keeps its edge
-   on the origin (§ 12). Each Purpose is present exactly where the batch creates the document (§ 3.3).
-3. **Write, in one batch,** with caller provenance naming `decompose` and the batch:
+   starter. 2. **Check before writing.** Each member's slug and each new cohort document's name is free: no live work
+   item holds it, nor any open cohort document, since both share one namespace (D14; expected absence); no record holds
+   it as a former slug (`work-item.former-slug`); and no new cohort document takes a completed cohort's name. That last
+   is stricter than D2, which frees a name once its record completes: the reference backend resolves a completed
+   cohort's name to its record (`canonicalReference`), so a create expecting absence there is stale, and the rule keeps
+   a map landing alike on every backend. The map's own names are distinct too: no member's slug is the name of a cohort
+   document the cut creates, and no two documents it creates share a name, the segments of a `subcohort` placement among
+   them. The live origin holds its own slug, so a cohort named after it refuses (below). The map's ownership, edge, and
+   placement rules carry from today's conservation and topology (§ 13), each refusing at its locus in the map. Each
+   existing home resolves to an open work unit, and each allocation targets a file the operator may edit (§ 7); its
+   target locator resolves at the terminal batch (§ 8.4), since authoring writes the content it names. Every `Depends
+   On` edge the cut writes must resolve by slug, since `meta.depends-on` checks each new edge so (`checkMetaDependsOn`):
+   a member's, from an outgoing `targets` disposition or an internal or external edge, a stub home's, from either, and a
+   stub dependent's, from an incoming `replace`. So each such edge's provider must be one a slug lookup resolves in the
+   batch's after-state, where the check looks it up (`input.after`): the map's own members pass, as does a completed
+   work item; a provider abandoned or decomposed, which a slug lookup no longer finds, or one resolving to no single
+   owner (§ 3.2) refuses, naming `drop` or another provider. The origin's own edge on a provider whose slug a member
+   takes refuses too, whatever that provider's state, shipped included: a slug lookup in the after-state would find the
+   member, and settling the edge in the batch would change an edge the terminal batch binds (§ 8.4). Where it is the
+   origin's own edge, on a decomposed provider or on one whose slug a member takes, the remedy is first to settle that
+   edge with the disposition reconcile gives it: for a started origin through its reconcile (`arc wu reconcile --apply`,
+   record kinds § 5.3), which runs only from the checkout holding a started work unit (`resolveCurrentWorkUnit`,
+   `handlers/reconcile.ts`), and for a stub by editing its `Depends On` through write-back, as anyone may; then a fresh
+   `--preflight`, or once the map is stored a revision, which re-binds the changed edge (§ 9.4). Once the origin no
+   longer names that slug, no edge the cut writes does: a member's or a stub home's edge on a provider outside the map
+   comes from the origin's own, through an outgoing `targets` disposition, or from an external edge, which refuses when
+   it names a member's slug (`redundant-external-edge`, `decompose-v3-conservation.ts`); an internal edge to that member
+   names it by design. A started existing home takes no new edge, its remedy to leave the edge to the home's owner. A
+   `document` home refuses, its remedy to allocate that content to a work item or a member. In an extraction, a started
+   dependent keeps its edge on the origin (§ 12). Each Purpose is present exactly where the batch creates the document
+   (§ 3.3). 3. **Write, in one batch,** with caller provenance naming `decompose` and the batch. Submit read-only
+   observations separately (§ 8.8, A4); persist only the intended mutations, including when retained notes or task-list
+   conflicts are outside an Active origin's source boundary:
+
     - each member's meta through the meta kind's creation writer (`renderMetaFile`,
       `lib/store/kinds/meta/projection.ts`), placed backlog planned, with `State` Planning, `Owner` and `Priority` from
       the origin, `Class` from its destination, `Origin` from the origin's own `Origin`, `Design` from the planning
@@ -540,8 +543,8 @@ heterogeneous, since a symmetric map needs two. The rules hold for both shapes:
 ### 8. The terminal batch
 
 `arc decompose <origin> --finish` previews the terminal batch and `--finish --apply <authority>` runs it, for either
-shape. It is a prepared write (lifecycle § 3): it acquires every record it reads at its version, checks them, prepares
-its writes, revalidates, and applies them in one batch.
+shape. It acquires every record it reads at its version and conflict set, checks them, and prepares its writes. The
+batch validates its observations and relevant inventory atomically with those writes (§ 8.8, A4).
 
 #### 8.1 What it acquires
 
@@ -550,10 +553,10 @@ member's meta and the cohort documents the map names; the existing homes' record
 resolved through `lookup` first as § 6 step 2 resolves it, one resolving to nothing, to a completed work unit, or to an
 Errand refusing before anything is written, naming the revision that retargets its allocations; and the stub dependents,
 found through the lifecycle listing, the members left out (§ 3.2). Each is acquired once, through the store, at its
-version, and read again only by the revalidation before the batch (lifecycle § 3) and, in a retirement, by the lifecycle
-executor's own read of the listing and the primary (`executeStoreTransition`, `lifecycle-store-executor.ts`). Beside
-them it reads, once each, the `history` of the stored map and of each item a member's slug finds, which tells a member
-from an item that took its slug (§ 8.3).
+version and conflict set. Preparation may reread for early diagnostics; a retirement also reads the listing and
+primary through `executeStoreTransition`. Preparation reads the `history` of the stored map and each item a member's
+slug finds once to authenticate that generation (§ 8.3). Atomic admission repeats only the bounded observations and
+member-history proof § 8.8 requires, once against its own captured before-state (A4).
 
 #### 8.2 The origin's current state
 
@@ -676,7 +679,9 @@ and from a started Planning work unit already declare that form: the primary's r
   the cohort kind's fan-out writer, naming the new members as they finally stand (`planAtCap`); a lone marker or a
   different block, which a hand edit can leave between the batches, refuses before anything is written, as today's
   `conflicting-at-cap-provenance` does, naming the block's repair or removal through write-back. The executor
-  revalidates every acquired record at its version just before the batch (`preparedRecords`).
+  submits the complete approved record observations with its prepared mutations; the backend validates them and
+  the cut-map admission rule atomically with publication (§ 8.8, A4). Diagnostic early revalidation grants no
+  authority to publish stale evidence.
 - **After the batch** the origin's checkout is removed, or released where it was anchored in place, by teardown's store
   arm, as a Git step whose failure leaves the continuation `arc teardown <origin>` (`runStoreTeardown`; lifecycle § 11,
   § 12).
@@ -691,9 +696,9 @@ cohort, as topology counts it among them (`planInternalV3DecomposeTopology`): it
 take (`memberPlacement`, `decompose-v3-repository-projections.ts`) — the placement's cohort, new or reused, or an
 `at-cap` placement's subcohort — never one named after it, which § 6 refuses. Under `direct-member` it keeps its own.
 
-Its terminal batch is no lifecycle transition, since the origin keeps its position, so it revalidates the records it
-acquired (`revalidateLifecycleRecords`, `prepared-lifecycle-write.ts`) and applies its prepared writes alone in one batch
-(`batchLifecycleWrites`), as the executor applies a retirement's. It does not re-put the records it leaves unwritten, as
+Its terminal batch is no lifecycle transition, since the origin keeps its position. It submits its acquired
+observations and prepared writes alone in one atomic batch (`batchLifecycleWrites`), as the executor applies a
+retirement's (§ 8.8, A4). It does not re-put the records it leaves unwritten, as
 `applyPreparedLifecycleWrite` does: that would write each member, home, and dependent under `decompose` beyond what the
 preview shows (§ 8.7), and the store refuses such a put of a lineage record, which is create-only, or of a conflict
 record, which is write-once. After the checks of § 8.2–8.4, in one batch, it:
@@ -724,14 +729,15 @@ The terminal batch is irreversible, so it applies only what was approved. `--fin
 and prepares as § 8.1–8.6 do, the removal check included, so a dirty spawned checkout selected for removal refuses at
 the preview rather than after the approval; a retained checkout takes § 8.5's release checks. It writes nothing and
 reports the preview: for a retirement the lineage record, the removals, and each record the batch would write; for an
-extraction the retained bytes of the thinned artifacts and each record it would write. With it comes the apply authority:
-the digest of the batch's mode, the origin's slug and UID, every acquired record's reference and version, and the prepared
-writes. `--finish --apply <authority>` acquires, checks, and prepares again and, once every check passes, runs the batch
-only when the fresh digest equals the authority; otherwise it refuses, naming `--finish` for a fresh preview. The preview
-is what the distribution approval surfaces (§ 16), so a change after it — a stub groomed, a dependent added — needs a
-fresh preview and approval. Within the apply, revalidation by version guards the gap between its own acquisition and its
-batch (lifecycle § 3); the authority carries that freshness across the approval, as today's finish authority does
-(`git-decompose-v3-finish.ts`).
+extraction the retained bytes of the thinned artifacts and each record it would write. With it comes the apply
+authority: the digest of the batch's mode, the origin's slug and UID, the complete canonical observation array from §
+8.8, and the exact prepared writes (A4). Present observations bind each reference, version, and canonical conflict set;
+explicit absence is part of the same authority. `--finish --apply <authority>` acquires, checks, and prepares again and,
+once every check passes, runs the batch only when the fresh digest equals the authority; otherwise it refuses, naming
+`--finish` for a fresh preview. The preview is what the distribution approval surfaces (§ 16), so a change after it — a
+stub groomed, a dependent added — needs a fresh preview and approval. Within the apply, the backend checks the approved
+observations and relevant inventory atomically with publication (§ 8.8, A4); a final reread outside that boundary cannot
+establish the guarantee. The authority carries the same observation basis across approval.
 
 The same rule holds for every batch that removes a record: the discard and the revision preview and apply under an
 authority too (§ 9). The additive batch, which removes nothing, runs straight.
@@ -744,13 +750,174 @@ where the stored map's last removal is the terminal batch's. Every batch of the 
 `decompose` and the batch (§ 6), so that removal is told from a discard's. For `--finish` the report is its result; for
 the discard and the revision it is a terminal refusal.
 
+#### 8.8 Atomic observation admission (A4)
+
+Every cut batch carries read-only observations separately from its exact mutations. Implement the following shared
+extension in the reference backend for the dormant cut; the ref backend must provide it before cutover (§ 18).
+
+##### 8.8.1. Serialized batch observations
+
+Add these exported schema/type surfaces in `lib/store/write.ts` and the store barrel:
+
+```ts
+type RecordObservation = {
+  reference: RecordReference;
+  expected: null | {
+    version: RecordVersion;
+    conflicts: readonly RecordReference[];
+  };
+};
+
+// Existing fields retain their meanings.
+type BatchInput = {
+  writes: readonly Mutation[];
+  provenance: CallerProvenance;
+  observations?: readonly RecordObservation[];
+};
+```
+
+`RecordObservationSchema` is strict. Every non-person observation names a generation by UID; conflict references
+must be conflict-record kinds and unique by logical reference. The batch names each observed logical record at
+most once. Observation/write overlap is allowed. Missing `observations` and `[]` are equivalent.
+
+Compare all observations to the coherent **before-state** at the same atomic admission point as publication:
+
+- `expected: null` means that exact generation-qualified record is absent, not unreadable or unresolved.
+- A present expectation requires the same record version and the same conflict-reference **set**. Ordering carries
+  no meaning. These are strict equality checks even for entry-merge or three-way-merge kinds.
+- A mismatch, including presence/absence, refuses the entire batch as recoverable `version-conflict`, naming the
+  mismatched references. Preserve a more specific read refusal when the basis cannot be established. No partial
+  write, no new conflict, and no history, provenance, identity allocation, or resolution effect is published.
+- Observations convey no write authority. Writer rules and mutation merge behavior remain unchanged. Existing
+  nonempty conflict sets can be observed; consuming disputed content is a separate domain refusal.
+- This basis promises version and conflict-set equality, not equality of every derived public record field.
+  Callers bind the owning primary as well when they depend on a companion's inherited owner name, placement, or
+  links. Native cut admission rechecks the material lifecycle placement and identity predicates described below.
+
+Do not turn observations into puts or replace them with a whole-store/state-version condition. Observation order
+is canonicalized only for approval hashing; it does not change mutation execution order or batch result contents.
+
+The in-repo backend must explicitly refuse a nonempty observations request with `unsupported`, terminal
+case `batch-observations`; it must never ignore it. Empty/omitted observations preserve its existing behavior.
+The new cut already refuses there through its unhomed kind and capability dispatch. The reference backend implements
+observations; the ref backend must implement the same semantics before the cut becomes reachable at cutover.
+
+##### 8.8.2. Existing kind admission gains bounded operation evidence
+
+Extend `WriteCheckInput` as follows:
+
+```ts
+interface WriteCheckInput {
+  // Existing reference, prior, next and after fields retain their meanings.
+  writer: { kind: "verb"; verb: string; lifecycleAction?: string }
+    | { kind: "hand-edit" };
+  before: StoreView & Pick<Store, "history">;
+  after: StoreView;
+  observations: readonly RecordObservation[];
+}
+```
+
+`deriveWriteCheckWriter` retains `lifecycleAction` only from validated caller provenance. Every backend passes the
+validated observations, using `[]` for a single write or a batch without observations. `before.history` reads only
+the history visible at that admission's captured before-state; it must not recapture live refs through a public
+history operation. `after` gains no hypothetical history. All views remain read-only and checks grant no writes.
+
+There is no new predicate registry, serialized callback, query language, witness record, or configuration axis.
+Existing registered checks remain the sole kind-rule dispatch. Decomposition's existing member-birth proof
+(`isDecomposeMemberBirth`, `decomposeCurrentCutBatches`) is reused against `before.history`, so map names do not
+become authority to exclude unrelated or reused owner generations from an incoming inventory.
+
+##### 8.8.3. Native cut-map rule
+
+Register `cut-map.atomic-binding` on `work-item/cut-map` through `CUT_MAP_REGISTRATION`. It runs for decompose's
+map mutations; a decompose mutation without one of its four trusted actions refuses rather than skipping checks.
+Other verbs' existing byte-preserving map puts and rename behavior are preserved.
+
+The rule uses the same source/profile/scanner, edge-identity, grammar, and member-birth derivations as preparation,
+refactored onto the read operations they require. Do not construct a fake writable Store for these reads. Its
+inbound grammar comes from the kind registration's declared entry grammar, as meta and lineage checks already do.
+
+| Action     | Map and atomic obligations                                                                                                                                                                                                                         |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `additive` | Create the next map. Recompute source kind/profile/units and incoming/outgoing edge identities from before-state, with no prior-cut member exclusions; require the proposed machine binding and empty origin inbound.                              |
+| `terminal` | Remove the prior map. Authenticate prior-cut member generations; recheck their required live/placement predicates and origin lifecycle eligibility; require the stored source and edge binding and empty origin inbound.                           |
+| `revise`   | Replace the prior map. Authenticate prior-cut members for exclusions; require the **next** map's binding to current source/edges and empty origin inbound. Do not require the obsolete map's source inventory to remain fresh.                     |
+| `discard`  | Remove the prior map. Guard approved records and whole groups being removed, and retain existing complete-after-state removal checks. Do not demand source conservation, a fresh old machine inventory, or empty origin inbound merely to discard. |
+
+For additive, terminal, and revise, the complete current origin-group reference set must equal the present origin
+references in the submitted observations. That includes empty artifacts and incidental companions: a new group
+record arriving after approval/preparation requires a fresh acquisition even when it contributes no scanned unit.
+Between batches, ordinary changes outside the source scan remain permissible, as § 8.4 already states; they are
+included in the next preview's current observation basis. Active-origin conservation still scans Design artifacts
+alone, and unrelated retained notes/task conflicts remain permissible.
+
+For discard/revise removing a whole member group, likewise compare the current before-group references to its
+present observation references. This prevents a companion created in the final gap from escaping the approved
+whole-group removal. The rule discovers the removed members from authenticated prior-cut members and after-state
+primary absence. It does not impose source conservation on discard.
+
+Incoming identity is recomputed over a complete lifecycle listing with only authenticated current-cut member UIDs
+excluded. Compare the exact relevant edge IDs, not all outsider bytes or all namespace members. This catches a
+newly created dependent and an existing outsider that adds an edge. Outgoing lookup is recomputed too: a previously
+unresolved provider becoming resolvable can change an edge's identity without an origin content edit.
+
+Additive and revise require the proposed fresh machine facts. Terminal preserves `checkDecomposeTerminalOrigin` and
+`checkDecomposeSourceBinding`: verify current lifecycle/shape eligibility and the current-profile scan, origin identity,
+source-unit IDs/digests, and incoming/outgoing edge IDs. It adds no requirement that stored source kind or profile
+remain equal when the existing rules allow the current kind. The rule observes the origin's inbound list itself,
+including previously absent lists, and uses the declared grammar. Incomplete/unreadable listings, unavailable
+identity/history proof, unavailable required records, and unresolved rule observations refuse with the underlying
+actionable repair; none is treated as empty, absent, or authenticated. A proved nonmember or reused slug is not excluded
+or removed; discard/revise retain their current repair behavior, while terminal retains its member-gone refusal.
+
+A rule failure is a recoverable `record-malformed` under its stable cut-map rule. Decompose translates a final-gap
+binding/observation refusal to a fresh preparation and, for removing modes, a fresh preview and approval; a stale
+machine also names revision. Repaired state remains able to complete through the ordinary command path. Existing
+`meta.decompose-removal-edges` remains necessary for dependency and pause edges in the complete proposed after-state.
+
+##### 8.8.4. Atomic backend obligation
+
+The successful batch must have one local atomic admission point at which all submitted record observations and
+all registered checks hold against a coherent before-state, followed by exactly the requested mutations. Native
+checks must remain valid through publication even for read-only refs and newly created relevant refs. Re-reading
+and then releasing protection before commit is insufficient.
+
+The ref backend currently captures immutable tips for checks but publishes CAS updates for changed refs only
+(`batchRefRecords`, `commitRefWrites`, `commitRefStep` and the ref-transaction update set). That does not close the
+outsider-inventory race. Its provider must extend final publication serialization or supply an equivalent protocol
+covering every local publisher, including sync and new-ref creation. A final serialization boundary can evaluate
+scoped evidence and publish without exposing a whole-store freshness comparison to callers. Internal contention
+or retries caused by an unrelated write must not by themselves demand a new Owner approval.
+
+Backend lock ordering is provider-owned implementation; the shared contract specifies the atomic result. The
+provider must verify stale read-only records, new conflict refs, existing/new incoming-owner races, unknown outgoing
+provider resolution, and relevant group additions immediately before publication. No claim of native support is
+made until provider implementation and conformance evidence exist. The consumer stays dark before cutover.
+
+##### 8.8.5 Caller propagation
+
+Bind the complete canonical observation array, including canonical conflict sets and explicit absence expectations,
+into `decomposeApplyAuthority` alongside the existing mode, origin generation, and exact writes. Advance its internal
+hash format in place; pre-public-release state needs no migration or compatibility reader. The apply's actual batch
+uses exactly the observation set covered by that authority.
+
+- Additive sends only `prepared.writes`, with observations from both `prepared.records` and separately acquired
+  observations. It no longer uses `applyPreparedLifecycleWrite` to manufacture guard puts.
+- Extraction, revise, and discard pass their complete observation set through `batchLifecycleWrites` into the batch.
+- Retirement passes explicit batch observations through an optional field of `StoreTransitionInputs`; the shared
+  lifecycle executor forwards them. Existing `preparedRecords` behavior for other verbs is preserved. This is a
+  bounded extension for the new cut, not a migration of every lifecycle verb in this increment.
+- Preparation/preview can retain diagnostic early rereads. The atomic batch, rather than a final early reread,
+  establishes freshness. Every consumed group contributes its primary when its inherited identity or placement
+  matters. Existing held-entry and removal rules remain in force.
+
 ### 9. Discard and revision
 
 A rejected or revised distribution is one prepared verb batch (`meta.verb-owned-field` refuses only hand edits, and no
 rule asks lineage for it), previewed and applied under an authority as § 8.7 defines. Like an extraction's terminal
-batch (§ 8.6), it revalidates what it acquired and applies its prepared writes alone (`revalidateLifecycleRecords`,
-`batchLifecycleWrites`), so it writes nothing its preview does not show and never puts a conflict record a sync filed in
-a group it acquired.
+batch (§ 8.6), it submits its approved observations and prepared writes alone to atomic admission
+(`batchLifecycleWrites`; § 8.8, A4), so it writes nothing its preview does not show and never puts a conflict record a
+sync filed in a group it acquired.
 
 #### 9.1 The discard
 
@@ -1064,9 +1231,14 @@ define, the change is stated here and built by this change; no specification of 
   never projected, present only between a cut's batches (§ 4). D6's merge table, whose row of single-writer machine
   records written only by verbs names the Errand record, gains it there.
 
+- **Atomic batch observations (A4)** extend the batch input and registered write-check context exactly as § 8.8
+  specifies: strict read-only version/conflict expectations, snapshot-bound before-history, trusted lifecycle action,
+  and kind-owned inventory admission. They grant no mutation rights or whole-store freshness authority.
+
 #### 17.2 The record kinds (`spec-seam-record-kinds.md`)
 
-- **§ 2.2's production registration set** gains the cut-map kind's parser (§ 4).
+- **§ 2.2's production registration set** gains the cut-map kind's parser (§ 4) and native admission rule
+  `cut-map.atomic-binding` (§ 8.8, A4).
 - **§ 5.4's field table** gains `decompose` as a writer of `Cohort` beyond creation: a surviving extraction origin's
   (§ 8.6) and a retained member's in a revision (§ 9.2). § 5.3's "decomposition sets it for new members" widens to
   match.
@@ -1090,6 +1262,10 @@ This design consumes behavior other changes build. Each is an expected contract,
 holds until then is stated with it.
 
 - **The ref backend** (`storage-ref-backend`):
+    - atomic observation admission (A4) as defined in § 8.8, including before-history and complete source/edge/group
+      membership checks remaining valid through publication. The provider owns native serialization and all local
+      publisher participation, including sync and new-ref creation. This is required before cutover; until then the
+      reference backend supplies the contract for the dormant cut and the in-repo backend explicitly refuses it.
     - lineage lookup retains authenticated former-name identity after primary retirement (A3), with the exact UID,
       current-name preference, ambiguity refusal, and bounded observations specified in § 3.2. No lookup input shape
       changes. The in-repo decomposition arm stays unchanged; the reference backend supplies this contract for the
@@ -1221,11 +1397,11 @@ version is verified on the reference backend alone, and the first real cut runs 
 **Performance.** A cut reads the origin's group, the selected cohort documents, the existing homes, and the dependents
 the lifecycle listing names, each a fixed number of times through the store (§ 8.1), with no per-branch reads. The
 lifecycle listing is the one read that grows with the project, and every lifecycle verb from the flip already reads it
-(lifecycle § 2.1). The member test (§ 8.3) adds one `history` read of the stored map and of each item a member's slug
-finds per run. `history` has no bounded form (`Store.history`, `lib/store/contract.ts`), so each read walks the whole
-history of the item owning the record — on the ref backend, a path-limited walk of that item's ref — and grows with the
-origin's and the members' own writes, never with the repository's history or branch count. The scanner's own costs stay
-as today's (Non-Goals).
+(lifecycle § 2.1). The member test (§ 8.3) adds one preparation `history` pass over the stored map and each item a
+member's slug finds, plus one pass inside atomic admission (§ 8.8, A4). `history` has no bounded form (`Store.history`,
+`lib/store/contract.ts`), so each read walks the whole history of the item owning the record — on the ref backend, a
+path-limited walk of that item's ref — and grows with the origin's and the members' own writes, never with the
+repository's history or branch count. The scanner's own costs stay as today's (Non-Goals).
 
 **Security and trust.** The origin is the cut's own subject: like abandonment (`runStoreAbandon`), the verb checks no
 operator against its `Owner`, so a retirement removes it and an extraction writes its `Cohort` and thins its draft or
@@ -1288,6 +1464,15 @@ nothing is committed, pushed, or merged by the cut.
    as does an authored body change that leaves the locator resolvable. Retirement and extraction use this same rule,
    and a revision can name a different current target locator (§ 8.4).
 
+10. **Atomic observations and inventory (A4).** Every cut batch admits its version/conflict observations and relevant
+    inventory atomically with its exact writes. Competing changes to observed evidence, conflict sets, source/removal
+    group membership, incoming dependencies, or outgoing provider identities refuse without persistence; fresh
+    acquisition and approval complete after repair. Unrelated record/content writes and irrelevant new owners do not
+    invalidate the cut. Additive retains unrelated conflicts without writing them. Member authentication and read counts
+    remain bounded: at most one preparation history pass and one atomic admission history pass over the stored map and
+    each currently resolved member, independent of unrelated history and branch counts. This supersedes the once-per-run
+    history-count clause of original criterion 6; it preserves its other bounded-read and Git-isolation requirements.
+
 ## Open Questions
 
 None blocks starting. The expected contracts in § 18 each state what holds until their change lands, and none leaves
@@ -1301,5 +1486,8 @@ this design open.
   _Supersedes:_ § 9.3 ¶2. _Trigger:_ F1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 - **A3** — 2026-10-19 — design: lineage lookup resolves authenticated retired former names without history scans.
   _Supersedes:_ § 3.2 outgoingEdges. _Trigger:_ F2 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A4** — 2026-10-19 — design: batches guard observations atomically. _Supersedes:_ § 4 ¶2; § 8.5 pre-batch; § 8.6 ¶2;
+  § 8.7 ¶1; § 9 ¶1; criterion 6. _Trigger:_ SEAM-1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

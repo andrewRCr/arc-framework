@@ -1,5 +1,6 @@
 /** Stored-cut acquisition preserves current generation and record-version boundaries. */
 import { expect, it } from "vitest";
+import { observedDecomposeWrite, observedDecomposeBatch } from "../../../helpers/store/decompose-batch.js";
 import { createDecomposeTerminalFixture } from "../../../fixtures/decompose-terminal.js";
 import { createDecomposeOriginFixture } from "../../../fixtures/decompose-origin.js";
 import { acquireDecomposeTerminal } from "../../../../src/lib/decompose/acquire-terminal.js";
@@ -18,6 +19,7 @@ import { acquireDecomposeOrigin } from "../../../../src/lib/decompose/acquire-or
 import { acquireDecomposeDependencyFacts } from "../../../../src/lib/decompose/dependency-facts.js";
 import { projectDecomposeDependencies } from "../../../../src/lib/decompose/dependency-projection.js";
 import { planDecomposeTopology } from "../../../../src/lib/decompose/topology.js";
+import { deriveDecomposeMachine } from "../../../../src/lib/decompose/machine-facts.js";
 import { planDecomposeMembers } from "../../../../src/lib/decompose/member-scaffold.js";
 
 // A second read of one generation is an acquisition failure, rather than an assertion on spy arguments.
@@ -46,9 +48,9 @@ it("limits membership to the current incarnation when the stored map is recreate
   const h = await createDecomposeTerminalFixture();
   const map = lifecycleSuccess(await h.store.read({ reference: h.applied.report.storedMap }));
   // Checked machine-record recreation isolates the history boundary; the members keep their earlier birth histories.
-  lifecycleSuccess(await h.store.write({ action: "remove", reference: map.reference, expected: map.version,
+  lifecycleSuccess(await observedDecomposeWrite(h.store, { action: "remove", reference: map.reference, expected: map.version,
     provenance: { verb: "decompose", lifecycleAction: "discard" } }));
-  lifecycleSuccess(await h.store.write({ action: "put", reference: map.reference, expected: null, content: map.content,
+  lifecycleSuccess(await observedDecomposeWrite(h.store, { action: "put", reference: map.reference, expected: null, content: map.content,
     provenance: { verb: "decompose", lifecycleAction: "additive" } }));
   const result = await acquireDecomposeTerminal(h.ctx, "origin");
   if (result.status === "refused") throw new Error(JSON.stringify(result));
@@ -96,7 +98,7 @@ it("admits a member created with the map update in a revision batch", async () =
   const storedMap = previous.result.acquired.storedMap;
   if (second === null || second === undefined || storedMap === undefined) throw new Error("Expected prior cut records.");
   // Compose the revision's production scaffold and field writers in one checked store batch.
-  lifecycleSuccess(await h.store.batch({ provenance: { verb: "decompose", lifecycleAction: "revise" }, writes: [
+  lifecycleSuccess(await observedDecomposeBatch(h.store, { provenance: { verb: "decompose", lifecycleAction: "revise" }, writes: [
     ...scaffolds.result.writes.filter(write => write.reference.owner.name === "member-c"),
     recordPut(second, { content: writeMetaDependsOn(second.content, ["member-c"]) }),
     recordPut(storedMap, { content: JSON.stringify(h.map) }),
@@ -132,8 +134,15 @@ it.each(["abandoned", "shipped"] as const)("refuses a home %s after scaffolding 
       allocation.disposition.targetLocator.artifact = "draft-next-home.md";
     }
   }
+  const origin = await acquireDecomposeOrigin(h.ctx, "origin");
+  if (origin.status === "refused") throw new Error(JSON.stringify(origin));
+  const fresh = deriveDecomposeMachine(origin.result);
+  if (fresh.status === "refused") throw new Error(JSON.stringify(fresh));
+  h.map.machine = fresh.result;
+  h.map.authoring.incomingDispositions = h.map.authoring.incomingDispositions.filter(disposition =>
+    h.map.machine.incomingEdges.some(edge => edge.edgeId === disposition.edgeId));
   const map = lifecycleSuccess(await h.store.read({ reference: h.applied.report.storedMap }));
-  lifecycleSuccess(await h.store.write({ ...recordPut(map, { content: JSON.stringify(h.map) }),
+  lifecycleSuccess(await observedDecomposeWrite(h.store, { ...recordPut(map, { content: JSON.stringify(h.map) }),
     provenance: { verb: "decompose", lifecycleAction: "revise" } }));
   const store = oncePerRecord(h.store);
   const repaired = await acquireDecomposeTerminal({ ...h.ctx, executor: { ...h.ctx.executor, store } }, "origin");

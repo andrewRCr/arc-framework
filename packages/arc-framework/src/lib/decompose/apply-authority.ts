@@ -3,6 +3,7 @@ import type { StoreRecord } from "../store/read.js";
 import type { Mutation } from "../store/write.js";
 import type { CutMapMachine } from "./cut-map-machine.js";
 import { canonicalDigest, sortByCanonicalBytes, type CanonicalDigest } from "../kernel/canonical/canonical-json.js";
+import { observeRecords, canonicalRecordObservations } from "../store/record-observations.js";
 
 /** The operation is part of authority, even when two modes would write identical bytes. */
 export type DecomposeAuthorityMode = "retirement-finish" | "extraction-finish" | "discard" | "revise";
@@ -11,8 +12,8 @@ export type DecomposeAuthorityMode = "retirement-finish" | "extraction-finish" |
 export function decomposeApplyAuthority(input: {
   mode: DecomposeAuthorityMode; origin: CutMapMachine["origin"]; records: readonly StoreRecord[]; writes: readonly Mutation[];
 }): CanonicalDigest {
-  return canonicalDigest({ schemaVersion: 1, mode: input.mode, origin: input.origin,
-    records: sortByCanonicalBytes(input.records.map(record => ({ reference: record.reference, version: record.version }))),
+  return canonicalDigest({ schemaVersion: 2, mode: input.mode, origin: input.origin,
+    observations: canonicalRecordObservations(observeRecords(input.records)),
     writes: sortByCanonicalBytes(input.writes),
   });
 }

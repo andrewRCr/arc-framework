@@ -14,6 +14,7 @@ import { decomposeStoreRefusal } from "./refusal.js";
 import { decomposeReviseArgv } from "./command-argv.js";
 import { renderV3DecomposeArgv } from "../work-unit/decompose-command-renderer.js";
 import { decomposeReadCache } from "./read-cache.js";
+import { checkDecomposeRecordConflicts } from "./source-conflicts.js";
 import { sameReference } from "../store/identity.js";
 
 /** One allocation's current resolved section and its exact stored-record basis. */
@@ -31,16 +32,14 @@ export async function checkDecomposeConservation(ctx: DecomposeContext, input: D
   for (const [allocationIndex, allocation] of input.map.authoring.sourceAllocations.entries()) {
     const target = allocation.disposition;
     if (target.kind !== "target") continue;
-    let artifacts = groups.get(target.destinationId);
-    if (artifacts === undefined) {
-      const acquired = await acquireTargetArtifacts(store, input, target.destinationId);
-      if (acquired.status === "refused") return acquired;
-      artifacts = acquired.result;
-      groups.set(target.destinationId, artifacts);
-    }
+    const acquired = await cachedTargetArtifacts(store, input, target.destinationId, groups);
+    if (acquired.status === "refused") return acquired;
+    const artifacts = acquired.result;
     const matches = artifacts.filter(artifact => artifact.basename === target.targetLocator.artifact);
     const artifact = matches.length === 1 ? matches[0] : undefined;
     if (artifact === undefined) return unresolved(input, allocationIndex, "The destination artifact does not resolve exactly once.");
+    const conflicts = checkDecomposeRecordConflicts([artifact.record], "allocated destination");
+    if (conflicts !== undefined) return conflicts;
     const resolved = resolveTargetUnit(artifact, target.targetLocator, scans);
     if (resolved.status === "rejected") return unresolved(input, allocationIndex, resolved.reason);
     allocations.push({ allocationIndex, sourceId: allocation.sourceId, destinationId: target.destinationId,
@@ -49,6 +48,15 @@ export async function checkDecomposeConservation(ctx: DecomposeContext, input: D
   const records = allocations.map(allocation => allocation.record).filter((record, index, all) =>
     all.findIndex(other => sameReference(record.reference, other.reference)) === index);
   return { status: "ok", result: { allocations, records } };
+}
+
+async function cachedTargetArtifacts(store: Store, input: DecomposeTerminalRecords, destinationId: string,
+  groups: Map<string, readonly TargetArtifact[]>): Promise<DecomposeResult<readonly TargetArtifact[]>> {
+  const cached = groups.get(destinationId);
+  if (cached !== undefined) return { status: "ok", result: cached };
+  const acquired = await acquireTargetArtifacts(store, input, destinationId);
+  if (acquired.status === "ok") groups.set(destinationId, acquired.result);
+  return acquired;
 }
 
 interface TargetArtifact { basename: string; record: StoreRecord }

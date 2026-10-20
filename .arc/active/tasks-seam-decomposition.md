@@ -67,6 +67,7 @@ under `lib/decompose/`, and the kind folder imports its decoder from there, as t
   holding the completed map as canonical JSON and parsed as § 3.4 decodes it, its bytes written by the verb alone —
   that the reference backend serves and the in-repo implementation lists absent and refuses `unsupported`, so no record
   of it can exist before the flip.
+    - _Amended in:_ review-fix (A4).
 
     - `[x]` **1.3.a The shape and the mechanism**
 
@@ -235,6 +236,7 @@ row to the tasks that build it.
 - _Goal:_ One batch writes a cut's members, their copies, its new cohort documents with their Purpose, the settling of
   every edge the members' slugs trip, and the stored map with expected absence, removing nothing, and the verb reports
   what it wrote with each destination's authoring requirements and the next step.
+    - _Amended in:_ review-fix (A4).
 
     - `[x]` **2.5.a Members and their copies**
 
@@ -293,6 +295,7 @@ that step fails; and the preview afterward reports the cut landed, naming its me
 - _Goal:_ The terminal batch reads each record it needs once, through the store, at its version — the stored map by the
   origin's slug, the origin's whole group, each member's meta, the cohort documents the map names, the existing homes,
   and the stub dependents the listing finds, the members left out — and keeps those versions as its guards.
+    - _Amended in:_ review-fix (A4).
 
 - _Outcome:_ `acquireDecomposeTerminal` shares version-bound observations across the complete origin, members,
   cohorts, homes, and current stub dependents. `isDecomposeMemberBirth` authenticates each member's birth name and
@@ -351,6 +354,7 @@ that step fails; and the preview afterward reports the cut landed, naming its me
   the stored map, rewrites stub dependents, writes stub homes' edges, and appends any at-cap fan-out block, every
   acquired record revalidated at its version just before it; then teardown's store arm removes or releases the
   checkout, leaving `arc teardown <origin>` where it fails.
+    - _Amended in:_ review-fix (A4).
 
     - `[x]` **3.4.a The lineage record**
 
@@ -377,6 +381,7 @@ that step fails; and the preview afterward reports the cut landed, naming its me
 - _Goal:_ `--finish` acquires, checks, and prepares the terminal batch, the removal check included, writes nothing, and
   reports the lineage record, the removals, and each record it would write with an apply authority; `--finish --apply
   <authority>` runs the batch only when a fresh preparation's digest equals it, refusing otherwise, naming `--finish`.
+    - _Amended in:_ review-fix (A4).
 
 - _Outcome:_ `runStoreDecomposeFinish` prepares a read-only retirement preview and applies only a freshly matched
   authority. `decomposeApplyAuthority` binds the mode, origin generation, observed versions, and exact mutations in
@@ -401,6 +406,7 @@ that step fails; and the preview afterward reports the cut landed, naming its me
   listing names a fixed number of times each, and the `history` of the stored map and of each item a member's slug finds
   once per run, those counts unchanged by the records' history or by unrelated work items, and nothing from Git but
   § 11's locus reads.
+    - _Amended in:_ review-fix (A4).
 
 - _Outcome:_ `createCountingStore` counts public read, list, lookup, and history requests while binding backend writes
   to their own view. A checked at-cap cut proves stable additive, preview, and apply counts under longer histories and
@@ -410,6 +416,7 @@ that step fails; and the preview afterward reports the cut landed, naming its me
 ### `[x]` **3.8 A retirement end to end** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
+    - _Amended in:_ review-fix (A4).
 
 - _Outcome:_ On merged main `9fe2f2f0d`, stub and started Planning retirements pass under cohort and at-cap placements
   through preflight, additive creation, authoring, preview, and apply. Each terminal batch writes exact lineage,
@@ -435,6 +442,7 @@ stored map, writing no lineage; and the preview afterward reports the cut landed
 - _Goal:_ `--extract` stores an extraction's map and members from a started Planning or Active origin that survives —
   its companions staying with it, members free to depend on it, and a dependent free to keep its edge on it — through
   the additive batch a retirement uses.
+    - _Amended in:_ review-fix (A4).
 
 - _Outcome:_ The shared additive batch accepts started Planning and Active extraction origins, retains their content,
   metadata and companions, seeds member edges on the surviving origin, and admits a dependent keeping that edge. The
@@ -455,6 +463,7 @@ stored map, writing no lineage; and the preview afterward reports the cut landed
 - _Goal:_ After the checks of § 8.2–8.4, one prepared batch — no lifecycle transition — thins the origin, sets its
   `Cohort` to the members' path where it differs, rewrites stub dependents, writes stub homes' edges and any at-cap
   fan-out, and removes the stored map, writing no lineage, and its preview reports the retained bytes and each record.
+    - _Amended in:_ review-fix (A4).
 
     - `[x]` **4.3.a The batch**
 
@@ -473,6 +482,7 @@ stored map, writing no lineage; and the preview afterward reports the cut landed
 ### `[x]` **4.4 An extraction end to end** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
+    - _Amended in:_ review-fix (A4).
 
 - _Outcome:_ On freshly merged main `e6856533f`, all four started Planning placements and an Active cohort extraction
   complete preflight, additive creation, authoring, preview and apply through the store entry points with no Git.
@@ -499,6 +509,7 @@ first place to reauthor; and a stored map conflicted by a sync resolves through 
 - _Goal:_ `--discard` previews and `--discard --apply <authority>` removes in one batch each stub still present as a
   whole group, the cut's new cohort documents, and the stored map, writing no lineage, and its preview lists each
   existing home and existing cohort coordination the map allocated to as left edited.
+    - _Amended in:_ review-fix (A4).
 
     - `[x]` **5.1.a The batch**
 
@@ -529,6 +540,7 @@ first place to reauthor; and a stored map conflicted by a sync resolves through 
   stored map and the revised one — adding and removing stubs and cohort documents, moving retained members' seeded
   `Depends On` and `Cohort`, and replacing the stored map at its version — leaving unseeded edges and authored content
   as they stand.
+    - _Amended in:_ review-fix (A4).
 
     - `[x]` **5.3.a Bind and check the revised map**
 
@@ -572,6 +584,8 @@ first place to reauthor; and a stored map conflicted by a sync resolves through 
   the UID-selected map remains readable, member stubs abandon normally, and the empty cohort stays open.
 
 ### `[x]` **5.7 Discard and revision end to end** — validate exit criterion at segment scope
+
+- _Amended in:_ review-fix (A4).
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
 - _Outcome:_ On merged base `6ca2459b9`, the checked-store scenarios close discard through history-only removals and
@@ -654,6 +668,8 @@ canonical JSON on standard output, with its reason and remedy on standard error.
 
 ### `[x]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
 
+- _Amended in:_ review-fix (A4).
+
 - _Quality gates:_ Forced merge validation passed all 19 selected local checks, including both type checks, full
   lint, build, unit/integration suites, and ARC contracts. Three CI-only suites remain due before merge.
 - _Success criteria:_ All 14 met, none superseded or unresolved. The final author report binds the complete work-unit
@@ -693,7 +709,7 @@ canonical JSON on standard output, with its reason and remedy on standard error.
   landed cut, in either shape, reports it landed. The records § 10's races leave are stated outcomes, outside this
   criterion.
 
-- `[x]` A cut's reads stay flat: over the reference backend each batch reads the origin's group, the selected cohort
+- `[~]` A cut's reads stay flat: over the reference backend each batch reads the origin's group, the selected cohort
   documents, the existing homes, and the dependents the listing names a fixed number of times each, and the `history` of
   the stored map and of each item a member's slug finds once per run, none of those counts growing with the repository's
   history, and nothing from Git but the locus reads of § 11.
@@ -724,3 +740,14 @@ canonical JSON on standard output, with its reason and remedy on standard error.
 - `[x]` Renamed-then-retired providers resolve by authenticated identity without enumerating unrelated terminal
   histories in additive, terminal, or revision preparation; lineage lookup prefers exact current terminal names,
   refuses ambiguous former names, and preserves exact known provider UIDs (A3).
+
+- `[x]` Every cut batch admits its version/conflict observations and relevant inventory atomically with its exact writes.
+  Competing changes to observed evidence, conflict sets, source/removal group membership, incoming dependencies, or
+  outgoing provider identities refuse without persistence; fresh acquisition and approval complete after repair.
+  Unrelated record/content writes and irrelevant new owners do not invalidate the cut. Additive retains unrelated
+  conflicts without writing them. Member authentication and read counts remain bounded: at most one preparation
+  history pass and one atomic admission history pass over the stored map and each currently resolved member,
+  independent of unrelated history and branch counts. This supersedes the once-per-run history-count clause of
+  original criterion 6; it preserves its other bounded-read and Git-isolation requirements.
+
+---

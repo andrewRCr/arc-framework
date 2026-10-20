@@ -5,6 +5,7 @@ import type { DecomposeLandedCut } from "./finish-report.js";
 import { DecomposeLandedCutSchema } from "./finish-report.js";
 import { parseLineageRecord } from "../store/kinds/lineage/index.js";
 import { SlugSchema } from "../kernel/index.js";
+import { checkDecomposeRecordConflicts } from "./source-conflicts.js";
 import { decomposeStoreRefusal } from "./refusal.js";
 
 /** Read a uniquely resolved decomposition without treating abandonment as a landed cut. */
@@ -13,6 +14,8 @@ export async function readDecomposeLandedRetirement(store: Store, origin: string
   if (found.status === "refused") return found.refusal.code === "not-found" ? { status: "ok", result: null } : decomposeStoreRefusal(found.refusal);
   const read = await store.read({ reference: found.result.reference });
   if (read.status === "refused") return decomposeStoreRefusal(read.refusal);
+  const conflicts = checkDecomposeRecordConflicts([read.result], "terminal lineage");
+  if (conflicts !== undefined) return conflicts;
   const lineage = parseLineageRecord(read.result.content);
   if (lineage === null) return { status: "refused", reason: "invalid-structure", class: "recoverable", locus: `lineage:${origin}`,
     remedy: { text: "Restore valid terminal lineage from its stored history, then retry finish." } };

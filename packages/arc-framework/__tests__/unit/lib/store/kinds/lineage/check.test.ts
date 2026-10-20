@@ -19,7 +19,7 @@ function input(body: string | null = held, kind: "abandon" | "decompose" | "rena
     ...(kind === "decompose" ? { outgoing: [] } : {}) });
   const record = ruleRecord("lineage/transition", "example", META_RULE_UID, bytes, parseLineageRecord(bytes));
   const inbound = body === null ? [] : [ruleRecord("work-item/inbound", "example", META_RULE_UID, body)];
-  return { reference: record.reference, writer: { kind: "verb", verb: kind }, before: ruleView(inbound), after: ruleView([record, ...inbound]),
+  return { reference: record.reference, observations: [], writer: { kind: "verb", verb: kind }, before: ruleView(inbound), after: ruleView([record, ...inbound]),
     next: { content: bytes, fields: record.fields } };
 }
 it.each(["abandon", "decompose", "rename"] as const)("refuses %s retirement with held entries under a declared grammar", async (kind) => {

@@ -1,5 +1,6 @@
 /** Terminal record plans land dependent edits and fan-out with the stored map's removal. */
 import { expect, it } from "vitest";
+import { observedDecomposeBatch } from "../../../helpers/store/decompose-batch.js";
 import { createDecomposeTerminalFixture } from "../../../fixtures/decompose-terminal.js";
 import { createDecomposeOriginFixture } from "../../../fixtures/decompose-origin.js";
 import { completeCutMapFixture } from "../../../fixtures/decompose-v4.js";
@@ -30,7 +31,7 @@ async function land(ctx: DecomposeContext, input: DecomposeTerminalRecords, plan
   const lineage = await prepareDecomposeLineage(ctx, input);
   if (lineage.status === "refused") throw new Error(JSON.stringify(lineage));
   const primary = input.acquired.primary;
-  return lifecycleSuccess(await ctx.executor.store.batch({ provenance: { verb: "decompose", lifecycleAction: "terminal" },
+  return lifecycleSuccess(await observedDecomposeBatch(ctx.executor.store, { provenance: { verb: "decompose", lifecycleAction: "terminal" },
     writes: [...plan.writes, lineage.result.write, { action: "remove", reference: primary.reference, expected: primary.version }] }));
 }
 

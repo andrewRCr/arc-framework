@@ -1,7 +1,7 @@
 /** Map-backed read views with real record envelopes and explicit exceptional lookups. */
 import {
   OwnerIdentitySchema, RecordVersionSchema, StoreRecordSchema, recordReferences, sameReference, sameOwner,
-  type LookupInput, type LookupResult, type ReadPlacement, type StoreRecord, type StoreResult, type StoreView,
+  type LookupInput, type LookupResult, type ReadPlacement, type StoreRecord, type StoreResult, type WriteCheckInput,
 } from "../../../src/lib/store/index.js";
 
 /** Build a validated fixture record with a stable generation and canonical placement.
@@ -28,10 +28,11 @@ export type RuleLookups = ReadonlyMap<string, StoreResult<LookupResult>>;
 /** Create a pure view whose normal lookups prefer live primary records.
  * @param records - Stored records in this side of the batch.
  * @param lookups - Explicit former-name, retired-origin, or refusal observations.
- * @returns The three read-only contract operations.
+ * @returns Read-only views; fixture history must be explicitly supplied by history-based tests.
  */
-export function ruleView(records: readonly StoreRecord[] = [], lookups: RuleLookups = new Map()): StoreView {
+export function ruleView(records: readonly StoreRecord[] = [], lookups: RuleLookups = new Map()): WriteCheckInput["before"] {
   return {
+    history: async () => { throw new Error("No history was supplied for this rule fixture."); },
     read: async ({ reference }) => {
       const candidates = records.filter((candidate) => sameReference(candidate.reference, reference)
         || (!("uid" in reference.owner) || reference.owner.uid === undefined)

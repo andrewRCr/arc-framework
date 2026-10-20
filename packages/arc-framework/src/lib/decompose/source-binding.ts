@@ -11,7 +11,8 @@ import { deriveDecomposeEdges } from "./edge-facts.js";
 import { checkDecomposeInbound } from "./start-guards.js";
 
 /** Rescan the origin and require its allocated source and dependency inventories to remain bound. */
-export function checkDecomposeSourceBinding(ctx: DecomposeContext, input: DecomposeTerminalRecords): DecomposeResult<DecomposeSourceFacts> {
+export function checkDecomposeSourceBinding(ctx: Pick<DecomposeContext, "inboundGrammar">,
+  input: Pick<DecomposeTerminalRecords, "map" | "acquired">): DecomposeResult<DecomposeSourceFacts> {
   const source = deriveDecomposeSource(input.acquired);
   if (source.status === "refused") return source;
   const held = checkDecomposeInbound(ctx, input.acquired);
@@ -30,7 +31,7 @@ export function checkDecomposeSourceBinding(ctx: DecomposeContext, input: Decomp
   return source;
 }
 
-function changed(input: DecomposeTerminalRecords, inventory: string, message: string): DecomposeRefusal {
+function changed(input: Pick<DecomposeTerminalRecords, "acquired">, inventory: string, message: string): DecomposeRefusal {
   const argv = decomposeReviseArgv(input.acquired.primary.reference.owner.name);
   return { status: "refused", reason: "stale-machine", class: "recoverable", locus: `machine.${inventory}`, message,
     remedy: { text: `Rebind the current origin's content and dependencies with ${renderV3DecomposeArgv(argv)}, then finish the revised cut.`, argv: [...argv] } };

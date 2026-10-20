@@ -14,8 +14,9 @@ import { requireCompleteInventory } from "../store/lifecycle-storage.js";
 import { ArcError } from "../kernel/errors.js";
 import type { Store } from "../store/contract.js";
 import type { LifecycleIndexOutcome } from "../store/lifecycle-index.js";
-import { acquireDecomposeEdges, type DecomposeEdgeObservations } from "./edge-facts.js";
+import { acquireDecomposeEdgesFromStore, type DecomposeEdgeObservations } from "./edge-facts.js";
 import { checkDecomposeSourceConflicts } from "./source-conflicts.js";
+import type { DecomposeReadStore } from "./read-store.js";
 
 /** Inputs retained for pure derivation and later prepared-write revalidation. */
 export interface DecomposeOriginRecords {
@@ -31,7 +32,13 @@ export interface DecomposeOriginRecords {
 /** Acquire the complete origin without using Git or applying start-only guards. */
 export async function acquireDecomposeOrigin(ctx: DecomposeContext, slug: string,
   excludedOwnerUids: ReadonlySet<string> = new Set()): Promise<DecomposeResult<DecomposeOriginRecords>> {
-  const store = ctx.executor.store;
+  return acquireDecomposeOriginRecords(ctx.executor.store, slug, excludedOwnerUids, ctx.executor.store.capabilities);
+}
+
+/** Acquire origin facts using only read operations, with complete off-branch inventory by default. */
+export async function acquireDecomposeOriginRecords(store: DecomposeReadStore, slug: string,
+  excludedOwnerUids: ReadonlySet<string> = new Set(), capabilities: Store["capabilities"] = { stateOffBranch: true },
+): Promise<DecomposeResult<DecomposeOriginRecords>> {
   const selected = await readWorkUnit(store, slug);
   if (selected.status === "refused") return decomposeStoreRefusal(selected.refusal);
   const group = await acquireLifecycleRecords(store, selected.result.reference.owner.name);
@@ -48,13 +55,13 @@ export async function acquireDecomposeOrigin(ctx: DecomposeContext, slug: string
   if (conflicts !== undefined) return conflicts;
   const view = await readLifecycleView(store);
   if (view.status === "refused") return decomposeStoreRefusal(view.refusal);
-  const incomplete = decomposeInventoryRefusal(store, view.result.listing);
+  const incomplete = decomposeInventoryRefusal({ capabilities }, view.result.listing);
   if (incomplete !== undefined) return incomplete;
   const map = await store.read({ reference: recordReferences["work-item/cut-map"](primary.reference.owner) });
   if (map.status === "refused" && map.refusal.code !== "not-found") return decomposeStoreRefusal(map.refusal);
   const incomingCandidates = view.result.entries.filter(entry => entry.reference.owner.type === "person"
     || entry.reference.owner.uid === undefined || !excludedOwnerUids.has(entry.reference.owner.uid));
-  const edges = await acquireDecomposeEdges(ctx, { primary, incomingCandidates });
+  const edges = await acquireDecomposeEdgesFromStore(store, { primary, incomingCandidates });
   if (edges.status === "refused") return edges;
   return { status: "ok", result: { primary, records: group.result, artifacts, lifecycleEntries: view.result.entries,
     incomingCandidates, edges: edges.result,
@@ -62,7 +69,7 @@ export async function acquireDecomposeOrigin(ctx: DecomposeContext, slug: string
 }
 
 /** Preserve the complete lifecycle inventory's own repair information. */
-export function decomposeInventoryRefusal(store: Store, listing: LifecycleIndexOutcome): DecomposeRefusal | undefined {
+export function decomposeInventoryRefusal(store: Pick<Store, "capabilities">, listing: LifecycleIndexOutcome): DecomposeRefusal | undefined {
   try { requireCompleteInventory(store, listing); }
   catch (error) {
     if (!(error instanceof ArcError)
