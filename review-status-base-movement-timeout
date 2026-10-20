@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "review-status-base-movement-timeout",
+  "claimId": "141a3ace7066af32e756083e1e5b7d89",
+  "createdAt": "2026-10-20T03:34:27.951Z",
+  "updatedAt": "2026-10-20T03:34:27.951Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Diagnose and repair the intermittent review-status base-movement integration timeout while preserving its assertions",
+  "branch": "fix/review-status-base-movement-timeout",
+  "origin": "inbox",
+  "originEntry": "Investigate the intermittent review-status base-movement timeout",
+  "originEntrySourceDigest": "sha256:354be50217914c764a4779bcbd4e388137822face4d45a4d173cbc83c594b052",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
