@@ -18,6 +18,7 @@ import type { ReadIndexedBlob } from "../lib/markdown/indexed-snapshot.js";
 import { resolveMarkdownRepositoryRoot, validateExplicitMarkdownPaths } from "../lib/markdown/selection.js";
 import { enumerateStagedMarkdownGatePaths } from "../lib/markdown/staged-gate.js";
 import { underwrapRule } from "../lib/markdown/underwrap.js";
+import { enumerateWorktreeIndexDriftPaths } from "../lib/markdown/worktree-index-drift.js";
 import { markdownRuntimeVersions } from "./verify-markdown-dependencies.js";
 
 const entryPaths = ["packages/arc-framework/src/scripts/lint-markdown-underwrap.ts"];
@@ -50,6 +51,35 @@ interface UnderwrapInputs {
   readonly readBlob: ReadIndexedBlob;
 }
 
+async function readUnderwrapBytes(options: UnderwrapInputs, path: string, automatic: boolean): Promise<Uint8Array | null> {
+  const worktreePath = join(options.root, ...path.split("/"));
+  const bytes = options.worktree ? await readFile(worktreePath) : await options.readBlob(options.root, path);
+  if (bytes === null) {
+    if (automatic) return null;
+    throw new ArcError(`Indexed Markdown blob is missing: ${path}`, "markdown.index-blob-missing");
+  }
+  return bytes;
+}
+
+async function assertExplicitIndexAlignment(options: UnderwrapInputs, paths: readonly string[]): Promise<void> {
+  const requested = new Set(paths);
+  const { stdout } = await options.exec("git", ["ls-files", "-v", "-z"], { cwd: options.root });
+  for (const entry of stdout.split("\0").filter(Boolean)) {
+    const tag = entry.charAt(0);
+    const path = entry.slice(2);
+    if (requested.has(path) && (tag === "S" || tag === tag.toLowerCase())) {
+      throw new ArcError(`Markdown index flags hide worktree changes: ${path}. Clear assume-unchanged/skip-worktree ` +
+        "for this path, or use --worktree to check it without certifying the Git index.", "markdown.index-flags-hide-drift");
+    }
+  }
+  const drifted = new Set<string>(await enumerateWorktreeIndexDriftPaths(options.root, options.exec));
+  const path = paths.find(path => drifted.has(path));
+  if (path !== undefined) {
+    throw new ArcError(`Markdown worktree/index drift: ${path}. Re-stage the file to check its indexed bytes, ` +
+      "or use --worktree to check the edited file without certifying the Git index.", "markdown.worktree-index-drift");
+  }
+}
+
 async function readUnderwrapStrings(options: UnderwrapInputs): Promise<Record<string, string>> {
   const automatic = options.paths.length === 0;
   const paths = automatic
@@ -58,6 +88,9 @@ async function readUnderwrapStrings(options: UnderwrapInputs): Promise<Record<st
   for (const path of paths) {
     if (isMarkdownPathExcluded(path)) throw new ArcError(`Markdown path is excluded: ${path}`, "markdown.excluded-path");
   }
+  if (!automatic && !options.worktree) {
+    await assertExplicitIndexAlignment(options, paths);
+  }
   if (options.worktree) {
     await validateExplicitMarkdownPaths({ root: options.root, paths, operation: "lint-read", exec: options.exec, lstat, realpath,
       allowIgnoredPaths: options.allowIgnored ? new Set(paths) : undefined });
@@ -65,9 +98,8 @@ async function readUnderwrapStrings(options: UnderwrapInputs): Promise<Record<st
   }
   const strings: Record<string, string> = {};
   for (const path of paths) {
-    const bytes = options.worktree ? await readFile(join(options.root, ...path.split("/"))) : await options.readBlob(options.root, path);
-    if (bytes === null && automatic) continue;
-    if (bytes === null) throw new ArcError(`Indexed Markdown blob is missing: ${path}`, "markdown.index-blob-missing");
+    const bytes = await readUnderwrapBytes(options, path, automatic);
+    if (bytes === null) continue;
     strings[path] = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   }
   return strings;
