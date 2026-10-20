@@ -20,7 +20,7 @@ import { attestLocalReviewCommand } from "../../../../../src/scripts/review-gate
 function dependencies(h: Awaited<ReturnType<typeof nativeLocalReview>>): LocalResumeDependencies {
   return { outcomes: h.outcomes, operationStore: h.operations, sourceStore: h.prepared.dependencies.sourceStore,
     receiptStore: new LocalForwardReviewReceiptStore(h.publisher, h.state.repositoryId),
-    resultReader: new StoredReviewResultReader({ outcomes: h.outcomes, readProjectId: h.projectId }),
+    resultReader: new StoredReviewResultReader({ outcomes: h.outcomes, evidence: h.evidence, readProjectId: h.projectId }),
     dispositionStore: h.evidence, bindSourceReference: source => bindReviewSourceReference({ ...source,
       repositoryId: h.state.repositoryId, workItem: h.primary.reference.owner }),
     sweep: async () => {}, withLocalReviewLock: action => action(),
@@ -81,7 +81,7 @@ it("resumes portable approved findings on a checkout without original working fi
   const resumed = await resumeLocalReviewCommand({ schemaVersion: 1, operationId: h.outcome.attemptId }, {
     outcomes, operationStore, sourceStore: new RepositoryLocalReviewSourceStore(publisher),
     receiptStore: new LocalForwardReviewReceiptStore(publisher, h.outcome.target.repositoryId),
-    resultReader: new StoredReviewResultReader({ outcomes, readProjectId }), dispositionStore: h.evidence,
+    resultReader: new StoredReviewResultReader({ outcomes, evidence: h.evidence, readProjectId }), dispositionStore: h.evidence,
     sweep: async () => {}, withLocalReviewLock: action => action(),
     confirmTarget: async target => ({ state: "current", target }),
     materialize: async () => { throw new Error("Ended review must not recreate a checkout"); },

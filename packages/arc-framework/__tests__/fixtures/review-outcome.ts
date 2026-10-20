@@ -4,7 +4,7 @@ import { createReviewReceipt, createReviewRequirement } from "../../src/scripts/
 import { createLocalReviewAdmission } from "../../src/scripts/review-gate/core/local-operation.js";
 import { createHostedHandleFixture, createHostedTerminalAttemptFixture, type HostedHandleFixtureInput } from "./hosted-review.js";
 import type { NormalizedReviewFinding } from "../../src/scripts/review-gate/core/finding-records.js";
-import type { HostedFinding } from "../../src/scripts/review-gate/hosted/await.js";
+import type { HostedFinding, HostedCoverageEvidence } from "../../src/scripts/review-gate/hosted/await.js";
 import { projectHostedFinding } from "../../src/scripts/review-gate/hosted/await.js";
 import type { LaneSubjectLineage } from "../../src/scripts/review-gate/core/lane-admission.js";
 import type { ReviewTarget } from "../../src/scripts/review-gate/core/gate-contract-v2-schema.js";
@@ -15,10 +15,12 @@ import type { DeliveryLocalReviewAdmission } from "../../src/scripts/review-gate
 import { createFrontlineFixture } from "./frontline-review.js";
 
 export function hostedOutcome(options: HostedHandleFixtureInput & {
-  outcome?: "clean" | "findings"; findings?: readonly HostedFinding[];
+  outcome?: "clean" | "findings"; findings?: readonly HostedFinding[]; coverageEvidence?: HostedCoverageEvidence;
 } = {}) {
   const handle = createHostedHandleFixture(options);
-  const { attemptId, hosted } = createHostedTerminalAttemptFixture({ admission: handle.admission, outcome: options.outcome ?? "clean", findings: options.findings, artifact: options.artifact, effectiveCoverage: options.effectiveCoverage });
+  const { attemptId, hosted } = createHostedTerminalAttemptFixture({ admission: handle.admission,
+    outcome: options.outcome ?? "clean", findings: options.findings, artifact: options.artifact,
+    effectiveCoverage: options.effectiveCoverage, coverageEvidence: options.coverageEvidence });
   const binding = {
     admission: hosted.admission, handle: hosted.handle, target: hosted.target,
     requestedCoverage: hosted.requestedCoverage, effectiveCoverage: hosted.effectiveCoverage,

@@ -11,7 +11,7 @@ describe("stored review result reader", () => {
     const h = await storedLocalApproval();
     const original = await h.fixture.resultReader.readResult(h.outcome.attemptId);
     const reader = new StoredReviewResultReader({ outcomes: createReviewOutcomePort(h.harness.store, h.owner),
-      readProjectId: createProjectIdentityReader(h.harness.store) });
+      evidence: h.evidence, readProjectId: createProjectIdentityReader(h.harness.store) });
     const result = await reader.readResult(h.outcome.attemptId);
     expect(result).toEqual({ ...original, workItem: h.owner, receiptRef: reviewOutcomeKey(h.outcome),
       localSourceRef: h.outcome.local!.sourceDigest });
@@ -23,7 +23,7 @@ describe("stored review result reader", () => {
   it("keeps an unreadable outcome listing actionable and resumes after repair", async () => {
     const h = await storedLocalApproval();
     const reader = new StoredReviewResultReader({ outcomes: createReviewOutcomePort(h.harness.store, h.owner),
-      readProjectId: createProjectIdentityReader(h.harness.store) });
+      evidence: h.evidence, readProjectId: createProjectIdentityReader(h.harness.store) });
     h.harness.store.state.unreadable.add("review");
     await expect(reader.readResult(h.outcome.attemptId)).rejects.toMatchObject({ code: "corrupt-result",
       message: "The family index cannot be read. Restore the family index from a saved state." });
@@ -34,7 +34,7 @@ describe("stored review result reader", () => {
   it("preserves the project identity refusal and permits a fresh read after repair", async () => {
     const h = await storedLocalApproval();
     const reader = () => new StoredReviewResultReader({ outcomes: createReviewOutcomePort(h.harness.store, h.owner),
-      readProjectId: createProjectIdentityReader(h.harness.store) });
+      evidence: h.evidence, readProjectId: createProjectIdentityReader(h.harness.store) });
     h.harness.store.state.unreadable.add("project-registry");
     await expect(reader().readResult(h.outcome.attemptId)).rejects.toBeInstanceOf(ProjectIdentityError);
     h.harness.store.state.unreadable.delete("project-registry");

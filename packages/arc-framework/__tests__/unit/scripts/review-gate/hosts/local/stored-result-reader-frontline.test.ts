@@ -39,7 +39,7 @@ async function portableFrontline(result: "clean" | "findings" = "findings") {
 
 it("reads the original frontline verdict and composed approval from portable facts alone", async () => {
   const { h, primary, fixture, original, outcomes, evidence } = await portableFrontline();
-  const result = await new StoredReviewResultReader({ outcomes, readProjectId: h.projectId }).readResult(original.producerId);
+  const result = await new StoredReviewResultReader({ outcomes, evidence, readProjectId: h.projectId }).readResult(original.producerId);
   expect(result).toMatchObject({ kind: "frontline", workItem: primary.reference.owner,
     producerId: original.producerId, target: original.target, findings: original.findings,
     originalOutcome: original.originalOutcome, resultDigest: original.resultDigest, admission: original.admission });
@@ -61,7 +61,7 @@ it("reads the original frontline verdict and composed approval from portable fac
 
 it("projects the same frontline response from the portable outcome and original executable outcome", async () => {
   const { h, fixture, original, outcomes, evidence } = await portableFrontline();
-  const result = await new StoredReviewResultReader({ outcomes, readProjectId: h.projectId }).readResult(original.producerId);
+  const result = await new StoredReviewResultReader({ outcomes, evidence, readProjectId: h.projectId }).readResult(original.producerId);
   const approval = await evidence.readDispositionRecord(original.producerId);
   if (result.kind !== "frontline" || original.kind !== "frontline" || approval === null) throw new Error("Expected approved frontline result");
   const common = { routing: fixture.admission.routing.decision,
@@ -73,8 +73,8 @@ it("projects the same frontline response from the portable outcome and original 
 });
 
 it("retains the bounded material-fix follow-up decision over a portable outcome", async () => {
-  const { h, original, outcomes } = await portableFrontline();
-  const result = await new StoredReviewResultReader({ outcomes, readProjectId: h.projectId }).readResult(original.producerId);
+  const { h, original, outcomes, evidence } = await portableFrontline();
+  const result = await new StoredReviewResultReader({ outcomes, evidence, readProjectId: h.projectId }).readResult(original.producerId);
   if (result.kind !== "frontline") throw new Error("Expected portable frontline result");
   const approval = approvedRecord(result, [{ sourceVerification: "verified", verifiedSeverity: "major", disposition: "fix" }]);
   const { targetId: ignored, ...coordinates } = result.target;
@@ -87,7 +87,7 @@ it("retains the bounded material-fix follow-up decision over a portable outcome"
 
 it("reads a clean portable frontline verdict while keeping it unusable as an execution outcome", async () => {
   const { h, original, outcomes, evidence } = await portableFrontline("clean");
-  const result = await new StoredReviewResultReader({ outcomes, readProjectId: h.projectId }).readResult(original.producerId);
+  const result = await new StoredReviewResultReader({ outcomes, evidence, readProjectId: h.projectId }).readResult(original.producerId);
   expect(result).toMatchObject({ kind: "frontline", producerId: original.producerId, originalOutcome: "clean",
     resultDigest: original.resultDigest, findings: [] });
   if (result.kind !== "frontline" || original.kind !== "frontline") throw new Error("Expected clean frontline results");

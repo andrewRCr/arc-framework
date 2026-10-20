@@ -30,7 +30,7 @@ async function completedLocalReview(result: "clean" | "findings" | "failed" = "c
   expect(await h.operations.readOperation(state.operationId)).toMatchObject({ state: null });
   const port = new DurableReviewReductionPort({ outcomes: h.outcomes, operationStore: h.operations,
     sourceStore: new RepositoryLocalReviewSourceStore(h.publisher),
-    resultReader: new StoredReviewResultReader({ outcomes: h.outcomes, readProjectId: h.projectId }),
+    resultReader: new StoredReviewResultReader({ outcomes: h.outcomes, evidence: h.evidence, readProjectId: h.projectId }),
     dispositionStore: h.evidence, confirmTarget: h.prepared.dependencies.confirmTarget,
     bindSourceReference: source => bindReviewSourceReference({ ...source, repositoryId: state.repositoryId,
       workItem: h.primary.reference.owner }),
@@ -54,7 +54,7 @@ it("reduces a portable approved finding on a checkout with no execution, source,
   const outcomes = createReviewOutcomePort(h.harness.store, h.owner), readProjectId = createProjectIdentityReader(h.harness.store);
   const operations = new NativeReviewInFlightStateStore({ publisher, workItem: h.owner,
     outcomes, evidence: h.evidence, projectId: readProjectId });
-  const reader = new StoredReviewResultReader({ outcomes, readProjectId });
+  const reader = new StoredReviewResultReader({ outcomes, evidence: h.evidence, readProjectId });
   const port = new DurableReviewReductionPort({ outcomes, operationStore: operations,
     sourceStore: new RepositoryLocalReviewSourceStore(publisher), resultReader: reader, dispositionStore: h.evidence,
     confirmTarget: async target => ({ state: "current", target }),

@@ -121,13 +121,13 @@ export async function createFrontlineMappingFixture(repositoryId = "repo-1", res
   return { fixture, input };
 }
 
-export async function createHostedMappingFixture(kind: "errand" | "delivery-member" = "errand") {
+export async function createHostedMappingFixture(kind: "errand" | "delivery-member" = "errand", repositoryId = "repo-1") {
   const { createHostedHandleFixture, createHostedTerminalAttemptFixture } = await import("./hosted-review.js");
   const { recordLaneAttempt } = await import("../../src/scripts/review-gate/lane-progress.js");
   const member = DeliveryReviewMemberVehicleSchema.parse({ kind: "delivery-member", workUnitId: "example",
     planId: "123e4567-e89b-42d3-a456-426614174002", deliverableId: canonicalDigest({ member: "example" }), head: "c".repeat(40) });
-  const handle = createHostedHandleFixture(kind === "delivery-member" ? { vehicle: member } : {
-    lineage: { kind: "head-bound", vehicleKind: "errand", vehicleIdentity: mappingErrand.claimId, headSha: "c".repeat(40) },
+  const handle = createHostedHandleFixture(kind === "delivery-member" ? { vehicle: member, repositoryId } : {
+    repositoryId, lineage: { kind: "head-bound", vehicleKind: "errand", vehicleIdentity: mappingErrand.claimId, headSha: "c".repeat(40) },
   });
   const ended = createHostedTerminalAttemptFixture({ admission: handle.admission, outcome: "findings", findings: [{
     findingId: "hosted-finding", origin: "review-thread", commentId: "comment-1", threadId: "thread-1",
