@@ -69,6 +69,61 @@
   `draft-autonomy-levels.md` defers the general output contract here. The `arc check` human-output duplication split
   off as an Errand at the drain.
 
+### `[ ]` **Cut restated procedure from session output; keep state, next step, and recommendations**
+
+- _Routed from:_ `documentation-surface-routing`'s inbound buffer, re-triaged by Errand `session-output-rehome`
+  (2026-10-20); first routed there from `USER-INBOX § Work Unit` at the 2026-10-03 housekeep drain.
+
+- _Shapes:_ § Purpose's audience widening from the entry above — what the Owner-facing field carries, and what an
+  agent may say beside it.
+
+- _Observation:_ ARC workflows and CLI-composed texts have the agent restate policy to the Owner at nearly every
+  gate: "approval is not merge authority", "this does not establish convergence", "a disposition approval grants no
+  next pass", residual-race disclaimers, "completed responses are not re-approved at this gate". Useful on someone's
+  first day, noise ever after. It buries the state and the decision the Owner needs and lengthens every gate. This
+  session's integration interlock, review-stop offer, and disposition reports were each mostly restated policy.
+
+- _Principle (Owner, 2026-10-01):_ session output earns its lines by anchoring current state, naming what is next,
+  or carrying a decision with the agent's recommendation. Restating ARC policy to the user does none of these.
+  Every decision point comes with a recommendation.
+
+- _Approach:_ a pass over the user-facing texts — workflow interlock and offer text (integration interlock,
+  Owner-directed review stop, commit gates) and CLI-composed texts (`dispositionReportText`,
+  `provisionalPassAssessment`, `recommendedPromptText`) — separating what the agent must do or check (stays in the
+  workflow) from what it must say (cut to state, next step, decision, recommendation). The mirror of
+  `agent-context-optimization`'s reading test: every line the agent says should change what the Owner knows or
+  decides. Decide per item whether a disclosure must reach the Owner or only the agent; some, like checks bound to
+  the approved head, may need to stay.
+
+- _Captured during:_ Errand `review-evidence-record`, 2026-10-01.
+
+- _Progress (2026-10-20):_ the `dispositionReportText` slice landed with Errand `disposition-report-trim`. The report
+  now carries the lane position and grade counts, exception-only status lines, a Trend only from the second look,
+  Decisions for real choices, and one CLI-composed approval question naming what approval releases; the advisory
+  disclaimers and provisional and converged markers are gone. Still open: interlock and offer text,
+  `recommendedPromptText`, and `provisionalPassAssessment.summaryText`.
+
+- _Candidate (2026-10-20, Errand `integration-friction-evidence`):_ the Errand integration interlock is the next slice
+  of the same shape. `run-errand`'s interlock lists everything the agent must state, restated policy included, and
+  nearly every fact is deterministic: head, lane, merge method, each lane's review state, required checks, host
+  review, and base movement with its overlap. A CLI-composed report could carry only those, conditional blocks
+  only when they apply, and one closing question naming what approval releases:
+
+  ```text
+  **PR #1069 → main** · eb0dec8 · reviewed lane · merge
+  - Review: frontline clean (CodeRabbit) · standard clean (Codex, pass 1 of 2)
+  - Checks: ci-ok pending
+  - Base: moved to 0bcdbd8 (#1068), no overlapping paths
+
+  Approve: wait for checks → merge eb0dec8?   Redirect: release only
+  ```
+
+  Two constraints shape it. `review-request-contracts` defers any surface over `errandMergeRequest` until its
+  redundant fields are derived. And the report's facts come from several commands, so one field per result cannot
+  carry it: one command has to gather them, as the work-unit integration checkpoint already does. A preview mode of
+  `arc errand merge` that derives the whole request would meet both. The Owner-directed review-stop offer is the third
+  surface this entry names and could ride with it.
+
 ---
 
 ## Concern 1 — machine-mode failures are prose
