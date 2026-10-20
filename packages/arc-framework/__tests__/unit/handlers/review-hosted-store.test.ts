@@ -33,6 +33,8 @@ import { HostedRequestOwnerIndex } from "../../../src/scripts/review-gate/hosts/
 import { bindReviewSourceReference, parseReviewSourceReference } from "../../../src/scripts/review-gate/core/review-source-reference.js";
 import { bindNativeReviewOperationReference, parseNativeReviewOperationReference } from "../../../src/scripts/review-gate/core/review-operation-reference.js";
 
+import { ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
+
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 const head = "a".repeat(40), base = "b".repeat(40), branch = "chore/repair";
 
@@ -293,13 +295,18 @@ it.each(["missing", "other-owner"] as const)("refuses a %s indexed owner and rep
   expect(await h.run()).toEqual(requested);
 });
 
-it("retains a branch-linked Work Unit UID through the default hosted continuation", async () => {
+it("retains a branch-linked Work Unit UID through default hosted continuation after slug reuse", async () => {
   const h = await fixture(true);
   const raw = await h.run();
   expect(raw, JSON.stringify(raw)).toMatchObject({ state: "requested", nextAction: "await" });
   const requested = HostedRequestResultSchema.parse(raw);
   if (requested.state !== "requested" || requested.operationRef === undefined) throw new Error(JSON.stringify(requested));
   expect(parseNativeReviewOperationReference(requested.operationRef).workItem).toEqual(h.primary.reference.owner);
+  lifecycleSuccess(await h.store.write({ action: "put", reference: h.primary.reference, expected: h.primary.version,
+    content: h.primary.content, placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
+    provenance: { verb: "archive", lifecycleAction: "archive" } }));
+  const replacement = await h.seedMeta("example", { branch: null });
+  expect(replacement.reference.owner).not.toEqual(h.primary.reference.owner);
   h.complete();
   expect(await h.awaitResult(requested.action)).toMatchObject({ state: "clean", operationRef: requested.operationRef });
 });

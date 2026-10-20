@@ -680,7 +680,7 @@ through rename and slug reuse; mismatched references refuse and succeed after co
           the metadata path. Production resolution confirms active and completed owners; exact family binding and
           task reads retain the invocation Store, with refusal and normal continuation after repair.
 
-### `[ ]` **4.4.R Bind native family ports after authenticated vehicle resolution — § 2.3**
+### `[x]` **4.4.R Bind native family ports after authenticated vehicle resolution — § 2.3**
 
 - _Goal:_ Default native review binds the family's ports to the exact work item its invocation resolves, without
   requiring a caller-supplied `workItem`, adding no family refusal or owner-selection policy (A11).
@@ -688,29 +688,20 @@ through rename and slug reuse; mismatched references refuse and succeed after co
 - _Amended in:_ 4.R2 (A13)
 - _Amended in:_ 4.R4 (A15)
 
-- **Additional Context:** `notes-seam-delivery-review.md` § A11. The boundary and attestation footing in 4.5–4.6 precedes
-  the complete native handler proof; the work-unit and Errand selections are 4.4's.
+    - `[x]` **4.4.R.a Bind the selected primary before family access**
 
-    - `[ ]` **4.4.R.a Bind the selected primary before family access**
+        - Composition roots retain the primary selected by branch link, exact Errand claim, explicit vehicle, or
+          produced continuation before family access. Selected Store, project reader, and UID survive nested reads;
+          missing vehicles retain their existing refusal, and fact-free policy follows 4.R4. Repository adapters
+          and owner-selection policy remain unchanged.
 
-        - Re-enumerate composition roots that call `createReviewCompositionContext` or `bindReviewFamilyPorts` before
-          their asynchronous vehicle selection. Bind after the invocation's established selection, retaining the same
-          Store, project-ID reader, and exact primary owner from its lookup. Local work-unit branches use
-          `readReviewWorkUnitByRef`; Errands use their marker's exact claim; explicit delivery or hosted vehicles use
-          their resolved work item. Completed-owner reads keep the exact generation they selected. An already supplied
-          owner remains bound; an unresolved vehicle keeps its existing refusal rather than choosing an unrelated owner.
-        - Keep the repository arm's current synchronous adapters and behavior. No scan of unrelated work items, fallback
-          owner, or Candidate-ID-derived owner substitutes for the authenticated vehicle.
+    - `[x]` **4.4.R.b Prove native defaults without owner injection**
 
-    - `[ ]` **4.4.R.b Prove native defaults without owner injection**
-
-        - Build `test-first` over the checked review harness with Store and project-ID reader supplied, and no supplied
-          `workItem`: default local preparation and its continuation, frontline resolution and run, hosted request and
-          handle continuation, pre-publication, read-only lane, and status resolve the expected primary and reach their
-          normal result after repair. Exercise ordinary work units, Errands, explicit delivery/hosted vehicles, and a
-          reused slug with an exact selected generation at the boundaries that choose them; retain the repository-arm
-          regressions. Use the production vehicle and primary lookup, with no stand-in owner resolver or weakened
-          write checks. The native work-unit proof uses 4.5–4.6's Candidate and version 2 boundary.
+        - Default local, frontline, hosted, pre-publication, lane-read, and status handlers resolve checked native
+          owners without an injected resolver or owner. Real checkouts cover branch-linked work units, exact Errand
+          claims, and status-produced delivery admission through local preparation and resume. Project and vehicle
+          repairs resume normally; produced continuations and explicitly selected status retain their UID after
+          slug reuse, with no fallback to the new holder or writes from read-only commands.
 
 ### `[x]` **4.R Preserve sync-conflict refusals in typed review listings — § 2.2, § 2.3**
 
