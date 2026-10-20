@@ -3,14 +3,20 @@
   "slug": "disposition-report-trim",
   "claimId": "22e975043fb4aa88b80a0317b6aeae19",
   "createdAt": "2026-10-20T13:40:52.965Z",
-  "updatedAt": "2026-10-20T13:40:52.965Z",
+  "updatedAt": "2026-10-20T15:40:42.448Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Trim the review disposition report to decision-relevant content: exceptions-only status, Trend after the first look, Decisions and a CLI-composed closer at the bottom",
   "branch": "chore/disposition-report-trim",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/disposition-report-trim",
+    "headSha": "eb0dec820271b7c17f0e09af80955c24a4b14a7c"
+  }
 }
