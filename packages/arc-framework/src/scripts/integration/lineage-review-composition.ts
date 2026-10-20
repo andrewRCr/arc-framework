@@ -2,7 +2,9 @@
 
 import { createReviewCompositionContext } from "../review-gate/runtime/composition-context.js";
 import type { ReviewInvocationInput } from "../review-gate/runtime/invocation.js";
-import type { ReviewInFlightPort } from "../review-gate/core/ports.js";
+import type { ReviewInFlightPort, ReviewResultReader } from "../review-gate/core/ports.js";
+import { createRepositoryReviewResultReader } from "../review-gate/hosts/local/review-result-reader-composition.js";
+import { validateApprovedDispositionRecordForResult } from "../review-gate/core/review-result-disposition.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
 import { createRawGitExec } from "../../lib/io-context.js";
@@ -34,7 +36,16 @@ export interface LineageReviewComposition {
   actions: SettlementAction[];
 }
 
-async function resolveApprovedOriginTarget(
+async function resolveApprovedOriginTarget(input: ReviewInvocationInput, record: ApprovedDispositionRecord,
+  required: boolean, operationStore: Pick<ReviewInFlightPort, "readOperation">, outcomeStore: LocalFrontlineOutcomeStore,
+  resultReader: ReviewResultReader | null): Promise<ReviewTarget | null> {
+  if (resultReader === null) return readRepositoryApprovedOriginTarget(input, record, required, operationStore, outcomeStore);
+  const result = await resultReader.readResult(record.operationId);
+  validateApprovedDispositionRecordForResult(record, result);
+  return result.target;
+}
+
+async function readRepositoryApprovedOriginTarget(
   input: ReviewInvocationInput,
   record: ApprovedDispositionRecord,
   required: boolean,
@@ -120,6 +131,14 @@ function composeApprovedSettlementAction(input: {
   });
 }
 
+function createLineageReviewContext(options: ReviewInvocationInput) {
+  const context = createReviewCompositionContext(options);
+  const input = { ...options, ...context };
+  return { ...context, input, dispositionIndex: context.family.ports.dispositions,
+    operationStore: context.family.ports.inFlight, outcomeStore: new LocalFrontlineOutcomeStore(context.publisher),
+    resultReader: context.family.mode === "stored" ? createRepositoryReviewResultReader(context.publisher, input) : null };
+}
+
 /**
  * Compose the settlement plan from every approved disposition record the Candidate covers.
  *
@@ -144,13 +163,8 @@ export function createLineageReviewComposer(options: ReviewInvocationInput): (
   approvedHead: string,
   approvedBase: string,
 ) => Promise<LineageReviewComposition> {
-  const context = createReviewCompositionContext(options);
-  const input = { ...options, ...context };
-  const reviewRecordStore = context.store;
-  const publisher = context.publisher;
-  const dispositionIndex = context.family.ports.dispositions;
-  const operationStore = context.family.ports.inFlight;
-  const outcomeStore = new LocalFrontlineOutcomeStore(publisher);
+  const { input, store: reviewRecordStore, publisher, dispositionIndex, operationStore, outcomeStore, resultReader } =
+    createLineageReviewContext(options);
   const compositions = new Map<string, Promise<LineageReviewComposition>>();
 
   const compose = async (
@@ -193,7 +207,7 @@ export function createLineageReviewComposer(options: ReviewInvocationInput): (
         && approved.candidate.workUnit === workUnit
         && approved.candidate.candidateId === record.attestation.candidateId;
       if (!required) continue;
-      const origin = await resolveApprovedOriginTarget(input, approved, required, operationStore, outcomeStore);
+      const origin = await resolveApprovedOriginTarget(input, approved, required, operationStore, outcomeStore, resultReader);
       if (origin === null) {
         throw new Error(`The approved disposition record ${dispositionId} is outside the Candidate span.`);
       }

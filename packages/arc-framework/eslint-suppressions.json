@@ -2535,11 +2535,6 @@
       "count": 1
     }
   },
-  "src/scripts/integration/candidate-response-confirmation.ts": {
-    "max-lines-per-function": {
-      "count": 1
-    }
-  },
   "src/scripts/integration/checkpoint-composition.ts": {
     "arc/store-raw-state": {
       "count": 2
@@ -2590,9 +2585,6 @@
     }
   },
   "src/scripts/integration/lineage-review-composition.ts": {
-    "max-lines-per-function": {
-      "count": 1
-    },
     "sonarjs/cognitive-complexity": {
       "count": 2
     }

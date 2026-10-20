@@ -992,14 +992,13 @@ this extension, following the 4.11 local proof.
           order, a pending restart holds the reservation, and a completed outcome discharges it on a fresh checkout
           without working-state files. Native source and operation references retain their selected owner.
 
-    - `[ ]` **5.6.d Integration's review reads**
+    - `[x]` **5.6.d Integration's review reads**
 
-        - The settlement replay (`scripts/integration/lineage-review-composition.ts`),
-          `candidate-response-confirmation.ts`'s frontline-outcome, operation-state, and disposition reads and decodes,
-          and the checkpoint's snapshot read (`scripts/integration/checkpoint-composition.ts`).
-        - Build `test-first` (one behavior at a time):
-            - the settlement replay and the response confirmation reach today's verdicts from evidence and outcomes
-            - the checkpoint's reservation progress reads the composed lane
+        - Native lineage settlement validates producer-bound outcomes and evidence, retaining the approved policy
+          request. Private response confirmation reads the stored Candidate and original frontline binding without a
+          Candidate file in Git or local execution records, preserving target-object, approval, actor, span, and
+          currentness checks. Foreign-owner references refuse and retry with the matching reference succeeds;
+          checkpoint reservation progress uses the bound family's composed snapshot.
 
     - `[ ]` **5.6.e Status**
 

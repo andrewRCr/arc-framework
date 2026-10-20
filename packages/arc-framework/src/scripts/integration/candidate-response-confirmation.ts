@@ -11,7 +11,7 @@ import {
 import { readCandidateRecord } from "../../lib/store/kinds/review/candidate/access.js";
 import { resolveCandidateRecordRelativePath } from "../../lib/store/kinds/review/paths.js";
 import type { ReviewInvocationInput } from "../review-gate/runtime/invocation.js";
-import { createReviewCompositionContext } from "../review-gate/runtime/composition-context.js";
+import { createReviewCompositionContext, type ReviewCompositionContext } from "../review-gate/runtime/composition-context.js";
 import { projectGitCandidateEffectiveTarget } from "../../lib/work-unit/git-candidate-effective-target.js";
 import {
   currentApprovedDispositionNode,
@@ -19,7 +19,9 @@ import {
 } from "../review-gate/core/advisory-records.js";
 import type { ReviewTarget } from "../review-gate/core/gate-contract-v2-schema.js";
 import { createFixAuthorization } from "../review-gate/core/fix-authorization.js";
-import { frontlineResponseBindingMatchesTarget } from "../review-gate/core/frontline-response-binding.js";
+import { frontlineResponseBindingMatchesTarget, type BoundFrontlineResponseBinding } from "../review-gate/core/frontline-response-binding.js";
+import { createRepositoryReviewResultReader } from "../review-gate/hosts/local/review-result-reader-composition.js";
+import { validateApprovedDispositionRecordForResult } from "../review-gate/core/review-result-disposition.js";
 import { parseReviewSourceReferenceForInvocation } from "../review-gate/runtime/source-invocation.js";
 import { LocalFrontlineOutcomeStore } from "../review-gate/hosts/local/frontline-outcome-store.js";
 import { computeFrontlineSourceBindingId } from "../review-gate/core/frontline-source-binding.js";
@@ -73,6 +75,54 @@ async function requireExactTargetObjects(input: { cwd: string; exec: GitExec }, 
   }
 }
 
+async function readCurrentCandidate(context: ReviewCompositionContext,
+  input: { cwd: string; exec: GitExec; workUnit: string; approvedHead: string }) {
+  const candidate = await readCandidateRecord(input.cwd, input.workUnit,
+    { store: context.store, exec: input.exec, owner: context.workItem });
+  if (context.family.mode === "stored") return candidate;
+  const { stdout } = await input.exec("git", ["show",
+    `${input.approvedHead}:${resolveCandidateRecordRelativePath(input.workUnit)}`,
+  ], { cwd: input.cwd, objectAccess: "local-only" });
+  const committed = parseCandidateManagedRecord(stdout);
+  return candidate !== null && committed !== null && canonicalize(candidate) === canonicalize(committed) ? candidate : null;
+}
+
+async function readFrontlineSource(context: ReviewCompositionContext, input: ReviewInvocationInput,
+  approved: ApprovedDispositionRecord): Promise<{ origin: ReviewTarget; binding: BoundFrontlineResponseBinding } | null> {
+  if (approved.source.kind !== "frontline") return null;
+  const sourceRef = await parseReviewSourceReferenceForInvocation(input, approved.source.outcomeRef, "frontline");
+  if (sourceRef.operationId !== approved.operationId) {
+    throw new Error(`The private disposition ${approved.currentDispositionSetId} moved frontline operation.`);
+  }
+  if (context.family.mode === "stored") {
+    const result = await createRepositoryReviewResultReader(context.publisher, input).readResult(approved.operationId);
+    validateApprovedDispositionRecordForResult(approved, result);
+    return result.kind === "frontline" && result.originalOutcome === "findings" && result.responseBinding !== undefined
+      ? { origin: result.target, binding: result.responseBinding } : null;
+  }
+  const outcomeStore = new LocalFrontlineOutcomeStore(context.publisher);
+  const operationStore = context.family.ports.inFlight;
+  const [{ record: outcome, outcomeRef }, { state }] = await Promise.all([
+    outcomeStore.readOutcome(approved.operationId),
+    operationStore.readOperation(approved.operationId),
+  ]);
+  const binding = outcome?.responseBinding;
+  if (outcome === null || outcomeRef !== sourceRef.durableRef || binding === undefined
+    || outcome.outcome.outcome !== "findings"
+    || outcome.repositoryId !== approved.repositoryId
+    || state === null || state.kind !== "frontline-run"
+    || state.operationId !== approved.operationId
+    || state.targetId !== outcome.outcome.target.targetId
+    || state.sourceIdentity !== outcome.sourceIdentity
+    || state.outcome !== outcome.outcome.outcome
+    || state.logicalPass !== outcome.outcome.pass
+    || state.sourceBindingId !== computeFrontlineSourceBindingId(outcome.outcome.source, binding)
+    || canonicalize(state.responseBinding ?? null) !== canonicalize(binding)) {
+    return null;
+  }
+  return { origin: outcome.outcome.target, binding };
+}
+
 /**
  * Establish the existing response authority; this never authorizes or applies a new fix.
  *
@@ -102,44 +152,15 @@ export async function composeCandidateResponseConfirmation(options: ReviewInvoca
   if (currentHead.trim() !== input.approvedHead) {
     throw new Error(`The private disposition ${dispositionId} does not bind the current checkout head.`);
   }
-  const candidate = await readCandidateRecord(input.cwd, input.workUnit, { store: input.store, exec: input.exec, owner: input.workItem });
-  const { stdout: committedCandidateBytes } = await input.exec("git", [
-    "show",
-    `${input.approvedHead}:${resolveCandidateRecordRelativePath(input.workUnit)}`,
-  ], { cwd: input.cwd, objectAccess: "local-only" });
-  const committedCandidate = parseCandidateManagedRecord(committedCandidateBytes);
+  const candidate = await readCurrentCandidate(context, input);
   if (candidate === null || candidate.attestation.workUnit !== input.workUnit
-    || committedCandidate === null || canonicalize(candidate) !== canonicalize(committedCandidate)
     || candidate.attestation.candidateId !== approved.candidate.candidateId
     || approved.candidate.workUnit !== input.workUnit) {
     throw new Error(`The private disposition ${dispositionId} lacks its exact Candidate.`);
   }
-  const publisher = context.publisher;
-  const outcomeStore = new LocalFrontlineOutcomeStore(publisher);
-  const operationStore = context.family.ports.inFlight;
-  const sourceRef = await parseReviewSourceReferenceForInvocation(input, approved.source.outcomeRef, "frontline");
-  if (sourceRef.operationId !== approved.operationId) {
-    throw new Error(`The private disposition ${dispositionId} moved frontline operation.`);
-  }
-  const [{ record: outcome, outcomeRef }, { state }] = await Promise.all([
-    outcomeStore.readOutcome(approved.operationId),
-    operationStore.readOperation(approved.operationId),
-  ]);
-  const binding = outcome?.responseBinding;
-  if (outcome === null || outcomeRef !== sourceRef.durableRef || binding === undefined
-    || outcome.outcome.outcome !== "findings"
-    || outcome.repositoryId !== approved.repositoryId
-    || state === null || state.kind !== "frontline-run"
-    || state.operationId !== approved.operationId
-    || state.targetId !== outcome.outcome.target.targetId
-    || state.sourceIdentity !== outcome.sourceIdentity
-    || state.outcome !== outcome.outcome.outcome
-    || state.logicalPass !== outcome.outcome.pass
-    || state.sourceBindingId !== computeFrontlineSourceBindingId(outcome.outcome.source, binding)
-    || canonicalize(state.responseBinding ?? null) !== canonicalize(binding)) {
-    throw new Error(`The private disposition ${dispositionId} lacks its exact frontline source.`);
-  }
-  const origin = outcome.outcome.target;
+  const source = await readFrontlineSource(context, input, approved);
+  if (source === null) throw new Error(`The private disposition ${dispositionId} lacks its exact frontline source.`);
+  const { origin, binding } = source;
   await Promise.all([
     requireExactTargetObjects(input, origin),
     requireExactTargetObjects(input, binding.candidate.target),
