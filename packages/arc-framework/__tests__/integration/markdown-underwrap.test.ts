@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, readlink, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -98,6 +98,24 @@ describe("changed indexed Markdown under-wrap check", () => {
     expect(await main(root, ["guide.md"])).toBe(1);
     expect(messages.join("")).toContain("guide.md:1 ARC001");
     expect(messages.join("")).not.toContain("worktree/index drift");
+  });
+
+  it("refuses a tracked Markdown file replaced by a symlink", async () => {
+    const before = (await git("git", ["write-tree"], { cwd: root })).stdout;
+    await rm(join(root, "guide.md"));
+    await symlink("untouched.md", join(root, "guide.md"));
+    expect((await git("git", ["diff", "--name-status"], { cwd: root })).stdout).toBe("T\tguide.md\n");
+
+    expect(await main(root, ["guide.md"])).toBe(1);
+    expect(messages.join("")).toContain("Markdown worktree/index drift: guide.md");
+    expect((await git("git", ["write-tree"], { cwd: root })).stdout).toBe(before);
+    expect(await readlink(join(root, "guide.md"))).toBe("untouched.md");
+
+    await rm(join(root, "guide.md"));
+    await write("guide.md", good);
+    messages = [];
+    expect(await main(root, ["guide.md"])).toBe(0);
+    expect(messages).toEqual([]);
   });
 
   it.each([true, false])("checks an untracked planning artifact from disk (underwrapped=%s)", async underwrapped => {
