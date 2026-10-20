@@ -1,5 +1,6 @@
 /** Production adapters for the local review resume command. */
 
+import { bindReviewSourceReferenceForInvocation } from "./source-invocation.js";
 import type { LocalReviewInvocationInput } from "./local-review-invocation.js";
 import { createReviewCompositionContext } from "./composition-context.js";
 import type { ForwardReviewReceiptStore } from "../core/ports.js";
@@ -25,6 +26,7 @@ export function createLocalResumeDependencies(input: LocalReviewInvocationInput)
     return receiptStore;
   };
   return {
+    bindSourceReference: reference => bindReviewSourceReferenceForInvocation({ ...input, ...context }, reference),
     sweep: () => prepare.sweep(),
     withLocalReviewLock: (action) => prepare.withLocalReviewLock(action),
     operationStore: prepare.operationStore,

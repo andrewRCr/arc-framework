@@ -1,13 +1,16 @@
 /** Default local review handlers select native checkout authority before binding durable ports. */
-import { mkdir, unlink } from "node:fs/promises";
+import { withReviewReport } from "../../fixtures/review-report-input.js";
+import type { LocalReviewEvaluatorResult } from "../../../src/scripts/review-gate/core/local-review-result.js";
+import { parseReviewSourceReference } from "../../../src/scripts/review-gate/core/review-source-reference.js";
+import { LocalPrepareEnvelopeSchema, LocalAttestEnvelopeSchema, LocalResumeEnvelopeSchema, ReduceEnvelopeSchema } from "../../../src/scripts/review-gate/core/review-command-envelope.js";
+import { mkdir, unlink, rm } from "node:fs/promises";
 import { createProjectIdentityReader } from "../../../src/lib/store/project-identity.js";
 import { resolveWorktreeMarkerPath } from "../../../src/lib/git/worktree-marker.js";
 import { candidateFixture } from "../../helpers/store/tracked-write-fixture.js";
 import { IntegrationBoundaryLocusV2Schema } from "../../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
 import { lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { expect, it, onTestFinished } from "vitest";
-import { LocalPrepareEnvelopeSchema } from "../../../src/scripts/review-gate/core/review-command-envelope.js";
-import { handleReviewLocalPrepare, handleReviewLocalResume, handleReviewLocalAttest, handleReviewReduce } from "../../../src/handlers/review.js";
+import { handleReviewLocalPrepare, handleReviewLocalResume, handleReviewLocalAttest, handleReviewReduce, handleReviewRespond } from "../../../src/handlers/review.js";
 import { TransientIdentityRecordSchema } from "../../../src/lib/errand/identity-record.js";
 import { scriptRawGitExec } from "../../helpers/git-exec-fake.js";
 import { createReviewHarness } from "../../helpers/store/review-harness.js";
@@ -51,6 +54,19 @@ async function fixture(project = true, vehicle: "work-unit" | "errand" = "errand
   const advancedHead = "e".repeat(40);
   let currentHead = head;
   const checkout = await createReviewCheckout(h, { script: [
+    { match: ["reset", "--hard"], responses: [{ stdout: "" }] },
+    { match: ["clean", "-fdx"], responses: [{ stdout: "" }] },
+    { match: { prefix: ["worktree", "remove"] }, responses: [async ({ args }) => {
+      const root = args[2]; if (root === undefined) throw new Error("Expected materialization path");
+      materialized.delete(root); await rm(root, { recursive: true, force: true }); return { stdout: "" };
+    }] },
+    { match: { prefix: ["update-ref", "-d"] }, responses: [({ args }) => {
+      pins.delete(args[2] ?? ""); return { stdout: "" };
+    }] },
+    { match: { predicate: args => args[0] === "for-each-ref" && args[1] === "--format=%(refname)"
+      && args[2]?.startsWith("refs/arc/review/local-scope/") === true }, responses: [({ args }) => ({
+        stdout: [...pins.keys()].filter(ref => ref.startsWith(args[2] ?? "")).join("\n"),
+      })] },
     { match: ["config", "--null", "--get", "arc.identity"], responses: [() => ({ stdout: `${activeIdentity}\0` })] },
     { match: ["rev-parse", "--show-object-format"], responses: [{ stdout: "sha1" }] },
     { match: ["config", "--get", "remote.origin.url"], responses: [{ stdout: "https://github.com/owner/repository.git" }] },
@@ -106,7 +122,13 @@ async function fixture(project = true, vehicle: "work-unit" | "errand" = "errand
   const referenceFor = (operationId: string, override?: ContinuationOverride) => override === undefined
     ? references.get(operationId) : override.operationRef;
   const operations = new LocalReviewOperationStateStore(new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd));
-  return { ...checkout, claimId, request, operations, removeProject: async () => {
+  return { ...checkout, claimId, request, operations, respond: async (input: unknown) => {
+    let output = "";
+    await handleReviewRespond("-", { resolveRoot: () => checkout.cwd, readText: async () => JSON.stringify(input),
+      write: text => { output += text; }, setExitCode: () => {} }, undefined,
+    { ...checkout, rawGit, projectId: createProjectIdentityReader(checkout.store) });
+    return JSON.parse(output) as unknown;
+  }, removeProject: async () => {
     if (projectRecord === null) throw new Error("Expected project identity");
     lifecycleSuccess(await h.store.write({ action: "remove", reference: projectRecord.reference, expected: projectRecord.version,
       provenance: { verb: "remove", lifecycleAction: "remove" } }));
@@ -117,10 +139,10 @@ async function fixture(project = true, vehicle: "work-unit" | "errand" = "errand
       write: text => { output += text; }, setExitCode: () => {} },
     undefined, { ...checkout, store: override?.store ?? checkout.store, workItem: override?.workItem, projectId: createProjectIdentityReader(checkout.store) });
     return JSON.parse(output) as unknown;
-  }, setIdentity: (identity: string) => { activeIdentity = identity; }, attest: async (operationId: string, override?: ContinuationOverride) => {
+  }, setIdentity: (identity: string) => { activeIdentity = identity; }, attest: async (operationId: string, override?: ContinuationOverride, completion?: LocalReviewEvaluatorResult) => {
     let output = "";
     await handleReviewLocalAttest("-", { resolveRoot: () => checkout.cwd,
-      readText: async () => JSON.stringify({ schemaVersion: 1, operationId, operationRef: referenceFor(operationId, override), result: { status: "partial", result: null,
+      readText: async () => JSON.stringify({ schemaVersion: 1, operationId, operationRef: referenceFor(operationId, override), result: completion ?? { status: "partial", result: null,
         evaluatorIdentity: "fresh-reviewer", reviewRunId: "test-run", applicabilityId: null, findings: [] } }),
       write: text => { output += text; }, setExitCode: () => {} },
     undefined, { ...checkout, store: override?.store ?? checkout.store, workItem: override?.workItem, projectId: createProjectIdentityReader(checkout.store) });
@@ -386,4 +408,54 @@ it.each(["resume", "attest", "reduce"] as const)("retains an already bound inter
     state: command === "attest" ? "not-attestable" : "stale-target",
     payload: { operationRef: prepared.payload.operationRef },
   });
+});
+
+it.each(["attest", "resume", "reduce"] as const)("retains the native local source owner through %s", async command => {
+  const h = await fixture(true, "errand", false);
+  const prepared = LocalPrepareEnvelopeSchema.parse(await h.run());
+  if (prepared.state !== "ready" || prepared.payload.operationRef === undefined) throw new Error(JSON.stringify(prepared));
+  const operationId = prepared.payload.operationId;
+  const attestedRaw = await h.attest(operationId, undefined, { status: "complete", result: "findings",
+    evaluatorIdentity: "fresh-reviewer", reviewRunId: "completed-run", applicabilityId: null,
+    findings: [{ findingId: "source-retention", severity: "major", locus: "src/example.ts:7",
+      evidenceUrlOrId: "source:src/example.ts:7" }] });
+  expect(attestedRaw, JSON.stringify(attestedRaw)).toMatchObject({ state: "attested-current" });
+  const attested = LocalAttestEnvelopeSchema.parse(attestedRaw);
+  if (attested.state !== "attested-current") throw new Error(JSON.stringify(attested));
+  let receiptRef = attested.payload.receiptRef;
+  if (command === "resume") {
+    const resumed = LocalResumeEnvelopeSchema.parse(await h.resume(operationId));
+    if (resumed.state !== "respond-to-findings") throw new Error(JSON.stringify(resumed));
+    receiptRef = resumed.payload.receiptRef;
+  }
+  if (command === "reduce") {
+    const reduced = ReduceEnvelopeSchema.parse(await h.reduce(operationId));
+    if (reduced.state !== "findings" || reduced.payload.responseSource.kind !== "attested-local") throw new Error(JSON.stringify(reduced));
+    receiptRef = reduced.payload.responseSource.receiptRef;
+  }
+  expect(parseReviewSourceReference(receiptRef, "attested-local", true)).toMatchObject({ repositoryId: projectId,
+    workItem: parseNativeReviewOperationReference(prepared.payload.operationRef).workItem, operationId });
+});
+
+it.each(["work-unit", "errand"] as const)("binds a %s response proposal from the default local source", async vehicle => {
+  const h = await fixture(true, vehicle, false);
+  const prepared = LocalPrepareEnvelopeSchema.parse(await h.run());
+  if (prepared.state !== "ready") throw new Error(JSON.stringify(prepared));
+  const attested = LocalAttestEnvelopeSchema.parse(await h.attest(prepared.payload.operationId, undefined, {
+    status: "complete", result: "findings", evaluatorIdentity: "fresh-reviewer", reviewRunId: "completed-run",
+    applicabilityId: null, findings: [{ findingId: "source-retention", severity: "major", locus: "src/example.ts:7",
+      evidenceUrlOrId: "source:src/example.ts:7" }],
+  }));
+  if (attested.state !== "attested-current") throw new Error(JSON.stringify(attested));
+  const resumed = LocalResumeEnvelopeSchema.parse(await h.resume(prepared.payload.operationId));
+  if (resumed.state !== "respond-to-findings") throw new Error(JSON.stringify(resumed));
+  expect(resumed.payload.responsePlan.source).toEqual({ kind: "attested-local", receiptRef: attested.payload.receiptRef });
+  const request = withReviewReport({ schemaVersion: 1, source: resumed.payload.responsePlan.source,
+    proposal: { proposedVerification: "focused", severityGatingPolicy: { minorGating: "record-only" },
+      findings: resumed.payload.responsePlan.findings.map(finding => ({ findingId: finding.findingId,
+        sourceVerification: "verified", verifiedSeverity: finding.severity, verificationRefs: [finding.evidenceUrlOrId],
+        disposition: "defer", title: "Preserve target facts", issue: "The target changes before continuation.",
+        rationale: "The selected source supports the finding.", recommendation: "Retain the target facts.", openQuestions: [] })) } });
+  const response = await h.respond(request);
+  expect(response, JSON.stringify(response)).toMatchObject({ state: "awaiting-approval", nextAction: "obtain-approval" });
 });

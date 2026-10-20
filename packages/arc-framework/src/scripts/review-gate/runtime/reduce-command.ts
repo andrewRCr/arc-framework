@@ -18,7 +18,7 @@ import {
   type ReviewReceiptV2,
   type ReviewTarget,
 } from "../core/gate-contract-v2-schema.js";
-import { bindReviewSourceReference } from "../core/review-source-reference.js";
+import { bindReviewSourceReference, type ReviewSourceReferenceBinding } from "../core/review-source-reference.js";
 import { assertLocalReviewClaimBinding } from "../core/local-operation.js";
 import type {
   ApprovedDispositionRecordStore,
@@ -51,6 +51,8 @@ interface LocalReceiptEntry {
 }
 
 export interface ReviewReductionAdapterDependencies {
+  /** Encode source locators under the invocation's selected storage arm. */
+  bindSourceReference?: ReviewSourceReferenceBinding;
   operationStore: ReviewOperationStateStore;
   sourceStore: LocalReviewSourceStore;
   outcomeStore: FrontlineOutcomeStore;
@@ -169,7 +171,7 @@ async function reduceLocal(
       `local review chain mismatch: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
-  const receiptRef = bindReviewSourceReference({
+  const receiptRef = await (dependencies.bindSourceReference ?? bindReviewSourceReference)({
     kind: "attested-local",
     operationId,
     durableRef: entry.durableEvidenceRef,

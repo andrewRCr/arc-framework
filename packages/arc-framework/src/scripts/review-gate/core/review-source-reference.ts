@@ -23,6 +23,11 @@ export type BoundReviewSourceReference = NativeReviewSourceReference | {
   durableRef: string;
 };
 
+/** Existing source coordinates, independent of an invocation's portable owner metadata. */
+export type ReviewSourceReferenceCoordinates = Pick<BoundReviewSourceReference, "kind" | "operationId" | "durableRef">;
+/** Encode a source under the storage arm selected by its composition root. */
+export type ReviewSourceReferenceBinding = (reference: ReviewSourceReferenceCoordinates) => string | Promise<string>;
+
 /** Bind an exact durable record reference to the operation that owns it. */
 export function bindReviewSourceReference(input: BoundReviewSourceReference): string {
   if ("repositoryId" in input || "workItem" in input) {

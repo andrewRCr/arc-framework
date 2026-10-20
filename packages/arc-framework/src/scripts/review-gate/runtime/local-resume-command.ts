@@ -10,7 +10,7 @@ import {
   ReviewIdentifierSchema,
   type ReviewTarget,
 } from "../core/gate-contract-v2-schema.js";
-import { bindReviewSourceReference } from "../core/review-source-reference.js";
+import { bindReviewSourceReference, type ReviewSourceReferenceBinding } from "../core/review-source-reference.js";
 import { assertLocalReviewClaimBinding } from "../core/local-operation.js";
 import type {
   ApprovedDispositionRecordStore,
@@ -37,6 +37,8 @@ export const LocalResumeRequestSchema = z.strictObject({
 { path: ["operationRef"], message: "reference must match the requested operation" });
 
 export interface LocalResumeDependencies {
+  /** Encode source locators under the invocation's selected storage arm. */
+  bindSourceReference?: ReviewSourceReferenceBinding;
   sweep(): Promise<void>;
   withLocalReviewLock<T>(action: () => Promise<T>): Promise<T>;
   operationStore: ReviewOperationStateStore;
@@ -87,7 +89,7 @@ async function resumeLocalReviewWithinLocalReviewLock(
     throw new LocalResumeCommandError("local review operation is not durably admitted");
   }
   assertLocalReviewClaimBinding(state);
-  const receiptReference = (durableRef: string) => bindReviewSourceReference({
+  const receiptReference = (durableRef: string) => (dependencies.bindSourceReference ?? bindReviewSourceReference)({
     kind: "attested-local",
     operationId: state.operationId,
     durableRef,
@@ -219,7 +221,7 @@ async function resumeLocalReviewWithinLocalReviewLock(
         operationId: state.operationId,
         persistedVersion: persisted.version,
         currentTarget: state.target,
-        receiptRef: receiptReference(replay.durableEvidenceRef),
+        receiptRef: await receiptReference(replay.durableEvidenceRef),
       },
     });
   }
@@ -240,13 +242,13 @@ async function resumeLocalReviewWithinLocalReviewLock(
         operationId: state.operationId,
         persistedVersion: persisted.version,
         currentTarget: state.target,
-        receiptRef: receiptReference(replay.durableEvidenceRef),
+        receiptRef: await receiptReference(replay.durableEvidenceRef),
         responsePlan: {
           schemaVersion: 1,
           target: state.target,
           source: {
             kind: "attested-local",
-            receiptRef: receiptReference(replay.durableEvidenceRef),
+            receiptRef: await receiptReference(replay.durableEvidenceRef),
           },
           findings: receipt.findings,
         },
@@ -268,7 +270,7 @@ async function resumeLocalReviewWithinLocalReviewLock(
       operationId: state.operationId,
       persistedVersion: persisted.version,
       currentTarget: state.target,
-      receiptRef: receiptReference(replay.durableEvidenceRef),
+      receiptRef: await receiptReference(replay.durableEvidenceRef),
     },
   });
 }

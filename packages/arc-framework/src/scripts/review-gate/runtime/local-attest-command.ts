@@ -9,7 +9,7 @@ import {
   type ReviewReceiptV2,
   type ReviewTarget,
 } from "../core/gate-contract-v2-schema.js";
-import { bindReviewSourceReference } from "../core/review-source-reference.js";
+import { bindReviewSourceReference, type ReviewSourceReferenceBinding } from "../core/review-source-reference.js";
 import { assertLocalReviewClaimBinding } from "../core/local-operation.js";
 import {
   LocalReviewEvaluatorResultSchema,
@@ -46,6 +46,8 @@ export const LocalAttestRequestSchema = z.strictObject({
 { path: ["operationRef"], message: "reference must match the requested operation" });
 
 export interface LocalAttestDependencies {
+  /** Encode source locators under the invocation's selected storage arm. */
+  bindSourceReference?: ReviewSourceReferenceBinding;
   withLocalReviewLock<T>(action: () => Promise<T>): Promise<T>;
   operationStore: ReviewOperationStateStore;
   sourceStore: LocalReviewSourceStore;
@@ -114,7 +116,7 @@ async function attestLocalReviewWithinLocalReviewLock(
   request: z.infer<typeof LocalAttestRequestSchema>,
   dependencies: LocalAttestDependencies,
 ): Promise<z.infer<typeof LocalAttestEnvelopeSchema>> {
-  const receiptReference = (durableRef: string) => bindReviewSourceReference({
+  const receiptReference = (durableRef: string) => (dependencies.bindSourceReference ?? bindReviewSourceReference)({
     kind: "attested-local",
     operationId: request.operationId,
     durableRef,
@@ -271,7 +273,7 @@ async function attestLocalReviewWithinLocalReviewLock(
           operationId: request.operationId,
           persistedVersion: persisted.version,
           receiptRecorded: true,
-          receiptRef: receiptReference(replay.durableEvidenceRef),
+          receiptRef: await receiptReference(replay.durableEvidenceRef),
           attemptedTarget: current.attemptedTarget,
           currentTarget: current.currentTarget,
         },
@@ -288,7 +290,7 @@ async function attestLocalReviewWithinLocalReviewLock(
         persistedVersion: persisted.version,
         target: state.target,
         sourceRef: state.sourceRef,
-        receiptRef: receiptReference(replay.durableEvidenceRef),
+        receiptRef: await receiptReference(replay.durableEvidenceRef),
         receiptRecorded: true,
       },
     });
@@ -370,7 +372,7 @@ async function attestLocalReviewWithinLocalReviewLock(
         operationId: request.operationId,
         persistedVersion: persisted.version,
         receiptRecorded: true,
-        receiptRef: receiptReference(appended.durableEvidenceRef),
+        receiptRef: await receiptReference(appended.durableEvidenceRef),
         attemptedTarget: afterAppend.attemptedTarget,
         currentTarget: afterAppend.currentTarget,
       },
@@ -387,7 +389,7 @@ async function attestLocalReviewWithinLocalReviewLock(
       persistedVersion: persisted.version,
       target: state.target,
       sourceRef: state.sourceRef,
-      receiptRef: receiptReference(appended.durableEvidenceRef),
+      receiptRef: await receiptReference(appended.durableEvidenceRef),
       receiptRecorded: true,
     },
   });

@@ -1,5 +1,6 @@
 /** Production assembly for read-only advisory review reduction. */
 
+import { bindReviewSourceReferenceForInvocation } from "./source-invocation.js";
 import type { ReviewInvocationInput } from "./invocation.js";
 import { createReviewCompositionContext } from "./composition-context.js";
 import { LocalFrontlineOutcomeStore } from "../hosts/local/frontline-outcome-store.js";
@@ -27,6 +28,7 @@ export function createReduceDependencies(options: ReviewInvocationInput): Reduce
     return receiptStore;
   };
   const dependencies: ReviewReductionAdapterDependencies = {
+    bindSourceReference: reference => bindReviewSourceReferenceForInvocation(input, reference),
     operationStore: prepare.operationStore,
     sourceStore: prepare.sourceStore,
     outcomeStore: new LocalFrontlineOutcomeStore(publisher),

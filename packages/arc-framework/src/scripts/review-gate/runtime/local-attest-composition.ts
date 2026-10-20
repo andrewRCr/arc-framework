@@ -1,5 +1,6 @@
 /** Production adapters for the local review attestation command. */
 
+import { bindReviewSourceReferenceForInvocation } from "./source-invocation.js";
 import { resolveReviewInvocation, type ReviewInvocationInput } from "./invocation.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import {
@@ -30,6 +31,7 @@ export function createLocalAttestDependencies(options: ReviewInvocationInput): L
     return receiptStore;
   };
   return {
+    bindSourceReference: reference => bindReviewSourceReferenceForInvocation(input, reference),
     withLocalReviewLock: (action) => withRepositoryLocalReviewLock(input.exec, input.cwd, action),
     operationStore: prepare.operationStore,
     sourceStore: prepare.sourceStore,
