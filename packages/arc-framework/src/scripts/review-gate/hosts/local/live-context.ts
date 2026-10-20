@@ -17,7 +17,7 @@ import {
   projectTransientInFlightRead,
   readTransientInFlightIndexes,
 } from "../../../../lib/errand/record.js";
-import { readConfiguredIdentity } from "../../../../lib/git/identity.js";
+import { resolveIdentity } from "../../../../lib/git/identity.js";
 import { readReviewCheckoutErrandSelection, type ReviewCheckoutErrand } from "./review-errand.js";
 import type { LocalReviewLiveContext } from "./review-authority.js";
 
@@ -32,7 +32,8 @@ export interface ResolvedLocalReviewLiveContext {
 
 /** Resolve the current branch to exactly one WU meta or Errand identity record. */
 export async function readLocalReviewLiveContext(input: ReviewInvocationInput): Promise<ResolvedLocalReviewLiveContext> {
-  const activeIdentity = await readConfiguredIdentity(input.exec, input.cwd);
+  const exec: GitExec = (command, args, options) => input.exec(command, args, { ...options, cwd: input.cwd });
+  const activeIdentity = await resolveIdentity({ exec });
   const branch = (await input.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
     cwd: input.cwd,
   })).stdout.trim();
@@ -60,7 +61,6 @@ export async function readLocalReviewLiveContext(input: ReviewInvocationInput): 
       meta,
     };
   }
-  const exec: GitExec = (command, args, options) => input.exec(command, args, { ...options, cwd: input.cwd });
   const transient = projectTransientInFlightRead(
     await readTransientInFlightIndexes({ exec, identity: activeIdentity }),
   );

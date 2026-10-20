@@ -255,29 +255,18 @@ describe("review response command", () => {
             dispositionSetId: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
           },
         },
-        dispositionReportText: `Standard complete pass 1 of 2. 2 confirmed findings, highest 🟠 major. Approving a FIX moves the head, which needs a fix check, round 1 since pass 1, where its chain is proven. provisional · not converged; critical 0, major 1, minor 1.
-
-**Verification:** focused
-
-**Fix tags:** agent's advisory reading.
+        dispositionReportText: `**Standard complete pass 1 of 2** · 🟠 1 major · 🟡 1 minor
 
 | # | Grade | Finding | Action |
 |---|---|---|---|
 | F1 | 🟠 major | Finding title | FIX (local correction) |
-| F2 | 🟡 minor · record-only | Finding title | FIX (local correction) |
-
-**Decisions**
-- Approve the complete disposition set with focused verification?
-- Fix-check offer: approve round 1 since pass 1 after these repairs, where its exact correction chain is proven. A complete pass does not replace it.
-- Successor recommendation (advisory): Check approved repairs before considering a successor complete pass.
+| F2 | 🟡 minor | Finding title | FIX (local correction) |
 
 ### F1 — Finding title
 
-🟠 major · Confirmed · blocking · FIX (local correction)
+🟠 major · FIX (local correction) · fails Correctness and failure behavior
 
 **Finding:** The reviewer's claim.
-
-**Fails:** Correctness and failure behavior
 
 **Action:** Apply the fix.
 
@@ -287,20 +276,18 @@ describe("review response command", () => {
 
 ### F2 — Finding title
 
-🟡 minor · Confirmed · reviewer graded 🟠 major · record-only · FIX (local correction)
+🟡 minor · reviewer graded 🟠 major · FIX (local correction) · fails Correctness and failure behavior
 
 **Finding:** The reviewer's claim.
-
-**Fails:** Correctness and failure behavior
 
 **Action:** Apply the fix.
 
 **Detail:** The selected source supports this disposition.
 
-**Loop reading (advisory)**
-- Material trend: no completed looks.
-- reviewed artifact: 2 findings, 0 new-design fixes (agent's reading).
-- baseline: Use this look's findings to decide its bounded repairs.`,
+**Decisions**
+- After the fix: fix check, round 1 since pass 1, where its chain is proven. Check approved repairs before considering a successor complete pass.
+
+Approve: 2 fixes → focused verification → commit → push?`,
         dispositionEvidenceText: [
           "**Evidence**",
           "- F1 · src/index.ts:7 · source #1 · review:finding-1 · verified at source:src/index.ts:7",
@@ -499,8 +486,46 @@ describe("review response command", () => {
         potentialStopReason: consequence.kind === "ceiling-decision" ? "cap-exhausted" : null,
       });
       expect(response.payload.provisionalPassAssessment.summaryText).toBe(text);
+      const settled = source.kind === "hosted" ? " → settle 1 thread" : "";
+      expect(response.payload.dispositionReportText
+        .endsWith(`\n\nApprove: 1 fix → focused verification → commit → push${settled}?`)).toBe(true);
+      expect(response.payload.dispositionReportText).not.toMatch(/Approve:[^\n]*(?:fix check|pass \d)/u);
     },
   );
+
+  it.each([
+    { name: "a hosted fix's thread waits for the push it does not release", build: () => hostedErrandCase("codex-pr", "incremental"),
+      disposition: "fix" as const, closer: "Approve: 1 fix → focused verification?" },
+    { name: "a hosted deferral settles its thread on approval alone", build: () => hostedErrandCase("codex-pr", "incremental"),
+      disposition: "defer" as const, closer: "Approve: 1 defer → settle 1 thread?" },
+    { name: "a delivery member's correction is published by its driver", build: () => hostedCase(memberVehicle),
+      disposition: "fix" as const, closer: "Approve: 1 fix → focused verification → commit → push → settle 1 thread?" },
+  ])("closes under manual interlocks with what approval releases: $name", async ({ build, disposition, closer }) => {
+    const { records, deps, source } = build();
+    deps.readReleaseInterlocks = async () => ({ commit: "manual", push: "manual" });
+    const response = await respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source,
+      proposal: {
+        proposedVerification: "focused",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          verifiedSeverity: "minor",
+          disposition,
+          title: "Finding title",
+          issue: "The reviewer's claim.",
+          rationale: "The source supports this disposition.",
+          recommendation: "Apply the disposition.",
+          openQuestions: [],
+        }],
+      },
+    }), deps);
+    if (response.state !== "awaiting-approval") throw new Error("expected a proposal");
+    expect(response.payload.dispositionReportText.endsWith(`\n\n${closer}`)).toBe(true);
+  });
 
   it("returns a contained canonical report with its native source label", async () => {
     const records = fixture(workUnitVehicle, "Native **title**");
@@ -1293,10 +1318,8 @@ describe("review response command", () => {
     }), deps);
     if (proposed.state !== "awaiting-approval") throw new Error("expected a proposed disposition set");
     const expectedReport = proposed.payload.dispositionReportText;
-    expect(expectedReport).toContain(
-      "| F1 | — | Finding title | REJECT |",
-    );
-    expect(expectedReport).toContain("— · Not supported · reviewer graded 🟠 major · record-only · REJECT");
+    expect(expectedReport).not.toContain("| F1 |");
+    expect(expectedReport).toContain("### F1 — Finding title\n\n— · Not supported · reviewer graded 🟠 major · REJECT");
     const dispositions = approveDispositionState({
       proposed: proposed.payload.proposal,
       approvedBy: records.authority.authorIdentity,
@@ -1309,17 +1332,11 @@ describe("review response command", () => {
       policyRequest: policyRequest(records),
       dispositions,
     } as const;
-    const approvedReport = `Approved disposition set ${dispositions.dispositionSet.dispositionSetId}
-
-**Verification:** full
-
-| # | Grade | Finding | Action |
-|---|---|---|---|
-| F1 | — | Finding title | REJECT |
+    const approvedReport = `**Approved disposition set ${dispositions.dispositionSet.dispositionSetId}** · full verification
 
 ### F1 — Finding title
 
-— · Not supported · reviewer graded 🟠 major · record-only · REJECT
+— · Not supported · reviewer graded 🟠 major · REJECT
 
 **Finding:** The reviewer's claim.
 
@@ -1434,6 +1451,52 @@ describe("review response command", () => {
         },
       },
     });
+  });
+
+  it("names no thread count for a superseding hosted proposal, whose settlement depends on what it reopens", async () => {
+    const hosted = hostedResponseFixture("review-thread");
+    const attempt = hosted.operation.attempts[0];
+    if (attempt?.hosted === undefined) throw new Error("missing hosted attempt fixture");
+    const deps = dependencies(hosted.records);
+    deps.resultReader.readResult = async () => hostedResult(hosted);
+    const original = approved({
+      targetId: hosted.records.target.targetId,
+      producerId: attempt.attemptId,
+      resultDigest: attempt.hosted.sealedResult!.hostedResultId,
+      policyVersion: attempt.hosted.requirement.policyVersion,
+      rubricVersion: attempt.hosted.requirement.rubricVersion,
+      rubricDigest: attempt.hosted.requirement.rubricDigest,
+      sourceIdentity: "codex-pr",
+      finding: hosted.records.finding,
+      disposition: "defer",
+    });
+    const source = { kind: "hosted" as const, attemptRef: hosted.attemptRef };
+    await respondToReviewCommand(withReviewReport({ schemaVersion: 1, source, dispositions: original,
+      policyRequest: policyRequest(hosted.records, { sourceId: "codex-pr", reviewOperationId: attempt.attemptId,
+        pullRequest: 42 }) }), deps);
+    const proposed = await respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source,
+      supersedes: { predecessorDispositionSetId: original.dispositionSet.dispositionSetId, expectedFixPaths: [] },
+      proposal: {
+        proposedVerification: "full",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: hosted.records.finding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          verifiedSeverity: hosted.records.finding.severity,
+          disposition: "reject",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
+          rationale: "Fresh evidence changes the approved channel action.",
+          recommendation: "Reject the finding with a corrected response.",
+          openQuestions: [],
+        }],
+      },
+    }), deps);
+    if (proposed.state !== "awaiting-approval") throw new Error("expected successor proposal");
+    expect(proposed.payload.dispositionReportText.endsWith("\n\nApprove: 1 reject?")).toBe(true);
   });
 
   it("carries compatible hosted settlement and reopens only a changed successor action", async () => {
@@ -1935,7 +1998,8 @@ describe("review response command", () => {
     }), deps);
     if (proposal.state !== "awaiting-approval") throw new Error("hosted proposal was not materialized");
 
-    expect(proposal.payload.dispositionReportText).toContain("**Fails:** Agent's reading: Correctness and failure behavior");
+    expect(proposal.payload.dispositionReportText).toContain(" · fails Correctness and failure behavior\n");
+    expect(proposal.payload.dispositionReportText).not.toContain("Agent's reading");
     expect(proposal).toMatchObject({
       state: "awaiting-approval",
       payload: {
@@ -1947,10 +2011,7 @@ describe("review response command", () => {
       },
     });
     expect(proposal.payload.dispositionReportText).toContain(
-      "| F1 | 🟠 major | Finding title | FIX (local correction) |",
-    );
-    expect(proposal.payload.dispositionReportText).toContain(
-      "🟠 major · Confirmed · reviewer graded 🟡 minor nit · blocking · FIX",
+      "### F1 — Finding title\n\n🟠 major · reviewer graded 🟡 minor nit · FIX (local correction)",
     );
   });
 

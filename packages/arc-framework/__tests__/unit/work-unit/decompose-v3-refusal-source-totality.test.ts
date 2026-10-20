@@ -3,7 +3,7 @@
 import { readdirSync } from "node:fs";
 import { basename, join, relative, resolve } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import ts from "typescript";
 
 import {
@@ -281,12 +281,17 @@ function decomposeRefusalInventory(): RefusalSourceInventory {
 }
 
 describe("decomposition refusal source totality", () => {
-  it("maps every production refusal literal to a specific remedy", () => {
-    const { literals } = decomposeRefusalInventory();
-    expect(literals.has("uncovered-retirement-content")).toBe(true);
-    literals.delete("unexpected-error");
+  let inventory: RefusalSourceInventory;
 
-    const failures = [...literals].flatMap(([reason, loci]) => {
+  beforeAll(() => {
+    inventory = decomposeRefusalInventory();
+  }, REPOSITORY_SCAN_TIMEOUT);
+
+  it("maps every production refusal literal to a specific remedy", () => {
+    const { literals } = inventory;
+    expect(literals.has("uncovered-retirement-content")).toBe(true);
+
+    const failures = [...literals].filter(([reason]) => reason !== "unexpected-error").flatMap(([reason, loci]) => {
       if (!isV3DecomposeMappedReason(reason)) return [`${reason} is unmapped (${[...loci].join(", ")})`];
       const finishReachable = [...loci].some((locus) =>
         locus.startsWith("lib/work-unit/git-decompose-v3-finish.ts:"))
@@ -314,9 +319,9 @@ describe("decomposition refusal source totality", () => {
     });
 
     expect(failures).toEqual([]);
-  }, REPOSITORY_SCAN_TIMEOUT);
+  });
 
   it("admits only stable outward reason producers", () => {
-    expect(decomposeRefusalInventory().unsafeProducers).toEqual([]);
-  }, REPOSITORY_SCAN_TIMEOUT);
+    expect(inventory.unsafeProducers).toEqual([]);
+  });
 });

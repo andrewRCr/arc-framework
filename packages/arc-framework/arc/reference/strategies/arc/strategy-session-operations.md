@@ -145,17 +145,17 @@ The `arc status --session-handoff --json` envelope carries seven probe slots plu
 wraps in the same `Probe<T>` discriminated union as session-init; per-slot failures surface in the error
 branch rather than rejecting the composite. Mirrors the session-init field table in `session-init.md`.
 
-| Field            | Contents                                                                                                                                                       |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `identity`       | `{identity, role}` — either may be `null`                                                                                                                      |
-| `dirty`          | Working-tree porcelain check (`value.state`: clean / dirty; `value.fileCount` carries the entry count, 0 when clean)                                           |
-| `worktree`       | Worktree sync state vs. `origin/<current-branch>` — same shape as session-init's `worktree` slot                                                               |
-| `user`           | Notes-sync state — same shape as session-init's `user` slot; identity-missing short-circuit applies when `arc.identity` is absent                              |
-| `syncInterlock`  | `{value, source}` — resolved `arc.syncInterlock`. Gates whether handoff invokes `arc sync` (`on-handoff`) or surfaces unpushed state without firing (`manual`) |
-| `active`         | Active meta file resolution — same shape as session-init's `active` slot                                                                                       |
-| `head`           | Current `HEAD` short-hash (`value.hash`) — anchors the `Commit at Handoff` field written by the handoff workflow                                               |
-| `pushability`    | Pushability pre-check matrix for the worktree push leg (`target: "worktree"`). Cross-reference with `worktree` for the full divergence picture                 |
-| `releaseRouting` | Resolved release-wrapper routing per class-tag (`taskCommit` / `workflowCommit` / `workflowPush` to `wrapper` or `raw`), plus `rationale` snapshot             |
+| Field            | Contents                                                                                                                                                                 |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `identity`       | `{identity, role}` — either may be `null`                                                                                                                                |
+| `dirty`          | Working-tree porcelain check (`value.state`: clean / dirty; `value.fileCount` carries the entry count, 0 when clean)                                                     |
+| `worktree`       | Worktree sync state vs. `origin/<current-branch>` — same shape as session-init's `worktree` slot                                                                         |
+| `user`           | Notes-sync state — same shape as session-init's `user` slot; identity-missing short-circuit applies when neither `arc.identity` nor Git `user.name` resolves an identity |
+| `syncInterlock`  | `{value, source}` — resolved `arc.syncInterlock`. Gates whether handoff invokes `arc sync` (`on-handoff`) or surfaces unpushed state without firing (`manual`)           |
+| `active`         | Active meta file resolution — same shape as session-init's `active` slot                                                                                                 |
+| `head`           | Current `HEAD` short-hash (`value.hash`) — anchors the `Commit at Handoff` field written by the handoff workflow                                                         |
+| `pushability`    | Pushability pre-check matrix for the worktree push leg (`target: "worktree"`). Cross-reference with `worktree` for the full divergence picture                           |
+| `releaseRouting` | Resolved release-wrapper routing per class-tag (`taskCommit` / `workflowCommit` / `workflowPush` to `wrapper` or `raw`), plus `rationale` snapshot                       |
 
 Push-interlock and notes-push policy are not surfaced as handoff envelope slots — `arc sync` owns
 their resolution internally. The handoff workflow gates on `syncInterlock` (whether to invoke
@@ -561,8 +561,8 @@ commit, multiple atomic commits, or iteration before committing.
 A review-fix round has one structured gate: the complete-set approval of its finding dispositions. Under
 `arc.commitInterlock ∈ {on-task-approval, on-workflow}` that approval releases the commit-interlock for the approved
 fixes, and under `arc.pushInterlock: on-workflow` it also releases their push and the approved hosted settlement. A
-`manual` setting keeps its own stop. The approval prompt names what it releases — for example `Approve: 3 fixes → verify
-→ commit → push → settle 2 threads → local fix check, round 1 since pass 1?` — and the round reports its result as
+`manual` setting keeps its own stop. The approval prompt names what it releases and never the next pass — for example
+`Approve: 3 fixes → focused verification → commit → push → settle 2 threads?` — and the round reports its result as
 information rather than as a new gate. The round returns to the approver when the performed fix exceeds the approved
 scope, a verification or gate failure is not a deterministic same-concern correction, host state is ambiguous, or a new
 finding arrives. Merge stays behind the integration-interlock.

@@ -6,6 +6,10 @@ import { resolveAllSettings, type ResolvedSettingsResult } from "../../lib/confi
 import { projectTransientInFlightRead, readTransientInFlightIndexes } from "../../lib/errand/record.js";
 import { retryTransientFileSystemRefusal } from "../../lib/fs.js";
 import { assembleStatusUserView } from "../../lib/status/assemble-user-view.js";
+import { readStoreProjectViewInput } from "../../lib/status/store-project-input.js";
+import type { Store } from "../../lib/store/contract.js";
+import type { StoreSyncPort } from "../../lib/store/operational-sync.js";
+import { usesOffBranchState } from "../../lib/store/lifecycle-write.js";
 import {
   composeProjectReadinessViewResult,
   resolveProjectReadinessRenderStamp,
@@ -22,6 +26,10 @@ import { listParkedSlugs } from "../../lib/work-unit/lifecycle-resolver.js";
 import { transitionOverlayCompositionInput } from "../../lib/work-unit/transition-overlay.js";
 import type { StatusCliOptions } from "./input.js";
 import type { SessionStatusContext } from "./session-context.js";
+import { positive } from "./store-session.js";
+import { renderStatusViewRefusal } from "./refusal.js";
+import { pullStoreStatus } from "./store-locus.js";
+import { handleStoreUserStatus, type StoreUserStatusPorts } from "./store-user.js";
 function writeProjectReadinessWarnings(warnings: readonly ProjectReadinessWarning[]): void {
   for (const warning of warnings) process.stderr.write(`warning: ${warning.rendered}\n`);
 }
@@ -32,10 +40,14 @@ function writeProjectReadinessWarnings(warnings: readonly ProjectReadinessWarnin
  * @param opts - Validated status options.
  * @returns Completion after writing the selected status output.
  */
-export async function handleUserStatus(context: SessionStatusContext, opts: StatusCliOptions): Promise<void> {
+export async function handleUserStatus(context: SessionStatusContext, opts: StatusCliOptions, ports: StoreUserStatusPorts = {}): Promise<void> {
   const { cwd, exec, io, identity, lifecycleFs } = context;
   const json = Boolean(opts.json);
   const resolved = await resolveAllSettings({ cwd, exec, readFile: io.readFile });
+  if (context.store !== undefined && usesOffBranchState(context.store)) {
+    await handleStoreUserStatus({ ...context, store: context.store }, opts, resolved, ports);
+    return;
+  }
   const teamMode = resolved.settings["team.mode"] === "true";
   const localOnly = Boolean(opts.local) || opts.fetch === false;
   const parkedSlugs = listParkedSlugs(await buildLifecycleIndex({ cwd, fs: lifecycleFs }));
@@ -123,6 +135,10 @@ export async function handleProjectStatus(context: SessionStatusContext, opts: S
   const { cwd, exec, io, identity, lifecycleFs } = context;
   const json = Boolean(opts.json);
   const resolved = await resolveAllSettings({ cwd, exec, readFile: io.readFile });
+  if (context.store !== undefined && usesOffBranchState(context.store)) {
+    await handleStoreProjectStatus({ store: context.store, sync: context.storeSync }, opts, resolved);
+    return;
+  }
   if (opts.staged) {
     await handleStagedProjectStatus(context, opts, resolved);
     return;
@@ -162,4 +178,25 @@ export async function handleProjectStatus(context: SessionStatusContext, opts: S
   writeProjectReadinessWarnings(result.warnings);
   process.stdout.write(`${result.markdown}\n`);
   return;
+}
+
+async function handleStoreProjectStatus(operational: { store: Store; sync?: StoreSyncPort }, opts: StatusCliOptions, resolved: ResolvedSettingsResult): Promise<void> {
+  const { store } = operational;
+  if (opts.staged) {
+    renderStatusViewRefusal({ code: "unsupported",
+      condition: "Staged project status is unavailable when state lives off the branch.",
+      remedy: { text: "Use arc status --project to render the current store view." } }, opts);
+    return;
+  }
+  const pullWarnings = opts.fetch === true && !opts.local ? await pullStoreStatus(operational) : [];
+  const input = await readStoreProjectViewInput({ store,
+    reviewAfterDays: positive(resolved.settings["pause.review_after_days"], 14) });
+  if (input.status === "refused") { renderStatusViewRefusal(input.refusal, opts); return; }
+  const result = composeProjectReadinessViewResult({ ...input.result,
+    sourceWarnings: [...pullWarnings, ...input.result.sourceWarnings] });
+  if (opts.json) process.stdout.write(`${JSON.stringify(result)}\n`);
+  else {
+    writeProjectReadinessWarnings(result.warnings);
+    process.stdout.write(`${result.markdown}\n`);
+  }
 }

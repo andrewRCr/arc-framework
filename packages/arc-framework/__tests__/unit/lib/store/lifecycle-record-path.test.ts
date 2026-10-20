@@ -4,7 +4,8 @@ import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store
 import { recordReferences } from "../../../../src/lib/store/identity.js";
 import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
 import { writeMetaDesign, writeMetaCurrentWorkflow, writeMetaNextAction } from "../../../../src/lib/store/kinds/meta/writers.js";
-import { readLifecycleDesign } from "../../../../src/lib/store/lifecycle-design.js";
+import { readLifecycleDesign, selectLifecycleDesign } from "../../../../src/lib/store/lifecycle-design.js";
+import { listLifecycleIndex } from "../../../../src/lib/store/lifecycle-index.js";
 import { createStoreReconcilePrepareContext } from "../../../../src/lib/work-unit/store-reconcile-context.js";
 
 async function fixture(design = ["spec-example-prd.md", "spec-example-rfc.md"]) {
@@ -20,7 +21,7 @@ async function fixture(design = ["spec-example-prd.md", "spec-example-rfc.md"]) 
 
 it.each(["prd", "rfc"] as const)("reads the paired %s Design through its name-keyed companion", async (half) => {
   const h = await fixture([`spec-example-${half}.md`]);
-  expect(await readLifecycleDesign(h.store, h.meta)).toEqual({ content: h[half].content, warnings: [] });
+  expect(await readLifecycleDesign(h.store, h.meta)).toEqual({ record: h[half], content: h[half].content, warnings: [] });
 });
 
 it("acquires ordinary and paired companions at their conventional artifact coordinates", async () => {
@@ -32,4 +33,36 @@ it("acquires ordinary and paired companions at their conventional artifact coord
     expect(acquired.byPath.get(`.arc/active/${path}`)).toEqual(record);
     expect(await acquired.context.readFile(`.arc/active/${path}`)).toBe(record.content);
   }
+});
+
+it.each([
+  { title: "first listed purpose", first: "**Purpose:** First intent.", second: "**Purpose:** Later intent.", selected: "first" },
+  { title: "later purpose after an absent field", first: "No field.", second: "**Purpose:** Later intent.", selected: "second" },
+  { title: "first found fallback", first: "No field.", second: "No field either.", selected: "first" },
+  { title: "empty purpose", first: "**Purpose:**", second: "**Purpose:** Later intent.", selected: "first" },
+  { title: "placeholder purpose", first: "**Purpose:** —", second: "**Purpose:** Later intent.", selected: "first" },
+])("returns the selected record for $title", async ({ first, second, selected }) => {
+  const h = createLifecycleHarness();
+  const meta = await h.seedMeta("example", { design: ["draft-example.md", "spec-example.md"] });
+  const records = {
+    first: await h.seed(recordReferences["work-item/draft"](meta.reference.owner), `# Draft\n\n${first}\n`),
+    second: await h.seed(recordReferences["work-item/spec"](meta.reference.owner), `# Spec\n\n${second}\n`),
+  };
+  const expected = records[selected as keyof typeof records];
+  expect(await readLifecycleDesign(h.store, meta)).toEqual({ record: expected, content: expected.content, warnings: [] });
+});
+
+it("returns no selected record where no design can be found", async () => {
+  const h = createLifecycleHarness();
+  const meta = await h.seedMeta("example", { design: ["spec-example.md"] });
+  expect(await readLifecycleDesign(h.store, meta)).toEqual({ record: null, content: null, warnings: [] });
+});
+
+it("selects from a lifecycle entry without a projected path or full meta record", async () => {
+  const h = await fixture();
+  const listing = lifecycleSuccess(await listLifecycleIndex(h.store));
+  if (listing.status !== "complete") throw new Error("Expected complete lifecycle listing");
+  const entry = listing.index.get(h.meta.reference.owner);
+  if (entry === undefined) throw new Error("Expected selected metadata");
+  expect(selectLifecycleDesign(entry, [h.rfc, h.prd])).toEqual(h.prd);
 });

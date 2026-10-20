@@ -1,5 +1,5 @@
 /** Custom Markdownlint rule for avoidable short soft-wrapped prose lines. */
-import type { Rule, RuleOnError, RuleParams } from "markdownlint";
+import type { MarkdownItToken, Rule, RuleOnError, RuleParams } from "markdownlint";
 import { z } from "zod";
 import { displayWidth } from "./display-width.js";
 
@@ -25,7 +25,8 @@ function htmlBreakLines(params: RuleParams): ReadonlySet<number> {
   const lines = new Set<number>();
   for (const token of params.parsers.markdownit.tokens) {
     if (token.type !== "inline") continue;
-    const children = token.children;
+    const children = token.children as readonly MarkdownItToken[] | null;
+    if (children === null) continue;
     for (const [index, child] of children.entries()) {
       if (child.type !== "html_inline" || !/^<br(?:\s|\/?>)/iu.test(child.content)) continue;
       const next = children.slice(index + 1).find(sibling => sibling.nesting !== -1
@@ -70,7 +71,7 @@ export const underwrapRule: Rule = {
       if (token.type === "blockquote_open") quoteDepth += 1;
       if (token.type === "blockquote_close") quoteDepth -= 1;
       if (token.type !== "paragraph_open" || quoteDepth > 0) continue;
-      const [start, end] = token.map;
+      const [start, end] = token.map ?? [];
       if (start !== undefined && end !== undefined) checkParagraph(params, onError, start, end, widths, htmlBreaks);
     }
   },

@@ -213,6 +213,32 @@ Errands land after the contract and before the members:
   The same section also admits behavior-preserving setup deletions, the doubled-force checkout move form,
   dormant anchored-checkout code, `arc set-class` working at once, and registration of the verbs that refuse
   `unsupported` until the flip. The seed fix's one cold-start workflow-text change is the scope exception below.
+
+  Amended 2026-10-16 — locus's pre-flip exceptions follow `spec-seam-locus.md` § 1.4. Its nine exceptions each carry
+  their own test:
+
+    - Rebuilt session-init slots carry typed actions and registered schemas beside today's command fields, including
+      the orphan-branch sweep's `git branch -D` for every merged branch. `pausedWork` and `inboundBackPressure` appear
+      with their schemas and report nothing.
+    - Removal prompts carry `arc teardown <name>` argv, and registered-worktree scans report folder presence. The
+      sweep reports missing registrations in `missingFolders`: an ended work unit's with teardown, others with
+      removal by path as text, unlocking first when locked, rather than as an external branched report.
+    - The residue sweep's rename-move remedy uses `git worktree move -f -f`.
+    - Errand exits and `arc errand leave` take the removal function's outcomes. The stale-worktree sweep,
+      branch-gone recovery, and residue sweep take the check's `unobservable`, `locked`, and `missing` outcomes.
+      Branch-gone recovery reports missing registrations in `missingFolders` with removal by path rather than
+      switching to them.
+    - The compaction seed's schema version advances.
+    - `arc inbox`, `arc route`, `arc locus release`, `arc errand queue`, `arc errand queue set`, and `arc handoff write`
+      are registered and refuse `unsupported`, each naming what serves until the flip.
+    - Dormant marker admissions accept `spawnedByArc: false` work-unit markers and partial Errand origins with a
+      qualified ID and version beside today's title and digest; the Errand record, claim, and link transition admit
+      a null inbox digest. Removal readers key on `spawnedByArc: true`; nothing writes the new forms before the flip.
+    - The three settings are declared and appear in `arc config` with no effect.
+    - Both `--from-inbox` descriptions are backend-neutral, describing adoption or association of an inbox capture;
+      every flag and argument operand keeps its exact spelling.
+
+  Every other part of locus's design runs only from the flip, beside an in-repo arm keeping today's behavior.
 - **Prepared writes** are shared decision 12, lifecycle's; decomposition's and locus's reconciling writers follow it.
 - **Moves, archive, rename, and links.** The in-repo implementation refuses each `unsupported` (D4, D8). The refusals
   for moves and archive name the verb that serves them until rerouted (`lib/store/in-repo/write-admission.ts`); the link
@@ -255,6 +281,14 @@ Errands land after the contract and before the members:
   pre-commit assert, the conflict remedy, and the merge driver. The integration checkpoint binds the lifecycle records
   it attested plus the code head, and `merge.ts` compares those, before the flip. The inbox writer's lock moves onto the
   contract's per-surface write serialization before the notes-lock code is deleted.
+
+  Amended 2026-10-16 — ROADMAP's removal departs from this order (`spec-seam-status-roadmap.md` § 9, § 11.1). Beside
+  the rerouted verbs' own arms from the flip, only status's own write stops on the capability:
+  `arc status --project --staged --write` refuses. `storage-cutover`'s flip change takes the ROADMAP template's install
+  entries and the integrity check's presence test, which act once no ROADMAP file exists. Its deletion pass takes the
+  rest, which stays in place and inert from the flip, since a branch from before the flip runs the hidden remedy command
+  from its tracked pre-commit hook. The layout's `project-document` address stays past the deletion pass for
+  `storage-projection`'s never-adopted rule.
 - **Tests** of rerouted code keep their local doubles; the shared scripted `GitExec` fake and `GitProcessError`
   fixture from `cli-substrate-complete-migration` serve the rewrites.
 
@@ -427,6 +461,18 @@ listings.
 
 _Consumes:_ locus's in-flight model, record kinds' parsed fields, and the lifecycle composition it shares with lifecycle
 (`composed-lifecycle-index.ts`).
+
+Amended 2026-10-16 — `seam-status-roadmap` departs from the reroute (`spec-seam-status-roadmap.md` § Introduction /
+Context, § 11). Today's status, ROADMAP, `STATUS.USER`, and `arc view` code stays the in-repo arm, unchanged before the
+flip but for the capability dispatch and three fixes to duplication that survives the flip. The store versions are built
+from lifecycle's typed view (`readLifecycleView`) and locus's in-flight set, not from the composition, which stays
+in-repo. They stay dark until the flip, and the in-repo arms leave in `storage-cutover`'s deletion pass. From the flip
+no derived view renders as a file: ROADMAP (key 18) is the on-demand view only, `STATUS.USER` (key 53) renders on demand
+with no cache, and the projected `completed/` folder is the archive listing (key 06). Neither the closed-Errand listing
+nor `arc view` of a closed Errand is built. The member's two artifact-kind lists stay hand-kept, one typed by the
+registry's kinds and one held to them by a test. Key 05's lint clause is not this member's to realize. From the flip no
+Markdown check a gate runs reads projected state until `projected-markdown-checks` ships over `storage-projection`'s
+selection.
 
 ## ADR anchors
 

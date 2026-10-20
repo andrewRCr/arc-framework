@@ -307,11 +307,6 @@
       "count": 1
     }
   },
-  "src/commands/view/run.ts": {
-    "sonarjs/cognitive-complexity": {
-      "count": 1
-    }
-  },
   "src/handlers/active.ts": {
     "arc/store-raw-state": {
       "count": 1

@@ -57,8 +57,10 @@ it("keeps a clean member fix check open until complete review and excludes a lat
   expect(complete.prepared.payload.reviewerPayload.reviewerInstructions).toContain("Previously reported and fixed");
   await reduceCleanReview(harness, complete.prepared.payload.operationId);
   const closed = await statusThroughHandler(harness, correctedTarget);
-  expect(closed, JSON.stringify(closed)).toMatchObject({ routedObligation: { conjunction: { members: [
-    { state: "discharged", progress: { completePasses: 2 } }, { state: "outstanding" },
+  expect(closed, JSON.stringify(closed)).toMatchObject({ nextAction: "continue-reconcile",
+    routedObligation: { conjunction: { status: "outstanding", members: [
+    { state: "discharged", progress: { completedPasses: 3, completePasses: 2 } },
+    { state: "outstanding", progress: { completedPasses: 0 } },
   ] } } });
 
   await writeFile(join(harness.root, "first.txt"), "plain member successor\n");
@@ -123,7 +125,7 @@ it("retains advisory fix tags through a performed member fix and its verified re
     `Approved disposition set ${node.approvedDisposition.dispositionSet.dispositionSetId}`,
   );
   expect(replay.payload.dispositionReportText).toContain("FIX (local correction)");
-  for (const absent of ["**Fails:**", "**Decisions**", "Loop reading"]) {
+  for (const absent of [" · fails ", "**Decisions**", "**Trend:**"]) {
     expect(replay.payload.dispositionReportText).not.toContain(absent);
   }
   expect(await store.readDispositionRecord(local.prepared.payload.operationId)).toEqual(record);

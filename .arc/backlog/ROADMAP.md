@@ -19,12 +19,12 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | `Active`   | storage-ref-backend             | P1       | andrew | —                   | state-storage |
 | `Active`   | seam-decomposition              | P1       | andrew | —                   | storage-seam  |
 | `Active`   | seam-delivery-review            | P1       | andrew | —                   | storage-seam  |
-| `Active`   | seam-status-roadmap             | P1       | andrew | —                   | storage-seam  |
 | `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —                   | —             |
 | `Planning` | decomposition-doctrine          | P1       | andrew | —                   | —             |
 | `Planning` | delivery-rebuild-continuity     | P1       | andrew | —                   | —             |
 | `Planning` | review-checkout-lifecycle       | P1       | andrew | —                   | —             |
 | `Planning` | stub-mint-to-launch             | P1       | andrew | —                   | —             |
+| `Planning` | cli-output-contract             | P2       | andrew | —                   | —             |
 
 ## Ready
 
@@ -44,6 +44,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | recovery-hardening                  | P1       | andrew | —          | —                          |
 | recurring-errand-pr-resolution      | P1       | andrew | —          | —                          |
 | review-operation-state-isolation    | P1       | andrew | —          | —                          |
+| roadmap-tooling                     | P1       | andrew | —          | —                          |
 | session-init-performance            | P1       | andrew | —          | —                          |
 | verification-falsification-contract | P1       | andrew | —          | —                          |
 | composable-workflows                | P2       | andrew | —          | agent-context-optimization |
@@ -52,7 +53,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | decompose-scaling                   | P2       | andrew | —          | decompose-core-hardening   |
 | method-conventions                  | P2       | andrew | —          | doc-conventions            |
 | agent-session-bridge                | P2       | andrew | —          | —                          |
-| cli-output-contract                 | P2       | andrew | —          | —                          |
 | cross-wu-coordination               | P2       | andrew | —          | —                          |
 | execution-delegation-doctrine       | P2       | andrew | —          | —                          |
 | frictionless-capture                | P2       | andrew | —          | —                          |
@@ -110,7 +110,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | ----------------------------- | -------- | ------ | ----------------------------- | -------------------------- |
 | review-activity-contracts     | P1       | andrew | review-source-authority       | review-protocol-alignment  |
 | cohort-identity-verbs         | P1       | andrew | storage-ref-backend           | storage-seam               |
-| roadmap-tooling               | P1       | andrew | seam-status-roadmap           | —                          |
 | unit-scoped-review            | P2       | andrew | commit-increments             | approval-flow-refinement   |
 | documentation-surface-routing | P3       | andrew | handoff-optimization          | agent-context-optimization |
 | instruction-optimization      | P3       | andrew | composable-workflows          | agent-context-optimization |
@@ -120,11 +119,11 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 2
 
-| Work unit                | Priority | Owner  | Depends on                                                                                                                                              | Cohort                    |
-| ------------------------ | -------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
-| review-request-contracts | P1       | andrew | review-activity-contracts                                                                                                                               | review-protocol-alignment |
-| storage-cutover          | P1       | andrew | storage-ref-backend, storage-projection, seam-decomposition, seam-delivery-review, seam-status-roadmap, lifecycle-slug-selection, cohort-identity-verbs | state-storage             |
-| wu5-public-release       | P3       | andrew | docs-content-sweep                                                                                                                                      | release-readiness         |
+| Work unit                | Priority | Owner  | Depends on                                                                                                                         | Cohort                    |
+| ------------------------ | -------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| review-request-contracts | P1       | andrew | review-activity-contracts                                                                                                          | review-protocol-alignment |
+| storage-cutover          | P1       | andrew | storage-ref-backend, storage-projection, seam-decomposition, seam-delivery-review, lifecycle-slug-selection, cohort-identity-verbs | state-storage             |
+| wu5-public-release       | P3       | andrew | docs-content-sweep                                                                                                                 | release-readiness         |
 
 ### Depth 3
 

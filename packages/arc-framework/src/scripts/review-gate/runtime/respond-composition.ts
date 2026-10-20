@@ -15,6 +15,7 @@ import { readFile } from "node:fs/promises";
 
 import { canonicalize } from "../../../lib/kernel/canonical/canonical-json.js";
 import { readConfigSettings } from "../../../lib/config/status-reader.js";
+import { resolveCommitInterlock, resolvePushInterlock } from "../../../lib/config/resolved-settings.js";
 import {
   projectTransientInFlightRead,
   readTransientInFlightIndexes,
@@ -893,6 +894,11 @@ function createBoundRespondDependencies(input: ReviewInvocationInput & ReviewInv
       });
     },
     readConfiguredLanePolicy,
+    readReleaseInterlocks: async () => {
+      const options = { exec: input.exec, cwd: input.cwd, readFile: (path: string) => readFile(path, "utf8") };
+      const [commit, push] = await Promise.all([resolveCommitInterlock(options), resolvePushInterlock(options)]);
+      return { commit: commit.value, push: push.value };
+    },
     resolvePolicy: (request, target) => resolveRespondPolicy(policyContext, request, target),
     readProvisionalPassFacts: assessment => readRespondProvisionalPassFacts(policyContext, assessment),
     captureConditionalNextPass: async (authorization) => {

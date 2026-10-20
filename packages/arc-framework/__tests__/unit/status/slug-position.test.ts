@@ -9,6 +9,7 @@ import {
 } from "../../../src/lib/status/slug-position.js";
 import type { DerivedCheckoutRow } from "../../../src/lib/locus/derived-roster.js";
 import type { LifecycleState } from "../../../src/lib/work-unit/lifecycle-resolver.js";
+import { MetaPauseSchema } from "../../../src/lib/active/meta-schema.js";
 
 type Context = ResolvedCheckoutRow["context"];
 
@@ -167,5 +168,24 @@ describe("projectScopeWindow from lifecycle state alone", () => {
     ["nonexistent", null],
   ])("reads %s as %s", (state, window) => {
     expect(projectScopeWindow(state, null)).toMatchObject({ window, basis: "lifecycle" });
+  });
+});
+
+describe("projectScopeWindow for paused work", () => {
+  const pause = MetaPauseSchema.parse({ pausedBy: "andrew", since: "2026-01-02T03:04:05.000Z", reason: "Waiting" });
+  const pausedWindow = {
+    window: null, basis: "lifecycle", reason: "paused; a routed concern waits for its resumption",
+  };
+
+  it.each([
+    ["planning", context({ sessionType: "planning", workflow: "planning", stage: "draft-design", workUnitStage: null })],
+    ["active", context({ taskCursor: cursorAt("2.1", "Build the view") })],
+  ] as const)("closes the %s checkout window on the pause's lifecycle basis", (state, ctx) => {
+    const position = projectDerivedSlugPosition(resolved(ctx));
+    expect(projectScopeWindow(state, position, pause)).toEqual(pausedWindow);
+  });
+
+  it.each(["planning", "active"] as const)("waits for paused %s work without a checkout", state => {
+    expect(projectScopeWindow(state, null, pause)).toEqual(pausedWindow);
   });
 });

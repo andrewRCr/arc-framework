@@ -2269,7 +2269,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     } });
     const report = (replay.payload as { dispositionReportText: string }).dispositionReportText;
     expect(report).toContain(`Approved disposition set ${dispositions.dispositionSet.dispositionSetId}`);
-    for (const absent of ["**Fails:**", "**Decisions**", "Loop reading"]) expect(report).not.toContain(absent);
+    for (const absent of [" · fails ", "**Decisions**", "**Trend:**"]) expect(report).not.toContain(absent);
 
     const production = createIntegrationMergeDependencies({ cwd: root, exec: gitExec, workUnit: "example" });
     await expect(inRepository(root, async () => production.executeSettlement({

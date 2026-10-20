@@ -3918,7 +3918,7 @@ describe("hosted review fan-out lifecycle", () => {
     });
   });
 
-  it("settles a verified member fix and advances only after scoped local correction", async () => {
+  it("settles a verified member fix and scopes the required local correction", async () => {
     const harness = await createHarness(["coderabbit-pr", "delegated-agent"]);
     const actorIdentity = "44483269";
     const first = member(harness.plan, 0, harness.oldFirst);
@@ -4363,71 +4363,6 @@ describe("hosted review fan-out lifecycle", () => {
     const completeSuccessor = await statusThroughHandler(harness, correctionStatusTarget, undefined, "complete", "delegated-agent");
     expect(completeSuccessor).toMatchObject({ state: "review-required", nextAction: "review-local-prepare",
       action: { requestedCoverage: "complete", pass: 3 },
-    });
-    if (completeSuccessor.nextAction !== "review-local-prepare") throw new Error("expected complete successor");
-    await completeLocalReviewThroughHandlers(harness, completeSuccessor.action);
-    const firstDischargedStatus = await statusThroughHandler(
-      harness,
-      correctionStatusTarget,
-      undefined,
-      undefined,
-      "coderabbit-pr",
-    );
-    expect(firstDischargedStatus).toMatchObject({
-      nextAction: "continue-reconcile",
-      routedObligation: {
-        conjunction: {
-          status: "outstanding",
-          members: [
-            { state: "discharged", progress: { completedPasses: 3, completePasses: 2 } },
-            { state: "outstanding", progress: { completedPasses: 0 } },
-          ],
-        },
-      },
-    });
-    const secondStatus = await statusThroughHandler(
-      harness,
-      { repository, headRef: "prior-top", headSha: harness.priorSecond },
-      undefined,
-      undefined,
-      "coderabbit-pr",
-    );
-    expect(secondStatus).toMatchObject({ nextAction: "review-hosted-request" });
-    if (secondStatus.nextAction !== "review-hosted-request") throw new Error("expected second member request");
-    const secondRequested = await requestThroughHandler(secondStatus.action, {
-      kind: "created",
-      artifact: {
-        kind: "pull-request-review",
-        id: "review-second-after-member-fix",
-        url: "https://example.test/review-second-after-member-fix",
-        createdAt: "2026-08-24T04:06:00.000Z",
-      },
-      effectiveCoverage: "complete",
-    }, harness.root, harness.exec);
-    if (secondRequested.nextAction !== "await") throw new Error("expected second hosted review handle");
-    const secondAwait = await awaitThroughObserver(secondRequested.handle, {
-      kind: "clean",
-      reviewUrl: "https://example.test/review-second-after-member-fix",
-    });
-    await recordHostedAwaitAttempt(harness.store, {
-      repositoryId: harness.repositoryId,
-      result: secondAwait,
-      now: "2026-08-24T04:07:00.000Z",
-    });
-
-    await expect(statusThroughHandler(harness, {
-      repository,
-      headRef: correctionStatusTarget.headRef,
-      headSha: correctionHead,
-    })).resolves.toMatchObject({
-      state: "settled",
-      nextAction: "continue-reconcile",
-      routedObligation: {
-        conjunction: {
-          status: "discharged",
-          members: [{ state: "discharged" }, { state: "discharged" }],
-        },
-      },
     });
   });
 

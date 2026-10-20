@@ -191,6 +191,17 @@ describe("observed removal", () => {
 });
 
 describe("surrounding prose", () => {
+  it("merges repadded table prose beside retained identity-keyed entries", () => {
+    const table = (width:number,first:string,last:string) => [
+      `| Key | ${"Value".padEnd(width)} |`, `| --- | ${"-".repeat(width)} |`,
+      `| one | ${first.padEnd(width)} |`, `| two | ${"b".padEnd(width)} |`, `| tri | ${last.padEnd(width)} |`,
+    ].join("\n");
+    const document = (width:number,first:string,last:string) => doc(entry("11111111"),"",table(width,first,last));
+    const result = merge(document(5,"a","c"),document(12,"current-wide","c"),document(15,"a","incoming-longer"));
+    expect(result).toEqual({content:document(15,"current-wide","incoming-longer"),conflicts:[]});
+    expect(entries(result.content).map((value)=>value.id)).toEqual(["11111111"]);
+  });
+
   it.each([false,true])("keeps complete one-sided placement around outside prose, move current: %s", (moveCurrent) => {
     const comment = '<!-- comment -->\n\n';
     const base = doc(entry("11111111")+comment+entry("22222222")+entry("33333333"));
