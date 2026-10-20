@@ -1099,19 +1099,12 @@ this phase puts publication's claim and reopen's boundary write in their transit
                   ceiling references excluding approved-fix authorization IDs. Replay imports retain `call-target`
                   without inventing policy coordinates; approved-fix envelopes and identities stay unchanged.
 
-            - `[ ]` **6.2.R.b Native resolution and exact decision references**
+            - `[x]` **6.2.R.b Native resolution and exact decision references**
 
-                - Resolve original full grants with their recorded policy coordinates and targetless judgments with
-                  `call-target`, validating full input before writing. Ceiling repository comparison stays
-                  case-sensitive, additional comparison case-insensitive; neither binds diff-base or tree movement.
-                - Resolve `decisionKey` on the bound owner before creating a grant, compare the live decision's
-                  projected values and reach with the call, and retain its recorded author. Emit its key with the
-                  resolved judgment. Keep Candidate-wide ceiling head carry within its binding, logical ordinals,
-                  withdrawal, supersession, pending retries, and approved-fix references unchanged.
-                - Build `test-first` (one behavior at a time): same-head PR/repository mismatch supplies no bound
-                  authority; matching retry succeeds; targetless and imported grants bind the call's coordinates;
-                  exact replay under another identity writes nothing; missing, wrong-kind, stale, superseded,
-                  withdrawn, or mismatching references refuse without a new grant and recover after repair.
+                - Native resolution validates full grants before writing and selects live decisions within their
+                  original repository, nullable PR, head, and logical-pass reach. Relayed keys resolve on the bound
+                  owner without a fresh identity lookup or another write; invalid references refuse with a repair
+                  route. Targetless imports retain call binding, and Candidate ceiling carry excludes successors.
 
             - `[ ]` **6.2.R.c Relay projections and bounded regression proof**
 
