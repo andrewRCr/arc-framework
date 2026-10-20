@@ -19,7 +19,7 @@ export function observeRecords(records: readonly StoreRecord[]): RecordObservati
     expected: { version: record.version, conflicts: [...record.conflicts] } }));
 }
 
-/** Compare only the promised version/conflict basis, without stale-merge or writer effects. */
+/** Compare evidence after backend reference admission has established each readable namespace and identity. */
 export async function checkRecordObservations(before: Pick<Store, "read">,
   observations: readonly RecordObservation[]): Promise<StoreResult<true>> {
   const mismatches: RecordReference[] = [];

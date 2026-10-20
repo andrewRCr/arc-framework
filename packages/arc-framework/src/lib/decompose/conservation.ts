@@ -14,7 +14,7 @@ import { decomposeStoreRefusal } from "./refusal.js";
 import { decomposeReviseArgv } from "./command-argv.js";
 import { renderV3DecomposeArgv } from "../work-unit/decompose-command-renderer.js";
 import { decomposeReadCache } from "./read-cache.js";
-import { checkDecomposeRecordConflicts } from "./source-conflicts.js";
+import { checkDecomposeRecordConflicts, DECOMPOSE_SOURCE_CONFLICT_REMEDY } from "./source-conflicts.js";
 import { sameReference } from "../store/identity.js";
 
 /** One allocation's current resolved section and its exact stored-record basis. */
@@ -38,7 +38,7 @@ export async function checkDecomposeConservation(ctx: DecomposeContext, input: D
     const matches = artifacts.filter(artifact => artifact.basename === target.targetLocator.artifact);
     const artifact = matches.length === 1 ? matches[0] : undefined;
     if (artifact === undefined) return unresolved(input, allocationIndex, "The destination artifact does not resolve exactly once.");
-    const conflicts = checkDecomposeRecordConflicts([artifact.record], "allocated destination");
+    const conflicts = checkDecomposeRecordConflicts([artifact.record], "allocated destination", DECOMPOSE_SOURCE_CONFLICT_REMEDY);
     if (conflicts !== undefined) return conflicts;
     const resolved = resolveTargetUnit(artifact, target.targetLocator, scans);
     if (resolved.status === "rejected") return unresolved(input, allocationIndex, resolved.reason);

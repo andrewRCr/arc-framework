@@ -17,12 +17,12 @@ export function checkDecomposeSourceConflicts(input: Pick<DecomposeOriginRecords
   const active = input.primary.placement?.kind === "active" && meta.result.state === "Active";
   const source = input.artifacts.filter(artifact => !active || meta.result.design.includes(artifact.basename));
   const records = [input.primary, ...source.map(artifact => artifact.record)];
-  const conflicts = checkDecomposeRecordConflicts(records, "source");
+  const conflicts = checkDecomposeRecordConflicts(records, "source", DECOMPOSE_SOURCE_CONFLICT_REMEDY);
   return conflicts === undefined ? undefined : { ...conflicts, reason: "source-conflict" };
 }
 
-/** Refuse disputed content before deriving an operation's decision from its selected side. */
-export function checkDecomposeRecordConflicts(records: readonly StoreRecord[], subject: string): DecomposeRefusal | undefined {
+/** Refuse disputed content with the consuming operation's applicable recovery policy. */
+export function checkDecomposeRecordConflicts(records: readonly StoreRecord[], subject: string, remedy: string): DecomposeRefusal | undefined {
   const conflicts = records.flatMap(record => record.conflicts.map(reference => ({
     token: conflictToken(reference),
     subject: JSON.stringify(record.reference),
@@ -30,7 +30,7 @@ export function checkDecomposeRecordConflicts(records: readonly StoreRecord[], s
   if (conflicts.length === 0) return undefined;
   return { status: "refused", reason: "record-conflict", class: "recoverable", locus: conflicts[0]?.token,
     message: `Open ${subject} conflicts: ${conflicts.map(conflict => `${conflict.token} on ${conflict.subject}`).join("; ")}.`,
-    remedy: { text: DECOMPOSE_SOURCE_CONFLICT_REMEDY } };
+    remedy: { text: remedy } };
 }
 
 function conflictToken(reference: RecordReference): string {

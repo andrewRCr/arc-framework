@@ -270,6 +270,10 @@ export async function batchReference(context: ReferenceContext, input: BatchInpu
   return withStateQueue(context.state, async () => {
     const namespace = namespaceAdmission(context.state);
     if (namespace) return refused(namespace);
+    for (const observation of observations) {
+      const admission = recordAdmission(context.state, observation.reference, context.environment.identity);
+      if (admission) return refused(admission);
+    }
     const observed = await checkRecordObservations({ read: async (reading) => readReference(context, reading) }, observations);
     if (observed.status === "refused") return observed;
     const prepared = { ...context, state: structuredClone(context.state) };

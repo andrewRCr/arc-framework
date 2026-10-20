@@ -14,7 +14,8 @@ export async function readDecomposeLandedRetirement(store: Store, origin: string
   if (found.status === "refused") return found.refusal.code === "not-found" ? { status: "ok", result: null } : decomposeStoreRefusal(found.refusal);
   const read = await store.read({ reference: found.result.reference });
   if (read.status === "refused") return decomposeStoreRefusal(read.refusal);
-  const conflicts = checkDecomposeRecordConflicts([read.result], "terminal lineage");
+  const conflicts = checkDecomposeRecordConflicts([read.result], "terminal lineage",
+    "Choose the terminal lineage to retain, resolve its named stored conflict records through a store write with resolves, then retry the selected mode.");
   if (conflicts !== undefined) return conflicts;
   const lineage = parseLineageRecord(read.result.content);
   if (lineage === null) return { status: "refused", reason: "invalid-structure", class: "recoverable", locus: `lineage:${origin}`,

@@ -7,7 +7,7 @@ import { readLifecycleMetaFields } from "../store/lifecycle-write.js";
 import { decomposeStoreRefusal } from "./refusal.js";
 import { decomposeReviseArgv } from "./command-argv.js";
 import { renderV3DecomposeArgv } from "../work-unit/decompose-command-renderer.js";
-import { checkDecomposeRecordConflicts } from "./source-conflicts.js";
+import { checkDecomposeRecordConflicts, DECOMPOSE_SOURCE_CONFLICT_REMEDY } from "./source-conflicts.js";
 import { planDecomposeTopology } from "./topology.js";
 type PlacementInput = Pick<DecomposeTerminalRecords, "map" | "acquired" | "members" | "cohorts">;
 
@@ -25,7 +25,7 @@ export function checkDecomposeMemberPlacement(input: PlacementInput): DecomposeR
       return { status: "refused", reason: "member-renamed", class: "recoverable", locus: member.slug,
         remedy: { text: `Restore the member's map name with ${renderV3DecomposeArgv(argv)} before finishing; rename it again after the cut lands.`, argv } };
     }
-    const conflicts = checkDecomposeRecordConflicts([member.primary], "member decision");
+    const conflicts = checkDecomposeRecordConflicts([member.primary], "member decision", DECOMPOSE_SOURCE_CONFLICT_REMEDY);
     if (conflicts !== undefined) return conflicts;
     const parsed = readLifecycleMetaFields(member.primary);
     if (parsed.status === "refused") return decomposeStoreRefusal(parsed.refusal);

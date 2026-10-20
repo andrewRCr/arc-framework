@@ -6,7 +6,7 @@ import type { StoreRecord } from "../store/read.js";
 import { decomposeStoreRefusal } from "./refusal.js";
 import { SlugSchema } from "../kernel/index.js";
 import { readLifecycleMetaFields } from "../store/lifecycle-write.js";
-import { checkDecomposeRecordConflicts } from "./source-conflicts.js";
+import { checkDecomposeRecordConflicts, DECOMPOSE_SOURCE_CONFLICT_REMEDY } from "./source-conflicts.js";
 import { companionArtifactName } from "../store/companion-name.js";
 
 /** A canonical existing recipient with its exact metadata mutation basis. */
@@ -61,7 +61,7 @@ async function resolveHome(ctx: DecomposeContext, destinationId: string, slug: s
   const primary = await store.read({ reference: lookup.result.reference });
   if (primary.status === "refused") return primary.refusal.code === "not-found"
     ? invalidHome(slug, locus, "has no primary record") : decomposeStoreRefusal(primary.refusal);
-  const conflicts = checkDecomposeRecordConflicts([primary.result], "home decision");
+  const conflicts = checkDecomposeRecordConflicts([primary.result], "home decision", DECOMPOSE_SOURCE_CONFLICT_REMEDY);
   if (conflicts !== undefined) return conflicts;
   if (primary.result.placement?.kind === "completed") return invalidHome(slug, locus, "is completed");
   const fields = readLifecycleMetaFields(primary.result);
