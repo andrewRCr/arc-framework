@@ -830,39 +830,12 @@ through rename and slug reuse; mismatched references refuse and succeed after co
   lane-progress transition every caller uses, and the policy numbers the next pass, records an exhausted pass count, and
   refuses an unsettled supersession from the count and state derived from stored records, its chain's included.
 
-    - `[ ]` **4.9.a An ended local attempt writes its outcome**
+    - `[x]` **4.9.a An ended local attempt writes its outcome**
 
-        - `recordLaneAttempt` (`rg/lane-progress.ts`), which every lane's ended attempt is written through and which 4.7
-          gives its in-flight write, writes an ended attempt as its outcome from the flip, its input widened to carry the
-          outcome content § 4.2 lists for its source; the three writers of attempts under way that bypass it write the
-          in-flight record (4.7).
-        - The receipt's append sites write the outcome in its place from the flip, keeping the receipt on it (1.2.a):
-          `appendReceiptWithRetry` (`rg/runtime/local-attest-command.ts`) and resume's `appendReceipt` calls
-          (`rg/runtime/local-resume-command.ts`). The reads that look for a request's receipt read its stored outcome
-          instead: attest's and resume's terminal checks, `replayPendingLocalAdmission` and
-          `verifyExistingLocalAdmission` (`rg/runtime/local-prepare.ts`), and `rg/runtime/local-pending-replay.ts`.
-        - The local lane's writers reach it: `attestLocalReviewCommand` (`rg/runtime/local-attest-command.ts`), whose
-          `terminal-failure` record calls `recordLaneAttempt` directly; the `stale-target` record
-          `rg/runtime/local-pending-replay.ts` writes; `resumeLocalReviewCommand` (`rg/runtime/local-resume-command.ts`);
-          and `replayPendingLocalAdmission` (`rg/runtime/local-prepare.ts`).
-        - `nextLocalRetryGeneration` (`rg/runtime/local-prepare.ts`) numbers a retry one past the highest stored or
-          in-flight generation from the flip.
-        - The local source sweep (`rg/core/local-source-sweep.ts`, bound in `local-prepare-composition.ts`) recognizes a
-          finished local review by its stored outcome from the flip, where it finds a receipt for its request today. It
-          walks every pin in the repository while the outcome port binds one work item, so it reads each pin's outcome
-          by key on the work item its `local-review` record names, through the root's store.
-        - Build `test-first` (one behavior at a time):
-            - a local standard-lane review that ends `clean` writes one outcome on the Candidate's work item
-            - one that ends with findings writes them on its outcome
-            - one that ends `terminal-failure` or `stale-target` writes an outcome that counts toward nothing, and its
-              retry writes another at the same logical pass, one generation higher
-            - a replayed pending admission writes its outcome once
-            - an attest replayed after its outcome is stored returns today's envelope and writes nothing, and a
-              conflicting replay refuses `corrupt-state` as today
-            - the source sweep releases a finished review's pin by its outcome, and keeps an unfinished one's until it
-              expires
-            - a sweep run from one work item's review releases a second work item's finished pin by that work item's
-              outcome
+        - Ended local transitions publish immutable outcomes and retain receipts there. Failures and stale targets
+          consume no pass; retries keep their pass and advance generation. Replay retains the original outcome and
+          rejects conflicting conclusions. The source sweep reads each pin's bound work item and releases finished
+          sources across work items while preserving unfinished pins until expiry.
 
     - `[ ]` **4.9.b The policy reads the derived count**
 
@@ -902,16 +875,12 @@ through rename and slug reuse; mismatched references refuse and succeed after co
               and adds nothing to the count
             - in the harness's differential mode, the derived count equals today's over the same reviews run in-repo
 
-    - `[ ]` **4.9.c The local lane reads settled state from evidence**
+    - `[x]` **4.9.c The local lane reads settled state from evidence**
 
-        - Local preparation's terminal check and `terminalResponsePerformed` (`rg/runtime/local-prepare.ts`), the
-          pending replay's (`rg/runtime/local-pending-replay.ts`), and `livePredecessorReviewAttempt`
-          (`rg/lane-progress-supersession.ts`), which reads an unsettled `findings` attempt as live, read whether a
-          `findings` outcome is settled through 1.2.c's derivation from the flip.
-        - Build `test-first` (one behavior at a time):
-            - a local `findings` outcome with approved evidence for its result reads as settled to preparation, replay,
-              and supersession, and one without reads as unsettled, refusing its Candidate's re-root
-            - one whose approved set carries a fix reads as unsettled until its performance is recorded
+        - Preparation, completed replay, and predecessor liveness consume composed evidence. Deferred findings settle
+          the current Candidate and carry its pass after replacement. Approved fixes remain live until complete
+          performance is recorded; default Errand preparation then offers the exact fix check and admits its emitted
+          coverage choice at the next logical pass without changing the original outcome.
 
 ### `[x]` **4.10 Read local results and reduce them from outcomes — § 4, § 9.3**
 

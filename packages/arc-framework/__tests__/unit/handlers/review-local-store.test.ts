@@ -26,6 +26,12 @@ import { createStore } from "../../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
 import type { OwnerIdentity } from "../../../src/lib/store/identity.js";
 import { SlugSchema } from "../../../src/lib/kernel/index.js";
+import { performedEvidenceFixture } from "../../fixtures/review-evidence.js";
+import { composeReviewDispositionRecord } from "../../../src/lib/store/kinds/review/evidence/composed-record.js";
+import { publishNativeReviewApproval } from "../../../src/scripts/review-gate/runtime/native-review-approval.js";
+import { publishNativeReviewPerformance } from "../../../src/scripts/review-gate/runtime/native-review-performance.js";
+import { readLaneProgressOwner } from "../../../src/scripts/review-gate/lane-progress.js";
+import { livePredecessorReviewAttempt } from "../../../src/scripts/review-gate/lane-progress-supersession.js";
 
 interface ContinuationOverride { operationRef?: string; workItem?: OwnerIdentity; store?: Store }
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
@@ -78,11 +84,12 @@ async function fixture(project = true, vehicle: "work-unit" | "errand" = "errand
     { match: ["ls-remote", "--heads", "origin", `refs/heads/${branch}`], responses: [{ stdout: "" }] },
     { command: "gh", match: { prefix: ["pr", "list", "--repo", "owner/repository", "--state", "all"] }, responses: [{ stdout: "[]" }] },
     { match: { predicate: args => args[0] === "show-ref" && args[1] === "--verify" && args[2] === "--hash"
-      && args[3]?.startsWith("refs/arc/review/local/") === true }, responses: [({ args }) => {
+      && (args[3]?.startsWith("refs/arc/review/local/") === true || args[3]?.startsWith("refs/arc/review/local-scope/") === true) }, responses: [({ args }) => {
         const value = pins.get(args[3] ?? "");
         return value === undefined ? { failure: { exitCode: 1 } } : { stdout: value };
       }] },
-    { match: { predicate: args => args[0] === "update-ref" && args[1]?.startsWith("refs/arc/review/local/") === true },
+    { match: { predicate: args => args[0] === "update-ref" && (args[1]?.startsWith("refs/arc/review/local/") === true
+      || args[1]?.startsWith("refs/arc/review/local-scope/") === true) },
       responses: [({ args }) => { pins.set(args[1] ?? "", args[2] ?? ""); return { stdout: "" }; }] },
     { match: ["rev-parse", "--is-inside-work-tree"], responses: [({ options }) => materialized.has(options?.cwd ?? "")
       ? { stdout: "true" } : { failure: { exitCode: 128 } }] },
@@ -93,9 +100,10 @@ async function fixture(project = true, vehicle: "work-unit" | "errand" = "errand
     { match: ["rev-parse", "--abbrev-ref", "HEAD"], responses: [({ options }) => ({
       stdout: materialized.has(options?.cwd ?? "") ? "HEAD" : branch,
     })] },
-    { match: ["rev-parse", "HEAD^{tree}"], responses: [{ stdout: "d".repeat(40) }] },
+    { match: ["rev-parse", "HEAD^{tree}"], responses: [() => ({ stdout: (currentHead === head ? "d" : "f").repeat(40) })] },
     { match: ["status", "--porcelain=v2", "--untracked-files=no"], responses: [{ stdout: "" }] },
-    ...[`${base}^{commit}`, `${head}^{commit}`, `${"c".repeat(40)}^{tree}`, `${"d".repeat(40)}^{tree}`]
+    ...[`${base}^{commit}`, `${head}^{commit}`, `${advancedHead}^{commit}`,
+      `${"c".repeat(40)}^{tree}`, `${"d".repeat(40)}^{tree}`, `${"f".repeat(40)}^{tree}`]
       .map(revision => ({ match: ["cat-file", "-e", revision], responses: [{ stdout: "" }] })),
     { match: ["for-each-ref", "--format=%(refname)", "refs/arc/review/local/"], responses: [() => ({ stdout: [...pins.keys()].join("\n") })] },
     { match: ["rev-parse", "HEAD"], responses: [() => ({ stdout: currentHead })] },
@@ -119,8 +127,10 @@ async function fixture(project = true, vehicle: "work-unit" | "errand" = "errand
     contentKind: exempt ? "documentation" : "code-bearing", reviewRisk: "routine", changeDeterminacy: "atomic",
     ownership: "self", surfaceAuthority: exempt ? "planning-grooming" : "ordinary",
   } };
-  const rawGit = scriptRawGitExec([{ match: ["diff", "--numstat", "-z", "-M", "-C", "--find-copies-harder", `${base}..${head}`, "--"],
-    responses: [{ stdout: Buffer.from("1\t0\tsrc/example.ts\0") }] }]).exec;
+  const rawGit = scriptRawGitExec([[base, head], [base, advancedHead], [head, advancedHead]].map(([from, to]) => ({
+    match: ["diff", "--numstat", "-z", "-M", "-C", "--find-copies-harder", `${from}..${to}`, "--"],
+    responses: [{ stdout: Buffer.from("1\t0\tsrc/example.ts\0") }],
+  }))).exec;
   const references = new Map<string, string>();
   const referenceFor = (operationId: string, override?: ContinuationOverride) => override === undefined
     ? references.get(operationId) : override.operationRef;
@@ -175,10 +185,10 @@ async function fixture(project = true, vehicle: "work-unit" | "errand" = "errand
       write: text => { output += text; }, setExitCode: () => {} },
     undefined, { ...checkout, store: override?.store ?? checkout.store, workItem: override?.workItem, projectId: createProjectIdentityReader(checkout.store) });
     return JSON.parse(output) as unknown;
-  }, run: async () => {
+  }, run: async (input: unknown = request) => {
     let output = "";
     await handleReviewLocalPrepare("-", { resolveRoot: () => checkout.cwd,
-      readText: async () => JSON.stringify(request), write: text => { output += text; }, setExitCode: () => {} },
+      readText: async () => JSON.stringify(input), write: text => { output += text; }, setExitCode: () => {} },
     undefined, { ...checkout, rawGit, projectId: createProjectIdentityReader(checkout.store) });
     const result = JSON.parse(output) as unknown;
     const prepared = LocalPrepareEnvelopeSchema.safeParse(result);
@@ -502,4 +512,55 @@ it.each(["resume", "attest", "reduce"] as const)("ignores leftover legacy execut
   h.advanceHead();
   expect(await h[command](prepared.payload.operationId)).toMatchObject({
     state: command === "attest" ? "not-attestable" : "stale-target" });
+});
+
+it("prepares a native Errand fix check only after its approved response is performed", async () => {
+  const h = await fixture(true, "errand", false);
+  const prepared = LocalPrepareEnvelopeSchema.parse(await h.run());
+  if (prepared.state !== "ready" || prepared.payload.operationRef === undefined) throw new Error(JSON.stringify(prepared));
+  const owner = parseNativeReviewOperationReference(prepared.payload.operationRef).workItem;
+  expect(await h.attest(prepared.payload.operationId, undefined, { status: "complete", result: "findings",
+    evaluatorIdentity: "fresh-reviewer", reviewRunId: "findings-before-fix", applicabilityId: null,
+    findings: [{ findingId: "retained-finding", severity: "major", locus: "src/example.ts:1", evidenceUrlOrId: "source:src/example.ts:1" }] }))
+    .toMatchObject({ state: "attested-current" });
+  expect(await h.resume(prepared.payload.operationId)).toMatchObject({ state: "respond-to-findings" });
+  expect(await h.run()).toMatchObject({ state: "review-complete", payload: { operationId: prepared.payload.operationId } });
+  const { family } = createReviewCompositionContext({ ...h, workItem: owner });
+  if (family.mode !== "stored") throw new Error("Expected native review facts");
+  const stored = await family.ports.outcomes.read(prepared.payload.operationId);
+  if (stored === null) throw new Error("Expected the actual local outcome");
+  const outcome = stored.value, value = performedEvidenceFixture("errand", outcome).value;
+  const evidence = { ...value, binding: { kind: "errand" as const,
+    errand: { key: SlugSchema.parse("repair"), claimId: h.claimId, branch: "chore/repair" } } };
+  const { performance, ...approval } = evidence;
+  if (performance?.fixResponse === undefined) throw new Error("Expected the complete performed fix");
+  const ports = { ...family.ports, readProjectId: h.projectId };
+  await publishNativeReviewApproval({ ...ports, record: composeReviewDispositionRecord(outcome, [approval], owner),
+    now: () => "2026-10-20T12:00:00Z" });
+  const laneInput = { lane: "standard" as const, repositoryId: projectId, headSha: outcome.target.headSha, lineage: outcome.lineage };
+  const approvedLane = await readLaneProgressOwner(family.ports.inFlight, laneInput);
+  if (approvedLane === null) throw new Error("Expected the findings lane");
+  expect(livePredecessorReviewAttempt(approvedLane)).toMatchObject({ attemptId: outcome.attemptId, outcome: "findings" });
+  expect(await h.run()).toMatchObject({ state: "review-complete", payload: { operationId: outcome.attemptId } });
+  const { fixResponse: ignored, ...header } = performance;
+  void ignored;
+  await publishNativeReviewPerformance({ ...ports, record: composeReviewDispositionRecord(outcome, [evidence], owner), performance: header });
+  const performedLane = await readLaneProgressOwner(family.ports.inFlight, laneInput);
+  if (performedLane === null) throw new Error("Expected the performed findings lane");
+  expect(livePredecessorReviewAttempt(performedLane)).toBeNull();
+  h.advanceHead();
+  const offered = LocalPrepareEnvelopeSchema.parse(await h.run());
+  expect(offered, JSON.stringify(offered)).toMatchObject({ state: "coverage-required" });
+  if (offered.state !== "coverage-required") throw new Error(JSON.stringify(offered));
+  const coverageAdmission = offered.payload.coverageSelectionAction.choices.find(choice => choice.requestedCoverage === "incremental");
+  expect(coverageAdmission).toMatchObject({ requestedCoverage: "incremental", correctionScope: { predecessorProducerId: outcome.attemptId } });
+  const nextResult = await h.run({ ...h.request, coverageAdmission });
+  expect(nextResult, JSON.stringify(nextResult)).toMatchObject({ state: "ready" });
+  const next = LocalPrepareEnvelopeSchema.parse(nextResult);
+  if (next.state !== "ready") throw new Error(JSON.stringify(next));
+  expect(next.payload.operationId).not.toBe(outcome.attemptId);
+  expect(await h.operations.readOperation(next.payload.operationId)).toMatchObject({ state: {
+    logicalPass: 2, coverageAdmission: { requestedCoverage: "incremental", correctionScope: { predecessorProducerId: outcome.attemptId,
+      predecessorHeadSha: outcome.target.headSha, headSha: performance.producedHeadSha } } } });
+  expect(await family.ports.outcomes.read(outcome.attemptId)).toEqual(stored);
 });
