@@ -615,18 +615,12 @@ through rename and slug reuse; mismatched references refuse and succeed after co
           method files supplying the rubric. Missing records return the existing refusal and proceed after repair;
           removing a stored rubric's method still refuses, and repository-backed metadata reads retain their behavior.
 
-### `[ ]` **4.5 Write the boundary in its new shape — § 3.5, § 9.1, § 9.5, § 12.6**
+### `[x]` **4.5 Write the boundary in its new shape — § 3.5, § 9.1, § 9.5, § 12.6**
 
 - _Goal:_ From the flip every reader reads version 2, and every write of a boundary that carries no terminus and is
   neither `candidate-publish-ready` nor `publication-pending` writes it, while the in-repo arm writes and reads version
   1 as today; the run-verification action emits `"merge"` in place of `"tier-3"`; and every published schema carrying
   either, or a record's version, admits the flip's value before the flip with nothing it emits changed.
-
-- _Note:_ Version 2 requires the readiness binding on `candidate-publish-ready` and `publication-pending` and names a
-  terminus by its decision's key (§ 9.1), which 6.1 and 6.2.b build, so those two complete the writers that need them:
-  6.1 readiness's write with the attestation-ordering recovery that persists it, its re-entry, the publication claim
-  and publish-unchanged writes, attest's singleton recovery, repair, and unchanged writes, and the singleton response's
-  rebind, and 6.2.b every write naming a terminus, the Owner terminus write among them.
 
     - `[x]` **4.5.a The widened published schemas**
 
@@ -644,27 +638,13 @@ through rename and slug reuse; mismatched references refuse and succeed after co
           through Candidate repair, verified singleton responses, and exact delivery renewal. Native readiness refuses
           an unbound digest.
 
-    - `[ ]` **4.5.c The writers and readers**
+    - `[x]` **4.5.c The writers and readers**
 
-        - Writers: `persistBoundary`, the attestation-ordering recovery, and the Owner terminus write in
-          `handlers/review.ts`; `handleAttest`'s writes, its unchanged write among them, the publication claim, and the
-          publish-unchanged write (`handlers/lifecycle-delivery-review.ts`); the delivery boundary writes in
-          `handlers/delivery-execution.ts`; the rebind in `rg/runtime/singleton-publication-response.ts`; and the carry
-          in `carryDeliveryReviewFixPublicBoundary` (`lib/delivery/review-fix.ts`). Each takes the new shape here for a
-          boundary that carries no terminus and is neither `candidate-publish-ready` nor `publication-pending`; 6.1 and
-          6.2.b complete the rest. Attest's writes take the new shape here, and 4.6.a, whose batch writes them, tests
-          them from the flip.
-        - Readers: `lib/delivery/repository-entry.ts`, `lib/delivery/entry-inspection.ts`,
-          `rg/runtime/local-prepare-composition.ts`, whose before-and-after compare reads the store's version,
-          `rg/status-composition.ts`, and `scripts/integration/checkpoint-composition.ts`.
-          `lib/delivery/review-fix-record-effects.ts` reads the boundary only in its in-repo arm, whose settlement
-          retires from the flip (6.5.e).
-        - Build `test-first` (one behavior at a time):
-            - from the flip a `candidate-convergence-verification-pending` boundary pre-publication writes with no
-              terminus, and delivery's boundary, over a Candidate the harness seeds, read back as version 2 through each
-              reader, and in-repo each writer, attest's among them, writes and reads version 1 as today
-            - a delivery member's local review admission refuses when the boundary's store version moves during its
-              validation
+        - Native boundary projections and carries preserve version 2 through review, attest, publication, singleton
+          response, and delivery writers; repository writes retain version 1. Store-backed inspection, status,
+          admission, and checkpoint reads retain the selected owner and opaque version. Real delivery admission
+          rejects a concurrent boundary change that leaves its Candidate and driver action intact, then succeeds
+          on a stable retry without projected boundary records.
 
     - `[x]` **4.5.d `verificationKind`**
 
