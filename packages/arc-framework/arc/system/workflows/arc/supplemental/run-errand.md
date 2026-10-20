@@ -259,6 +259,7 @@ remote base all name the same exact head. Any tracked change continues through t
    `invocation: { mode: "force", sourceId: "<source-id>" }` on every policy call for that target until a look fixes a
    material finding. Then drop a forced hosted invocation and follow the driver's local action; a forced hosted source
    refuses. The Errand binding carries the selected source and its ordered fallbacks through hosted request and await.
+   Forward a forced `invocation.sourceId` as `--source <source-id>` on each `arc review status` call.
 
    Apply [code-review's convergence procedure][code-convergence] to each concluded look or eligible plain commit.
    Carry an authorized additional complete pass as `additionalPassAuthorization` on resolve/hosted admission, or its
@@ -379,8 +380,8 @@ remote base all name the same exact head. Any tracked change continues through t
    pass that action unchanged to `arc review hosted request -`. A hosted source runs only the lane's first pass or the
    complete pass after a converged look, with `coverage: complete`; fix checks and delta checks run locally. Status
    offers no request for a head with no recorded review, so for the Errand's first pass, hand it the driver result's own
-   `action` unchanged instead. When neither result carries an `action`, stop: neither verb recognized this checkout as
-   the Errand's subject.
+   `action` unchanged instead. When neither result carries an `action`, stop and surface both typed results and the
+   selected source for diagnosis.
 
    For `requested / await` and pending results, apply [code-review's hosted await and
    settlement][code-hosted-await-and-settlement] to the returned exact action.
