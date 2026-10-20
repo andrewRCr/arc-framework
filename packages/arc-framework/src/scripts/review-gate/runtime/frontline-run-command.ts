@@ -200,7 +200,7 @@ export async function runFrontlineReviewCommand(
       MAX_TIMER_DELAY_MS,
       (request.timeoutMs ?? DEFAULT_FRONTLINE_TIMEOUT_MS) + OPERATION_LOCK_COMPLETION_MARGIN_MS,
     ),
-  }));
+  }), dependencies.operationStore.nativeFacts);
   await recordFrontlineAttempt(dependencies.operationStore, {
     admission,
     outcome: terminal.outcome,
