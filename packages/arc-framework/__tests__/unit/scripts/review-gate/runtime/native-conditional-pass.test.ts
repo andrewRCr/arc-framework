@@ -1,23 +1,11 @@
 /** Approved-fix captures retain the existing authority identity over checked native producer facts. */
 import { expect, it } from "vitest";
-import { createNativeReviewApprovalFixture } from "../../../../fixtures/native-review-approval.js";
+import { createNativeConditionalPassFixture as conditionalCapture } from "../../../../fixtures/native-conditional-pass.js";
 import { lifecycleSuccess } from "../../../../helpers/store/lifecycle-harness.js";
-import { createReviewDecisionPort } from "../../../../../src/lib/store/kinds/review/decision/access.js";
 import { computeConditionalPassAuthorizationId } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import { publishNativeReviewApproval } from "../../../../../src/scripts/review-gate/runtime/native-review-approval.js";
 import { publishNativeConditionalPass } from "../../../../../src/scripts/review-gate/runtime/native-conditional-pass.js";
 
-async function conditionalCapture(kind: "local" | "frontline" | "hosted", approve = true) {
-  const f = await createNativeReviewApprovalFixture(kind, "fix");
-  const approval = approve ? await publishNativeReviewApproval(f.input) : null;
-  const decisions = createReviewDecisionPort(f.h.store, f.primary.reference.owner);
-  const capture = { lane: f.outcome.lane, repositoryId: f.outcome.target.repositoryId, headSha: f.outcome.target.headSha,
-    lineage: f.outcome.lineage, producerId: f.outcome.attemptId, dispositionSetId: f.approved.dispositionSet.dispositionSetId,
-    authorizedBy: f.approved.approval.approvedBy, exhaustedPassCount: f.outcome.logicalPass,
-    nextPass: f.outcome.logicalPass + 1, now: "2026-10-20T13:00:00Z" };
-  return { ...f, approval, approvalInput: f.input, input: { outcomes: f.input.outcomes, evidence: f.input.evidence,
-    decisions, readProjectId: f.input.readProjectId, capture } };
-}
 
 it.each(["local", "frontline", "hosted"] as const)("captures a %s approved-fix decision once under its existing authorization ID", async kind => {
   const { h, primary, outcome, approval, input } = await conditionalCapture(kind);

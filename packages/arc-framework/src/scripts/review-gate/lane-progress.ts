@@ -449,6 +449,7 @@ function buildLaneAttempt(
     terminalProducer: input.consumedPass,
     sourceId: input.sourceId,
     outcome: input.outcome,
+    ...(replay?.admittedBy === undefined ? {} : { admittedBy: replay.admittedBy }),
     ...(input.chunkSeriesComplete === undefined ? {} : { chunkSeriesComplete: input.chunkSeriesComplete }),
     ...(input.hosted === undefined ? {} : { hosted: input.hosted }),
     ...(input.local === undefined ? {} : { local: input.local }),

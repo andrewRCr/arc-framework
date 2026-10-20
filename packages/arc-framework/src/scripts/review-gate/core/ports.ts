@@ -55,6 +55,14 @@ export interface ReviewEvidencePort extends ReviewFactPort<ReviewEvidence> {
 /** Immutable decisions keyed by their canonical content. */
 export type ReviewDecisionPort = ReviewFactPort<ReviewDecision>;
 
+/** Portable review facts selected together by one native invocation. */
+export interface NativeReviewFactPorts {
+  outcomes: ReviewOutcomePort;
+  evidence: ReviewEvidencePort;
+  decisions: ReviewDecisionPort;
+  readProjectId(): Promise<string>;
+}
+
 /** Numeric working-state CAS and completeness-preserving operation observations. */
 export type ReviewInFlightPort = ReviewOperationStateStore & ReviewOperationStateSnapshotIndex;
 
@@ -89,6 +97,8 @@ export interface ForwardReviewReceiptIndex {
 
 /** Versioned storage boundary for resumable, explicitly non-evidentiary review operations. */
 export interface ReviewOperationStateStore {
+  /** Immutable authority available only on the selected native adapter. */
+  readonly nativeFacts?: NativeReviewFactPorts;
   /** Fact placement carried from the invocation's selected backend for recovery guidance. */
   readonly stateOffBranch?: boolean;
   /** Actual clone-local source locator, when retained after the execution ends. */

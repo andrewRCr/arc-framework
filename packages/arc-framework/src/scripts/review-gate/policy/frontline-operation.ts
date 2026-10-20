@@ -1,6 +1,7 @@
 /** Durable replay and invalidation policy for non-evidentiary frontline runs. */
 
 import { z } from "zod";
+import { laneProgressOperationId } from "../lane-progress.js";
 import { bindNativeReviewOperationReference } from "../core/review-operation-reference.js";
 import { storedFrontlineAdmissionMatches, projectStoredFrontlineOutcome } from "../core/frontline-result.js";
 import { computeFrontlineSourceBindingId } from "../core/frontline-source-binding.js";
@@ -462,7 +463,12 @@ async function executeAndPersistFrontlineRun(
   let outcomeRef: string, persistedVersion: number;
   let operationRef: string | undefined;
   if (dependencies.outcomes !== undefined) {
-    const value = projectFrontlineOutcome(input.admission, record, dependencies.now());
+    const lane = await dependencies.operationStore.readOperation(laneProgressOperationId({ lane: "frontline",
+      repositoryId: binding.target.repositoryId, headSha: binding.target.headSha, lineage: input.admission.lineage }));
+    const admittedBy = lane.state?.kind === "lane-progress"
+      ? lane.state.attempts.find(attempt => attempt.attemptId === operationId)?.admittedBy : undefined;
+    const value = { ...projectFrontlineOutcome(input.admission, record, dependencies.now()),
+      ...(admittedBy === undefined ? {} : { admittedBy }) };
     const stored = await dependencies.outcomes.create(value);
     operationRef = bindNativeReviewOperationReference({ repositoryId: binding.target.repositoryId,
       workItem: stored.reference.owner, operationId });

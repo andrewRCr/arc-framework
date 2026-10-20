@@ -1,7 +1,7 @@
 /** Native working-state persistence isolated from repository-backed operation records. */
 import type { GitCommonStatePublisher } from "../../../../lib/git-common-state.js";
 import type { OwnerIdentity } from "../../../../lib/store/identity.js";
-import type { ReviewOutcomePort, ReviewEvidencePort, ReviewInFlightPort, ReviewOperationStateSnapshot } from "../../core/ports.js";
+import type { ReviewOutcomePort, ReviewEvidencePort, ReviewDecisionPort, NativeReviewFactPorts, ReviewInFlightPort, ReviewOperationStateSnapshot } from "../../core/ports.js";
 import type { ReviewOperationState } from "../../core/operation-state-schema.js";
 import { canonicalDigest, canonicalize } from "../../../../lib/kernel/index.js";
 import { composeReviewInFlightState, projectReviewInFlightState, ReviewInFlightRecordSchema,
@@ -13,7 +13,7 @@ import type { ReviewOutcome } from "../../../../lib/store/kinds/review/outcome/s
 import { pruneEndedReviewExecution, assertReviewPassStillOpen } from "./in-flight-outcomes.js";
 
 interface InFlightContext { publisher: GitCommonStatePublisher; workItem: OwnerIdentity; outcomes: ReviewOutcomePort;
-  projectId: () => Promise<string>; evidence?: ReviewEvidencePort }
+  projectId: () => Promise<string>; evidence?: ReviewEvidencePort; decisions?: ReviewDecisionPort }
 const location = { root: "review-gate", namespace: "in-flight" } as const;
 
 function recordPrefix(uid: string): string { return `operation-${canonicalDigest({ uid }).slice(7)}-`; }
@@ -27,10 +27,14 @@ export function nativeReviewInFlightRecordName(uid: string, operationId: string)
 export class NativeReviewInFlightStateStore implements ReviewInFlightPort {
   readonly stateOffBranch = true;
   readonly outcomeWriter: ReviewOutcomePort;
+  readonly nativeFacts?: NativeReviewFactPorts;
   private readonly prefix: string;
   private readonly uid: string;
   constructor(private readonly input: InFlightContext) {
     this.outcomeWriter = input.outcomes;
+    if (input.evidence !== undefined && input.decisions !== undefined) {
+      this.nativeFacts = { outcomes: input.outcomes, evidence: input.evidence, decisions: input.decisions, readProjectId: input.projectId };
+    }
     if (input.workItem.type !== "work-item" || input.workItem.uid === undefined) {
       throw new LocalOperationStateStoreError("work-item-uid-required");
     }
