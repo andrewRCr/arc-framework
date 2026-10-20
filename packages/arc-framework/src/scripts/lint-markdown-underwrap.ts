@@ -61,6 +61,25 @@ async function readUnderwrapBytes(options: UnderwrapInputs, path: string, automa
   return bytes;
 }
 
+async function assertExplicitIndexAlignment(options: UnderwrapInputs, paths: readonly string[]): Promise<void> {
+  const requested = new Set(paths);
+  const { stdout } = await options.exec("git", ["ls-files", "-v", "-z"], { cwd: options.root });
+  for (const entry of stdout.split("\0").filter(Boolean)) {
+    const tag = entry.charAt(0);
+    const path = entry.slice(2);
+    if (requested.has(path) && (tag === "S" || tag === tag.toLowerCase())) {
+      throw new ArcError(`Markdown index flags hide worktree changes: ${path}. Clear assume-unchanged/skip-worktree ` +
+        "for this path, or use --worktree to check it without certifying the Git index.", "markdown.index-flags-hide-drift");
+    }
+  }
+  const drifted = new Set<string>(await enumerateWorktreeIndexDriftPaths(options.root, options.exec));
+  const path = paths.find(path => drifted.has(path));
+  if (path !== undefined) {
+    throw new ArcError(`Markdown worktree/index drift: ${path}. Re-stage the file to check its indexed bytes, ` +
+      "or use --worktree to check the edited file without certifying the Git index.", "markdown.worktree-index-drift");
+  }
+}
+
 async function readUnderwrapStrings(options: UnderwrapInputs): Promise<Record<string, string>> {
   const automatic = options.paths.length === 0;
   const paths = automatic
@@ -70,12 +89,7 @@ async function readUnderwrapStrings(options: UnderwrapInputs): Promise<Record<st
     if (isMarkdownPathExcluded(path)) throw new ArcError(`Markdown path is excluded: ${path}`, "markdown.excluded-path");
   }
   if (!automatic && !options.worktree) {
-    const drifted = new Set(await enumerateWorktreeIndexDriftPaths(options.root, options.exec));
-    const path = paths.find(path => drifted.has(path));
-    if (path !== undefined) {
-      throw new ArcError(`Markdown worktree/index drift: ${path}. Re-stage the file to check its indexed bytes, ` +
-        "or use --worktree to check the edited file without certifying the Git index.", "markdown.worktree-index-drift");
-    }
+    await assertExplicitIndexAlignment(options, paths);
   }
   if (options.worktree) {
     await validateExplicitMarkdownPaths({ root: options.root, paths, operation: "lint-read", exec: options.exec, lstat, realpath,

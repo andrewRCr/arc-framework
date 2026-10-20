@@ -49,6 +49,45 @@ afterEach(async () => {
 });
 
 describe("changed indexed Markdown under-wrap check", () => {
+  it.each(["assume-unchanged", "skip-worktree"])("refuses explicit indexed paths hidden by %s and offers recovery", async flag => {
+    await git("git", ["update-index", `--${flag}`, "--", "untouched.md"], { cwd: root });
+    expect(await main(root, ["guide.md"])).toBe(0);
+    await git("git", ["update-index", `--${flag}`, "--", "guide.md"], { cwd: root });
+    const before = (await git("git", ["write-tree"], { cwd: root })).stdout;
+    const flags = (await git("git", ["ls-files", "-v", "-z"], { cwd: root })).stdout;
+
+    expect(await main(root, ["guide.md"])).toBe(1);
+    expect(messages.join("")).toContain("Markdown index flags hide worktree changes: guide.md");
+    expect(messages.join("")).toContain(flag);
+    expect(messages.join("")).toContain("--worktree");
+    await write("guide.md", bad);
+    messages = [];
+    expect(await main(root, ["guide.md"])).toBe(1);
+    expect(messages.join("")).toContain("Markdown index flags hide worktree changes: guide.md");
+    expect(messages.join("")).not.toContain("ARC001");
+    expect((await git("git", ["write-tree"], { cwd: root })).stdout).toBe(before);
+    expect((await git("git", ["ls-files", "-v", "-z"], { cwd: root })).stdout).toBe(flags);
+    expect(await readFile(join(root, "guide.md"), "utf8")).toBe(bad);
+
+    messages = [];
+    expect(await main(root, ["--worktree", "guide.md"])).toBe(1);
+    expect(messages.join("")).toContain("guide.md:1 ARC001");
+    expect((await git("git", ["ls-files", "-v", "-z"], { cwd: root })).stdout).toBe(flags);
+    await git("git", ["update-index", `--no-${flag}`, "--", "guide.md"], { cwd: root });
+    messages = [];
+    expect(await main(root, ["guide.md"])).toBe(1);
+    expect(messages.join("")).toContain("Markdown worktree/index drift: guide.md");
+    await git("git", ["add", "guide.md"], { cwd: root });
+    messages = [];
+    expect(await main(root, ["guide.md"])).toBe(1);
+    expect(messages.join("")).toContain("guide.md:1 ARC001");
+    await write("guide.md", good);
+    await git("git", ["add", "guide.md"], { cwd: root });
+    messages = [];
+    expect(await main(root, ["guide.md"])).toBe(0);
+    expect(messages).toEqual([]);
+  });
+
   it.each([true, false])("refuses explicit index feedback when worktree content disagrees (badIndex=%s)", async badIndex => {
     await write("guide.md", badIndex ? bad : good);
     await git("git", ["add", "guide.md"], { cwd: root });
