@@ -1,4 +1,6 @@
 /** Registered command-result envelopes for the public review transition protocol. */
+import { ReviewAdversarialUnsupportedEnvelopeSchema } from "./adversarial-record-schema.js";
+
 
 import { isDeepStrictEqual } from "node:util";
 
@@ -930,6 +932,7 @@ export const LocalResumeEnvelopeSchema = z.union([
 ]);
 
 export const ReviewCommandErrorEnvelopeSchema = z.union([
+  ReviewAdversarialUnsupportedEnvelopeSchema,
   ...ReviewCommandModeSchema.options
     .filter((mode) => mode !== "review-pre-publication")
     .flatMap((mode) => ReviewCommandErrorCodeSchema.options

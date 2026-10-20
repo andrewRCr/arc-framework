@@ -6,6 +6,7 @@ import { ReviewCommandModeSchema, type ReviewCommandMode } from "../core/review-
 const COMMAND_PATHS: Record<ReviewCommandMode, readonly string[]> = {
   "review-readiness": ["readiness"],
   "review-lane-read": ["lane", "read"],
+  "review-adversarial-record": ["adversarial", "record"],
   "review-resolve": ["resolve"],
   "review-frontline-resolve": ["frontline", "resolve"],
   "review-chunking-resolve": ["chunking", "resolve"],

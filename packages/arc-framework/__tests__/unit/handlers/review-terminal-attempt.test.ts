@@ -87,7 +87,7 @@ describe("terminal review attempt input recovery", () => {
     expect(refusal.exitCodes).toEqual([1]);
     const error = ReviewCommandErrorEnvelopeSchema.parse(refusal.result);
     expect(error.error.code).toBe("invalid-input");
-    if (!("remedy" in error) || error.remedy === undefined) throw new Error("expected a corrected-input remedy");
+    if (error.mode !== "review-resolve" || !("remedy" in error) || error.remedy === undefined) throw new Error("expected a corrected-input remedy");
     expect(error.remedy.text).toContain(expected);
     expect(error.remedy.argv).toEqual(["arc", "review", "resolve", "-"]);
     const corrected = ReviewPolicyCommandRequestSchema.parse(error.remedy.stdin);
@@ -113,7 +113,7 @@ describe("terminal review attempt input recovery", () => {
       const refusal = await resolve(submitted, undefined, sources);
       const error = ReviewCommandErrorEnvelopeSchema.parse(refusal.result);
       expect(error.error.code).toBe("invalid-input");
-      if (!("remedy" in error) || error.remedy === undefined) throw new Error("expected a corrected-input remedy");
+      if (error.mode !== "review-resolve" || !("remedy" in error) || error.remedy === undefined) throw new Error("expected a corrected-input remedy");
       const corrected = ReviewPolicyCommandRequestSchema.parse(error.remedy.stdin);
       expect(corrected.attempts).toEqual([
         ...(name === "compatible prefix" ? [fallback] : []), ...request.attempts,
@@ -141,7 +141,7 @@ describe("terminal review attempt input recovery", () => {
     expect(refusal.exitCodes).toEqual([1]);
     const error = ReviewCommandErrorEnvelopeSchema.parse(refusal.result);
     expect(error.error.code).toBe("invalid-input");
-    if (!("remedy" in error) || error.remedy === undefined) throw new Error("expected a corrected-input remedy");
+    if (error.mode !== "review-resolve" || !("remedy" in error) || error.remedy === undefined) throw new Error("expected a corrected-input remedy");
     const corrected = ReviewPolicyCommandRequestSchema.parse(error.remedy.stdin);
     expect(corrected.invocation).toEqual(scenario.retained ? invocation : undefined);
     expect(corrected.attempts).toEqual([...prefix, ...request.attempts]);
@@ -166,7 +166,7 @@ describe("terminal review attempt input recovery", () => {
       expect(refusal.exitCodes).toEqual([1]);
       const error = ReviewCommandErrorEnvelopeSchema.parse(refusal.result);
       expect(error.error.code).toBe("invalid-input");
-      if (!("remedy" in error) || error.remedy === undefined) throw new Error("expected a corrected-input remedy");
+      if (error.mode !== "review-resolve" || !("remedy" in error) || error.remedy === undefined) throw new Error("expected a corrected-input remedy");
       const corrected = ReviewPolicyCommandRequestSchema.parse(error.remedy.stdin);
       expect(corrected).not.toHaveProperty(field);
       expect(corrected.completedPasses).toBe(2);
@@ -189,7 +189,7 @@ describe("terminal review attempt input recovery", () => {
       ...(mismatch === "lane" ? { lane: "frontline", invocation: undefined } : { completedPasses: 1 }) }, undefined, undefined, 1);
     const error = ReviewCommandErrorEnvelopeSchema.parse(refusal.result);
     expect(error.error.code).toBe("invalid-input");
-    if (!("remedy" in error) || error.remedy === undefined) throw new Error("expected a corrected-input remedy");
+    if (error.mode !== "review-resolve" || !("remedy" in error) || error.remedy === undefined) throw new Error("expected a corrected-input remedy");
     const corrected = ReviewPolicyCommandRequestSchema.parse(error.remedy.stdin);
     expect(corrected).toMatchObject(grants);
     await expect(resolve(corrected, undefined, undefined, 1)).resolves.toMatchObject({ exitCodes: [],

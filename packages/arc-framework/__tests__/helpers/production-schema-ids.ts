@@ -80,6 +80,8 @@ export const PRODUCTION_SCHEMA_IDS = [
   "remote-evidence",
   "remote-failure-reason",
   "retired-subdir-detection",
+  "review-adversarial-record-envelope",
+  "review-adversarial-record-request",
   "review-assurance-input",
   "review-change-request-resolve-result",
   "review-checks-await-result",

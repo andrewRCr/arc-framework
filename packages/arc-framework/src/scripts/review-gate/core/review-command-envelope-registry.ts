@@ -1,4 +1,6 @@
 /** Registry binding for public review command envelopes. */
+import { ReviewAdversarialRecordEnvelopeSchema } from "./adversarial-record-schema.js";
+
 
 import { ReviewLaneReadEnvelopeSchema } from "../lane-read-schema.js";
 import type { KernelRegistry } from "../../../lib/kernel/index.js";
@@ -20,6 +22,7 @@ export function registerReviewCommandEnvelopeSchemas(registry: KernelRegistry): 
   for (const [id, schema] of [
     ["review-readiness-envelope", ReviewReadinessEnvelopeSchema],
     ["review-lane-read-envelope", ReviewLaneReadEnvelopeSchema],
+    ["review-adversarial-record-envelope", ReviewAdversarialRecordEnvelopeSchema],
     ["review-resolve-envelope", ReviewResolveEnvelopeSchema],
     ["review-frontline-resolve-envelope", FrontlineResolveEnvelopeSchema],
     ["review-chunking-resolve-envelope", ReviewChunkingResolveEnvelopeSchema],

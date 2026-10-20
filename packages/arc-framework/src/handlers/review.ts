@@ -1,4 +1,7 @@
 /** Machine-readable review workflow handlers. */
+import { defaultReviewHandlerBoundary, executeReviewHandler, ReviewCommandInputSchema, reviewCommandInputSchema, type ReviewHandlerBoundary } from "./review-handler.js";
+import { reviewCommandError, type ReviewHandlerErrorPhase } from "./review-handler-errors.js";
+export { ReviewCommandInputSchema } from "./review-handler.js";
 import { ProjectIdentityError } from "../lib/store/project-identity.js";
 import { projectIdentitySpineRemedy, reviewProjectIdentityRequestRemedy } from "../scripts/review-gate/runtime/project-identity-remedy.js";
 import { decodePrePublicationReplay, replayTokenFromAction, type PrePublicationReplayInput } from "../scripts/review-gate/policy/pre-publication-replay.js";
@@ -27,7 +30,7 @@ import { createCandidateResponseHeadContinuationReader } from
 import { deriveReviewChunkingSubject } from "../scripts/review-gate/policy/review-chunking-subject.js";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { z, ZodError, type ZodType } from "zod";
+import { z, type ZodType } from "zod";
 
 import {
   declareCliOptionSite,
@@ -88,11 +91,9 @@ import {
   ReduceEnvelopeSchema,
   RespondEnvelopeSchema,
   ReviewCommandErrorEnvelopeSchema,
-  ReviewCommandModeSchema,
   prePublicationRemedy,
   prePublicationTargetRemedy,
   type ReviewCommandErrorCode,
-  type ReviewCommandMode,
   type ReviewPrePublicationRefusalCode,
 } from "../scripts/review-gate/core/review-command-envelope.js";
 import {
@@ -169,10 +170,6 @@ import {
   bindReviewSourceReference,
 } from "../scripts/review-gate/core/review-source-reference.js";
 import {
-  LocalTargetDerivationError,
-  type LocalTargetInvalidReason,
-} from "../scripts/review-gate/hosts/local/repository-target.js";
-import {
   FrontlineCommandRequestSchema,
   FrontlineResolveRequestSchema,
   resolveFrontlineCommand,
@@ -191,8 +188,6 @@ import {
 import { readLocalReviewLiveContext } from
   "../scripts/review-gate/hosts/local/live-context.js";
 import { recordNativeFrontlineSkip, createNativeFrontlineSkipRecorder } from "../scripts/review-gate/runtime/native-frontline-window.js";
-import { LocalReviewResultReaderError } from
-  "../scripts/review-gate/hosts/local/review-result-reader.js";
 import {
   projectReviewPolicyAttempt,
   resolveReviewPolicy,
@@ -343,7 +338,6 @@ import {
   FrontlineRunCommandError,
   runFrontlineReviewCommand,
 } from "../scripts/review-gate/runtime/frontline-run-command.js";
-import { FrontlineAdmissionError } from "../scripts/review-gate/core/frontline-admission-error.js";
 import { createLocalPrepareDependencies } from "../scripts/review-gate/runtime/local-prepare-composition.js";
 import {
   LocalPrepareRequestSchema,
@@ -448,23 +442,6 @@ import {
 } from "../scripts/review-gate/policy/delivery-review-terminus.js";
 
 /**
- * Build the request-source operand schema owned by one review command.
- *
- * Each command registers its own instance: the registry keys schemas by identity,
- * so a shared instance would collide across the family's seven canonical paths.
- *
- * @returns One review command's request-source operand schema
- */
-function reviewCommandInputSchema(): z.ZodType<{ input: string }> {
-  return z.object({
-    input: z.string().trim().min(1, "A JSON request file path, or - for stdin, is required."),
-  }).strict();
-}
-
-/** Request-source operand schema shared by the review handlers' own validation. */
-export const ReviewCommandInputSchema = reviewCommandInputSchema();
-
-/**
  * Canonical paths of the review commands sharing the JSON request-source operand without schema
  * discovery. Empty while every review request root is registered; a new verb lands here until its
  * request schema is registered and its path moves to the discoverable list below.
@@ -483,6 +460,7 @@ export const REVIEW_PUBLIC_REQUEST_SCHEMA_PATHS = [
   "review hosted request",
   "review readiness",
   "review lane read",
+  "review adversarial record",
   "review frontline resolve",
   "review hosted settle",
   "review local prepare",
@@ -1344,7 +1322,7 @@ export const reviewCommandInputPolicyDeclarations = [
   {
     commandPath: "review", aliases: [], sites: [
       declareInteractionSite(
-        { file: "handlers/review.ts", kind: "explicit-stdin", callee: "process.stdin", occurrence: 1 },
+        { file: "handlers/review-handler.ts", kind: "explicit-stdin", callee: "process.stdin", occurrence: 1 },
         {
           acquisition: "explicit-stdin", schemaOwnership: "none", cancellation: "not-applicable",
           automation: { noInput: "read-explicit-stdin", flags: [], acceptedSyntax: ["-"] },
@@ -1395,14 +1373,6 @@ export const reviewCommandInputPolicyDeclarations = [
     )),
   },
 ] satisfies readonly CommandInputDeclaration[];
-
-async function readStdin(): Promise<string> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of process.stdin as AsyncIterable<Buffer | string>) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  }
-  return Buffer.concat(chunks).toString("utf8");
-}
 
 export interface ReviewPlanningLaneOptions {
   repository?: string;
@@ -1561,24 +1531,6 @@ export async function handleReviewPlanningGroomingResolve(
       context,
     ),
   });
-}
-
-interface ReviewHandlerBoundary {
-  resolveRoot(cwd: string): string | null;
-  readText(source: string): Promise<string>;
-  write(text: string): void;
-  setExitCode(code: number): void;
-}
-
-function defaultReviewHandlerBoundary(): ReviewHandlerBoundary {
-  return {
-    resolveRoot: resolveArcRoot,
-    readText: async (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
-    write: (text) => process.stdout.write(text),
-    setExitCode: (code) => {
-      process.exitCode = code;
-    },
-  };
 }
 
 export interface ReviewResolveHandlerDependencies {
@@ -1872,8 +1824,6 @@ export async function handleReviewLaneRead(source: string,
     execute: (request, root) => dependencies.read(ReviewLaneReadRequestSchema.parse(request), root) });
 }
 
-/** Modes carried by the review-command family and by the merge-lock family that split from it. */
-type ReviewFamilyMode = ReviewCommandMode | MergeLockCommandMode;
 
 export interface MergeLockResolveHandlerDependencies {
   resolveRoot(cwd: string): string | null;
@@ -2072,7 +2022,6 @@ export interface ReviewFrontlineResolveHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-type ReviewHandlerErrorPhase = "request" | "execution" | "output";
 
 type HostedReviewHandlerMode =
   | "review-hosted-request"
@@ -2083,88 +2032,6 @@ type HostedReviewHandlerBoundary = Pick<
   ReviewHandlerBoundary,
   "readText" | "write" | "setExitCode"
 >;
-
-const DURABLE_CORRUPTION_CODES = new Set([
-  "invalid-receipt-reference",
-  "malformed-frontline-outcome",
-  "malformed-ledger",
-  "malformed-operation-state",
-  "operation-id-mismatch",
-  "repository-mismatch",
-]);
-
-function errorCode(error: unknown): string | null {
-  return typeof error === "object"
-    && error !== null
-    && "code" in error
-    && typeof error.code === "string"
-    ? error.code
-    : null;
-}
-
-function reviewErrorCode(mode: ReviewFamilyMode, error: unknown): string | null {
-  return mode === "review-resolve" && error instanceof LocalReviewResultReaderError
-    && error.code === "missing-producer"
-    ? "invalid-input"
-    : errorCode(error);
-}
-
-async function executeReviewHandler(input: {
-  mode: ReviewFamilyMode;
-  source: string;
-  requestSchema: ZodType;
-  resultSchema: ZodType;
-  /** Error envelope owning `input.mode`; the review family's own by default. */
-  errorSchema?: ZodType;
-  dependencies: ReviewHandlerBoundary;
-  execute(request: unknown, root: string): Promise<unknown>;
-  /** Corrective continuation for an execution refusal, given the request exactly as submitted. */
-  remedyFor?(error: unknown, submittedRequest: unknown): SpineRemedy | undefined;
-}): Promise<void> {
-  const errorSchema = input.errorSchema ?? ReviewCommandErrorEnvelopeSchema;
-  const operand = ReviewCommandInputSchema.safeParse({ input: input.source });
-  if (!operand.success) {
-    emitReviewCommandError(input.mode, operand.error, "request", input.dependencies, errorSchema);
-    return;
-  }
-
-  let root: string;
-  try {
-    const resolved = input.dependencies.resolveRoot(process.cwd());
-    if (resolved === null) throw new Error("Not inside an ARC project.");
-    root = resolved;
-  } catch (error) {
-    emitReviewCommandError(input.mode, error, "execution", input.dependencies, errorSchema);
-    return;
-  }
-
-  let submittedRequest: unknown;
-  let request: unknown;
-  try {
-    submittedRequest = JSON.parse(await input.dependencies.readText(operand.data.input));
-    request = input.requestSchema.parse(submittedRequest);
-  } catch (error) {
-    emitReviewCommandError(input.mode, error, "request", input.dependencies, errorSchema);
-    return;
-  }
-
-  let rawResult: unknown;
-  try {
-    rawResult = await input.execute(request, root);
-  } catch (error) {
-    const remedy = reviewProjectIdentityRequestRemedy(input.mode, error, submittedRequest)
-      ?? input.remedyFor?.(error, submittedRequest);
-    emitReviewCommandError(input.mode, error, "execution", input.dependencies, errorSchema, remedy);
-    return;
-  }
-
-  try {
-    const result = input.resultSchema.parse(rawResult);
-    input.dependencies.write(`${JSON.stringify(result)}\n`);
-  } catch (error) {
-    emitReviewCommandError(input.mode, error, "output", input.dependencies, errorSchema);
-  }
-}
 
 async function executeHostedReviewHandler(input: {
   mode: HostedReviewHandlerMode;
@@ -2221,20 +2088,6 @@ function emitHostedReviewError(
   dependencies.write(
     `${JSON.stringify(reviewCommandError(mode, requestError, phase, ReviewCommandErrorEnvelopeSchema, remedyFor))}\n`,
   );
-  dependencies.setExitCode(1);
-}
-
-function emitReviewCommandError(
-  mode: ReviewFamilyMode,
-  error: unknown,
-  phase: ReviewHandlerErrorPhase,
-  dependencies: Pick<ReviewHandlerBoundary, "write" | "setExitCode">,
-  errorSchema: ZodType,
-  remedy?: SpineRemedy,
-): void {
-  const remedyFor = remedy === undefined ? undefined : () => remedy;
-  const requestError = reviewContinuationRequestError(mode, error, phase === "request");
-  dependencies.write(`${JSON.stringify(reviewCommandError(mode, requestError, phase, errorSchema, remedyFor))}\n`);
   dependencies.setExitCode(1);
 }
 
@@ -3091,73 +2944,6 @@ function defaultLocalPrepareDependencies(context: InteractionContext, invocation
       return retainReviewOperationReference(input, await prepareLocalReview(request, createLocalPrepareDependencies(input)));
     },
   };
-}
-
-function repositoryPrecondition(reason: LocalTargetInvalidReason) {
-  switch (reason) {
-    case "unborn-repository":
-      return "repository-born" as const;
-    case "dirty-worktree":
-      return "clean-worktree" as const;
-    case "non-commit-head":
-      return "commit-head" as const;
-    case "ambiguous-merge-base":
-    case "invalid-base":
-    case "no-merge-base":
-    case "unresolved-base":
-      return "base-resolved" as const;
-  }
-}
-
-function reviewCommandDiagnostics(error: unknown, message: string) {
-  if (error instanceof ReviewDriverAdmissionError) return error.diagnostics;
-  if (error instanceof HostedReviewAdmissionError) return error.admission.diagnostics;
-  if (error instanceof LocalTargetDerivationError) {
-    return [{ code: "repository-precondition" as const, message, precondition: repositoryPrecondition(error.reason) }];
-  }
-  return error instanceof FrontlineAdmissionError
-    ? [{ code: `frontline-admission-${error.reason}`, message }]
-    : [];
-}
-
-function reviewProjectIdentityError(mode: ReviewFamilyMode, error: unknown, errorSchema: ZodType,
-  remedyFor?: (code: ReviewCommandErrorCode) => SpineRemedy): unknown {
-  if (!(error instanceof ProjectIdentityError) || !ReviewCommandModeSchema.safeParse(mode).success) return undefined;
-  const code = "project-identity-unavailable" as const;
-  const fallback = remedyFor?.(code) ?? reviewProjectIdentityRequestRemedy(mode, error);
-  return errorSchema.parse({ schemaVersion: 1, mode, diagnostics: [], error: { code, message: error.message },
-    remedy: projectIdentitySpineRemedy(error, fallback?.argv ?? ["arc", "review", "--help"], fallback?.stdin) });
-}
-
-function reviewCommandError(
-  mode: ReviewFamilyMode,
-  error: unknown,
-  phase: ReviewHandlerErrorPhase,
-  errorSchema: ZodType,
-  remedyFor?: (code: ReviewCommandErrorCode) => SpineRemedy,
-) {
-  const message = error instanceof Error ? error.message : String(error);
-  const identityFailure = reviewProjectIdentityError(mode, error, errorSchema, remedyFor);
-  if (identityFailure !== undefined) return identityFailure;
-  const stableCode = reviewErrorCode(mode, error);
-  const code = error instanceof LocalTargetDerivationError
-    ? "invalid-input"
-    : phase === "request" && (error instanceof ZodError || error instanceof SyntaxError)
-      ? "invalid-input"
-      : stableCode === "invalid-input" || stableCode === "corrupt-state"
-        || stableCode === "uncertain-provider-execution"
-        ? stableCode
-        : stableCode !== null && DURABLE_CORRUPTION_CODES.has(stableCode)
-          ? "corrupt-state"
-          : "unexpected-failure";
-  const diagnostics = reviewCommandDiagnostics(error, message);
-  return errorSchema.parse({
-    schemaVersion: 1,
-    mode,
-    diagnostics,
-    error: { code, message },
-    ...(remedyFor === undefined ? {} : { remedy: remedyFor(code) }),
-  });
 }
 
 /**

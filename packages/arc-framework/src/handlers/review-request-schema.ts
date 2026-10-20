@@ -2,6 +2,7 @@
 import { z } from "zod";
 import { lookupKernelSchema } from "../lib/kernel/schema/generate.js";
 import {
+  REVIEW_ADVERSARIAL_RECORD_REQUEST_SCHEMA_ID,
   REVIEW_FRONTLINE_RESOLVE_REQUEST_SCHEMA_ID,
   REVIEW_HOSTED_AWAIT_REQUEST_SCHEMA_ID,
   REVIEW_HOSTED_REQUEST_REQUEST_SCHEMA_ID,
@@ -32,6 +33,7 @@ export function reviewDiscoverableCommandInputSchema() {
 }
 
 export type ReviewPublicRequestSchemaId =
+  | typeof REVIEW_ADVERSARIAL_RECORD_REQUEST_SCHEMA_ID
   | typeof REVIEW_CHUNKING_RESOLVE_REQUEST_SCHEMA_ID
   | typeof REVIEW_PLANNING_GROOMING_RESOLVE_REQUEST_SCHEMA_ID
   | typeof REVIEW_FRONTLINE_RUN_REQUEST_SCHEMA_ID

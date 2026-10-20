@@ -5,6 +5,7 @@ import { nativeReviewOperationReferenceMatches } from "./review-operation-refere
 export const ReviewCommandModeSchema = z.enum([
   "review-readiness",
   "review-lane-read",
+  "review-adversarial-record",
   "review-resolve",
   "review-frontline-resolve",
   "review-chunking-resolve",

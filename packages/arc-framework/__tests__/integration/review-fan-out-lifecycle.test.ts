@@ -842,7 +842,7 @@ async function resolveThroughProductionHandler(root: string, request: unknown) {
 /** The status target an admission refusal's remedy names, after checking it names review status. */
 function remedyStatusTarget(output: unknown): { repository: string; headRef: string; headSha: string } {
   const refusal = ReviewCommandErrorEnvelopeSchema.parse(output);
-  if (!("remedy" in refusal)) throw new Error("expected a remedy on the admission refusal");
+  if (refusal.mode === "review-adversarial-record" || !("remedy" in refusal)) throw new Error("expected a remedy on the admission refusal");
   expect(refusal.error.code).toBe("invalid-input");
   expect(refusal.remedy.argv.slice(0, 4)).toEqual(["arc", "review", "status", "--target"]);
   return JSON.parse(refusal.remedy.argv[4] ?? "") as { repository: string; headRef: string; headSha: string };

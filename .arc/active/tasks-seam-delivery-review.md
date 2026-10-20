@@ -1006,7 +1006,7 @@ this extension, following the 4.11 local proof.
   reads retain exact source ownership and approved policy snapshots without local execution files; inherited history,
   rejection explanations, and complete-pass counts remain derived.
 
-### `[ ]` **5.7 Add `arc review adversarial record` — § 7.2**
+### `[x]` **5.7 Add `arc review adversarial record` — § 7.2**
 
 - _Goal:_ One call at the disposition approval writes one `review/adversarial-pass` record on the work unit its request
   names, the CLI deriving the artifact versions and the pass number and publishing its input schema; malformed input
@@ -1014,38 +1014,18 @@ this extension, following the 4.11 local proof.
   naming the remedy of keeping the pass where the method keeps it today: the work unit's `ADVERSARIAL-PASSES.md` for a
   planning activity, the criteria report for `verification` and `criteria`.
 
-    - `[ ]` **5.7.a The command, its help, and its request schema**
+    - `[x]` **5.7.a The command, its help, and its request schema**
 
-        - `cli.ts` registers `record` under a `review adversarial` parent; `COMMAND_SUMMARIES`
-          (`lib/cli-help-summaries.ts`) and `HELP_GROUPS.review` (`lib/cli-help-content.ts`) carry it, as
-          `cli-help-coverage.test.ts` requires.
-        - Its request schema registers in `rg/request-command-schemas.ts` and joins `ReviewPublicRequestSchemaId`
-          (`handlers/review.ts`), with the pinned schema-ID lists that name every published schema:
-          `review-schema-registration.test.ts`, `__tests__/helpers/production-schema-ids.ts`,
-          `authored-metadata.test.ts`, and the `--schema` table in `review-cli-surfaces.e2e.test.ts`.
-        - Its result is a `review-adversarial-record` envelope carrying the record's key and version, the mode joining
-          `ReviewCommandModeSchema` (`rg/core/review-command-envelope.ts`), its errors through the review error union.
-          Its refusal before the flip is an `unsupported` error variant of its own mode alone, so no other mode's error
-          union widens, built for that mode outside the shared code set (`ReviewCommandErrorCodeSchema`), since the
-          shared variant builders take only that set's codes and their remedial variants a spine remedy, which needs an
-          argv. Its remedy is the store's `RemedySchema` (`lib/store/refusal.ts`) with `text` alone, naming the file
-          where the method keeps the pass, since it names no command (§ 7.2).
+        - Registered the command, navigation, public request and result schemas, and pinned schema inventories.
+          Its text-only `unsupported` variant belongs to this mode alone. Shared JSON transport, error projection,
+          and option diagnostics now live outside the large handler and CLI modules.
 
-    - `[ ]` **5.7.b The handler**
+    - `[x]` **5.7.b The handler**
 
-        - In `handlers/review.ts`: the request names the work unit by slug, which resolves through `lookup`, and one of
-          § 7.1's activities; the CLI derives the versions of the artifacts that activity binds, each by its store
-          version, and the code head where it reviews code, and the next pass number for the activity across every loop,
-          refusing where the listing it numbers from is incomplete, and writes with `expected: null`.
-        - Build `test-first` (one behavior at a time):
-            - over the in-repo implementation the write refuses with its mode's `unsupported` variant, its text remedy
-              naming the work unit's `ADVERSARIAL-PASSES.md` for a planning activity and the criteria report for
-              `verification` and `criteria`, and every other mode's error schema is unchanged
-            - from the flip each call writes one record on the named work unit, binding its activity's artifact
-              versions, numbered one past the activity's highest across loops, and returns its key and version
-            - a slug `lookup` does not resolve refuses, and the call succeeds once the slug names a work unit
-            - an incomplete listing refuses, and the call succeeds once the listing completes
-            - malformed input refuses naming the expected shape, and the published schema accepts a valid input
+        - The dedicated handler resolves the named generation through `lookup`, derives artifact versions, code HEAD,
+          and the next activity key across loops, then creates one immutable record. Incomplete observations refuse
+          before writing and resume after repair. Shared header validation rejects duplicate findings and unapproved
+          over-cap passes; malformed requests name schema discovery, and pre-flip refusals retain text-only remedies.
 
 ### `[ ]` **5.8 Every lane's results** — validate exit criterion at segment scope
 

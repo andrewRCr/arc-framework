@@ -12,6 +12,7 @@ import { createProductionSchemaRegistry } from "../../src/production-schema-regi
 import { projectKernelSchemaClosure } from "../../src/lib/kernel/schema/generate.js";
 import type { KernelJSONSchemaBundle } from "../../src/lib/kernel/index.js";
 import { resolveSchemaReference } from "../helpers/schema-reference.js";
+import { adversarialPassFixture } from "../fixtures/review-adversarial-pass.js";
 import { runCli } from "../helpers/run-cli.js";
 
 const root = resolve(import.meta.dirname, "../../../..");
@@ -39,6 +40,22 @@ describe("packaged review CLI surfaces", () => {
 
   afterEach(async () => {
     await rm(fixtureRoot, { recursive: true, force: true });
+  });
+
+  it("reports adversarial recording's pre-flip remedy and repairs malformed request input", async () => {
+    const command = ["review", "adversarial", "record", invalidInputPath];
+    const malformed = await runCli(command, { cwd: fixtureRoot });
+    expect(malformed.exitCode).toBe(1);
+    expect(JSON.parse(malformed.stdout)).toMatchObject({ mode: "review-adversarial-record",
+      error: { code: "invalid-input", message: expect.stringContaining("--schema") } });
+    const { artifacts, codeHead, ...header } = adversarialPassFixture();
+    void artifacts; void codeHead;
+    await writeFile(invalidInputPath, JSON.stringify({ ...header, workUnit: "example" }));
+    const repaired = await runCli(command, { cwd: fixtureRoot });
+    expect(repaired.exitCode).toBe(1);
+    expect(repaired.stderr).toBe("");
+    expect(JSON.parse(repaired.stdout)).toMatchObject({ mode: "review-adversarial-record", error: { code: "unsupported" },
+      remedy: { text: expect.stringContaining("ADVERSARIAL-PASSES.md") } });
   });
 
   it("exposes every public review verb through packaged help", async () => {
@@ -87,6 +104,7 @@ describe("packaged review CLI surfaces", () => {
     [["review", "respond"], "urn:arc:schema:review-respond-request"],
     [["review", "hosted", "request"], "urn:arc:schema:review-hosted-request-request"],
     [["review", "lane", "read"], "urn:arc:schema:review-lane-read-request"],
+    [["review", "adversarial", "record"], "urn:arc:schema:review-adversarial-record-request"],
     [["review", "readiness"], "urn:arc:schema:review-readiness-request"],
     [["review", "frontline", "resolve"], "urn:arc:schema:review-frontline-resolve-request"],
     [["review", "hosted", "settle"], "urn:arc:schema:review-hosted-settle-request"],
@@ -132,6 +150,13 @@ describe("packaged review CLI surfaces", () => {
       });
       expect(target.properties)
         .not.toHaveProperty("repositoryId");
+    }
+    if (rootId === "urn:arc:schema:review-adversarial-record-request") {
+      const { artifacts, codeHead, ...header } = adversarialPassFixture();
+      void artifacts; void codeHead;
+      const validate = new Ajv2020({ strict: true, validateFormats: false }).compile(output.schemas[schemaId]!);
+      expect(validate({ ...header, workUnit: "example" }), JSON.stringify(validate.errors)).toBe(true);
+      expect(validate({ ...header, workUnit: "example", artifacts: { draft: "forged-version" } })).toBe(false);
     }
     const validator = new Ajv2020({ strict: true, validateFormats: false });
     for (const schema of Object.values(output.schemas)) validator.addSchema(schema);

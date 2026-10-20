@@ -36,6 +36,7 @@ describe("authored schema metadata", () => {
       "decompose-cut-map",
       "delivery-design-inventory-input",
       "errand-queue-set-request",
+      "review-adversarial-record-request",
       "review-chunking-resolve-request",
       "review-frontline-resolve-request",
       "review-frontline-run-request",
