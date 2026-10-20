@@ -23,7 +23,7 @@ export async function main(cwd: string = process.cwd()): Promise<number> {
     const root = await resolveMarkdownRepositoryRoot({ cwd, exec: indexedExec, realpath });
     const { readBlob, readBlobs } = createIndexedMarkdownReader(indexFile);
     const runtimePaths = await resolveIndexedMarkdownCheckerPaths({ root, readBlob, readBlobs });
-    await assertIndexedMarkdownCheckerAlignment({ root, readBlob, readFile, runtimePaths });
+    await assertIndexedMarkdownCheckerAlignment({ root, readBlob, readBlobs, readFile, runtimePaths });
     const [{ lint }, { markdownRuntimeVersions }] = await Promise.all([
       import("markdownlint/promise"),
       import("./verify-markdown-dependencies.js"),

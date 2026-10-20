@@ -129,7 +129,7 @@ export async function main(cwd = process.cwd(), receivedPaths: readonly string[]
     }
     if (!values.worktree) {
       const runtimePaths = await resolveIndexedMarkdownCheckerPaths({ root, readBlob, readBlobs, entryPaths });
-      await assertIndexedMarkdownCheckerAlignment({ root, readBlob, readFile, runtimePaths });
+      await assertIndexedMarkdownCheckerAlignment({ root, readBlob, readBlobs, readFile, runtimePaths });
       await loadIndexedMarkdownDependencies({ root, readBlob, runtimeVersions: markdownRuntimeVersions() });
       await assertParserDependency(root, readBlob);
     }

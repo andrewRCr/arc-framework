@@ -39,6 +39,25 @@ describe("staged Markdown gate", () => {
 });
 
 describe("staged Markdown checker alignment", () => {
+  it.each(["mismatch", "missing", "read-failure"])("refuses fresh bulk alignment failures (%s)", async failure => {
+    const path = "packages/arc-framework/src/checker.ts";
+    const original = Buffer.from("export const value = 1;\n");
+    const readFailure = new Error("Current index read failed");
+    const options = {
+      root: "/repo", runtimePaths: [path],
+      readBlob: async () => original,
+      readFile: async () => original,
+      readBlobs: async (): Promise<ReadonlyMap<string, Uint8Array>> => {
+        if (failure === "read-failure") throw readFailure;
+        return failure === "missing" ? new Map() : new Map([[path, Buffer.from("export const value = 2;\n")]]);
+      },
+    };
+    const result = assertIndexedMarkdownCheckerAlignment(options);
+    if (failure === "read-failure") await expect(result).rejects.toBe(readFailure);
+    else await expect(result).rejects.toThrow(failure === "missing" ? "Indexed Markdown checker is missing"
+      : "Indexed Markdown checker differs from executing worktree bytes");
+  });
+
   it("discovers the complete ordered dependency closure through a bulk-only reader", async () => {
     const entry = "packages/arc-framework/src/scripts/checker.ts";
     const first = "packages/arc-framework/src/scripts/first.ts";

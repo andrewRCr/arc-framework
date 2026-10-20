@@ -15,6 +15,7 @@ const DYNAMIC_MODULE_SPECIFIER_RE = /\bimport\s*\(\s*["'](?<specifier>[^"']+)["'
 export interface AssertIndexedMarkdownCheckerAlignmentOptions {
   readonly root: string;
   readonly readBlob: ReadIndexedBlob;
+  readonly readBlobs?: ReadIndexedBlobs;
   readonly readFile: (path: string) => Promise<Uint8Array>;
   readonly runtimePaths?: readonly string[];
 }
@@ -99,10 +100,10 @@ export async function resolveIndexedMarkdownCheckerPaths(
 export async function assertIndexedMarkdownCheckerAlignment(
   options: AssertIndexedMarkdownCheckerAlignmentOptions,
 ): Promise<void> {
-  const runtimePaths = options.runtimePaths ?? await resolveIndexedMarkdownCheckerPaths(options);
-  for (const rawPath of runtimePaths) {
-    const path = validateManagedPath(rawPath);
-    const indexed = await options.readBlob(options.root, path);
+  const runtimePaths = (options.runtimePaths ?? await resolveIndexedMarkdownCheckerPaths(options)).map(validateManagedPath);
+  const blobs = options.readBlobs === undefined ? undefined : await options.readBlobs(options.root, runtimePaths);
+  for (const path of runtimePaths) {
+    const indexed = blobs === undefined ? await options.readBlob(options.root, path) : blobs.get(path) ?? null;
     if (indexed === null) {
       throw new ArcError(`Indexed Markdown checker is missing: ${path}`, "markdown.checker-misaligned");
     }

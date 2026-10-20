@@ -1,10 +1,15 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { readGitBlobEntries } from "../../src/lib/io-context.js";
+import {
+  assertIndexedMarkdownCheckerAlignment,
+  resolveIndexedMarkdownCheckerPaths,
+} from "../../src/lib/markdown/checker-alignment.js";
+import { createIndexedMarkdownReader } from "../../src/lib/markdown/indexed-reader.js";
 
 const git = promisify(execFile);
 let root: string;
@@ -19,6 +24,27 @@ afterEach(async () => {
 });
 
 describe("bulk Git blob reads", () => {
+  it("refuses checker bytes restaged after discovery and accepts repaired alignment", async () => {
+    const path = "packages/arc-framework/src/checker.ts";
+    const original = "export const value = 1;\n";
+    const restaged = "export const value = 2;\n";
+    await mkdir(join(root, "packages/arc-framework/src"), { recursive: true });
+    await writeFile(join(root, path), original);
+    await git("git", ["add", "--", path], { cwd: root });
+    const reader = createIndexedMarkdownReader();
+    const runtimePaths = await resolveIndexedMarkdownCheckerPaths({ root, ...reader, entryPaths: [path] });
+    await writeFile(join(root, path), restaged);
+    await git("git", ["add", "--", path], { cwd: root });
+    await writeFile(join(root, path), original);
+    const options = { root, ...reader, readFile, runtimePaths };
+
+    await expect(assertIndexedMarkdownCheckerAlignment(options)).rejects.toThrow(
+      `Indexed Markdown checker differs from executing worktree bytes: ${path}`,
+    );
+    await writeFile(join(root, path), restaged);
+    await expect(assertIndexedMarkdownCheckerAlignment(options)).resolves.toBeUndefined();
+  });
+
   it("reads the explicitly selected index without modifying either index", async () => {
     const path = "notes résumé.md";
     const mainBytes = Buffer.from("main index\0bytes\n");
