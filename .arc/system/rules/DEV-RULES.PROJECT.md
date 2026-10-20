@@ -70,9 +70,10 @@ At each increment boundary, run `arc check increment`, then request related unit
 arc check run test:changed test:e2e:local --changed
 ```
 
-`test:changed` selects related unit tests. `test:e2e:local` runs changed E2E test files; E2E support or setup changes
-or changes to the check's configuration select the whole suite. Source-only changes select no local E2E tests.
-When changing code an E2E test drives, run it explicitly with `npm run test:file -- <repository-relative-e2e-test>`.
+`test:changed` selects related unit tests. `test:e2e:local` runs changed E2E test files. Selected support or setup
+files under `packages/arc-framework/__tests__/e2e/`, its runner script, or check configuration widen the run to the
+whole suite. Source-only changes select no local E2E tests. When changing code an E2E test drives, run it explicitly
+with `npm run test:file -- <repository-relative-e2e-test>`.
 
 Integration tests read ARC Markdown from disk, which no import graph shows, so `test:changed` never reaches them.
 Before a branch's first push, request content integration feedback over the whole branch:
