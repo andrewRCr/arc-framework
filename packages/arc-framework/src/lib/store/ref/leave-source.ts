@@ -2,7 +2,7 @@
 import type { Store } from "../contract.js";
 import type { MigrateReport, StoreCommandResult, StoreMigrateInput } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
-import { migrationCodeContext, readMoveRecord, saveMoveRecord, removeMoveRecord, type RecordedLeaveSource } from "./migrate-record.js";
+import { migrationCodeContext, readMoveRecord, saveMoveRecord, removeMoveRecord, type RecordedLeaveSource, type RecordedMove } from "./migrate-record.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
 import { resolveLeaveSource, leaveSourceInvalid, type LeaveSourceView } from "./leave-source-target.js";
 import { fetchMigrationRemote } from "./migrate-remote-fetch.js";
@@ -11,21 +11,22 @@ import { checkCopyProject, copyProjectId, prepareRemoteReCopy, remoteCopyChanges
 import { FORWARDING_REF, readForwardingRecord } from "./forwarding-record.js";
 import { switchRefFollow } from "./follow-switch.js";
 import { readFollowRemote } from "./follow-candidates.js";
+import { endRecordedSource } from "./leave-recorded.js";
 
 /** The caller holds the clone's move lock; a recorded departure resumes only its already landed copy. */
 export async function leaveRefSource(context: RefBackendContext, store: Store, input: Pick<StoreMigrateInput, "to" | "trial"> = {},
   resume?: RecordedLeaveSource): Promise<StoreCommandResult<MigrateReport>> {
   const code = await migrationCodeContext(context);
-  const { to, trial } = input;
+  const { to } = input;
   try {
     const held = await readDepartureRecord(code, resume);
     if (held.status === "refused") return held;
-    resume = held.result ?? undefined;
-    if (resume && (trial || to && ![resume.record.destination.name, resume.record.destination.fetchUrl].includes(to))) {
-      throw new MigrationRefusal({ code: "move-unfinished", class: "recoverable",
-        condition: `A source departure to ${resume.record.destination.fetchUrl} is recorded; finish it before another migration or trial.`,
-        remedy: { text: "Run arc store migrate with no target to finish the recorded source departure, then retry.", argv: ["arc", "store", "migrate"] } });
+    if (held.result && held.result.record.kind !== "leave-source") {
+      if (to) throw leaveSourceInvalid("--to cannot accompany --leave-source while a move or follow is recorded.");
+      return await endRecordedSource(code, held.result);
     }
+    resume = held.result?.record.kind === "leave-source" ? { record: held.result.record, tip: held.result.tip } : undefined;
+    checkDepartureResume(resume, input);
     let report: MigrateReport;
     if (resume) report = await readRemoteCopyReport(code);
     else {
@@ -94,13 +95,21 @@ function departedDestination(remote: string, condition = `The destination ${remo
     remedy: { text: "Use arc store migrate --leave-source --to <remote> naming the state's current home. Where that home is the source this clone is leaving, have the mover run arc store migrate --leave-source to withdraw its record." } });
 }
 
-async function readDepartureRecord(code: RefBackendContext, resume?: RecordedLeaveSource): Promise<StoreCommandResult<RecordedLeaveSource | null>> {
+async function readDepartureRecord(code: RefBackendContext, resume?: RecordedLeaveSource): Promise<StoreCommandResult<RecordedMove | null>> {
   if (resume) return { status: "ok", result: resume };
   const existing = await readMoveRecord(code);
   if (existing.status === "refused") return existing;
   if (!existing.result) return { status: "ok", result: null };
-  if (existing.result.record.kind === "leave-source") return { status: "ok", result: { record: existing.result.record, tip: existing.result.tip } };
+  if (existing.result.record.kind !== "layout") return existing;
   return { status: "refused", refusal: { code: "unsupported", class: "terminal",
     condition: "Ending another recorded move with --leave-source is not implemented.",
     remedy: { text: "Finish the recorded move with arc store migrate before leaving its source." } } };
+}
+
+function checkDepartureResume(resume: RecordedLeaveSource | undefined, { to, trial }: Pick<StoreMigrateInput, "to" | "trial">): void {
+  if (resume && (trial || to && ![resume.record.destination.name, resume.record.destination.fetchUrl].includes(to))) {
+    throw new MigrationRefusal({ code: "move-unfinished", class: "recoverable",
+      condition: `A source departure to ${resume.record.destination.fetchUrl} is recorded; finish it before another migration or trial.`,
+      remedy: { text: "Run arc store migrate with no target to finish the recorded source departure, then retry.", argv: ["arc", "store", "migrate"] } });
+  }
 }

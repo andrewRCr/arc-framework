@@ -33,7 +33,7 @@ export async function runRefMigrate(context: RefBackendContext, store: Store, in
       return leaveRefSource(context, store, parsed.data, { record: existing.result.record, tip: existing.result.tip });
     }
     if (existing.result?.record.kind === "remote") return moveRefRemote(context, store, parsed.data.to, parsed.data.trial, { record: existing.result.record, tip: existing.result.tip });
-    if (existing.result?.record.kind === "follow") return resumeFollowRequest(context, store, { record: existing.result.record, tip: existing.result.tip }, parsed.data.to);
+    if (existing.result?.record.kind === "follow") return resumeFollowRequest(context, store, { record: existing.result.record, tip: existing.result.tip }, parsed.data);
     let finished: MigrateReport | undefined;
     if (existing.result?.record.kind === "layout") {
       const resumed = await moveRefLayout(context, store, existing.result.record.destination, existing.result.record.setting, { record: existing.result.record, tip: existing.result.tip });
@@ -82,8 +82,8 @@ export async function runRefRemote(context: RefBackendContext, store: Store, inp
   });
 }
 
-async function resumeFollowRequest(context: RefBackendContext, store: Store, recorded: RecordedFollow, to?: string): Promise<import("../commands.js").StoreCommandResult<MigrateReport>> {
-  if (to) return { status: "refused", refusal: { code: "move-unfinished", class: "recoverable",
+async function resumeFollowRequest(context: RefBackendContext, store: Store, recorded: RecordedFollow, { to, trial }: StoreMigrateInput): Promise<import("../commands.js").StoreCommandResult<MigrateReport>> {
+  if (trial || to && ![recorded.record.destination.name, recorded.record.destination.fetchUrl].includes(to)) return { status: "refused", refusal: { code: "move-unfinished", class: "recoverable",
     condition: "A follow is recorded; finish its retained answer before requesting another remote migration or trial.",
     remedy: { text: "Run arc store migrate with no target to finish the recorded follow, then retry the requested migration.", argv: ["arc", "store", "migrate"] } } };
   return resumeRefFollow(context, store, recorded);

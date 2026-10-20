@@ -35,6 +35,7 @@ it.each(["follow.copied", "follow.recorded", "follow.switch", "layout.rename", "
           expect((await follower.exec("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(before);
         }
       }
+      if (step === "follow.recorded") expect((await invokeStoreMigrate(["--to", h.destinationDirectory], follower.ports)).status).toBe("ok");
       if (["follow.switched", "follow.recopied", "follow.delete", "follow.deleted", "follow.finish"].includes(step)) {
         expect(success(await follower.store.push()).states).toContainEqual(expect.objectContaining({ status: "move-unfinished" }));
       }

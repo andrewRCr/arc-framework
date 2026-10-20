@@ -1625,34 +1625,16 @@ _Exit criterion:_ Every case of § 14.6 and § 14.7 passes.
   identify the project and hold any tracked move commit. Native CLI and restart paths carry late ends and unpublished
   work across both layouts; source, destination, and input refusals retain concrete repair routes.
 
-### `[ ]` **17.4 `--leave-source` ending a recorded move — § 10.1, § 10.6**
+### `[x]` **17.4 `--leave-source` ending a recorded move — § 10.1, § 10.6**
 
 - _Goal:_ A recorded move or follow whose old or new remote is gone for good ends by the person's command alone, the case
   told by a read of the new remote, never by the person's call.
 
-- **Additional Context:** `notes-storage-ref-backend.md` § The move model check
-
-    - Build `test-first` (one behavior at a time):
-        - a remote move's step 4, and a follow's deletes, against an old remote deleted after the switch or archived
-          read-only keep the record, `move-unfinished` naming the cause and a rerun failing alike, until `--leave-source`
-          ends it, its report naming what stays on the old remote, after which `--to` another remote and a layout-moving
-          setting each run
-        - a move whose new remote is deleted after its copy deletes nothing on the old remote; its `--leave-source`
-          withdraws its forwarding record and reverts the pointer's change, and a clone that followed onto the deleted
-          remote leaves the source onto the old remote once that withdrawal has run, the pointer's change reverted where
-          the old remote is a backing repository and removed where it is the code remote, a fresh clone's first
-          designation then reading none
-        - `--leave-source` on a move whose new remote answers, both remotes alive, ends its record withdrawing nothing,
-          and while that remote is emptied ends the record withdrawing nothing, every clone ending on it once a push
-          restores the commit
-        - on a move whose new remote is deleted and whose old remote is archived read-only it keeps the record, its
-          withdrawal push refused through the `store` arm's terminal `refused`, naming the record's deletion by hand
-        - a move whose new remote is deleted after a delete on its old remote landed ends without a withdrawal
-        - a move back whose new remote went before its switch is ended by `--leave-source`, which withdraws its forwarding
-          record, every clone then syncing with the old remote
-        - a rerun's refused copy is ended by `--leave-source`, whose report, where an earlier run's copy deleted a
-          forwarding record there, names that record's commit, kept at `refs/arc/tmp/migrate/deleted-record`, and its
-          restore
+- _Outcome:_ Recorded remote moves and follows now end explicitly without local role, layout, or pointer changes.
+  A fresh destination read licenses either retaining the old control or withdrawing only the mover's own control in
+  one registry-leased atomic push. Failed withdrawals retain their journal and repair route; reports preserve source
+  leftovers, pointer repairs, and deleted forwarding roots. Both clones can leave to the restored home, and a matching
+  `--to` resumes a recorded follow while other destinations and trials remain refused.
 
 ### `[ ]` **17.5 `arc store remote` after a follow and when repointing `backing` — § 9.4, § 9.8**
 
