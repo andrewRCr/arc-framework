@@ -1,3 +1,4 @@
+import type { MarkdownItBaseToken } from "markdownlint";
 import { lint } from "markdownlint/promise";
 import MarkdownIt from "markdown-it";
 import { describe, expect, it } from "vitest";
@@ -5,7 +6,11 @@ import { underwrapRule } from "../../../src/lib/markdown/underwrap.js";
 
 async function findings(content: string, config: Record<string, number> = {}) {
   const result = await lint({ strings: { example: content }, customRules: [underwrapRule],
-    markdownItFactory: () => new MarkdownIt({ html: true }),
+    markdownItFactory: () => {
+      const parser = new MarkdownIt({ html: true });
+      // markdownlint's parser declaration narrows token attributes to strings.
+      return { parse: (source, environment) => parser.parse(source, environment as Record<string, unknown>) as MarkdownItBaseToken[] };
+    },
     config: { default: false, ARC001: config } });
   return result.example ?? [];
 }

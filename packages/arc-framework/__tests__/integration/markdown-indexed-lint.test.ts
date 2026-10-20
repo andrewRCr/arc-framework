@@ -16,7 +16,10 @@ import {
 import { MARKDOWN_SELECTION } from "../../src/lib/markdown/selection.js";
 
 const execFileAsync = promisify(execFile);
-const runtimeVersions = { markdownlint: "0.40.0", stringWidth: "8.1.0" };
+const runtimeVersions = {
+  markdownlint: "0.41.1", stringWidth: "8.2.1",
+  cli2: { markdownlint: "0.41.1", stringWidth: "8.2.1" },
+};
 
 let root: string;
 
@@ -30,21 +33,22 @@ function rootConfig(config: Record<string, unknown>): string {
   return JSON.stringify({ config, ...MARKDOWN_SELECTION, customRules: [] });
 }
 
-function lockfile(markdownlint = "0.40.0"): string {
+function lockfile(markdownlint = "0.41.1"): string {
   return JSON.stringify({
     packages: {
       "": { devDependencies: { markdownlint } },
-      "packages/arc-framework": { dependencies: { "string-width": "8.1.0" } },
-      "node_modules/markdownlint": { version: markdownlint, dependencies: { "string-width": "8.1.0" } },
-      "node_modules/string-width": { version: "8.1.0" },
+      "packages/arc-framework": { dependencies: { "string-width": "8.2.1" } },
+      "node_modules/markdownlint": { version: markdownlint, dependencies: { "string-width": "8.2.1" } },
+      "node_modules/markdownlint-cli2": { dependencies: { markdownlint: "0.41.1" } },
+      "node_modules/string-width": { version: "8.2.1" },
     },
   });
 }
 
 async function stageFixture(config: Record<string, unknown> = { default: false, MD009: true }): Promise<void> {
   await write(".markdownlint-cli2.jsonc", rootConfig(config));
-  await write("package.json", JSON.stringify({ devDependencies: { markdownlint: "0.40.0" } }));
-  await write("packages/arc-framework/package.json", JSON.stringify({ dependencies: { "string-width": "8.1.0" } }));
+  await write("package.json", JSON.stringify({ devDependencies: { markdownlint: "0.41.1" } }));
+  await write("packages/arc-framework/package.json", JSON.stringify({ dependencies: { "string-width": "8.2.1" } }));
   await write("package-lock.json", lockfile());
   await write("README.md", "# Valid\n");
   await execFileAsync("git", ["add", "--all"], { cwd: root });
@@ -253,9 +257,26 @@ describe("indexed Markdown certification", () => {
     const lintGroup = vi.fn(lint);
 
     await expect(runIndexedMarkdownCertification(options({ lint: lintGroup }))).rejects.toThrow(
-      "locked root markdownlint resolves 0.39.0, expected 0.40.0",
+      "locked root markdownlint resolves 0.39.0, expected 0.41.1",
     );
     expect(lintGroup).not.toHaveBeenCalled();
+  });
+
+  it("refuses nested CLI2 drift in the index and certifies the repaired dependency graph", async () => {
+    await stageFixture();
+    const candidate = JSON.parse(lockfile()) as { packages: Record<string, unknown> };
+    candidate.packages["node_modules/markdownlint-cli2/node_modules/markdownlint"] = {
+      version: "0.40.0", dependencies: { "string-width": "8.1.0" },
+    };
+    await write("package-lock.json", JSON.stringify(candidate));
+    await gitExec("git", ["add", "package-lock.json"], { cwd: root });
+    await expect(runIndexedMarkdownCertification(options())).rejects.toThrow(
+      "CLI2 markdownlint resolves 0.40.0, expected 0.41.1",
+    );
+
+    await write("package-lock.json", lockfile());
+    await gitExec("git", ["add", "package-lock.json"], { cwd: root });
+    await expect(runIndexedMarkdownCertification(options())).resolves.toMatchObject({ diagnostics: [] });
   });
 
   it("attaches the explicit table formatter remedy to MD060 failures", async () => {
