@@ -3,7 +3,7 @@
   "slug": "root-lint-forwarding",
   "claimId": "c34d52675a3fe6976f429bf7bb881bb7",
   "createdAt": "2026-10-20T17:51:58.168Z",
-  "updatedAt": "2026-10-20T17:51:58.168Z",
+  "updatedAt": "2026-10-20T18:14:40.567Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Forward options from the root TypeScript lint script through npm to ESLint and verify option delivery.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Forward root TypeScript lint options to the workspace script",
   "originEntrySourceDigest": "sha256:499ff7d5e290d985d1a071bb1225b96e9bfe96d5af6bc0d0fb52b9c102a5e48a",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/root-lint-forwarding",
+    "headSha": "814a33589d94217a6579c2f520f06b1afb8db298"
+  }
 }
