@@ -375,6 +375,26 @@
 
 - _Captured during:_ `seam-delivery-review` draft-design close, 2026-10-15.
 
+### `[ ]` **Derive `frontline resolve`'s routing facts rather than demand them**
+
+- _Routed from:_ Errand `integration-friction-evidence`, 2026-10-20.
+- _Shapes:_ `D4.4` — the third instance its rule exists to prevent.
+
+- _Observation:_ `D4.4` names two requests that demand a field the caller cannot produce, and says stating the rule is
+  what keeps a third from landing. A third has landed: `arc review frontline resolve -` takes `changeSet`, which its
+  registered schema publishes as `{}` (`z.unknown()` in `frontline-command-schema.ts`), while the handler passes it
+  straight to `resolveReviewRouting` (`frontline-command.ts`). The caller therefore supplies full `ReviewRoutingFacts`,
+  including `changeSetState`, `assurance`, and `activity`, the three `D4.4` says no caller can produce. Unlike
+  `standardReview`, the published shape does not even name what is owed; only the handler shows it.
+
+- _Recurrence:_ the derivation half of "Make review request shapes discoverable and their projections derivable"
+  recurred unchanged in Errand `disposition-report-trim` (2026-10-20). Composing frontline and standard review for an
+  ordinary Errand meant running `resolveReviewRouting` and `projectStandardReviewObligation` through a scratch `tsx`
+  script, with the Errand assurance and method activity copied from `handlers/review.ts`.
+
+- _Approach:_ likely `D4.4`'s own shape — `frontline resolve` accepts `LocalReviewRoutingInput`, as `local prepare`
+  does, and derives the rest, under the same single-input sequencing.
+
 ---
 
 ## Reachable Request Contracts
