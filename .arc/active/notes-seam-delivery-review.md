@@ -609,6 +609,35 @@ claiming empty history. No owner scan, repository fallback, new locator, or admi
 The bounded correction follows existing reducer and evidence-binding predicates at low amendment depth; 4.R4 carries
 its default-handler proofs before the local segment verifier.
 
+## A16 — Retain the binding form of an ordinary extra pass
+
+Superseded § 5.1 described `ceiling` as "a pass past an exhausted ceiling" and `additional` as "an elective pass after
+convergence, naming the result it follows", without their policy-target binding. Section 5.6 said "this change keeps
+today's", but the envelope could not retain the repository and PR tested by `resolveInvalidOverrideReason` and
+`invalidAdditionalPassReason`. `ReviewTargetIdPreimageSchema` includes base and tree coordinates instead, and no PR.
+Comparing that digest would both miss a PR change and add a diff-base restriction the policy driver does not impose.
+
+The source has two binding forms. `bindJudgment` retains supplied full grants unchanged, but binds repository and PR
+for targetless lane judgments; `withCeilingOverride` likewise binds the current target for pre-publication inputs.
+`projectSingletonLocalPrepareAction` and `policyEnvelope` strip target coordinates while relaying that authority.
+The new ordinary `targetBinding` retains the source form: `policy-target` holds the full grant's portable host
+repository spelling and nullable PR; `call-target` preserves targetless binding. The head remains in the envelope,
+whose kind-specific reach still admits a later head of the same Candidate for a standard ceiling grant. A bound
+repository and PR do not advance with that head. Ceiling repository spelling compares exactly, while additional
+spelling compares case-insensitively, as their existing guards do.
+
+The replay mapper sees targetless lane judgments only. `PrePublicationReplayInputSchema.scopeJudgmentTarget` uses
+`ReviewTargetSchema`, not `ReviewPolicyTargetSchema`, so no source supplies a host repository or PR to recover.
+Mapping `call-target` preserves that recorded form; inferring current coordinates or dropping the authority would
+each change its replay. Live full grants retain their coordinates and validate them before a native decision write.
+
+Native full and targetless relay forms gain `decisionKey`, a reference excluded from the envelope. It avoids turning
+an already recorded targetless grant into a new full grant or assigning its authorship to the relayer. The native
+reader checks the selected owner's live decision and its projected call values before admission. Approved-fix passes
+keep their existing conditional-authorization key and pending-attempt behavior. The bounded amendment composes
+existing policy equality, content keys, and stored decision readers at medium depth; it adds no kind, scope selector,
+owner discovery, or alternate identity scheme. Published schemas widen before the flip without in-repo emission changes.
+
 ## Neighbors
 
 The spec names no other work unit. These are the ones its descriptive references mean, and what each owns where it

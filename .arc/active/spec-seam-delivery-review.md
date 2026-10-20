@@ -250,6 +250,11 @@ Every stored record carries portable identities only:
 - the **Candidate's ID**, a digest (`CandidateIdSchema`);
 - **subject digests**.
 
+An ordinary extra-pass decision also retains the external policy coordinates its original full grant bound, when it
+had them: the repository's host spelling and nullable pull-request number (§ 5.1, A16). Those portable coordinates
+constrain policy applicability; they never replace the project ID, select a work item, or become a machine-local
+repository identity.
+
 No stored record names a machine-local locator. A source record's name derives from one (`sourceRecordName`,
 `rg/hosts/local/source-store.ts`), so a durable record cites a source by its `sourceDigest` where it needs one, and
 another record by its stored reference, never by the positional or machine-local references
@@ -447,6 +452,12 @@ both, and nothing it emits changes until the flip (A2, A4):
   `operationRef`, for ended replay with no source-store record; a source still present keeps its actual reference. The
   in-repo arm emits none of these additions and keeps its existing requests, references, and outputs. Only assertions
   pinning these widened schemas change before the flip.
+- **Ordinary extra-pass references (A16).** Full and targetless ceiling and additional-pass input schemas admit
+  optional `decisionKey`, a canonical decision digest (§ 5.2), and native resolve outputs and emitted request forms
+  retain it. `ReviewCeilingOverrideSchema`, `ReviewAdditionalPassAuthorizationSchema`, and `ReviewLaneJudgmentSchema`
+  carry it through their published embeddings. An approved-fix pass keeps `conditionalPassAuthorizationId` alone;
+  supplying both identifiers refuses. The in-repo arm emits no `decisionKey` and refuses a request naming one with
+  an actionable native-context remedy. Only assertions pinning these widened schemas change before the flip.
 - **The review error code `project-identity-unavailable`** (§ 2.4), which the review error schema, closed at four codes
   today (`ReviewCommandErrorCodeSchema`, `rg/core/review-command-error-codes.ts`), gains with a remedy-carrying variant
   for each mode (`remedialErrorVariant`, `rg/core/review-command-envelope.ts`). No clone reports it before the flip.
@@ -756,7 +767,16 @@ One envelope carries every decision about a review subject outside the Candidate
       approved fix, naming the result and disposition set it follows and the head the fix starts from (`producerId`,
       `dispositionSetId`, `originatingHeadSha`), with the repository identity and the logical pass of the result it
       follows, as today's authorization records them (`repositoryId`, `exhaustedPassCount`); its `producerId` names
-      the result as today's records do, a hosted result by its acknowledged `attemptId`, never by its outcome key;
+      the result as today's records do, a hosted result by its acknowledged `attemptId`, never by its outcome key.
+      A `ceiling` or `additional` precondition also carries required `targetBinding` (A16): either `{ kind:
+      "call-target" }`, for an original targetless judgment, or `{ kind: "policy-target", repository, pullRequest }`,
+      for an original full grant. `repository` and `pullRequest` use `ReviewPolicyTargetSchema`'s host coordinate and
+      nullable positive PR number; the head remains in `subject.headSha`, never duplicated here. A call without a
+      recorded decision key chooses the arm from the grant it received: a full grant retains its supplied repository and
+      PR after validation against the current policy target; a targetless judgment records `call-target`, whose
+      repository and PR bind at use as `bindJudgment` and `withCeilingOverride` bind them today. No writer replaces a
+      supplied full binding with the current target. An `approved-fix` precondition gains no field and keeps its
+      existing identity.
     - `terminus` — an Owner-accepted terminus of the standard lane;
     - `lane-skip` — a skip of the frontline lane;
     - `withdrawal` — the withdrawal of an earlier decision, by its key.
@@ -793,6 +813,17 @@ lineage, producer, disposition set, originating head, and exhausted pass count �
 so the key recomputes from the envelope using logical-pass units (§ 4.3, A6), and the requests, admissions, and resolved
 policy requests that cite it (`ceilingOverride.conditionalPassAuthorizationId`) still resolve after the import. From the
 flip the repository identity a writer records is the project ID (§ 2.4).
+
+An ordinary grant's optional `decisionKey` is a call reference, never a stored envelope field (A16). Native
+composition emits the selected key beside the projected ceiling or additional judgment and preserves it through full
+and targetless relay forms. A call carrying it reads that exact decision on its already bound work item, validates
+its choice, lane, logical count, live status, subject reach, target binding, and supplied grant values against the
+projection at the current target, and writes no new decision. It does not resolve a fresh decider or require the
+active identity to equal the recorded one merely to relay it. A missing, wrong-kind, stale, withdrawn, superseded, or
+mismatching reference refuses actionably with no fallback grant creation; missing or conflicted facts retain their
+repair route. Repeating the call with the matching live reference succeeds. Two supplied forms naming different
+keys refuse as inconsistent. Without a key, a call records the active identity as § 5.7 requires and reads an existing
+identical content key instead of writing it again. Approved-fix relays keep `conditionalPassAuthorizationId`.
 
 A second answer to one offer refuses as it does today. A terminus answer refuses when the recomputed live offer differs
 (`readCurrentOffer`) or the member already carries a terminus with a different pass count (`record-conflict`,
@@ -875,15 +906,25 @@ extra pass, which refuses `conditional-authority-consumed`, as today, since its 
 
 #### 5.6 Reach
 
-Reach is the decision kind's, not each record's, and this change keeps today's:
+Reach follows the decision kind and the original grant's binding form, never a caller-selected reach policy (A16).
+For ordinary extra passes, `call-target` binds repository and PR at the consuming call. `policy-target` requires the
+recorded repository and PR to match the current policy target: ceiling equality remains case-sensitive for repository
+spelling (`sameTarget`, `rg/policy/review-policy-driver.ts`); additional equality remains case-insensitive
+(`sameReviewTarget`, `rg/policy/review-additional-pass.ts`). A mismatching full grant refuses before any decision write;
+a stored grant outside this reach supplies no authority. Matching coordinates, or a fresh matching Owner judgment,
+restore the normal path. Neither arm binds the diff base or tree: those are not part of `ReviewPolicyTargetSchema`.
+The remaining subject and ordinal reach keeps today's:
 
 - a **standard-lane `ceiling` extra pass** reaches its Candidate at the pass count it was decided at, at any later head,
   as `withCeilingOverride` rebinds its target to the current one today; a re-root's successor is outside it, as today
   the re-root's new boundary (`projectCandidateReviewBoundary`, `handleAttest`) drops the `--resume` token that carries
-  the override; an Errand's or a delivery member's reaches the target it was decided on, the target its call bound
-  where the lane judgment carries none (`bindJudgment`, `rg/policy/review-execution-admission.ts`), as the policy
-  driver refuses another target today (`resolveInvalidOverrideReason`, `rg/policy/review-policy-driver.ts`);
-- an **`additional` extra pass** reaches the head it was decided on (`additionalPassAuthorization.headSha`);
+  the override; an Errand's or a delivery member's reaches the same vehicle and head, with repository and PR governed
+  by its original binding above (A16). `bindJudgment` (`rg/policy/review-execution-admission.ts`) binds targetless
+  inputs at use, while `resolveInvalidOverrideReason` (`rg/policy/review-policy-driver.ts`) refuses mismatching full
+  targets. A Candidate ceiling still reaches later heads of the same Candidate; a full grant's repository and PR
+  binding stays fixed across that carry, while an original targetless judgment keeps its call-target binding (A16);
+- an **`additional` extra pass** reaches the head it was decided on (`additionalPassAuthorization.headSha`), subject
+  also to its original binding form above (A16);
 - a **frontline `ceiling` extra pass** reaches only the frontline head it was decided on;
 - an **`approved-fix` extra pass,** decided before the fix exists, reaches the head that fix produces, a continued head
   included (`bindConditionalPendingAdmission`), as hosted fix settlement accepts one (`completeHostedAttemptIfReady`);
@@ -1333,8 +1374,8 @@ reference:
 - **The frontline resolve form's `request` and `authorizationRequest`** keep their call inputs, the `policyJudgment`
   they relay among them, so `arc review frontline resolve` reads a ceiling override from its request as today
   (`resolveFrontlineSelection`, `frontlineConditionalAdmission`, `rg/policy/frontline-command.ts`). The judgment the
-  form relays is already recorded, so the resolve call names its decision and writes nothing (below); a conditional
-  pass authorization's ID is its `approved-fix` decision's key (§ 5.2).
+  form relays is already recorded, so the resolve call names its decision with `decisionKey` and writes nothing (A16);
+  a conditional pass authorization's ID is its `approved-fix` decision's key (§ 5.2).
 - **Where an extra-pass judgment is written.** Every call carrying an Owner's ceiling override or additional pass writes
   it as a decision on the vehicle's work item, recording the active identity (§ 5.7): `arc review pre-publication
   --lanes` (`ReviewLaneJudgmentSchema`), `arc review status --ceiling-override` and `--additional-pass`, and the request
@@ -1342,7 +1383,9 @@ reference:
   (`rg/policy/frontline-command-schema.ts`, `rg/runtime/local-prepare.ts`), a hosted request's `ceilingOverride` and
   `additionalPassAuthorization` (`rg/hosted/request.ts`), and delivery's local review admission's
   (`rg/policy/delivery-local-review-admission.ts`). The relaying fields stay call inputs, so no workflow text changes
-  before the flip, and a call relaying a judgment already recorded names that record (§ 5.2).
+  before the flip, and a call relaying a judgment already recorded names that record through `decisionKey` (§ 5.2,
+  A16). `projectSingletonLocalPrepareAction` and `policyEnvelope` preserve that key when stripping full target
+  coordinates; the cited decision retains whether its original judgment bound those coordinates or binds them at use.
 - **Where a terminus is written.** Every call carrying an Owner's singleton terminus — `arc review pre-publication
   --lanes` (`ReviewLaneJudgmentSchema`'s standard-lane terminus) and its `--resume` replay — writes it as a decision on
   the Candidate's work item, recording the active identity (§ 5.7): in one batch with the boundary where the call
@@ -1618,9 +1661,13 @@ request on the host and in the commits that carried its records, and nothing rea
   boundary was written for (`candidateId`, `candidateSubjectDigest`), with no head (§ 5.1), and a member's entry takes
   its member vehicle; each therefore keys as the live decision would (§ 5.1). The `--resume` token's judgments become
   decisions with no decider, an extra pass the lineage has already used reading as spent (§ 5.5): an additional pass
-  becomes an `additional` extra pass; a ceiling override becomes a `ceiling` extra pass unless it cites a conditional
-  pass authorization (`conditionalPassAuthorizationId`), which maps to nothing, since that authorization's
-  `approved-fix` decision covers it, a frontline one decided on the head the token bound it to
+  becomes an `additional` extra pass; each ordinary extra pass records `targetBinding: { kind: "call-target" }`
+  because `PrePublicationReplayInputSchema` retains targetless lane judgments, not full grants (A16). Its
+  `scopeJudgmentTarget` is a `ReviewTarget`, which has no host repository coordinate or PR number; no mapper fills
+  these from a boundary, current checkout, or current PR. Such imported judgments retain their targetless binding and
+  remaining subject and ordinal reach, so replay needs no new decision. A ceiling override becomes a `ceiling` extra
+  pass unless it cites a conditional pass authorization (`conditionalPassAuthorizationId`), which maps to nothing,
+  since that authorization's `approved-fix` decision covers it, a frontline one decided on the head the token bound it to
   (`frontlineCeilingHeadSha`); and a terminus maps to nothing where the boundary carries a terminus, and otherwise
   becomes a terminus decision on the boundary's subject, as above, whose basis is the pass count the imported outcomes
   give its Candidate, passes carried across its supersession chain included, as the token's terminus counts them today
@@ -2415,6 +2462,17 @@ spec's review copy until the candidate tail deletes it (§ 12.5).
     without reading another owner or claiming empty history, and succeed from the owning checkout. Existing owner
     binding, project-identity recovery, and in-repo behavior remain intact.
 
+16. **Ordinary grant bindings survive storage and relay (A16).** Native full ceiling and additional grants retain
+    their repository spelling and PR binding; another PR or repository at the same head receives no authority, and
+    retry with matching coordinates succeeds. Ceiling repository comparison remains case-sensitive and additional
+    comparison case-insensitive. Original targetless judgments and imported resume judgments bind repository and PR
+    at the consuming call without fabricated coordinates. Candidate ceiling carry still reaches later heads of its
+    Candidate within its binding and excludes a successor Candidate; other head restrictions remain unchanged. Native
+    emitted relay forms retain `decisionKey`, and relaying a matching stored decision under another active identity
+    writes nothing. Wrong-kind, mismatching, withdrawn, superseded, or missing keys refuse without creating a grant
+    and recover through a matching live reference or repaired facts. Ordinary keys distinguish their target bindings;
+    approved-fix keys remain unchanged. The in-repo arm retains its emissions and refuses native decision references.
+
 ## Open Questions
 
 None blocks starting. The rest are expected contracts with stated availability, and none leaves design open: the ref
@@ -2475,5 +2533,7 @@ rewrite, and deletion pass (§ 11.2, § 12.6, § 14.3).
   _Trigger:_ 4.R2.d must-stop. _Work:_ 4.R3. _Revalidated:_ 4.11.
 - **A15** — 2026-10-20 — spec-depth: preserve fact-free policy resolution. _Supersedes:_ none.
   _Trigger:_ 4.4.R must-stop. _Work:_ 4.R4. _Revalidated:_ 4.11.
+- **A16** — 2026-10-20 — design: preserve grant bindings. _Supersedes:_ § 5.1–5.2, § 5.6, Goal 8, Criterion 2.
+  _Trigger:_ 6.2.a must-stop. _Work:_ 6.2.R. _Revalidated:_ pending → 6.6.
 
 ---

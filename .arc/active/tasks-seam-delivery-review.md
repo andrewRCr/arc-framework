@@ -76,6 +76,8 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
   digest of its content so the same decision recorded twice names one record, and its parser and write check refuse an
   envelope incomplete for its choice and a withdrawal that cites nothing it may withdraw.
 
+    - _Amended in:_ 6.2.R (A16)
+
     - `[x]` **1.3.a The envelope, its parser, and its key**
 
         - Added strict decision envelopes, an issue-bearing JSON codec, and time-independent content keys. Termini
@@ -432,6 +434,8 @@ alone.
 - _Goal:_ Every decision today's records hold becomes a `review/decision` record carrying a decider, time, head, and
   subject digest only where its source recorded them, so no one is asked to decide again after the import.
 
+    - _Amended in:_ 6.2.R (A16)
+
 - _Outcome:_ Native authorization histories retain original keys, logical pass ordinals, capture metadata, and
   withdrawals; consumed admissions and their retries cite the grant, including hosted acknowledgment identity changes.
   Skip markers and boundary/member termini preserve recorded subjects without inferred authority. The shared legacy
@@ -480,6 +484,8 @@ alone.
 ### `[x]` **3.8 The import's mapping** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds over this repository's review records on a freshly merged base.
+
+    - _Amended in:_ 6.2.R (A16)
 
 - _Outcome:_ The uncommitted port harness ran at `02d50eef5`, merging base `e6856533f`, over 2,206 gate files,
   272 work units, one actual Errand, and 324 archived Candidate versions. Actual live ownership left every gate file
@@ -630,6 +636,8 @@ through rename and slug reuse; mismatched references refuse and succeed after co
           envelope keeps variant-typed policy, while strict V1 boundaries retain their original action rules.
           Published actions accept `merge` and projection-free continuations; record versions stay opaque, and
           terminus and delivery results admit stored authority without tracked artifacts.
+
+        - _Amended in:_ 6.2.R (A16)
 
     - `[x]` **4.5.b The projections**
 
@@ -1078,6 +1086,50 @@ this phase puts publication's claim and reopen's boundary write in their transit
   boundary names the terminus it carries by key, carrying or dropping it where today's writers carry or drop the
   terminus.
 
+    - `[ ]` **6.2.R Retain ordinary grant policy bindings and relay keys**
+
+        - _Goal:_ Ordinary extra-pass decisions retain whether their original grant bound repository and PR or binds
+          them at use, the import preserves targetless authority without inventing coordinates, and native relays name
+          the stored decision without changing its author or writing a second grant (A16).
+
+            - `[ ]` **6.2.R.a Envelope, identity, published schemas, and import**
+
+                - Add required `targetBinding` to ceiling and additional preconditions, with `call-target` and
+                  `policy-target` arms; the latter retains `ReviewPolicyTargetSchema`'s repository and nullable PR,
+                  with the head kept only in the envelope. Update decision fixtures and the mapper's ordinary replay
+                  choices; approved-fix envelopes and authorization identities stay unchanged.
+                - Widen full and targetless ceiling/additional schemas with optional `decisionKey`, refusing its
+                  coexistence with `conditionalPassAuthorizationId`. Keep legacy replay decoding targetless; its
+                  `ReviewTarget` cannot supply host repository or PR coordinates. Schema-pin assertions follow the
+                  widening while in-repo emission assertions remain intact.
+                - Build `test-first` (one behavior at a time): binding arms parse, malformed bindings refuse, ordinary
+                  content keys differ by binding and PR but not time, approved-fix keys stay identical, and imported
+                  ordinary judgments retain `call-target` without fabricated policy coordinates.
+
+            - `[ ]` **6.2.R.b Native resolution and exact decision references**
+
+                - Resolve original full grants with their recorded policy coordinates and targetless judgments with
+                  `call-target`, validating full input before writing. Ceiling repository comparison stays
+                  case-sensitive, additional comparison case-insensitive; neither binds diff-base or tree movement.
+                - Resolve `decisionKey` on the bound owner before creating a grant, compare the live decision's
+                  projected values and reach with the call, and retain its recorded author. Emit its key with the
+                  resolved judgment. Keep Candidate-wide ceiling head carry within its binding, logical ordinals,
+                  withdrawal, supersession, pending retries, and approved-fix references unchanged.
+                - Build `test-first` (one behavior at a time): same-head PR/repository mismatch supplies no bound
+                  authority; matching retry succeeds; targetless and imported grants bind the call's coordinates;
+                  exact replay under another identity writes nothing; missing, wrong-kind, stale, superseded,
+                  withdrawn, or mismatching references refuse without a new grant and recover after repair.
+
+            - `[ ]` **6.2.R.c Relay projections and bounded regression proof**
+
+                - Preserve `decisionKey` in full and targetless policy projections, including
+                  `projectSingletonLocalPrepareAction`, `policyEnvelope`, `bindJudgment`, and delivery local
+                  admission; compare conflicting full/targetless keys before admission. In-repo invocation binders
+                  refuse native decision references actionably and retain their existing emitted values.
+                - Prove native pre-publication composition emits a matching key and its relay reads the same stored
+                  decision without another write. Run schema, mapping, policy, and in-repo relay regressions; 6.2.a
+                  retains the remaining writer/caller integration and 6.6 closes the segment's full scenario.
+
     - `[ ]` **6.2.a Ceiling and additional extra passes**
 
         - The calls that write the decision, recording the active identity unchecked (§ 5.7): `arc review
@@ -1090,7 +1142,8 @@ this phase puts publication's claim and reopen's boundary write in their transit
           (`rg/hosted/request.ts`), and delivery's local review admission's `ceilingOverride`
           (`rg/policy/delivery-local-review-admission.ts`); a call relaying a judgment already recorded names that
           record (§ 5.2).
-        - Each decision's basis is `null` (§ 5.1).
+        - Each decision's basis is `null` (§ 5.1). Its original full or targetless binding and native `decisionKey`
+          follow § 5.1–5.2 and 6.2.R; every writer and automatic resolution uses that binding before pure policy.
         - `passCount`, `exhaustedPassCount`, and `nextPass` keep completed-logical-pass units; only a standard ceiling
           override's eligibility reads the complete-coverage count. An incremental attempt cites no grant and does
           not consume one; its completed logical pass still participates in later ordinal-applicability checks.
@@ -1111,7 +1164,8 @@ this phase puts publication's claim and reopen's boundary write in their transit
             - with completed logical count 2, complete-coverage count 1, and ceiling 1, an override binds 2 and admits
               logical pass 3; a grant using 1 refuses, and a failed attempt retries at 3 without spending another grant
             - an incremental pass cites no extra-pass decision and never treats complete count 1 as logical count 2
-            - a call relaying a judgment already recorded names that decision and writes nothing
+            - a call relaying a judgment already recorded carries its `decisionKey` and writes nothing, including
+              through full-to-targetless projections, while a full grant on another PR at the same head refuses
 
     - `[ ]` **6.2.b Termini**
 
