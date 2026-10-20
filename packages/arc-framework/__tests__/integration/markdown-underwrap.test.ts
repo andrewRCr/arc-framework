@@ -68,6 +68,38 @@ describe("changed indexed Markdown under-wrap check", () => {
     expect(messages.join("").includes("guide.md:1 ARC001")).toBe(!badIndex);
   });
 
+  it.each(["attributes", "autocrlf"])("accepts a clean CRLF checkout and refuses real edits (%s)", async mode => {
+    await git("git", ["config", "core.autocrlf", mode === "autocrlf" ? "true" : "false"], { cwd: root });
+    if (mode === "attributes") {
+      await write(".gitattributes", "guide.md text eol=crlf\n");
+      await git("git", ["add", ".gitattributes"], { cwd: root });
+      await git("git", ["-c", "user.name=Test", "-c", "user.email=t@example.com", "commit", "-qm", "CRLF checkout"], { cwd: root });
+    }
+    await rm(join(root, "guide.md"));
+    await git("git", ["checkout-index", "--index", "--", "guide.md"], { cwd: root });
+    const cleanWorktree = good.replaceAll("\n", "\r\n");
+    expect(await readFile(join(root, "guide.md"), "utf8")).toBe(cleanWorktree);
+    expect((await git("git", ["show", ":guide.md"], { cwd: root })).stdout).toBe(good);
+    expect((await git("git", ["status", "--porcelain"], { cwd: root })).stdout).toBe("");
+    const before = (await git("git", ["write-tree"], { cwd: root })).stdout;
+
+    expect(await main(root, ["guide.md"])).toBe(0);
+    expect(messages).toEqual([]);
+    expect(await readFile(join(root, "guide.md"), "utf8")).toBe(cleanWorktree);
+    expect((await git("git", ["write-tree"], { cwd: root })).stdout).toBe(before);
+
+    await write("guide.md", bad.replaceAll("\n", "\r\n"));
+    expect(await main(root, ["guide.md"])).toBe(1);
+    expect(messages.join("")).toContain("Markdown worktree/index drift: guide.md");
+    expect((await git("git", ["write-tree"], { cwd: root })).stdout).toBe(before);
+
+    await git("git", ["add", "guide.md"], { cwd: root });
+    messages = [];
+    expect(await main(root, ["guide.md"])).toBe(1);
+    expect(messages.join("")).toContain("guide.md:1 ARC001");
+    expect(messages.join("")).not.toContain("worktree/index drift");
+  });
+
   it.each([true, false])("checks an untracked planning artifact from disk (underwrapped=%s)", async underwrapped => {
     const path = ".arc/active/tasks-example.md";
     await write(path, underwrapped ? bad : good);

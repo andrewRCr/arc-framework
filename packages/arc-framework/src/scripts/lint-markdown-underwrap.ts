@@ -18,6 +18,7 @@ import type { ReadIndexedBlob } from "../lib/markdown/indexed-snapshot.js";
 import { resolveMarkdownRepositoryRoot, validateExplicitMarkdownPaths } from "../lib/markdown/selection.js";
 import { enumerateStagedMarkdownGatePaths } from "../lib/markdown/staged-gate.js";
 import { underwrapRule } from "../lib/markdown/underwrap.js";
+import { enumerateWorktreeIndexDriftPaths } from "../lib/markdown/worktree-index-drift.js";
 import { markdownRuntimeVersions } from "./verify-markdown-dependencies.js";
 
 const entryPaths = ["packages/arc-framework/src/scripts/lint-markdown-underwrap.ts"];
@@ -57,13 +58,6 @@ async function readUnderwrapBytes(options: UnderwrapInputs, path: string, automa
     if (automatic) return null;
     throw new ArcError(`Indexed Markdown blob is missing: ${path}`, "markdown.index-blob-missing");
   }
-  if (!automatic && !options.worktree) {
-    const worktreeBytes = await readFile(worktreePath);
-    if (!worktreeBytes.equals(bytes)) {
-      throw new ArcError(`Markdown worktree/index drift: ${path}. Re-stage the file to check its indexed bytes, ` +
-        "or use --worktree to check the edited file without certifying the Git index.", "markdown.worktree-index-drift");
-    }
-  }
   return bytes;
 }
 
@@ -74,6 +68,14 @@ async function readUnderwrapStrings(options: UnderwrapInputs): Promise<Record<st
     : [...new Set(options.paths.map(validateMarkdownPath))];
   for (const path of paths) {
     if (isMarkdownPathExcluded(path)) throw new ArcError(`Markdown path is excluded: ${path}`, "markdown.excluded-path");
+  }
+  if (!automatic && !options.worktree) {
+    const drifted = new Set(await enumerateWorktreeIndexDriftPaths(options.root, options.exec));
+    const path = paths.find(path => drifted.has(path));
+    if (path !== undefined) {
+      throw new ArcError(`Markdown worktree/index drift: ${path}. Re-stage the file to check its indexed bytes, ` +
+        "or use --worktree to check the edited file without certifying the Git index.", "markdown.worktree-index-drift");
+    }
   }
   if (options.worktree) {
     await validateExplicitMarkdownPaths({ root: options.root, paths, operation: "lint-read", exec: options.exec, lstat, realpath,
