@@ -3,14 +3,20 @@
   "slug": "session-output-rehome",
   "claimId": "db3aa275e670daaf1eab02e7c262e8bf",
   "createdAt": "2026-10-20T16:57:10.756Z",
-  "updatedAt": "2026-10-20T16:57:10.756Z",
+  "updatedAt": "2026-10-20T17:03:55.717Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Re-home the session-output discipline entry from documentation-surface-routing into cli-output-contract's inbound buffer",
   "branch": "chore/session-output-rehome",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/session-output-rehome",
+    "headSha": "ae55f8ed4c6a5e66b3d5c42c01f102fb8bf1a3ca"
+  }
 }
