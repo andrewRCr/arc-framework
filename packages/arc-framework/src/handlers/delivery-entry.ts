@@ -22,6 +22,9 @@ import {
 import { inspectRepositoryDeliveryEntry as inspectRepositoryDeliveryEntryAt } from
   "../lib/delivery/repository-entry.js";
 import { resolveReviewInvocation, type ReviewInvocationOptions } from "../scripts/review-gate/runtime/invocation.js";
+import type { GitExec } from "../lib/git/exec.js";
+import { readStoredDeliveryEntryInput } from "../lib/store/delivery-entry-input.js";
+import { unwrapReviewRecordResult } from "../lib/store/kinds/review/access-shared.js";
 import { createGitExec } from "../lib/io-context.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { requireArcProjectRoot } from "./shared.js";
@@ -36,6 +39,9 @@ const InputSchema = z.union([
 const OptionsSchema = z.strictObject({ input: z.string().min(1) });
 
 export interface DeliveryEntryInspectOptions { readonly input?: string }
+
+/** Operational authority and optional external execution boundaries for repository inspection. */
+export interface DeliveryEntryInvocationOptions extends ReviewInvocationOptions { cwd?: string; exec?: GitExec }
 
 export const deliveryEntryCommandInputRegistration = {
   commandPath: "delivery entry inspect",
@@ -154,20 +160,26 @@ function resolveTaskListPath(cwd: string, activePath: string, taskList: string):
 export async function inspectActiveRepositoryDeliveryEntry(
   input: z.infer<typeof InputSchema>,
   interaction?: InteractionContext,
-  invocation: ReviewInvocationOptions = {},
+  invocation: DeliveryEntryInvocationOptions = {},
 ): Promise<DeliveryEntryInspectionResult> {
-  const cwd = requireArcProjectRoot();
+  const cwd = invocation.cwd ?? requireArcProjectRoot();
   if (cwd === null) throw new Error("ARC project root unavailable");
-  const exec = createGitExec(interaction?.subprocess);
+  const exec = invocation.exec ?? createGitExec(interaction?.subprocess);
   const bound = resolveReviewInvocation({ ...invocation, cwd, exec });
   const active = await resolveActiveWu({ cwd, store: bound.store, projectId: bound.projectId });
   if (active.status !== "resolved" || active.name === "") throw new Error("Active work unit unavailable");
-  const parsedMeta = parseMetaFile(await readFile(resolve(cwd, active.path), "utf8"));
-  if (parsedMeta.taskList === null || parsedMeta.taskList === "[none]") {
-    throw new Error("Task list unavailable");
+  let taskListPath: string;
+  if (bound.store.capabilities.stateOffBranch) {
+    const stored = unwrapReviewRecordResult(await readStoredDeliveryEntryInput(bound.store, active.name, bound.workItem));
+    bound.workItem = stored.primary.reference.owner;
+    taskListPath = stored.taskListPath;
+  } else {
+    const parsedMeta = parseMetaFile(await readFile(resolve(cwd, active.path), "utf8"));
+    if (parsedMeta.taskList === null || parsedMeta.taskList === "[none]") throw new Error("Task list unavailable");
+    const resolved = resolveTaskListPath(cwd, active.path, parsedMeta.taskList);
+    if (resolved === null) throw new Error("Task list path invalid");
+    taskListPath = resolved;
   }
-  const taskListPath = resolveTaskListPath(cwd, active.path, parsedMeta.taskList);
-  if (taskListPath === null) throw new Error("Task list path invalid");
   const { settings } = await readConfigSettings(cwd);
 
   return inspectRepositoryDeliveryEntryAt({
