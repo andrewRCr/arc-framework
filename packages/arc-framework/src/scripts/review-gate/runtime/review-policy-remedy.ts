@@ -17,6 +17,7 @@ import { ReviewDriverAdmissionError } from "../policy/review-execution-admission
 import { LocalReviewResultReaderError } from "../hosts/local/review-result-reader.js";
 import { ReviewPolicyCommandRequestSchema, ReviewResolveEnvelopeSchema, type ReviewPolicyCommandRequest } from "../policy/review-policy-driver.js";
 
+import { ReviewPolicyContextError } from "./review-policy-context.js";
 import { ReviewTerminalAttemptInputError } from "../policy/review-policy-evidence.js";
 
 const RESOLVE_ARGV = ["arc", "review", "resolve", "-"] as const;
@@ -170,6 +171,7 @@ export function staleLaneAttemptsRemedy(error: unknown, request: unknown): Spine
 
 /** Return a corrected terminal input replay, or the existing stale-attempt recovery route. */
 export function reviewResolveRemedy(error: unknown, request: unknown): SpineRemedy | undefined {
+  if (error instanceof ReviewPolicyContextError) return spineRemedy(error.message, error.correction, RESOLVE_ARGV, request);
   if (error instanceof ReviewDriverAdmissionError && incrementalOverride(error)) return incrementalOverrideRemedy(request, RESOLVE_ARGV);
   if (error instanceof ReviewDriverAdmissionError && localSourceCorrection(error, false) !== null) {
     return spineRemedy(ADMISSION_INVARIANT, admissionCorrection(error, RESOLVE_ROUTE), RESOLVE_ARGV, request);

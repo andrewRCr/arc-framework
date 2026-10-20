@@ -8,6 +8,7 @@ import { resolveHostedAwaitInvocation, resolveHostedRequestInvocation, retainHos
   hostedRequestIndexWorkItem } from "../scripts/review-gate/runtime/hosted-invocation.js";
 import { resolveReviewSourceInvocation } from "../scripts/review-gate/runtime/source-invocation.js";
 import { retainReviewOperationReference, reviewContinuationRequestError, resolveReviewOperationInvocation } from "../scripts/review-gate/runtime/continuation-invocation.js";
+import { resolveNativeOwnerlessReviewPolicy } from "../scripts/review-gate/runtime/review-policy-context.js";
 import { resolveLocalReviewInvocation, resolveLocalReviewResumeInvocation, resolveLocalReviewAttestInvocation, resolveReviewPolicyInvocation } from "../scripts/review-gate/runtime/local-review-invocation.js";
 import { resolveReduceInvocation } from "../scripts/review-gate/runtime/reduce-invocation.js";
 import { resolveFrontlineRunInvocation } from "../scripts/review-gate/runtime/frontline-invocation.js";
@@ -1722,6 +1723,9 @@ async function resolveConfiguredReviewPolicy(
     }),
   });
   const bound = await resolveReviewPolicyInvocation({ ...invocation, cwd: root, exec });
+  if (bound.store.capabilities.stateOffBranch && bound.workItem === undefined) {
+    return resolveNativeOwnerlessReviewPolicy(request, { sources, maxPasses });
+  }
   const { publisher, family } = createReviewCompositionContext({ ...bound, cwd: root, exec });
   const operationStore = family.ports.inFlight;
   const dispositionStore = family.ports.dispositions;

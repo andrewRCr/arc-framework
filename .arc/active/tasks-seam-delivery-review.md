@@ -854,28 +854,18 @@ through rename and slug reuse; mismatched references refuse and succeed after co
     - Check `LocalAttestEnvelopeSchema`, `LocalResumeEnvelopeSchema`, and their command producers against the existing
       envelope and command tests. Verify the completed native replay through 4.R2.d and the 4.11 scenario.
 
-### `[ ]` **4.R4 Preserve fact-free generic policy resolution — § 2.3**
+### `[x]` **4.R4 Preserve fact-free generic policy resolution — § 2.3**
 
 - _Goal:_ Native generic policy resolution binds family ports only for required record evidence, preserving fact-free
   resolution without a vehicle and refusing missing evidence context actionably without another owner or invented
   history (A15).
 
-- **Additional Context:** `notes-seam-delivery-review.md` § A15. This closes the ownerless generic root in 4.4.R;
-  local, frontline, and hosted admission retain their established vehicle checks.
+    - `[x]` **4.R4.a Defer generic family binding until a record read is needed**
 
-    - `[ ]` **4.R4.a Defer generic family binding until a record read is needed**
-
-        - Keep the invocation's Store, project-ID reader, and established owner. Resolve fact-free requests without
-          opening native family ports. Terminal `clean` or `findings` producers and runnable standard review require
-          native record context; refuse its absence through the existing error envelope with a remedy to use the
-          owning checkout. Do not create an empty lane, select another owner, or fall back to repository records.
-        - Build `test-first` (one behavior at a time):
-            - default ownerless native frontline resolution with no terminal producer returns its configured result
-            - default ownerless exempt and source-free standard requests with no terminal producer still resolve
-            - a terminal producer request and runnable standard request refuse actionably without an owner, and
-              resolve after the checkout's actual branch link or Errand claim establishes the owning work item
-            - an already bound generation is retained; project-identity refusal and recovery remain intact
-            - the corresponding in-repo requests retain their current results
+        - The default native handler resolves fact-free requests through the configured reducer after project and
+          vehicle resolution. Producer and runnable-standard requests without an owner return the existing error
+          envelope with an owning-checkout remedy; branch repair resumes them without writes. Explicit generations
+          survive slug reuse, project-identity repair stays intact, and fact-free results match the repository arm.
 
 ### `[ ]` **4.11 The review gate's store** — validate exit criterion at segment scope
 
