@@ -4,6 +4,7 @@ import { projectIdentitySpineRemedy, reviewProjectIdentityRequestRemedy } from "
 import { decodePrePublicationReplay, replayTokenFromAction, type PrePublicationReplayInput } from "../scripts/review-gate/policy/pre-publication-replay.js";
 import { ReviewLaneReadRequestSchema, ReviewLaneReadEnvelopeSchema, type ReviewLaneReadRequest } from "../scripts/review-gate/lane-read-schema.js";
 import { createReviewInvocationResolver, resolveReviewInvocation, type ReviewInvocationOptions, type ReviewInvocationContext } from "../scripts/review-gate/runtime/invocation.js";
+import { resolveLocalReviewInvocation } from "../scripts/review-gate/runtime/local-review-invocation.js";
 import { createReviewCompositionContext } from "../scripts/review-gate/runtime/composition-context.js";
 import { readReviewLane } from "../scripts/review-gate/runtime/lane-read-composition.js";
 import { reviewDiscoverableCommandInputSchema } from "./review-request-schema.js";
@@ -3022,6 +3023,9 @@ export async function handleReviewFrontlineRun(
 
 export { handleReviewRequestSchema, type ReviewPublicRequestSchemaId } from "./review-request-schema.js";
 
+/** Operational authority and optional external Git boundary for local review handlers. */
+export interface ReviewLocalInvocationOptions extends ReviewInvocationOptions { exec?: GitExec }
+
 export interface ReviewLocalPrepareHandlerDependencies {
   resolveRoot(cwd: string): string | null;
   readText(source: string): Promise<string>;
@@ -3030,14 +3034,14 @@ export interface ReviewLocalPrepareHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultLocalPrepareDependencies(context: InteractionContext, invocation: ReviewInvocationOptions = {}): ReviewLocalPrepareHandlerDependencies {
-  const exec = createGitExec(context.subprocess);
+function defaultLocalPrepareDependencies(context: InteractionContext, invocation: ReviewLocalInvocationOptions = {}): ReviewLocalPrepareHandlerDependencies {
+  const exec = invocation.exec ?? createGitExec(context.subprocess);
   const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
     ...defaultReviewHandlerBoundary(),
-    prepare: (request, root) => prepareLocalReview(
+    prepare: async (request, root) => prepareLocalReview(
       request,
-      createLocalPrepareDependencies({ ...invocationFor(root), exec, cwd: root }),
+      createLocalPrepareDependencies(await resolveLocalReviewInvocation({ ...invocationFor(root), exec, cwd: root })),
     ),
   };
 }
@@ -3120,7 +3124,7 @@ export async function handleReviewLocalPrepare(
   source: string,
   overrides: Partial<ReviewLocalPrepareHandlerDependencies> = {},
   suppliedContext?: InteractionContext,
-  invocation: ReviewInvocationOptions = {},
+  invocation: ReviewLocalInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false,

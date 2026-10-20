@@ -1,4 +1,5 @@
 /** Production adapters for the local review prepare command. */
+import type { LocalReviewInvocationInput } from "./local-review-invocation.js";
 import { resolveLocalPolicyTarget, createLocalContributionConfirmation } from "./local-correction-context.js";
 import type { ApprovedDispositionRecordReader, ReviewOperationStateStore } from "../core/ports.js";
 import { readReviewLaneHistory } from "./lane-history.js";
@@ -257,12 +258,12 @@ function localHistoryDependencies(context: Parameters<typeof validateLocalPolicy
 }
 
 /** Bind local prepare to the current repository, managed methods, and Git-common stores. */
-export function createLocalPrepareDependencies(input: ReviewInvocationInput): LocalPrepareDependencies {
+export function createLocalPrepareDependencies(input: LocalReviewInvocationInput): LocalPrepareDependencies {
   return createBoundLocalPrepareDependencies({ ...input, ...createReviewCompositionContext(input) });
 }
 
 /** Retain one operational store throughout local admission and its nested Candidate reads. */
-function createBoundLocalPrepareDependencies(input: ReviewInvocationInput & ReturnType<typeof createReviewCompositionContext>): LocalPrepareDependencies {
+function createBoundLocalPrepareDependencies(input: LocalReviewInvocationInput & ReturnType<typeof createReviewCompositionContext>): LocalPrepareDependencies {
   const { publisher, family } = input;
   const operationStore = family.ports.inFlight;
   const sourceStore = new RepositoryLocalReviewSourceStore(publisher);
@@ -275,7 +276,7 @@ function createBoundLocalPrepareDependencies(input: ReviewInvocationInput & Retu
       .then((repositoryId) => new LocalForwardReviewReceiptStore(publisher, repositoryId));
     return receiptStore;
   };
-  let liveContext: Promise<ResolvedLocalReviewLiveContext> | null = null;
+  let liveContext: Promise<ResolvedLocalReviewLiveContext> | null = input.localLiveContext ?? null;
   const readLive = () => {
     liveContext ??= readLocalReviewLiveContext(input);
     return liveContext;
