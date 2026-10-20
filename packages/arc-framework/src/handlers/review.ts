@@ -165,7 +165,6 @@ import {
   "../scripts/review-gate/policy/earlier-review-applicability.js";
 import {
   bindReviewSourceReference,
-  parseReviewSourceReference,
 } from "../scripts/review-gate/core/review-source-reference.js";
 import {
   LocalTargetDerivationError,
@@ -4189,10 +4188,10 @@ async function readHostedSettlementAttempt(
   return { state, attempt };
 }
 
-function defaultHostedSettleDependencies(context: InteractionContext, invocation: ReviewInvocationOptions = {}): ReviewHostedSettleHandlerDependencies {
-  const { port } = createHostedAdapters();
-  const root = resolveArcRoot(process.cwd());
-  const exec = createGitExec(context.subprocess);
+function defaultHostedSettleDependencies(context: InteractionContext, invocation: HostedReviewHandlerInvocationOptions = {}): ReviewHostedSettleHandlerDependencies {
+  const { port } = createHostedAdapters(invocation.hostedRunner);
+  const root = resolveArcRoot(invocation.cwd ?? process.cwd());
+  const exec = invocation.exec ?? createGitExec(context.subprocess);
   const bound = root === null ? invocation : resolveReviewInvocation({ ...invocation, cwd: root, exec });
   const publisher = root === null ? null : new RepositoryGitCommonStatePublisher(exec, root);
   return {
@@ -4200,8 +4199,9 @@ function defaultHostedSettleDependencies(context: InteractionContext, invocation
     settle: async (input) => {
       if (root === null || publisher === null) throw new Error("Hosted settlement requires an ARC project.");
       const request = HostedSettleEnvelopeSchema.parse(input);
-      const reference = parseReviewSourceReference(request.response.attemptRef, "hosted");
-      const { family } = createReviewCompositionContext({ ...bound, cwd: root, exec });
+      const { invocation: selected, reference } = await resolveReviewSourceInvocation(
+        { ...bound, cwd: root, exec }, request.response.attemptRef, "hosted");
+      const { family } = createReviewCompositionContext(selected);
       const operationStore = family.ports.inFlight;
       const { state: initial, attempt: initialAttempt } = await readHostedSettlementAttempt(operationStore, reference);
       return withRepositoryReviewOperationLock(
@@ -4227,7 +4227,7 @@ function defaultHostedSettleDependencies(context: InteractionContext, invocation
           const dispositionStore = family.ports.dispositions;
           const dispositionRecord = await dispositionStore.readDispositionRecord(attempt.attemptId);
           const confirmResponseHeadContinuation = createCandidateResponseHeadContinuationReader({
-            cwd: root, exec, dispositionStore, operationStore,
+            ...selected, dispositionStore, operationStore,
           });
           const currentDisposition = dispositionRecord === null
             ? null
@@ -4287,7 +4287,7 @@ export async function handleReviewHostedSettle(
   source: string,
   overrides: Partial<ReviewHostedSettleHandlerDependencies> = {},
   suppliedContext?: InteractionContext,
-  invocation: ReviewInvocationOptions = {},
+  invocation: HostedReviewHandlerInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false,

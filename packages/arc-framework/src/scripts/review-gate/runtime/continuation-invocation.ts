@@ -22,6 +22,7 @@ function referenceIssue(issue: ZodError["issues"][number], fields: readonly stri
 export function reviewContinuationRequestError(mode: string, error: unknown, requestPhase: boolean): unknown {
   if (!requestPhase) return error;
   const producers: Partial<Record<string, string>> = {
+    "review-hosted-settle": "arc review hosted await",
     "review-respond": "the matching local attest/resume, frontline run, hosted await, or reduce command",
     "review-hosted-await": "arc review hosted request",
     "review-frontline-run": "arc review frontline resolve",
@@ -30,7 +31,8 @@ export function reviewContinuationRequestError(mode: string, error: unknown, req
     "review-reduce": "arc review local prepare or arc review frontline resolve",
   };
   const producer = producers[mode];
-  const fields = mode === "review-respond" ? ["source", "receiptRef", "outcomeRef", "attemptRef"] : ["operationRef"];
+  const fields = mode === "review-respond" || mode === "review-hosted-settle"
+    ? ["source", "response", "receiptRef", "outcomeRef", "attemptRef"] : ["operationRef"];
   return producer !== undefined && error instanceof ZodError && error.issues.some(issue => referenceIssue(issue, fields))
     ? new ReviewContinuationReferenceError(error.message, producer) : error;
 }

@@ -1,11 +1,18 @@
 /** Native hosted defaults retain their selected owner through the produced await action. */
+import { RespondEnvelopeSchema } from "../../../src/scripts/review-gate/core/review-command-envelope.js";
+import { approveDispositionState } from "../../../src/scripts/review-gate/core/dispositions.js";
+import { bindHostedAttemptDisposition } from "../../../src/scripts/review-gate/lane-progress-hosted-settlement.js";
+import { mapHostedAttempt } from "../../../src/lib/store/kinds/review/mapping-hosted.js";
+import { createReviewOutcomePort } from "../../../src/lib/store/kinds/review/outcome/access.js";
+import { reviewOutcomeKey } from "../../../src/lib/store/kinds/review/outcome/key.js";
+import { createReviewEvidencePort } from "../../../src/lib/store/kinds/review/evidence/access.js";
 import { scriptRawGitExec } from "../../helpers/git-exec-fake.js";
 import { withReviewReport } from "../../fixtures/review-report-input.js";
 import { HostedAwaitCommandResultSchema } from "../../../src/scripts/review-gate/hosted/await.js";
 import { appendFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
-import { handleReviewHostedRequest, handleReviewHostedAwait, handleReviewRespond } from "../../../src/handlers/review.js";
+import { handleReviewHostedRequest, handleReviewHostedAwait, handleReviewRespond, handleReviewHostedSettle } from "../../../src/handlers/review.js";
 import { createCandidateAttestation, createCandidateSubjectSnapshot } from "../../../src/lib/work-unit/candidate-attestation.js";
 import { IntegrationBoundaryLocusV2Schema } from "../../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
 import { createStandardReviewReservation } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
@@ -20,7 +27,7 @@ import { createReviewHarness } from "../../helpers/store/review-harness.js";
 import { createReviewCheckout } from "../../helpers/store/review-checkout.js";
 import { resolveReviewRouting } from "../../../src/scripts/review-gate/policy/routing.js";
 import { projectStandardReviewObligation } from "../../../src/scripts/review-gate/policy/standard-review-projection.js";
-import { resolveReviewPolicy } from "../../../src/scripts/review-gate/policy/review-policy-driver.js";
+import { resolveReviewPolicy, ReviewPolicyCommandRequestSchema } from "../../../src/scripts/review-gate/policy/review-policy-driver.js";
 import { withReviewNextPassContext } from "../../fixtures/review-next-pass.js";
 import { HostedRequestEnvelopeSchema, HostedRequestResultSchema } from "../../../src/scripts/review-gate/hosted/request.js";
 import type { HostedProcessRunner } from "../../../src/scripts/review-gate/hosted/gh-process.js";
@@ -33,7 +40,7 @@ import { bindNativeReviewOperationReference, parseNativeReviewOperationReference
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 const head = "a".repeat(40), base = "b".repeat(40), branch = "chore/repair";
 
-async function fixture(workUnit = false, findings = false) {
+async function fixture(workUnit = false, findings = false, threaded = false) {
   const h = createReviewHarness();
   const projectRecord = await h.seedProject(projectId);
   const record = TransientIdentityRecordSchema.parse({ version: 3, kind: "errand", purpose: "errand", slug: "repair",
@@ -82,9 +89,10 @@ async function fixture(workUnit = false, findings = false) {
   const routing = resolveReviewRouting({ schemaVersion: 1, changeSetState: "known", contentKind: "code-bearing",
     reviewRisk: "sensitive", changeDeterminacy: "ordinary", ownership: "self", surfaceAuthority: "ordinary",
     assurance: { workContext: "errand", workClass: "none" }, activity: { selfReview: true, frontlineReview: false } });
-  const policy = resolveReviewPolicy(withReviewNextPassContext({ schemaVersion: 1, target, lane: "standard",
+  const policyRequest = withReviewNextPassContext({ schemaVersion: 1, target, lane: "standard",
     standardReview: projectStandardReviewObligation(routing.decision), sources: ["codex-pr"], completedPasses: 0,
-    maxPasses: 2, attempts: [], errandVehicle: true, invocation: { mode: "force", sourceId: "codex-pr" } }));
+    maxPasses: 2, attempts: [], errandVehicle: true, invocation: { mode: "force", sourceId: "codex-pr" } });
+  const policy = resolveReviewPolicy(policyRequest);
   if (policy.state !== "ready" || policy.nextAction !== "hosted-request") throw new Error(JSON.stringify(policy));
   if (workUnit) {
     const subject = createCandidateSubjectSnapshot([]);
@@ -103,7 +111,8 @@ async function fixture(workUnit = false, findings = false) {
   }
   const request = HostedRequestEnvelopeSchema.parse(workUnit
     ? { schemaVersion: 1, target, provider: "codex-pr", coverage: "complete" } : policy.action);
-  let complete = false;
+  let complete = false, resolved = false;
+  let reply: string | null = null;
   const hostedRunner: HostedProcessRunner = { run: async args => {
     const endpoint = args[1];
     let value: unknown;
@@ -122,19 +131,33 @@ async function fixture(workUnit = false, findings = false) {
     }] : []];
     else if (endpoint?.startsWith("repos/owner/repository/pulls/42/reviews?")) value = [complete && findings ? [{
       node_id: "finding-review", html_url: "https://example.test/review", user: { id: 199175422 }, state: "COMMENTED",
-      commit_id: head, submitted_at: "2026-10-19T12:01:00Z", body: `<!-- codex-code-review-finding:v1 -->
+      commit_id: head, submitted_at: "2026-10-19T12:01:00Z", body: threaded ? "" : `<!-- codex-code-review-finding:v1 -->
 ### 💡 Codex Review
 https://github.com/owner/repository/blob/${head}/src/example.ts#L7
 **<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-yellow?style=flat)</sub></sub> Preserve target facts**
 Reclassify the changed target before continuing.`,
     }] : []];
-    else if (endpoint === "graphql") value = { data: { repository: { pullRequest: {
-      reviewThreads: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } },
+    else if (endpoint === "repos/owner/repository/pulls/42/comments/123/replies") {
+      reply = args.find(arg => arg.startsWith("body="))?.slice(5) ?? null;
+      value = { id: 456 };
+    } else if (endpoint?.startsWith("repos/owner/repository/pulls/42/comments?")) value = [reply === null ? [] : [
+      { id: 456, in_reply_to_id: 123, user: { id: 123 }, body: reply },
+    ]];
+    else if (endpoint === "graphql" && args.some(arg => arg.includes("resolveReviewThread"))) {
+      resolved = true;
+      value = { data: { resolveReviewThread: { thread: { id: "finding-thread", isResolved: true } } } };
+    } else if (endpoint === "graphql") value = { data: { repository: { pullRequest: {
+      reviewThreads: { nodes: complete && findings && threaded ? [{ id: "finding-thread", isResolved: resolved,
+        comments: { nodes: [{ fullDatabaseId: 123, pullRequestReview: { id: "finding-review" }, replyTo: null,
+          author: { databaseId: 199175422 }, body: "[P1] Preserve target facts", path: "src/example.ts", line: 7,
+          url: "https://example.test/thread/123", commit: { oid: head } }],
+        pageInfo: { hasNextPage: false, endCursor: null } } }] : [],
+        pageInfo: { hasNextPage: false, endCursor: null } },
     } } } };
     else throw new Error(`Unexpected hosted command: ${args.join(" ")}`);
     return { stdout: JSON.stringify(value), stderr: "" };
   } };
-  const invoke = async (handler: typeof handleReviewHostedRequest | typeof handleReviewHostedAwait, input: unknown,
+  const invoke = async (handler: typeof handleReviewHostedRequest | typeof handleReviewHostedAwait | typeof handleReviewHostedSettle, input: unknown,
     bound: { workItem?: OwnerIdentity; store?: Store } = {}) => {
     let output = "";
     const invocation = { ...checkout, ...bound, cwd: checkout.cwd, hostedRunner,
@@ -145,7 +168,7 @@ Reclassify the changed target before continuing.`,
   };
   const publisher = new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd);
   const index = new HostedRequestOwnerIndex(publisher);
-  return { ...checkout, primary, request, publisher, index, complete: () => { complete = true; },
+  return { ...checkout, primary, request, policyRequest, record, publisher, index, complete: () => { complete = true; },
     removeProject: async () => { lifecycleSuccess(await h.store.write({ action: "remove", reference: projectRecord.reference,
       expected: projectRecord.version, provenance: { verb: "remove", lifecycleAction: "remove" } })); },
     respond: async (input: unknown, bound: { workItem?: OwnerIdentity; store?: Store } = {}) => {
@@ -157,6 +180,7 @@ Reclassify the changed target before continuing.`,
       return JSON.parse(output) as unknown;
     },
     run: (bound?: { workItem?: OwnerIdentity }) => invoke(handleReviewHostedRequest, request, bound),
+    settle: (input: unknown, bound?: { workItem?: OwnerIdentity; store?: Store }) => invoke(handleReviewHostedSettle, input, bound),
     awaitResult: (input: unknown, bound?: { workItem?: OwnerIdentity; store?: Store }) => invoke(handleReviewHostedAwait, input, bound) };
 }
 
@@ -303,8 +327,8 @@ it("publishes a native hosted source reference outside the sealed result identit
   expect(replay).toMatchObject({ responseSourceRef: result.responseSourceRef, hostedResultId: result.hostedResultId });
 });
 
-async function hostedProposalFixture() {
-  const h = await fixture(false, true);
+async function hostedProposalFixture(threaded = false) {
+  const h = await fixture(false, true, threaded);
   const requested = HostedRequestResultSchema.parse(await h.run());
   if (requested.state !== "requested") throw new Error(JSON.stringify(requested));
   h.complete();
@@ -386,4 +410,105 @@ it("requires the source working state's saved owner and resumes after its repair
   const corrupt = await operations.readOperation(reference.operationId);
   await operations.publishOperation(saved.state, corrupt.version);
   expect(await h.respond(h.request)).toMatchObject({ state: "awaiting-approval" });
+});
+
+async function hostedSettlementFixture() {
+  const h = await hostedProposalFixture(true);
+  const proposal = RespondEnvelopeSchema.parse(await h.respond(h.request));
+  if (proposal.state !== "awaiting-approval") throw new Error(JSON.stringify(proposal));
+  const approved = approveDispositionState({ proposed: proposal.payload.proposal, approvedBy: "test-user",
+    approvedAt: new Date().toISOString() });
+  const reference = parseReviewSourceReference(h.sourceReference, "hosted", true);
+  const operations = new LocalReviewOperationStateStore(h.publisher);
+  const findingActions = approved.dispositionSet.findings.map(finding => ({ findingId: finding.findingId,
+    disposition: finding.disposition, channelAction: "reply-and-resolve" as const }));
+  const lane = await bindHostedAttemptDisposition(operations, { operationId: reference.operationId,
+    attemptId: reference.durableRef, dispositionSetId: approved.dispositionSet.dispositionSetId,
+    findingDispositions: findingActions, now: new Date().toISOString() });
+  const attempt = lane.attempts.find(item => item.attemptId === reference.durableRef);
+  if (attempt?.hosted === undefined) throw new Error("Expected actual hosted attempt");
+  const finding = attempt.hosted.sealedResult?.findings[0];
+  if (finding?.origin !== "review-thread") throw new Error("Expected actual thread finding");
+  const outcome = mapHostedAttempt(attempt, lane, lane.updatedAt);
+  await createReviewOutcomePort(h.store, h.primary.reference.owner).create(outcome);
+  await createReviewEvidencePort(h.store, h.primary.reference.owner).create({ schemaVersion: 1,
+    result: { outcomeKey: reviewOutcomeKey(outcome), resultDigest: approved.dispositionSet.resultDigest },
+    binding: { kind: "errand", errand: { key: h.record.slug, claimId: h.record.claimId, branch: h.record.branch } },
+    dispositionSet: approved.dispositionSet, approval: approved.approval,
+    predecessorDispositionSetId: null, successorDispositionSetId: null,
+    responsePolicyRequest: ReviewPolicyCommandRequestSchema.parse({ schemaVersion: h.policyRequest.schemaVersion,
+      target: h.policyRequest.target, lane: h.policyRequest.lane, standardReview: h.policyRequest.standardReview,
+      completedPasses: h.policyRequest.completedPasses, attempts: h.policyRequest.attempts,
+      invocation: h.policyRequest.invocation }), settlement: { findingActions, evidence: [] } });
+  const request = { schemaVersion: 1, response: { attemptRef: h.sourceReference,
+    dispositionSetId: approved.dispositionSet.dispositionSetId, findingId: finding.findingId },
+    target: attempt.hosted.target, fixTarget: null, actorIdentity: attempt.hosted.actorIdentity,
+    finding: { commentId: finding.commentId, threadId: finding.threadId }, disposition: "defer",
+    reply: "The verified finding is deferred to a separate repair." };
+  return { ...h, settlementRequest: request };
+}
+
+it("settles a produced native hosted source through the default handler and replays it", async () => {
+  const h = await hostedSettlementFixture();
+  const settled = await h.settle(h.settlementRequest);
+  expect(settled, JSON.stringify(settled)).toMatchObject({ state: "settled", nextAction: "complete", replyId: "456" });
+  expect(await h.settle(h.settlementRequest)).toMatchObject({ state: "already-settled", replyId: "456" });
+});
+
+it.each(["missing", "malformed", "wrong-kind", "foreign-project", "bound-owner", "pending-owner", "legacy"] as const)(
+  "refuses a %s hosted settlement source and settles after correction", async invalid => {
+    const h = await hostedSettlementFixture();
+    const reference = parseReviewSourceReference(h.sourceReference, "hosted", true);
+    if (!("workItem" in reference)) throw new Error("Expected native source");
+    const other = await h.seedMeta("other");
+    const attemptRef = invalid === "missing" ? undefined : invalid === "malformed" ? "arc-review-source:v2:broken"
+      : invalid === "legacy" ? bindReviewSourceReference({ kind: "hosted", operationId: reference.operationId,
+        durableRef: reference.durableRef }) : bindReviewSourceReference({ ...reference,
+          kind: invalid === "wrong-kind" ? "frontline" : "hosted",
+          repositoryId: invalid === "foreign-project" ? "another-project" : reference.repositoryId,
+          workItem: invalid === "pending-owner" ? other.reference.owner : reference.workItem });
+    const request = { ...h.settlementRequest, response: { ...h.settlementRequest.response, attemptRef } };
+    const before = await h.publisher.snapshot({ root: "review-gate", namespace: "operations" });
+    expect(await h.settle(request, { workItem: invalid === "bound-owner" ? other.reference.owner : undefined }))
+      .toMatchObject({ error: { code: "invalid-input", message: expect.stringContaining("matching reference") } });
+    expect(await h.publisher.snapshot({ root: "review-gate", namespace: "operations" })).toEqual(before);
+    expect(await h.settle(h.settlementRequest)).toMatchObject({ state: "settled", replyId: "456" });
+  });
+
+it("preserves hosted settlement project recovery and retries the submitted request", async () => {
+  const h = await hostedSettlementFixture();
+  await h.removeProject();
+  expect(await h.settle(h.settlementRequest)).toMatchObject({ error: { code: "project-identity-unavailable" },
+    remedy: { argv: ["arc", "review", "hosted", "settle", "-"], stdin: h.settlementRequest } });
+  await h.seedProject(projectId);
+  expect(await h.settle(h.settlementRequest)).toMatchObject({ state: "settled" });
+});
+
+it("rejects native settlement sources at a repository root", async () => {
+  const h = await hostedSettlementFixture();
+  const store = createStore(createDefaultStorePorts({ checkoutRoot: h.cwd, exec: h.exec }));
+  expect(await h.settle(h.settlementRequest, { store })).toMatchObject({ error: {
+    code: "invalid-input", message: expect.stringContaining("matching reference"),
+  } });
+});
+
+it("settles internal calls that already hold their exact owner", async () => {
+  const h = await hostedSettlementFixture();
+  const reference = parseReviewSourceReference(h.sourceReference, "hosted", true);
+  const attemptRef = bindReviewSourceReference({ kind: "hosted", operationId: reference.operationId,
+    durableRef: reference.durableRef });
+  expect(await h.settle({ ...h.settlementRequest, response: { ...h.settlementRequest.response, attemptRef } },
+    { workItem: h.primary.reference.owner })).toMatchObject({ state: "settled" });
+});
+
+it.each(["actor", "disposition"] as const)("retains the existing settlement %s check after native binding", async field => {
+  const h = await hostedSettlementFixture();
+  const request = { ...h.settlementRequest, actorIdentity: field === "actor" ? "another-actor" : h.settlementRequest.actorIdentity,
+    disposition: field === "disposition" ? "reject" : h.settlementRequest.disposition };
+  const before = await h.publisher.snapshot({ root: "review-gate", namespace: "operations" });
+  expect(await h.settle(request)).toMatchObject({ error: {
+    message: expect.stringContaining(field === "actor" ? "actorIdentity differs" : "approved disposition"),
+  } });
+  expect(await h.publisher.snapshot({ root: "review-gate", namespace: "operations" })).toEqual(before);
+  expect(await h.settle(h.settlementRequest)).toMatchObject({ state: "settled" });
 });
