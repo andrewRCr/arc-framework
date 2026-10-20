@@ -937,53 +937,17 @@ this extension, following the 4.11 local proof.
           composition follows reciprocal edges; second successors and performed predecessors refuse with a replay
           route. Policy-projection completion preserves both lineage records and their captured advisory tags.
 
-### `[ ]` **5.4 Write, consume, and withdraw `approved-fix` extra passes — § 5.4, § 5.5, § 5.7**
+### `[x]` **5.4 Write, consume, and withdraw `approved-fix` extra passes — § 5.4, § 5.5, § 5.7**
 
 - _Goal:_ From the flip approving a fix with a conditional next pass writes an `approved-fix` extra-pass decision keyed
   by today's `authorizationId`, the admission citing it consumes it as today, a successor set's approval ends it, and
   its withdrawal is a withdrawal decision, refused once it is consumed or superseded or when the withdrawer is not its
   decider; a repeated capture or withdrawal reports the stored decision, as today.
 
-    - `captureConditionalNextPassAuthorization` (`rg/lane-progress-conditional.ts`), which
-      `rg/runtime/respond-command.ts` reaches, writes the decision, naming the set's approver as its decider, its
-      subject the lineage at the producer's reviewed head and its `passCount` the producer's
-      logical pass (1.3.a); `bindConditionalPendingAdmission`, `invalidateConditionalNextPassAuthorization`,
-      `inspectConditionalNextPassInvalidation`, and `withdrawConditionalNextPassAuthorization` read and write decisions,
-      and the admitted attempt's outcome cites it as `admittedBy`.
-    - A repeated call reads the stored decision and writes nothing (§ 5.2): a capture whose decision is stored compares
-      it with the request and returns it, as `assertCaptureReplay` does today, and a withdrawal whose withdrawal
-      decision is stored returns `already-withdrawn`, or refuses `foreign-authority` where another person withdrew it.
-    - The withdrawal's supersession refusal stays with this verb, beside its in-flight one:
-      `withdrawConditionalNextPassAuthorization` reads the stored evidence and refuses `superseded` once a successor
-      disposition set for the producer's result is approved, an order the write check cannot see (§ 5.10; 1.3.b). It
-      reads a stored withdrawal decision first: a stored withdrawal came before any successor, since one after it
-      refuses, so a repeated withdrawal replays as today however many successors followed.
-    - A consumption whose admission has not ended is read from the in-flight record's `admittedBy` (§ 4.7):
-      `withdrawConditionalNextPassAuthorization`, `withdrawLockedAdmission` (`rg/policy/frontline-pending-admission.ts`),
-      and `rg/core/frontline-retry-contract.ts` read it there. `withdrawLockedAdmission`, which writes lane progress
-      directly today, drops the withdrawn admission's attempt from the in-flight record from the flip.
-    - `assertConsumedRetry` (`rg/lane-progress-conditional.ts`) compares a retry under a consumed decision with the
-      attempts that decision admitted, read from their outcomes: source, scope, and coverage for every lane, and for a
-      local retry its author and evaluator identities, policy binding digest, request mechanism, and attestation
-      runtime kind and mechanism (`retryOperationContract`).
-    - Build `test-first` (one behavior at a time):
-        - an approved fix with a conditional next pass writes one decision, and binds once its evidence records the fix
-          performed at the head the fix produced
-        - the attempt citing it consumes it; an attempt that did not finish spends nothing, and its retry runs under the
-          same decision
-        - a retry whose source, scope, or coverage, or a local retry whose actors or policy binding, differ from the
-          ended attempt's outcome refuses, and a matching one admits one generation higher
-        - a frontline admission citing it that never ran refuses withdrawal with `conditional-authority-consumed`, and
-          the decision's own withdrawal refuses while that admission is in flight
-        - from the flip withdrawing a frontline admission that never ran drops its attempt from the in-flight record
-          and writes nothing under `operations/`
-        - a successor set's approval ends it, refusing once it is consumed
-        - its withdrawal writes a withdrawal decision, refused once consumed or superseded or when the withdrawer is not
-          its decider, and a successor set approved after the withdrawal leaves the withdrawal standing
-        - capturing the same decision again returns the stored one, and withdrawing it again returns
-          `already-withdrawn`, each writing nothing; a second withdrawal by another person refuses `foreign-authority`
-        - withdrawn, then superseded by a successor set's approval, then withdrawn again by the same person returns
-          `already-withdrawn`, as today
+- _Outcome:_ Existing lane transitions capture immutable approved-fix decisions, bind pending admissions and ended
+  outcomes through `admittedBy`, and recover exact retry contracts after pruning. Native withdrawal and succession
+  retain consumption, author, and current-set refusals with working repair routes; repeated capture or withdrawal
+  preserves the stored facts, including withdrawal replay after succession.
 
 ### `[ ]` **5.5 Move delivery's review fix onto evidence — § 6, § 9.3, § 14.2**
 
