@@ -1,4 +1,5 @@
 /** Conditional next-pass withdrawal is an immutable native decision rather than a status update. */
+import { nativeReviewDecisionWasConsumed } from "./native-decision-consumption.js";
 import type { NativeReviewFactPorts, ReviewOperationStateSnapshotIndex, StoredReviewFact } from "../core/ports.js";
 import { ReviewDecisionSchema, type ReviewDecision } from "../../../lib/store/kinds/review/decision/schema.js";
 import { canonicalize } from "../../../lib/kernel/index.js";
@@ -31,16 +32,6 @@ function withdrawalMatches(decision: ReviewDecision, request: WithdrawalRequest)
     && choice.precondition.dispositionSetId === request.dispositionSetId && choice.precondition.originatingHeadSha === request.headSha;
 }
 
-async function conditionalPassConsumed(input: NativeConditionalWithdrawalInput): Promise<boolean> {
-  const outcomes = await input.outcomes.list();
-  if (outcomes.status !== "complete") throw new Error(outcomes.reason);
-  if (outcomes.records.some(record => record.value.admittedBy === input.withdrawal.authorizationId)) return true;
-  const snapshot = await input.inFlight.readOperationSnapshot();
-  if (snapshot.status !== "complete") throw new Error(`Restore the native execution snapshot and retry withdrawal: ${snapshot.reason}`);
-  return snapshot.records.some(({ state }) => state.kind === "lane-progress"
-    && state.attempts.some(attempt => attempt.outcome === "pending" && attempt.admittedBy === input.withdrawal.authorizationId));
-}
-
 /** Withdraw one unconsumed approval-gated pass or replay the author's previously recorded withdrawal. */
 export async function publishNativeConditionalWithdrawal(input: NativeConditionalWithdrawalInput): Promise<NativeConditionalWithdrawalResult> {
   const request = input.withdrawal;
@@ -55,7 +46,7 @@ export async function publishNativeConditionalWithdrawal(input: NativeConditiona
   const prior = await input.decisions.read(reviewDecisionKey(value));
   if (prior !== null) return { state: "already-withdrawn", authorizationId: request.authorizationId,
     dispositionSetId: request.dispositionSetId, decision: prior };
-  if (await conditionalPassConsumed(input)) return { state: "refused", reason: "consumed",
+  if (await nativeReviewDecisionWasConsumed(input, input.inFlight, new Set([request.authorizationId]))) return { state: "refused", reason: "consumed",
     detail: "Conditional pass authority is consumed; continue the admitted pass or retry its original contract." };
   const approval = await input.evidence.readDispositionRecord(request.producerId);
   if (approval === null) throw new Error("Restore the producer's approved response before withdrawing its conditional pass.");
