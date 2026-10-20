@@ -60,6 +60,7 @@ describe("staged Markdown path detection", () => {
     expect(paths).toContain("packages/arc-framework/src/lib/kernel/index.ts");
     expect(paths).toContain("packages/arc-framework/src/lib/kernel/canonical/managed-path.ts");
     expect(paths).toContain("packages/arc-framework/src/lib/kernel/canonical/unicode.ts");
+    expect(paths.some(path => path.includes("/store/"))).toBe(false);
   });
 
   it("retains both sides of deletion and rename changes with unusual names", async () => {

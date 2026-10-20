@@ -78,6 +78,36 @@ describe("staged Markdown checker alignment", () => {
     await expect(resolveIndexedMarkdownCheckerPaths(options)).resolves.toEqual([entry, first, second, shared]);
   });
 
+  it.each([
+    'import type { Hidden } from "./erased.js";',
+    'import type Hidden from "./erased.js";',
+    'import type * as Hidden from "./erased.js";',
+    'export type { Hidden } from "./erased.js";',
+    'export type * from "./erased.js";',
+    'export type * as Hidden from "./erased.js";',
+  ].flatMap(erased => [
+    { erased, value: 'import type from "./runtime.js";\nconsole.log(type);' },
+    { erased, value: 'import type, { value } from "./runtime.js";\nconsole.log(type, value);' },
+  ]))("omits erased declarations while retaining runtime imports: $erased / $value", async ({ erased, value }) => {
+    const entry = "packages/arc-framework/src/checker.ts";
+    const runtime = "packages/arc-framework/src/runtime.ts";
+    const mixed = "packages/arc-framework/src/mixed.ts";
+    const sources = new Map([
+      [entry, `${erased}\n${value}\nimport { type Hidden, value as mixed } from "./mixed.js";\nconsole.log(mixed);\n`],
+      ["packages/arc-framework/src/erased.ts", "export interface Hidden {}\nexport type { Hidden as default };\n"],
+      [runtime, "export default 1;\nexport const value = 1;\n"],
+      [mixed, "export interface Hidden {}\nexport const value = 1;\n"],
+    ]);
+
+    await expect(resolveIndexedMarkdownCheckerPaths({
+      root: "/repo", entryPaths: [entry],
+      readBlob: async (_root, path) => {
+        const source = sources.get(path);
+        return source === undefined ? null : Buffer.from(source);
+      },
+    })).resolves.toEqual([entry, runtime, mixed]);
+  });
+
   it.each(["missing", "invalid-utf8", "unsupported-import", "read-failure"])("refuses invalid bulk checker inputs (%s)", async failure => {
     const entry = "packages/arc-framework/src/scripts/checker.ts";
     const readFailure = new Error("Bulk object read failed");

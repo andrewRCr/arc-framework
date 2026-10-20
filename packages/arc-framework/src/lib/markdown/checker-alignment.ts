@@ -8,8 +8,11 @@ import type { ReadIndexedBlob, ReadIndexedBlobs } from "./indexed-snapshot.js";
 import { MARKDOWN_RUNTIME_IMPLEMENTATION_PATHS } from "./staged-gate.js";
 
 const STATIC_MODULE_SPECIFIER_RE =
-  /^\s*(?:import|export)\s+(?:type\s+)?(?:[^;]*?\s+from\s+)?["'](?<specifier>[^"']+)["']/gmu;
+  /^\s*(?<declaration>(?:import|export)\s+(?:type\s+)?(?:[^;]*?\s+from\s+)?)["'](?<specifier>[^"']+)["']/gmu;
 const DYNAMIC_MODULE_SPECIFIER_RE = /\bimport\s*\(\s*["'](?<specifier>[^"']+)["']\s*\)/gu;
+// `type` can be a value binding; discard only explicit erased declaration forms.
+const TYPE_ONLY_DECLARATION_RE =
+  /^(?:import|export)\s+type\s+(?:\{|\*|[$_\p{ID_Start}][$_\u200c\u200d\p{ID_Continue}]*\s+from\b)/u;
 
 /** Inputs for proving the executing checker matches its indexed candidate. */
 export interface AssertIndexedMarkdownCheckerAlignmentOptions {
@@ -43,6 +46,8 @@ function importedSpecifiers(source: string): readonly string[] {
   for (const pattern of [STATIC_MODULE_SPECIFIER_RE, DYNAMIC_MODULE_SPECIFIER_RE]) {
     pattern.lastIndex = 0;
     for (const match of source.matchAll(pattern)) {
+      const declaration = match.groups?.declaration;
+      if (declaration !== undefined && TYPE_ONLY_DECLARATION_RE.test(declaration)) continue;
       const specifier = match.groups?.specifier;
       if (specifier?.startsWith(".") === true) found.push(specifier);
     }
@@ -71,7 +76,7 @@ function indexedDependencies(path: ManagedPath, bytes: Uint8Array | null): reado
   return importedSpecifiers(decodeSource(path, bytes)).map(specifier => resolveSourceImport(path, specifier));
 }
 
-/** Resolve the complete relative TypeScript dependency closure from indexed checker sources. */
+/** Conservatively resolve every relative runtime dependency from indexed checker sources. */
 export async function resolveIndexedMarkdownCheckerPaths(
   options: ResolveIndexedMarkdownCheckerPathsOptions,
 ): Promise<readonly ManagedPath[]> {

@@ -11,9 +11,9 @@ import { createIndexedMarkdownReader } from "../lib/markdown/indexed-reader.js";
 import {
   assertIndexedMarkdownCheckerAlignment,
   resolveIndexedMarkdownCheckerPaths,
-  resolveMarkdownRepositoryRoot,
-  runIndexedMarkdownCertification,
-} from "../lib/markdown/index.js";
+} from "../lib/markdown/checker-alignment.js";
+import { resolveMarkdownRepositoryRoot } from "../lib/markdown/selection.js";
+import { runIndexedMarkdownCertification } from "../lib/markdown/indexed-lint.js";
 
 /** Certify the complete current Git index and render stable repository-relative findings. */
 export async function main(cwd: string = process.cwd()): Promise<number> {
