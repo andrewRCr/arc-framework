@@ -943,7 +943,7 @@ through rename and slug reuse; mismatched references refuse and succeed after co
               and supersession, and one without reads as unsettled, refusing its Candidate's re-root
             - one whose approved set carries a fix reads as unsettled until its performance is recorded
 
-### `[ ]` **4.10 Read local results and reduce them from outcomes — § 4, § 9.3**
+### `[x]` **4.10 Read local results and reduce them from outcomes — § 4, § 9.3**
 
 - _Goal:_ From the flip the review result reader and reduction read a local result from its outcome, through the
   command source reference whose durable part is the outcome key, so a local review's result reads back as today with
@@ -951,28 +951,10 @@ through rename and slug reuse; mismatched references refuse and succeed after co
 
 - _Amended in:_ 4.R2 (A13)
 
-    - `LocalReviewResultReader` (`rg/hosts/local/review-result-reader.ts`) and reduction's local source
-      (`rg/runtime/reduce-command.ts`) read the outcome; local attest and resume bind `receiptRef`
-      (`bindReviewSourceReference`) with the outcome key as its durable part. Only attest's `attested-current` payload
-      carries the retained source store's `sourceRef`; resume keeps its existing payload without that field (A14).
-    - The reader's local result carries the outcome's `sourceDigest` as `localSourceRef` from the flip, in place of the
-      operation state's `sourceRef`, as the composed approved-disposition record's local source does (4.1.a, § 9.3).
-    - The reader recomputes the result's digest (`localResultDigest`) from the outcome — its attempt ID, its receipt as
-      recorded, and its admission fields, `guidanceDigest` among them and `laneSourceId` the outcome's source — in place
-      of the operation state and the receipt store (§ 4.2).
-    - Native continuation inputs and emitted sources use 4.R2's owner-bearing references; completed replay omits a
-      source-store reference only where the original source record is absent (§ 9.3, A13).
-    - Build `test-first` (one behavior at a time):
-        - from the flip, the reference local attest returns resolves to its outcome through the result reader and
-          through reduction
-        - from the flip the result's digest read on a second clone equals the one today's reader gives for the same
-          review
-        - from the flip a disposition approved on one clone matches its local result read on a second clone, and still
-          matches once the source's pin is released
-        - the attest, resume, and reduce envelopes parse under the widened published schemas (4.R2.a) from the flip
-        - from the flip reduction's local arm and resume's check read the same verdicts through the composed
-          approved-disposition record (4.1.a) as in-repo
-        - in-repo, both read the receipt as today
+- _Outcome:_ Default attest, resume, reduction, and result composition read local outcomes and approved evidence on
+  the reference-bound UID. The result matches the repository reader with portable source coordinates and unchanged
+  digest. Real-Git clean and findings continuations retain that result and approval after local state pruning, slug
+  reuse, and re-entry from a second clone; absent source references are omitted and absent working state reports zero.
 
 ### `[ ]` **4.R3 Verify the local continuation payload boundary — § 3.5, § 9.3**
 

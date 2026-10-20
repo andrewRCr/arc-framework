@@ -8,6 +8,16 @@ import { collectGitCandidateSubject } from "../../src/lib/work-unit/git-candidat
 import { createCandidateAttestation } from "../../src/lib/work-unit/candidate-attestation.js";
 import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { createReviewOutcomePort } from "../../src/lib/store/kinds/review/outcome/access.js";
+import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
+import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
+import { resolveReviewSourceInvocation } from "../../src/scripts/review-gate/runtime/source-invocation.js";
+import { createRepositoryReviewResultReader } from "../../src/scripts/review-gate/hosts/local/review-result-reader-composition.js";
+import { createReviewCompositionContext } from "../../src/scripts/review-gate/runtime/composition-context.js";
+import { publishNativeReviewApproval } from "../../src/scripts/review-gate/runtime/native-review-approval.js";
+import { composeReviewDispositionRecord } from "../../src/lib/store/kinds/review/evidence/composed-record.js";
+import { validateApprovedDispositionRecordForResult } from "../../src/scripts/review-gate/core/review-result-disposition.js";
+import { reviewEvidenceFixture } from "../fixtures/review-evidence.js";
+import type { ReviewInvocationInput } from "../../src/scripts/review-gate/runtime/invocation.js";
 import { IntegrationBoundaryLocusV2Schema } from "../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
 import { LocalPrepareEnvelopeSchema, LocalAttestEnvelopeSchema, LocalResumeEnvelopeSchema, ReduceEnvelopeSchema }
   from "../../src/scripts/review-gate/core/review-command-envelope.js";
@@ -15,7 +25,7 @@ import { parseNativeReviewOperationReference } from "../../src/scripts/review-ga
 import { handleReviewLocalPrepare, handleReviewLocalAttest, handleReviewLocalResume, handleReviewReduce }
   from "../../src/handlers/review.js";
 
-it("prepares, attests, resumes, and reduces a stored work unit through actual defaults without an injected owner", async () => {
+it.each(["clean", "findings"] as const)("replays a %s result and approved evidence through actual defaults after pruning and slug reuse on two clones", async outcome => {
   const h = await createReviewRepositoryHarness();
   onTestFinished(h.cleanup);
   const { cwd, exec } = h.native;
@@ -50,11 +60,11 @@ it("prepares, attests, resumes, and reduces a stored work unit through actual de
     candidateSubjectDigest: collected.target.subject.subjectDigest, locus: "candidate-review-pending", reservation: null,
     nextAction: { kind: "run-self-review", command: "self-review", interactionText: "Review the Candidate." } }));
   const invoke = async (handler: typeof handleReviewLocalPrepare | typeof handleReviewLocalAttest
-    | typeof handleReviewLocalResume | typeof handleReviewReduce, request: unknown) => {
+    | typeof handleReviewLocalResume | typeof handleReviewReduce, request: unknown, invocation = h.native) => {
     let output = "";
     const exitCodes: number[] = [];
-    await handler("-", { resolveRoot: () => cwd, readText: async () => JSON.stringify(request),
-      write: text => { output += text; }, setExitCode: code => exitCodes.push(code) }, undefined, h.native);
+    await handler("-", { resolveRoot: () => invocation.cwd, readText: async () => JSON.stringify(request),
+      write: text => { output += text; }, setExitCode: code => exitCodes.push(code) }, undefined, invocation);
     expect(exitCodes, output).toEqual([]);
     return JSON.parse(output) as unknown;
   };
@@ -65,16 +75,80 @@ it("prepares, attests, resumes, and reduces a stored work unit through actual de
   if (prepared.state !== "ready" || prepared.payload.operationRef === undefined) throw new Error("Expected a native admission");
   const operationRef = prepared.payload.operationRef;
   expect(parseNativeReviewOperationReference(operationRef).workItem).toEqual(primary.reference.owner);
-  const request = { ...localReviewResult(prepared.payload, "default-native-review", []), operationRef };
+  const findings = outcome === "clean" ? [] : [{ findingId: "retained-finding", severity: "major",
+    locus: "example.ts:1", evidenceUrlOrId: "source:example.ts:1" }];
+  const request = { ...localReviewResult(prepared.payload, "default-native-review", findings), operationRef };
   const attested = LocalAttestEnvelopeSchema.parse(await invoke(handleReviewLocalAttest, request));
   expect(attested.state).toBe("attested-current");
+  if (attested.state !== "attested-current") throw new Error("Expected a completed native attestation");
+  expect(attested.payload.sourceRef).toBeDefined();
   const outcomes = createReviewOutcomePort(h.reference.store, primary.reference.owner);
   const stored = await outcomes.read(prepared.payload.operationId);
-  expect(stored?.value).toMatchObject({ outcome: "clean", target: { repositoryId: projectId },
+  expect(stored?.value).toMatchObject({ outcome, target: { repositoryId: projectId },
     lineage: { kind: "candidate", candidateId: attestation.candidateId } });
+  if (stored === null) throw new Error("Expected the actual producer outcome");
+  const readFamily = async (invocation: ReviewInvocationInput) => {
+    const selected = await resolveReviewSourceInvocation(invocation, attested.payload.receiptRef, "attested-local");
+    const context = createReviewCompositionContext(selected.invocation);
+    if (context.family.mode !== "stored") throw new Error("Expected the stored review family");
+    return { ...context.family.ports, readProjectId: context.projectId };
+  };
+  const family = await readFamily(h.native);
+  const approval = outcome === "clean" ? null : await publishNativeReviewApproval({ ...family,
+    record: composeReviewDispositionRecord(stored.value, [{ ...reviewEvidenceFixture(stored.value),
+      binding: { kind: "candidate", candidate: { workUnit: attestation.workUnit, candidateId: attestation.candidateId } } }],
+    primary.reference.owner), now: () => "2026-10-20T15:01:00Z" });
+  const reducedState = outcome === "clean" ? "advisory-complete" : "settled";
   const continuation = { schemaVersion: 1, operationId: prepared.payload.operationId, operationRef };
   expect(LocalResumeEnvelopeSchema.parse(await invoke(handleReviewLocalResume, continuation)).state).toBe("review-complete");
-  expect(ReduceEnvelopeSchema.parse(await invoke(handleReviewReduce, continuation)).state).toBe("advisory-complete");
+  expect(ReduceEnvelopeSchema.parse(await invoke(handleReviewReduce, continuation)).state).toBe(reducedState);
   expect(LocalAttestEnvelopeSchema.parse(await invoke(handleReviewLocalAttest, request)).state).toBe("attested-current");
   expect(await outcomes.read(prepared.payload.operationId)).toEqual(stored);
+  const readResult = async (invocation: ReviewInvocationInput) => {
+    const selected = await resolveReviewSourceInvocation(invocation, attested.payload.receiptRef, "attested-local");
+    const publisher = new RepositoryGitCommonStatePublisher(invocation.exec, invocation.cwd);
+    return createRepositoryReviewResultReader(publisher, selected.invocation).readResult(prepared.payload.operationId);
+  };
+  const originalResult = await readResult(h.native);
+  const originalDisposition = await family.evidence.readDispositionRecord(prepared.payload.operationId);
+  if (originalDisposition !== null) expect(validateApprovedDispositionRecordForResult(originalDisposition, originalResult))
+    .toEqual(originalDisposition);
+  const publisher = new RepositoryGitCommonStatePublisher(exec, cwd);
+  for (const namespace of ["in-flight", "sources", "evidence"] as const) {
+    const location = { root: "review-gate", namespace } as const;
+    const records = await publisher.snapshot(location);
+    if (namespace === "sources") expect(records.length).toBeGreaterThan(0);
+    for (const entry of records) if (entry.kind === "file") {
+      await publisher.update(location, entry.name, () => ({ kind: "delete", result: undefined }));
+    }
+    expect(await publisher.snapshot(location)).toEqual([]);
+  }
+  const completedReplay = async (invocation: ReviewInvocationInput) => {
+    const replay = LocalAttestEnvelopeSchema.parse(await invoke(handleReviewLocalAttest, request, invocation));
+    expect(replay).toMatchObject({ state: "attested-current", payload: { persistedVersion: 0, receiptRef: attested.payload.receiptRef } });
+    expect(replay.payload).not.toHaveProperty("sourceRef");
+    const resumed = LocalResumeEnvelopeSchema.parse(await invoke(handleReviewLocalResume, continuation, invocation));
+    expect(resumed).toMatchObject({ state: "review-complete", payload: { persistedVersion: 0, receiptRef: attested.payload.receiptRef } });
+    expect(resumed.payload).not.toHaveProperty("sourceRef");
+    expect(await invoke(handleReviewReduce, continuation, invocation)).toMatchObject({ state: reducedState,
+      payload: { persistedVersion: 0 } });
+    expect(await readResult(invocation)).toEqual(originalResult);
+    const selected = await readFamily(invocation);
+    expect(await selected.evidence.readDispositionRecord(prepared.payload.operationId)).toEqual(originalDisposition);
+    if (approval !== null) expect(await selected.evidence.read(approval.value.dispositionSet.dispositionSetId)).toEqual(approval);
+    expect(await outcomes.read(prepared.payload.operationId)).toEqual(stored);
+  };
+  await completedReplay(h.native);
+  lifecycleSuccess(await h.reference.store.write({ action: "remove", reference: primary.reference,
+    expected: primary.version, provenance: { verb: "remove", lifecycleAction: "remove" } }));
+  const replacement = await h.reference.seedMeta("example", { owner: "andrew", branch: null });
+  expect(replacement.reference.owner).not.toEqual(primary.reference.owner);
+  await completedReplay(h.native);
+  await git("push", "origin", "main", branch);
+  const secondGit = async (...args: string[]) => h.secondNative.exec("git", args, { cwd: h.secondNative.cwd });
+  await secondGit("fetch", "origin");
+  await secondGit("merge", "--ff-only", "origin/main");
+  await secondGit("switch", "-c", branch, "--track", `origin/${branch}`);
+  await secondGit("config", "arc.identity", "andrew");
+  await completedReplay(h.secondNative);
 }, 60_000);
