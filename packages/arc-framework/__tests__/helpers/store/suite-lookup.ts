@@ -31,9 +31,10 @@ async function checkDirectAliasBoundary(fixture: ConformanceFixture, operation: 
   else if (operation === "saved-read") expect(await store.read({ reference: singletonReference(owner, "lineage/transition"), asOf: saved }))
     .toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   else {
-    const original = success(await store.read({ reference: draft.reference }));
+    const original = await store.read({ reference: draft.reference });
+    if (original.status === "refused") expect(original.refusal.code).toBe("not-found");
     expect(await store.write({ ...update(fixture, draft), reference })).toMatchObject({ status: "refused", refusal: { code: "version-conflict" } });
-    expect(success(await store.read({ reference: draft.reference }))).toEqual(original);
+    expect(await store.read({ reference: draft.reference })).toEqual(original);
   }
   expect(success(await store.version())).toBe(saved);
   expect(success(await store.lookup({ kind: "lineage", origin: work.reference.owner.name })).reference).toEqual(lineage.reference);

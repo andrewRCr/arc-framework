@@ -422,6 +422,39 @@ identities. This is the terminal author walk, with the original independent pass
 **Summary:** 14 met, 0 superseded, 0 unresolved. Verification closes on this span; Candidate attestation binds the
 staged closing records separately. The proof boundary below remains unchanged.
 
+### Shared conformance compatibility after retirement
+
+The ref-backend session raised a major compatibility finding in `checkDirectAliasBoundary` after verification:
+its shared write case required an associated draft to remain readable after terminal lineage and primary removal.
+The backend's `sweepRefRetirements` clears the origin's final tree, so that requirement conflicts with its defined
+retirement cleanup. Source inspection and a native public-store baseline establish `not-found` for the exact-UID draft,
+`version-conflict` for the former-name write, and unchanged namespace state. The original report above remains bound
+to its reviewed subject; this correction supplements its conformance evidence.
+
+The approved local correction compares the complete draft-read result before and after the refused write, allowing
+only `not-found` when that read refuses. The former-name write refusal, namespace version, and lineage lookup assertions
+stay in place for both local and synced cases. No production contract or assertion exclusion changes. A search of the
+changed shared lookup cases found this retained-content assumption only in the two write variants.
+
+Both variants failed against a disposable public-store fixture that removes the associated draft during retirement;
+they passed after the correction. The complete reference conformance suite passed 1,116 cases with 57 declared skips,
+and both type checks passed. The native baseline is corroborating backend evidence, not a complete run of the new lookup
+extension against that backend. The correction, focused verification and commit, Candidate renewal, and independent
+fix-check round 3 were approved.
+
+Independent round 3 consumed both kept versions and the complete assertion module with its governing contracts. It
+returned no findings on closure, grounding, propagation/completeness, or new failure; the runner loaded no author-side
+session files. The checkout matched its kept after hash. Its 16 selected cases covered the ordinary reference fixture
+and the disposable swept-draft fixture, with native ref behavior traced through the supplied source. This is bounded
+repair evidence, not a complete work-unit re-review or lane clearance. The round-2 compatibility assumption is closed
+without changing retirement policy or direct-operation authority. The optional criteria repair loop ends here; the
+remaining Candidate review follows the singleton landing bridge.
+
+The forced focused gate passed all 17 selected checks, including both type checks, full TypeScript lint, the unit
+suite, and ARC contracts. Increment validation passed seven checks and reused two; related unit feedback passed,
+with local E2E not selected. Candidate renewal requires a fresh full verification root, which is separate from this
+focused fix validation.
+
 ### Proof boundary
 
 The executable retirement and extraction scenarios fail if the composed store machine misses the cut’s batch and
