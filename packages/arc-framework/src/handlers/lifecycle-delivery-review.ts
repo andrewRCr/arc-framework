@@ -16,7 +16,7 @@ import { recordReferences } from "../lib/store/identity.js";
 import { ParsedMetaRecordSchema } from "../lib/active/meta-schema.js";
 import { resolveTaskListPath } from "../commands/active.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
-import { canonicalize } from "../lib/kernel/canonical/canonical-json.js";
+import { createPublicationBoundaryAccess, openPublicationReviewContext } from "./lifecycle-publication-boundary.js";
 import { CanonicalDigestSchema } from "../lib/kernel/schema/vocabulary.js";
 import { resolveReviewInvocation } from "../scripts/review-gate/runtime/invocation.js";
 import { createReviewCompositionContext } from "../scripts/review-gate/runtime/composition-context.js";
@@ -27,7 +27,6 @@ import {
 import {
   laneContinuationOperationId,
   readLaneProgressOwner,
-  readLaneProgressOwnerVersioned,
 } from "../scripts/review-gate/lane-progress.js";
 import { livePredecessorReviewAttempt } from "../scripts/review-gate/lane-progress-supersession.js";
 import { createRawGitExec } from "../lib/io-context.js";
@@ -69,7 +68,6 @@ import { attestArgv, attestNewRootArgv, spineRemedy } from "../scripts/integrati
 import { SlugSchema, validateManagedPath } from "../lib/kernel/index.js";
 import { type InteractionContext } from "../lib/command-input/interaction-context.js";
 import { ProjectIdentityError } from "../lib/store/project-identity.js";
-import type { ReviewInvocationContext } from "../scripts/review-gate/runtime/invocation.js";
 import { resolveNamedReviewWorkUnitInvocation } from "../scripts/review-gate/runtime/review-work-unit.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import type { PublishOptions } from "./lifecycle.js";
@@ -579,24 +577,6 @@ async function permitUnpausedPublication(store: Store | undefined, target: strin
   return false;
 }
 
-async function openPublicationReviewContext(base: VerbBase, invocation: ReviewInvocationContext,
-  candidateId: z.infer<typeof CanonicalDigestSchema>, json: boolean): Promise<{
-    repositoryId: string; currentHead: () => Promise<string>; readStandardLaneOwnerVersion: () => Promise<number>;
-  } | null> {
-  const { publisher, family } = createReviewCompositionContext({ ...invocation, cwd: base.cwd, exec: base.io.exec });
-  let repositoryId: string;
-  try { repositoryId = await resolveRepositoryIdentity(publisher, undefined, invocation); }
-  catch (error) {
-    if (!refuseProjectIdentityFailure(error, json)) throw error;
-    return null;
-  }
-  const currentHead = async () => (await base.io.exec("git", ["rev-parse", "HEAD"], { cwd: base.cwd })).stdout.trim();
-  return { repositoryId, currentHead,
-    readStandardLaneOwnerVersion: async () => (await readLaneProgressOwnerVersioned(family.ports.inFlight, {
-      lane: "standard", repositoryId, headSha: await currentHead(), lineage: { kind: "candidate", candidateId },
-    })).version };
-}
-
 /**
  * Publish a lifecycle transition with its exact Candidate and review boundary.
  * @param base - Resolved checkout, identity, and I/O.
@@ -654,9 +634,10 @@ export async function publishCandidateWithReviewBoundary(
     return;
   }
   const record = candidate.record;
-  const review = await openPublicationReviewContext(base, reviewInvocation, candidate.candidateId, input.json === true);
-  if (review === null) return;
-  const { repositoryId, currentHead, readStandardLaneOwnerVersion } = review;
+  let review: Awaited<ReturnType<typeof openPublicationReviewContext>>;
+  try { review = await openPublicationReviewContext({ cwd: base.cwd, exec: base.io.exec, invocation: reviewInvocation, candidateId: candidate.candidateId }); }
+  catch (error) { if (!refuseProjectIdentityFailure(error, input.json === true)) throw error; return; }
+  const { repositoryId, currentHead, readStandardLaneOwnerVersion, readReadinessBinding } = review;
   const boundarySnapshot = await readSubmissionBoundaryVersioned(base.cwd, target, { store: executor.store, owner: reviewInvocation.workItem });
   const boundary = boundarySnapshot.boundary;
   if (boundary === null) {
@@ -671,48 +652,41 @@ export async function publishCandidateWithReviewBoundary(
     );
     return;
   }
+  const boundaryAccess = createPublicationBoundaryAccess({ cwd: base.cwd, exec: base.io.exec, invocation: reviewInvocation,
+    snapshot: { ...boundarySnapshot, boundary }, readStandardLaneOwnerVersion, readReadinessBinding });
   const result = await withRepositoryReviewOperationLock(
     base.io.exec, base.cwd,
     laneContinuationOperationId({
       lane: "standard", repositoryId, headSha: await currentHead(),
       lineage: { kind: "candidate", candidateId: candidate.candidateId },
     }),
-    10_000, () => runPublish(executor, {
-    name: target,
-    ...(lastCompleted === undefined ? {} : { lastCompleted }),
-    ...(action === undefined ? {} : { nextAction: action }),
-    candidateId: candidate.candidateId,
-    candidateSubjectDigest: candidate.candidateSubjectDigest,
-    candidateCurrent: candidate.candidateCurrent,
-    boundary,
-    refreshCandidateAuthorization: async () => {
-      const refreshed = await readCandidateAuthorization();
-      if (refreshed === null) {
-        return {
-          candidateId: record.attestation.candidateId,
-          candidateSubjectDigest: candidate.candidateSubjectDigest,
-          candidateCurrent: false,
-        };
-      }
-      return refreshed;
-    },
-    readStandardLaneOwnerVersion,
-    claimPublicationBoundary: async (publicationBoundary) => {
-      if (boundary.schemaVersion === 1
-        && (boundary.locus === "candidate-publish-ready" || boundary.locus === "publication-pending")
-        && boundary.standardLaneOwnerVersion !== await readStandardLaneOwnerVersion()) {
-        throw new Error("standard review progress changed after publication readiness was recorded");
-      }
-      const boundaryPath = await writeSubmissionBoundary(
-        base.cwd,
-        publicationBoundary,
-        boundarySnapshot.version,
-        { store: executor.store, owner: reviewInvocation.workItem },
-      );
-      await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
-    },
-    ...(input.allowAdvisories === true ? { allowAdvisories: true } : {}),
-  }));
+    10_000, async () => {
+      const outcome = await runPublish(executor, {
+        name: target,
+        ...(lastCompleted === undefined ? {} : { lastCompleted }),
+        ...(action === undefined ? {} : { nextAction: action }),
+        candidateId: candidate.candidateId,
+        candidateSubjectDigest: candidate.candidateSubjectDigest,
+        candidateCurrent: candidate.candidateCurrent,
+        boundary,
+        refreshCandidateAuthorization: async () => {
+          const refreshed = await readCandidateAuthorization();
+          if (refreshed === null) {
+            return {
+              candidateId: record.attestation.candidateId,
+              candidateSubjectDigest: candidate.candidateSubjectDigest,
+              candidateCurrent: false,
+            };
+          }
+          return refreshed;
+        },
+        readStandardLaneOwnerVersion, readReadinessBinding,
+        ...boundaryAccess.ports,
+        ...(input.allowAdvisories === true ? { allowAdvisories: true } : {}),
+      });
+      if (outcome.status === "unchanged") await boundaryAccess.persistUnchanged(outcome.boundary);
+      return outcome;
+    });
   if (result.status === "rejected") {
     if (!usesOffBranchState(executor.store)) refuseWithRemedy(result.reason, result.remedy, input.json === true);
     else if (input.json === true) { process.stdout.write(`${JSON.stringify(result)}\n`); process.exitCode = 1; }
@@ -720,12 +694,6 @@ export async function publishCandidateWithReviewBoundary(
     return;
   }
   if (result.status === "unchanged") {
-    if (canonicalize(result.boundary) !== canonicalize(boundary)) {
-      const boundaryPath = await writeSubmissionBoundary(
-        base.cwd, result.boundary, boundarySnapshot.version, { store: executor.store, owner: reviewInvocation.workItem },
-      );
-      await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
-    }
     if (input.json === true) {
       process.stdout.write(`${JSON.stringify(result)}\n`);
     } else {

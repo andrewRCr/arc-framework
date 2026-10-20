@@ -4,15 +4,18 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { handleReviewPrePublication } from "../../../src/handlers/review.js";
 import { CandidateManagedRecordV1Schema, createCandidateAttestation, createCandidateSubjectSnapshot, createCandidateReviewResponseEvidence } from "../../../src/lib/work-unit/candidate-attestation.js";
+import { PrePublicationReplayInputSchema } from "../../../src/scripts/review-gate/policy/pre-publication-replay.js";
 import { canonicalDigest } from "../../../src/lib/kernel/index.js";
 import { IntegrationBoundaryLocusV2Schema } from "../../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
 import { createProjectIdentityReader } from "../../../src/lib/store/project-identity.js";
 import { createReviewHarness } from "../../helpers/store/review-harness.js";
 import { createReviewCheckout } from "../../helpers/store/review-checkout.js";
 import { lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
-import { readSubmissionBoundaryVersioned } from "../../../src/lib/store/kinds/review/integration-boundary/access.js";
+import { projectPublicationBoundary, projectCandidateReviewResumeBoundary } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { writeSubmissionBoundary, readSubmissionBoundaryVersioned } from "../../../src/lib/store/kinds/review/integration-boundary/access.js";
 
 import { createReviewCompositionContext } from "../../../src/scripts/review-gate/runtime/composition-context.js";
+import { readReviewReadinessBinding } from "../../../src/scripts/review-gate/runtime/readiness-binding.js";
 import { readCandidateRecord } from "../../../src/lib/store/kinds/review/candidate/access.js";
 import { recordNativeFrontlineSkip } from "../../../src/scripts/review-gate/runtime/native-frontline-window.js";
 import { composePrePublicationReviewRequest } from "../../../src/scripts/review-gate/policy/pre-publication-request.js";
@@ -74,10 +77,10 @@ async function fixture(project = true) {
       nextAction: { kind: "run-self-review", command: "self-review", interactionText: "Review the Candidate." } }));
     return primary.reference.owner;
   };
-  return { ...checkout, seedCandidate, run: async (settled = false) => {
+  return { ...checkout, seedCandidate, run: async (settled = false, lanes: unknown = { frontline: { invocation: { mode: "skip" } } }, resume?: string) => {
     let output = "";
-    await handleReviewPrePublication("example", settled ? { selfReview: "settled", lanes: "lanes.json" } : {}, { resolveRoot: () => checkout.cwd,
-      readText: async () => JSON.stringify({ frontline: { invocation: { mode: "skip" } } }),
+    await handleReviewPrePublication("example", resume === undefined ? settled ? { selfReview: "settled", lanes: "lanes.json" } : {} : { resume }, { resolveRoot: () => checkout.cwd,
+      readText: async () => JSON.stringify(lanes),
       write: text => { output += text; }, setExitCode: () => {} }, undefined,
     { ...checkout, projectId: createProjectIdentityReader(checkout.store) });
     return JSON.parse(output) as unknown;
@@ -144,4 +147,64 @@ it("projects a native skipped window as proven closure through default pre-publi
   if (composition.status !== "composed") throw new Error(composition.reason);
   expect(resolveReviewPolicy(composition.request.frontline)).toMatchObject({ state: "skipped",
     payload: { reason: "phase-closed" }, diagnostics: [{ code: "frontline-window-closed" }] });
+});
+
+it("records native readiness with the selected Candidate's complete review binding", async () => {
+  const h = await fixture(), owner = await h.seedCandidate();
+  const result = await h.run(true, { frontline: { invocation: { mode: "skip" } }, standard: { terminus: { mode: "owner-accepted" } } });
+  const stored = (await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner })).boundary;
+  const candidate = await readCandidateRecord(h.cwd, "example", { store: h.store, owner });
+  if (candidate === null) throw new Error("expected the current Candidate");
+  const { family } = createReviewCompositionContext({ ...h, workItem: owner });
+  const binding = await readReviewReadinessBinding({ store: h.store, workItem: owner, inFlight: family.ports.inFlight,
+    repositoryId: projectId, candidateId: candidate.attestation.candidateId, headSha: "a".repeat(40) });
+  if (binding.status !== "complete") throw new Error(binding.condition);
+  expect(result, JSON.stringify(result)).toMatchObject({ schemaVersion: 2, locus: "candidate-publish-ready", readinessBinding: binding.digest });
+  expect(stored).toMatchObject({ schemaVersion: 2, locus: "candidate-publish-ready", readinessBinding: binding.digest });
+  expect(stored).not.toHaveProperty("standardLaneOwnerVersion");
+});
+
+it.each(["candidate-publish-ready", "publication-pending"] as const)("re-enters native %s without recomposing saved judgments or changing records", async locus => {
+  const h = await fixture(), owner = await h.seedCandidate();
+  const first = await h.run(true, { frontline: { invocation: { mode: "skip" } }, standard: { terminus: { mode: "owner-accepted" } } });
+  expect(first).toMatchObject({ schemaVersion: 2, locus: "candidate-publish-ready" });
+  const ready = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
+  if (ready.boundary?.schemaVersion !== 2 || ready.boundary.locus !== "candidate-publish-ready") throw new Error("expected native readiness");
+  const expected = locus === "candidate-publish-ready" ? ready.boundary : projectPublicationBoundary({ workUnit: "example", branch: "topic/opaque",
+    candidateId: ready.boundary.candidateId, candidateSubjectDigest: ready.boundary.candidateSubjectDigest,
+    reservation: ready.boundary.reservation, terminus: ready.boundary.terminus, readinessBinding: ready.boundary.readinessBinding, changeRequest: null }, 2);
+  if (locus === "publication-pending") await writeSubmissionBoundary(h.cwd, expected, ready.version, { store: h.store, owner });
+  const before = await h.store.version();
+  expect(await h.run()).toMatchObject({ ...expected });
+  expect(await h.store.version()).toEqual(before);
+});
+
+it("recovers native attestation ordering against its stored version and records the live readiness binding", async () => {
+  const h = await fixture(), owner = await h.seedCandidate();
+  const lanes = { frontline: { invocation: { mode: "skip" } }, standard: { terminus: { mode: "owner-accepted" } } };
+  expect(await h.run(true, lanes)).toMatchObject({ locus: "candidate-publish-ready" });
+  const ready = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
+  if (ready.boundary?.schemaVersion !== 2 || ready.boundary.locus !== "candidate-publish-ready"
+    || ready.boundary.candidateSubjectDigest === null) throw new Error("Expected native readiness");
+  const token = Buffer.from(JSON.stringify(PrePublicationReplayInputSchema.parse({ candidateId: ready.boundary.candidateId,
+    candidateSubjectDigest: ready.boundary.candidateSubjectDigest, selfReview: "settled", lanes })), "utf8").toString("base64url");
+  const pending = projectCandidateReviewResumeBoundary({ workUnit: "example", candidateId: ready.boundary.candidateId,
+    candidateSubjectDigest: ready.boundary.candidateSubjectDigest, reservation: null, postAttestContinuation: {
+      reviewedHead: "b".repeat(40), nextAction: { kind: "continue-pre-publication-review",
+        command: `arc review pre-publication example --resume ${token}`, interactionText: "Resume review" } } }, 2);
+  await writeSubmissionBoundary(h.cwd, pending, ready.version, { store: h.store, owner });
+  const stored = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
+  const before = await h.store.version();
+  const refusal = await h.run(true, lanes);
+  expect(refusal).toMatchObject({ error: { code: "attestation-ordering-conflict" } });
+  expect(await h.store.version()).toEqual(before);
+  const action = (refusal as { remedy: { argv: string[] } }).remedy.argv;
+  const resume = action[5];
+  if (resume === undefined) throw new Error("Expected the explicit recovery token");
+  expect(PrePublicationReplayInputSchema.parse(JSON.parse(Buffer.from(resume, "base64url").toString("utf8"))))
+    .toMatchObject({ attestationOrderingRecovery: { expectedBoundaryVersion: stored.version } });
+  expect(await h.run(false, undefined, resume)).toMatchObject({ locus: "candidate-publish-ready", schemaVersion: 2,
+    readinessBinding: ready.boundary.readinessBinding });
+  expect((await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner })).boundary)
+    .toMatchObject({ locus: "candidate-publish-ready", schemaVersion: 2, readinessBinding: ready.boundary.readinessBinding });
 });

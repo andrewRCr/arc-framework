@@ -1,7 +1,7 @@
 /** Publication projections preserve portable readiness authority through recovery. */
 import { expect, it } from "vitest";
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
-import { IntegrationBoundaryLocusV2Schema, projectPublicationBoundary, recoverPublicationBoundary, recoverIntegratingBoundary } from "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { IntegrationBoundaryLocusV2Schema, projectPublicationBoundary, recoverPublicationBoundary, recoverIntegratingBoundary, recoverAttestedSingletonPublicationBoundary } from "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { boundaryV2Fixture } from "../../../../fixtures/review-boundary.js";
 
 const input = { workUnit: "example", branch: "feat/example", candidateId: canonicalDigest({ candidate: 1 }),
@@ -45,3 +45,12 @@ it.each(["hosted-review-pending", "delivery-status-required"] as const)(
     expect(boundary).not.toHaveProperty("readinessBinding");
     expect(boundary).not.toHaveProperty("policy");
   });
+
+it.each([false, true])("attests native singleton publication with repairCurrent=%s while retaining its binding", repairCurrent => {
+  const stored = IntegrationBoundaryLocusV2Schema.parse({ ...boundaryV2Fixture("publication-pending"), readinessBinding: binding });
+  if (stored.candidateSubjectDigest === null) throw new Error("Expected a bound publication subject");
+  const candidateSubjectDigest = repairCurrent ? canonicalDigest({ repaired: 1 }) : stored.candidateSubjectDigest;
+  expect(recoverAttestedSingletonPublicationBoundary({ stored, workUnit: "example", candidateId: stored.candidateId,
+    candidateSubjectDigest, integrating: true, repairCurrent })).toMatchObject({ schemaVersion: 2, locus: "publication-pending",
+    candidateSubjectDigest, readinessBinding: binding });
+});

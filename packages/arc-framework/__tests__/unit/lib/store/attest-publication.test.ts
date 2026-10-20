@@ -1,4 +1,6 @@
 /** Native attestation publication rolls back every record when any exact basis has moved. */
+import { boundaryV2Fixture } from "../../../fixtures/review-boundary.js";
+import { IntegrationBoundaryLocusV2Schema } from "../../../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
 import { expect, it } from "vitest";
 import { createReviewHarness } from "../../../helpers/store/review-harness.js";
 import { lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
@@ -170,4 +172,17 @@ it("renews an Integrating Candidate after fresh full convergence evidence and re
   expect(stored.record?.lineageAttestations).toHaveLength(1);
   expect(stored.record?.lineageAttestations[0]).toMatchObject({ scope: "full",
     verificationEvidenceRef: "verification://fresh-native-convergence" });
+});
+
+it("keeps an Active Candidate's matching native readiness binding through unchanged attestation repair", async () => {
+  const h = await fixture({}, true), readinessBinding = canonicalDigest({ readiness: 1 });
+  const boundary = IntegrationBoundaryLocusV2Schema.parse({ ...boundaryV2Fixture("candidate-publish-ready"),
+    candidateId: h.record.attestation.candidateId, candidateSubjectDigest: h.record.subject.subjectDigest,
+    reservation: null, readinessBinding });
+  await h.seedBoundary(h.primary.reference.owner, boundary);
+  await h.rebind();
+  expect(await h.attest()).toMatchObject({ status: "unchanged", locus: { schemaVersion: 2,
+    locus: "candidate-publish-ready", readinessBinding } });
+  expect((await readSubmissionBoundaryVersioned("/no-projected-files", "example", { store: h.store,
+    owner: h.primary.reference.owner })).boundary).toEqual(boundary);
 });

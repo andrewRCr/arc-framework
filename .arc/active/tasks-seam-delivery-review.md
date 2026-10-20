@@ -1058,60 +1058,17 @@ the deletion pass removes whole arms. Readiness's binding comes first (6.1), sin
 the flip. The store-backed publication and reopen are the lifecycle change's (`publish-store.ts`, `reopen-store.ts`);
 this phase puts publication's claim and reopen's boundary write in their transitions' batches (§ 10.1).
 
-### `[ ]` **6.1 Bind readiness to the standard lane's records, and claim publication in its batch — § 9.2, § 10.1**
+### `[x]` **6.1 Bind readiness to the standard lane's records, and claim publication in its batch — § 9.2, § 10.1**
 
 - _Goal:_ From the flip readiness records `readinessBinding` over the current listing of the standard lane's records on
   the Candidate's lineage and its in-flight attempts, every publication site recomputes it and refuses on a mismatch or
   an incomplete listing, and publication writes its claim in the publish transition's batch, while
   `standardLaneOwnerVersion` guards publication before the flip.
 
-    - Sites: readiness's write, the attestation-ordering recovery that persists it
-      (`recoverProjectedPublicationBoundary`), and the re-entry over an advanced boundary (`handlers/review.ts`),
-      `authorizeSubmission` and `authorizeActivePublication` (`lib/work-unit/verbs/publish.ts`), the store-backed
-      publication (`runStorePublish`, `lib/work-unit/verbs/publish-store.ts`), the publication claim and
-      publish-unchanged writes, attest's writes of a recovered singleton publication boundary
-      (`recoverAttestedSingletonPublicationBoundary`) and of a repaired matching boundary, and its unchanged write
-      (`handleAttest`, `handlers/lifecycle-delivery-review.ts`), and the singleton response's rebind
-      (`stageSingletonPublicationResponse`, `rg/runtime/singleton-publication-response.ts`), each writing version 2 from
-      the flip (4.5). A `publication-pending` boundary written from a stored one carries that boundary's binding, as
-      today's projections carry `standardLaneOwnerVersion`.
-    - Two version ports give way from the flip to a binding read that returns 1.6.d's digest, recomputed over the
-      store's listings, or `incomplete`: the authorizers' (`readStandardLaneOwnerVersion`,
-      `lib/work-unit/verbs/publish.ts`, bound in `handlers/lifecycle-delivery-review.ts`), and the pre-publication
-      handler's own dependency of that name (`ReviewPrePublicationHandlerDependencies`, `handlers/review.ts`), which
-      readiness's write and its re-entry read. The binding read's in-flight attempts are the standard lane's record on
-      the Candidate lineage's owner. The authorizers parse the boundary by its version, comparing `readinessBinding` at
-      version 2 and `standardLaneOwnerVersion` at version 1.
-    - From the flip `runStorePublish` puts the claim, `publication-pending` with its binding, in the transition's
-      `additionalWrites` rather than writing it through `claimPublicationBoundary` before `executeTransition`. It takes
-      the claim's write from a new publish parameter, bound in `handlers/lifecycle-delivery-review.ts`, which returns
-      the write with the boundary read at its store version and the binding rechecked inside it, as 6.4's reopen reads
-      the boundary for its write. `PublishParams.claimPublicationBoundary` stays the in-repo arm's (`runPublish`,
-      `lib/work-unit/verbs/publish.ts`), writing and staging the claim as today until the deletion pass removes that
-      arm.
-    - The store arm's tests (`__tests__/unit/work-unit/verbs/publish-store.test.ts`) that stage their scenario or count
-      claims through `claimPublicationBoundary` take the new parameter, each scenario kept: malformed fields refusing
-      before any claim, reconcile applied before renewed authorization and the claim, the interrupted claim, the pause
-      after prepare, and the primary's Candidate or branch link changing at the claim.
-    - Build `test-first` (one behavior at a time):
-        - from the flip readiness writes `candidate-publish-ready` as version 2 carrying its binding, and its re-entry
-          over an advanced boundary and an attestation-ordering recovery do too
-        - from the flip a re-attest of an Integrating singleton at `publication-pending`, a repair of its current
-          Candidate included, writes it as version 2 carrying the stored binding through its recovery, and a repair of
-          the current Candidate over an Active work unit's matching `candidate-publish-ready` boundary does too
-        - from the flip a hosted singleton's review response rebinds a `publication-pending` boundary as version 2
-          carrying the stored binding
-        - a work unit attested from the flip publishes with no `Candidate` in its meta, its claim written as version 2
-          carrying the binding readiness recorded
-        - publication refuses after readiness when a standard-lane outcome, an evidence advance, an `approved-fix`
-          decision or its withdrawal, or an in-flight attempt is added
-        - a terminus, a selection, or a lane-skip decision recorded after readiness refuses nothing
-        - an incomplete listing refuses rather than reading as unchanged, and publication passes once the listing
-          completes
-        - publication passes once readiness is recorded again
-        - a claim whose boundary moved since the port read it refuses and writes nothing, and the retry publishes
-        - a publish interrupted before its batch leaves no claim, and one interrupted after it leaves
-          `publication-pending` with the work unit Integrating, which finishes
+- _Outcome:_ Native readiness binds the complete standard-lane facts and pending attempts; advanced re-entry and
+  attestation-ordering recovery retain its digest. Publication rechecks that binding and the exact boundary version,
+  preparing its claim for the lifecycle batch. Attestation and response recovery preserve the stored binding, and
+  interrupted publication resumes without another write. Version-one publication retains its scalar guard.
 
 ### `[ ]` **6.2 Record ceiling and additional extra passes and termini as decisions — § 5.3, § 5.6, § 5.7, § 9.3**
 

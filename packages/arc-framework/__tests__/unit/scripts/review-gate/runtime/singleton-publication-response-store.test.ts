@@ -1,4 +1,5 @@
 /** Singleton response rebinding preserves the selected work-item generation. */
+import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import { expect, it } from "vitest";
 import { createReferenceFixture } from "../../../../helpers/store/reference-fixture.js";
 import { lifecycleSuccess } from "../../../../helpers/store/lifecycle-harness.js";
@@ -13,7 +14,7 @@ import { projectStandardReviewObligation } from "../../../../../src/scripts/revi
 import { resolveReviewRouting } from "../../../../../src/scripts/review-gate/policy/routing.js";
 import { readSubmissionBoundaryVersioned } from "../../../../../src/lib/store/kinds/review/integration-boundary/access.js";
 
-it("rebinds and replays a checked native hosted boundary without projected Git effects", async () => {
+it.each([true, false])("rebinds and replays native publication with requirePublished=%s without projected Git effects", async requirePublished => {
   const h = createReviewHarness();
   const primary = await h.seedMeta("example");
   const { record, response } = candidateRecordFixture();
@@ -23,15 +24,16 @@ it("rebinds and replays a checked native hosted boundary without projected Git e
     obligation: projectStandardReviewObligation(resolveReviewRouting({}).decision) });
   await h.seedBoundary(primary.reference.owner, projectPublicationBoundary({ workUnit: "example", branch: "topic/opaque",
     candidateId: response.candidateId, candidateSubjectDigest: response.oldTarget.subject.subjectDigest,
-    reservation, readinessBinding: null, changeRequest: { repository: "owner/repo", pullRequest: 42 } }, 2));
+    reservation, readinessBinding: canonicalDigest({ reviewReadiness: 1 }),
+    changeRequest: requirePublished ? { repository: "owner/repo", pullRequest: 42 } : null }, 2));
   const input = { cwd: "/unavailable", store: h.store, workItem: primary.reference.owner,
-    exec: scriptGitExec([]).exec, workUnit: "example", response, requirePublished: true };
+    exec: scriptGitExec([]).exec, workUnit: "example", response, requirePublished };
   await stageSingletonPublicationResponse(input);
   const access = { store: h.store, owner: primary.reference.owner };
   const rebound = await readSubmissionBoundaryVersioned(input.cwd, "example", access);
-  expect(rebound.boundary).toMatchObject({ schemaVersion: 2, locus: "hosted-review-pending", terminus: null,
+  expect(rebound.boundary).toMatchObject({ schemaVersion: 2, locus: requirePublished ? "hosted-review-pending" : "publication-pending", terminus: null,
     candidateSubjectDigest: response.newTarget.subject.subjectDigest,
-    reservation });
+    reservation, ...(requirePublished ? {} : { readinessBinding: canonicalDigest({ reviewReadiness: 1 }) }) });
   await stageSingletonPublicationResponse(input);
   expect(await readSubmissionBoundaryVersioned(input.cwd, "example", access)).toEqual(rebound);
 });
