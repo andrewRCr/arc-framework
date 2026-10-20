@@ -2725,7 +2725,7 @@
   },
   "src/scripts/review-gate/lane-progress-conditional.ts": {
     "jsdoc/require-jsdoc": {
-      "count": 3
+      "count": 2
     },
     "sonarjs/cognitive-complexity": {
       "count": 2

@@ -1,5 +1,6 @@
 /** Conditional next-pass authorization transitions for durable lane owners. */
 
+import { captureNativeConditionalPassTransition, withdrawNativeConditionalPassTransition, inspectNativeConditionalPassTransition, invalidateNativeConditionalPassTransition } from "./runtime/native-conditional-transitions.js";
 import { bindNativeConditionalAdmission } from "./runtime/native-conditional-admission.js";
 import { canonicalize, type CanonicalDigest } from "../../lib/kernel/index.js";
 import { computeConditionalPassAuthorizationId, LaneProgressStateSchema, type LaneProgressState,
@@ -165,7 +166,15 @@ export function bindCompletedConditionalPassAuthorization(
   });
 }
 
-export async function captureConditionalNextPassAuthorization(
+/** Capture conditional authority through the invocation's selected fact and execution adapters. */
+export async function captureConditionalNextPassAuthorization(store: ReviewOperationStateStore,
+  input: Parameters<typeof captureRepositoryConditionalNextPassAuthorization>[1]):
+  ReturnType<typeof captureRepositoryConditionalNextPassAuthorization> {
+  return store.nativeFacts === undefined ? captureRepositoryConditionalNextPassAuthorization(store, input)
+    : captureNativeConditionalPassTransition(store.nativeFacts, store, input);
+}
+
+async function captureRepositoryConditionalNextPassAuthorization(
   store: ReviewOperationStateStore,
   input: {
     lane: LaneProgressState["lane"];
@@ -312,7 +321,15 @@ function withdrawnAuthorization(
  * @param confirmDispositionSetCurrent - Current approved-disposition confirmation boundary.
  * @returns A typed withdrawal, replay, or refusal without rewriting other authority.
  */
-export async function withdrawConditionalNextPassAuthorization(
+export async function withdrawConditionalNextPassAuthorization(store: ReviewOperationStateStore,
+  input: Parameters<typeof withdrawRepositoryConditionalNextPassAuthorization>[1],
+  confirmDispositionSetCurrent: Parameters<typeof withdrawRepositoryConditionalNextPassAuthorization>[2]):
+  ReturnType<typeof withdrawRepositoryConditionalNextPassAuthorization> {
+  return store.nativeFacts === undefined ? withdrawRepositoryConditionalNextPassAuthorization(store, input, confirmDispositionSetCurrent)
+    : withdrawNativeConditionalPassTransition(store.nativeFacts, store, input);
+}
+
+async function withdrawRepositoryConditionalNextPassAuthorization(
   store: ReviewOperationStateStore,
   input: {
     authorizationId: CanonicalDigest;
@@ -393,7 +410,13 @@ export async function withdrawConditionalNextPassAuthorization(
  * @param input - Superseded authorization binding and successor disposition identity.
  * @returns Updated progress, unchanged progress when no capture exists, or null when the lane owner is absent.
  */
-export async function invalidateConditionalNextPassAuthorization(
+export async function invalidateConditionalNextPassAuthorization(store: ReviewOperationStateStore,
+  input: Parameters<typeof invalidateRepositoryConditionalNextPassAuthorization>[1]): ReturnType<typeof invalidateRepositoryConditionalNextPassAuthorization> {
+  return store.nativeFacts === undefined ? invalidateRepositoryConditionalNextPassAuthorization(store, input)
+    : invalidateNativeConditionalPassTransition(store.nativeFacts, store, input);
+}
+
+async function invalidateRepositoryConditionalNextPassAuthorization(
   store: ReviewOperationStateStore,
   input: {
     lane: LaneProgressState["lane"];
@@ -466,7 +489,13 @@ export async function invalidateConditionalNextPassAuthorization(
  * @param input - Superseded authorization binding and successor disposition identity.
  * @returns A typed refusal only when the named authorization has already been consumed.
  */
-export async function inspectConditionalNextPassInvalidation(
+export async function inspectConditionalNextPassInvalidation(store: ReviewOperationStateStore,
+  input: Parameters<typeof inspectRepositoryConditionalNextPassInvalidation>[1]): ReturnType<typeof inspectRepositoryConditionalNextPassInvalidation> {
+  return store.nativeFacts === undefined ? inspectRepositoryConditionalNextPassInvalidation(store, input)
+    : inspectNativeConditionalPassTransition(store.nativeFacts, store, input);
+}
+
+async function inspectRepositoryConditionalNextPassInvalidation(
   store: ReviewOperationStateStore,
   input: {
     lane: LaneProgressState["lane"];
