@@ -214,7 +214,7 @@ Errands land after the contract and before the members:
   dormant anchored-checkout code, `arc set-class` working at once, and registration of the verbs that refuse
   `unsupported` until the flip. The seed fix's one cold-start workflow-text change is the scope exception below.
 
-  Amended 2026-10-16 — `seam-decomposition` departs from the reroute (`draft-seam-decomposition.md` § Direction).
+  Amended 2026-10-16 — `seam-decomposition` departs from the reroute (`spec-seam-decomposition.md` § 1.4).
   Today's decomposition machine stays the in-repo arm, untouched, and its one pre-flip change is the capability branch
   in `handleDecompose`, which sends a post-flip invocation to a store version rebuilt from the domain rules. The machine
   leaves in `storage-cutover`'s deletion pass, in place of the consumer map's per-module end states for it.
@@ -242,7 +242,7 @@ Errands land after the contract and before the members:
   Amended 2026-10-16 — `seam-decomposition` owns `work-item/cut-map` (a working name), a never-projected machine record
   holding a cut's map on its origin between the cut's two batches. Through record kinds' modules it adds the cohort
   kind's at-cap fan-out writer and the lineage kind's `lineage.cut-in-flight` write-check rule
-  (`draft-seam-decomposition.md` § The cut, R7).
+  (`spec-seam-decomposition.md` § 4, § 17.2).
 
   Amended 2026-10-16 — the working name stands: the kind is `work-item/cut-map`, beside the schema `cut-map` at version
   4 (`spec-seam-decomposition.md` § 15).
@@ -446,7 +446,7 @@ _Consumes:_ record kinds' meta, lineage, and cohort writers and the parsed `Pare
 protocol (item 12).
 
 Amended 2026-10-16 — a cut runs as two batches with the distribution approval between them
-(`draft-seam-decomposition.md` § The cut). The additive batch writes the member stubs, any new cohort documents, and
+(`spec-seam-decomposition.md` § 6, § 8). The additive batch writes the member stubs, any new cohort documents, and
 the stored cut map. The terminal batch writes the lineage record and the dependents' edges, and appends the at-cap
 fan-out block. Key 49's one-write end state holds for the terminal batch. The member also consumes locus's inbound
 kind (item 9), whose grammar its held-entry refusals read.
