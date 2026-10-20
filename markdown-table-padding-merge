@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "markdown-table-padding-merge",
+  "claimId": "5ffcb0cd29d1160acb71a8f22c7b05d7",
+  "createdAt": "2026-10-20T04:19:08.757Z",
+  "updatedAt": "2026-10-20T04:19:08.757Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Merge aligned GFM Markdown tables across padding-only changes while preserving original conflict sides and compact table formatting",
+  "branch": "fix/markdown-table-padding-merge",
+  "origin": "inbox",
+  "originEntry": "Merge aligned Markdown tables without clashing on column padding",
+  "originEntrySourceDigest": "sha256:151707480759b5c7ab47605d31cfabbcff86282062dc5c04ea264aa29bab0056",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
