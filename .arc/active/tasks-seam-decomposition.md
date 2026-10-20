@@ -657,7 +657,7 @@ canonical JSON on standard output, with its reason and remedy on standard error.
 - _Quality gates:_ Forced merge validation passed all 19 selected local checks, including both type checks, full
   lint, build, unit/integration suites, and ARC contracts. Three CI-only suites remain due before merge.
 - _Success criteria:_ All 14 met, none superseded or unresolved. The final author report binds the complete work-unit
-  span; one independent criteria pass and two fix-check rounds resolved the removal and retired-provider gaps. Evidence
+  span; one independent criteria pass and three fix-check rounds resolved the removal and retired-provider gaps. Evidence
   and the reference-backend proof boundary are in `notes-seam-decomposition.md` § Verification evidence.
 
 ---

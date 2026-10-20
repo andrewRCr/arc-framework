@@ -324,23 +324,25 @@ terminal author walk and quality gates still govern completion, and subsequent C
 
 ### Final author criteria report
 
-The final work-unit walk covers the complete flat Success Criteria section, ordinals 1–14, against the settled fix
-head below. Original criterion digests 1–12 still match the initial report; approved A2/A3 supply the two appended
-identities. This is the terminal author walk, with the original independent pass and both fix rounds retained above.
+The renewed work-unit walk covers the complete flat Success Criteria section, ordinals 1–14, against the final code
+head below. All fourteen criterion identities remain unchanged. The initial independent pass and three bounded fix
+rounds remain separate evidence; this is the required author revalidation for a new Candidate root.
 
 - **Diff base:** `5c9cd97e18dab159314e3963dade059959a625a7` (`origin/main` merge base).
-- **Reviewed head:** `91839a8e3a874b46c7fa24f29e51c329700174b9`.
-- **Reachable tree:** `f9c05724c83ff681d94d48154af1a7f3ef707d5e`.
+- **Reviewed head:** `ab7d8307ceabe109ca8e597de2c1b45aef147062`.
+- **Reachable tree:** `0485b5b71fd842a5becc1afb4cb3d42f92ea1ca0`.
 - **Boundary-order deviation:** none.
-- **Attention result:** `scope-selected / continue-review`; 16,801 changed lines across 263 files.
-- **Selected route:** substrate (68), additive (75), terminal (58), and revision/dispatch (62), an exact disjoint
-  union of the committed diff. Shared store declarations are external dependencies of the three consuming chunks;
-  the lineage lookup, generation propagation, batch admission, and caller-authority boundaries receive seam review.
-  The original pass covers its original 242-file subject; the approved repair deltas receive the two bounded fix
-  checks and this author walk. No second complete independent pass is claimed.
-- **Commit evidence:** `774d3f52a` carries A2; `91839a8e3` carries A3 and both local follow-up corrections. Both commit
-  gates passed. All package-source and test bytes match the subject of the fresh forced merge gate; later changes are
-  verification records and their formatting. The target inbox listing is clear.
+- **Attention result:** `scope-selected / continue-review`; 16,939 changed lines across 265 files.
+- **Selected route:** four dependency-ordered source/test chunks (70, 74, 58, and 59 paths), plus the four active
+  records in the governing-context and author seam scope. The 261 non-active paths form an exact disjoint source
+  union. Dedicated tests stay beside their implementations; supplementary cross-mode scenarios live in the final
+  closure and consume lower chunks. No changed direct import points to a later chunk. The four source scopes carry
+  1,862, 4,494, 4,043, and 4,017 changed lines. The top host projection matches the code head outside active records;
+  projections carry review attention, not ARC lane evidence.
+- **Commit evidence:** `774d3f52a` carries atomic removal admission, `91839a8e3` carries bounded lineage lookup and
+  both follow-up repairs, and `ab7d8307c` corrects the shared retirement assertion. All commit gates passed. Runtime
+  source is unchanged since initial verification at `1a6764250`; the test correction and its evidence are covered by
+  the fresh full merge request. The target inbox listing is clear.
 
 - **Success Criteria > 1:** `[x]`.
     - **Criterion digest:** `sha256:a72036d0062933e53bbb74999f315eac458556784309be4d13d6c45593f59d45`.
@@ -413,14 +415,14 @@ identities. This is the terminal author walk, with the original independent pass
       retirement remains permitted.
 - **Success Criteria > 14:** `[x]`.
     - **Criterion digest:** `sha256:08ff182892523a63ccecd69bfc434f0df2052ca079ca42875f3751d5631eff6e`.
-    - **Evidence:** Shared lineage conformance covers retired former-name lookup, current terminal-name preference,
-      ambiguity refusal, and exact UID after name reuse. Growth cases cover all three preparation paths; seeded
-      generation tests retain the old provider when its name is reused. Eight local/synced direct-operation cases
-      preserve lookup-only authority. Independent fix round 2 returns zero findings; the durable ref backend
-      implementation remains its provider's pre-cutover obligation.
+    - **Evidence:** Shared lineage conformance covers retired former names, current terminal-name preference, ambiguity
+      refusal, exact UID after reuse, and unchanged direct-operation authority. The write assertion compares complete
+      before/after draft reads under retained and swept retirement policies, permitting only not-found on an initial
+      refusal. Reference conformance and swept-draft local/synced scenarios pass, and independent fix round 3 returns
+      zero findings. The durable ref backend remains its provider's pre-cutover implementation obligation.
 
-**Summary:** 14 met, 0 superseded, 0 unresolved. Verification closes on this span; Candidate attestation binds the
-staged closing records separately. The proof boundary below remains unchanged.
+**Summary:** 14 met, 0 superseded, 0 unresolved. Fresh full verification passed all 19 selected local checks; three
+CI-only suites remain due before merge. Candidate renewal binds the staged closing records separately.
 
 ### Shared conformance compatibility after retirement
 
@@ -428,8 +430,8 @@ The ref-backend session raised a major compatibility finding in `checkDirectAlia
 its shared write case required an associated draft to remain readable after terminal lineage and primary removal.
 The backend's `sweepRefRetirements` clears the origin's final tree, so that requirement conflicts with its defined
 retirement cleanup. Source inspection and a native public-store baseline establish `not-found` for the exact-UID draft,
-`version-conflict` for the former-name write, and unchanged namespace state. The original report above remains bound
-to its reviewed subject; this correction supplements its conformance evidence.
+`version-conflict` for the former-name write, and unchanged namespace state. The initial twelve-criterion report above
+remains bound to its reviewed subject; this correction supplements the later conformance evidence.
 
 The approved local correction compares the complete draft-read result before and after the refused write, allowing
 only `not-found` when that read refuses. The former-name write refusal, namespace version, and lineage lookup assertions
@@ -450,10 +452,10 @@ repair evidence, not a complete work-unit re-review or lane clearance. The round
 without changing retirement policy or direct-operation authority. The optional criteria repair loop ends here; the
 remaining Candidate review follows the singleton landing bridge.
 
-The forced focused gate passed all 17 selected checks, including both type checks, full TypeScript lint, the unit
-suite, and ARC contracts. Increment validation passed seven checks and reused two; related unit feedback passed,
-with local E2E not selected. Candidate renewal requires a fresh full verification root, which is separate from this
-focused fix validation.
+The forced focused gate passed all 17 selected checks, including both type checks, full TypeScript lint, the unit suite,
+and ARC contracts. Increment validation passed seven checks and reused two; related unit feedback passed, with local E2E
+not selected. The required full verification for Candidate renewal then passed all 19 selected local checks. The renewed
+author report above retains all fourteen immutable criterion identities; three CI-only suites remain due before merge.
 
 ### Proof boundary
 

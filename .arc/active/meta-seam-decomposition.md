@@ -11,7 +11,7 @@
 - **Design:** `spec-seam-decomposition.md`
 - **Task List:** `tasks-seam-decomposition.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:12ffa3a7cb5ce352c3e089bf5fea2f44c5b96de9bee177556429abaec061d1b3`
+- **Candidate:** `sha256:3d7c3674f462a536316bde7d25ccbc3ef99ae1ac85ecfc5caab77431ae6d6ecd`
 
 - **Current Workflow:** `prepare-work-unit`
 - **Last Completed:** Task 7.1 — Complete verification
