@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "markdownlint-gate-version-alignment",
+  "claimId": "49de01e7d395420483b4f3364640b336",
+  "createdAt": "2026-10-20T02:47:25.713Z",
+  "updatedAt": "2026-10-20T02:47:25.713Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "markdownlint-gate-version-alignment",
+  "branch": "chore/markdownlint-gate-version-alignment",
+  "origin": "inbox",
+  "originEntry": "Run one markdownlint version at both Markdown gates",
+  "originEntrySourceDigest": "sha256:3c51522106bf8951c2b195347374fccffb393b617cb56eacedd2dd71e897e471",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
