@@ -13,11 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `draft-design`
-- **Last Completed:** [none]
+- **Last Completed:** draft-design — CLI-only half settled; draft captured at `maturing`
 - **Next Task:** [none]
-- **Blockers:** [none]
+- **Blockers:** Held in place until `storage-cutover` lands (`RELEASE-GATES` § Holds); no `arc pause` before the flip
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** draft-design Step 1 — at the cutover, resume from the draft's § Planning Continuity Next; co-design
+  the `report`/`offer` seam with `composable-workflows` and `loadset-composition`
 
 - **PR URL:** [none]
 - **Completed:** [none]
