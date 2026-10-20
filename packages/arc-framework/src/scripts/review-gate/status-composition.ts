@@ -23,6 +23,7 @@ import { createRawGitExec } from "../../lib/io-context.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import { RecordVersionSchema } from "../../lib/store/identity.js";
 import { resolveReviewInvocation, type ReviewInvocationInput, type ReviewInvocationOptions } from "./runtime/invocation.js";
+import { resolveNamedReviewWorkUnitInvocation } from "./runtime/review-work-unit.js";
 import { createReviewCompositionContext } from "./runtime/composition-context.js";
 import { readCandidateRecordVersioned } from "../../lib/store/kinds/review/candidate/access.js";
 import {
@@ -325,7 +326,7 @@ export async function readRoutedObligation(
     readonly rawExec?: RawGitExec;
   } = {},
 ): Promise<RoutedReviewObligation> {
-  const invocation = resolveReviewInvocation({ ...options, cwd, exec });
+  let invocation = resolveReviewInvocation({ ...options, cwd, exec });
   const rawExec = options.rawExec ?? createRawGitExec(cwd);
   const errand = await readErrandRoutedObligation({
     ...invocation,
@@ -360,6 +361,8 @@ export async function readRoutedObligation(
     return { state: "blocked", detail: "The target branch does not identify a work unit." };
   }
   const workUnit = subject.workUnitId;
+  invocation = await resolveNamedReviewWorkUnitInvocation({ ...invocation, cwd, exec,
+    workItem: invocation.workItem ?? subject.workItem }, workUnit);
   const reviewRecordStore = invocation.store;
   try {
     const boundary = (await readSubmissionBoundaryVersioned(cwd, workUnit, { store: reviewRecordStore, owner: invocation.workItem })).boundary;
@@ -952,8 +955,8 @@ export async function resolveReviewStatusForWorkUnit(options: ReviewInvocationIn
   readonly sourceId?: string;
   readonly remote?: string;
 }): Promise<ReviewStatusResult> {
-  const input = { ...options, ...resolveReviewInvocation(options) };
-  const workUnitId = SlugSchema.parse(input.workUnitId);
+  const workUnitId = SlugSchema.parse(options.workUnitId);
+  const input = { ...options, ...await resolveNamedReviewWorkUnitInvocation(options, workUnitId) };
   const reviewRecordStore = input.store;
   const { boundary, version } = await readSubmissionBoundaryVersioned(input.cwd, workUnitId, { store: reviewRecordStore, owner: input.workItem });
   if (boundary === null) throw new Error("The publication boundary is unavailable.");
