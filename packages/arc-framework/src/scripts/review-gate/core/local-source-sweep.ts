@@ -5,6 +5,7 @@ import type {
 } from "./ports.js";
 import type {
   ReviewOperationState,
+  LocalReviewState,
 } from "./operation-state-schema.js";
 
 export interface LocalSourceSweepDependencies {
@@ -14,6 +15,8 @@ export interface LocalSourceSweepDependencies {
     state: ReviewOperationState | null;
   }>;
   readReceipts(targetId: string): Promise<ForwardReceiptLedger>;
+  /** Selected native completion authority; repository cleanup retains receipt-ledger checks. */
+  isComplete?(state: LocalReviewState): Promise<boolean>;
   release(operationId: string): Promise<void>;
   now(): string;
 }
@@ -25,7 +28,7 @@ export interface LocalSourceSweepResult {
   }>;
 }
 
-/** Reap absent-record pins, completed operations, or expired operations without a receipt. */
+/** Reap absent-record pins, completed operations, or expired operations without a result. */
 export async function sweepLocalReviewSources(
   dependencies: LocalSourceSweepDependencies,
 ): Promise<LocalSourceSweepResult> {
@@ -41,11 +44,10 @@ export async function sweepLocalReviewSources(
     }
     if (persisted.state.kind !== "local-review") continue;
     const state = persisted.state;
-    const ledger = await dependencies.readReceipts(state.targetId);
-    const receiptComplete = ledger.receipts.some(
-      (receipt) => receipt.requestId === state.requestId,
-    );
-    if (receiptComplete) {
+    const completed = dependencies.isComplete === undefined
+      ? (await dependencies.readReceipts(state.targetId)).receipts.some(receipt => receipt.requestId === state.requestId)
+      : await dependencies.isComplete(state);
+    if (completed) {
       await dependencies.release(operationId);
       reaped.push({ operationId, reason: "completed" });
       continue;

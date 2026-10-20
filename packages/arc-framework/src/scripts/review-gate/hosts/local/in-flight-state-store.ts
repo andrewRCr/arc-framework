@@ -16,6 +16,13 @@ interface InFlightContext { publisher: GitCommonStatePublisher; workItem: OwnerI
   projectId: () => Promise<string>; evidence?: ReviewEvidencePort }
 const location = { root: "review-gate", namespace: "in-flight" } as const;
 
+function recordPrefix(uid: string): string { return `operation-${canonicalDigest({ uid }).slice(7)}-`; }
+
+/** Name one clone-local execution record by its exact admitted UID and operation. */
+export function nativeReviewInFlightRecordName(uid: string, operationId: string): string {
+  return `${recordPrefix(uid)}${canonicalDigest({ operationId }).slice(7)}.json`;
+}
+
 /** Bind machine-local execution state to one exact operational owner. */
 export class NativeReviewInFlightStateStore implements ReviewInFlightPort {
   readonly stateOffBranch = true;
@@ -28,11 +35,11 @@ export class NativeReviewInFlightStateStore implements ReviewInFlightPort {
       throw new LocalOperationStateStoreError("work-item-uid-required");
     }
     this.uid = input.workItem.uid;
-    this.prefix = `operation-${canonicalDigest({ uid: this.uid }).slice(7)}-`;
+    this.prefix = recordPrefix(this.uid);
   }
 
   private recordName(operationId: string): string {
-    return `${this.prefix}${canonicalDigest({ operationId }).slice(7)}.json`;
+    return nativeReviewInFlightRecordName(this.uid, operationId);
   }
 
   private async parse(raw: string): Promise<ReviewInFlightRecord> {
