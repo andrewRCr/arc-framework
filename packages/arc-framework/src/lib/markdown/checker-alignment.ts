@@ -4,7 +4,7 @@ import { Buffer } from "node:buffer";
 import { join, posix } from "node:path";
 
 import { ArcError, validateManagedPath, type ManagedPath } from "../kernel/index.js";
-import type { ReadIndexedBlob } from "./indexed-snapshot.js";
+import type { ReadIndexedBlob, ReadIndexedBlobs } from "./indexed-snapshot.js";
 import { MARKDOWN_RUNTIME_IMPLEMENTATION_PATHS } from "./staged-gate.js";
 
 const STATIC_MODULE_SPECIFIER_RE =
@@ -23,6 +23,7 @@ export interface AssertIndexedMarkdownCheckerAlignmentOptions {
 export interface ResolveIndexedMarkdownCheckerPathsOptions {
   readonly root: string;
   readonly readBlob: ReadIndexedBlob;
+  readonly readBlobs?: ReadIndexedBlobs;
   readonly entryPaths?: readonly string[];
 }
 
@@ -62,6 +63,13 @@ function resolveSourceImport(importer: ManagedPath, specifier: string): ManagedP
   return validateManagedPath(source);
 }
 
+function indexedDependencies(path: ManagedPath, bytes: Uint8Array | null): readonly ManagedPath[] {
+  if (bytes === null) {
+    throw new ArcError(`Indexed Markdown checker is missing: ${path}`, "markdown.checker-misaligned");
+  }
+  return importedSpecifiers(decodeSource(path, bytes)).map(specifier => resolveSourceImport(path, specifier));
+}
+
 /** Resolve the complete relative TypeScript dependency closure from indexed checker sources. */
 export async function resolveIndexedMarkdownCheckerPaths(
   options: ResolveIndexedMarkdownCheckerPathsOptions,
@@ -69,20 +77,20 @@ export async function resolveIndexedMarkdownCheckerPaths(
   const entries = (options.entryPaths ?? MARKDOWN_RUNTIME_IMPLEMENTATION_PATHS).map(validateManagedPath);
   const discovered = new Set<ManagedPath>(entries);
   const queue = [...entries];
-
-  for (let index = 0; index < queue.length; index += 1) {
-    const path = queue[index];
-    if (path === undefined) continue;
-    const indexed = await options.readBlob(options.root, path);
-    if (indexed === null) {
-      throw new ArcError(`Indexed Markdown checker is missing: ${path}`, "markdown.checker-misaligned");
+  let frontier = entries;
+  while (frontier.length > 0) {
+    const blobs = options.readBlobs === undefined ? undefined : await options.readBlobs(options.root, frontier);
+    const next: ManagedPath[] = [];
+    for (const path of frontier) {
+      const indexed = blobs === undefined ? await options.readBlob(options.root, path) : blobs.get(path) ?? null;
+      for (const dependency of indexedDependencies(path, indexed)) {
+        if (discovered.has(dependency)) continue;
+        discovered.add(dependency);
+        next.push(dependency);
+      }
     }
-    for (const specifier of importedSpecifiers(decodeSource(path, indexed))) {
-      const dependency = resolveSourceImport(path, specifier);
-      if (discovered.has(dependency)) continue;
-      discovered.add(dependency);
-      queue.push(dependency);
-    }
+    queue.push(...next);
+    frontier = next;
   }
   return queue;
 }

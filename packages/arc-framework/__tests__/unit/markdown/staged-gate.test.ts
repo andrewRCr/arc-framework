@@ -39,6 +39,45 @@ describe("staged Markdown gate", () => {
 });
 
 describe("staged Markdown checker alignment", () => {
+  it("discovers the complete ordered dependency closure through a bulk-only reader", async () => {
+    const entry = "packages/arc-framework/src/scripts/checker.ts";
+    const first = "packages/arc-framework/src/scripts/first.ts";
+    const second = "packages/arc-framework/src/scripts/second.ts";
+    const shared = "packages/arc-framework/src/scripts/shared.ts";
+    const sources = new Map([
+      [entry, Buffer.from('import "./first.js";\nimport("./second.js");\n')],
+      [first, Buffer.from('export * from "./shared.js";\n')],
+      [second, Buffer.from('import "./shared.js";\n')],
+      [shared, Buffer.from("export const value = 1;\n")],
+    ]);
+    const options = {
+      root: "/repo", entryPaths: [entry],
+      readBlob: async (): Promise<Uint8Array | null> => { throw new Error("This backend requires bulk reads"); },
+      readBlobs: async (_root: string, paths: readonly string[]): Promise<ReadonlyMap<string, Uint8Array>> =>
+        new Map(paths.flatMap(path => sources.has(path) ? [[path, sources.get(path)!]] : [])),
+    };
+    await expect(resolveIndexedMarkdownCheckerPaths(options)).resolves.toEqual([entry, first, second, shared]);
+  });
+
+  it.each(["missing", "invalid-utf8", "unsupported-import", "read-failure"])("refuses invalid bulk checker inputs (%s)", async failure => {
+    const entry = "packages/arc-framework/src/scripts/checker.ts";
+    const readFailure = new Error("Bulk object read failed");
+    const bytes = failure === "invalid-utf8" ? Buffer.from([0xff]) : Buffer.from('import "../../../../outside.js";\n');
+    const options = {
+      root: "/repo", entryPaths: [entry],
+      readBlob: async (): Promise<Uint8Array | null> => { throw new Error("This backend requires bulk reads"); },
+      readBlobs: async (): Promise<ReadonlyMap<string, Uint8Array>> => {
+        if (failure === "read-failure") throw readFailure;
+        return failure === "missing" ? new Map() : new Map([[entry, bytes]]);
+      },
+    };
+    const result = resolveIndexedMarkdownCheckerPaths(options);
+    if (failure === "read-failure") await expect(result).rejects.toBe(readFailure);
+    else await expect(result).rejects.toThrow(failure === "missing" ? "Indexed Markdown checker is missing"
+      : failure === "invalid-utf8" ? "Indexed Markdown checker is not valid UTF-8"
+        : "Indexed Markdown checker has an unsupported relative import");
+  });
+
   it("discovers transitive runtime dependencies from indexed sources", async () => {
     const sources = new Map<string, string>([
       [

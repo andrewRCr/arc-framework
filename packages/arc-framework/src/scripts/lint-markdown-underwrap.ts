@@ -9,12 +9,13 @@ import { lint } from "markdownlint/promise";
 import { z } from "zod";
 import { formatUnexpectedError } from "../lib/errors.js";
 import type { GitExec } from "../lib/git/index.js";
-import { gitExec, readGitBlobBytes } from "../lib/io-context.js";
+import { gitExec } from "../lib/io-context.js";
 import { ArcError } from "../lib/kernel/index.js";
 import { isMarkdownPathExcluded, validateMarkdownPath } from "../lib/markdown/authority.js";
 import { assertIndexedMarkdownCheckerAlignment, resolveIndexedMarkdownCheckerPaths } from "../lib/markdown/checker-alignment.js";
 import { loadIndexedMarkdownDependencies } from "../lib/markdown/indexed-dependencies.js";
 import type { ReadIndexedBlob } from "../lib/markdown/indexed-snapshot.js";
+import { createIndexedMarkdownReader } from "../lib/markdown/indexed-reader.js";
 import { resolveMarkdownRepositoryRoot, validateExplicitMarkdownPaths } from "../lib/markdown/selection.js";
 import { enumerateStagedMarkdownGatePaths } from "../lib/markdown/staged-gate.js";
 import { underwrapRule } from "../lib/markdown/underwrap.js";
@@ -119,7 +120,7 @@ export async function main(cwd = process.cwd(), receivedPaths: readonly string[]
     const indexFile = process.env.GIT_INDEX_FILE;
     const exec: GitExec = (command, args, options) => gitExec(command, args, { ...options, indexFile });
     const root = await resolveMarkdownRepositoryRoot({ cwd, exec, realpath });
-    const readBlob: ReadIndexedBlob = (repoRoot, path) => readGitBlobBytes(repoRoot, null, path, { indexFile });
+    const { readBlob, readBlobs } = createIndexedMarkdownReader(indexFile);
     const strings = await readUnderwrapStrings({ root, paths: positionals, worktree: values.worktree,
       allowIgnored: values["allow-ignored"], exec, readBlob });
     if (Object.keys(strings).length === 0) {
@@ -127,7 +128,7 @@ export async function main(cwd = process.cwd(), receivedPaths: readonly string[]
       return 5;
     }
     if (!values.worktree) {
-      const runtimePaths = await resolveIndexedMarkdownCheckerPaths({ root, readBlob, entryPaths });
+      const runtimePaths = await resolveIndexedMarkdownCheckerPaths({ root, readBlob, readBlobs, entryPaths });
       await assertIndexedMarkdownCheckerAlignment({ root, readBlob, readFile, runtimePaths });
       await loadIndexedMarkdownDependencies({ root, readBlob, runtimeVersions: markdownRuntimeVersions() });
       await assertParserDependency(root, readBlob);
