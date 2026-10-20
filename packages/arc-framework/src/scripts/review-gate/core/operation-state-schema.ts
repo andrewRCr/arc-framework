@@ -53,6 +53,8 @@ const OperationEnvelopeShape = {
   semanticsVersion: z.literal("review-operation/v1"),
   operationId: IdentifierSchema,
   updatedAt: z.iso.datetime({ offset: true }),
+  /** Exact operational owner retained by native admission for later operation-based re-entry. */
+  workItem: OwnerIdentitySchema.refine(owner => owner.type === "work-item", "Expected a work-item owner").optional(),
 };
 const ReviewVehicleSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("work-unit"), identity: IdentifierSchema }),
@@ -118,8 +120,6 @@ export const LocalReviewStateSchema = z.strictObject({
   ...OperationEnvelopeShape,
   kind: z.literal("local-review"),
   vehicle: ReviewVehicleSchema,
-  /** Exact operational owner retained by native preparation for later operation-based re-entry. */
-  workItem: OwnerIdentitySchema.refine(owner => owner.type === "work-item", "Expected a work-item owner").optional(),
   repositoryId: IdentifierSchema,
   targetId: CanonicalDigestSchema,
   requestId: CanonicalDigestSchema,

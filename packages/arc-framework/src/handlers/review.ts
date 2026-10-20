@@ -5,6 +5,7 @@ import { decodePrePublicationReplay, replayTokenFromAction, type PrePublicationR
 import { ReviewLaneReadRequestSchema, ReviewLaneReadEnvelopeSchema, type ReviewLaneReadRequest } from "../scripts/review-gate/lane-read-schema.js";
 import { createReviewInvocationResolver, resolveReviewInvocation, type ReviewInvocationOptions, type ReviewInvocationContext } from "../scripts/review-gate/runtime/invocation.js";
 import { resolveLocalReviewInvocation, resolveLocalReviewResumeInvocation } from "../scripts/review-gate/runtime/local-review-invocation.js";
+import { resolveFrontlineRunInvocation } from "../scripts/review-gate/runtime/frontline-invocation.js";
 import { createReviewCompositionContext } from "../scripts/review-gate/runtime/composition-context.js";
 import { readReviewLane } from "../scripts/review-gate/runtime/lane-read-composition.js";
 import { reviewDiscoverableCommandInputSchema } from "./review-request-schema.js";
@@ -2581,7 +2582,7 @@ async function deriveFrontlineCommandRequest(
   exec: GitExec,
   invocation: ReviewInvocationOptions = {},
 ): Promise<FrontlineCommandRequest> {
-  const { publisher } = createReviewCompositionContext({ ...invocation, cwd: root, exec });
+  const publisher = new RepositoryGitCommonStatePublisher(exec, root);
   const repositoryId = await resolveRepositoryIdentity(publisher, undefined, invocation);
   return FrontlineCommandRequestSchema.parse({
     ...request,
@@ -2611,7 +2612,7 @@ async function resolveDeliveryMemberFrontlineLineage(input: ReviewInvocationOpti
       "The owning work unit is no longer active in this checkout.",
     );
   }
-  const lookup = new RepositoryDeliveryMemberLookup({ exec, cwd: root });
+  const lookup = new RepositoryDeliveryMemberLookup({ ...input, exec, cwd: root });
   const settings = (await readConfigSettings(root)).settings;
   const delivery = await lookup.resolveReservationRecords(vehicle.workUnitId, {
     status: "established",
@@ -2707,18 +2708,26 @@ async function resolveCandidateFrontlineLineage(input: ReviewInvocationOptions &
   return lineage;
 }
 
-function defaultFrontlineResolveDependencies(context: InteractionContext, invocation: ReviewInvocationOptions = {}): ReviewFrontlineResolveHandlerDependencies {
-  const exec = createGitExec(context.subprocess);
+function defaultFrontlineResolveDependencies(context: InteractionContext, invocation: ReviewHandlerInvocationOptions = {}): ReviewFrontlineResolveHandlerDependencies {
+  const exec = invocation.exec ?? createGitExec(context.subprocess);
   const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
     ...defaultReviewHandlerBoundary(),
     deriveRequest: (request, root) => deriveFrontlineCommandRequest(request, root, exec, invocationFor(root)),
     resolve: async (request, root) => {
-      const bound = invocationFor(root);
-      const { publisher, family } = createReviewCompositionContext({ ...bound, cwd: root, exec });
-      const operationStore = family.ports.inFlight;
-      const dispositionStore = family.ports.dispositions;
       try {
+        const initial = invocationFor(root);
+        const selectedLive = initial.store.capabilities.stateOffBranch && initial.workItem === undefined
+          ? await readLocalReviewLiveContext({ ...initial, exec, cwd: root }) : null;
+        if (selectedLive !== null && selectedLive.workItem === undefined) {
+          if (request.vehicle !== undefined) throw new PlannedFrontlineMemberRefreshError(request.vehicle.workUnitId,
+            "The owning work unit is no longer active in this checkout.");
+          throw new Error("frontline review lineage authority is unavailable");
+        }
+        const bound = selectedLive === null ? initial : { ...initial, workItem: selectedLive.workItem };
+        const { publisher, family } = createReviewCompositionContext({ ...bound, cwd: root, exec });
+        const operationStore = family.ports.inFlight;
+        const dispositionStore = family.ports.dispositions;
         return await resolveFrontlineCommand(request, {
         preferences: createLocalFrontlineSourcePreferenceReader({
           cwd: root,
@@ -2735,7 +2744,7 @@ function defaultFrontlineResolveDependencies(context: InteractionContext, invoca
           action,
         ),
         confirmResponseHeadContinuation: createCandidateResponseHeadContinuationReader({
-          cwd: root, exec, dispositionStore, operationStore,
+          ...bound, cwd: root, exec, dispositionStore, operationStore,
         }),
         confirmDispositionSetCurrent: (producerId, dispositionSetId) => confirmCurrentDispositionSet(
           dispositionStore,
@@ -2746,7 +2755,7 @@ function defaultFrontlineResolveDependencies(context: InteractionContext, invoca
           createRepositoryReviewResultReader(publisher, bound), dispositionStore,
         ),
         resolveLineage: async (target, vehicle) => {
-          const live = await readLocalReviewLiveContext({ ...bound, exec, cwd: root });
+          const live = selectedLive ?? await readLocalReviewLiveContext({ ...bound, exec, cwd: root });
           if (vehicle !== undefined) {
             return resolveDeliveryMemberFrontlineLineage({
               ...bound, root, exec, target, vehicle,
@@ -2800,7 +2809,7 @@ export async function handleReviewFrontlineResolve(
   source: string,
   overrides: Partial<ReviewFrontlineResolveHandlerDependencies> = {},
   suppliedContext?: InteractionContext,
-  invocation: ReviewInvocationOptions = {},
+  invocation: ReviewHandlerInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false,
@@ -2925,13 +2934,13 @@ export interface ReviewFrontlineRunHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultFrontlineRunDependencies(context: InteractionContext, invocation: ReviewInvocationOptions = {}): ReviewFrontlineRunHandlerDependencies {
-  const exec = createGitExec(context.subprocess);
+function defaultFrontlineRunDependencies(context: InteractionContext, invocation: ReviewHandlerInvocationOptions = {}): ReviewFrontlineRunHandlerDependencies {
+  const exec = invocation.exec ?? createGitExec(context.subprocess);
   const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
     ...defaultReviewHandlerBoundary(),
     deriveRequest: async (request, root) => {
-      const { publisher } = createReviewCompositionContext({ ...invocationFor(root), cwd: root, exec });
+      const publisher = new RepositoryGitCommonStatePublisher(exec, root);
       const repositoryId = await resolveRepositoryIdentity(publisher, undefined, invocationFor(root));
       const target = await deriveLocalReviewTargetFromCoordinates({
         exec,
@@ -2942,7 +2951,9 @@ function defaultFrontlineRunDependencies(context: InteractionContext, invocation
       if (request.responseBinding === undefined) {
         return FrontlineRunCommandRequestSchema.parse({ ...request, target });
       }
-      const composition = createPrePublicationCompositionDependencies({ ...invocationFor(root), cwd: root, exec });
+      const selected = await resolveFrontlineRunInvocation({ ...invocationFor(root), cwd: root, exec },
+        { target, resolution: request.resolution });
+      const composition = createPrePublicationCompositionDependencies(selected);
       const [candidate, delivery, candidateTarget] = await Promise.all([
         composition.readCandidate(request.responseBinding.candidate.workUnit),
         composition.readDeliveryReviewTargets(request.responseBinding.candidate.workUnit),
@@ -2980,9 +2991,11 @@ function defaultFrontlineRunDependencies(context: InteractionContext, invocation
         },
       });
     },
-    run: (request, root) => runFrontlineReviewCommand(
+    run: async (request, root) => runFrontlineReviewCommand(
       request,
-      createFrontlineRunDependencies({ ...invocationFor(root), exec, cwd: root, interaction: context.subprocess }),
+      createFrontlineRunDependencies({
+        ...await resolveFrontlineRunInvocation({ ...invocationFor(root), exec, cwd: root }, request), interaction: context.subprocess,
+      }),
     ),
   };
 }
@@ -2999,7 +3012,7 @@ export async function handleReviewFrontlineRun(
   source: string,
   overrides: Partial<ReviewFrontlineRunHandlerDependencies> = {},
   suppliedContext?: InteractionContext,
-  invocation: ReviewInvocationOptions = {},
+  invocation: ReviewHandlerInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false,
@@ -3023,8 +3036,8 @@ export async function handleReviewFrontlineRun(
 
 export { handleReviewRequestSchema, type ReviewPublicRequestSchemaId } from "./review-request-schema.js";
 
-/** Operational authority and optional external Git boundary for local review handlers. */
-export interface ReviewLocalInvocationOptions extends ReviewInvocationOptions { exec?: GitExec; rawGit?: RawGitExec }
+/** Operational authority and optional external Git boundaries for review handlers. */
+export interface ReviewHandlerInvocationOptions extends ReviewInvocationOptions { exec?: GitExec; rawGit?: RawGitExec }
 
 export interface ReviewLocalPrepareHandlerDependencies {
   resolveRoot(cwd: string): string | null;
@@ -3034,7 +3047,7 @@ export interface ReviewLocalPrepareHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultLocalPrepareDependencies(context: InteractionContext, invocation: ReviewLocalInvocationOptions = {}): ReviewLocalPrepareHandlerDependencies {
+function defaultLocalPrepareDependencies(context: InteractionContext, invocation: ReviewHandlerInvocationOptions = {}): ReviewLocalPrepareHandlerDependencies {
   const exec = invocation.exec ?? createGitExec(context.subprocess);
   const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
@@ -3124,7 +3137,7 @@ export async function handleReviewLocalPrepare(
   source: string,
   overrides: Partial<ReviewLocalPrepareHandlerDependencies> = {},
   suppliedContext?: InteractionContext,
-  invocation: ReviewLocalInvocationOptions = {},
+  invocation: ReviewHandlerInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false,
@@ -3200,7 +3213,7 @@ export interface ReviewLocalResumeHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultLocalResumeDependencies(context: InteractionContext, invocation: ReviewLocalInvocationOptions = {}): ReviewLocalResumeHandlerDependencies {
+function defaultLocalResumeDependencies(context: InteractionContext, invocation: ReviewHandlerInvocationOptions = {}): ReviewLocalResumeHandlerDependencies {
   const exec = invocation.exec ?? createGitExec(context.subprocess);
   const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
@@ -3223,7 +3236,7 @@ export async function handleReviewLocalResume(
   source: string,
   overrides: Partial<ReviewLocalResumeHandlerDependencies> = {},
   suppliedContext?: InteractionContext,
-  invocation: ReviewLocalInvocationOptions = {},
+  invocation: ReviewHandlerInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false,

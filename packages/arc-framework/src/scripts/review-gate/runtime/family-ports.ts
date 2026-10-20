@@ -29,7 +29,14 @@ export function bindReviewFamilyPorts<T extends RepositoryReviewFamilyPorts>(inp
   if (input.store?.capabilities.stateOffBranch !== true) return { mode: "in-repo", ports: input.repository };
   if (input.owner === undefined) throw new Error("Resolve the invocation's work item before binding stored review ports.");
   const evidence = createReviewEvidencePort(input.store, input.owner);
-  return { mode: "stored", ports: { inFlight: input.repository.inFlight,
+  const operations = input.repository.inFlight;
+  const owner = input.owner;
+  const inFlight: ReviewInFlightPort = {
+    readOperation: operationId => operations.readOperation(operationId),
+    readOperationSnapshot: () => operations.readOperationSnapshot(),
+    publishOperation: (state, expectedVersion) => operations.publishOperation({ ...state, workItem: owner }, expectedVersion),
+  };
+  return { mode: "stored", ports: { inFlight,
     outcomes: createReviewOutcomePort(input.store, input.owner), evidence,
     decisions: createReviewDecisionPort(input.store, input.owner), dispositions: evidence } };
 }

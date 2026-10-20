@@ -1,7 +1,7 @@
 /** Production adapters for the local review prepare command. */
 import type { LocalReviewInvocationInput } from "./local-review-invocation.js";
 import { resolveLocalPolicyTarget, createLocalContributionConfirmation } from "./local-correction-context.js";
-import type { ApprovedDispositionRecordReader, ReviewInFlightPort, ReviewOperationStateStore } from "../core/ports.js";
+import type { ApprovedDispositionRecordReader, ReviewOperationStateStore } from "../core/ports.js";
 import { readReviewLaneHistory } from "./lane-history.js";
 import { projectFixedFindingPointers } from "../core/fixed-finding-pointers.js";
 import { deriveNextPassFacts } from "../policy/next-pass-facts.js";
@@ -265,15 +265,7 @@ export function createLocalPrepareDependencies(input: LocalReviewInvocationInput
 /** Retain one operational store throughout local admission and its nested Candidate reads. */
 function createBoundLocalPrepareDependencies(input: LocalReviewInvocationInput & ReturnType<typeof createReviewCompositionContext>): LocalPrepareDependencies {
   const { publisher, family } = input;
-  const underlyingOperations = family.ports.inFlight;
-  const operationStore: ReviewInFlightPort = family.mode === "in-repo" ? underlyingOperations : {
-    readOperation: operationId => underlyingOperations.readOperation(operationId),
-    readOperationSnapshot: () => underlyingOperations.readOperationSnapshot(),
-    publishOperation: (state, expectedVersion) => underlyingOperations.publishOperation(
-      state.kind === "local-review" ? { ...state, workItem: input.workItem } : state,
-      expectedVersion,
-    ),
-  };
+  const operationStore = family.ports.inFlight;
   const sourceStore = new RepositoryLocalReviewSourceStore(publisher);
   const dispositionStore = family.ports.dispositions;
   const resultReader = createRepositoryReviewResultReader(publisher, input);
