@@ -49,4 +49,14 @@ describe("cohort fan-out writing", () => {
       .toEqual({ status: "refused", reason: "conflicting-provenance" });
   });
 
+  it.each([
+    "<!-- arc:decompose-fanout:origin:start -->",
+    "<!-- arc:decompose-fanout:origin:end -->",
+    block.replace("- `alpha`", "- `changed`"),
+    block,
+  ])("refuses additional same-origin provenance beside an exact block", marker => {
+    expect(writeCohortFanout(`# Cohort\n\n${block}\n\n${marker}\n`, "origin", ["alpha", "beta"]))
+      .toEqual({ status: "refused", reason: "conflicting-provenance" });
+  });
+
 });

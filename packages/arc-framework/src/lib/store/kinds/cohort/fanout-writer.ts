@@ -15,8 +15,10 @@ export function writeCohortFanout(document: string, origin: string, members: rea
     ...ordered.map(slug => `- \`${slug}\``),
     end,
   ].join("\n");
-  if (document.includes(block)) return { status: "reused", content: document };
-  if (document.includes(start) || document.includes(end)) return { status: "refused", reason: "conflicting-provenance" };
+  const exact = document.indexOf(block);
+  const remaining = exact < 0 ? [document] : [document.slice(0, exact), document.slice(exact + block.length)];
+  if (remaining.some(content => content.includes(start) || content.includes(end))) return { status: "refused", reason: "conflicting-provenance" };
+  if (exact >= 0) return { status: "reused", content: document };
   return { status: "appended", content: appendBeforeFinalRule(document, block) };
 }
 

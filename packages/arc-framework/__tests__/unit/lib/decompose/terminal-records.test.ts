@@ -117,6 +117,27 @@ it.each(["lone-marker", "different-block"] as const)("refuses a %s fan-out befor
   expect(lifecycleSuccess(await h.store.read({ reference: cohort.record.reference })).content).toContain("- `member-a`\n- `member-b`");
 });
 
+it.each([false, true])("refuses extra provenance beside an exact fan-out and prepares after repair, extraction=%s", async extraction => {
+  const h = await createDecomposeTerminalFixture({ atCap: true, extraction, started: extraction });
+  const first = await prepare(h.ctx);
+  const cohort = first.input.cohorts.find(candidate => candidate.path === "group/child");
+  if (cohort === undefined) throw new Error("Expected subcohort.");
+  const members = first.plan.fanout?.members;
+  if (members === undefined) throw new Error("Expected fan-out members.");
+  const exact = writeCohortFanout(cohort.record.content, "origin", members);
+  if (exact.status === "refused") throw new Error("Expected exact fan-out.");
+  const conflicting = await h.handEdit(cohort.record, `${exact.content}\n<!-- arc:decompose-fanout:origin:start -->\n`);
+  const acquired = await acquireDecomposeTerminal(h.ctx, "origin");
+  if (acquired.status === "refused") throw new Error(JSON.stringify(acquired));
+  const input = acquired.result;
+  const before = lifecycleSuccess(await h.store.version());
+  expect(await prepareDecomposeTerminalRecords(h.ctx, input)).toMatchObject({ status: "refused", reason: "fanout-conflict" });
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  expect(lifecycleSuccess(await h.store.read({ reference: input.acquired.storedMap.reference }))).toEqual(input.acquired.storedMap);
+  await h.handEdit(conflicting, exact.content);
+  expect((await prepare(h.ctx)).plan.fanout?.status).toBe("reused");
+});
+
 it("rewrites a stub dependent holding its own cut and leaves that cut requiring revision", async () => {
   const h = await createDecomposeOriginFixture();
   const consumer = await h.seedStub("consumer");
