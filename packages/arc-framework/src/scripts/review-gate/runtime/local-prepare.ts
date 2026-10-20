@@ -5,6 +5,7 @@ import { assertReservedLocalObligation, confirmReservedLocalReplay } from "./loc
 import type { ConfirmResponseHeadContinuation } from "../core/response-head-continuation.js";
 import type { FixedFindingPointer } from "../core/fixed-finding-pointers.js";
 import { z } from "zod";
+import { requireNativeReviewDecisionReferences } from "../policy/review-grant-references.js";
 
 import { canonicalize } from "../../../lib/kernel/index.js";
 
@@ -84,7 +85,7 @@ import {
 } from "../policy/local-review-coverage-selection.js";
 import { cleanupExpired, retryLaneOwnerConflicts } from "./local-prepare-retry.js";
 import { LocalPrepareCommandError } from "./local-prepare-error.js";
-import { completedReplayAttemptMatches, resolveStablePendingLocalReplay, type StablePendingReplayContext } from "./local-pending-replay.js";
+import { completedReplayAttemptMatches, localReplayAdmissionMatches, resolveStablePendingLocalReplay, type StablePendingReplayContext } from "./local-pending-replay.js";
 import { replayCompletedNativeLocalAdmission } from "./local-completed-replay.js";
 export { LocalPrepareCommandError } from "./local-prepare-error.js";
 
@@ -297,32 +298,6 @@ async function selectLocalReplayAttempt(input: PendingLocalReplayInput) {
   return { attempt, coverageAdmission };
 }
 
-type LocalReplayAttempt = NonNullable<Awaited<ReturnType<typeof selectLocalReplayAttempt>>>["attempt"];
-
-function replayIdentityMatches(
-  state: LocalReviewState,
-  attempt: LocalReplayAttempt,
-  binding: NonNullable<LocalReplayAttempt["local"]>,
-  input: PendingLocalReplayInput,
-): boolean {
-  return state.operationId === attempt.attemptId
-    && state.operationId === binding.operationId
-    && state.requestId === binding.requestId
-    && state.targetId === input.target.targetId
-    && binding.target.targetId === input.target.targetId
-    && canonicalize(state.target) === canonicalize(input.target)
-    && state.scopeMode === binding.scopeMode
-    && state.scopeMode === input.scopeMode
-    && state.logicalPass === attempt.logicalPass
-    && state.retryGeneration === attempt.retryGeneration;
-}
-
-function replayContextMatches(state: LocalReviewState, input: PendingLocalReplayInput): boolean {
-  return canonicalize(state.coverageAdmission) === canonicalize(input.coverageAdmission)
-    && canonicalize(state.lineage) === canonicalize(input.lineage)
-    && canonicalize(state.deliveryAdmission ?? null) === canonicalize(input.request.deliveryAdmission ?? null);
-}
-
 async function replayPendingLocalAdmission(supplied: PendingLocalReplayInput): Promise<z.infer<typeof LocalPrepareEnvelopeSchema> | null> {
   const selected = await selectLocalReplayAttempt(supplied);
   if (selected === null) return null;
@@ -339,8 +314,7 @@ async function replayPendingLocalAdmission(supplied: PendingLocalReplayInput): P
   }
   const state = persisted.state;
   if (state === null || state.kind !== "local-review"
-    || !replayIdentityMatches(state, attempt, binding, input)
-    || !replayContextMatches(state, input)) {
+    || !localReplayAdmissionMatches(state, attempt, binding, input)) {
     throw new LocalPrepareCommandError("local pending admission does not match its operation");
   }
   await confirmReservedLocalReplay({ request: input.request, state, lineage: input.lineage,
@@ -951,6 +925,7 @@ export async function prepareLocalReview(
   dependencies: LocalPrepareDependencies,
 ): Promise<z.infer<typeof LocalPrepareEnvelopeSchema>> {
   const request = LocalPrepareRequestSchema.parse(requestInput);
+  requireNativeReviewDecisionReferences(() => dependencies.operationStore.stateOffBranch === true, request.policyJudgment, request.deliveryAdmission);
   const stableReplay = await retryLaneOwnerConflicts(() => resolveStablePendingLocalReplay(
     request, dependencies, (context) => replayPendingLocalAdmission({ ...context, dependencies }),
   ));

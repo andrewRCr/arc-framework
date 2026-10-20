@@ -29,7 +29,7 @@ import {
   ReviewScopeModeSchema,
   type ReviewScopeMode,
 } from "./review-primitives.js";
-import type { DeliveryLocalReviewAdmission } from "../policy/delivery-local-review-admission.js";
+import { projectDeliveryLocalReviewAdmissionIdentity, type DeliveryLocalReviewAdmission } from "../policy/delivery-local-review-admission.js";
 import {
   LocalReviewCoverageAdmissionSchema,
   type LocalReviewCoverageAdmission,
@@ -185,7 +185,7 @@ export function createLocalReviewAdmission(input: LocalReviewAdmissionInput): Lo
     coverageAdmission,
     deliveryAdmissionDigest: input.deliveryAdmission === undefined
       ? null
-      : canonicalDigest(input.deliveryAdmission),
+      : canonicalDigest(projectDeliveryLocalReviewAdmissionIdentity(input.deliveryAdmission)),
     lineage,
     logicalPass,
     retryGeneration,
@@ -249,8 +249,8 @@ export async function resolveLocalReviewAdmission(
     || persisted.state.logicalPass !== admission.logicalPass
     || persisted.state.retryGeneration !== admission.retryGeneration
     || canonicalize(persisted.state.coverageAdmission) !== canonicalize(admission.coverageAdmission)
-    || canonicalize(persisted.state.deliveryAdmission ?? null)
-      !== canonicalize(admission.deliveryAdmission ?? null)
+    || canonicalize(projectDeliveryLocalReviewAdmissionIdentity(persisted.state.deliveryAdmission))
+      !== canonicalize(projectDeliveryLocalReviewAdmissionIdentity(admission.deliveryAdmission))
     || canonicalize(persisted.state.vehicle) !== canonicalize(admission.authority.vehicle)
     || persisted.state.attestationRuntimeKind !== admission.authority.attestationRuntimeKind) {
     throw new LocalReviewAdmissionError("local-operation-key-mismatch");

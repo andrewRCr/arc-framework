@@ -1,4 +1,5 @@
 /** Retain native local review ownership across preparation and operation-based re-entry. */
+import type { ReviewGrantReferences } from "../policy/review-grant-references.js";
 import { sameOwner, type OwnerIdentity } from "../../../lib/store/identity.js";
 import type { RawGitExec } from "../../../lib/git/exec.js";
 import { ProjectIdentityError } from "../../../lib/store/project-identity.js";
@@ -17,8 +18,8 @@ export interface LocalReviewInvocationInput extends ReviewInvocationInput {
 }
 
 /** Retain the current primary for policy reads while leaving vehicle admission with its existing consumer. */
-export async function resolveReviewPolicyInvocation(options: ReviewInvocationInput): Promise<ReviewInvocationInput & ReviewInvocationContext> {
-  const input = { ...options, ...resolveReviewInvocation(options) };
+export async function resolveReviewPolicyInvocation(options: ReviewInvocationInput, references?: ReviewGrantReferences): Promise<ReviewInvocationInput & ReviewInvocationContext> {
+  const input = { ...options, ...resolveReviewInvocation(options, references) };
   if (!input.store.capabilities.stateOffBranch) return input;
   await input.projectId();
   if (input.workItem !== undefined) return input;

@@ -1,4 +1,5 @@
 /** Validate original ordinary grant inputs before any native decision write. */
+import { consistentReviewDecisionReference as referenceKey } from "../policy/review-grant-references.js";
 import type { CanonicalDigest } from "../../../lib/kernel/index.js";
 import type { ReviewDecision } from "../../../lib/store/kinds/review/decision/schema.js";
 import { ReviewLaneJudgmentSchema } from "../policy/review-policy-driver.js";
@@ -12,14 +13,6 @@ export interface RequestedExtraPass { choice: ExtraPassChoice; decisionKey?: Can
 /** Refuse invalid authority with a repair route rather than replacing it with a fresh judgment. */
 export function refuseExtraPass(reason: string): never {
   throw Object.assign(new Error(`${reason} Supply a matching live decision reference or repair the grant and retry.`), { code: "invalid-input" });
-}
-
-function referenceKey(full: { decisionKey?: CanonicalDigest } | undefined, targetless: { decisionKey?: CanonicalDigest } | undefined):
-  CanonicalDigest | undefined {
-  if (full?.decisionKey !== undefined && targetless?.decisionKey !== undefined && full.decisionKey !== targetless.decisionKey) {
-    refuseExtraPass("Full and targetless extra-pass decision references disagree.");
-  }
-  return full?.decisionKey ?? targetless?.decisionKey;
 }
 
 function binding(full: { target: NativeExtraPassInput["policyTarget"] } | undefined):

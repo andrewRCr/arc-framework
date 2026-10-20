@@ -1,4 +1,5 @@
 /** Native policy calculation without a vehicle stops only when record evidence is required. */
+import { hasReviewDecisionReference } from "../policy/review-grant-references.js";
 import { resolveReviewPolicy, type ReviewPolicyCommandRequest, type ReviewResolveEnvelope } from "../policy/review-policy-driver.js";
 import type { LanePolicyConfig } from "../policy/lane-policy-config.js";
 
@@ -19,7 +20,7 @@ export class ReviewPolicyContextError extends Error {
 export function resolveNativeOwnerlessReviewPolicy(request: ReviewPolicyCommandRequest,
   policy: LanePolicyConfig): ReviewResolveEnvelope {
   const terminal = request.attempts.at(-1);
-  if (terminal?.outcome === "clean" || terminal?.outcome === "findings"
+  if (hasReviewDecisionReference(request) || terminal?.outcome === "clean" || terminal?.outcome === "findings"
     || (request.lane === "standard" && policy.sources.length > 0 && request.standardReview.obligation !== "exempt")) {
     throw new ReviewPolicyContextError();
   }

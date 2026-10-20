@@ -1,5 +1,6 @@
 /** Recover one exact pending local admission before resolving fresh evaluator input. */
 
+import { projectDeliveryLocalReviewAdmissionIdentity } from "../policy/delivery-local-review-admission.js";
 import { localAttemptCoverageAdmission } from "../policy/local-review-coverage-selection.js";
 import { canonicalize } from "../../../lib/kernel/index.js";
 import { GitObjectIdSchema, type ReviewTarget } from "../core/gate-contract-v2-schema.js";
@@ -62,7 +63,8 @@ async function pendingAdmissionMatches(
   dependencies: LocalPrepareDependencies,
 ): Promise<boolean> {
   const sameDelivery = request.deliveryAdmission === undefined
-    || canonicalize(request.deliveryAdmission) === canonicalize(state.deliveryAdmission ?? null);
+    || canonicalize(projectDeliveryLocalReviewAdmissionIdentity(request.deliveryAdmission))
+      === canonicalize(projectDeliveryLocalReviewAdmissionIdentity(state.deliveryAdmission));
   return canonicalize(state.vehicle) === canonicalize(subject.vehicle)
     && state.request.authorIdentity === subject.authorIdentity
     && laneSubjectOwnerMatches(state.lineage, lineage)
@@ -190,4 +192,19 @@ export async function resolveStablePendingLocalReplay<T>(
     }
     return result;
   }));
+}
+
+/** Compare exact replay identity and grant constraints without treating transient decision references as identity. */
+export function localReplayAdmissionMatches(state: LocalReviewState, attempt: PendingAttempt,
+  binding: NonNullable<PendingAttempt["local"]>,
+  input: Pick<StablePendingReplayContext, "request" | "target" | "scopeMode" | "lineage" | "coverageAdmission">): boolean {
+  return state.operationId === attempt.attemptId && state.operationId === binding.operationId
+    && state.requestId === binding.requestId && state.targetId === input.target.targetId
+    && binding.target.targetId === input.target.targetId && canonicalize(state.target) === canonicalize(input.target)
+    && state.scopeMode === binding.scopeMode && state.scopeMode === input.scopeMode
+    && state.logicalPass === attempt.logicalPass && state.retryGeneration === attempt.retryGeneration
+    && canonicalize(state.coverageAdmission) === canonicalize(input.coverageAdmission)
+    && canonicalize(state.lineage) === canonicalize(input.lineage)
+    && canonicalize(projectDeliveryLocalReviewAdmissionIdentity(state.deliveryAdmission))
+      === canonicalize(projectDeliveryLocalReviewAdmissionIdentity(input.request.deliveryAdmission));
 }

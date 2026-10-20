@@ -64,7 +64,7 @@ import {
   deriveLocalReviewTargetFromCoordinates,
   LocalTargetDerivationError,
 } from "../hosts/local/repository-target.js";
-import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
+import { createPrePublicationOwnerJudgments } from "./pre-publication-owner-judgments.js";
 import {
   readLaneProgressAcrossLineage,
   readCandidateInheritedLaneProgress,
@@ -739,26 +739,7 @@ export function createPrePublicationCompositionDependencies(options: ReviewInvoc
       }
     },
 
-    readOwnerTerminusAuthority: async (workUnit) => {
-      const name = SlugSchema.parse(workUnit);
-      let live: Awaited<ReturnType<typeof readLocalReviewLiveContext>>;
-      try {
-        live = await readLocalReviewLiveContext(input);
-      } catch (error) {
-        if (error instanceof ProjectIdentityError) throw error;
-        return { status: "refused", reason: `The Work Unit Owner could not be resolved: ${describe(error)}` };
-      }
-      if (live.context.workUnit?.identity !== name) {
-        return { status: "refused", reason: "The current checkout does not resolve the requested work unit." };
-      }
-      if (live.context.activeIdentity === null) {
-        return { status: "refused", reason: "No active ARC identity is configured for Owner authorization." };
-      }
-      if (live.context.activeIdentity !== live.context.workUnit.owner) {
-        return { status: "refused", reason: "The active identity does not match the Work Unit Owner." };
-      }
-      return { status: "authorized", ownerIdentity: live.context.workUnit.owner };
-    },
+    ...createPrePublicationOwnerJudgments(input, store),
 
     readLaneProgress: async (lane, headSha, lineageHeadShas, lineage, supersessionAncestors = []) => {
       const repository = await repositoryId();

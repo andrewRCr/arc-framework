@@ -1,4 +1,6 @@
 /** Production adapters for the local review prepare command. */
+import { bindJudgment } from "../policy/review-execution-admission.js";
+import { requireNativeReviewDecisionReferences } from "../policy/review-grant-references.js";
 import { readLocalReviewReceipts } from "./local-outcome-receipts.js";
 import { sweepLocalReviewMaterializations } from "./local-source-sweep-composition.js";
 import type { LocalReviewInvocationInput } from "./local-review-invocation.js";
@@ -103,8 +105,11 @@ function createLocalPolicyRequest(
   request: Parameters<LocalPrepareDependencies["validatePolicyAdmission"]>[0],
   policyTarget: { repository: string; pullRequest: number | null; headSha: string },
   sources: readonly string[],
+  native: boolean,
 ) {
-  const { standardReview, completedPasses, attempts, judgment } = request;
+  requireNativeReviewDecisionReferences(native, request.judgment);
+  const { standardReview, completedPasses, attempts } = request;
+  const { judgment, ceilingOverride, additionalPassAuthorization } = bindJudgment({ target: policyTarget, judgment: request.judgment });
   const invocation = judgment?.invocation ?? (sources.length === 0 || sources.includes("delegated-agent")
     ? { mode: "force" as const, sourceId: "delegated-agent" } : undefined);
       const policyRequest = {
@@ -119,26 +124,8 @@ function createLocalPolicyRequest(
           ? {}
           : { scopeSelection: { mode: judgment.scopeMode, target: policyTarget } }),
         ...(invocation === undefined ? {} : { invocation }),
-        ...(judgment?.ceilingOverride === undefined
-          ? {}
-          : {
-              ceilingOverride: {
-                ...judgment.ceilingOverride,
-                target: policyTarget,
-                lane: "standard" as const,
-              },
-            }),
-        ...(judgment?.additionalPassAuthorization === undefined
-          ? {}
-          : {
-              additionalPassAuthorization: {
-                precedingProducerId: judgment.additionalPassAuthorization.precedingProducerId,
-                completedPasses: judgment.additionalPassAuthorization.completedPasses,
-                nextPass: judgment.additionalPassAuthorization.nextPass,
-                target: { ...policyTarget, headSha: judgment.additionalPassAuthorization.headSha },
-                lane: "standard" as const,
-              },
-            }),
+        ...(ceilingOverride === undefined ? {} : { ceilingOverride }),
+        ...(additionalPassAuthorization === undefined ? {} : { additionalPassAuthorization }),
         ...(judgment?.terminus === undefined ? {} : { terminus: judgment.terminus }),
       };
   return policyRequest;
@@ -171,7 +158,7 @@ async function validateLocalPolicyAdmission(
       const policyTarget = await resolveLocalPolicyTarget(
         context.input, repositoryId, target, settings["branch.base"],
       );
-      const policyRequest = createLocalPolicyRequest(request, policyTarget, policy.sources);
+      const policyRequest = createLocalPolicyRequest(request, policyTarget, policy.sources, context.operationStore.stateOffBranch === true);
       const candidate = lineage.kind === "candidate" && workUnitId !== undefined
         ? await readCandidateRecord(context.input.cwd, workUnitId, { store: context.input.store, exec: context.input.exec, owner: context.input.workItem })
         : null;

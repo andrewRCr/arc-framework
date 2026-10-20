@@ -1,6 +1,7 @@
 /** Typed pre-publication review, delta verification, and Candidate convergence procedure. */
 
 import { z } from "zod";
+import { projectReviewCeilingJudgment } from "./review-ceiling-override.js";
 import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
 import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
@@ -349,16 +350,7 @@ function policyEnvelope(
         ? {}
         : {
             policyJudgment: {
-              ceilingOverride: {
-                exhaustedPassCount: request.frontline.ceilingOverride.exhaustedPassCount,
-                nextPass: request.frontline.ceilingOverride.nextPass,
-                ...(request.frontline.ceilingOverride.conditionalPassAuthorizationId === undefined
-                  ? {}
-                  : {
-                      conditionalPassAuthorizationId:
-                        request.frontline.ceilingOverride.conditionalPassAuthorizationId,
-                    }),
-              },
+              ceilingOverride: projectReviewCeilingJudgment(request.frontline.ceilingOverride),
             },
           }),
     };

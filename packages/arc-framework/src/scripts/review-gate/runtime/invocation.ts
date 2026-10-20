@@ -1,4 +1,5 @@
 /** One operational backend and project-identity reader shared by nested review compositions. */
+import { requireNativeReviewDecisionReferences, type ReviewGrantReferences } from "../policy/review-grant-references.js";
 import type { GitExec } from "../../../lib/git/exec.js";
 import type { Store } from "../../../lib/store/contract.js";
 import type { OwnerIdentity } from "../../../lib/store/identity.js";
@@ -27,8 +28,9 @@ export interface ReviewInvocationContext {
 }
 
 /** Open one checkout backend or retain the caller's exact existing selection. */
-export function resolveReviewInvocation(input: ReviewInvocationInput): ReviewInvocationContext {
+export function resolveReviewInvocation(input: ReviewInvocationInput, references?: ReviewGrantReferences): ReviewInvocationContext {
   const store = input.store ?? createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec }));
+  requireNativeReviewDecisionReferences(store.capabilities.stateOffBranch, references);
   return { store, projectId: input.projectId ?? createProjectIdentityReader(store),
     ...(input.workItem === undefined ? {} : { workItem: input.workItem }) };
 }

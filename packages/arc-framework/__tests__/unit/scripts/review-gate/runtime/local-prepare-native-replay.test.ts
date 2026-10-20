@@ -1,5 +1,8 @@
 /** Native preparation replays completed admissions from their portable results. */
 import { expect, it, onTestFinished } from "vitest";
+import { resolveNativeExtraPassJudgment } from "../../../../../src/scripts/review-gate/runtime/native-extra-pass.js";
+import { DeliveryLocalReviewAdmissionSchema } from "../../../../../src/scripts/review-gate/policy/delivery-local-review-admission.js";
+import { createDeliveryLocalReviewAdmission } from "../../../../fixtures/local-review-preparation.js";
 import { nativeLocalReview } from "../../../../fixtures/native-local-review.js";
 import { createReviewReceipt, createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { recordLocalReceiptConclusion } from "../../../../../src/scripts/review-gate/lane-progress.js";
@@ -97,4 +100,29 @@ it("refuses a mismatched retained source on native preparation and replays after
   await h.publisher.update(location, state.sourceRef, () => ({ kind: "write", content: original, result: undefined }));
   expect(await prepareLocalReview(request, dependencies)).toMatchObject({ state: "review-complete",
     payload: { operationId: state.operationId } });
+});
+
+it.each(["ceilingOverride", "additionalPassAuthorization"] as const)("replays a native member admission across transient %s references", async field => {
+  const deliveryAdmission = createDeliveryLocalReviewAdmission("f".repeat(40)), target = deliveryAdmission.target;
+  const grant = field === "ceilingOverride" ? { target, lane: "standard" as const, exhaustedPassCount: 0, nextPass: 1 }
+    : { target, lane: "standard" as const, precedingProducerId: "producer-1", completedPasses: 0, nextPass: 1 };
+  const admission = DeliveryLocalReviewAdmissionSchema.parse({ ...deliveryAdmission, [field]: grant });
+  const h = await nativeLocalReview(admission);
+  onTestFinished(h.cleanup);
+  const facts = h.operations.nativeFacts;
+  if (facts === undefined) throw new Error("Expected native decision facts");
+  const resolved = await resolveNativeExtraPassJudgment({ facts, repositoryId: h.state.repositoryId,
+    subject: { lineage: h.state.lineage, headSha: h.state.target.headSha, subjectDigest: h.state.target.targetId },
+    policyTarget: target, lane: "standard", completedPasses: 0, [field]: grant,
+    actor: h.state.request.authorIdentity, now: h.prepared.dependencies.now() });
+  const decisionKey = resolved.judgment?.[field]?.decisionKey;
+  expect(decisionKey).toEqual(expect.stringMatching(/^sha256:/u));
+  const snapshot = await h.operations.readOperationSnapshot(), version = await h.store.version();
+  const replay = await prepareLocalReview({ schemaVersion: 1, evaluatorIdentity: h.state.request.evaluatorIdentity,
+    routingFacts: { contentKind: "code-bearing", reviewRisk: "routine", changeDeterminacy: "ordinary",
+      ownership: "self", surfaceAuthority: "ordinary" }, memberHeadObjectId: admission.vehicle.head, deliveryAdmission: { ...admission,
+      [field]: { ...grant, decisionKey } } }, h.prepared.dependencies);
+  expect(replay).toMatchObject({ state: "ready", payload: { operationId: h.state.operationId } });
+  expect(await h.operations.readOperationSnapshot()).toEqual(snapshot);
+  expect(await h.store.version()).toEqual(version);
 });

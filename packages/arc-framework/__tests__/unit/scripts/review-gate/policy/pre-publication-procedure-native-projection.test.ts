@@ -1,5 +1,6 @@
 /** Native prepublication output derives routing while keeping stored authority portable. */
 import { expect, it } from "vitest";
+import { createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import { boundaryContinuation } from "../../../../fixtures/review-boundary.js";
 import { PrePublicationReviewRequestSchema, prePublicationBoundary, projectPrePublicationReview } from
@@ -68,4 +69,17 @@ it.each([false, true])("keeps native findings resumable with response pending %s
   if (responsePending) expect(envelope.nextAction).toMatchObject({ command: "arc review respond -", responseOperationId: "local/findings",
     responseSource: { kind: "attested-local", receiptRef: "review-source" } });
   expect(prePublicationBoundary(envelope)).not.toHaveProperty("policy");
+});
+
+it("relays a native frontline ceiling decision in both resolve forms", () => {
+  const decisionKey = canonicalDigest({ ceiling: true });
+  const exact = createReviewTarget({ schemaVersion: 2, semanticsVersion: "review-gate/v2", kind: "change-set",
+    repositoryId: "repo-1", baseRef: "main", diffBaseSha: "b".repeat(40), diffBaseTree: "c".repeat(40),
+    headSha: target.headSha, headTree: "d".repeat(40) });
+  const envelope = projectPrePublicationReview({ ...request, target: exact, frontline: { ...request.frontline,
+    invocation: undefined, completedPasses: 2, ceilingOverride: {
+      target, lane: "frontline", exhaustedPassCount: 2, nextPass: 3, decisionKey } } }, boundaryContinuation, authority);
+  expect(envelope.nextAction).toMatchObject({ command: "arc review frontline resolve -",
+    request: { policyJudgment: { ceilingOverride: { decisionKey } } },
+    authorizationRequest: { policyJudgment: { ceilingOverride: { decisionKey } } } });
 });

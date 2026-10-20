@@ -29,3 +29,10 @@ export const ReviewCeilingOverrideSchema = z.strictObject({
   ...CeilingJudgmentShape,
 }).superRefine(validateCeilingReference).readonly();
 export type ReviewCeilingOverride = z.infer<typeof ReviewCeilingOverrideSchema>;
+
+/** Project a full ceiling grant into a relay judgment while retaining its exact authority reference. */
+export function projectReviewCeilingJudgment(ceiling: ReviewCeilingOverride): Omit<ReviewCeilingOverride, "target" | "lane"> {
+  return { exhaustedPassCount: ceiling.exhaustedPassCount, nextPass: ceiling.nextPass,
+    ...(ceiling.conditionalPassAuthorizationId === undefined ? {} : { conditionalPassAuthorizationId: ceiling.conditionalPassAuthorizationId }),
+    ...(ceiling.decisionKey === undefined ? {} : { decisionKey: ceiling.decisionKey }) };
+}

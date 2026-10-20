@@ -732,7 +732,7 @@ export async function readErrandRoutedObligation(options: ReviewInvocationInput 
   readonly additionalPassAuthorization?: ReviewAdditionalPassAuthorization;
   readonly sourceId?: string;
 }): Promise<RoutedReviewObligation | null> {
-  const input = { ...options, ...resolveReviewInvocation(options) };
+  const input = { ...options, ...resolveReviewInvocation(options, options) };
   // The branch vocabulary only avoids an impossible identity read; the record still grants authority.
   if (!isErrandBranchType(input.target.headRef.split("/", 1)[0] ?? "")) return null;
   const exec: GitExec = (command, args, options) => input.exec(command, args, { ...options, cwd: input.cwd });

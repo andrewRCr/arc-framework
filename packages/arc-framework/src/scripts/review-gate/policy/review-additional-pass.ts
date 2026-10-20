@@ -62,3 +62,11 @@ export function invalidAdditionalPassReason(input: {
   if (!convergedSignal(input.signal)) return "pass-not-converged";
   return null;
 }
+
+/** Project a full additional grant into a relay judgment without losing its recorded decision. */
+export function projectReviewAdditionalPassJudgment(authorization: ReviewAdditionalPassAuthorization):
+  Omit<ReviewAdditionalPassAuthorization, "target" | "lane"> & { readonly headSha: string } {
+  return { headSha: authorization.target.headSha, precedingProducerId: authorization.precedingProducerId,
+    completedPasses: authorization.completedPasses, nextPass: authorization.nextPass,
+    ...(authorization.decisionKey === undefined ? {} : { decisionKey: authorization.decisionKey }) };
+}

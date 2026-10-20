@@ -1,4 +1,5 @@
 /** Lane policy-request composition for the typed pre-publication review procedure. */
+import { composePrePublicationLaneJudgment, applyPrePublicationExtraPassJudgment } from "./pre-publication-lane-judgments.js";
 import { deriveReviewNextPassContextFromAttempts, latestCompletedLaneAttempt } from "./review-next-pass.js";
 import type { PerformedResponseProofInput } from "./performed-response-proof.js";
 
@@ -192,6 +193,10 @@ export interface PrePublicationCompositionDependencies {
   readDeliveryReviewTargets(workUnit: string): Promise<PreBindingDeliveryReviewTargets>;
   deriveImmutableTarget(headSha: string): Promise<ImmutableTargetRead>;
   readOwnerTerminusAuthority(workUnit: string): Promise<OwnerTerminusAuthorityRead>;
+  resolveExtraPassJudgment?(input: {
+    repositoryId?: string; subject: { lineage: LaneSubjectLineage; headSha: string; subjectDigest: CanonicalDigest | null };
+    policyTarget: ReviewPolicyTarget; lane: ReviewLane; completedPasses: number; judgment?: ReviewLaneJudgment;
+  }): Promise<ReviewLaneJudgment | undefined>;
   readLaneProgress(
     lane: ReviewLane,
     headSha: string,
@@ -579,26 +584,6 @@ function candidateAncestorsForLineage(
     ? candidate.supersessionAncestors ?? [] : [];
 }
 
-async function laneInvocation(input: {
-  lane: ReviewLane;
-  lineage?: LaneSubjectLineage;
-  candidate: CandidateRead;
-  judgment?: ReviewLaneJudgment;
-  dependencies: PrePublicationCompositionDependencies;
-}): Promise<{ invocation: ReviewLaneJudgment["invocation"]; frontlinePhaseClosed?: true }> {
-  if (input.lane !== "frontline" || input.lineage?.kind !== "candidate"
-    || input.dependencies.readSingletonFrontlinePhaseClosed === undefined) {
-    return { invocation: input.judgment?.invocation };
-  }
-  const closed = await input.dependencies.readSingletonFrontlinePhaseClosed(
-    input.lineage.candidateId,
-    candidateAncestorsForLineage(input.candidate, input.lineage),
-  );
-  return closed && input.dependencies.stateOffBranch === true
-    ? { invocation: input.judgment?.invocation, frontlinePhaseClosed: true }
-    : { invocation: closed ? { mode: "skip" } : input.judgment?.invocation };
-}
-
 /**
  * Compose the routing input from the caller's change-set facts and the repository's own two facts.
  *
@@ -785,9 +770,9 @@ export async function composePrePublicationReviewRequest(
       : { progress: rawProgress, sameHeadCandidate: undefined };
     refusePendingLaneReview(progress, lane);
     if (progress.status === "unrecorded") advisories.push(unrecordedLaneAdvisory(lane));
-    const judgment = lanes.data[lane];
-    const { invocation, frontlinePhaseClosed } = await laneInvocation({ lane, lineage, candidate, judgment, dependencies });
-    const completedPasses = progress.status === "recorded" ? progress.completedPasses : 0;
+    const { completedPasses, currentLineage, judgment, invocation, frontlinePhaseClosed, extraPassAuthority } =
+      await composePrePublicationLaneJudgment({ candidate, lane, lineage, policyTarget, exactTarget, progress,
+        judgment: lanes.data[lane], dependencies });
     const historicalAttempt = await applicableHistoricalAttempt({
       lane, progress, sameHeadCandidate, exactTarget, lineage,
       workUnit: input.workUnit, policyTarget, dependencies,
@@ -802,6 +787,7 @@ export async function composePrePublicationReviewRequest(
       standardReview,
       completedPasses,
       attempts: policyAttempts(progress, historicalAttempt),
+      ...extraPassAuthority,
       ...(judgment?.scopeMode === undefined
         ? {}
         : { scopeSelection: { mode: judgment.scopeMode, target: policyTarget } }),
@@ -854,7 +840,6 @@ export async function composePrePublicationReviewRequest(
         : Promise.resolve(exactTarget),
     };
     if (lane === "frontline") return bindReviewPolicyEvidence(policyInput, evidenceDependencies);
-    const currentLineage = lineage ?? { kind: "candidate" as const, candidateId: candidate.candidateId };
     const nextPassContext = await deriveReviewNextPassContextFromAttempts({
       attempts: policyInput.attempts, completedPasses: policyInput.completedPasses, ...standardNextPassProgress(rawProgress),
       currentTarget: exactTarget, currentLineage, standardReview,
@@ -874,29 +859,8 @@ export async function composePrePublicationReviewRequest(
     policyTarget: ReviewPolicyTarget,
     request: Request,
   ): Request => {
-    const ceilingOverride = lanes.data[lane]?.ceilingOverride;
-    const boundToAnotherFrontlineHead = lane === "frontline"
-      && input.frontlineCeilingHeadSha !== undefined
-      && input.frontlineCeilingHeadSha !== policyTarget.headSha;
-    const additionalPass = lane === "standard"
-      ? lanes.data.standard?.additionalPassAuthorization
-      : undefined;
-    return {
-      ...request,
-      ...(ceilingOverride === undefined || boundToAnotherFrontlineHead ? {} : {
-        ceilingOverride: { ...ceilingOverride, target: policyTarget, lane },
-      }),
-      ...(additionalPass === undefined
-        || request.completedPasses > additionalPass.completedPasses ? {} : {
-        additionalPassAuthorization: {
-          precedingProducerId: additionalPass.precedingProducerId,
-          completedPasses: additionalPass.completedPasses,
-          nextPass: additionalPass.nextPass,
-          target: { ...policyTarget, headSha: additionalPass.headSha },
-          lane: "standard" as const,
-        },
-      }),
-    };
+    return applyPrePublicationExtraPassJudgment(request, { lane, policyTarget, judgment: lanes.data[lane],
+      native: dependencies.resolveExtraPassJudgment !== undefined, frontlineCeilingHeadSha: input.frontlineCeilingHeadSha });
   };
   let exactTarget: ReviewTarget | null;
   let policyTarget: ReviewPolicyTarget;

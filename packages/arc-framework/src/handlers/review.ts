@@ -1677,7 +1677,7 @@ async function resolveConfiguredReviewPolicy(
       readFile: (path) => readFile(path, "utf8"),
     }),
   });
-  const bound = await resolveReviewPolicyInvocation({ ...invocation, cwd: root, exec });
+  const bound = await resolveReviewPolicyInvocation({ ...invocation, cwd: root, exec }, request);
   if (bound.store.capabilities.stateOffBranch && bound.workItem === undefined) {
     return resolveNativeOwnerlessReviewPolicy(request, { sources, maxPasses });
   }

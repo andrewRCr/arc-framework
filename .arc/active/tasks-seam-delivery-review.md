@@ -1086,7 +1086,7 @@ this phase puts publication's claim and reopen's boundary write in their transit
   boundary names the terminus it carries by key, carrying or dropping it where today's writers carry or drop the
   terminus.
 
-    - `[ ]` **6.2.R Retain ordinary grant policy bindings and relay keys**
+    - `[x]` **6.2.R Retain ordinary grant policy bindings and relay keys**
 
         - _Goal:_ Ordinary extra-pass decisions retain whether their original grant bound repository and PR or binds
           them at use, the import preserves targetless authority without inventing coordinates, and native relays name
@@ -1106,17 +1106,12 @@ this phase puts publication's claim and reopen's boundary write in their transit
                   owner without a fresh identity lookup or another write; invalid references refuse with a repair
                   route. Targetless imports retain call binding, and Candidate ceiling carry excludes successors.
 
-            - `[ ]` **6.2.R.c Relay projections and bounded regression proof**
+            - `[x]` **6.2.R.c Relay projections and bounded regression proof**
 
-                - Preserve `decisionKey` in full and targetless policy projections, including
-                  `projectSingletonLocalPrepareAction`, `policyEnvelope`, `bindJudgment`, and delivery local
-                  admission; compare conflicting full/targetless keys before admission. Exclude transient ordinary
-                  decision references from delivery admission identity hashing, preserving operation and request IDs
-                  while retaining references in the runtime payload. In-repo invocation binders
-                  refuse native decision references actionably and retain their existing emitted values.
-                - Prove native pre-publication composition emits a matching key and its relay reads the same stored
-                  decision without another write. Run schema, mapping, policy, and in-repo relay regressions; 6.2.a
-                  retains the remaining writer/caller integration and 6.6 closes the segment's full scenario.
+                - Relay projections retain and compare decision references; repository invocations refuse native
+                  references, and ownerless native calls require their owning context. Delivery admission identity
+                  and replay comparisons omit transient keys while retaining grant constraints. Native pre-publication
+                  composition reuses each stored grant without another write.
 
     - `[ ]` **6.2.a Ceiling and additional extra passes**
 

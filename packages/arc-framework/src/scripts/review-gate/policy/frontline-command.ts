@@ -1,5 +1,6 @@
 /** Workflow-facing composition API for frontline semantic resolution. */
 
+import { requireNativeReviewDecisionReferences } from "./review-grant-references.js";
 import type { ConfirmResponseHeadContinuation } from "../core/response-head-continuation.js";
 import { canonicalize } from "../../../lib/kernel/index.js";
 import { withdrawUnrunFrontlineAdmission } from "./frontline-pending-admission.js";
@@ -101,6 +102,7 @@ export async function resolveFrontlineCommand(
   dependencies: FrontlineCommandDependencies,
 ): Promise<FrontlineCommandResult> {
   const parsed = FrontlineCommandRequestSchema.parse(request);
+  requireNativeReviewDecisionReferences(dependencies.operationStore.stateOffBranch === true, parsed.policyJudgment);
   const lineage = await dependencies.resolveLineage(parsed.target, parsed.vehicle);
   return dependencies.withLaneOperationLock(laneContinuationOperationId({
     lane: "frontline",

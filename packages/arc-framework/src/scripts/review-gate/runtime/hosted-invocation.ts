@@ -17,7 +17,7 @@ import { resolveReviewOperationInvocation, ReviewContinuationReferenceError } fr
 /** Use the indexed request owner for replay, otherwise retain the existing fresh vehicle selection. */
 export async function resolveHostedRequestInvocation(options: ReviewInvocationInput,
   request: HostedRequestEnvelope, indexed: HostedRequestOwnerIndexRecord | null): Promise<ReviewInvocationInput> {
-  const input = { ...options, ...resolveReviewInvocation(options) };
+  const input = { ...options, ...resolveReviewInvocation(options, request) };
   if (!input.store.capabilities.stateOffBranch) return input;
   if (indexed !== null) {
     if (indexed.workItem === undefined) throw new Error(

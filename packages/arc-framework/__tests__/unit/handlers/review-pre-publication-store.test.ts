@@ -208,3 +208,31 @@ it("recovers native attestation ordering against its stored version and records 
   expect((await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner })).boundary)
     .toMatchObject({ locus: "candidate-publish-ready", schemaVersion: 2, readinessBinding: ready.boundary.readinessBinding });
 });
+
+it.each(["ceilingOverride", "additionalPassAuthorization"] as const)("records and relays a native %s judgment by its decision key", async field => {
+  const h = await fixture(), owner = await h.seedCandidate();
+  const invocation = { ...h, workItem: owner };
+  const dependencies = createPrePublicationCompositionDependencies(invocation);
+  const value = field === "ceilingOverride" ? { exhaustedPassCount: 0, nextPass: 1 }
+    : { headSha: "a".repeat(40), precedingProducerId: "producer-1", completedPasses: 0, nextPass: 1 };
+  const first = await composePrePublicationReviewRequest({ workUnit: "example", selfReview: "settled",
+    lanes: { standard: { [field]: value } } }, dependencies);
+  if (first.status !== "composed") throw new Error(JSON.stringify(first));
+  expect(first.request.standard[field]).toMatchObject({ lane: "standard", target: { headSha: "a".repeat(40) } });
+  const key = first.request.standard[field]?.decisionKey;
+  expect(key).toEqual(expect.stringMatching(/^sha256:/u));
+  const { family } = createReviewCompositionContext(invocation);
+  if (family.mode !== "stored") throw new Error("Expected stored review facts");
+  expect(await family.ports.decisions.list()).toMatchObject({ status: "complete", records: [{ reference: { key }, value: {
+    lane: "standard", decidedBy: "test-user", basis: null, choice: { kind: "extra-pass", passCount: 0,
+      precondition: { kind: field === "ceilingOverride" ? "ceiling" : "additional" } },
+  } }] });
+  const before = await h.store.version();
+  for (const lanes of [undefined, { standard: { [field]: { ...value, decisionKey: key } } }]) {
+    const replay = await composePrePublicationReviewRequest({ workUnit: "example", selfReview: "settled", lanes }, dependencies);
+    expect(replay, JSON.stringify(replay)).toMatchObject({ status: "composed", request: { standard: { [field]: {
+      decisionKey: key, lane: "standard", target: { headSha: "a".repeat(40) },
+    } } } });
+    expect(await h.store.version()).toEqual(before);
+  }
+});
