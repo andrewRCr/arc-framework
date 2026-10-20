@@ -20,7 +20,7 @@ import {
 import type { ReviewTarget } from "../review-gate/core/gate-contract-v2-schema.js";
 import { createFixAuthorization } from "../review-gate/core/fix-authorization.js";
 import { frontlineResponseBindingMatchesTarget } from "../review-gate/core/frontline-response-binding.js";
-import { parseReviewSourceReference } from "../review-gate/core/review-source-reference.js";
+import { parseReviewSourceReferenceForInvocation } from "../review-gate/runtime/source-invocation.js";
 import { LocalFrontlineOutcomeStore } from "../review-gate/hosts/local/frontline-outcome-store.js";
 import { computeFrontlineSourceBindingId } from "../review-gate/policy/frontline-operation.js";
 import {
@@ -117,7 +117,7 @@ export async function composeCandidateResponseConfirmation(options: ReviewInvoca
   const publisher = context.publisher;
   const outcomeStore = new LocalFrontlineOutcomeStore(publisher);
   const operationStore = context.family.ports.inFlight;
-  const sourceRef = parseReviewSourceReference(approved.source.outcomeRef, "frontline");
+  const sourceRef = await parseReviewSourceReferenceForInvocation(input, approved.source.outcomeRef, "frontline");
   if (sourceRef.operationId !== approved.operationId) {
     throw new Error(`The private disposition ${dispositionId} moved frontline operation.`);
   }

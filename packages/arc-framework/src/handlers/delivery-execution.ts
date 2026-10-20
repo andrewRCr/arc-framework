@@ -285,8 +285,8 @@ import { currentApprovedDispositionNode } from
   "../scripts/review-gate/core/advisory-records.js";
 import { LocalReviewOperationStateStore } from
   "../scripts/review-gate/hosts/local/operation-state-store.js";
-import { parseReviewSourceReference } from
-  "../scripts/review-gate/core/review-source-reference.js";
+import { parseReviewSourceReferenceForInvocation } from
+  "../scripts/review-gate/runtime/source-invocation.js";
 import { RespondEnvelopeSchema } from
   "../scripts/review-gate/core/review-command-envelope.js";
 import { HostedFindingsResponsePlanSchema } from
@@ -3259,7 +3259,7 @@ async function executeDeliveryCommand(
           }
           let operationReference;
           try {
-            operationReference = parseReviewSourceReference(selection.source.attemptRef, "hosted");
+            operationReference = await parseReviewSourceReferenceForInvocation({ ...invocation, cwd, exec }, selection.source.attemptRef, "hosted");
           } catch {
             return { status: "refused", reason: "review-fix-response-stale" };
           }
@@ -3797,7 +3797,7 @@ async function executeDeliveryCommand(
         if (record.source.kind !== "attested-local" || responseMember === null) return null;
         let sourceReference;
         try {
-          sourceReference = parseReviewSourceReference(record.source.receiptRef, "attested-local");
+          sourceReference = await parseReviewSourceReferenceForInvocation({ ...invocation, cwd, exec }, record.source.receiptRef, "attested-local");
         } catch {
           return null;
         }
@@ -3910,7 +3910,7 @@ async function executeDeliveryCommand(
         if (responseRecord.source.kind === "hosted") {
           let sourceReference;
           try {
-            sourceReference = parseReviewSourceReference(responseRecord.source.attemptRef, "hosted");
+            sourceReference = await parseReviewSourceReferenceForInvocation({ ...invocation, cwd, exec }, responseRecord.source.attemptRef, "hosted");
           } catch {
             return { status: "refused", reason: "review-fix-response-invalid" };
           }

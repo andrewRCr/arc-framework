@@ -3,18 +3,23 @@ import { bindNativeReviewOperationReference } from "../core/review-operation-ref
 import { sameOwner } from "../../../lib/store/identity.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-store.js";
-import { bindReviewSourceReference, parseReviewSourceReference, type BoundReviewSourceReference,
+import { bindReviewSourceReference, parseReviewSourceReference, parseReviewSourceReferenceForOwner, type ReviewSourceReferenceOwner, type BoundReviewSourceReference,
   type ReviewSourceReferenceCoordinates } from "../core/review-source-reference.js";
-import { resolveReviewInvocation, type ReviewInvocationInput } from "./invocation.js";
+import { resolveReviewInvocation, type ReviewInvocationContext, type ReviewInvocationInput } from "./invocation.js";
 import { resolveReviewOperationInvocation, ReviewContinuationReferenceError } from "./continuation-invocation.js";
+
+async function selectedSourceOwner(input: ReviewInvocationContext): Promise<ReviewSourceReferenceOwner | undefined> {
+  if (!input.store.capabilities.stateOffBranch) return undefined;
+  const repositoryId = await input.projectId();
+  if (input.workItem === undefined) throw new Error("Resolve the native source owner before accessing its reference.");
+  return { repositoryId, workItem: input.workItem };
+}
 
 /** Publish the selected native owner outside source identities while preserving repository encodings. */
 export async function bindReviewSourceReferenceForInvocation(options: ReviewInvocationInput,
   reference: ReviewSourceReferenceCoordinates): Promise<string> {
-  const input = { ...options, ...resolveReviewInvocation(options) };
-  if (!input.store.capabilities.stateOffBranch) return bindReviewSourceReference(reference);
-  if (input.workItem === undefined) throw new Error("Resolve the native source owner before publishing its reference.");
-  return bindReviewSourceReference({ ...reference, repositoryId: await input.projectId(), workItem: input.workItem });
+  const owner = await selectedSourceOwner(resolveReviewInvocation(options));
+  return bindReviewSourceReference({ ...reference, ...owner });
 }
 
 /** Validate a source's kind and native coordinates while retaining project repair and internal bound calls. */
@@ -48,4 +53,11 @@ export async function resolveReviewSourceInvocation(options: ReviewInvocationInp
       "review source reference names another work item", producer);
   }
   return { invocation, reference };
+}
+
+/** Decode a source for a consumer whose invocation has already selected its storage owner. */
+export async function parseReviewSourceReferenceForInvocation(options: ReviewInvocationInput, value: string,
+  kind: BoundReviewSourceReference["kind"]): Promise<BoundReviewSourceReference> {
+  const owner = await selectedSourceOwner(resolveReviewInvocation(options));
+  return parseReviewSourceReferenceForOwner(value, kind, owner);
 }

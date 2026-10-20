@@ -17,7 +17,7 @@ import {
 } from "../review-gate/core/advisory-records.js";
 import type { ReviewTarget } from "../review-gate/core/gate-contract-v2-schema.js";
 import { composeReviewResponseSettlementAction } from "../review-gate/core/response-plan.js";
-import { parseReviewSourceReference } from "../review-gate/core/review-source-reference.js";
+import { parseReviewSourceReferenceForInvocation } from "../review-gate/runtime/source-invocation.js";
 import { LocalFrontlineOutcomeStore } from "../review-gate/hosts/local/frontline-outcome-store.js";
 import { resolveRepositoryIdentity } from "../review-gate/hosts/local/git-common-state.js";
 import { deriveLocalReviewTarget } from "../review-gate/hosts/local/repository-target.js";
@@ -35,6 +35,7 @@ export interface LineageReviewComposition {
 }
 
 async function resolveApprovedOriginTarget(
+  input: ReviewInvocationInput,
   record: ApprovedDispositionRecord,
   required: boolean,
   operationStore: Pick<ReviewInFlightPort, "readOperation">,
@@ -48,7 +49,7 @@ async function resolveApprovedOriginTarget(
     const { record: outcome } = await outcomeStore.readOutcome(record.operationId);
     resolved = outcome?.outcome.target ?? null;
   } else {
-    const reference = parseReviewSourceReference(record.source.attemptRef, "hosted");
+    const reference = await parseReviewSourceReferenceForInvocation(input, record.source.attemptRef, "hosted");
     if (reference.durableRef !== record.operationId) {
       throw new Error("The hosted review source reference moved attempt.");
     }
@@ -192,7 +193,7 @@ export function createLineageReviewComposer(options: ReviewInvocationInput): (
         && approved.candidate.workUnit === workUnit
         && approved.candidate.candidateId === record.attestation.candidateId;
       if (!required) continue;
-      const origin = await resolveApprovedOriginTarget(approved, required, operationStore, outcomeStore);
+      const origin = await resolveApprovedOriginTarget(input, approved, required, operationStore, outcomeStore);
       if (origin === null) {
         throw new Error(`The approved disposition record ${dispositionId} is outside the Candidate span.`);
       }

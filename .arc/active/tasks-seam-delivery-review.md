@@ -826,15 +826,13 @@ through rename and slug reuse; mismatched references refuse and succeed after co
           retries preserve existing actor and state checks. Hosted index replay retains its owner outside identities;
           repository inputs and encodings stay unchanged.
 
-    - `[ ]` **4.R2.c Propagate native references through result and response composition**
+    - `[x]` **4.R2.c Propagate native references through result and response composition**
 
-        - Re-enumerate source-reference producers and consumers. Carry the exact owner through composed evidence,
-          pre-publication, hosted discharge, earlier applicability, Candidate fix continuation, delivery execution,
-          and integration response confirmation and lineage review, as well as direct review commands. Match hosted
-          acknowledged attempt IDs to outcomes only within the referenced owner. Import keeps legacy decoding and fact
-          keys; native reference construction for imported results takes its owner from the stored record.
-        - Build `test-first` for native composed-source agreement with its producer, same-owner hosted resolution, and
-          refusal of cross-owner substitutions. Keep repository codec and source/disposition regressions.
+        - Composed evidence takes its owner from the stored outcome. Pre-publication, hosted discharge, earlier
+          applicability, delivery, and integration retain and validate the selected project and UID. Candidate fix
+          continuation resolves native facts within its bound family; hosted source resolution keeps acknowledged
+          attempts within that owner. Cross-owner substitutions refuse and corrected references succeed. Import
+          decoding and keys remain unchanged, as do repository source and disposition behavior.
 
     - `[ ]` **4.R2.d Prove local completed re-entry after pruning and on a second clone**
 
