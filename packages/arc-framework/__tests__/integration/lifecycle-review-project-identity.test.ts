@@ -13,6 +13,9 @@ import { AttestCommandInputSchema, attestCandidateWithReviewBoundary, publishCan
 import { PublishCommandInputSchema } from "../../src/handlers/lifecycle.js";
 import { createStandardReviewReservation, projectPublicationBoundary } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { createHostedHandleFixture } from "../fixtures/hosted-review.js";
+import { handleReviewLocalPrepare, handleReviewLocalAttest } from "../../src/handlers/review.js";
+import { LocalPrepareEnvelopeSchema } from "../../src/scripts/review-gate/core/review-command-envelope.js";
+import { localReviewResult } from "../helpers/in-process-review.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 afterEach(() => { vi.restoreAllMocks(); process.exitCode = 0; });
@@ -21,7 +24,9 @@ async function fixture(lifecycle: "Active" | "Integrating" = "Active") {
   onTestFinished(h.cleanup);
   const { cwd, exec } = h.native;
   await mkdir(join(cwd, ".arc/system"), { recursive: true });
-  await writeFile(join(cwd, ".arc/system/arc-config.yml"), "branch.base: main\narchive.cadence: manual\n");
+  await writeFile(join(cwd, ".arc/system/arc-config.yml"),
+    "branch.base: main\narchive.cadence: manual\nreview.standard_sources: [delegated-agent]\n");
+  await exec("git", ["config", "arc.identity", "test-user"], { cwd });
   await exec("git", ["add", "."], { cwd });
   await exec("git", ["commit", "-m", "Configure lifecycle fixture"], { cwd });
   const branch = "topic/opaque";
@@ -88,4 +93,41 @@ it("repairs publication identity and retains an unchanged native hosted boundary
   expect(await h.publish()).toMatchObject({ status: "unchanged", boundary });
   expect(await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.reference.store, owner: h.primary.reference.owner })).toEqual(before);
   expect((await h.exec("git", ["status", "--porcelain"], { cwd: h.cwd })).stdout.trim()).toBe("");
+}, 30_000);
+
+it("names the native Candidate version during live-review recovery and re-roots after that review ends", async () => {
+  const h = await fixture(), originalCwd = process.cwd();
+  await h.reference.seedProject(projectId);
+  const runReview = async (request: unknown, mode: "prepare" | "attest") => {
+    let output = "";
+    const boundary = { resolveRoot: () => h.cwd, readText: async () => JSON.stringify(request),
+      write: (text: string) => { output += text; }, setExitCode: () => {} };
+    const invocation = { store: h.reference.store };
+    if (mode === "prepare") await handleReviewLocalPrepare("-", boundary, undefined, invocation);
+    else await handleReviewLocalAttest("-", boundary, undefined, invocation);
+    return JSON.parse(output) as unknown;
+  };
+  try {
+    process.chdir(h.cwd);
+    const prepared = LocalPrepareEnvelopeSchema.parse(await runReview({ schemaVersion: 1,
+      evaluatorIdentity: "independent-reviewer", routingFacts: { contentKind: "code-bearing", reviewRisk: "routine",
+        changeDeterminacy: "ordinary", ownership: "self", surfaceAuthority: "ordinary" },
+      policyJudgment: { scopeMode: "whole-target", invocation: { mode: "force", sourceId: "delegated-agent" } } }, "prepare"));
+    if (prepared.state !== "ready") throw new Error(JSON.stringify(prepared));
+    const before = await readCandidateRecordVersioned(h.cwd, "example", { store: h.reference.store, owner: h.primary.reference.owner });
+    const reviewHead = (await h.exec("git", ["rev-parse", "HEAD"], { cwd: h.cwd })).stdout.trim();
+    await writeFile(join(h.cwd, "example.ts"), "export const example = false;\n");
+    await h.exec("git", ["commit", "-am", "Correct example"], { cwd: h.cwd });
+    const refused = await h.attest(true);
+    expect(refused, JSON.stringify(refused)).toMatchObject({ status: "refused", reason: "re-root-live-review",
+      recordRevision: before.version, nextAction: { candidateRecordRevision: before.version },
+      recommendedActionText: expect.stringContaining("Candidate record store version") });
+    await h.exec("git", ["branch", "saved-correction"], { cwd: h.cwd });
+    await h.exec("git", ["reset", "--hard", reviewHead], { cwd: h.cwd });
+    const result = await runReview({ ...localReviewResult(prepared.payload, "completed-review", []),
+      operationRef: prepared.payload.operationRef }, "attest");
+    expect(result, JSON.stringify(result)).toMatchObject({ state: "attested-current" });
+    await h.exec("git", ["merge", "saved-correction"], { cwd: h.cwd });
+    expect(await h.attest(true)).toMatchObject({ status: "attested", operation: "re-root", locus: { schemaVersion: 2 } });
+  } finally { process.chdir(originalCwd); }
 }, 30_000);

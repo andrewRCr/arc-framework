@@ -84,6 +84,8 @@ export interface ForwardReviewReceiptIndex {
 
 /** Versioned storage boundary for resumable, explicitly non-evidentiary review operations. */
 export interface ReviewOperationStateStore {
+  /** Fact placement carried from the invocation's selected backend for recovery guidance. */
+  readonly stateOffBranch?: boolean;
   readOperation(operationId: string): Promise<{
     version: number;
     state: ReviewOperationState | null;

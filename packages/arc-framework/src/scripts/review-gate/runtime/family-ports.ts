@@ -32,6 +32,7 @@ export function bindReviewFamilyPorts<T extends RepositoryReviewFamilyPorts>(inp
   const operations = input.repository.inFlight;
   const owner = input.owner;
   const inFlight: ReviewInFlightPort = {
+    stateOffBranch: true,
     readOperation: operationId => operations.readOperation(operationId),
     readOperationSnapshot: () => operations.readOperationSnapshot(),
     publishOperation: (state, expectedVersion) => operations.publishOperation({ ...state, workItem: owner }, expectedVersion),

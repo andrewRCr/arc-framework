@@ -242,7 +242,7 @@ export function createLocalReviewCandidateReader(options: ReviewInvocationInput)
       if (record === null || record.attestation.candidateId !== candidateId) {
         throw new Error("Candidate supersession authority is unavailable for local review");
       }
-      return readRepositoryCandidateSupersessionChain({ cwd: input.cwd, workUnit: workUnitId, record, exec: input.exec });
+      return readRepositoryCandidateSupersessionChain({ ...input, workUnit: workUnitId, record });
     },
   };
 }

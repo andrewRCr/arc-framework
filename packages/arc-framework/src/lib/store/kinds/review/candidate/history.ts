@@ -1,18 +1,24 @@
-/** Candidate supersession and revision reads over the repository's plain path log. */
+/** Candidate supersession and revision reads through the selected operational backend. */
 import type { GitExec } from "../../../../git/exec.js";
 import { parseCandidateManagedRecord, resolveCandidateSupersessionAncestors, CandidateSupersessionResolutionError,
   type CandidateSupersessionAncestor } from "../../../../work-unit/candidate-attestation.js";
 import { resolveCandidateRecordRelativePath } from "../paths.js";
 import type { CandidateManagedRecordV1 } from "./schema.js";
+import type { Store } from "../../../contract.js";
+import type { OwnerIdentity } from "../../../identity.js";
+import { readStoredCandidateSupersessionChain, readStoredCandidateRecordRevision } from "./stored-history.js";
 
-/** Read older Candidate records from reachable Git history and validate every explicit supersession link. */
+/** Validate explicit supersession links through native record versions or reachable repository history. */
 export async function readRepositoryCandidateSupersessionChain(input: {
   cwd: string;
   workUnit: string;
   record: CandidateManagedRecordV1;
   exec: GitExec;
+  store?: Store;
+  workItem?: OwnerIdentity;
 }): Promise<readonly CandidateSupersessionAncestor[]> {
   if (input.record.attestation.supersedes === undefined) return [];
+  if (input.store?.capabilities.stateOffBranch) return readStoredCandidateSupersessionChain({ ...input, store: input.store });
   const path = resolveCandidateRecordRelativePath(input.workUnit);
   let revisions: readonly string[];
   try {
@@ -45,14 +51,17 @@ export async function readRepositoryCandidateSupersessionChain(input: {
   });
 }
 
-/** Locate the named Candidate record in history reachable from the live review head. */
+/** Locate a Candidate's exact native version or its repository revision reachable from the review head. */
 export async function readRepositoryCandidateRecordRevision(input: {
   cwd: string;
   workUnit: string;
   candidateId: string;
   reviewHeadSha: string;
   exec: GitExec;
+  store?: Store;
+  workItem?: OwnerIdentity;
 }): Promise<string> {
+  if (input.store?.capabilities.stateOffBranch) return readStoredCandidateRecordRevision({ ...input, store: input.store });
   const path = resolveCandidateRecordRelativePath(input.workUnit);
   let history: Awaited<ReturnType<GitExec>>;
   try {

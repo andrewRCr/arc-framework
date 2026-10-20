@@ -843,30 +843,16 @@ through rename and slug reuse; mismatched references refuse and succeed after co
         - a clone whose `operations/` holds records of today's shapes reads its review state from the flip, and the
           snapshot read of `in-flight/` never meets them (`readOperationSnapshot`)
 
-### `[ ]` **4.8 Read the Candidate's supersession chain through `history` from the flip — § 8.4**
+### `[x]` **4.8 Read the Candidate's supersession chain through `history` from the flip — § 8.4**
 
 - _Goal:_ From the flip the Candidate history read walks the record's store history for the supersession chain and gives
   a record's revision as its store version, returning the chain the in-repo arm returns over the same versions, so pass
   inheritance runs over the reference backend.
 
-    - `resolveCandidateSupersessionAncestors` runs over `history` entries, parsing each version's content and passing
-      over a removal entry, which carries none; an ended item's history reaches its history refs through the root's
-      retry (7.5).
-    - From the flip `arc attest`'s result and remedy carry the store version (`recordRevision`,
-      `candidateRecordRevision`, `lib/work-unit/verbs/attest.ts`) in the result schema 4.5.a widened; and
-      `inspectReRootReviewAuthority` (`handlers/lifecycle-delivery-review.ts`) reads the revision through the
-      history read, attest's re-root refusal naming the store version where its remedy names the record commit today.
-    - The supersession refusal (`readCandidateInheritedLaneProgress`, `rg/lane-progress-supersession.ts`) names, from
-      the flip, the remedy § 8.4 states: finish or resume the predecessor's attempt in flight on this clone, then retry.
-    - Build `test-first` (one behavior at a time):
-        - over the reference backend, a re-rooted Candidate's chain equals the in-repo arm's over the same versions
-        - the record's revision is its store version, and attest's result carries it
-        - a re-root over a live attempt refuses naming the record's store version, and succeeds once the attempt is
-          settled
-        - a successor's review over a predecessor's attempt in flight on the clone refuses naming its attempt, and
-          succeeds once that attempt ends
-        - a removal entry is passed over, and a version whose content does not parse refuses as the in-repo arm refuses
-          it
+- _Outcome:_ Native Candidate readers share the exact stored supersession walk, skip removals, retain opaque versions,
+  and refuse damaged linked history. Attestation's recovery carries the stored version; inherited review names the
+  predecessor's attempt on this clone and resumes after it ends. Repository path-log history and owning-branch recovery
+  retain their existing behavior.
 
 ### `[ ]` **4.9 Write a local attempt's outcome, and derive the lane's pass count from outcomes — § 4.1–4.3, § 4.6, § 4.8**
 

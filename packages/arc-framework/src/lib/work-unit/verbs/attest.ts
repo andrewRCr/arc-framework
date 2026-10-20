@@ -376,19 +376,7 @@ export async function runAttest(
       }
       const liveReview = await context.inspectReRootReviewAuthority(name, currentness.candidateId);
       if (liveReview !== null) {
-        return AttestResultSchema.parse({
-          status: "refused",
-          reason: "re-root-live-review",
-          candidateId: currentness.candidateId,
-          ...liveReview,
-          nextAction: {
-            kind: "recover-owning-branch-review",
-            reviewHeadSha: liveReview.reviewHeadSha,
-            candidateRecordRevision: liveReview.recordRevision,
-            reviewArgv: ["arc", "review", "pre-publication", name],
-          },
-          recommendedActionText: "The predecessor Candidate still owns a live review attempt. With approval for branch restoration, preserve the changed HEAD on a temporary ref, restore the same owning branch and checkout to the exact review head, settle review there, merge the preserved changed ref back (never rebase), run full verification, then retry re-root. Use the Candidate record commit to confirm the predecessor record at the review head.",
-        });
+        return liveReviewReRootRefusal(name, currentness.candidateId, liveReview, context.boundarySchemaVersion === 2);
       }
       return establishRoot(context, name, current, orientation, currentness.candidateId, existing.version);
     }
@@ -543,6 +531,18 @@ interface ScopedRefusalInput {
   requiredScope: "focused" | "full";
   verificationEvidenceRef: string | undefined;
   newRoot: boolean;
+}
+
+function liveReviewReRootRefusal(name: string, candidateId: string,
+  liveReview: NonNullable<Awaited<ReturnType<AttestContext["inspectReRootReviewAuthority"]>>>, native: boolean): AttestResult {
+  return AttestResultSchema.parse({ status: "refused", reason: "re-root-live-review", candidateId, ...liveReview,
+    nextAction: { kind: "recover-owning-branch-review", reviewHeadSha: liveReview.reviewHeadSha,
+      candidateRecordRevision: liveReview.recordRevision, reviewArgv: ["arc", "review", "pre-publication", name] },
+    recommendedActionText: "The predecessor Candidate still owns a live review attempt. With approval for branch restoration, "
+      + "preserve the changed HEAD on a temporary ref, restore the same owning branch and checkout to the exact review head, "
+      + "settle review there, merge the preserved changed ref back (never rebase), run full verification, then retry re-root. "
+      + `Use the Candidate record ${native ? "store version" : "commit"} to confirm the predecessor record at the review head.`,
+  });
 }
 
 function scopedRefusal(input: ScopedRefusalInput): AttestResult {

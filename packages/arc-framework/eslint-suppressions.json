@@ -2749,11 +2749,6 @@
       "count": 3
     }
   },
-  "src/scripts/review-gate/lane-progress-supersession.ts": {
-    "sonarjs/cognitive-complexity": {
-      "count": 1
-    }
-  },
   "src/scripts/review-gate/lane-progress.ts": {
     "jsdoc/require-jsdoc": {
       "count": 3

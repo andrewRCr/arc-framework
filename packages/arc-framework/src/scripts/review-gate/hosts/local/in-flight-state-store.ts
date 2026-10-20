@@ -15,6 +15,7 @@ const location = { root: "review-gate", namespace: "in-flight" } as const;
 
 /** Bind machine-local execution state to one exact operational owner. */
 export class NativeReviewInFlightStateStore implements ReviewInFlightPort {
+  readonly stateOffBranch = true;
   private readonly prefix: string;
   private readonly uid: string;
   constructor(private readonly input: InFlightContext) {

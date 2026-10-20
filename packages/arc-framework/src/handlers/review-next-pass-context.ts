@@ -2,12 +2,9 @@
 import type { GitExec } from "../lib/git/exec.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
-import { recordReferences, OwnerIdentitySchema } from "../lib/store/identity.js";
 import { readCandidateRecord } from "../lib/store/kinds/review/candidate/access.js";
-import { unwrapReviewRecordResult } from "../lib/store/kinds/review/access-shared.js";
 import { readRepositoryCandidateSupersessionChain } from "../lib/store/kinds/review/candidate/history.js";
 import { resolveReviewInvocation, type ReviewInvocationInput, type ReviewInvocationOptions } from "../scripts/review-gate/runtime/invocation.js";
-import { CandidateManagedRecordV1Schema, resolveCandidateSupersessionAncestors } from "../lib/work-unit/candidate-attestation.js";
 import { readLocalReviewLiveContext } from "../scripts/review-gate/hosts/local/live-context.js";
 import { resolveRepositoryIdentity } from "../scripts/review-gate/hosts/local/git-common-state.js";
 import { deriveLocalReviewTarget } from "../scripts/review-gate/hosts/local/repository-target.js";
@@ -30,18 +27,9 @@ async function readCandidateContext(input: ReviewInvocationInput, workUnit: stri
   const { store } = resolveReviewInvocation(input);
   const candidate = await readCandidateRecord(input.cwd, workUnit, { store, exec: input.exec, owner: input.workItem });
   if (candidate === null || candidate.attestation.supersedes === undefined) return { candidate, ancestors: [] };
-  if (!store.capabilities.stateOffBranch) return { candidate, ancestors: await readRepositoryCandidateSupersessionChain({
-    ...input, workUnit, record: candidate,
+  return { candidate, ancestors: await readRepositoryCandidateSupersessionChain({
+    ...input, store, workUnit, record: candidate,
   }) };
-  const reference = recordReferences["review/candidate"](input.workItem ?? OwnerIdentitySchema.parse({ type: "work-item", name: workUnit }));
-  const records = unwrapReviewRecordResult(await store.history({ reference })).flatMap(entry => {
-    if (entry.content === null) return [];
-    try {
-      const parsed = CandidateManagedRecordV1Schema.safeParse(JSON.parse(entry.content));
-      return parsed.success ? [parsed.data] : [];
-    } catch { return []; }
-  });
-  return { candidate, ancestors: resolveCandidateSupersessionAncestors(candidate, records) };
 }
 
 /** Read the command's exact producer lineage, including Candidate supersession owners. */

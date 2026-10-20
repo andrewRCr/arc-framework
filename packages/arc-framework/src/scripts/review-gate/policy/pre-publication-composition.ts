@@ -604,7 +604,7 @@ export function createPrePublicationCompositionDependencies(options: ReviewInvoc
       let supersessionAncestors: readonly CandidateSupersessionAncestor[];
       try {
         supersessionAncestors = await readRepositoryCandidateSupersessionChain({
-          cwd: input.cwd, workUnit: name, record, exec: input.exec,
+          ...input, workUnit: name, record,
         });
       } catch (error) {
         return { status: "blocked", reason: `Candidate supersession cannot be validated (${describe(error)}).` };

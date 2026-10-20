@@ -29,9 +29,17 @@ function frontlinePerformedDispositionIds(owner: LaneProgressState | null): Read
   ].map((performance) => performance.dispositionSetId)) ?? []);
 }
 
+function predecessorReviewRecovery(ancestor: CandidateSupersessionAncestor, lane: LaneProgressState["lane"],
+  live: NonNullable<ReturnType<typeof livePredecessorReviewAttempt>>, stateOffBranch: boolean): string {
+  const detail = `Superseded Candidate ${ancestor.candidateId} has a live ${lane} review attempt ${live.attemptId} (${live.outcome}).`;
+  return stateOffBranch
+    ? `${detail} Finish or resume attempt ${live.attemptId} on this clone, then retry successor review.`
+    : `${detail} The current Candidate cannot resume that attempt: restore a branch worktree at the predecessor Candidate record${ancestor.recordRevision === undefined ? "" : ` commit ${ancestor.recordRevision}`}, complete its review there, then retry successor review.`;
+}
+
 /** Count consumed passes on validated older Candidate owners without importing their attempts. */
 export async function readCandidateInheritedLaneProgress(
-  store: Pick<ReviewOperationStateStore, "readOperation">,
+  store: Pick<ReviewOperationStateStore, "readOperation" | "stateOffBranch">,
   input: {
     lane: LaneProgressState["lane"];
     repositoryId: string;
@@ -59,7 +67,7 @@ export async function readCandidateInheritedLaneProgress(
       const live = livePredecessorReviewAttempt(owner);
       if (live !== null) {
         throw new CandidateSupersessionResolutionError(
-          `Superseded Candidate ${ancestor.candidateId} has a live ${input.lane} review attempt ${live.attemptId} (${live.outcome}). The current Candidate cannot resume that attempt: restore a branch worktree at the predecessor Candidate record${ancestor.recordRevision === undefined ? "" : ` commit ${ancestor.recordRevision}`}, complete its review there, then retry successor review.`,
+          predecessorReviewRecovery(ancestor, input.lane, live, store.stateOffBranch === true),
         );
       }
       continue;

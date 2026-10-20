@@ -122,6 +122,8 @@ function summarizePaths(paths: readonly string[], limit = 5): string {
   return paths.length <= limit ? shown : `${shown}, and ${paths.length - limit} more`;
 }
 
+const candidateRevisionKinds = { 1: "commit", 2: "store version" } as const;
+
 /** Schema-owned Candidate attestation input. */
 export const AttestCommandInputSchema = z.object({
   name: SlugSchema,
@@ -346,7 +348,7 @@ export async function attestCandidateWithReviewBoundary(base: VerbBase,
             let recordRevision: string;
             try {
               recordRevision = await readRepositoryCandidateRecordRevision({
-                cwd: base.cwd, workUnit: input.name, candidateId,
+                ...reviewInvocation, cwd: base.cwd, workUnit: input.name, candidateId,
                 reviewHeadSha: live.reviewHeadSha, exec: base.io.exec,
               });
             } catch (error) {
@@ -522,7 +524,7 @@ export async function attestCandidateWithReviewBoundary(base: VerbBase,
         `Candidate: ${result.candidateId}`,
         `Live ${result.lane} attempt: ${result.attemptId} (${result.outcome})`,
         `Review head: ${result.reviewHeadSha}`,
-        `Predecessor Candidate record commit: ${result.recordRevision}`,
+        `Predecessor Candidate record ${candidateRevisionKinds[boundarySchemaVersion]}: ${result.recordRevision}`,
         `Next after restoring this owning checkout to the review head: ${result.nextAction.reviewArgv.join(" ")}`,
       ].join("\n"));
     } else if ("expected" in result) {
