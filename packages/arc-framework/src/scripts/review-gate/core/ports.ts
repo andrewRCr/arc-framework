@@ -91,6 +91,8 @@ export interface ForwardReviewReceiptIndex {
 export interface ReviewOperationStateStore {
   /** Fact placement carried from the invocation's selected backend for recovery guidance. */
   readonly stateOffBranch?: boolean;
+  /** Actual clone-local source locator, when retained after the execution ends. */
+  readLocalSourceReference?(operationId: string): Promise<string | null>;
   readOperation(operationId: string): Promise<{
     version: number;
     state: ReviewOperationState | null;

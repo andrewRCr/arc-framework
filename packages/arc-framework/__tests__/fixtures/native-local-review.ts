@@ -7,6 +7,7 @@ import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-stat
 import { createReviewOutcomePort } from "../../src/lib/store/kinds/review/outcome/access.js";
 import { createReviewEvidencePort } from "../../src/lib/store/kinds/review/evidence/access.js";
 import { NativeReviewInFlightStateStore } from "../../src/scripts/review-gate/hosts/local/in-flight-state-store.js";
+import { RepositoryLocalReviewSourceStore } from "../../src/scripts/review-gate/hosts/local/source-store.js";
 
 export async function nativeLocalReview() {
   const h = createReviewHarness(), projectId = "123e4567-e89b-42d3-a456-426614174099";
@@ -20,6 +21,7 @@ export async function nativeLocalReview() {
       outcomes, evidence, projectId: h.projectId });
     const prepared = createLocalReviewPreparationFixture({ repositoryId: projectId });
     prepared.dependencies.operationStore = operations;
+    prepared.dependencies.sourceStore = new RepositoryLocalReviewSourceStore(publisher);
     const result = await prepareLocalReview({ schemaVersion: 1, evaluatorIdentity: "evaluator-1",
       routingFacts: { contentKind: "code-bearing", reviewRisk: "routine", changeDeterminacy: "ordinary",
         ownership: "self", surfaceAuthority: "ordinary" }, policyJudgment: { scopeMode: "whole-target" } }, prepared.dependencies);

@@ -2942,7 +2942,7 @@
   },
   "src/scripts/review-gate/runtime/reduce-command.ts": {
     "max-lines-per-function": {
-      "count": 2
+      "count": 1
     },
     "sonarjs/cognitive-complexity": {
       "count": 2

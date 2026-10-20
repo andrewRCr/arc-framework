@@ -64,10 +64,21 @@ export class NativeReviewInFlightStateStore implements ReviewInFlightPort {
     return composeOutcomeLane(operationId, pending, outcomes, this.input.workItem, evidence);
   }
 
-  async readOperation(operationId: string): Promise<{ version: number; state: ReviewOperationState | null }> {
+  private async readRetainedRecord(operationId: string): Promise<ReviewInFlightRecord | null> {
     const raw = await this.input.publisher.read(location, this.recordName(operationId));
     const record = raw === null ? null : await this.parse(raw);
     if (record !== null && record.operationId !== operationId) throw new LocalOperationStateStoreError("operation-id-mismatch");
+    return record;
+  }
+
+  /** Read only the original source locator without reviving ended execution. */
+  async readLocalSourceReference(operationId: string): Promise<string | null> {
+    const record = await this.readRetainedRecord(operationId);
+    return record?.state.kind === "local-review" ? record.state.sourceRef : null;
+  }
+
+  async readOperation(operationId: string): Promise<{ version: number; state: ReviewOperationState | null }> {
+    const record = await this.readRetainedRecord(operationId);
     return { version: record?.version ?? 0, state: this.compose(operationId,
       record === null ? null : composeReviewInFlightState(record.state), await this.outcomes(), await this.evidence()) };
   }

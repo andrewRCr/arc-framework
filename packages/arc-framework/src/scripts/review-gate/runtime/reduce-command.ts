@@ -1,7 +1,9 @@
 /** Read-only reduction over durable local and frontline advisory review records. */
 
 import { z } from "zod";
-import { NativeReviewOperationRefSchema, nativeReviewOperationReferenceMatches } from "../core/review-operation-reference.js";
+import { NativeReviewOperationRefSchema, nativeReviewOperationReferenceMatches, bindNativeReviewOperationReference } from "../core/review-operation-reference.js";
+import { reviewOutcomeKey } from "../../../lib/store/kinds/review/outcome/key.js";
+import type { ReviewOutcome } from "../../../lib/store/kinds/review/outcome/schema.js";
 import { ProjectIdentityError } from "../../../lib/store/project-identity.js";
 
 import {
@@ -16,6 +18,8 @@ import { validateReviewReceipt } from "../core/gate-contract-v2.js";
 import {
   ReviewIdentifierSchema,
   type ReviewReceiptV2,
+  type ReviewRequirementV2,
+  type ReviewRequestV2,
   type ReviewTarget,
 } from "../core/gate-contract-v2-schema.js";
 import { bindReviewSourceReference, type ReviewSourceReferenceBinding } from "../core/review-source-reference.js";
@@ -27,6 +31,8 @@ import type {
   ReviewReductionPort,
   ReviewOperationStateStore,
   ReviewResultReader,
+  ReviewOutcomePort,
+  StoredReviewFact,
 } from "../core/ports.js";
 import {
   validateApprovedDispositionRecordForResult,
@@ -54,6 +60,7 @@ export interface ReviewReductionAdapterDependencies {
   /** Encode source locators under the invocation's selected storage arm. */
   bindSourceReference?: ReviewSourceReferenceBinding;
   operationStore: ReviewOperationStateStore;
+  outcomes?: ReviewOutcomePort;
   sourceStore: LocalReviewSourceStore;
   outcomeStore: FrontlineOutcomeStore;
   resultReader: ReviewResultReader;
@@ -113,6 +120,42 @@ function responsePlan(input: {
   });
 }
 
+async function reduceStoredLocal(stored: StoredReviewFact<ReviewOutcome>,
+  persisted: Awaited<ReturnType<ReviewOperationStateStore["readOperation"]>>,
+  dependencies: ReviewReductionAdapterDependencies) {
+  const outcome = stored.value;
+  const local = outcome.local;
+  if (local?.receipt === undefined || outcome.requirement === undefined) {
+    throw new ReduceCommandError("local review receipt is unavailable");
+  }
+  assertLocalReviewClaimBinding(local);
+  const operationId = outcome.attemptId, target = outcome.target;
+  const operationRef = bindNativeReviewOperationReference({ operationId, repositoryId: target.repositoryId,
+    workItem: stored.reference.owner });
+  const confirmation = await dependencies.confirmTarget(target);
+  if (confirmation.state === "stale-target") return ReduceEnvelopeSchema.parse({ schemaVersion: 1,
+    mode: "review-reduce", diagnostics: [], state: "stale-target", nextAction: "prepare-current-target",
+    payload: { operationId, operationRef, persistedVersion: persisted.version, attemptedTarget: confirmation.attemptedTarget,
+      currentTarget: confirmation.currentTarget } });
+  const receipt = validateLocalReductionReceipt(target, outcome.requirement, local.request, local.receipt);
+  const receiptRef = await (dependencies.bindSourceReference ?? bindReviewSourceReference)({
+    kind: "attested-local", operationId, durableRef: reviewOutcomeKey(outcome) });
+  const disposition = await dependencies.dispositionStore.readDispositionRecord(operationId);
+  let sourceRef: string | undefined;
+  const retainedSource = persisted.state?.kind === "local-review" ? persisted.state.sourceRef
+    : await dependencies.operationStore.readLocalSourceReference?.(operationId);
+  if (retainedSource !== undefined && retainedSource !== null) {
+    const source = await dependencies.sourceStore.readSource(retainedSource);
+    if (source !== null) {
+      if (source.sourceDigest !== local.sourceDigest || source.repositoryId !== target.repositoryId
+        || source.targetId !== target.targetId) throw new ReduceCommandError("local review source snapshot mismatch");
+      sourceRef = retainedSource;
+    }
+  }
+  return reduceLocalReceipt({ operationId, operationRef, persistedVersion: persisted.version, target, requestId: local.requestId,
+    receipt, receiptRef, durableEvidenceRef: reviewOutcomeKey(outcome), ...(sourceRef === undefined ? {} : { sourceRef }) }, disposition, dependencies);
+}
+
 async function reduceLocal(
   operationId: string,
   persisted: Awaited<ReturnType<ReviewOperationStateStore["readOperation"]>>,
@@ -156,14 +199,26 @@ async function reduceLocal(
   }
   const entry = operationEntries[0];
   if (entry === undefined) throw new ReduceCommandError("local review receipt is unavailable");
+  const receipt = validateLocalReductionReceipt(state.target, state.requirement, state.request, entry.receipt);
+  const receiptRef = await (dependencies.bindSourceReference ?? bindReviewSourceReference)({
+    kind: "attested-local",
+    operationId,
+    durableRef: entry.durableEvidenceRef,
+  });
+  return reduceLocalReceipt({ operationId, persistedVersion: persisted.version, target: state.target,
+    requestId: state.requestId, receipt, receiptRef, durableEvidenceRef: entry.durableEvidenceRef, sourceRef: state.sourceRef }, disposition, dependencies);
+}
+
+function validateLocalReductionReceipt(target: ReviewTarget, requirement: ReviewRequirementV2,
+  request: ReviewRequestV2, input: ReviewReceiptV2): ReviewReceiptV2 {
   let receipt: ReviewReceiptV2;
   try {
-    receipt = validateReviewReceipt(state.target, state.requirement, state.request, entry.receipt);
+    receipt = validateReviewReceipt(target, requirement, request, input);
     renderForwardGateProjection({
       channel: "local",
-      target: state.target,
-      requirement: state.requirement,
-      request: state.request,
+      target,
+      requirement,
+      request,
       receipt,
     });
   } catch (error) {
@@ -171,15 +226,18 @@ async function reduceLocal(
       `local review chain mismatch: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
-  const receiptRef = await (dependencies.bindSourceReference ?? bindReviewSourceReference)({
-    kind: "attested-local",
-    operationId,
-    durableRef: entry.durableEvidenceRef,
-  });
+  return receipt;
+}
+
+async function reduceLocalReceipt(input: { operationId: string; operationRef?: string; persistedVersion: number; target: ReviewTarget;
+  requestId: string; receipt: ReviewReceiptV2; receiptRef: string; durableEvidenceRef: string; sourceRef?: string },
+  disposition: ApprovedDispositionRecord | null, dependencies: ReviewReductionAdapterDependencies) {
+  const { operationId, receipt, receiptRef } = input;
+  const locator = input.operationRef === undefined ? {} : { operationRef: input.operationRef };
   const base = {
     operationId,
-    persistedVersion: persisted.version,
-    currentTarget: state.target,
+    persistedVersion: input.persistedVersion,
+    currentTarget: input.target,
   };
   if (receipt.result === "failed" || receipt.result === "unavailable") {
     if (disposition !== null) throw new ReduceCommandError("non-findings receipt has an approved disposition");
@@ -191,8 +249,9 @@ async function reduceLocal(
       nextAction: "retry",
       payload: {
         ...base,
+        ...locator,
         retryCommand: "local-attest",
-        requestRef: state.requestId,
+        requestRef: input.requestId,
       },
     });
   }
@@ -201,7 +260,7 @@ async function reduceLocal(
     const result = await dependencies.resultReader.readResult(operationId);
     if (result.kind !== "attested-local"
       || result.originalOutcome !== "clean"
-      || result.receiptRef !== entry.durableEvidenceRef) {
+      || result.receiptRef !== input.durableEvidenceRef) {
       throw new ReduceCommandError("local review result snapshot mismatch");
     }
     const projected = projection({
@@ -215,17 +274,17 @@ async function reduceLocal(
       diagnostics: [],
       state: "advisory-complete",
       nextAction: "none",
-      payload: { ...base, projection: projected },
+      payload: { ...base, ...locator, projection: projected },
     });
   }
   const result = await dependencies.resultReader.readResult(operationId);
   if (result.kind !== "attested-local"
     || result.originalOutcome !== "findings"
-    || result.receiptRef !== entry.durableEvidenceRef) {
+    || result.receiptRef !== input.durableEvidenceRef) {
     throw new ReduceCommandError("local review result snapshot mismatch");
   }
   if (disposition === null) {
-    const plan = responsePlan({ target: state.target, findings: [...result.findings], disposition: null });
+    const plan = responsePlan({ target: input.target, findings: [...result.findings], disposition: null });
     if (plan.state !== "awaiting-approval") {
       throw new ReduceCommandError("undispositioned findings did not produce a response checkpoint");
     }
@@ -233,7 +292,7 @@ async function reduceLocal(
       ...base,
       state: "findings",
       nextAction: "respond",
-      sourceRefs: [receiptRef, state.sourceRef],
+      sourceRefs: [receiptRef, ...(input.sourceRef === undefined ? [] : [input.sourceRef])],
     });
     return ReduceEnvelopeSchema.parse({
       schemaVersion: 1,
@@ -243,6 +302,7 @@ async function reduceLocal(
       nextAction: "respond",
       payload: {
         ...base,
+        ...locator,
         projection: projected,
         responseSource: { kind: "attested-local", receiptRef },
       },
@@ -253,7 +313,7 @@ async function reduceLocal(
   } catch {
     throw new ReduceCommandError("approved disposition snapshot mismatch");
   }
-  const plan = responsePlan({ target: state.target, findings: [...result.findings], disposition });
+  const plan = responsePlan({ target: input.target, findings: [...result.findings], disposition });
   if (plan.state !== "ready-to-close" && plan.state !== "ready-to-fix") {
     throw new ReduceCommandError("approved findings did not produce a settled response");
   }
@@ -264,7 +324,7 @@ async function reduceLocal(
     diagnostics: [],
     state: "settled",
     nextAction: "none",
-    payload: { ...base, projection: projected },
+    payload: { ...base, ...locator, projection: projected },
   });
 }
 
@@ -438,6 +498,10 @@ export class DurableReviewReductionPort implements ReviewReductionPort {
     let persisted;
     try {
       persisted = await this.#dependencies.operationStore.readOperation(operationId);
+      const outcome = await this.#dependencies.outcomes?.read(operationId);
+      if (outcome?.value.local !== undefined) {
+        return await reduceStoredLocal(outcome, persisted, this.#dependencies);
+      }
       if (persisted.state === null || persisted.state.operationId !== operationId) {
         throw new ReduceCommandError("review operation is unavailable");
       }
