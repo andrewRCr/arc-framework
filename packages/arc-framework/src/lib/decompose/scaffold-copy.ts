@@ -10,6 +10,7 @@ import { decomposeMapRuleRefusal } from "./map-rule-refusal.js";
 import { checkTaskListDescriptor, checkTaskListSegmentation } from "../store/kinds/task-list/shape-rules.js";
 import { parseTaskListRecord } from "../store/kinds/task-list/parser.js";
 import { scanTaskListStructure } from "../task-list/scanner.js";
+import { checkDecomposeRecordConflicts, DECOMPOSE_SOURCE_CONFLICT_REMEDY } from "./source-conflicts.js";
 
 /** One new artifact's coordinates and expected-absence write. */
 export interface DecomposeScaffoldCopy { basename: string; reference: RecordReference; write: Mutation }
@@ -20,6 +21,8 @@ export function copyDecomposeArtifact(ctx: DecomposeContext, acquired: Decompose
   const source = acquired.artifacts.find(artifact => artifact.basename === basename);
   if (source === undefined) return decomposeMapRuleRefusal("source-artifact", basename,
     "Restore the origin's requested planning artifact through write-back, or target another artifact, then retry.");
+  const conflicts = checkDecomposeRecordConflicts([source.record], "scaffold source", DECOMPOSE_SOURCE_CONFLICT_REMEDY);
+  if (conflicts !== undefined) return conflicts;
   const target = copyCoordinates(owner, source.record.reference);
   if (target === null) return decomposeMapRuleRefusal("source-artifact", basename,
     "Restore the source artifact's logical kind and companion key, then retry.");
