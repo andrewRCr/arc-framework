@@ -5,12 +5,12 @@ import { CanonicalDigestSchema } from "../kernel/schema/vocabulary.js";
 import { isManagedPath } from "../kernel/canonical/managed-path.js";
 import { isWellFormedUnicode } from "../kernel/canonical/unicode.js";
 import { isSafeCohortPath, validateCohortPath } from "../active/cohort-path.js";
-import { V3DecomposeLocatorSchema } from "../work-unit/decompose-content.js";
+import { CutLocatorSchema } from "./cut-map-locator.js";
 
 const DecomposeSlugSchema: z.ZodType<string, string> = SlugSchema;
-const NonEmptyStringSchema = z.string().refine((value) => value.trim() !== "", "must be non-empty");
-const DestinationIdSchema = NonEmptyStringSchema.normalize("NFC")
+const NonEmptyStringSchema = z.string().refine((value) => value.trim() !== "", "must be non-empty")
   .refine(isWellFormedUnicode, "must contain only well-formed Unicode");
+const DestinationIdSchema = NonEmptyStringSchema.normalize("NFC");
 const ManagedPathSchema = z.string().refine(
   (value: string): boolean => isManagedPath(value),
   "must be a managed repository-relative path",
@@ -45,7 +45,7 @@ const PlacementSchema = z.discriminatedUnion("kind", [
 ]);
 const ExistingTargetSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("work-unit"), slug: DecomposeSlugSchema }),
-  z.strictObject({ kind: z.literal("draft-block"), slug: DecomposeSlugSchema, locator: V3DecomposeLocatorSchema }),
+  z.strictObject({ kind: z.literal("draft-block"), slug: DecomposeSlugSchema, locator: CutLocatorSchema }),
   z.strictObject({ kind: z.literal("document"), path: ManagedPathSchema }),
 ]);
 const DestinationSchema = z.discriminatedUnion("kind", [
@@ -71,7 +71,7 @@ const SourceDispositionSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("target"),
     destinationId: DestinationIdSchema,
-    targetLocator: V3DecomposeLocatorSchema,
+    targetLocator: CutLocatorSchema,
   }),
   z.strictObject({ kind: z.literal("retained-origin") }),
   DropSchema,

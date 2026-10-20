@@ -3,6 +3,8 @@
 The cut map binds source content and dependency edges by stored-record identity.
 `cut-map-machine.ts` defines its machine envelope and stable source, edge, and preflight identities.
 
+`cut-map-locator.ts` restricts record-bound locators to scalar Unicode before identity hashing and canonical storage.
+
 `context.ts` binds all modes to one lifecycle executor's store and Git seam, together with the operator identity,
 cohort template, inbound grammar, and terminal cleanup boundaries. Map inputs retain parsed JSON and its source operand.
 

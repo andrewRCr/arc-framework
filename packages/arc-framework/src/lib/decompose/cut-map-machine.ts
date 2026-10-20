@@ -3,10 +3,11 @@ import { z } from "zod";
 import { canonicalDigest, type CanonicalDigest } from "../kernel/canonical/canonical-json.js";
 import { SlugSchema } from "../kernel/index.js";
 import { CanonicalDigestSchema } from "../kernel/schema/vocabulary.js";
-import { V3DecomposeLocatorSchema } from "../work-unit/decompose-content.js";
+import { CutLocatorSchema } from "./cut-map-locator.js";
+import { isWellFormedUnicode } from "../kernel/canonical/unicode.js";
 /** Identify a source unit independently of its content. */
 export function cutSourceId(source: { sourceLocator: unknown }): CanonicalDigest {
-  return canonicalDigest({ schemaVersion: 4, sourceLocator: V3DecomposeLocatorSchema.parse(source.sourceLocator) });
+  return canonicalDigest({ schemaVersion: 4, sourceLocator: CutLocatorSchema.parse(source.sourceLocator) });
 }
 /** Identify a dependent independently of its current name and other edges. */
 export function cutIncomingEdgeId(edge: { dependent: { slug: string; uid: string } }): CanonicalDigest {
@@ -23,7 +24,8 @@ export function cutPreflightId(value: CutMapMachineFacts): CanonicalDigest {
 }
 
 /** Closed machine envelope for a cut over stored records. */
-export const CutBasenameSchema = z.string().min(1).refine(value =>
+export const CutBasenameSchema = z.string().min(1)
+  .refine(isWellFormedUnicode, "must contain only well-formed Unicode").refine(value =>
   !value.includes("/") && !value.includes("\\") && value !== "." && value !== ".."
   && !value.includes("\0") && value.normalize("NFC") === value, "must be a slash-free NFC basename");
 /** Planning artifacts whose units can be allocated by this cut. */
@@ -39,7 +41,7 @@ const facts = z.strictObject({
   sourceKind: z.enum(["backlog-stub", "started-planning", "active-origin"]),
   planningProfile: CutPlanningProfileSchema,
   sourceUnits: z.array(z.strictObject({
-    sourceId: CanonicalDigestSchema, sourceLocator: V3DecomposeLocatorSchema, contentDigest: CanonicalDigestSchema,
+    sourceId: CanonicalDigestSchema, sourceLocator: CutLocatorSchema, contentDigest: CanonicalDigestSchema,
   })),
   incomingEdges: z.array(z.strictObject({ edgeId: CanonicalDigestSchema, dependent: origin })),
   outgoingEdges: z.array(z.strictObject({ edgeId: CanonicalDigestSchema, provider })),
