@@ -46,6 +46,7 @@ function harness(record: CandidateManagedRecordV1 | null = null) {
   let publicationCount = 0;
   let currentTarget = { revision: REVISION, subject: subject() };
   const context: AttestContext = {
+    boundarySchemaVersion: 1,
     actor: "andrew",
     now: () => "2026-08-12T14:00:00.000Z",
     verificationEvidenceRef: (name) => `tasks-${name}.md#verification`,
@@ -111,6 +112,27 @@ async function pendingHarness(approvedVerification: "focused" | "full") {
 }
 
 describe("runAttest", () => {
+  it.each(["absent", "insufficient", "reused"] as const)(
+    "requests merge verification for native full convergence when evidence is %s", async mode => {
+      const { fixture, response } = await pendingHarness("full");
+      const context = { ...fixture.context, boundarySchemaVersion: 2 as const };
+      const params = { name: "example", lifecycle: "Active" as const,
+        scope: mode === "insufficient" ? "focused" as const : "full" as const,
+        ...(mode === "reused" ? { verificationEvidenceRef: response.verificationEvidenceRefs[0] } : {}) };
+      const refused = await runAttest(context, params);
+      expect(refused).toMatchObject({ status: "refused",
+        reason: mode === "absent" ? "verification-evidence-required"
+          : mode === "insufficient" ? "verification-scope-insufficient" : "verification-evidence-reused",
+        requiredScope: "full", nextAction: { kind: "run-verification", scope: "full", verificationKind: "merge",
+          attestArgv: ["arc", "attest", "example", "--scope", "full", "--verification-evidence-ref",
+            "{verificationEvidenceRef}", "--json"] } });
+      expect(fixture.state().publicationCount).toBe(1);
+      expect(await runAttest(context, { name: "example", lifecycle: "Active", scope: "full",
+        verificationEvidenceRef: "verification://fresh-native-convergence" })).toMatchObject({
+        status: "attested", operation: "convergence", scope: "full" });
+      expect(fixture.state().publicationCount).toBe(2);
+    });
+
   it.each([REVISION, "backend:candidate/7"])("keeps the live predecessor current at record version %s", async (version) => {
     const fixture = harness();
     await runAttest(fixture.context, { name: "example", lifecycle: "Active" });

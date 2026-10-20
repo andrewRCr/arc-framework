@@ -249,6 +249,7 @@ export const AttestResultSchema = z.union([
 export type AttestResult = z.infer<typeof AttestResultSchema>;
 
 export interface AttestContext {
+  boundarySchemaVersion: 1 | 2;
   actor: string;
   now(): string;
   verificationEvidenceRef(name: string): string;
@@ -329,6 +330,7 @@ export async function runAttest(
     if (currentness.status === "blocked") {
       if (requestedScope === "focused") {
         return scopedRefusal({
+          boundarySchemaVersion: context.boundarySchemaVersion,
           reason: "focused-scope-inapplicable",
           name,
           candidateId: currentness.candidateId,
@@ -341,6 +343,7 @@ export async function runAttest(
       }
       if (verificationEvidenceRef !== undefined) {
         return scopedRefusal({
+          boundarySchemaVersion: context.boundarySchemaVersion,
           reason: "verification-evidence-inapplicable",
           name,
           candidateId: currentness.candidateId,
@@ -395,6 +398,7 @@ export async function runAttest(
     if (currentness.convergenceVerification === "satisfied") {
       if (requestedScope === "focused" || verificationEvidenceRef !== undefined) {
         return scopedRefusal({
+          boundarySchemaVersion: context.boundarySchemaVersion,
           reason: requestedScope === "focused"
             ? "focused-scope-inapplicable"
             : "verification-evidence-inapplicable",
@@ -424,6 +428,7 @@ export async function runAttest(
     const requiredScope = currentness.convergenceScope;
     if (!candidateConvergenceScopeCovers(requestedScope, requiredScope)) {
       return scopedRefusal({
+        boundarySchemaVersion: context.boundarySchemaVersion,
         reason: "verification-scope-insufficient",
         name,
         candidateId: currentness.candidateId,
@@ -436,6 +441,7 @@ export async function runAttest(
     }
     if (verificationEvidenceRef === undefined) {
       return scopedRefusal({
+        boundarySchemaVersion: context.boundarySchemaVersion,
         reason: "verification-evidence-required",
         name,
         candidateId: currentness.candidateId,
@@ -454,6 +460,7 @@ export async function runAttest(
       || record.lineageAttestations.some((attestation) =>
         attestation.verificationEvidenceRef === verificationEvidenceRef)) {
       return scopedRefusal({
+        boundarySchemaVersion: context.boundarySchemaVersion,
         reason: "verification-evidence-reused",
         name,
         candidateId: currentness.candidateId,
@@ -504,6 +511,7 @@ export async function runAttest(
   }
   if (requestedScope === "focused" || verificationEvidenceRef !== undefined) {
     return scopedRefusal({
+      boundarySchemaVersion: context.boundarySchemaVersion,
       reason: requestedScope === "focused"
         ? "focused-scope-inapplicable"
         : "verification-evidence-inapplicable",
@@ -521,6 +529,7 @@ export async function runAttest(
 }
 
 interface ScopedRefusalInput {
+  boundarySchemaVersion: 1 | 2;
   reason:
     | "verification-evidence-required"
     | "verification-evidence-reused"
@@ -571,7 +580,8 @@ function scopedRefusal(input: ScopedRefusalInput): AttestResult {
     nextAction: {
       kind: "run-verification",
       scope: input.requiredScope,
-      verificationKind: input.requiredScope === "focused" ? "focused" : "tier-3",
+      verificationKind: input.requiredScope === "focused" ? "focused"
+        : input.boundarySchemaVersion === 2 ? "merge" : "tier-3",
       verificationEvidenceRequired: convergence,
       ...(convergence
         ? {}

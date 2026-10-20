@@ -370,6 +370,7 @@ export async function handleAttest(
   let result: Awaited<ReturnType<typeof runAttest>>;
   try {
     result = await runAttest({
+      boundarySchemaVersion: executor.store?.capabilities.stateOffBranch === true ? 2 : 1,
       actor: base.identity,
       now: () => new Date().toISOString(),
       verificationEvidenceRef: (slug) => `tasks-${slug}.md#verification`,
