@@ -2,7 +2,7 @@
 import type { DecomposeContext, DecomposeMapInput } from "./context.js";
 import type { DecomposeResult } from "./refusal.js";
 import type { StoreRecord } from "../store/read.js";
-import type { Mutation } from "../store/write.js";
+import type { Mutation, RecordObservation } from "../store/write.js";
 import { admitDecomposeRevision, type DecomposeRevisionAdmission } from "./revision-admission.js";
 import { recordPut } from "../store/lifecycle-write.js";
 import { writeCutMapRecord } from "../store/kinds/cut-map/index.js";
@@ -18,6 +18,7 @@ import { checkDecomposeRemovals } from "./removal-guards.js";
 export interface DecomposeRevisionPlan extends DecomposeRevisionAdmission {
   records: readonly StoreRecord[];
   writes: readonly Mutation[];
+  absenceObservations: readonly RecordObservation[];
 }
 
 /** Prepare a current cut revision without writing to the store. */
@@ -49,5 +50,5 @@ export async function prepareDecomposeRevision(ctx: DecomposeContext, origin: st
   const routeTo = prior.members.find(member => member.primary !== null
     && plan.dependencies.members.some(next => next.slug === member.slug))?.slug;
   const refusal = await checkDecomposeRemovals(cached, { records, writes, routeTo });
-  return refusal ?? { status: "ok", result: { ...plan, records, writes } };
+  return refusal ?? { status: "ok", result: { ...plan, records, writes, absenceObservations: settled.result.absenceObservations } };
 }

@@ -36,7 +36,7 @@ export async function runStoreDecomposeAdditive(ctx: DecomposeContext, origin: s
   const records = [...plan.result.prepared.records, ...plan.result.observations]
     .filter((record, index, all) => !all.slice(0, index).some(prior => sameReference(prior.reference, record.reference)));
   const batch = await batchLifecycleWrites(ctx.executor.store, plan.result.prepared.writes,
-    decomposeProvenance("additive"), observeRecords(records));
+    decomposeProvenance("additive"), [...observeRecords(records), ...plan.result.absenceObservations]);
   if (batch.status === "refused") return recheckDecomposeAdditiveRefusal(ctx, origin, mode, input, batch.refusal);
   const { map, storedMap, members, cohorts } = plan.result;
   const applied = { map, storedMap, members, cohorts, batch: batch.result };

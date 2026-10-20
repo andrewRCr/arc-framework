@@ -5,6 +5,7 @@ import type { DecomposeResult } from "./refusal.js";
 import type { DecomposeAdditiveApplied } from "./additive.js";
 import type { PreparedLifecycleWrite } from "../work-unit/prepared-lifecycle-write.js";
 import type { StoreRecord } from "../store/read.js";
+import type { RecordObservation } from "../store/write.js";
 import { bindDecomposeMap } from "./bind-map.js";
 import { checkDecomposeNames } from "./check-names.js";
 import { checkDecomposeHomes } from "./check-homes.js";
@@ -24,6 +25,7 @@ import { decomposeReadCache } from "./read-cache.js";
 export interface DecomposeAdditivePlan extends Omit<DecomposeAdditiveApplied, "batch" | "report"> {
   prepared: PreparedLifecycleWrite;
   observations: readonly StoreRecord[];
+  absenceObservations: readonly RecordObservation[];
 }
 
 /** Rebind and check all authored decisions before composing any record mutation. */
@@ -57,6 +59,7 @@ export async function prepareDecomposeAdditive(ctx: DecomposeContext, origin: st
   const storedMap = recordReferences["work-item/cut-map"](acquired.primary.reference.owner);
   const records = uniqueRecords([...acquired.records, ...settlement.result.settlements.map(entry => entry.primary)]);
   return { status: "ok", result: { map, storedMap, members: members.result.members, cohorts: cohorts.result.cohorts,
+    absenceObservations: settlement.result.absenceObservations,
     observations: uniqueRecords([...settlement.result.records, ...facts.result.dependents, ...homes.result.map(home => home.primary)]),
     prepared: { records, writes: [...members.result.writes, ...cohorts.result.writes, ...settled.result,
       { action: "put", reference: storedMap, expected: null, content: writeCutMapRecord(map) }] } } };

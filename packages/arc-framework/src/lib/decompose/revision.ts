@@ -21,14 +21,16 @@ export async function runStoreDecomposeRevision(ctx: DecomposeContext, origin: s
   const details = { origin: plan.map.machine.origin,
     members: plan.map.authoring.destinations.flatMap(destination => destination.kind === "new-member" ? [destination.slug] : []).sort(),
     removals: sortByCanonicalBytes(decomposeRemovalReferences(plan.writes)) };
-  const applyAuthority = decomposeApplyAuthority({ mode: "revise", origin: details.origin, records: plan.records, writes: plan.writes });
+  const applyAuthority = decomposeApplyAuthority({ mode: "revise", origin: details.origin, records: plan.records, writes: plan.writes,
+    observations: plan.absenceObservations });
   if (options.applyAuthority === undefined) return { status: "ok", result: DecomposeRevisionPreviewSchema.parse({ kind: "preview", mode: "revise", ...details,
     applyAuthority, writes: sortByCanonicalBytes(plan.writes) }) };
   if (options.applyAuthority !== applyAuthority) return { status: "refused", reason: "stale-apply-authority", class: "recoverable",
     locus: "applyAuthority", remedy: freshDecomposeRevisionRemedy(origin, input.cutMapPath) };
   const valid = await revalidateLifecycleRecords(ctx.executor.store, plan.records);
   if (valid.status === "refused") return recheckDecomposeRevisionRefusal(ctx, origin, input, valid.refusal);
-  const applied = await batchLifecycleWrites(ctx.executor.store, plan.writes, decomposeProvenance("revise"), observeRecords(plan.records));
+  const applied = await batchLifecycleWrites(ctx.executor.store, plan.writes, decomposeProvenance("revise"),
+    [...observeRecords(plan.records), ...plan.absenceObservations]);
   return applied.status === "refused" ? recheckDecomposeRevisionRefusal(ctx, origin, input, applied.refusal)
     : { status: "ok", result: DecomposeRevisionAppliedSchema.parse({ kind: "revised", ...details }) };
 }

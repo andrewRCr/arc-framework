@@ -4,6 +4,7 @@ import type { CutMap } from "./cut-map-schema.js";
 import type { DecomposeOriginRecords } from "./acquire-origin.js";
 import type { DecomposeResult } from "./refusal.js";
 import type { StoreRecord } from "../store/read.js";
+import type { RecordObservation } from "../store/write.js";
 import type { WorkItemRef } from "../store/kinds/lineage/index.js";
 import { sameOwner, recordReferences, sameReference } from "../store/identity.js";
 import { readLifecycleMetaFields } from "../store/lifecycle-write.js";
@@ -22,6 +23,7 @@ export interface DecomposeSlugSettlement {
 export interface DecomposeSlugSettlementPlan {
   settlements: readonly DecomposeSlugSettlement[];
   records: readonly StoreRecord[];
+  absenceObservations: readonly RecordObservation[];
 }
 
 /** Plan only resolvable stub edges, leaving held, started, and ambiguous edges for the store's slug guard. */
@@ -29,6 +31,7 @@ export async function planDecomposeSlugSettlements(ctx: DecomposeContext, map: C
   acquired: DecomposeOriginRecords, records: readonly StoreRecord[] = [], createdSlugs?: ReadonlySet<string>): Promise<DecomposeResult<DecomposeSlugSettlementPlan>> {
   const slugs = createdSlugs ?? new Set(map.authoring.destinations.flatMap(destination => destination.kind === "new-member" ? [destination.slug] : []));
   const settlements: DecomposeSlugSettlement[] = [], guards: StoreRecord[] = [];
+  const absenceObservations: RecordObservation[] = [];
   for (const entry of acquired.lifecycleEntries) {
     if (entry.placement.kind !== "backlog" || sameOwner(entry.reference.owner, acquired.primary.reference.owner)
       || !entry.fields.dependsOn.some(edge => slugs.has(edge))) continue;
@@ -36,8 +39,10 @@ export async function planDecomposeSlugSettlements(ctx: DecomposeContext, map: C
     if (planned.status === "refused") return planned;
     settlements.push(...planned.result.settlements);
     guards.push(...planned.result.records);
+    absenceObservations.push(...planned.result.absenceObservations);
   }
-  return { status: "ok", result: { settlements, records: guards.filter((record, index) => !guards.slice(0, index)
+  return { status: "ok", result: { settlements, absenceObservations: absenceObservations.filter((observation, index, all) =>
+    !all.slice(0, index).some(prior => sameReference(prior.reference, observation.reference))), records: guards.filter((record, index) => !guards.slice(0, index)
     .some(prior => sameReference(prior.reference, record.reference))) } };
 }
 
@@ -46,9 +51,10 @@ async function planStub(ctx: DecomposeContext, reference: StoreRecord["reference
   const existing = records.find(record => sameReference(record.reference, reference));
   const current = existing === undefined ? await ctx.executor.store.read({ reference }) : { status: "ok" as const, result: existing };
   if (current.status === "refused") return decomposeStoreRefusal(current.refusal);
-  const empty = { status: "ok" as const, result: { settlements: [], records: [] } };
+  const empty = { status: "ok" as const, result: { settlements: [], records: [], absenceObservations: [] } };
   if (current.result.placement?.kind !== "backlog" || current.result.conflicts.length > 0) return empty;
-  const cut = await ctx.executor.store.read({ reference: recordReferences["work-item/cut-map"](current.result.reference.owner) });
+  const cutReference = recordReferences["work-item/cut-map"](current.result.reference.owner);
+  const cut = await ctx.executor.store.read({ reference: cutReference });
   if (cut.status === "ok") return empty;
   if (cut.refusal.code !== "not-found") return decomposeStoreRefusal(cut.refusal);
   const fields = readLifecycleMetaFields(current.result);
@@ -61,5 +67,6 @@ async function planStub(ctx: DecomposeContext, reference: StoreRecord["reference
     settlements.push({ primary: current.result, edge, priorTarget: resolved.result.priorTarget, disposition: resolved.result.disposition });
     guards.push(current.result, ...resolved.result.records);
   }
-  return { status: "ok", result: { settlements, records: guards } };
+  return { status: "ok", result: { settlements, records: guards,
+    absenceObservations: settlements.length === 0 ? [] : [{ reference: cutReference, expected: null }] } };
 }
