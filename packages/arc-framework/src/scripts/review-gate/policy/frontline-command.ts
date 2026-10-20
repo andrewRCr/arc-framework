@@ -7,7 +7,7 @@ import {
   FrontlineCommandResultEnvelopeSchema,
 } from "../core/review-command-envelope.js";
 import {
-  createFrontlineAdmission,
+  FrontlineAdmissionSchema, createFrontlineAdmission,
   type FrontlineAdmission,
 } from "../core/frontline-admission.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
@@ -356,8 +356,9 @@ async function readFrontlineOwnerForResolution(
     attempt.outcome === "pending" && attempt.frontline !== undefined
   )) ?? [];
   if (pending.length > 1) throw new Error("frontline lineage has competing pending admissions");
-  const pendingAdmission = pending[0]?.frontline?.admission;
-  if (pendingAdmission === undefined) return { ...current, replay: null };
+  const storedAdmission = pending[0]?.frontline?.admission;
+  if (storedAdmission === undefined) return { ...current, replay: null };
+  const pendingAdmission = FrontlineAdmissionSchema.parse(storedAdmission);
   const replay = resumePendingFrontlineAdmission(pendingAdmission);
   if (parsed.invocation.mode !== "skip" && canonicalize(parsed.target) === canonicalize(pendingAdmission.target)) {
     return { ...current, replay };

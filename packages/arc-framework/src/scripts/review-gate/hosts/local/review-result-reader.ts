@@ -1,5 +1,6 @@
 /** Git-common composition of immutable local, frontline, and hosted producer evidence. */
 
+import { FrontlineAdmissionSchema } from "../../core/frontline-admission.js";
 import { sameOwner, type OwnerIdentity } from "../../../../lib/store/identity.js";
 import { ProjectIdentityError } from "../../../../lib/store/project-identity.js";
 import { canonicalDigest, canonicalize, type CanonicalDigest } from "../../../../lib/kernel/index.js";
@@ -84,7 +85,8 @@ function frontlineAdmissionMatches(
   state: FrontlineState,
   record: FrontlineOutcomeRecord,
 ): boolean {
-  const admission = attempt.frontline?.admission;
+  const parsed = FrontlineAdmissionSchema.safeParse(attempt.frontline?.admission);
+  const admission = parsed.success ? parsed.data : undefined;
   const admittedSource = admission?.frontlineReview.source;
   if (admission === undefined || admittedSource === undefined || admittedSource === null) return false;
   const expectedSourceBindingId = canonicalDigest(state.responseBinding === undefined

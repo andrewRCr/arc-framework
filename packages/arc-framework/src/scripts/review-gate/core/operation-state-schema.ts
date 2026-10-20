@@ -19,6 +19,7 @@ import {
 } from "./gate-contract-v2-schema.js";
 import { LocalAttestationBindingSchema } from "./local-carrier.js";
 import { FrontlineAdmissionSchema } from "./frontline-admission.js";
+import { PortableFrontlineAdmissionSchema } from "./portable-frontline-admission.js";
 import { validateLaneProgressState } from "./lane-progress-state-validation.js";
 import { validateLaneAttempt } from "./lane-attempt-validation.js";
 import { BoundFrontlineResponseBindingSchema } from "./frontline-response-binding.js";
@@ -691,7 +692,7 @@ function localAttemptMatchesDeliveryAdmission(local: z.infer<typeof LocalLaneAtt
 }
 
 const FrontlineLaneAttemptBindingSchema = z.strictObject({
-  admission: FrontlineAdmissionSchema,
+  admission: z.union([FrontlineAdmissionSchema, PortableFrontlineAdmissionSchema]),
   effectiveCoverage: z.literal("complete").nullable(),
 });
 

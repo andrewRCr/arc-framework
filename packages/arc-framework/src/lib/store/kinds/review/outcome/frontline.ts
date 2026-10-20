@@ -1,39 +1,14 @@
 /** Portable frontline admission snapshots retain recorded policy and result digests. */
 import { z } from "zod";
 import { frontlineLaneOutcome } from "../../../../../scripts/review-gate/lane-progress.js";
-import { FrontlineAdmissionSchema, frontlineAdmissionOperationId } from "../../../../../scripts/review-gate/core/frontline-admission.js";
-import { FrontlineSemanticRecordSchema } from "../../../../../scripts/review-gate/policy/frontline-semantic.js";
+import { FrontlineAdmissionSchema } from "../../../../../scripts/review-gate/core/frontline-admission.js";
+import { PortableFrontlineAdmissionSchema } from "../../../../../scripts/review-gate/core/portable-frontline-admission.js";
 import { FrontlineExecutableIdentitySchema } from "../../../../../scripts/review-gate/core/advisory-records.js";
 import { BoundFrontlineResponseBindingSchema } from "../../../../../scripts/review-gate/core/frontline-response-binding.js";
 import {
   FrontlineUnavailableReasonSchema, FrontlineFailedReasonSchema,
   FrontlineTimedOutReasonSchema, FrontlineStaleTargetReasonSchema,
 } from "../../../../../scripts/review-gate/policy/frontline-outcome.js";
-
-export const PortableFrontlineSourceSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ sourceId: z.string().min(1), kind: z.literal("command"), capability: z.null() }),
-  z.strictObject({ sourceId: z.string().min(1), kind: z.literal("agent"), capability: z.string().min(1) }),
-]);
-export const PortableFrontlineAdmissionSchema = z.strictObject({
-  ...FrontlineAdmissionSchema.shape,
-  frontlineReview: z.strictObject({
-    ...FrontlineSemanticRecordSchema.shape,
-    action: z.literal("attempt"),
-    source: PortableFrontlineSourceSchema,
-    promptText: z.string().min(1),
-    maxPasses: FrontlineAdmissionSchema.shape.maxPasses,
-  }),
-}).superRefine((admission, context) => {
-  if (admission.logicalPass > admission.maxPasses
-    || admission.maxPasses !== admission.frontlineReview.maxPasses) {
-    context.addIssue({ code: "custom", message: "frontline admission must respect its admitted pass ceiling" });
-  }
-  if (admission.operationId !== frontlineAdmissionOperationId({
-    target: admission.target, lineage: admission.lineage,
-    sourceId: admission.frontlineReview.source.sourceId,
-    logicalPass: admission.logicalPass, retryGeneration: admission.retryGeneration,
-  })) context.addIssue({ code: "custom", message: "frontline operation must match its admitted producer" });
-});
 
 export const FrontlineOutcomeBindingSchema = z.strictObject({
   admission: PortableFrontlineAdmissionSchema,

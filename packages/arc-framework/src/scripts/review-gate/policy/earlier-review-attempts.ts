@@ -54,7 +54,8 @@ export type EarlierReviewAttemptQuery = z.infer<typeof EarlierReviewAttemptQuery
 
 const EarlierReviewAttemptCandidateSchema = z.strictObject({
   operationId: ReviewIdentifierSchema,
-  version: z.number().int().positive(),
+  /** Zero means this clone has no pending execution record for the stored lane. */
+  version: z.number().int().nonnegative(),
   updatedAt: z.iso.datetime({ offset: true }),
   attemptId: ReviewIdentifierSchema,
   /** Append order in the owning durable progress record, independent of query sorting. */

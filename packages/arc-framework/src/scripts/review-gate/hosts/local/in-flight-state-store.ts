@@ -1,16 +1,19 @@
 /** Native working-state persistence isolated from repository-backed operation records. */
 import type { GitCommonStatePublisher } from "../../../../lib/git-common-state.js";
 import type { OwnerIdentity } from "../../../../lib/store/identity.js";
-import type { ReviewOutcomePort, ReviewInFlightPort, ReviewOperationStateSnapshot } from "../../core/ports.js";
+import type { ReviewOutcomePort, ReviewEvidencePort, ReviewInFlightPort, ReviewOperationStateSnapshot } from "../../core/ports.js";
 import type { ReviewOperationState } from "../../core/operation-state-schema.js";
 import { canonicalDigest, canonicalize } from "../../../../lib/kernel/index.js";
 import { composeReviewInFlightState, projectReviewInFlightState, ReviewInFlightRecordSchema,
   type ReviewInFlightRecord } from "../../core/in-flight-state-schema.js";
 import { LocalOperationStateStoreError } from "./operation-state-store.js";
+import { composeOutcomeLane, outcomeLaneOperationId } from "./lane-outcome-composition.js";
+import type { ReviewEvidence } from "../../../../lib/store/kinds/review/evidence/schema.js";
+import type { ReviewOutcome } from "../../../../lib/store/kinds/review/outcome/schema.js";
 import { pruneEndedReviewExecution, assertReviewPassStillOpen } from "./in-flight-outcomes.js";
 
 interface InFlightContext { publisher: GitCommonStatePublisher; workItem: OwnerIdentity; outcomes: ReviewOutcomePort;
-  projectId: () => Promise<string> }
+  projectId: () => Promise<string>; evidence?: ReviewEvidencePort }
 const location = { root: "review-gate", namespace: "in-flight" } as const;
 
 /** Bind machine-local execution state to one exact operational owner. */
@@ -46,29 +49,46 @@ export class NativeReviewInFlightStateStore implements ReviewInFlightPort {
     return listing.records.map(record => record.value);
   }
 
+  private async evidence() {
+    if (this.input.evidence === undefined) return [];
+    const listing = await this.input.evidence.list();
+    if (listing.status !== "complete") throw new LocalOperationStateStoreError(listing.reason);
+    return listing.records.map(record => record.value);
+  }
+
+  private compose(operationId: string, state: ReviewOperationState | null, outcomes: readonly ReviewOutcome[], evidence: readonly ReviewEvidence[]): ReviewOperationState | null {
+    const pending = state === null ? null : pruneEndedReviewExecution(state, outcomes);
+    if (pending !== null && pending.kind !== "lane-progress") return pending;
+    return composeOutcomeLane(operationId, pending, outcomes, this.input.workItem, evidence);
+  }
+
   async readOperation(operationId: string): Promise<{ version: number; state: ReviewOperationState | null }> {
     const raw = await this.input.publisher.read(location, this.recordName(operationId));
-    if (raw === null) return { version: 0, state: null };
-    const record = await this.parse(raw);
-    if (record.operationId !== operationId) throw new LocalOperationStateStoreError("operation-id-mismatch");
-    return { version: record.version,
-      state: pruneEndedReviewExecution(composeReviewInFlightState(record.state), await this.outcomes()) };
+    const record = raw === null ? null : await this.parse(raw);
+    if (record !== null && record.operationId !== operationId) throw new LocalOperationStateStoreError("operation-id-mismatch");
+    return { version: record?.version ?? 0, state: this.compose(operationId,
+      record === null ? null : composeReviewInFlightState(record.state), await this.outcomes(), await this.evidence()) };
   }
 
   async readOperationSnapshot(): Promise<ReviewOperationStateSnapshot> {
     try {
-      const records = [];
-      const outcomes = await this.outcomes();
+      const records = new Map<string, { version: number; state: ReviewOperationState | null }>();
+      const outcomes = await this.outcomes(), evidence = await this.evidence();
       for (const entry of await this.input.publisher.snapshot(location)) {
         if (!entry.name.startsWith(this.prefix)) continue;
         if (entry.kind !== "file") return { status: "incomplete", reason: "unexpected-in-flight-entry" };
         const record = await this.parse(entry.content);
         if (entry.name !== this.recordName(record.operationId)) return { status: "incomplete", reason: "operation-record-name-mismatch" };
-        const state = pruneEndedReviewExecution(composeReviewInFlightState(record.state), outcomes);
-        if (state !== null) records.push({ version: record.version, state });
+        records.set(record.operationId, { version: record.version, state: composeReviewInFlightState(record.state) });
       }
-      records.sort((a, b) => a.state.operationId.localeCompare(b.state.operationId));
-      return { status: "complete", records };
+      for (const outcome of outcomes) {
+        const id = outcomeLaneOperationId(outcome);
+        if (!records.has(id)) records.set(id, { version: 0, state: null });
+      }
+      return { status: "complete", records: [...records].flatMap(([id, record]) => {
+        const state = this.compose(id, record.state, outcomes, evidence);
+        return state === null ? [] : [{ version: record.version, state }];
+      }).sort((a, b) => a.state.operationId.localeCompare(b.state.operationId)) };
     } catch (error) {
       return { status: "unavailable", reason: error instanceof Error ? error.message : "in-flight-snapshot-failed" };
     }

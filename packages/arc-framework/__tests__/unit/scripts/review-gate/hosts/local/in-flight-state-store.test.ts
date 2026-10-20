@@ -84,10 +84,10 @@ it("treats an outcome as ended before pruning and retains an emptied lane's vers
   await h.operations.publishOperation(h.lane, 0);
   await finishLocal(h);
   const ended = await h.operations.readOperation(h.lane.operationId);
-  expect(ended).toMatchObject({ version: 1, state: { attempts: [] } });
+  expect(ended).toMatchObject({ version: 1, state: { completedPasses: 1, attempts: [{ outcome: "clean" }] } });
   if (ended.state === null) throw new Error("Expected retained lane envelope");
   expect(await h.operations.publishOperation(ended.state, ended.version)).toEqual({ version: 2 });
-  expect(await h.operations.readOperation(h.lane.operationId)).toMatchObject({ version: 2, state: { attempts: [] } });
+  expect(await h.operations.readOperation(h.lane.operationId)).toMatchObject({ version: 2, state: { completedPasses: 1, attempts: [{ outcome: "clean" }] } });
   const entries = await h.publisher.snapshot({ root: "review-gate", namespace: "in-flight" });
   expect(entries).toHaveLength(1);
   expect(entries[0]).toMatchObject({ kind: "file", content: expect.stringContaining('"attempts":[]') });
@@ -148,7 +148,12 @@ it("round-trips hosted acknowledgment and prunes it by its admission identity", 
   if (pending === undefined) throw new Error("Expected acknowledged attempt");
   const outcome = mapHostedAttempt({ ...pending, ...terminal, outcome: "clean", terminalProducer: true }, progress, progress.updatedAt);
   await h.outcomes.create(outcome);
-  expect(await h.operations.readOperation(progress.operationId)).toMatchObject({ state: { attempts: [] } });
+  const ended = await h.operations.readOperation(progress.operationId);
+  expect(ended).toMatchObject({ state: { completedPasses: 1, attempts: [{ outcome: "clean", hosted: { admission: admitted.admission } }] } });
+  if (ended.state === null) throw new Error("Expected ended hosted lane");
+  await h.operations.publishOperation(ended.state, ended.version);
+  const records = await h.publisher.snapshot({ root: "review-gate", namespace: "in-flight" });
+  expect(records[0]).toMatchObject({ kind: "file", content: expect.stringContaining('"attempts":[]') });
   expect(await h.publisher.list({ root: "review-gate", namespace: "operations" })).toEqual([]);
 });
 

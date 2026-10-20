@@ -9,7 +9,8 @@ import type { ReviewOutcome } from "../outcome/schema.js";
 import { reviewOutcomeKey } from "../outcome/key.js";
 import type { ReviewEvidence } from "./schema.js";
 
-function orderedEvidence(evidence: readonly ReviewEvidence[]): ReviewEvidence[] {
+/** Require and order one complete approved-response lineage. */
+export function orderReviewEvidenceLineage(evidence: readonly ReviewEvidence[]): ReviewEvidence[] {
   const roots = evidence.filter((value) => value.predecessorDispositionSetId === null);
   const records = new Map(evidence.map((value) => [value.dispositionSet.dispositionSetId, value]));
   if (roots.length !== 1 || records.size !== evidence.length) throw new Error("Restore one complete approved-response lineage.");
@@ -59,7 +60,7 @@ function producerSource(outcome: ReviewOutcome, workItem: OwnerIdentity): Approv
 
 /** Compose one producer's approvals with command-compatible portable source coordinates. */
 export function composeReviewDispositionRecord(outcome: ReviewOutcome, evidence: readonly ReviewEvidence[], owner: OwnerIdentity): ApprovedDispositionRecord {
-  const ordered = orderedEvidence(evidence);
+  const ordered = orderReviewEvidenceLineage(evidence);
   const value = ordered[0];
   const tail = ordered.at(-1);
   if (value === undefined || tail === undefined) throw new Error("Restore the approved-response lineage before reading it.");

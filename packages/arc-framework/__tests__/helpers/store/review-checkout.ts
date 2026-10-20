@@ -3,11 +3,11 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { scriptGitExec, type GitExecScriptEntry } from "../git-exec-fake.js";
-import { createReviewHarness } from "./review-harness.js";
+import type { createLifecycleHarness } from "./lifecycle-harness.js";
 import { writeWorktreeMarker, type WorktreeSubject, type TransientWorktreeSubject } from "../../../src/lib/git/worktree-marker.js";
 
 /** Make one process-free checkout; callers may extend its strict Git script at observed seams. */
-export async function createReviewCheckout(harness: ReturnType<typeof createReviewHarness>,
+export async function createReviewCheckout<T extends ReturnType<typeof createLifecycleHarness>>(harness: T,
   options: { identity?: string; script?: GitExecScriptEntry[] } = {}) {
   const root = await mkdtemp(join(tmpdir(), "arc-review-checkout-"));
   const cwd = join(root, "checkout"), commonDir = join(root, "git-common");

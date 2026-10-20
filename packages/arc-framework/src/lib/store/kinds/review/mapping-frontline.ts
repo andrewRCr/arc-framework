@@ -1,4 +1,5 @@
 /** Portable frontline outcomes retain original source digests before executable redaction. */
+import { FrontlineAdmissionSchema } from "../../../../scripts/review-gate/core/frontline-admission.js";
 import { canonicalize } from "../../../kernel/index.js";
 import { computeFrontlineSourceBindingId } from "../../../../scripts/review-gate/policy/frontline-operation.js";
 import type { LaneProgressState } from "../../../../scripts/review-gate/core/operation-state-schema.js";
@@ -10,7 +11,7 @@ export function mapFrontlineAttempt(attempt: LaneProgressState["attempts"][numbe
   endedAt: string, sources: ReviewMappingSources): ReviewOutcome {
   const binding = attempt.frontline;
   if (binding === undefined || attempt.outcome === "pending") throw new Error("Expected ended frontline admission.");
-  const admission = binding.admission;
+  const admission = FrontlineAdmissionSchema.parse(binding.admission);
   const record = mappingFrontlineOutcome(sources, admission.operationId);
   const source = record.outcome.source;
   const promptText = admission.frontlineReview.promptText;
