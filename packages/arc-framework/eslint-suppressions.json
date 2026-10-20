@@ -456,9 +456,6 @@
     "arc/store-raw-state": {
       "count": 2
     },
-    "arc/work-unit-paths": {
-      "count": 1
-    },
     "max-lines-per-function": {
       "count": 2
     },

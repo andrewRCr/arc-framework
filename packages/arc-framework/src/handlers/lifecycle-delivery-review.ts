@@ -28,7 +28,7 @@ import {
 } from "../scripts/review-gate/lane-progress.js";
 import { livePredecessorReviewAttempt } from "../scripts/review-gate/lane-progress-supersession.js";
 import { createRawGitExec } from "../lib/io-context.js";
-import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
+import { materializeArcPath } from "../lib/layout/index.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { runPublish } from "../lib/work-unit/verbs/publish.js";
 import { AttestResultSchema, runAttest, type AttestContext } from "../lib/work-unit/verbs/attest.js";
@@ -49,10 +49,7 @@ import {
   inspectRepositoryDeliveryCandidateRenewal,
   inspectRepositoryDeliveryReopen,
 } from "../lib/delivery/repository-entry.js";
-import {
-  resolveLastCompletedTask,
-  resolveTaskListCursor,
-} from "../lib/task-list/cursor.js";
+import { readAttestInput } from "../lib/store/attest-input.js";
 import {
   readSubmissionBoundaryVersioned,
   writeSubmissionBoundary,
@@ -191,108 +188,19 @@ export async function handleAttest(
   const base = await resolveVerbBase(context, input.json === true);
   if (base === null) return;
   const { executor, settings } = await buildExecutor(base);
-  const reviewInvocation = resolveReviewInvocation({ ...base, exec: base.io.exec, store: executor.store, projectId: executor.projectId });
-  let metaPath = resolveArcPath({
-    kind: "work-unit-artifact",
-    placement: { kind: "active", scope: { kind: "project" } },
-    slug: input.name,
-    artifact: "meta",
-  });
-  let absoluteMetaPath = materializeArcPath(base.cwd, metaPath);
-  let metaContent: string;
-  try {
-    metaContent = await base.io.readFile(absoluteMetaPath);
-  } catch {
-    const archived = (await buildLifecycleIndex({ cwd: base.cwd, fs: lifecycleFs })).get(input.name);
-    if (input.newRoot !== true || archived?.location !== "completed") {
-      refuseWithRemedy(
-        `\`arc attest\` requires an active record, or an archived record with \`--new-root\`, for \`${input.name}\`.`,
-        spineRemedy(
-          "Candidate attestation requires a resolvable work-unit record.",
-          "Inspect the work-unit lifecycle state",
-          ["arc", "status", input.name, "--json"],
-        ),
-        input.json === true,
-      );
-      return;
-    }
-    metaPath = validateManagedPath(archived.path);
-    absoluteMetaPath = materializeArcPath(base.cwd, metaPath);
-    metaContent = await base.io.readFile(absoluteMetaPath);
-  }
-  const meta = parseMetaRecord(metaContent);
-  if (meta.state !== "Active" && meta.state !== "Integrating" && !(meta.state === "Shipped" && input.newRoot === true)) {
-    refuseWithRemedy(
-      `\`arc attest\` requires \`${input.name}\` to be Active or Integrating, or Shipped with \`--new-root\`.`,
-      spineRemedy(
-        "Candidate attestation runs only from an active publication lifecycle.",
-        "Inspect the work-unit lifecycle state",
-        ["arc", "status", input.name, "--json"],
-      ),
-      input.json === true,
-    );
+  const subjectInput = await readAttestInput({ cwd: base.cwd, store: executor.store,
+    readFile: path => base.io.readFile(path), activeMetaPath: projectActiveMetaPath,
+    readArchivedMeta: async slug => (await buildLifecycleIndex({ cwd: base.cwd, fs: lifecycleFs })).get(slug),
+  }, input.name, input.newRoot === true);
+  if (subjectInput.status === "rejected") {
+    refuseWithRemedy(subjectInput.reason, subjectInput.remedy, input.json === true);
     return;
   }
-  let lastCompleted: string | null = null;
-  const taskListPath = resolveTaskListPath(metaPath, meta.taskList);
-  if (taskListPath === null) {
-    refuseWithRemedy(
-      `\`arc attest\` requires a canonical task-list binding for \`${input.name}\`.`,
-      spineRemedy(
-        "Candidate attestation requires a resolvable, structurally closed task list.",
-        "Restore the task-list binding and close execution before attesting",
-        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
-      ),
-      input.json === true,
-    );
-    return;
-  }
-  let taskList: string;
-  try {
-    taskList = await base.io.readFile(materializeArcPath(base.cwd, validateManagedPath(taskListPath)));
-  } catch {
-    refuseWithRemedy(
-      `\`arc attest\` requires the canonical task list for \`${input.name}\` to be readable.`,
-      spineRemedy(
-        "Candidate attestation requires a resolvable, structurally closed task list.",
-        "Restore the task list and close execution before attesting",
-        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
-      ),
-      input.json === true,
-    );
-    return;
-  }
-  const taskCursor = resolveTaskListCursor(taskList);
-  if (taskCursor.status === "malformed") {
-    refuseWithRemedy(
-      `\`arc attest\` cannot use the malformed task list for \`${input.name}\` at line `
-        + `${taskCursor.error.line}: ${taskCursor.error.message}`,
-      spineRemedy(
-        "Candidate attestation requires a structurally closed task list.",
-        "Repair the task-list structure and close execution before attesting",
-        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
-      ),
-      input.json === true,
-    );
-    return;
-  }
-  if (taskCursor.status === "found") {
-    const current = `Task ${taskCursor.cursor.leaf.id} — ${taskCursor.cursor.leaf.title}`;
-    refuseWithRemedy(
-      `\`arc attest\` cannot attest \`${input.name}\` while task remains open: ${current}.`,
-      spineRemedy(
-        "Candidate attestation begins only after canonical task execution is closed.",
-        "Complete the current task and work-unit verification, then attest",
-        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
-      ),
-      input.json === true,
-    );
-    return;
-  }
-  const terminal = resolveLastCompletedTask(taskList);
-  if (terminal.status === "found") {
-    lastCompleted = `Task ${terminal.item.id} — ${terminal.item.title}`;
-  }
+  const { metaPath, meta, taskListPath, lastCompleted } = subjectInput;
+  let metaContent = subjectInput.metaContent;
+  const reviewInvocation = resolveReviewInvocation({ ...base, exec: base.io.exec, store: executor.store, projectId: executor.projectId,
+    workItem: subjectInput.primary?.reference.owner ?? base.workItem });
+  const absoluteMetaPath = materializeArcPath(base.cwd, metaPath);
   const boundarySnapshot = await readSubmissionBoundaryVersioned(base.cwd, input.name, { store: executor.store, owner: reviewInvocation.workItem });
   const inspectRenewal = () => inspectRepositoryDeliveryCandidateRenewal({
     ...reviewInvocation, cwd: base.cwd, taskListPath: validateManagedPath(taskListPath),
@@ -507,7 +415,7 @@ export async function handleAttest(
       },
     }, {
       name: input.name,
-      lifecycle: meta.state,
+      lifecycle: subjectInput.lifecycle,
       newRoot: input.newRoot === true,
       scope: input.scope,
       verificationEvidenceRef: input.verificationEvidenceRef,
