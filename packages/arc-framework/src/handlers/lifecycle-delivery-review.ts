@@ -63,12 +63,14 @@ import {
   projectCorrectiveDeliveryStatusBoundary,
   recoverAttestedOwnerTerminusBoundary,
   recoverAttestedSingletonPublicationBoundary,
-  parseIntegrationBoundaryLocus,
   type PublishedIntegrationBoundaryLocus,
 } from "../scripts/review-gate/policy/integration-boundary-locus.js";
 import { attestArgv, attestNewRootArgv, spineRemedy } from "../scripts/integration/spine-refusal.js";
 import { SlugSchema, validateManagedPath } from "../lib/kernel/index.js";
 import { type InteractionContext } from "../lib/command-input/interaction-context.js";
+import { ProjectIdentityError } from "../lib/store/project-identity.js";
+import type { ReviewInvocationContext } from "../scripts/review-gate/runtime/invocation.js";
+import { resolveNamedReviewWorkUnitInvocation } from "../scripts/review-gate/runtime/review-work-unit.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import type { PublishOptions } from "./lifecycle.js";
 import {
@@ -89,6 +91,18 @@ class CandidateReviewRecoveryRefusal extends Error {}
 
 class AttestationStoreWriteRefusal extends Error {
   constructor(readonly refusal: StoreRefusal) { super(refusal.condition); }
+}
+
+function refuseProjectIdentityFailure(error: unknown, json: boolean): boolean {
+  if (!(error instanceof ProjectIdentityError)) return false;
+  refuseWithRemedy(error.failure.reason, error.failure.remedy, json);
+  return true;
+}
+
+function refuseAttestationStateFailure(error: unknown, json: boolean): boolean {
+  if (!(error instanceof AttestationStoreWriteRefusal)) return refuseProjectIdentityFailure(error, json);
+  refuseWithRemedy(error.refusal.condition, error.refusal.remedy, json);
+  return true;
 }
 
 /** Adapt the exact Store batch to attestation's publication callback. */
@@ -205,6 +219,12 @@ export async function handleAttest(
   if (input === null) return;
   const base = await resolveVerbBase(context, input.json === true);
   if (base === null) return;
+  await attestCandidateWithReviewBoundary(base, input);
+}
+
+/** Execute attestation using the command's resolved checkout, identity, and operational Store. */
+export async function attestCandidateWithReviewBoundary(base: VerbBase,
+  input: z.infer<typeof AttestCommandInputSchema>): Promise<void> {
   const { executor, settings } = await buildExecutor(base);
   const boundarySchemaVersion = executor.store?.capabilities.stateOffBranch === true ? 2 : 1;
   const subjectInput = await readAttestInput({ cwd: base.cwd, store: executor.store,
@@ -450,10 +470,7 @@ export async function handleAttest(
           }),
     });
   } catch (error) {
-    if (error instanceof AttestationStoreWriteRefusal) {
-      refuseWithRemedy(error.refusal.condition, error.refusal.remedy, input.json === true);
-      return;
-    }
+    if (refuseAttestationStateFailure(error, input.json === true)) return;
     if (error instanceof CandidateReviewRecoveryRefusal) {
       refuseWithRemedy(
         `\`arc attest\` cannot bind the live review to its Candidate record: ${error.message}`,
@@ -560,6 +577,24 @@ async function permitUnpausedPublication(store: Store | undefined, target: strin
   return false;
 }
 
+async function openPublicationReviewContext(base: VerbBase, invocation: ReviewInvocationContext,
+  candidateId: z.infer<typeof CanonicalDigestSchema>, json: boolean): Promise<{
+    repositoryId: string; currentHead: () => Promise<string>; readStandardLaneOwnerVersion: () => Promise<number>;
+  } | null> {
+  const { publisher, family } = createReviewCompositionContext({ ...invocation, cwd: base.cwd, exec: base.io.exec });
+  let repositoryId: string;
+  try { repositoryId = await resolveRepositoryIdentity(publisher, undefined, invocation); }
+  catch (error) {
+    if (!refuseProjectIdentityFailure(error, json)) throw error;
+    return null;
+  }
+  const currentHead = async () => (await base.io.exec("git", ["rev-parse", "HEAD"], { cwd: base.cwd })).stdout.trim();
+  return { repositoryId, currentHead,
+    readStandardLaneOwnerVersion: async () => (await readLaneProgressOwnerVersioned(family.ports.inFlight, {
+      lane: "standard", repositoryId, headSha: await currentHead(), lineage: { kind: "candidate", candidateId },
+    })).version };
+}
+
 /**
  * Publish a lifecycle transition with its exact Candidate and review boundary.
  * @param base - Resolved checkout, identity, and I/O.
@@ -575,8 +610,9 @@ export async function publishCandidateWithReviewBoundary(
   const { lastCompleted, action } = input;
 
   const { executor, settings } = await buildExecutor(base);
-  const reviewInvocation = resolveReviewInvocation({ ...base, exec: base.io.exec, store: executor.store, projectId: executor.projectId });
   if (!await permitUnpausedPublication(executor.store, target, input.json === true)) return;
+  const reviewInvocation = await resolveNamedReviewWorkUnitInvocation({ ...base, exec: base.io.exec,
+    store: executor.store, projectId: executor.projectId }, target);
   const rawGit = createRawGitExec(base.cwd);
   const readCandidateAuthorization = async () => {
     const record = await readCandidateRecord(base.cwd, target, { store: executor.store, owner: reviewInvocation.workItem });
@@ -616,16 +652,9 @@ export async function publishCandidateWithReviewBoundary(
     return;
   }
   const record = candidate.record;
-  const { publisher, family } = createReviewCompositionContext({ ...reviewInvocation, cwd: base.cwd, exec: base.io.exec });
-  const repositoryId = await resolveRepositoryIdentity(publisher, undefined, reviewInvocation);
-  const operationStore = family.ports.inFlight;
-  const currentHead = async () => (await base.io.exec("git", ["rev-parse", "HEAD"], {
-    cwd: base.cwd,
-  })).stdout.trim();
-  const readStandardLaneOwnerVersion = async () => (await readLaneProgressOwnerVersioned(operationStore, {
-    lane: "standard", repositoryId, headSha: await currentHead(),
-    lineage: { kind: "candidate", candidateId: candidate.candidateId },
-  })).version;
+  const review = await openPublicationReviewContext(base, reviewInvocation, candidate.candidateId, input.json === true);
+  if (review === null) return;
+  const { repositoryId, currentHead, readStandardLaneOwnerVersion } = review;
   const boundarySnapshot = await readSubmissionBoundaryVersioned(base.cwd, target, { store: executor.store, owner: reviewInvocation.workItem });
   const boundary = boundarySnapshot.boundary;
   if (boundary === null) {
@@ -653,7 +682,7 @@ export async function publishCandidateWithReviewBoundary(
     candidateId: candidate.candidateId,
     candidateSubjectDigest: candidate.candidateSubjectDigest,
     candidateCurrent: candidate.candidateCurrent,
-    boundary: parseIntegrationBoundaryLocus(boundary),
+    boundary,
     refreshCandidateAuthorization: async () => {
       const refreshed = await readCandidateAuthorization();
       if (refreshed === null) {

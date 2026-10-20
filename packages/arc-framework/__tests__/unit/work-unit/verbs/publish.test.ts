@@ -193,7 +193,7 @@ const CANDIDATE_ID = `sha256:${"a".repeat(64)}` as const;
 const CANDIDATE_SUBJECT = `sha256:${"b".repeat(64)}` as const;
 const OTHER_SUBJECT = `sha256:${"c".repeat(64)}` as const;
 const WORK_UNIT = SlugSchema.parse("foo");
-const BASE: PublishParams = {
+const BASE: PublishParams & { boundary: IntegrationBoundaryLocus } = {
   name: "foo",
   lastCompleted: "Phase 7 — verification",
   nextAction: "open the PR",

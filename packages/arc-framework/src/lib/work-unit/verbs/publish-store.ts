@@ -8,7 +8,7 @@ import { executeTransition, type ExecuteTransitionContext } from "../lifecycle-e
 import { linkedWorkBranch } from "../linked-work-branch.js";
 import type { CurrentWuReconcileHost } from "../side-effects/discharge-dep-edges.js";
 import { authorizeActivePublication, type PublishParams, type PublishResult } from "./publish.js";
-import { projectPublicationBoundary } from "../../../scripts/review-gate/policy/integration-boundary-locus.js";
+import { parseIntegrationBoundaryLocus, projectPublicationBoundary } from "../../../scripts/review-gate/policy/integration-boundary-locus.js";
 import { spineRemedy } from "../../../scripts/integration/spine-refusal.js";
 import { recordReferences } from "../../store/identity.js";
 import { CandidateManagedRecordV1Schema } from "../../store/kinds/review/candidate/schema.js";
@@ -24,7 +24,8 @@ export async function runStorePublish(ctx: ExecuteTransitionContext & CurrentWuR
   const facts = await inspectPublication(ctx, params, reject);
   if (facts.status !== "ready") return facts;
   const { metaPath } = facts;
-  const authorized = authorizeActivePublication({ ...params, standardLaneOwnerVersion: await params.readStandardLaneOwnerVersion() });
+  const boundaryBasis = parseIntegrationBoundaryLocus(params.boundary);
+  const authorized = authorizeActivePublication({ ...params, boundary: boundaryBasis, standardLaneOwnerVersion: await params.readStandardLaneOwnerVersion() });
   if (authorized.status === "refused") return reject(authorized.reason);
   const prepared = await ctx.currentWuReconcile.prepare({ slug: params.name, metaPath });
   if (prepared.status === "conflict") return reject(`Current-work-unit reconcile refused: ${prepared.reason}`);
@@ -45,7 +46,7 @@ export async function runStorePublish(ctx: ExecuteTransitionContext & CurrentWuR
   const current = await inspectPublication(ctx, { ...params, ...refreshed }, reject);
   if (current.status !== "ready") return current;
   const { branch, primary } = current;
-  const authorization = authorizeActivePublication({ ...refreshed, boundary: params.boundary,
+  const authorization = authorizeActivePublication({ ...refreshed, boundary: boundaryBasis,
     standardLaneOwnerVersion: await params.readStandardLaneOwnerVersion() });
   if (authorization.status === "refused") return reject(authorization.reason);
   const boundary = projectPublicationBoundary({ workUnit: params.name, branch, candidateId: refreshed.candidateId,
@@ -102,7 +103,8 @@ async function resumeIntegratingPublication(params: PublishParams, branch: strin
   if (["publication-pending", "hosted-review-pending", "delivery-status-required"].includes(params.boundary.locus)) {
     return { status: "unchanged", boundary: params.boundary };
   }
-  const authorization = authorizeActivePublication({ ...params, standardLaneOwnerVersion: await params.readStandardLaneOwnerVersion() });
+  const authorization = authorizeActivePublication({ ...params, boundary: parseIntegrationBoundaryLocus(params.boundary),
+    standardLaneOwnerVersion: await params.readStandardLaneOwnerVersion() });
   if (authorization.status === "refused") return reject(authorization.reason, undefined,
     { text: "Resolve pre-publication review, then retry publication.", argv: ["arc", "review", "pre-publication", params.name] });
   return { status: "unchanged", boundary: projectPublicationBoundary({ workUnit: params.name, branch,

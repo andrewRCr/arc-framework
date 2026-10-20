@@ -140,7 +140,7 @@ export interface PublishParams {
   /** Whether the managed Candidate lineage still matches the current reviewable subject. */
   candidateCurrent: boolean;
   /** Durable pre-publication boundary reduced from review evidence. */
-  boundary: IntegrationBoundaryLocus;
+  boundary: PublishedIntegrationBoundaryLocus;
   /** Re-read Candidate authority after reconcile has applied every current-WU write. */
   refreshCandidateAuthorization(): Promise<{
     candidateId: string;
@@ -256,6 +256,11 @@ export async function runPublish(
   params: PublishParams,
 ): Promise<PublishResult> {
   if (ctx.store !== undefined && usesOffBranchState(ctx.store)) return runStorePublish({ ...ctx, store: ctx.store }, params);
+  return runRepositoryPublish(ctx, { ...params, boundary: parseIntegrationBoundaryLocus(params.boundary) });
+}
+
+async function runRepositoryPublish(ctx: ExecuteTransitionContext & CurrentWuReconcileHost,
+  params: PublishParams & { boundary: IntegrationBoundaryLocus }): Promise<PublishResult> {
   const {
     name,
     lastCompleted,
