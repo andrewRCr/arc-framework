@@ -704,6 +704,7 @@ export const LaneAttemptSchema = z.strictObject({
   terminalProducer: z.boolean(),
   sourceId: LaneSourceIdSchema,
   outcome: LaneAttemptOutcomeSchema,
+  admittedBy: z.string().trim().min(1).optional(),
   conditionalPassAuthorizations: ConditionalPassAuthorizationsSchema.optional(),
   // Superseded non-hosted approved sets retain their performed-response evidence in order.
   responsePerformanceHistory: z.array(LaneResponsePerformanceSchema).optional(),
