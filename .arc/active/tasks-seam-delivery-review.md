@@ -978,28 +978,12 @@ this extension, following the 4.11 local proof.
           Default respond settles a native frontline source from outcomes and evidence alone, closing its opening
           window with no legacy execution, outcome, or disposition files; supersession retains current-set checks.
 
-    - `[ ]` **5.6.b Policy evidence, earlier reviews, the pending fix, and reduction**
+    - `[x]` **5.6.b Policy evidence, earlier reviews, the pending fix, and reduction**
 
-        - `rg/policy/review-policy-evidence.ts`; `rg/policy/pre-publication-request.ts`; earlier-review applicability's
-          disposition reads and decodes (`rg/policy/earlier-review-applicability.ts`) and `queryEarlierReviewAttempts`
-          (`rg/policy/earlier-review-attempts.ts`); `readPendingCandidateReviewFixAuthority`
-          (`rg/policy/candidate-review-fix-continuation.ts`), which compares a local record's `localSourceRef` with its
-          outcome's `sourceDigest` in place of the operation state's `sourceRef` (§ 9.3), and uses a frontline
-          outcome's recorded `sourceBindingId` instead of recomputing it from a redacted source; and reduction's frontline
-          source (`rg/runtime/reduce-command.ts`), which reads the current set from the succession.
-        - The locus probe's pending-fix callback passes its invocation-bound store and exact selected owner to
-          `readPendingCandidateReviewFixAuthority`, which binds its outcome/evidence reads from those ports instead
-          of constructing a legacy disposition store off branch; its production projection test is 7.6's.
-        - From the flip reduction's frontline source (`reduceFrontline`) reads the attempt's outcome through the outcome
-          port in place of the frontline outcome store, and binds the reduce envelope's `outcomeRef` with the outcome
-          key as its durable part, comparing it with the reader's (5.6.a, § 9.3).
-        - Build `test-first` (one behavior at a time):
-            - from the flip reduction over a frontline run reads its outcome with no frontline outcome record, and its
-              bound `outcomeRef` equals the run envelope's
-            - an earlier review's attempts and approved responses read from outcomes and evidence
-            - a pending Candidate review fix reads from its evidence record, a local one matching its outcome's
-              `sourceDigest` on a clone holding no operation state for it
-            - reduction over a frontline outcome reaches today's projection
+        - Bound family ports supply policy and pre-publication evidence, earlier-review snapshots, and pending Candidate
+          authority from outcomes and approved evidence. Native local authority needs no operation file; frontline
+          identity retains its recorded binding. Default frontline reduction preserves the producer's portable source
+          reference through approval and reads completed results at version zero without changing stored facts.
 
     - `[ ]` **5.6.c The hosted reservation**
 

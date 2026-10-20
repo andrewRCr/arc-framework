@@ -15,10 +15,11 @@ import { bindReviewSourceReferenceForInvocation } from "../../src/scripts/review
 import { createRepositoryReviewResultReader } from "../../src/scripts/review-gate/hosts/local/review-result-reader-composition.js";
 import { frontlinePhaseClosed, settledFrontlineAdviceReader } from "../../src/scripts/review-gate/policy/frontline-phase.js";
 import { approveDispositionState } from "../../src/scripts/review-gate/core/dispositions.js";
-import { RespondEnvelopeSchema } from "../../src/scripts/review-gate/core/review-command-envelope.js";
-import { handleReviewRespond } from "../../src/handlers/review.js";
+import { RespondEnvelopeSchema, ReduceEnvelopeSchema } from "../../src/scripts/review-gate/core/review-command-envelope.js";
+import { bindNativeReviewOperationReference } from "../../src/scripts/review-gate/core/review-operation-reference.js";
+import { handleReviewRespond, handleReviewReduce } from "../../src/handlers/review.js";
 
-it("settles a native frontline source through default respond and closes the opening window without execution files", async () => {
+it("reduces and settles a native frontline source through defaults without execution files", async () => {
   const h = await createReviewRepositoryHarness();
   onTestFinished(h.cleanup);
   const { cwd, exec } = h.native;
@@ -58,6 +59,19 @@ it("settles a native frontline source through default respond and closes the ope
   expect(await window()).toBe(false);
   const outcomeRef = await bindReviewSourceReferenceForInvocation(invocation, { kind: "frontline",
     operationId: outcome.attemptId, durableRef: outcome.attemptId });
+  const operationRef = bindNativeReviewOperationReference({ repositoryId: projectId, workItem: primary.reference.owner,
+    operationId: outcome.attemptId });
+  const reduce = async () => {
+    let output = "";
+    const exits: number[] = [];
+    await handleReviewReduce("-", { resolveRoot: () => cwd,
+      readText: async () => JSON.stringify({ schemaVersion: 1, operationId: outcome.attemptId, operationRef }),
+      write: text => { output += text; }, setExitCode: code => exits.push(code) }, undefined, h.native);
+    expect(exits, output).toEqual([]);
+    return ReduceEnvelopeSchema.parse(JSON.parse(output));
+  };
+  expect(await reduce()).toMatchObject({ state: "findings", payload: { persistedVersion: 0, operationRef,
+    responseSource: { kind: "frontline", outcomeRef } } });
   const invoke = async (request: unknown) => {
     let output = "";
     const exits: number[] = [];
@@ -79,6 +93,10 @@ it("settles a native frontline source through default respond and closes the ope
       reviewOperationId: outcome.attemptId }) });
   expect(approved.state).toBe("settled");
   expect(await window()).toBe(true);
+  const beforeReduction = await h.reference.store.version();
+  expect(await reduce()).toMatchObject({ state: "advisory-complete", payload: { persistedVersion: 0, operationRef,
+    frontlineOutcomeRef: outcomeRef, frontlineFollowUp: { action: "stop", reason: "no-approved-material-fix" } } });
+  expect(await h.reference.store.version()).toEqual(beforeReduction);
   expect(await publisher.list({ root: "review-gate", namespace: "in-flight" })).toEqual([]);
   expect(await publisher.list({ root: "review-gate", namespace: "outcomes" })).toEqual([]);
   expect(await publisher.list({ root: "review-gate", namespace: "evidence" })).toEqual([]);
