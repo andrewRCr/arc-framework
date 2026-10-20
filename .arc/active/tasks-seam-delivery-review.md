@@ -824,7 +824,7 @@ through rename and slug reuse; mismatched references refuse and succeed after co
   predecessor's attempt on this clone and resumes after it ends. Repository path-log history and owning-branch recovery
   retain their existing behavior.
 
-### `[ ]` **4.9 Write a local attempt's outcome, and derive the lane's pass count from outcomes — § 4.1–4.3, § 4.6, § 4.8**
+### `[x]` **4.9 Write a local attempt's outcome, and derive the lane's pass count from outcomes — § 4.1–4.3, § 4.6, § 4.8**
 
 - _Goal:_ From the flip a local attempt that ends writes one `review/outcome` on its vehicle's work item through the
   lane-progress transition every caller uses, and the policy numbers the next pass, records an exhausted pass count, and
@@ -837,43 +837,12 @@ through rename and slug reuse; mismatched references refuse and succeed after co
           rejects conflicting conclusions. The source sweep reads each pin's bound work item and releases finished
           sources across work items while preserving unfinished pins until expiry.
 
-    - `[ ]` **4.9.b The policy reads the derived count**
+    - `[x]` **4.9.b The policy reads the derived count**
 
-        - From the flip every lane-progress read goes through the in-flight port's composition (4.1.a) —
-          `readLaneProgressOwner` and `readLaneProgressOwnerVersioned` (`rg/lane-progress.ts`), the transitions' own
-          `readOperation` calls on lane-progress IDs (`rg/lane-progress*.ts`), and the snapshot's lane-progress entries
-          — and returns today's `LaneProgressState`, composed from the lineage's stored outcomes and its in-flight
-          record (§ 4.7):
-            - attempts ordered by logical pass, then `endedAt`, then generation, an unfinished outcome before a
-              finished one, then attempt ID, with attempts in flight last;
-            - `updatedAt` the latest of the in-flight record's time and the outcomes' `endedAt`;
-            - the version the in-flight record's, or 0 where this clone holds none, which earlier-review candidates
-              admit from the flip (`EarlierReviewAttemptCandidateSchema`, `rg/policy/earlier-review-attempts.ts`);
-            - the count and settled state derived as 1.2.c derives them.
-        - So `readLaneProgress` (`rg/policy/pre-publication-composition.ts`), `rg/policy/review-policy-driver.ts`, and
-          `rg/lane-progress-supersession.ts` read the derived count with no change of shape;
-          `readCandidateInheritedLaneProgress` keeps its refusals from the flip, refusing a predecessor's attempt only
-          while it is in flight on the clone, a stored live outcome reading as outdated (§ 8.4), and reading its review
-          responses from evidence.
-        - Build `test-first` (one behavior at a time):
-            - the composed state passes today's lane-progress validation (`LaneProgressStateSchema`)
-            - attempts compose in pass, end-time, and generation order with attempts in flight last, and `updatedAt` is
-              the latest of their times
-            - outcomes 3.2 maps from one lane-progress record compose in that record's order, each pass's retries in
-              generation order and its finished outcome after its unfinished ones; a pass that fell back across two
-              sources, and one retrying its sources in source order, pass the source-order check
-              (`validateConfiguredAttempts`, `rg/policy/review-policy-driver.ts`) with today's effective terminal
-              attempt (`effectiveTerminalAttempt`, `rg/policy/pre-publication-request.ts`)
-            - a lineage with stored outcomes and no in-flight record on this clone reads at version 0, and an
-              earlier-review query admits it
-            - the next logical pass and every grant's exhausted count follow the completed logical count, while only
-              standard ceiling eligibility follows the complete-coverage count
-            - a superseded Candidate's chain carries its passes into its successor's count
-            - a predecessor with an attempt in flight, and one with a review response the frontline owner's performance
-              does not account for, each refuse `CandidateSupersessionResolutionError`
-            - a predecessor's unsettled `findings` outcome, written after its re-root on another clone, refuses nothing
-              and adds nothing to the count
-            - in the harness's differential mode, the derived count equals today's over the same reviews run in-repo
+        - Native lane reads compose ordered outcomes with pending execution, preserving local versions and admitting
+          outcome-only history at version zero. Mapped fallback and retry lanes retain the repository lane's source
+          order, terminal producer, and policy result. Logical counts number grants independently of complete-pass
+          budgets; inherited counts retain settled history and omit late unsettled outcomes on replaced Candidates.
 
     - `[x]` **4.9.c The local lane reads settled state from evidence**
 
