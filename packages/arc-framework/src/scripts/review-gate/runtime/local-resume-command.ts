@@ -1,6 +1,8 @@
 /** Command orchestration for re-entering one durable local advisory review. */
 
 import { z } from "zod";
+import { publishLocalReviewReceipt, readLocalReviewReceipts } from "./local-outcome-receipts.js";
+import type { LocalReviewState } from "../core/operation-state-schema.js";
 import { NativeReviewOperationRefSchema, nativeReviewOperationReferenceMatches } from "../core/review-operation-reference.js";
 
 import {
@@ -9,6 +11,7 @@ import {
 import {
   ReviewIdentifierSchema,
   type ReviewTarget,
+  type ReviewReceiptV2,
 } from "../core/gate-contract-v2-schema.js";
 import { bindReviewSourceReference, type ReviewSourceReferenceBinding } from "../core/review-source-reference.js";
 import { assertLocalReviewClaimBinding } from "../core/local-operation.js";
@@ -17,6 +20,7 @@ import type {
   ForwardReviewReceiptStore,
   LocalReviewSourceStore,
   ReviewOperationStateStore,
+  ReviewOutcomePort,
   ReviewResultReader,
 } from "../core/ports.js";
 import { validateApprovedDispositionRecordForResult } from
@@ -44,6 +48,7 @@ export interface LocalResumeDependencies {
   operationStore: ReviewOperationStateStore;
   sourceStore: LocalReviewSourceStore;
   receiptStore: ForwardReviewReceiptStore;
+  outcomes?: ReviewOutcomePort;
   resultReader: ReviewResultReader;
   dispositionStore: Pick<ApprovedDispositionRecordStore, "readDispositionRecord">;
   confirmTarget(target: ReviewTarget): Promise<LocalTargetConfirmation>;
@@ -94,7 +99,7 @@ async function resumeLocalReviewWithinLocalReviewLock(
     operationId: state.operationId,
     durableRef,
   });
-  const ledger = await dependencies.receiptStore.readReceipts(state.targetId);
+  const ledger = await readLocalReviewReceipts(dependencies, state.targetId);
   const receipts = ledger.receipts.filter((receipt) => receipt.requestId === state.requestId);
   if (receipts.length > 1) {
     throw new LocalResumeCommandError("local review operation has multiple terminal receipts");
@@ -124,12 +129,7 @@ async function resumeLocalReviewWithinLocalReviewLock(
       const oldReceipt = validateReviewReceipt(
         state.target, state.requirement, state.request, receipts[0],
       );
-      await dependencies.receiptStore.appendReceipt(oldReceipt, ledger.ledgerVersion);
-      await recordLocalReceiptConclusion(dependencies.operationStore, {
-        state,
-        receipt: oldReceipt,
-        now: dependencies.now(),
-      });
+      await publishResumeReceipt(dependencies, state, oldReceipt, ledger.ledgerVersion);
     }
     return LocalResumeEnvelopeSchema.parse({
       schemaVersion: 1,
@@ -192,12 +192,7 @@ async function resumeLocalReviewWithinLocalReviewLock(
     state.request,
     receipts[0],
   );
-  const replay = await dependencies.receiptStore.appendReceipt(receipt, ledger.ledgerVersion);
-  await recordLocalReceiptConclusion(dependencies.operationStore, {
-    state,
-    receipt,
-    now: dependencies.now(),
-  });
+  const replay = await publishResumeReceipt(dependencies, state, receipt, ledger.ledgerVersion);
   const disposition = await dependencies.dispositionStore.readDispositionRecord(state.operationId);
   if (receipt.result !== "findings") {
     if (disposition !== null) {
@@ -273,4 +268,13 @@ async function resumeLocalReviewWithinLocalReviewLock(
       receiptRef: await receiptReference(replay.durableEvidenceRef),
     },
   });
+}
+
+async function publishResumeReceipt(dependencies: LocalResumeDependencies, state: LocalReviewState,
+  receipt: ReviewReceiptV2, ledgerVersion: number): ReturnType<ForwardReviewReceiptStore["appendReceipt"]> {
+  const published = await publishLocalReviewReceipt(dependencies,
+    { state, receipt, expectedLedgerVersion: ledgerVersion, now: () => dependencies.now() });
+  if (dependencies.outcomes === undefined) await recordLocalReceiptConclusion(dependencies.operationStore,
+    { state, receipt, now: dependencies.now() });
+  return published;
 }

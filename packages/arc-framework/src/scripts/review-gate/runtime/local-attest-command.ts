@@ -1,6 +1,7 @@
 /** Command orchestration for one local advisory review attestation. */
 
 import { z } from "zod";
+import { publishLocalReviewReceipt, readLocalReviewReceipts } from "./local-outcome-receipts.js";
 import { NativeReviewOperationRefSchema, nativeReviewOperationReferenceMatches } from "../core/review-operation-reference.js";
 
 import { canonicalize } from "../../../lib/kernel/index.js";
@@ -21,6 +22,7 @@ import type {
   ForwardReviewReceiptStore,
   LocalReviewSourceStore,
   ReviewOperationStateStore,
+  ReviewOutcomePort,
 } from "../core/ports.js";
 import { LocalAttestEnvelopeSchema } from "../core/review-command-envelope.js";
 import {
@@ -52,6 +54,7 @@ export interface LocalAttestDependencies {
   operationStore: ReviewOperationStateStore;
   sourceStore: LocalReviewSourceStore;
   receiptStore: ForwardReviewReceiptStore;
+  outcomes?: ReviewOutcomePort;
   resolveAuthority(
     evaluatorIdentity: string,
     memberHeadObjectId?: string,
@@ -78,18 +81,19 @@ export class LocalAttestCommandError extends Error {
 }
 
 async function appendReceiptWithRetry(
-  store: ForwardReviewReceiptStore,
+  dependencies: LocalAttestDependencies,
+  state: LocalReviewState,
   receipt: ReviewReceiptV2,
   initialLedgerVersion: number,
 ): ReturnType<ForwardReviewReceiptStore["appendReceipt"]> {
   let expectedLedgerVersion = initialLedgerVersion;
   for (let attempt = 0; attempt < REVIEW_VERSION_RETRY_ATTEMPTS; attempt += 1) {
     try {
-      return await store.appendReceipt(receipt, expectedLedgerVersion);
+      return await publishLocalReviewReceipt(dependencies, { state, receipt, expectedLedgerVersion, now: () => dependencies.now() });
     } catch (error) {
       if (!isReviewVersionConflict(error)) throw error;
     }
-    const reloaded = await store.readReceipts(receipt.targetId);
+    const reloaded = await readLocalReviewReceipts(dependencies, receipt.targetId);
     const terminalReceipts = reloaded.receipts.filter((candidate) => candidate.requestId === receipt.requestId);
     if (terminalReceipts.length > 1) {
       throw new LocalAttestCommandError("corrupt-state", "local review operation has multiple terminal receipts");
@@ -101,6 +105,14 @@ async function appendReceiptWithRetry(
     expectedLedgerVersion = reloaded.ledgerVersion;
   }
   throw new Error("local review receipt publication exceeded retry attempts");
+}
+
+async function publishAttestReceipt(dependencies: LocalAttestDependencies, state: LocalReviewState,
+  receipt: ReviewReceiptV2, ledgerVersion: number): ReturnType<ForwardReviewReceiptStore["appendReceipt"]> {
+  const published = await appendReceiptWithRetry(dependencies, state, receipt, ledgerVersion);
+  if (dependencies.outcomes === undefined) await recordLocalReceiptConclusion(dependencies.operationStore,
+    { state, receipt, now: dependencies.now() });
+  return published;
 }
 
 /** Load one immutable operation and project non-attestable results without side effects. */
@@ -212,7 +224,7 @@ async function attestLocalReviewWithinLocalReviewLock(
       },
     });
   }
-  const ledger = await dependencies.receiptStore.readReceipts(state.targetId);
+  const ledger = await readLocalReviewReceipts(dependencies, state.targetId);
   const terminalReceipts = ledger.receipts.filter((receipt) => receipt.requestId === state.requestId);
   if (terminalReceipts.length > 1) {
     throw new LocalAttestCommandError("corrupt-state", "local review operation has multiple terminal receipts");
@@ -251,16 +263,7 @@ async function attestLocalReviewWithinLocalReviewLock(
     if (canonicalize(existing) !== canonicalize(receipt)) {
       throw new LocalAttestCommandError("corrupt-state", "local review operation already has a terminal receipt");
     }
-    const replay = await appendReceiptWithRetry(
-      dependencies.receiptStore,
-      receipt,
-      ledger.ledgerVersion,
-    );
-    await recordLocalReceiptConclusion(dependencies.operationStore, {
-      state,
-      receipt,
-      now: dependencies.now(),
-    });
+    const replay = await publishAttestReceipt(dependencies, state, receipt, ledger.ledgerVersion);
     await dependencies.releaseMaterialization(request.operationId);
     const current = await dependencies.confirmTarget(state.target);
     if (current.state === "stale-target") {
@@ -350,16 +353,7 @@ async function attestLocalReviewWithinLocalReviewLock(
   if (guidanceDigest !== state.guidanceDigest) {
     throw new LocalAttestCommandError("corrupt-state", "local review delivered guidance changed");
   }
-  const appended = await appendReceiptWithRetry(
-    dependencies.receiptStore,
-    receipt,
-    ledger.ledgerVersion,
-  );
-  await recordLocalReceiptConclusion(dependencies.operationStore, {
-    state,
-    receipt,
-    now: dependencies.now(),
-  });
+  const appended = await publishAttestReceipt(dependencies, state, receipt, ledger.ledgerVersion);
   await dependencies.releaseMaterialization(request.operationId);
   const afterAppend = await dependencies.confirmTarget(state.target);
   if (afterAppend.state === "stale-target") {
