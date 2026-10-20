@@ -1,5 +1,6 @@
 /** Positive Errand identity and exact-head lane progress for review status. */
 
+import { matchingOrdinaryErrand, readStoredStatusErrandSelection, type ErrandStatusSelection } from "./status-errand-selection.js";
 import { ProjectIdentityError } from "../../lib/store/project-identity.js";
 import { resolveReviewInvocation, type ReviewInvocationInput, type ReviewInvocationOptions } from "./runtime/invocation.js";
 import { createReviewCompositionContext } from "./runtime/composition-context.js";
@@ -140,31 +141,15 @@ async function reviewCoversCurrentBase(
   ).verdict === "carries";
 }
 
-function matchingOrdinaryErrand(
-  records: readonly TransientIdentityRecord[],
-  target: ExactErrandStatusTarget,
-): { readonly kind: "none" } | { readonly kind: "blocked"; readonly detail: string } | {
-  readonly kind: "matched";
-  readonly record: Extract<TransientIdentityRecord, { kind: "errand"; purpose: "errand" }>;
-} {
-  const matching = records.filter((record) => record.branch === target.headRef);
-  if (matching.length === 0) return { kind: "none" };
-  if (matching.length !== 1) {
-    return { kind: "blocked", detail: "The target branch has ambiguous transient identity claims." };
+async function selectErrandStatus(input: ReviewInvocationInput, identity: string, exec: GitExec,
+  target: ExactErrandStatusTarget): Promise<ErrandStatusSelection> {
+  if (input.store?.capabilities.stateOffBranch === true) return readStoredStatusErrandSelection(input.store, identity, target);
+  const snapshot = await readTransientIdentitySnapshot({ exec, identity });
+  if (snapshot.kind === "absent") return { kind: "none" };
+  if (snapshot.kind === "error" || snapshot.diagnostics.length > 0) {
+    return { kind: "blocked", detail: "The transient identity needed to select the review vehicle is unreadable." };
   }
-  const record = matching[0];
-  if (record?.kind !== "errand" || record.purpose !== "errand"
-    || (record.state !== "open" && record.state !== "awaiting-merge")) {
-    return { kind: "blocked", detail: "The target branch does not carry an active ordinary Errand identity." };
-  }
-  if (record.state === "awaiting-merge" && (
-    record.changeRequest.repositoryRef.toLowerCase() !== target.repository.toLowerCase()
-    || record.changeRequest.headRef !== target.headRef
-    || record.changeRequest.headSha !== target.headSha
-  )) {
-    return { kind: "blocked", detail: "The Errand identity's change request does not match the exact target." };
-  }
-  return { kind: "matched", record };
+  return matchingOrdinaryErrand([...snapshot.records.values()], target);
 }
 
 function localProducerBelongsToErrand(result: Extract<ReviewResult, { kind: "attested-local" }>, errand: ErrandClaim): boolean {
@@ -754,12 +739,7 @@ export async function readErrandRoutedObligation(options: ReviewInvocationInput 
   try {
     const identity = await resolveIdentity({ exec });
     if (identity === null) return null;
-    const snapshot = await readTransientIdentitySnapshot({ exec, identity });
-    if (snapshot.kind === "absent") return null;
-    if (snapshot.kind === "error" || snapshot.diagnostics.length > 0) {
-      return blocked("The transient identity needed to select the review vehicle is unreadable.");
-    }
-    const selected = matchingOrdinaryErrand([...snapshot.records.values()], input.target);
+    const selected = await selectErrandStatus(input, identity, exec, input.target);
     if (selected.kind === "none") return null;
     if (selected.kind === "blocked") return blocked(selected.detail);
     if (selected.record.state === "awaiting-merge") {
@@ -782,6 +762,7 @@ export async function readErrandRoutedObligation(options: ReviewInvocationInput 
       return blocked("The Errand identity's branch does not match the exact review head.");
     }
 
+    if (input.workItem === undefined && selected.workItem !== undefined) input.workItem = selected.workItem;
     const { publisher, family } = createReviewCompositionContext({ ...input, exec });
     const repositoryId = await resolveRepositoryIdentity(publisher, undefined, input);
     const store = family.ports.inFlight;
