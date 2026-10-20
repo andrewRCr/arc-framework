@@ -3,7 +3,7 @@
   "slug": "retire-decompose-scaling",
   "claimId": "2cb1d77256b021e096723ff91fb594be",
   "createdAt": "2026-10-20T19:46:26.990Z",
-  "updatedAt": "2026-10-20T19:46:26.990Z",
+  "updatedAt": "2026-10-20T20:02:54.206Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Retire the never-started decompose-scaling stub through lifecycle abandonment, record the accepted storage-cutover rationale, preserve live data, and leave both decomposition cohorts open.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Retire `decompose-scaling` through lifecycle abandonment",
   "originEntrySourceDigest": "sha256:26382f30ae0c6659aad2813ddd7d84253851fcb0e03acca4cc47d040fe30c452",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/retire-decompose-scaling",
+    "headSha": "0ba05f98a82bcd7332a1af51af264697befa0f3d"
+  }
 }
