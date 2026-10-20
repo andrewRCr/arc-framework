@@ -11,13 +11,14 @@
 - **Design:** `spec-seam-decomposition.md`
 - **Task List:** `tasks-seam-decomposition.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:12ffa3a7cb5ce352c3e089bf5fea2f44c5b96de9bee177556429abaec061d1b3`
 
-- **Current Workflow:** `process-task-loop`
-- **Last Completed:** Task 6.3 — The dispatch end to end (Phase 6 complete)
-- **Next Task:** Task 7.1 — Complete verification (line ~655)
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 7.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 7.1 in a fresh session — load and follow `verify-work-unit.md`
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]

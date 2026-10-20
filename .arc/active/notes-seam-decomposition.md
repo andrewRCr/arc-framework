@@ -266,8 +266,7 @@ the probes against the current implementation.
   inventory that successful bounded lookup no longer reads, and one expects the old ambiguity message. Complete the
   shared-lookup test propagation with faithful ambiguous-history fixtures and failures at the required authority
   boundary. That round's full merge gate completed with 18 checks passed, the unit suite failed, and three CI-only
-  suites not
-  selected. The round-2 response below supplies the affected caller corrections.
+  suites not selected. The round-2 response below supplies the affected caller corrections.
 - **Recommendation:** approve both local corrections, complete the affected tests, then one independent fix check
   round over the response. No second complete pass is proposed at this stop; the material signal is concentrated in
   the new alias semantics. Trend: pass 1 had two original major findings; round 1 found one repair regression and
@@ -322,6 +321,106 @@ corrections. Reading: converged fix rounds. Stop the optional independent criter
 within the repaired alias boundary and its callers, whose focused checks and fresh independent response check cover
 the changed semantics. A second complete pass would largely repeat the unaffected original 242-file assessment. The
 terminal author walk and quality gates still govern completion, and subsequent Candidate review remains separate.
+
+### Final author criteria report
+
+The final work-unit walk covers the complete flat Success Criteria section, ordinals 1–14, against the settled fix
+head below. Original criterion digests 1–12 still match the initial report; approved A2/A3 supply the two appended
+identities. This is the terminal author walk, with the original independent pass and both fix rounds retained above.
+
+- **Diff base:** `5c9cd97e18dab159314e3963dade059959a625a7` (`origin/main` merge base).
+- **Reviewed head:** `91839a8e3a874b46c7fa24f29e51c329700174b9`.
+- **Reachable tree:** `f9c05724c83ff681d94d48154af1a7f3ef707d5e`.
+- **Boundary-order deviation:** none.
+- **Attention result:** `scope-selected / continue-review`; 16,801 changed lines across 263 files.
+- **Selected route:** substrate (68), additive (75), terminal (58), and revision/dispatch (62), an exact disjoint
+  union of the committed diff. Shared store declarations are external dependencies of the three consuming chunks;
+  the lineage lookup, generation propagation, batch admission, and caller-authority boundaries receive seam review.
+  The original pass covers its original 242-file subject; the approved repair deltas receive the two bounded fix
+  checks and this author walk. No second complete independent pass is claimed.
+- **Commit evidence:** `774d3f52a` carries A2; `91839a8e3` carries A3 and both local follow-up corrections. Both commit
+  gates passed. All package-source and test bytes match the subject of the fresh forced merge gate; later changes are
+  verification records and their formatting. The target inbox listing is clear.
+
+- **Success Criteria > 1:** `[x]`.
+    - **Criterion digest:** `sha256:a72036d0062933e53bbb74999f315eac458556784309be4d13d6c45593f59d45`.
+    - **Evidence:** Capability dispatch and dormant-mode handler scenarios preserve the in-repo arm. Version-3
+      decoder/scanner and affected CLI scenarios remain unchanged by the repairs; the fresh full unit gate passes.
+- **Success Criteria > 2:** `[x]`.
+    - **Criterion digest:** `sha256:a1d104843fbe4f65f662945d1786dce84013c300a86c0cb8059949846e30b306`.
+    - **Evidence:** retirement-scenario.test.ts exercises stub/started origins and cohort/at-cap placement through
+      preflight, additive authoring, preview, apply, and teardown retry. Preview writes match one terminal batch;
+      lineage-plan.test.ts checks exact nonempty retired branch links. Fresh decomposition and full unit suites pass.
+- **Success Criteria > 3:** `[x]`.
+    - **Criterion digest:** `sha256:e3a7d4b28496e04c5aa6e6c7cd1e5eab06f1cfda557c26ee8282304bd560aacb`.
+    - **Evidence:** extraction-scenario.test.ts covers all four Planning placements and Active/cohort, retained content,
+      recipient edges, map removal, and no lineage. Both shapes share terminal admission and conservation. The new
+      removal guard exempts authenticated terminal lineage; fresh composed scenarios pass.
+- **Success Criteria > 4:** `[x]`.
+    - **Criterion digest:** `sha256:250b9e7804ab1d350317325e8835de3af6b2f1ca20bc18d11a5e8b0fb28826e9`.
+    - **Evidence:** discard.test.ts, revision.test.ts, and revision-starter.test.ts retain history-only removed groups,
+      differential member/cohort changes, unseeded edges, and carried/fresh authoring.
+      seeded-provider-generations.test.ts additionally preserves an unrelated generation when revision drops the
+      original seed.
+- **Success Criteria > 5:** `[x]`.
+    - **Criterion digest:** `sha256:75fb8170d855217ad7fed51f70d2c417f290e14e0bfc075283200c53dfb53c84`.
+    - **Evidence:** The refusal matrix above retains condition/remedy coverage, held-entry grammar, stale authority,
+      cut-in-flight, and landed-cut behavior. removal-races.test.ts adds the missing concurrent dependency/pause refusal
+      and owner-repair continuation for discard and revision; native rule tests cover incomplete and malformed
+      observations. All 597 selected decomposition/native-guard cases pass.
+- **Success Criteria > 6:** `[x]`.
+    - **Criterion digest:** `sha256:44604808dfe3e0afd9a75e87eb6e3ec07a3a998e41354a66fe3a9e76f9b0d2a6`.
+    - **Evidence:** Existing read-growth coverage remains; reads-retired.test.ts compares zero and six unrelated
+      retirements in additive, terminal, and revision preparation and observes no unrelated primary history or lineage
+      inventory. retired-lineage.ts uses one bounded lookup; invocation caching and known provider UIDs preserve the
+      selected-generation observation boundary.
+- **Success Criteria > 7:** `[x]`.
+    - **Criterion digest:** `sha256:8eebb03883545734a590116f4a222b09ba806a077335f7bc298c59ae91000240`.
+    - **Evidence:** Production cut-map registration and registered-kind conformance cover parsed writes, history,
+      removal, invalid maps, and unsupported in-repo writes. Schema registration retains cut-map version 4 beside legacy
+      decompose-cut-map version 3; the fresh full unit gate passes.
+- **Success Criteria > 8:** `[x]`.
+    - **Criterion digest:** `sha256:23479b057a21f297ce6235f437c8630b0bfa5cf06d7d1b6c115830ea9affa65a`.
+    - **Evidence:** eslint-suppressions.json is byte-identical to the merged base: store-raw-state 180, surface-names
+      148, work-unit-paths 57, no per-file increase or lib/decompose entry. Full TypeScript lint passes. A later
+      landing-base change requires refreshing that comparison.
+- **Success Criteria > 9:** `[x]`.
+    - **Criterion digest:** `sha256:d1251ca9c62561860653ede048bdf24db89d5c8b0d29b28196bff6ae121bbf74`.
+    - **Evidence:** The original complete diff/dependency walk remains applicable. New decompose helpers use store,
+      kernel, lineage, lifecycle-field, and cache interfaces; the removed terminal-history fallback no longer imports
+      terminal-reference-aliases. No added store-version import reaches a module designated for deletion.
+- **Success Criteria > 10:** `[x]`.
+    - **Criterion digest:** `sha256:5593b9f1ac7e795d091c38cf2074ed0f1542f562232da3a19ee68e48905a962c`.
+    - **Evidence:** The fresh forced merge request passes all 19 selected local checks, including both type checks, full
+      lint, build, unit/integration suites, and ARC contracts. Related unit feedback passes. Three CI-only suites remain
+      due in CI before merge; no local execution of those suites is claimed.
+- **Success Criteria > 11:** `[x]`.
+    - **Criterion digest:** `sha256:6e3400fca90dcb0c0f525a97a0a95374806d40ee0e68fea7e2323786a1b6f82f`.
+    - **Evidence:** All implementation and refusal/recovery criteria are resolved with no accepted functional gap, and
+      the target inbox is clear. The implementation is ready to enter Candidate preparation and the integration flow.
+      Candidate review, CI-only suites, and exact-head integration approval remain their own gates; this report supplies
+      no merge authorization.
+- **Success Criteria > 12:** `[x]`.
+    - **Criterion digest:** `sha256:3bae7a9cf7bfc91e35102b994d204ffa5d1cb51648f1083374a6dbab7157ed82`.
+    - **Evidence:** conservation.test.ts retains unresolved/restored locators, releveling/ancestry, earlier ordinal
+      matches, and authored bodies. Retirement and extraction share the resolver; revision-repairs.test.ts changes
+      current destination locators and then finishes. Fresh decomposition and full unit suites pass.
+- **Success Criteria > 13:** `[x]`.
+    - **Criterion digest:** `sha256:4ece00e1233bd3f0a9aa815f5b6de8fb7d36761b43bdf6011fa40539af70000f`.
+    - **Evidence:** meta.decompose-removal-edges reads the complete proposed after-state at native admission. Four
+      competing-write cases cover discard/revision crossed with dependency/pause, atomic refusal without partial writes,
+      and successful owner repair. Independent round-1 probes establish same-batch retargeting/removal; terminal-lineage
+      retirement remains permitted.
+- **Success Criteria > 14:** `[x]`.
+    - **Criterion digest:** `sha256:08ff182892523a63ccecd69bfc434f0df2052ca079ca42875f3751d5631eff6e`.
+    - **Evidence:** Shared lineage conformance covers retired former-name lookup, current terminal-name preference,
+      ambiguity refusal, and exact UID after name reuse. Growth cases cover all three preparation paths; seeded
+      generation tests retain the old provider when its name is reused. Eight local/synced direct-operation cases
+      preserve lookup-only authority. Independent fix round 2 returns zero findings; the durable ref backend
+      implementation remains its provider's pre-cutover obligation.
+
+**Summary:** 14 met, 0 superseded, 0 unresolved. Verification closes on this span; Candidate attestation binds the
+staged closing records separately. The proof boundary below remains unchanged.
 
 ### Proof boundary
 

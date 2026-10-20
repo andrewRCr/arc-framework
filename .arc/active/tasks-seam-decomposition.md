@@ -652,11 +652,13 @@ canonical JSON on standard output, with its reason and remedy on standard error.
 
 ## **Phase 7:** Verification
 
-### `[ ]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
 
-- _Note:_ The approved removal and lineage-lookup repairs, including both follow-up corrections, pass focused
-  checks. Independent fix-check round 2 returned no findings; the forced merge gate and final author criteria walk
-  supply completion evidence in `notes-seam-decomposition.md` § Verification evidence.
+- _Quality gates:_ Forced merge validation passed all 19 selected local checks, including both type checks, full
+  lint, build, unit/integration suites, and ARC contracts. Three CI-only suites remain due before merge.
+- _Success criteria:_ All 14 met, none superseded or unresolved. The final author report binds the complete work-unit
+  span; one independent criteria pass and two fix-check rounds resolved the removal and retired-provider gaps. Evidence
+  and the reference-backend proof boundary are in `notes-seam-decomposition.md` § Verification evidence.
 
 ---
 
@@ -685,13 +687,13 @@ canonical JSON on standard output, with its reason and remedy on standard error.
   the origin, or to the source kind, and otherwise a fresh starter with the stored authoring beside it and the first
   place to reauthor.
 
-- `[ ]` Each refusal of § 14 fires where its condition holds and the cut completes after its remedy, the held-entry
+- `[x]` Each refusal of § 14 fires where its condition holds and the cut completes after its remedy, the held-entry
   refusals under a supplied grammar; a stale apply authority refuses every removing batch; `lineage.cut-in-flight`
   refuses abandoning an origin holding a stored map, and an abandonment after the discard succeeds; and `--finish` on a
   landed cut, in either shape, reports it landed. The records § 10's races leave are stated outcomes, outside this
   criterion.
 
-- `[ ]` A cut's reads stay flat: over the reference backend each batch reads the origin's group, the selected cohort
+- `[x]` A cut's reads stay flat: over the reference backend each batch reads the origin's group, the selected cohort
   documents, the existing homes, and the dependents the listing names a fixed number of times each, and the `history` of
   the stored map and of each item a member's slug finds once per run, none of those counts growing with the repository's
   history, and nothing from Git but the locus reads of § 11.
@@ -707,18 +709,18 @@ canonical JSON on standard output, with its reason and remedy on standard error.
 - `[x]` The store version imports no module the deletion pass removes: no module under `lib/decompose/` imports a
   module § 1.5 and § 13 leave to the in-repo arm.
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration
 
 - `[x]` Destination conservation follows ordinal locator resolution: a target locator that no longer resolves refuses,
   naming its allocation and a revision; an earlier matching heading that takes the saved ordinal passes, as does an
   authored body change that leaves the locator resolvable. Retirement and extraction use the same rule, and a revision
   can name a different current target locator.
 
-- `[ ]` Discard and revision refuse atomically when a surviving dependency or pause edge is introduced at batch
+- `[x]` Discard and revision refuse atomically when a surviving dependency or pause edge is introduced at batch
   admission, and complete after its owner repairs it; same-batch retargeting or removal discharges the edge (A2).
 
-- `[ ]` Renamed-then-retired providers resolve by authenticated identity without enumerating unrelated terminal
+- `[x]` Renamed-then-retired providers resolve by authenticated identity without enumerating unrelated terminal
   histories in additive, terminal, or revision preparation; lineage lookup prefers exact current terminal names,
   refuses ambiguous former names, and preserves exact known provider UIDs (A3).
