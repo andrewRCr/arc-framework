@@ -1,14 +1,10 @@
 /** Conditional authority is consumed by actual pending admissions and retained by portable ended producers. */
 import { expect, it, onTestFinished } from "vitest";
-import { createNativeConditionalAdmissionFixture } from "../../../../fixtures/native-conditional-pass.js";
-import { createFrontlineFixture } from "../../../../fixtures/frontline-review.js";
+import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
+import { createNativeConditionalFrontlineFixture, completeNativeConditionalFrontline as endConditionalFrontline,
+  approveNextNativeConditionalFix as approveNextConditionalFix } from "../../../../fixtures/native-conditional-pass.js";
 import { createReviewCheckout } from "../../../../helpers/store/review-checkout.js";
 import { lifecycleSuccess } from "../../../../helpers/store/lifecycle-harness.js";
-import { createDispositionSet, approveDispositionSet } from "../../../../../src/scripts/review-gate/core/dispositions.js";
-import { composeReviewDispositionRecord } from "../../../../../src/lib/store/kinds/review/evidence/composed-record.js";
-import { publishNativeReviewSuccessor } from "../../../../../src/scripts/review-gate/runtime/native-review-successor.js";
-import { publishNativeConditionalPass } from "../../../../../src/scripts/review-gate/runtime/native-conditional-pass.js";
-import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import { RepositoryGitCommonStatePublisher } from "../../../../../src/lib/git-common-state.js";
 import { reviewDecisionKey } from "../../../../../src/lib/store/kinds/review/decision/key.js";
 import { publishNativeReviewPerformance } from "../../../../../src/scripts/review-gate/runtime/native-review-performance.js";
@@ -20,23 +16,9 @@ import { normalizeFrontlineOutcome } from "../../../../../src/scripts/review-gat
 import { LocalFrontlineOutcomeStore } from "../../../../../src/scripts/review-gate/hosts/local/frontline-outcome-store.js";
 
 async function conditionalAdmission(perform = true) {
-  const common = await createNativeConditionalAdmissionFixture("frontline", perform,
-    { kind: "candidate", candidateId: canonicalDigest({ candidate: "conditional-review" }) });
-  onTestFinished(common.cleanup);
-  const { f, decision, authorizationId, target, publisher, operations, performanceInput } = common;
-  const fixture = createFrontlineFixture(target, { lineage: f.outcome.lineage });
-  const admission = createFrontlineAdmission({ ...fixture.admission, logicalPass: f.input.capture.nextPass });
-  const pendingInput = { lane: "frontline" as const, repositoryId: target.repositoryId,
-    changeRequestId: null, headSha: target.headSha, lineage: admission.lineage, logicalPass: admission.logicalPass,
-    retryGeneration: admission.retryGeneration, attemptId: admission.operationId, sourceId: fixture.outcomeRecord.sourceIdentity,
-    outcome: "pending" as const, consumedPass: false, frontline: { admission, effectiveCoverage: null }, now: "2026-10-20T14:00:00Z",
-    conditionalPendingAdmission: { authorizationId, repositoryId: target.repositoryId, lane: "frontline" as const, lineage: admission.lineage,
-      producedHeadSha: target.headSha, nextPass: admission.logicalPass, admissionId: admission.operationId, now: "2026-10-20T14:00:00Z",
-      confirmDispositionSetCurrent: async (producer: string, id: string) => {
-        const evidence = await f.input.evidence.read(id);
-        return evidence?.value.dispositionSet.producerId === producer && evidence.value.successorDispositionSetId === null;
-      } } };
-  return { f, decision, authorizationId, target, fixture, admission, publisher, operations, pendingInput, performanceInput };
+  const h = await createNativeConditionalFrontlineFixture(perform);
+  onTestFinished(h.cleanup);
+  return h;
 }
 
 it("cites an approved-fix decision on admission and keeps that citation after frontline execution ends", async () => {
@@ -105,18 +87,6 @@ it("refuses a different produced head and admits after restoring the verified fi
     .find(attempt => attempt.attemptId === admission.operationId)?.admittedBy).toBe(authorizationId);
 });
 
-async function endConditionalFrontline(h: Awaited<ReturnType<typeof conditionalAdmission>>, result: "clean" | "malformed",
-  retryOfOperationId?: string) {
-  const outcome = normalizeFrontlineOutcome({ providerResult: result === "clean" ? { kind: "clean" } : { kind: "malformed" },
-    source: h.fixture.outcomeRecord.outcome.source, target: h.admission.target,
-    pass: h.admission.logicalPass, maxPasses: h.admission.maxPasses });
-  await executeFrontlineRun({ operationStore: h.operations, outcomeStore: new LocalFrontlineOutcomeStore(h.publisher),
-    outcomes: h.f.input.outcomes, withOperationLock: async (_id, _wait, action) => action(),
-    execute: async () => ({ outcome, executableIdentity: h.fixture.outcomeRecord.executableIdentity }),
-    now: () => "2026-10-20T14:01:00Z" }, { admission: h.admission, lockWaitMs: 1,
-    ...(retryOfOperationId === undefined ? {} : { retryOfOperationId }) });
-  await recordFrontlineAttempt(h.operations, { admission: h.admission, outcome, now: "2026-10-20T14:02:00Z" });
-}
 
 it("refuses a consumed decision's retry under a changed source and accepts its original contract one generation higher", async () => {
   const h = await conditionalAdmission();
@@ -141,27 +111,6 @@ it("refuses a consumed decision's retry under a changed source and accepts its o
     logicalPass: h.admission.logicalPass, outcome: "clean", admittedBy: h.authorizationId });
 });
 
-async function approveNextConditionalFix(h: Awaited<ReturnType<typeof conditionalAdmission>>) {
-  const id = h.f.input.capture.dispositionSetId, prior = await h.f.input.evidence.read(id);
-  if (prior === null) throw new Error("Expected prior approval");
-  const { dispositionSetId: ignored, ...identity } = prior.value.dispositionSet;
-  void ignored;
-  const dispositionSet = createDispositionSet({ ...identity, proposedBy: "next-response-proposer" });
-  const next = { ...prior.value, dispositionSet, approval: approveDispositionSet({ dispositionSet,
-    approvedBy: h.f.input.capture.authorizedBy, approvedAt: "2026-10-20T13:01:00Z" }), predecessorDispositionSetId: id };
-  const record = composeReviewDispositionRecord(h.f.outcome, [{ ...prior.value,
-    successorDispositionSetId: dispositionSet.dispositionSetId }, next], h.f.primary.reference.owner);
-  await publishNativeReviewSuccessor({ ...h.f.approvalInput, record, store: h.f.h.store, inFlight: h.operations });
-  const grant = await publishNativeConditionalPass({ ...h.f.input, capture: { ...h.f.input.capture,
-    dispositionSetId: dispositionSet.dispositionSetId, now: "2026-10-20T13:02:00Z" } });
-  const current = await h.f.input.evidence.readDispositionRecord(h.f.outcome.attemptId);
-  if (current === null) throw new Error("Expected current approval");
-  await publishNativeReviewPerformance({ ...h.performanceInput, record: current,
-    performance: { ...h.performanceInput.performance, dispositionSetId: dispositionSet.dispositionSetId,
-      performedAt: "2026-10-20T13:03:00Z" } });
-  return { ...h.pendingInput, conditionalPendingAdmission: { ...h.pendingInput.conditionalPendingAdmission,
-    authorizationId: reviewDecisionKey(grant.value) } };
-}
 
 it("refuses a superseded grant and admits a new approved fix's decision after correction", async () => {
   const h = await conditionalAdmission(false);
