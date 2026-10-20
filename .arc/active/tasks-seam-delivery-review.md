@@ -834,9 +834,13 @@ through rename and slug reuse; mismatched references refuse and succeed after co
           envelope with an owning-checkout remedy; branch repair resumes them without writes. Explicit generations
           survive slug reuse, project-identity repair stays intact, and fact-free results match the repository arm.
 
-### `[ ]` **4.11 The review gate's store** — validate exit criterion at segment scope
+### `[x]` **4.11 The review gate's store** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
+- _Outcome:_ On base `7e6852542`, actual native attestation, paused refusal/resume, local completion, derived counts,
+  supersession, repository-state coexistence, and project-identity repair satisfy the segment scenario. Supplemental
+  re-entry retained the admitted UID through stored-owner rename and slug reuse after pruning, including a second
+  clone and mismatched-reference repair, without changing outcome contents or version. A11–A15 are revalidated.
 
 ## **Phase 5:** Every lane's results and responses from the flip
 

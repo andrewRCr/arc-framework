@@ -2465,15 +2465,15 @@ rewrite, and deletion pass (§ 11.2, § 12.6, § 14.3).
 - **A10** — 2026-10-19 — design: retain no-fix settlement headers. _Supersedes:_ § 6.2 performance and § 6.5 fix ownership.
   _Trigger:_ 3.8 segment. _Work:_ 1.R. _Revalidated:_ 3.8.
 - **A11** — 2026-10-19 — task: bind native ports after vehicle resolution. _Supersedes:_ none.
-  _Trigger:_ 4.4 must-stop. _Work:_ 4.4.R. _Revalidated:_ pending → 4.11.
+  _Trigger:_ 4.4 must-stop. _Work:_ 4.4.R. _Revalidated:_ 4.11.
 - **A12** — 2026-10-19 — task: refuse conflicted fact listings. _Supersedes:_ none.
-  _Trigger:_ 6.1 must-stop. _Work:_ 4.R. _Revalidated:_ pending → 4.11.
+  _Trigger:_ 6.1 must-stop. _Work:_ 4.R. _Revalidated:_ 4.11.
 
 - **A13** — 2026-10-19 — design: retain portable continuation ownership. _Supersedes:_ § 2.3, § 9.3, Goal 8.
-  _Trigger:_ 4.4.R must-stop. _Work:_ 4.R2. _Revalidated:_ pending → 4.11.
+  _Trigger:_ 4.4.R must-stop. _Work:_ 4.R2. _Revalidated:_ 4.11.
 - **A14** — 2026-10-20 — design: keep resume payloads unchanged. _Supersedes:_ § 9.3 final paragraph.
-  _Trigger:_ 4.R2.d must-stop. _Work:_ 4.R3. _Revalidated:_ pending → 4.11.
+  _Trigger:_ 4.R2.d must-stop. _Work:_ 4.R3. _Revalidated:_ 4.11.
 - **A15** — 2026-10-20 — spec-depth: preserve fact-free policy resolution. _Supersedes:_ none.
-  _Trigger:_ 4.4.R must-stop. _Work:_ 4.R4. _Revalidated:_ pending → 4.11.
+  _Trigger:_ 4.4.R must-stop. _Work:_ 4.R4. _Revalidated:_ 4.11.
 
 ---
