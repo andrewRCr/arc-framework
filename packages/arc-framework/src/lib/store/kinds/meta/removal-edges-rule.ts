@@ -8,7 +8,7 @@ import type { BrokenRule, WriteCheckInput } from "../../write-check.js";
 import { brokenRule, observeRecord, observeRecords, type RuleObservation } from "../rule-support.js";
 
 const rule = "meta.decompose-removal-edges";
-const remedy = "Retarget or drop the named Depends On edges through write-back; settle pause edges with arc pause <owner> --waits-on <other>, --waits-on-note <text>, or --no-waits-on. Restore unavailable evidence, then retry decomposition.";
+const remedy = "Resolve any named conflicts through write-back. Retarget or drop the named Depends On edges through write-back; settle pause edges with arc pause <owner> --waits-on <other>, --waits-on-note <text>, or --no-waits-on. Restore unavailable evidence, then retry decomposition.";
 type RemovalEvidence<T> = Exclude<RuleObservation<T>, { status: "absent" }>;
 
 async function removedNames(input: WriteCheckInput): Promise<RemovalEvidence<ReadonlySet<string>>> {
@@ -30,8 +30,10 @@ async function removedNames(input: WriteCheckInput): Promise<RemovalEvidence<Rea
 
 function survivingEdges(record: StoreRecord, names: ReadonlySet<string>): RemovalEvidence<readonly string[]> {
   if (record.placement?.kind === "completed") return { status: "known", value: [] };
-  const fields = ParsedMetaRecordSchema.safeParse(record.fields);
   const owner = record.reference.owner.name;
+  if (record.conflicts.length > 0) return { status: "unavailable",
+    condition: `Cannot read the surviving edges of ${owner} with open conflicts: ${record.conflicts.map(reference => JSON.stringify(reference)).join("; ")}.` };
+  const fields = ParsedMetaRecordSchema.safeParse(record.fields);
   if (!fields.success) return { status: "unavailable", condition: `Cannot read the surviving edges of ${owner}.` };
   const edges = fields.data.dependsOn.filter(name => names.has(name)).map(name => `${owner}.Depends On → ${name}`);
   const wait = fields.data.pause?.waitsOn;

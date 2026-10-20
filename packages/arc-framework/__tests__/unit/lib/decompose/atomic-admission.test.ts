@@ -10,10 +10,42 @@ import { runStoreDecomposeFinish } from "../../../../src/lib/decompose/finish.js
 import { runStoreDecomposeDiscard } from "../../../../src/lib/decompose/discard.js";
 import { runStoreDecomposeRevision } from "../../../../src/lib/decompose/revision.js";
 import { prepareDecomposePreflight } from "../../../../src/lib/decompose/preflight.js";
-import { recordReferences } from "../../../../src/lib/store/identity.js";
+import { recordReferences, RecordReferenceSchema } from "../../../../src/lib/store/identity.js";
 import { readWorkUnit } from "../../../../src/lib/store/lifecycle-write.js";
 import { createDefaultLocusPorts } from "../../../../src/lib/work-unit/locus-ports.js";
-import { writeMetaDependsOn } from "../../../../src/lib/store/kinds/meta/writers.js";
+import { writeMetaDependsOn, writeMetaPause } from "../../../../src/lib/store/kinds/meta/writers.js";
+import { SlugSchema } from "../../../../src/lib/kernel/index.js";
+import { resolveDecomposeConflict } from "../../../fixtures/decompose-conflict.js";
+
+it.each(["dependency", "pause"] as const)("refuses disputed surviving %s edges at discard publication and completes after resolution", async edge => {
+  const h = await createDecomposeTerminalFixture();
+  const outsider = await h.seedStub("outside");
+  const preview = await runStoreDecomposeDiscard(h.ctx, "origin");
+  if (preview.status === "refused" || preview.result.kind !== "preview") throw Error(JSON.stringify(preview));
+  let competing: unknown;
+  h.ctx.executor.store = withCompetingBatch(h.store, async () => {
+    const reference = RecordReferenceSchema.parse({ owner: outsider.reference.owner,
+      kind: "work-item/conflict-record", key: "abcdef12" });
+    const incoming = edge === "dependency" ? writeMetaDependsOn(outsider.content, ["member-b"])
+      : writeMetaPause(outsider.content, { pausedBy: SlugSchema.parse(h.ctx.identity), since: "2026-10-19T00:00:00Z",
+        reason: "Waiting.", waitsOn: { kind: "work-unit", slug: SlugSchema.parse("member-b") }, resumeNotes: null, open: false });
+    const label = { actor: "competing-writer", time: "2026-10-19T00:00:00Z" };
+    lifecycleSuccess(await h.store.write({ action: "put", reference, expected: null,
+      content: JSON.stringify({ record: outsider.reference, location: { kind: "hunk", start: 0, end: 1 },
+        base: outsider.content, current: { content: outsider.content, label }, incoming: { content: incoming, label } }),
+      provenance: { verb: "sync", lifecycleAction: "merge" } }));
+    competing = lifecycleSuccess(await h.store.version());
+  });
+  expect(await runStoreDecomposeDiscard(h.ctx, "origin", { applyAuthority: preview.result.applyAuthority }))
+    .toMatchObject({ status: "refused" });
+  expect(lifecycleSuccess(await h.store.version())).toBe(competing);
+  for (const reference of preview.result.removals) expect((await h.store.read({ reference })).status).toBe("ok");
+  await resolveDecomposeConflict(h.store, outsider);
+  const fresh = await runStoreDecomposeDiscard(h.ctx, "origin");
+  if (fresh.status === "refused" || fresh.result.kind !== "preview") throw Error(JSON.stringify(fresh));
+  expect(await runStoreDecomposeDiscard(h.ctx, "origin", { applyAuthority: fresh.result.applyAuthority }))
+    .toMatchObject({ status: "ok", result: { kind: "discarded" } });
+});
 
 it.each(["execute", "extract"] as const)("refuses a new incoming owner at %s admission and admits a rebound map", async mode => {
   const h = await createDecomposePlanFixture(mode === "extract");
