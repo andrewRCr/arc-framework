@@ -1,7 +1,11 @@
 /** Native frontline defaults select their actual stored vehicle before durable family access. */
-import { mkdir, unlink } from "node:fs/promises";
+import { mkdir, unlink, writeFile, chmod, readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { withReviewReport } from "../../fixtures/review-report-input.js";
+import { scriptRawGitExec } from "../../helpers/git-exec-fake.js";
+import { parseReviewSourceReference } from "../../../src/scripts/review-gate/core/review-source-reference.js";
 import { expect, it, onTestFinished, vi } from "vitest";
-import { handleReviewFrontlineResolve, handleReviewFrontlineRun, handleReviewReduce } from "../../../src/handlers/review.js";
+import { handleReviewFrontlineResolve, handleReviewFrontlineRun, handleReviewReduce, handleReviewRespond } from "../../../src/handlers/review.js";
 import { createProjectIdentityReader } from "../../../src/lib/store/project-identity.js";
 import { resolveWorktreeMarkerPath } from "../../../src/lib/git/worktree-marker.js";
 import { TransientIdentityRecordSchema } from "../../../src/lib/errand/identity-record.js";
@@ -9,8 +13,9 @@ import { createReviewHarness } from "../../helpers/store/review-harness.js";
 import { createReviewCheckout } from "../../helpers/store/review-checkout.js";
 import { createCandidateAttestation, createCandidateSubjectSnapshot } from "../../../src/lib/work-unit/candidate-attestation.js";
 import { IntegrationBoundaryLocusV2Schema } from "../../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
-import { FrontlineResolveEnvelopeSchema } from "../../../src/scripts/review-gate/core/review-command-envelope.js";
+import { FrontlineResolveEnvelopeSchema, FrontlineRunEnvelopeSchema, ReduceEnvelopeSchema } from "../../../src/scripts/review-gate/core/review-command-envelope.js";
 import { RepositoryGitCommonStatePublisher } from "../../../src/lib/git-common-state.js";
+import { LocalFrontlineOutcomeStore } from "../../../src/scripts/review-gate/hosts/local/frontline-outcome-store.js";
 import { LocalReviewOperationStateStore } from "../../../src/scripts/review-gate/hosts/local/operation-state-store.js";
 import { laneProgressOperationId } from "../../../src/scripts/review-gate/lane-progress.js";
 import { lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
@@ -23,7 +28,7 @@ import { SlugSchema } from "../../../src/lib/kernel/index.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 const head = "a".repeat(40), base = "b".repeat(40);
-async function fixture(project = true, vehicle: "errand" | "work-unit" = "errand") {
+async function fixture(project = true, vehicle: "errand" | "work-unit" = "errand", findings = false) {
   const h = createReviewHarness();
   if (project) await h.seedProject(projectId);
   const claimId = "1".repeat(32), branch = vehicle === "errand" ? "chore/repair" : "topic/opaque";
@@ -75,6 +80,16 @@ async function fixture(project = true, vehicle: "errand" | "work-unit" = "errand
     { match: { prefix: ["worktree", "remove", "--force"] }, responses: [{ stdout: "" }] },
   ] });
   onTestFinished(checkout.cleanup);
+  const providerPath = join(checkout.cwd, "provider");
+  const stdout = findings ? await readFile(new URL("../../fixtures/coderabbit-frontline/agent-0.8.1-findings.ndjson", import.meta.url), "utf8") : "";
+  if (findings) {
+    await mkdir(providerPath);
+    const executable = join(providerPath, "coderabbit");
+    await writeFile(executable, "captured provider executable\n");
+    await chmod(executable, 0o700);
+  }
+  const codeRabbit = findings ? { executable: { pathValue: providerPath, interrogate: async () => "CodeRabbit 0.8.1" },
+    run: async () => ({ exitCode: 0, signal: null, stdout, stderr: "", canceled: false }) } : undefined;
   await checkout.occupy(branch, vehicle === "errand" ? { kind: "errand", slug: "repair", claimId }
     : { kind: "work-unit", name: "example" });
   const request = (mode: "skip" | "force") => ({ schemaVersion: 1,
@@ -86,7 +101,14 @@ async function fixture(project = true, vehicle: "errand" | "work-unit" = "errand
     invocation: mode === "skip" ? { mode } : { mode, sourceId: "coderabbit-cli" },
   });
   const references = new Map<string, string>();
-  return { ...checkout, claimId, request, reduce: async (operationId: string) => {
+  return { ...checkout, claimId, request, respond: async (input: unknown) => {
+    let output = "";
+    await handleReviewRespond("-", { resolveRoot: () => checkout.cwd, readText: async () => JSON.stringify(input),
+      write: text => { output += text; }, setExitCode: () => {} }, undefined,
+    { ...checkout, rawGit: scriptRawGitExec([{ match: ["diff", "--numstat", "-z", "-M", "-C", "--find-copies-harder", `${base}..${head}`, "--"],
+      responses: [{ stdout: Buffer.from("1\t0\tsrc/example.ts\0") }] }]).exec, projectId: createProjectIdentityReader(checkout.store) });
+    return JSON.parse(output) as unknown;
+  }, reduce: async (operationId: string) => {
     let output = "";
     await handleReviewReduce("-", { resolveRoot: () => checkout.cwd,
       readText: async () => JSON.stringify({ schemaVersion: 1, operationId, operationRef: references.get(operationId) }),
@@ -98,7 +120,7 @@ async function fixture(project = true, vehicle: "errand" | "work-unit" = "errand
     await handleReviewFrontlineRun("-", { resolveRoot: () => checkout.cwd,
       readText: async () => JSON.stringify({ schemaVersion: 1, target: request("force").target, resolution }),
       write: text => { output += text; }, setExitCode: () => {} },
-    undefined, { ...checkout, store: bound.store ?? checkout.store, workItem: bound.workItem, projectId: createProjectIdentityReader(checkout.store) });
+    undefined, { ...checkout, codeRabbit, store: bound.store ?? checkout.store, workItem: bound.workItem, projectId: createProjectIdentityReader(checkout.store) });
     return JSON.parse(output) as unknown;
   }, resolve: async (mode: "skip" | "force" = "skip") => {
     let output = "";
@@ -254,4 +276,44 @@ it("rejects a native frontline locator at a repository root", async () => {
   expect(await h.run(resolution, { store })).toMatchObject({ error: {
     code: "invalid-input", message: expect.stringContaining("matching reference"),
   } });
+});
+
+async function completedFindings(vehicle: "work-unit" | "errand" = "errand") {
+  const h = await fixture(true, vehicle, true);
+  const resolution = FrontlineResolveEnvelopeSchema.parse(await h.resolve("force"));
+  if (resolution.state !== "ready" || resolution.payload.operationRef === undefined) throw new Error(JSON.stringify(resolution));
+  const raw = await h.run(resolution);
+  expect(raw, JSON.stringify(raw)).toMatchObject({ state: "findings", nextAction: "respond" });
+  const result = FrontlineRunEnvelopeSchema.parse(raw);
+  if (result.state !== "findings") throw new Error(JSON.stringify(result));
+  const saved = await new LocalFrontlineOutcomeStore(new RepositoryGitCommonStatePublisher(h.exec, h.cwd))
+    .readOutcome(result.payload.operationId);
+  if (saved.record?.outcome.outcome !== "findings") throw new Error("Expected produced findings");
+  return { ...h, resolution, result, findings: saved.record.outcome.findings };
+}
+
+it.each(["run", "reduce"] as const)("retains the native frontline source owner through %s findings", async command => {
+  const h = await completedFindings();
+  let outcomeRef = h.result.payload.outcomeRef;
+  if (command === "reduce") {
+    const reduced = ReduceEnvelopeSchema.parse(await h.reduce(h.result.payload.operationId));
+    if (reduced.state !== "findings" || reduced.payload.responseSource.kind !== "frontline") throw new Error(JSON.stringify(reduced));
+    outcomeRef = reduced.payload.responseSource.outcomeRef;
+  }
+  expect(parseReviewSourceReference(outcomeRef, "frontline", true)).toEqual({ repositoryId: projectId,
+    workItem: parseNativeReviewOperationReference(h.resolution.payload.operationRef ?? "").workItem,
+    kind: "frontline", operationId: h.result.payload.operationId,
+    durableRef: parseReviewSourceReference(h.result.payload.outcomeRef, "frontline", true).durableRef });
+});
+
+it.each(["work-unit", "errand"] as const)("binds a %s response proposal from the default frontline source", async vehicle => {
+  const h = await completedFindings(vehicle);
+  const request = withReviewReport({ schemaVersion: 1, source: { kind: "frontline", outcomeRef: h.result.payload.outcomeRef },
+    proposal: { proposedVerification: "focused", severityGatingPolicy: { minorGating: "record-only" },
+      findings: h.findings.map(finding => ({ findingId: finding.findingId,
+        sourceVerification: "verified", verifiedSeverity: finding.severity, verificationRefs: [finding.evidenceUrlOrId],
+        disposition: "defer", title: "Preserve target facts", issue: "The target changes before continuation.",
+        rationale: "The selected source supports the finding.", recommendation: "Retain the target facts.", openQuestions: [] })) } });
+  const response = await h.respond(request);
+  expect(response, JSON.stringify(response)).toMatchObject({ state: "awaiting-approval", nextAction: "obtain-approval" });
 });

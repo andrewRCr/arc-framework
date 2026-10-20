@@ -335,7 +335,7 @@ import {
 import { CodeRabbitHostedAdapter } from "../scripts/review-gate/hosted/coderabbit.js";
 import { CodexHostedAdapter } from "../scripts/review-gate/hosted/codex.js";
 import { frontlineRetryRemedy } from "../scripts/review-gate/runtime/frontline-retry-remedy.js";
-import { createFrontlineRunDependencies } from "../scripts/review-gate/runtime/frontline-run-composition.js";
+import { createFrontlineRunDependencies, type CodeRabbitProcessOptions } from "../scripts/review-gate/runtime/frontline-run-composition.js";
 import {
   FrontlineRunCommandError,
   runFrontlineReviewCommand,
@@ -2942,7 +2942,7 @@ export interface ReviewFrontlineRunHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultFrontlineRunDependencies(context: InteractionContext, invocation: ReviewHandlerInvocationOptions = {}): ReviewFrontlineRunHandlerDependencies {
+function defaultFrontlineRunDependencies(context: InteractionContext, invocation: FrontlineReviewHandlerInvocationOptions = {}): ReviewFrontlineRunHandlerDependencies {
   const exec = invocation.exec ?? createGitExec(context.subprocess);
   const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
@@ -3006,7 +3006,7 @@ function defaultFrontlineRunDependencies(context: InteractionContext, invocation
     run: async (request, root) => {
       const input = await resolveFrontlineRunInvocation({ ...invocationFor(root), exec, cwd: root }, request);
       const result = await runFrontlineReviewCommand(request, createFrontlineRunDependencies({
-        ...input, interaction: context.subprocess,
+        ...input, interaction: context.subprocess, codeRabbit: invocation.codeRabbit,
       }));
       return retainReviewOperationReference(input, result);
     },
@@ -3025,7 +3025,7 @@ export async function handleReviewFrontlineRun(
   source: string,
   overrides: Partial<ReviewFrontlineRunHandlerDependencies> = {},
   suppliedContext?: InteractionContext,
-  invocation: ReviewHandlerInvocationOptions = {},
+  invocation: FrontlineReviewHandlerInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false,
@@ -3051,6 +3051,11 @@ export { handleReviewRequestSchema, type ReviewPublicRequestSchemaId } from "./r
 
 /** Operational authority and optional external Git boundaries for review handlers. */
 export interface ReviewHandlerInvocationOptions extends ReviewInvocationOptions { exec?: GitExec; rawGit?: RawGitExec }
+
+/** External CodeRabbit process seams for the default frontline handler. */
+export interface FrontlineReviewHandlerInvocationOptions extends ReviewHandlerInvocationOptions {
+  codeRabbit?: CodeRabbitProcessOptions;
+}
 
 /** Originating checkout and GitHub process boundaries for hosted handlers. */
 export interface HostedReviewHandlerInvocationOptions extends ReviewHandlerInvocationOptions {

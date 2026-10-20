@@ -1,5 +1,6 @@
 /** Production adapters for exact-target frontline review execution. */
 
+import { bindReviewSourceReferenceForInvocation } from "./source-invocation.js";
 import type { InteractionContext } from "../../../lib/command-input/interaction-context.js";
 import type { ReviewInvocationInput } from "./invocation.js";
 import { createReviewCompositionContext } from "./composition-context.js";
@@ -32,15 +33,23 @@ import {
 } from "../providers/coderabbit/process.js";
 import type { FrontlineRunCommandDependencies } from "./frontline-run-command.js";
 
+/** External process seams; executable lookup, hashing, and provider parsing stay production-owned. */
+export interface CodeRabbitProcessOptions {
+  executable?: Pick<NonNullable<Parameters<typeof resolveCodeRabbitExecutable>[1]>, "interrogate" | "pathValue">;
+  run?: typeof runCodeRabbitProcess;
+}
+
 /** Bind frontline run to exact Git materialization, repository-common stores, and CodeRabbit. */
 export function createFrontlineRunDependencies(options: ReviewInvocationInput & {
   interaction: InteractionContext["subprocess"];
+  codeRabbit?: CodeRabbitProcessOptions;
 }): FrontlineRunCommandDependencies {
   const context = createReviewCompositionContext(options);
   const input = { ...options, ...context };
   const { publisher, family } = context;
   const registry = new FrontlineSourceRegistry([CODERABBIT_FRONTLINE_REGISTRATION]);
   return {
+    bindSourceReference: reference => bindReviewSourceReferenceForInvocation(input, reference),
     operationStore: family.ports.inFlight,
     outcomeStore: new LocalFrontlineOutcomeStore(publisher),
     withOperationLock: (operationId, maxWaitMs, action) => withRepositoryReviewOperationLock(
@@ -74,9 +83,10 @@ export function createFrontlineRunDependencies(options: ReviewInvocationInput & 
                 execute: () => executeCodeRabbitFrontline(execution, {
                   resolveExecutable: (command, context) => resolveCodeRabbitExecutable(command, {
                     ...context,
+                    ...input.codeRabbit?.executable,
                     interaction: input.interaction,
                   }),
-                  run: (command, argv, options) => runCodeRabbitProcess(command, argv, {
+                  run: (command, argv, options) => (input.codeRabbit?.run ?? runCodeRabbitProcess)(command, argv, {
                     ...options,
                     interaction: input.interaction,
                   }),

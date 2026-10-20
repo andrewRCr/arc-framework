@@ -818,22 +818,13 @@ through rename and slug reuse; mismatched references refuse and succeed after co
           local source references require native locators. Hosted action and timing projections retain them, while
           repository inputs and emitted values stay unchanged.
 
-    - `[ ]` **4.R2.b Bind native continuation roots from their produced reference**
+    - `[x]` **4.R2.b Bind native continuation roots from their produced reference**
 
-        - Local attest/resume/reduce bind from `operationRef`; frontline run uses its ready resolution's reference;
-          hosted await uses the reference beside its handle and validates its admission ID. Source-bound respond and
-          settle bind from their native source reference. Retain the same Store and project-ID reader, compare an
-          already bound owner by exact UID, and run the command's existing actor, claim, target, and source checks.
-        - Native public continuation inputs require the produced reference. Missing project identity keeps its typed
-          remedy; missing/malformed references and coordinate mismatches refuse `invalid-input` with the matching
-          producer-reference remedy and succeed after repair. No current-checkout fallback, unrelated-owner scan,
-          Candidate-ID-derived owner, or new permanent locator index fills the gap. Pending execution still requires
-          its actual machine-local state. The existing hosted request index retains its selected owner for replay
-          without changing its fingerprint or identity derivations.
-        - Build `test-first` through actual native producer and default handler paths without owner injection:
-          ordinary work units, Errands, frontline admission, and hosted handle continuation bind their selected UID;
-          reference/ID, project, and supplied-owner mismatches refuse and continue after correction; repository roots
-          reject native locators and keep their existing valid inputs and outputs.
+        - Default local, frontline, and hosted continuations bind the admitted UID from their produced operation or
+          source reference before family access. Work-unit and Errand findings reach response proposals without owner
+          injection; hosted settlement retains its source owner. Project repair, coordinate refusals and corrected
+          retries preserve existing actor and state checks. Hosted index replay retains its owner outside identities;
+          repository inputs and encodings stay unchanged.
 
     - `[ ]` **4.R2.c Propagate native references through result and response composition**
 

@@ -322,7 +322,7 @@ async function reduceFrontline(
       },
     });
   }
-  const outcomeRef = bindReviewSourceReference({
+  const outcomeRef = await (dependencies.bindSourceReference ?? bindReviewSourceReference)({
     kind: "frontline",
     operationId,
     durableRef: outcomeReading.outcomeRef,

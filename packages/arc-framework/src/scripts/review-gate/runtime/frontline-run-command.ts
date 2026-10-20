@@ -17,7 +17,7 @@ import {
 } from "../core/review-command-envelope.js";
 import { FrontlineRunCommandRequestSchema } from "../core/frontline-run-command-schema.js";
 import type { ReviewPass } from "../core/review-pass.js";
-import { bindReviewSourceReference } from "../core/review-source-reference.js";
+import { bindReviewSourceReference, type ReviewSourceReferenceBinding } from "../core/review-source-reference.js";
 import {
   executeFrontlineRun,
   type FrontlineRunExecutionDependencies,
@@ -44,6 +44,8 @@ const MAX_TIMER_DELAY_MS = 2_147_483_647;
 const OPERATION_LOCK_COMPLETION_MARGIN_MS = 30_000;
 
 export interface FrontlineRunCommandDependencies {
+  /** Encode source locators under the invocation's selected storage arm. */
+  bindSourceReference?: ReviewSourceReferenceBinding;
   operationStore: ReviewOperationStateStore;
   outcomeStore: FrontlineOutcomeStore;
   withOperationLock<T>(
@@ -219,7 +221,7 @@ export async function runFrontlineReviewCommand(
       operationId: terminal.operationId,
       persistedVersion: terminal.persistedVersion,
       target: terminal.target,
-      outcomeRef: bindReviewSourceReference({
+      outcomeRef: await (dependencies.bindSourceReference ?? bindReviewSourceReference)({
         kind: "frontline",
         operationId: terminal.operationId,
         durableRef: terminal.outcomeRef,
