@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "indexed-checker-closure",
+  "claimId": "4916b069dfaa79906ec803a2f8da3e39",
+  "createdAt": "2026-10-20T20:04:00.801Z",
+  "updatedAt": "2026-10-20T20:04:00.801Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Diagnose the indexed Markdown checker dependency closure and return a concrete bounded repair proposal preserving exact-index certification and atomic design captures, without waiving the guard or adding an isolated runtime/resource-lifecycle protocol.",
+  "branch": "chore/indexed-checker-closure",
+  "origin": "inbox",
+  "originEntry": "Preserve checker integrity without stashing implementation for design captures",
+  "originEntrySourceDigest": "sha256:7ccc4455403163036a30439c4665d698e6db9e5bf296c55dabc919d4f8f01e07",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
