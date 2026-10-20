@@ -896,44 +896,16 @@ this extension, following the 4.11 local proof.
           and pre-publication; native closure emits `frontline-window-closed` with the published `phase-closed` reason.
           Repository diagnostics and invocation judgments retain their behavior.
 
-### `[ ]` **5.2 Write hosted outcomes with their sealed results — § 4.1, § 4.5, § 9.3**
+### `[x]` **5.2 Write hosted outcomes with their sealed results — § 4.1, § 4.5, § 9.3**
 
 - _Goal:_ From the flip a hosted attempt that ends writes its outcome keyed by its admission ID, keeping its sealed
   result under `hostedResultId` with its host locator; its admission numbers its pass from the derived count; and
   settlement, coverage validation, and every hosted reference resolve to that outcome, never a host comment.
 
-    - The hosted transitions write through `recordLaneAttempt`'s arm: the request's conclusion, a failed one's included
-      (`recordHostedRequestConclusion`, `rg/lane-progress-hosted-settlement.ts`); the await (`recordHostedAwaitAttempt`,
-      `rg/lane-progress-hosted-request.ts`, mapping its state through `hostedAwaitLaneOutcome`, `rg/lane-progress.ts`);
-      and seal recovery (`rg/lane-progress-seal-recovery.ts`). The hosted request owner index stays working state in
-      `identity/`.
-    - The hosted admission's pending attempt (`publishHostedPendingAdmission`) and its acknowledgement
-      (`acknowledgeHostedRequest`, `rg/lane-progress-hosted-request.ts`), which write lane progress directly today,
-      write the in-flight record from the flip (4.7), the acknowledgement re-keying the attempt by its handle.
-    - A hosted admission numbers its pass one past the derived completed logical count, its chain's included
-      (`rg/lane-progress-hosted-request.ts`), and the owner index's `completedPassesAtAdmission`
-      (`rg/hosts/local/hosted-request-owner-index.ts`) is compared with the derived count where `handlers/review.ts`
-      compares it with lane progress's today.
-    - Request handles and submit-ready await actions carry `operationRef` outside the hashed handle. Await binds the
-      retained owner and admission ID, and completed replay reads the stored outcome without provider-run files or a
-      new evaluator. Reserved/admitted request-index replay retains the selected owner outside its fingerprint
-      (4.R2, § 9.3, A13).
-    - A hosted reference (`attemptRef`) resolves to the outcome holding its `attemptId` (§ 9.3), in hosted settlement
-      (`readHostedSettlementAttempt`, `handlers/review.ts`) and wherever it is decoded.
-    - Build `test-first` (one behavior at a time):
-        - from the flip a hosted admission's pending attempt and its acknowledgement land in the in-flight record and
-          write nothing under `operations/`, and the acknowledged attempt is dropped from it once its outcome is stored
-        - a hosted attempt the provider acknowledged writes its outcome keyed by its admission ID
-        - the sealed result's digest covers the admitted attempt's binding (`computeHostedResultId`)
-        - a failed request writes an outcome carrying its failure reason
-        - the next hosted pass is one past the completed logical count, and the owner index's admission count
-          compares with it, including complete pass 1 followed by incremental pass 2 admitting pass 3 at ceiling count 1
-        - a hosted retry at a later head after its pass's terminal failure writes a second outcome at that pass and
-          generation 0 (`hostedPassHold`), composed after the failure
-        - a hosted admission while another attempt is under way at its pass, or at a pass whose outcome has finished,
-          refuses
-        - a hosted reference resolves to its outcome, and settlement checks each finding it settles against the sealed
-          findings
+- _Outcome:_ Native admission and acknowledgment retain pending-only state; ended requests and sealed results publish
+  admission-keyed outcomes that completed await replays without provider observation. A native producer sequence now
+  proves complete pass 1 plus incremental pass 2 admits logical pass 3, retains one complete pass, and advances the
+  request-owner index from the derived logical count.
 
 ### `[ ]` **5.3 Write evidence at approval, performance, settlement, and succession — § 6, § 9.3**
 

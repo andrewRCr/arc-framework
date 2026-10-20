@@ -2,15 +2,17 @@
 import { expect, it, onTestFinished } from "vitest";
 import { createReviewHarness } from "../../../helpers/store/review-harness.js";
 import { createReviewCheckout } from "../../../helpers/store/review-checkout.js";
-import { createHostedHandleFixture } from "../../../fixtures/hosted-review.js";
+import { createHostedHandleFixture, createHostedTerminalAttemptFixture } from "../../../fixtures/hosted-review.js";
 import { RepositoryGitCommonStatePublisher } from "../../../../src/lib/git-common-state.js";
 import { createReviewOutcomePort } from "../../../../src/lib/store/kinds/review/outcome/access.js";
 import { createReviewEvidencePort } from "../../../../src/lib/store/kinds/review/evidence/access.js";
 import { NativeReviewInFlightStateStore } from "../../../../src/scripts/review-gate/hosts/local/in-flight-state-store.js";
 import { requestHostedReview, type HostedRequestOutcome } from "../../../../src/scripts/review-gate/hosted/request.js";
 import { awaitHostedReview } from "../../../../src/scripts/review-gate/hosted/await.js";
-import { recordHostedRequestAdmission, acknowledgeHostedRequest, resolveHostedAwaitResult } from
+import { recordHostedRequestAdmission, acknowledgeHostedRequest, resolveHostedAwaitResult, recordHostedAwaitAttempt } from
   "../../../../src/scripts/review-gate/lane-progress-hosted-request.js";
+import { HostedRequestOwnerIndex } from "../../../../src/scripts/review-gate/hosts/local/hosted-request-owner-index.js";
+import { readStandardPassCounts } from "../../../../src/scripts/review-gate/runtime/lane-pass-counts.js";
 import { recordHostedRequestConclusion } from "../../../../src/scripts/review-gate/lane-progress-hosted-settlement.js";
 import { ReviewInFlightRecordSchema } from "../../../../src/scripts/review-gate/core/in-flight-state-schema.js";
 import { laneProgressOperationId } from "../../../../src/scripts/review-gate/lane-progress.js";
@@ -100,4 +102,43 @@ it("publishes a failed request's reason without a handle and replays that conclu
   expect(await h.dispatch({ kind: "ambiguous-delivery" })).toEqual(first);
   expect(await h.outcomes.read(key)).toEqual(stored);
   expect(await h.publisher.list({ root: "review-gate", namespace: "operations" })).toEqual([]);
+});
+
+it("admits hosted logical pass three after a complete and incremental verdict while retaining one complete pass", async () => {
+  const h = await hostedReview(), repositoryId = h.template.admission.repositoryId;
+  const lineage = h.template.admission.lineage, index = new HostedRequestOwnerIndex(h.publisher);
+  for (const [pass, coverage] of [[1, "complete"], [2, "incremental"], [3, "complete"]] as const) {
+    const template = createHostedHandleFixture({ repositoryId, lineage, logicalPass: pass, requestedCoverage: coverage,
+      artifact: { ...h.template.artifact, id: `request-${pass}` } });
+    const request = { schemaVersion: 1 as const, provider: template.provider, target: template.target, coverage,
+      ...(template.admission.correctionScope === undefined ? {} : { correctionScope: template.admission.correctionScope }) };
+    const admitted = await recordHostedRequestAdmission(h.operations, { repositoryId, lineage, request,
+      reviewTarget: template.admission.reviewTarget, requirement: template.admission.requirement,
+      actorIdentity: template.admission.actorIdentity, now: h.now(), authorizeCapacity: async capacity => {
+        const reserved = await index.reserve({ repositoryId, workItem: h.primary.reference.owner, request, lineage,
+          logicalPass: capacity.logicalPass, completedPassesAtAdmission: capacity.progress?.completedPasses ?? 0,
+          oldAdmissionAbsent: async () => false,
+          oldPassCompleted: async prior => (capacity.progress?.completedPasses ?? 0) > prior.completedPassesAtAdmission });
+        expect(reserved).toBe("reserved");
+      } });
+    if (admitted.state !== "admitted") throw new Error(JSON.stringify(admitted));
+    expect(admitted.admission.logicalPass).toBe(pass);
+    await index.markAdmitted({ repositoryId, request, lineage, logicalPass: admitted.admission.logicalPass });
+    const indexed = await index.read(repositoryId, request);
+    expect(indexed).toMatchObject({ logicalPass: pass, completedPassesAtAdmission: pass - 1, phase: "admitted" });
+    if (pass === 3) {
+      expect(await readStandardPassCounts({ ...h, store: h.operations, repositoryId,
+        headSha: template.target.headSha, lineage })).toEqual({ completedPasses: 2, completePasses: 1 });
+      const listing = await h.outcomes.list();
+      expect(listing.status === "complete" && listing.records.map(record => record.value.logicalPass).sort()).toEqual([1, 2]);
+      continue;
+    }
+    const handle = { ...template, admission: admitted.admission };
+    await acknowledgeHostedRequest(h.operations, { admission: admitted.admission, handle, now: h.now() });
+    const terminal = createHostedTerminalAttemptFixture({ admission: admitted.admission, artifact: handle.artifact, outcome: "clean" });
+    const coverageEvidence = terminal.hosted.sealedResult?.coverageEvidence;
+    await recordHostedAwaitAttempt(h.operations, { repositoryId, now: h.now(), result: { schemaVersion: 1,
+      mode: "review-hosted-await", handle, state: "clean", nextAction: "complete", reviewUrl: "https://example.invalid/review",
+      ...(coverageEvidence === undefined ? {} : { coverageEvidence }) } });
+  }
 });
