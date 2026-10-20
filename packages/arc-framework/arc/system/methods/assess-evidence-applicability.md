@@ -37,20 +37,38 @@ Assess only the supplied residual against the evidence whose applicability is in
 - Recommend `fresh` when the residual interacts with those premises or conclusion, cannot be isolated with
   confidence, or makes the bounded evidence insufficient as a whole.
 
-### Check the movement at a review applicability stop
+### Offer the movement check at a review applicability stop
 
-At status's `resolve-review-applicability` or the final Candidate checkpoint's bounded review stop, have a
-fresh-context local evaluator check the movement before the Owner chooses. Supply the exact movement coordinates,
-reviewed evidence and its premises, residual files, and dependencies across both sides explicitly. For a merge,
-include its conflict resolution against Git's automatic merge (`git log --remerge-diff`); for a rewrite, include its
-interdiff (`git range-diff`). Check dependencies such as a rename or removal that the other side still uses.
+At status's `resolve-review-applicability` or the final Candidate checkpoint's bounded review stop, a fresh-context
+local evaluator can check the movement before the Owner chooses. Whether it runs is the Owner's choice, made with the
+applicability choice the stop already asks for, so it adds no stop. Recommend one of:
 
-Run this check once for the movement. It is not a review pass: create no lane attempt, charge no ceiling, and store
-nothing beyond the stop's existing record. It does not run at an Errand's merge step, on a verification residual, or
-at `residual-unbounded`; dispatch those callers' existing actions. When the driver already requires a local complete
-pass after an unchecked fix's base move, dispatch that pass instead.
+- `covered` without the check, when the residual judgment above gives `supplemental` and nothing in the residual
+  could contradict a premise of the reviewed evidence;
+- the check first, when the movement may have changed what the review read; the Owner then chooses with its
+  findings in view, and at the reconcile a clean check is `targeted-check`'s evidence;
+- `review-required`, or `changed` at the reconcile, when the residual judgment gives `fresh`; the complete pass that
+  follows reads the movement anyway.
 
-Show the check's findings as a complete disposition set beside the recommendation; obtain disposition approval
+Weigh what the check could find. A merge whose resolution departs from Git's automatic merge, a rewrite whose
+interdiff changes reviewed code, and residual changes the reviewed code depends on can each break a premise the
+review rests on; they favor the check. Configuration verified by its own required check, such as a resource limit
+whose CI run is the evidence, and movement the reviewed change neither touches nor depends on leave the check
+nothing to read; they favor `covered`. State the recommendation and what would change it. The residual often holds
+the agent's own change, so the recommendation is advice, never a waiver: only the Owner's recorded selection acts.
+
+Run the check only when the Owner chooses it, and at most once for the movement. Supply the exact movement
+coordinates, reviewed evidence and its premises, residual files, and dependencies across both sides explicitly. For a
+merge, include its conflict resolution against Git's automatic merge (`git log --remerge-diff`); for a rewrite,
+include its interdiff (`git range-diff`). Check dependencies such as a rename or removal that the other side still
+uses.
+
+The check is not a review pass: create no lane attempt, charge no ceiling, and store nothing beyond the stop's
+existing record. It is not offered at an Errand's merge step, on a verification residual, or at `residual-unbounded`;
+dispatch those callers' existing actions. When the driver already requires a local complete pass after an unchecked
+fix's base move, dispatch that pass instead.
+
+Show the check's findings as a complete disposition set beside a renewed recommendation; obtain disposition approval
 before applying any fix. Recommend `fresh` whenever the check finds a material defect or prompts any fix. Otherwise
 apply the residual judgment above. `supplemental` recommends `covered` during review, or `targeted-check` at the
 reconcile with the check as its evidence; `fresh` recommends `review-required`, or `changed` at the reconcile. The
