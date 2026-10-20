@@ -646,6 +646,8 @@ interface RefMetadata {
   placement?: Extract<WritePlacement, { kind: "completed" }>;
   /** The registry's ref: each lineage record's owner slug, keyed by the origin UID its path names. */
   lineage?: Record<string, string>;
+  /** Authenticated work-item former names by UID, independent of terminal record presence (A21). */
+  lineageFormerSlugs?: Record<string, string[]>;
   /** A completed item's folder: the batch that ended it, and the last batch that wrote its records. */
   endBatch?: string;
   batch?: string;
@@ -673,10 +675,21 @@ interface RefMetadata {
   `lineage/<uid>.json` writes the owner's slug under that UID, its removal removes the entry, and a rename of an item
   whose lineage the registry holds rewrites it in the same batch. A listing names the record's owner by it, and `lookup`
   of a lineage slug reads it (§ 8).
+- **Terminal identity evidence (A21)** stays in the registry's private `lineageFormerSlugs`, keyed by work-item UID.
+  Each successful work-item rename unions the prior current name and its already authenticated former names into that
+  UID's set in the same atomic batch, even before terminal lineage exists. This registry metadata change lands when
+  it creates an auxiliary ref without a record. Terminal removal of the primary never removes the evidence; removing
+  or withdrawing a lineage record retains it too, so the same generation can end again without forgetting its names.
+  Import seeds the same evidence from known rename transitions (§ 10.9). No caller supplies an alias set, and an
+  arbitrary owner-name hint never authenticates a former name. The existing `formerSlugs` on primary metadata keeps
+  its existing meaning and merge behavior.
 - **It merges field by field** (§ 6.4), since placement and links are written by different verbs on different machines.
-  One field changed on both sides becomes a conflict record, as a single-writer record changed on both sides does. A
-  record removed on one side and changed on the other, in content or in metadata, is one clash over the whole record,
-  and the version that stays current keeps its own metadata.
+  One field changed on both sides becomes a conflict record, as a single-writer record changed on both sides does.
+  `lineageFormerSlugs` is the exception: each UID's authenticated names union across base, local, and incoming
+  metadata, with duplicates removed and stable ordering, never combining identities or creating a conflict merely
+  because both learned a former name (A21). An end's inverse and lineage repair preserve that union even when they
+  rebuild registry metadata. A record removed on one side and changed on the other, in content or in metadata, is one
+  clash over the whole record, and the version that stays current keeps its own metadata.
 - **Read placement derives from it:** an active, backlog, or completed placement as written, and for a completed work
   unit or cohort the sequence and closeout read from its folder's name. An item two published ends left with two folders
   (§ 6.6) reads by the one in the later quarter, or with the higher number in one quarter — its placement, version, and
@@ -752,7 +765,8 @@ Each record carries two identifiers:
   `<key>-<new slug>.md` whose key `SlugSchema` admits, a paired spec's half under it, or a kind's fixed form under it —
   with the remedy to re-key that companion first, so no rename changes a record's key or lands two records on one path.
   On a completed work unit or Errand, or a closed cohort, it also renames its quarter folder (§ 7.3). A rename onto a
-  slug a live work item or cohort holds refuses `ambiguous-match` (§ 5.1).
+  slug a live work item or cohort holds refuses `ambiguous-match` (§ 5.1). A work-item rename also records the
+  generation's authenticated former names in the registry through the same atomic batch (§ 3.3) (A21).
 - **`history` and `changes`' restriction follow a record** across renames and the primary's role change between
   `work-item/meta` and `work-item/record` (A5): the backend computes every path the record has had from its former slugs
   and roles, then runs one path-limited `git rev-list --full-history --parents` over those paths and the ref's metadata
@@ -1801,7 +1815,14 @@ read.
   from the operation's listing, and the write path finds them again under its locks (§ 5.1). An item ended outside the
   archive resolves as below.
 - **Lineage** is the registry's `lineage/` subtree, keyed by origin UID: a UID resolves by path, a slug by the owner
-  slugs the registry ref's metadata keeps for it (§ 3.3).
+  slugs the registry ref's metadata keeps for it (§ 3.3). A UUID-shaped origin always selects that exact generation,
+  never falling back to a current or former slug. For a slug, exact current terminal names take precedence; only if
+  none matches does lookup consult `lineageFormerSlugs`. Candidates must still have a current terminal record at
+  `lineage/<uid>.json`; several distinct UIDs refuse `ambiguous-match`, while several aliases for one UID remain one
+  candidate. The result names the selected generation's current terminal name. All evidence comes from the captured
+  registry metadata, with no enumeration of terminal primary histories and no extra lookup process. This fallback is
+  exclusive to `lookup({ kind: "lineage", origin })`: ordinary slug lookup and UID-less direct read, list, write,
+  history, changes, and saved-state reads retain their current resolution authority (A21).
 - **A grooming or housekeeping claim** reads the person's own claims ref, keyed by slug, since a marker on this machine
   names this person and their identity is always fetched.
 - **An item ended outside the archive** — abandoned or decomposed — sits under `refs/arc/history/`, outside the refs the
@@ -2778,7 +2799,7 @@ interface ReviewMappingResult {
 | A live work unit's `SESSION-NOTES.md`, where its meta's `Owner` names the person | That meta's session context, by the fold (§ 10.12)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Other workspace files, and root files outside ARC's surfaces                     | `scratch/work-unit/<slug>/` and `scratch/` on the personal ref (§ 10.12)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | The review gate's records                                                        | For live work, review records on their work items as the review mapping returns them (§ 10.8), and nothing for other work; the gate's repository ID as the project ID                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `rename` transition records                                                      | Former slugs in their successors' metadata, never lineage                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `rename` transition records                                                      | Former slugs in successors' metadata and authenticated UID-bound registry evidence, never rename lineage (A21)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `abandon` and `decompose` transitions                                            | Lineage at `lineage/<uid>.json`, keyed by a UID the import mints for its origin, each record as found but for its work-item references' UIDs, which the lineage kind leaves to the import: the origin's the one minted for it, and every other's — a successor, a dependent, a replacement, a prerequisite, a member — the UID its named owner takes (A11) where the import holds one; and an empty history ref (§ 10.11)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | Closed tasks' commits                                                            | Task captures in their work units' links (§ 10.11)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | JSON machine records                                                             | Canonical form (§ 3.5)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
@@ -2804,7 +2825,11 @@ interface ReviewMappingResult {
   in the store for a receipt to name (D11).
 - **Rename records:** this repository's three `rename` transition records become former slugs in their successors'
   metadata, since from the flip lineage holds only terminal transitions (D5). Their successors are all archived, so the
-  former slugs sit in their quarter folders, where `lookup` reads them.
+  former slugs sit in their quarter folders, where `lookup` reads them. More generally, the import resolves every
+  known rename chain to its held final primary or terminal origin UID and retains each authenticated former name in
+  the registry, including a terminal generation whose primary is absent. It preserves primary metadata's own former
+  names where present and creates no rename lineage record. An unresolved chain retains the existing notice and
+  remedy rather than guessing a UID or dropping known terminal evidence (A21).
 - **Session context:** the import writes no `State at Handoff`, since nothing writes one before the flip, so it carries
   no anchor to resolve.
 
@@ -3710,6 +3735,12 @@ remote.
   `pause` and refuse the import. One parked from Planning imports as a stub. The lifecycle work's differential helper
   (`__tests__/helpers/store/lifecycle-differential.ts`) is the precedent. Over the same fixture with the gate's evidence
   and outcomes added, the trial lists them in `notices` and the import refuses, changing nothing (§ 10.8).
+- **Terminal former names (A21):** native local and synced stores resolve a renamed, retired origin through lineage
+  by its known former name, with exact UUID selection, current-terminal-name precedence after reuse, and ambiguity
+  across distinct generations. Independently authenticated aliases of one UID survive merges and end withdrawal.
+  UID-less direct read, list, and write, and a saved-state direct read, retain their existing behavior in local and
+  synced states. Import comparisons include a rename chain whose final generation has only terminal lineage, retain
+  every known former name under its minted UID, and add no transform allowance beyond rename-to-former-name evidence.
 - **The notes snapshot:** a file that differs from its disk copy, by an entry removed on disk and by one only an older
   note holds, and a file the snapshot holds and no disk copy does are each listed by the trial, the second apart, and
   the import refuses until each agrees, then lands; the differing file agrees once saved and then loaded, and the
@@ -4092,6 +4123,12 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     tracked path is accounted exactly once, independently of each `path@commit`, with omission and repetition refusing
     through repair and the mapped current content retained (§ 10.8, § 14.7) (A20).
 
+28. **Terminal lineage lookup retains identity without widening authority.** Exact UUID origins never fall back to
+    names; current terminal names outrank authenticated former names, and distinct matching generations refuse
+    `ambiguous-match`. Private UID-bound evidence survives primary removal, sync, end withdrawal, and import of known
+    rename chains, without enumerating terminal primary histories or changing UID-less direct operation resolution
+    (§ 3.3, § 8, § 10.9, § 14.7) (A21).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4191,5 +4228,8 @@ open:
 
 - **A20** — 2026-10-19 — design: review mapping receives current Candidate bytes independently of path history.
   _Supersedes:_ § 10.8 input/coverage. _Trigger:_ 15.9 must-stop. _Work:_ 15.9.R. _Revalidated:_ 15.10.
+
+- **A21** — 2026-10-19 — spec-depth: retain authenticated terminal former names for lineage lookup.
+  _Supersedes:_ none. _Trigger:_ door. _Work:_ 15.R4. _Revalidated:_ pending → 15.R4.
 
 ---

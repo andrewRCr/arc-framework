@@ -513,6 +513,8 @@ _Mode:_ `layer` through Phase 8 — closes on the local engine complete in both 
 - _Goal:_ `lookup` answers a slug and a lineage origin among live owners in four Git processes, over the store's tips or
   over a write's views, so the write checks that guard a slug read what the write found.
 
+    - _Amended in:_ 15.R4 (A21)
+
 - _Outcome:_ Live primary lookup ranks current slugs over former slugs and reports every tied owner; lineage resolves
   UID paths and registry slugs with path-presence checks. A four-process metadata scan is cached by checkout and tips
   across backend instances, with one-process reuse and no failed-scan retention. The same selector accepts prepared
@@ -1325,6 +1327,8 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
 - _Goal:_ Terminal transitions land as lineage under minted origin UIDs with every reference resolved to its owner's UID,
   and renames as former slugs, so `lookup` and `history` answer as an archive or abandon would have left them.
 
+    - _Amended in:_ 15.R4 (A21)
+
 - _Outcome:_ Terminal transitions land under minted origin UIDs with held work-item references enriched and registry
   lineage names indexed; each origin retains one empty history commit whose absent records read `not-found`.
   Renames become archived successors' former slugs. Lineage lookup accepts an origin slug while ordinary slug lookup
@@ -1471,9 +1475,32 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
   including slug fetch, renders incomplete pulls and every notice, retaining ended-conflict details even when a later
   read refuses; local queries stay offline, and the pre-flip session arms stay dormant.
 
+### `[ ]` **15.R4 Durable terminal former-name lookup — § 3.3, § 8, § 10.9 (A21)**
+
+- _Goal:_ Amendment A21's terminal lineage lookup keeps exact UID and current-name precedence while retaining
+  authenticated former names through retirement, sync, withdrawal, and import, without widening direct operations.
+
+**Additional Context:** `notes-storage-ref-backend.md` § A21
+
+- Build `test-first` (one behavior at a time):
+    - preserve authenticated work-item rename evidence under its UID in registry metadata, including creation of a
+      metadata-only registry ref; removal and recreation of lineage retain that generation's evidence
+    - resolve an exact UUID only to that generation; a current terminal name precedes former-name matches, distinct
+      matching generations refuse `ambiguous-match`, and repeated aliases for one generation resolve once
+    - merge independently authenticated aliases per UID and retain them through an end's withdrawal and metadata
+      repair, while ordinary primary former-name metadata keeps its existing merge semantics
+    - prove local and synced UID-less direct read, list, write, and saved-state read retain prior behavior while
+      lineage lookup succeeds; retain the metadata scan's bounded process shape and avoid terminal history scans
+    - import known rename chains ending in a terminal origin with no primary, seed the registry evidence under the
+      minted UID, and preserve existing unresolved-chain notices without inventing an owner or a transform allowance
+    - run the native lookup, withdrawal, and import comparisons together against both layouts to close the added
+      lookup guarantee and the import comparison delta
+
 ### `[x]` **15.10 Every source the import carries** — validate exit criterion at segment scope
 
 - _Goal:_ Every import, notes-snapshot, post-import, and Candidate case of § 14.7 passes over the fixture.
+
+    - _Amended in:_ 15.R4 (A21)
 
 - _Outcome:_ Independent source comparisons cover every imported record and admitted transform, notes snapshots and
   source retirement, post-import writes and history, Candidate chains, and review mapping. Production entry readers in
@@ -1937,3 +1964,8 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
 - `[ ]` Review mapping receives each live selected Candidate's current content separately from committed versions,
   including newer uncommitted bytes, or null when absent; its plain tracked path is covered exactly once independently
   of `path@commit`, omitted and repeated coverage refuse through repair, and mapped current bytes survive (A20)
+
+- `[ ]` Exact UUID lineage lookup never falls back to names; current terminal names precede authenticated former
+  names and distinct generations refuse ambiguity. Private identity evidence survives retirement, sync, withdrawal,
+  and known rename-chain import without terminal-history enumeration or changed UID-less direct operation authority
+  (§ 3.3, § 8, § 10.9, § 14.7) (A21)

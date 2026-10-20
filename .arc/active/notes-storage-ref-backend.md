@@ -583,3 +583,39 @@ The bounded sweep folds input and coverage changes into 15.9.R, updates 15.R's e
 27 and its task-list counterpart; 15.10 replays the import scenario. Completed as-found Candidate replay and the
 remaining move/follow contracts are unaffected. Author grounding and the low-depth reader, binding, coherence, and
 revision-task checks use these source paths; the independent amendment offer is omitted at low depth.
+
+## A21 — Durable terminal former names belong to lookup alone
+
+The approved shared lookup extension is grounded against commit `91839a8e3`: `LookupInputSchema` documents exact UID
+selection and current-terminal-name precedence, while `registerLookupAssertions` adds terminal former-name, ambiguity,
+name-reuse, and direct-operation authority cases. It adds no input variant or public record field. The backend's
+revision implements this expectation before cutover; it does not import the sibling's consumer fixes.
+
+`lineageCandidates` currently reads only UID and current-name entries in registry metadata. `prepareRefRenames`
+already records genuine prior names, and `renameRegistryTargets` includes the registry in a work-item rename's atomic
+write targets. Retaining that evidence there from each rename avoids recovering identity by enumerating ended primary
+histories. `prepareRefCommits` currently skips a newly created auxiliary group without selected mutations, so the
+revision must allow its changed registry metadata to land even before any lineage record exists.
+
+The private `lineageFormerSlugs` map is separate from both the registry's current-name `lineage` map and a primary's
+`formerSlugs`. Only lookup reads the new aliases; `readLineageOwners`, `lineageOwnerCandidates`, and the direct
+reference-resolution paths keep their current authority. Lookup still requires an actual terminal record for each
+candidate, so retained evidence alone never makes an origin present. Explicit lineage removal retains the evidence
+for a later terminal record of the same UID. Arbitrary caller name hints are not rename evidence.
+
+`mergeSyncMetadata` needs an additive union for this private field only, retaining independently authenticated names
+per UID from every side. `inverseWithdrawStep` can rebuild registry metadata, and `repairWithdrawnLineage` rebuilds
+current terminal names from surviving records; both must preserve authenticated aliases rather than deriving or
+removing them with the terminal record. The normal scalar conflicts on primary metadata remain unchanged.
+
+`appendImportLineage` currently attaches rename evidence only to an imported successor meta. Resolve known rename
+chains against the import's held primary and terminal generations before projecting their evidence, so a terminal
+origin with no primary keeps its known former names. `prepareImportGroups` must put that evidence into registry
+metadata, never the registry root's generic `formerSlugs`. Unresolved rename chains keep their existing diagnostic
+and remedy; no guessed generation, new history reader, or compatibility migration is introduced.
+
+The propagation footprint is metadata parsing, rename and auxiliary commit publication, lookup selection, merge and
+withdrawal, and import grouping. Existing generic direct readers and writers, record content/version rules, physical
+layouts, and remote copy/follow transport remain unchanged; native local and synced tests verify that separation.
+The added criterion is checked by the revision's native lookup/withdrawal/import suite and remains open for terminal
+work-unit verification. Completed Tasks 5.7, 15.2, and 15.10 point forward instead of rewriting their earlier outcomes.
