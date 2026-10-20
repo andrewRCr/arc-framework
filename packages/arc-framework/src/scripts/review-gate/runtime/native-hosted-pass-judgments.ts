@@ -5,11 +5,14 @@ import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import type { LaneProgressState } from "../core/operation-state-schema.js";
 import type { ReviewOperationStateStore } from "../core/ports.js";
-import type { HostedRequestEnvelope } from "../hosted/request.js";
 import { readCandidateInheritedLaneProgress } from "../lane-progress.js";
 import type { ReviewInvocationInput } from "./invocation.js";
 import { resolveNativeInvocationExtraPassJudgment } from "./native-extra-pass.js";
 import { projectNativePolicyGrants } from "./native-policy-grants.js";
+import type { ReviewPolicyCommandRequest } from "../policy/review-policy-driver.js";
+
+type StandardGrantRequest = Pick<ReviewPolicyCommandRequest, "target" | "ceilingOverride" | "additionalPassAuthorization">
+  & { coverage?: "complete" | "incremental" };
 
 interface HostedPassJudgmentContext extends ReviewInvocationInput {
   operationStore: ReviewOperationStateStore;
@@ -28,7 +31,7 @@ export async function createHostedPassJudgmentContext(input: HostedPassJudgmentC
     ancestors: supersessionAncestors,
   });
   return { supersessionAncestors, inheritedProgress,
-    resolveGrants: (request: HostedRequestEnvelope, progress: LaneProgressState | null) => composeHostedGrants(input,
+    resolveGrants: <Request extends StandardGrantRequest>(request: Request, progress: LaneProgressState | null) => composeHostedGrants(input,
       request, (progress?.completedPasses ?? 0) + inheritedProgress.inheritedCompletedPasses) };
 }
 
@@ -41,8 +44,8 @@ async function readHostedSupersessionAncestors(input: HostedPassJudgmentContext)
     workUnit: input.candidateRecord.attestation.workUnit, record: input.candidateRecord });
 }
 
-async function composeHostedGrants(input: HostedPassJudgmentContext, request: HostedRequestEnvelope,
-  completedPasses: number): Promise<HostedRequestEnvelope> {
+async function composeHostedGrants<Request extends StandardGrantRequest>(input: HostedPassJudgmentContext, request: Request,
+  completedPasses: number): Promise<Request> {
   if (input.operationStore.stateOffBranch !== true) return request;
   const facts = input.operationStore.nativeFacts;
   if (facts === undefined) throw new Error("Restore the selected native review facts and retry the hosted request.");
@@ -55,8 +58,9 @@ async function composeHostedGrants(input: HostedPassJudgmentContext, request: Ho
     subject: { lineage: input.lineage, headSha: input.reviewTarget.headSha, subjectDigest: input.decisionSubjectDigest },
     lane: "standard", completedPasses, policyTarget: request.target,
     ceilingOverride: request.ceilingOverride, additionalPassAuthorization: request.additionalPassAuthorization });
-  const { lane, ...projected } = projectNativePolicyGrants({ ...request, lane: "standard" as const }, resolved,
+  const { lane, ...projected } = projectNativePolicyGrants({ target: request.target, lane: "standard" as const,
+    ceilingOverride: request.ceilingOverride, additionalPassAuthorization: request.additionalPassAuthorization }, resolved,
     request.coverage === "incremental");
   void lane;
-  return projected;
+  return { ...request, ...projected };
 }

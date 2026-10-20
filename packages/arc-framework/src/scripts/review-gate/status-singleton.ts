@@ -18,6 +18,7 @@ import type { HostedReservationDischarge, HostedReservationDischargeReader } fro
 import type { StandardReviewReservationV1 } from "./policy/integration-boundary-locus.js";
 import { composeSingletonReviewObligation, type RoutedReviewObligation } from "./status.js";
 import type { ReviewStatusPolicyJudgment } from "./status-judgment.js";
+import { composeNativePublishedStatusGrants } from "./runtime/native-published-status-grants.js";
 
 interface PublishedSingletonInput extends ReviewInvocationInput {
   statusRoute: ReviewStatusRoute;
@@ -25,6 +26,7 @@ interface PublishedSingletonInput extends ReviewInvocationInput {
   reservation: StandardReviewReservationV1;
   record: CandidateManagedRecordV1;
   recordVersion: string;
+  candidateSubjectDigest?: string;
   baseRevision: string;
   workUnit: string;
   target: { repository: string; pullRequest: number; headSha: string };
@@ -39,18 +41,9 @@ interface PublishedSingletonInput extends ReviewInvocationInput {
  * @returns The status obligation and any fully composed hosted request action.
  */
 export async function composePublishedSingletonReview(options: PublishedSingletonInput): Promise<RoutedReviewObligation> {
-  const input = { ...options, ...resolveReviewInvocation(options) };
-  const { target, reservation, readDischarge } = input;
-  const dischargeInput = {
-    reservation,
-    baseRevision: input.baseRevision,
-    approvedHead: target.headSha,
-    changeRequest: { repository: target.repository, pullRequest: target.pullRequest },
-    candidate: input.record,
-    ...(input.judgment?.sourceId === undefined ? {}
-      : { invocation: { mode: "force" as const, sourceId: input.judgment.sourceId } }),
-  };
-  let discharge = await readDischarge(dischargeInput);
+  const { input, dischargeInput, discharge: initialDischarge } = await readSingletonStatusDischarge(options);
+  const { reservation } = input;
+  let discharge = initialDischarge;
   if (!discharge.discharged && discharge.terminalPolicyState === "coverage-required") {
     const invocation = input.judgment?.sourceId === undefined ? discharge.invocation
       : { mode: "force" as const, sourceId: input.judgment.sourceId };
@@ -77,6 +70,26 @@ export async function composePublishedSingletonReview(options: PublishedSingleto
     applicabilityContext,
     ...(request === undefined ? {} : { request }),
   });
+}
+
+async function readSingletonStatusDischarge(options: PublishedSingletonInput) {
+  const input = { ...options, ...resolveReviewInvocation(options) };
+  if (input.judgment?.ceilingOverride !== undefined || input.judgment?.additionalPassAuthorization !== undefined) {
+    input.judgment = await composeNativePublishedStatusGrants(input);
+  }
+  const { target, reservation, readDischarge } = input;
+  const dischargeInput = {
+    reservation,
+    baseRevision: input.baseRevision,
+    approvedHead: target.headSha,
+    changeRequest: { repository: target.repository, pullRequest: target.pullRequest },
+    candidate: input.record,
+    ...(input.judgment?.sourceId === undefined ? {}
+      : { invocation: { mode: "force" as const, sourceId: input.judgment.sourceId } }),
+  };
+  const discharge = await readDischarge(dischargeInput);
+  input.judgment = await composeNativePublishedStatusGrants({ ...input, requestedCoverage: discharge.requestCoverage });
+  return { input, dischargeInput, discharge };
 }
 
 async function resolveSingletonRequest(
