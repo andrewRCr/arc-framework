@@ -72,6 +72,25 @@ time.
   disclaimers and provisional and converged markers are gone. Still open: interlock and offer text,
   `recommendedPromptText`, and `provisionalPassAssessment.summaryText`.
 
+- _Candidate (2026-10-20, Errand `integration-friction-evidence`):_ the Errand integration interlock is the next slice
+  of the same shape. `run-errand`'s interlock lists everything the agent must state, restated policy included, and
+  nearly every fact is deterministic: head, lane, merge method, each lane's review state, required checks, host
+  review, and base movement with its overlap. A CLI-composed report could carry only those, conditional blocks
+  only when they apply, and one closing question naming what approval releases:
+
+  ```text
+  **PR #1069 → main** · eb0dec8 · reviewed lane · merge
+  - Review: frontline clean (CodeRabbit) · standard clean (Codex, pass 1 of 2)
+  - Checks: ci-ok pending
+  - Base: moved to 0bcdbd8 (#1068), no overlapping paths
+
+  Approve: wait for checks → merge eb0dec8?   Redirect: release only
+  ```
+
+  Two constraints govern its timing: `review-request-contracts` defers any surface over `errandMergeRequest` until its
+  redundant fields are derived, and `cli-output-contract` owns the report contract. The Owner-directed review-stop
+  offer is the third surface this entry names and could ride with it.
+
 ## Problem / Motivation
 
 The codified rules across task-adjacent surfaces already say "don't restate":
