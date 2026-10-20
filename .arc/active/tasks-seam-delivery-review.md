@@ -1119,9 +1119,10 @@ this phase puts publication's claim and reopen's boundary write in their transit
             - Generic native resolution records full grants on the bound owner with the current effective Candidate
               subject or exact review target. References relay the stored author without another write; automatic
               grants leave incremental coverage uncharged, and new ownerless judgments require their owning context.
-        - `[ ]` **6.2.a.2 Errand status**
-            - Record explicit grants before unrecorded-lane returns and resolve stored authority at its exact claim,
-              head, policy coordinates, and logical count.
+        - `[x]` **6.2.a.2 Errand status**
+            - Native status records grants before unrecorded-lane returns and relays their keys without another write.
+              Policy composition resolves their exact claim, head, host binding, and logical count; automatic grants
+              leave incremental admission free while explicit contradictory inputs retain policy refusal.
         - `[ ]` **6.2.a.3 Local preparation**
             - Resolve explicit and stored judgments before pending replay and delivery admission, retaining exact
               subject evidence and logical-count applicability.

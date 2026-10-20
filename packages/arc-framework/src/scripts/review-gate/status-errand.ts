@@ -4,6 +4,8 @@ import { matchingOrdinaryErrand, readStoredStatusErrandSelection, type ErrandSta
 import { ProjectIdentityError } from "../../lib/store/project-identity.js";
 import { resolveReviewInvocation, type ReviewInvocationInput, type ReviewInvocationOptions } from "./runtime/invocation.js";
 import { createReviewCompositionContext } from "./runtime/composition-context.js";
+import { currentErrandDiffBase } from "./runtime/errand-review-target.js";
+import { errandPolicyGrants, readErrandStatusPassGrants, type NativeAutomaticGrants } from "./runtime/native-errand-grants.js";
 import { projectReviewDriverRefusal } from "./status-driver-refusal.js";
 import { readTransientIdentitySnapshot } from "../../lib/errand/identity-snapshot.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
@@ -359,6 +361,7 @@ async function resolveErrandLaneAtHead(input: {
   readonly ceilingOverride?: ReviewCeilingOverride;
   readonly additionalPassAuthorization?: ReviewAdditionalPassAuthorization;
   readonly sourceId?: string;
+  readonly automaticGrants?: NativeAutomaticGrants;
 }): Promise<ReviewResolveEnvelope> {
   const { store, terminal, result, policyTarget } = input;
   const settings = (await readConfigSettings(input.cwd)).settings;
@@ -399,10 +402,7 @@ async function resolveErrandLaneAtHead(input: {
     },
     completedPasses: input.completedPasses,
     attempts: [projectReviewPolicyAttempt(terminal)],
-    ...(input.ceilingOverride === undefined ? {}
-      : { ceilingOverride: input.ceilingOverride }),
-    ...(input.additionalPassAuthorization === undefined ? {}
-      : { additionalPassAuthorization: input.additionalPassAuthorization }),
+    ...errandPolicyGrants(input, nextPassContext.incremental !== null),
     ...(result.admission.scopeMode === "whole-target" ? {} : {
       scopeSelection: { mode: result.admission.scopeMode, target: policyTarget },
     }),
@@ -516,21 +516,6 @@ async function readCarriedErrandReview(input: {
   };
 }
 
-/** The diff base a review of this head takes against the change request's current base, when both are known. */
-async function currentErrandDiffBase(
-  exec: GitExec,
-  headSha: string,
-  baseOid: string | undefined,
-  baseRef: string | undefined,
-): Promise<Pick<ReviewTarget, "baseRef" | "diffBaseSha" | "diffBaseTree" | "headSha" | "headTree"> | null> {
-  if (baseOid === undefined || baseRef === undefined) return null;
-  const diffBase = await resolveSoleMergeBase({ exec, leftRevision: headSha, rightRevision: baseOid });
-  if (diffBase.status !== "resolved") return null;
-  const tree = async (revision: string) => (await exec("git", ["rev-parse", "--verify", `${revision}^{tree}`])).stdout.trim();
-  return { baseRef, diffBaseSha: diffBase.mergeBase, headSha,
-    diffBaseTree: await tree(diffBase.mergeBase), headTree: await tree(headSha) };
-}
-
 /** Carry one claim's spent passes into the status of a new, unreviewed head. */
 async function readUnreviewedErrandHead(input: {
   readonly invocation?: ReviewInvocationOptions;
@@ -551,6 +536,7 @@ async function readUnreviewedErrandHead(input: {
   ceilingOverride?: ReviewCeilingOverride;
   additionalPassAuthorization?: ReviewAdditionalPassAuthorization;
   readonly sourceId?: string;
+  readonly automaticGrants?: NativeAutomaticGrants;
 }): Promise<RoutedReviewObligation> {
   const { store, repositoryId, errand, target, completedPasses } = input;
   const owner = await readLaneProgressOwner(store, {
@@ -599,6 +585,7 @@ async function readUnreviewedErrandHead(input: {
     if (carried !== null) return carried;
   }
   return nextErrandPassObligation({
+    automaticGrants: input.automaticGrants,
     dispositionStore: input.dispositionStore,
     cwd: input.cwd, exec: input.exec, publisher: input.publisher, store, resultReader, errand, policyTarget, configured, result, completedPasses,
     completePasses: countCompleteLogicalPasses(owner.attempts), statusTarget: target, sourceId: input.sourceId,
@@ -628,6 +615,7 @@ async function nextErrandPassObligation(input: {
   readonly additionalPassAuthorization?: ReviewAdditionalPassAuthorization;
   readonly sourceId?: string;
   readonly statusTarget: ExactErrandStatusTarget;
+  readonly automaticGrants?: NativeAutomaticGrants;
 }): Promise<RoutedReviewObligation> {
   const { store, configured, completedPasses } = input;
   const dispositionStore = input.dispositionStore;
@@ -651,9 +639,7 @@ async function nextErrandPassObligation(input: {
     schemaVersion: 1, target: input.policyTarget, lane: "standard", frontlineActive: false,
     standardReview: projectStandardReview(input.result),
     completedPasses, attempts: [],
-    ...(input.ceilingOverride === undefined ? {} : { ceilingOverride: input.ceilingOverride }),
-    ...(input.additionalPassAuthorization === undefined ? {}
-      : { additionalPassAuthorization: input.additionalPassAuthorization }),
+    ...errandPolicyGrants(input, chosenCoverage !== "complete" && nextPassContext.incremental !== null),
   }, { terminalResponsePerformed: false }, {
     sources: configured.sources,
     maxPasses: configured.maxPasses, nextPassContext, chosenCoverage, resultReader: input.resultReader,
@@ -767,22 +753,14 @@ export async function readErrandRoutedObligation(options: ReviewInvocationInput 
     const repositoryId = await resolveRepositoryIdentity(publisher, undefined, input);
     const store = family.ports.inFlight;
     const dispositionStore = family.ports.dispositions;
-    const progress = await readLaneProgress(store, {
-      lane: "standard",
-      repositoryId,
-      headSha: input.target.headSha,
-      lineage: {
-        kind: "head-bound",
-        vehicleKind: "errand",
-        vehicleIdentity: selected.record.claimId,
-        headSha: input.target.headSha,
-      },
-    });
+    const { progress, grants } = await readErrandStatusPassGrants({ ...input, exec,
+      operationStore: store, repositoryId, claimId: selected.record.claimId });
     if (progress.status === "unrecorded") {
       return { state: "review-required", detail: "No standard review is recorded for this Errand head." };
     }
     if (progress.attempts.length === 0 && progress.completedPasses > 0) {
       const continuation = await readUnreviewedErrandHead({
+        automaticGrants: grants.automaticGrants,
         invocation: input,
         dispositionStore,
         cwd: input.cwd, exec, rawExec: input.rawExec, publisher, store, repositoryId, errand: selected.record,
@@ -792,9 +770,9 @@ export async function readErrandRoutedObligation(options: ReviewInvocationInput 
         ...(input.changeRequestCandidate === undefined ? {}
           : { currentBaseRef: input.changeRequestCandidate.baseRefName }),
         ...(input.baseMovement === undefined ? {} : { baseMovement: input.baseMovement }),
-        ...(input.ceilingOverride === undefined ? {} : { ceilingOverride: input.ceilingOverride }),
-        ...(input.additionalPassAuthorization === undefined ? {}
-          : { additionalPassAuthorization: input.additionalPassAuthorization }),
+        ...(grants.ceilingOverride === undefined ? {} : { ceilingOverride: grants.ceilingOverride }),
+        ...(grants.additionalPassAuthorization === undefined ? {}
+          : { additionalPassAuthorization: grants.additionalPassAuthorization }),
       });
       return await branchAtHead(exec, input.target.headRef, input.remote ?? "origin", input.target.headSha)
         ? continuation
@@ -881,14 +859,15 @@ export async function readErrandRoutedObligation(options: ReviewInvocationInput 
       return blocked("The terminal review producer does not match the exact Errand claim and head.");
     }
     const policy = await resolveErrandLaneAtHead({
+      automaticGrants: grants.automaticGrants,
       dispositionStore,
       cwd: input.cwd, exec, publisher, store, resultReader, errand: selected.record, sourceId: input.sourceId,
       policyTarget: { repository: input.target.repository, pullRequest: input.pullRequest,
         headSha: input.target.headSha },
       completedPasses: progress.completedPasses, completePasses: progress.completePasses, terminal, result,
-      ...(input.ceilingOverride === undefined ? {} : { ceilingOverride: input.ceilingOverride }),
-      ...(input.additionalPassAuthorization === undefined ? {}
-        : { additionalPassAuthorization: input.additionalPassAuthorization }),
+      ...(grants.ceilingOverride === undefined ? {} : { ceilingOverride: grants.ceilingOverride }),
+      ...(grants.additionalPassAuthorization === undefined ? {}
+        : { additionalPassAuthorization: grants.additionalPassAuthorization }),
     });
     if (!await branchAtHead(exec, input.target.headRef, input.remote ?? "origin", input.target.headSha)) {
       return blocked("The Errand identity's branch moved during review status composition.");
@@ -909,7 +888,7 @@ export async function readErrandRoutedObligation(options: ReviewInvocationInput 
     if (policy.state === "ready" && policy.nextAction === "hosted-request") {
       return errandHostedRequestObligation({ result, policyTarget: { repository: input.target.repository,
         pullRequest: input.pullRequest, headSha: input.target.headSha }, sourceId: policy.payload.sourceId, detail,
-        ceilingOverride: input.ceilingOverride, additionalPassAuthorization: input.additionalPassAuthorization });
+        ceilingOverride: grants.ceilingOverride, additionalPassAuthorization: grants.additionalPassAuthorization });
     }
     if (policy.state === "ready" && policy.nextAction === "local-prepare") return errandLocalReviewObligation(detail);
     return policy.state === "pass-complete"

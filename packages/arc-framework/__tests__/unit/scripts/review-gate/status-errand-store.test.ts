@@ -8,9 +8,13 @@ import { createReviewHarness } from "../../../helpers/store/review-harness.js";
 import { createReviewCheckout } from "../../../helpers/store/review-checkout.js";
 import { scriptRawGitExec } from "../../../helpers/git-exec-fake.js";
 import { lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
+import { createReviewDecisionPort } from "../../../../src/lib/store/kinds/review/decision/access.js";
+import { reviewDecisionKey } from "../../../../src/lib/store/kinds/review/decision/key.js";
+import type { ReviewCeilingOverride, ReviewAdditionalPassAuthorization } from "../../../../src/scripts/review-gate/policy/review-policy-driver.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 const head = "a".repeat(40), branch = "chore/repair";
+const base = "b".repeat(40);
 async function fixture(project = true, owner = "test-user") {
   const h = createReviewHarness();
   if (project) await h.seedProject(projectId);
@@ -22,6 +26,8 @@ async function fixture(project = true, owner = "test-user") {
   const primary = await h.seedErrand(record);
   let branchHead = head;
   const checkout = await createReviewCheckout(h, { script: [
+    { match: ["merge-base", "--all", head, base], responses: [{ stdout: base }] },
+    ...[head, base].map(revision => ({ match: ["rev-parse", "--verify", `${revision}^{tree}`], responses: [{ stdout: "c".repeat(40) }] })),
     { match: ["rev-parse", "--verify", "--end-of-options", `refs/remotes/origin/${branch}^{commit}`],
       responses: [() => ({ stdout: branchHead })] },
     { match: ["rev-parse", "--verify", "--end-of-options", `refs/heads/${branch}^{commit}`],
@@ -31,11 +37,32 @@ async function fixture(project = true, owner = "test-user") {
   ] });
   onTestFinished(checkout.cleanup);
   const rawExec = scriptRawGitExec([]).exec;
-  return { ...checkout, record, primary, moveHead: (value: string) => { branchHead = value; }, run: () => readErrandRoutedObligation({
+  return { ...checkout, record, primary, moveHead: (value: string) => { branchHead = value; },
+    run: (grant: { ceilingOverride?: ReviewCeilingOverride; additionalPassAuthorization?: ReviewAdditionalPassAuthorization } = {}) => readErrandRoutedObligation({
     ...checkout, projectId: createProjectIdentityReader(checkout.store), rawExec,
     target: { repository: "owner/repository", headRef: branch, headSha: head }, pullRequest: 42,
+    currentBaseOid: base, changeRequestCandidate: { baseRefName: "main", url: "https://github.com/owner/repository/pull/42" }, ...grant,
   }) };
 }
+
+it.each(["ceiling", "additional"] as const)("records a native %s grant before the unrecorded-lane return and relays its key", async kind => {
+  const h = await fixture();
+  const target = { repository: "owner/repository", pullRequest: 42, headSha: head };
+  const grant = kind === "ceiling" ? { ceilingOverride: { target, lane: "standard" as const, exhaustedPassCount: 0, nextPass: 1 } }
+    : { additionalPassAuthorization: { target, lane: "standard" as const, precedingProducerId: "previous-result", completedPasses: 0, nextPass: 1 } };
+  expect(await h.run(grant)).toMatchObject({ state: "review-required" });
+  const decisions = createReviewDecisionPort(h.store, h.primary.reference.owner), listing = await decisions.list();
+  if (listing.status !== "complete") throw new Error(listing.reason);
+  expect(listing.records).toHaveLength(1);
+  const record = listing.records[0]!;
+  expect(record.value).toMatchObject({ decidedBy: "test-user", subject: { lineage: { kind: "head-bound", vehicleKind: "errand",
+    vehicleIdentity: h.record.claimId }, headSha: head }, choice: { kind: "extra-pass", precondition: { kind } } });
+  const field = kind === "ceiling" ? "ceilingOverride" : "additionalPassAuthorization", key = reviewDecisionKey(record.value);
+  const version = lifecycleSuccess(await h.store.version());
+  expect(await h.run({ [field]: { ...grant[field], decisionKey: key } })).toMatchObject({ state: "review-required" });
+  expect(lifecycleSuccess(await h.store.version())).toBe(version);
+  expect(await decisions.read(key)).toEqual(record);
+});
 
 it("reports the unrecorded native lane from the actual stored Errand without an injected owner or marker", async () => {
   const h = await fixture();

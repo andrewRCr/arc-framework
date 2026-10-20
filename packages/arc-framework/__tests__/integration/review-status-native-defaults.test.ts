@@ -10,6 +10,9 @@ import { parseNativeReviewOperationReference } from "../../src/scripts/review-ga
 import { handleReviewChangeRequestResolve, handleReviewStatus, handleReviewLocalPrepare, handleReviewLocalResume } from "../../src/handlers/review.js";
 import { TransientIdentityRecordSchema } from "../../src/lib/errand/identity-record.js";
 import type { OwnerIdentity } from "../../src/lib/store/identity.js";
+import { createReviewDecisionPort } from "../../src/lib/store/kinds/review/decision/access.js";
+import { reviewDecisionKey } from "../../src/lib/store/kinds/review/decision/key.js";
+import { SlugSchema } from "../../src/lib/kernel/index.js";
 
 async function fixture(errand = false, targetMember = 0) {
   const h = await createNativeDeliveryReviewRepository(errand ? "chore/repair" : "member-1");
@@ -28,15 +31,34 @@ async function fixture(errand = false, targetMember = 0) {
   expect(exits, output).toEqual([]);
   const resolved = ChangeRequestResolveResultSchema.parse(JSON.parse(output));
   if (resolved.state !== "open") throw new Error(JSON.stringify(resolved));
-  const status = async (workItem?: OwnerIdentity) => {
+  const status = async (workItem?: OwnerIdentity, grants: { ceilingOverride?: string; additionalPass?: string } = {}) => {
     let output = "";
-    await handleReviewStatus({ target: JSON.stringify(resolved.targetRef), source: "delegated-agent", coverage: "complete" }, undefined,
+    await handleReviewStatus({ target: JSON.stringify(resolved.targetRef), source: "delegated-agent", coverage: "complete", ...grants }, undefined,
       { resolveRoot: () => h.cwd, write: text => { output += text; }, setExitCode: () => {} },
       { store: h.reference.store, projectId: createProjectIdentityReader(h.reference.store), ...(workItem === undefined ? {} : { workItem }) });
     return ReviewStatusCommandResultSchema.parse(JSON.parse(output));
   };
-  return { ...h, status };
+  return { ...h, status, policyTarget: { repository: resolved.targetRef.repository,
+    pullRequest: resolved.candidate.number, headSha: resolved.targetRef.headSha } };
 }
+
+it("records a native Errand judgment and relays its key through default status without occupancy", async () => {
+  const h = await fixture(true);
+  const selected = lifecycleSuccess(await h.reference.store.lookup({ kind: "slug", slug: SlugSchema.parse("repair") }));
+  const decisions = createReviewDecisionPort(h.reference.store, selected.reference.owner);
+  const grant = { target: h.policyTarget, lane: "standard", exhaustedPassCount: 0, nextPass: 1 };
+  expect(await h.status(undefined, { ceilingOverride: JSON.stringify(grant) })).toMatchObject({ state: "review-required" });
+  const listing = await decisions.list();
+  if (listing.status !== "complete") throw new Error(listing.reason);
+  expect(listing.records).toHaveLength(1);
+  const record = listing.records[0]!, key = reviewDecisionKey(record.value);
+  expect(record.value).toMatchObject({ decidedBy: "andrew", subject: { lineage: { vehicleKind: "errand",
+    vehicleIdentity: "1".repeat(32) }, headSha: h.policyTarget.headSha } });
+  const version = lifecycleSuccess(await h.reference.store.version());
+  expect(await h.status(undefined, { ceilingOverride: JSON.stringify({ ...grant, decisionKey: key }) }))
+    .toMatchObject({ state: "review-required" });
+  expect(lifecycleSuccess(await h.reference.store.version())).toBe(version);
+}, 60_000);
 
 it("resolves native delivery through default status, repairs identity, and retains an explicitly selected generation", async () => {
   const h = await fixture();
