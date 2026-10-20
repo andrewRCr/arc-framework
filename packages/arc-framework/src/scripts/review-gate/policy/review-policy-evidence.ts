@@ -62,6 +62,8 @@ export interface EvidenceBoundReviewPolicyDependencies {
   readonly terminalResponseSettled?: boolean;
   /** The owning composition proved the subject's opening frontline phase closed from its recorded history. */
   readonly frontlinePhaseClosed?: boolean;
+  /** Backend context retained from the selected invocation; never caller authority. */
+  readonly stateOffBranch?: true;
   /** The owning composition proved the invoking checkout is the subject's own Errand. */
   readonly errandVehicle?: boolean;
 }
@@ -390,12 +392,13 @@ async function deriveVerifiedTerminalSignal(
 /** The repository-proven subject facts the owning composition supplied, as reducer request fields. */
 function provenSubjectFacts(
   dependencies: EvidenceBoundReviewPolicyDependencies,
-): Pick<ReviewPolicyRequest, "frontlinePhaseClosed" | "errandVehicle" | "nextPassContext" | "selectionSources" | "configuredSources" | "chosenCoverage"> {
+): Pick<ReviewPolicyRequest, "stateOffBranch" | "frontlinePhaseClosed" | "errandVehicle" | "nextPassContext" | "selectionSources" | "configuredSources" | "chosenCoverage"> {
   return {
     ...(dependencies.selectionSources === undefined ? {} : { selectionSources: dependencies.selectionSources }),
     ...(dependencies.configuredSources === undefined ? {} : { configuredSources: dependencies.configuredSources }),
     ...(dependencies.nextPassContext === undefined ? {} : { nextPassContext: dependencies.nextPassContext }),
     ...(dependencies.chosenCoverage === undefined ? {} : { chosenCoverage: dependencies.chosenCoverage }),
+    ...(dependencies.stateOffBranch === true ? { stateOffBranch: true } : {}),
     ...(dependencies.frontlinePhaseClosed === true ? { frontlinePhaseClosed: true } : {}),
     ...(dependencies.errandVehicle === true ? { errandVehicle: true } : {}),
   };

@@ -1,6 +1,6 @@
 /** Native pre-publication defaults retain the named primary before accessing review facts. */
 import { expect, it, onTestFinished } from "vitest";
-import { writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { handleReviewPrePublication } from "../../../src/handlers/review.js";
 import { CandidateManagedRecordV1Schema, createCandidateAttestation, createCandidateSubjectSnapshot, createCandidateReviewResponseEvidence } from "../../../src/lib/work-unit/candidate-attestation.js";
@@ -11,6 +11,13 @@ import { createReviewHarness } from "../../helpers/store/review-harness.js";
 import { createReviewCheckout } from "../../helpers/store/review-checkout.js";
 import { lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { readSubmissionBoundaryVersioned } from "../../../src/lib/store/kinds/review/integration-boundary/access.js";
+
+import { createReviewCompositionContext } from "../../../src/scripts/review-gate/runtime/composition-context.js";
+import { readCandidateRecord } from "../../../src/lib/store/kinds/review/candidate/access.js";
+import { recordNativeFrontlineSkip } from "../../../src/scripts/review-gate/runtime/native-frontline-window.js";
+import { composePrePublicationReviewRequest } from "../../../src/scripts/review-gate/policy/pre-publication-request.js";
+import { createPrePublicationCompositionDependencies } from "../../../src/scripts/review-gate/policy/pre-publication-composition.js";
+import { resolveReviewPolicy } from "../../../src/scripts/review-gate/policy/review-policy-driver.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 async function fixture(project = true) {
@@ -112,4 +119,29 @@ it("keeps the missing-Candidate response and reaches self-review after the recor
   expect(await h.run()).toMatchObject({ error: { message: "No managed Candidate record exists for `example`." } });
   await h.seedCandidate();
   expect(await h.run()).toMatchObject({ locus: "candidate-review-pending", nextAction: { kind: "run-self-review" } });
+});
+
+it("projects a native skipped window as proven closure through default pre-publication composition", async () => {
+  const h = await fixture();
+  const owner = await h.seedCandidate();
+  await mkdir(join(h.cwd, ".arc/system/methods"), { recursive: true });
+  await writeFile(join(h.cwd, ".arc/system/methods/code-review-frontline.md"), "---\nname: code-review-frontline\ndescription: Review the target\nactive: true\noverride-active: false\n---\nReview the target.\n");
+  await writeFile(join(h.cwd, ".arc/system/arc-config.yml"),
+    "branch.base: main\nreview.frontline_sources: [coderabbit-cli]\nreview.standard_sources: [delegated-agent]\n");
+  const invocation = { ...h, workItem: owner };
+  const { family } = createReviewCompositionContext(invocation);
+  if (family.mode !== "stored" || family.ports.inFlight.nativeFacts === undefined) throw new Error("Expected native facts");
+  const candidate = await readCandidateRecord(h.cwd, "example", { store: h.store, owner });
+  if (candidate === null) throw new Error("Expected the selected Candidate");
+  await recordNativeFrontlineSkip({ invocation, facts: family.ports.inFlight.nativeFacts, repositoryId: projectId,
+    lineage: { kind: "candidate", candidateId: candidate.attestation.candidateId }, headSha: "a".repeat(40),
+    now: "2026-10-20T12:00:00Z" });
+  const composition = await composePrePublicationReviewRequest({ workUnit: "example", selfReview: "settled",
+    changeSet: { schemaVersion: 1, changeSetState: "known", contentKind: "code-bearing", reviewRisk: "routine",
+      changeDeterminacy: "ordinary", ownership: "self", surfaceAuthority: "ordinary" } },
+  createPrePublicationCompositionDependencies(invocation));
+  expect(composition, JSON.stringify(composition)).toMatchObject({ status: "composed" });
+  if (composition.status !== "composed") throw new Error(composition.reason);
+  expect(resolveReviewPolicy(composition.request.frontline)).toMatchObject({ state: "skipped",
+    payload: { reason: "phase-closed" }, diagnostics: [{ code: "frontline-window-closed" }] });
 });

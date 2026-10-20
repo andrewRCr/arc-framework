@@ -1735,6 +1735,7 @@ async function resolveConfiguredReviewPolicy(
   const dependencies: EvidenceBoundReviewPolicyDependencies = {
     sources,
     maxPasses,
+    ...(operationStore.stateOffBranch === true ? { stateOffBranch: true } : {}),
     ...(phaseClosed ? { frontlinePhaseClosed: true } : {}),
     ...(errandVehicle ? { errandVehicle: true } : {}),
     resultReader,

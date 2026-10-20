@@ -560,6 +560,7 @@ export function createPrePublicationCompositionDependencies(options: ReviewInvoc
     };
 
   return {
+    ...(reviewRecordStore.capabilities.stateOffBranch ? { stateOffBranch: true } : {}),
     resultReader,
     dispositionStore,
     readResponsePerformance: (predecessor) => readLaneResponsePerformance(store, predecessor),

@@ -19,6 +19,8 @@ export function createPrePublicationRecordAccess(input: ReviewInvocationInput & 
   let resultReader: ReviewResultReader | undefined;
   return { publisher,
     operationStore: {
+      get nativeFacts() { return family().inFlight.nativeFacts; },
+      stateOffBranch: input.store.capabilities.stateOffBranch,
       readOperation: operationId => family().inFlight.readOperation(operationId),
       readOperationSnapshot: () => family().inFlight.readOperationSnapshot(),
       publishOperation: (state, expectedVersion) => family().inFlight.publishOperation(state, expectedVersion),

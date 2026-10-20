@@ -180,6 +180,8 @@ export type OwnerTerminusAuthorityRead =
 
 /** Repository reads the composition needs, each owned by its production binder. */
 export interface PrePublicationCompositionDependencies {
+  /** Selected backend context; this is absent from caller-owned lane judgments. */
+  readonly stateOffBranch?: true;
   readCandidate(workUnit: string): Promise<CandidateRead>;
   readAssurance(workUnit: string): Promise<AssuranceRead>;
   resolveTarget(headSha: string): Promise<TargetRead>;
@@ -583,16 +585,18 @@ async function laneInvocation(input: {
   candidate: CandidateRead;
   judgment?: ReviewLaneJudgment;
   dependencies: PrePublicationCompositionDependencies;
-}): Promise<ReviewLaneJudgment["invocation"]> {
+}): Promise<{ invocation: ReviewLaneJudgment["invocation"]; frontlinePhaseClosed?: true }> {
   if (input.lane !== "frontline" || input.lineage?.kind !== "candidate"
     || input.dependencies.readSingletonFrontlinePhaseClosed === undefined) {
-    return input.judgment?.invocation;
+    return { invocation: input.judgment?.invocation };
   }
   const closed = await input.dependencies.readSingletonFrontlinePhaseClosed(
     input.lineage.candidateId,
     candidateAncestorsForLineage(input.candidate, input.lineage),
   );
-  return closed ? { mode: "skip" } : input.judgment?.invocation;
+  return closed && input.dependencies.stateOffBranch === true
+    ? { invocation: input.judgment?.invocation, frontlinePhaseClosed: true }
+    : { invocation: closed ? { mode: "skip" } : input.judgment?.invocation };
 }
 
 /**
@@ -782,7 +786,7 @@ export async function composePrePublicationReviewRequest(
     refusePendingLaneReview(progress, lane);
     if (progress.status === "unrecorded") advisories.push(unrecordedLaneAdvisory(lane));
     const judgment = lanes.data[lane];
-    const invocation = await laneInvocation({ lane, lineage, candidate, judgment, dependencies });
+    const { invocation, frontlinePhaseClosed } = await laneInvocation({ lane, lineage, candidate, judgment, dependencies });
     const completedPasses = progress.status === "recorded" ? progress.completedPasses : 0;
     const historicalAttempt = await applicableHistoricalAttempt({
       lane, progress, sameHeadCandidate, exactTarget, lineage,
@@ -825,6 +829,8 @@ export async function composePrePublicationReviewRequest(
     );
     pendingSources[lane] = pendingSource;
     const evidenceDependencies = {
+      ...(dependencies.stateOffBranch === true ? { stateOffBranch: true as const } : {}),
+      ...(frontlinePhaseClosed === true ? { frontlinePhaseClosed: true } : {}),
       allowUnapprovedFindings: pendingSource !== null,
       terminalResponseSettled: settledTerminalResponse(terminalAttempts[lane], pendingSource),
       sources: policy.sources,

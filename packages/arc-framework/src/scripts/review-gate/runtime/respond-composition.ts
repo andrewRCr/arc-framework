@@ -469,6 +469,7 @@ async function resolveRespondPolicy(context: RespondPolicyContext,
   });
   const policyDependencies: EvidenceBoundReviewPolicyDependencies = {
     ...configured,
+    ...(prepare.operationStore.stateOffBranch === true ? { stateOffBranch: true } : {}),
     sources: retainedSources,
     resultReader: createRepositoryReviewResultReader(publisher, input),
     dispositionStore: dispositions,

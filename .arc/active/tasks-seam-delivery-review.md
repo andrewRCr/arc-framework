@@ -926,31 +926,18 @@ this extension, following the 4.11 local proof.
             - a withdrawn admission that never ran leaves no outcome, and a ready response starts a run only for an
               admission identical to it
 
-    - `[ ]` **5.1.b The lane-skip decision**
+    - `[x]` **5.1.b The lane-skip decision**
 
-        - `recordSingletonFrontlineInitialSkip` (`rg/policy/frontline-phase.ts`), which a Candidate's accepted skip
-          reaches through `persistAcceptedFrontlineSkip` (`handlers/review.ts`), and an Errand's `skip` invocation,
-          which records nothing today, write a lane-skip decision on the vehicle's subject with a `null` basis, recording
-          the active identity unchecked (§ 5.1, § 5.7).
-        - Build `test-first` (one behavior at a time):
-            - a Candidate's skip writes one decision that reaches its supersession chain
-            - an Errand's skip writes one decision on the Errand
-            - the same skip recorded twice names one decision
+        - Candidate and Errand skips publish one immutable decision with null basis and the active identity unchecked.
+          Repeated skips retain the same decision; Candidate closure reaches the validated supersession chain.
 
-    - `[ ]` **5.1.c The derived window**
+    - `[x]` **5.1.c The derived window**
 
-        - `frontlinePhaseClosed` derives closure from the vehicle's records — a skip decision; a terminal frontline
-          outcome, clean or settled findings advising a stop (`readSettledFindingsAdvice`); or the standard lane's first
-          attempt, in flight or recorded — from the flip.
-        - From the flip the `frontline-phase-closed` diagnostic (`rg/policy/frontline-command.ts`,
-          `rg/policy/review-policy-driver.ts`) reads `frontline-window-closed`; the `phase-closed` skip reason keeps its
-          value, which a published schema fixes (§ 5.9).
-        - Build `test-first` (one behavior at a time):
-            - an Errand's skip closes its window
-            - a Candidate's window closes on a superseded ancestor's skip, a terminal frontline outcome, or the standard
-              lane's first attempt, and stays open otherwise
-            - from the flip a closed window refuses with `frontline-window-closed`, the policy driver's skip reason
-              still reading `phase-closed`
+        - Native closure reads skip decisions, terminal clean or settled-stop frontline outcomes, and pending or
+          recorded standard attempts across validated ancestor lineages. The lazy pre-publication adapter retains its
+          native fact ports. Evidence binding carries selected backend context through policy, response continuation,
+          and pre-publication; native closure emits `frontline-window-closed` with the published `phase-closed` reason.
+          Repository diagnostics and invocation judgments retain their behavior.
 
 ### `[ ]` **5.2 Write hosted outcomes with their sealed results — § 4.1, § 4.5, § 9.3**
 

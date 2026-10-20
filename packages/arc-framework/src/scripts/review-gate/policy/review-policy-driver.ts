@@ -308,6 +308,8 @@ export const ReviewPolicyRequestSchema = z.strictObject({
   chosenCoverage: z.enum(["complete", "incremental"]).optional(),
   /** Repository-proven settlement of the terminal findings response; never a command input. */
   terminalResponseSettled: z.literal(true).optional(),
+  /** Backend context supplied by the owning composition; never a command input. */
+  stateOffBranch: z.literal(true).optional(),
   /** Repository-proven closure of the subject's opening frontline phase; the standard lane ignores it. */
   frontlinePhaseClosed: z.literal(true).optional(),
   /** Repository-proven: the invoking checkout is the subject's own Errand; never a command input. */
@@ -712,7 +714,7 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
         attemptedSources: request.attempts,
         reason: "phase-closed",
       },
-    }, [{ code: "frontline-phase-closed", message: closedPhase }]);
+    }, [{ code: request.stateOffBranch === true ? "frontline-window-closed" : "frontline-phase-closed", message: closedPhase }]);
   }
   if (request.lane === "standard"
     && (request.sources.length === 0 || request.standardReview.obligation === "exempt")) {
