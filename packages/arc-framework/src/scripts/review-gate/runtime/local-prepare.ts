@@ -52,6 +52,7 @@ import type {
   ForwardReceiptLedger,
   LocalReviewSourceStore,
   ReviewOperationStateStore,
+  ReviewOutcomePort,
 } from "../core/ports.js";
 import { isReviewVersionConflict, REVIEW_VERSION_RETRY_ATTEMPTS } from "../core/version-conflict.js";
 import type { LocalReviewPolicyBinding } from "../policy/local-review-policy.js";
@@ -83,7 +84,8 @@ import {
 } from "../policy/local-review-coverage-selection.js";
 import { cleanupExpired, retryLaneOwnerConflicts } from "./local-prepare-retry.js";
 import { LocalPrepareCommandError } from "./local-prepare-error.js";
-import { completedReplayAttemptMatches, resolveStablePendingLocalReplay } from "./local-pending-replay.js";
+import { completedReplayAttemptMatches, resolveStablePendingLocalReplay, type StablePendingReplayContext } from "./local-pending-replay.js";
+import { replayCompletedNativeLocalAdmission } from "./local-completed-replay.js";
 export { LocalPrepareCommandError } from "./local-prepare-error.js";
 
 const DEFAULT_LOCAL_REVIEW_FRESHNESS_MS = 24 * 60 * 60 * 1_000;
@@ -226,6 +228,7 @@ export interface LocalPrepareDependencies {
     dispositionSetId: string,
   ) => Promise<boolean>;
   operationStore: ReviewOperationStateStore;
+  outcomes?: ReviewOutcomePort;
   readFixedFindingPointers(input: {
     repositoryId: string; headSha: string; lineage: LaneSubjectLineage; workUnitId?: string;
   }): Promise<readonly FixedFindingPointer[]>;
@@ -255,15 +258,8 @@ function unavailableLocalPreparation(messages: readonly string[]) {
   });
 }
 
-type PendingLocalReplayInput = {
-  request: LocalPrepareRequest;
+type PendingLocalReplayInput = StablePendingReplayContext & {
   dependencies: LocalPrepareDependencies;
-  repositoryId: string;
-  target: ReviewTarget;
-  lineage: LaneSubjectLineage;
-  scopeMode: ReviewScopeMode;
-  coverageAdmission: LocalReviewCoverageAdmission;
-  cleanupTtlMs: number;
 };
 
 function requireSharedLogicalPassCoverage(
@@ -337,6 +333,10 @@ async function replayPendingLocalAdmission(supplied: PendingLocalReplayInput): P
     throw new LocalPrepareCommandError("local pending admission is incomplete");
   }
   const persisted = await input.dependencies.operationStore.readOperation(binding.operationId);
+  if (attempt.outcome !== "pending" && input.dependencies.outcomes !== undefined) {
+    return replayCompletedNativeLocalAdmission({ ...input, outcomes: input.dependencies.outcomes,
+      persistedVersion: persisted.version }, attempt);
+  }
   const state = persisted.state;
   if (state === null || state.kind !== "local-review"
     || !replayIdentityMatches(state, attempt, binding, input)

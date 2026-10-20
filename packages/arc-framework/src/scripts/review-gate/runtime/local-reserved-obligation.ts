@@ -76,7 +76,7 @@ export function assertReservedLocalObligation(
 /** Re-confirm the live reservation before a pending or completed operation can answer ordinary local prepare. */
 export async function confirmReservedLocalReplay(input: {
   readonly request: Pick<LocalPrepareRequest, "routingFacts">;
-  readonly state: LocalReviewState;
+  readonly state: Pick<LocalReviewState, "deliveryAdmission" | "vehicle" | "requirement" | "request">;
   readonly lineage: LaneSubjectLineage;
   readonly dependencies: Pick<LocalPrepareDependencies,
     "readReservedWorkUnitObligation" | "resolveAuthority" | "composeAssurance">;

@@ -1,0 +1,100 @@
+/** Native preparation replays completed admissions from their portable results. */
+import { expect, it, onTestFinished } from "vitest";
+import { nativeLocalReview } from "../../../../fixtures/native-local-review.js";
+import { createReviewReceipt, createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import { recordLocalReceiptConclusion } from "../../../../../src/scripts/review-gate/lane-progress.js";
+import { prepareLocalReview } from "../../../../../src/scripts/review-gate/runtime/local-prepare.js";
+import { readLocalReviewReceipts } from "../../../../../src/scripts/review-gate/runtime/local-outcome-receipts.js";
+import { LocalForwardReviewReceiptStore } from "../../../../../src/scripts/review-gate/hosts/local/receipt-store.js";
+import { createReviewCheckout } from "../../../../helpers/store/review-checkout.js";
+import { RepositoryGitCommonStatePublisher } from "../../../../../src/lib/git-common-state.js";
+import { NativeReviewInFlightStateStore } from "../../../../../src/scripts/review-gate/hosts/local/in-flight-state-store.js";
+import { RepositoryLocalReviewSourceStore } from "../../../../../src/scripts/review-gate/hosts/local/source-store.js";
+import { parseNativeReviewOperationReference } from "../../../../../src/scripts/review-gate/core/review-operation-reference.js";
+import { createLocalReviewSource } from "../../../../../src/scripts/review-gate/core/local-review-source.js";
+
+async function completedReview(result: "clean" | "findings" = "clean") {
+  const h = await nativeLocalReview();
+  onTestFinished(h.cleanup);
+  const state = h.state;
+  const receipt = createReviewReceipt({ target: state.target, requirement: state.requirement, request: state.request,
+    applicabilityId: null, reviewRunId: "review-1", evaluatorIdentity: state.request.evaluatorIdentity,
+    attestingRuntimeIdentity: state.attestation.runtimeIdentity, attestationMechanism: state.attestation.mechanism,
+    providerEventIdentity: null, result, findings: result === "findings" ? [{ findingId: "finding-1", severity: "major",
+      locus: "src/example.ts:1", evidenceUrlOrId: "finding-1", sourceOrdinal: 1 }] : [] });
+  await recordLocalReceiptConclusion(h.operations, { state, receipt, now: h.prepared.dependencies.now() });
+  const receiptStore = new LocalForwardReviewReceiptStore(h.publisher, state.repositoryId);
+  const dependencies = { ...h.prepared.dependencies, outcomes: h.outcomes,
+    readReceipts: (targetId: string) => readLocalReviewReceipts({ receiptStore, outcomes: h.outcomes }, targetId),
+    materialize: async () => { throw new Error("Completed admission must not rematerialize a source"); } };
+  const request = { schemaVersion: 1, evaluatorIdentity: state.request.evaluatorIdentity,
+    routingFacts: { contentKind: "code-bearing", reviewRisk: "routine", changeDeterminacy: "ordinary",
+      ownership: "self", surfaceAuthority: "ordinary" }, policyJudgment: { scopeMode: "whole-target" } };
+  return { h, state, dependencies, request };
+}
+
+it("prepares the same ended native review without its execution or source descriptor", async () => {
+  const { h, state, dependencies, request } = await completedReview();
+  await h.publisher.update({ root: "review-gate", namespace: "sources" }, state.sourceRef,
+    () => ({ kind: "delete", result: undefined }));
+  const stored = await h.outcomes.read(state.operationId);
+  expect(await prepareLocalReview(request, dependencies)).toMatchObject({ state: "review-complete", nextAction: "reduce",
+    payload: { operationId: state.operationId, persistedVersion: 1, target: state.target } });
+  expect(await h.outcomes.read(state.operationId)).toEqual(stored);
+  expect(await h.publisher.list({ root: "review-gate", namespace: "sources" })).toEqual([]);
+  expect(await h.publisher.list({ root: "review-gate", namespace: "evidence" })).toEqual([]);
+});
+
+it("prepares an ended native admission on another checkout with no original local files", async () => {
+  const { h, state, dependencies, request } = await completedReview();
+  const first = await prepareLocalReview(request, dependencies);
+  if (first.state !== "review-complete" || first.payload.operationRef === undefined) throw new Error("Expected produced native reference");
+  const reference = parseNativeReviewOperationReference(first.payload.operationRef);
+  const checkout = await createReviewCheckout(h);
+  onTestFinished(checkout.cleanup);
+  const publisher = new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd);
+  const operations = new NativeReviewInFlightStateStore({ publisher, workItem: reference.workItem,
+    outcomes: h.outcomes, evidence: h.evidence, projectId: h.projectId });
+  const replay = await prepareLocalReview(request, { ...dependencies, operationStore: operations,
+    sourceStore: new RepositoryLocalReviewSourceStore(publisher) });
+  expect(replay).toMatchObject({ state: "review-complete", payload: { operationId: state.operationId,
+    operationRef: first.payload.operationRef, persistedVersion: 0, target: state.target } });
+  expect(await publisher.list({ root: "review-gate", namespace: "in-flight" })).toEqual([]);
+  expect(await publisher.list({ root: "review-gate", namespace: "sources" })).toEqual([]);
+});
+
+it("returns an unsettled native findings admission for reduction without launching another review", async () => {
+  const { h, state, dependencies, request } = await completedReview("findings");
+  const stored = await h.outcomes.read(state.operationId);
+  expect(await prepareLocalReview(request, dependencies)).toMatchObject({ state: "review-complete", nextAction: "reduce",
+    payload: { operationId: state.operationId, persistedVersion: 1, target: state.target } });
+  expect(await h.outcomes.read(state.operationId)).toEqual(stored);
+});
+
+it("rechecks the live reservation on native completed replay and succeeds after its policy is repaired", async () => {
+  const { state, dependencies, request } = await completedReview();
+  dependencies.readReservedWorkUnitObligation = async () => ({ ...state.requirement, rubricDigest: `sha256:${"e".repeat(64)}` });
+  await expect(prepareLocalReview(request, dependencies))
+    .rejects.toMatchObject({ code: "corrupt-state", message: "local review routing does not match the reserved work-unit obligation" });
+  dependencies.readReservedWorkUnitObligation = async () => state.requirement;
+  expect(await prepareLocalReview(request, dependencies)).toMatchObject({ state: "review-complete",
+    payload: { operationId: state.operationId } });
+});
+
+it("refuses a mismatched retained source on native preparation and replays after repair", async () => {
+  const { h, state, dependencies, request } = await completedReview();
+  const location = { root: "review-gate", namespace: "sources" } as const;
+  const original = await h.publisher.read(location, state.sourceRef), source = await dependencies.sourceStore.readSource(state.sourceRef);
+  if (original === null || source === null) throw new Error("Expected retained descriptor");
+  const { targetId: ignoredTarget, ...coordinates } = state.target;
+  const { sourceDigest: ignoredDigest, ...descriptor } = source;
+  void ignoredTarget; void ignoredDigest;
+  const target = createReviewTarget({ ...coordinates, headSha: "e".repeat(40), headTree: "f".repeat(40) });
+  const foreign = createLocalReviewSource({ ...descriptor, targetId: target.targetId, headSha: target.headSha,
+    headTree: target.headTree, reachabilityRef: "refs/arc/review/local/other-review", materializationRef: "/tmp/other-review" });
+  await h.publisher.update(location, state.sourceRef, () => ({ kind: "write", content: JSON.stringify(foreign), result: undefined }));
+  await expect(prepareLocalReview(request, dependencies)).rejects.toThrow("local review source reference mismatch");
+  await h.publisher.update(location, state.sourceRef, () => ({ kind: "write", content: original, result: undefined }));
+  expect(await prepareLocalReview(request, dependencies)).toMatchObject({ state: "review-complete",
+    payload: { operationId: state.operationId } });
+});
