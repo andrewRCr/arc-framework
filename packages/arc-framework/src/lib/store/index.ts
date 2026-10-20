@@ -28,3 +28,5 @@ export {
   readRemovalTrigger, writeRemovalTrigger, writeRoutedFrom, entryVersion, drawEntryId, matchInboxEntryTitle, targetNamedByLine,
 } from "./kinds/entry-fields.js";
 export { RoutingListSchema, RoutingReceiptSchema, parseRoutingReceipt, writeRoutingReceipt, type RoutingReceipt } from "./kinds/routing-receipt.js";
+export { CreatedOwnerSchema, CreatedOwnersSchema, BatchCreationReceiptSchema, compareCreatedOwners,
+  type CreatedOwner, type BatchCreationReceipt } from "./creation-receipt.js";

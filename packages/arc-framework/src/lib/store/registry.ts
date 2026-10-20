@@ -97,6 +97,7 @@ export const KIND_MECHANISMS = {
   "work-item/companion": atRef("<key>-<slug>.md", prose({ substrate: "tracked", finder: "companions" }, "projection-defined")),
   "work-item/description": atRef("errand-<slug>.md", entry(unhomed, ENTRY_CONFIGS["work-item/description"])),
   "work-item/inbound": atRef("inbound-<slug>.md", entry(unhomed, ENTRY_CONFIGS["work-item/inbound"])),
+  "work-item/cut-map": atRef("cut-map-<uid>.json", machine(unhomed)),
   "cohort/document": atRef("cohort-<slug>.md", prose({ substrate: "tracked", address: { kind: "cohort-document" } }, { kind: "cohort-document" })),
   "project-inbox/inbox": atRef("ATOMIC-INBOX.md", { ...entry({ substrate: "tracked", address: { kind: "inbox", scope: "project" } }, ENTRY_CONFIGS["project-inbox/inbox"]), projection: { kind: "inbox", scope: "project" } }),
   "review/candidate": atRef("review/candidate-<uid>.json", machine({ substrate: "tracked", address: { kind: "candidate-record" } })),

@@ -10,7 +10,7 @@
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, onTestFailed } from "vitest";
 
 import { handleCandidateApplicabilityResolve } from "../../src/handlers/candidate.js";
 import { handleIntegrationCheckpoint } from "../../src/handlers/integration.js";
@@ -126,11 +126,10 @@ async function installHost(root: string): Promise<string> {
   } } } });
   await mkdir(bin, { recursive: true });
   const script = join(bin, "gh");
+  // Read the live remote base only for responses that include it. Other host probes need no Git process.
+  const readBase = `base=$(git --git-dir='${join(root, ".arc-fixture", "origin.git")}' rev-parse refs/heads/main) || exit 1`;
   await writeFile(script, [
     "#!/bin/sh",
-    // The host reports the base it actually has, so the stub reads the remote rather than pinning a value the
-    // advance would invalidate.
-    `base=$(git --git-dir='${join(root, ".arc-fixture", "origin.git")}' rev-parse refs/heads/main)`,
     'case "$1:$2" in',
     `  repo:view) printf '%s\\n' '{"nameWithOwner":"${REPOSITORY}"}' ;;`,
     '  api:user) printf \'%s\\n\' \'{"id":123}\' ;;',
@@ -146,9 +145,12 @@ async function installHost(root: string): Promise<string> {
     `  api:repos/${REPOSITORY}/pulls/${String(PULL_REQUEST)}/reviews\\?*) printf '%s\\n' '[[]]' ;;`,
     `  pr:list) printf '%s\\n' '${listed}' ;;`,
     "  pr:checks) echo 'no required checks reported' >&2; exit 1 ;;",
-    `  api:repos/${REPOSITORY}/pulls/${String(PULL_REQUEST)}) printf '${pull}\\n' "$base" ;;`,
+    `  api:repos/${REPOSITORY}/pulls/${String(PULL_REQUEST)})`,
+    `    ${readBase}`,
+    `    printf '${pull}\\n' "$base" ;;`,
     `  api:repos/${REPOSITORY}/branches/main) printf '%s\\n' '{}' ;;`,
     `  api:repos/${REPOSITORY}/commits/${TEST_MERGE})`,
+    `    ${readBase}`,
     `    printf '{"parents":[{"sha":"%s"},{"sha":"${headSha}"}]}\\n' "$base" ;;`,
     "  api:--paginate) printf '%s\\n' '[[]]' ;;",
     `  api:graphql) printf '%s\\n' '${hostReview}' ;;`,
@@ -364,6 +366,9 @@ describe("review status over a base advanced under the work unit", () => {
   });
 });
 
+// Two hosted reviews, applicability decisions, convergence, and base advances share one test deadline.
+const HOSTED_REVIEW_LIFECYCLE_TIMEOUT_MS = 180_000;
+
 describe("singleton hosted review after publication", () => {
   it("retains the public next action through unreserved convergence and retry", async () => {
     const fixture = await publishedSingleton();
@@ -481,11 +486,21 @@ describe("singleton hosted review after publication", () => {
     ["codex-pr", "full"],
     ["coderabbit-pr", "focused"],
   ] as const)("retains source %s with verification scope %s", async (sourceId, convergenceScope) => {
+    const started = Date.now();
+    const phases: { phase: string; elapsedMs: number }[] = [];
+    const phase = (name: string): void => { phases.push({ phase: name, elapsedMs: Date.now() - started }); };
+    onTestFailed(() => {
+      console.error("Hosted review lifecycle failure", JSON.stringify({
+        sourceId, convergenceScope, elapsedMs: Date.now() - started, phases,
+      }));
+    });
+    phase("setup");
     const fixture = await singletonUnderReview(sourceId === "codex-pr" ? async (root) => {
       await completeLifecycleArtifacts(root);
       await git(root, ["add", "-A"]);
       await git(root, ["commit", "-m", "complete singleton lifecycle artifacts"]);
     } : undefined);
+    phase("pre-publication");
     const reviewed = await runHandlerAt(fixture.root, async () => {
       await handleReviewPrePublication(WORK_UNIT, { selfReview: "settled" }, {}, machineContext());
     });
@@ -512,6 +527,7 @@ describe("singleton hosted review after publication", () => {
       },
     });
     await writeFile(boundaryPath, `${JSON.stringify({ ...boundary, reservation })}\n`);
+    phase("publication");
     const published = await runHandlerAt(fixture.root, async () => {
       await handlePublish(WORK_UNIT, {
         json: true,
@@ -529,6 +545,7 @@ describe("singleton hosted review after publication", () => {
     fixture.headSha = await git(fixture.root, ["rev-parse", "HEAD"]);
     fixture.bin = await installHost(fixture.root);
 
+    phase("initial status");
     const status = await statusThroughPort(fixture);
     expect(status).toMatchObject({
       state: "review-required",
@@ -558,6 +575,7 @@ describe("singleton hosted review after publication", () => {
           state: "rate-limited", nextAction: "try-next-source", provider: "coderabbit-pr",
         });
       }
+      phase("selected hosted request");
       const selected = await withHost(fixture.bin, async () => resolveReviewStatus({
         target: { repository: REPOSITORY, headRef: HEAD_REF, headSha: fixture.headSha },
         sourceId,
@@ -617,6 +635,7 @@ describe("singleton hosted review after publication", () => {
         created_at: "2026-10-03T00:01:00Z",
         updated_at: "2026-10-03T00:01:00Z",
       }]]));
+      phase("first hosted await");
       const awaited = await withHost(fixture.bin, async () => runHandlerAt(fixture.root, async () => {
         await handleReviewHostedAwait("-", { readText: async () => JSON.stringify(request.action) });
       }));
@@ -629,6 +648,7 @@ describe("singleton hosted review after publication", () => {
       });
       expect(await statusThroughPort(fixture)).toMatchObject({ state: "settled", nextAction: "continue-reconcile" });
       if (sourceId === "codex-pr") {
+        phase("completion applicability");
         const completionPath = join(fixture.root, ".arc", "active", `meta-${WORK_UNIT}.md`);
         await writeFile(completionPath, [await readFile(completionPath, "utf8"),
           "- Verified the published implementation before landing.", ""].join("\n"));
@@ -670,6 +690,7 @@ describe("singleton hosted review after publication", () => {
         await git(fixture.root, ["push", "origin", HEAD_REF]);
         fixture.headSha = await git(fixture.root, ["rev-parse", "HEAD"]);
         fixture.bin = await installHost(fixture.root);
+        phase("first base applicability");
         const baseCoverage = await withHost(fixture.bin, async () => resolveReviewStatus({
           target: { repository: REPOSITORY, headRef: HEAD_REF, headSha: fixture.headSha }, sourceId,
         }, createReviewStatusPort({ cwd: fixture.root, exec: makeGitExec(fixture.root) })));
@@ -697,6 +718,7 @@ describe("singleton hosted review after publication", () => {
         expect(baseCheckpoint.exitCode, baseCheckpoint.stdout + baseCheckpoint.stderr).toBe(0);
         expect(JSON.parse(baseCheckpoint.stdout), baseCheckpoint.stdout).toMatchObject({ state: "ready" });
         const exec = makeGitExec(fixture.root);
+        phase("correction and convergence");
         const oldTarget = await collectCandidateSubjectTarget({
           cwd: fixture.root, name: WORK_UNIT, baseBranch: "main", exec,
         });
@@ -813,6 +835,7 @@ describe("singleton hosted review after publication", () => {
           action: { provider: "codex-pr", invocation: { mode: "force", sourceId: "codex-pr" } },
         });
         if (continued.nextAction !== "review-hosted-request") throw new Error("expected continued hosted request");
+        phase("second hosted review");
         const resumed = await withHost(fixture.bin, async () => runHandlerAt(fixture.root, async () => {
           await handleReviewHostedRequest("-", { readText: async () => JSON.stringify(continued.action) });
         }));
@@ -843,6 +866,7 @@ describe("singleton hosted review after publication", () => {
         await git(fixture.root, ["push", "origin", HEAD_REF]);
         fixture.headSha = await git(fixture.root, ["rev-parse", "HEAD"]);
         fixture.bin = await installHost(fixture.root);
+        phase("latest completion applicability");
         const latestCoverage = await withHost(fixture.bin, async () => resolveReviewStatus({
           target: { repository: REPOSITORY, headRef: HEAD_REF, headSha: fixture.headSha }, sourceId,
         }, createReviewStatusPort({ cwd: fixture.root, exec })));
@@ -877,6 +901,7 @@ describe("singleton hosted review after publication", () => {
         await git(fixture.root, ["push", "origin", HEAD_REF]);
         fixture.headSha = await git(fixture.root, ["rev-parse", "HEAD"]);
         fixture.bin = await installHost(fixture.root);
+        phase("second base applicability");
         const roadmapCoverage = await withHost(fixture.bin, async () => resolveReviewStatus({
           target: { repository: REPOSITORY, headRef: HEAD_REF, headSha: fixture.headSha }, sourceId,
         }, createReviewStatusPort({ cwd: fixture.root, exec })));
@@ -924,6 +949,7 @@ describe("singleton hosted review after publication", () => {
       }
     }
 
+    phase("final response staging");
     const before = (await readSubmissionBoundaryVersioned(fixture.root, WORK_UNIT)).boundary;
     if (before === null || before.candidateSubjectDigest === null) throw new Error("missing public boundary");
     const reviewedSubject = `sha256:${"d".repeat(64)}`;
@@ -963,12 +989,14 @@ describe("singleton hosted review after publication", () => {
     expect(await git(fixture.root, ["diff", "--cached", "--name-only"])).toContain(
       `.arc/system/.internal/candidates/${WORK_UNIT}.boundary.json`,
     );
-  }, 90_000);
+  }, HOSTED_REVIEW_LIFECYCLE_TIMEOUT_MS);
 });
 
 describe("review status when the base read goes unavailable under it", () => {
-  it("blocks on the unavailable base revision, and settles once the read is restored", async () => {
+  it("reports the failed base refresh, and settles once the read is restored", async () => {
     const fixture = await publishedSingleton();
+    expect(await git(fixture.root, ["rev-parse", "--verify", "refs/remotes/origin/main"]))
+      .toMatch(/^[0-9a-f]{40}$/u);
 
     const blocked = await statusThroughPort(fixture, (exec) => withUnavailableBaseRead(exec));
 
@@ -976,8 +1004,9 @@ describe("review status when the base read goes unavailable under it", () => {
       state: "blocked",
       nextAction: "stop",
       reason: "status-unavailable",
-      detail: "The current base revision is unavailable.",
+      detail: "fatal: unable to access 'origin': Could not resolve host: origin",
       currentBaseOid: null,
+      hostReview: { state: "unavailable" },
     });
     // The remedy names a re-run of the same reading, and with the base read restored that is what it reports.
     expect(await statusThroughPort(fixture)).toMatchObject({

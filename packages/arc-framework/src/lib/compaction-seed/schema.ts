@@ -73,6 +73,7 @@ export const CompactionSeedReaderSchema = z.object({
   ...COMPACTION_SEED_FIELDS,
   taskCursor: TaskListCursorReaderSchema.nullable(),
   loadSet: LoadSetManifestReaderSchema,
+  locus: z.object(CompactionSeedLocusHintSchema.shape),
 });
 
 /** Version literal for schema-v2 compaction-seed envelopes. */

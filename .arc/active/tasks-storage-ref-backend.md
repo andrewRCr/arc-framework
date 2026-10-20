@@ -411,21 +411,11 @@ and 15 for every served family, but for the assertions 4.4.d excludes by name, a
           captures internally. Registered checks stay protected through the pre-sweep view and CAS publication,
           including no-op writes; real read-only, new-owner, overlapping-writer, and pull races exercise both layouts.
 
-    - `[ ]` **4.R.b Bind serialized observations and captured before-history**
-        - Consume the reviewed shared API once its implementation is available: strict `RecordObservationSchema`,
-          `BatchInput.observations`, `WriteCheckInput.observations`, trusted writer action, and captured before-history.
-          Carry observations through validation, resolution, retries, and check dispatch; reuse shared comparison
-          semantics and pinned native history resolution. This leaf depends on that shared implementation landing.
-        - Build `test-first` (one behavior at a time):
-            - Present/absent and strict merge-kind observations compare exact versions and conflict sets; mismatch
-              rolls back, unreadable evidence keeps its specific repair, and corrected acquisition succeeds.
-            - Expected absence preserves namespace and identity admission refusals, including missing-person-identity
-              `not-found`; repair then permits a genuinely absent observation. Establish admission before interpreting
-              the read refusal as absence.
-            - Omission/empty arrays, overlap, write-once observations, duplicates, and generation rules follow shared
-              conformance; observation-only records gain no result, history, provenance, identity, or conflict effect.
-            - Checks receive the validated action and observations; before-history stays pinned through live,
-              archived, and retained-record cases without recapturing public history or adding after-history.
+    - `[x]` **4.R.b Bind serialized observations and captured before-history**
+        - Native admission compares the shared strict observations against its captured before-state and passes
+          validated writer action and observations to every check. History resolves only against captured live,
+          archived, and retained tips; observation-only records publish no effect. Incoming callers and conflict
+          fixtures use the pull/push and hunk contracts already served by this backend.
 
     - `[ ]` **4.R.c Verify production admission and close the native contract correction**
         - Consume the production cut-map rule once available. Exercise final-gap changed read-only evidence,

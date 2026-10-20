@@ -1,7 +1,7 @@
 /** Validated local mutations resolved onto state refs before object construction. */
 
 import { writeRefRepository } from "./repository.js";
-import { BatchInputSchema, WriteInputSchema, type Mutation, type BatchInput, type BatchResult, type WriteInput, type WriteResult } from "../write.js";
+import { BatchInputSchema, WriteInputSchema, type Mutation, type BatchInput, type BatchResult, type WriteInput, type WriteResult, type RecordObservation } from "../write.js";
 import { RecordReferenceSchema, type RecordReference } from "../identity.js";
 import type { StoreRefusal, StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
@@ -124,17 +124,17 @@ async function executeRefBatch(context: RefBackendContext, input: BatchInput, ba
       .map((write) => write.mutation.reference), context.registry);
     if (collision) return { status: "refused", refusal: collision };
     const result = await withRefLocks(context, [...refWriteTargets(context, resolved.result).map(({ home }) => home.ref), ...(resolved.result.retained?.length ? ["refs/arc/project/registry", ...resolved.result.retained.map(({ home }) => home.ref.replace("refs/arc/history/", "refs/arc/"))] : []), ...archiveLockRefs(resolved.result), ...archivedLockRefs(resolved.result), ...retirementLockRefs(refWriteTargets(context, resolved.result))], () =>
-      commitLockedRefBatch(context, resolved.result, input.provenance, batchId));
+      commitLockedRefBatch(context, resolved.result, input.provenance, batchId, input.observations ?? []));
     if (result !== null && result !== "layout-changed") return result;
   }
 }
 
 async function commitLockedRefBatch(context: RefBackendContext, resolved: ResolvedBatch,
-  provenance: BatchInput["provenance"], batchId: string): Promise<StoreResult<BatchResult> | "layout-changed" | null> {
+  provenance: BatchInput["provenance"], batchId: string, observations: readonly RecordObservation[]): Promise<StoreResult<BatchResult> | "layout-changed" | null> {
   for (;;) {
     const tips = await readRefTips(context, { includeHistory: true });
     if (ownerLocationsChanged(context, resolved, tips) || archiveBasisChanged(resolved, tips) || retainedBasisChanged(resolved.retained ?? [], resolved.tips, tips)) return null;
-    const result = await commitRefWrites(context, { ...resolved, tips }, provenance, batchId);
+    const result = await commitRefWrites(context, { ...resolved, tips }, provenance, batchId, observations);
     if (result === "resolve") return null;
     if (result !== "retry") return result;
   }

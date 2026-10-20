@@ -51,18 +51,17 @@ it.each(["abandon", "decompose"] as const)("reports a former name as ended after
 
 it("withholds an ambiguous terminal alias and keeps personal files", async () => {
   const h = await fixture(); await h.retire("another-current");
-  await expect(applyScratchReconcile(h.input)).rejects.toThrow(/ambiguous.*retry/iu);
+  await expect(applyScratchReconcile(h.input)).rejects.toThrow(/(?:ambiguous|more than one).*(?:retry|repeat)/iu);
   expect(await readFile(join(h.path, "idea"), "utf8")).toBe("Still wanted");
 });
 
-it("withholds incomplete terminal discovery and retries after inventory repair", async () => {
+it("withholds unavailable terminal lookup and retries after authority repair", async () => {
   const h = await fixture(); let incomplete = true;
   const store = Object.create(h.store) as Store;
-  store.list = async input => {
-    const result = await h.store.list(input);
-    return incomplete && input.kind === "lineage/transition" && result.status === "ok" && result.result.status === "complete"
-      ? { status: "ok", result: { ...result.result, missed: true } } : result;
-  };
+  store.lookup = async input => incomplete && input.kind === "lineage" ? { status: "refused", refusal: {
+    code: "namespace-corrupt", class: "terminal", namespace: "lineage", condition: "Terminal lookup is incomplete.",
+    remedy: { text: "Restore terminal lookup and retry reconciliation." },
+  } } : h.store.lookup(input);
   const input = { ...h.input, store };
   await expect(applyScratchReconcile(input)).rejects.toThrow(/incomplete.*retry/iu);
   expect(await readFile(join(h.path, "idea"), "utf8")).toBe("Still wanted");

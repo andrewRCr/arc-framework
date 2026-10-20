@@ -1,6 +1,11 @@
 /** Source-authoritative orchestration for `arc review respond`. */
 import { ReviewFixTagsSchema, ReviewReportInputSchema } from "../core/review-report-inputs.js";
-import { readApprovedResponseReport, readResponsePassAssessment, readProposedResponseReport } from "./response-report.js";
+import {
+  readApprovedResponseReport,
+  readResponsePassAssessment,
+  readProposedResponseReport,
+  type ResponseApprovalRelease,
+} from "./response-report.js";
 
 import { z } from "zod";
 import { type ProvisionalStandardPassFacts } from "./provisional-pass-assessment.js";
@@ -108,6 +113,7 @@ import {
   type ReviewResolveEnvelope,
 } from "../policy/review-policy-driver.js";
 import type { LanePolicyConfig } from "../policy/lane-policy-config.js";
+import type { CommitInterlock, PushInterlock } from "../../../lib/config/resolved-settings.js";
 
 const AuthorDispositionFieldsSchema = z.strictObject({
   findingId: ReviewFindingIdentitySchema,
@@ -374,6 +380,8 @@ export interface RespondCommandDependencies {
   ): Promise<ReviewResolveEnvelope>;
   /** Read the lane's effective current config without resolving or spending review policy. */
   readConfiguredLanePolicy(lane: "frontline" | "standard"): Promise<LanePolicyConfig>;
+  /** Read the commit and push interlocks that decide what a disposition approval releases. */
+  readReleaseInterlocks(): Promise<{ commit: CommitInterlock; push: PushInterlock }>;
   /** Read the result's own lane and predict incremental eligibility before any proposed fix is performed. */
   readProvisionalPassFacts(input: {
     result: ReviewResult; proposal: ProposedDispositionSet;
@@ -770,7 +778,7 @@ async function resolveHostedSource(
 
 function projectHostedSettlementPlan(
   source: ResolvedResponseSource,
-  dispositions: ApprovedDispositionSet,
+  dispositions: Pick<ApprovedDispositionSet, "dispositionSet">,
   carriedFindingIds: readonly string[] = [],
 ) {
   if (source.hostedAttempt === undefined) return undefined;
@@ -1741,6 +1749,35 @@ async function withdrawConditionalResponseAuthority(
     });
 }
 
+/**
+ * What approving the proposal releases: commit and push under the configured interlocks, except a delivery member's
+ * correction, which its driver publishes; and the hosted threads it settles, unknown under supersession until the
+ * approved set advances it.
+ */
+async function proposedApprovalRelease(
+  source: ResolvedResponseSource,
+  proposal: ProposedDispositionSet,
+  supersession: z.infer<typeof RespondSupersessionSchema> | undefined,
+  dependencies: RespondCommandDependencies,
+): Promise<ResponseApprovalRelease> {
+  const deliveryMember = source.responseBinding?.deliveryMember ?? source.hostedAttempt?.vehicle
+    ?? source.deliveryAdmission?.vehicle;
+  const interlocks = deliveryMember === undefined
+    ? await dependencies.readReleaseInterlocks()
+    : { commit: "on-workflow", push: "on-workflow" } as const;
+  const commit = interlocks.commit !== "manual";
+  const plan = source.hostedAttempt === undefined || source.hostedAttempt.settled
+    ? undefined
+    : projectHostedSettlementPlan(source, proposal);
+  return {
+    commit,
+    push: commit && interlocks.push === "on-workflow",
+    threads: supersession !== undefined && source.hostedAttempt !== undefined ? null : {
+      beforeFix: plan?.beforeFixFindingIds.length ?? 0,
+      afterFix: plan?.afterFixFindingIds.length ?? 0,
+    },
+  };
+}
 
 async function prepareResponseProposal(
   request: z.infer<typeof RespondProposalRequestSchema>,
@@ -1798,8 +1835,9 @@ async function prepareResponseProposal(
     }
     const proposal = prepareDispositionProposal(request, source);
     const { assessment: provisionalPassAssessment, standardFacts } = await readResponsePassAssessment(source.result, proposal, dependencies);
-    const report = await readProposedResponseReport({ proposal, producerFindings: source.findings, assessment: provisionalPassAssessment,
-      report: request.report, hosted: source.result.kind === "hosted", standardFacts,
+    const release = await proposedApprovalRelease(source, proposal, supersession, dependencies);
+    const report = await readProposedResponseReport({ proposal, release, producerFindings: source.findings,
+      assessment: provisionalPassAssessment, report: request.report, standardFacts,
       readRecord: dependencies.dispositionStore.readDispositionRecord.bind(dependencies.dispositionStore) });
     return RespondEnvelopeSchema.parse({
       schemaVersion: 1,

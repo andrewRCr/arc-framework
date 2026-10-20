@@ -257,8 +257,8 @@ describe("trusted review-gate workflows", () => {
     expect(productionRegistry).toContain("registerDecomposeSchemas");
     const compactRegistry = productionRegistry.replace(/\s+/gu, " ");
     expect(compactRegistry).toContain(
-      "registerCheckDeclarationSchemas(registerSchemaCommandSchemas(registerDecomposeSchemas(registerSessionEnvelopeSchemas(registerDeliveryAuthoringSchemas( "
-      + "registerDeliveryDomainSchemas(registerReviewDomainSchemas(createKernelRegistry())), )))));",
+      "registerCheckDeclarationSchemas(registerSchemaCommandSchemas(registerCutMapSchemas(registerDecomposeSchemas(registerSessionEnvelopeSchemas(registerDeliveryAuthoringSchemas( "
+      + "registerDeliveryDomainSchemas(registerReviewDomainSchemas(createKernelRegistry())), ))))));",
     );
     expect(tsup).not.toMatch(/entry:[^\n]*review-gate/u);
     expect(manifest.files).not.toContain("src");

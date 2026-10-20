@@ -17,7 +17,7 @@ describe("registered Errand check", () => {
     const before = ruleView([holder, dependent], new Map([["slug:former", { status: "ok", result: { reference: holder.reference } }]]));
     const check = createKindRegistry(PRODUCTION_REGISTRATIONS)["work-item/record"].check;
     const broken = await check?.({ reference: next.reference, next: { content: "", fields: {} },
-      writer: { kind: "verb", verb: "create" }, before, after: ruleView([next, dependent]) }) ?? [];
+      observations: [], writer: { kind: "verb", verb: "create" }, before, after: ruleView([next, dependent]) }) ?? [];
     expect(broken.map(({ rule }) => rule).sort()).toEqual(["work-item.former-slug", "work-item.slug-edges"]);
   });
   it("admits a creation taking an unused name and installs no replacement codec", async () => {
@@ -25,6 +25,6 @@ describe("registered Errand check", () => {
     const kind = createKindRegistry(PRODUCTION_REGISTRATIONS)["work-item/record"];
     expect(kind.parser).toBeNull();
     expect(await kind.check?.({ reference: next.reference, next: { content: "", fields: {} },
-      writer: { kind: "verb", verb: "create" }, before: ruleView(), after: ruleView([next]) })).toEqual([]);
+      observations: [], writer: { kind: "verb", verb: "create" }, before: ruleView(), after: ruleView([next]) })).toEqual([]);
   });
 });

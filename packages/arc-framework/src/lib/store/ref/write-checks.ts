@@ -1,6 +1,6 @@
 /** Run registered admission checks against final prepared record bytes. */
 
-import type { BatchInput } from "../write.js";
+import type { BatchInput, RecordObservation } from "../write.js";
 import type { RecordReference } from "../identity.js";
 import type { StoreRefusal, StoreResult } from "../refusal.js";
 import { composeWriteCheckRefusal, deriveWriteCheckWriter, type BrokenRule } from "../write-check.js";
@@ -9,16 +9,20 @@ import type { PreparedRefMutation } from "./write-merge.js";
 import type { RefWriteGroup } from "./write-commits.js";
 import { readBatchObjects, type BatchObject } from "./batch-read.js";
 import { createRefWriteViews } from "./write-views.js";
+import { checkRefObservations } from "./write-observations.js";
 
 /** Check every caller mutation in order, retaining the original and final bytes. */
 export async function checkRefWrites(context: RefBackendContext, writes: readonly PreparedRefMutation[],
-  groups: ReadonlyMap<string, RefWriteGroup>, tips: ReadonlyMap<string, string>, provenance: BatchInput["provenance"]): Promise<StoreRefusal | undefined> {
+  groups: ReadonlyMap<string, RefWriteGroup>, tips: ReadonlyMap<string, string>, provenance: BatchInput["provenance"],
+  observations: readonly RecordObservation[] = []): Promise<StoreRefusal | undefined> {
+  const { before, after } = createRefWriteViews(context, tips, groups);
+  const observed = await checkRefObservations(context, before, observations);
+  if (observed) return observed;
   const units = checkUnits(writes).filter(({ reference }) => context.registry[reference.kind].check !== null);
   if (units.length === 0) return undefined;
   const queries = units.flatMap(({ ref, priorPath, nextPath }) => [priorPath ? groups.get(ref)?.original.get(priorPath)?.oid : undefined,
     nextPath ? groups.get(ref)?.entries.get(nextPath)?.oid : undefined].filter((oid): oid is string => oid !== undefined));
   const objects = await readBatchObjects(context, [...new Set(queries)]);
-  const { before, after } = createRefWriteViews(context, tips, groups);
   const results: { reference: RecordReference; rules: readonly BrokenRule[] }[] = [];
   for (const { reference, ref, priorPath, nextPath } of units) {
     const group = groups.get(ref);
@@ -30,7 +34,7 @@ export async function checkRefWrites(context: RefBackendContext, writes: readonl
     const prior = priorSide.result, next = nextSide.result;
     const check = context.registry[reference.kind].check;
     if (!check) continue;
-    results.push({ reference, rules: await check({ reference, before, after,
+    results.push({ reference, rules: await check({ reference, before, after, observations,
       writer: deriveWriteCheckWriter(provenance), ...(prior ? { prior } : {}),
       ...(next ? { next: { content: next.content, fields: next.fields } } : {}) }) });
   }

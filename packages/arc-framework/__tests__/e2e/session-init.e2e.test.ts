@@ -1151,13 +1151,21 @@ describe("session-init E2E — sessionType across type variants", () => {
     });
   });
 
-  it("rejects --recover combined with session-init mode", async () => {
-    const result = await runArc(["status", "--recover", "--session-init", "--json"], tmpDir);
-    expect(result.exitCode).not.toBe(0);
-    expect(result.stdout + result.stderr).toContain(
-      "--session-init, --session-handoff, --recover, --user, --project, and --conflicts are mutually exclusive",
-    );
-  });
+  it.each([
+    ["--session-init", "--session-handoff"],
+    ["--user", "--session-init"],
+    ["--recover", "--session-init"],
+    ["--write-compaction-seed", "--session-handoff"],
+  ].flatMap(flags => [flags, [...flags].reverse()]).map(flags => ({ flags })))(
+    "rejects incompatible status options before handler dispatch: $flags",
+    async ({ flags }) => {
+      const result = await runArc(["status", ...flags, "--json"], tmpDir);
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain("cannot be used with option");
+      for (const flag of flags) expect(result.stderr).toContain(flag);
+    },
+  );
 
   it("emits sessionType=null when resolution=none + branch does not match plan-pattern (orphan)", async () => {
     // Default branch from `git init` does not match `plan/<name>` —

@@ -27,7 +27,15 @@ export async function historyRefRecord(context: RefBackendContext, input: { refe
   if (key) return { status: "refused", refusal: key };
   context = await readRefRepository(context);
   const tips = await readRefTips(context, { includeHistory: true });
-  const resolved = await resolveReadReference(context, input.reference, tips);
+  return readCapturedRefHistory(context, input.reference, tips);
+}
+
+/** Resolve record history solely against the caller's immutable namespace capture. */
+export async function readCapturedRefHistory(context: RefBackendContext, requested: RecordReference,
+  tips: ReadonlyMap<string, string>): Promise<StoreResult<HistoryEntry[]>> {
+  const key = checkRefKey(requested, context.registry, false);
+  if (key) return { status: "refused", refusal: key };
+  const resolved = await resolveReadReference(context, requested, tips);
   if (resolved.status === "refused") return resolved;
   let reference = resolved.result;
   if (reference.owner.type === "project") {

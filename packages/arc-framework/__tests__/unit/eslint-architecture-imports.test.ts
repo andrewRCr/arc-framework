@@ -94,6 +94,15 @@ describe("raw state helper ratchet", () => {
     expect(violations("handlers/outside.ts",
       'import { parseLineageRecord, writeLineageRecord } from "../lib/store/kinds/lineage/index.js";', "store-raw-state")).toEqual([]);
   });
+  it("keeps cut-map registration behind the store while exposing its pure codec", () => {
+    expect(violations("handlers/outside.ts",
+      'import { CUT_MAP_REGISTRATION } from "../lib/store/kinds/cut-map/registration.js";', "store-raw-state"))
+      .toEqual(["raw state helper lib/store/kinds/cut-map/registration.ts outside the store"]);
+    expect(violations("lib/store/kinds/registrations.ts",
+      'import { CUT_MAP_REGISTRATION } from "./cut-map/registration.js";', "store-raw-state")).toEqual([]);
+    expect(violations("handlers/outside.ts",
+      'import { decodeCutMapContent, writeCutMapRecord } from "../lib/store/kinds/cut-map/index.js";', "store-raw-state")).toEqual([]);
+  });
   it.each([
     ["handlers/outside.ts", 'import { PRODUCTION_REGISTRATIONS } from "../lib/store/kinds/registrations.js";', "lib/store/kinds/registrations.ts"],
     ["handlers/outside.ts", 'import { META_REGISTRATION } from "../lib/store/kinds/meta/registration.js";', "lib/store/kinds/meta/registration.ts"],
@@ -223,6 +232,15 @@ describe("work-unit path ratchet", () => {
   });
 });
 
+
+describe("pure table merge dependencies", () => {
+  it.each(["mdast-util-from-markdown","mdast-util-gfm-table","micromark-extension-gfm-table","../../markdown/display-width.js"])(
+    "allows %s only at the table padding boundary", (specifier) => {
+      const text = `import value from ${JSON.stringify(specifier)};`;
+      expect(violations("lib/store/concurrency/table-padding.ts",text,"store-concurrency")).toEqual([]);
+      expect(violations("lib/store/concurrency/line-merge.ts",text,"store-concurrency")).toContain(`forbidden module reference ${specifier}`);
+    });
+});
 
 describe("aliased Node loader module references", () => {
   const targets = [

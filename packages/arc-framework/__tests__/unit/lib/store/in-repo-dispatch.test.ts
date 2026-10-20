@@ -38,3 +38,19 @@ describe("repository store registry dispatch", () => {
     await expect(store.read({ reference })).rejects.toMatchObject({ cause: original });
   });
 });
+
+it("explicitly refuses nonempty read observations before dispatch and preserves empty requests", async () => {
+  const store = createStore(testStorePorts("/unavailable", unavailable, unavailable));
+  const fixture = createReferenceFixture();
+  const input = { writes: [{ action: "put" as const, reference: fixture.reference("work-item/cut-map"),
+    expected: null, content: "unhomed" }], provenance,
+  observations: [{ reference: fixture.reference("personal/document"), expected: null }] };
+  expect(await store.batch(input)).toMatchObject({ status: "refused", refusal: {
+    code: "unsupported", class: "terminal", case: "batch-observations", remedy: { text: expect.any(String) },
+  } });
+  for (const observations of [undefined, []]) {
+    expect(await store.batch({ ...input, observations })).toMatchObject({ status: "refused", refusal: {
+      code: "unsupported", case: "unhomed-kind",
+    } });
+  }
+});

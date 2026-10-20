@@ -474,8 +474,9 @@ pre-save checklist and bundles the commit.
       segment's opening phase, `_Exit criterion:_` on its closing phase, then any `_Design decisions:_` links to
       `notes-{name}.md`. A single-phase segment carries both structural lines with `_Mode:_` first; every preamble
       entry has a blank line after it; soft cap ~12 lines per preamble.
-- [ ] Segmentation diagnostics are clean for the saved task-list corpus. Run `npm run -s lint:md:descriptors`
-      before the interlock; it scans tracked and untracked task lists and emits the structural diagnostic family.
+- [ ] Segmentation is valid across the saved task-list corpus, including tracked and untracked files. Before the
+      interlock, run the project's task-list validator when configured; otherwise verify the segment structure
+      against [strategy-task-list-formatting § Segments and Verification Boundaries][task-list-formatting].
 - [ ] Parent tasks are H3 headings with backtick-wrapped marker — see [strategy-task-list-formatting § Parent
       Tasks][task-list-formatting] for the canonical form
 - [ ] Subtasks use letter numbering with backtick-wrapped markers (matching parent task heading

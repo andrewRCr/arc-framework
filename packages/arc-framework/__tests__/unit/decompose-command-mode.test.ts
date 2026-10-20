@@ -18,6 +18,13 @@ describe("DecomposeCommandInputSchema", () => {
   it.each([
     { origin, execute: "map.json" },
     { origin, extract: "map.json" },
+    { origin, finish: true },
+    { origin, finish: true, apply: authority },
+    { origin, revise: true },
+    { origin, revise: "map.json" },
+    { origin, revise: "map.json", apply: authority },
+    { origin, discard: true },
+    { origin, discard: true, apply: authority },
     { origin, finish: "map.json" },
     { origin, finish: "map.json", apply: authority },
     { origin, advanceBase: "map.json" },
@@ -26,6 +33,13 @@ describe("DecomposeCommandInputSchema", () => {
   });
 
   it.each([
+    { origin, revise: true, apply: authority },
+    { origin, preflight: true, apply: authority },
+    { origin, execute: "map.json", apply: authority },
+    { origin, extract: "map.json", apply: authority },
+    { origin, advanceBase: "map.json", apply: authority },
+    { origin, revise: false },
+    { origin, discard: false },
     { origin },
     { origin, preflight: true, advanceBase: "map.json" },
     { origin, execute: "map.json", extract: "map.json" },
@@ -51,12 +65,25 @@ describe("DecomposeCommandInputSchema", () => {
     assertSchemaRefuses(DecomposeCommandInputSchema, input);
   });
 
+  const forms = [{ preflight: true }, { execute: "map.json" }, { extract: "map.json" }, { finish: true },
+    { revise: true }, { revise: "map.json" }, { discard: true }, { advanceBase: "map.json" }];
+  it.each(forms.flatMap((left, i) => forms.slice(i + 1).filter(right => Object.keys(left)[0] !== Object.keys(right)[0])
+    .map(right => ({ origin, ...left, ...right }))))("refuses every mixed mode: %o", input => {
+    assertSchemaRefuses(DecomposeCommandInputSchema, input);
+  });
+  it.each([{ finish: true }, { revise: true }, { revise: "map.json" }, { discard: true }])(
+    "keeps new optional-value and boolean forms machine-readable: %o", options => {
+      expect(isDecomposeMachineReadableInvocation(options)).toBe(true);
+    });
+
   it("derives exclusivity and machine-readable routing from one mode declaration", () => {
     expect(DECOMPOSE_MODE_KEYS).toEqual([
       "preflight",
       "execute",
       "extract",
       "finish",
+      "revise",
+      "discard",
       "advanceBase",
     ]);
     expect(DECOMPOSE_MACHINE_READABLE_KEYS).toEqual([...DECOMPOSE_MODE_KEYS, "apply"]);

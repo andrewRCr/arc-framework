@@ -4,17 +4,22 @@ import { Buffer } from "node:buffer";
 import { join, posix } from "node:path";
 
 import { ArcError, validateManagedPath, type ManagedPath } from "../kernel/index.js";
-import type { ReadIndexedBlob } from "./indexed-snapshot.js";
+import type { ReadIndexedBlob, ReadIndexedBlobs } from "./indexed-snapshot.js";
 import { MARKDOWN_RUNTIME_IMPLEMENTATION_PATHS } from "./staged-gate.js";
 
+// A leading quote starts a side-effect import; binding names may contain quotes.
 const STATIC_MODULE_SPECIFIER_RE =
-  /^\s*(?:import|export)\s+(?:type\s+)?(?:[^;]*?\s+from\s+)?["'](?<specifier>[^"']+)["']/gmu;
+  /^\s*(?<declaration>(?:import|export)\s+(?:(?!["'])[^;]*?\s+from\s+)?)["'](?<specifier>[^"']+)["']/gmu;
 const DYNAMIC_MODULE_SPECIFIER_RE = /\bimport\s*\(\s*["'](?<specifier>[^"']+)["']\s*\)/gu;
+// `type` can be a value binding; discard only explicit erased declaration forms.
+const TYPE_ONLY_DECLARATION_RE =
+  /^(?:import|export)\s+type\s+(?:\{|\*|[$_\p{ID_Start}][$_\u200c\u200d\p{ID_Continue}]*\s+from\b)/u;
 
 /** Inputs for proving the executing checker matches its indexed candidate. */
 export interface AssertIndexedMarkdownCheckerAlignmentOptions {
   readonly root: string;
   readonly readBlob: ReadIndexedBlob;
+  readonly readBlobs?: ReadIndexedBlobs;
   readonly readFile: (path: string) => Promise<Uint8Array>;
   readonly runtimePaths?: readonly string[];
 }
@@ -23,6 +28,7 @@ export interface AssertIndexedMarkdownCheckerAlignmentOptions {
 export interface ResolveIndexedMarkdownCheckerPathsOptions {
   readonly root: string;
   readonly readBlob: ReadIndexedBlob;
+  readonly readBlobs?: ReadIndexedBlobs;
   readonly entryPaths?: readonly string[];
 }
 
@@ -41,6 +47,8 @@ function importedSpecifiers(source: string): readonly string[] {
   for (const pattern of [STATIC_MODULE_SPECIFIER_RE, DYNAMIC_MODULE_SPECIFIER_RE]) {
     pattern.lastIndex = 0;
     for (const match of source.matchAll(pattern)) {
+      const declaration = match.groups?.declaration;
+      if (declaration !== undefined && TYPE_ONLY_DECLARATION_RE.test(declaration)) continue;
       const specifier = match.groups?.specifier;
       if (specifier?.startsWith(".") === true) found.push(specifier);
     }
@@ -62,27 +70,34 @@ function resolveSourceImport(importer: ManagedPath, specifier: string): ManagedP
   return validateManagedPath(source);
 }
 
-/** Resolve the complete relative TypeScript dependency closure from indexed checker sources. */
+function indexedDependencies(path: ManagedPath, bytes: Uint8Array | null): readonly ManagedPath[] {
+  if (bytes === null) {
+    throw new ArcError(`Indexed Markdown checker is missing: ${path}`, "markdown.checker-misaligned");
+  }
+  return importedSpecifiers(decodeSource(path, bytes)).map(specifier => resolveSourceImport(path, specifier));
+}
+
+/** Conservatively resolve every relative runtime dependency from indexed checker sources. */
 export async function resolveIndexedMarkdownCheckerPaths(
   options: ResolveIndexedMarkdownCheckerPathsOptions,
 ): Promise<readonly ManagedPath[]> {
   const entries = (options.entryPaths ?? MARKDOWN_RUNTIME_IMPLEMENTATION_PATHS).map(validateManagedPath);
   const discovered = new Set<ManagedPath>(entries);
   const queue = [...entries];
-
-  for (let index = 0; index < queue.length; index += 1) {
-    const path = queue[index];
-    if (path === undefined) continue;
-    const indexed = await options.readBlob(options.root, path);
-    if (indexed === null) {
-      throw new ArcError(`Indexed Markdown checker is missing: ${path}`, "markdown.checker-misaligned");
+  let frontier = entries;
+  while (frontier.length > 0) {
+    const blobs = options.readBlobs === undefined ? undefined : await options.readBlobs(options.root, frontier);
+    const next: ManagedPath[] = [];
+    for (const path of frontier) {
+      const indexed = blobs === undefined ? await options.readBlob(options.root, path) : blobs.get(path) ?? null;
+      for (const dependency of indexedDependencies(path, indexed)) {
+        if (discovered.has(dependency)) continue;
+        discovered.add(dependency);
+        next.push(dependency);
+      }
     }
-    for (const specifier of importedSpecifiers(decodeSource(path, indexed))) {
-      const dependency = resolveSourceImport(path, specifier);
-      if (discovered.has(dependency)) continue;
-      discovered.add(dependency);
-      queue.push(dependency);
-    }
+    queue.push(...next);
+    frontier = next;
   }
   return queue;
 }
@@ -91,10 +106,10 @@ export async function resolveIndexedMarkdownCheckerPaths(
 export async function assertIndexedMarkdownCheckerAlignment(
   options: AssertIndexedMarkdownCheckerAlignmentOptions,
 ): Promise<void> {
-  const runtimePaths = options.runtimePaths ?? await resolveIndexedMarkdownCheckerPaths(options);
-  for (const rawPath of runtimePaths) {
-    const path = validateManagedPath(rawPath);
-    const indexed = await options.readBlob(options.root, path);
+  const runtimePaths = (options.runtimePaths ?? await resolveIndexedMarkdownCheckerPaths(options)).map(validateManagedPath);
+  const blobs = options.readBlobs === undefined ? undefined : await options.readBlobs(options.root, runtimePaths);
+  for (const path of runtimePaths) {
+    const indexed = blobs === undefined ? await options.readBlob(options.root, path) : blobs.get(path) ?? null;
     if (indexed === null) {
       throw new ArcError(`Indexed Markdown checker is missing: ${path}`, "markdown.checker-misaligned");
     }

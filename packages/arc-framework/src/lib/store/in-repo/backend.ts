@@ -46,6 +46,9 @@ async function dispatchedWrite(context: InRepoContext, input: WriteInput): Promi
   return writeTracked(context, input);
 }
 async function dispatchedBatch(context: InRepoContext, input: BatchInput): Promise<BatchResult> {
+  if ((input.observations?.length ?? 0) > 0) return unsupported("batch-observations",
+    "The interim backend cannot admit read observations atomically with a batch",
+    "Use a backend serving atomic batch observations; keep using the existing verb before the storage cutover.");
   const homes = new Set(input.writes.map((write) => context.registry[write.reference.kind].inRepo.substrate));
   if (homes.has("none")) return unsupported("unhomed-kind", "A requested kind has no home before the flip", "Keep using the existing verb for this record until it is rerouted.");
   if (homes.size > 1) return unsupported("cross-substrate-batch", "This batch spans the interim substrates",

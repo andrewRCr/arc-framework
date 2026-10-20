@@ -8,7 +8,7 @@ import type {
 import { currentStateVersion, type MemoryState } from "./model.js";
 import { missingRecord, namespaceAdmission, ok, refused } from "./refusals.js";
 import { createReferenceContext, type ReferenceBackendOptions, type ReferenceContext, type ReferenceEnvironment } from "./context.js";
-import { changesReference, historyReference, listReference, readReference } from "./read.js";
+import { changesReference, historyReference, listReference, readReference, checkedMemoryHistory } from "./read.js";
 import { batchReference, writeReference } from "./write.js";
 import { lookupReference } from "./lookup.js";
 import { pullReference, pushReference } from "./sync.js";
@@ -62,7 +62,7 @@ export class ReferenceBackend implements Store {
       ?? (input.reference.owner.type === "person" && this.environment.identity === undefined ? missingRecord(input.reference, this.environment.identity) : undefined);
     if (refusal) return refused(refusal);
     const history = historyReference(this.context, input.reference);
-    return history.length === 0 ? refused(missingRecord(input.reference, this.environment.identity)) : ok(history);
+    return history.length === 0 ? refused(missingRecord(input.reference, this.environment.identity)) : checkedMemoryHistory(history, this.state.events);
   }
 
   /** Return every scoped landed mutation strictly after from and through to. */
@@ -70,7 +70,9 @@ export class ReferenceBackend implements Store {
     const namespace = namespaceAdmission(this.state);
     if (namespace) return refused(namespace);
     const missingIdentity = input.references?.find((reference) => reference.owner.type === "person" && this.environment.identity === undefined);
-    return missingIdentity ? refused(missingRecord(missingIdentity, this.environment.identity)) : changesReference(this.context, input);
+    if (missingIdentity) return refused(missingRecord(missingIdentity, this.environment.identity));
+    const changes = changesReference(this.context, input);
+    return changes.status === "refused" ? changes : checkedMemoryHistory(changes.result, this.state.events);
   }
 
   /** Resolve names, origins, logical claims and repository-qualified code links. */

@@ -4,15 +4,16 @@ import { readFile, realpath } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 import { formatUnexpectedError } from "../lib/errors.js";
-import { gitExec, readGitBlobBytes } from "../lib/io-context.js";
+import { gitExec } from "../lib/io-context.js";
 import type { GitExec } from "../lib/git/index.js";
 import { ArcError } from "../lib/kernel/index.js";
+import { createIndexedMarkdownReader } from "../lib/markdown/indexed-reader.js";
 import {
   assertIndexedMarkdownCheckerAlignment,
   resolveIndexedMarkdownCheckerPaths,
-  resolveMarkdownRepositoryRoot,
-  runIndexedMarkdownCertification,
-} from "../lib/markdown/index.js";
+} from "../lib/markdown/checker-alignment.js";
+import { resolveMarkdownRepositoryRoot } from "../lib/markdown/selection.js";
+import { runIndexedMarkdownCertification } from "../lib/markdown/indexed-lint.js";
 
 /** Certify the complete current Git index and render stable repository-relative findings. */
 export async function main(cwd: string = process.cwd()): Promise<number> {
@@ -20,10 +21,9 @@ export async function main(cwd: string = process.cwd()): Promise<number> {
     const indexFile = process.env.GIT_INDEX_FILE;
     const indexedExec: GitExec = (command, args, options) => gitExec(command, args, { ...options, indexFile });
     const root = await resolveMarkdownRepositoryRoot({ cwd, exec: indexedExec, realpath });
-    const readBlob = (repoRoot: string, path: string): Promise<Uint8Array | null> =>
-      readGitBlobBytes(repoRoot, null, path, { indexFile });
-    const runtimePaths = await resolveIndexedMarkdownCheckerPaths({ root, readBlob });
-    await assertIndexedMarkdownCheckerAlignment({ root, readBlob, readFile, runtimePaths });
+    const { readBlob, readBlobs } = createIndexedMarkdownReader(indexFile);
+    const runtimePaths = await resolveIndexedMarkdownCheckerPaths({ root, readBlob, readBlobs });
+    await assertIndexedMarkdownCheckerAlignment({ root, readBlob, readBlobs, readFile, runtimePaths });
     const [{ lint }, { markdownRuntimeVersions }] = await Promise.all([
       import("markdownlint/promise"),
       import("./verify-markdown-dependencies.js"),

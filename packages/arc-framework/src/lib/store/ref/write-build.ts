@@ -4,7 +4,7 @@ import { readObjectFormat } from "./manifest.js";
 import { commitRefStep } from "./commit-step.js";
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 import { updateRefTransaction } from "../../git/ref-transaction.js";
-import type { BatchInput, BatchResult, WriteResult } from "../write.js";
+import type { BatchInput, BatchResult, WriteResult, RecordObservation } from "../write.js";
 import type { StoreResult, StoreRefusal } from "../refusal.js";
 import { readBatchObjects, readRefTrees, type RefTreeEntry } from "./batch-read.js";
 import { metadataFailure, parseRefMetadata, type RefMetadata } from "./metadata.js";
@@ -38,7 +38,7 @@ type RefGroup = RefWriteGroup;
 
 /** Land prepared mutations over one captured namespace using expected old ref values. */
 export async function commitRefWrites(context: RefBackendContext, resolved: ResolvedBatch,
-  provenance: BatchInput["provenance"], batchId: string): Promise<StoreResult<BatchResult> | "retry" | "resolve" | "layout-changed"> {
+  provenance: BatchInput["provenance"], batchId: string, observations: readonly RecordObservation[] = []): Promise<StoreResult<BatchResult> | "retry" | "resolve" | "layout-changed"> {
   const project = await bindLockedProjects(context, resolved);
   if (project.status === "refused") return project;
   resolved = project.result;
@@ -69,7 +69,7 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
   const completed = await prepareRefConflicts(context, prepared.result, groups, results);
   const step = await commitRefStep(context, async (physical): Promise<StoreResult<BatchResult> | "retry"> => {
     if (await refAdmissionBasisChanged(physical, tips)) return "retry";
-    const broken = await checkRefWrites(physical, prepared.result, completed, tips, provenance);
+    const broken = await checkRefWrites(physical, prepared.result, completed, tips, provenance, observations);
     if (broken) return { status: "refused", refusal: broken };
     sweepRefRetirements(retirements.result, groups, completed);
     const committed = await prepareRefCommits(physical, prepared.result, refWriteTargets(context, resolved), groups, completed, tips, provenance, batchId);

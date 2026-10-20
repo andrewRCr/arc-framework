@@ -16,6 +16,7 @@ import { readLifecycleView } from "../../../src/lib/store/lifecycle-view.js";
 import { selectStandingLifecycleEntries } from "../../../src/lib/status/store-project-standing.js";
 import { readStoreProjectRecords } from "../../../src/lib/status/store-project-records.js";
 import { resolveStoreProjectDependencies } from "../../../src/lib/status/store-project-dependencies.js";
+import { importRetiredAlias } from "../../helpers/store/terminal-alias-harness.js";
 import { composeProjectReadinessViewResult } from "../../../src/lib/status/project-view.js";
 import { runStoreRename } from "../../../src/lib/work-unit/verbs/rename-store.js";
 
@@ -366,18 +367,7 @@ it("keeps a clashed slug unsatisfied with the lookup's ambiguous-match repair", 
 
 it("refuses to choose between authenticated terminal holders of the same former name", async () => {
   const h = await retiredOriginFixture("abandoned", true);
-  const second = await h.seedMeta("former-origin");
-  const renamed = RecordReferenceSchema.parse({ ...second.reference, owner: { ...second.reference.owner, name: "second-origin" } });
-  lifecycleSuccess(await h.store.write({ action: "put", reference: renamed, expected: second.version,
-    content: second.content.replaceAll("former-origin", "second-origin"), placement: { kind: "active" },
-    provenance: { verb: "rename", lifecycleAction: "rename" } }));
-  const current = lifecycleSuccess(await h.store.read({ reference: renamed }));
-  lifecycleSuccess(await batchLifecycleWrites(h.store, [
-    { action: "remove", reference: current.reference, expected: current.version },
-    { action: "put", reference: recordReferences["lineage/transition"](current.reference.owner), expected: null,
-      content: writeLineageRecord({ schemaVersion: 2, origin: { name: SlugSchema.parse("second-origin") }, kind: "abandon",
-        successors: [], incoming: [], retiredBranches: [] }) },
-  ], { verb: "abandon", lifecycleAction: "abandon" }));
+  await importRetiredAlias(h.store, "former-origin", "second-origin");
 
   const result = await project(h.store);
   expect(result.warnings).toHaveLength(1);

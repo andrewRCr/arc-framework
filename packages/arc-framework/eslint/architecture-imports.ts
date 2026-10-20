@@ -53,6 +53,7 @@ const RAW_STATE_MODULES = [
   "lib/store/kinds/task-list/registration.ts",
   "lib/store/kinds/design/registration.ts",
   "lib/store/kinds/cohort/registration.ts",
+  "lib/store/kinds/cut-map/registration.ts",
   "lib/store/kinds/meta/line-reading.ts",
   "lib/active/meta-reader.ts",
   "lib/work-unit/lifecycle-index.ts",
@@ -549,7 +550,9 @@ function additionalDependencyViolations(
         forbidden = specifier.includes("layout/") && !specifier.includes("lib/layout/index.js");
       } else if (predicate === "store-concurrency") {
         const target = resolve(dirname(filename), specifier);
-        forbidden = specifier !== "node-diff3" && (!specifier.startsWith(".") ||
+        const tableDependency = filename === join(concurrencyRoot,"table-padding.ts") &&
+          ["mdast-util-from-markdown","mdast-util-gfm-table","micromark-extension-gfm-table","../../markdown/display-width.js"].includes(specifier);
+        forbidden = !tableDependency && specifier !== "node-diff3" && (!specifier.startsWith(".") ||
           !(target.startsWith(concurrencyRoot + sep) || target.startsWith(join(sourceRoot, "lib/kernel") + sep)
             || dirname(target) === join(sourceRoot, "lib/store")));
       } else if (predicate === "store-reference") {

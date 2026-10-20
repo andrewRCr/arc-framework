@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { RecordReferenceSchema, RecordVersionSchema, StateVersionSchema, type RecordReference, type StateVersion } from "./identity.js";
 import { StoredProvenanceSchema } from "./links.js";
+import { BatchCreationReceiptSchema } from "./creation-receipt.js";
 import type { LookupInput, LookupResult } from "./lookup.js";
 import type { ListingOutcome, ListInput, ReadInput, StoreCapabilities, StoreRecord } from "./read.js";
 import type { StoreResult } from "./refusal.js";
@@ -14,8 +15,11 @@ export const HistoryInputSchema = z.strictObject({ reference: RecordReferenceSch
 /** Changes between saved states, optionally bound to named records. */
 export const ChangesInputSchema = z.strictObject({ from: StateVersionSchema, to: StateVersionSchema, references: z.array(RecordReferenceSchema).optional() });
 /** Exact landed record content and provenance; removals pair null version and content. */
-export const HistoryEntrySchema = z.strictObject({ reference: RecordReferenceSchema, version: RecordVersionSchema.nullable(), content:z.string().nullable(), provenance: StoredProvenanceSchema })
-  .refine((entry)=>(entry.version === null) === (entry.content === null),"Removal pairs null content with a null version");
+export const HistoryEntrySchema = z.strictObject({ reference: RecordReferenceSchema, version: RecordVersionSchema.nullable(), content:z.string().nullable(), provenance: StoredProvenanceSchema,
+  creationReceipt: BatchCreationReceiptSchema.optional() })
+  .refine((entry)=>(entry.version === null) === (entry.content === null),"Removal pairs null content with a null version")
+  .refine(entry => entry.creationReceipt === undefined || ("verb" in entry.provenance
+    && entry.provenance.batchId === entry.creationReceipt.batchId), "Creation receipt must match structured provenance batchId");
 /** One history or change entry. */
 export type HistoryEntry = z.infer<typeof HistoryEntrySchema>;
 /** A scoped state change query. */

@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, readlink, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,8 +12,10 @@ import { main } from "../../src/scripts/lint-markdown-underwrap.js";
 const git = promisify(execFile);
 const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
 const entryPaths = ["packages/arc-framework/src/scripts/lint-markdown-underwrap.ts"];
+const unrelatedImplementation = "packages/arc-framework/src/lib/store/read.ts";
 const good = `${"This well-wrapped prose explains the behavior in enough detail to reach the minimum width."}\nShort ending.\n`;
 const bad = "Short first line.\nThe next word would fit.\n";
+const repeatedIndexChecksTimeoutMs = 60_000;
 let sourcePaths: readonly string[];
 let root: string;
 let messages: string[];
@@ -32,8 +34,9 @@ beforeAll(async () => {
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), "arc-underwrap-"));
   await git("git", ["init", "-q", "--initial-branch=main"], { cwd: root });
-  await Promise.all([...sourcePaths, "package.json", "packages/arc-framework/package.json", "package-lock.json",
-    ".arc/system/arc-checks.yml"].map(async path => write(path, await readFile(join(repositoryRoot, path)))));
+  await Promise.all([...new Set([...sourcePaths, unrelatedImplementation, "package.json",
+    "packages/arc-framework/package.json", "package-lock.json", ".arc/system/arc-checks.yml"])]
+    .map(async path => write(path, await readFile(join(repositoryRoot, path)))));
   await write("guide.md", good);
   await write("untouched.md", bad);
   await git("git", ["add", "--all"], { cwd: root });
@@ -49,15 +52,136 @@ afterEach(async () => {
 });
 
 describe("changed indexed Markdown under-wrap check", () => {
-  it.each([true, false])("certifies index bytes when worktree content disagrees (badIndex=%s)", async badIndex => {
+  it("checks indexed docs amid unrelated implementation edits and preserves checker-byte refusal and recovery", async () => {
+    const implementation = `${await readFile(join(root, unrelatedImplementation), "utf8")}\n// Unstaged implementation.\n`;
+    await write(unrelatedImplementation, implementation);
+    await write("guide.md", `${good}\nA documentation capture.\n`);
+    await git("git", ["add", "guide.md"], { cwd: root });
+    const before = (await git("git", ["write-tree"], { cwd: root })).stdout;
+
+    expect(await main(root, [])).toBe(0);
+    expect(messages).toEqual([]);
+    expect((await git("git", ["write-tree"], { cwd: root })).stdout).toBe(before);
+
+    const checker = "packages/arc-framework/src/lib/kernel/canonical/unicode.ts";
+    await write(checker, `${await readFile(join(root, checker), "utf8")}\n// Unstaged checker.\n`);
+    expect(await main(root, [])).toBe(1);
+    expect(messages.join("")).toContain(`Indexed Markdown checker differs from executing worktree bytes: ${checker}`);
+    expect((await git("git", ["write-tree"], { cwd: root })).stdout).toBe(before);
+
+    await git("git", ["add", "--", checker], { cwd: root });
+    messages = [];
+    expect(await main(root, [])).toBe(0);
+    expect(messages).toEqual([]);
+    expect(await readFile(join(root, unrelatedImplementation), "utf8")).toBe(implementation);
+    expect((await git("git", ["diff", "--name-only"], { cwd: root })).stdout.trim()).toBe(unrelatedImplementation);
+  }, repeatedIndexChecksTimeoutMs);
+
+  it.each(["assume-unchanged", "skip-worktree"])("refuses explicit indexed paths hidden by %s and offers recovery", async flag => {
+    await git("git", ["update-index", `--${flag}`, "--", "untouched.md"], { cwd: root });
+    await git("git", ["update-index", `--${flag}`, "--", "guide.md"], { cwd: root });
+    const before = (await git("git", ["write-tree"], { cwd: root })).stdout;
+    const flags = (await git("git", ["ls-files", "-v", "-z"], { cwd: root })).stdout;
+
+    expect(await main(root, ["guide.md"])).toBe(1);
+    expect(messages.join("")).toContain("Markdown index flags hide worktree changes: guide.md");
+    expect(messages.join("")).toContain(flag);
+    expect(messages.join("")).toContain("--worktree");
+    await write("guide.md", bad);
+    messages = [];
+    expect(await main(root, ["guide.md"])).toBe(1);
+    expect(messages.join("")).toContain("Markdown index flags hide worktree changes: guide.md");
+    expect(messages.join("")).not.toContain("ARC001");
+    expect((await git("git", ["write-tree"], { cwd: root })).stdout).toBe(before);
+    expect((await git("git", ["ls-files", "-v", "-z"], { cwd: root })).stdout).toBe(flags);
+    expect(await readFile(join(root, "guide.md"), "utf8")).toBe(bad);
+
+    messages = [];
+    expect(await main(root, ["--worktree", "guide.md"])).toBe(1);
+    expect(messages.join("")).toContain("guide.md:1 ARC001");
+    expect((await git("git", ["ls-files", "-v", "-z"], { cwd: root })).stdout).toBe(flags);
+    await git("git", ["update-index", `--no-${flag}`, "--", "guide.md"], { cwd: root });
+    messages = [];
+    expect(await main(root, ["guide.md"])).toBe(1);
+    expect(messages.join("")).toContain("Markdown worktree/index drift: guide.md");
+    await git("git", ["add", "guide.md"], { cwd: root });
+    messages = [];
+    expect(await main(root, ["guide.md"])).toBe(1);
+    expect(messages.join("")).toContain("guide.md:1 ARC001");
+    await write("guide.md", good);
+    await git("git", ["add", "guide.md"], { cwd: root });
+    messages = [];
+    expect(await main(root, ["guide.md"])).toBe(0);
+    expect(messages).toEqual([]);
+  }, repeatedIndexChecksTimeoutMs);
+
+  it.each([true, false])("refuses explicit index feedback when worktree content disagrees (badIndex=%s)", async badIndex => {
     await write("guide.md", badIndex ? bad : good);
     await git("git", ["add", "guide.md"], { cwd: root });
     await write("guide.md", badIndex ? good : bad);
     const before = (await git("git", ["write-tree"], { cwd: root })).stdout;
-    expect(await main(root, ["guide.md"])).toBe(badIndex ? 1 : 0);
-    expect(messages.join("")).toBe(badIndex ? "guide.md:1 ARC001 Line is 17 columns; the next word fits within 120.\n" : "");
+    expect(await main(root, ["guide.md"])).toBe(1);
+    expect(messages.join("")).toContain("Markdown worktree/index drift: guide.md");
+    expect(messages.join("")).toContain("--worktree");
+    expect(messages.join("")).toContain("Re-stage");
+    expect(messages.join("")).not.toContain("ARC001");
     expect((await git("git", ["write-tree"], { cwd: root })).stdout).toBe(before);
     expect(await readFile(join(root, "guide.md"), "utf8")).toBe(badIndex ? good : bad);
+
+    await git("git", ["add", "guide.md"], { cwd: root });
+    messages = [];
+    expect(await main(root, ["guide.md"])).toBe(badIndex ? 0 : 1);
+    expect(messages.join("").includes("guide.md:1 ARC001")).toBe(!badIndex);
+  });
+
+  it.each(["attributes", "autocrlf"])("accepts a clean CRLF checkout and refuses real edits (%s)", async mode => {
+    await git("git", ["config", "core.autocrlf", mode === "autocrlf" ? "true" : "false"], { cwd: root });
+    if (mode === "attributes") {
+      await write(".gitattributes", "guide.md text eol=crlf\n");
+      await git("git", ["add", ".gitattributes"], { cwd: root });
+      await git("git", ["-c", "user.name=Test", "-c", "user.email=t@example.com", "commit", "-qm", "CRLF checkout"], { cwd: root });
+    }
+    await rm(join(root, "guide.md"));
+    await git("git", ["checkout-index", "--index", "--", "guide.md"], { cwd: root });
+    const cleanWorktree = good.replaceAll("\n", "\r\n");
+    expect(await readFile(join(root, "guide.md"), "utf8")).toBe(cleanWorktree);
+    expect((await git("git", ["show", ":guide.md"], { cwd: root })).stdout).toBe(good);
+    expect((await git("git", ["status", "--porcelain"], { cwd: root })).stdout).toBe("");
+    const before = (await git("git", ["write-tree"], { cwd: root })).stdout;
+
+    expect(await main(root, ["guide.md"])).toBe(0);
+    expect(messages).toEqual([]);
+    expect(await readFile(join(root, "guide.md"), "utf8")).toBe(cleanWorktree);
+    expect((await git("git", ["write-tree"], { cwd: root })).stdout).toBe(before);
+
+    await write("guide.md", bad.replaceAll("\n", "\r\n"));
+    expect(await main(root, ["guide.md"])).toBe(1);
+    expect(messages.join("")).toContain("Markdown worktree/index drift: guide.md");
+    expect((await git("git", ["write-tree"], { cwd: root })).stdout).toBe(before);
+
+    await git("git", ["add", "guide.md"], { cwd: root });
+    messages = [];
+    expect(await main(root, ["guide.md"])).toBe(1);
+    expect(messages.join("")).toContain("guide.md:1 ARC001");
+    expect(messages.join("")).not.toContain("worktree/index drift");
+  }, repeatedIndexChecksTimeoutMs);
+
+  it("refuses a tracked Markdown file replaced by a symlink", async () => {
+    const before = (await git("git", ["write-tree"], { cwd: root })).stdout;
+    await rm(join(root, "guide.md"));
+    await symlink("untouched.md", join(root, "guide.md"));
+    expect((await git("git", ["diff", "--name-status"], { cwd: root })).stdout).toBe("T\tguide.md\n");
+
+    expect(await main(root, ["guide.md"])).toBe(1);
+    expect(messages.join("")).toContain("Markdown worktree/index drift: guide.md");
+    expect((await git("git", ["write-tree"], { cwd: root })).stdout).toBe(before);
+    expect(await readlink(join(root, "guide.md"))).toBe("untouched.md");
+
+    await rm(join(root, "guide.md"));
+    await write("guide.md", good);
+    messages = [];
+    expect(await main(root, ["guide.md"])).toBe(0);
+    expect(messages).toEqual([]);
   });
 
   it.each([true, false])("checks an untracked planning artifact from disk (underwrapped=%s)", async underwrapped => {

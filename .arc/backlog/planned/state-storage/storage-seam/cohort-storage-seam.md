@@ -213,6 +213,44 @@ Errands land after the contract and before the members:
   The same section also admits behavior-preserving setup deletions, the doubled-force checkout move form,
   dormant anchored-checkout code, `arc set-class` working at once, and registration of the verbs that refuse
   `unsupported` until the flip. The seed fix's one cold-start workflow-text change is the scope exception below.
+
+  Amended 2026-10-16 — `seam-decomposition` departs from the reroute (`spec-seam-decomposition.md` § 1.4).
+  Today's decomposition machine stays the in-repo arm, untouched, and its one pre-flip change is the capability branch
+  in `handleDecompose`, which sends a post-flip invocation to a store version rebuilt from the domain rules. The machine
+  leaves in `storage-cutover`'s deletion pass, in place of the consumer map's per-module end states for it.
+
+  Amended 2026-10-16 — at its spec the pre-flip footprint widens, still changing nothing a cut does
+  (`spec-seam-decomposition.md` § 1.4). Beside the capability branch land the `--revise` and `--discard` flags, each
+  refusing `unsupported`, with `--finish`'s operand optional and the in-repo arm refusing its absence; the cut-map kind,
+  registered with no in-repo home; the `cut-map` schema at version 4 beside `decompose-cut-map`; the fan-out writer and
+  `lineage.cut-in-flight`, which nothing reaches before the flip; and a setup move of the locator schema and source-ID
+  function from version 3's schema module into the scanner's.
+
+  Amended 2026-10-16 — locus's pre-flip exceptions follow `spec-seam-locus.md` § 1.4. Its nine exceptions each carry
+  their own test:
+
+    - Rebuilt session-init slots carry typed actions and registered schemas beside today's command fields, including
+      the orphan-branch sweep's `git branch -D` for every merged branch. `pausedWork` and `inboundBackPressure` appear
+      with their schemas and report nothing.
+    - Removal prompts carry `arc teardown <name>` argv, and registered-worktree scans report folder presence. The
+      sweep reports missing registrations in `missingFolders`: an ended work unit's with teardown, others with
+      removal by path as text, unlocking first when locked, rather than as an external branched report.
+    - The residue sweep's rename-move remedy uses `git worktree move -f -f`.
+    - Errand exits and `arc errand leave` take the removal function's outcomes. The stale-worktree sweep,
+      branch-gone recovery, and residue sweep take the check's `unobservable`, `locked`, and `missing` outcomes.
+      Branch-gone recovery reports missing registrations in `missingFolders` with removal by path rather than
+      switching to them.
+    - The compaction seed's schema version advances.
+    - `arc inbox`, `arc route`, `arc locus release`, `arc errand queue`, `arc errand queue set`, and `arc handoff write`
+      are registered and refuse `unsupported`, each naming what serves until the flip.
+    - Dormant marker admissions accept `spawnedByArc: false` work-unit markers and partial Errand origins with a
+      qualified ID and version beside today's title and digest; the Errand record, claim, and link transition admit
+      a null inbox digest. Removal readers key on `spawnedByArc: true`; nothing writes the new forms before the flip.
+    - The three settings are declared and appear in `arc config` with no effect.
+    - Both `--from-inbox` descriptions are backend-neutral, describing adoption or association of an inbox capture;
+      every flag and argument operand keeps its exact spelling.
+
+  Every other part of locus's design runs only from the flip, beside an in-repo arm keeping today's behavior.
 - **Prepared writes** are shared decision 12, lifecycle's; decomposition's and locus's reconciling writers follow it.
 - **Moves, archive, rename, and links.** The in-repo implementation refuses each `unsupported` (D4, D8). The refusals
   for moves and archive name the verb that serves them until rerouted (`lib/store/in-repo/write-admission.ts`); the link
@@ -226,6 +264,14 @@ Errands land after the contract and before the members:
   inbound list and Errand description (item 9) and the personal surfaces', and delivery and review the review family's.
   The contract already registers the meta parser (`createInRepoContext`, `lib/store/in-repo/context.ts`), which record
   kinds takes over, and the Errand record's schema.
+
+  Amended 2026-10-16 — `seam-decomposition` owns `work-item/cut-map` (a working name), a never-projected machine record
+  holding a cut's map on its origin between the cut's two batches. Through record kinds' modules it adds the cohort
+  kind's at-cap fan-out writer and the lineage kind's `lineage.cut-in-flight` write-check rule
+  (`spec-seam-decomposition.md` § 4, § 17.2).
+
+  Amended 2026-10-16 — the working name stands: the kind is `work-item/cut-map`, beside the schema `cut-map` at version
+  4 (`spec-seam-decomposition.md` § 15).
 - **The write check** is shared decision 11, record kinds'; every member whose verbs write a checked kind runs through
   it, and `storage-ref-backend` and `storage-projection` call it from the flip.
 - **The machine-local set.** `MACHINE_LOCAL_PATHS` (`lib/store/registry.ts`) names the identity's `.internal/` folders
@@ -345,6 +391,19 @@ member whose consumer-map partition holds it:
   (`lib/errand/terminal-occupancy.ts`) would refuse on every locked worktree, so `storage-projection` leaves those files
   to the members.
 
+With `storage-ref-backend` (2026-10-16): `seam-decomposition` registers the cut-map kind, at the stored path
+`cut-map-<uid>.json`, after that member lands. Should `seam-decomposition` land first, `storage-ref-backend` sets the
+kind's `RefHome`, as its spec sets one for every kind whose family has a ref (its § 3.2). This is an ordering, not an
+edge.
+
+With `storage-projection` (2026-10-17): `seam-decomposition`'s refusal of an origin holding an open conflict names, in
+its remedy, `arc save --resolve <token>` for a conflict shown without markers, a command `storage-projection` registers
+(`spec-seam-decomposition.md` § 18). A remedy may name only a registered command
+(`command-surface-documentation.test.ts`), so whichever lands second names it there; until then the remedy names the
+markers' resolution alone. A `seam-decomposition` test requires the remedy to name the command exactly when the source
+registers it, so the change merging the other second meets that test failing until it does. This is an ordering, not an
+edge.
+
 ### Citing the register
 
 **Citing the register.** Row keys are `notes-storage-contract.md` § Register keys, which the consumer map's Register
@@ -411,6 +470,16 @@ lineage record.
 
 _Consumes:_ record kinds' meta, lineage, and cohort writers and the parsed `Parent`, and lifecycle's prepared-write
 protocol (item 12).
+
+Amended 2026-10-16 — a cut runs as two batches with the distribution approval between them
+(`spec-seam-decomposition.md` § 6, § 8). The additive batch writes the member stubs, any new cohort documents, and
+the stored cut map. The terminal batch writes the lineage record and the dependents' edges, and appends the at-cap
+fan-out block. Key 49's one-write end state holds for the terminal batch. The member also consumes locus's inbound
+kind (item 9), whose grammar its held-entry refusals read.
+
+Amended 2026-10-17 — the member also consumes locus's `arc route`, which its held-entry remedies name; a remedy may
+name only a registered command, so its branch merges base holding `seam-locus` before building them (Task 2.2 -
+`tasks-seam-decomposition.md`; `spec-seam-decomposition.md` § 18). This is an ordering, not an edge.
 
 ### `seam-delivery-review`
 

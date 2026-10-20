@@ -4,6 +4,8 @@ import type { Store } from "./contract.js";
 import type { RecordReference } from "./identity.js";
 import { HAND_EDIT_VERBS, type CallerProvenance } from "./links.js";
 import type { Remedy, StoreRefusal } from "./refusal.js";
+import type { RecordObservation } from "./write.js";
+import type { CreatedOwner } from "./creation-receipt.js";
 
 /** Read-only state as found or as the whole proposed batch would leave it. */
 export type StoreView = Pick<Store, "read" | "list" | "lookup">;
@@ -12,9 +14,12 @@ export interface WriteCheckInput {
   reference: RecordReference;
   prior?: { content: string; fields?: unknown };
   next?: { content: string; fields: unknown };
-  writer: { kind: "verb"; verb: string } | { kind: "hand-edit" };
-  before: StoreView;
+  writer: { kind: "verb"; verb: string; lifecycleAction?: string } | { kind: "hand-edit" };
+  before: StoreView & Pick<Store, "history">;
   after: StoreView;
+  observations: readonly RecordObservation[];
+  /** Complete backend allocation facts if this exact attempt is accepted; absence means unavailable. */
+  proposedCreatedOwners?: readonly CreatedOwner[];
 }
 /** One stable rule violation and the correction needed before retrying. */
 export interface BrokenRule {
@@ -31,7 +36,8 @@ export type WriteCheck = (input: WriteCheckInput) => Promise<readonly BrokenRule
  */
 export function deriveWriteCheckWriter(provenance: CallerProvenance): WriteCheckInput["writer"] {
   return HAND_EDIT_VERBS.some((verb) => verb === provenance.verb)
-    ? { kind: "hand-edit" } : { kind: "verb", verb: provenance.verb };
+    ? { kind: "hand-edit" } : { kind: "verb", verb: provenance.verb,
+      lifecycleAction: provenance.lifecycleAction };
 }
 
 /** Compose one deterministic refusal from the checks in a batch's write order.

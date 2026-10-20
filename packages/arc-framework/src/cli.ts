@@ -429,13 +429,15 @@ program
 
 program
   .command("decompose <origin>")
-  .description("Preflight, execute, extract, finish, or advance one decomposition")
-  .option("--preflight", "Emit one canonical read-only v3 starter map")
-  .option("--execute <cut-map>", "Stage one exact result from a canonical completed cut map")
-  .option("--extract <cut-map>", "Stage one additive result while preserving the source origin")
-  .option("--finish <cut-map>", "Preview source thinning after proving the additive result landed")
-  .option("--apply <authority>", "Apply the exact source-thinning preview authority")
-  .option("--advance-base <cut-map>", "Advance one committed candidate from its completed cut map")
+  .description("Plan, execute, extract, finish, revise, or discard one decomposition")
+  .option("--preflight", "Emit a canonical read-only starter map for the storage backend")
+  .option("--execute <cut-map>", "Stage an exact repository result; with off-branch state, create members and store the cut")
+  .option("--extract <cut-map>", "Stage an additive extraction; with off-branch state, store the cut while preserving its origin")
+  .option("--finish [cut-map]", "Preview source thinning from a map; with off-branch state, finish the stored cut without an operand")
+  .option("--revise [cut-map]", "Revise a stored cut when state is off branch (no operand emits a fresh map)")
+  .option("--discard", "Discard a stored cut when state is off branch")
+  .option("--apply <authority>", "Apply an approved finish, revision, or discard preview authority")
+  .option("--advance-base <cut-map>", "Advance a committed repository candidate (unavailable when state is off branch)")
   .action(withInteractionContext(
     {
       machineReadable: isDecomposeMachineReadableInvocation,
@@ -1653,31 +1655,31 @@ program
     new Option(
       "--session-init",
       "Select session initialization context; add --json for JSON output",
-    ).conflicts(["session-handoff", "conflicts"]),
+    ).conflicts(["sessionHandoff", "conflicts"]),
   )
   .addOption(
     new Option(
       "--session-handoff",
       "Select handoff context; requires --json",
-    ).conflicts(["session-init", "recover", "conflicts"]),
+    ).conflicts(["sessionInit", "recover", "conflicts"]),
   )
   .addOption(
     new Option(
       "--recover",
       "Select recovery context; requires --json",
-    ).conflicts(["session-init", "session-handoff", "user", "conflicts"]),
+    ).conflicts(["sessionInit", "sessionHandoff", "user", "conflicts"]),
   )
   .addOption(
     new Option(
       "--user",
       "Render the in-flight-mine view (STATUS.USER) — your work units in flight across worktrees",
-    ).conflicts(["session-init", "session-handoff", "recover", "project", "conflicts"]),
+    ).conflicts(["sessionInit", "sessionHandoff", "recover", "project", "conflicts"]),
   )
   .addOption(
     new Option(
       "--project",
       "Render the live project status view",
-    ).conflicts(["session-init", "session-handoff", "recover", "user", "conflicts"]),
+    ).conflicts(["sessionInit", "sessionHandoff", "recover", "user", "conflicts"]),
   )
   .addOption(
     new Option("--conflicts [conflict]", "List open store conflicts or inspect a conflict token")
@@ -1692,7 +1694,7 @@ program
     new Option(
       "--write-compaction-seed",
       "With --session-init: write the machine-local compaction recovery seed",
-    ).conflicts(["recover", "session-handoff", "user", "project", "conflicts"]),
+    ).conflicts(["recover", "sessionHandoff", "user", "project", "conflicts"]),
   )
   .option("--json", "Emit the typed result as JSON")
   .action(withInteractionContext(
@@ -2046,7 +2048,7 @@ reviewCmd
   .option("--ceiling-override <override>", "Exact JSON consequence approving one additional review pass")
   .option("--additional-pass <authorization>", "Exact JSON Owner authorization for review after convergence")
   .option("--coverage <coverage>", "Requested review coverage (complete or incremental; hosted sources require complete)")
-  .option("--source <source-id>", "Explicit standard-review source for this work-unit status invocation")
+  .option("--source <source-id>", "Explicit standard-review source for this status invocation")
   .addOption(new Option("--json").hideHelp())
   .on("option:json", rejectUnsupportedReviewOutputJson)
   .action(withInteractionContext(

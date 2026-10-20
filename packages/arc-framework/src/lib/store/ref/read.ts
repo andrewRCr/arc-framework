@@ -70,7 +70,9 @@ export async function readRefRecord(context: RefBackendContext, input: ReadInput
 /** Resolve a typed reference against captured tips before choosing its stored address. */
 export async function resolveReadReference(context: RefBackendContext, reference: RecordReference, tips?: ReadonlyMap<string, string>): Promise<StoreResult<RecordReference>> {
   if (reference.owner.type === "person" && await context.identity() === null) {
-    return missing(reference, "No arc.identity is configured for person-owned state", "Configure arc.identity, then retry.");
+    return { status: "refused", refusal: { code: "not-found", class: "recoverable", reference,
+      condition: "No arc.identity is configured for person-owned state",
+      remedy: { text: "Configure arc.identity, then retry.", argv: ["git", "config", "arc.identity", reference.owner.name] } } };
   }
   if (context.registry[reference.kind].family === "lineage") return resolveLineageReadReference(context, reference, tips);
   if (reference.owner.type === "work-item" || reference.owner.type === "cohort") {

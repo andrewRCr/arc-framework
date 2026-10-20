@@ -7,6 +7,7 @@ import { ReadPlacementSchema } from "../../../../src/lib/store/placement.js";
 
 const uid = "12345678-1234-4234-8234-123456789abc";
 const paths: Partial<Record<KindId, string>> = {
+  "work-item/cut-map": `cut-map-${uid}.json`,
   "work-item/meta": "meta-alpha.md", "work-item/task-list": "tasks-alpha.md",
   "work-item/record": `errand-${uid}.json`, "work-item/draft": "draft-alpha.md",
   "work-item/spec": "spec-alpha.md", "work-item/notes": "notes-alpha.md",

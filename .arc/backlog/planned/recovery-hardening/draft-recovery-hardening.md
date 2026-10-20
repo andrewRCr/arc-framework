@@ -33,6 +33,14 @@
   (`resolveCodexExecutionCheckout`). With a second session executing in the primary, both write one seed file, and
   either session's recovery can rehydrate the other's Errand. Bind the Claude seed to the working checkout too.
 
+- _Recurred (2026-10-20, twice in one session):_ a single Claude session launched in the primary compacted while its
+  Errand ran in a spawned worktree, first in Errand `disposition-report-trim`, then in `integration-friction-evidence`.
+  Each audit came back `ready` with `recoveryFrame.kind: "none"` for the primary, and `session-recover` § 4 says to
+  stop when the summary then claims an open transient. Nothing disagreed: the report's own `derivedLocusState.roster`
+  listed the Errand as an open transient in its spawned checkout, but the frame is derived for the seed's checkout
+  alone, and § 4 compares the summary against that frame. Recovery resumed each time on a hand reading of the roster,
+  the cross-check the audit should make itself.
+
 ### `[ ]` **Key the Claude Code compaction seed to its session through `CLAUDE_CODE_SESSION_ID`**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: recovery-hardening`), housekeep drain (2026-10-11).

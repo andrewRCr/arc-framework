@@ -37,16 +37,15 @@ it("renders caller judgments beside computed facts without changing or storing t
   expect(response.state).toBe("awaiting-approval");
   if (response.state !== "awaiting-approval") throw new Error("expected a proposed report");
   const text = response.payload.dispositionReportText;
-  expect(text).toContain("Standard complete pass 1 of 2");
-  expect(text).toContain("provisional");
-  expect(text).toContain("FIX (new design)");
-  expect(text).toContain("**Fails:** Correctness and failure behavior");
+  expect(text.startsWith("**Standard complete pass 1 of 2** · 🟠 1 major\n\n### F1 — Repair the branch\n\n"
+    + "🟠 major · FIX (new design) · fails Correctness and failure behavior\n")).toBe(true);
   expect(text.match(/\*\*Decisions\*\*/gu)).toHaveLength(1);
   expect(text).toContain(request.report.successorRecommendation);
-  expect(text).toContain("Material trend:");
-  expect(text).toContain("original artifact: 1 finding, 1 new-design fix");
-  expect(text).toContain("baseline");
-  expect(text).toContain(request.report.reading.rationale);
+  expect(text.endsWith("- F1: Accept the repair boundary?\n\nApprove: 1 fix → focused verification → commit → push?"))
+    .toBe(true);
+  for (const absent of ["provisional", "**Trend:**", "Material trend", request.report.reading.rationale, "advisory"]) {
+    expect(text).not.toContain(absent);
+  }
   expect(await deps.dispositionStore.readDispositionRecord(records.operation.operationId)).toBeNull();
   const different = await respondToReviewCommand({ ...request, report: { ...request.report,
     tags: [{ findingId: records.finding.findingId, tag: "local-correction" }],
@@ -56,6 +55,33 @@ it("renders caller judgments beside computed facts without changing or storing t
   expect(different.payload.proposal).toEqual(response.payload.proposal);
   expect(JSON.stringify(response.payload.proposal)).not.toContain("new-design");
   expect(JSON.stringify(response.payload.proposal)).not.toContain("original artifact");
+});
+
+it.each([
+  { commit: "manual", push: "on-workflow", closer: "Approve: 1 fix → focused verification?" },
+  { commit: "on-task-approval", push: "manual", closer: "Approve: 1 fix → focused verification → commit?" },
+  { commit: "on-workflow", push: "on-sync", closer: "Approve: 1 fix → focused verification → commit?" },
+  { commit: "on-workflow", push: "on-workflow", closer: "Approve: 1 fix → focused verification → commit → push?" },
+] as const)("closes with only what approval releases under commit $commit and push $push", async ({ commit, push, closer }) => {
+  const records = fixture();
+  const deps = dependencies(records);
+  deps.readReleaseInterlocks = async () => ({ commit, push });
+  const response = await respondToReviewCommand(proposalRequest(records), deps);
+  if (response.state !== "awaiting-approval") throw new Error("expected a proposed report");
+  const text = response.payload.dispositionReportText;
+  expect(text.endsWith(`\n\n${closer}`)).toBe(true);
+  expect(text).toContain("**Decisions**\n- After the fix: ");
+  expect(text).not.toContain("Approve the complete disposition set");
+});
+
+it("asks only for the dispositions when the set fixes nothing", async () => {
+  const records = fixture();
+  const request = proposalRequest(records);
+  const response = await respondToReviewCommand({ ...request,
+    proposal: { ...request.proposal, findings: request.proposal.findings.map(finding => ({ ...finding, disposition: "defer" })) },
+    report: { ...request.report, tags: [] } }, dependencies(records));
+  if (response.state !== "awaiting-approval") throw new Error("expected a proposed report");
+  expect(response.payload.dispositionReportText.endsWith("\n\nApprove: 1 defer?")).toBe(true);
 });
 
 it.each(["missing tag", "non-fix tag", "foreign tag", "duplicate tag", "missing anchor", "duplicate anchor"])(
@@ -117,9 +143,9 @@ it("stores only advisory tags on first approval and reuses them on replay, inclu
   expect(node.approvedDisposition).toEqual(dispositions);
   expect(node.approvedDisposition.dispositionSet.dispositionSetId)
     .toBe(proposal.payload.proposal.dispositionSet.dispositionSetId);
-  expect(text).toContain(`Approved disposition set ${dispositions.dispositionSet.dispositionSetId}`);
-  expect(text).toContain("FIX (new design)");
-  for (const absent of ["**Fails:**", "**Decisions**", "Loop reading"]) expect(text).not.toContain(absent);
+  expect(text).toContain(`**Approved disposition set ${dispositions.dispositionSet.dispositionSetId}** · focused verification`);
+  expect(text).toContain("🟠 major · FIX (new design)\n");
+  for (const absent of [" · fails ", "**Decisions**", "**Trend:**"]) expect(text).not.toContain(absent);
   expect(JSON.stringify(record)).not.toContain(request.report.reading.rationale);
   expect(JSON.stringify(record)).not.toContain(request.report.successorRecommendation);
   const replay = await respondToReviewCommand({ ...approval,
@@ -133,7 +159,7 @@ it("stores only advisory tags on first approval and reuses them on replay, inclu
     }) });
   const old = await respondToReviewCommand({ ...approval, tags: undefined }, deps);
   if (!("dispositionReportText" in old.payload)) throw new Error("expected the old record's report");
-  expect(old.payload.dispositionReportText).toContain("| F1 | 🟠 major | Repair the branch | FIX |");
+  expect(old.payload.dispositionReportText).toContain("### F1 — Repair the branch\n\n🟠 major · FIX\n");
   expect(old.payload.dispositionReportText).not.toContain("FIX (new design)");
 });
 

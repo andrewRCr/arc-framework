@@ -16,7 +16,10 @@ export const CheckoutClaimSchema = z.discriminatedUnion("kind", [
 ]);
 /** A marker's logical claim, never its checkout path. */
 export type CheckoutClaim = z.infer<typeof CheckoutClaimSchema>;
-/** Every supported resolution request. */
+/** Every supported resolution request. Lineage origins select an exact UID or prefer current terminal names
+ * before authenticated former names retained after retirement. Multiple candidates refuse ambiguous-match;
+ * resolution uses retained identity evidence rather than enumerating terminal primary histories.
+ */
 export const LookupInputSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("slug"), ...slug }),
   z.strictObject({ kind: z.literal("lineage"), origin: z.union([z.uuid(), SlugSchema]) }),

@@ -12,3 +12,8 @@ kind's content parser behind the store's raw-state boundary.
 `check.ts` refuses terminal lineage creation while the origin has held inbound entries in the proposed state. It
 uses the shared work-item observation and the declared inbound grammar; no declared grammar means no held-entry
 obligation. Unavailable reads retain an actionable refusal, and settling entries in the same batch permits retirement.
+
+Creating abandonment also checks the exact record owner's cut-map singleton in the batch's before-state.
+`lineage.cut-in-flight` refuses a stored map, naming `arc decompose <origin> --finish` and `--discard`; unavailable
+map evidence retains its condition. The rule applies independently of inbound grammar and permits other transition
+kinds and existing lineage versions.

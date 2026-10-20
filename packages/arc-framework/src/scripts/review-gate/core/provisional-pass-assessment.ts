@@ -40,6 +40,10 @@ export const ProvisionalPassAssessmentSchema = z.strictObject({
   potentialStopReason: z.literal("cap-exhausted").nullable(),
   nextPassAuthority: z.literal("none"),
   summaryText: z.string().trim().min(1),
+  /** The look's lane position, such as `Frontline pass 1 of 2`, with any ceiling note. */
+  positionText: z.string().trim().min(1),
+  /** What the fixed head needs next, such as `frontline pass 2 of 2`, or null when no fix moves the head. */
+  nextActivityText: z.string().trim().min(1).nullable(),
 }).superRefine((assessment, context) => {
   const position = assessment.ceilingPassCount < assessment.configuredMaxPasses
     ? "below-ceiling"

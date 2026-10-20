@@ -1,7 +1,7 @@
 /** Read-only before/after views over captured tips and the complete prepared batch. */
 
 import { corruptRef } from "./namespace-health.js";
-import type { StoreView } from "../write-check.js";
+import type { StoreView, WriteCheckInput } from "../write-check.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefWriteGroup } from "./write-commits.js";
 import { captureRefViewState, overlayRefViewState, viewRefFamily, viewRefMetadata, type RefViewState } from "./view-state.js";
@@ -22,15 +22,17 @@ import { FAMILY_REGISTRY } from "../registry.js";
 import { projectOwnerFromEntries, admitProjectReference, projectListInput, projectListingBinding } from "./project-identity.js";
 import { archivedViewRecords } from "./archive-view.js";
 import { checkRefKey } from "./path-admission.js";
+import { readCapturedRefHistory } from "./history.js";
 
 /** Build lazy views which never recapture a live ref during a check. */
 export function createRefWriteViews(context: RefBackendContext, tips: ReadonlyMap<string, string>,
-  groups: ReadonlyMap<string, RefWriteGroup>): { before: StoreView; after: StoreView } {
+  groups: ReadonlyMap<string, RefWriteGroup>): { before: WriteCheckInput["before"]; after: StoreView } {
   let prior: Promise<RefViewState> | undefined;
   let next: Promise<RefViewState> | undefined;
   const before = () => prior ??= captureRefViewState(context, tips);
   const after = () => next ??= before().then((state) => overlayRefViewState(context, state, groups));
-  return { before: capturedRefView(context, before), after: capturedRefView(context, after) };
+  return { before: { ...capturedRefView(context, before),
+    history: input => readCapturedRefHistory(context, input.reference, tips) }, after: capturedRefView(context, after) };
 }
 
 /** Read only immutable captured trees, using the same selection in checks and saved-state reads. */

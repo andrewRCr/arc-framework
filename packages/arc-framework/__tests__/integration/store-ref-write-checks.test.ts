@@ -119,7 +119,7 @@ describe("registered ref write checks", () => {
   });
 
   it.each([...HAND_EDIT_VERBS, "handoff", "custom-verb"])("derives the writer for %s", async (verb) => {
-    const expected = HAND_EDIT_VERBS.some((value) => value === verb) ? { kind: "hand-edit" } : { kind: "verb", verb };
+    const expected = HAND_EDIT_VERBS.some((value) => value === verb) ? { kind: "hand-edit" } : { kind: "verb", verb, lifecycleAction: "edit" };
     const check: WriteCheck = async ({ writer }) => JSON.stringify(writer) === JSON.stringify(expected) ? [] : [broken("writer.test")];
     const f = await createRefFixture({ "personal/document": { check } });
     success(await f.store.write({ action: "put", reference: f.reference("personal/document"), expected: null,

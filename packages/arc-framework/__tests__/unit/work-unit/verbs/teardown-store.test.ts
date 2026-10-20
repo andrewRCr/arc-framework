@@ -30,6 +30,28 @@ describe("store retirement ref sets", () => {
     expect(result).toMatchObject({ status: "torn-down", branchDeleted: false, notices: expect.arrayContaining([expect.stringContaining("git switch"), expect.stringContaining("git branch -D feat/demo")]) });
     expect(h.refs.has("refs/heads/feat/demo")).toBe(true); expect(h.state().current).toBe("feat/demo");
   });
+  it.each([undefined, null, "owner hold"])("offers removal by path for a missing adopted checkout with lock %s", async (locked) => {
+    const h = await fixture({ branches: [link("feat/demo", "adopted")] });
+    const path = "/repo/missing checkout";
+    h.ctx.scanWorktrees = async () => ({ ok: true, worktrees: [
+      { path: "/repo", head: h.refs.get("refs/heads/main")!, branch: "main", detached: false, primary: true, folderPresent: true },
+      { path, head: h.refs.get("refs/heads/feat/demo")!, branch: "feat/demo", detached: false, primary: false, folderPresent: false,
+        ...(locked === undefined ? {} : { locked }) },
+    ] });
+    h.ctx.worktreeFs = { ...h.ctx.worktreeFs!, directoryExists: async (target) => target !== path };
+    const result = await runTeardown(h.ctx, { name: "demo", base: "main" });
+    expect(result).toMatchObject({ status: "torn-down", branchDeleted: false, remoteBranchDeleted: false, worktreeRemoved: null });
+    if (result.status !== "torn-down") throw Error("teardown must retain the adopted branch");
+    const removal = result.notices.find((notice) => notice.includes("git worktree remove"));
+    expect(removal).toEqual(expect.stringContaining("After confirming the folder is still missing"));
+    expect(removal).toContain("git worktree remove '/repo/missing checkout'");
+    if (locked === undefined) expect(removal).not.toContain("git worktree unlock");
+    else expect(removal).toContain("its lock's owner may run git worktree unlock '/repo/missing checkout', then git worktree remove");
+    expect(result.notices.some((notice) => notice.includes("git switch"))).toBe(false);
+    expect(result.notices).toContain("Owner cleanup: git branch -D feat/demo");
+    expect(h.refs.has("refs/heads/feat/demo")).toBe(true);
+    expect(h.refs.has("remote/feat/demo")).toBe(true);
+  });
   it("returns a clean anchored holder to base before deleting its created branch", async () => {
     const h = await fixture({ held: true }); expect(await runTeardown(h.ctx, { name: "demo", base: "main" })).toMatchObject({ status: "torn-down", branchDeleted: true });
     expect(h.state().current).toBe("main");

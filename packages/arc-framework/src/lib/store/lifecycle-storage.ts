@@ -29,7 +29,7 @@ export function createStoreLifecycleStorage(input: { store: Store; checkoutRoot:
   } };
 }
 /** Refuse a write-driving inventory unless every lifecycle record was observed. */
-export function requireCompleteInventory(store: Store, listing: LifecycleIndexOutcome): void {
+export function requireCompleteInventory(store: Pick<Store, "capabilities">, listing: LifecycleIndexOutcome): void {
   if (listing.status === "unreadable") throw new ArcError(`${listing.condition} ${listing.remedy.text}`, "store.lifecycle-unreadable");
   if (listing.status !== "complete" || (!listing.missed && listing.diagnostics.length === 0)) return;
   const diagnostics = listing.diagnostics.filter((item) => store.capabilities.stateOffBranch
