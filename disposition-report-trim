@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "disposition-report-trim",
+  "claimId": "78efecaf528f936eaddac91f882282d5",
+  "createdAt": "2026-10-20T13:33:48.300Z",
+  "updatedAt": "2026-10-20T13:33:48.300Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Trim the review disposition report to decision-relevant content: exceptions-only status, Trend after the first look, Decisions and a CLI-composed closer at the bottom",
+  "branch": "chore/disposition-report-trim",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
