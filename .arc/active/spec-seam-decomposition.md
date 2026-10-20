@@ -123,6 +123,9 @@ Amended 2026-10-19 (A4) — Goal 7's history-count clause allows one preparation
 over the stored map and each currently resolved member. Criterion 10 replaces criterion 6's once-per-run clause;
 all other bounded-read and Git-isolation requirements remain.
 
+Amended 2026-10-20 (A5) — member identity comes from complete batch receipts in the stored map's own history, within the
+existing preparation and atomic-admission limits. No primary history is searched to discover a member UID.
+
 ## Non-Goals
 
 _Editable in place until activation, then frozen; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
@@ -366,25 +369,80 @@ canonical bytes, so `map:non-canonical` has no counterpart (§ 14).
 
 ### 4. The stored map
 
-The additive batch stores the completed map as a record on the origin, so a half-done cut survives its session.
+The additive batch stores the completed map and its cut-owned generation bindings as one record on the origin, so a
+half-done cut survives its session (A5).
 
 - **The kind** is `work-item/cut-map`: one record per work item (`singleton("work-item")`), a machine record
-  (`machine(unhomed)`) — single-writer, never projected, and with no in-repo home, which the arm from the flip never
-  needs. Its content is the completed map as canonical JSON; its parser decodes it as § 3.4 does, and it registers in
-  the production set. Its native `cut-map.atomic-binding` write check enforces the source and inventory admission of §
-  8.8 (A4); it remains never projected and takes no hand edit. Other verbs' writes on its owner keep its bytes: a
-  prepared write acquires it with the rest of the group and re-puts it unchanged (`applyPreparedLifecycleWrite`), and a
-  rename re-puts it under its owner's new name, its reference sweep (`planRenameReferences`) passing over it
-  (`prepareStoreRename`), since rewriting a backticked artifact name in a locator would leave the map undecodable. -
-  **Its stored path** is `cut-map-<uid>.json` on the work item's ref, ending in its owner's UID, as a never-projected
-  kind's name does (`errand-<uid>.json`; the ref backend's § 3.2). - **Its life.** The additive batch creates it with
-  expected absence. A revision replaces it at its version (§ 9.2). The terminal batch, in either shape, and the discard
-  remove it. In a retirement the batch that ends the origin would also remove it on the ref backend, which removes every
-  record on an ended item's ref (its § 7.4); the batch removes it explicitly anyway, so no backend, the reference
-  backend among them, leaves a current map, the one record the verb reads by the origin (below). Removed, it stays
-  readable through the origin's `history` by UID. - **One cut per origin.** Preflight refuses an origin holding the
-  record, naming the terminal batch, the revision, and the discard (§ 5). - **Read by the origin's slug:** `lookup`
-  resolves the slug to the origin's primary, and the verb reads the kind's singleton reference for that owner.
+  (`machine(unhomed)`) — single-writer, never projected, with no in-repo home. Its strict canonical JSON content is the
+  `StoredCutMap` wrapper below; the authored version-4 `CutMap` and § 3.4's input decoder remain unchanged. The kind's
+  registered parser decodes the wrapper and its completed map; registered `fields` expose that wrapper. Its native
+  `cut-map.atomic-binding` check enforces § 8.8's source, inventory and generation-binding obligations (A4, A5).
+- **Other verbs keep its bytes.** A prepared lifecycle write acquires and re-puts the record unchanged
+  (`applyPreparedLifecycleWrite`). Rename re-puts it under its owner's new name, with its reference sweep
+  (`planRenameReferences`, `prepareStoreRename`) passing over the entire wrapper: neither locators nor birth bindings
+  are rewritten. It takes no hand edit.
+- **Its stored path** remains `cut-map-<uid>.json` on the work item's ref, ending in the owner's UID. The wrapper adds
+  no record kind, ref or projected file.
+- **Its life.** The additive batch creates it with expected absence. A revision replaces it at its version (§ 9.2).
+  Terminal and discard remove it explicitly, including where the native retirement also removes every origin record,
+  so the reference backend leaves no current map either. Removed, it remains readable through the origin's history
+  by UID. History readers decode the wrapper before consuming its map or bindings.
+- **One cut per origin.** Preflight refuses an origin holding the record, naming terminal, revision and discard (§ 5).
+  `lookup` resolves the origin's slug to its primary; acquisition reads the singleton for that exact owner generation.
+
+```ts
+type StoredCutOwnerBirth = {
+  kind: "work-item/meta" | "cohort/document";
+  name: string;
+  birthKey: string;
+};
+type StoredCutMap = {
+  schemaVersion: 1;
+  map: CutMap;
+  ownerBirths: readonly StoredCutOwnerBirth[];
+};
+```
+
+`StoredCutOwnerBirthSchema` and `StoredCutMapSchema` belong to the cut-map kind and are exported with its codec. Objects
+are strict; names use existing slug validation, keys are lowercase 64-hex digests, and bindings are unique by `(kind,
+name)`, sorted by binary UTF-8 kind, name and key. Every declared `new-member` has one `work-item/meta` binding. Every
+still-used cohort document this cut created has one `cohort/document` binding, including a created parent and subcohort
+separately. Reused external cohorts have none. Binding names are immutable birth names; current name, Parent and path
+eligibility are checked independently. A binding contains no UID and grants no identity authority alone.
+
+**Binding continuity and creation.** A revision preserves each retained binding exactly, even when destination IDs or
+the origin's slug change. Dropping an owner removes its binding. A member dropped and later re-added, or a document
+newly created by the cut, receives a newly derived key. A gone member cannot be recreated under its retained key: first
+drop the declaration, then add it in a later revision. A retained cut-owned cohort does not become external merely
+because its document now exists. The additive/revision batch publishes new bindings with their actual new primary
+generations and a changed wrapper; an unchanged map put is not a birth witness or uniqueness boundary.
+
+**New-key derivation.** Hash the UTF-8 bytes of canonical JSON for this exact tuple with SHA-256:
+
+```text
+["arc.decompose.owner-birth/v1", originUID, primaryKind, birthName, sortedUniquePriorMapHistoryBatchIDs]
+```
+
+Use the immutable origin UID and the complete prior history of that generation's cut-map record, including removals and
+retained branches. Every returned entry must carry valid structured provenance with a nonempty batch ID. Deduplicate IDs
+and sort by binary UTF-8 order. Filter none by verb, selected branch, latest removal, record version or traversal
+position. The proposed operation and its future backend batch ID are not inputs. An actually empty history gives an
+empty set only after successful generation-qualified acquisition. For this known origin's cut-map history query, accept
+either a successful empty list or the backend's documented `not-found` for no retained events
+(`ReferenceBackend.history`, `checkPreparedWrites`); never normalize identity errors, missing-object/history-ref
+refusals, or namespace failures to empty history. Native `historyRefRecord` can return an empty list for no record tip.
+Readable history with missing batch identities is unsupported development state (§ 8.3.1).
+
+Derive all new keys once through the preparation cache and bind the resulting wrapper bytes into approval. Atomic
+admission derives them again from its pinned before-history (§ 8.8). A material change to that input requires fresh
+preparation and, for removing modes, a fresh preview and approval. No unrelated owner's history enters the derivation.
+Each binding-changing map event must be visible with a fresh backend batch ID; no-op writes need not add an event and
+allocate no key or generation. Never reconstruct an old key from a suffix of today's flattened history: retain its
+accepted value. Clones with identical inputs can derive equal keys; distinct receipt UIDs remain ambiguity (§ 8.3.1).
+
+The wrapper is internal operation state, distinct from the backend's creation receipt. It is never accepted in an
+externally authored map or copied into caller provenance. Unsupported pre-release stored formats are regenerated; there
+is no migration reader, backfill, or second map write to fill in a UID after allocation.
 
 ### 5. Preflight
 
@@ -553,10 +611,10 @@ member's meta and the cohort documents the map names; the existing homes' record
 resolved through `lookup` first as § 6 step 2 resolves it, one resolving to nothing, to a completed work unit, or to an
 Errand refusing before anything is written, naming the revision that retargets its allocations; and the stub dependents,
 found through the lifecycle listing, the members left out (§ 3.2). Each is acquired once, through the store, at its
-version and conflict set. Preparation may reread for early diagnostics; a retirement also reads the listing and
-primary through `executeStoreTransition`. Preparation reads the `history` of the stored map and each item a member's
-slug finds once to authenticate that generation (§ 8.3). Atomic admission repeats only the bounded observations and
-member-history proof § 8.8 requires, once against its own captured before-state (A4).
+version and conflict set. Preparation may reread for early diagnostics; a retirement also reads the listing and primary
+through `executeStoreTransition`. Preparation reads the stored map's `history` once to authenticate member generations
+from its creation receipts (§ 8.3.1, A5). Atomic admission repeats only the bounded observations and the same receipt
+proof § 8.8 requires, once against its own captured before-state (A4).
 
 #### 8.2 The origin's current state
 
@@ -596,19 +654,139 @@ write-back, or the revision that would make it legitimate (§ 9.2) where one can
 member (`memberPlacement`, `decompose-v3-repository-projections.ts`), so a revision makes a changed `Cohort` legitimate
 only where a placement the map's rules admit gives every member its current `Cohort`, and otherwise the field is
 restored. A member gone, abandoned between the batches, which no rule stops, refuses too, naming the revision that drops
-it from the map. A member is found by its map slug and is the member only where its primary's creation entry in
-`history` names that slug as the owner it was created under and carries the batch ID of an entry naming `decompose` in
-the stored map's `history` since the map was last created — the additive batch or a revision (the contract's provenance,
-the backend adding the record's reference and the batch ID as the write lands; `StoredProvenanceSchema`,
-`lib/store/links.ts`); an entry with no batch ID matches none. So an item that took the slug of a member abandoned
-since, or a sibling renamed to it, is not that member, and the member is gone. A member renamed between the batches,
-which `arc rename` admits for a stub, is found by its map slug, which `lookup` resolves to it as a former slug; the
-batch refuses, naming `arc rename <new> <old>`, which `work-item.former-slug` admits since the slug is the member's own
-(`checkFormerSlug`), and whose reference sweep restores the siblings' seeded edges. The member may be renamed again once
-the cut lands. In a retirement, a member whose `Depends On` names the origin refuses too, since the origin it names is
-retiring and the lineage record carries no disposition for a member's edge; the remedy is for the member's owner to drop
-that edge, or anyone for a stub, through write-back. Refusing any divergence was rejected: it would block the grooming
-authoring exists for.
+it from the map. A member's creation receipt proves its original generation, including after rename, retirement, or name
+reuse (§ 8.3.1, A5). Its primary is read by the proved UID, never selected from a later name holder. A member renamed
+between the batches, which `arc rename` admits for a stub, retains its UID and the batch refuses, naming `arc rename
+<new> <old>`, which `work-item.former-slug` admits since the slug is the member's own (`checkFormerSlug`), and whose
+reference sweep restores the siblings' seeded edges. The member may be renamed again once the cut lands. In a
+retirement, a member whose `Depends On` names the origin refuses too, since the origin it names is retiring and the
+lineage record carries no disposition for a member's edge; the remedy is for the member's owner to drop that edge, or
+anyone for a stub, through write-back. Refusing any divergence was rejected: it would block the grooming authoring
+exists for.
+
+##### 8.3.1 Created-owner receipts (A5)
+
+A created-owner receipt is a backend fact about the work-item and cohort owners created in one accepted batch. It
+recovers a cut member's generation after its primary ends; it is not a caller claim, a current-name lookup, or a record
+stored inside the cut map. Add the following strict schemas and exported types to the store contract and barrel, beside
+`HistoryEntrySchema`:
+
+```ts
+type CreatedOwner =
+  | { kind: "work-item/meta" | "work-item/record";
+      owner: { type: "work-item"; name: string; uid: string } }
+  | { kind: "cohort/document";
+      owner: { type: "cohort"; name: string; uid: string } };
+type BatchCreationReceipt = {
+  schemaVersion: 1;
+  batchId: string; // nonempty; equals the entry's structured provenance.batchId
+  createdOwners: readonly CreatedOwner[];
+};
+// Existing reference, version, content, provenance, and removal pairing remain unchanged.
+type HistoryEntry = {
+  reference: RecordReference;
+  version: RecordVersion | null;
+  content: string | null;
+  provenance: StoredProvenance;
+  creationReceipt?: BatchCreationReceipt;
+};
+```
+
+The receipt's closed domain is new work-item and cohort generations established by primary creation; personal-ref
+creation and project-identity binding are outside it. `owner.name` and `kind` retain the immutable name and actual
+primary kind at birth. An expected-absence put alone is insufficient: the backend intersects admitted new-generation
+allocation with primary creations actually published. Companion writes, updates, renames, promotion's role change,
+reopen and adopting an existing generation through sync are not births. A new generation reusing an ended name is a
+birth with its new UID. Companion-first ordering does not change the facts; abandoned re-resolution candidates and
+failed admissions publish none.
+
+`CreatedOwnerSchema` uses the existing slug and UUID validation and the closed compatible kind/owner pairs above; keys
+are not allowed. `BatchCreationReceiptSchema` requires unique `(owner.type, uid)` identities, sorted by binary UTF-8
+owner type, birth name, kind and UID. Birth names need not be unique: multiple matching generations must remain
+representable, not silently become a new naming policy. `HistoryEntrySchema` accepts the optional field only when its
+batch ID equals structured provenance's batch ID. All objects are strict. `CallerProvenanceSchema`, `WriteInputSchema`
+and `BatchInputSchema` accept no receipt; no lookup operation, capability, record kind or caller mutation field is
+added.
+
+Receipt-capable backends attach the receipt to every returned entry from each newly accepted mutating batch. Presence
+certifies the complete list, including `createdOwners: []` when no covered owner was created. Absence means unknown,
+never an empty list. A wholly unchanged write creates no history entry merely to expose a receipt. Every
+additive/revision batch that creates members must actually publish its map creation or revision; a no-op map put cannot
+supply the member-birth witness. The backend computes the list over the entire proposed batch, but publishes it only
+with accepted state: a failed observation, conflict, rule, namespace, version, or publication admission leaves no
+receipt, identity-allocation, history, or mutation effect. Single writes without a batch ID and the in-repo backend's
+historical entries may omit the field; the in-repo decomposition arm remains unchanged.
+
+`history` and `changes` expose the same immutable receipt on every returned entry from that batch, including removals.
+The reference backend retains it with accepted events; reopen, history transfer, net-zero record histories, saved-state
+changes intervals and repeated sync preserve its exact facts. Existing record/window filtering and omission of net-zero
+results from native `groupChangeBatches` stay unchanged; receipts do not manufacture events. A selected entry retains
+the complete list, including other records' births. A partial family transfer must retain the complete receipt or leave
+it unavailable; it cannot shrink the array and certify completeness. Grouping physical commits for one batch must
+preserve an identical complete receipt or refuse conflicting evidence, never union partial lists.
+
+The native backend retains the complete receipt on every physical commit belonging to the accepted operation, so
+path/history grouping cannot select a commit that loses it. Ordinary/conflict commits, archive-quarter commits and
+completed-copy refreshes attributed to that batch carry the same whole-batch envelope. A later sync merge has its own
+batch ID: it preserves ancestor receipts through retained parents, never relabels them as births in the merge batch.
+Historical import does not prove a historical batch's complete birth set and must not fabricate a receipt. The native
+encoding is one reserved `Arc-Creation-Receipt` trailer containing canonical JSON, passed through process input when
+large. Full replication costs birth count times physical commit count; measure it with the backend's existing cost
+checks. Never truncate or silently omit births to meet an output budget. No separate payload object is introduced.
+
+A dedicated receipt codec validates this commit metadata separately from provenance parsing: malformed structured
+provenance may currently fall back to `{message}` in `parseStoreCommitProvenance`, but an advertised malformed receipt
+must never disappear through that fallback. Duplicate receipt trailers, unsupported receipt versions, invalid owners or
+batch-ID mismatches refuse explicitly. No global index, state ref or projected file is added.
+
+**Bound generation identity.** Read the origin generation's complete stored-map history once through the invocation
+cache. Decode the historical wrappers needed to authenticate each current binding. For a historical `decompose` map
+mutation to prove a birth, its wrapper must contain the exact current `(kind, name, birthKey)`, and its complete
+creation receipt must bind that entry's own provenance batch ID and contain a matching primary kind and birth name.
+Exactly one distinct matching UID proves the generation. A matching entry with unavailable receipt facts is unknown, not
+complete-none. Multiple distinct UIDs refuse as ambiguous; zero authenticated births is unsupported binding state, not
+proof that a later name holder belongs to the cut. Malformed required wrappers cannot stand in for absent bindings.
+
+Search all retained map history, without stopping at omissions or removals on another branch, selecting the newest
+birth, or treating record versions as event identities. `readRefHistoryDetails` returns flattened parent histories;
+`orderHistoryCommits` supplies deterministic order, not selected ancestry. The selected current wrapper chooses the
+binding; complete backend receipts prove its UID. A sync retains the selected wrapper whole, never combining one side's
+map with the other's bindings or relabeling ancestor birth receipts onto the new sync batch.
+
+Carry the authenticated UID independently of whether its primary still exists. Read each member primary by that UID: a
+renamed live member retains the existing rename refusal; an ended member is gone while retaining its original UID for
+revision. A current slug's unrelated holder is never removed or rewritten. Authenticate cut-created cohorts through
+their bindings and `cohort/document` receipt facts too, reading the proved UID and retaining existing name, Parent,
+placement and removal eligibility checks. Reused external cohorts remain external. This replaces
+`isDecomposeMemberBirth`'s selected-primary proof and `acquireDecomposeCutCohorts`'s latest-removal batch inference;
+`decomposeCurrentCutBatches` supplies neither owner authority. No primary histories are searched to discover owner UIDs,
+and no terminal listing, repository history or branch walk is added.
+
+**Failure and continuation.** Preserve underlying store refusals and named-history-ref recovery unchanged. Missing local
+history refs must use the store's named fetch/retry route, never be interpreted as absent receipts or a gone generation.
+A readable map history that never retained required receipts is unsupported cut state: refuse `unsupported` as terminal,
+without writes, name the map/binding and missing batch evidence, and require a receipt-capable provider and authentic
+complete cut history. Under the pre-public-release posture, unsupported development state is regenerated rather than
+backfilled from current records; no migration reader or automatic state deletion is added. Valid restored evidence and a
+fresh preview must allow the ordinary operation to complete. Multiple matching births likewise refuse terminally as
+decompose `unsupported`, naming the map, binding, batch IDs and candidate UIDs. They preserve every generation: renaming
+a current holder cannot change birth facts. Without authentic uniquely bound history this is § 10's stated sync
+limitation; unsupported development state requires an explicit restart/regeneration, with existing destructive approval
+boundaries, rather than an inference, compatibility repair or automatic cleanup.
+
+Missing candidate birth evidence at admission uses the existing `cut-map.atomic-binding` violation channel, with the
+observed missing field and a remedy to use a provider supplying candidate births, then prepare a fresh preview and
+approval. This is not an invitation to retry an incapable provider indefinitely. After the provider is repaired or
+upgraded, the normal path must succeed; no new capability flag or rule-result type is introduced.
+
+Malformed advertised receipt data refuses as store `namespace-corrupt`, terminal, naming its historical locus and
+specific defect. Restore authentic retained metadata from a known intact source if available, then restart with a fresh
+preview; if none exists, report that no evidence repair is available and require explicit development-state
+regeneration. Fetch is a remedy only for retained facts that exist elsewhere. No speculative repair command or new
+automatic deletion authority is added. Atomic checks retain the evidence condition and remedy through the existing
+`cut-map.atomic-binding` rule channel; decompose's repeated acquisition reports the underlying typed evidence refusal
+when it persists. No shared write-check result redesign is added, and an evidence failure is not a generic freshness
+retry.
 
 #### 8.4 The content
 
@@ -814,6 +992,7 @@ interface WriteCheckInput {
   before: StoreView & Pick<Store, "history">;
   after: StoreView;
   observations: readonly RecordObservation[];
+  proposedCreatedOwners?: readonly CreatedOwner[]; // A5: backend-produced, complete if present
 }
 ```
 
@@ -822,10 +1001,21 @@ validated observations, using `[]` for a single write or a batch without observa
 the history visible at that admission's captured before-state; it must not recapture live refs through a public
 history operation. `after` gains no hypothetical history. All views remain read-only and checks grant no writes.
 
-There is no new predicate registry, serialized callback, query language, witness record, or configuration axis.
-Existing registered checks remain the sole kind-rule dispatch. Decomposition's existing member-birth proof
-(`isDecomposeMemberBirth`, `decomposeCurrentCutBatches`) is reused against `before.history`, so map names do not
-become authority to exclude unrelated or reused owner generations from an incoming inventory.
+`proposedCreatedOwners` is read-only backend operation evidence (A5), not a caller field or a claim that admission
+already succeeded. Presence supplies the complete owners this exact attempt would create if accepted; `[]` is
+complete-none and absence is unavailable. It uses § 8.3.1's strict `CreatedOwner` domain, uniqueness and ordering. The
+backend derives it from fresh allocation intersected with actual proposed primary creations, passes the same inventory
+to every check in that attempt, and uses those exact facts for its creation receipt only after acceptance. Re-resolution
+recomputes or discards candidate facts. The reference single/batch publishers supply it; the native backend must do so
+before cutover. Existing checks may ignore an absent optional field, but a cut check requiring new birth proof refuses
+unavailable evidence. The in-repo decomposition arm remains unchanged. Neither before/after presence nor an
+expected-absence mutation alone proves allocation during the operation.
+
+There is no new predicate registry, serialized callback, query language, witness record, or configuration axis. Existing
+registered checks remain the sole kind-rule dispatch. The same member-birth derivation as preparation uses creation
+receipts against `before.history` (§ 8.3.1, A5), so map names do not become authority to exclude unrelated or reused
+owner generations from an incoming inventory. It replaces `isDecomposeMemberBirth`'s selected-primary history proof and
+uses the selected wrapper's exact bindings rather than a latest-removal boundary.
 
 ##### 8.8.3. Native cut-map rule
 
@@ -843,6 +1033,15 @@ inbound grammar comes from the kind registration's declared entry grammar, as me
 | `terminal` | Remove the prior map. Authenticate prior-cut member generations; recheck their required live/placement predicates and origin lifecycle eligibility; require the stored source and edge binding and empty origin inbound.                           |
 | `revise`   | Replace the prior map. Authenticate prior-cut members for exclusions; require the **next** map's binding to current source/edges and empty origin inbound. Do not require the obsolete map's source inventory to remain fresh.                     |
 | `discard`  | Remove the prior map. Guard approved records and whole groups being removed, and retain existing complete-after-state removal checks. Do not demand source conservation, a fresh old machine inventory, or empty origin inbound merely to discard. |
+
+For additive and revise, also validate § 4's strict wrapper, exact binding coverage and retained binding continuity
+(A5). Every new binding must match exactly one `proposedCreatedOwners` entry by primary kind and birth name, and its UID
+must match the primary in the proposed after-state. The proposed key must equal the canonical derivation from pinned
+before-history. A proposed fresh birth matching a retained binding is refused: it cannot recreate a member or cohort
+under an old key. Existing-owned cohorts retain their binding rather than becoming external merely because they are
+present. No same-batch allocation outside these validated bindings becomes cut-owned by name alone. Check retained
+members and cut-owned cohorts against their receipt-proved UIDs; ending or reusing a name does not transfer ownership.
+New bindings, actual owner births and the changed wrapper publish together or none does.
 
 For additive, terminal, and revise, the complete current origin-group reference set must equal the present origin
 references in the submitted observations. That includes empty artifacts and incidental companions: a new group
@@ -955,6 +1154,13 @@ its preview lists each existing home and existing cohort coordination the map al
   revised placement naming a cohort after the origin refuses as at the additive batch. The members and their authored
   content stay. A changed unit allocated to a destination is carried into it by hand during authoring.
 
+For a prior internal seed, use its member's authenticated creation UID even when the member is gone (A5). Resolve that
+exact UID's lineage and its assigned retirement replacements; a later terminal holder of the authored name grants no
+old-seed authority. Subtraction requires established provider identity: when an actual edge resolves ambiguously, refuse
+the proposed removal and name its settlement to an unambiguous provider or its explicit removal through write-back, then
+a fresh revision. Seed validation's name fallback (§ 8.3) does not authorize destructive subtraction. After that repair
+the revision must complete, preserving unrelated groomed edges and current replacement records.
+
 #### 9.3 What either refuses
 
 - **A started member it would change,** since it is no longer a stub: one it would remove, naming
@@ -1044,6 +1250,12 @@ Integrating or archived origin refuses the revision as it refuses preflight.
       refusal, which the store classes recoverable (`LocalRefusalSchema`, `lib/store/refusal.ts`), though no verb serves
       its remedy, a rename of one by its UID, today, and none renames a cohort (§ 6, § 18).
 
+A5 preserves the selected map and its owner bindings as one value through sync. A different branch's omitted member or
+removed map is not a removal boundary for those bindings. Where clones derive the same binding key but their complete
+receipts prove different UIDs, § 8.3.1's terminal ambiguity applies before name selection: rename alone cannot change
+immutable birth facts. This is a stated unsynced-clone limitation; no generation is guessed or automatically cleaned up.
+Ordinary name ambiguity with uniquely proved birth facts still retains the backend's own refusal.
+
 ### 11. Where the cut runs
 
 The verb takes the origin by slug and runs from any checkout, guarded by the prepared write's versions. Nothing in the
@@ -1127,6 +1339,15 @@ the change.
   flip's commands (§ 14).
 - **Scaffolds** keep the creation writer, the planning profile read from `Design`, and the retitle.
 
+A5 changes the cut-map codec boundary: `decodeCutMapContent` returns the strict stored wrapper, and `writeCutMapRecord`
+accepts it. Adapt the direct stored decoders in `acquireDecomposeStoredCut` and `acquireDecomposeTerminal`, historical
+unwrapping in `readDecomposeLandedExtraction`, and native `checkCutMapBinding`. Carry bindings through
+stored/revision/terminal inputs to member and cohort authentication; additive/revision plans construct the wrapper.
+External `decodeCutMap`, preflight, binding, rebind, allocation and report schemas continue consuming the extracted
+authored map. Presence-only guards and byte-preserving lifecycle writes do not acquire generation ownership from the
+wrapper's existence. Registered-kind and stored-content fixtures use the new representation; no old-format reader is
+added.
+
 ### 14. Refusals name their remedy
 
 Every refusal says whether it is terminal and names the command that repairs it (`DEV-RULES.PROJECT`, "Recovery-complete
@@ -1178,6 +1399,8 @@ needs the operator's input. After the remedy the cut completes, but for the left
 | `--advance-base` from the flip                                                                                                                                                                                                                                                                                                                                                                                                | arm from the flip                       | `unsupported`: `arc decompose <origin> --finish`                                                                                                                                                                                                                                                                                                   | text                            |
 | `--finish <cut-map>` from the flip                                                                                                                                                                                                                                                                                                                                                                                            | arm from the flip                       | `arc decompose <origin> --finish`, which reads the stored map                                                                                                                                                                                                                                                                                      | action                          |
 | A version conflict at the batch, where the repeated checks find nothing (§ 6)                                                                                                                                                                                                                                                                                                                                                 | any batch                               | the additive batch again as given; for a removing batch, a fresh preview and approval                                                                                                                                                                                                                                                              | action, or text after a preview |
+| Required batch creation facts were never retained (A5)                                                                                                                                                                                                                                                                                                                                                                        | stored-map modes                        | terminal `unsupported`: use a receipt-capable provider and authentic complete history; regenerate unsupported pre-cutover development state, without backfill or automatic deletion                                                                                                                                                                | text                            |
+| An actual edge cannot be uniquely identified for old-seed subtraction (A5)                                                                                                                                                                                                                                                                                                                                                    | revision                                | settle that member's edge to an unambiguous provider or explicitly drop it through write-back, then a fresh revision preview and approval                                                                                                                                                                                                          | text                            |
 
 ### 15. Names
 
@@ -1235,6 +1458,14 @@ define, the change is stated here and built by this change; no specification of 
   specifies: strict read-only version/conflict expectations, snapshot-bound before-history, trusted lifecycle action,
   and kind-owned inventory admission. They grant no mutation rights or whole-store freshness authority.
 
+- **History creation facts (A5)** extend the shared `HistoryEntry` used by `history` and `changes` with the strict,
+  optional backend-generated `creationReceipt` in § 8.3.1. Receipt presence certifies the batch's complete work-item
+  and cohort births; absence remains unknown. Caller provenance and mutation inputs are unchanged.
+
+- **Candidate birth facts (A5)** add only § 8.8.2's optional backend-generated `proposedCreatedOwners` to
+  `WriteCheckInput`. It proves proposed operation births for native kind admission without exposing caller allocation
+  or changing the existing rule-result protocol. It is not a published receipt before acceptance.
+
 #### 17.2 The record kinds (`spec-seam-record-kinds.md`)
 
 - **§ 2.2's production registration set** gains the cut-map kind's parser (§ 4) and native admission rule
@@ -1270,6 +1501,10 @@ holds until then is stated with it.
       current-name preference, ambiguity refusal, and bounded observations specified in § 3.2. No lookup input shape
       changes. The in-repo decomposition arm stays unchanged; the reference backend supplies this contract for the
       dormant store implementation until the ref backend provides it before cutover.
+    - complete creation receipts and candidate birth evidence (A5), exactly as § 8.3.1 and § 8.8.2 define their shape,
+      allocation/publication boundary, physical-commit retention, transfer, completeness and failure behavior. This is
+      an expected native contract before cutover; the reference backend provides it for the dormant cut. It is absent
+      `HistoryEntrySchema` or `commitRefTree` and adds no lookup selector or global history index.
     - the kind's ref home: this change registers the cut-map kind after that change lands, with its mechanism's
       `RefHome` at `cut-map-<uid>.json`; should this change land first, that change sets the kind's `RefHome`, as it
       sets one for every kind whose family has a ref (its § 3.2). Its codec derives the path, its shared suite covers
@@ -1354,8 +1589,8 @@ holds until then is stated with it.
   backend, and leaves D14's reason standing, since a planned origin and its same-name cohort project to one
   `backlog/planned/` folder. The cost of refusing instead is that a cut's cohort never takes the origin's name (§ 6).
 - **Track members by UID in the stored map,** so a member's rename between the batches carries. Set aside: a rename back
-  costs one command (§ 8.3), the batch that created a member already tells it from an item that later takes its slug
-  (§ 8.3), and the additive batch could not record a UID the store assigns only as the batch lands.
+  costs one command (§ 8.3), and the additive batch cannot record a UID the store assigns only as the batch lands.
+  Backend creation receipts recover that UID without a second map write (§ 8.3.1, A5).
 - **Carry extraction in a follow-on after the cutover,** `--extract` refusing from the flip until then, which is a tail;
   or **drop it,** which leaves a split of a started work unit to `arc stub` and hand editing without the map's
   conservation or edge dispositions. Both rejected (Owner, 2026-10-16).
@@ -1394,14 +1629,33 @@ live cohort and work item of one name. The cut-map kind runs the store's conform
 locator move's tests are version 3's decode tests and the scanner's, unchanged. Until the cutover's rehearsal the store
 version is verified on the reference backend alone, and the first real cut runs after the flip.
 
+The creation-receipt cases (A5) cover companion-first allocation, failed late admission and failed publication with no
+visible receipt, completed-name recreation, and exclusion of rename, promotion, reopen and sync adoption from births.
+Shared schema and producer checks cover matching `history`/`changes` receipts, complete-none versus absence,
+kind/owner/UID validity, duplicate owners and trailers, unsupported versions and batch mismatches. Filtered,
+saved-state, net-zero and repeated transfers retain whole receipts without changing event selection. Consumer
+regressions cover multiple later retired holders, exact-name versus former-name lineage, renamed members, origin rename,
+destination-ID relabeling, member drop/re-add, cut removal/recreation and malformed historical maps. Wrapper cases cover
+selected map retention from either merge side, revision/reversion and an unrelated branch's omission/removal; created
+parent/subcohort and reused external documents; retained-key continuity; and no-op writes that allocate no key or
+generation. Admission cases cover absent candidate facts, false before/after-only birth claims, fresh births under
+retained keys, and same-origin history changing between preparation and publication. Reordered/duplicate history entries
+preserve the canonical prior-ID set, while missing required batch IDs refuse without hashing a partial set. Each
+recoverable evidence or edge refusal includes successful fresh preparation and application after its supported repair;
+terminal unsupported or corrupt state is reported truthfully. Atomic admission repeats receipt authentication and
+preserves the same specific failure. Native physical-commit, codec, sync-parent and publication-race cases remain
+expected provider conformance before cutover; reference tests do not claim native verification.
+
 **Performance.** A cut reads the origin's group, the selected cohort documents, the existing homes, and the dependents
 the lifecycle listing names, each a fixed number of times through the store (§ 8.1), with no per-branch reads. The
 lifecycle listing is the one read that grows with the project, and every lifecycle verb from the flip already reads it
-(lifecycle § 2.1). The member test (§ 8.3) adds one preparation `history` pass over the stored map and each item a
-member's slug finds, plus one pass inside atomic admission (§ 8.8, A4). `history` has no bounded form (`Store.history`,
-`lib/store/contract.ts`), so each read walks the whole history of the item owning the record — on the ref backend, a
-path-limited walk of that item's ref — and grows with the origin's and the members' own writes, never with the
-repository's history or branch count. The scanner's own costs stay as today's (Non-Goals).
+(lifecycle § 2.1). Member identity adds one preparation `history` pass over the stored map and one against captured
+before-state inside atomic admission (§ 8.8, A5); no member or cohort primary histories are searched to discover UIDs.
+This stays within criterion 10's upper bound. `Store.history` has no bounded form (`lib/store/contract.ts`): each read
+walks the record's complete history — the native `readRefHistoryDetails` uses path-limited history — and grows with that
+owner's writes, never with unrelated repository history or branch count. The scanner's own costs stay as today's
+(Non-Goals). Native receipt bytes grow with the accepted batch's births and physical commits (§ 8.3.1), without a global
+index.
 
 **Security and trust.** The origin is the cut's own subject: like abandonment (`runStoreAbandon`), the verb checks no
 operator against its `Owner`, so a retirement removes it and an extraction writes its `Cohort` and thins its draft or
@@ -1473,10 +1727,28 @@ nothing is committed, pushed, or merged by the cut.
     each currently resolved member, independent of unrelated history and branch counts. This supersedes the once-per-run
     history-count clause of original criterion 6; it preserves its other bounded-read and Git-isolation requirements.
 
+11. **Retired member identity survives name reuse (A5).** Complete backend-generated work-item/cohort birth receipts
+    survive history/changes, reopen, removals, saved states, net-zero history and sync without certifying partial lists.
+    Failed batch admission publishes none. A revision dropping an internal seed removes its original retirement
+    replacements through the cut member's UID across multiple later retired name holders, while preserving groomed
+    dependencies from an unrelated exact-name terminal holder. A member-name drop/re-add selects its new binding;
+    unavailable, ambiguous and malformed evidence grants no removal authority. After supported evidence or edge
+    settlement is repaired, fresh preparation and approval complete. Member selection and atomic history remain
+    bounded by criterion 10; original primary histories are not searched to discover retired generations.
+
+12. **Selected cut bindings survive merged history (A5).** The strict stored wrapper keeps the selected map and its
+    member/cohort bindings together while the externally authored map stays unchanged. A selected generation remains
+    authenticated across either-side merges, unrelated omissions/removals, rename and revision/reversion; name
+    drop/re-add and cut removal/recreation derive fresh bindings. Reused cohorts gain no ownership. New bindings
+    require matching backend candidate births and a changed wrapper; retained keys cannot recreate a generation.
+    Preparation and atomic admission derive new keys from the same canonical complete before-history ID population;
+    missing evidence refuses, and restored supported evidence plus fresh approval completes. No-op writes create no
+    generation/key. No primary-history discovery, extra map write, generic ancestry API or global index is added.
+
 ## Open Questions
 
-None blocks starting. The expected contracts in § 18 each state what holds until their change lands, and none leaves
-this design open.
+None remains in the A5 generation-binding direction. The expected contracts in § 18 retain their stated availability
+conditions; native implementation and conformance evidence remain required before cutover.
 
 ## Amendments
 
@@ -1489,5 +1761,8 @@ this design open.
 
 - **A4** — 2026-10-19 — design: batches guard observations atomically. _Supersedes:_ § 4 ¶2; § 8.5 pre-batch; § 8.6 ¶2;
   § 8.7 ¶1; § 9 ¶1; criterion 6. _Trigger:_ SEAM-1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A5** — 2026-10-20 — design: birth receipts and stored bindings preserve cut-owned generations.
+  _Supersedes:_ § 4, 8.3, 8.8, 9.2. _Trigger:_ REVISION-R1-1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

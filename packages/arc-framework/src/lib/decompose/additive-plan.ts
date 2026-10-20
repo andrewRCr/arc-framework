@@ -20,6 +20,7 @@ import { decomposeSlugSettlementWrites } from "./slug-settler.js";
 import { recordReferences, sameReference } from "../store/identity.js";
 import { writeCutMapRecord } from "../store/kinds/cut-map/index.js";
 import { decomposeReadCache } from "./read-cache.js";
+import { prepareDecomposeStoredMap } from "./owner-birth-bindings.js";
 
 /** Prepared edits and their immutable provider observations, with report inputs. */
 export interface DecomposeAdditivePlan extends Omit<DecomposeAdditiveApplied, "batch" | "report"> {
@@ -57,6 +58,9 @@ export async function prepareDecomposeAdditive(ctx: DecomposeContext, origin: st
   const settled = decomposeSlugSettlementWrites(settlement.result);
   if (settled.status === "refused") return settled;
   const storedMap = recordReferences["work-item/cut-map"](acquired.primary.reference.owner);
+  const stored = await prepareDecomposeStoredMap(ctx.executor.store, storedMap, map,
+    [...members.result.writes, ...cohorts.result.writes]);
+  if (stored.status === "refused") return stored;
   const records = uniqueRecords([...acquired.records, ...settlement.result.settlements.map(entry => entry.primary)]);
   const path = cohorts.result.topology.memberCohort;
   const selectedCohorts = names.result.cohorts.filter(cohort => path === cohort.path || path?.startsWith(`${cohort.path}/`) === true)
@@ -65,7 +69,7 @@ export async function prepareDecomposeAdditive(ctx: DecomposeContext, origin: st
     absenceObservations: settlement.result.absenceObservations,
     observations: uniqueRecords([...settlement.result.records, ...facts.result.dependents, ...homes.result.map(home => home.primary), ...selectedCohorts]),
     prepared: { records, writes: [...members.result.writes, ...cohorts.result.writes, ...settled.result,
-      { action: "put", reference: storedMap, expected: null, content: writeCutMapRecord(map) }] } } };
+      { action: "put", reference: storedMap, expected: null, content: writeCutMapRecord(stored.result) }] } } };
 }
 
 function uniqueRecords(records: readonly StoreRecord[]): StoreRecord[] {

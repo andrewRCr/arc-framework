@@ -19,6 +19,8 @@ import { checkDecomposeSourceBinding } from "../../../decompose/source-binding.j
 import { acquireDecomposeTerminalCohorts } from "../../../decompose/acquire-terminal-targets.js";
 import { checkDecomposeMemberPlacement } from "../../../decompose/check-member-placement.js";
 import { canonicalize } from "../../../kernel/canonical/canonical-json.js";
+import { checkStoredCutBirths } from "./birth-check.js";
+import type { StoredCutMap } from "./schema.js";
 
 interface CutAdmission {
   input: WriteCheckInput;
@@ -37,7 +39,7 @@ export async function checkCutMapBinding(input: WriteCheckInput, grammar?: Entry
   if (action === undefined || !validMutationShape(input, action)) return invalid("The cut-map mutation lacks its matching lifecycle action.");
   const decoded = decodeCutMapContent(input.next?.content ?? input.prior?.content ?? "");
   if (!decoded.success) return invalid(decoded.error);
-  const map = decoded.data;
+  const map = decoded.data.map;
   if (input.reference.owner.type !== "work-item" || input.reference.owner.uid !== map.machine.origin.uid) {
     return invalid("The cut map does not belong to its selected origin generation.");
   }
@@ -51,9 +53,20 @@ export async function checkCutMapBinding(input: WriteCheckInput, grammar?: Entry
   const members = selected.result;
   const state: CutAdmission = { input, store, action, map, members,
     ...(stored.status === "ok" ? { storedMap: stored.result } : {}), ...(grammar === undefined ? {} : { grammar }) };
+  return checkPreparedCut(state, decoded.data);
+}
+
+async function checkPreparedCut(state: CutAdmission, next: StoredCutMap): Promise<readonly BrokenRule[]> {
+  const { input, store, action, members, storedMap } = state;
   if (action !== "discard") {
     const bound = await checkSourceBinding(state);
     if (bound.length > 0) return bound;
+  }
+  if (input.next !== undefined) {
+    const prior = storedMap === undefined ? undefined : decodeCutMapContent(storedMap.content);
+    if (prior?.success === false) return invalid(prior.error);
+    const births = await checkStoredCutBirths(input, store, next, prior?.data);
+    if (births.length > 0) return births;
   }
   return action === "discard" || action === "revise" ? checkCutMapRemovedGroups(input, store, members) : [];
 }
@@ -90,7 +103,9 @@ async function checkSourceBinding(state: CutAdmission): Promise<readonly BrokenR
   const source = { map, acquired: { ...acquired.result, storedMap } };
   const origin = checkDecomposeTerminalOrigin(source);
   if (origin.status === "refused") return domainFailure(origin);
-  const cohorts = await acquireDecomposeTerminalCohorts(store, map);
+  const decoded = decodeCutMapContent(storedMap.content);
+  if (!decoded.success) return invalid(decoded.error);
+  const cohorts = await acquireDecomposeTerminalCohorts(store, map, decoded.data, storedMap);
   if (cohorts.status === "refused") return domainFailure(cohorts);
   const placement = checkDecomposeMemberPlacement({ ...source, members, cohorts: cohorts.result });
   if (placement !== undefined) return domainFailure(placement);

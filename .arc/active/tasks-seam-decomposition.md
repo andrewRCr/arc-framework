@@ -68,6 +68,7 @@ under `lib/decompose/`, and the kind folder imports its decoder from there, as t
   that the reference backend serves and the in-repo implementation lists absent and refuses `unsupported`, so no record
   of it can exist before the flip.
     - _Amended in:_ review-fix (A4).
+    - _Amended in:_ review-fix (A5).
 
     - `[x]` **1.3.a The shape and the mechanism**
 
@@ -237,6 +238,7 @@ row to the tasks that build it.
   every edge the members' slugs trip, and the stored map with expected absence, removing nothing, and the verb reports
   what it wrote with each destination's authoring requirements and the next step.
     - _Amended in:_ review-fix (A4).
+    - _Amended in:_ review-fix (A5).
 
     - `[x]` **2.5.a Members and their copies**
 
@@ -296,6 +298,7 @@ that step fails; and the preview afterward reports the cut landed, naming its me
   origin's slug, the origin's whole group, each member's meta, the cohort documents the map names, the existing homes,
   and the stub dependents the listing finds, the members left out — and keeps those versions as its guards.
     - _Amended in:_ review-fix (A4).
+    - _Amended in:_ review-fix (A5).
 
 - _Outcome:_ `acquireDecomposeTerminal` shares version-bound observations across the complete origin, members,
   cohorts, homes, and current stub dependents. `isDecomposeMemberBirth` authenticates each member's birth name and
@@ -407,6 +410,7 @@ that step fails; and the preview afterward reports the cut landed, naming its me
   once per run, those counts unchanged by the records' history or by unrelated work items, and nothing from Git but
   § 11's locus reads.
     - _Amended in:_ review-fix (A4).
+    - _Amended in:_ review-fix (A5).
 
 - _Outcome:_ `createCountingStore` counts public read, list, lookup, and history requests while binding backend writes
   to their own view. A checked at-cap cut proves stable additive, preview, and apply counts under longer histories and
@@ -417,6 +421,7 @@ that step fails; and the preview afterward reports the cut landed, naming its me
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
     - _Amended in:_ review-fix (A4).
+    - _Amended in:_ review-fix (A5).
 
 - _Outcome:_ On merged main `9fe2f2f0d`, stub and started Planning retirements pass under cohort and at-cap placements
   through preflight, additive creation, authoring, preview, and apply. Each terminal batch writes exact lineage,
@@ -483,6 +488,7 @@ stored map, writing no lineage; and the preview afterward reports the cut landed
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
     - _Amended in:_ review-fix (A4).
+    - _Amended in:_ review-fix (A5).
 
 - _Outcome:_ On freshly merged main `e6856533f`, all four started Planning placements and an Active cohort extraction
   complete preflight, additive creation, authoring, preview and apply through the store entry points with no Git.
@@ -510,6 +516,7 @@ first place to reauthor; and a stored map conflicted by a sync resolves through 
   whole group, the cut's new cohort documents, and the stored map, writing no lineage, and its preview lists each
   existing home and existing cohort coordination the map allocated to as left edited.
     - _Amended in:_ review-fix (A4).
+    - _Amended in:_ review-fix (A5).
 
     - `[x]` **5.1.a The batch**
 
@@ -533,6 +540,7 @@ first place to reauthor; and a stored map conflicted by a sync resolves through 
 - _Outcome:_ Added canonical revision reports over one authenticated member pass and fresh source derivation. Rebinding
   preserves full authoring across compatible byte, kind, and renamed-edge changes, or returns the first changed binding
   beside fresh slots; source refusals retain their repairs and birth-history reads stay flat as stored histories grow.
+    - _Amended in:_ review-fix (A5).
 
 ### `[x]` **5.3 Apply a revision — § 9.2, § 9.3**
 
@@ -541,6 +549,7 @@ first place to reauthor; and a stored map conflicted by a sync resolves through 
   `Depends On` and `Cohort`, and replacing the stored map at its version — leaving unseeded edges and authored content
   as they stand.
     - _Amended in:_ review-fix (A4).
+    - _Amended in:_ review-fix (A5).
 
     - `[x]` **5.3.a Bind and check the revised map**
 
@@ -574,6 +583,7 @@ first place to reauthor; and a stored map conflicted by a sync resolves through 
 - _Outcome:_ Independent checked clones reproduce map conflicts and native identity clashes. Finish refuses the
   conflicted map; discard and revision revalidate the conflict records and close them through the map subject alone.
   The unselected cut remains intact, its stubs abandon normally, and its empty cohort remains open.
+    - _Amended in:_ review-fix (A5).
 
 ### `[x]` **5.6 Refuse abandoning an origin mid-cut — § 10**
 
@@ -592,6 +602,7 @@ first place to reauthor; and a stored map conflicted by a sync resolves through 
   successful abandonment, revision through exact member/cohort and seeded-field differences, and fresh authoring
   through carried or reauthoring outcomes after source changes. Independent clones resolve stored-map conflicts
   through either exit while preserving the accepted leftovers.
+    - _Amended in:_ review-fix (A5).
 
 ## **Phase 6:** The dispatch and the flags
 
@@ -749,5 +760,21 @@ canonical JSON on standard output, with its reason and remedy on standard error.
   history pass and one atomic admission history pass over the stored map and each currently resolved member,
   independent of unrelated history and branch counts. This supersedes the once-per-run history-count clause of
   original criterion 6; it preserves its other bounded-read and Git-isolation requirements.
+
+- `[x]` Complete backend-generated work-item/cohort birth receipts retain the cut member's generation through rename,
+  retirement and later name reuse, including multiple retired holders and a member-name drop/re-add. History,
+  changes, reopen, removals, saved states, net-zero history and sync preserve completeness; failed admission publishes
+  none. Revision removes only proved old seeds and their original retirement replacements, preserving unrelated
+  groomed edges and current replacement records. Unavailable, ambiguous or malformed evidence grants no removal
+  authority; after supported evidence or edge settlement is repaired, fresh preparation and approval complete.
+  Read counts stay within criterion 15 and do not enumerate retired-primary or unrelated histories (A5).
+
+- `[x]` The private stored-map wrapper retains the selected map and its member/cohort generation bindings across
+  either-side merges, unrelated branch omissions/removals, revision/reversion and rename. External authored maps stay
+  unchanged. New bindings use the canonical complete prior map-history batch-ID set and require matching backend
+  candidate births plus a changed wrapper; retained keys cannot recreate owners. Drop/re-add and cut recreation select
+  fresh bindings, reused cohorts remain external, and no-op writes allocate no key or generation. Atomic admission
+  repeats the same derivation against pinned before-history; missing evidence refuses, and supported restoration plus
+  fresh preparation/approval completes (A5).
 
 ---

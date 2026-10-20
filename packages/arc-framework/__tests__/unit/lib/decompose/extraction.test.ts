@@ -1,3 +1,4 @@
+import { storedCutMapFixture } from "../../../fixtures/stored-cut-map.js";
 /** Extraction applies exact prepared mutations with no lifecycle transition or Git operation. */
 import { expect, it } from "vitest";
 import { observedDecomposeWrite } from "../../../helpers/store/decompose-batch.js";
@@ -70,7 +71,7 @@ it("refuses moving a newly started dependent off the origin and admits its corre
   if (disposition === undefined) throw new Error("Expected dependent disposition.");
   disposition.disposition = { kind: "replace", replacementTargets: ["origin"] };
   const stored = lifecycleSuccess(await h.store.read({ reference: h.additive.storedMap }));
-  lifecycleSuccess(await observedDecomposeWrite(h.store, { ...recordPut(stored, { content: writeCutMapRecord(h.map) }),
+  lifecycleSuccess(await observedDecomposeWrite(h.store, { ...recordPut(stored, { content: writeCutMapRecord(storedCutMapFixture(h.map)) }),
     provenance: { verb: "decompose", lifecycleAction: "revise" } }));
   const repaired = await prepareDecomposeExtraction(h.ctx, "origin");
   if (repaired.status === "refused") throw new Error(JSON.stringify(repaired));

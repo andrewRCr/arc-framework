@@ -224,6 +224,12 @@ function prepareReconciliation(context: ReferenceContext, publication: Reference
     .some((key) => !equal(remoteState.records.get(key), result.records.get(key)));
   const generated = structuredClone(prepared.state);
   generated.events = prepared.state.events.splice(originalEventCount);
+  const batchId = randomUUID();
+  for (const event of generated.events) {
+    if (!("verb" in event.provenance)) throw new Error("Generated reconciliation event lacks structured provenance");
+    event.provenance.batchId = batchId;
+    event.creationReceipt = { schemaVersion: 1, batchId, createdOwners: [] };
+  }
   const imported = transferMemoryHistory(remoteState, prepared.state, families);
   // Newly derived versions follow the accepted remote history they reconcile.
   transferMemoryHistory(generated, prepared.state, families);

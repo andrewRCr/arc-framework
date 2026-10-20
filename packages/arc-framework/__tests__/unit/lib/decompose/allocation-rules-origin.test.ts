@@ -1,3 +1,4 @@
+import { storedCutMapFixture } from "../../../fixtures/stored-cut-map.js";
 /** A cut cannot conserve transferred content in the generation it retires. */
 import { expect, it } from "vitest";
 import { createDecomposeOriginFixture } from "../../../fixtures/decompose-origin.js";
@@ -59,7 +60,7 @@ it("refuses a previously stored self-home at terminal conservation and continues
   const invalid = structuredClone(map);
   selfHome(invalid, "origin");
   const stored = success(await h.store.read({ reference: applied.storedMap }));
-  success(await observedDecomposeWrite(h.store, { ...recordPut(stored, { content: writeCutMapRecord(invalid) }),
+  success(await observedDecomposeWrite(h.store, { ...recordPut(stored, { content: writeCutMapRecord(storedCutMapFixture(invalid)) }),
     provenance: { verb: "decompose", lifecycleAction: "revise" } }));
   const before = success(await h.store.version());
   expect(await prepareDecomposeTerminal(h.ctx, "origin", "retirement"))

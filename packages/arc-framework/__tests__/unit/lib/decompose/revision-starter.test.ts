@@ -306,7 +306,7 @@ async function measureRevision(scaled: boolean) {
   h.ctx.executor.store = counted.store;
   expect(await revision(h.ctx)).toMatchObject({ status: "carried", map: { authoring: h.map.authoring } });
   for (const reference of [h.applied.storedMap, ...members.map(member => member.reference)]) {
-    expect(counted.count({ operation: "history", input: { reference } })).toBe(1);
+    expect(counted.count({ operation: "history", input: { reference } })).toBe(reference.kind === "work-item/cut-map" ? 1 : 0);
   }
   return JSON.stringify(counted.observations(), (key, value: unknown) => key === "uid" ? "<uid>" : value);
 }

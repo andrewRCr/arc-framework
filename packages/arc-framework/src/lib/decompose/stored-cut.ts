@@ -9,11 +9,11 @@ import { readDecomposeLandedExtraction } from "./landed-extraction.js";
 import type { DecomposeResult, DecomposeRefusal } from "./refusal.js";
 import { recordReferences } from "../store/identity.js";
 import { readWorkUnit } from "../store/lifecycle-write.js";
-import { decodeCutMap } from "./cut-map-decode.js";
+import { decodeCutMapContent, type StoredCutMap } from "../store/kinds/cut-map/index.js";
 import { decomposeStoreRefusal } from "./refusal.js";
 
 /** Current origin and stored authoring retained at their exact versions. */
-export interface DecomposeStoredCut { primary: StoreRecord; storedMap: StoreRecord; map: CutMap }
+export interface DecomposeStoredCut { primary: StoreRecord; storedMap: StoreRecord; map: CutMap; storedCut: StoredCutMap }
 
 /** Select the origin by current or former slug and decode its current map, including conflicted content. */
 export async function acquireDecomposeStoredCut(store: Store, origin: string): Promise<DecomposeResult<DecomposeStoredCut>> {
@@ -23,16 +23,11 @@ export async function acquireDecomposeStoredCut(store: Store, origin: string): P
   const stored = await store.read({ reference: recordReferences["work-item/cut-map"](primary.result.reference.owner) });
   if (stored.status === "refused") return stored.refusal.code !== "not-found" ? decomposeStoreRefusal(stored.refusal)
     : missingMap(store, primary.result, origin);
-  let content: unknown;
-  try { content = JSON.parse(stored.result.content); } catch {
-    return { status: "refused", reason: "invalid-structure", class: "recoverable", locus: "$",
-      remedy: { text: "Restore valid JSON for the stored cut map, then retry." } };
-  }
-  const decoded = decodeCutMap(content);
-  if (decoded.status === "rejected") return { status: "refused", reason: decoded.issue.code, class: "recoverable",
-    locus: decoded.issue.path || "$", message: decoded.issue.message,
-    remedy: { text: "Restore a complete valid stored cut map, then retry." } };
-  return { status: "ok", result: { primary: primary.result, storedMap: stored.result, map: decoded.value } };
+  const decoded = decodeCutMapContent(stored.result.content);
+  if (!decoded.success) return { status: "refused", reason: "invalid-structure", class: "recoverable",
+    locus: "$", message: decoded.error,
+    remedy: { text: "Restore the authentic stored wrapper and required history from a known intact source, then prepare again. Explicitly regenerate development state whose required generation facts were never recorded." } };
+  return { status: "ok", result: { primary: primary.result, storedMap: stored.result, map: decoded.data.map, storedCut: decoded.data } };
 }
 
 async function missingOrigin(store: Store, origin: string, refusal: StoreRefusal): Promise<DecomposeRefusal> {

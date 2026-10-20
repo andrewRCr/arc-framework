@@ -1,3 +1,4 @@
+import { storedCutMapFixture } from "../../../fixtures/stored-cut-map.js";
 /** Saved cut maps remain immutable while ordinary rename references advance. */
 import { expect, it } from "vitest";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
@@ -40,7 +41,7 @@ async function seedCut(h: ReturnType<typeof createLifecycleHarness>, primary: St
       targetLocator: { ...unit.sourceLocator, artifact: "draft-member-a.md" } },
   }));
   rebindCutFixture(value);
-  const map = await h.seed(recordReferences["work-item/cut-map"](origin), writeCutMapRecord(value));
+  const map = await h.seed(recordReferences["work-item/cut-map"](origin), writeCutMapRecord(storedCutMapFixture(value)));
   return { draft, map };
 }
 function context(h: ReturnType<typeof createLifecycleHarness>) {

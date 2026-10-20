@@ -23,7 +23,7 @@ async function conflictingCuts() {
   if (primary.conflicts.length > 0) lifecycleSuccess(await h.right.store.write({ ...recordPut(primary), resolves: primary.conflicts,
     provenance: { verb: "write-back", lifecycleAction: "resolve" } }));
   const stored = lifecycleSuccess(await h.right.store.read({ reference: leftCut.applied.storedMap }));
-  expect(JSON.parse(stored.content)).toEqual(leftCut.map);
+  expect(JSON.parse(stored.content).map).toEqual(leftCut.map);
   expect(stored.conflicts).toHaveLength(1);
   return { ...h, leftCut, rightCut, stored };
 }
@@ -96,7 +96,7 @@ it.each(["discard", "revise"] as const)("%s closes the map conflict through its 
   else {
     expect(current.status).toBe("ok");
     if (current.status === "refused") throw new Error(JSON.stringify(current));
-    expect(JSON.parse(current.result.content)).toEqual(h.leftCut.map);
+    expect(JSON.parse(current.result.content).map).toEqual(h.leftCut.map);
     expect(current.result.conflicts).toEqual([]);
   }
   for (const record of others) expect(lifecycleSuccess(await store.read({ reference: record.reference }))).toEqual(record);

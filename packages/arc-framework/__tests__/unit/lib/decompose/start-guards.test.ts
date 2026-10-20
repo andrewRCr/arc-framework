@@ -1,3 +1,4 @@
+import { storedCutMapFixture } from "../../../fixtures/stored-cut-map.js";
 /** New cuts respect stored maps and held inbound entries until those conditions are repaired. */
 import { expect, it } from "vitest";
 import { createDecomposeHarness } from "../../../helpers/store/decompose-harness.js";
@@ -18,7 +19,7 @@ it("names finish, revision, and discard for an existing stored cut, then admits 
   const map = cutMapFixture();
   map.machine.origin = { slug: owner.name, uid: owner.uid };
   rebindCutFixture(map);
-  const saved = await h.seed(recordReferences["work-item/cut-map"](owner), writeCutMapRecord(map));
+  const saved = await h.seed(recordReferences["work-item/cut-map"](owner), writeCutMapRecord(storedCutMapFixture(map)));
   const ctx = decomposeContext(h.store);
   const acquired = await acquireDecomposeOrigin(ctx, "origin");
   if (acquired.status === "refused") throw new Error(JSON.stringify(acquired));
@@ -29,7 +30,7 @@ it("names finish, revision, and discard for an existing stored cut, then admits 
   expect(refusal?.remedy.text).toContain("arc decompose origin --discard");
   expect(refusal?.remedy.argv).toBeUndefined();
   lifecycleSuccess(await h.store.write({ action: "remove", reference: saved.reference, expected: saved.version,
-    provenance: { verb: "decompose", lifecycleAction: "discard" } }));
+    provenance: { verb: "write-back", lifecycleAction: "fixture-removal" } }));
   const repaired = await acquireDecomposeOrigin(ctx, "origin");
   if (repaired.status === "refused") throw new Error(JSON.stringify(repaired));
   expect(checkDecomposeStart(ctx, repaired.result)).toBeUndefined();

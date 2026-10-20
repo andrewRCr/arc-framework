@@ -207,7 +207,7 @@ async function measureDiscard(scaled: boolean) {
   const summarize = () => JSON.stringify(counted.observations(), (key, value: unknown) => key === "uid" ? "<uid>" : value);
   const assertHistories = () => {
     for (const reference of [h.applied.storedMap, ...memberReferences]) {
-      expect(counted.count({ operation: "history", input: { reference } })).toBe(1);
+      expect(counted.count({ operation: "history", input: { reference } })).toBe(reference.kind === "work-item/cut-map" ? 1 : 0);
     }
   };
   const plan = await preview(h);

@@ -1,3 +1,4 @@
+import { storedCutMapFixture } from "../../../fixtures/stored-cut-map.js";
 /** Completed maps retain repairable decoding, fresh binding, and explicit mode authority. */
 import { expect, it } from "vitest";
 import { createDecomposeOriginFixture } from "../../../fixtures/decompose-origin.js";
@@ -55,9 +56,9 @@ it.each(["inbound-held", "source-conflict", "cut-in-flight"] as const)("repeats 
         provenance: { verb: "write-back", lifecycleAction: "resolve" } }));
     };
   } else {
-    const stored = await h.seed(recordReferences["work-item/cut-map"](h.primary.reference.owner), writeCutMapRecord(map));
+    const stored = await h.seed(recordReferences["work-item/cut-map"](h.primary.reference.owner), writeCutMapRecord(storedCutMapFixture(map)));
     repair = async () => lifecycleSuccess(await h.store.write({ action: "remove", reference: stored.reference,
-      expected: stored.version, provenance: { verb: "decompose", lifecycleAction: "discard" } }));
+      expected: stored.version, provenance: { verb: "write-back", lifecycleAction: "fixture-removal" } }));
   }
   expect(await bindDecomposeMap(h.ctx, "origin", "execute", input)).toMatchObject({ status: "refused", reason, class: "recoverable" });
   await repair();

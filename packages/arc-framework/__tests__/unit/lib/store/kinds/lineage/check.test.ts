@@ -1,3 +1,4 @@
+import { storedCutMapFixture } from "../../../../../fixtures/stored-cut-map.js";
 /** Retirement admission observes the origin's proposed inbound entries. */
 import { expect, it } from "vitest";
 import { OwnerIdentitySchema } from "../../../../../../src/lib/store/index.js";
@@ -76,7 +77,7 @@ function cutRecord(uid = META_RULE_UID) {
   const value = cutMapFixture();
   value.machine.origin = { slug: SlugSchema.parse("example"), uid };
   rebindCutFixture(value);
-  return ruleRecord("work-item/cut-map", "example", uid, writeCutMapRecord(value), value);
+  return ruleRecord("work-item/cut-map", "example", uid, writeCutMapRecord(storedCutMapFixture(value)), value);
 }
 
 it("refuses abandonment from a map in before even when after is empty", async () => {

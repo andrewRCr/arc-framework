@@ -104,13 +104,13 @@ async function measure(scaled: boolean) {
   for (const record of tracked) expect(readCount(record), `${record.reference.kind}:${record.reference.owner.name}`).toBe(acquiredReads(record));
   for (const record of tracked.filter(record => record.reference.kind === "work-item/cut-map"
     || record.reference.kind === "work-item/meta" && ["member-a", "member-b"].includes(record.reference.owner.name))) {
-    expect(counted.count({ operation: "history", input: { reference: record.reference } })).toBe(1);
+    expect(counted.count({ operation: "history", input: { reference: record.reference } })).toBe(record.reference.kind === "work-item/cut-map" ? 1 : 0);
   }
   counted.reset();
   expect(await runStoreDecomposeFinish(h.ctx, "origin", { applyAuthority: preview.result.applyAuthority })).toMatchObject({ status: "ok", result: { kind: "applied" } });
   for (const record of tracked.filter(record => record.reference.kind === "work-item/cut-map"
     || record.reference.kind === "work-item/meta" && ["member-a", "member-b"].includes(record.reference.owner.name))) {
-    expect(counted.count({ operation: "history", input: { reference: record.reference } })).toBe(1);
+    expect(counted.count({ operation: "history", input: { reference: record.reference } })).toBe(record.reference.kind === "work-item/cut-map" ? 1 : 0);
   }
   for (const record of tracked) {
     const omitted = record.reference.owner.name === "member-b" && record.reference.kind === "work-item/draft";

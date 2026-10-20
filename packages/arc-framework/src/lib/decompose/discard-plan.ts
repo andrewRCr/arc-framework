@@ -31,9 +31,9 @@ export async function prepareDecomposeDiscard(ctx: DecomposeContext, origin: str
   const { map, primary, storedMap } = selected.result;
   const originGroup = await acquireLifecycleRecords(store, primary.reference.owner.name);
   if (originGroup.status === "refused") return decomposeStoreRefusal(originGroup.refusal);
-  const members = await acquireDecomposeMembers(store, map, storedMap);
+  const members = await acquireDecomposeMembers(store, selected.result.storedCut, storedMap);
   if (members.status === "refused") return members;
-  const cohorts = await acquireDecomposeCutCohorts(store, map, storedMap);
+  const cohorts = await acquireDecomposeCutCohorts(store, selected.result.storedCut, storedMap);
   if (cohorts.status === "refused") return cohorts;
   const removed: StoreRecord[] = [storedMap, ...cohorts.result.map(cohort => cohort.record)];
   const acquired = new Set<string>();

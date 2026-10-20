@@ -3,7 +3,7 @@ import { createDecomposePlanFixture } from "../../../../../fixtures/decompose-pl
 import { lifecycleSuccess } from "../../../../../helpers/store/lifecycle-harness.js";
 import { observedDecomposeWrite } from "../../../../../helpers/store/decompose-batch.js";
 import { recordReferences } from "../../../../../../src/lib/store/identity.js";
-import { writeCutMapRecord } from "../../../../../../src/lib/store/kinds/cut-map/index.js";
+import { createDecomposeTerminalFixture } from "../../../../../fixtures/decompose-terminal.js";
 
 async function fixture() {
   const h = await createDecomposePlanFixture();
@@ -13,12 +13,10 @@ async function fixture() {
 
 describe("production cut map registration", () => {
   it("writes parsed fields and retains exact history after removal", async () => {
-    const h = await fixture();
-    const content = writeCutMapRecord(h.value);
-    const written = lifecycleSuccess(await observedDecomposeWrite(h.store, { action: "put", reference: h.reference, expected: null,
-      content, provenance: { verb: "decompose", lifecycleAction: "additive" } }));
-    const read = lifecycleSuccess(await h.store.read({ reference: written.reference }));
-    expect(read).toMatchObject({ content, fields: h.value });
+    const h = await createDecomposeTerminalFixture();
+    const read = lifecycleSuccess(await h.store.read({ reference: h.applied.storedMap }));
+    const content = read.content;
+    expect(read).toMatchObject({ fields: { schemaVersion: 1, map: h.map, ownerBirths: expect.any(Array) } });
     const reference = read.reference;
     lifecycleSuccess(await observedDecomposeWrite(h.store, { action: "remove", reference, expected: read.version,
       provenance: { verb: "decompose", lifecycleAction: "discard" } }));

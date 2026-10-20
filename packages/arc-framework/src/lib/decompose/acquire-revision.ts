@@ -23,7 +23,7 @@ export async function acquireDecomposeRevision(ctx: DecomposeContext, origin: st
   const store = decomposeReadCache(ctx.executor.store);
   const stored = await acquireDecomposeStoredCut(store, origin);
   if (stored.status === "refused") return stored;
-  const members = await acquireDecomposeMembers(store, stored.result.map, stored.result.storedMap);
+  const members = await acquireDecomposeMembers(store, stored.result.storedCut, stored.result.storedMap);
   if (members.status === "refused") return members;
   const excluded = new Set(members.result.flatMap(member => {
     const owner = member.primary?.reference.owner;

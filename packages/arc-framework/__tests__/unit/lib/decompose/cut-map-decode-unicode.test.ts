@@ -1,3 +1,4 @@
+import { storedCutMapFixture } from "../../../fixtures/stored-cut-map.js";
 import { describe, expect, it } from "vitest";
 import { cutMapFixture, completeCutMapFixture, rebindCutFixture } from "../../../fixtures/decompose-v4.js";
 import { scanV3DecomposeContent } from "../../../../src/lib/work-unit/decompose-content.js";
@@ -65,7 +66,7 @@ describe.each([{ label: "high", invalid: "\uD800" }, { label: "low", invalid: "\
     const decoded = decodeCutMap(input);
     expect(decoded.status).toBe("accepted");
     if (decoded.status !== "accepted") throw new Error(JSON.stringify(decoded));
-    expect(decodeCutMapContent(writeCutMapRecord(decoded.value)))
-      .toEqual({ success: true, data: JSON.parse(canonicalize(decoded.value)) });
+    expect(decodeCutMapContent(writeCutMapRecord(storedCutMapFixture(decoded.value))))
+      .toEqual({ success: true, data: JSON.parse(canonicalize(storedCutMapFixture(decoded.value))) });
   });
 });

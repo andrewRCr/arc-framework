@@ -5,7 +5,7 @@ import {
   OwnerIdentitySchema, RecordReferenceSchema, RecordVersionSchema, StateVersionSchema,
   referenceOwner, referenceKind, referenceKey, sameOwner, sameReference,
   type OwnerIdentity, type RecordReference, type RecordVersion, type StateVersion,
-  type ReadPlacement, type Links, type StoredProvenance, type ConflictRecord, type FamilyId, type SideLabel,
+  type ReadPlacement, type Links, type StoredProvenance, type ConflictRecord, type FamilyId, type SideLabel, type BatchCreationReceipt,
 } from "../../../src/lib/store/index.js";
 
 /** One saved record, including backend metadata kept outside its content. */
@@ -31,6 +31,7 @@ export interface MemoryEvent {
   version?: RecordVersion;
   stateVersion: StateVersion;
   provenance: StoredProvenance;
+  creationReceipt?: BatchCreationReceipt;
   label: SideLabel;
 }
 

@@ -21,6 +21,10 @@ import { projectDecomposeDependencies } from "../../../../src/lib/decompose/depe
 import { planDecomposeTopology } from "../../../../src/lib/decompose/topology.js";
 import { deriveDecomposeMachine } from "../../../../src/lib/decompose/machine-facts.js";
 import { planDecomposeMembers } from "../../../../src/lib/decompose/member-scaffold.js";
+import { prepareDecomposeStoredMap } from "../../../../src/lib/decompose/owner-birth-bindings.js";
+import { writeCutMapRecord, decodeCutMapContent } from "../../../../src/lib/store/kinds/cut-map/index.js";
+import { runStoreDecomposeDiscard } from "../../../../src/lib/decompose/discard.js";
+import { runStoreDecomposeAdditive } from "../../../../src/lib/decompose/additive.js";
 
 // A second read of one generation is an acquisition failure, rather than an assertion on spy arguments.
 function oncePerRecord(store: Store): Store {
@@ -44,36 +48,45 @@ it("names the additive modes when no stored cut exists", async () => {
   expect(result.status === "refused" && result.remedy.text).toMatch(/--execute.*--extract/u);
 });
 
-it("limits membership to the current incarnation when the stored map is recreated", async () => {
+it("refuses recreation under old keys and authenticates fresh bindings after a complete cut recreation", async () => {
   const h = await createDecomposeTerminalFixture();
   const map = lifecycleSuccess(await h.store.read({ reference: h.applied.report.storedMap }));
-  // Checked machine-record recreation isolates the history boundary; the members keep their earlier birth histories.
-  lifecycleSuccess(await observedDecomposeWrite(h.store, { action: "remove", reference: map.reference, expected: map.version,
-    provenance: { verb: "decompose", lifecycleAction: "discard" } }));
-  lifecycleSuccess(await observedDecomposeWrite(h.store, { action: "put", reference: map.reference, expected: null, content: map.content,
-    provenance: { verb: "decompose", lifecycleAction: "additive" } }));
+  const original = await acquireDecomposeTerminal(h.ctx, "origin");
+  if (original.status === "refused") throw new Error(JSON.stringify(original));
+  const preview = await runStoreDecomposeDiscard(h.ctx, "origin");
+  if (preview.status === "refused" || preview.result.kind !== "preview") throw new Error(JSON.stringify(preview));
+  expect(await runStoreDecomposeDiscard(h.ctx, "origin", { applyAuthority: preview.result.applyAuthority })).toMatchObject({ status: "ok" });
+  const before = lifecycleSuccess(await h.store.version());
+  expect(await observedDecomposeWrite(h.store, { action: "put", reference: map.reference, expected: null, content: map.content,
+    provenance: { verb: "decompose", lifecycleAction: "additive" } })).toMatchObject({ status: "refused", refusal: { rule: "cut-map.atomic-binding" } });
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  expect(await runStoreDecomposeAdditive(h.ctx, "origin", "execute", { cutMap: h.map, cutMapPath: "cut.json" })).toMatchObject({ status: "ok" });
   const result = await acquireDecomposeTerminal(h.ctx, "origin");
   if (result.status === "refused") throw new Error(JSON.stringify(result));
-  expect(result.result.members.map(member => member.primary)).toEqual([null, null]);
-  expect(result.result.acquired.incomingCandidates.map(entry => entry.reference.owner.name)).toEqual(expect.arrayContaining(["member-a", "member-b"]));
+  expect(result.result.members.every(member => member.primary !== null)).toBe(true);
+  expect(result.result.members.map(member => member.uid)).not.toEqual(original.result.members.map(member => member.uid));
+  expect(result.result.storedCut.ownerBirths).not.toEqual(original.result.storedCut.ownerBirths);
 });
 
-it.each(["map", "member"] as const)("admits no member without a batch ID in its %s history", async missing => {
+it.each(["map", "member"] as const)("uses batch-bound map receipts rather than %s primary-history assumptions", async missing => {
   const h = await createDecomposeTerminalFixture();
   const store = new Proxy(h.store, { get(target, property) {
     if (property === "history") return async (input: { reference: RecordReference }) => {
       const history = await target.history(input);
       const selected = missing === "map" ? input.reference.kind === "work-item/cut-map" : input.reference.kind === "work-item/meta";
       if (history.status === "refused" || !selected) return history;
-      // Imported history is a supported store representation without a backend batch identifier.
       return { ...history, result: history.result.map(entry => ({ ...entry, provenance: { message: "Imported decomposition history" } })) };
     };
     const value: unknown = Reflect.get(target, property);
     return typeof value === "function" ? value.bind(target) : value;
   } });
   const result = await acquireDecomposeTerminal({ ...h.ctx, executor: { ...h.ctx.executor, store } }, "origin");
-  if (result.status === "refused") throw new Error(JSON.stringify(result));
-  expect(result.result.members.map(member => member.primary)).toEqual([null, null]);
+  if (missing === "map") expect(result).toMatchObject({ status: "refused", reason: "store", class: "terminal",
+    storeRefusal: { code: "namespace-corrupt" } });
+  else {
+    if (result.status === "refused") throw new Error(JSON.stringify(result));
+    expect(result.result.members.every(member => member.primary !== null)).toBe(true);
+  }
   const repaired = await acquireDecomposeTerminal(h.ctx, "origin");
   if (repaired.status === "refused") throw new Error(JSON.stringify(repaired));
   expect(repaired.result.members.every(member => member.primary !== null)).toBe(true);
@@ -97,11 +110,13 @@ it("admits a member created with the map update in a revision batch", async () =
   const second = previous.result.members[1]?.primary;
   const storedMap = previous.result.acquired.storedMap;
   if (second === null || second === undefined || storedMap === undefined) throw new Error("Expected prior cut records.");
+  const stored = await prepareDecomposeStoredMap(h.store, storedMap.reference, h.map, scaffolds.result.writes, previous.result.storedCut);
+  if (stored.status === "refused") throw new Error(JSON.stringify(stored));
   // Compose the revision's production scaffold and field writers in one checked store batch.
   lifecycleSuccess(await observedDecomposeBatch(h.store, { provenance: { verb: "decompose", lifecycleAction: "revise" }, writes: [
     ...scaffolds.result.writes.filter(write => write.reference.owner.name === "member-c"),
     recordPut(second, { content: writeMetaDependsOn(second.content, ["member-c"]) }),
-    recordPut(storedMap, { content: JSON.stringify(h.map) }),
+    recordPut(storedMap, { content: writeCutMapRecord(stored.result) }),
   ] }));
   const store = oncePerRecord(h.store);
   const current = await acquireDecomposeTerminal({ ...h.ctx, executor: { ...h.ctx.executor, store } }, "origin");
@@ -142,7 +157,9 @@ it.each(["abandoned", "shipped"] as const)("refuses a home %s after scaffolding 
   h.map.authoring.incomingDispositions = h.map.authoring.incomingDispositions.filter(disposition =>
     h.map.machine.incomingEdges.some(edge => edge.edgeId === disposition.edgeId));
   const map = lifecycleSuccess(await h.store.read({ reference: h.applied.report.storedMap }));
-  lifecycleSuccess(await observedDecomposeWrite(h.store, { ...recordPut(map, { content: JSON.stringify(h.map) }),
+  const stored = decodeCutMapContent(map.content);
+  if (!stored.success) throw new Error(stored.error);
+  lifecycleSuccess(await observedDecomposeWrite(h.store, { ...recordPut(map, { content: writeCutMapRecord({ ...stored.data, map: h.map }) }),
     provenance: { verb: "decompose", lifecycleAction: "revise" } }));
   const store = oncePerRecord(h.store);
   const repaired = await acquireDecomposeTerminal({ ...h.ctx, executor: { ...h.ctx.executor, store } }, "origin");

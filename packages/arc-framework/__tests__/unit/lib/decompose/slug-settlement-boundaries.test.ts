@@ -1,3 +1,4 @@
+import { storedCutMapFixture } from "../../../fixtures/stored-cut-map.js";
 /** Settlement leaves protected recipients untouched and preserves unavailable observations. */
 import { expect, it } from "vitest";
 import { createDecomposePlanFixture } from "../../../fixtures/decompose-plan.js";
@@ -18,7 +19,7 @@ it.each(["origin", "started", "stored-cut"] as const)("leaves a %s recipient's e
     await h.seed(recordReferences["work-item/draft"](consumer.reference.owner), "# Consumer\n\n## Scope\n\nWork.\n");
     const own = await prepareDecomposePreflight(h.ctx, "consumer");
     if (own.status === "refused") throw new Error(JSON.stringify(own));
-    await h.seed(recordReferences["work-item/cut-map"](consumer.reference.owner), writeCutMapRecord(completeCutMapFixture(own.result.machine)));
+    await h.seed(recordReferences["work-item/cut-map"](consumer.reference.owner), writeCutMapRecord(storedCutMapFixture(completeCutMapFixture(own.result.machine))));
   }
   await h.seedRetiredWorkUnit(h.provider);
   const member = h.map.authoring.destinations[1];

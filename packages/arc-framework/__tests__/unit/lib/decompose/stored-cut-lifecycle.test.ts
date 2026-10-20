@@ -45,7 +45,7 @@ it("preserves unsynced abandonment's native slug refusal and leaves independentl
   expect(lifecycleSuccess(await h.left.store.version())).toBe(before);
   const stored = lifecycleSuccess(await h.left.store.read({ reference: cut.applied.storedMap }));
   expect(stored.reference.owner).toHaveProperty("uid");
-  expect(JSON.parse(stored.content)).toEqual(cut.map);
+  expect(JSON.parse(stored.content).map).toEqual(cut.map);
   const cohortRef = cut.applied.cohorts[0]!.reference;
   const cohort = lifecycleSuccess(await h.left.store.read({ reference: cohortRef }));
   for (const name of ["left-a", "left-b"]) {

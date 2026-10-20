@@ -1,3 +1,4 @@
+import { storedCutMapFixture } from "../../../fixtures/stored-cut-map.js";
 /** The additive cut writes members and prior-generation edge settlement in one checked batch. */
 import { expect, it } from "vitest";
 import { createDecomposePlanFixture } from "../../../fixtures/decompose-plan.js";
@@ -27,7 +28,7 @@ it("settles a prior abandoned provider's stub edge beside every scaffold and the
   if (result.status === "refused") throw new Error(JSON.stringify(result));
   const settled = lifecycleSuccess(await h.store.read({ reference: consumer.reference }));
   expect(lifecycleSuccess(readLifecycleMetaFields(settled)).dependsOn).toEqual(["provider"]);
-  expect(lifecycleSuccess(await h.store.read({ reference: result.result.storedMap })).content).toEqual(writeCutMapRecord(map));
+  expect(lifecycleSuccess(await h.store.read({ reference: result.result.storedMap })).content).toEqual(writeCutMapRecord(storedCutMapFixture(map)));
   const replacement = lifecycleSuccess(await readWorkUnit(h.store, "reused"));
   expect(replacement.reference.owner).not.toEqual(prior.reference.owner);
   for (const write of result.result.batch.writes) expect(lifecycleSuccess(await h.store.history({ reference: write.reference }))[0]?.provenance)

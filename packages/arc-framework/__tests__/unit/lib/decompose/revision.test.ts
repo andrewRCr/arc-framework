@@ -1,3 +1,4 @@
+import { storedCutMapFixture } from "../../../fixtures/stored-cut-map.js";
 /** Revision approval binds exact current-cut differences while preserving authoring. */
 import { expect, it } from "vitest";
 import { observedDecomposeWrite } from "../../../helpers/store/decompose-batch.js";
@@ -29,7 +30,7 @@ it("previews only the stored-map replacement for unchanged decisions without wri
   if (result.status === "refused") throw new Error(JSON.stringify(result));
   expect(DecomposeRevisionReportSchema.parse(result.result)).toMatchObject({ kind: "preview", mode: "revise", removals: [],
     members: ["member-a", "member-b"], writes: [{ action: "put", reference: stored.reference, expected: stored.version,
-      content: writeCutMapRecord(h.map) }] });
+      content: writeCutMapRecord(storedCutMapFixture(h.map)) }] });
   expect(result.result.kind === "preview" && result.result.writes).toHaveLength(1);
   expect(lifecycleSuccess(await h.store.version())).toBe(before);
 });
@@ -48,7 +49,7 @@ it("applies matching approval as one versioned revision without unrelated writes
   const result = await runStoreDecomposeRevision(h.ctx, "origin", { cutMap: h.map, cutMapPath: "revised.json" }, { applyAuthority: plan.applyAuthority });
   expect(result).toMatchObject({ status: "ok", result: { kind: "revised", origin: h.map.machine.origin, members: ["member-a", "member-b"], removals: [] } });
   const history = lifecycleSuccess(await h.store.history({ reference: h.applied.storedMap }));
-  expect(history[0]).toMatchObject({ content: writeCutMapRecord(h.map), provenance: { verb: "decompose", lifecycleAction: "revise" } });
+  expect(history[0]).toMatchObject({ content: writeCutMapRecord(storedCutMapFixture(h.map)), provenance: { verb: "decompose", lifecycleAction: "revise" } });
   const otherRecords = (entries: typeof before) => entries.filter(([, record]) => record.reference.kind !== "work-item/cut-map");
   expect(otherRecords([...h.store.state.records.entries()])).toEqual(otherRecords(before));
 });
@@ -114,7 +115,10 @@ it("revises each physical difference in one batch while preserving authored cont
     if (entry !== undefined && "verb" in entry.provenance && entry.provenance.batchId !== undefined) batches.add(entry.provenance.batchId);
   }
   expect(batches.size).toBe(1);
-  expect(lifecycleSuccess(await h.store.read({ reference: h.applied.storedMap })).content).toBe(writeCutMapRecord(map));
+  const stored = lifecycleSuccess(await h.store.read({ reference: h.applied.storedMap }));
+  const planned = plan.writes.find(write => write.reference.kind === "work-item/cut-map");
+  expect(planned?.action === "put" && planned.content).toBe(stored.content);
+  expect(JSON.parse(stored.content).map).toEqual(map);
 });
 
 it("drops a gone member without touching an unrelated generation that reused its slug", async () => {
@@ -173,7 +177,7 @@ async function measureRevision(scaled: boolean) {
   const summarize = () => JSON.stringify(counted.observations(), (key, value: unknown) => key === "uid" ? "<uid>" : value);
   const histories = () => {
     for (const reference of [h.applied.storedMap, ...members.map(member => member.reference)])
-      expect(counted.count({ operation: "history", input: { reference } })).toBe(1);
+      expect(counted.count({ operation: "history", input: { reference } })).toBe(reference.kind === "work-item/cut-map" ? 1 : 0);
   };
   const plan = await preview(h);
   histories();

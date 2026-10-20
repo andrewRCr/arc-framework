@@ -524,3 +524,85 @@ map/member birth histories once through its own read cache; preparation retains 
 history-growth tests pass across additive, terminal, revision, and discard. The primary also traced outgoing identity
 relookup at native admission; native ref publication and its race evidence remain the provider's cutover obligation.
 Full verification and the approved independent code fix-check bind the resulting committed target separately.
+
+---
+
+## A5 — creation receipts and selected-map generation bindings
+
+`observePriorProvider` selects terminal lineage by a bare name after a member disappears; `priorProviders` then
+classifies that generation's retirement replacements as old seeds, and `projectDecomposeRevisionSeeds` subtracts them.
+Exact-name preference over former names can remove unrelated grooming; ambiguity can omit cleanup. Two exact-source
+preview/apply probes reproduce the final dependency errors. Existing bounded lookup cannot discover the hidden original
+UID from a name and cut batch IDs. Approved design direction: backend birth receipts plus explicit private stored-map
+bindings; implementation, commits and independent code fix-check approval remain separate.
+
+Superseded member-discovery statement:
+
+> A member is found by its map slug and is the member only where its primary's creation entry in `history` names
+> that slug as the owner it was created under and carries the batch ID of an entry naming `decompose` in the stored
+> map's `history` since the map was last created.
+
+Superseded stored-content statement:
+
+> Its content is the completed map as canonical JSON; its parser decodes it as § 3.4 does, and it registers in
+> the production set.
+
+`readRefHistoryDetails` and `orderHistoryCommits` flatten divergent parent histories. A selected map declaring a can
+appear before another branch's map omitting a, which appears before a's real birth receipt. An uninterrupted-name or
+latest-removal scan cannot establish selected ancestry. `refRecordVersion` is a content/metadata digest, not an event
+identity. `acquireDecomposeCutCohorts` uses the same misplaced cut boundary. The selected wrapper now carries exact
+owner bindings; full map history supplies matching backend birth facts without reconstructing ancestry from order.
+
+The key is a deterministic discriminator, not a caller-authored owner UID. New keys use all established prior map
+history batch IDs, including other branches and removals; retained keys are never reconstructed from a suffix. A new
+binding publishes with an actual primary birth and a changed wrapper. Equal clone inputs can produce equal keys, whose
+distinct receipt UIDs remain ambiguity. Keeping the selected map and its bindings as one single-writer value avoids a
+new generic selected-history API and preserves external authored maps.
+
+`HistoryEntrySchema` is strict and shared by history/changes. The receipt sits outside `StoredProvenanceSchema` and
+caller writes. Reference `prepareGenerations` allocates before late admission; `batchReference` publishes only its
+accepted cloned state. Native `resolveRefWrites` also allocates before `checkRefWrites`. Their before/after views cannot
+prove which generation the operation allocated. Backend-only `proposedCreatedOwners` therefore supplies the complete
+candidate inventory to checks. Reference `proposedBirths` intersects the captured allocations with actual proposed
+primary creations; `checkPreparedWrites` supplies those facts to every check, and `retainCreationReceipt` publishes the
+matching complete receipt only after admission. Native production and retention remain required before cutover.
+
+`parseStoreCommitProvenance` can fall back to an unstructured message, so a separate receipt codec must preserve
+advertised corruption as a refusal. `prepareRefCommits` partitions by ref and may select a companion as its first
+record; every operation commit needs the same complete receipt. Later sync keeps ancestor receipts with their own batch
+IDs. Record/window filtering and native `groupChangeBatches`'s net-zero omission stay unchanged. Inline receipt bytes
+grow with births times operation commits and must never be truncated to meet a read budget.
+
+The implementation footprint includes the shared schemas and admission fact, reference allocation/publication/history
+and transfer, the strict cut-map codec, both direct stored decoders, member/cohort authentication, additive/revision
+construction, captured admission, historical-map unwrapping and affected fixtures. `prepareStoreRename` already skips
+cut-map content; prepared lifecycle writes preserve its bytes. Registered fields expose the wrapper; external input,
+preflight and rebind keep the bare authored map. New conformance and selected-generation regressions must cover actual
+births, final-gap history changes, merge/reversion/removal, drop/re-add, cohorts, no-op and supported repair behavior.
+
+Destructive seed subtraction requires established provider identity; `sameDecomposeSeededProvider`'s name fallback
+remains unsuitable for removal. Explicit edge settlement followed by a fresh preview is its supported remedy. Named
+missing history retains fetch/retry. Never-recorded development facts have no compatibility reader or invented fetch
+remedy; malformed advertised receipt metadata retains terminal corruption and conditional authentic restoration. The
+full amended contract is in the spec. Native implementation and its conformance remain required before cutover; provider
+feasibility is not independent amendment review or evidence of runtime support.
+
+### Implementation evidence
+
+`StoredCutMapSchema` keeps the selected map and sorted birth bindings together. `prepareDecomposeStoredMap` preserves
+retained keys and derives fresh keys from complete prior map history; `checkStoredCutBirths` repeats the derivation
+against pinned before-history and backend candidate facts. `acquireDecomposeMembers` retains each receipt-proved UID
+when its primary ends. `acquireDecomposeCutCohorts` selects only the original cohort generation, and
+`projectDecomposeRevisionSeeds` subtracts only proved provider identities. Existing lookup policy and external authored
+map shape remain unchanged.
+
+`revision-original-generation.test.ts` retains both reproduced dependency failures. `creation-receipts.test.ts` covers
+backend authority, complete-none/unavailable/corrupt evidence, failed admission, whole-envelope agreement, saved history,
+reopen and sync. `owner-birth-history.test.ts` covers canonical complete history inputs, retained branch omissions and
+removals, repeated versions and distinct-UID ambiguity. `owner-birth-admission.test.ts` covers incapable-provider repair,
+forged keys, retained-key recreation and unrelated cohort reuse. `owner-birth-bindings.test.ts` covers either selected
+merge side, no-op/relabel, drop/re-add, a history-only final-gap race, edge settlement and authentic evidence restoration
+followed by fresh approval. Existing read-count tests now require no primary-history discovery.
+
+This is local reference-store implementation evidence. Native trailer encoding, physical commit paths, publication
+admission, history retention and cost/conformance evidence remain the provider's pre-cutover obligations in § 18.

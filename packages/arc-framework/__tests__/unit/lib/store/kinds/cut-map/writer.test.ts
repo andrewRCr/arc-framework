@@ -1,3 +1,4 @@
+import { storedCutMapFixture } from "../../../../../fixtures/stored-cut-map.js";
 import { describe, expect, it } from "vitest";
 import { canonicalize } from "../../../../../../src/lib/kernel/canonical/canonical-json.js";
 import { cutMapFixture } from "../../../../../fixtures/decompose-v4.js";
@@ -6,9 +7,9 @@ import { decodeCutMap } from "../../../../../../src/lib/decompose/cut-map-decode
 
 it("renders canonical JSON that round-trips through the stored map codec", () => {
   const value = cutMapFixture();
-  const content = writeCutMapRecord(value);
-  expect(content).toBe(canonicalize(value));
-  expect(decodeCutMapContent(content)).toEqual({ success: true, data: value });
+  const content = writeCutMapRecord(storedCutMapFixture(value));
+  expect(content).toBe(canonicalize(storedCutMapFixture(value)));
+  expect(decodeCutMapContent(content)).toEqual({ success: true, data: storedCutMapFixture(value) });
 });
 
 function withDestinationIds(ids: readonly [string, string], reference = ids[0]) {
@@ -28,7 +29,7 @@ it.each([
   expect(decoded.status).toBe("accepted");
   if (decoded.status !== "accepted") throw new Error(JSON.stringify(decoded));
   expect(decoded.value.authoring.destinations.map(destination => destination.destinationId)).toEqual(normalized);
-  expect(decodeCutMapContent(writeCutMapRecord(decoded.value))).toEqual({ success: true, data: decoded.value });
+  expect(decodeCutMapContent(writeCutMapRecord(storedCutMapFixture(decoded.value)))).toEqual({ success: true, data: storedCutMapFixture(decoded.value) });
 });
 
 it.each([
@@ -81,5 +82,5 @@ function expectAcceptedRoundTrip(input: unknown): void {
   const decoded = decodeCutMap(input);
   expect(decoded.status).toBe("accepted");
   if (decoded.status !== "accepted") throw new Error(JSON.stringify(decoded));
-  expect(decodeCutMapContent(writeCutMapRecord(decoded.value))).toEqual({ success: true, data: decoded.value });
+  expect(decodeCutMapContent(writeCutMapRecord(storedCutMapFixture(decoded.value)))).toEqual({ success: true, data: storedCutMapFixture(decoded.value) });
 }

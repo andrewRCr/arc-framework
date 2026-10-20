@@ -12,6 +12,7 @@ import { acquireDecomposeDependencyFacts, type DecomposeDependencyFacts } from "
 import { projectDecomposeDependencies, type DecomposeDependencyProjection } from "./dependency-projection.js";
 import { checkDecomposeWrittenEdges } from "./check-written-edges.js";
 import { decomposeReadCache } from "./read-cache.js";
+import { decomposeSelectedCohortPaths } from "./owner-birth-bindings.js";
 
 /** Complete authoring admission and observations needed to prepare the revision difference. */
 export interface DecomposeRevisionAdmission extends BoundDecomposeRevision {
@@ -31,7 +32,7 @@ export async function admitDecomposeRevision(ctx: DecomposeContext, origin: stri
   const bound = await bindDecomposeRevisionMap(cached, origin, input);
   if (bound.status === "refused") return bound;
   const { prior, map } = bound.result;
-  const owned = await acquireDecomposeCutCohorts(store, prior.map, prior.storedMap);
+  const owned = await acquireDecomposeCutCohorts(store, prior.storedCut, prior.storedMap);
   if (owned.status === "refused") return owned;
   const identities = checkDecomposeRevisionIdentities(bound.result, owned.result);
   if (identities !== undefined) return identities;
@@ -42,7 +43,9 @@ export async function admitDecomposeRevision(ctx: DecomposeContext, origin: stri
   if (homes.status === "refused") return homes;
   const allocations = checkDecomposeAllocations(map, homes.result);
   if (allocations !== undefined) return allocations;
-  const cohorts = planDecomposeCohorts(cached, map, names.result, new Set(owned.result.map(cohort => cohort.path)));
+  const ownedPaths = decomposeSelectedCohortPaths(prior.map).filter(path => prior.storedCut.ownerBirths
+    .some(birth => birth.kind === "cohort/document" && birth.name === path.split("/").at(-1)));
+  const cohorts = planDecomposeCohorts(cached, map, names.result, new Set(ownedPaths));
   if (cohorts.status === "refused") return cohorts;
   const facts = await acquireDecomposeDependencyFacts(cached, map, prior.acquired, homes.result);
   if (facts.status === "refused") return facts;

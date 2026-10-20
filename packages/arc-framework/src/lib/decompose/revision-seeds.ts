@@ -26,8 +26,14 @@ export async function projectDecomposeRevisionSeeds(store: Store, prior: Pick<De
   if (old.status === "refused") return old;
   const next = await observeProviders(store, desired.dependsOn, desired.addedSlugs);
   if (next.status === "refused") return next;
-  const targets = actual.result.filter(provider => !old.result.some(seed => sameDecomposeSeededProvider(seed, provider))
-    || next.result.some(seed => sameDecomposeSeededProvider(seed, provider)));
+  const unresolved = actual.result.find(provider => provider.uid === undefined && old.result.some(seed => seed.slug === provider.slug));
+  if (unresolved !== undefined) return { status: "refused", reason: "seed-divergence", class: "recoverable", locus: `${member.reference.owner.name}.Depends On`,
+    message: `The actual dependency ${JSON.stringify(unresolved.slug)} has no unique provider identity.`,
+    remedy: { text: "Settle this dependency through write-back to its intended current provider, or remove the disputed edge; then prepare a fresh revision preview and obtain approval." } };
+  const sameProved = (left: DecomposeSeededProvider, right: DecomposeSeededProvider): boolean =>
+    left.uid !== undefined && right.uid !== undefined && left.uid === right.uid;
+  const targets = actual.result.filter(provider => !old.result.some(seed => sameProved(seed, provider))
+    || next.result.some(seed => sameProved(seed, provider)));
   for (const seed of next.result) {
     if (!targets.some(provider => sameDecomposeSeededProvider(seed, provider))) targets.push(seed);
   }
@@ -58,7 +64,6 @@ async function priorProviders(store: Store, prior: Pick<DecomposeRevisionInput, 
   for (const seed of seeds) {
     const original = await observePriorProvider(store, prior, seed);
     if (original.status === "refused") return original;
-    if (original.result === null) continue;
     providers.push(original.result);
     const providerUid = seed.kind === "internal" ? original.result.uid : seed.providerUid;
     const retired = await resolveDecomposeRetiredEdge(store, seed.provider, member.reference.owner, providerUid);
@@ -75,19 +80,7 @@ async function priorProviders(store: Store, prior: Pick<DecomposeRevisionInput, 
 }
 
 async function observePriorProvider(store: Store, prior: Pick<DecomposeRevisionInput, "members">,
-  seed: Exclude<DecomposeDependencyContribution, { kind: "incoming" }>): Promise<DecomposeResult<DecomposeSeededProvider | null>> {
+  seed: Exclude<DecomposeDependencyContribution, { kind: "incoming" }>): Promise<DecomposeResult<DecomposeSeededProvider>> {
   const member = seed.kind === "internal" ? prior.members.find(candidate => candidate.slug === seed.provider) : undefined;
-  if (member?.primary !== null) {
-    const owner = member?.primary?.reference.owner;
-    return observeDecomposeSeededProvider(store, seed.provider, owner?.type === "work-item" ? owner.uid : seed.providerUid);
-  }
-  // A gone member's current name holder is unrelated. Only its retired identity can prove an old seed.
-  const lineage = await store.lookup({ kind: "lineage", origin: seed.provider });
-  if (lineage.status === "refused") return lineage.refusal.code === "not-found" || lineage.refusal.code === "ambiguous-match"
-    ? { status: "ok", result: null } : decomposeStoreRefusal(lineage.refusal);
-  const record = await store.read({ reference: lineage.result.reference });
-  if (record.status === "refused") return decomposeStoreRefusal(record.refusal);
-  const owner = record.result.reference.owner;
-  return { status: "ok", result: owner.type === "work-item" && owner.uid !== undefined
-    ? { slug: seed.provider, uid: owner.uid, records: [record.result] } : null };
+  return observeDecomposeSeededProvider(store, seed.provider, member?.uid ?? seed.providerUid);
 }

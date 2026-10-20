@@ -13,6 +13,7 @@ import { planDecomposeSlugSettlements } from "./slug-settlement.js";
 import { decomposeSlugSettlementWrites } from "./slug-settler.js";
 import { decomposeRemovalWrites } from "./removal-records.js";
 import { checkDecomposeRemovals } from "./removal-guards.js";
+import { prepareDecomposeStoredMap } from "./owner-birth-bindings.js";
 
 /** Admitted authoring, version guards, and only the mutations to show and apply. */
 export interface DecomposeRevisionPlan extends DecomposeRevisionAdmission {
@@ -36,6 +37,9 @@ export async function prepareDecomposeRevision(ctx: DecomposeContext, origin: st
   if (settlement.status === "refused") return settlement;
   const members = await prepareDecomposeRevisionMembers(cached, plan, settlement.result);
   if (members.status === "refused") return members;
+  const stored = await prepareDecomposeStoredMap(store, prior.storedMap.reference, map,
+    [...members.result.writes, ...plan.cohorts.writes], prior.storedCut);
+  if (stored.status === "refused") return stored;
   const cohortPath = plan.cohorts.topology.memberCohort;
   const keepsCohort = (path: string): boolean => cohortPath === path || cohortPath?.startsWith(`${path}/`) === true;
   const removedCohorts = ownedCohorts.filter(cohort => !keepsCohort(cohort.path));
@@ -45,7 +49,7 @@ export async function prepareDecomposeRevision(ctx: DecomposeContext, origin: st
     .filter((record, index, all) => all.findIndex(other => sameReference(other.reference, record.reference)) === index);
   const writes: Mutation[] = [...members.result.writes, ...plan.cohorts.writes,
     ...decomposeRemovalWrites(removedCohorts.map(cohort => cohort.record)),
-    { ...recordPut(prior.storedMap, { content: writeCutMapRecord(map) }),
+    { ...recordPut(prior.storedMap, { content: writeCutMapRecord(stored.result) }),
       ...(prior.storedMap.conflicts.length === 0 ? {} : { resolves: prior.storedMap.conflicts }) }];
   const routeTo = prior.members.find(member => member.primary !== null
     && plan.dependencies.members.some(next => next.slug === member.slug))?.slug;

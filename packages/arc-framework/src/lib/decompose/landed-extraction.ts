@@ -20,9 +20,9 @@ export async function readDecomposeLandedExtraction(store: Store, primary: Store
   const prior = history.result[1];
   if (prior?.content === null || prior?.content === undefined) return invalidHistory(owner.name);
   const decoded = decodeCutMapContent(prior.content);
-  if (!decoded.success || decoded.data.machine.origin.uid !== owner.uid) return invalidHistory(owner.name);
-  if (decoded.data.authoring.shape !== "extraction") return { status: "ok", result: null };
-  const members = decoded.data.authoring.destinations.flatMap(destination => destination.kind === "new-member" ? [{ name: destination.slug }] : [])
+  if (!decoded.success || decoded.data.map.machine.origin.uid !== owner.uid) return invalidHistory(owner.name);
+  if (decoded.data.map.authoring.shape !== "extraction") return { status: "ok", result: null };
+  const members = decoded.data.map.authoring.destinations.flatMap(destination => destination.kind === "new-member" ? [{ name: destination.slug }] : [])
     .sort((a, b) => Buffer.compare(Buffer.from(a.name), Buffer.from(b.name)));
   return { status: "ok", result: DecomposeLandedCutSchema.parse({ kind: "landed", mode: "extraction-finish",
     origin: { slug: owner.name, uid: owner.uid }, members,
