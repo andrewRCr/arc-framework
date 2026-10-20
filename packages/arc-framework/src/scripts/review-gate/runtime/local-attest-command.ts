@@ -1,8 +1,11 @@
 /** Command orchestration for one local advisory review attestation. */
 
 import { z } from "zod";
+import type { ReviewOutcome } from "../../../lib/store/kinds/review/outcome/schema.js";
+import { reviewOutcomeKey } from "../../../lib/store/kinds/review/outcome/key.js";
+import { readRetainedLocalReviewSource } from "./local-outcome-source.js";
 import { publishLocalReviewReceipt, readLocalReviewReceipts } from "./local-outcome-receipts.js";
-import { NativeReviewOperationRefSchema, nativeReviewOperationReferenceMatches } from "../core/review-operation-reference.js";
+import { NativeReviewOperationRefSchema, nativeReviewOperationReferenceMatches, bindNativeReviewOperationReference } from "../core/review-operation-reference.js";
 
 import { canonicalize } from "../../../lib/kernel/index.js";
 import {
@@ -23,6 +26,7 @@ import type {
   LocalReviewSourceStore,
   ReviewOperationStateStore,
   ReviewOutcomePort,
+  StoredReviewFact,
 } from "../core/ports.js";
 import { LocalAttestEnvelopeSchema } from "../core/review-command-envelope.js";
 import {
@@ -124,16 +128,73 @@ export async function attestLocalReviewCommand(
   return dependencies.withLocalReviewLock(() => attestLocalReviewWithinLocalReviewLock(request, dependencies));
 }
 
-async function attestLocalReviewWithinLocalReviewLock(
+async function attestLocalReviewWithinLocalReviewLock(request: z.infer<typeof LocalAttestRequestSchema>,
+  dependencies: LocalAttestDependencies): Promise<z.infer<typeof LocalAttestEnvelopeSchema>> {
+  const persisted = await dependencies.operationStore.readOperation(request.operationId);
+  if (dependencies.outcomes !== undefined) {
+    const stored = await dependencies.outcomes.read(request.operationId);
+    if (stored?.value.local !== undefined) return replayEndedLocalAttestation(request, stored, persisted.version, dependencies);
+  }
+  return attestLocalReviewFromWorkingState(request, dependencies, persisted);
+}
+
+async function replayEndedLocalAttestation(request: z.infer<typeof LocalAttestRequestSchema>,
+  stored: StoredReviewFact<ReviewOutcome>, persistedVersion: number,
+  dependencies: LocalAttestDependencies): Promise<z.infer<typeof LocalAttestEnvelopeSchema>> {
+  const outcome = stored.value, local = outcome.local, requirement = outcome.requirement;
+  if (outcome.attemptId !== request.operationId || local === undefined || requirement === undefined) {
+    throw new LocalAttestCommandError("corrupt-state", "local review outcome does not match its admission");
+  }
+  assertLocalReviewClaimBinding(local);
+  const target = outcome.target;
+  const base = { operationId: request.operationId, persistedVersion,
+    operationRef: bindNativeReviewOperationReference({ operationId: request.operationId,
+      repositoryId: target.repositoryId, workItem: stored.reference.owner }) };
+  const result = normalizeLocalReviewResult(request.result, { repositoryId: target.repositoryId,
+    targetId: target.targetId, headSha: target.headSha, headTree: target.headTree,
+    rubricVersion: requirement.rubricVersion, rubricDigest: requirement.rubricDigest,
+    sourceDigest: local.sourceDigest, guidanceDigest: local.guidanceDigest });
+  if (result.status !== "complete" || result.result === null || local.receipt === undefined) {
+    return LocalAttestEnvelopeSchema.parse({ schemaVersion: 1, mode: "review-local-attest", diagnostics: [],
+      state: "terminal-operation", nextAction: "rerun-review", payload: base });
+  }
+  const retained = await readRetainedLocalReviewSource(dependencies, request.operationId);
+  if (retained !== null && (retained.source.sourceDigest !== local.sourceDigest
+    || retained.source.repositoryId !== target.repositoryId || retained.source.targetId !== target.targetId)) {
+    throw new LocalAttestCommandError("corrupt-state", "local review source snapshot mismatch");
+  }
+  const receipt = createLocalReviewReceipt({ target, requirement,
+    carrier: { target, request: local.request, attestation: local.attestation }, result,
+    runtimeIdentity: local.attestation.runtimeIdentity, attestationMechanism: local.attestation.mechanism,
+    sourceDigest: local.sourceDigest, guidanceDigest: local.guidanceDigest });
+  if (canonicalize(receipt) !== canonicalize(local.receipt)) {
+    throw new LocalAttestCommandError("corrupt-state", "local review operation already has a terminal receipt");
+  }
+  if (retained !== null) await dependencies.releaseMaterialization(request.operationId);
+  const current = await dependencies.confirmTarget(target);
+  const coordinates = { kind: "attested-local" as const, operationId: request.operationId, durableRef: reviewOutcomeKey(outcome) };
+  const receiptRef = dependencies.bindSourceReference === undefined
+    ? bindReviewSourceReference({ ...coordinates, repositoryId: target.repositoryId, workItem: stored.reference.owner })
+    : await dependencies.bindSourceReference(coordinates);
+  if (current.state === "stale-target") return LocalAttestEnvelopeSchema.parse({ schemaVersion: 1,
+    mode: "review-local-attest", diagnostics: [], state: "stale-target", nextAction: "prepare-current-target",
+    payload: { ...base, receiptRecorded: true, receiptRef, attemptedTarget: current.attemptedTarget,
+      currentTarget: current.currentTarget } });
+  return LocalAttestEnvelopeSchema.parse({ schemaVersion: 1, mode: "review-local-attest", diagnostics: [],
+    state: "attested-current", nextAction: "reduce", payload: { ...base, target, receiptRef, receiptRecorded: true,
+      ...(retained === null ? {} : { sourceRef: retained.sourceRef }) } });
+}
+
+async function attestLocalReviewFromWorkingState(
   request: z.infer<typeof LocalAttestRequestSchema>,
   dependencies: LocalAttestDependencies,
+  persisted: Awaited<ReturnType<ReviewOperationStateStore["readOperation"]>>,
 ): Promise<z.infer<typeof LocalAttestEnvelopeSchema>> {
   const receiptReference = (durableRef: string) => (dependencies.bindSourceReference ?? bindReviewSourceReference)({
     kind: "attested-local",
     operationId: request.operationId,
     durableRef,
   });
-  const persisted = await dependencies.operationStore.readOperation(request.operationId);
   if (persisted.state === null
     || persisted.state.kind !== "local-review"
     || persisted.state.operationId !== request.operationId) {
