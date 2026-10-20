@@ -12,6 +12,7 @@ import { main } from "../../src/scripts/lint-markdown-underwrap.js";
 const git = promisify(execFile);
 const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
 const entryPaths = ["packages/arc-framework/src/scripts/lint-markdown-underwrap.ts"];
+const unrelatedImplementation = "packages/arc-framework/src/lib/store/read.ts";
 const good = `${"This well-wrapped prose explains the behavior in enough detail to reach the minimum width."}\nShort ending.\n`;
 const bad = "Short first line.\nThe next word would fit.\n";
 const repeatedIndexChecksTimeoutMs = 60_000;
@@ -33,8 +34,9 @@ beforeAll(async () => {
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), "arc-underwrap-"));
   await git("git", ["init", "-q", "--initial-branch=main"], { cwd: root });
-  await Promise.all([...sourcePaths, "package.json", "packages/arc-framework/package.json", "package-lock.json",
-    ".arc/system/arc-checks.yml"].map(async path => write(path, await readFile(join(repositoryRoot, path)))));
+  await Promise.all([...new Set([...sourcePaths, unrelatedImplementation, "package.json",
+    "packages/arc-framework/package.json", "package-lock.json", ".arc/system/arc-checks.yml"])]
+    .map(async path => write(path, await readFile(join(repositoryRoot, path)))));
   await write("guide.md", good);
   await write("untouched.md", bad);
   await git("git", ["add", "--all"], { cwd: root });
@@ -50,6 +52,31 @@ afterEach(async () => {
 });
 
 describe("changed indexed Markdown under-wrap check", () => {
+  it("checks indexed docs amid unrelated implementation edits and preserves checker-byte refusal and recovery", async () => {
+    const implementation = `${await readFile(join(root, unrelatedImplementation), "utf8")}\n// Unstaged implementation.\n`;
+    await write(unrelatedImplementation, implementation);
+    await write("guide.md", `${good}\nA documentation capture.\n`);
+    await git("git", ["add", "guide.md"], { cwd: root });
+    const before = (await git("git", ["write-tree"], { cwd: root })).stdout;
+
+    expect(await main(root, [])).toBe(0);
+    expect(messages).toEqual([]);
+    expect((await git("git", ["write-tree"], { cwd: root })).stdout).toBe(before);
+
+    const checker = "packages/arc-framework/src/lib/kernel/canonical/unicode.ts";
+    await write(checker, `${await readFile(join(root, checker), "utf8")}\n// Unstaged checker.\n`);
+    expect(await main(root, [])).toBe(1);
+    expect(messages.join("")).toContain(`Indexed Markdown checker differs from executing worktree bytes: ${checker}`);
+    expect((await git("git", ["write-tree"], { cwd: root })).stdout).toBe(before);
+
+    await git("git", ["add", "--", checker], { cwd: root });
+    messages = [];
+    expect(await main(root, [])).toBe(0);
+    expect(messages).toEqual([]);
+    expect(await readFile(join(root, unrelatedImplementation), "utf8")).toBe(implementation);
+    expect((await git("git", ["diff", "--name-only"], { cwd: root })).stdout.trim()).toBe(unrelatedImplementation);
+  }, repeatedIndexChecksTimeoutMs);
+
   it.each(["assume-unchanged", "skip-worktree"])("refuses explicit indexed paths hidden by %s and offers recovery", async flag => {
     await git("git", ["update-index", `--${flag}`, "--", "untouched.md"], { cwd: root });
     await git("git", ["update-index", `--${flag}`, "--", "guide.md"], { cwd: root });

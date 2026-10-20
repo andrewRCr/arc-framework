@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { getVersion as getMarkdownlintVersion } from "markdownlint";
 import stringWidth from "string-width";
 
-import { assertMarkdownDependencyAlignment } from "../lib/markdown/index.js";
+import { assertMarkdownDependencyAlignment } from "../lib/markdown/dependency-alignment.js";
 import type { MarkdownRuntimeVersions } from "../lib/markdown/dependency-alignment.js";
 import { resolveRepoRoot } from "./repo-root.js";
 
