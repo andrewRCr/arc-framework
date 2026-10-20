@@ -4,7 +4,7 @@ import { projectIdentitySpineRemedy, reviewProjectIdentityRequestRemedy } from "
 import { decodePrePublicationReplay, replayTokenFromAction, type PrePublicationReplayInput } from "../scripts/review-gate/policy/pre-publication-replay.js";
 import { ReviewLaneReadRequestSchema, ReviewLaneReadEnvelopeSchema, type ReviewLaneReadRequest } from "../scripts/review-gate/lane-read-schema.js";
 import { createReviewInvocationResolver, resolveReviewInvocation, type ReviewInvocationOptions, type ReviewInvocationContext } from "../scripts/review-gate/runtime/invocation.js";
-import { resolveLocalReviewInvocation } from "../scripts/review-gate/runtime/local-review-invocation.js";
+import { resolveLocalReviewInvocation, resolveLocalReviewResumeInvocation } from "../scripts/review-gate/runtime/local-review-invocation.js";
 import { createReviewCompositionContext } from "../scripts/review-gate/runtime/composition-context.js";
 import { readReviewLane } from "../scripts/review-gate/runtime/lane-read-composition.js";
 import { reviewDiscoverableCommandInputSchema } from "./review-request-schema.js";
@@ -47,7 +47,7 @@ import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../li
 import { sameDeliveryReviewMemberVehicle } from "../lib/delivery/review-vehicle.js";
 import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
-import type { GitExec } from "../lib/git/exec.js";
+import type { GitExec, RawGitExec } from "../lib/git/exec.js";
 import { canonicalDigest, canonicalize, type CanonicalDigest } from "../lib/kernel/index.js";
 import { SlugSchema } from "../lib/kernel/schema/slug.js";
 import {
@@ -3024,7 +3024,7 @@ export async function handleReviewFrontlineRun(
 export { handleReviewRequestSchema, type ReviewPublicRequestSchemaId } from "./review-request-schema.js";
 
 /** Operational authority and optional external Git boundary for local review handlers. */
-export interface ReviewLocalInvocationOptions extends ReviewInvocationOptions { exec?: GitExec }
+export interface ReviewLocalInvocationOptions extends ReviewInvocationOptions { exec?: GitExec; rawGit?: RawGitExec }
 
 export interface ReviewLocalPrepareHandlerDependencies {
   resolveRoot(cwd: string): string | null;
@@ -3041,7 +3041,7 @@ function defaultLocalPrepareDependencies(context: InteractionContext, invocation
     ...defaultReviewHandlerBoundary(),
     prepare: async (request, root) => prepareLocalReview(
       request,
-      createLocalPrepareDependencies(await resolveLocalReviewInvocation({ ...invocationFor(root), exec, cwd: root })),
+      createLocalPrepareDependencies(await resolveLocalReviewInvocation({ ...invocationFor(root), exec, cwd: root, rawGit: invocation.rawGit })),
     ),
   };
 }
@@ -3200,14 +3200,14 @@ export interface ReviewLocalResumeHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultLocalResumeDependencies(context: InteractionContext, invocation: ReviewInvocationOptions = {}): ReviewLocalResumeHandlerDependencies {
-  const exec = createGitExec(context.subprocess);
+function defaultLocalResumeDependencies(context: InteractionContext, invocation: ReviewLocalInvocationOptions = {}): ReviewLocalResumeHandlerDependencies {
+  const exec = invocation.exec ?? createGitExec(context.subprocess);
   const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
     ...defaultReviewHandlerBoundary(),
-    resume: (request, root) => resumeLocalReviewCommand(
+    resume: async (request, root) => resumeLocalReviewCommand(
       request,
-      createLocalResumeDependencies({ ...invocationFor(root), exec, cwd: root }),
+      createLocalResumeDependencies(await resolveLocalReviewResumeInvocation({ ...invocationFor(root), exec, cwd: root }, request)),
     ),
   };
 }
@@ -3223,7 +3223,7 @@ export async function handleReviewLocalResume(
   source: string,
   overrides: Partial<ReviewLocalResumeHandlerDependencies> = {},
   suppliedContext?: InteractionContext,
-  invocation: ReviewInvocationOptions = {},
+  invocation: ReviewLocalInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false,

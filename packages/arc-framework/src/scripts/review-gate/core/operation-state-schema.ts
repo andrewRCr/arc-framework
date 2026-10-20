@@ -1,6 +1,7 @@
 /** Registered non-evidentiary state for resumable review operations. */
 
 import { z } from "zod";
+import { OwnerIdentitySchema } from "../../../lib/store/identity.js";
 import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
 import { canonicalDigest, canonicalize, type CanonicalDigest, type KernelRegistry } from "../../../lib/kernel/index.js";
@@ -117,6 +118,8 @@ export const LocalReviewStateSchema = z.strictObject({
   ...OperationEnvelopeShape,
   kind: z.literal("local-review"),
   vehicle: ReviewVehicleSchema,
+  /** Exact operational owner retained by native preparation for later operation-based re-entry. */
+  workItem: OwnerIdentitySchema.refine(owner => owner.type === "work-item", "Expected a work-item owner").optional(),
   repositoryId: IdentifierSchema,
   targetId: CanonicalDigestSchema,
   requestId: CanonicalDigestSchema,

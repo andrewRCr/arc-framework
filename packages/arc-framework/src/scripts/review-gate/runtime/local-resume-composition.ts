@@ -1,7 +1,6 @@
 /** Production adapters for the local review resume command. */
 
-import type { GitExec } from "../../../lib/git/exec.js";
-import type { ReviewInvocationOptions } from "./invocation.js";
+import type { LocalReviewInvocationInput } from "./local-review-invocation.js";
 import { createReviewCompositionContext } from "./composition-context.js";
 import type { ForwardReviewReceiptStore } from "../core/ports.js";
 import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
@@ -15,10 +14,7 @@ import { createLocalPrepareDependencies } from "./local-prepare-composition.js";
 import type { LocalResumeDependencies } from "./local-resume-command.js";
 
 /** Bind local resume to the same trusted target, sweep, and Git-common stores as preparation. */
-export function createLocalResumeDependencies(input: {
-  exec: GitExec;
-  cwd: string;
-} & ReviewInvocationOptions): LocalResumeDependencies {
+export function createLocalResumeDependencies(input: LocalReviewInvocationInput): LocalResumeDependencies {
   const context = createReviewCompositionContext(input);
   const prepare = createLocalPrepareDependencies({ ...input, ...context });
   const { publisher, family } = context;
