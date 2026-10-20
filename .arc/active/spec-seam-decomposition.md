@@ -790,10 +790,14 @@ its preview lists each existing home and existing cohort coordination the map al
   found through the lifecycle listing — counting a `Depends On` edge and a pause `waits-on` edge and skipping completed
   records, as `work-item.slug-edges` counts them (`namedEdges`, `survivingEdge`), a count the verb makes itself since
   both are private to that rule's module. It names each edge for its owner to retarget or drop, a `waits-on` edge
-  through `arc pause <name> --waits-on <other>`, `--waits-on-note <text>`, or `--no-waits-on`. No write check refuses
-  removing a record an edge names (`checkMetaDependsOn` judges new edges only), and a later work item taking the slug
-  would silently become the edge's provider: `priorTarget` finds no primary or lineage for a removed stub, so
-  `work-item.slug-edges` admits the new slug, and `lookup` resolves the edge to the new item.
+  through `arc pause <name> --waits-on <other>`, `--waits-on-note <text>`, or `--no-waits-on`. The early preview count
+  is repeated by `meta.decompose-removal-edges` at atomic batch admission (A2). For a `decompose` metadata removal,
+  `checkMetaRemovalEdges` counts all surviving open metadata in the complete proposed after-state, including concurrent
+  edge additions, when no terminal lineage preserves that generation as a provider. Terminal retirement leaves
+  started dependents' edges for their own reconcile (§ 8.4). It protects the removed current name and former names that
+  resolve to that generation in the before-state. Same-batch removal or retargeting discharges an edge; unavailable
+  identity or listing evidence refuses with a retry remedy. Other writers and metadata puts are unaffected. A refusal
+  preserves the native `record-malformed` rule and makes no partial writes.
 - **A stub it would remove that holds a stored map of its own,** naming that cut's `arc decompose <stub> --discard`.
 - **A member renamed since the additive batch,** in a revision, naming `arc rename <new> <old>`, as the terminal batch
   does (§ 8.3).
@@ -1061,6 +1065,8 @@ define, the change is stated here and built by this change; no specification of 
 - **§ 3.6's rule catalog** gains `lineage.cut-in-flight`, an integrity rule beside `lineage.inbound-held`: it refuses
   when an `abandon` lineage record is created while the retiring work unit's `work-item/cut-map` record is in `before`
   (§ 10).
+- **§ 3.6's rule catalog** also gains `meta.decompose-removal-edges` (A2), enforcing § 9.3's surviving dependency
+  and pause-edge protection inside a `decompose` primary-removal batch.
 - **§ 8.3's cohort writers** gain the at-cap fan-out writer, which appends to an existing subcohort's document a fan-out
   block naming the members a cut adds to it, as today's splice renders it (`fanoutBlock`, `decompose-v3-topology.ts`).
 
@@ -1279,5 +1285,7 @@ this design open.
 
 - **A1** — 2026-10-19 — design: destination conservation uses ordinal locator resolution.
   _Supersedes:_ § 8.4 ¶1. _Trigger:_ F1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A2** — 2026-10-19 — design: surviving removal edges are checked at atomic batch admission.
+  _Supersedes:_ § 9.3 ¶2. _Trigger:_ F1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---
