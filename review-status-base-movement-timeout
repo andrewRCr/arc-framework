@@ -3,7 +3,7 @@
   "slug": "review-status-base-movement-timeout",
   "claimId": "141a3ace7066af32e756083e1e5b7d89",
   "createdAt": "2026-10-20T03:34:27.951Z",
-  "updatedAt": "2026-10-20T03:34:27.951Z",
+  "updatedAt": "2026-10-20T04:17:35.720Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Diagnose and repair the intermittent review-status base-movement integration timeout while preserving its assertions",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Investigate the intermittent review-status base-movement timeout",
   "originEntrySourceDigest": "sha256:354be50217914c764a4779bcbd4e388137822face4d45a4d173cbc83c594b052",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "fix/review-status-base-movement-timeout",
+    "headSha": "d11913b7b2264db78748ce240b4c24eab28a277a"
+  }
 }
