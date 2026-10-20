@@ -151,6 +151,8 @@ interface DispositionReportInput {
   decisions?: readonly string[];
   includeDecisions?: boolean;
   trend?: ReportTrend;
+  /** The one approval question, naming what approving the set releases. */
+  closer?: string;
   fails?: readonly { findingId: string; fails: string }[];
   tags?: readonly { findingId: string; tag: "new-design" | "local-correction" }[];
 }
@@ -185,7 +187,7 @@ function reportEntries(input: DispositionReportInput): ReportEntry[] {
 
 /**
  * Render one labelled disposition set: header, a table when there is more than one finding, the finding sections,
- * then the trend and decisions that bear on what comes next.
+ * then the trend and decisions that bear on what comes next, and the approval question last.
  *
  * @param input - Canonical set, exact producer findings, and optional presentation inputs.
  * @returns One standalone deterministic Markdown report, without the evidence block.
@@ -198,6 +200,7 @@ export function renderDispositionReport(input: DispositionReportInput): string {
     entries.map(renderSection).join("\n\n---\n\n"),
     ...(input.trend === undefined ? [] : [renderTrend(input.trend)]),
     ...(input.includeDecisions === false ? [] : renderDecisions(entries, input.decisions)),
+    ...(input.closer === undefined ? [] : [escapeReviewFindingDisplayText(input.closer)]),
   ].join("\n\n");
 }
 

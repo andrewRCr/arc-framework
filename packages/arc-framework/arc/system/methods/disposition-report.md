@@ -14,9 +14,9 @@ override-active: false
 >   [adversarial-review](adversarial-review.md).
 >
 > - **Contract:** Present the complete verified set as one report the approver decides from: a header, a table when
->   there is more than one finding, one section per finding, then the trend and decisions that bear on what comes
->   next. Hold each finding's evidence out of the report and give it when the approver asks. Never fabricate a field
->   the finding's source does not supply.
+>   there is more than one finding, one section per finding, the trend and decisions that bear on what comes next,
+>   and one closing approval question. Hold each finding's evidence out of the report and give it when the approver
+>   asks. Never fabricate a field the finding's source does not supply.
 
 ## disposition-report.override
 
@@ -48,8 +48,10 @@ condition does not hold, and never render an element only to say it does not app
 - <looks, origins, or a fired round signal>
 
 **Decisions**                                               [something left to decide]
-- <approval ask, or a decision with its recommendation>
+- <a decision with its recommendation>
 - F{ordinal}: <open question>
+
+Approve: <what approval releases>?
 ```
 
 **Header.** Bold the review position — `Pass 2 of 3`, `Fix check, round 1 since pass 2`, or the lane's own form —
@@ -86,14 +88,22 @@ line, `---`, and another blank line.
 material counts, the findings' origins and new-design fixes, and any performed fix round whose observed change signal
 fired.
 
-**Decisions.** Render the block last, and only when something is left to decide: the caller's approval ask, the
-decision a fix creates about the next pass, an offer, or a finding's open question. Give each its recommendation.
+**Decisions.** Render the block only when something is left to decide: the decision a fix creates about the next
+pass, an offer, or a finding's open question. Give each its recommendation.
+
+**Closing question.** End the report with one question that asks for approval of the complete set and names what that
+approval releases, and nothing more: the dispositions by action; for a fix, its verification scope, then the commit and
+push where the caller's `arc.commitInterlock` and `arc.pushInterlock` release them; then the hosted threads approval
+settles — `Approve: 2 fixes, 1 reject → focused verification → commit → push → settle 3 threads?`. A thread a fix
+answers settles once the fix is pushed, so it counts only when approval releases the push. Never name the next pass:
+approving the set authorizes none, so it stays a decision. A caller without a verification scope or interlocks names
+the dispositions alone, as in `Approve: 2 fixes, 1 defer?`.
 
 State each fact once. Do not repeat the header's counts, restate an ask, or label the agent's judgments as advisory.
 
 An approved or replay report uses the reduced shape: a header naming the approved set and its verification scope, then
-the tagged table and sections, with no rubric anchor, Trend, or Decisions. Omit missing source fields rather than
-invent them.
+the tagged table and sections, with no rubric anchor, Trend, Decisions, or closing question. Omit missing source fields
+rather than invent them.
 
 Hold each finding's locus and source-verification references outside the report. Give the evidence when asked,
 using the same label and display order:
@@ -122,11 +132,12 @@ extend a status or evidence line with fields its source supplies.
 **Detail:** A delimiter-only probe with left and right alignment returns the current side with no conflict. No other delimiter normalization exists in the reviewed code.
 
 **Decisions**
-- Approve the complete disposition set with focused verification?
 - After the fix: frontline pass 2 of 2. Recommended: the fix changes merge semantics, so check it before standard review.
+
+Approve: 1 fix → focused verification → commit → push?
 ```
 
-A later round with two findings adds the table and the Trend:
+A later round of a hosted review with two findings adds the table and the Trend, and its approval settles both threads:
 
 ```text
 **Fix check, round 1 since pass 2** · 🟠 1 major · 🟡 1 minor
@@ -163,9 +174,10 @@ A later round with two findings adds the table and the Trend:
 - Origins: earlier fixes 2 findings, 0 new-design fixes
 
 **Decisions**
-- Approve the complete disposition set with focused verification?
 - After the fix: fix check, round 2 since pass 2, where its chain is proven. Recommended: the repair is local, and a fix check costs little.
 - F2: Should the remedy also name the configuration key?
+
+Approve: 2 fixes → focused verification → commit → push → settle 2 threads?
 ```
 
 ---

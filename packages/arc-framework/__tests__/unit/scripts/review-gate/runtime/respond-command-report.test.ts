@@ -41,7 +41,8 @@ it("renders caller judgments beside computed facts without changing or storing t
     + "🟠 major · FIX (new design) · fails Correctness and failure behavior\n")).toBe(true);
   expect(text.match(/\*\*Decisions\*\*/gu)).toHaveLength(1);
   expect(text).toContain(request.report.successorRecommendation);
-  expect(text.endsWith("- F1: Accept the repair boundary?")).toBe(true);
+  expect(text.endsWith("- F1: Accept the repair boundary?\n\nApprove: 1 fix → focused verification → commit → push?"))
+    .toBe(true);
   for (const absent of ["provisional", "**Trend:**", "Material trend", request.report.reading.rationale, "advisory"]) {
     expect(text).not.toContain(absent);
   }
@@ -54,6 +55,33 @@ it("renders caller judgments beside computed facts without changing or storing t
   expect(different.payload.proposal).toEqual(response.payload.proposal);
   expect(JSON.stringify(response.payload.proposal)).not.toContain("new-design");
   expect(JSON.stringify(response.payload.proposal)).not.toContain("original artifact");
+});
+
+it.each([
+  { commit: "manual", push: "on-workflow", closer: "Approve: 1 fix → focused verification?" },
+  { commit: "on-task-approval", push: "manual", closer: "Approve: 1 fix → focused verification → commit?" },
+  { commit: "on-workflow", push: "on-sync", closer: "Approve: 1 fix → focused verification → commit?" },
+  { commit: "on-workflow", push: "on-workflow", closer: "Approve: 1 fix → focused verification → commit → push?" },
+] as const)("closes with only what approval releases under commit $commit and push $push", async ({ commit, push, closer }) => {
+  const records = fixture();
+  const deps = dependencies(records);
+  deps.readReleaseInterlocks = async () => ({ commit, push });
+  const response = await respondToReviewCommand(proposalRequest(records), deps);
+  if (response.state !== "awaiting-approval") throw new Error("expected a proposed report");
+  const text = response.payload.dispositionReportText;
+  expect(text.endsWith(`\n\n${closer}`)).toBe(true);
+  expect(text).toContain("**Decisions**\n- After the fix: ");
+  expect(text).not.toContain("Approve the complete disposition set");
+});
+
+it("asks only for the dispositions when the set fixes nothing", async () => {
+  const records = fixture();
+  const request = proposalRequest(records);
+  const response = await respondToReviewCommand({ ...request,
+    proposal: { ...request.proposal, findings: request.proposal.findings.map(finding => ({ ...finding, disposition: "defer" })) },
+    report: { ...request.report, tags: [] } }, dependencies(records));
+  if (response.state !== "awaiting-approval") throw new Error("expected a proposed report");
+  expect(response.payload.dispositionReportText.endsWith("\n\nApprove: 1 defer?")).toBe(true);
 });
 
 it.each(["missing tag", "non-fix tag", "foreign tag", "duplicate tag", "missing anchor", "duplicate anchor"])(

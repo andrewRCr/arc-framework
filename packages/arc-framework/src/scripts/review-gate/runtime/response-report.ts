@@ -9,8 +9,18 @@ import { projectProvisionalPassAssessment, type ProvisionalStandardPassFacts } f
 import type { ReviewResult } from "../core/review-result.js";
 import type { RespondCommandDependencies } from "./respond-command.js";
 
+/** What approving a proposal releases beyond its fixes, as the caller's interlocks and hosted plan decide. */
+export interface ResponseApprovalRelease {
+  /** Approval releases the fix commit, then its push. */
+  commit: boolean;
+  push: boolean;
+  /** Hosted threads settled by approval alone, and those settled once the fix is pushed; null when unknown. */
+  threads: { beforeFix: number; afterFix: number } | null;
+}
+
 interface ProposedResponseReportInput {
   proposal: ProposedDispositionSet;
+  release: ResponseApprovalRelease;
   producerFindings: readonly NormalizedReviewFinding[];
   assessment: ReturnType<typeof projectProvisionalPassAssessment>;
   report: ReviewReportInput;
@@ -37,12 +47,26 @@ function reportHeader(input: ProposedResponseReportInput): { title: string; deta
   return { title: input.assessment.positionText, details: unsupported === 0 ? details : [...details, `${unsupported} not supported`] };
 }
 
-/** The approval ask, then the computed next step a fix creates beside the agent's recommendation for it. */
+/** The computed next step a fix creates beside the agent's recommendation for it, a decision apart from approval. */
 function reportDecisions(input: ProposedResponseReportInput): string[] {
   const next = input.assessment.nextActivityText;
   const recommendation = input.report.successorRecommendation;
-  return [`Approve the complete disposition set with ${input.proposal.dispositionSet.proposedVerification} verification?`,
-    next === null ? `Next: ${recommendation}` : `After the fix: ${next}. ${recommendation}`];
+  return [next === null ? `Next: ${recommendation}` : `After the fix: ${next}. ${recommendation}`];
+}
+
+/** Ask for the set's approval, naming what it releases and never the next pass, which approval leaves open. */
+function reportCloser(input: ProposedResponseReportInput): string {
+  const set = input.proposal.dispositionSet;
+  const counts = { fix: 0, defer: 0, reject: 0 };
+  for (const finding of set.findings) counts[finding.disposition] += 1;
+  const actions = (["fix", "defer", "reject"] as const).filter(action => counts[action] > 0)
+    .map(action => plural(counts[action], action, action === "fix" ? "es" : "s"));
+  const { commit, push, threads } = input.release;
+  const fixSteps = counts.fix === 0 ? []
+    : [`${set.proposedVerification} verification`, ...(commit ? ["commit"] : []), ...(commit && push ? ["push"] : [])];
+  const settled = threads === null ? 0 : threads.beforeFix + (commit && push ? threads.afterFix : 0);
+  const settleSteps = settled === 0 ? [] : [`settle ${plural(settled, "thread")}`];
+  return `Approve: ${[actions.join(", "), ...fixSteps, ...settleSteps].join(" → ")}?`;
 }
 
 /** One entry per look, in lane order; the current look's provisional count replaces its unapproved one. */
@@ -96,7 +120,7 @@ export async function readProposedResponseReport(input: ProposedResponseReportIn
   validateReviewReportInput(input.proposal.dispositionSet.findings, input.report);
   const trend = await reportTrend(input);
   const reportInput = { dispositionSet: input.proposal.dispositionSet, producerFindings: input.producerFindings,
-    header: reportHeader(input), decisions: reportDecisions(input), tags: input.report.tags,
+    header: reportHeader(input), decisions: reportDecisions(input), closer: reportCloser(input), tags: input.report.tags,
     fails: input.report.fails, ...(trend === undefined ? {} : { trend }) };
   return { dispositionReportText: renderDispositionReport(reportInput),
     dispositionEvidenceText: renderDispositionEvidence(reportInput) };

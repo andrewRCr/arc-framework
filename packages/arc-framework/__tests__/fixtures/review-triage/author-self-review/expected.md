@@ -7,7 +7,8 @@ The response should establish that:
   the locus and source-verification evidence when the approver asks;
 - it omits rather than fabricates producer identity, reviewer grade, native label, ordinal, receipt, or producer-bound
   identity;
-- complete-set approval is still required before mutation; and
+- the report ends with one question asking to approve the complete set, naming what approval releases and no next
+  pass, and that approval is still required before mutation; and
 - the governing caller proceeds directly after approval without invoking `arc review respond -`.
 
 The retained expectations are a fixture oracle; only an attended fresh-context run supplies behavioral evidence.

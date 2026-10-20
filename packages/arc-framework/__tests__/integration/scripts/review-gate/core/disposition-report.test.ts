@@ -93,9 +93,9 @@ function fixture() {
 }
 
 describe("disposition report", () => {
-  it("renders a bold header, the table, exception-only status lines, and closing decisions", () => {
+  it("renders a bold header, the table, exception-only status lines, decisions, and the approval question last", () => {
     const input = { ...fixture(), header: { title: "Complete pass 1 of 2", details: ["🟠 1 major", "🟡 1 minor"] },
-      decisions: ["Approve the complete disposition set?"],
+      decisions: ["Next: Stop after the approved response."], closer: "Approve: 2 defers?",
       fails: [{ findingId: "finding-z", fails: "Correctness and failure behavior" },
         { findingId: "finding-a", fails: "none — advisory polish" }] };
     const report = renderDispositionReport(input);
@@ -106,7 +106,7 @@ describe("disposition report", () => {
     expect(report).toContain("### F1 — Title for finding-z\n\n🟠 major · DEFER · fails Correctness and failure behavior");
     expect(report).toContain("🟡 minor nit · DEFER · none — advisory polish\n\n**Finding:** Claim for finding-a.");
     expect(report).toContain("**Finding:** Claim for finding-z.\n\n**Action:** Bounded action for finding-z.");
-    expect(report.endsWith("**Decisions**\n- Approve the complete disposition set?")).toBe(true);
+    expect(report.endsWith("**Decisions**\n- Next: Stop after the approved response.\n\nApprove: 2 defers?")).toBe(true);
     for (const omitted of ["**Fails:**", "**Verification:**", "Confirmed", "blocking", "record-only", "provisional"]) {
       expect(report).not.toContain(omitted);
     }
@@ -443,7 +443,7 @@ describe("disposition report", () => {
     });
     const input = { dispositionSet, producerFindings,
       header: { title: "Complete pass 2 of 3", details: ["🟠 1 major", "🟡 1 minor"] },
-      decisions: ["Approve the complete disposition set?"],
+      decisions: ["Next: Stop after the approved response."], closer: "Approve: 2 defers?",
       trend: { reading: "converging — repairs stay local", lines: ["Looks: complete pass 1 of 3: 2 material"] },
       fails: dispositionSet.findings.map(item => ({ findingId: item.findingId, fails: "Correctness" })) };
     const report = renderDispositionReport(input);

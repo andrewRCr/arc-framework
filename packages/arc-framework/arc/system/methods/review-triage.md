@@ -127,20 +127,20 @@ Labels remain the same in the proposal, approved report, and replay. Tags foreca
 stored as the agent's reading beside the set, never as an approved judgment. Keep them distinct from observed
 fix-round signals. Producer-native labels, capture ordinals, and references remain beside the report-local labels.
 
-The report's header names the lane's position — standard `complete pass N of M` or `fix check, round N since pass
-M`, or frontline's recorded pass and ceiling — and the verified counts. Its closing Decisions block carries
-complete-set approval, then the step the fixed head needs beside your `successorRecommendation`, then open questions.
-The command states the step, so write the recommendation as the choice you recommend and why, in a sentence or two,
-without restating the fix, the step, or its authorization. Supply a clear recommendation from expected signal and
-cost, including at the ceiling. When a fix requires a fix check or complete pass, the recommendation covers that
-activity, as spend the approver may decline. Emit the composed report without adding a second header or Decisions
-block. Once the lane has two or more looks, its Trend combines the CLI's looks with your origin counts and reading; it
-is advice, never admission or convergence evidence.
+The report's header names the lane's position — standard `complete pass N of M` or `fix check, round N since pass M`, or
+frontline's recorded pass and ceiling — and the verified counts. Its Decisions block carries the step the fixed head
+needs beside your `successorRecommendation`, then open questions. The command states the step, so write the
+recommendation as the choice you recommend and why, in a sentence or two, without restating the fix, the step, or its
+authorization. Supply a clear recommendation from expected signal and cost, including at the ceiling. When a fix
+requires a fix check or complete pass, the recommendation covers that activity, as spend the approver may decline. Emit
+the composed report without adding a second header, Decisions block, or approval question. Once the lane has two or more
+looks, its Trend combines the CLI's looks with your origin counts and reading; it is advice, never admission or
+convergence evidence.
 
 A fix check verifies repairs and a complete pass looks for what remains undiscovered. Recommend the fix check on the
 approved fixes' merits, even when a complete pass follows. Converge the rounds before a successor complete pass;
 `full-final` stays open after a clean fix check, while incremental closure requires the policy's proved chain.
-Disposition approval and each next activity's authorization remain distinct, even when one prompt asks both. A decline
+Disposition approval and each next activity's authorization remain distinct, even when one reply grants both. A decline
 leaves the approved set unchanged; the governing caller honors the Owner's stop at the new head (an Errand's
 Owner-directed review stop or a work unit's Owner-accepted terminus), confirmed there once before any pass is
 dispatched. Follow `approval-required / obtain-ceiling-override` for a complete pass beyond the ceiling. Fix and delta
@@ -153,12 +153,12 @@ Any changed finding, judgment, scope, disposition, narrative, target, or newly s
 proposal and approval. A partial approval may never be widened, and no path may apply an individual fix early.
 
 For a set with a `fix`, the complete-set approval is the fix round's structured gate ([DEV-RULES.ARC § Review-Increment
-Invariant][review-increment-invariant]). Close the report with a prompt that names what approval releases under the
-caller's `arc.commitInterlock` and `arc.pushInterlock` settings, and only that — for example `Approve: 3 fixes → verify
-→ commit → push → settle 2 threads → local fix check, round 1 since pass 1?`. After the round, report the fix, its
-commit, the settled threads, and the next pass as information, not a gate. The round returns to the approver when the
-performed fix exceeds the approved scope, a verification or gate failure is not a deterministic same-concern correction,
-host state is ambiguous, or a new finding arrives.
+Invariant][review-increment-invariant]). The command closes the report with the one approval question, naming what
+approval releases under the caller's `arc.commitInterlock` and `arc.pushInterlock` settings, and only that — for example
+`Approve: 3 fixes → focused verification → commit → push → settle 2 threads?`. It never names the next pass, which stays
+a decision. After the round, report the fix, its commit, the settled threads, and the next pass as information, not a
+gate. The round returns to the approver when the performed fix exceeds the approved scope, a verification or gate
+failure is not a deterministic same-concern correction, host state is ambiguous, or a new finding arrives.
 
 Author self-review remains a non-producer path. Identify its standalone report as author self-review and compose it in
 the [disposition-report][disposition-report] shape as the command renders it. Omit rather than

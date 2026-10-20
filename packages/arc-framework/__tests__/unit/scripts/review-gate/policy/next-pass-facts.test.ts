@@ -141,6 +141,7 @@ it("joins each historical response round to its own approved set", async () => {
   const assessment = projectProvisionalPassAssessment({ proposal, result: producer, lane: "standard",
     admittedLogicalPass: producer.admission.logicalPass, configuredMaxPasses: 4, standardFacts });
   const report = await readProposedResponseReport({ proposal, producerFindings: producer.findings,
+    release: { commit: true, push: true, threads: null },
     assessment, standardFacts, readRecord: async id => id === producer.producerId ? record : null,
     report: { tags: [], fails: [{ findingId: "finding-1", fails: "Correctness and failure behavior" }],
       successorRecommendation: "Stop after the approved response.", origin: [],

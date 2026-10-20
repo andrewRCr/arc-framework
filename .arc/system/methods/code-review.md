@@ -214,11 +214,11 @@ never reapprove or replay a new producer merely to resume. Otherwise:
 Run [review-triage][review-triage] to verify source and compose the complete proposal, including effective
 `proposal.severityGatingPolicy`, recommended `proposal.proposedVerification`, and separate advisory `report` inputs.
 Submit it through the first `arc review respond -` call. Emit `payload.dispositionReportText` verbatim unless the
-effective triage override changes presentation; its header and closing Decisions block already carry the assessment
-and successor recommendation. Obtain complete-set approval over the exact report and canonical set before
-any mutation or commitment. A complete no-action record-only set also needs approval for its exact target before
-continuing. The approver need not repeat the digest. Submit the exact approved set and its advisory
-fix tags through the second call; follow only its returned action through [review-response][review-response].
+effective triage override changes presentation; its header, Decisions block, and closing approval question already carry
+the assessment, the successor recommendation, and what approval releases. Obtain complete-set approval over the exact
+report and canonical set before any mutation or commitment. A complete no-action record-only set also needs approval for
+its exact target before continuing. The approver need not repeat the digest. Submit the exact approved set and its
+advisory fix tags through the second call; follow only its returned action through [review-response][review-response].
 
 That approval is the fix round's structured gate under [DEV-RULES.ARC's review-increment
 invariant][review-increment-invariant]. Apply only the approved fixes, preserving

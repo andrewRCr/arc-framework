@@ -249,8 +249,11 @@ matters, and each Detail as how the primary verified it.
 
 Once the loop has two or more looks, render the material trend, origins, and new-design counts after the finding
 sections, led by one [trend reading][review-model-trend] and its rationale; planning counts come from the pass record,
-including each fix-check round. Put every ask in the closing Decisions block: complete-set approval, the decision a fix
-creates about the next round or pass, and open questions, each with its recommendation.
+including each fix-check round.
+
+Put each decision in the Decisions block — the decision a fix creates about the next round or pass, and open questions,
+each with its recommendation — then end with the one question asking for complete-set approval, as `Approve: 2 fixes,
+1 defer?`. It names what approval releases and never the next pass, which approval does not authorize.
 
 Disposition is orthogonal to severity: any severity can be fixed, carried forward, or dropped. Disposing a finding
 settles the approved response backlog; it does not rewrite what the pass surfaced. Carry-forward is therefore not a

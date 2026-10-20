@@ -285,8 +285,9 @@ describe("review response command", () => {
 **Detail:** The selected source supports this disposition.
 
 **Decisions**
-- Approve the complete disposition set with focused verification?
-- After the fix: fix check, round 1 since pass 1, where its chain is proven. Check approved repairs before considering a successor complete pass.`,
+- After the fix: fix check, round 1 since pass 1, where its chain is proven. Check approved repairs before considering a successor complete pass.
+
+Approve: 2 fixes → focused verification → commit → push?`,
         dispositionEvidenceText: [
           "**Evidence**",
           "- F1 · src/index.ts:7 · source #1 · review:finding-1 · verified at source:src/index.ts:7",
@@ -485,8 +486,46 @@ describe("review response command", () => {
         potentialStopReason: consequence.kind === "ceiling-decision" ? "cap-exhausted" : null,
       });
       expect(response.payload.provisionalPassAssessment.summaryText).toBe(text);
+      const settled = source.kind === "hosted" ? " → settle 1 thread" : "";
+      expect(response.payload.dispositionReportText
+        .endsWith(`\n\nApprove: 1 fix → focused verification → commit → push${settled}?`)).toBe(true);
+      expect(response.payload.dispositionReportText).not.toMatch(/Approve:[^\n]*(?:fix check|pass \d)/u);
     },
   );
+
+  it.each([
+    { name: "a hosted fix's thread waits for the push it does not release", build: () => hostedErrandCase("codex-pr", "incremental"),
+      disposition: "fix" as const, closer: "Approve: 1 fix → focused verification?" },
+    { name: "a hosted deferral settles its thread on approval alone", build: () => hostedErrandCase("codex-pr", "incremental"),
+      disposition: "defer" as const, closer: "Approve: 1 defer → settle 1 thread?" },
+    { name: "a delivery member's correction is published by its driver", build: () => hostedCase(memberVehicle),
+      disposition: "fix" as const, closer: "Approve: 1 fix → focused verification → commit → push → settle 1 thread?" },
+  ])("closes under manual interlocks with what approval releases: $name", async ({ build, disposition, closer }) => {
+    const { records, deps, source } = build();
+    deps.readReleaseInterlocks = async () => ({ commit: "manual", push: "manual" });
+    const response = await respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source,
+      proposal: {
+        proposedVerification: "focused",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          verifiedSeverity: "minor",
+          disposition,
+          title: "Finding title",
+          issue: "The reviewer's claim.",
+          rationale: "The source supports this disposition.",
+          recommendation: "Apply the disposition.",
+          openQuestions: [],
+        }],
+      },
+    }), deps);
+    if (response.state !== "awaiting-approval") throw new Error("expected a proposal");
+    expect(response.payload.dispositionReportText.endsWith(`\n\n${closer}`)).toBe(true);
+  });
 
   it("returns a contained canonical report with its native source label", async () => {
     const records = fixture(workUnitVehicle, "Native **title**");
@@ -1412,6 +1451,52 @@ describe("review response command", () => {
         },
       },
     });
+  });
+
+  it("names no thread count for a superseding hosted proposal, whose settlement depends on what it reopens", async () => {
+    const hosted = hostedResponseFixture("review-thread");
+    const attempt = hosted.operation.attempts[0];
+    if (attempt?.hosted === undefined) throw new Error("missing hosted attempt fixture");
+    const deps = dependencies(hosted.records);
+    deps.resultReader.readResult = async () => hostedResult(hosted);
+    const original = approved({
+      targetId: hosted.records.target.targetId,
+      producerId: attempt.attemptId,
+      resultDigest: attempt.hosted.sealedResult!.hostedResultId,
+      policyVersion: attempt.hosted.requirement.policyVersion,
+      rubricVersion: attempt.hosted.requirement.rubricVersion,
+      rubricDigest: attempt.hosted.requirement.rubricDigest,
+      sourceIdentity: "codex-pr",
+      finding: hosted.records.finding,
+      disposition: "defer",
+    });
+    const source = { kind: "hosted" as const, attemptRef: hosted.attemptRef };
+    await respondToReviewCommand(withReviewReport({ schemaVersion: 1, source, dispositions: original,
+      policyRequest: policyRequest(hosted.records, { sourceId: "codex-pr", reviewOperationId: attempt.attemptId,
+        pullRequest: 42 }) }), deps);
+    const proposed = await respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source,
+      supersedes: { predecessorDispositionSetId: original.dispositionSet.dispositionSetId, expectedFixPaths: [] },
+      proposal: {
+        proposedVerification: "full",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: hosted.records.finding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          verifiedSeverity: hosted.records.finding.severity,
+          disposition: "reject",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
+          rationale: "Fresh evidence changes the approved channel action.",
+          recommendation: "Reject the finding with a corrected response.",
+          openQuestions: [],
+        }],
+      },
+    }), deps);
+    if (proposed.state !== "awaiting-approval") throw new Error("expected successor proposal");
+    expect(proposed.payload.dispositionReportText.endsWith("\n\nApprove: 1 reject?")).toBe(true);
   });
 
   it("carries compatible hosted settlement and reopens only a changed successor action", async () => {
