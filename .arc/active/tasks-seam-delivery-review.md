@@ -1113,7 +1113,7 @@ this phase puts publication's claim and reopen's boundary write in their transit
                   and replay comparisons omit transient keys while retaining grant constraints. Native pre-publication
                   composition reuses each stored grant without another write.
 
-    - `[ ]` **6.2.a Ceiling and additional extra passes**
+    - `[x]` **6.2.a Ceiling and additional extra passes**
 
         - `[x]` **6.2.a.1 Generic policy resolution**
             - Generic native resolution records full grants on the bound owner with the current effective Candidate
@@ -1135,7 +1135,7 @@ this phase puts publication's claim and reopen's boundary write in their transit
             - Fresh capacity authorization records and resolves ordinary grants on the actual Candidate or head-bound
               subject and logical count. Exact references retain their author, reserved replay writes no new grant,
               and provider actor identity stays separate from the judgment's active identity.
-        - `[ ]` **6.2.a.6 Publication status**
+        - `[x]` **6.2.a.6 Publication status**
             - `[x]` **6.2.a.6.1 Stored grants in reservation discharge**
                 - Native terminal policy reads stored grants without a fresh decider. Current and retained evidence
                   preserve the verified producer and executable next source, allowing an additional Candidate pass
@@ -1144,49 +1144,14 @@ this phase puts publication's claim and reopen's boundary write in their transit
                 - Singleton and member status record judgments before policy or unreserved returns and validate exact
                   references before replay. Settled members retain the queried target, continuation actions relay the
                   selected key, and automatic singleton grants follow discharge coverage.
-            - `[ ]` **6.2.a.6.3 Delivery admission relay proof**
-                - Preserve native references through production driver validation with all constraints binding.
-            - Compose singleton and delivery-member grants at their selected targets before pure policy and preserve
-              references in emitted continuation actions.
-            - Compose stored grants in the reservation's terminal-policy read so a converged Candidate or delivery
-              member's additional judgment reaches fresh admission and status composition.
-            - Prove that returned native delivery references survive local driver admission comparison while all
-              target, grant, coverage, and pass constraints remain binding.
+            - `[x]` **6.2.a.6.3 Delivery admission relay proof**
+                - Production local preparation compares stable driver admissions while native composition validates
+                  decision references. A raw grant and its recorded relay admit the same pass; changed target, pass,
+                  grant, scope, and coverage constraints still refuse before a repaired continuation succeeds.
 
-        - The calls that write the decision, recording the active identity unchecked (§ 5.7): `arc review
-          pre-publication --lanes` (`ReviewLaneJudgmentSchema`, `rg/policy/review-policy-driver.ts`) and `arc review
-          status --ceiling-override` and `--additional-pass` (`handlers/review.ts`; an Errand's through
-          `rg/status-errand.ts`).
-        - The request fields that relay one stay call inputs, and the call writes the decision: the frontline resolve
-          form's and local preparation's `policyJudgment` (`rg/policy/frontline-command-schema.ts`,
-          `rg/runtime/local-prepare.ts`), a hosted request's `ceilingOverride` and `additionalPassAuthorization`
-          (`rg/hosted/request.ts`), and delivery's local review admission's `ceilingOverride`
-          (`rg/policy/delivery-local-review-admission.ts`); a call relaying a judgment already recorded names that
-          record (§ 5.2).
-        - Each decision's basis is `null` (§ 5.1). Its original full or targetless binding and native `decisionKey`
-          follow § 5.1–5.2 and 6.2.R; every writer and automatic resolution uses that binding before pure policy.
-        - `passCount`, `exhaustedPassCount`, and `nextPass` keep completed-logical-pass units; only a standard ceiling
-          override's eligibility reads the complete-coverage count. An incremental attempt cites no grant and does
-          not consume one; its completed logical pass still participates in later ordinal-applicability checks.
-        - The resolution reads the decisions within its reach (§ 5.6) at composition, before the pure functions run, as
-          `applyCarriedOwnerAcceptedTerminus` (`rg/policy/pre-publication-request.ts`) injects today's carried terminus,
-          and hands them to the places that read the override today: `withCeilingOverride`
-          (`rg/policy/pre-publication-request.ts`), `resolveInvalidOverrideReason` (`rg/policy/review-policy-driver.ts`),
-          `compatibleTerminalGrants` (`rg/policy/review-policy-evidence.ts`), and, for a lane judgment carrying no
-          target, `bindJudgment` (`rg/policy/review-execution-admission.ts`).
-        - Build `test-first` (one behavior at a time):
-            - a standard-lane ceiling pass admits only the pass past the count it was decided at, at any later head of
-              its Candidate, and not a re-root's successor
-            - an additional pass reaches only the head it was decided on
-            - a frontline ceiling pass reaches only the frontline head it was decided on
-            - an Errand's and a delivery member's extra pass reaches only the target it was decided on, the target its
-              call bound where the judgment carries none
-            - a pass already used reads as spent
-            - with completed logical count 2, complete-coverage count 1, and ceiling 1, an override binds 2 and admits
-              logical pass 3; a grant using 1 refuses, and a failed attempt retries at 3 without spending another grant
-            - an incremental pass cites no extra-pass decision and never treats complete count 1 as logical count 2
-            - a call relaying a judgment already recorded carries its `decisionKey` and writes nothing, including
-              through full-to-targetless projections, while a full grant on another PR at the same head refuses
+            - _Outcome:_ Every extra-pass entry point records or resolves the native decision on its bound owner
+              before pure admission or replay. Status and reservation discharge preserve executable continuations
+              through the same decision, without changing repository-backed behavior or incremental pass accounting.
 
     - `[ ]` **6.2.b Termini**
 

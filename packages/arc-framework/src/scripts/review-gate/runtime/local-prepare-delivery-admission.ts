@@ -3,7 +3,7 @@ import { canonicalize } from "../../../lib/kernel/index.js";
 import { readSubmissionBoundaryVersioned } from "../../../lib/store/kinds/review/integration-boundary/access.js";
 import { resolveReviewStatus } from "../status.js";
 import { createReviewStatusPort } from "../status-composition.js";
-import type { DeliveryLocalReviewAdmission } from "../policy/delivery-local-review-admission.js";
+import { projectDeliveryLocalReviewAdmissionIdentity, type DeliveryLocalReviewAdmission } from "../policy/delivery-local-review-admission.js";
 import type { StandardReviewObligationProjection } from "../policy/standard-review-projection-schema.js";
 import type { LocalReviewInvocationInput } from "./local-review-invocation.js";
 
@@ -30,7 +30,8 @@ export async function validateLocalDeliveryAdmission(input: LocalReviewInvocatio
     sourceId: admission.sourceId,
   }, createReviewStatusPort(input));
   if (current.nextAction !== "review-local-prepare"
-    || canonicalize(current.action) !== canonicalize(admission)) {
+    || canonicalize(projectDeliveryLocalReviewAdmissionIdentity(current.action))
+      !== canonicalize(projectDeliveryLocalReviewAdmissionIdentity(admission))) {
     throw new Error("Local delivery-member review no longer has exact driver admission.");
   }
   const after = await readSubmissionBoundaryVersioned(input.cwd, admission.vehicle.workUnitId, { store: input.store, owner: input.workItem });

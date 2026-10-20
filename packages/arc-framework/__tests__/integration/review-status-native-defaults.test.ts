@@ -12,19 +12,20 @@ import { TransientIdentityRecordSchema } from "../../src/lib/errand/identity-rec
 import type { OwnerIdentity } from "../../src/lib/store/identity.js";
 import { createReviewDecisionPort } from "../../src/lib/store/kinds/review/decision/access.js";
 import { reviewDecisionKey } from "../../src/lib/store/kinds/review/decision/key.js";
-import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { SlugSchema, canonicalDigest } from "../../src/lib/kernel/index.js";
 import { readSubmissionBoundaryVersioned, writeSubmissionBoundary } from "../../src/lib/store/kinds/review/integration-boundary/access.js";
 import { createStandardReviewReservation, projectPublicationBoundary } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { localReviewResult } from "../helpers/in-process-review.js";
 
 async function invokeLocal(h: Awaited<ReturnType<typeof fixture>>,
-  handler: typeof handleReviewLocalPrepare | typeof handleReviewLocalResume | typeof handleReviewLocalAttest, request: unknown) {
+  handler: typeof handleReviewLocalPrepare | typeof handleReviewLocalResume | typeof handleReviewLocalAttest, request: unknown,
+  expectedExitCodes: number[] = []) {
   let output = "";
   const exits: number[] = [];
   await handler("-", { resolveRoot: () => h.cwd, readText: async () => JSON.stringify(request),
     write: text => { output += text; }, setExitCode: code => exits.push(code) }, undefined,
   { store: h.reference.store, projectId: createProjectIdentityReader(h.reference.store) });
-  expect(exits, output).toEqual([]);
+  expect(exits, output).toEqual(expectedExitCodes);
   return JSON.parse(output) as unknown;
 }
 
@@ -117,7 +118,7 @@ it("records a delivery status judgment before pure admission and relays its exac
   expect(lifecycleSuccess(await h.reference.store.version())).toBe(version);
 }, 60_000);
 
-it("reopens the queried converged member with one stored additional decision and an executable native continuation", async () => {
+it.each(["reference", "raw"] as const)("reopens the queried converged member with one stored additional decision and an executable %s continuation", async relay => {
   const h = await fixture();
   const precedingProducerId = await completeMember(h, "member-one");
   await completeMember(h, "member-two", 1);
@@ -131,11 +132,31 @@ it("reopens the queried converged member with one stored additional decision and
   const listing = await decisions.list();
   if (listing.status !== "complete") throw new Error(listing.reason);
   expect(listing.records).toHaveLength(1);
-  expect(status.action.additionalPassAuthorization?.decisionKey).toBe(reviewDecisionKey(listing.records[0]!.value));
-  const prepared = LocalPrepareEnvelopeSchema.parse(await invokeLocal(h, handleReviewLocalPrepare, { schemaVersion: 1,
-    evaluatorIdentity: "independent-delivery-reviewer", deliveryAdmission: status.action,
+  if (status.action.additionalPassAuthorization === undefined) throw new Error("Expected an actual additional grant");
+  const { decisionKey, ...rawAuthorization } = status.action.additionalPassAuthorization;
+  expect(decisionKey).toBe(reviewDecisionKey(listing.records[0]!.value));
+  const admission = { ...status.action, additionalPassAuthorization: relay === "raw"
+    ? rawAuthorization : status.action.additionalPassAuthorization };
+  const request = (deliveryAdmission: typeof admission) => ({ schemaVersion: 1,
+    evaluatorIdentity: "independent-delivery-reviewer", deliveryAdmission,
     routingFacts: { contentKind: "code-bearing", reviewRisk: "routine", changeDeterminacy: "ordinary",
-      ownership: "self", surfaceAuthority: "ordinary" } }));
+      ownership: "self", surfaceAuthority: "ordinary" } });
+  if (relay === "raw") {
+    const authorization = admission.additionalPassAuthorization;
+    if (authorization === undefined) throw new Error("Expected an actual additional grant");
+    expect(admission.scopeSelection).toBeUndefined();
+    for (const invalid of [
+      { ...admission, additionalPassAuthorization: { ...authorization, decisionKey: canonicalDigest({ missing: true }) } },
+      { ...admission, pass: admission.pass + 1 },
+      { ...admission, target: { ...admission.target, pullRequest: admission.target.pullRequest + 1 } },
+      { ...admission, additionalPassAuthorization: { ...authorization, completedPasses: 2, nextPass: 3 } },
+      { ...admission, scopeSelection: { mode: "chunked" as const, target: admission.target } },
+      { ...admission, requestedCoverage: "incremental" as const },
+    ]) {
+      expect(await invokeLocal(h, handleReviewLocalPrepare, request(invalid), [1])).toHaveProperty("error");
+    }
+  }
+  const prepared = LocalPrepareEnvelopeSchema.parse(await invokeLocal(h, handleReviewLocalPrepare, request(admission)));
   expect(prepared.state).toBe("ready");
   if (prepared.state !== "ready") throw new Error(JSON.stringify(prepared));
   expect(prepared.payload.target.headSha).toBe(h.policyTarget.headSha);
