@@ -1,5 +1,6 @@
 /** Shared typed reads and prepared writes for portable review facts. */
 import type { z } from "zod";
+import { describeRecordConflicts } from "../../conflict-diagnostics.js";
 import type { Store } from "../../contract.js";
 import { RecordVersionSchema, type RecordReference, type RecordVersion } from "../../identity.js";
 import type { ReviewFactListing, ReviewFactPut, StoredReviewFact } from "../../../../scripts/review-gate/core/ports.js";
@@ -32,6 +33,9 @@ export function createReviewFactAccess<T>(store: Store, reference: (key: string)
       if (listing.missed || listing.diagnostics.length > 0) return { status: "incomplete",
         reason: `Review fact listing is incomplete. ${listing.diagnostics.map((entry) =>
           `${entry.condition} ${entry.remedy.text}`).join(" ")}`.trim() };
+      const conflicts = listing.records.flatMap(record => record.conflicts);
+      if (conflicts.length > 0) return { status: "incomplete",
+        reason: `Review fact listing has unresolved conflicts.${describeRecordConflicts(conflicts)}` };
       return { status: "complete", records: listing.records.map((record) => ({
         reference: record.reference, version: record.version, value: schema.parse(JSON.parse(record.content)),
       })) };

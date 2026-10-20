@@ -2381,5 +2381,7 @@ rewrite, and deletion pass (§ 11.2, § 12.6, § 14.3).
   _Trigger:_ 3.8 segment. _Work:_ 1.R. _Revalidated:_ 3.8.
 - **A11** — 2026-10-19 — task: bind native ports after vehicle resolution. _Supersedes:_ none.
   _Trigger:_ 4.4 must-stop. _Work:_ 4.4.R. _Revalidated:_ pending → 4.11.
+- **A12** — 2026-10-19 — task: refuse conflicted fact listings. _Supersedes:_ none.
+  _Trigger:_ 6.1 must-stop. _Work:_ 4.R. _Revalidated:_ pending → 4.11.
 
 ---

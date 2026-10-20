@@ -532,6 +532,8 @@ family's schemas are store schemas, never entries in the review gate's published
 
     - `[x]` **4.1.a The ports**
 
+        - _Amended in:_ 4.R (A12)
+
         - Typed outcome, evidence, and decision ports bind one supplied store and work item, preserve listing
           completeness and repair guidance, and expose prepared puts for atomic batches. Evidence advances retain
           opaque versions; composed native approvals preserve lineage order, optional tags, authorizations, performed
@@ -840,6 +842,15 @@ family's schemas are store schemas, never entries in the review gate's published
           reused slug with an exact selected generation at the boundaries that choose them; retain the repository-arm
           regressions. Use the production vehicle and primary lookup, with no stand-in owner resolver or weakened
           write checks. The native work-unit proof uses 4.5–4.6's Candidate and version 2 boundary.
+
+### `[x]` **4.R Preserve sync-conflict refusals in typed review listings — § 2.2, § 2.3**
+
+- _Goal:_ Typed outcome, evidence, and decision listings refuse incomplete authority while a listed record holds sync
+  conflicts, retaining the exact conflict references and resolution guidance; composed approved-disposition reads refuse
+  conflicted evidence and resume after resolution.
+
+- _Outcome:_ Typed listings report incomplete authority with every exact conflict reference. Both composed approval
+  readers refuse conflicted evidence and resume once its conflict records are resolved.
 
 ### `[ ]` **4.7 Keep in-flight state in a namespace of its own — § 4.7**
 

@@ -550,6 +550,18 @@ vehicle resolved, and the family adds no refusal. `readReviewWorkUnitByRef` reta
 correction changes binding order and retains those selected generations, with no new owner policy. Task 4.4.R follows
 the boundary and attestation footing before the in-flight and result implementations depend on it.
 
+## A12 — Typed fact listings must retain conflict refusals
+
+At `94263a3c8`, `createReviewFactAccess.list` checks listing diagnostics but drops each `StoreRecord.conflicts` when it
+maps the result to `StoredReviewFact`. Its individual `read` instead calls `readReviewRecord`, which rejects unresolved
+conflicts. `createReviewEvidencePort` takes the list's values through `completeEvidence` into `readDispositionRecord`
+and `listDispositionRecords`, so these composed approval reads can accept conflicted evidence without another check.
+
+The runtime readiness reader's actual sync-conflict scenario exposes this distinction; `readReviewReadinessBinding`
+checks its raw listing independently. The shared correction retains the ports' existing incomplete-result shape and
+uses `describeRecordConflicts` for exact identities and recovery guidance. Task 4.R corrects 4.1.a before the lane
+compositions depend on its listings; no kind, decision, reach rule, or publication policy changes.
+
 ## Neighbors
 
 The spec names no other work unit. These are the ones its descriptive references mean, and what each owns where it
