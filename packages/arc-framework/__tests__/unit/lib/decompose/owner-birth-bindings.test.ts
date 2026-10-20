@@ -143,6 +143,11 @@ it("requires explicit settlement of an ambiguous actual edge before subtracting 
 
 it("refuses unavailable batch birth facts and completes after authentic evidence and fresh approval are restored", async () => {
   const h = await createDecomposeTerminalFixture();
+  const mapRecord = lifecycleSuccess(await h.store.read({ reference: h.applied.storedMap }));
+  const decoded = decodeCutMapContent(mapRecord.content);
+  if (!decoded.success) throw new Error(decoded.error);
+  const selected = decoded.data.ownerBirths.find(birth => birth.kind === "work-item/meta");
+  if (selected === undefined) throw new Error("Expected member birth binding.");
   const history = lifecycleSuccess(await h.store.history({ reference: h.applied.storedMap }));
   const batchId = history[0]?.creationReceipt?.batchId;
   if (batchId === undefined) throw new Error("Expected accepted additive receipt.");
@@ -150,8 +155,16 @@ it("refuses unavailable batch birth facts and completes after authentic evidence
     .map(event => ({ event, receipt: structuredClone(event.creationReceipt) }));
   for (const { event } of saved) delete event.creationReceipt;
   const before = lifecycleSuccess(await h.store.version());
-  expect(await acquireDecomposeTerminal(h.ctx, "origin")).toMatchObject({ status: "refused", reason: "unsupported", class: "terminal",
+  const ordinary = await acquireDecomposeTerminal(h.ctx, "origin");
+  expect(ordinary).toMatchObject({ status: "refused", reason: "unsupported", class: "terminal",
     message: expect.stringContaining("unavailable birth evidence") });
+  const atomic = await h.store.batch({ provenance: { verb: "decompose", lifecycleAction: "revise" }, writes: [recordPut(mapRecord)] });
+  expect(atomic).toMatchObject({ status: "refused", refusal: { rule: "cut-map.atomic-binding" } });
+  for (const result of [ordinary, atomic]) {
+    for (const identity of [mapRecord.reference.kind, h.map.machine.origin.uid, selected.name, selected.birthKey, batchId]) {
+      expect(JSON.stringify(result)).toContain(identity);
+    }
+  }
   expect(lifecycleSuccess(await h.store.version())).toBe(before);
   for (const { event, receipt } of saved) if (receipt !== undefined) event.creationReceipt = receipt;
   await revise(h, h.map);

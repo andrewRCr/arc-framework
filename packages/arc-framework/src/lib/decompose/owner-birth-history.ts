@@ -56,29 +56,46 @@ export function deriveDecomposeBirthKey(reference: RecordReference, birth: Pick<
 }
 
 /** Prove one distinct birth UID from every retained map event carrying this selected binding. */
-export function resolveDecomposeOwnerBirth(binding: StoredCutOwnerBirth,
+export function resolveDecomposeOwnerBirth(reference: RecordReference, binding: StoredCutOwnerBirth,
   history: readonly HistoryEntry[]): DecomposeResult<string> {
   const uids = new Set<string>();
+  const matching: HistoryEntry[] = [];
   for (const entry of history) {
-    const receipt = matchingBirthFacts(entry, binding);
+    const receipt = matchingBirthFacts(reference, entry, binding);
     if (receipt.status === "refused") return receipt;
+    if (receipt.result === null) continue;
+    matching.push(entry);
     for (const birth of receipt.result) {
       if (birth.kind === binding.kind && birth.owner.name === binding.name) uids.add(birth.owner.uid);
     }
   }
   const uid = [...uids][0];
   return uids.size === 1 && uid !== undefined ? { status: "ok", result: uid }
-    : unavailableDecomposeBirth(binding.name, uids.size === 0 ? "The selected binding has no authenticated birth."
-      : "The selected binding proves multiple owner generations; preserve every generation and explicitly settle this cut state.");
+    : birthProofFailure(reference, binding, uids.size === 0 ? "The selected binding has no authenticated birth."
+      : "The selected binding proves multiple owner generations; preserve every generation and explicitly settle this cut state.", matching, [...uids]);
 }
 
-function matchingBirthFacts(entry: HistoryEntry, binding: StoredCutOwnerBirth): DecomposeResult<readonly CreatedOwner[]> {
-  if (entry.content === null || !("verb" in entry.provenance) || entry.provenance.verb !== "decompose") return { status: "ok", result: [] };
+function matchingBirthFacts(reference: RecordReference, entry: HistoryEntry,
+  binding: StoredCutOwnerBirth): DecomposeResult<readonly CreatedOwner[] | null> {
+  if (entry.content === null || !("verb" in entry.provenance) || entry.provenance.verb !== "decompose") return { status: "ok", result: null };
   const stored = decodeCutMapContent(entry.content);
-  if (!stored.success) return unavailableDecomposeBirth(binding.name, `Required historical stored map is invalid: ${stored.error}`);
+  if (!stored.success) return birthProofFailure(reference, binding, `Required historical stored map is invalid: ${stored.error}`, [entry]);
   if (!stored.data.ownerBirths.some(prior => prior.kind === binding.kind && prior.name === binding.name && prior.birthKey === binding.birthKey)) {
-    return { status: "ok", result: [] };
+    return { status: "ok", result: null };
   }
-  return entry.creationReceipt === undefined ? unavailableDecomposeBirth(binding.name, "A matching map event has unavailable birth evidence.")
+  return entry.creationReceipt === undefined ? birthProofFailure(reference, binding, "A matching map event has unavailable birth evidence.", [entry])
     : { status: "ok", result: entry.creationReceipt.createdOwners };
+}
+
+function birthProofFailure(reference: RecordReference, binding: StoredCutOwnerBirth, message: string,
+  entries: readonly HistoryEntry[], candidateUids?: readonly string[]): DecomposeRefusal {
+  const batchIds = evidenceIds(entries.flatMap(entry => "verb" in entry.provenance && entry.provenance.batchId !== undefined
+    ? [entry.provenance.batchId] : []));
+  const evidence = { map: reference, binding, batchIds,
+    ...(candidateUids === undefined ? {} : { candidateUids: evidenceIds(candidateUids) }) };
+  return unavailableDecomposeBirth(binding.name, `${message} Evidence: ${canonicalize(evidence)}`);
+}
+
+function evidenceIds(values: readonly string[]): string[] {
+  return [...new Set(values)].sort((a, b) => Buffer.compare(Buffer.from(a), Buffer.from(b)));
 }

@@ -29,7 +29,7 @@ export async function prepareDecomposeStoredMap(store: Pick<Store, "history" | "
   const cohorts = decomposeSelectedCohortNames(map);
   const members = new Set(map.authoring.destinations.flatMap(destination => destination.kind === "new-member" ? [destination.slug] : []));
   const bindings = (prior?.ownerBirths ?? []).filter(birth => (birth.kind === "work-item/meta" ? members : cohorts).has(birth.name));
-  const retained = await checkRetainedCohorts(store, bindings, history.result);
+  const retained = await checkRetainedCohorts(store, reference, bindings, history.result);
   if (retained !== undefined) return retained;
   const needed: Pick<StoredCutOwnerBirth, "kind" | "name">[] = [...members].map(name => ({ kind: "work-item/meta", name: SlugSchema.parse(name) }));
   for (const write of writes) {
@@ -46,11 +46,11 @@ export async function prepareDecomposeStoredMap(store: Pick<Store, "history" | "
   return { status: "ok", result: { schemaVersion: 1, map, ownerBirths: bindings.sort(compareStoredCutOwnerBirths) } };
 }
 
-async function checkRetainedCohorts(store: Pick<Store, "read">, bindings: readonly StoredCutOwnerBirth[],
+async function checkRetainedCohorts(store: Pick<Store, "read">, reference: RecordReference, bindings: readonly StoredCutOwnerBirth[],
   history: readonly HistoryEntry[]): Promise<DecomposeRefusal | undefined> {
   for (const binding of bindings) {
     if (binding.kind !== "cohort/document") continue;
-    const birth = resolveDecomposeOwnerBirth(binding, history);
+    const birth = resolveDecomposeOwnerBirth(reference, binding, history);
     if (birth.status === "refused") return birth;
     const selected = await store.read({ reference: recordReferences["cohort/document"](
       OwnerIdentitySchema.parse({ type: "cohort", name: binding.name, uid: birth.result })) });

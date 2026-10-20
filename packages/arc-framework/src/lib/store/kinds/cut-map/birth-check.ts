@@ -54,7 +54,7 @@ function bindingUid(input: WriteCheckInput, binding: StoredCutOwnerBirth, old: S
   const fresh = candidates?.filter(birth => birth.kind === binding.kind && birth.owner.name === binding.name);
   if (old !== undefined) {
     if (fresh !== undefined && fresh.length > 0) return bindingFailure(binding, `Retained binding ${binding.name} cannot create another owner generation.`);
-    return resolveDecomposeOwnerBirth(old, history);
+    return resolveDecomposeOwnerBirth(input.reference, old, history);
   }
   if (fresh === undefined) return { ...unavailableDecomposeBirth(binding.name, "Backend proposedCreatedOwners is unavailable for new cut bindings."),
     remedy: { text: "Repair or upgrade this provider to supply complete proposedCreatedOwners, then prepare a fresh preview and obtain approval." } };

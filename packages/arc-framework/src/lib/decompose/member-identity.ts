@@ -18,7 +18,7 @@ export async function acquireDecomposeMembers(store: Pick<Store, "history" | "re
     if (destination.kind !== "new-member") continue;
     const binding = stored.ownerBirths.find(birth => birth.kind === "work-item/meta" && birth.name === destination.slug);
     if (binding === undefined) return unavailableDecomposeBirth(destination.slug, "The selected member has no birth binding.");
-    const birth = resolveDecomposeOwnerBirth(binding, history.result);
+    const birth = resolveDecomposeOwnerBirth(storedMap.reference, binding, history.result);
     if (birth.status === "refused") return birth;
     const owner = OwnerIdentitySchema.parse({ type: "work-item", name: binding.name, uid: birth.result });
     const selected = await store.read({ reference: recordReferences["work-item/meta"](owner) });
