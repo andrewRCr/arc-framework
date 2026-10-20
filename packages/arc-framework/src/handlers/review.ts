@@ -5,6 +5,7 @@ import { decodePrePublicationReplay, replayTokenFromAction, type PrePublicationR
 import { ReviewLaneReadRequestSchema, ReviewLaneReadEnvelopeSchema, type ReviewLaneReadRequest } from "../scripts/review-gate/lane-read-schema.js";
 import { createReviewInvocationResolver, resolveReviewInvocation, type ReviewInvocationOptions, type ReviewInvocationContext } from "../scripts/review-gate/runtime/invocation.js";
 import { resolveLocalReviewInvocation, resolveLocalReviewResumeInvocation, resolveLocalReviewAttestInvocation } from "../scripts/review-gate/runtime/local-review-invocation.js";
+import { resolveReduceInvocation } from "../scripts/review-gate/runtime/reduce-invocation.js";
 import { resolveFrontlineRunInvocation } from "../scripts/review-gate/runtime/frontline-invocation.js";
 import { createReviewCompositionContext } from "../scripts/review-gate/runtime/composition-context.js";
 import { readReviewLane } from "../scripts/review-gate/runtime/lane-read-composition.js";
@@ -3306,14 +3307,14 @@ export interface ReviewReduceHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultReduceDependencies(context: InteractionContext, invocation: ReviewInvocationOptions = {}): ReviewReduceHandlerDependencies {
-  const exec = createGitExec(context.subprocess);
+function defaultReduceDependencies(context: InteractionContext, invocation: ReviewHandlerInvocationOptions = {}): ReviewReduceHandlerDependencies {
+  const exec = invocation.exec ?? createGitExec(context.subprocess);
   const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
     ...defaultReviewHandlerBoundary(),
-    reduce: (request, root) => reduceReviewCommand(
+    reduce: async (request, root) => reduceReviewCommand(
       request,
-      createReduceDependencies({ ...invocationFor(root), exec, cwd: root }),
+      createReduceDependencies(await resolveReduceInvocation({ ...invocationFor(root), exec, cwd: root }, request)),
     ),
   };
 }
@@ -3323,7 +3324,7 @@ export async function handleReviewReduce(
   source: string,
   overrides: Partial<ReviewReduceHandlerDependencies> = {},
   suppliedContext?: InteractionContext,
-  invocation: ReviewInvocationOptions = {},
+  invocation: ReviewHandlerInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false,

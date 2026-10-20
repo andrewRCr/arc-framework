@@ -7,7 +7,7 @@ import { IntegrationBoundaryLocusV2Schema } from "../../../src/scripts/review-ga
 import { lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { expect, it, onTestFinished } from "vitest";
 import { LocalPrepareEnvelopeSchema } from "../../../src/scripts/review-gate/core/review-command-envelope.js";
-import { handleReviewLocalPrepare, handleReviewLocalResume, handleReviewLocalAttest } from "../../../src/handlers/review.js";
+import { handleReviewLocalPrepare, handleReviewLocalResume, handleReviewLocalAttest, handleReviewReduce } from "../../../src/handlers/review.js";
 import { TransientIdentityRecordSchema } from "../../../src/lib/errand/identity-record.js";
 import { scriptRawGitExec } from "../../helpers/git-exec-fake.js";
 import { createReviewHarness } from "../../helpers/store/review-harness.js";
@@ -42,6 +42,8 @@ async function fixture(project = true, vehicle: "work-unit" | "errand" = "errand
   const head = "a".repeat(40), base = "b".repeat(40);
   const pins = new Map<string, string>(), materialized = new Set<string>();
   let activeIdentity = "test-user";
+  const advancedHead = "e".repeat(40);
+  let currentHead = head;
   const checkout = await createReviewCheckout(h, { script: [
     { match: ["config", "--null", "--get", "arc.identity"], responses: [() => ({ stdout: `${activeIdentity}\0` })] },
     { match: ["rev-parse", "--show-object-format"], responses: [{ stdout: "sha1" }] },
@@ -71,9 +73,12 @@ async function fixture(project = true, vehicle: "work-unit" | "errand" = "errand
     ...[`${base}^{commit}`, `${head}^{commit}`, `${"c".repeat(40)}^{tree}`, `${"d".repeat(40)}^{tree}`]
       .map(revision => ({ match: ["cat-file", "-e", revision], responses: [{ stdout: "" }] })),
     { match: ["for-each-ref", "--format=%(refname)", "refs/arc/review/local/"], responses: [() => ({ stdout: [...pins.keys()].join("\n") })] },
-    { match: ["rev-parse", "HEAD"], responses: [{ stdout: head }] },
+    { match: ["rev-parse", "HEAD"], responses: [() => ({ stdout: currentHead })] },
     { match: ["check-ref-format", "refs/heads/main"], responses: [{ stdout: "" }] },
-    { match: ["rev-parse", "--verify", "HEAD"], responses: [{ stdout: head }] },
+    { match: ["rev-parse", "--verify", "HEAD"], responses: [() => ({ stdout: currentHead })] },
+    { match: ["cat-file", "-t", advancedHead], responses: [{ stdout: "commit" }] },
+    { match: ["merge-base", "--all", base, advancedHead], responses: [{ stdout: base }] },
+    { match: ["rev-parse", `${advancedHead}^{tree}`], responses: [{ stdout: "f".repeat(40) }] },
     { match: ["rev-parse", "--verify", "refs/heads/main"], responses: [{ stdout: base }] },
     { match: ["cat-file", "-t", head], responses: [{ stdout: "commit" }] },
     { match: ["cat-file", "-t", base], responses: [{ stdout: "commit" }] },
@@ -92,7 +97,14 @@ async function fixture(project = true, vehicle: "work-unit" | "errand" = "errand
   const rawGit = scriptRawGitExec([{ match: ["diff", "--numstat", "-z", "-M", "-C", "--find-copies-harder", `${base}..${head}`, "--"],
     responses: [{ stdout: Buffer.from("1\t0\tsrc/example.ts\0") }] }]).exec;
   const operations = new LocalReviewOperationStateStore(new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd));
-  return { ...checkout, claimId, request, operations, setIdentity: (identity: string) => { activeIdentity = identity; }, attest: async (operationId: string) => {
+  return { ...checkout, claimId, request, operations, advanceHead: () => { currentHead = advancedHead; }, reduce: async (operationId: string) => {
+    let output = "";
+    await handleReviewReduce("-", { resolveRoot: () => checkout.cwd,
+      readText: async () => JSON.stringify({ schemaVersion: 1, operationId }),
+      write: text => { output += text; }, setExitCode: () => {} },
+    undefined, { ...checkout, projectId: createProjectIdentityReader(checkout.store) });
+    return JSON.parse(output) as unknown;
+  }, setIdentity: (identity: string) => { activeIdentity = identity; }, attest: async (operationId: string) => {
     let output = "";
     await handleReviewLocalAttest("-", { resolveRoot: () => checkout.cwd,
       readText: async () => JSON.stringify({ schemaVersion: 1, operationId, result: { status: "partial", result: null,
@@ -176,6 +188,9 @@ it.each(["work-unit", "errand"] as const)("retains the selected %s generation wi
 it("keeps the unavailable-operation refusal without current checkout occupancy", async () => {
   const h = await fixture();
   await unlink(resolveWorktreeMarkerPath(h.cwd));
+  expect(await h.reduce("missing-operation")).toMatchObject({ error: {
+    code: "corrupt-state", message: "review operation is unavailable",
+  } });
   expect(await h.attest("missing-operation")).toMatchObject({ error: {
     code: "corrupt-state", message: "local review operation is unavailable",
   } });
@@ -213,4 +228,35 @@ it.each(["work-unit", "errand"] as const)("attests a partial saved %s result wit
   const result = await h.attest(prepared.payload.operationId);
   expect(result, JSON.stringify(result)).toMatchObject({ state: "not-attestable", nextAction: "rerun-review",
     payload: { operationId: prepared.payload.operationId, result: { status: "partial" } } });
+});
+
+it.each(["work-unit", "errand"] as const)("reduces the saved %s operation to a stale target without checkout occupancy", async vehicle => {
+  const h = await fixture(true, vehicle, false);
+  const prepared = LocalPrepareEnvelopeSchema.parse(await h.run());
+  if (prepared.state !== "ready") throw new Error(JSON.stringify(prepared));
+  await unlink(resolveWorktreeMarkerPath(h.cwd));
+  h.setIdentity("another-user");
+  h.advanceHead();
+  const version = lifecycleSuccess(await h.store.version());
+  const result = await h.reduce(prepared.payload.operationId);
+  expect(result, JSON.stringify(result)).toMatchObject({ state: "stale-target", nextAction: "prepare-current-target",
+    payload: { operationId: prepared.payload.operationId, currentTarget: { headSha: "e".repeat(40) } } });
+  expect(lifecycleSuccess(await h.store.version())).toBe(version);
+});
+
+it("reports reduction's missing saved owner and reduces after its working state is repaired", async () => {
+  const h = await fixture(true, "errand", false);
+  const prepared = LocalPrepareEnvelopeSchema.parse(await h.run());
+  if (prepared.state !== "ready") throw new Error(JSON.stringify(prepared));
+  const saved = await h.operations.readOperation(prepared.payload.operationId);
+  if (saved.state?.kind !== "local-review") throw new Error("Expected saved local review");
+  const { workItem, ...unbound } = saved.state;
+  if (workItem === undefined) throw new Error("Expected selected owner");
+  const corrupt = await h.operations.publishOperation(unbound, saved.version);
+  expect(await h.reduce(prepared.payload.operationId)).toMatchObject({ error: {
+    code: "corrupt-state", message: "review operation has no selected work item",
+  } });
+  await h.operations.publishOperation(saved.state, corrupt.version);
+  h.advanceHead();
+  expect(await h.reduce(prepared.payload.operationId)).toMatchObject({ state: "stale-target", nextAction: "prepare-current-target" });
 });

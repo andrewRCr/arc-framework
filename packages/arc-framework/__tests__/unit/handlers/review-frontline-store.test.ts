@@ -1,7 +1,7 @@
 /** Native frontline defaults select their actual stored vehicle before durable family access. */
 import { mkdir, unlink } from "node:fs/promises";
 import { expect, it, onTestFinished, vi } from "vitest";
-import { handleReviewFrontlineResolve, handleReviewFrontlineRun } from "../../../src/handlers/review.js";
+import { handleReviewFrontlineResolve, handleReviewFrontlineRun, handleReviewReduce } from "../../../src/handlers/review.js";
 import { createProjectIdentityReader } from "../../../src/lib/store/project-identity.js";
 import { resolveWorktreeMarkerPath } from "../../../src/lib/git/worktree-marker.js";
 import { TransientIdentityRecordSchema } from "../../../src/lib/errand/identity-record.js";
@@ -80,7 +80,14 @@ async function fixture(project = true, vehicle: "errand" | "work-unit" = "errand
       activity: { selfReview: true, frontlineReview: false } },
     invocation: mode === "skip" ? { mode } : { mode, sourceId: "coderabbit-cli" },
   });
-  return { ...checkout, claimId, request, run: async (resolution: unknown) => {
+  return { ...checkout, claimId, request, reduce: async (operationId: string) => {
+    let output = "";
+    await handleReviewReduce("-", { resolveRoot: () => checkout.cwd,
+      readText: async () => JSON.stringify({ schemaVersion: 1, operationId }),
+      write: text => { output += text; }, setExitCode: () => {} },
+    undefined, { ...checkout, projectId: createProjectIdentityReader(checkout.store) });
+    return JSON.parse(output) as unknown;
+  }, run: async (resolution: unknown) => {
     let output = "";
     await handleReviewFrontlineRun("-", { resolveRoot: () => checkout.cwd,
       readText: async () => JSON.stringify({ schemaVersion: 1, target: request("force").target, resolution }),
@@ -187,4 +194,18 @@ it("keeps the unresolved-lineage refusal and resolves normally after marker repa
   expect(await h.resolve()).toMatchObject({ error: { message: "frontline review lineage authority is unavailable" } });
   await h.occupy("chore/repair", { kind: "errand", slug: "repair", claimId: h.claimId });
   expect(await h.resolve()).toMatchObject({ state: "skipped", nextAction: "none" });
+});
+
+it.each(["errand", "work-unit"] as const)("reduces the saved native %s frontline result without checkout occupancy", async vehicle => {
+  const h = await fixture(true, vehicle);
+  const resolution = FrontlineResolveEnvelopeSchema.parse(await h.resolve("force"));
+  if (resolution.state !== "ready") throw new Error(JSON.stringify(resolution));
+  await unlink(resolveWorktreeMarkerPath(h.cwd));
+  vi.stubEnv("PATH", "");
+  onTestFinished(() => { vi.unstubAllEnvs(); });
+  expect(await h.run(resolution)).toMatchObject({ state: "unavailable", nextAction: "operator-repair" });
+  const version = lifecycleSuccess(await h.store.version());
+  const result = await h.reduce(resolution.payload.admission.operationId);
+  expect(result, JSON.stringify(result)).toMatchObject({ state: "retryable", nextAction: "operator-repair" });
+  expect(lifecycleSuccess(await h.store.version())).toBe(version);
 });
