@@ -206,6 +206,12 @@ export async function runFrontlineReviewCommand(
     outcome: terminal.outcome,
     now: dependencies.now(),
   });
+  const outcomeRef = await (dependencies.bindSourceReference ?? bindReviewSourceReference)({ kind: "frontline",
+    operationId: terminal.operationId, durableRef: terminal.outcomeRef });
+  return frontlineRunEnvelope(terminal, outcomeRef);
+}
+
+function frontlineRunEnvelope(terminal: Awaited<ReturnType<typeof executeFrontlineRun>>, outcomeRef: string): z.infer<typeof FrontlineRunEnvelopeSchema> {
   const transition = actionFor(terminal.outcome);
   const diagnostics = transition.nextAction === "operator-repair"
     ? [{
@@ -223,12 +229,9 @@ export async function runFrontlineReviewCommand(
     payload: {
       operationId: terminal.operationId,
       persistedVersion: terminal.persistedVersion,
+      ...(terminal.operationRef === undefined ? {} : { operationRef: terminal.operationRef }),
       target: terminal.target,
-      outcomeRef: await (dependencies.bindSourceReference ?? bindReviewSourceReference)({
-        kind: "frontline",
-        operationId: terminal.operationId,
-        durableRef: terminal.outcomeRef,
-      }),
+      outcomeRef,
       outcomeDigest: terminal.outcomeDigest,
       ...(terminal.executableIdentity === null
         ? {}

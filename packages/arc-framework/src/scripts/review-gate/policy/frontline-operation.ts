@@ -1,6 +1,7 @@
 /** Durable replay and invalidation policy for non-evidentiary frontline runs. */
 
 import { z } from "zod";
+import { bindNativeReviewOperationReference } from "../core/review-operation-reference.js";
 import { storedFrontlineAdmissionMatches, projectStoredFrontlineOutcome } from "../core/frontline-result.js";
 import { computeFrontlineSourceBindingId } from "../core/frontline-source-binding.js";
 import { projectFrontlineOutcome } from "../../../lib/store/kinds/review/mapping-frontline.js";
@@ -256,6 +257,7 @@ interface BoundPersistedOutcome {
 }
 
 type FrontlineRunTerminal = {
+  operationRef?: string;
   operationId: string;
   persistedVersion: number;
   target: ReviewTarget;
@@ -458,9 +460,12 @@ async function executeAndPersistFrontlineRun(
     ...(input.responseBinding === undefined ? {} : { responseBinding: input.responseBinding }),
   });
   let outcomeRef: string, persistedVersion: number;
+  let operationRef: string | undefined;
   if (dependencies.outcomes !== undefined) {
     const value = projectFrontlineOutcome(input.admission, record, dependencies.now());
-    await dependencies.outcomes.create(value);
+    const stored = await dependencies.outcomes.create(value);
+    operationRef = bindNativeReviewOperationReference({ repositoryId: binding.target.repositoryId,
+      workItem: stored.reference.owner, operationId });
     outcomeRef = reviewOutcomeKey(value);
     persistedVersion = expectedTerminalVersion;
   } else {
@@ -475,6 +480,7 @@ async function executeAndPersistFrontlineRun(
   return {
     operationId,
     persistedVersion,
+    ...(operationRef === undefined ? {} : { operationRef }),
     target: binding.target,
     outcomeRef,
     outcomeDigest: record.outcomeDigest,
@@ -584,6 +590,8 @@ async function readCompletedNativeFrontlineRun(dependencies: FrontlineRunExecuti
   }
   const current = await dependencies.operationStore.readOperation(binding.operationId);
   return { operationId: binding.operationId, persistedVersion: current.version, target: stored.value.target,
+    operationRef: bindNativeReviewOperationReference({ repositoryId: stored.value.target.repositoryId,
+      workItem: stored.reference.owner, operationId: binding.operationId }),
     outcomeRef: reviewOutcomeKey(stored.value), outcomeDigest: frontline.outcomeDigest,
     executableIdentity: frontline.executableIdentity, outcome: projectStoredFrontlineOutcome(stored.value) };
 }
