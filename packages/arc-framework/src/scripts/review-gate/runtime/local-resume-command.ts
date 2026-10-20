@@ -1,9 +1,12 @@
 /** Command orchestration for re-entering one durable local advisory review. */
 
 import { z } from "zod";
+import type { ReviewOutcome } from "../../../lib/store/kinds/review/outcome/schema.js";
+import { reviewOutcomeKey } from "../../../lib/store/kinds/review/outcome/key.js";
+import { readRetainedLocalReviewSource } from "./local-outcome-source.js";
 import { publishLocalReviewReceipt, readLocalReviewReceipts } from "./local-outcome-receipts.js";
 import type { LocalReviewState } from "../core/operation-state-schema.js";
-import { NativeReviewOperationRefSchema, nativeReviewOperationReferenceMatches } from "../core/review-operation-reference.js";
+import { NativeReviewOperationRefSchema, nativeReviewOperationReferenceMatches, bindNativeReviewOperationReference } from "../core/review-operation-reference.js";
 
 import {
   validateReviewReceipt,
@@ -22,6 +25,7 @@ import type {
   ReviewOperationStateStore,
   ReviewOutcomePort,
   ReviewResultReader,
+  StoredReviewFact,
 } from "../core/ports.js";
 import { validateApprovedDispositionRecordForResult } from
   "../core/review-result-disposition.js";
@@ -83,6 +87,72 @@ async function resumeLocalReviewWithinLocalReviewLock(
   dependencies: LocalResumeDependencies,
 ): Promise<z.infer<typeof LocalResumeEnvelopeSchema>> {
   const persisted = await dependencies.operationStore.readOperation(request.operationId);
+  if (dependencies.outcomes !== undefined) {
+    const stored = await dependencies.outcomes.read(request.operationId);
+    if (stored?.value.local !== undefined) return resumeEndedLocalReview(request.operationId, stored, persisted.version, dependencies);
+  }
+  return resumeLocalReviewFromWorkingState(request, dependencies, persisted);
+}
+
+async function resumeEndedLocalReview(operationId: string, stored: StoredReviewFact<ReviewOutcome>,
+  persistedVersion: number, dependencies: LocalResumeDependencies): Promise<z.infer<typeof LocalResumeEnvelopeSchema>> {
+  const outcome = stored.value, local = outcome.local, requirement = outcome.requirement;
+  if (outcome.attemptId !== operationId || local === undefined || requirement === undefined) {
+    throw new LocalResumeCommandError("local review outcome does not match its admission");
+  }
+  assertLocalReviewClaimBinding(local);
+  const base = { operationId, persistedVersion, operationRef: bindNativeReviewOperationReference({ operationId,
+    repositoryId: outcome.target.repositoryId, workItem: stored.reference.owner }) };
+  if (local.receipt === undefined) {
+    if (outcome.outcome !== "terminal-failure" && outcome.outcome !== "transient-unavailable"
+      && outcome.outcome !== "stale-target") throw new LocalResumeCommandError("terminal local review operation has no durable receipt");
+    return LocalResumeEnvelopeSchema.parse({ schemaVersion: 1, mode: "review-local-resume", diagnostics: [],
+      state: "terminal-operation", nextAction: "rerun-review", payload: { ...base, currentTarget: outcome.target } });
+  }
+  const receipt = validateReviewReceipt(outcome.target, requirement, local.request, local.receipt);
+  const confirmation = await dependencies.confirmTarget(outcome.target);
+  if (confirmation.state === "stale-target") return LocalResumeEnvelopeSchema.parse({ schemaVersion: 1,
+    mode: "review-local-resume", diagnostics: [], state: "stale-target", nextAction: "prepare-current-target",
+    payload: { ...base, attemptedTarget: confirmation.attemptedTarget, currentTarget: confirmation.currentTarget } });
+  const retained = await readRetainedLocalReviewSource(dependencies, operationId);
+  if (retained !== null && (retained.source.sourceDigest !== local.sourceDigest
+    || retained.source.repositoryId !== outcome.target.repositoryId || retained.source.targetId !== outcome.target.targetId)) {
+    throw new LocalResumeCommandError("local review source snapshot mismatch");
+  }
+  const approved = await validateCompletedLocalDisposition(outcome, dependencies);
+  const coordinates = { kind: "attested-local" as const, operationId, durableRef: reviewOutcomeKey(outcome) };
+  const receiptRef = dependencies.bindSourceReference === undefined
+    ? bindReviewSourceReference({ ...coordinates, repositoryId: outcome.target.repositoryId, workItem: stored.reference.owner })
+    : await dependencies.bindSourceReference(coordinates);
+  const payload = { ...base, currentTarget: outcome.target, receiptRef };
+  if (receipt.result === "findings" && !approved) return LocalResumeEnvelopeSchema.parse({ schemaVersion: 1,
+    mode: "review-local-resume", diagnostics: [], state: "respond-to-findings", nextAction: "respond",
+    payload: { ...payload, responsePlan: { schemaVersion: 1, target: outcome.target,
+      source: { kind: "attested-local", receiptRef }, findings: receipt.findings } } });
+  return LocalResumeEnvelopeSchema.parse({ schemaVersion: 1, mode: "review-local-resume", diagnostics: [],
+    state: "review-complete", nextAction: "reduce", payload });
+}
+
+async function validateCompletedLocalDisposition(outcome: ReviewOutcome, dependencies: LocalResumeDependencies): Promise<boolean> {
+  const disposition = await dependencies.dispositionStore.readDispositionRecord(outcome.attemptId);
+  if (outcome.outcome !== "findings" && disposition !== null) {
+    throw new LocalResumeCommandError("non-findings receipt has an approved disposition");
+  }
+  if (outcome.outcome !== "clean" && outcome.outcome !== "findings") return false;
+  const result = await dependencies.resultReader.readResult(outcome.attemptId);
+  if (result.kind !== "attested-local" || result.originalOutcome !== outcome.outcome
+    || result.receiptRef !== reviewOutcomeKey(outcome)) throw new LocalResumeCommandError("local review result snapshot mismatch");
+  if (disposition === null) return false;
+  try { validateApprovedDispositionRecordForResult(disposition, result); }
+  catch { throw new LocalResumeCommandError("local review disposition snapshot mismatch"); }
+  return true;
+}
+
+async function resumeLocalReviewFromWorkingState(
+  request: z.infer<typeof LocalResumeRequestSchema>,
+  dependencies: LocalResumeDependencies,
+  persisted: Awaited<ReturnType<ReviewOperationStateStore["readOperation"]>>,
+): Promise<z.infer<typeof LocalResumeEnvelopeSchema>> {
   if (persisted.state === null
     || persisted.state.kind !== "local-review"
     || persisted.state.operationId !== request.operationId) {
