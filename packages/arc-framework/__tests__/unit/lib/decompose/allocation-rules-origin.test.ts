@@ -63,7 +63,9 @@ it("refuses a previously stored self-home at terminal conservation and continues
     provenance: { verb: "decompose", lifecycleAction: "revise" } }));
   const before = success(await h.store.version());
   expect(await prepareDecomposeTerminal(h.ctx, "origin", "retirement"))
-    .toMatchObject({ status: "refused", reason: "retiring-origin-destination", class: "recoverable" });
+    .toMatchObject({ status: "refused", reason: "retiring-origin-destination", class: "recoverable",
+      remedy: { argv: ["arc", "decompose", "origin", "--revise"],
+        text: expect.stringMatching(/arc decompose origin --revise.*preview.*apply.*--finish/u) } });
   expect(success(await h.store.version())).toBe(before);
   const input = { cutMap: map, cutMapPath: "cut.json" };
   const preview = success(await runStoreDecomposeRevision(h.ctx, "origin", input));

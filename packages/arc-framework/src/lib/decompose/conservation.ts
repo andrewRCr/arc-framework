@@ -27,7 +27,12 @@ export interface DecomposeConservation { allocations: readonly DecomposeResolved
 /** Require every destination allocation's complete saved locator to resolve exactly once. */
 export async function checkDecomposeConservation(ctx: DecomposeContext, input: DecomposeTerminalRecords): Promise<DecomposeResult<DecomposeConservation>> {
   const origin = checkDecomposeOriginDestinations(input.map, input.homes);
-  if (origin !== undefined) return origin;
+  if (origin !== undefined) {
+    const argv = decomposeReviseArgv(input.acquired.primary.reference.owner.name);
+    return { ...origin, remedy: { argv: [...argv],
+      text: `Generate a revision with ${renderV3DecomposeArgv(argv)} and choose a destination other than the origin,`
+        + " or retain extraction scope with retained-origin; preview and apply the corrected revision, then retry --finish." } };
+  }
   const store = decomposeReadCache(ctx.executor.store, input.records);
   const groups = new Map<string, readonly TargetArtifact[]>();
   const scans = new Map<StoreRecord, ReturnType<typeof scanV3DecomposeContent>>();
