@@ -1,12 +1,13 @@
 /** Licensed delete rounds leave the departed receiver with its forwarding record alone. */
 import { expect, it } from "vitest";
-import { chmod, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ArchiveQuarterSchema, SlugSchema } from "../../src/lib/kernel/index.js";
 import { createKindRegistry, createRefStore, HistoryRefSchema, RecordReferenceSchema, type WriteCheck } from "../../src/lib/store/index.js";
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
-import { switchFixture, directions, personal, provenance, capturePeerState, landPreparedOldPush } from "../helpers/store/remote-move.js";
+import { switchFixture, directions, personal, provenance, capturePeerState, landPreparedOldPush, createRemoteMover } from "../helpers/store/remote-move.js";
+import { createStoreCommandPorts } from "../../src/commands/store-ports.js";
 import { plantRef, type PlantTreeEntry } from "../helpers/store/ref-plant.js";
 import { readOnlyGitEndpoint } from "../helpers/store/read-only-git-remote.js";
 import { invokeStoreRemote } from "../helpers/store/remote-command.js";
@@ -30,19 +31,42 @@ it.each(directions)("finishes the move from $source to $destination with only it
   expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout.trim()).toBe("refs/arc/project/moved");
 }, 45_000);
 
-it("keeps both receivers untouched when the switched destination loses the move version, then recovers", async () => {
+it("keeps both receivers untouched until a follower restores the move, then re-copies unseen identity and history refs", async () => {
   const h = await switchFixture();
   success(await h.b.store.pull());
-  const beth = createRefStore({ ...h.b.ports, identity: async () => SlugSchema.parse("beth") });
+  const writer = await createRemoteMover(h, h.origin, "unseen-publisher");
+  const beth = createRefStore({ ...writer.ports, identity: async () => SlugSchema.parse("beth") });
   const unseen = RecordReferenceSchema.parse({ ...personal, owner: { type: "person", name: "beth" }, key: "unseen.md" });
   success(await beth.write({ action: "put", reference: unseen, expected: null, content: "Beth's only published copy.\n", provenance }));
   success(await beth.push());
   const bethTip = (await h.remote("git", ["rev-parse", "refs/arc/user/beth/personal"])).stdout.trim();
+  const ended = success(await writer.store.write({ action: "put", expected: null,
+    reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "unseen-history" } }),
+    content: makeMetaFixture("unseen-history"), placement: { kind: "active" }, provenance }));
+  const current = success(await writer.store.read({ reference: ended.reference }));
+  success(await writer.store.write({ action: "put", reference: ended.reference, expected: current.version,
+    content: makeMetaFixture("unseen-history"), placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
+    provenance: { verb: "archive", lifecycleAction: "archive" } }));
+  success(await writer.store.push());
+  const history = (await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/history/"])).stdout.trim();
+  const [historyRef, historyTip] = history.split(" ");
+  expect(historyRef).toMatch(/^refs\/arc\/history\/work\//u);
 
   await expect(invokeStoreMigrate(["--to", h.to], { ...h.ports, migrateStep: async step => {
     if (step === "remote.switched") throw new Error("Paused after switch");
   } })).rejects.toThrow("Paused after switch");
   success(await h.store.pull());
+  const config = join(h.b.root, ".arc", "system", "arc-config.yml");
+  await mkdir(join(h.b.root, ".arc", "system"), { recursive: true });
+  await writeFile(config, `storage.backing_repository: ${JSON.stringify(h.destinationDirectory)}\n`);
+  const production = createStoreCommandPorts(h.b.root);
+  const followerPorts = { ...production, ...h.b.ports, backingRepository: production.backingRepository };
+  const follower = createRefStore(followerPorts);
+  success(await follower.pull());
+  await expect(invokeStoreRemote(["backing", "push", "--json"], { cwd: h.b.root, ports: { ...followerPorts,
+    migrateStep: async step => { if (step === "follow.switched") throw new Error("Paused follower before clear"); },
+  } })).rejects.toThrow("Paused follower before clear");
+  success(await follower.pull());
   const refs = (await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout.trim().split("\n");
   for (const ref of refs) await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "update-ref", "-d", ref]);
   const source = (await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout;
@@ -51,12 +75,20 @@ it("keeps both receivers untouched when the switched destination loses the move 
   expect((await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(source);
   expect((await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout).toBe("");
   expect((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/move"])).stdout.trim()).toBe("refs/arc/tmp/migrate/move");
-  expect(success(await h.store.push()).publishes).toContainEqual(expect.objectContaining({ status: "pushed" }));
+  expect(await invokeStoreMigrate([], followerPorts)).toMatchObject({ status: "refused", refusal: { code: "move-unfinished" } });
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(source);
+  expect((await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout).toBe("");
+  expect(success(await follower.push()).publishes).toContainEqual(expect.objectContaining({ status: "pushed" }));
+  expect((await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(refname)", "refs/arc/user/beth/", "refs/arc/history/"])).stdout).toBe("");
+  expect((await invokeStoreMigrate([], followerPorts)).status).toBe("ok");
   expect((await invokeStoreMigrate([], h.ports)).status).toBe("ok");
   expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout.trim()).toBe("refs/arc/project/moved");
   expect((await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(objectname)", "refs/arc/user/beth/personal"])).stdout.trim()).toBe(bethTip);
   expect((await h.a.git(["for-each-ref", "--format=%(refname)", "refs/arc/user/beth/"])).stdout).toBe("");
-}, 45_000);
+  expect((await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(objectname)", historyRef ?? "missing-history"])).stdout.trim()).toBe(historyTip);
+  for (const side of [h.a, h.b]) expect((await side.git(["for-each-ref", "--format=%(refname)", "refs/arc/history/"])).stdout).toBe("");
+  expect(success(await follower.pull()).states).toEqual([]);
+}, 60_000);
 
 it("re-copies a prepared teammate write, new item, and archive that land after the switch", async () => {
   const h = await switchFixture();

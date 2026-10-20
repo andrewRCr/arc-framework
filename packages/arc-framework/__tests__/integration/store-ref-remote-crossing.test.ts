@@ -7,6 +7,7 @@ import { createRefStore } from "../../src/lib/store/index.js";
 import { switchFixture, oppositeMoveFixture, personal, provenance } from "../helpers/store/remote-move.js";
 import { invokeStoreMigrate } from "../helpers/store/migrate-command.js";
 import { success } from "../helpers/store/suite-tools.js";
+import { convergeFollowers } from "../helpers/store/follow.js";
 
 async function competingFixture() {
   const h = await switchFixture();
@@ -42,6 +43,8 @@ it("ends the second move before switching and forwards the copy it leaves to the
     expect.objectContaining({ condition: expect.stringContaining("refs/arc/user/andrew/personal") }),
     expect.objectContaining({ condition: expect.stringContaining(loserDestination) }),
   ]));
+  const stores = await convergeFollowers(h.destinationDirectory, [{ root: h.a.root, ports: h.ports }, { root: h.b.root, ports }]);
+  for (const store of stores) expect(success(await store.read({ reference: h.pending })).content).toBe("Pending local state.\n");
 }, 60_000);
 
 it("continues crossing copies that carry each other's move versions until one forward wins", async () => {

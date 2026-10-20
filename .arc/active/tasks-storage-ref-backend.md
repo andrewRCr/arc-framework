@@ -1599,43 +1599,21 @@ _Exit criterion:_ Every case of § 14.6 and § 14.7 passes.
   the separate read-source route. Read failures retain state and roles with repair remedies; stale tracking is dropped.
   The remote-setting guard allows the old remote's `off` and reserves accepted answers for the follow.
 
-### `[ ]` **17.2 The follow's copy, switch, and deletes — § 10.3, § 10.6**
+### `[x]` **17.2 The follow's copy, switch, and deletes — § 10.3, § 10.6**
 
 - _Goal:_ A follow asks about its destination, copies what raced the move before switching, and clears it from the old
   remote after, deleting only where its own listing found the record it judged by, so every clone of each move ends on
   one remote holding every write.
-
-    - `move.json`'s follow arm: each remote by its name and URLs, the follow's answer, and the record it followed; its
-      deletes go by the record's URLs (16.2)
-    - The `arc store migrate` handler asks the follow's question through a select prompt site declared through
-      `declarePromptSite` and asked through `prompt`, as 13.5's `--own-state` confirmation is, its no-input policy
-      reporting `designation-needed`; the answer runs through `runStoreRemote`'s follow-due arm (17.1)
-    - Its copies, before the switch and clearing after it, run 13.1's copy, the destination's refs the local side and the
-      old remote's the incoming
 
     - `[x]` **17.2.a The follow's steps**
         - Recorded explicit roles, fresh licensed copies, restartable layout switches, and leased clearing through
           `follow*.ts`; wired the terminal question through the migration handler. Native callers cover late writes,
           lifecycle merges, interrupted steps, move-back races, and a second worktree's publication retry.
 
-    - `[ ]` **17.2.b Every clone following the moves of Phase 16**
-        - Build `test-first` (one behavior at a time):
-            - a follower pulling the old remote between steps 3 and 4 and following after step 4's deletes, and one
-              following before them, each report no `history-diverged` at their next pull from the new remote
-            - a new remote emptied after the switch writes nothing on either remote until a follower's push restores the
-              move's commit, then re-copies every ref it lacks — another person's identity ref and a history ref no clone
-              pulled among them — before deleting on the old remote
-            - step 4's re-copy against a new remote a follower's clear reached first deletes nothing there
-            - of two clones moving off one remote at once, the clone whose move ended before its switch follows the
-              first's record
-            - a clone still on the new remote follows the move back's forwarding record a rerun met there
-            - a move back interrupted between its record and its switch, finished on a rerun, ends every clone on the old
-              remote
-            - a move back ended before its switch by another move off its old remote: a clone that never followed the
-              earlier record, and a follower that took the ended move's copy for the home, follow that move's record to
-              the state's home
-            - a move back interrupted after its copy, whose destination another clone then moved on, ends every clone on
-              the state's home
+    - `[x]` **17.2.b Every clone following the moves of Phase 16**
+        - Extended native remote-move fixtures so every clone follows interrupted, crossing, move-back, and onward
+          records to one home. Covered both clearing timings, unseen-ref restoration after a follower's push, preserved
+          destination publications during re-copy, and the next pull's history after every switch.
 
 ### `[ ]` **17.3 Leaving the source — § 10.6**
 

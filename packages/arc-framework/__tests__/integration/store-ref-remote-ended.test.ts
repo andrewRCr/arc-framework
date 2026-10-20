@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { expect, it } from "vitest";
 import { createRemoteMover, oppositeMoveFixture, switchFixture } from "../helpers/store/remote-move.js";
 import { invokeStoreMigrate } from "../helpers/store/migrate-command.js";
+import { convergeFollowers } from "../helpers/store/follow.js";
+import { success } from "../helpers/store/suite-tools.js";
 
 it.each(["remote.forwarded", "remote.switched", "remote.delete"])("ends without remote writes when a move back overtakes a move paused at %s", async boundary => {
   const h = await oppositeMoveFixture();
@@ -24,6 +26,8 @@ it.each(["remote.forwarded", "remote.switched", "remote.delete"])("ends without 
     expect.objectContaining({ condition: expect.stringContaining("arc store migrate") }),
     expect.objectContaining({ condition: expect.stringContaining("refs/arc/user/andrew/personal") }),
   ]));
+  const stores = await convergeFollowers(h.origin, [{ root: h.a.root, ports: h.ports }, { root: h.b.root, ports: h.peerPorts }]);
+  for (const store of stores) expect(success(await store.read({ reference: h.pending })).content).toBe("Pending local state.\n");
 }, 60_000);
 
 it.each(["remote.copy", "remote.copied", "remote.forwarded"])("finishes a move back interrupted at %s", async boundary => {
@@ -39,16 +43,20 @@ it.each(["remote.copy", "remote.copied", "remote.forwarded"])("finishes a move b
   expect((await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout.trim()).toBe("refs/arc/project/moved");
   expect((await h.b.git(["remote", "get-url", "backing"])).stdout.trim()).toBe(h.origin);
   expect((await h.b.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/move"])).stdout).toBe("");
+  const stores = await convergeFollowers(h.origin, [{ root: h.a.root, ports: h.ports }, { root: h.b.root, ports: h.peerPorts }]);
+  for (const store of stores) expect(success(await store.read({ reference: h.pending })).content).toBe("Pending local state.\n");
 }, 60_000);
 
 it("puts the winning record where an overtaken move back deleted the earlier record", async () => {
   const h = await oppositeMoveFixture();
+  const neverFollowed = await createRemoteMover(h, h.origin, "never-followed-clone");
   expect((await invokeStoreMigrate(["--to", h.to], h.ports)).status).toBe("ok");
   const winner = await createRemoteMover(h, h.destinationDirectory, "onward-clone");
   await expect(invokeStoreMigrate(["--to", h.origin], { ...h.peerPorts, migrateStep: async step => {
     if (step === "remote.copied") throw new Error("Paused move-back copy");
   } })).rejects.toThrow("Paused move-back copy");
   expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/project/moved"])).stdout).toBe("");
+  const copiedHome = await createRemoteMover(h, h.origin, "copied-home-clone");
   const onward = join(winner.root, "onward.git");
   await winner.exec("git", ["init", "--bare", onward]);
   expect((await invokeStoreMigrate(["--to", onward], winner.ports)).status).toBe("ok");
@@ -60,6 +68,9 @@ it("puts the winning record where an overtaken move back deleted the earlier rec
   expect((await winner.exec("git", [`--git-dir=${onward}`, "grep", "-F", "Shared state.", "refs/arc/user/andrew/personal"])).stdout).toContain("Shared state.");
   expect((await h.b.exec("git", ["config", "remote.origin.arc-state"])).stdout.trim()).toBe("push");
   expect((await h.b.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/move"])).stdout).toBe("");
+  const stores = await convergeFollowers(onward, [{ root: h.a.root, ports: h.ports }, { root: h.b.root, ports: h.peerPorts },
+    winner, neverFollowed, copiedHome]);
+  for (const store of stores) expect(success(await store.read({ reference: h.pending })).content).toBe("Pending local state.\n");
 }, 60_000);
 
 it("preserves a later move off a move-back destination and forwards its old source without deleting", async () => {
@@ -82,6 +93,8 @@ it("preserves a later move off a move-back destination and forwards its old sour
   expect((await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "grep", "-F", "Shared state.", "refs/arc/user/andrew/personal"])).stdout).toContain("Shared state.");
   expect((await h.b.exec("git", ["config", "remote.origin.arc-state"])).stdout.trim()).toBe("push");
   expect((await h.b.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/move"])).stdout).toBe("");
+  const stores = await convergeFollowers(onward, [{ root: h.a.root, ports: h.ports }, { root: h.b.root, ports: h.peerPorts }, winner]);
+  for (const store of stores) expect(success(await store.read({ reference: h.pending })).content).toBe("Pending local state.\n");
 }, 60_000);
 
 it("ends a recorded move overtaken at its source while the next first run refuses moved", async () => {

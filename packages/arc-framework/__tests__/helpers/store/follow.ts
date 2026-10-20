@@ -8,6 +8,8 @@ import { createRefStore, RecordReferenceSchema } from "../../../src/lib/store/in
 import { switchFixture, personal, provenance, capturePeerState, landPreparedOldPush } from "./remote-move.js";
 import { invokeStoreMigrate } from "./migrate-command.js";
 import { success } from "./suite-tools.js";
+import { invokeStoreRemote } from "./remote-command.js";
+import type { RefStorePorts } from "../../../src/lib/store/ports.js";
 
 export async function followFixture(beforeMove?: (h: Awaited<ReturnType<typeof switchFixture>>) => Promise<void>, source: "code" | "backing" = "code") {
   const h = await switchFixture(source, "backing");
@@ -42,4 +44,33 @@ export async function lateFollowFixture(land = true, source: "code" | "backing" 
   const landLate = async (): Promise<void> => landPreparedOldPush(h, before, after);
   if (land) await landLate();
   return { ...h, late, landLate };
+}
+
+/** Bring each checkout's pointer current, follow with explicit publication authority, and converge its writes. */
+export async function convergeFollowers(destination: string, clones: readonly { root: string; ports: RefStorePorts }[]) {
+  const stores = [];
+  for (const clone of clones) {
+    await writeFile(join(clone.root, ".arc", "system", "arc-config.yml"), `storage.backing_repository: ${JSON.stringify(destination)}\n`);
+    const production = createStoreCommandPorts(clone.root);
+    const ports = { ...production, ...clone.ports, backingRepository: production.backingRepository };
+    const store = createRefStore(ports);
+    const initial = success(await store.pull());
+    if (initial.states.some(({ status }) => status === "moved")) {
+      const followed = (await invokeStoreRemote(["backing", "push", "--json"], { cwd: clone.root, ports })).result;
+      expect(followed.status, JSON.stringify(followed)).toBe("ok");
+    }
+    expect((await invokeStoreRemote(["--json"], { cwd: clone.root, ports })).result).toMatchObject({ status: "ok",
+      result: { remotes: expect.arrayContaining([expect.objectContaining({ role: "push", url: destination })]) } });
+    const pushed = success(await store.push());
+    expect(pushed.states).toEqual([]);
+    expect(pushed.publishes.every(({ status }) => status !== "failed")).toBe(true);
+    stores.push(store);
+  }
+  for (const store of stores) {
+    const pulled = success(await store.pull());
+    expect(pulled.states).toEqual([]);
+    expect(pulled.pulls.every(({ status }) => status !== "failed")).toBe(true);
+    expect(pulled.pulls.flatMap(({ notices }) => notices).some(({ kind }) => kind === "history-diverged")).toBe(false);
+  }
+  return stores;
 }
