@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "retire-decompose-scaling",
+  "claimId": "2cb1d77256b021e096723ff91fb594be",
+  "createdAt": "2026-10-20T19:46:26.990Z",
+  "updatedAt": "2026-10-20T19:46:26.990Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Retire the never-started decompose-scaling stub through lifecycle abandonment, record the accepted storage-cutover rationale, preserve live data, and leave both decomposition cohorts open.",
+  "branch": "chore/retire-decompose-scaling",
+  "origin": "inbox",
+  "originEntry": "Retire `decompose-scaling` through lifecycle abandonment",
+  "originEntrySourceDigest": "sha256:26382f30ae0c6659aad2813ddd7d84253851fcb0e03acca4cc47d040fe30c452",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
