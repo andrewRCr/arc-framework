@@ -84,7 +84,8 @@ async function checkLeaveDestination(code: RefBackendContext, view: LeaveSourceV
   if (forwarding.result) throw departedDestination(remote.name);
   const registry = destination.get("refs/arc/project/registry");
   if (remote.repository === "code" && !await copyProjectId(code, destination)) throw leaveSourceInvalid(
-    `Remote ${remote.name} holds no project identity. Use arc store remote backing off where it carries push, then arc store remote ${remote.name} push to designate it explicitly.`);
+    `Remote ${remote.name} holds no project identity. Use arc store remote backing off where it carries push, then arc store remote ${remote.name} push to designate it explicitly.`,
+    `Run arc store remote backing off where it carries push, then arc store remote ${remote.name} push to designate this clone's state explicitly.`);
   if (view.forwarding && (!registry || !await registryHoldsMove(code, view.forwarding.registryCommit, registry))) {
     throw departedDestination(remote.name, `Remote ${remote.name} does not hold the move's registry commit; choose the state's current home.`);
   }

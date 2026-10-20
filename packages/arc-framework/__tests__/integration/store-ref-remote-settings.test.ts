@@ -1,6 +1,7 @@
 /** Explicit remote role settings through the ref-store command entry. */
 
 import { expect, it } from "vitest";
+import { invokeStoreRemote } from "../helpers/store/remote-command.js";
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
 import { createRefStore, runStoreRemote } from "../../src/lib/store/index.js";
 import { RecordReferenceSchema } from "../../src/lib/store/index.js";
@@ -76,14 +77,16 @@ it("keeps another check's advanced temporary tip while refusing the project its 
   expect((await runStoreRemote(h.a.ports, { remote: "origin", role: "push" })).status).toBe("ok");
 });
 
-it("refuses a push repoint of backing without changing its URL, role or state", async () => {
+it("repoints backing push without altering code configuration or local records", async () => {
   const h = await refSyncFixture("separate"), destination = await refSyncFixture();
-  const config = (await h.a.git(["config", "--null", "--list", "--local"])).stdout;
-  expect(await runStoreRemote({ ...h.a.ports, backingRepository: async () => destination.origin }, { remote: "backing", role: "push" }))
-    .toMatchObject({ status: "refused", refusal: { code: "unsupported" } });
-  expect((await h.a.git(["config", "--null", "--list", "--local"])).stdout).toBe(config);
-  expect((await h.a.git(["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout).toBe("");
-  expect((await runStoreRemote({ ...h.a.ports, backingRepository: async () => h.origin }, { remote: "backing", role: "push" })).status).toBe("ok");
+  const config = (await h.a.exec("git", ["config", "--null", "--list", "--local"])).stdout;
+  const moved = (await invokeStoreRemote(["backing", "push", "--json"], { cwd: h.a.root,
+    ports: { ...h.a.ports, backingRepository: async () => destination.origin } })).result;
+  expect(moved).toMatchObject({ status: "ok", result: { remotes: expect.arrayContaining([
+    { name: "backing", role: "push", url: destination.origin, repository: "backing" },
+  ]) } });
+  expect((await h.a.exec("git", ["config", "--null", "--list", "--local"])).stdout).toBe(config);
+  expect((await h.a.git(["for-each-ref", "--format=%(refname)", "refs/arc/user/"])).stdout).toBe("");
 });
 
 it.each(["off", "read", "undesignated", "absent"] as const)("publishes through the code remote after removing a %s backing with no pointer", async (role) => {
@@ -117,22 +120,28 @@ it("reports the recorded move it finishes as well as the new setting's reverse m
   expect(success(await h.a.store.read({ reference: carriedDocument })).content).toBe("Carried state.\n");
 });
 
-it.each(["off", "read"] as const)("sets an existing backing %s in place with no pointer and refuses a later repoint", async (role) => {
+it.each(["off", "read"] as const)("sets backing %s in place without a pointer and repoints without copying", async role => {
   const h = await refSyncFixture("separate"), destination = await refSyncFixture();
   const reference = RecordReferenceSchema.parse({ kind: "personal/document", key: "kept.md", owner: { type: "person", name: "andrew" } });
   success(await h.a.store.write({ action: "put", reference, expected: null, content: "Kept.\n", provenance }));
+  success(await h.a.store.push());
   const refs = (await h.a.git(["for-each-ref", "--format=%(refname) %(objectname)"])).stdout;
-  expect(await runStoreRemote(h.a.ports, { remote: "backing", role })).toMatchObject({ status: "ok", result: {
+  expect((await invokeStoreRemote(["backing", role, "--json"], { cwd: h.a.root, ports: h.a.ports })).result).toMatchObject({ status: "ok", result: {
     layout: "separate", remotes: expect.arrayContaining([{ name: "backing", role, repository: "backing", url: h.origin }]),
   } });
   expect((await h.a.git(["for-each-ref", "--format=%(refname) %(objectname)"])).stdout).toBe(refs);
-  const config = (await h.a.git(["config", "--null", "--list", "--local"])).stdout;
-  const repointed = await runStoreRemote({ ...h.a.ports, backingRepository: async () => destination.origin }, { remote: "backing", role });
-  expect(repointed).toMatchObject({ status: "refused", refusal: { code: "unsupported" } });
-  expect((await h.a.git(["config", "--null", "--list", "--local"])).stdout).toBe(config);
-  expect((await h.a.git(["for-each-ref", "--format=%(refname) %(objectname)"])).stdout).toBe(refs);
+  const local = (await h.a.git(["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/user/"])).stdout;
+  const old = (await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout;
+  const repointed = (await invokeStoreRemote(["backing", role, "--json"], { cwd: h.a.root,
+    ports: { ...h.a.ports, backingRepository: async () => destination.origin } })).result;
+  expect(repointed).toMatchObject({ status: "ok", result: { remotes: expect.arrayContaining([
+    { name: "backing", role, repository: "backing", url: destination.origin },
+  ]) } });
+  expect((await h.a.git(["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/user/"])).stdout).toBe(local);
+  expect((await h.a.git(["for-each-ref", "--format=%(refname)", "refs/arc-remotes/backing/", "refs/arc/tmp/seen/backing/"])).stdout).toBe("");
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(old);
+  expect((await destination.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout).toBe("");
   expect(success(await h.a.store.read({ reference })).content).toBe("Kept.\n");
-  expect((await runStoreRemote(h.a.ports, { remote: "backing", role })).status).toBe("ok");
 });
 
 it("installs a first backing in an empty local-only clone without altering its code remotes", async () => {

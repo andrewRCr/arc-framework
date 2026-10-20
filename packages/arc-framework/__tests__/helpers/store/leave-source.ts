@@ -11,15 +11,15 @@ import { invokeStoreMigrate } from "./migrate-command.js";
 import { success } from "./suite-tools.js";
 
 /** Publish after the copy, acquire the resulting tracking view, then remove the actual bare source. */
-export async function deletedFollowSource() {
-  const h = await switchFixture();
+export async function deletedFollowSource(source: "code" | "backing" = "code", pause: "remote.copied" | "remote.switched" = "remote.switched") {
+  const h = await switchFixture(source, "backing");
   const created = success(await h.store.write({ action: "put", expected: null,
     reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "ended-at-deleted-source" } }),
     content: makeMetaFixture("ended-at-deleted-source"), placement: { kind: "active" }, provenance }));
   success(await h.store.push()); success(await h.b.store.pull());
   let lateEnd = "";
   await expect(invokeStoreMigrate(["--to", h.to], { ...h.ports, migrateStep: async step => {
-    if (step !== "remote.switched") return;
+    if (step !== pause) return;
     await h.b.git(["fetch", "--refmap=", "--no-tags", "--", h.origin, "refs/arc/project/registry:refs/arc/project/registry"]);
     const before = await capturePeerState(h);
     lateEnd = await abandonRemoteWork(h, h.b.store, created.reference, h.b, "late-source-end");
@@ -29,7 +29,9 @@ export async function deletedFollowSource() {
   const owner = created.reference.owner;
   if (owner.type !== "work-item" || !owner.uid) throw new Error("Expected a generation-bound ended item");
   const history = HistoryRefSchema.parse(`refs/arc/history/work/${owner.uid}`);
-  expect(success(await h.b.store.pull({ history: [history] })).states).toContainEqual(expect.objectContaining({ status: "moved" }));
+  const pulled = success(await h.b.store.pull({ history: [history] }));
+  if (pause === "remote.switched") expect(pulled.states).toContainEqual(expect.objectContaining({ status: "moved" }));
+  else expect(pulled.states).toEqual([]);
   await mkdir(join(h.b.root, ".arc", "system"), { recursive: true });
   const config = join(h.b.root, ".arc", "system", "arc-config.yml");
   const pointer = `# Updated follower checkout.\nstorage.backing_repository: ${JSON.stringify(h.destinationDirectory)}\n`;

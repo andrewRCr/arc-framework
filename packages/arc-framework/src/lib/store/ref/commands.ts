@@ -74,8 +74,7 @@ export async function runRefRemote(context: RefBackendContext, store: Store, inp
       completed = resumed.result;
     }
     const follow = await guardRefFollowSetting(context, store, setting.remote, setting.role);
-    if (follow) return follow;
-    const applied = await applyRefRemoteSetting(context, store, setting, input.ownState);
+    const applied = follow ?? await applyRefRemoteSetting(context, store, setting, input.ownState);
     if (applied.status === "ok" && completed) applied.result.report = applied.result.report
       ? combineLayoutReports(completed, applied.result.report) : completed;
     return applied;

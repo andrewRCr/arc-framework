@@ -1636,28 +1636,15 @@ _Exit criterion:_ Every case of § 14.6 and § 14.7 passes.
   leftovers, pointer repairs, and deleted forwarding roots. Both clones can leave to the restored home, and a matching
   `--to` resumes a recorded follow while other destinations and trials remain refused.
 
-### `[ ]` **17.5 `arc store remote` after a follow and when repointing `backing` — § 9.4, § 9.8**
+### `[x]` **17.5 `arc store remote` after a follow and when repointing `backing` — § 9.4, § 9.8**
 
 - _Goal:_ A `backing` repoint re-homes this clone's state with a copy only where it will push there, and a setting
   after a follow, or from a checkout behind one, reaches the state's home or refuses naming the route there.
 
-- **Additional Context:** `notes-storage-ref-backend.md` § The second model check
-
-    - Build `test-first` (one behavior at a time):
-        - on a clone whose `backing` URL differs from the pointer, `arc store remote backing push` repoints it, and a clone
-          whose old backing repository is gone then syncs with the new one, its pushes there after the move's copy — an
-          end, and a reopen owing its history ref's delete — landing there
-        - `arc store remote backing read` on such a clone repoints with no copy, pushing nothing to the new URL, and drops
-          `backing`'s tracking refs and kept tips
-        - after a follow between two backing repositories answering `read`, `arc store remote backing push` before any
-          pull copies and deletes nothing and sets `push`
-        - a `backing` setting from a checkout whose pointer predates a move the clone followed refuses `moved` by the
-          project check, naming `arc store migrate` and `arc store migrate --to <remote>`
-        - a clone whose `backing` carries `push`, its repository gone, whose code remote holds no state, is named
-          `arc store remote backing off` and then the code remote's `push` setting by both
-          `arc store remote <code remote> push` and `--leave-source --to` it
-        - a local-only clone refused `moved` designating a remote whose forwarding record names its project follows the
-          move after setting that remote `read`
+- _Outcome:_ Outside a due follow, a backing push repoint reuses the retained-view departure and its restartable copy;
+  read/off repoints copy nothing and clear the old tracking and kept tips. Push admission checks the pointer's actual
+  candidate URL before changing designation. Native cases retain late ends and a reopen's owed history delete, keep
+  read-to-push settings copy-free, and recover stale-pointer and missing-code-home refusals through their named routes.
 
 ### `[ ]` **17.6 Moving state between remotes** — validate exit criterion at segment scope
 

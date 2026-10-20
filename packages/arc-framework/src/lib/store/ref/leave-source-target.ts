@@ -46,9 +46,10 @@ export async function resolveLeaveSource(context: RefBackendContext, code: RefBa
 }
 
 /** Invalid target choices retain all state and roles for a corrected request. */
-export function leaveSourceInvalid(condition: string): MigrationRefusal {
+export function leaveSourceInvalid(condition: string,
+  remedy = "Choose the state's new home with arc store migrate --leave-source --to <remote>, then retry."): MigrationRefusal {
   return new MigrationRefusal({ code: "request-invalid", class: "terminal", condition,
-    remedy: { text: "Choose the state's new home with arc store migrate --leave-source --to <remote>, then retry." } });
+    remedy: { text: remedy } });
 }
 
 function noSourceRemote(readers: readonly string[]): MigrationRefusal {

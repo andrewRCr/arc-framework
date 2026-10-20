@@ -78,7 +78,7 @@ async function clearProjectCheck(context: RefBackendContext, prefix: string): Pr
 
 async function fetchProjectCheck(context: RefBackendContext, remote: RefRemoteDesignation, designation: RefDesignation,
   prefix: string, observed: Map<string, string>): Promise<{ status: "ok"; registry?: string; moved?: string } | { status: "failed"; failure: ProjectFailure }> {
-  const target = remote.repository === "backing" && !designation.backing ? remote.url : await refFetchTarget(context, remote, designation);
+  const target = remote.repository === "backing" && designation.backing?.url !== remote.url ? remote.url : await refFetchTarget(context, remote, designation);
   const args = [...gitRefLockArgs(), "-c", `remote.${remote.name}.negotiationInclude=`, "fetch", "--refmap=", "--no-tags", "--no-filter",
     "--prune", "--show-forced-updates", "--porcelain", "--verbose", ...await refFetchNegotiation(context, await context.identity()), "--", target,
     `+refs/arc/project/registry*:${prefix}registry*`, `+refs/arc/project/moved*:${prefix}moved*`];

@@ -1,6 +1,7 @@
 /** Settings of the separate store's own remote never strand code-held state. */
 
-import type { StoreCommandResult } from "../commands.js";
+import type { StoreCommandResult, MigrateReport } from "../commands.js";
+import type { Store } from "../contract.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefDesignation } from "./designation.js";
 import { readRefRepository, writeRefRepository } from "./repository.js";
@@ -8,10 +9,12 @@ import { observeRefLayout, layoutRecoveryRemedy } from "./layout-state.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { isManifestRef } from "./manifest.js";
 import { checkRemoteProject } from "./remote-project.js";
+import { leaveRefSource } from "./leave-source.js";
+import { requireLayoutTransaction } from "./migrate-layout-build.js";
 
 /** Check the pointer, physical layout and project before installing or changing backing. */
-export async function setRefBacking(context: RefBackendContext, designation: RefDesignation,
-  role: "push" | "read" | "off"): Promise<StoreCommandResult<null>> {
+export async function setRefBacking(context: RefBackendContext, store: Store, designation: RefDesignation,
+  role: "push" | "read" | "off"): Promise<StoreCommandResult<MigrateReport | null>> {
   const pointer = await context.backingRepository();
   const publisher = designation.pushes.find(({ repository }) => repository === "code");
   if (publisher) return { status: "refused", refusal: { code: "role-conflict", class: "recoverable",
@@ -27,23 +30,31 @@ export async function setRefBacking(context: RefBackendContext, designation: Ref
       remedy: layoutRecoveryRemedy() },
   };
   if (!pointer && (!designation.backing || role === "push")) return noBackingPointer(context);
-  if (pointer && designation.backing && designation.backing.url !== pointer) return { status: "refused", refusal: {
-    code: "unsupported", class: "terminal", condition: "Repointing backing is not implemented.",
-    remedy: { text: "Keep the current backing URL until backing repointing is available." },
-  } };
   const url = pointer ?? designation.backing?.url;
   if (!url) throw new Error("An admitted backing setting has no URL");
   if (role === "push") {
     const refused = await checkRemoteProject(context, { name: "backing", url, repository: "backing" }, designation);
     if (refused) return refused;
   }
+  if (pointer && designation.backing && designation.backing.url !== pointer && role === "push") return leaveRefSource(context, store);
+  await applyBackingSetting(context, designation, url, role);
+  return { status: "ok", result: null };
+}
+
+async function applyBackingSetting(context: RefBackendContext, designation: RefDesignation, url: string,
+  role: "push" | "read" | "off"): Promise<void> {
   const separate = await writeRefRepository(context);
   const release = await context.lock("layout");
   try {
     if (!designation.backing) await separate.exec("git", ["remote", "add", "backing", url]);
     await separate.exec("git", ["config", "remote.backing.arc-state", role]);
+    if (designation.backing && designation.backing.url !== url) {
+      const tracking = await readSyncRefs(separate, "refs/arc-remotes/backing/");
+      const seen = await readSyncRefs(separate, "refs/arc/tmp/seen/backing/");
+      await requireLayoutTransaction(separate, [...tracking, ...seen].map(([ref, expected]) => ({ ref, expected, delete: true })));
+      await separate.exec("git", ["remote", "set-url", "backing", url]);
+    }
   } finally { await release(); }
-  return { status: "ok", result: null };
 }
 
 async function noBackingPointer(context: RefBackendContext): Promise<Extract<StoreCommandResult<null>, { status: "refused" }>> {

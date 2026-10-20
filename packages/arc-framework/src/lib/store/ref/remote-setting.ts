@@ -23,14 +23,15 @@ export async function remoteView(context: RefBackendContext): Promise<StoreRemot
 export async function applyRefRemoteSetting(context: RefBackendContext, store: Store, setting: LayoutSetting, ownState?: boolean): Promise<StoreRemoteResult> {
   const designation = await readRefDesignation(context);
   if (setting.remote === "backing") {
-    const applied = await setRefBacking(context, designation, setting.role);
-    return applied.status === "refused" ? applied : { status: "ok", result: await remoteView(context) };
+    const applied = await setRefBacking(context, store, designation, setting.role);
+    return applied.status === "refused" ? applied : { status: "ok", result: { ...await remoteView(context),
+      ...applied.result ? { report: applied.result } : {} } };
   }
   const other = [...designation.codeRemotes, ...designation.backing ? [designation.backing] : []]
     .find(({ name, role, repository }) => name !== setting.remote && role === "push" && (name !== "backing" || repository === "backing"));
   if (setting.role === "push" && other) return { status: "refused", refusal: { code: "role-conflict", class: "recoverable",
     condition: `${other.name} already carries push; moving its designation alone would strand state.`,
-    remedy: { text: `Run arc store migrate --to ${setting.remote}, or arc store remote ${other.name} off before retrying.`,
+    remedy: { text: `Run arc store migrate --to ${setting.remote}, or arc store remote ${other.name} off then arc store remote ${setting.remote} push to designate this clone's state.`,
       argv: ["arc", "store", "migrate", "--to", setting.remote] } } };
   return applyCodeSetting(context, store, designation, setting, ownState);
 }
