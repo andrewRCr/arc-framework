@@ -8,6 +8,7 @@ import type { RecordReference } from "../../identity.js";
 import { expandStoredPath } from "../../stored-path.js";
 import { refFormatKey } from "../format-key.js";
 import { writeRefBlob } from "../tree-write.js";
+import { mergeLineageAliases } from "../lineage-aliases.js";
 
 /** One owner's current files and the exact source archive coordinate, when completed. */
 export interface ImportGroup {
@@ -30,6 +31,14 @@ export async function prepareImportGroups(context: RefBackendContext, records: r
     group.entries.set(home.path, { path: home.path, mode: "100644", oid: await writeRefBlob(context, record.content) });
     applyImportMetadata(group, record, context);
   }
+  const evidence = records.flatMap(({ reference, formerSlugs }) => reference.owner.type === "work-item"
+    && reference.owner.uid && formerSlugs?.length ? [{ [reference.owner.uid]: formerSlugs }] : []);
+  const aliases = mergeLineageAliases(...evidence);
+  if (aliases) {
+    const registry = groups.get("refs/arc/project/registry");
+    if (!registry) throw new Error("The import did not prepare its project registry");
+    registry.metadata.lineageFormerSlugs = aliases;
+  }
   return groups;
 }
 
@@ -38,7 +47,7 @@ function applyImportMetadata(group: ImportGroup, record: ImportRecord, context: 
   if (record.reference.kind === "lineage/transition" && record.reference.owner.type === "work-item" && record.reference.owner.uid) {
     group.metadata.lineage = { ...group.metadata.lineage, [record.reference.owner.uid]: record.reference.owner.name };
   }
-  if (record.formerSlugs) group.metadata.formerSlugs = record.formerSlugs;
+  if (record.formerSlugs && record.reference.kind !== "lineage/transition") group.metadata.formerSlugs = record.formerSlugs;
   if (record.versions || record.mappedVersions) group.replays.push(record);
   if ((record.reference.kind === "work-item/meta" || record.reference.kind === "work-item/record") && record.placement) {
     group.metadata.primary = { role: record.reference.kind, placement: writePlacement(record.placement),

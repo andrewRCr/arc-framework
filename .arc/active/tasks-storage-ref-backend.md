@@ -1475,26 +1475,15 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
   including slug fetch, renders incomplete pulls and every notice, retaining ended-conflict details even when a later
   read refuses; local queries stay offline, and the pre-flip session arms stay dormant.
 
-### `[ ]` **15.R4 Durable terminal former-name lookup — § 3.3, § 8, § 10.9 (A21)**
+### `[x]` **15.R4 Durable terminal former-name lookup — § 3.3, § 8, § 10.9 (A21)**
 
 - _Goal:_ Amendment A21's terminal lineage lookup keeps exact UID and current-name precedence while retaining
   authenticated former names through retirement, sync, withdrawal, and import, without widening direct operations.
 
-**Additional Context:** `notes-storage-ref-backend.md` § A21
-
-- Build `test-first` (one behavior at a time):
-    - preserve authenticated work-item rename evidence under its UID in registry metadata, including creation of a
-      metadata-only registry ref; removal and recreation of lineage retain that generation's evidence
-    - resolve an exact UUID only to that generation; a current terminal name precedes former-name matches, distinct
-      matching generations refuse `ambiguous-match`, and repeated aliases for one generation resolve once
-    - merge independently authenticated aliases per UID and retain them through an end's withdrawal and metadata
-      repair, while ordinary primary former-name metadata keeps its existing merge semantics
-    - prove local and synced UID-less direct read, list, write, and saved-state read retain prior behavior while
-      lineage lookup succeeds; retain the metadata scan's bounded process shape and avoid terminal history scans
-    - import known rename chains ending in a terminal origin with no primary, seed the registry evidence under the
-      minted UID, and preserve existing unresolved-chain notices without inventing an owner or a transform allowance
-    - run the native lookup, withdrawal, and import comparisons together against both layouts to close the added
-      lookup guarantee and the import comparison delta
+- _Outcome:_ Private per-UID registry evidence retains authenticated former names across rename, retirement, lineage
+  recreation, sync, and end withdrawal. Lookup preserves exact UID/current-name precedence and direct-operation
+  authority. Import resolves known chains to terminal generations, with independent source comparison and actionable
+  refusal/retry for unresolved or cyclic chains; both layouts retain the bounded metadata scan.
 
 ### `[x]` **15.10 Every source the import carries** — validate exit criterion at segment scope
 

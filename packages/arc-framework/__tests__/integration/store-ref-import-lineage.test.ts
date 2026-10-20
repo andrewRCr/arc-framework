@@ -37,6 +37,38 @@ describe.each(["default", "separate"] as const)("lineage import in %s", (layout)
     await h.source.git("git", ["commit", "-m", "Alter comparison source terminal semantics"]);
     expect(await h.compare()).toEqual(expect.arrayContaining([expect.objectContaining({ reference: expect.objectContaining({ kind: "lineage/transition" }), field: "content" })]));
   });
+  it("imports known former-name chains ending at a terminal origin without a primary", async () => {
+    const h = await importComparisonFixture(layout, async (fixture) => {
+      for (const [origin, successor] of [["ancient-terminal", "former-terminal"], ["former-terminal", "abandoned"]]) {
+        const path = resolveArcPath({ kind: "transition-record", origin: SlugSchema.parse(origin) });
+        const record = LineageRecordSchema.parse({ schemaVersion: 2, origin: { name: origin }, kind: "rename",
+          successors: [{ name: successor }], incoming: [] });
+        await writeFile(join(fixture.root, path), writeLineageRecord(record));
+        await fixture.git("git", ["add", path]);
+      }
+      await fixture.git("git", ["commit", "-m", "Seed rename chain ending in terminal origin"]);
+    }, { completed: true, lineage: true });
+    const migrated = await h.target.migrate();
+    expect(migrated).toMatchObject({ status: "ok" });
+    if (migrated.status !== "ok") throw new Error("Known terminal rename chain was not imported");
+    expect(migrated.result.notices.some(({ condition }) => condition.includes("rename"))).toBe(false);
+    const terminal = success(await h.store.read({ reference: ref("lineage/transition", "abandoned") }));
+    for (const name of ["ancient-terminal", "former-terminal"]) {
+      expect(success(await h.store.lookup({ kind: "lineage", origin: SlugSchema.parse(name) })).reference).toEqual(terminal.reference);
+      expect(await h.store.read({ reference: ref("lineage/transition", name) })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+      expect(await h.store.lookup({ kind: "slug", slug: SlugSchema.parse(name) })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    }
+    h.comparators.set("lineage/transition", importedLineageComparator(h.store, h.sourceStore));
+    expect(await h.compare()).toEqual([]);
+    const changedPath = resolveArcPath({ kind: "transition-record", origin: SlugSchema.parse("former-terminal") });
+    const changed = LineageRecordSchema.parse({ schemaVersion: 2, origin: { name: "former-terminal" }, kind: "rename",
+      successors: [{ name: "cut-origin" }], incoming: [] });
+    await writeFile(join(h.source.root, changedPath), writeLineageRecord(changed));
+    await h.source.git("git", ["add", changedPath]);
+    await h.source.git("git", ["commit", "-m", "Alter independent source rename destination"]);
+    expect(await h.compare()).toEqual(expect.arrayContaining([expect.objectContaining({ field: "content",
+      reference: expect.objectContaining({ owner: expect.objectContaining({ name: "ancient-terminal" }) }) })]));
+  });
   it("pulls completed and terminal origins into a second clone without pending ends on repeated pulls", async () => {
     const h = await importFixture(layout, { completed: true, lineage: true });
     expect(await h.migrate()).toMatchObject({ status: "ok" });
@@ -154,4 +186,34 @@ describe.each(["default", "separate"] as const)("lineage import in %s", (layout)
       expect(metadata.lineage[fields.origin.uid!]).toBe(original.origin.name);
     }
   });
+});
+
+it("refuses unresolved and cyclic rename chains, then imports them after source repair", async () => {
+  const h = await importFixture("default", { completed: true, lineage: true });
+  const edges = [["unknown-terminal", "missing-terminal"], ["cycle-left", "cycle-right"], ["cycle-right", "cycle-left"]] as const;
+  const writeEdges = async (repaired: boolean) => {
+    for (const [origin, successor] of edges) {
+      const path = resolveArcPath({ kind: "transition-record", origin: SlugSchema.parse(origin) });
+      const record = LineageRecordSchema.parse({ schemaVersion: 2, origin: { name: origin }, kind: "rename",
+        successors: [{ name: repaired ? "abandoned" : successor }], incoming: [] });
+      await writeFile(join(h.root, path), writeLineageRecord(record));
+      await h.git("git", ["add", path]);
+    }
+    await h.git("git", ["commit", "-m", repaired ? "Repair terminal rename chains" : "Seed unresolved terminal rename chains"]);
+  };
+  await writeEdges(false);
+  const refused = await h.migrate();
+  expect(refused).toMatchObject({ status: "refused", refusal: { code: "import-refused" } });
+  if (refused.status !== "refused" || refused.refusal.code !== "import-refused") throw new Error("Expected a source-repair refusal");
+  const store = createRefStore(h.ports);
+  for (const [origin] of edges) {
+    expect(refused.refusal.report.notices).toContainEqual(expect.objectContaining({ condition: expect.stringContaining(origin),
+      remedy: { text: expect.stringContaining("retry") } }));
+    expect(await store.lookup({ kind: "lineage", origin: SlugSchema.parse(origin) })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  }
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc/project/registry"])).stdout).toBe("");
+  await writeEdges(true);
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+  const terminal = success(await store.read({ reference: ref("lineage/transition", "abandoned") }));
+  for (const [origin] of edges) expect(success(await store.lookup({ kind: "lineage", origin: SlugSchema.parse(origin) })).reference).toEqual(terminal.reference);
 });

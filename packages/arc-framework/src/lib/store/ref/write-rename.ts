@@ -8,6 +8,8 @@ import type { RefWriteGroup } from "./write-commits.js";
 import type { RefTreeEntry } from "./batch-read.js";
 import { decodeStoredReference } from "./path-decode.js";
 import { checkRefKey, checkRefPathCollision, type RefPathNeighbor } from "./path-admission.js";
+import { mergeLineageAliases } from "./lineage-aliases.js";
+import type { Slug } from "../../kernel/schema/slug.js";
 
 /** Validate each old key under the new owner before changing any prepared tree. */
 export function prepareRefRenames(context: RefBackendContext, batch: ResolvedBatch, groups: ReadonlyMap<string, RefWriteGroup>): StoreRefusal | undefined {
@@ -22,7 +24,7 @@ export function prepareRefRenames(context: RefBackendContext, batch: ResolvedBat
     group.entries = entries.result;
     group.metadata.formerSlugs = [...group.metadata.formerSlugs ?? [], prior.reference.owner.name];
     group.metadata.slug = mutation.reference.owner.name;
-    renameLineageOwner(groups, mutation.reference);
+    renameLineageOwner(groups, mutation.reference, group.metadata.formerSlugs);
   }
   return undefined;
 }
@@ -55,9 +57,11 @@ function renamedEntries(context: RefBackendContext, group: RefWriteGroup, prior:
   return { status: "ok", result: entries };
 }
 
-function renameLineageOwner(groups: ReadonlyMap<string, RefWriteGroup>, reference: RecordReference): void {
+function renameLineageOwner(groups: ReadonlyMap<string, RefWriteGroup>, reference: RecordReference, formerSlugs: Slug[]): void {
   const owner = reference.owner;
   if (owner.type !== "work-item" || !owner.uid) return;
-  const lineage = groups.get("refs/arc/project/registry")?.metadata.lineage;
-  if (lineage?.[owner.uid] !== undefined) lineage[owner.uid] = owner.name;
+  const metadata = groups.get("refs/arc/project/registry")?.metadata;
+  if (!metadata) throw new Error("A work-item rename has no captured registry");
+  metadata.lineageFormerSlugs = mergeLineageAliases(metadata.lineageFormerSlugs, { [owner.uid]: formerSlugs });
+  if (metadata.lineage?.[owner.uid] !== undefined) metadata.lineage[owner.uid] = owner.name;
 }

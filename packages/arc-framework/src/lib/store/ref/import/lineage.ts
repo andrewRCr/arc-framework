@@ -21,22 +21,33 @@ export async function appendImportLineage(context: RefBackendContext, report: Mi
     const key = `work-item:${fields.origin.name}`;
     if (!owners.has(key)) owners.set(key, randomUUID());
   }
-  for (const { record, fields } of transitions) {
-    if (fields.kind === "rename") { importRename(records, fields, record, report); continue; }
+  for (const { record, fields } of transitions.filter(({ fields }) => fields.kind !== "rename")) {
     const mapped = bindLineageUids(fields, owners);
     records.push({ ...record, reference: RecordReferenceSchema.parse({ ...record.reference, owner: { ...record.reference.owner,
       uid: mapped.origin.uid } }), content: writeLineageRecord(mapped) });
   }
+  const renames = new Map(transitions.filter(({ fields }) => fields.kind === "rename")
+    .map(({ fields }) => [fields.origin.name, fields]));
+  for (const fields of renames.values()) importRename(records, fields, renames, owners, report);
 }
 
-function importRename(records: ImportRecord[], fields: LineageRecord, record: ImportRecord, report: MigrateReport): void {
-  const target = records.find(({ reference }) => reference.kind === "work-item/meta" && reference.owner.name === fields.successors[0]?.name);
-  if (!target) {
-    report.notices.push({ condition: `The rename from ${fields.origin.name} has no imported successor primary.`,
-      remedy: { text: "Restore the rename's successor meta and retry the import." } });
+function importRename(records: ImportRecord[], fields: LineageRecord, renames: ReadonlyMap<string, LineageRecord>,
+  owners: ReadonlyMap<string, string>, report: MigrateReport): void {
+  const visited = new Set<string>([fields.origin.name]);
+  let name = fields.successors[0]?.name;
+  while (name && renames.has(name) && !visited.has(name)) {
+    visited.add(name);
+    name = renames.get(name)?.successors[0]?.name;
+  }
+  const uid = name && !visited.has(name) ? owners.get(`work-item:${name}`) : undefined;
+  const targets = uid ? records.filter(({ reference }) => reference.owner.type === "work-item" && reference.owner.uid === uid
+    && (reference.kind === "work-item/meta" || reference.kind === "lineage/transition")) : [];
+  if (!targets.length) {
+    report.notices.push({ condition: `The rename from ${fields.origin.name} has no imported successor primary or terminal origin.`,
+      remedy: { text: "Restore the rename chain and its successor meta or terminal record, then retry the import." } });
     return;
   }
-  target.formerSlugs = [...new Set([...(target.formerSlugs ?? []), SlugSchema.parse(record.reference.owner.name)])];
+  for (const target of targets) target.formerSlugs = [...new Set([...(target.formerSlugs ?? []), SlugSchema.parse(fields.origin.name)])];
 }
 
 function bindLineageUids(record: LineageRecord, owners: ReadonlyMap<string, string>): LineageRecord {

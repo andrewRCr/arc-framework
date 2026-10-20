@@ -14,7 +14,9 @@ export const RefMetadataSchema = z.strictObject({
   primary: z.strictObject({ role: z.enum(["work-item/meta", "work-item/record"]), placement: WritePlacementSchema,
     links: LinksSchema.optional() }).optional(),
   placement: z.strictObject({ kind: z.literal("completed"), quarter: ArchiveQuarterSchema }).optional(),
-  lineage: z.record(z.uuid(), SlugSchema).optional(), endBatch: z.string().optional(), batch: z.string().optional(),
+  lineage: z.record(z.uuid(), SlugSchema).optional(),
+  lineageFormerSlugs: z.record(z.uuid(), z.array(SlugSchema)).optional(),
+  endBatch: z.string().optional(), batch: z.string().optional(),
   formats: z.record(z.string(), z.number().int().positive()),
 });
 /** Metadata decoded from its canonical JSON value. */

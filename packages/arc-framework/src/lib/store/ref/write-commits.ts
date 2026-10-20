@@ -28,7 +28,7 @@ export async function prepareRefCommits(context: RefBackendContext, writes: read
     const selected = writes.filter((write) => write.home.ref === ref);
     const first = targets.find(({ home }) => home.ref === ref);
     if (!first) throw new Error("A changed ref has no mutation");
-    if (selected.length === 0 && group.original.size === 0 && !group.retired) continue;
+    if (selected.length === 0 && group.original.size === 0 && !group.retired && !Object.keys(group.metadata.lineageFormerSlugs ?? {}).length) continue;
     const path = first.home.metadataPath;
     await serializeRefMetadata(context, group, path);
     const clashes = selected.some((write) => write.conflicts.length > 0);

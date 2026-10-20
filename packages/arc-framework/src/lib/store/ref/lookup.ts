@@ -86,9 +86,13 @@ function lineageCandidates(trees: ReadonlyMap<string, RefLookupTree>, origin: st
   const registry = trees.get("refs/arc/project/registry");
   if (!registry) return [];
   const byUid = z.uuid().safeParse(origin).success;
-  return Object.entries(registry.metadata.lineage ?? {}).flatMap(([uid, name]) => (byUid ? uid === origin : name === origin)
-    && registry.entries.some(({ path }) => path === `lineage/${uid}.json`)
-    ? [RecordReferenceSchema.parse({ owner: { type: "work-item", name, uid }, kind: "lineage/transition" })] : []);
+  const paths = new Set(registry.entries.map(({ path }) => path));
+  const held = Object.entries(registry.metadata.lineage ?? {})
+    .filter(([uid]) => paths.has(`lineage/${uid}.json`));
+  const exact = held.filter(([uid, name]) => byUid ? uid === origin : name === origin);
+  const matches = exact.length || byUid ? exact
+    : held.filter(([uid]) => registry.metadata.lineageFormerSlugs?.[uid]?.some(name => name === origin));
+  return matches.map(([uid, name]) => RecordReferenceSchema.parse({ owner: { type: "work-item", name, uid }, kind: "lineage/transition" }));
 }
 
 function lookupSkippedRefusal(context: Pick<RefBackendContext, "registry">, input: LookupInput,

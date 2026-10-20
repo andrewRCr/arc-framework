@@ -4230,6 +4230,6 @@ open:
   _Supersedes:_ § 10.8 input/coverage. _Trigger:_ 15.9 must-stop. _Work:_ 15.9.R. _Revalidated:_ 15.10.
 
 - **A21** — 2026-10-19 — spec-depth: retain authenticated terminal former names for lineage lookup.
-  _Supersedes:_ none. _Trigger:_ door. _Work:_ 15.R4. _Revalidated:_ pending → 15.R4.
+  _Supersedes:_ none. _Trigger:_ door. _Work:_ 15.R4. _Revalidated:_ 15.R4.
 
 ---

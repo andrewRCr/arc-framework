@@ -589,7 +589,9 @@ revision-task checks use these source paths; the independent amendment offer is 
 The approved shared lookup extension is grounded against commit `91839a8e3`: `LookupInputSchema` documents exact UID
 selection and current-terminal-name precedence, while `registerLookupAssertions` adds terminal former-name, ambiguity,
 name-reuse, and direct-operation authority cases. It adds no input variant or public record field. The backend's
-revision implements this expectation before cutover; it does not import the sibling's consumer fixes.
+revision implements this expectation before cutover; it does not import the sibling's consumer fixes. The shared
+assertion correction at `ab7d8307c` compares the exact-UID draft read before and after a refused former-name write,
+allowing only `not-found` where retirement swept the draft; native retirement behavior remains unchanged.
 
 `lineageCandidates` currently reads only UID and current-name entries in registry metadata. `prepareRefRenames`
 already records genuine prior names, and `renameRegistryTargets` includes the registry in a work-item rename's atomic

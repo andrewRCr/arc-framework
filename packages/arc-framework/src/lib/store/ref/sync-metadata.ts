@@ -2,11 +2,22 @@
 
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 import { RefMetadataSchema, type RefMetadata } from "./metadata.js";
+import { mergeLineageAliases } from "./lineage-aliases.js";
 
 /** Merge independent metadata fields, retaining the local value of a competing scalar. */
 export function mergeSyncMetadata(base: RefMetadata | undefined, local: RefMetadata, incoming: RefMetadata): { metadata: RefMetadata; conflicts: string[][] } {
   const conflicts: string[][] = [];
-  return { metadata: RefMetadataSchema.parse(mergeValue(base, local, incoming, [], conflicts)), conflicts };
+  const metadata = RefMetadataSchema.parse(mergeValue(withoutLineageAliases(base), withoutLineageAliases(local), withoutLineageAliases(incoming), [], conflicts));
+  const aliases = mergeLineageAliases(base?.lineageFormerSlugs, local.lineageFormerSlugs, incoming.lineageFormerSlugs);
+  if (aliases) metadata.lineageFormerSlugs = aliases;
+  return { metadata, conflicts };
+}
+
+function withoutLineageAliases(metadata: RefMetadata | undefined): RefMetadata | undefined {
+  if (!metadata) return undefined;
+  const fields = { ...metadata };
+  Reflect.deleteProperty(fields, "lineageFormerSlugs");
+  return fields;
 }
 
 function equal(left: unknown, right: unknown): boolean {

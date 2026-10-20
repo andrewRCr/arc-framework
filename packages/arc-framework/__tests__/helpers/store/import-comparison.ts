@@ -38,7 +38,7 @@ export async function importComparisonFixture(layout: "default" | "separate" = "
   const ports = { ...createDefaultStorePorts({ checkoutRoot: source.ports.checkoutRoot, exec: source.ports.exec, execInput: source.ports.execInput }), ...source.ports };
   const sourceStore = createStore(ports);
   const comparators = new Map<KindId, ImportComparator>();
-  return { source, target, store, comparators, compare: async (): Promise<ImportDifference[]> => {
+  return { source, target, store, sourceStore, comparators, compare: async (): Promise<ImportDifference[]> => {
     const inventory = await readComparisonSource(sourceStore, ports);
     return compareRecords(sourceStore, store, inventory, comparators);
   } };
