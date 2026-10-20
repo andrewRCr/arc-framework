@@ -2,6 +2,7 @@
 import { recordReferences, type OwnerIdentity } from "../../identity.js";
 import type { LaneProgressState, ConditionalPassAuthorization } from "../../../../scripts/review-gate/core/operation-state-schema.js";
 import type { ReviewDecision } from "./decision/schema.js";
+import { createApprovedFixReviewDecision } from "./decision/approved-fix.js";
 import { reviewDecisionKey } from "./decision/key.js";
 import type { MappedReviewOutcome } from "./mapping-source-listing.js";
 import type { ReviewMappingResult } from "./mapping-types.js";
@@ -12,15 +13,6 @@ export function mappedReviewDecision(owner: OwnerIdentity, decision: ReviewDecis
     contents: [JSON.stringify(decision)] };
 }
 
-function authorizationDecision(authorization: ConditionalPassAuthorization): ReviewDecision {
-  return { schemaVersion: 1,
-    subject: { lineage: authorization.lineage, headSha: authorization.originatingHeadSha, subjectDigest: null },
-    lane: authorization.lane, choice: { kind: "extra-pass", passCount: authorization.exhaustedPassCount,
-      precondition: { kind: "approved-fix", repositoryId: authorization.repositoryId, producerId: authorization.producerId,
-        dispositionSetId: authorization.dispositionSetId, originatingHeadSha: authorization.originatingHeadSha,
-        exhaustedPassCount: authorization.exhaustedPassCount } },
-    decidedBy: authorization.authorizedBy, decidedAt: authorization.capturedAt, basis: null };
-}
 
 function citeConsumedAuthorization(authorization: ConditionalPassAuthorization, state: LaneProgressState,
   outcomes: readonly MappedReviewOutcome[]): void {
@@ -45,7 +37,7 @@ export function mapReviewLaneDecisions(state: LaneProgressState, outcomes: reado
     if (producer === undefined) return [];
     return (attempt.conditionalPassAuthorizations?.authorizations ?? []).flatMap((authorization) => {
       citeConsumedAuthorization(authorization, state, outcomes);
-      const decision = authorizationDecision(authorization);
+      const decision = createApprovedFixReviewDecision(authorization);
       const mapped = [mappedReviewDecision(producer.reference.owner, decision)];
       if (authorization.status === "invalidated" && authorization.reason === "withdrawn") {
         mapped.push(mappedReviewDecision(producer.reference.owner, { ...decision,
