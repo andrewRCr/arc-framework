@@ -91,7 +91,7 @@ export function compareTablePadding(source: readonly string[]): TableComparison 
       const rows = tableRows(node,source);
       tables.push({rows,aligned:isAligned(rows)});
       for (const [index,row] of rows.entries()) {
-        const cells = index === 1 ? row.cells.map((cell) => cell.replaceAll("-","")) : row.cells;
+        const cells = index === 1 ? row.cells.map((cell) => cell.replace(/-+/gu,"-")) : row.cells;
         normalized[row.index] = JSON.stringify([index === 1 ? "delimiter" : "row",row.prefix,cells,row.ending]);
       }
     } else for (const child of node.children ?? []) visit(child);

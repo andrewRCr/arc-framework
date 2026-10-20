@@ -101,6 +101,28 @@ describe("Markdown table padding", () => {
       base:base.split("\n").slice(1,3).join("\n")});
   });
 
+  it.each([[":----","----:"],["----:",":----"]])(
+    "preserves delimiter-only conflicts between %s and %s", (left,right) => {
+      const base = table(5);
+      const current = base.replace("-----",left);
+      const incoming = base.replace("-----",right);
+      expect(mergeLineText(input(base,current,incoming))).toEqual({content:current,conflicts:[{
+        record,location:{kind:"hunk",start:1,end:2},base:base.split("\n")[1],
+        current:{content:current.split("\n")[1],label:currentLabel},
+        incoming:{content:incoming.split("\n")[1],label:incomingLabel},
+      }]});
+    });
+
+  it.each([[":----",":-----------",":--------------"],["----:","-----------:","--------------:"],
+    [":---:",":----------:",":-------------:"]])(
+    "ignores delimiter hyphen-count changes while retaining %s alignment", (original,left,right) => {
+      const base = table(5).replace("-----",original);
+      const current = table(12,"current-wide").replace("------------",left);
+      const incoming = table(15,"a","incoming-longer").replace("---------------",right);
+      expect(mergeLineText(input(base,current,incoming)))
+        .toEqual({content:table(15,"current-wide","incoming-longer").replace("---------------",right),conflicts:[]});
+    });
+
   it("tracks the current table through inserted lines and differing table widths", () => {
     const base = `Opening\n\n${table(5)}\n\nBetween\n\n${table(5)}\n`;
     const current = `New opening\nExtra\n\n${table(12,"current-wide")}\n\nBetween\n\n${table(20)}\n`;
