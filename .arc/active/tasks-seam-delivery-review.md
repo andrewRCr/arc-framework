@@ -712,14 +712,11 @@ through rename and slug reuse; mismatched references refuse and succeed after co
 - _Outcome:_ Typed listings report incomplete authority with every exact conflict reference. Both composed approval
   readers refuse conflicted evidence and resume once its conflict records are resolved.
 
-### `[ ]` **4.R2 Carry native continuation ownership in command references — § 2.3, § 4.7, § 9.3**
+### `[x]` **4.R2 Carry native continuation ownership in command references — § 2.3, § 4.7, § 9.3**
 
 - _Goal:_ CLI-produced native references retain the exact project and work-item owner through re-entry, working-state
   pruning, and clone changes without altering stable result keys or adding owner-selection or authorization policy
   (A13).
-
-- **Additional Context:** `notes-seam-delivery-review.md` § A13. The codec and binding footing in a–c precedes 4.7;
-  d follows 4.10's native local result reader. The remaining lanes use the same contract in 5.1–5.6.
 
     - `[x]` **4.R2.a Build the owner-bearing codecs and widen their published embeddings**
 
@@ -744,14 +741,12 @@ through rename and slug reuse; mismatched references refuse and succeed after co
           attempts within that owner. Cross-owner substitutions refuse and corrected references succeed. Import
           decoding and keys remain unchanged, as do repository source and disposition behavior.
 
-    - `[ ]` **4.R2.d Prove local completed re-entry after pruning and on a second clone**
+    - `[x]` **4.R2.d Prove local completed re-entry after pruning and on a second clone**
 
-        - After 4.10, use the actual native admission, outcome writer, and default continuation/result paths. Remove
-          ended working state and read the same result, then repeat from another checkout sharing only the portable
-          Store. Retain the original UID across rename or slug reuse. Read outcome and evidence without the original
-          operation, source, or receipt files, emit no invented `sourceRef`, and report the actual local working-state
-          version or zero. Re-entry launches no evaluator. The 4.11 scenario closes the local proof; 5.8 covers the
-          remaining lanes' completed result and response paths.
+        - Actual local commands retain clean and findings results, approvals, and original UIDs after ended-state
+          pruning, slug reuse, and second-clone re-entry. Independent clones produce the same project-bound target;
+          re-entry from a different current Errand still reads the original outcome, reports working version zero,
+          and omits unavailable source references without launching review.
 
 ### `[x]` **4.7 Keep in-flight state in a namespace of its own — § 4.7**
 
@@ -816,14 +811,15 @@ through rename and slug reuse; mismatched references refuse and succeed after co
   digest. Real-Git clean and findings continuations retain that result and approval after local state pruning, slug
   reuse, and re-entry from a second clone; absent source references are omitted and absent working state reports zero.
 
-### `[ ]` **4.R3 Verify the local continuation payload boundary — § 3.5, § 9.3**
+### `[x]` **4.R3 Verify the local continuation payload boundary — § 3.5, § 9.3**
 
 - _Goal:_ Attest's `attested-current` payload retains the actual source-store reference where available and omits it
   only for ended native replay without that record; resume payloads carry no `sourceRef`, with both commands retaining
   their native receipt references and unchanged in-repo payloads (A14).
 
-    - Check `LocalAttestEnvelopeSchema`, `LocalResumeEnvelopeSchema`, and their command producers against the existing
-      envelope and command tests. Verify the completed native replay through 4.R2.d and the 4.11 scenario.
+- _Outcome:_ Published schemas and actual command replay retain attest's available source reference and omit it only
+  with a native locator after ended-state pruning. Resume carries the native receipt without `sourceRef`; repository
+  requests and payloads retain their existing shape.
 
 ### `[x]` **4.R4 Preserve fact-free generic policy resolution — § 2.3**
 
