@@ -811,18 +811,12 @@ through rename and slug reuse; mismatched references refuse and succeed after co
 - **Additional Context:** `notes-seam-delivery-review.md` § A13. The codec and binding footing in a–c precedes 4.7;
   d follows 4.10's native local result reader. The remaining lanes use the same contract in 5.1–5.6.
 
-    - `[ ]` **4.R2.a Build the owner-bearing codecs and widen their published embeddings**
+    - `[x]` **4.R2.a Build the owner-bearing codecs and widen their published embeddings**
 
-        - Add distinct versioned native operation and source-reference codecs with closed, validated payloads holding
-          the project ID, a work-item handle with required UID, and the stable operation/admission and durable result
-          coordinates § 9.3 defines. Preserve the in-repo codec and every existing identifier and outcome-key recipe.
-        - Widen request, result, and submit-ready action schemas for `operationRef` beside operation IDs, ready
-          frontline resolutions, and hosted handles; hosted-await actions carry it outside the handle. Admit omitted
-          `sourceRef` only for the native ended replay whose local source record is absent. In-repo emission stays
-          unchanged; the omitted-source variant requires its native `operationRef`.
-        - Build `test-first`: round trips retain the exact UID and result coordinates; malformed, wrong-kind, and
-          ID-mismatched references refuse; long legal slugs and existing maximum-length operation IDs round-trip
-          without changing those IDs; schemas admit the native additions and keep existing repository fixtures.
+        - Native codecs and published continuations retain project and exact owner outside stable IDs. Local,
+          frontline, and hosted embeddings check operation/admission agreement; zero working versions and omitted
+          local source references require native locators. Hosted action and timing projections retain them, while
+          repository inputs and emitted values stay unchanged.
 
     - `[ ]` **4.R2.b Bind native continuation roots from their produced reference**
 

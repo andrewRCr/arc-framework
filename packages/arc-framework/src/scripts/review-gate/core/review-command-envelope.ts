@@ -3,6 +3,12 @@
 import { isDeepStrictEqual } from "node:util";
 
 import { z } from "zod";
+import { NativeReviewOperationRefSchema, nativeReviewOperationReferenceMatches } from "./review-operation-reference.js";
+import { ReviewCommandModeSchema, ReviewCommandHeaderShape as HeaderShape,
+  reviewCommandEnvelopeVariant as envelopeVariant, type ReviewCommandMode } from "./review-command-envelope-base.js";
+export { ReviewCommandModeSchema, ReviewCommandDiagnosticSchema } from "./review-command-envelope-base.js";
+export type { ReviewCommandMode } from "./review-command-envelope-base.js";
+
 import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
 import { DeliveryReviewMemberVehicleSchema } from "../../../lib/delivery/review-vehicle.js";
@@ -51,28 +57,7 @@ import { StandardReviewObligationProjectionSchema } from
 
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
 const DurableReferenceSchema = z.string().trim().min(1);
-const PersistedVersionSchema = z.number().int().positive();
-
-export const ReviewCommandModeSchema = z.enum([
-  "review-readiness",
-  "review-lane-read",
-  "review-resolve",
-  "review-frontline-resolve",
-  "review-chunking-resolve",
-  "review-planning-grooming-resolve",
-  "review-frontline-run",
-  "review-local-prepare",
-  "review-local-attest",
-  "review-respond",
-  "review-reduce",
-  "review-local-resume",
-  "review-hosted-request",
-  "review-hosted-await",
-  "review-hosted-settle",
-  "review-terminus-accept",
-  "review-pre-publication",
-]);
-export type ReviewCommandMode = z.infer<typeof ReviewCommandModeSchema>;
+const PersistedVersionSchema = z.number().int().nonnegative();
 
 export {
   ReviewCommandErrorCodeSchema,
@@ -83,36 +68,13 @@ export type { ReviewCommandErrorCode, ReviewPrePublicationRefusalCode } from "./
 
 export { prePublicationRemedy, prePublicationTargetRemedy } from "./pre-publication-remedy.js";
 
-const RepositoryPreconditionDiagnosticSchema = z.strictObject({
-  code: z.literal("repository-precondition"),
-  message: z.string().trim().min(1),
-  precondition: z.enum([
-    "repository-born",
-    "base-resolved",
-    "clean-worktree",
-    "commit-head",
-  ]),
-});
-const GeneralReviewCommandDiagnosticSchema = z.strictObject({
-  code: z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u),
-  message: z.string().trim().min(1),
-});
-export const ReviewCommandDiagnosticSchema = z.union([
-  RepositoryPreconditionDiagnosticSchema,
-  GeneralReviewCommandDiagnosticSchema,
-]);
-
-const HeaderShape = {
-  schemaVersion: z.literal(1),
-  diagnostics: z.array(ReviewCommandDiagnosticSchema),
-};
-
 const TargetPairPayloadSchema = z.strictObject({
   attemptedTarget: ReviewTargetSchema,
   currentTarget: ReviewTargetSchema,
 });
 const OperationPayloadShape = {
   operationId: IdentifierSchema,
+  operationRef: NativeReviewOperationRefSchema.optional(),
   persistedVersion: PersistedVersionSchema,
 };
 const CurrentOperationPayloadShape = {
@@ -129,33 +91,6 @@ const ExecutableIdentitySchema = z.strictObject({
   digest: CanonicalDigestSchema,
   qualifiedVersion: z.string().trim().min(1),
 });
-
-function envelopeVariant<
-  Mode extends ReviewCommandMode,
-  State extends string,
-  NextAction extends string,
-  Payload extends z.ZodType,
->(
-  mode: Mode,
-  state: State,
-  nextAction: NextAction,
-  payload: Payload,
-): z.ZodObject<{
-  schemaVersion: z.ZodLiteral<1>;
-  diagnostics: z.ZodArray<typeof ReviewCommandDiagnosticSchema>;
-  mode: z.ZodLiteral<Mode>;
-  state: z.ZodLiteral<State>;
-  nextAction: z.ZodLiteral<NextAction>;
-  payload: Payload;
-}> {
-  return z.strictObject({
-    ...HeaderShape,
-    mode: z.literal(mode),
-    state: z.literal(state),
-    nextAction: z.literal(nextAction),
-    payload,
-  });
-}
 
 const ReviewChunkingBasePayload = {
   target: ReviewTargetSchema,
@@ -409,6 +344,7 @@ const FrontlineReadyPayloadSchema = z.strictObject({
   pass: ReviewPassSchema,
   maxPasses: ReviewPassSchema,
   admission: FrontlineAdmissionSchema,
+  operationRef: NativeReviewOperationRefSchema.optional(),
 }).superRefine((payload, context) => {
   if (payload.pass > payload.maxPasses) {
     context.addIssue({
@@ -433,6 +369,10 @@ const FrontlineReadyPayloadSchema = z.strictObject({
       message: "frontline ready payload must match its durable admission",
       path: ["admission"],
     });
+  }
+  if (payload.operationRef !== undefined
+    && !nativeReviewOperationReferenceMatches(payload.operationRef, payload.admission.operationId)) {
+    context.addIssue({ code: "custom", path: ["operationRef"], message: "reference must match the frontline admission" });
   }
 });
 export const FrontlineCommandResultEnvelopeSchema = z.union([
@@ -564,10 +504,11 @@ export const LocalAttestEnvelopeSchema = z.union([
     z.strictObject({
       ...OperationPayloadShape,
       target: ReviewTargetSchema,
-      sourceRef: DurableReferenceSchema,
+      sourceRef: DurableReferenceSchema.optional(),
       receiptRef: DurableReferenceSchema,
       receiptRecorded: z.literal(true),
-    }),
+    }).refine(payload => payload.sourceRef !== undefined || payload.operationRef !== undefined,
+      { path: ["sourceRef"], message: "omitting the source record requires a native operation reference" }),
   ),
   envelopeVariant(
     "review-local-attest",

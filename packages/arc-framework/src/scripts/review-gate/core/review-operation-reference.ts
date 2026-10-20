@@ -28,6 +28,11 @@ export function parseNativeReviewOperationReference(reference: string): NativeRe
   return NativeReviewOperationReferenceSchema.parse(JSON.parse(decodeURIComponent(value.slice(PREFIX.length))) as unknown);
 }
 
+/** Check an embedded locator against the operation carried beside it. */
+export function nativeReviewOperationReferenceMatches(reference: string, operationId: string): boolean {
+  try { return parseNativeReviewOperationReference(reference).operationId === operationId; } catch { return false; }
+}
+
 /** A validated opaque locator for published native continuation fields. */
 export const NativeReviewOperationRefSchema = ReferenceSchema.refine(reference => {
   try { parseNativeReviewOperationReference(reference); return true; } catch { return false; }

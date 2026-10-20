@@ -1,6 +1,7 @@
 /** Command orchestration for one local advisory review attestation. */
 
 import { z } from "zod";
+import { NativeReviewOperationRefSchema, nativeReviewOperationReferenceMatches } from "../core/review-operation-reference.js";
 
 import { canonicalize } from "../../../lib/kernel/index.js";
 import {
@@ -38,8 +39,11 @@ import type { DeliveryLocalReviewAdmission } from "../policy/delivery-local-revi
 export const LocalAttestRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
   operationId: ReviewIdentifierSchema,
+  operationRef: NativeReviewOperationRefSchema.optional(),
   result: LocalReviewEvaluatorResultSchema,
-});
+}).refine(request => request.operationRef === undefined
+  || nativeReviewOperationReferenceMatches(request.operationRef, request.operationId),
+{ path: ["operationRef"], message: "reference must match the requested operation" });
 
 export interface LocalAttestDependencies {
   withLocalReviewLock<T>(action: () => Promise<T>): Promise<T>;

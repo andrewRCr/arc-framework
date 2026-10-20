@@ -1,6 +1,7 @@
 /** Command orchestration for re-entering one durable local advisory review. */
 
 import { z } from "zod";
+import { NativeReviewOperationRefSchema, nativeReviewOperationReferenceMatches } from "../core/review-operation-reference.js";
 
 import {
   validateReviewReceipt,
@@ -30,7 +31,10 @@ import type { LocalTargetConfirmation } from "../hosts/local/repository-target.j
 export const LocalResumeRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
   operationId: ReviewIdentifierSchema,
-});
+  operationRef: NativeReviewOperationRefSchema.optional(),
+}).refine(request => request.operationRef === undefined
+  || nativeReviewOperationReferenceMatches(request.operationRef, request.operationId),
+{ path: ["operationRef"], message: "reference must match the requested operation" });
 
 export interface LocalResumeDependencies {
   sweep(): Promise<void>;
