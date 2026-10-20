@@ -48,6 +48,7 @@ const expectedImplementationModules = [
   "./handlers/user-sync.js",
   "./handlers/log.js",
   "./handlers/integration.js",
+  "./handlers/review-adversarial.js",
   "./handlers/review.js",
   "./handlers/reconcile.js",
   "./commands/check.js",

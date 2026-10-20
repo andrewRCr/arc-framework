@@ -1027,9 +1027,14 @@ this extension, following the 4.11 local proof.
           before writing and resume after repair. Shared header validation rejects duplicate findings and unapproved
           over-cap passes; malformed requests name schema discovery, and pre-flip refusals retain text-only remedies.
 
-### `[ ]` **5.8 Every lane's results** — validate exit criterion at segment scope
+### `[x]` **5.8 Every lane's results** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
+
+- _Outcome:_ Base `acc49f873` is reconciled in `679ec0950`. Reference-backend local, frontline, and hosted
+  results survive actual execution-file pruning and a second Git clone. Default reduction and response proposals
+  retain exact project and owner UID coordinates; foreign references refuse and matching references resume, with
+  original outcome bytes and versions unchanged.
 
 ## **Phase 6:** The Candidate and its boundary from the flip
 
