@@ -1115,6 +1115,26 @@ this phase puts publication's claim and reopen's boundary write in their transit
 
     - `[ ]` **6.2.a Ceiling and additional extra passes**
 
+        - `[x]` **6.2.a.1 Generic policy resolution**
+            - Generic native resolution records full grants on the bound owner with the current effective Candidate
+              subject or exact review target. References relay the stored author without another write; automatic
+              grants leave incremental coverage uncharged, and new ownerless judgments require their owning context.
+        - `[ ]` **6.2.a.2 Errand status**
+            - Record explicit grants before unrecorded-lane returns and resolve stored authority at its exact claim,
+              head, policy coordinates, and logical count.
+        - `[ ]` **6.2.a.3 Local preparation**
+            - Resolve explicit and stored judgments before pending replay and delivery admission, retaining exact
+              subject evidence and logical-count applicability.
+        - `[ ]` **6.2.a.4 Frontline resolution**
+            - Record and relay ordinary ceiling authority before pending replay, with exact head reach and native
+              allowance projection.
+        - `[ ]` **6.2.a.5 Hosted requests**
+            - Resolve ordinary grants before fresh capacity admission while keeping reserved replay and provider
+              actor identity separate from the judgment's active identity.
+        - `[ ]` **6.2.a.6 Publication status**
+            - Compose singleton and delivery-member grants at their selected targets before pure policy and preserve
+              references in emitted continuation actions.
+
         - The calls that write the decision, recording the active identity unchecked (§ 5.7): `arc review
           pre-publication --lanes` (`ReviewLaneJudgmentSchema`, `rg/policy/review-policy-driver.ts`) and `arc review
           status --ceiling-override` and `--additional-pass` (`handlers/review.ts`; an Errand's through

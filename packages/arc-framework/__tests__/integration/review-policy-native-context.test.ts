@@ -21,6 +21,8 @@ import { createReviewCompositionContext } from "../../src/scripts/review-gate/ru
 import { readLaneProgress } from "../../src/scripts/review-gate/lane-progress.js";
 import { projectReviewPolicyAttempt } from "../../src/scripts/review-gate/policy/review-policy-driver.js";
 import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
+import { createReviewDecisionPort } from "../../src/lib/store/kinds/review/decision/access.js";
+import { reviewDecisionKey } from "../../src/lib/store/kinds/review/decision/key.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 async function fixture(sources = "[delegated-agent]", project = true) {
@@ -74,14 +76,15 @@ async function producedContext(h: Awaited<ReturnType<typeof fixture>>, kind: "ru
   const primary = await h.reference.seedMeta("example", { owner: "andrew", branch: null }, { kind: "active" }, {
     branches: [{ repository: projectId, ref: "topic/owner", linkedAs: "adopted", excluded: [] }],
   });
-  const collected = await collectGitCandidateSubject({ cwd: h.cwd, name: "example", baseBranch: "main", exec: h.exec });
+  const target = await deriveLocalReviewTarget({ cwd: h.cwd, exec: h.exec, repositoryId: projectId, baseRef: "main" });
+  const collected = await collectGitCandidateSubject({ cwd: h.cwd, name: "example", baseBranch: "main",
+    baseRevision: target.diffBaseSha, exec: h.exec });
   if (collected.status !== "collected") throw new Error(collected.detail);
   const attestation = createCandidateAttestation({ workUnit: "example", subject: collected.target.subject,
-    baseRevision: await h.git("rev-parse", "main"), attestedBy: "andrew", attestedAt: "2026-10-20T15:00:00Z",
+    baseRevision: target.diffBaseSha, attestedBy: "andrew", attestedAt: "2026-10-20T15:00:00Z",
     verificationEvidenceRef: "test://verified" });
   await h.reference.seedCandidate(primary.reference.owner, { schemaVersion: 1, semanticsVersion: "candidate-attestation/v1",
     attestation, subject: collected.target.subject, transitions: [], lineageAttestations: [] });
-  const target = await deriveLocalReviewTarget({ cwd: h.cwd, exec: h.exec, repositoryId: projectId, baseRef: "main" });
   const lineage = { kind: "candidate" as const, candidateId: attestation.candidateId };
   const local = localOutcome({ target, lineage, vehicle: { kind: "work-unit", identity: "example" } });
   const outcome = ReviewOutcomeSchema.parse(kind === "terminal-frontline" ? frontlineOutcome({ target, lineage }) : local);
@@ -97,6 +100,31 @@ async function producedContext(h: Awaited<ReturnType<typeof fixture>>, kind: "ru
     attempts: progress.status === "recorded" ? progress.attempts.map(projectReviewPolicyAttempt) : [] };
   return { primary, request, stored, outcomes, outcome };
 }
+
+it.each(["ceiling", "additional"] as const)("records and relays a native %s grant through generic resolve", async kind => {
+  const h = await fixture(), produced = await producedContext(h, "terminal-standard");
+  await h.git("switch", "-c", "topic/owner");
+  const grant = kind === "ceiling" ? { ceilingOverride: { target: produced.request.target, lane: "standard",
+    exhaustedPassCount: 1, nextPass: 2 } } : { additionalPassAuthorization: { target: produced.request.target,
+    lane: "standard", completedPasses: 1, nextPass: 2, precedingProducerId: produced.outcome.attemptId } };
+  const resolved = await h.run({ ...produced.request, ...grant });
+  expect(resolved.exits, JSON.stringify(resolved.value)).toEqual([]);
+  const decisions = createReviewDecisionPort(h.reference.store, produced.primary.reference.owner);
+  const listing = await decisions.list();
+  expect(listing.status).toBe("complete");
+  if (listing.status !== "complete") throw new Error(listing.reason);
+  expect(listing.records).toHaveLength(1);
+  const record = listing.records[0]!;
+  expect(record.value).toMatchObject({ decidedBy: "andrew", lane: "standard", choice: { kind: "extra-pass",
+    passCount: 1, precondition: { kind, targetBinding: { kind: "policy-target", repository: "owner/repo", pullRequest: null } } } });
+  const key = reviewDecisionKey(record.value), version = lifecycleSuccess(await h.reference.store.version());
+  await h.git("config", "arc.identity", "another-user");
+  const field = kind === "ceiling" ? "ceilingOverride" : "additionalPassAuthorization";
+  const relay = await h.run({ ...produced.request, [field]: { ...grant[field], decisionKey: key } });
+  expect(relay.exits, JSON.stringify(relay.value)).toEqual([]);
+  expect(lifecycleSuccess(await h.reference.store.version())).toBe(version);
+  expect(await decisions.read(key)).toEqual(record);
+}, 30_000);
 
 it.each(["runnable-standard", "terminal-standard", "terminal-frontline"] as const)(
   "refuses ownerless %s evidence and resolves after the owning branch is restored", async kind => {

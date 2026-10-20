@@ -16,3 +16,12 @@ it.each(["ceilingOverride", "additionalPassAuthorization"] as const)("requires a
   expect(() => resolveNativeOwnerlessReviewPolicy(referenced, policy)).toThrow(ReviewPolicyContextError);
   expect(() => resolveNativeOwnerlessReviewPolicy(ReviewPolicyCommandRequestSchema.parse(input), policy)).not.toThrow();
 });
+
+it("requires an owning context before accepting a new native judgment", () => {
+  const target = { repository: "owner/repo", pullRequest: null, headSha: "a".repeat(40) };
+  const request = ReviewPolicyCommandRequestSchema.parse({ schemaVersion: 1, target, lane: "frontline", completedPasses: 0,
+    attempts: [], standardReview: { obligation: "required", reasons: ["sensitive-change-set"], rubricVersion: "standard-review/v1",
+      rubricDigest: canonicalDigest({ rubric: true }), retrigger: "full-final", count: 1 },
+    ceilingOverride: { target, lane: "frontline", exhaustedPassCount: 0, nextPass: 1 } });
+  expect(() => resolveNativeOwnerlessReviewPolicy(request, { sources: ["coderabbit-cli"], maxPasses: 1 })).toThrow(ReviewPolicyContextError);
+});

@@ -24,6 +24,7 @@ import { reviewDiscoverableCommandInputSchema } from "./review-request-schema.js
 import { confirmReviewCorrectionLeg } from "../scripts/review-gate/policy/review-next-pass.js";
 
 import { readResolveNextPassContext, readHostedErrandNextPassContext } from "./review-next-pass-context.js";
+import { composeNativePolicyGrants } from "../scripts/review-gate/runtime/native-policy-grants.js";
 import { resolveEvidenceBoundReviewPolicyContinuation } from "../scripts/review-gate/policy/review-policy-evidence.js";
 import type { ApprovedDispositionRecordReader, ReviewOperationStateStore } from "../scripts/review-gate/core/ports.js";
 import type { EvidenceBoundReviewPolicyDependencies } from "../scripts/review-gate/policy/review-policy-evidence.js";
@@ -1724,13 +1725,17 @@ async function resolveConfiguredReviewPolicy(
     },
   };
   if (request.lane === "frontline" || sources.length === 0 || request.standardReview.obligation === "exempt") {
-    return resolveEvidenceBoundReviewPolicy(request, dependencies);
+    const composed = await composeNativePolicyGrants({ ...bound, cwd: root, exec, request,
+      operationStore, resultReader, baseBranch: settings["branch.base"], incremental: false });
+    return resolveEvidenceBoundReviewPolicy(composed, dependencies);
   }
   const nextPassContext = await readResolveNextPassContext({
     ...bound, request, root, exec, operationStore, resultReader, dispositionStore, configuredSources: sources,
     confirmApplicability: dependencies.confirmIncrementalApplicability,
   });
-  return resolveEvidenceBoundReviewPolicyContinuation(request, {
+  const composed = await composeNativePolicyGrants({ ...bound, cwd: root, exec, request,
+    operationStore, resultReader, baseBranch: settings["branch.base"], incremental: nextPassContext.incremental !== null });
+  return resolveEvidenceBoundReviewPolicyContinuation(composed, {
     terminalResponsePerformed: !nextPassContext.responseDue,
   }, { ...dependencies, nextPassContext });
 }
