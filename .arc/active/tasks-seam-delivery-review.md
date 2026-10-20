@@ -985,15 +985,12 @@ this extension, following the 4.11 local proof.
           identity retains its recorded binding. Default frontline reduction preserves the producer's portable source
           reference through approval and reads completed results at version zero without changing stored facts.
 
-    - `[ ]` **5.6.c The hosted reservation**
+    - `[x]` **5.6.c The hosted reservation**
 
-        - `projectHostedReservationPolicyProgress` and `assertEvidenceBoundHostedReservationPolicyAdmission`
-          (`rg/policy/hosted-reservation-admission.ts`) and `createHostedReservationDischargeReader`
-          (`rg/policy/hosted-reservation-discharge.ts`).
-        - Build `test-first` (one behavior at a time):
-            - reservation progress, its admission, and its discharge reach today's verdicts from outcomes and evidence
-            - over a pass holding a hosted terminal failure and its restart, the reservation keeps or releases its hold
-              as it does over today's records of the same reviews, the composed order matching today's
+        - Native progress, evidence-bound admission, and discharge match repository-backed verdicts across terminal
+          request failure, next-head restart, and clean completion. Attempt history preserves failure-before-restart
+          order, a pending restart holds the reservation, and a completed outcome discharges it on a fresh checkout
+          without working-state files. Native source and operation references retain their selected owner.
 
     - `[ ]` **5.6.d Integration's review reads**
 
