@@ -1391,9 +1391,10 @@ reference:
   `rg/core/review-result-disposition.ts`) and the source respond writes (`rg/runtime/respond-command.ts`) hold on every
   clone and after the source's pin is released, and the Candidate's review-fix continuation
   (`readPendingCandidateReviewFixAuthority`, `rg/policy/candidate-review-fix-continuation.ts`) compares the record's
-  reference with its outcome's `sourceDigest` in place of the operation state's `sourceRef`. Local attest's and resume's
-  envelope `sourceRef` stays the source store's own reference where available; an ended native replay without that
-  source record omits it (A13, above).
+  reference with its outcome's `sourceDigest` in place of the operation state's `sourceRef`. Local attest's
+  `attested-current` envelope `sourceRef` stays the source store's own reference where available; an ended native
+  replay without that source record omits it. Resume keeps its existing payload without a `sourceRef` field
+  (`LocalResumeEnvelopeSchema`, `resumeLocalReviewCommand`) (A14).
 
 #### 9.4 The hosted reservation
 
@@ -2391,6 +2392,11 @@ spec's review copy until the candidate tail deletes it (§ 12.5).
     reuse do not select a replacement generation. Wrong or malformed reference coordinates refuse actionably and
     succeed after the matching producer reference is supplied. In-repo inputs and emitted values stay unchanged.
 
+14. **Local continuation payloads retain their source-reference boundary (A14).** Local attest's `attested-current`
+    payload carries the actual retained source-store reference, or omits it on ended native replay when the source
+    record is absent. Resume payloads carry no `sourceRef`; their completed receipt references retain the native
+    outcome key and owner. In-repo payloads stay unchanged.
+
 ## Open Questions
 
 None blocks starting. The rest are expected contracts with stated availability, and none leaves design open: the ref
@@ -2447,5 +2453,7 @@ rewrite, and deletion pass (§ 11.2, § 12.6, § 14.3).
 
 - **A13** — 2026-10-19 — design: retain portable continuation ownership. _Supersedes:_ § 2.3, § 9.3, Goal 8.
   _Trigger:_ 4.4.R must-stop. _Work:_ 4.R2. _Revalidated:_ pending → 4.11.
+- **A14** — 2026-10-20 — design: keep resume payloads unchanged. _Supersedes:_ § 9.3 final paragraph.
+  _Trigger:_ 4.R2.d must-stop. _Work:_ 4.R3. _Revalidated:_ pending → 4.11.
 
 ---

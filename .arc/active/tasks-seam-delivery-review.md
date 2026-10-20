@@ -953,8 +953,8 @@ through rename and slug reuse; mismatched references refuse and succeed after co
 
     - `LocalReviewResultReader` (`rg/hosts/local/review-result-reader.ts`) and reduction's local source
       (`rg/runtime/reduce-command.ts`) read the outcome; local attest and resume bind `receiptRef`
-      (`bindReviewSourceReference`) with the outcome key as its durable part, their `sourceRef` staying the source
-      store's reference.
+      (`bindReviewSourceReference`) with the outcome key as its durable part. Only attest's `attested-current` payload
+      carries the retained source store's `sourceRef`; resume keeps its existing payload without that field (A14).
     - The reader's local result carries the outcome's `sourceDigest` as `localSourceRef` from the flip, in place of the
       operation state's `sourceRef`, as the composed approved-disposition record's local source does (4.1.a, § 9.3).
     - The reader recomputes the result's digest (`localResultDigest`) from the outcome — its attempt ID, its receipt as
@@ -973,6 +973,15 @@ through rename and slug reuse; mismatched references refuse and succeed after co
         - from the flip reduction's local arm and resume's check read the same verdicts through the composed
           approved-disposition record (4.1.a) as in-repo
         - in-repo, both read the receipt as today
+
+### `[ ]` **4.R3 Verify the local continuation payload boundary — § 3.5, § 9.3**
+
+- _Goal:_ Attest's `attested-current` payload retains the actual source-store reference where available and omits it
+  only for ended native replay without that record; resume payloads carry no `sourceRef`, with both commands retaining
+  their native receipt references and unchanged in-repo payloads (A14).
+
+    - Check `LocalAttestEnvelopeSchema`, `LocalResumeEnvelopeSchema`, and their command producers against the existing
+      envelope and command tests. Verify the completed native replay through 4.R2.d and the 4.11 scenario.
 
 ### `[ ]` **4.11 The review gate's store** — validate exit criterion at segment scope
 
@@ -2072,3 +2081,7 @@ prerequisites have landed, and every earlier task is independent of the remainin
   changes without changing stable IDs or result keys. Production local completed re-entry/reduction and frontline and
   hosted result/response reads use them without original working files; rename and slug reuse retain the selected
   generation. Invalid reference coordinates refuse actionably and succeed after correction (spec, A13).
+
+- `[ ]` Local attest's `attested-current` payload carries the actual retained source-store reference, or omits it on
+  ended native replay when that record is absent. Resume payloads carry no `sourceRef`; completed receipt references
+  retain the native outcome key and owner. In-repo payloads stay unchanged (spec, A14).
