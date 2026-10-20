@@ -16,7 +16,7 @@ function reference(kind: KindId, key?: string) {
 function write(content?: string, prior?: string): WriteCheckInput {
   const view = new ReferenceBackend();
   return {
-    reference: reference("work-item/notes"), writer: { kind: "hand-edit" }, before: view, after: view,
+    reference: reference("work-item/notes"), observations: [], writer: { kind: "hand-edit" }, before: view, after: view,
     ...(content === undefined ? {} : { next: { content, fields: {} } }),
     ...(prior === undefined ? {} : { prior: { content: prior, fields: null } }),
   };
@@ -148,7 +148,7 @@ describe("introduced record link rules", () => {
     expect(rules[0]?.condition).not.toContain("old.md");
   });
   it("applies the same shape rules to verb writes", async () => {
-    const input = { ...write("[x](new.md)"), writer: { kind: "verb", verb: "pause" } } as const;
+    const input = { ...write("[x](new.md)"), observations: [], writer: { kind: "verb", verb: "pause" } } as const;
     expect(await checkRecordLinks(input)).toEqual([expect.objectContaining({ rule: "links.relative-in-movable" })]);
   });
 });

@@ -37,6 +37,7 @@ export const refusalRecoveryTable: Record<RefusalCode, readonly RecoveryCase[]> 
   unsupported: (Object.keys(UNSUPPORTED_CASES) as (keyof typeof UNSUPPORTED_CASES)[]).map((value) => ({
     id: `unsupported:${value}`, class: UNSUPPORTED_CASES[value],
     produce: {
+      "batch-observations": "Submit a nonempty atomic observation basis to an interim backend.",
       "cross-substrate-batch": "Batch records across the interim backend's physical substrates.",
       "uncovered-state-version": "Request saved state for records outside that version's coverage.",
       "work-item-kind-required": "List the interim work-item family without naming its kind.",
@@ -49,6 +50,7 @@ export const refusalRecoveryTable: Record<RefusalCode, readonly RecoveryCase[]> 
       rename: "Rename a work item through an interim backend without UIDs.",
     }[value],
     repair: {
+      "batch-observations": "Use a backend that supports atomic read observations.",
       "cross-substrate-batch": "Sequence the writes in their separate substrates.",
       "uncovered-state-version": "Bind reads and changes by each record's own version.",
       "work-item-kind-required": "List each requested work-item kind.",

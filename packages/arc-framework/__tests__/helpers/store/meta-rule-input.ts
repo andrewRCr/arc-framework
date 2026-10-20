@@ -29,7 +29,7 @@ export function metaRuleInput(nextContent: string | null = META_RULE_CONTENT, pr
     : ruleRecord("work-item/meta", "example", META_RULE_UID, nextContent, parseMetaRecord(nextContent));
   const reference = next?.reference ?? prior?.reference;
   if (reference === undefined) throw new Error("A rule input needs a prior or next record.");
-  return { reference, writer, before: ruleView(prior === undefined ? [] : [prior]), after: ruleView(next === undefined ? [] : [next]),
+  return { reference, observations: [], writer, before: ruleView(prior === undefined ? [] : [prior]), after: ruleView(next === undefined ? [] : [next]),
     ...(prior === undefined ? {} : { prior: { content: prior.content, ...(prior.fields === undefined ? {} : { fields: prior.fields }) } }),
     ...(next === undefined ? {} : { next: { content: next.content, fields: next.fields } }),
   };

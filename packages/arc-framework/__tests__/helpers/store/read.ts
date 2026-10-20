@@ -9,6 +9,21 @@ import {
 import type { ReferenceContext } from "./context.js";
 import { canonicalReference, currentStateVersion, ownerNameKey, recordKey, savedReference, type MemoryRecord, type MemoryEvent } from "./model.js";
 import { malformed, missingRecord, namespaceAdmission, ok, recordAdmission, refused } from "./refusals.js";
+import { HistoryEntrySchema } from "../../../src/lib/store/contract.js";
+import { checkCreationReceiptGroups } from "./creation-receipts.js";
+
+/** Refuse corrupt advertised receipt evidence rather than erasing it from history. */
+export function checkedMemoryHistory(entries: HistoryEntry[], events: readonly MemoryEvent[]): StoreResult<HistoryEntry[]> {
+  for (const entry of entries) {
+    const parsed = HistoryEntrySchema.safeParse(entry);
+    if (!parsed.success) return refused({ code: "namespace-corrupt", class: "terminal",
+      namespace: `history:${entry.reference.kind}:${entry.reference.owner.name}`,
+      condition: `Malformed advertised history evidence: ${parsed.error.message}`,
+      remedy: { text: "Restore authentic history from a known intact source, or explicitly regenerate this development namespace; then retry." } });
+  }
+  const corrupt = checkCreationReceiptGroups(entries, events);
+  return corrupt === undefined ? ok(entries) : refused(corrupt);
+}
 
 function recordsAt(context: ReferenceContext, asOf?: StateVersion): Map<string, MemoryRecord> {
   if (asOf === undefined) return context.state.records;
@@ -143,8 +158,9 @@ export function changesReference(context: ReferenceContext, input: ChangesInput)
 }
 
 function historyEntry(context:ReferenceContext,event:MemoryEvent): HistoryEntry {
-  if (event.version === undefined) return {reference:structuredClone(event.reference),version:null,content:null,provenance:structuredClone(event.provenance)};
+  const receipt = event.creationReceipt === undefined ? {} : { creationReceipt: structuredClone(event.creationReceipt) };
+  if (event.version === undefined) return {reference:structuredClone(event.reference),version:null,content:null,provenance:structuredClone(event.provenance), ...receipt};
   const record = context.state.snapshots.get(event.stateVersion)?.get(recordKey(event.reference));
   if (record === undefined || record.version !== event.version) throw new Error("A landed history event lacks its exact saved content");
-  return {reference:structuredClone(event.reference),version:event.version,content:record.content,provenance:structuredClone(event.provenance)};
+  return {reference:structuredClone(event.reference),version:event.version,content:record.content,provenance:structuredClone(event.provenance), ...receipt};
 }

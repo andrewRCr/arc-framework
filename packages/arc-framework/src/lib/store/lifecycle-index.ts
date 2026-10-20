@@ -45,7 +45,7 @@ export interface LifecycleIndexInput { asOf?: StateVersion; locations?: Location
  * @param input - Optional saved-state anchor.
  * @returns Indexed fields and combined listing and projection completeness evidence.
  */
-export async function listLifecycleIndex(store: Store, input: LifecycleIndexInput = {}): Promise<StoreResult<LifecycleIndexOutcome>> {
+export async function listLifecycleIndex(store: Pick<Store, "list">, input: LifecycleIndexInput = {}): Promise<StoreResult<LifecycleIndexOutcome>> {
   const { locations, ...anchor } = input;
   return indexedListing(await store.list({ family: "work-item", kind: "work-item/meta", ...anchor,
     ...(locations === undefined ? {} : { filter: { locations } }) }));

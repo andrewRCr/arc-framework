@@ -17,6 +17,7 @@ export const PRODUCTION_SCHEMA_IDS = [
   "config-session-init",
   "current-husk-advisory",
   "current-wu-reconcile",
+  "cut-map",
   "decompose-cut-map",
   "delivery-deliverable-id-preimage",
   "delivery-design-inventory-input",

@@ -10,6 +10,7 @@ import { LINEAGE_REGISTRATION } from "./lineage/registration.js";
 import { TASK_LIST_REGISTRATION } from "./task-list/registration.js";
 import { DESIGN_REGISTRATIONS } from "./design/registration.js";
 import { COHORT_REGISTRATION } from "./cohort/registration.js";
+import { CUT_MAP_REGISTRATION } from "./cut-map/registration.js";
 
 /** Projecting kinds whose stored Markdown receives the shared link checks. */
 export const RECORD_LINK_KINDS: readonly KindId[] = (Object.keys(KIND_MECHANISMS) as KindId[]).filter(kind =>
@@ -30,5 +31,5 @@ function composeLinkChecks(registrations: readonly RegisteredKind[]): readonly R
 
 /** Parsers, write checks, and anchors owned by each record kind. */
 export const PRODUCTION_REGISTRATIONS: readonly RegisteredKind[] = composeLinkChecks([
-  ...ENTRY_REGISTRATIONS, ...ROUTING_RECEIPT_REGISTRATIONS, ERRAND_RECORD_REGISTRATION, META_REGISTRATION, LINEAGE_REGISTRATION, TASK_LIST_REGISTRATION, ...DESIGN_REGISTRATIONS, COHORT_REGISTRATION,
+  ...ENTRY_REGISTRATIONS, ...ROUTING_RECEIPT_REGISTRATIONS, ERRAND_RECORD_REGISTRATION, META_REGISTRATION, LINEAGE_REGISTRATION, TASK_LIST_REGISTRATION, ...DESIGN_REGISTRATIONS, COHORT_REGISTRATION, CUT_MAP_REGISTRATION,
 ]);

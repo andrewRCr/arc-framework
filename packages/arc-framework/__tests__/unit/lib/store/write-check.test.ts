@@ -12,7 +12,7 @@ describe("write-check writer derivation", () => {
     expect(checks.deriveWriteCheckWriter({ verb, lifecycleAction: "edit" })).toEqual({ kind: "hand-edit" });
   });
   it.each(["activate", "sync", "save-draft"])("retains %s as a verb writer", (verb) => {
-    expect(checks.deriveWriteCheckWriter({ verb, lifecycleAction: "reconcile" })).toEqual({ kind: "verb", verb });
+    expect(checks.deriveWriteCheckWriter({ verb, lifecycleAction: "reconcile" })).toEqual({ kind: "verb", verb, lifecycleAction: "reconcile" });
   });
 });
 

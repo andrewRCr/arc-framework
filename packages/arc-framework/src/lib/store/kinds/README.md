@@ -9,6 +9,7 @@ the production set used by storage backends; callers read records through the st
 | `meta/`      | `work-item/meta`      | Metadata projection, shared line reading, and registered parsing |
 | `lineage/`   | `lineage/transition`  | Closed terminal history, canonical creation, and content parsing |
 | `task-list/` | `work-item/task-list` | Tolerant header fields and pure task-list content operations     |
+| `cut-map/`   | `work-item/cut-map`   | Canonical completed-map codec and registered semantic parsing    |
 
 The meta's `line-reading.ts` shares core-table cells and bullet extents between parsing and writers; it stays behind
 the raw-state import boundary beside the registration modules.

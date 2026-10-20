@@ -447,7 +447,7 @@ jobs:
     - id: typecheck-tests
       if: ${{ needs.classify.outputs.weight != 'light' }}
       env:
-        NODE_OPTIONS: --max-old-space-size=3072
+        NODE_OPTIONS: --max-old-space-size=4096
       run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck typecheck-tests
 
   unit:

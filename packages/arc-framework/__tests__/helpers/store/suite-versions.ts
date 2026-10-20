@@ -4,6 +4,7 @@ import { expect } from "vitest";
 import { KIND_REGISTRY, RecordReferenceSchema, sameReference, type KindId, type Mutation, type RecordReference } from "../../../src/lib/store/index.js";
 import type { ConformanceFixture } from "./fixture-contract.js";
 import { assertion, everyKind, seed, success, testProvenance, update, type SuiteContext } from "./suite-tools.js";
+import { registerObservationAssertions } from "./suite-observations.js";
 
 function mutable(kind: KindId): boolean { return !["create-only", "write-once"].includes(KIND_REGISTRY[kind].writerRule); }
 
@@ -11,6 +12,7 @@ function mutable(kind: KindId): boolean { return !["create-only", "write-once"].
  * @param context - item 4 context.
  */
 export function registerBatchAssertions(context: SuiteContext): void {
+  registerObservationAssertions(context);
   assertion(context, "personal", "derived-status-root-write-and-batch-refusal", async (fixture) => {
     const existing = await seed(fixture, fixture.reference("personal/document"));
     const derived = RecordReferenceSchema.parse({ ...existing.reference, key: "STATUS.USER.md" });

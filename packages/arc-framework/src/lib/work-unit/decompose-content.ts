@@ -4,15 +4,13 @@ import { z } from "zod";
 
 import {
   canonicalize,
+  canonicalDigest,
   digestBytes,
+  type CanonicalDigest,
 } from "../kernel/canonical/canonical-json.js";
 import { CanonicalDigestSchema } from "../kernel/schema/vocabulary.js";
 import { isManagedPath } from "../kernel/canonical/managed-path.js";
 import { normalizeDecomposeHeadingSource } from "./decompose-heading.js";
-import {
-  V3DecomposeLocatorSchema,
-  v3SourceId,
-} from "./decompose-v3-schema.js";
 
 export { normalizeDecomposeHeadingSource } from "./decompose-heading.js";
 
@@ -36,6 +34,62 @@ function isArtifactBasename(artifact: string): boolean {
     && !artifact.includes("/")
     && !artifact.includes("\\")
     && !artifact.includes("\0");
+}
+
+const BasenameSchema = z.string().min(1).refine(isArtifactBasename, "must be a slash-free NFC basename");
+const ManagedPathSchema = z.string().refine(isManagedPath, "must be a managed repository-relative path");
+
+const HeadingIdentitySchema = z.strictObject({
+  level: z.number().int().min(2).max(6),
+  headingSource: z.string().refine(
+    (value) => normalizeDecomposeHeadingSource(value) === value,
+    "must be normalized",
+  ),
+  occurrence: z.number().int().nonnegative(),
+});
+
+export const V3DecomposeLocatorSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ artifact: BasenameSchema, kind: z.literal("preamble") }),
+  z.strictObject({
+    artifact: BasenameSchema,
+    kind: z.literal("section"),
+    level: z.number().int().min(2).max(6),
+    headingSource: z.string().refine(
+      (value) => normalizeDecomposeHeadingSource(value) === value,
+      "must be normalized",
+    ),
+    ancestry: z.array(HeadingIdentitySchema),
+    occurrence: z.number().int().nonnegative(),
+  }),
+  z.strictObject({ artifact: BasenameSchema, kind: z.literal("whole-file") }),
+]).superRefine((locator, ctx) => {
+  if (locator.kind !== "section") return;
+  let previousLevel = 1;
+  for (let index = 0; index < locator.ancestry.length; index += 1) {
+    const ancestor = locator.ancestry[index];
+    if (ancestor !== undefined
+      && (ancestor.level <= previousLevel || ancestor.level >= locator.level)) {
+      ctx.addIssue({
+        code: "custom",
+        message: "ancestry levels must increase strictly and remain below the section level",
+        path: ["ancestry", index, "level"],
+      });
+    }
+    if (ancestor !== undefined) previousLevel = ancestor.level;
+  }
+});
+
+
+/** Canonical identity for one source allocation unit. */
+export function v3SourceId(source: {
+  sourcePath: string;
+  sourceLocator: z.infer<typeof V3DecomposeLocatorSchema>;
+}): CanonicalDigest {
+  const preimage = z.strictObject({
+    sourcePath: ManagedPathSchema,
+    sourceLocator: V3DecomposeLocatorSchema,
+  }).parse(source);
+  return canonicalDigest({ schemaVersion: 3, ...preimage });
 }
 
 function sourceLines(content: string): SourceLine[] {

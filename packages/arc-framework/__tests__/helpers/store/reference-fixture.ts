@@ -44,6 +44,7 @@ export const referenceDeclarations: FixtureDeclarations = {
     "unsupported:uncovered-state-version": "Memory snapshots cover every family.",
     "unsupported:work-item-kind-required": "Memory enumerates every kind in a work-item family.",
     "unsupported:unhomed-kind": "Memory serves every registered kind.",
+    "unsupported:batch-observations": "Memory admits strict read observations atomically with its batch.",
     "unsupported:personal-history": "Memory records history for personal records.",
     "unsupported:links-write": "Memory stores work-item links.",
     "unsupported:placement-move": "Memory moves work items by placement writes.",
