@@ -64,6 +64,15 @@ and pruning finds nothing to report.
 
 ### Increment feedback
 
+Keep commits atomic, and push coherent checkpoints regularly when authorized. Keep publication, review spending, and
+merge behind their existing approval boundaries.
+
+Plan broader regression feedback as the affected surface grows, independently of push timing. Use coherent segment or
+phase boundaries, elapsed work, suite cost, and known selection gaps to decide when a wider run is useful. Continue
+frequent automated feedback during deferred human review.
+
+Report which checks passed for the current change and which broader tiers have not run.
+
 At each increment boundary, run `arc check increment`, then request related unit and local E2E feedback together:
 
 ```bash
@@ -83,7 +92,7 @@ arc check run test:integration:content --range
 ```
 
 It runs the whole integration tier when the branch changes that Markdown, and is not selected otherwise. The tier holds
-the shared test slot for several minutes, so it runs once per branch rather than at every increment.
+the shared test slot for several minutes; weigh that cost when choosing earlier or repeated checkpoint runs.
 
 Report feedback failures and handle them under [DEV-RULES.ARC][dev-rules-arc] § Quality gate failure. Checks assigned
 to gates still have to pass by their declared deadlines.
