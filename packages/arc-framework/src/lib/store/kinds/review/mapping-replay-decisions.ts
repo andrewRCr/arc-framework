@@ -31,7 +31,8 @@ function mapReplayChoices(boundary: IntegrationBoundaryLocus, replay: PrePublica
     subject: { lineage: { kind: "candidate", candidateId: replay.candidateId ?? boundary.candidateId },
       headSha: additional.headSha, subjectDigest: replay.candidateSubjectDigest ?? null },
     lane: "standard", choice: { kind: "extra-pass", passCount: additional.completedPasses,
-      precondition: { kind: "additional", precedingProducerId: additional.precedingProducerId } },
+      precondition: { kind: "additional", precedingProducerId: additional.precedingProducerId,
+        targetBinding: { kind: "call-target" } } },
     decidedBy: null, decidedAt: null, basis: null });
   for (const lane of ["frontline", "standard"] as const) {
     const ceiling = lanes[lane]?.ceilingOverride;
@@ -40,7 +41,7 @@ function mapReplayChoices(boundary: IntegrationBoundaryLocus, replay: PrePublica
       subject: { lineage: { kind: "candidate", candidateId: replay.candidateId ?? boundary.candidateId },
         headSha: lane === "frontline" ? replay.frontlineCeilingHeadSha ?? null : replay.scopeJudgmentTarget?.headSha ?? null,
         subjectDigest: replay.candidateSubjectDigest ?? null },
-      lane, choice: { kind: "extra-pass", passCount: ceiling.exhaustedPassCount, precondition: { kind: "ceiling" } },
+      lane, choice: { kind: "extra-pass", passCount: ceiling.exhaustedPassCount, precondition: { kind: "ceiling", targetBinding: { kind: "call-target" } } },
       decidedBy: null, decidedAt: null, basis: null });
   }
   if (boundary.terminus === null && lanes.standard?.terminus !== undefined) decisions.push({ schemaVersion: 1,

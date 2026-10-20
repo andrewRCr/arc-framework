@@ -1,5 +1,6 @@
 /** Boundary decisions preserve the exact subject the old record bound. */
 import { expect, it } from "vitest";
+import { createReviewTarget } from "../../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { canonicalDigest } from "../../../../../../src/lib/kernel/index.js";
 import { mapReviewRecords } from "../../../../../../src/lib/store/kinds/review/mapping.js";
 import { ReviewDecisionSchema } from "../../../../../../src/lib/store/kinds/review/decision/schema.js";
@@ -84,7 +85,10 @@ it("imports a replay's additional logical pass with its recorded head and produc
   const { input, boundary } = boundaryInput();
   const lanes = { standard: { additionalPassAuthorization: { headSha: "b".repeat(40), precedingProducerId: "producer-2",
     completedPasses: 2, nextPass: 3 } } };
-  const replay = { candidateId: boundary.candidateId, candidateSubjectDigest: boundary.candidateSubjectDigest, lanes };
+  const scopeJudgmentTarget = createReviewTarget({ schemaVersion: 2, semanticsVersion: "review-gate/v2", kind: "change-set",
+    repositoryId: input.projectId, baseRef: "main", diffBaseSha: "a".repeat(40), diffBaseTree: "c".repeat(40),
+    headSha: "b".repeat(40), headTree: "d".repeat(40) });
+  const replay = { candidateId: boundary.candidateId, candidateSubjectDigest: boundary.candidateSubjectDigest, lanes, scopeJudgmentTarget };
   const token = Buffer.from(JSON.stringify(replay)).toString("base64url");
   input.candidates[0]!.boundary = JSON.stringify(IntegrationBoundaryLocusSchema.parse({ ...boundary,
     nextAction: { kind: "continue-pre-publication-review", command: `arc review pre-publication example --resume ${token}`,
@@ -95,7 +99,7 @@ it("imports a replay's additional logical pass with its recorded head and produc
   expect(JSON.parse(decisions[0]!.contents[0]!)).toEqual({ schemaVersion: 1,
     subject: { lineage: { kind: "candidate", candidateId: boundary.candidateId }, headSha: "b".repeat(40),
       subjectDigest: boundary.candidateSubjectDigest }, lane: "standard", choice: { kind: "extra-pass", passCount: 2,
-      precondition: { kind: "additional", precedingProducerId: "producer-2" } }, decidedBy: null, decidedAt: null, basis: null });
+      precondition: { kind: "additional", precedingProducerId: "producer-2", targetBinding: { kind: "call-target" } } }, decidedBy: null, decidedAt: null, basis: null });
   await assertReviewMapping(result);
 });
 
@@ -113,7 +117,7 @@ it.each(["frontline", "standard"] as const)("imports a %s ceiling with only its 
   expect(JSON.parse(decisions[0]!.contents[0]!)).toEqual({ schemaVersion: 1,
     subject: { lineage: { kind: "candidate", candidateId: boundary.candidateId },
       headSha: lane === "frontline" ? replay.frontlineCeilingHeadSha : null, subjectDigest: null },
-    lane, choice: { kind: "extra-pass", passCount: 2, precondition: { kind: "ceiling" } },
+    lane, choice: { kind: "extra-pass", passCount: 2, precondition: { kind: "ceiling", targetBinding: { kind: "call-target" } } },
     decidedBy: null, decidedAt: null, basis: null });
   await assertReviewMapping(result);
 });
@@ -205,7 +209,7 @@ it.each(["response", "post-attestation", "both", "convergence"])("recovers saved
   const decisions = result.records.filter(({ reference }) => reference.kind === "review/decision");
   expect(decisions).toHaveLength(1);
   expect(JSON.parse(decisions[0]!.contents[0]!)).toMatchObject({ choice: { kind: "extra-pass", passCount: 2,
-    precondition: { kind: "additional", precedingProducerId: "producer-2" } } });
+    precondition: { kind: "additional", precedingProducerId: "producer-2", targetBinding: { kind: "call-target" } } } });
   const boundaryRecord = result.records.find(({ reference }) => reference.kind === "review/integration-boundary")!;
   expect(result.listing.find(({ records }) => records.some((reference) => reference.kind === "review/integration-boundary"))?.records)
     .toEqual([decisions[0]!.reference, boundaryRecord.reference]);

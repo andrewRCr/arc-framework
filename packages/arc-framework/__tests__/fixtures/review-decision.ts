@@ -11,7 +11,8 @@ export function terminusDecision(): ReviewDecision {
 
 export function extraPassDecision(kind: "ceiling" | "additional" = "ceiling"): ReviewDecision {
   return { ...terminusDecision(), choice: { kind: "extra-pass", passCount: 2,
-    precondition: kind === "ceiling" ? { kind } : { kind, precedingProducerId: "producer-1" } }, basis: null };
+    precondition: kind === "ceiling" ? { kind, targetBinding: { kind: "call-target" } }
+      : { kind, precedingProducerId: "producer-1", targetBinding: { kind: "call-target" } } }, basis: null };
 }
 
 export function approvedFixDecision(outcome: ReviewOutcome): ReviewDecision {

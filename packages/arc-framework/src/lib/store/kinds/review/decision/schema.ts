@@ -1,13 +1,19 @@
 /** Immutable envelopes for review choices outside Candidate selections. */
 import { z } from "zod";
+import { ReviewPolicyTargetSchema } from "../../../../../scripts/review-gate/policy/review-additional-pass.js";
 import { LaneSubjectLineageSchema } from "../../../../../scripts/review-gate/core/lane-admission.js";
 import { GitObjectIdSchema, ReviewCanonicalDigestSchema, ReviewIdentifierSchema } from
   "../../../../../scripts/review-gate/core/gate-contract-v2-schema.js";
 import { CompletedReviewPassCountSchema } from "../../../../../scripts/review-gate/core/review-pass.js";
 
+const OrdinaryTargetBindingSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("call-target") }),
+  ReviewPolicyTargetSchema.unwrap().pick({ repository: true, pullRequest: true }).extend({ kind: z.literal("policy-target") }),
+]);
+
 const ExtraPassPreconditionSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("ceiling") }),
-  z.strictObject({ kind: z.literal("additional"), precedingProducerId: ReviewIdentifierSchema }),
+  z.strictObject({ kind: z.literal("ceiling"), targetBinding: OrdinaryTargetBindingSchema }),
+  z.strictObject({ kind: z.literal("additional"), precedingProducerId: ReviewIdentifierSchema, targetBinding: OrdinaryTargetBindingSchema }),
   z.strictObject({ kind: z.literal("approved-fix"), repositoryId: ReviewIdentifierSchema,
     producerId: ReviewIdentifierSchema, dispositionSetId: ReviewCanonicalDigestSchema,
     originatingHeadSha: GitObjectIdSchema, exhaustedPassCount: CompletedReviewPassCountSchema }),

@@ -61,3 +61,20 @@ describe("review decision identities", () => {
     }
   });
 });
+
+it.each(["ceiling", "additional"] as const)("includes a %s grant's original target binding in its identity", kind => {
+  const base = extraPassDecision(kind);
+  if (base.choice.kind !== "extra-pass" || base.choice.precondition.kind === "approved-fix") throw new Error("Expected ordinary grant");
+  const choice = base.choice;
+  const binding = (targetBinding: unknown) => ReviewDecisionSchema.parse({ ...base,
+    subject: { ...base.subject, headSha: "a".repeat(40) },
+    choice: { ...choice, precondition: { ...choice.precondition, targetBinding } },
+  });
+  const values = [binding({ kind: "call-target" }),
+    binding({ kind: "policy-target", repository: "owner/repo", pullRequest: null }),
+    binding({ kind: "policy-target", repository: "owner/repo", pullRequest: 41 }),
+    binding({ kind: "policy-target", repository: "owner/repo", pullRequest: 42 }),
+    binding({ kind: "policy-target", repository: "owner/other", pullRequest: 41 })];
+  expect(new Set(values.map(reviewDecisionKey)).size).toBe(values.length);
+  for (const value of values) expect(reviewDecisionKey({ ...value, decidedAt: "2026-10-20T12:00:00Z" })).toBe(reviewDecisionKey(value));
+});

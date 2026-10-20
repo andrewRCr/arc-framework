@@ -1092,19 +1092,12 @@ this phase puts publication's claim and reopen's boundary write in their transit
           them at use, the import preserves targetless authority without inventing coordinates, and native relays name
           the stored decision without changing its author or writing a second grant (A16).
 
-            - `[ ]` **6.2.R.a Envelope, identity, published schemas, and import**
+            - `[x]` **6.2.R.a Envelope, identity, published schemas, and import**
 
-                - Add required `targetBinding` to ceiling and additional preconditions, with `call-target` and
-                  `policy-target` arms; the latter retains `ReviewPolicyTargetSchema`'s repository and nullable PR,
-                  with the head kept only in the envelope. Update decision fixtures and the mapper's ordinary replay
-                  choices; approved-fix envelopes and authorization identities stay unchanged.
-                - Widen full and targetless ceiling/additional schemas with optional `decisionKey`, refusing its
-                  coexistence with `conditionalPassAuthorizationId`. Keep legacy replay decoding targetless; its
-                  `ReviewTarget` cannot supply host repository or PR coordinates. Schema-pin assertions follow the
-                  widening while in-repo emission assertions remain intact.
-                - Build `test-first` (one behavior at a time): binding arms parse, malformed bindings refuse, ordinary
-                  content keys differ by binding and PR but not time, approved-fix keys stay identical, and imported
-                  ordinary judgments retain `call-target` without fabricated policy coordinates.
+                - Ordinary preconditions require their original target binding, and their content keys distinguish
+                  repository and PR bindings. Full and targetless schemas carry optional decision references, with
+                  ceiling references excluding approved-fix authorization IDs. Replay imports retain `call-target`
+                  without inventing policy coordinates; approved-fix envelopes and identities stay unchanged.
 
             - `[ ]` **6.2.R.b Native resolution and exact decision references**
 
@@ -1124,7 +1117,9 @@ this phase puts publication's claim and reopen's boundary write in their transit
 
                 - Preserve `decisionKey` in full and targetless policy projections, including
                   `projectSingletonLocalPrepareAction`, `policyEnvelope`, `bindJudgment`, and delivery local
-                  admission; compare conflicting full/targetless keys before admission. In-repo invocation binders
+                  admission; compare conflicting full/targetless keys before admission. Exclude transient ordinary
+                  decision references from delivery admission identity hashing, preserving operation and request IDs
+                  while retaining references in the runtime payload. In-repo invocation binders
                   refuse native decision references actionably and retain their existing emitted values.
                 - Prove native pre-publication composition emits a matching key and its relay reads the same stored
                   decision without another write. Run schema, mapping, policy, and in-repo relay regressions; 6.2.a

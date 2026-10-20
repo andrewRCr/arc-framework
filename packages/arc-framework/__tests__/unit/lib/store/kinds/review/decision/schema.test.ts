@@ -53,3 +53,28 @@ describe("review decision envelopes", () => {
     expect(decodeReviewDecision("{")).toEqual({ success: false, error: expect.stringMatching(/^JSON:/u) });
   });
 });
+
+it.each(["ceiling", "additional"] as const)("retains the original policy binding for a %s grant", kind => {
+  const base = extraPassDecision(kind);
+  if (base.choice.kind !== "extra-pass" || base.choice.precondition.kind === "approved-fix") throw new Error("Expected ordinary grant");
+  for (const targetBinding of [{ kind: "call-target" },
+    { kind: "policy-target", repository: "Owner/Repository", pullRequest: null },
+    { kind: "policy-target", repository: "Owner/Repository", pullRequest: 41 }]) {
+    const value = { ...base, subject: { ...base.subject, headSha: "a".repeat(40) },
+      choice: { ...base.choice, precondition: { ...base.choice.precondition, targetBinding } } };
+    expect(parseReviewDecision(JSON.stringify(value))).toEqual(value);
+  }
+});
+
+it.each([undefined, null, { kind: "unknown" }, { kind: "call-target", repository: "owner/repo" },
+  { kind: "policy-target", repository: "owner/repo" },
+  { kind: "policy-target", repository: "owner/repo", pullRequest: 0 },
+  { kind: "policy-target", repository: "invalid", pullRequest: 1 },
+  { kind: "policy-target", repository: "owner/repo", pullRequest: 1, headSha: "a".repeat(40) },
+])("refuses a missing or malformed ordinary target binding: %j", targetBinding => {
+  const base = extraPassDecision();
+  if (base.choice.kind !== "extra-pass") throw new Error("Expected an extra pass");
+  expect(parseReviewDecision(JSON.stringify({ ...base,
+    choice: { ...base.choice, precondition: { kind: "ceiling", targetBinding } },
+  }))).toBeNull();
+});

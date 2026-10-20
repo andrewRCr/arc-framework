@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { GitObjectIdSchema, ReviewIdentifierSchema } from "../core/gate-contract-v2-schema.js";
+import { GitObjectIdSchema, ReviewIdentifierSchema, ReviewCanonicalDigestSchema } from "../core/gate-contract-v2-schema.js";
 import { CompletedReviewPassCountSchema, ReviewPassSchema } from "../core/review-pass.js";
 
 export const ReviewPolicyTargetSchema = z.strictObject({
@@ -17,6 +17,7 @@ export const ReviewAdditionalPassAuthorizationSchema = z.strictObject({
   precedingProducerId: ReviewIdentifierSchema,
   completedPasses: CompletedReviewPassCountSchema,
   nextPass: ReviewPassSchema,
+  decisionKey: ReviewCanonicalDigestSchema.optional(),
 }).readonly();
 export type ReviewAdditionalPassAuthorization = z.infer<typeof ReviewAdditionalPassAuthorizationSchema>;
 

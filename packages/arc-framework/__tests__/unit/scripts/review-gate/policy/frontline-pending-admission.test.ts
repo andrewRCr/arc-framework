@@ -73,7 +73,7 @@ it("drops an unrun ceiling-cited admission without treating it as approved-fix c
   if (before.state?.kind !== "lane-progress") throw new Error("Expected admitted lane owner");
   const ceiling = await h.f.input.decisions.create({ schemaVersion: 1,
     subject: { lineage: h.admission.lineage, headSha: h.target.headSha, subjectDigest: null }, lane: "frontline",
-    choice: { kind: "extra-pass", passCount: h.f.outcome.logicalPass, precondition: { kind: "ceiling" } },
+    choice: { kind: "extra-pass", passCount: h.f.outcome.logicalPass, precondition: { kind: "ceiling", targetBinding: { kind: "call-target" } } },
     decidedBy: h.f.input.capture.authorizedBy, decidedAt: "2026-10-20T14:00:00Z", basis: null });
   const written = await h.operations.publishOperation({ ...before.state, attempts: before.state.attempts.map(attempt =>
     attempt.attemptId === h.admission.operationId ? { ...attempt, admittedBy: reviewDecisionKey(ceiling.value) } : attempt) }, before.version);

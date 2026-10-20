@@ -21,7 +21,7 @@ import {
 } from "./review-additional-pass.js";
 export { ReviewAdditionalPassAuthorizationSchema } from "./review-additional-pass.js";
 export type { ReviewAdditionalPassAuthorization } from "./review-additional-pass.js";
-import { ReviewCeilingOverrideSchema } from "./review-ceiling-override.js";
+import { ReviewCeilingOverrideSchema, ReviewCeilingJudgmentSchema } from "./review-ceiling-override.js";
 export { ReviewCeilingOverrideSchema } from "./review-ceiling-override.js";
 export type { ReviewCeilingOverride } from "./review-ceiling-override.js";
 import {
@@ -241,16 +241,13 @@ export type ReviewPolicyCommandRequest = z.infer<typeof ReviewPolicyCommandReque
 export const ReviewLaneJudgmentSchema = z.strictObject({
   scopeMode: ReviewScopeModeSchema.optional(),
   invocation: ReviewPolicyInvocationSchema.optional(),
-  ceilingOverride: z.strictObject({
-    exhaustedPassCount: CompletedReviewPassCountSchema,
-    nextPass: ReviewPassSchema,
-    conditionalPassAuthorizationId: ReviewCanonicalDigestSchema.optional(),
-  }).readonly().optional(),
+  ceilingOverride: ReviewCeilingJudgmentSchema.optional(),
   additionalPassAuthorization: z.strictObject({
     headSha: GitObjectIdSchema,
     precedingProducerId: ReviewIdentifierSchema,
     completedPasses: CompletedReviewPassCountSchema,
     nextPass: ReviewPassSchema,
+    decisionKey: ReviewCanonicalDigestSchema.optional(),
   }).readonly().optional(),
   terminus: OwnerAcceptedReviewTerminusJudgmentSchema.optional(),
 }).readonly();
