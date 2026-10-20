@@ -1,6 +1,6 @@
 /** Production composition for the typed pre-publication review procedure. */
 import { ProjectIdentityError } from "../../../lib/store/project-identity.js";
-import { createReviewCompositionContext } from "../runtime/composition-context.js";
+import { createPrePublicationRecordAccess } from "./pre-publication-record-access.js";
 import { resolveReviewInvocation, type ReviewInvocationInput } from "../runtime/invocation.js";
 import { confirmReviewCorrectionLeg } from "./review-next-pass.js";
 
@@ -31,7 +31,7 @@ import { analyzeRevisionOverlap, getCurrentBranch, type GitExec } from "../../..
 import { createRawGitExec } from "../../../lib/io-context.js";
 import { SlugSchema, validateManagedPath, type CanonicalDigest } from "../../../lib/kernel/index.js";
 import { materializeArcPath, resolveArcPath } from "../../../lib/layout/index.js";
-import { resolveReviewActiveWu } from "../runtime/review-work-unit.js";
+import { resolveReviewActiveWu, resolveNamedReviewWorkUnitInvocation } from "../runtime/review-work-unit.js";
 import { resolveGitCommonDir } from "../../../lib/git/exec.js";
 import {
   CandidateConvergenceProjectionSchema,
@@ -55,8 +55,6 @@ import { createGhChangeRequestResolutionPort } from "../hosts/github/change-requ
 import { RepositoryDeliveryMemberLookup } from "../hosts/local/delivery-member-lookup.js";
 import { createLocalFrontlineSourcePreferenceReader } from "../hosts/local/frontline-source-preferences.js";
 import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
-import { createRepositoryReviewResultReader } from
-  "../hosts/local/review-result-reader-composition.js";
 import {
   createLocalReviewMethodFilePort,
   createLocalReviewRubricBindingPort,
@@ -291,7 +289,7 @@ async function readAssuranceMeta(input: ReviewInvocationInput, workUnit: string)
   const missing = () => ({ status: "refused" as const, reason: `No active meta record exists for \`${workUnit}\`.` });
   let meta: MetaRecord | null;
   if (input.store?.capabilities.stateOffBranch === true) {
-    const read = await readWorkUnit(input.store, workUnit);
+    const read = await readWorkUnit(input.store, workUnit, input.workItem);
     if (read.status === "refused") return read.refusal.code === "not-found" ? missing()
       : { status: "refused", reason: `${read.refusal.condition} ${read.refusal.remedy.text}` };
     if (read.result.conflicts.length > 0) return { status: "refused", reason:
@@ -491,19 +489,15 @@ function createPrivateMemberApplicability(input: {
  * @returns The dependency bundle `composePrePublicationReviewRequest` consumes.
  */
 export function createPrePublicationCompositionDependencies(options: ReviewInvocationInput): PrePublicationCompositionDependencies {
-  const context = createReviewCompositionContext(options);
-  const input = { ...options, ...context };
-  const reviewRecordStore = context.store;
+  const input = { ...options, ...resolveReviewInvocation(options) };
+  const reviewRecordStore = input.store;
+  const { publisher, operationStore: store, resultReader, dispositionStore } = createPrePublicationRecordAccess(input);
   let settingsPromise: ReturnType<typeof readConfigSettings> | null = null;
   const settings = async () => {
     settingsPromise ??= readConfigSettings(input.cwd);
     return (await settingsPromise).settings;
   };
-  const publisher = context.publisher;
   const rawGit = createRawGitExec(input.cwd);
-  const store = context.family.ports.inFlight;
-  const resultReader = createRepositoryReviewResultReader(publisher, input);
-  const dispositionStore = context.family.ports.dispositions;
   const deliveryMemberLookup = new RepositoryDeliveryMemberLookup(input);
   const deliveryReviewTargetDependencies = createPreBindingDeliveryReviewTargetDependencies(input);
   let repositoryIdPromise: Promise<string> | null = null;
@@ -604,6 +598,7 @@ export function createPrePublicationCompositionDependencies(options: ReviewInvoc
     confirmPriorProducerApplicability,
     readCandidate: async (workUnit): Promise<CandidateRead> => {
       const name = SlugSchema.parse(workUnit);
+      Object.assign(input, await resolveNamedReviewWorkUnitInvocation(input, name));
       const record = await readCandidateRecord(input.cwd, name, { store: reviewRecordStore, owner: input.workItem });
       if (record === null) return { status: "missing" };
       let supersessionAncestors: readonly CandidateSupersessionAncestor[];

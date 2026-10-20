@@ -6,6 +6,7 @@ import { ArchiveSequenceSchema, SlugSchema } from "../kernel/index.js";
 import type { Store } from "./contract.js";
 import { LinksSchema, CallerProvenanceSchema, type Links, type CallerProvenance } from "./links.js";
 import type { StoreRecord } from "./read.js";
+import { recordReferences, type OwnerIdentity } from "./identity.js";
 import type { StoreResult } from "./refusal.js";
 import { BatchInputSchema, MutationSchema, type Mutation, type BatchResult } from "./write.js";
 import { WritePlacementSchema, type WritePlacement, type ReadPlacement } from "./placement.js";
@@ -16,12 +17,13 @@ import { WritePlacementSchema, type WritePlacement, type ReadPlacement } from ".
  */
 export function usesOffBranchState(store?: Store): boolean { return store?.capabilities.stateOffBranch === true; }
 
-/** Read a work unit by logical slug, retaining its exact version and identity.
+/** Read a selected work-unit generation, or resolve its logical slug when no owner is supplied.
  * @param store - Operational store.
  * @param slug - Current or former work-unit slug.
  * @returns The metadata record, or the store's refusal.
  */
-export async function readWorkUnit(store: Store, slug: string): Promise<StoreResult<StoreRecord>> {
+export async function readWorkUnit(store: Store, slug: string, owner?: OwnerIdentity): Promise<StoreResult<StoreRecord>> {
+  if (owner !== undefined) return store.read({ reference: recordReferences["work-item/meta"](owner) });
   const lookup = await store.lookup({ kind: "slug", slug: SlugSchema.parse(slug) });
   if (lookup.status === "refused") return lookup;
   if (lookup.result.reference.kind !== "work-item/meta") return { status: "refused", refusal: {
