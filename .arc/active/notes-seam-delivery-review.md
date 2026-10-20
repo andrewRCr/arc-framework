@@ -638,6 +638,29 @@ keep their existing conditional-authorization key and pending-attempt behavior. 
 existing policy equality, content keys, and stored decision readers at medium depth; it adds no kind, scope selector,
 owner discovery, or alternate identity scheme. Published schemas widen before the flip without in-repo emission changes.
 
+## A17 — Native terminus projections retain absent authors
+
+The existing policy contract embeds `OwnerAcceptedReviewTerminusSchema` in both
+`ReviewPolicyCommandRequestSchema` and the `owner-accepted` result, requiring a non-null `acceptedBy`.
+`mapReviewReplayDecisions` instead preserves `decidedBy: null` for a terminus present only in a resume token.
+Section 11.2 already requires that decision to remain effective without another acceptance; projecting the current
+Owner or a sentinel would invent the missing provenance. Section 3.5 previously listed no authorless policy arm, and
+§ 9.3 stated, "The envelope's version 2 arm types it per variant, as version 1's variants do", without specifying a
+native terminus projection.
+
+The native version-two projection carries the stored decision key, nullable recorded author, and acceptance count.
+The public command schema and caller judgment remain unchanged; the internal bound-policy schema accepts both
+projections. Native authority is resolved on the selected owner before policy, and only native outputs gain the new
+projection. The boundary continues to store its key alone. This is a bounded schema/composition amendment at medium
+depth, with no record-kind, identity, policy, reach, or import change. The independent planning pass was declined;
+the required author coherence, grounding, and affected-task checks cover the amendment footprint.
+
+The propagation sweep includes the policy request/result schemas, evidence and continuation binding,
+pre-publication composition/projection, native boundary reads, corrective request payloads, and their callers.
+The mapping and its keys, ordinary/approved-fix grants, and repository terminus remain unchanged. Task 4.5 takes the
+additive amendment pointer for its native output embeddings; completed mapping scenarios retain their recorded
+outcomes. The task checklist also mirrors the already-approved ordinary-grant criterion from A16.
+
 ## Neighbors
 
 The spec names no other work unit. These are the ones its descriptive references mean, and what each owns where it

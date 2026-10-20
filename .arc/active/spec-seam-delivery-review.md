@@ -142,6 +142,10 @@ Amended 2026-10-19 — A13 admits the additive native continuation fields and en
 before the flip, extending Goal 8's exceptions and the pre-flip schema exclusion above; in-repo emissions stay
 unchanged.
 
+Amended 2026-10-20 — A17 admits the native resolved-terminus output arm in § 3.5 before the flip, extending
+Goal 8's schema exceptions and Criterion 2's pinned-schema test exceptions; caller inputs and in-repo emissions
+remain unchanged.
+
 ## Proposed Design
 
 § 1 sets the rule every field answers to and § 2 the family it produces. § 3 is everything that changes before the flip.
@@ -458,6 +462,12 @@ both, and nothing it emits changes until the flip (A2, A4):
   carry it through their published embeddings. An approved-fix pass keeps `conditionalPassAuthorizationId` alone;
   supplying both identifiers refuses. The in-repo arm emits no `decisionKey` and refuses a request naming one with
   an actionable native-context remedy. Only assertions pinning these widened schemas change before the flip.
+- **Native resolved termini (A17).** Internal bound policy requests and the `owner-accepted` policy resolution
+  payload admit the native projection defined in § 5.2. Its author may be `null` because an imported replay decision
+  records no author (`mapReviewReplayDecisions`). The public `ReviewPolicyCommandRequestSchema`, caller judgments,
+  repository version-one terminus, and correction/remedy command payloads keep their existing shapes. Only the
+  resolution output and its embeddings widen before the flip; native projections are derived from stored authority,
+  never accepted as a new caller-authorized command input. In-repo requests and emissions remain unchanged.
 - **The review error code `project-identity-unavailable`** (§ 2.4), which the review error schema, closed at four codes
   today (`ReviewCommandErrorCodeSchema`, `rg/core/review-command-error-codes.ts`), gains with a remedy-carrying variant
   for each mode (`remedialErrorVariant`, `rg/core/review-command-envelope.ts`). No clone reports it before the flip.
@@ -824,6 +834,31 @@ mismatching reference refuses actionably with no fallback grant creation; missin
 repair route. Repeating the call with the matching live reference succeeds. Two supplied forms naming different
 keys refuse as inconsistent. Without a key, a call records the active identity as § 5.7 requires and reads an existing
 identical content key instead of writing it again. Approved-fix relays keep `conditionalPassAuthorizationId`.
+
+A native resolved terminus is a projection of the selected decision, not another stored record (A17). Add
+`NativeOwnerAcceptedReviewTerminusSchema` with `schemaVersion: 2`, `semanticsVersion: "review-terminus/v2"`,
+`kind: "owner-accepted"`, `lane: "standard"`, required `decisionKey`, nullable `acceptedBy`, and `completedPasses`.
+`decisionKey` names that decision on the already bound work item; `acceptedBy` is exactly its `decidedBy`, including
+`null`, and `completedPasses` is its `basis.passCount`, not a fresh count. No reader substitutes the current Owner,
+relayer, a sentinel name, or a new decision when provenance is absent. The version-one
+`OwnerAcceptedReviewTerminusSchema` remains unchanged, with its required author.
+
+Separate the public `ReviewPolicyCommandRequestSchema` from an internal `ReviewPolicyBoundRequestSchema` accepting
+both terminus projections. Evidence binding, continuation evidence, internal policy evaluation, and pre-publication
+composition use the bound shape; command entry points and corrective request payloads keep the public shape. Native
+projections require the composition's trusted `stateOffBranch` context in evidence binding and internal evaluation; an
+in-repo invocation refuses them rather than treating them as repository authority. The `owner-accepted` resolution
+payload preserves whichever projection policy consumed. Native composition resolves the
+key against the selected owner's complete decision listing and checks terminus kind, standard lane, live status,
+subject reach (§ 5.6), and the projected author and pass-count basis before pure policy runs. Missing, conflicted,
+withdrawn, wrong-kind, or mismatching authority refuses with its repair route; a matching live decision restores the
+normal continuation. Automatic lookup assigns no new decider and requires no new acceptance. Carry names the original
+decision through the boundary under § 5.6; the boundary stores only its key, never this projection.
+
+A corrective command derived from a bound request omits the native terminus projection instead of converting it to
+an authored version-one terminus. Re-entry on the same bound owner composes the stored decision again, including
+owned generic resolution as well as pre-publication; ownerless fact-free resolution retains § 2.3's behavior. A native
+projection never leaks into the public command or remedy payload, and no retry supplies an invented author (A17).
 
 A second answer to one offer refuses as it does today. A terminus answer refuses when the recomputed live offer differs
 (`readCurrentOffer`) or the member already carries a terminus with a different pass count (`record-conflict`,
@@ -1399,7 +1434,8 @@ reference:
   the flip `prePublicationBoundary` (`rg/policy/pre-publication-procedure.ts`) strips it before the boundary is written,
   as it strips the target and response binding today. The envelope's version 2 arm types it per variant, as version 1's
   variants do: a resolve envelope on the review-resume variant, which the policy-review one folds into, or `null`, a
-  nullable one on `candidate-fix-pending`, and `null` elsewhere (§ 3.5).
+  nullable one on `candidate-fix-pending`, and `null` elsewhere (§ 3.5). Its `owner-accepted` policy payload retains the
+  native decision-key projection and its nullable recorded author (A17); the boundary still stores the key alone.
 - **Command references carry their native owner (A13).** A native operation reference is an opaque string whose
   closed payload holds `repositoryId` (the project ID), `workItem` (a work-item storage handle with its UID required),
   and `operationId`. The name in the handle is a storage hint; the UID selects the exact generation across rename and
@@ -2473,6 +2509,14 @@ spec's review copy until the candidate tail deletes it (§ 12.5).
     and recover through a matching live reference or repaired facts. Ordinary keys distinguish their target bindings;
     approved-fix keys remain unchanged. The in-repo arm retains its emissions and refuses native decision references.
 
+17. **Imported termini retain unknown provenance (A17).** An imported replay-only terminus reaches default native
+    pre-publication policy and readiness without resolving a new terminus author or obtaining another acceptance. Its
+    resolved version-two projection retains the original decision key, `acceptedBy: null`, and stored pass-count basis;
+    the boundary names that key without embedding the projection or writing a second decision. A live-authored native
+    terminus retains its actual author. Invalid or unavailable authority refuses actionably and succeeds after repair.
+    Public command inputs, version-one repository records and outputs, and corrective request payloads retain their
+    existing shapes.
+
 ## Open Questions
 
 None blocks starting. The rest are expected contracts with stated availability, and none leaves design open: the ref
@@ -2535,5 +2579,7 @@ rewrite, and deletion pass (§ 11.2, § 12.6, § 14.3).
   _Trigger:_ 4.4.R must-stop. _Work:_ 4.R4. _Revalidated:_ 4.11.
 - **A16** — 2026-10-20 — design: preserve grant bindings. _Supersedes:_ § 5.1–5.2, § 5.6, Goal 8, Criterion 2.
   _Trigger:_ 6.2.a must-stop. _Work:_ 6.2.R. _Revalidated:_ pending → 6.6.
+- **A17** — 2026-10-20 — design: retain native terminus provenance. _Supersedes:_ § 3.5, § 9.3, Goal 8, Criterion 2.
+  _Trigger:_ 6.2.b must-stop. _Work:_ 6.2.R2. _Revalidated:_ pending → 6.6.
 
 ---

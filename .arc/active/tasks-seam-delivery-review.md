@@ -628,6 +628,8 @@ through rename and slug reuse; mismatched references refuse and succeed after co
   1 as today; the run-verification action emits `"merge"` in place of `"tier-3"`; and every published schema carrying
   either, or a record's version, admits the flip's value before the flip with nothing it emits changed.
 
+    - _Amended in:_ 6.2.R2 (A17)
+
     - `[x]` **4.5.a The widened published schemas**
 
         - _Amended in:_ 4.R2 (A13)
@@ -1112,6 +1114,34 @@ this phase puts publication's claim and reopen's boundary write in their transit
                   references, and ownerless native calls require their owning context. Delivery admission identity
                   and replay comparisons omit transient keys while retaining grant constraints. Native pre-publication
                   composition reuses each stored grant without another write.
+
+    - `[ ]` **6.2.R2 Preserve native terminus provenance through policy composition**
+
+        - _Goal:_ Native policy resolves an imported terminus with no recorded author through its original decision
+          and stored pass-count basis, without changing public command inputs, repository records, or in-repo output
+          (A17).
+
+            - `[ ]` **6.2.R2.a Native projection and bound policy schema**
+                - Add the version-two native terminus projection, keeping the version-one schema and public command
+                  request strict. Separate internal bound requests, evidence/continuation binding, and resolution
+                  output so they preserve the decision key and nullable author; corrective payloads stay command-shaped.
+                - Build `test-first` (one behavior at a time): native unknown-author and known-author projections pass
+                  internal policy and output validation; native projections refuse as public command input and without
+                  trusted native backend context; legacy requests, records, and outputs retain their exact shapes.
+            - `[ ]` **6.2.R2.b Native decision reads and pre-publication composition**
+                - Resolve live termini on the selected owner, preserving recorded author and basis, and inject the
+                  native projection before policy. Native envelope and boundary projection retain the selected key;
+                  read-only re-entry asks for no new author or acceptance and writes no decision. Owned generic
+                  resolution recomposes omitted native authority from the same owner; fact-free ownerless paths stay
+                  unchanged, and corrective command payloads omit the native projection.
+                - Build `test-first` (one behavior at a time): the actual replay mapper's authorless decision reaches
+                  default pre-publication readiness and a boundary naming that key; a stored known-author decision
+                  preserves its author; wrong-kind, withdrawn, missing, or mismatching references refuse before policy
+                  and retry succeeds with matching authority. Incomplete listings retain their repair route.
+            - `[ ]` **6.2.R2.c Bounded regression proof**
+                - Verify the default imported-terminus path, bound evidence and continuation consumers, and unchanged
+                  command/remedy contracts. The live singleton and member writers and their atomic batches remain in
+                  6.2.b; re-run the full Candidate segment scenario at 6.6.
 
     - `[x]` **6.2.a Ceiling and additional extra passes**
 
@@ -1742,3 +1772,13 @@ prerequisites have landed, and every earlier task is independent of the remainin
   standard review refuse with an actionable owning-checkout remedy and succeed after context repair, without selecting
   another owner or treating unknown history as empty. Existing owner, project-identity, and in-repo behavior remain
   intact (spec, A15).
+
+- `[ ]` Native full ordinary grants retain their original host repository and nullable PR binding, and targetless
+  imports bind them at use. Relay keys preserve recorded authors and all constraints, invalid references refuse and
+  recover after repair, and incremental passes cite no grant. Approved-fix keys and in-repo emissions remain unchanged
+  (spec, A16).
+
+- `[ ]` An imported replay-only terminus reaches default native pre-publication readiness through its original key,
+  nullable recorded author, and stored pass-count basis without new acceptance or a second decision. Native policy
+  outputs preserve that projection while the boundary stores only its key; invalid authority refuses and recovers
+  after repair. Public command and corrective payloads and version-one repository behavior remain unchanged (spec, A17).
