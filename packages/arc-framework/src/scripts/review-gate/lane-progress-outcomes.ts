@@ -1,10 +1,9 @@
 /** Publish immutable ended-attempt facts before pruning their pending lane execution. */
 import type { LocalReviewState, LaneProgressState } from "./core/operation-state-schema.js";
 import { canonicalize } from "../../lib/kernel/index.js";
-import { createFrontlineOutcomeRecord } from "./core/advisory-records.js";
-import { projectFrontlineOutcome } from "../../lib/store/kinds/review/mapping-frontline.js";
+import { storedFrontlineAdmissionMatches, projectStoredFrontlineOutcome } from "./core/frontline-result.js";
 import type { FrontlineAdmission } from "./core/frontline-admission.js";
-import type { FrontlineExecutionOutcome } from "./policy/frontline-outcome.js";
+import type { FrontlineReviewOutcome } from "./policy/frontline-outcome.js";
 import type { ReviewOutcomePort } from "./core/ports.js";
 import type { ReviewReceiptV2 } from "./core/gate-contract-v2-schema.js";
 import type { ReviewLaneTransitionStore } from "./core/ports.js";
@@ -38,18 +37,17 @@ export async function publishEndedLaneOutcome(store: ReviewLaneTransitionStore, 
 
 /** Verify the run's immutable result before accepting its lane completion. */
 export async function confirmStoredFrontlineOutcome(outcomes: ReviewOutcomePort, admission: FrontlineAdmission,
-  outcome: FrontlineExecutionOutcome): Promise<void> {
+  outcome: FrontlineReviewOutcome): Promise<void> {
   const stored = await outcomes.read(admission.operationId);
   if (stored?.value.frontline === undefined) {
     throw new Error(`Frontline result '${admission.operationId}' is not stored; replay its run before ending the attempt.`);
   }
   const binding = stored.value.frontline;
-  const record = createFrontlineOutcomeRecord({ schemaVersion: 1, semanticsVersion: "review-advisory/v1",
-    repositoryId: admission.target.repositoryId, operationId: admission.operationId,
-    sourceIdentity: outcome.source.sourceId, executableIdentity: binding.executableIdentity, outcome,
-    ...(binding.responseBinding === undefined ? {} : { responseBinding: binding.responseBinding }) });
-  const projected = projectFrontlineOutcome(admission, record, stored.value.endedAt);
-  if (canonicalize(projected) !== canonicalize(stored.value)) {
+  const sourceMatches = canonicalize(outcome.source) === canonicalize(admission.frontlineReview.source)
+    || canonicalize(outcome.source) === canonicalize(binding.admission.frontlineReview.source);
+  if (!sourceMatches || !storedFrontlineAdmissionMatches(stored.value, admission, binding.responseBinding)
+    || canonicalize({ ...outcome, source: binding.admission.frontlineReview.source })
+      !== canonicalize(projectStoredFrontlineOutcome(stored.value))) {
     throw new Error(`Frontline result '${admission.operationId}' does not match its admitted completion.`);
   }
 }

@@ -26,7 +26,7 @@ import {
   REVIEW_VERSION_RETRY_ATTEMPTS,
 } from "./core/version-conflict.js";
 export { hostedLaneAttemptId } from "./hosted/request.js";
-import type { FrontlineExecutionOutcome } from "./policy/frontline-outcome.js";
+import type { FrontlineReviewOutcome } from "./policy/frontline-outcome.js";
 
 import { completeHostedAttemptIfReady } from "./hosted-response-completion.js";
 export { completeHostedAttemptIfReady } from "./hosted-response-completion.js";
@@ -646,9 +646,14 @@ export type { ConditionalPassWithdrawalResult } from "./lane-progress-conditiona
  */
 export async function recordFrontlineAttempt(
   store: ReviewLaneTransitionStore,
-  input: { admission: FrontlineAdmission; outcome: FrontlineExecutionOutcome; now: string },
+  input: { admission: FrontlineAdmission; outcome: FrontlineReviewOutcome; now: string },
 ): Promise<LaneProgressState | null> {
   const { admission, outcome } = input;
+  if (store.outcomeWriter !== undefined) {
+    await confirmStoredFrontlineOutcome(store.outcomeWriter, admission, outcome);
+    return await readLaneProgressOwner(store, { lane: "frontline", repositoryId: outcome.target.repositoryId,
+      headSha: outcome.target.headSha, lineage: admission.lineage });
+  }
   const admittedSource = admission.frontlineReview.source;
   if (admittedSource === null
     || canonicalize(outcome.target) !== canonicalize(admission.target)
@@ -659,11 +664,6 @@ export async function recordFrontlineAttempt(
   }
   const laneOutcome = frontlineLaneOutcome(outcome.outcome, outcome.reason?.class ?? null);
   if (laneOutcome === null) return null;
-  if (store.outcomeWriter !== undefined) {
-    await confirmStoredFrontlineOutcome(store.outcomeWriter, admission, outcome);
-    return await readLaneProgressOwner(store, { lane: "frontline", repositoryId: outcome.target.repositoryId,
-      headSha: outcome.target.headSha, lineage: admission.lineage });
-  }
   const complete = laneOutcome === "clean" || laneOutcome === "findings";
   return await recordLaneAttempt(store, {
     lane: "frontline",

@@ -1,39 +1,13 @@
 /** Frontline execution publishes portable facts before ending clone-local admission state. */
 import { expect, it } from "vitest";
+import { recordFrontlineAttempt } from "../../../../../src/scripts/review-gate/lane-progress.js";
 import { createFrontlineAdmission } from "../../../../../src/scripts/review-gate/core/frontline-admission.js";
-import { createReviewHarness } from "../../../../helpers/store/review-harness.js";
-import { createReviewCheckout } from "../../../../helpers/store/review-checkout.js";
-import { createFrontlineMappingFixture } from "../../../../fixtures/review-mapping.js";
-import { RepositoryGitCommonStatePublisher } from "../../../../../src/lib/git-common-state.js";
-import { createReviewOutcomePort } from "../../../../../src/lib/store/kinds/review/outcome/access.js";
-import { createReviewEvidencePort } from "../../../../../src/lib/store/kinds/review/evidence/access.js";
-import { NativeReviewInFlightStateStore } from "../../../../../src/scripts/review-gate/hosts/local/in-flight-state-store.js";
 import { LocalFrontlineOutcomeStore } from "../../../../../src/scripts/review-gate/hosts/local/frontline-outcome-store.js";
 import { executeFrontlineRun } from "../../../../../src/scripts/review-gate/policy/frontline-operation.js";
 import { normalizeFrontlineOutcome } from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
 import { createFrontlineOutcomeRecord } from "../../../../../src/scripts/review-gate/core/advisory-records.js";
-import { recordLaneAttempt, recordFrontlineAttempt } from "../../../../../src/scripts/review-gate/lane-progress.js";
 
-async function pendingFrontline(result: "clean" | "findings" = "findings") {
-  const h = createReviewHarness(), projectId = "123e4567-e89b-42d3-a456-426614174099";
-  await h.seedProject(projectId);
-  const primary = await h.seedMeta("example"), checkout = await createReviewCheckout(h);
-  try {
-    const publisher = new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd);
-    const outcomes = createReviewOutcomePort(h.store, primary.reference.owner);
-    const evidence = createReviewEvidencePort(h.store, primary.reference.owner);
-    const operations = new NativeReviewInFlightStateStore({ publisher, workItem: primary.reference.owner,
-      outcomes, evidence, projectId: h.projectId });
-    const { fixture } = await createFrontlineMappingFixture(projectId, result);
-    const { admission } = fixture;
-    await recordLaneAttempt(operations, { lane: "frontline", repositoryId: projectId, changeRequestId: null,
-      headSha: admission.target.headSha, lineage: admission.lineage, logicalPass: admission.logicalPass,
-      retryGeneration: admission.retryGeneration, attemptId: admission.operationId,
-      sourceId: fixture.outcomeRecord.sourceIdentity, outcome: "pending", consumedPass: false,
-      frontline: { admission, effectiveCoverage: null }, now: "2026-10-20T12:00:00Z" });
-    return { ...checkout, primary, publisher, outcomes, operations, fixture };
-  } catch (error) { await checkout.cleanup(); throw error; }
-}
+import { nativeFrontlineReview as pendingFrontline } from "../../../../fixtures/native-frontline-review.js";
 
 it.each(["clean", "findings", "failed"] as const)("publishes one portable %s result before ending the pending attempt", async result => {
   const h = await pendingFrontline(result === "clean" ? "clean" : "findings");

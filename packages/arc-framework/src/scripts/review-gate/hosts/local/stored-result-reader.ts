@@ -1,4 +1,5 @@
 /** Immutable producer results read from the invocation's portable review facts. */
+import { projectStoredFrontlineOutcome } from "../../core/frontline-result.js";
 import type { ReviewOutcomePort, ReviewEvidencePort, ReviewResultReader } from "../../core/ports.js";
 import type { ReviewResult } from "../../core/review-result.js";
 import type { ReviewOutcome } from "../../../../lib/store/kinds/review/outcome/schema.js";
@@ -82,9 +83,7 @@ function frontlineResult(outcome: ReviewOutcome, workItem: OwnerIdentity): Revie
       scopeMode: "whole-target", policyVersion: admission.policyVersion },
     outcomeRef: reviewOutcomeKey(outcome), sourceBindingId: frontline.sourceBindingId,
     executableIdentity: frontline.executableIdentity,
-    outcome: { schemaVersion: 1, semanticsVersion: "frontline-review/v1", source: admission.frontlineReview.source,
-      target: outcome.target, pass: outcome.logicalPass, maxPasses: admission.maxPasses,
-      outcome: outcome.outcome, findings: outcome.findings, reason: null },
+    outcome: projectStoredFrontlineOutcome(outcome),
     ...(frontline.responseBinding === undefined ? {} : { responseBinding: frontline.responseBinding }) };
 }
 

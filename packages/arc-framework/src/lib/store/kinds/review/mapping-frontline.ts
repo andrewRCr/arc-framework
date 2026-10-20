@@ -1,4 +1,5 @@
 /** Portable frontline outcomes retain original source digests before executable redaction. */
+import { projectPortableFrontlineAdmission } from "../../../../scripts/review-gate/core/portable-frontline-admission.js";
 import { frontlineLaneOutcome } from "../../../../scripts/review-gate/core/frontline-lane-outcome.js";
 import type { FrontlineOutcomeRecord } from "../../../../scripts/review-gate/core/advisory-records.js";
 import { FrontlineAdmissionSchema, type FrontlineAdmission } from "../../../../scripts/review-gate/core/frontline-admission.js";
@@ -50,9 +51,7 @@ export function projectFrontlineOutcome(admissionInput: FrontlineAdmission, reco
     requestedCoverage: "complete", effectiveCoverage: complete ? "complete" : null,
     outcome,
     findings: record.outcome.findings, endedAt,
-    frontline: { admission: { ...admission, frontlineReview: { ...admission.frontlineReview, action: "attempt", promptText,
-      source: source.kind === "command" ? { sourceId: source.sourceId, kind: "command", capability: null }
-        : { sourceId: source.sourceId, kind: "agent", capability: source.handle.capabilityId } } },
+    frontline: { admission: projectPortableFrontlineAdmission(admission),
     outcomeDigest: record.outcomeDigest, sourceBindingId, executableIdentity: record.executableIdentity,
     reason: record.outcome.reason, ...(record.responseBinding === undefined ? {} : { responseBinding: record.responseBinding }) },
   };
