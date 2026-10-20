@@ -30,6 +30,7 @@ import { prepareRefAnchors } from "./write-anchors.js";
 import { stampCompletedWrites, refreshCompletedChanges } from "./write-completed.js";
 import { planRefRetirements, sweepRefRetirements, retirementRefChanges } from "./write-retirement.js";
 import { prepareRefConflicts } from "./write-conflicts.js";
+import { refAdmissionBasisChanged } from "./write-admission.js";
 
 import { prepareRefRenames } from "./write-rename.js";
 
@@ -66,10 +67,11 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
   const retirements = await planRefRetirements(context, resolved, refWriteTargets(context, resolved), groups);
   if (retirements.status === "refused") return retirements;
   const completed = await prepareRefConflicts(context, prepared.result, groups, results);
-  const broken = await checkRefWrites(context, prepared.result, completed, tips, provenance);
-  if (broken) return { status: "refused", refusal: broken };
-  sweepRefRetirements(retirements.result, groups, completed);
   const step = await commitRefStep(context, async (physical): Promise<StoreResult<BatchResult> | "retry"> => {
+    if (await refAdmissionBasisChanged(physical, tips)) return "retry";
+    const broken = await checkRefWrites(physical, prepared.result, completed, tips, provenance);
+    if (broken) return { status: "refused", refusal: broken };
+    sweepRefRetirements(retirements.result, groups, completed);
     const committed = await prepareRefCommits(physical, prepared.result, refWriteTargets(context, resolved), groups, completed, tips, provenance, batchId);
     const archived = await archiveRefChanges(physical, committed, archives.result, groups, completed, prepared.result, tips, provenance, batchId);
     const reopened = await reopenRefChanges(physical, archived, reopens.result, tips, provenance, batchId);

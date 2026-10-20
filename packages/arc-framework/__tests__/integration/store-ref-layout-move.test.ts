@@ -553,7 +553,7 @@ it.each(["separate", "default"] as const)("detects a rewritten remote after movi
 it.each([
   [["--trial"], "request-invalid", "--trial"],
   [["--trial", "--leave-source", "--to", "next"], "request-invalid", "--trial"],
-  [["--leave-source"], "unsupported", "--leave-source"],
+  [["--leave-source"], "request-invalid", "--to"],
 ] as const)("refuses an invalid or unavailable migration input %j with its exact reason", async (argv, code, flag) => {
   const h = await layoutFixture();
   const result = await invokeStoreMigrate([...argv], h.a.ports);

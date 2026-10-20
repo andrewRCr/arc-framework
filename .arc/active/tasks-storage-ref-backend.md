@@ -406,15 +406,10 @@ and 15 for every served family, but for the assertions 4.4.d excludes by name, a
   one coherent before-state through local publication, with no effect from observation-only records and no renewed
   approval for unrelated writes.
 
-    - `[ ]` **4.R.a Serialize final native admission with publication**
-        - Move registered checks inside the existing layout publication boundary. Compare fresh logical-state and
-          history tips to the capture there, excluding tracking/control/temporary refs; retry and rebuild internally.
-          Preserve sorted ref-lock order, layout restarts, CAS retry, no-op checks, and retirement's pre-sweep view.
-        - Build `test-first` (one behavior at a time):
-            - A read-only change or new relevant ref after capture refuses through the rule and persists no writes;
-              corrected state succeeds. Unrelated changes revalidate and admit without caller recapture.
-            - A competing local writer cannot publish during admission. Sync/new-ref publication participates, and
-              existing layout moves, retirement, role replacement, failed checks, and lock cleanup remain usable.
+    - `[x]` **4.R.a Serialize final native admission with publication**
+        - Final admission recaptures logical/history tips under the existing publication lock and rebuilds changed
+          captures internally. Registered checks stay protected through the pre-sweep view and CAS publication,
+          including no-op writes; real read-only, new-owner, overlapping-writer, and pull races exercise both layouts.
 
     - `[ ]` **4.R.b Bind serialized observations and captured before-history**
         - Consume the reviewed shared API once its implementation is available: strict `RecordObservationSchema`,

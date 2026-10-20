@@ -8,7 +8,7 @@ export type RefCommitMode = "locked" | "held" | "unlocked";
 /** A changed layout requires releasing every lock and resolving the operation again. */
 export type RefCommitStepResult<T> = { status: "completed"; result: T } | { status: "layout-changed" };
 
-/** Serialize the commit alone, checking the selected layout under its last-acquired lock. */
+/** Serialize final admission and publication, checking the selected layout under its last-acquired lock. */
 export async function commitRefStep<T>(context: RefBackendContext, operation: (physical: RefBackendContext) => Promise<T>,
   mode: RefCommitMode = "locked"): Promise<RefCommitStepResult<T>> {
   const commit = async (): Promise<RefCommitStepResult<T>> => ({ status: "completed", result: await operation(await flushRefBlobStage(context)) });

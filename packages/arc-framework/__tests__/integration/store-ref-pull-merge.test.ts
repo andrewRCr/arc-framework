@@ -127,7 +127,7 @@ describe.each(["default", "separate"] as const)("pull merging in the %s layout",
   it.each(["base", "local", "incoming"] as const)("preserves a whole-record clash for repeated entry IDs in %s", async (badSide) => {
     const h = await refSyncFixture(layout), reference = RecordReferenceSchema.parse({ kind: "personal/inbox",
       owner: { type: "person", name: "andrew" } });
-    const text = (body: string) => `# User Inbox\n\n## Errand\n\n### First\n\n- _Id:_ \`11111111\`\n\n${body}\n\n### Second\n\n- _Id:_ \`22222222\`\n\nRetained.\n`;
+    const text = (body: string) => `# User Inbox\n\n## Errand\n\n### **First**\n\n- _Id:_ \`11111111\`\n\n${body}\n\n### **Second**\n\n- _Id:_ \`22222222\`\n\nRetained.\n`;
     const damage = async (client: typeof h.a, content: string) => {
       const tip = (await client.git(["rev-parse", ref])).stdout;
       const metadata = (await client.git(["rev-parse", `${ref}:andrew/metadata-andrew.json`])).stdout;

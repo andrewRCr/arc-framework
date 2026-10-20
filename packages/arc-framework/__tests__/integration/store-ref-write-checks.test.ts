@@ -129,7 +129,7 @@ describe("registered ref write checks", () => {
 
   it("runs checks while holding every ref lock in the batch", async () => {
     const held = new Set<string>();
-    const check: WriteCheck = async () => held.size === 2 ? [] : [broken("locks.test")];
+    const check: WriteCheck = async () => [...held].filter((ref) => ref !== "layout").length === 2 ? [] : [broken("locks.test")];
     const f = await createRefFixture({ "personal/document": { check }, "project-registry/counter": { check } });
     const store = createRefStore({ ...f.ports, lock: async (ref, wait) => {
       const release = await f.ports.lock(ref, wait);
