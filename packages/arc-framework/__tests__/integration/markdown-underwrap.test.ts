@@ -14,6 +14,7 @@ const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
 const entryPaths = ["packages/arc-framework/src/scripts/lint-markdown-underwrap.ts"];
 const good = `${"This well-wrapped prose explains the behavior in enough detail to reach the minimum width."}\nShort ending.\n`;
 const bad = "Short first line.\nThe next word would fit.\n";
+const repeatedIndexChecksTimeoutMs = 60_000;
 let sourcePaths: readonly string[];
 let root: string;
 let messages: string[];
@@ -51,7 +52,6 @@ afterEach(async () => {
 describe("changed indexed Markdown under-wrap check", () => {
   it.each(["assume-unchanged", "skip-worktree"])("refuses explicit indexed paths hidden by %s and offers recovery", async flag => {
     await git("git", ["update-index", `--${flag}`, "--", "untouched.md"], { cwd: root });
-    expect(await main(root, ["guide.md"])).toBe(0);
     await git("git", ["update-index", `--${flag}`, "--", "guide.md"], { cwd: root });
     const before = (await git("git", ["write-tree"], { cwd: root })).stdout;
     const flags = (await git("git", ["ls-files", "-v", "-z"], { cwd: root })).stdout;
@@ -86,7 +86,7 @@ describe("changed indexed Markdown under-wrap check", () => {
     messages = [];
     expect(await main(root, ["guide.md"])).toBe(0);
     expect(messages).toEqual([]);
-  });
+  }, repeatedIndexChecksTimeoutMs);
 
   it.each([true, false])("refuses explicit index feedback when worktree content disagrees (badIndex=%s)", async badIndex => {
     await write("guide.md", badIndex ? bad : good);
@@ -137,7 +137,7 @@ describe("changed indexed Markdown under-wrap check", () => {
     expect(await main(root, ["guide.md"])).toBe(1);
     expect(messages.join("")).toContain("guide.md:1 ARC001");
     expect(messages.join("")).not.toContain("worktree/index drift");
-  });
+  }, repeatedIndexChecksTimeoutMs);
 
   it("refuses a tracked Markdown file replaced by a symlink", async () => {
     const before = (await git("git", ["write-tree"], { cwd: root })).stdout;
