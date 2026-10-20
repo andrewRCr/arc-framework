@@ -9,6 +9,7 @@ import {
   type ReviewTarget,
 } from "../core/gate-contract-v2-schema.js";
 import type {
+  ReviewOutcomePort,
   FrontlineOutcomeStore,
   ReviewOperationStateStore,
 } from "../core/ports.js";
@@ -44,6 +45,7 @@ const MAX_TIMER_DELAY_MS = 2_147_483_647;
 const OPERATION_LOCK_COMPLETION_MARGIN_MS = 30_000;
 
 export interface FrontlineRunCommandDependencies {
+  outcomes?: ReviewOutcomePort;
   /** Encode source locators under the invocation's selected storage arm. */
   bindSourceReference?: ReviewSourceReferenceBinding;
   operationStore: ReviewOperationStateStore;
@@ -178,6 +180,7 @@ export async function runFrontlineReviewCommand(
   };
   const terminal = await withFrontlineRetryAuthorization(owner, admission, () => executeFrontlineRun({
     operationStore: dependencies.operationStore,
+    ...(dependencies.outcomes === undefined ? {} : { outcomes: dependencies.outcomes }),
     outcomeStore: dependencies.outcomeStore,
     withOperationLock: (operationId, maxWaitMs, action) => dependencies.withOperationLock(
       operationId,

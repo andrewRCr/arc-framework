@@ -22,7 +22,7 @@ import { createFixAuthorization } from "../review-gate/core/fix-authorization.js
 import { frontlineResponseBindingMatchesTarget } from "../review-gate/core/frontline-response-binding.js";
 import { parseReviewSourceReferenceForInvocation } from "../review-gate/runtime/source-invocation.js";
 import { LocalFrontlineOutcomeStore } from "../review-gate/hosts/local/frontline-outcome-store.js";
-import { computeFrontlineSourceBindingId } from "../review-gate/policy/frontline-operation.js";
+import { computeFrontlineSourceBindingId } from "../review-gate/core/frontline-source-binding.js";
 import {
   composeCandidateResponseConfirmationAction,
   type CandidateResponseConfirmationAction,

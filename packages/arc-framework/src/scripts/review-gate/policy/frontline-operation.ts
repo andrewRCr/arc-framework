@@ -1,8 +1,11 @@
 /** Durable replay and invalidation policy for non-evidentiary frontline runs. */
 
 import { z } from "zod";
+import { computeFrontlineSourceBindingId } from "../core/frontline-source-binding.js";
+import { projectFrontlineOutcome } from "../../../lib/store/kinds/review/mapping-frontline.js";
+import { reviewOutcomeKey } from "../../../lib/store/kinds/review/outcome/key.js";
 
-import { canonicalDigest, canonicalize, type CanonicalDigest } from "../../../lib/kernel/index.js";
+import { canonicalize } from "../../../lib/kernel/index.js";
 import {
   createFrontlineOutcomeRecord,
   FrontlineOutcomeRecordSchema,
@@ -22,6 +25,7 @@ import {
 } from "../core/operation-state-schema.js";
 import type {
   FrontlineOutcomeStore,
+  ReviewOutcomePort,
   ReviewOperationStateStore,
 } from "../core/ports.js";
 import {
@@ -52,30 +56,6 @@ interface FrontlineRunBinding {
   operationId: string;
   sourceBindingId: string;
   responseBinding?: BoundFrontlineResponseBinding;
-}
-
-/**
- * Bind the executable source and optional Candidate/member response authority as one identity.
- *
- * @param sourceInput - The normalized frontline source selected for the run.
- * @param responseBinding - Candidate/member authority retained by pre-publication, when present.
- * @returns The canonical source-binding digest used by operation state and response validation.
- */
-export function computeFrontlineSourceBindingId(
-  sourceInput: FrontlineSourceDescriptor,
-  responseBinding?: BoundFrontlineResponseBinding,
-): CanonicalDigest {
-  const source = FrontlineSourceDescriptorSchema.parse(sourceInput);
-  return canonicalDigest(responseBinding === undefined
-    ? {
-        domain: "arc.review-gate.frontline-source-binding/v1",
-        source,
-      }
-    : {
-        domain: "arc.review-gate.frontline-source-binding/v1",
-        source,
-        responseBinding,
-      });
 }
 
 export type FrontlineRunResolution =
@@ -210,6 +190,7 @@ export async function persistFrontlineRunOutcome(
 }
 
 export interface FrontlineRunExecutionDependencies {
+  outcomes?: ReviewOutcomePort;
   operationStore: ReviewOperationStateStore;
   outcomeStore: FrontlineOutcomeStore;
   withOperationLock<T>(
@@ -471,19 +452,26 @@ async function executeAndPersistFrontlineRun(
     outcome,
     ...(input.responseBinding === undefined ? {} : { responseBinding: input.responseBinding }),
   });
-  const currentOutcome = await dependencies.outcomeStore.readOutcome(operationId);
-  const appended = await dependencies.outcomeStore.appendOutcome(record, currentOutcome.version);
-  const terminal = await persistFrontlineRunOutcome(dependencies.operationStore, {
-    ...input,
-    outcome,
-    updatedAt: dependencies.now(),
-    expectedVersion: expectedTerminalVersion,
-  });
+  let outcomeRef: string, persistedVersion: number;
+  if (dependencies.outcomes !== undefined) {
+    const value = projectFrontlineOutcome(input.admission, record, dependencies.now());
+    await dependencies.outcomes.create(value);
+    outcomeRef = reviewOutcomeKey(value);
+    persistedVersion = expectedTerminalVersion;
+  } else {
+    const currentOutcome = await dependencies.outcomeStore.readOutcome(operationId);
+    const appended = await dependencies.outcomeStore.appendOutcome(record, currentOutcome.version);
+    const terminal = await persistFrontlineRunOutcome(dependencies.operationStore, {
+      ...input, outcome, updatedAt: dependencies.now(), expectedVersion: expectedTerminalVersion,
+    });
+    outcomeRef = appended.outcomeRef;
+    persistedVersion = terminal.version;
+  }
   return {
     operationId,
-    persistedVersion: terminal.version,
+    persistedVersion,
     target: binding.target,
-    outcomeRef: appended.outcomeRef,
+    outcomeRef,
     outcomeDigest: record.outcomeDigest,
     executableIdentity: record.executableIdentity,
     outcome,

@@ -8,7 +8,7 @@ import { dispositionSetMatchesSourceContext } from
 import { BoundFrontlineResponseBindingSchema } from
   "../../../../../../../src/scripts/review-gate/core/frontline-response-binding.js";
 import { computeFrontlineSourceBindingId } from
-  "../../../../../../../src/scripts/review-gate/policy/frontline-operation.js";
+  "../../../../../../../src/scripts/review-gate/core/frontline-source-binding.js";
 import { createFrontlineFixture } from "../../../../../../fixtures/frontline-review.js";
 import { frontlineOutcome } from "../../../../../../fixtures/review-outcome.js";
 

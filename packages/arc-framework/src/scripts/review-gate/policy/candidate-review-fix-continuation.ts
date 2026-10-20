@@ -17,7 +17,7 @@ import { frontlineResponseBindingMatchesTarget } from
 import { parseReviewSourceReference } from "../core/review-source-reference.js";
 import { LocalFrontlineOutcomeStore } from "../hosts/local/frontline-outcome-store.js";
 import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-store.js";
-import { computeFrontlineSourceBindingId } from "./frontline-operation.js";
+import { computeFrontlineSourceBindingId } from "../core/frontline-source-binding.js";
 import { createReviewCompositionContext, type ReviewCompositionContext } from "../runtime/composition-context.js";
 import type { ReviewInvocationInput, ReviewInvocationOptions } from "../runtime/invocation.js";
 

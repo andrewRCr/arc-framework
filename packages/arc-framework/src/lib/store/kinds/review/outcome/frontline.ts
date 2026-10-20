@@ -1,6 +1,6 @@
 /** Portable frontline admission snapshots retain recorded policy and result digests. */
 import { z } from "zod";
-import { frontlineLaneOutcome } from "../../../../../scripts/review-gate/lane-progress.js";
+import { frontlineLaneOutcome } from "../../../../../scripts/review-gate/core/frontline-lane-outcome.js";
 import { FrontlineAdmissionSchema } from "../../../../../scripts/review-gate/core/frontline-admission.js";
 import { PortableFrontlineAdmissionSchema } from "../../../../../scripts/review-gate/core/portable-frontline-admission.js";
 import { FrontlineExecutableIdentitySchema } from "../../../../../scripts/review-gate/core/advisory-records.js";

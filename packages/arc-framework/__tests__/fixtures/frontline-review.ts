@@ -3,7 +3,7 @@
 import type { LaneSubjectLineage } from "../../src/scripts/review-gate/core/lane-admission.js";
 import type { NormalizedReviewFinding } from "../../src/scripts/review-gate/core/finding-records.js";
 import type { BoundFrontlineResponseBinding } from "../../src/scripts/review-gate/core/frontline-response-binding.js";
-import { computeFrontlineSourceBindingId } from "../../src/scripts/review-gate/policy/frontline-operation.js";
+import { computeFrontlineSourceBindingId } from "../../src/scripts/review-gate/core/frontline-source-binding.js";
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
 import { createFrontlineAdmission } from "../../src/scripts/review-gate/core/frontline-admission.js";
 import { createFrontlineOutcomeRecord } from "../../src/scripts/review-gate/core/advisory-records.js";
