@@ -1136,6 +1136,14 @@ this phase puts publication's claim and reopen's boundary write in their transit
               subject and logical count. Exact references retain their author, reserved replay writes no new grant,
               and provider actor identity stays separate from the judgment's active identity.
         - `[ ]` **6.2.a.6 Publication status**
+            - `[x]` **6.2.a.6.1 Stored grants in reservation discharge**
+                - Native terminal policy reads stored grants without a fresh decider. Current and retained evidence
+                  preserve the verified producer and executable next source, allowing an additional Candidate pass
+                  while retaining outstanding findings and the repository arm's behavior.
+            - `[ ]` **6.2.a.6.2 Status writers and continuation projections**
+                - Bind supplied singleton and member judgments before early returns and relay selected keys.
+            - `[ ]` **6.2.a.6.3 Delivery admission relay proof**
+                - Preserve native references through production driver validation with all constraints binding.
             - Compose singleton and delivery-member grants at their selected targets before pure policy and preserve
               references in emitted continuation actions.
             - Compose stored grants in the reservation's terminal-policy read so a converged Candidate or delivery

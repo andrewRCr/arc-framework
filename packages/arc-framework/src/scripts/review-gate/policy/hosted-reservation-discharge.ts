@@ -1,4 +1,6 @@
 /** Discharge evidence for a hosted-review reservation carried across publication. */
+import { createHostedTerminalDischargeProjection } from "./hosted-terminal-discharge.js";
+import { resolveHostedTerminalPolicy, type HostedTerminalProducer } from "../runtime/hosted-terminal-policy.js";
 import { bindNativeReviewOperationReference } from "../core/review-operation-reference.js";
 import { createReviewCompositionContext } from "../runtime/composition-context.js";
 import type { ReviewInvocationInput } from "../runtime/invocation.js";
@@ -35,10 +37,8 @@ import {
   candidateExpectsEarlierReviewAttempt,
 } from "./earlier-review-applicability.js";
 import type { ReviewResolveEnvelope } from "./review-policy-driver.js";
-import { projectReviewPolicyAttempt } from "./review-policy-driver.js";
 import {
   readIncrementalPredecessorResponseEvidence,
-  resolveEvidenceBoundReviewPolicy,
 } from "./review-policy-evidence.js";
 import type { IncrementalReviewScope } from "../core/incremental-review-scope.js";
 import {
@@ -145,6 +145,7 @@ export async function projectHostedReservationDischarge(input: {
   requireEarlierApplicabilityEvidence?: boolean | ((sourceId: string) => boolean);
   bindCurrentAttemptRef?: (attemptId: string) => string;
   bindCurrentOperationRef?: (operationId: string) => string;
+  nativePassGrants?: true;
   resolveTerminalPolicy: (attempt: ProjectedLaneAttempt) => Promise<ReviewResolveEnvelope>;
   resolveEarlierTerminalPolicy: (attempt: EarlierApplicableAttempt) => Promise<ReviewResolveEnvelope>;
   resolveIncrementalCorrectionScope?: (
@@ -296,6 +297,10 @@ export async function projectHostedReservationDischarge(input: {
     return projectPendingFindings(routes, "retained")
       ?? pendingHostedReservationReview(retainedAttempts, reservation, "retained");
   };
+  const terminalDischarge = createHostedTerminalDischargeProjection({
+    nativePassGrants: input.nativePassGrants, sources: reservation.sources, nextPassContext: input.nextPassContext,
+    retainedFindingsBeforeRequest, requestContext, correctionContext: () => correctionContext(),
+  });
   const dischargeAfterRetained = async (detail: string): Promise<HostedReservationDischarge> =>
     await retainedFindingsBeforeRequest() ?? { discharged: true, detail, nextSource: null };
   const currentTerminalIsLatest = latestTerminal !== undefined && earlierHistoryReady
@@ -320,6 +325,8 @@ export async function projectHostedReservationDischarge(input: {
       ));
       if (currentTerminal !== undefined) {
         const policy = await input.resolveTerminalPolicy(currentTerminal);
+        const nativeReady = await terminalDischarge.ready(policy, currentTerminal);
+        if (nativeReady !== null) return nativeReady;
         if (policy.state === "pass-complete" && selectedClean !== undefined) {
           selectedCleanValidated = true;
           break;
@@ -391,22 +398,6 @@ export async function projectHostedReservationDischarge(input: {
       completedPasses, vehicle: target.vehicle });
     return { correctionScope, ...(coverageSelectionAction === undefined ? {} : { coverageSelectionAction }),
       ...defaultCoverage(coverageSelectionAction) };
-  };
-  const retainedTerminalPolicyStop = async (
-    policy: ReviewResolveEnvelope,
-  ): Promise<HostedReservationDischarge> => {
-    const context = policy.state === "coverage-required" ? await correctionContext() : {};
-    return {
-      discharged: false,
-      detail: `The retained terminal review producer did not establish convergence `
-        + `(${policy.state}/${policy.nextAction}).`,
-      terminalPolicyState: policy.state,
-      nextSource: null,
-      ...requestContext(),
-      ...context,
-      ...projectHostedConvergedComplete({ sources: reservation.sources,
-        nextPassContext: input.nextPassContext, policyState: policy.state }),
-    };
   };
   if (currentTerminalIsLatest && selectedClean !== undefined && selectedCleanValidated) {
     return projectSelectedOwnerDischarge(selectedClean, await retainedFindingsBeforeRequest());
@@ -523,7 +514,7 @@ export async function projectHostedReservationDischarge(input: {
       if (cleanApplicable !== undefined) {
         const policy = await input.resolveEarlierTerminalPolicy(cleanApplicable);
         if (policy.state !== "pass-complete") {
-          return retainedTerminalPolicyStop(policy);
+          return terminalDischarge.retained(policy, cleanApplicable);
         }
         return dischargeAfterRetained(`${sourceId === "delegated-agent" ? "Standard" : "Hosted"} source `
           + `\`${sourceId}\` through contribution applicability.`);
@@ -535,7 +526,7 @@ export async function projectHostedReservationDischarge(input: {
           return dischargeAfterRetained(`${sourceId === "delegated-agent" ? "Standard" : "Hosted"} source `
             + `\`${sourceId}\` through contribution applicability with no verified material findings.`);
         }
-        if (policy.state !== "findings") return retainedTerminalPolicyStop(policy);
+        if (policy.state !== "findings") return terminalDischarge.retained(policy, settledApplicable);
       }
       const orderedApplicable = selected.filter(({ applicability, logicalPass }) => (
         applicability === "retain-prior-attempt" && logicalPass === orderedLogicalPass
@@ -684,53 +675,14 @@ export function createHostedReservationDischargeReader(options: ReviewInvocation
       approvedHeadSha: approvedHead, baseRevision, vehicle });
     const currentTarget = await observeCurrentTarget();
     const readResponsePerformance = (predecessor: ReviewResult) => readLaneResponsePerformance(store, predecessor);
-    const resolveTerminalPolicy = async (terminal: {
-      readonly attemptId: string;
-      readonly logicalPass: number;
-      readonly sourceId: string;
-      readonly outcome: "clean" | "settled-findings";
-      readonly producerTarget: NonNullable<EarlierApplicableAttempt["producerTarget"]>;
-      readonly scopeMode?: "whole-target" | "chunked";
-      readonly chunkSeriesComplete?: boolean;
-    }): Promise<ReviewResolveEnvelope> => {
-      if (changeRequest === null) {
-        throw new Error("Terminal review policy requires exact change-request coordinates.");
-      }
-      const policyTarget = {
-        repository: changeRequest.repository,
-        pullRequest: changeRequest.pullRequest,
-        headSha: terminal.producerTarget.headSha,
-      };
-      const nextPassContext = await deriveHostedNextPassContext({ ...nextPassInputs,
-        predecessorId: terminal.attemptId, completedPasses: terminal.logicalPass, target: terminal.producerTarget });
-      return resolveEvidenceBoundReviewPolicy({
-        schemaVersion: 1,
-        target: policyTarget,
-        lane: "standard",
-        standardReview: reservation.obligation,
-        completedPasses: terminal.logicalPass,
-        attempts: [projectReviewPolicyAttempt({
-          attemptId: terminal.attemptId,
-          sourceId: terminal.sourceId,
-          outcome: terminal.outcome,
-          ...(terminal.chunkSeriesComplete === undefined
-            ? {}
-            : { chunkSeriesComplete: terminal.chunkSeriesComplete }),
-        })],
-        ...(terminal.scopeMode === undefined
-          ? {}
-          : { scopeSelection: { mode: terminal.scopeMode, target: policyTarget } }),
-      }, {
-        sources: reservation.sources,
-        nextPassContext,
-        maxPasses: await maxPasses(),
-        resultReader,
-        dispositionStore: dispositions,
-        readResponsePerformance: (predecessor) => readLaneResponsePerformance(store, predecessor),
-        confirmTarget: () => Promise.resolve(terminal.producerTarget),
-        confirmIncrementalApplicability,
-      });
-    };
+    const resolveTerminalPolicy = (terminal: HostedTerminalProducer) => resolveHostedTerminalPolicy({
+      terminal, operationStore: store, repositoryId: currentRepositoryId, lineage, currentTarget, changeRequest,
+      sources: reservation.sources, standardReview: reservation.obligation, maxPasses,
+      nextPassContext: () => deriveHostedNextPassContext({ ...nextPassInputs,
+        predecessorId: terminal.attemptId, completedPasses: terminal.logicalPass, target: terminal.producerTarget }),
+      evidence: { resultReader, dispositionStore: dispositions, readResponsePerformance,
+        confirmIncrementalApplicability },
+    });
     const resolveIncrementalCorrectionScope = async (
       attempt: IncrementalCorrectionScopeCandidate,
       currentHeadSha: string,
@@ -786,6 +738,7 @@ export function createHostedReservationDischargeReader(options: ReviewInvocation
       progress: await Promise.all(span.map(readProgress)) });
     const discharge = await projectHostedReservationDischarge({
       reservation, nextPassContext,
+      ...(store.stateOffBranch === true ? { nativePassGrants: true as const } : {}),
       ...(invocation === undefined ? {} : { invocation }),
       span,
       target: changeRequest === null

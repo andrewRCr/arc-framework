@@ -201,9 +201,7 @@ it.each([false, true])("records a hosted additional grant with the active identi
   const h = await completedHostedPass(workUnit);
   const request = { ...h.request, additionalPassAuthorization: h.additionalPassAuthorization };
   const raw = await h.runRequest(request);
-  expect(raw, JSON.stringify(raw)).toMatchObject(workUnit
-    ? { error: { message: "Hosted Candidate request no longer matches the fresh discharge position." } }
-    : { state: "requested", handle: { admission: { logicalPass: 2, actorIdentity: "123" } } });
+  expect(raw, JSON.stringify(raw)).toMatchObject({ state: "requested", handle: { admission: { logicalPass: 2, actorIdentity: "123" } } });
   const decisions = await createReviewDecisionPort(h.store, h.primary.reference.owner).list();
   if (decisions.status !== "complete") throw new Error(decisions.reason);
   expect(decisions.records).toHaveLength(1);

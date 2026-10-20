@@ -22,7 +22,7 @@ import {
 } from "../lane-progress.js";
 import type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
 import type { EarlierHostedAttemptApplicabilityRead } from "./earlier-review-applicability.js";
-import type { ReviewResolveEnvelope } from "./review-policy-driver.js";
+import type { ReviewResolveEnvelope, ReviewPolicyCommandRequest } from "./review-policy-driver.js";
 import type { ReviewContributionApplicabilityResult } from
   "./review-contribution-applicability.js";
 import type { HostedFindingsResponsePlan } from "../core/response-plan-schema.js";
@@ -484,6 +484,8 @@ export interface HostedReservationDischarge {
   awaitAction?: HostedAwaitEnvelope;
   localResumeAction?: { readonly schemaVersion: 1; readonly operationId: string; readonly operationRef?: string };
   requestAttempts?: readonly HostedReservationRequestAttempt[];
+  /** Verified terminal producer whose stored extra-pass judgment opened the next request. */
+  terminalAttempt?: ReviewPolicyCommandRequest["attempts"][number];
   /** Existing admitted source choice carried into a native request continuation. */
   invocation?: HostedRequestEnvelope["invocation"];
   completedPasses?: number;
