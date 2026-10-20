@@ -869,47 +869,19 @@ original execution files. Result, response, reservation, delivery, and integrati
 exact project and owner; mismatched references refuse and succeed after correction (§ 9.3). The 5.8 verifier includes
 this extension, following the 4.11 local proof.
 
-### `[ ]` **5.1 Write frontline outcomes and skip decisions, and derive the window — § 4.2, § 4.7, § 5.6, § 5.9**
+### `[x]` **5.1 Write frontline outcomes and skip decisions, and derive the window — § 4.2, § 4.7, § 5.6, § 5.9**
 
 - _Goal:_ From the flip a frontline attempt that ends writes its outcome where its run writes its result today, its
   admission numbers its pass from the derived count, a frontline skip — a Candidate's or an Errand's — is a lane-skip
   decision on the vehicle's subject, and the window's closure derives from the vehicle's records, so nothing writes or
   reads the skip marker and an Errand's skip closes its window.
 
-    - `[ ]` **5.1.a Frontline outcomes and admission**
+    - `[x]` **5.1.a Frontline outcomes and admission**
 
-        - `executeAndPersistFrontlineRun` (`rg/policy/frontline-operation.ts`) writes the attempt's outcome, composed
-          from its admission and the run's result with the frontline content § 4.2 lists, where it appends the frontline
-          outcome record today (`appendOutcome`), retaining the run's original `sourceBindingId` before redacting its
-          source, so a crash after the run leaves its result as today; `readBoundOutcome` and `validateExplicitRetry`
-          read a current or prior attempt's outcome through the outcome port; and `recordFrontlineAttempt`
-          (`rg/lane-progress.ts`) finds the outcome stored and only ends the attempt in flight (§ 4.7).
-        - From the flip the run envelope's `outcomeRef` (`rg/runtime/frontline-run-command.ts`) binds the attempt's
-          outcome key as its durable part (`bindReviewSourceReference`) in place of the frontline outcome record's
-          reference, as the composed approved-disposition record's frontline source does (4.1.a, § 9.3).
-        - Ready resolutions and run outputs retain 4.R2's native owner references. Completed run replay reads the
-          exact owner's outcome after pending state is pruned, without launching a provider again (§ 9.3, A13).
-        - A frontline admission citing no `approved-fix` extra pass numbers its pass one past the derived count, its
-          chain's included, and takes the larger of one past the highest generation among its pass's attempts, stored or
-          in flight, and the version of the in-flight record for its lane and lineage owner
-          (`admitNewFrontlineOperation`, `rg/policy/frontline-command.ts`).
-        - Admission's unresolved-findings read over the lineage and its chain (`rg/policy/frontline-command.ts`) passes
-          over an outcome that reads as outdated (§ 8.4).
-        - The in-flight admission and retry modules keep their working state's shapes, reading the lane through the
-          composed read: `rg/runtime/frontline-admission-validation.ts`, `rg/core/frontline-retry-contract.ts`, and
-          `rg/runtime/frontline-retry-remedy.ts`.
-        - Build `test-first` (one behavior at a time):
-            - a frontline attempt that ends writes one outcome keyed by its attempt ID, carrying its executable identity
-              and outcome digest and original `sourceBindingId` as recorded, with no executable path or arguments
-            - from the flip the run envelope's `outcomeRef` names the attempt's outcome key as its durable part
-            - a run interrupted after its outcome is written ends its attempt once when replayed
-            - the next frontline pass is one past the derived count, a superseded Candidate's chain included
-            - a replaced Candidate's outdated `findings` outcome leaves no unresolved finding for its successor
-            - a retry after an unfinished attempt admits at a strictly higher generation
-            - a frontline admission while another attempt is under way at its pass, or at a pass whose outcome has
-              finished, refuses
-            - a withdrawn admission that never ran leaves no outcome, and a ready response starts a run only for an
-              admission identical to it
+        - Native runs publish one immutable outcome before ending pending execution, retaining the original source
+          binding and portable executable identity. Produced references replay the stored result after pruning and
+          on a fresh checkout without provider execution; admission and retry retain derived pass/generation counts,
+          validated ancestry, and current ready-response authority.
 
     - `[x]` **5.1.b The lane-skip decision**
 
