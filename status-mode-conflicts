@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "status-mode-conflicts",
+  "claimId": "72312db581a0fb0d965283a2cd5c3a68",
+  "createdAt": "2026-10-20T17:30:16.723Z",
+  "updatedAt": "2026-10-20T17:30:16.723Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Correct Commander option attribute names so incompatible status modes fail during CLI parsing, with regression coverage.",
+  "branch": "chore/status-mode-conflicts",
+  "origin": "inbox",
+  "originEntry": "Make `arc status`'s mode exclusions name the session options by attribute name",
+  "originEntrySourceDigest": "sha256:9136d1162e9355d6a0810a44a03faaf3b5b29ea1e781795d2d91b29a8cb83318",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
