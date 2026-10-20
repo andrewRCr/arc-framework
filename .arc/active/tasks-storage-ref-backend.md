@@ -419,6 +419,9 @@ and 15 for every served family, but for the assertions 4.4.d excludes by name, a
         - Build `test-first` (one behavior at a time):
             - Present/absent and strict merge-kind observations compare exact versions and conflict sets; mismatch
               rolls back, unreadable evidence keeps its specific repair, and corrected acquisition succeeds.
+            - Expected absence preserves namespace and identity admission refusals, including missing-person-identity
+              `not-found`; repair then permits a genuinely absent observation. Establish admission before interpreting
+              the read refusal as absence.
             - Omission/empty arrays, overlap, write-once observations, duplicates, and generation rules follow shared
               conformance; observation-only records gain no result, history, provenance, identity, or conflict effect.
             - Checks receive the validated action and observations; before-history stays pinned through live,
