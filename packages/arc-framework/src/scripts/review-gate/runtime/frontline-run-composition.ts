@@ -51,6 +51,7 @@ export function createFrontlineRunDependencies(options: ReviewInvocationInput & 
   return {
     bindSourceReference: reference => bindReviewSourceReferenceForInvocation(input, reference),
     operationStore: family.ports.inFlight,
+    ...(family.mode === "stored" ? { outcomes: family.ports.outcomes } : {}),
     outcomeStore: new LocalFrontlineOutcomeStore(publisher),
     withOperationLock: (operationId, maxWaitMs, action) => withRepositoryReviewOperationLock(
       input.exec,

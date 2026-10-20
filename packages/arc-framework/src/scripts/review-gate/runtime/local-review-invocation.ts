@@ -1,8 +1,8 @@
 /** Retain native local review ownership across preparation and operation-based re-entry. */
 import { sameOwner, type OwnerIdentity } from "../../../lib/store/identity.js";
 import type { RawGitExec } from "../../../lib/git/exec.js";
-import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
-import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-store.js";
+import { ProjectIdentityError } from "../../../lib/store/project-identity.js";
+import { createReviewCompositionContext } from "./composition-context.js";
 import { LocalAttestCommandError, LocalAttestRequestSchema } from "./local-attest-command.js";
 import { LocalResumeCommandError, LocalResumeRequestSchema } from "./local-resume-command.js";
 import { resolveReviewOperationInvocation, ReviewContinuationReferenceError } from "./continuation-invocation.js";
@@ -37,8 +37,11 @@ export async function resolveLocalReviewInvocation(options: LocalReviewInvocatio
 
 async function readLocalReviewOperationOwner(input: LocalReviewInvocationInput, operationId: string,
   failure: (message: string) => Error): Promise<OwnerIdentity | null> {
-  const operations = new LocalReviewOperationStateStore(new RepositoryGitCommonStatePublisher(input.exec, input.cwd));
-  const { state } = await operations.readOperation(operationId);
+  const operations = createReviewCompositionContext(input).family.ports.inFlight;
+  const { state } = await operations.readOperation(operationId).catch((error: unknown) => {
+    if (error instanceof ProjectIdentityError) throw error;
+    throw failure(`Restore the pending local review record and retry: ${error instanceof Error ? error.message : String(error)}`);
+  });
   if (state === null) return null;
   if (state.kind !== "local-review" || state.operationId !== operationId) {
     throw failure("local review operation is unavailable");

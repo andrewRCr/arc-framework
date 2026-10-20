@@ -1,6 +1,7 @@
 /** Durable per-attempt lane progress at the fidelity the review-policy driver reads. */
 
 import { frontlineLaneOutcome } from "./core/frontline-lane-outcome.js";
+import { recordNativeResponsePerformance, settleNativeLaneFindings } from "./runtime/native-response-transitions.js";
 import { createHash } from "node:crypto";
 
 import { canonicalize, type CanonicalDigest } from "../../lib/kernel/index.js";
@@ -733,6 +734,7 @@ export async function settleLaneAttempt(
     now: string;
   },
 ): Promise<LaneProgressState> {
+  if (store.nativeFacts !== undefined) return settleNativeLaneFindings(store.nativeFacts, store, input);
   const operationId = laneProgressOperationId(input);
   const { version, state } = await store.readOperation(operationId);
   if (state === null
@@ -762,7 +764,7 @@ export async function settleLaneAttempt(
 }
 
 /** Record the durable head produced by a fully performed approved response and retain direct predecessors. */
-type LaneResponsePerformanceInput = Parameters<typeof recordLaneResponsePerformance>[1];
+type LaneResponsePerformanceInput = Parameters<typeof recordRepositoryLaneResponsePerformance>[1];
 
 function responsePerformanceOwnerMatches(
   state: LaneProgressState | null,
@@ -791,7 +793,7 @@ function validateCandidateResponseBinding(input: {
   }
 }
 
-export async function recordLaneResponsePerformance(
+async function recordRepositoryLaneResponsePerformance(
   store: ReviewOperationStateStore,
   input: {
     lane: LaneProgressState["lane"];
@@ -807,7 +809,6 @@ export async function recordLaneResponsePerformance(
     now: string;
   },
 ): Promise<LaneProgressState> {
-  validateCandidateResponseBinding(input);
   const operationId = laneProgressOperationId(input);
   for (let writeAttempt = 0; writeAttempt < REVIEW_VERSION_RETRY_ATTEMPTS; writeAttempt += 1) {
     const { version, state } = await store.readOperation(operationId);
@@ -853,6 +854,14 @@ export async function recordLaneResponsePerformance(
     }
   }
   throw new Error("lane response performance exceeded version-conflict retry attempts");
+}
+
+/** Record complete response performance through the selected evidence or repository substrate. */
+export async function recordLaneResponsePerformance(store: ReviewOperationStateStore,
+  input: LaneResponsePerformanceInput): Promise<LaneProgressState> {
+  validateCandidateResponseBinding(input);
+  if (store.nativeFacts !== undefined) return recordNativeResponsePerformance(store.nativeFacts, store, input);
+  return recordRepositoryLaneResponsePerformance(store, input);
 }
 
 type LanePolicyLocalBinding = Omit<

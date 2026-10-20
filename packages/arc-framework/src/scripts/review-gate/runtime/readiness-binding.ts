@@ -26,15 +26,18 @@ export async function readReviewReadinessBinding(input: ReviewReadinessReadInput
       if (read.status === "refused") throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
       const listing = read.result;
       if (listing.status === "unreadable") throw new Error(`${listing.condition} ${listing.remedy.text}`);
+      if (listing.status === "complete" && (listing.missed || listing.diagnostics.length > 0)) {
+        throw new Error(`${kind}: incomplete listing`);
+      }
       const conflicts = listing.status === "complete" ? listing.records.flatMap(record => record.conflicts) : [];
       if (conflicts.length > 0) throw new Error(`Review readiness has unresolved conflicts.${describeRecordConflicts(conflicts)}`);
       return listing;
     };
-    const [outcomes, evidence, decisions, owner] = await Promise.all([
+    const [outcomes, evidence, decisions] = await Promise.all([
       list("review/outcome"), list("review/evidence"), list("review/decision"),
-      readLaneProgressOwner(input.inFlight, { lane: "standard", repositoryId: input.repositoryId,
-        headSha: input.headSha, lineage: { kind: "candidate", candidateId: input.candidateId } }),
     ]);
+    const owner = await readLaneProgressOwner(input.inFlight, { lane: "standard", repositoryId: input.repositoryId,
+      headSha: input.headSha, lineage: { kind: "candidate", candidateId: input.candidateId } });
     return deriveReviewReadinessBinding({ subjectOwner: { kind: "candidate", candidateId: input.candidateId },
       outcomes, evidence, decisions, inFlight: owner?.attempts.filter(({ outcome }) => outcome === "pending") ?? [] });
   } catch (error) {

@@ -34,6 +34,7 @@ export function createLocalAttestDependencies(options: ReviewInvocationInput): L
     bindSourceReference: reference => bindReviewSourceReferenceForInvocation(input, reference),
     withLocalReviewLock: (action) => withRepositoryLocalReviewLock(input.exec, input.cwd, action),
     operationStore: prepare.operationStore,
+    ...(prepare.outcomes === undefined ? {} : { outcomes: prepare.outcomes }),
     sourceStore: prepare.sourceStore,
     receiptStore: {
       readReceipts: async (targetId) => (await receipts()).readReceipts(targetId),

@@ -13,10 +13,11 @@ import { createReviewHarness } from "../../helpers/store/review-harness.js";
 import { createReviewCheckout } from "../../helpers/store/review-checkout.js";
 import { createCandidateAttestation, createCandidateSubjectSnapshot } from "../../../src/lib/work-unit/candidate-attestation.js";
 import { IntegrationBoundaryLocusV2Schema } from "../../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
-import { FrontlineResolveEnvelopeSchema, FrontlineRunEnvelopeSchema, ReduceEnvelopeSchema } from "../../../src/scripts/review-gate/core/review-command-envelope.js";
+import { FrontlineResolveEnvelopeSchema, FrontlineRunEnvelopeSchema, ReduceEnvelopeSchema, RespondEnvelopeSchema } from "../../../src/scripts/review-gate/core/review-command-envelope.js";
 import { RepositoryGitCommonStatePublisher } from "../../../src/lib/git-common-state.js";
-import { LocalFrontlineOutcomeStore } from "../../../src/scripts/review-gate/hosts/local/frontline-outcome-store.js";
-import { LocalReviewOperationStateStore } from "../../../src/scripts/review-gate/hosts/local/operation-state-store.js";
+import { createReviewOutcomePort } from "../../../src/lib/store/kinds/review/outcome/access.js";
+import { createReviewCompositionContext } from "../../../src/scripts/review-gate/runtime/composition-context.js";
+import { nativeReviewInFlightRecordName } from "../../../src/scripts/review-gate/hosts/local/in-flight-state-store.js";
 import { laneProgressOperationId } from "../../../src/scripts/review-gate/lane-progress.js";
 import { lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { bindNativeReviewOperationReference, parseNativeReviewOperationReference } from "../../../src/scripts/review-gate/core/review-operation-reference.js";
@@ -24,7 +25,11 @@ import type { Store } from "../../../src/lib/store/contract.js";
 import type { OwnerIdentity } from "../../../src/lib/store/identity.js";
 import { createStore } from "../../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
-import { SlugSchema } from "../../../src/lib/kernel/index.js";
+import { ArchiveQuarterSchema, SlugSchema } from "../../../src/lib/kernel/index.js";
+import { approveDispositionState } from "../../../src/scripts/review-gate/core/dispositions.js";
+import { createReviewEvidencePort } from "../../../src/lib/store/kinds/review/evidence/access.js";
+import { projectStandardReviewObligation } from "../../../src/scripts/review-gate/policy/standard-review-projection.js";
+import { createReviewDecisionPort } from "../../../src/lib/store/kinds/review/decision/access.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 const head = "a".repeat(40), base = "b".repeat(40);
@@ -161,8 +166,10 @@ it("runs the admitted work-unit generation after its name is reused", async () =
   const primary = lifecycleSuccess(await h.store.read({ reference: selected.reference }));
   const resolution = FrontlineResolveEnvelopeSchema.parse(await h.resolve("force"));
   if (resolution.state !== "ready") throw new Error(JSON.stringify(resolution));
-  lifecycleSuccess(await h.store.write({ action: "remove", reference: primary.reference, expected: primary.version,
-    provenance: { verb: "remove", lifecycleAction: "remove" } }));
+  lifecycleSuccess(await h.store.write({ action: "put", reference: primary.reference, expected: primary.version,
+    content: primary.content,
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
+    provenance: { verb: "archive", lifecycleAction: "archive" } }));
   const replacement = await h.seedMeta("example", { branch: null }, { kind: "active" }, {
     branches: [{ repository: projectId, ref: "topic/opaque", linkedAs: "adopted", excluded: [] }],
   });
@@ -170,25 +177,33 @@ it("runs the admitted work-unit generation after its name is reused", async () =
   vi.stubEnv("PATH", "");
   onTestFinished(() => { vi.unstubAllEnvs(); });
   expect(await h.run(resolution)).toMatchObject({ state: "unavailable", nextAction: "operator-repair" });
-  const operations = new LocalReviewOperationStateStore(new RepositoryGitCommonStatePublisher(h.exec, h.cwd));
-  const saved = await operations.readOperation(resolution.payload.admission.operationId);
-  expect(saved.state).toMatchObject({ workItem: primary.reference.owner });
+  const workItem = parseNativeReviewOperationReference(resolution.payload.operationRef ?? "").workItem;
+  const saved = await createReviewOutcomePort(h.store, workItem).read(resolution.payload.admission.operationId);
+  expect(saved?.reference.owner).toEqual(primary.reference.owner);
 });
 
 it("reports a missing admission owner and runs after its working state is repaired", async () => {
   const h = await fixture();
   const resolution = FrontlineResolveEnvelopeSchema.parse(await h.resolve("force"));
   if (resolution.state !== "ready") throw new Error(JSON.stringify(resolution));
-  const operations = new LocalReviewOperationStateStore(new RepositoryGitCommonStatePublisher(h.exec, h.cwd));
+  const workItem = parseNativeReviewOperationReference(resolution.payload.operationRef ?? "").workItem;
+  const operations = createReviewCompositionContext({ ...h, workItem }).family.ports.inFlight;
   const admission = resolution.payload.admission;
   const saved = await operations.readOperation(laneProgressOperationId({ lane: "frontline", repositoryId: projectId,
     headSha: head, lineage: admission.lineage }));
   if (saved.state?.kind !== "lane-progress") throw new Error("Expected admitted lane owner");
-  const { workItem, ...unbound } = saved.state;
-  if (workItem === undefined) throw new Error("Expected selected owner");
-  const corrupt = await operations.publishOperation(unbound, saved.version);
-  expect(await h.run(resolution)).toMatchObject({ error: { code: "corrupt-state", message: "frontline admission has no selected work item" } });
-  await operations.publishOperation(saved.state, corrupt.version);
+  if (workItem.type !== "work-item" || workItem.uid === undefined) throw new Error("Expected selected UID");
+  const publisher = new RepositoryGitCommonStatePublisher(h.exec, h.cwd);
+  const location = { root: "review-gate", namespace: "in-flight" } as const;
+  const name = nativeReviewInFlightRecordName(workItem.uid, saved.state.operationId);
+  const raw = await publisher.read(location, name);
+  if (raw === null) throw new Error("Expected real native admission");
+  const corrupt = JSON.parse(raw) as { state: Record<string, unknown> };
+  delete corrupt.state.workItem;
+  await publisher.update(location, name, () => ({ kind: "write", content: JSON.stringify(corrupt), result: undefined }));
+  expect(await h.run(resolution)).toMatchObject({ error: { code: "corrupt-state",
+    message: expect.stringContaining("Restore the pending frontline admission and retry") } });
+  await publisher.update(location, name, () => ({ kind: "write", content: raw, result: undefined }));
   vi.stubEnv("PATH", "");
   onTestFinished(() => { vi.unstubAllEnvs(); });
   expect(await h.run(resolution)).toMatchObject({ state: "unavailable", nextAction: "operator-repair" });
@@ -201,7 +216,8 @@ it.each(["errand", "work-unit"] as const)("retains the selected %s generation wi
   const resolution = FrontlineResolveEnvelopeSchema.parse(await h.resolve("force"));
   if (resolution.state !== "ready") throw new Error(JSON.stringify(resolution));
   const admission = resolution.payload.admission;
-  const operations = new LocalReviewOperationStateStore(new RepositoryGitCommonStatePublisher(h.exec, h.cwd));
+  const workItem = parseNativeReviewOperationReference(resolution.payload.operationRef ?? "").workItem;
+  const operations = createReviewCompositionContext({ ...h, workItem }).family.ports.inFlight;
   const saved = await operations.readOperation(laneProgressOperationId({ lane: "frontline", repositoryId: projectId,
     headSha: head, lineage: admission.lineage }));
   expect(saved.state).toMatchObject({ workItem: selected.reference.owner });
@@ -214,6 +230,23 @@ it.each(["skip", "force"] as const)("resolves a native Errand's %s without an in
   const result = await h.resolve(mode);
   expect(result, JSON.stringify(result)).toMatchObject({ state: mode === "skip" ? "skipped" : "ready",
     nextAction: mode === "skip" ? "none" : "run-frontline" });
+});
+
+it.each(["errand", "work-unit"] as const)("persists a native %s skip and closes its opening window on replay", async vehicle => {
+  const h = await fixture(true, vehicle);
+  const selected = lifecycleSuccess(await h.store.lookup({ kind: "slug",
+    slug: SlugSchema.parse(vehicle === "errand" ? "repair" : "example") }));
+  expect(await h.resolve("skip")).toMatchObject({ state: "skipped", nextAction: "none" });
+  const decisions = createReviewDecisionPort(h.store, selected.reference.owner);
+  const first = await decisions.list();
+  expect(first).toMatchObject({ status: "complete", records: [{ value: {
+    lane: "frontline", choice: { kind: "lane-skip" }, decidedBy: "test-user",
+    subject: { headSha: head }, basis: null,
+  } }] });
+  expect(await h.resolve("force")).toMatchObject({ state: "skipped", nextAction: "none",
+    diagnostics: [{ code: "frontline-window-closed" }] });
+  expect(await h.resolve("skip")).toMatchObject({ state: "skipped", nextAction: "none" });
+  expect(await decisions.list()).toEqual(first);
 });
 
 it("reports missing project identity and resolves normally after repair", async () => {
@@ -261,9 +294,9 @@ it.each(["missing", "foreign-project", "bound-owner", "pending-owner", "malforme
     vi.stubEnv("PATH", "");
     onTestFinished(() => { vi.unstubAllEnvs(); });
     expect(await h.run({ ...resolution, payload: { ...resolution.payload, operationRef } },
-      { workItem: invalid === "bound-owner" ? other.reference.owner : undefined })).toMatchObject({ error: {
-        code: "invalid-input", message: expect.stringContaining("matching reference"),
-      } });
+      { workItem: invalid === "bound-owner" ? other.reference.owner : undefined })).toMatchObject({ error: invalid === "pending-owner"
+        ? { code: "invalid-input", message: expect.stringContaining("frontline ready admission is unavailable") }
+        : { code: "invalid-input", message: expect.stringContaining("matching reference") } });
     expect(await h.run(resolution)).toMatchObject({ state: "unavailable", nextAction: "operator-repair",
       payload: { operationRef: resolution.payload.operationRef } });
   });
@@ -286,17 +319,19 @@ async function completedFindings(vehicle: "work-unit" | "errand" = "errand") {
   expect(raw, JSON.stringify(raw)).toMatchObject({ state: "findings", nextAction: "respond" });
   const result = FrontlineRunEnvelopeSchema.parse(raw);
   if (result.state !== "findings") throw new Error(JSON.stringify(result));
-  const saved = await new LocalFrontlineOutcomeStore(new RepositoryGitCommonStatePublisher(h.exec, h.cwd))
-    .readOutcome(result.payload.operationId);
-  if (saved.record?.outcome.outcome !== "findings") throw new Error("Expected produced findings");
-  return { ...h, resolution, result, findings: saved.record.outcome.findings };
+  const workItem = parseNativeReviewOperationReference(resolution.payload.operationRef).workItem;
+  const saved = await createReviewOutcomePort(h.store, workItem).read(result.payload.operationId);
+  if (saved?.value.outcome !== "findings") throw new Error("Expected produced findings");
+  return { ...h, resolution, result, findings: saved.value.findings };
 }
 
 it.each(["run", "reduce"] as const)("retains the native frontline source owner through %s findings", async command => {
   const h = await completedFindings();
   let outcomeRef = h.result.payload.outcomeRef;
   if (command === "reduce") {
-    const reduced = ReduceEnvelopeSchema.parse(await h.reduce(h.result.payload.operationId));
+    const raw = await h.reduce(h.result.payload.operationId);
+    expect(raw, JSON.stringify(raw)).toMatchObject({ state: "findings" });
+    const reduced = ReduceEnvelopeSchema.parse(raw);
     if (reduced.state !== "findings" || reduced.payload.responseSource.kind !== "frontline") throw new Error(JSON.stringify(reduced));
     outcomeRef = reduced.payload.responseSource.outcomeRef;
   }
@@ -308,12 +343,37 @@ it.each(["run", "reduce"] as const)("retains the native frontline source owner t
 
 it.each(["work-unit", "errand"] as const)("binds a %s response proposal from the default frontline source", async vehicle => {
   const h = await completedFindings(vehicle);
-  const request = withReviewReport({ schemaVersion: 1, source: { kind: "frontline", outcomeRef: h.result.payload.outcomeRef },
+  const request = frontlineProposal(h);
+  const response = await h.respond(request);
+  expect(response, JSON.stringify(response)).toMatchObject({ state: "awaiting-approval", nextAction: "obtain-approval" });
+});
+
+function frontlineProposal(h: Awaited<ReturnType<typeof completedFindings>>) {
+  return withReviewReport({ schemaVersion: 1, source: { kind: "frontline", outcomeRef: h.result.payload.outcomeRef },
     proposal: { proposedVerification: "focused", severityGatingPolicy: { minorGating: "record-only" },
       findings: h.findings.map(finding => ({ findingId: finding.findingId,
         sourceVerification: "verified", verifiedSeverity: finding.severity, verificationRefs: [finding.evidenceUrlOrId],
         disposition: "defer", title: "Preserve target facts", issue: "The target changes before continuation.",
         rationale: "The selected source supports the finding.", recommendation: "Retain the target facts.", openQuestions: [] })) } });
-  const response = await h.respond(request);
-  expect(response, JSON.stringify(response)).toMatchObject({ state: "awaiting-approval", nextAction: "obtain-approval" });
+}
+
+it("records a performed native frontline response through the default handler", async () => {
+  const h = await completedFindings();
+  const proposal = RespondEnvelopeSchema.parse(await h.respond(frontlineProposal(h)));
+  if (proposal.state !== "awaiting-approval" || h.resolution.state !== "ready") throw new Error("Expected proposal and admission");
+  const dispositions = approveDispositionState({ proposed: proposal.payload.proposal, approvedBy: "test-user",
+    approvedAt: new Date().toISOString() });
+  const request = { schemaVersion: 1, source: { kind: "frontline", outcomeRef: h.result.payload.outcomeRef }, dispositions,
+    policyRequest: { schemaVersion: 1, lane: "frontline", target: { repository: "owner/repository", pullRequest: null, headSha: head },
+      standardReview: projectStandardReviewObligation(h.resolution.payload.routing.decision), completedPasses: 1,
+      attempts: [{ sourceId: "coderabbit-cli", outcome: "findings", reviewOperationId: h.result.payload.operationId }] } };
+  const result = await h.respond(request);
+  expect(result, JSON.stringify(result)).toMatchObject({ state: "settled" });
+  const workItem = parseNativeReviewOperationReference(h.resolution.payload.operationRef ?? "").workItem;
+  const evidence = createReviewEvidencePort(h.store, workItem);
+  const first = await evidence.read(dispositions.dispositionSet.dispositionSetId);
+  expect(first?.value.performance).toMatchObject({ producerId: h.result.payload.operationId,
+    originatingHeadSha: head, producedHeadSha: head });
+  expect(await h.respond(request)).toMatchObject({ state: "already-settled" });
+  expect(await evidence.read(dispositions.dispositionSet.dispositionSetId)).toEqual(first);
 });

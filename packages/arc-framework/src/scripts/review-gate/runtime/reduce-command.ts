@@ -2,6 +2,8 @@
 
 import { z } from "zod";
 import { NativeReviewOperationRefSchema, nativeReviewOperationReferenceMatches, bindNativeReviewOperationReference } from "../core/review-operation-reference.js";
+import { projectStoredFrontlineOutcome } from "../core/frontline-result.js";
+import type { FrontlineReviewOutcome } from "../policy/frontline-outcome.js";
 import { reviewOutcomeKey } from "../../../lib/store/kinds/review/outcome/key.js";
 import type { ReviewOutcome } from "../../../lib/store/kinds/review/outcome/schema.js";
 import { ProjectIdentityError } from "../../../lib/store/project-identity.js";
@@ -337,10 +339,7 @@ async function reduceFrontline(
     throw new ReduceCommandError("frontline review operation is unavailable");
   }
   const state = persisted.state;
-  const [outcomeReading, disposition] = await Promise.all([
-    dependencies.outcomeStore.readOutcome(operationId),
-    dependencies.dispositionStore.readDispositionRecord(operationId),
-  ]);
+  const outcomeReading = await dependencies.outcomeStore.readOutcome(operationId);
   if (state.outcome === "pending") {
     throw new ReduceCommandError("frontline operation is still pending");
   }
@@ -366,6 +365,12 @@ async function reduceFrontline(
     || outcome.pass !== state.logicalPass) {
     throw new ReduceCommandError("frontline outcome does not match its operation");
   }
+  return reduceFrontlineOutcome(operationId, outcome, outcomeReading.outcomeRef, persisted.version, dependencies);
+}
+
+async function reduceFrontlineOutcome(operationId: string, outcome: FrontlineReviewOutcome,
+  durableOutcomeRef: string, persistedVersion: number, dependencies: ReviewReductionAdapterDependencies, operationRef?: string) {
+  const disposition = await dependencies.dispositionStore.readDispositionRecord(operationId);
   const confirmation = await dependencies.confirmTarget(outcome.target);
   if (confirmation.state === "stale-target") {
     return ReduceEnvelopeSchema.parse({
@@ -376,7 +381,8 @@ async function reduceFrontline(
       nextAction: "prepare-current-target",
       payload: {
         operationId,
-        persistedVersion: persisted.version,
+        persistedVersion,
+        ...(operationRef === undefined ? {} : { operationRef }),
         attemptedTarget: confirmation.attemptedTarget,
         currentTarget: confirmation.currentTarget,
       },
@@ -385,69 +391,23 @@ async function reduceFrontline(
   const outcomeRef = await (dependencies.bindSourceReference ?? bindReviewSourceReference)({
     kind: "frontline",
     operationId,
-    durableRef: outcomeReading.outcomeRef,
+    durableRef: durableOutcomeRef,
   });
+  const locator = operationRef === undefined ? {} : { operationRef };
   const base = {
     operationId,
-    persistedVersion: persisted.version,
+    persistedVersion,
     currentTarget: outcome.target,
   };
-  if (outcome.outcome === "findings") {
-    const result = await dependencies.resultReader.readResult(operationId);
-    if (result.kind !== "frontline"
-      || result.originalOutcome !== "findings"
-      || result.outcomeRef !== outcomeReading.outcomeRef) {
-      throw new ReduceCommandError("frontline review result snapshot mismatch");
-    }
-    if (disposition === null) {
-      const projected = projection({
-        ...base,
-        state: "findings",
-        nextAction: "respond",
-        sourceRefs: [outcomeRef],
-      });
-      return ReduceEnvelopeSchema.parse({
-        schemaVersion: 1,
-        mode: "review-reduce",
-        diagnostics: [],
-        state: "findings",
-        nextAction: "respond",
-        payload: {
-          ...base,
-          projection: projected,
-          responseSource: { kind: "frontline", outcomeRef },
-        },
-      });
-    }
-    try {
-      validateApprovedDispositionRecordForResult(disposition, result);
-    } catch {
-      throw new ReduceCommandError("approved disposition snapshot mismatch");
-    }
-    const projected = projection({ ...base, state: "advisory-complete", nextAction: "none" });
-    return ReduceEnvelopeSchema.parse({
-      schemaVersion: 1,
-      mode: "review-reduce",
-      diagnostics: [],
-      state: "advisory-complete",
-      nextAction: "none",
-      payload: {
-        ...base,
-        projection: projected,
-        frontlineOutcomeRef: outcomeRef,
-        frontlineFollowUp: projectFrontlineFollowUpAdvice({
-          outcome,
-          dispositionState: currentApprovedDispositionNode(disposition).approvedDisposition,
-        }),
-      },
-    });
-  }
+  if (outcome.outcome === "findings") return reduceFrontlineFindings({
+    operationId, outcome, durableOutcomeRef, outcomeRef, base, locator,
+  }, disposition, dependencies);
   if (disposition !== null) throw new ReduceCommandError("non-findings outcome has an approved disposition");
   if (outcome.outcome === "clean") {
     const result = await dependencies.resultReader.readResult(operationId);
     if (result.kind !== "frontline"
       || result.originalOutcome !== "clean"
-      || result.outcomeRef !== outcomeReading.outcomeRef) {
+      || result.outcomeRef !== durableOutcomeRef) {
       throw new ReduceCommandError("frontline review result snapshot mismatch");
     }
   }
@@ -461,6 +421,7 @@ async function reduceFrontline(
       nextAction: "none",
       payload: {
         ...base,
+        ...locator,
         projection: projected,
         frontlineOutcomeRef: outcomeRef,
         frontlineFollowUp: projectFrontlineFollowUpAdvice({ outcome }),
@@ -479,9 +440,74 @@ async function reduceFrontline(
     nextAction: "operator-repair",
     payload: {
       ...base,
+      ...locator,
       retryCommand: "frontline-run",
       requestRef: operationId,
       retryOfOperationId: operationId,
+    },
+  });
+}
+
+interface FrontlineFindingsReduction {
+  operationId: string;
+  outcome: FrontlineReviewOutcome;
+  durableOutcomeRef: string;
+  outcomeRef: string;
+  base: { operationId: string; persistedVersion: number; currentTarget: ReviewTarget };
+  locator: { operationRef?: string };
+}
+
+async function reduceFrontlineFindings(input: FrontlineFindingsReduction,
+  disposition: ApprovedDispositionRecord | null, dependencies: ReviewReductionAdapterDependencies) {
+  const { operationId, outcome, durableOutcomeRef, outcomeRef, base, locator } = input;
+  const result = await dependencies.resultReader.readResult(operationId);
+  if (result.kind !== "frontline"
+    || result.originalOutcome !== "findings"
+    || result.outcomeRef !== durableOutcomeRef) {
+    throw new ReduceCommandError("frontline review result snapshot mismatch");
+  }
+  if (disposition === null) {
+    const projected = projection({
+      ...base,
+      state: "findings",
+      nextAction: "respond",
+      sourceRefs: [outcomeRef],
+    });
+    return ReduceEnvelopeSchema.parse({
+      schemaVersion: 1,
+      mode: "review-reduce",
+      diagnostics: [],
+      state: "findings",
+      nextAction: "respond",
+      payload: {
+        ...base,
+        ...locator,
+        projection: projected,
+        responseSource: { kind: "frontline", outcomeRef },
+      },
+    });
+  }
+  try {
+    validateApprovedDispositionRecordForResult(disposition, result);
+  } catch {
+    throw new ReduceCommandError("approved disposition snapshot mismatch");
+  }
+  const projected = projection({ ...base, state: "advisory-complete", nextAction: "none" });
+  return ReduceEnvelopeSchema.parse({
+    schemaVersion: 1,
+    mode: "review-reduce",
+    diagnostics: [],
+    state: "advisory-complete",
+    nextAction: "none",
+    payload: {
+      ...base,
+      ...locator,
+      projection: projected,
+      frontlineOutcomeRef: outcomeRef,
+      frontlineFollowUp: projectFrontlineFollowUpAdvice({
+        outcome,
+        dispositionState: currentApprovedDispositionNode(disposition).approvedDisposition,
+      }),
     },
   });
 }
@@ -501,6 +527,12 @@ export class DurableReviewReductionPort implements ReviewReductionPort {
       const outcome = await this.#dependencies.outcomes?.read(operationId);
       if (outcome?.value.local !== undefined) {
         return await reduceStoredLocal(outcome, persisted, this.#dependencies);
+      }
+      if (outcome?.value.frontline !== undefined) {
+        return await reduceFrontlineOutcome(operationId, projectStoredFrontlineOutcome(outcome.value),
+          reviewOutcomeKey(outcome.value), persisted.version, this.#dependencies,
+          bindNativeReviewOperationReference({ operationId, repositoryId: outcome.value.target.repositoryId,
+            workItem: outcome.reference.owner }));
       }
       if (persisted.state === null || persisted.state.operationId !== operationId) {
         throw new ReduceCommandError("review operation is unavailable");

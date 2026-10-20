@@ -1,4 +1,6 @@
 /** Production adapters for the local review prepare command. */
+import { readLocalReviewReceipts } from "./local-outcome-receipts.js";
+import { sweepLocalReviewMaterializations } from "./local-source-sweep-composition.js";
 import type { LocalReviewInvocationInput } from "./local-review-invocation.js";
 import { resolveLocalPolicyTarget, createLocalContributionConfirmation } from "./local-correction-context.js";
 import type { ApprovedDispositionRecordReader, ReviewOperationStateStore } from "../core/ports.js";
@@ -61,14 +63,12 @@ import {
   resolveLocalReviewPolicyBinding,
   validateLocalReviewPolicySelection,
 } from "../policy/local-review-policy.js";
-import { RepositoryLocalReviewSourceSweepAdapter } from "../hosts/local/source-sweep.js";
 import { LocalForwardReviewReceiptStore } from "../hosts/local/receipt-store.js";
 import {
   confirmCurrentDispositionSet,
 } from "../hosts/local/disposition-record-store.js";
 import { createRepositoryReviewResultReader } from
   "../hosts/local/review-result-reader-composition.js";
-import { sweepLocalReviewSources } from "../core/local-source-sweep.js";
 import type { LocalPrepareDependencies } from "./local-prepare.js";
 import { resolveReviewStatus } from "../status.js";
 import { createReviewStatusPort } from "../status-composition.js";
@@ -269,7 +269,6 @@ function createBoundLocalPrepareDependencies(input: LocalReviewInvocationInput &
   const sourceStore = new RepositoryLocalReviewSourceStore(publisher);
   const dispositionStore = family.ports.dispositions;
   const resultReader = createRepositoryReviewResultReader(publisher, input);
-  const sweepAdapter = new RepositoryLocalReviewSourceSweepAdapter(input.exec, input.cwd);
   let receiptStore: Promise<LocalForwardReviewReceiptStore> | null = null;
   const receipts = () => {
     receiptStore ??= resolveRepositoryIdentity(publisher, undefined, input)
@@ -288,6 +287,7 @@ function createBoundLocalPrepareDependencies(input: LocalReviewInvocationInput &
   return {
     laneSourceId: "delegated-agent",
     operationStore,
+    ...(family.mode === "stored" ? { outcomes: family.ports.outcomes } : {}),
     sourceStore,
     now: () => new Date().toISOString(),
     withLaneOperationLock: (coordinates, action) => withRepositoryReviewOperationLock(
@@ -304,19 +304,10 @@ function createBoundLocalPrepareDependencies(input: LocalReviewInvocationInput &
       dispositionSetId,
     ),
     withLocalReviewLock: (action) => withRepositoryLocalReviewLock(input.exec, input.cwd, action),
-    sweep: async () => {
-      const receiptStore = await receipts();
-      await withRepositoryLocalReviewLock(input.exec, input.cwd, async () => {
-        await sweepLocalReviewSources({
-          listOperationIds: () => sweepAdapter.listOperationIds(),
-          readOperation: (operationId) => operationStore.readOperation(operationId),
-          readReceipts: (targetId) => receiptStore.readReceipts(targetId),
-          release: (operationId) => sweepAdapter.releaseWithinLock(operationId),
-          now: () => new Date().toISOString(),
-        });
-      });
-    },
-    readReceipts: async (targetId) => (await receipts()).readReceipts(targetId),
+    sweep: () => sweepLocalReviewMaterializations(input, { publisher, operationStore,
+      readReceipts: async targetId => (await receipts()).readReceipts(targetId), now: () => new Date().toISOString() }),
+    readReceipts: async (targetId) => readLocalReviewReceipts({ receiptStore: await receipts(),
+      ...(family.mode === "stored" ? { outcomes: family.ports.outcomes } : {}) }, targetId),
     resolveRepositoryId: () => resolveRepositoryIdentity(publisher, undefined, input),
     readCurrentHeadSha: async () => (await input.exec("git", ["rev-parse", "HEAD"], {
       cwd: input.cwd,

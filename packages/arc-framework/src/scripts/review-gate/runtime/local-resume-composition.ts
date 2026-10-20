@@ -30,6 +30,7 @@ export function createLocalResumeDependencies(input: LocalReviewInvocationInput)
     sweep: () => prepare.sweep(),
     withLocalReviewLock: (action) => prepare.withLocalReviewLock(action),
     operationStore: prepare.operationStore,
+    ...(prepare.outcomes === undefined ? {} : { outcomes: prepare.outcomes }),
     sourceStore: prepare.sourceStore,
     receiptStore: {
       readReceipts: async (targetId) => (await receipts()).readReceipts(targetId),

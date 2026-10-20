@@ -6,6 +6,8 @@ import { LaneProgressStateSchema, type LaneProgressState } from "./core/operatio
 import type { ReviewOperationStateStore } from "./core/ports.js";
 import type { HostedAdmission, HostedRequestResult, HostedTarget } from "./hosted/request.js";
 import { completeHostedAttemptIfReady, laneProgressOperationId, recordLaneAttempt } from "./lane-progress.js";
+import { publishNativeHostedSettlement } from "./runtime/native-hosted-settlement.js";
+import { bindNativeHostedDisposition } from "./runtime/native-response-transitions.js";
 
 type LaneAttempt = LaneProgressState["attempts"][number];
 
@@ -157,6 +159,7 @@ export async function bindHostedAttemptDisposition(
     now: string;
   },
 ): Promise<LaneProgressState> {
+  if (store.nativeFacts !== undefined) return bindNativeHostedDisposition(store.nativeFacts, store, input);
   const { version, state } = await store.readOperation(input.operationId);
   if (state === null || state.kind !== "lane-progress" || state.lane !== "standard") {
     throw new Error("hosted lane findings attempt is unavailable");
@@ -272,6 +275,12 @@ export async function settleHostedAttemptFinding(
     performedAt: input.now,
     carriedFromDispositionSetId: null,
   };
+  if (store.nativeFacts !== undefined) {
+    await publishNativeHostedSettlement({ ...store.nativeFacts, producerId: input.attemptId,
+      settlement: evidence, confirmResponseHeadContinuation: input.confirmResponseHeadContinuation });
+    const next = await store.readOperation(input.operationId);
+    return LaneProgressStateSchema.parse(next.state);
+  }
   const currentEvidence = attempt.hosted.settlementEvidence.find((candidate) =>
     candidate.dispositionSetId === input.dispositionSetId && candidate.findingId === input.findingId);
   const currentDisposition = attempt.hosted.dispositionSetLineage.at(-1)?.findingActions

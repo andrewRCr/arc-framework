@@ -2751,7 +2751,7 @@
   },
   "src/scripts/review-gate/lane-progress.ts": {
     "jsdoc/require-jsdoc": {
-      "count": 3
+      "count": 2
     },
     "sonarjs/cognitive-complexity": {
       "count": 2
@@ -2941,11 +2941,8 @@
     }
   },
   "src/scripts/review-gate/runtime/reduce-command.ts": {
-    "max-lines-per-function": {
-      "count": 1
-    },
     "sonarjs/cognitive-complexity": {
-      "count": 2
+      "count": 1
     }
   },
   "src/scripts/review-gate/runtime/respond-command.ts": {

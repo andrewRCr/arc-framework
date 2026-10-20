@@ -18,6 +18,6 @@ export function createReviewCompositionContext(input: ReviewInvocationInput): Re
   const repository = { inFlight: new LocalReviewOperationStateStore(publisher),
     dispositions: new LocalApprovedDispositionRecordStore(publisher) };
   return { ...invocation, publisher, family: bindReviewFamilyPorts({
-    store: invocation.store, owner: invocation.workItem, repository,
+    store: invocation.store, owner: invocation.workItem, projectId: invocation.projectId, publisher, repository,
   }) };
 }

@@ -30,6 +30,7 @@ export function createReduceDependencies(options: ReviewInvocationInput): Reduce
   const dependencies: ReviewReductionAdapterDependencies = {
     bindSourceReference: reference => bindReviewSourceReferenceForInvocation(input, reference),
     operationStore: prepare.operationStore,
+    ...(family.mode === "stored" ? { outcomes: family.ports.outcomes } : {}),
     sourceStore: prepare.sourceStore,
     outcomeStore: new LocalFrontlineOutcomeStore(publisher),
     resultReader: createRepositoryReviewResultReader(publisher, input),

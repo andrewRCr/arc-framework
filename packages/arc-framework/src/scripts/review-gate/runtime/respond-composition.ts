@@ -52,6 +52,7 @@ import {
   confirmCurrentDispositionSet,
   LocalApprovedDispositionRecordStore,
 } from "../hosts/local/disposition-record-store.js";
+import { NativeApprovedDispositionRecordStore } from "./native-disposition-store.js";
 import {
   bindHostedAttemptDisposition,
   captureConditionalNextPassAuthorization,
@@ -535,13 +536,25 @@ export function createRespondDependencies(input: ReviewInvocationInput & { rawGi
   return createBoundRespondDependencies({ ...input, ...resolveReviewInvocation(input) });
 }
 
+function responseDispositionDependencies(input: ReviewInvocationInput & ReviewInvocationContext,
+  context: Pick<ReturnType<typeof createReviewCompositionContext>, "publisher" | "family">,
+  operationStore: ReturnType<typeof createLocalPrepareDependencies>["operationStore"]) {
+  const { publisher, family } = context;
+  const confirmResponseHeadContinuation = createCandidateResponseHeadContinuationReader({ ...input, dispositionStore: family.ports.dispositions, operationStore: operationStore });
+  const dispositionStore = family.mode === "stored" ? new NativeApprovedDispositionRecordStore({
+    store: input.store, inFlight: operationStore, outcomes: family.ports.outcomes, evidence: family.ports.evidence,
+    readProjectId: input.projectId, now: () => new Date().toISOString(), confirmResponseHeadContinuation,
+  }) : new LocalApprovedDispositionRecordStore(publisher);
+  return { dispositionStore, confirmResponseHeadContinuation };
+}
+
 /** Share the response invocation's operational store with prepare, policy, and publication. */
 function createBoundRespondDependencies(input: ReviewInvocationInput & ReviewInvocationContext & { rawGit?: RawGitExec }): RespondCommandDependencies {
   const { publisher, family } = createReviewCompositionContext(input);
   const rawGit = input.rawGit ?? createRawGitExec(input.cwd);
   const prepare = createLocalPrepareDependencies(input);
-  const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
-  const confirmResponseHeadContinuation = createCandidateResponseHeadContinuationReader({ ...input, dispositionStore: family.ports.dispositions, operationStore: prepare.operationStore });
+  const { dispositionStore, confirmResponseHeadContinuation } = responseDispositionDependencies(
+    input, { publisher, family }, prepare.operationStore);
   const deliveryMembers = new RepositoryDeliveryMemberLookup(input);
   const privateDeliveryTargets = createPreBindingDeliveryReviewTargetDependencies(input);
   let settingsPromise: ReturnType<typeof readConfigSettings> | null = null;

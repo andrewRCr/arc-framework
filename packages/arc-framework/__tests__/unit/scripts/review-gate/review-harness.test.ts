@@ -49,6 +49,8 @@ it("shares operational records across scripted clones while keeping local review
   const { readCandidateRecord } = await import("../../../../src/lib/store/kinds/review/candidate/access.js");
   const { readdir } = await import("node:fs/promises");
   const h = createReviewHarness();
+  const repositoryId = "123e4567-e89b-42d3-a456-426614174099";
+  await h.seedProject(repositoryId);
   const { record: candidate } = candidateRecordFixture();
   const owner = (await h.seedMeta("example")).reference.owner;
   await h.seedCandidate(owner, candidate);
@@ -57,7 +59,7 @@ it("shares operational records across scripted clones while keeping local review
     await expect.soft(readCandidateRecord(second.cwd, "example", { store: second.store, owner })).resolves.toEqual(candidate);
     const a = createReviewCompositionContext({ ...first, workItem: owner });
     const b = createReviewCompositionContext({ ...second, workItem: owner });
-    const producer = createLocalReviewPreparationFixture();
+    const producer = createLocalReviewPreparationFixture({ repositoryId });
     const prepared = await prepareLocalReview({ schemaVersion: 1, evaluatorIdentity: "evaluator-1",
       routingFacts: { contentKind: "code-bearing", reviewRisk: "routine", changeDeterminacy: "ordinary",
         ownership: "self", surfaceAuthority: "ordinary" }, policyJudgment: { scopeMode: "whole-target" } },

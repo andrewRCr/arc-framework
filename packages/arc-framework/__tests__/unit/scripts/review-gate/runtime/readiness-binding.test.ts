@@ -18,16 +18,20 @@ import { createReviewEvidencePort } from "../../../../../src/lib/store/kinds/rev
 import { createReviewDecisionPort } from "../../../../../src/lib/store/kinds/review/decision/access.js";
 import { reviewDecisionKey } from "../../../../../src/lib/store/kinds/review/decision/key.js";
 import { localOutcome } from "../../../../fixtures/review-outcome.js";
+import { createHostedHandleFixture } from "../../../../fixtures/hosted-review.js";
 import { ReviewOutcomeSchema } from "../../../../../src/lib/store/kinds/review/outcome/schema.js";
 
 async function fixture(cleanup: (operation: () => Promise<void>) => void) {
   const h = createReviewHarness(), candidate = candidateFixture();
+  const repositoryId = "123e4567-e89b-42d3-a456-426614174099";
+  await h.seedProject(repositoryId);
   const primary = await h.seedMeta("example");
   await h.seedCandidate(primary.reference.owner, candidate);
   const checkout = await createReviewCheckout(h);
   cleanup(checkout.cleanup);
   const lineage = { kind: "candidate" as const, candidateId: candidate.attestation.candidateId };
-  const outcome = ReviewOutcomeSchema.parse(localOutcome({ lineage, vehicle: { kind: "work-unit", identity: "example" }, outcome: "findings",
+  const target = createHostedHandleFixture({ repositoryId }).admission.reviewTarget;
+  const outcome = ReviewOutcomeSchema.parse(localOutcome({ target, lineage, vehicle: { kind: "work-unit", identity: "example" }, outcome: "findings",
     findings: [{ findingId: "finding-1", severity: "major", locus: "src/main.ts:1", evidenceUrlOrId: "finding:1", sourceOrdinal: 1 }] }));
   const context = createReviewCompositionContext({ cwd: checkout.cwd, exec: checkout.exec,
     store: h.store, workItem: primary.reference.owner, projectId: h.projectId });

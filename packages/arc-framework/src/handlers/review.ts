@@ -189,6 +189,7 @@ import {
   "../scripts/review-gate/policy/local-review-coverage-selection.js";
 import { readLocalReviewLiveContext } from
   "../scripts/review-gate/hosts/local/live-context.js";
+import { recordNativeFrontlineSkip, createNativeFrontlineSkipRecorder } from "../scripts/review-gate/runtime/native-frontline-window.js";
 import { LocalReviewResultReaderError } from
   "../scripts/review-gate/hosts/local/review-result-reader.js";
 import {
@@ -2746,6 +2747,7 @@ function defaultFrontlineResolveDependencies(context: InteractionContext, invoca
         }),
         registry: new FrontlineSourceRegistry([CODERABBIT_FRONTLINE_REGISTRATION]),
         operationStore,
+        recordInitialSkip: createNativeFrontlineSkipRecorder({ ...bound, cwd: root, exec }, operationStore.nativeFacts),
         withLaneOperationLock: (operationId, action) => withRepositoryReviewOperationLock(
           exec,
           root,
@@ -4428,6 +4430,10 @@ async function persistAcceptedFrontlineSkip(input: ReviewInvocationOptions & {
     if (owner?.attempts.some(({ outcome }) => outcome === "findings") === true) {
       throw new Error("unresolved frontline findings must be settled before skipping frontline review");
     }
+    if (store.nativeFacts !== undefined) return recordNativeFrontlineSkip({
+      invocation: { ...invocation, cwd: input.root, exec: input.exec }, facts: store.nativeFacts,
+      repositoryId: input.repositoryId, lineage, headSha: input.headSha, now: new Date().toISOString(),
+    });
     await recordSingletonFrontlineInitialSkip(store, {
       repositoryId: input.repositoryId,
       candidateId: input.candidateId,

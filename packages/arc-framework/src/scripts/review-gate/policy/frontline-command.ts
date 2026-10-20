@@ -70,6 +70,7 @@ interface FrontlineCommandDependencies {
   preferences: FrontlineSourcePreferenceReader;
   registry: FrontlineSourceRegistry;
   operationStore: ReviewOperationStateStore;
+  recordInitialSkip?: (lineage: LaneSubjectLineage, target: ReviewTarget) => Promise<void>;
   resolveLineage(
     target: ReviewTarget,
     vehicle: FrontlineCommandRequest["vehicle"],
@@ -388,7 +389,7 @@ async function resolveFrontlineCommandWithinLock(
     return FrontlineCommandResultEnvelopeSchema.parse({
       ...base,
       diagnostics: [...diagnostics, {
-        code: "frontline-phase-closed",
+        code: dependencies.operationStore.nativeFacts === undefined ? "frontline-phase-closed" : "frontline-window-closed",
         message: "The opening frontline phase is already closed for this review subject.",
       }],
       state: "skipped",
@@ -408,13 +409,7 @@ async function resolveFrontlineCommandWithinLock(
     });
   }
   if (semantic.frontlineReview.action === "skip") {
-    if (lineage.kind === "candidate" && parsed.invocation.mode === "skip") {
-      await recordSingletonFrontlineInitialSkip(dependencies.operationStore, {
-        repositoryId: parsed.target.repositoryId,
-        candidateId: lineage.candidateId,
-        now: dependencies.now(),
-      });
-    }
+    await recordExplicitFrontlineSkip(parsed, lineage, dependencies);
     return FrontlineCommandResultEnvelopeSchema.parse({
       ...base,
       state: "skipped",
@@ -433,4 +428,13 @@ async function resolveFrontlineCommandWithinLock(
   return admitNewFrontlineOperation(
     parsed, lineage, dependencies, owner, ownerVersion, phase.inheritedCompletedPasses, maxPasses, semantic, payload, base,
   );
+}
+
+async function recordExplicitFrontlineSkip(parsed: FrontlineCommandRequest, lineage: LaneSubjectLineage,
+  dependencies: FrontlineCommandDependencies): Promise<void> {
+  if (parsed.invocation.mode !== "skip") return;
+  if (dependencies.recordInitialSkip !== undefined) return dependencies.recordInitialSkip(lineage, parsed.target);
+  if (lineage.kind === "candidate") await recordSingletonFrontlineInitialSkip(dependencies.operationStore, {
+    repositoryId: parsed.target.repositoryId, candidateId: lineage.candidateId, now: dependencies.now(),
+  });
 }

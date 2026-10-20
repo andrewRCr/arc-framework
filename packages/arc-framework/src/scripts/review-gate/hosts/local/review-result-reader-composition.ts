@@ -9,6 +9,8 @@ import { LocalFrontlineOutcomeStore } from "./frontline-outcome-store.js";
 import { resolveRepositoryIdentity } from "./git-common-state.js";
 import { LocalReviewOperationStateStore } from "./operation-state-store.js";
 import { LocalForwardReviewReceiptStore } from "./receipt-store.js";
+import { StoredReviewResultReader } from "./stored-result-reader.js";
+import { createProjectIdentityReader } from "../../../../lib/store/project-identity.js";
 import { LocalReviewResultReader } from "./review-result-reader.js";
 import { RepositoryLocalReviewSourceStore } from "./source-store.js";
 
@@ -55,9 +57,13 @@ function composeResultReader(publisher: GitCommonStatePublisher,
   receipts: () => Promise<LocalForwardReviewReceiptStore>,
   invocation?: ReviewInvocationOptions,
 ): ReviewResultReader {
-  const family = bindReviewFamilyPorts({ store: invocation?.store, owner: invocation?.workItem, repository: {
+  const family = bindReviewFamilyPorts({ store: invocation?.store, owner: invocation?.workItem, publisher, projectId: invocation?.projectId, repository: {
     inFlight: new LocalReviewOperationStateStore(publisher), dispositions: new LocalApprovedDispositionRecordStore(publisher),
   } });
+  if (family.mode === "stored" && invocation?.store !== undefined) {
+    return new StoredReviewResultReader({ outcomes: family.ports.outcomes, evidence: family.ports.evidence,
+      readProjectId: invocation.projectId ?? createProjectIdentityReader(invocation.store) });
+  }
   const receiptIndex: ForwardReviewReceiptIndex = {
     readReceiptEntries: async (targetId) => (await receipts()).readReceiptEntries(targetId),
     readReceiptReference: async (reference) => (await receipts()).readReceiptReference(reference),

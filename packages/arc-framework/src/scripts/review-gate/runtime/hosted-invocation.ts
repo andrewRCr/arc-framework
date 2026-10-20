@@ -5,8 +5,7 @@ import { bindReviewSourceReference, parseReviewSourceReference } from "../core/r
 import { bindNativeReviewOperationReference } from "../core/review-operation-reference.js";
 import { HostedRequestResultSchema, hostedAwaitAction, type HostedRequestEnvelope,
   type HostedRequestResult } from "../hosted/request.js";
-import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
-import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-store.js";
+import { createReviewCompositionContext } from "./composition-context.js";
 import { laneProgressOperationId } from "../lane-progress.js";
 import { HostedAwaitCommandResultSchema, type HostedAwaitEnvelope } from "../hosted/await.js";
 import type { HostedRequestOwnerIndexRecord } from "../hosts/local/hosted-request-owner-index.js";
@@ -44,7 +43,7 @@ export async function resolveHostedAwaitInvocation(options: ReviewInvocationInpu
   const input = await resolveReviewOperationInvocation(options,
     { operationId: admission.admissionId, operationRef: request.operationRef }, "arc review hosted request");
   if (!input.store?.capabilities.stateOffBranch || (options.workItem !== undefined && request.operationRef === undefined)) return input;
-  const operations = new LocalReviewOperationStateStore(new RepositoryGitCommonStatePublisher(input.exec, input.cwd));
+  const operations = createReviewCompositionContext(input).family.ports.inFlight;
   const { state } = await operations.readOperation(laneProgressOperationId({ lane: "standard", repositoryId: admission.repositoryId,
     headSha: admission.reviewTarget.headSha, lineage: admission.lineage }));
   if (state === null) return input;

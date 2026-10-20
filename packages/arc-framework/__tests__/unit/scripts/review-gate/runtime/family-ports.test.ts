@@ -13,7 +13,7 @@ describe("review family binding", () => {
     const repository = { dispositions: new LocalApprovedDispositionRecordStore(publisher),
       inFlight: { ...fixture.dependencies.operationStore,
         readOperationSnapshot: async () => ({ status: "complete" as const, records: [...fixture.operations.values()] }) } };
-    const bound = bindReviewFamilyPorts({ store: harness.store, owner, repository });
+    const bound = bindReviewFamilyPorts({ store: harness.store, owner, publisher, repository });
     expect(bound.mode).toBe("stored");
     expect(await bound.ports.dispositions.readDispositionRecord(original.operationId))
       .toEqual(await evidence.readDispositionRecord(original.operationId));
@@ -31,7 +31,7 @@ describe("review family binding", () => {
         return property === "capabilities" ? { stateOffBranch: false } : Reflect.get(target, property, receiver);
       },
     });
-    const bound = bindReviewFamilyPorts({ store, owner, repository });
+    const bound = bindReviewFamilyPorts({ store, owner, publisher, repository });
     expect(await bound.ports.dispositions.readDispositionRecord(original.operationId)).toEqual(original);
     expect(bound.mode).toBe("in-repo");
   });

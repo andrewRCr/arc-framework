@@ -16,6 +16,7 @@ import { isReviewVersionConflict, REVIEW_VERSION_RETRY_ATTEMPTS } from
   "../core/version-conflict.js";
 import { readLaneProgressOwner } from "../lane-progress.js";
 import { projectFrontlineFollowUpAdvice, type FrontlineFollowUpAdvice } from "./frontline-follow-up.js";
+import { nativeFrontlineWindowSkipped } from "../runtime/native-frontline-window.js";
 
 export function singletonFrontlinePhaseOperationId(input: {
   repositoryId: string;
@@ -88,20 +89,14 @@ export function settledFrontlineAdviceReader(
  * @returns Whether any lineage has closed the phase.
  */
 export async function frontlinePhaseClosed(
-  store: Pick<ReviewOperationStateStore, "readOperation">,
+  store: Pick<ReviewOperationStateStore, "readOperation" | "nativeFacts">,
   input: {
     repositoryId: string;
     lineages: readonly LaneSubjectLineage[];
     readSettledFindingsAdvice?: (producerId: string) => Promise<FrontlineFollowUpAdvice>;
   },
 ): Promise<boolean> {
-  const candidateIds = input.lineages.flatMap((lineage) => (
-    lineage.kind === "candidate" ? [lineage.candidateId] : []
-  ));
-  if (await readSingletonFrontlinePhaseClosure(store, {
-    repositoryId: input.repositoryId,
-    candidateIds,
-  }) !== null) return true;
+  if (await explicitFrontlineSkip(store, input)) return true;
   for (const lineage of input.lineages) {
     const standardOwner = await readLaneProgressOwner(store, {
       lane: "standard", repositoryId: input.repositoryId, headSha: "", lineage,
@@ -118,6 +113,13 @@ export async function frontlinePhaseClosed(
     }
   }
   return false;
+}
+
+async function explicitFrontlineSkip(store: Pick<ReviewOperationStateStore, "readOperation" | "nativeFacts">,
+  input: { repositoryId: string; lineages: readonly LaneSubjectLineage[] }): Promise<boolean> {
+  if (store.nativeFacts !== undefined) return nativeFrontlineWindowSkipped(store.nativeFacts, input);
+  const candidateIds = input.lineages.flatMap(lineage => lineage.kind === "candidate" ? [lineage.candidateId] : []);
+  return await readSingletonFrontlinePhaseClosure(store, { repositoryId: input.repositoryId, candidateIds }) !== null;
 }
 
 /** Persist one accepted initial skip without manufacturing an attempt or clean result. */

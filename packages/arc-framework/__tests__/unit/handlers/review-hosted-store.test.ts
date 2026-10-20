@@ -1,10 +1,7 @@
 /** Native hosted defaults retain their selected owner through the produced await action. */
 import { RespondEnvelopeSchema } from "../../../src/scripts/review-gate/core/review-command-envelope.js";
 import { approveDispositionState } from "../../../src/scripts/review-gate/core/dispositions.js";
-import { bindHostedAttemptDisposition } from "../../../src/scripts/review-gate/lane-progress-hosted-settlement.js";
-import { mapHostedAttempt } from "../../../src/lib/store/kinds/review/mapping-hosted.js";
-import { createReviewOutcomePort } from "../../../src/lib/store/kinds/review/outcome/access.js";
-import { reviewOutcomeKey } from "../../../src/lib/store/kinds/review/outcome/key.js";
+import { createReviewCompositionContext } from "../../../src/scripts/review-gate/runtime/composition-context.js";
 import { createReviewEvidencePort } from "../../../src/lib/store/kinds/review/evidence/access.js";
 import { scriptRawGitExec } from "../../helpers/git-exec-fake.js";
 import { withReviewReport } from "../../fixtures/review-report-input.js";
@@ -27,12 +24,11 @@ import { createReviewHarness } from "../../helpers/store/review-harness.js";
 import { createReviewCheckout } from "../../helpers/store/review-checkout.js";
 import { resolveReviewRouting } from "../../../src/scripts/review-gate/policy/routing.js";
 import { projectStandardReviewObligation } from "../../../src/scripts/review-gate/policy/standard-review-projection.js";
-import { resolveReviewPolicy, ReviewPolicyCommandRequestSchema } from "../../../src/scripts/review-gate/policy/review-policy-driver.js";
+import { resolveReviewPolicy, ReviewPolicyCommandRequestSchema, projectReviewPolicyAttempt } from "../../../src/scripts/review-gate/policy/review-policy-driver.js";
 import { withReviewNextPassContext } from "../../fixtures/review-next-pass.js";
 import { HostedRequestEnvelopeSchema, HostedRequestResultSchema } from "../../../src/scripts/review-gate/hosted/request.js";
 import type { HostedProcessRunner } from "../../../src/scripts/review-gate/hosted/gh-process.js";
 import { RepositoryGitCommonStatePublisher } from "../../../src/lib/git-common-state.js";
-import { LocalReviewOperationStateStore } from "../../../src/scripts/review-gate/hosts/local/operation-state-store.js";
 import { HostedRequestOwnerIndex } from "../../../src/scripts/review-gate/hosts/local/hosted-request-owner-index.js";
 import { bindReviewSourceReference, parseReviewSourceReference } from "../../../src/scripts/review-gate/core/review-source-reference.js";
 import { bindNativeReviewOperationReference, parseNativeReviewOperationReference } from "../../../src/scripts/review-gate/core/review-operation-reference.js";
@@ -213,20 +209,20 @@ it.each(["missing", "foreign-project", "bound-owner", "pending-owner", "malforme
         operationId: invalid === "wrong-id" ? "another-operation" : reference.operationId,
         workItem: invalid === "pending-owner" ? other.reference.owner : reference.workItem });
     h.complete();
-    const saved = await h.publisher.snapshot({ root: "review-gate", namespace: "operations" });
+    const saved = await h.publisher.snapshot({ root: "review-gate", namespace: "in-flight" });
     if (invalid === "bound-owner") {
       for (const entry of saved) if (entry.kind === "file") await h.publisher.update(
-        { root: "review-gate", namespace: "operations" }, entry.name, () => ({ kind: "delete", result: undefined }));
+        { root: "review-gate", namespace: "in-flight" }, entry.name, () => ({ kind: "delete", result: undefined }));
     }
-    const before = await h.publisher.snapshot({ root: "review-gate", namespace: "operations" });
+    const before = await h.publisher.snapshot({ root: "review-gate", namespace: "in-flight" });
     expect(await h.awaitResult({ ...requested.action, operationRef },
-      { workItem: invalid === "bound-owner" ? other.reference.owner : undefined })).toMatchObject({ error: {
-        code: "invalid-input", message: expect.stringContaining("matching reference"),
-      } });
-    expect(await h.publisher.snapshot({ root: "review-gate", namespace: "operations" })).toEqual(before);
+      { workItem: invalid === "bound-owner" ? other.reference.owner : undefined })).toMatchObject({ error: invalid === "pending-owner"
+        ? { message: "hosted acknowledged request is unavailable" }
+        : { code: "invalid-input", message: expect.stringContaining("matching reference") } });
+    expect(await h.publisher.snapshot({ root: "review-gate", namespace: "in-flight" })).toEqual(before);
     if (invalid === "bound-owner") {
       for (const entry of saved) if (entry.kind === "file") await h.publisher.update(
-        { root: "review-gate", namespace: "operations" }, entry.name,
+        { root: "review-gate", namespace: "in-flight" }, entry.name,
         () => ({ kind: "write", content: entry.content, result: undefined }));
     }
     expect(await h.awaitResult(requested.action)).toMatchObject({ state: "clean", nextAction: "complete",
@@ -315,7 +311,7 @@ it("publishes a native hosted source reference outside the sealed result identit
   h.complete();
   const result = HostedAwaitCommandResultSchema.parse(await h.awaitResult(requested.action));
   if (result.state !== "clean" || result.responseSourceRef === undefined) throw new Error(JSON.stringify(result));
-  const snapshot = await new LocalReviewOperationStateStore(h.publisher).readOperationSnapshot();
+  const snapshot = await createReviewCompositionContext({ ...h, workItem: h.primary.reference.owner }).family.ports.inFlight.readOperationSnapshot();
   if (snapshot.status !== "complete") throw new Error(JSON.stringify(snapshot));
   const lane = snapshot.records.find(({ state }) => state.kind === "lane-progress");
   if (lane?.state.kind !== "lane-progress") throw new Error("Expected actual lane state");
@@ -366,7 +362,8 @@ it.each(["missing", "foreign-project", "bound-owner", "pending-owner", "malforme
     const input = { ...(h.request as object), source: { kind: "hosted", attemptRef } };
     const before = lifecycleSuccess(await h.store.version());
     expect(await h.respond(input, { workItem: invalid === "bound-owner" ? other.reference.owner : undefined }))
-      .toMatchObject({ error: { code: "invalid-input", message: expect.stringContaining("matching reference") } });
+      .toMatchObject({ error: invalid === "pending-owner" ? { code: "corrupt-state", message: expect.stringContaining("No review producer matches") }
+        : { code: "invalid-input", message: expect.stringContaining("matching reference") } });
     expect(lifecycleSuccess(await h.store.version())).toBe(before);
     expect(await h.respond(h.request)).toMatchObject({ state: "awaiting-approval", nextAction: "obtain-approval" });
   });
@@ -397,62 +394,65 @@ it("keeps internal response calls that already hold the exact owner", async () =
     { workItem: h.primary.reference.owner })).toMatchObject({ state: "awaiting-approval" });
 });
 
-it("requires the source working state's saved owner and resumes after its repair", async () => {
+it("reads an ended hosted source after its working state is pruned", async () => {
   const h = await hostedProposalFixture();
-  const reference = parseReviewSourceReference(h.sourceReference, "hosted", true);
-  const operations = new LocalReviewOperationStateStore(h.publisher);
-  const saved = await operations.readOperation(reference.operationId);
-  if (saved.state === null) throw new Error("Expected admitted working state");
-  const withoutOwner = { ...saved.state };
-  delete withoutOwner.workItem;
-  await operations.publishOperation(withoutOwner, saved.version);
-  expect(await h.respond(h.request)).toMatchObject({ error: { message: expect.stringContaining("Restore") } });
-  const corrupt = await operations.readOperation(reference.operationId);
-  await operations.publishOperation(saved.state, corrupt.version);
+  const before = lifecycleSuccess(await h.store.version());
+  const location = { root: "review-gate", namespace: "in-flight" } as const;
+  const retained = await h.publisher.snapshot(location);
+  for (const entry of retained) if (entry.kind === "file") {
+    await h.publisher.update(location, entry.name, () => ({ kind: "delete", result: undefined }));
+  }
+  expect(await h.publisher.snapshot(location)).toEqual([]);
   expect(await h.respond(h.request)).toMatchObject({ state: "awaiting-approval" });
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
 });
 
-async function hostedSettlementFixture() {
-  const h = await hostedProposalFixture(true);
+async function approvedHostedResponseFixture(threaded: boolean) {
+  const h = await hostedProposalFixture(threaded);
   const proposal = RespondEnvelopeSchema.parse(await h.respond(h.request));
   if (proposal.state !== "awaiting-approval") throw new Error(JSON.stringify(proposal));
   const approved = approveDispositionState({ proposed: proposal.payload.proposal, approvedBy: "test-user",
     approvedAt: new Date().toISOString() });
   const reference = parseReviewSourceReference(h.sourceReference, "hosted", true);
-  const operations = new LocalReviewOperationStateStore(h.publisher);
-  const findingActions = approved.dispositionSet.findings.map(finding => ({ findingId: finding.findingId,
-    disposition: finding.disposition, channelAction: "reply-and-resolve" as const }));
-  const lane = await bindHostedAttemptDisposition(operations, { operationId: reference.operationId,
-    attemptId: reference.durableRef, dispositionSetId: approved.dispositionSet.dispositionSetId,
-    findingDispositions: findingActions, now: new Date().toISOString() });
-  const attempt = lane.attempts.find(item => item.attemptId === reference.durableRef);
+  const operations = createReviewCompositionContext({ ...h, workItem: h.primary.reference.owner }).family.ports.inFlight;
+  const saved = await operations.readOperation(reference.operationId);
+  if (saved.state?.kind !== "lane-progress") throw new Error("Expected composed native lane");
+  const attempt = saved.state.attempts.find(item => item.attemptId === reference.durableRef);
   if (attempt?.hosted === undefined) throw new Error("Expected actual hosted attempt");
-  const finding = attempt.hosted.sealedResult?.findings[0];
-  if (finding?.origin !== "review-thread") throw new Error("Expected actual thread finding");
-  const outcome = mapHostedAttempt(attempt, lane, lane.updatedAt);
-  await createReviewOutcomePort(h.store, h.primary.reference.owner).create(outcome);
-  await createReviewEvidencePort(h.store, h.primary.reference.owner).create({ schemaVersion: 1,
-    result: { outcomeKey: reviewOutcomeKey(outcome), resultDigest: approved.dispositionSet.resultDigest },
-    binding: { kind: "errand", errand: { key: h.record.slug, claimId: h.record.claimId, branch: h.record.branch } },
-    dispositionSet: approved.dispositionSet, approval: approved.approval,
-    predecessorDispositionSetId: null, successorDispositionSetId: null,
-    responsePolicyRequest: ReviewPolicyCommandRequestSchema.parse({ schemaVersion: h.policyRequest.schemaVersion,
-      target: h.policyRequest.target, lane: h.policyRequest.lane, standardReview: h.policyRequest.standardReview,
-      completedPasses: h.policyRequest.completedPasses, attempts: h.policyRequest.attempts,
-      invocation: h.policyRequest.invocation }), settlement: { findingActions, evidence: [] } });
+  const policyRequest = ReviewPolicyCommandRequestSchema.parse({ schemaVersion: 1, target: h.policyRequest.target,
+    lane: h.policyRequest.lane, standardReview: h.policyRequest.standardReview, invocation: h.policyRequest.invocation,
+    completedPasses: attempt.logicalPass, attempts: [projectReviewPolicyAttempt(attempt)] });
+  const approvalResult = await h.respond({ schemaVersion: 1,
+    source: { kind: "hosted", attemptRef: h.sourceReference }, dispositions: approved, policyRequest });
+  expect(approvalResult, JSON.stringify(approvalResult)).toMatchObject({ state: threaded ? "ready-to-settle" : "settled" });
+  const evidence = await createReviewEvidencePort(h.store, h.primary.reference.owner).read(approved.dispositionSet.dispositionSetId);
+  expect(evidence?.value.dispositionSet).toEqual(approved.dispositionSet);
+  return { ...h, approved, attempt };
+}
+
+async function hostedSettlementFixture() {
+  const h = await approvedHostedResponseFixture(true);
+  const { approved, attempt } = h;
+  const hosted = attempt.hosted;
+  const finding = hosted?.sealedResult?.findings[0];
+  if (hosted === undefined || finding?.origin !== "review-thread") throw new Error("Expected actual thread finding");
   const request = { schemaVersion: 1, response: { attemptRef: h.sourceReference,
     dispositionSetId: approved.dispositionSet.dispositionSetId, findingId: finding.findingId },
-    target: attempt.hosted.target, fixTarget: null, actorIdentity: attempt.hosted.actorIdentity,
+    target: hosted.target, fixTarget: null, actorIdentity: hosted.actorIdentity,
     finding: { commentId: finding.commentId, threadId: finding.threadId }, disposition: "defer",
     reply: "The verified finding is deferred to a separate repair." };
-  return { ...h, settlementRequest: request };
+  return { ...h, settlementRequest: request, approved };
 }
 
 it("settles a produced native hosted source through the default handler and replays it", async () => {
   const h = await hostedSettlementFixture();
   const settled = await h.settle(h.settlementRequest);
   expect(settled, JSON.stringify(settled)).toMatchObject({ state: "settled", nextAction: "complete", replyId: "456" });
+  const evidence = createReviewEvidencePort(h.store, h.primary.reference.owner);
+  const first = await evidence.read(h.approved.dispositionSet.dispositionSetId);
+  expect(first?.value.settlement?.evidence).toMatchObject([{ replyId: "456", channelAction: "reply-and-resolve" }]);
   expect(await h.settle(h.settlementRequest)).toMatchObject({ state: "already-settled", replyId: "456" });
+  expect(await evidence.read(h.approved.dispositionSet.dispositionSetId)).toEqual(first);
 });
 
 it.each(["missing", "malformed", "wrong-kind", "foreign-project", "bound-owner", "pending-owner", "legacy"] as const)(
@@ -468,10 +468,11 @@ it.each(["missing", "malformed", "wrong-kind", "foreign-project", "bound-owner",
           repositoryId: invalid === "foreign-project" ? "another-project" : reference.repositoryId,
           workItem: invalid === "pending-owner" ? other.reference.owner : reference.workItem });
     const request = { ...h.settlementRequest, response: { ...h.settlementRequest.response, attemptRef } };
-    const before = await h.publisher.snapshot({ root: "review-gate", namespace: "operations" });
+    const before = await h.publisher.snapshot({ root: "review-gate", namespace: "in-flight" });
     expect(await h.settle(request, { workItem: invalid === "bound-owner" ? other.reference.owner : undefined }))
-      .toMatchObject({ error: { code: "invalid-input", message: expect.stringContaining("matching reference") } });
-    expect(await h.publisher.snapshot({ root: "review-gate", namespace: "operations" })).toEqual(before);
+      .toMatchObject({ error: invalid === "pending-owner" ? { message: "Hosted settlement requires a persisted standard-lane operation." }
+        : { code: "invalid-input", message: expect.stringContaining("matching reference") } });
+    expect(await h.publisher.snapshot({ root: "review-gate", namespace: "in-flight" })).toEqual(before);
     expect(await h.settle(h.settlementRequest)).toMatchObject({ state: "settled", replyId: "456" });
   });
 
@@ -505,10 +506,19 @@ it.each(["actor", "disposition"] as const)("retains the existing settlement %s c
   const h = await hostedSettlementFixture();
   const request = { ...h.settlementRequest, actorIdentity: field === "actor" ? "another-actor" : h.settlementRequest.actorIdentity,
     disposition: field === "disposition" ? "reject" : h.settlementRequest.disposition };
-  const before = await h.publisher.snapshot({ root: "review-gate", namespace: "operations" });
+  const before = await h.publisher.snapshot({ root: "review-gate", namespace: "in-flight" });
   expect(await h.settle(request)).toMatchObject({ error: {
     message: expect.stringContaining(field === "actor" ? "actorIdentity differs" : "approved disposition"),
   } });
-  expect(await h.publisher.snapshot({ root: "review-gate", namespace: "operations" })).toEqual(before);
+  expect(await h.publisher.snapshot({ root: "review-gate", namespace: "in-flight" })).toEqual(before);
   expect(await h.settle(h.settlementRequest)).toMatchObject({ state: "settled" });
+});
+
+it("settles native hosted body findings from their approved record-only evidence", async () => {
+  const h = await approvedHostedResponseFixture(false);
+  const evidence = await createReviewEvidencePort(h.store, h.primary.reference.owner).read(h.approved.dispositionSet.dispositionSetId);
+  expect(evidence?.value.settlement).toMatchObject({ evidence: [{ channelAction: "record-only", disposition: "defer" }] });
+  const operations = createReviewCompositionContext({ ...h, workItem: h.primary.reference.owner }).family.ports.inFlight;
+  const reference = parseReviewSourceReference(h.sourceReference, "hosted", true);
+  expect((await operations.readOperation(reference.operationId)).state).toMatchObject({ attempts: [{ outcome: "settled-findings" }] });
 });

@@ -17,6 +17,8 @@ import { scriptRawGitExec } from "../../helpers/git-exec-fake.js";
 import { createReviewHarness } from "../../helpers/store/review-harness.js";
 import { createReviewCheckout } from "../../helpers/store/review-checkout.js";
 import { LocalReviewOperationStateStore } from "../../../src/scripts/review-gate/hosts/local/operation-state-store.js";
+import { createReviewCompositionContext } from "../../../src/scripts/review-gate/runtime/composition-context.js";
+import { nativeReviewInFlightRecordName } from "../../../src/scripts/review-gate/hosts/local/in-flight-state-store.js";
 import { RepositoryGitCommonStatePublisher } from "../../../src/lib/git-common-state.js";
 import { bindNativeReviewOperationReference, parseNativeReviewOperationReference } from "../../../src/scripts/review-gate/core/review-operation-reference.js";
 import type { Store } from "../../../src/lib/store/contract.js";
@@ -122,8 +124,21 @@ async function fixture(project = true, vehicle: "work-unit" | "errand" = "errand
   const references = new Map<string, string>();
   const referenceFor = (operationId: string, override?: ContinuationOverride) => override === undefined
     ? references.get(operationId) : override.operationRef;
-  const operations = new LocalReviewOperationStateStore(new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd));
-  return { ...checkout, claimId, request, operations, readResult: async (operationId: string, workItem?: OwnerIdentity) => {
+  const publisher = new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd);
+  const operations = { readOperation: (operationId: string) => createReviewCompositionContext({ ...checkout,
+    workItem: parseNativeReviewOperationReference(references.get(operationId) ?? "").workItem }).family.ports.inFlight.readOperation(operationId) };
+  const removeSavedOwner = async (operationId: string) => {
+    const owner = parseNativeReviewOperationReference(references.get(operationId) ?? "").workItem;
+    if (owner.type !== "work-item" || owner.uid === undefined) throw new Error("Expected the admitted UID");
+    const location = { root: "review-gate", namespace: "in-flight" } as const;
+    const name = nativeReviewInFlightRecordName(owner.uid, operationId), raw = await publisher.read(location, name);
+    if (raw === null) throw new Error("Expected the real native pending record");
+    const corrupt = JSON.parse(raw) as { state: Record<string, unknown> };
+    delete corrupt.state.workItem;
+    await publisher.update(location, name, () => ({ kind: "write", content: JSON.stringify(corrupt), result: undefined }));
+    return async () => { await publisher.update(location, name, () => ({ kind: "write", content: raw, result: undefined })); };
+  };
+  return { ...checkout, claimId, request, operations, removeSavedOwner, legacyOperations: new LocalReviewOperationStateStore(publisher), readResult: async (operationId: string, workItem?: OwnerIdentity) => {
     const reference = parseNativeReviewOperationReference(references.get(operationId) ?? "");
     return createRepositoryReviewResultReader(new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd), {
       store: checkout.store, workItem: workItem ?? reference.workItem, projectId: createProjectIdentityReader(checkout.store),
@@ -287,16 +302,14 @@ it("reports a missing saved owner and resumes after its working state is repaire
   if (prepared.state !== "ready") throw new Error(JSON.stringify(prepared));
   const saved = await h.operations.readOperation(prepared.payload.operationId);
   if (saved.state?.kind !== "local-review") throw new Error("Expected saved local review");
-  const { workItem, ...unbound } = saved.state;
-  if (workItem === undefined) throw new Error("Expected selected owner");
-  const corrupt = await h.operations.publishOperation(unbound, saved.version);
+  const restore = await h.removeSavedOwner(prepared.payload.operationId);
   expect(await h.attest(prepared.payload.operationId)).toMatchObject({ error: {
-    code: "corrupt-state", message: "local review operation has no selected work item",
+    code: "corrupt-state", message: expect.stringContaining("Restore the pending local review record"),
   } });
   expect(await h.resume(prepared.payload.operationId)).toMatchObject({ error: {
-    code: "corrupt-state", message: "local review operation has no selected work item",
+    code: "corrupt-state", message: expect.stringContaining("Restore the pending local review record"),
   } });
-  await h.operations.publishOperation(saved.state, corrupt.version);
+  await restore();
   expect(await h.attest(prepared.payload.operationId)).toMatchObject({ state: "not-attestable", nextAction: "rerun-review" });
   expect(await h.resume(prepared.payload.operationId)).toMatchObject({ state: "suspended", nextAction: "wait" });
 });
@@ -332,13 +345,11 @@ it("reports reduction's missing saved owner and reduces after its working state 
   if (prepared.state !== "ready") throw new Error(JSON.stringify(prepared));
   const saved = await h.operations.readOperation(prepared.payload.operationId);
   if (saved.state?.kind !== "local-review") throw new Error("Expected saved local review");
-  const { workItem, ...unbound } = saved.state;
-  if (workItem === undefined) throw new Error("Expected selected owner");
-  const corrupt = await h.operations.publishOperation(unbound, saved.version);
+  const restore = await h.removeSavedOwner(prepared.payload.operationId);
   expect(await h.reduce(prepared.payload.operationId)).toMatchObject({ error: {
-    code: "corrupt-state", message: "review operation has no selected work item",
+    code: "corrupt-state", message: expect.stringContaining("Restore the pending review record"),
   } });
-  await h.operations.publishOperation(saved.state, corrupt.version);
+  await restore();
   h.advanceHead();
   expect(await h.reduce(prepared.payload.operationId)).toMatchObject({ state: "stale-target", nextAction: "prepare-current-target" });
 });
@@ -377,7 +388,7 @@ it.each(["resume", "attest", "reduce"] as const)("retains project-identity recov
   });
 });
 
-it.each(["resume", "attest", "reduce"] as const)("checks the pending operation owner against native %s locators", async command => {
+it.each(["resume", "attest", "reduce"] as const)("retains unavailable execution for a well-formed native %s locator selecting an absent owner", async command => {
   const h = await fixture(true, "errand", false);
   const prepared = LocalPrepareEnvelopeSchema.parse(await h.run());
   if (prepared.state !== "ready" || prepared.payload.operationRef === undefined) throw new Error(JSON.stringify(prepared));
@@ -386,7 +397,7 @@ it.each(["resume", "attest", "reduce"] as const)("checks the pending operation o
     workItem: other.reference.owner });
   for (const workItem of [undefined, other.reference.owner]) {
     expect(await h[command](prepared.payload.operationId, { operationRef, workItem })).toMatchObject({ error: {
-      code: "invalid-input", message: expect.stringContaining("matching reference"),
+      code: "corrupt-state", message: expect.stringContaining("operation is unavailable"),
     } });
   }
   h.advanceHead();
@@ -477,6 +488,18 @@ it("retains the selected native result owner and refuses another owner before re
   expect(attested, JSON.stringify(attested)).toMatchObject({ state: "attested-current" });
   expect(await h.readResult(prepared.payload.operationId)).toMatchObject({ workItem: owner });
   const other = await h.seedMeta("another", { branch: null });
-  await expect(h.readResult(prepared.payload.operationId, other.reference.owner)).rejects.toThrow(/owner/u);
+  await expect(h.readResult(prepared.payload.operationId, other.reference.owner)).rejects.toThrow(/No review producer matches/u);
   expect(await h.readResult(prepared.payload.operationId)).toMatchObject({ workItem: owner });
+});
+
+it.each(["resume", "attest", "reduce"] as const)("ignores leftover legacy execution when entering native %s", async command => {
+  const h = await fixture(true, "work-unit", false);
+  const prepared = LocalPrepareEnvelopeSchema.parse(await h.run());
+  if (prepared.state !== "ready") throw new Error(JSON.stringify(prepared));
+  const pending = await h.operations.readOperation(prepared.payload.operationId);
+  if (pending.state?.kind !== "local-review") throw new Error("Expected the actual native admission");
+  await h.legacyOperations.publishOperation({ ...pending.state, workItem: undefined }, 0);
+  h.advanceHead();
+  expect(await h[command](prepared.payload.operationId)).toMatchObject({
+    state: command === "attest" ? "not-attestable" : "stale-target" });
 });

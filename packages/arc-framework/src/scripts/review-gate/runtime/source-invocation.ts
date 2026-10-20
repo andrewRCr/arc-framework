@@ -1,8 +1,7 @@
 /** Select the exact native owner carried by a produced review source before opening family ports. */
 import { bindNativeReviewOperationReference } from "../core/review-operation-reference.js";
 import { sameOwner } from "../../../lib/store/identity.js";
-import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
-import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-store.js";
+import { createReviewCompositionContext } from "./composition-context.js";
 import { bindReviewSourceReference, parseReviewSourceReference, parseReviewSourceReferenceForOwner, type ReviewSourceReferenceOwner, type BoundReviewSourceReference,
   type ReviewSourceReferenceCoordinates } from "../core/review-source-reference.js";
 import { resolveReviewInvocation, type ReviewInvocationContext, type ReviewInvocationInput } from "./invocation.js";
@@ -44,7 +43,7 @@ export async function resolveReviewSourceInvocation(options: ReviewInvocationInp
   const invocation = await resolveReviewOperationInvocation(input, { operationId: reference.operationId,
     operationRef: bindNativeReviewOperationReference({ repositoryId: reference.repositoryId,
       workItem: reference.workItem, operationId: reference.operationId }) }, producer);
-  const operations = new LocalReviewOperationStateStore(new RepositoryGitCommonStatePublisher(input.exec, input.cwd));
+  const operations = createReviewCompositionContext(invocation).family.ports.inFlight;
   const { state } = await operations.readOperation(reference.operationId);
   if (state !== null) {
     if (state.workItem === undefined) throw new Error(
