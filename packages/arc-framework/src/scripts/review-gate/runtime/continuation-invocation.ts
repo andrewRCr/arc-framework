@@ -13,10 +13,16 @@ export class ReviewContinuationReferenceError extends Error {
   }
 }
 
+function referenceIssue(issue: ZodError["issues"][number], fields: readonly string[]): boolean {
+  return issue.path.some(part => fields.includes(String(part)))
+    || (issue.code === "invalid_union" && issue.errors.some(group => group.some(child => referenceIssue(child, fields))));
+}
+
 /** Keep malformed public reference errors actionable before a continuation reaches execution. */
 export function reviewContinuationRequestError(mode: string, error: unknown, requestPhase: boolean): unknown {
   if (!requestPhase) return error;
   const producers: Partial<Record<string, string>> = {
+    "review-respond": "the matching local attest/resume, frontline run, hosted await, or reduce command",
     "review-hosted-await": "arc review hosted request",
     "review-frontline-run": "arc review frontline resolve",
     "review-local-resume": "arc review local prepare",
@@ -24,7 +30,8 @@ export function reviewContinuationRequestError(mode: string, error: unknown, req
     "review-reduce": "arc review local prepare or arc review frontline resolve",
   };
   const producer = producers[mode];
-  return producer !== undefined && error instanceof ZodError && error.issues.some(issue => issue.path.includes("operationRef"))
+  const fields = mode === "review-respond" ? ["source", "receiptRef", "outcomeRef", "attemptRef"] : ["operationRef"];
+  return producer !== undefined && error instanceof ZodError && error.issues.some(issue => referenceIssue(issue, fields))
     ? new ReviewContinuationReferenceError(error.message, producer) : error;
 }
 

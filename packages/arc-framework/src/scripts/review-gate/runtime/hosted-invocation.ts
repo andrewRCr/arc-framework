@@ -1,6 +1,7 @@
 /** Select native hosted owners and publish their locators outside provider and result identities. */
 import type { z } from "zod";
 import { sameOwner, type OwnerIdentity } from "../../../lib/store/identity.js";
+import { bindReviewSourceReference, parseReviewSourceReference } from "../core/review-source-reference.js";
 import { bindNativeReviewOperationReference } from "../core/review-operation-reference.js";
 import { HostedRequestResultSchema, hostedAwaitAction, type HostedRequestEnvelope,
   type HostedRequestResult } from "../hosted/request.js";
@@ -81,6 +82,11 @@ export async function retainHostedAwaitReference(options: ReviewInvocationInput,
   if (input.workItem === undefined) throw new Error("Resolve the native hosted owner before publishing its reference.");
   const operationRef = bindNativeReviewOperationReference({ repositoryId: await input.projectId(),
     workItem: input.workItem, operationId: result.handle.admission.admissionId });
+  const source = "responseSourceRef" in result && result.responseSourceRef !== undefined
+    ? parseReviewSourceReference(result.responseSourceRef, "hosted", true) : undefined;
+  const responseSourceRef = source === undefined ? undefined
+    : bindReviewSourceReference({ ...source, repositoryId: await input.projectId(), workItem: input.workItem });
   return HostedAwaitCommandResultSchema.parse({ ...result, operationRef,
+    ...(responseSourceRef === undefined ? {} : { responseSourceRef }),
     ...("action" in result ? { action: hostedAwaitAction(result.handle, operationRef) } : {}) });
 }

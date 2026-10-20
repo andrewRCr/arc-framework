@@ -21,6 +21,7 @@ import {
 } from "../../../lib/errand/record.js";
 import type { GitExec } from "../../../lib/git/exec.js";
 import type { ApprovedDispositionRecordReader } from "../core/ports.js";
+import { parseReviewSourceReference } from "../core/review-source-reference.js";
 import type { RawGitExec } from "../../../lib/git/exec.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
@@ -530,14 +531,14 @@ async function readRespondProvisionalPassFacts(context: RespondPolicyContext,
 }
 
 /** Bind respond to repository-common records and trusted local/runtime identities. */
-export function createRespondDependencies(input: ReviewInvocationInput): RespondCommandDependencies {
+export function createRespondDependencies(input: ReviewInvocationInput & { rawGit?: RawGitExec }): RespondCommandDependencies {
   return createBoundRespondDependencies({ ...input, ...resolveReviewInvocation(input) });
 }
 
 /** Share the response invocation's operational store with prepare, policy, and publication. */
-function createBoundRespondDependencies(input: ReviewInvocationInput & ReviewInvocationContext): RespondCommandDependencies {
+function createBoundRespondDependencies(input: ReviewInvocationInput & ReviewInvocationContext & { rawGit?: RawGitExec }): RespondCommandDependencies {
   const { publisher, family } = createReviewCompositionContext(input);
-  const rawGit = createRawGitExec(input.cwd);
+  const rawGit = input.rawGit ?? createRawGitExec(input.cwd);
   const prepare = createLocalPrepareDependencies(input);
   const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
   const confirmResponseHeadContinuation = createCandidateResponseHeadContinuationReader({ ...input, dispositionStore: family.ports.dispositions, operationStore: prepare.operationStore });
@@ -576,6 +577,7 @@ function createBoundRespondDependencies(input: ReviewInvocationInput & ReviewInv
   };
   const policyContext = { input, publisher, prepare, settings, readConfiguredLanePolicy, rawGit, deliveryMembers, privateDeliveryTargets };
   return {
+    parseSourceReference: (value, kind) => parseReviewSourceReference(value, kind, input.store.capabilities.stateOffBranch),
     withOperationLock: (operationId, action) => withRepositoryReviewOperationLock(
       input.exec,
       input.cwd,

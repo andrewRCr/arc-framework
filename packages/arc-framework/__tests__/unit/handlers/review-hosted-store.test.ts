@@ -1,8 +1,11 @@
 /** Native hosted defaults retain their selected owner through the produced await action. */
+import { scriptRawGitExec } from "../../helpers/git-exec-fake.js";
+import { withReviewReport } from "../../fixtures/review-report-input.js";
+import { HostedAwaitCommandResultSchema } from "../../../src/scripts/review-gate/hosted/await.js";
 import { appendFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
-import { handleReviewHostedRequest, handleReviewHostedAwait } from "../../../src/handlers/review.js";
+import { handleReviewHostedRequest, handleReviewHostedAwait, handleReviewRespond } from "../../../src/handlers/review.js";
 import { createCandidateAttestation, createCandidateSubjectSnapshot } from "../../../src/lib/work-unit/candidate-attestation.js";
 import { IntegrationBoundaryLocusV2Schema } from "../../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
 import { createStandardReviewReservation } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
@@ -22,13 +25,15 @@ import { withReviewNextPassContext } from "../../fixtures/review-next-pass.js";
 import { HostedRequestEnvelopeSchema, HostedRequestResultSchema } from "../../../src/scripts/review-gate/hosted/request.js";
 import type { HostedProcessRunner } from "../../../src/scripts/review-gate/hosted/gh-process.js";
 import { RepositoryGitCommonStatePublisher } from "../../../src/lib/git-common-state.js";
+import { LocalReviewOperationStateStore } from "../../../src/scripts/review-gate/hosts/local/operation-state-store.js";
 import { HostedRequestOwnerIndex } from "../../../src/scripts/review-gate/hosts/local/hosted-request-owner-index.js";
+import { bindReviewSourceReference, parseReviewSourceReference } from "../../../src/scripts/review-gate/core/review-source-reference.js";
 import { bindNativeReviewOperationReference, parseNativeReviewOperationReference } from "../../../src/scripts/review-gate/core/review-operation-reference.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 const head = "a".repeat(40), base = "b".repeat(40), branch = "chore/repair";
 
-async function fixture(workUnit = false) {
+async function fixture(workUnit = false, findings = false) {
   const h = createReviewHarness();
   const projectRecord = await h.seedProject(projectId);
   const record = TransientIdentityRecordSchema.parse({ version: 3, kind: "errand", purpose: "errand", slug: "repair",
@@ -115,7 +120,14 @@ async function fixture(workUnit = false) {
       performed_via_github_app: { id: 1144995 }, body: `Codex Review: didn't find any major issues\nReviewed commit: ${head}`,
       created_at: "2026-10-19T12:01:00Z", updated_at: "2026-10-19T12:01:00Z",
     }] : []];
-    else if (endpoint?.startsWith("repos/owner/repository/pulls/42/reviews?")) value = [[]];
+    else if (endpoint?.startsWith("repos/owner/repository/pulls/42/reviews?")) value = [complete && findings ? [{
+      node_id: "finding-review", html_url: "https://example.test/review", user: { id: 199175422 }, state: "COMMENTED",
+      commit_id: head, submitted_at: "2026-10-19T12:01:00Z", body: `<!-- codex-code-review-finding:v1 -->
+### 💡 Codex Review
+https://github.com/owner/repository/blob/${head}/src/example.ts#L7
+**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-yellow?style=flat)</sub></sub> Preserve target facts**
+Reclassify the changed target before continuing.`,
+    }] : []];
     else if (endpoint === "graphql") value = { data: { repository: { pullRequest: {
       reviewThreads: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } },
     } } } };
@@ -136,6 +148,14 @@ async function fixture(workUnit = false) {
   return { ...checkout, primary, request, publisher, index, complete: () => { complete = true; },
     removeProject: async () => { lifecycleSuccess(await h.store.write({ action: "remove", reference: projectRecord.reference,
       expected: projectRecord.version, provenance: { verb: "remove", lifecycleAction: "remove" } })); },
+    respond: async (input: unknown, bound: { workItem?: OwnerIdentity; store?: Store } = {}) => {
+      let output = "";
+      await handleReviewRespond("-", { resolveRoot: () => checkout.cwd, readText: async () => JSON.stringify(input),
+        write: text => { output += text; }, setExitCode: () => {} }, undefined,
+      { ...checkout, ...bound, rawGit: scriptRawGitExec([{ match: ["diff", "--numstat", "-z", "-M", "-C", "--find-copies-harder", `${base}..${head}`, "--"],
+        responses: [{ stdout: Buffer.from("1\t0\tsrc/example.ts\0") }] }]).exec, projectId: createProjectIdentityReader(checkout.store) });
+      return JSON.parse(output) as unknown;
+    },
     run: (bound?: { workItem?: OwnerIdentity }) => invoke(handleReviewHostedRequest, request, bound),
     awaitResult: (input: unknown, bound?: { workItem?: OwnerIdentity; store?: Store }) => invoke(handleReviewHostedAwait, input, bound) };
 }
@@ -262,4 +282,108 @@ it("retains a branch-linked Work Unit UID through the default hosted continuatio
   expect(parseNativeReviewOperationReference(requested.operationRef).workItem).toEqual(h.primary.reference.owner);
   h.complete();
   expect(await h.awaitResult(requested.action)).toMatchObject({ state: "clean", operationRef: requested.operationRef });
+});
+
+it("publishes a native hosted source reference outside the sealed result identity", async () => {
+  const h = await fixture();
+  const requested = HostedRequestResultSchema.parse(await h.run());
+  if (requested.state !== "requested" || requested.operationRef === undefined) throw new Error(JSON.stringify(requested));
+  h.complete();
+  const result = HostedAwaitCommandResultSchema.parse(await h.awaitResult(requested.action));
+  if (result.state !== "clean" || result.responseSourceRef === undefined) throw new Error(JSON.stringify(result));
+  const snapshot = await new LocalReviewOperationStateStore(h.publisher).readOperationSnapshot();
+  if (snapshot.status !== "complete") throw new Error(JSON.stringify(snapshot));
+  const lane = snapshot.records.find(({ state }) => state.kind === "lane-progress");
+  if (lane?.state.kind !== "lane-progress") throw new Error("Expected actual lane state");
+  const attempt = lane.state.attempts.find(item => item.hosted?.admission.admissionId === requested.handle.admission.admissionId);
+  if (attempt === undefined) throw new Error("Expected actual acknowledged attempt");
+  expect(parseReviewSourceReference(result.responseSourceRef, "hosted", true)).toEqual({ repositoryId: projectId,
+    workItem: h.primary.reference.owner, kind: "hosted", operationId: lane.state.operationId, durableRef: attempt.attemptId });
+  const replay = await h.awaitResult(requested.action);
+  expect(replay).toMatchObject({ responseSourceRef: result.responseSourceRef, hostedResultId: result.hostedResultId });
+});
+
+async function hostedProposalFixture() {
+  const h = await fixture(false, true);
+  const requested = HostedRequestResultSchema.parse(await h.run());
+  if (requested.state !== "requested") throw new Error(JSON.stringify(requested));
+  h.complete();
+  const raw = await h.awaitResult(requested.action);
+  expect(raw, JSON.stringify(raw)).toMatchObject({ state: "findings" });
+  const result = HostedAwaitCommandResultSchema.parse(raw);
+  if (result.state !== "findings" || result.responseSourceRef === undefined) throw new Error(JSON.stringify(result));
+  const request = withReviewReport({ schemaVersion: 1,
+    source: { kind: "hosted", attemptRef: result.responseSourceRef },
+    proposal: { proposedVerification: "focused", severityGatingPolicy: { minorGating: "record-only" },
+      findings: result.findings.map(finding => ({ findingId: finding.findingId, sourceVerification: "verified", verifiedSeverity: finding.severity,
+        verificationRefs: ["source:src/example.ts:7"], disposition: "defer", title: "Preserve target facts",
+        issue: "The target changes before continuation.", rationale: "The selected source supports the finding.",
+        recommendation: "Retain the target facts.", openQuestions: [] })) } });
+  return { ...h, result, sourceReference: result.responseSourceRef, request };
+}
+
+it("binds a hosted response proposal from the source emitted by default await", async () => {
+  const h = await hostedProposalFixture();
+  const response = await h.respond(h.request);
+  expect(response, JSON.stringify(response)).toMatchObject({ state: "awaiting-approval", nextAction: "obtain-approval" });
+});
+
+it.each(["missing", "foreign-project", "bound-owner", "pending-owner", "malformed", "wrong-kind", "legacy"] as const)(
+  "refuses a %s hosted response source and accepts its corrected producer reference", async invalid => {
+    const h = await hostedProposalFixture();
+    const reference = parseReviewSourceReference(h.sourceReference, "hosted", true);
+    if (!("workItem" in reference)) throw new Error("Expected native source");
+    const other = await h.seedMeta("other");
+    const attemptRef = invalid === "missing" ? undefined : invalid === "malformed" ? "arc-review-source:v2:broken" : invalid === "legacy"
+      ? bindReviewSourceReference({ kind: "hosted", operationId: reference.operationId, durableRef: reference.durableRef })
+      : bindReviewSourceReference({ ...reference, kind: invalid === "wrong-kind" ? "frontline" : "hosted",
+        repositoryId: invalid === "foreign-project" ? "another-project" : reference.repositoryId,
+        workItem: invalid === "pending-owner" ? other.reference.owner : reference.workItem });
+    const input = { ...(h.request as object), source: { kind: "hosted", attemptRef } };
+    const before = lifecycleSuccess(await h.store.version());
+    expect(await h.respond(input, { workItem: invalid === "bound-owner" ? other.reference.owner : undefined }))
+      .toMatchObject({ error: { code: "invalid-input", message: expect.stringContaining("matching reference") } });
+    expect(lifecycleSuccess(await h.store.version())).toBe(before);
+    expect(await h.respond(h.request)).toMatchObject({ state: "awaiting-approval", nextAction: "obtain-approval" });
+  });
+
+it("preserves response project recovery before selecting its source owner", async () => {
+  const h = await hostedProposalFixture();
+  await h.removeProject();
+  expect(await h.respond(h.request)).toMatchObject({ error: { code: "project-identity-unavailable" },
+    remedy: { argv: ["arc", "review", "respond", "-"], stdin: h.request } });
+  await h.seedProject(projectId);
+  expect(await h.respond(h.request)).toMatchObject({ state: "awaiting-approval" });
+});
+
+it("rejects a native response source at a repository root", async () => {
+  const h = await hostedProposalFixture();
+  const store = createStore(createDefaultStorePorts({ checkoutRoot: h.cwd, exec: h.exec }));
+  expect(await h.respond(h.request, { store })).toMatchObject({ error: {
+    code: "invalid-input", message: expect.stringContaining("matching reference"),
+  } });
+});
+
+it("keeps internal response calls that already hold the exact owner", async () => {
+  const h = await hostedProposalFixture();
+  const reference = parseReviewSourceReference(h.sourceReference, "hosted", true);
+  const attemptRef = bindReviewSourceReference({ kind: "hosted", operationId: reference.operationId,
+    durableRef: reference.durableRef });
+  expect(await h.respond({ ...(h.request as object), source: { kind: "hosted", attemptRef } },
+    { workItem: h.primary.reference.owner })).toMatchObject({ state: "awaiting-approval" });
+});
+
+it("requires the source working state's saved owner and resumes after its repair", async () => {
+  const h = await hostedProposalFixture();
+  const reference = parseReviewSourceReference(h.sourceReference, "hosted", true);
+  const operations = new LocalReviewOperationStateStore(h.publisher);
+  const saved = await operations.readOperation(reference.operationId);
+  if (saved.state === null) throw new Error("Expected admitted working state");
+  const withoutOwner = { ...saved.state };
+  delete withoutOwner.workItem;
+  await operations.publishOperation(withoutOwner, saved.version);
+  expect(await h.respond(h.request)).toMatchObject({ error: { message: expect.stringContaining("Restore") } });
+  const corrupt = await operations.readOperation(reference.operationId);
+  await operations.publishOperation(saved.state, corrupt.version);
+  expect(await h.respond(h.request)).toMatchObject({ state: "awaiting-approval" });
 });

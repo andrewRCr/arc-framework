@@ -6,6 +6,7 @@ import { ReviewLaneReadRequestSchema, ReviewLaneReadEnvelopeSchema, type ReviewL
 import { createReviewInvocationResolver, resolveReviewInvocation, type ReviewInvocationOptions, type ReviewInvocationContext, type ReviewInvocationInput } from "../scripts/review-gate/runtime/invocation.js";
 import { resolveHostedAwaitInvocation, resolveHostedRequestInvocation, retainHostedRequestReference, retainHostedAwaitReference,
   hostedRequestIndexWorkItem } from "../scripts/review-gate/runtime/hosted-invocation.js";
+import { resolveReviewSourceInvocation } from "../scripts/review-gate/runtime/source-invocation.js";
 import { retainReviewOperationReference, reviewContinuationRequestError, resolveReviewOperationInvocation } from "../scripts/review-gate/runtime/continuation-invocation.js";
 import { resolveLocalReviewInvocation, resolveLocalReviewResumeInvocation, resolveLocalReviewAttestInvocation } from "../scripts/review-gate/runtime/local-review-invocation.js";
 import { resolveReduceInvocation } from "../scripts/review-gate/runtime/reduce-invocation.js";
@@ -3281,15 +3282,18 @@ export interface ReviewRespondHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultRespondDependencies(context: InteractionContext, invocation: ReviewInvocationOptions = {}): ReviewRespondHandlerDependencies {
-  const exec = createGitExec(context.subprocess);
+function defaultRespondDependencies(context: InteractionContext, invocation: ReviewHandlerInvocationOptions = {}): ReviewRespondHandlerDependencies {
+  const exec = invocation.exec ?? createGitExec(context.subprocess);
   const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
     ...defaultReviewHandlerBoundary(),
-    respond: (request, root) => respondToReviewCommand(
-      request,
-      createRespondDependencies({ ...invocationFor(root), exec, cwd: root }),
-    ),
+    respond: async (request, root) => {
+      const source = RespondRequestSchema.parse(request).source;
+      const reference = source.kind === "hosted" ? source.attemptRef
+        : source.kind === "frontline" ? source.outcomeRef : source.receiptRef;
+      const selected = await resolveReviewSourceInvocation({ ...invocationFor(root), exec, cwd: root }, reference, source.kind);
+      return respondToReviewCommand(request, createRespondDependencies({ ...selected.invocation, rawGit: invocation.rawGit }));
+    },
   };
 }
 
@@ -3298,7 +3302,7 @@ export async function handleReviewRespond(
   source: string,
   overrides: Partial<ReviewRespondHandlerDependencies> = {},
   suppliedContext?: InteractionContext,
-  invocation: ReviewInvocationOptions = {},
+  invocation: ReviewHandlerInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false,

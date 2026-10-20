@@ -287,6 +287,8 @@ interface HostedDispositionFindingBinding {
 }
 
 export interface RespondCommandDependencies {
+  /** Decode source coordinates under the invocation's selected storage arm. */
+  parseSourceReference?: typeof parseReviewSourceReference;
   withOperationLock<T>(operationId: string, action: () => Promise<T>): Promise<T>;
   resultReader: ReviewResultReader;
   dispositionStore: ApprovedDispositionRecordStore;
@@ -563,9 +565,10 @@ type RespondSource = z.infer<typeof ReviewResponseSettlementSourceSchema>;
 function parseSourceReference(
   reference: string,
   kind: "attested-local" | "frontline" | "hosted",
+  dependencies: RespondCommandDependencies,
 ) {
   try {
-    return parseReviewSourceReference(reference, kind);
+    return (dependencies.parseSourceReference ?? parseReviewSourceReference)(reference, kind);
   } catch (error) {
     throw new RespondCommandError(
       "invalid-input",
@@ -664,7 +667,7 @@ async function resolveLocalSource(
   request: RespondSource & { kind: "attested-local" },
   dependencies: RespondCommandDependencies,
 ): Promise<ResolvedResponseSource> {
-  const reference = parseSourceReference(request.receiptRef, "attested-local");
+  const reference = parseSourceReference(request.receiptRef, "attested-local", dependencies);
   const result = await dependencies.resultReader.readResult(reference.operationId);
   if (result.kind !== "attested-local" || result.receiptRef !== reference.durableRef) {
     throw new RespondCommandError("corrupt-state", "local response source snapshot mismatch");
@@ -702,7 +705,7 @@ async function resolveFrontlineSource(
   request: RespondSource & { kind: "frontline" },
   dependencies: RespondCommandDependencies,
 ): Promise<ResolvedResponseSource> {
-  const reference = parseSourceReference(request.outcomeRef, "frontline");
+  const reference = parseSourceReference(request.outcomeRef, "frontline", dependencies);
   const result = await dependencies.resultReader.readResult(reference.operationId);
   if (result.kind !== "frontline" || result.outcomeRef !== reference.durableRef) {
     throw new RespondCommandError("corrupt-state", "frontline response source snapshot mismatch");
@@ -737,7 +740,7 @@ async function resolveHostedSource(
   request: RespondSource & { kind: "hosted" },
   dependencies: RespondCommandDependencies,
 ): Promise<ResolvedResponseSource> {
-  const reference = parseSourceReference(request.attemptRef, "hosted");
+  const reference = parseSourceReference(request.attemptRef, "hosted", dependencies);
   const result = await dependencies.resultReader.readResult(reference.durableRef);
   if (result.kind !== "hosted" || result.laneOperationId !== reference.operationId) {
     throw new RespondCommandError("corrupt-state", "hosted response source snapshot mismatch");
