@@ -333,6 +333,8 @@ and 15 for every served family, but for the assertions 4.4.d excludes by name, a
 - _Goal:_ `write` and `batch` land a put or removal as one commit per ref in one compare-and-swap transaction under the
   refs' locks, all or none, with nothing landing on refs an owner has left.
 
+    - _Amended in:_ 4.R (A22)
+
     - `[x]` **4.2.a Validation and resolution**
         - Input schemas refuse missing primary placement before Git; personal writes without identity refuse before
           resolution or locks and retry on the same store after configuration. Live names and authoritative UIDs resolve
@@ -369,6 +371,8 @@ and 15 for every served family, but for the assertions 4.4.d excludes by name, a
 - _Goal:_ The shared suite runs over the ref backend on real temporary repositories with a bare origin, each test
   copying a prepared template, its declarations stating exactly what the backend serves.
 
+    - _Amended in:_ 4.R (A22)
+
     - `[x]` **4.4.a Fixture and declarations**
         - A public ref-store registration copies isolated files-format templates with local bare origins and a push
           designation. Both fixtures share the extracted generic test registry; ref declarations cover served families
@@ -396,10 +400,49 @@ and 15 for every served family, but for the assertions 4.4.d excludes by name, a
         - Pull, push, and synchronized primary-role assertions retain their later retirement boundary.
             - _Retired in:_ Phase 11
 
+### `[ ]` **4.R Atomic observations and native publication admission — § 5.1, § 5.3, § 5.4, § 11.4 (A22)**
+
+- _Goal:_ Correct the write spine and check views under A22: observations and every registered check hold against
+  one coherent before-state through local publication, with no effect from observation-only records and no renewed
+  approval for unrelated writes.
+
+    - `[ ]` **4.R.a Serialize final native admission with publication**
+        - Move registered checks inside the existing layout publication boundary. Compare fresh logical-state and
+          history tips to the capture there, excluding tracking/control/temporary refs; retry and rebuild internally.
+          Preserve sorted ref-lock order, layout restarts, CAS retry, no-op checks, and retirement's pre-sweep view.
+        - Build `test-first` (one behavior at a time):
+            - A read-only change or new relevant ref after capture refuses through the rule and persists no writes;
+              corrected state succeeds. Unrelated changes revalidate and admit without caller recapture.
+            - A competing local writer cannot publish during admission. Sync/new-ref publication participates, and
+              existing layout moves, retirement, role replacement, failed checks, and lock cleanup remain usable.
+
+    - `[ ]` **4.R.b Bind serialized observations and captured before-history**
+        - Consume the reviewed shared API once its implementation is available: strict `RecordObservationSchema`,
+          `BatchInput.observations`, `WriteCheckInput.observations`, trusted writer action, and captured before-history.
+          Carry observations through validation, resolution, retries, and check dispatch; reuse shared comparison
+          semantics and pinned native history resolution. This leaf depends on that shared implementation landing.
+        - Build `test-first` (one behavior at a time):
+            - Present/absent and strict merge-kind observations compare exact versions and conflict sets; mismatch
+              rolls back, unreadable evidence keeps its specific repair, and corrected acquisition succeeds.
+            - Omission/empty arrays, overlap, write-once observations, duplicates, and generation rules follow shared
+              conformance; observation-only records gain no result, history, provenance, identity, or conflict effect.
+            - Checks receive the validated action and observations; before-history stays pinned through live,
+              archived, and retained-record cases without recapturing public history or adding after-history.
+
+    - `[ ]` **4.R.c Verify production admission and close the native contract correction**
+        - Consume the production cut-map rule once available. Exercise final-gap changed read-only evidence,
+          conflict-only changes, existing/new incoming owners, newly resolvable providers, and source/removal group
+          additions in both layouts. Include stale discard, actionable refusal followed by fresh acquisition and
+          approval, and unrelated owner/content changes that still admit. Keep cut logic in its kind registration.
+        - Run native observation conformance and the affected write/check/history, sync, layout, and lifecycle suites;
+          retain the source-grounded publisher audit. Record § 14.3.1's scenario and close A22 before Task 17.6.
+
 ### `[x]` **4.5 The engine's first path** — validate exit criterion at segment scope
 
 - _Goal:_ The ref-backend fixture in the default layout passes items 1, 2, 4, 6, 9, 10, 13, and 15 for every served
   family, with every other item and assertion excluded by name, reason, and retiring phase.
+
+    - _Amended in:_ 4.R (A22)
 
 - _Outcome:_ Default-layout conformance exercises the stated items across every served family with the exact
   permanent and interim inventory recorded by 4.4.d. Fresh path checks retain valid Unicode and quote records and
@@ -481,6 +524,8 @@ _Mode:_ `layer` through Phase 8 — closes on the local engine complete in both 
 - _Goal:_ `history` returns a record's versions as its own ref's log holds them, every one a commit where the record's
   version or presence changed, so a stale base finds the version it names.
 
+    - _Amended in:_ 4.R (A22)
+
     - _Amended in:_ 7.2.R (A9)
 
 - _Outcome:_ `readRefHistory` compares path-limited commit snapshots by each record's own version and presence,
@@ -524,6 +569,8 @@ _Mode:_ `layer` through Phase 8 — closes on the local engine complete in both 
 
 - _Goal:_ Every registered write check runs under the write's locks over the state before and after the batch, and the
   first broken rule refuses the whole write.
+
+    - _Amended in:_ 4.R (A22)
 
 - _Outcome:_ Registered checks run under all batch locks against captured-before and complete prepared-after views,
   including generated conflicts. Checks receive persisted merged bytes, preserve unparseable prior content without
@@ -607,6 +654,8 @@ close, and renames and role changes.
 
 - _Goal:_ A4's ref-backend retirement checks observe the batch's prepared mutations before the automatic sweep, refusing
   held inbound entries while admitting a batch that settles them itself.
+
+    - _Amended in:_ 4.R (A22)
 
 - _Outcome:_ Real-Git coverage runs the shipped lineage check with a declared inbound grammar. Held entries block
   abandonment and decomposition without ref changes; same-batch settlement or removal admits an empty final history
@@ -1874,3 +1923,8 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
   names and distinct generations refuse ambiguity. Private identity evidence survives retirement, sync, withdrawal,
   and known rename-chain import without terminal-history enumeration or changed UID-less direct operation authority
   (§ 3.3, § 8, § 10.9, § 14.7) (A21)
+
+- `[ ]` In both layouts, exact observation versions/conflict sets and every registered check hold through native
+  publication, including changed read-only evidence, new relevant refs, and sync publishers. Captured history,
+  refusal rollback, repaired retry, and unrelated-write admission are proved through public Store behavior;
+  observation-only records gain no published effect (§ 14.3.1) (A22)

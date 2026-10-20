@@ -621,3 +621,46 @@ withdrawal, and import grouping. Existing generic direct readers and writers, re
 layouts, and remote copy/follow transport remain unchanged; native local and synced tests verify that separation.
 The added criterion is checked by the revision's native lookup/withdrawal/import suite and remains open for terminal
 work-unit verification. Completed Tasks 5.7, 15.2, and 15.10 point forward instead of rewriting their earlier outcomes.
+
+## A22 — Atomic native observation admission
+
+The design arm supersedes § 5.3's statement: “A rule that reads records outside the batch holds as of the write.
+The compare-and-swap guards only the refs the batch writes, so a race or a merge can produce a state such a rule
+would refuse.” It also broadens § 11.4's “only around its commit” boundary. The approved shared contract requires
+all observations and registered checks to hold through local publication, including newly created relevant refs.
+This is a bounded composition of existing locking, captured views, and history, retaining Class Heavy. The Owner
+approved native absorption after the shared amendment review; that review returned no findings. Its runtime
+implementation is still a prerequisite, not shipped behavior in this checkout.
+
+`commitRefWrites` currently builds captured proposed groups, calls `checkRefWrites`, sweeps retirements, and only
+then calls `commitRefStep`. `commitLockedRefBatch` already retries from freshly captured tips, with separate owner
+and layout re-resolution. The correction compares logical-state plus history tips inside the last-acquired layout
+lock, then checks observations and runs registered checks before the sweep and transaction while retaining that
+lock. A changed pre-lock capture rebuilds internally. `isManifestRef` and `HistoryRefSchema` identify state/history
+refs; `readRefTips` also returns temporary refs, so a raw full-map comparison would spuriously retry on manifest
+keepers or move journals. This is internal serialization evidence, never a caller's whole-store freshness token.
+
+`createRefWriteViews` already pins read/list/lookup to supplied tips; `readRefHistory` traverses an explicit home/tip.
+Extract the live/archive/retained resolution from `historyRefRecord` for before-history rather than calling that
+public wrapper, which captures again. Thread the shared validated observation array and trusted writer action
+through the native write path. Consume shared schemas/comparison semantics after they land; the backend does not
+reimplement cut-map inventory or member authentication. The registered rule supplies those domain obligations.
+
+The publisher audit traces ordinary writes, `mergeRefSets`, and `commitWithdrawEnd` through `commitRefStep`;
+`landImportRefs` directly holds layout across its destination transaction. `moveRefLayout` and
+`moveRefLayoutAsSwitch` hold layout across listing, private build, installation, and source deletion. Their
+`prepareRefCopy` held mode borrows that lock; its only unlocked caller prepares the remote copy under
+`refs/arc/tmp/migrate/remote/copy/`. Pull passes the default locked mode through `mergePulledRefState` and
+`mergeCapturedRefState`; `adoptSourceProjectIdentity` uses `writeRefRecord`. First backing/store creation takes the
+layout lock. Remaining transaction callers change tracking/seen refs, temporary gathering/control refs, or legacy
+import sources. `appendImportTransients` selects only the configured identity's legacy Errand ref;
+`retireImportLocals` deletes its retained source in the code repository when the new store is separate, not a
+native logical record. `maintainRefStore` packs and measures immutable tips without changing logical records.
+Raw Git writers outside this cooperative protocol still rely on changed-ref CAS; no remote atomic-rule guarantee
+is introduced, and sync continues to merge without running kind checks as gates.
+
+Propagation: write-spine/check/history tasks and the first-path verifier point forward to 4.R; original Goals and
+outcomes remain intact. Existing merge semantics, slug-resolution policy, import content, A21 lookup authority,
+move/follow routes, and Phase 17's transport scenarios are unaffected. Phase 18's existing burst and cost obligations
+still measure the widened local lock. The new criterion joins the flat terminal criteria. 4.R.c covers the native
+correction before 17.6; no new segment, lifecycle transition, or Phase 19 execution is introduced.

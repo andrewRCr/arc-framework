@@ -217,7 +217,8 @@ describes types the code does not have.
 
 ```ts
 interface Store {
-  // read, list, write, batch, version, history, changes, lookup: unchanged
+  // read, list, write, version, history, changes, lookup: unchanged
+  // batch retains its operation shape and accepts observations under § 5.4 (A22).
   /** Fetch from the state remote and read sources, and merge into local state; publishes nothing. */
   pull(input?: PullInput): Promise<StoreResult<PullResult>>;
   /** Pull, then publish every eligible family, optionally carrying one code ref. */
@@ -1038,9 +1039,14 @@ caller names any. A ref in one manifest only reads by its namespace:
    passes the serialization rules again on the bytes it stores (§ 5.6), and a stale base's merged content passes its
    kind's parser, whose failure refuses `record-malformed` with the parser's error and the remedy to read the record and
    write it again over its current version, since a write can refuse what a pull's merge must store (§ 6.4).
-6. **Check.** Each written record's write check runs under the same locks (§ 5.3).
-7. **Commit.** Under the layout lock, taken last (§ 11.4), the layout is read again, and one a move changed since step 2
-   releases every lock and restarts the write from step 2, as step 4 does; then the new objects, one commit per touched
+6. **Admit atomically (A22).** Take the layout publication lock last (§ 11.4), retaining the ref locks. Recheck the
+   selected physical layout and the captured logical-state tips, including history. A changed layout releases every
+   lock and restarts at step 2. Changed logical tips release the publication lock and retry from step 4, rebuilding
+   views and proposed mutations internally. Exclude temporary, tracking, and control refs from that comparison.
+   Under the unchanged captured basis, compare every submitted observation (§ 5.4), then run every registered write
+   check (§ 5.3). Hold the publication lock through the retirement sweep and ref transaction. A refusal publishes
+   nothing. The same admission applies when prepared writes would otherwise be no-ops.
+7. **Commit (A22).** Still under the publication lock, write the new objects, one commit per touched
    ref — and on a ref where a stale base's merge files conflict records, a second commit atop it holding them, with the
    provenance § 5.5 gives them — and one ref transaction naming every ref's expected old value (§ 11.1). A ref found off
    its expected value — a writer that bypassed the lock — retries the whole operation from step 4.
@@ -1091,21 +1097,30 @@ Each written record's registered write check (`WriteCheck`, `lib/store/write-che
   content and no fields where the stored version fails to parse, which only a pull's merge or the import stores; its
   next record, the content the write persists, which for a stale base is the merged content; the writer; and two
   read-only views, `before` over the tips the write found and `after` over the batch's new trees laid over those tips,
-  each offering `read`, `list`, and `lookup`.
+  each offering `read`, `list`, and `lookup`. `before` additionally offers `history` pinned to those captured tips;
+  `after` has no hypothetical history. The input includes the validated `observations`, or `[]` for a single write or
+  a batch omitting them (A22).
 - **A retirement's check view precedes its final sweep (A4).** For an end under § 7.4, `after` contains the batch's
   prepared mutations laid over the captured tips, including its own inbound-list settlement or explicit removal,
   before the backend's automatic sweep. All write checks must admit the batch before that sweep runs. The empty final
   tree and the move to the history ref still land in the same atomic transaction.
 - **The writer** comes from the batch's provenance through `deriveWriteCheckWriter`: a verb in `HAND_EDIT_VERBS`
-  (`lib/store/links.ts`) is a hand edit, any other verb itself.
+  (`lib/store/links.ts`) is a hand edit, any other verb itself. For a verb writer, retain `lifecycleAction` only from
+  validated caller provenance; a hand-edit writer carries no lifecycle authority (A22).
 - **A primary's role replacement** (A5) runs the removed kind's check with no next record and the created kind's with no
   prior, as the reference backend's check pass does (`checkPreparedWrites`, `__tests__/helpers/store/write-checks.ts`).
 - **Broken rules refuse `record-malformed`** composed through `composeWriteCheckRefusal`: the first broken rule in
   identifier order (UTF-8 bytes), the first record in the batch's write order that breaks it, that rule's condition and
   remedy, and the condition counting the other broken record-and-rule pairs.
-- **A rule that reads records outside the batch holds as of the write.** The compare-and-swap guards only the refs the
-  batch writes, so a race or a merge can produce a state such a rule would refuse; readers report that state, as two
-  machines' records with one slug are handled (D14): both exist, status lists the clash, and a rename resolves it.
+- **Every check holds at local atomic admission (A22).** Its coherent `before` includes read-only records, and
+  `after` overlays the requested mutations. The publication lock prevents another participating local publisher
+  from changing that basis, including by creating a relevant new ref, until publication completes. A changed
+  pre-lock capture causes internal rebuild and revalidation, never a caller-visible whole-store freshness refusal.
+  A rule that still holds after an unrelated change admits the same operation without renewed approval.
+- **The boundary is the local Store protocol (A22).** A later pull or another machine can introduce a state a rule
+  would refuse; readers retain their existing diagnostics and remedies. Raw Git writers outside the protocol do
+  not honor ARC locks; expected-old-value ref transactions still protect changed refs against them. Slug resolution
+  retains § 5.1's existing policy; this boundary serializes local Store publishers.
 - **A merge never runs a check as a gate** (§ 6.4), and moving state between backends or layouts gates on none (§ 10.4).
 
 #### 5.4 Batches
@@ -1114,6 +1129,52 @@ A batch is all or none (D3). Its refs commit in one `update-ref --stdin` transac
 sees all or none of it, and a reader of the files layout may see part of it for a moment (§ 4.3). A batch that creates a
 ref — a new work item or cohort, a decomposition's children, a first write to a quarter or an identity ref — names it
 with an expected absence.
+
+**Read observations (A22).** The expected shared API adds `RecordObservationSchema`, its type, and optional
+`BatchInput.observations` through `lib/store/write.ts` and the store barrel:
+
+```ts
+type RecordObservation = {
+  reference: RecordReference;
+  expected: null | { version: RecordVersion; conflicts: readonly RecordReference[] };
+};
+```
+
+The strict schema requires a generation UID for every non-person observation. Conflict references name conflict
+record kinds and are unique by logical reference; each observed logical record appears once per batch. A record
+may be both observed and written. Omission and `[]` are equivalent. Observations convey no mutation rights and do
+not become puts, conflict resolutions, or synthetic history entries.
+
+At § 5.1's final admission, `expected: null` requires exact absence; unreadable, unknown, unresolved, or unavailable
+state is not absence. A present expectation requires exact record-version and conflict-reference-set equality,
+independent of ordering and even for merge kinds. Mutation expected-version and stale-base merge behavior stays
+as § 5.2 defines it. A mismatch refuses the whole batch as recoverable `version-conflict`, naming the mismatched
+references; preserve a more specific read refusal when the basis cannot be established. Observation-only records
+acquire no published history, provenance, identity, conflict, or resolution effect, nor a write result. Callers
+observe the owning primary too when depending on a companion's inherited name, placement, or links: a record
+version and conflict set do not bind every derived public field.
+
+Native adoption consumes the shared strict schemas and observation comparator when available, rather than
+creating a second interpretation. The shared extension and registered cut-map admission rule are prerequisites
+whose runtime implementation is not yet in this checkout. Native support must be connected and verified before
+cutover. The expected interim in-repo behavior for a nonempty request is terminal `unsupported`, case
+`batch-observations`; empty/omitted behavior remains unchanged.
+
+**Captured rule evidence (A22).** `WriteCheckInput.before` is `StoreView & Pick<Store, "history">`, using the same
+captured homes and tips as its reads. Reuse `readRefHistory`'s pinned-tip traversal and extract the resolution from
+`historyRefRecord`; calling that public wrapper from a check would recapture live state. Pass observations and the
+trusted writer action through the existing `checkRefWrites` dispatch. No callback, predicate registry, inventory
+index, or new stored witness is introduced.
+
+The expected registered `cut-map.atomic-binding` rule uses these facilities to compare complete current origin and
+removed-group membership against observed present records, authenticate member generations using captured history,
+recompute relevant incoming edge identities over complete lifecycle listings, and repeat outgoing lookup. New
+relevant owners, group companions, or newly resolvable providers must be visible at final admission; unrelated
+owners and content changes must not invalidate an otherwise current cut. Additive/revise bind the proposed source
+and edges; terminal rechecks current eligibility and stored source/edge binding; discard guards removed groups
+without requiring obsolete source conservation. Incomplete/unreadable evidence fails closed with an actionable
+repair. This remains a kind rule, not backend-specific decomposition logic; native tests consume its production
+registration once available.
 
 #### 5.5 Provenance on the backend's own writes
 
@@ -3019,13 +3080,22 @@ worktree of the clone serializes on it, in either layout.
   stand, and the next pull merges the rest.
 - **The layout lock,** `arc/locks/layout.lock` beside them, the lock a write creates the store directory under (§ 9.7),
   serializes a layout move against every write. The move holds it from its listing through the copy, the switch, and the
-  source's delete (§ 10.2). A write, and a pull's merge, takes it last, after its ref locks and only around its commit
-  (§ 5.1): under it the write reads the layout again by the store directory's presence and, where it changed, releases
-  every lock and restarts from step 2, so no write commits into a copy a move has taken or left. The move takes no ref
-  lock, so the order cannot deadlock. Under reftable every commit already waits on one lock (§ 11.2); in the files
-  format the layout lock serializes commits to unrelated refs that ran in parallel, each holding it only for its objects
-  and one ref transaction and never across a network call, and § 14.5's bursts measure what that costs. A move that
-  outlasts a waiting write's 10 s refuses it `lock-held`.
+  source's delete (§ 10.2). A write takes it last, after its ref locks, across final admission and publication (§ 5.1,
+  A22); a pull's merge takes it last across publication. Under it each reads the layout again by the store directory's
+  presence and, where it changed, releases every lock and restarts from step 2, so no write commits into a copy a move
+  has taken or left. The move takes no ref lock, so the order cannot deadlock. Under reftable every commit already waits
+  on one lock (§ 11.2); in the files format the layout lock serializes final admission and commits to unrelated refs
+  that prepared in parallel, holding it across local captured-view checks, objects, and one ref transaction, never a
+  network call. The captured `before.history` is local-only too; § 14.5's bursts measure what that costs (A22). A move
+  that outlasts a waiting write's 10 s refuses it `lock-held`.
+- **Every local logical-state publisher participates (A22).** Ordinary writes through `commitRefWrites`, sync
+  merges through `mergeRefSets`, and end withdrawal through `commitWithdrawEnd` use `commitRefStep`'s locked mode.
+  `landImportRefs` holds the same lock for destination landing. `moveRefLayout` and `moveRefLayoutAsSwitch` hold it
+  through installation and source deletion; their private builds borrow that held boundary. An unlocked remote
+  copy targets only private temporary refs. New logical refs participate exactly like updates and deletes.
+  Fetch tracking, manifest keepers, move journals, and legacy import-source cleanup are not logical record
+  publication. A newly added publisher must join this boundary before it may expose logical state. No ref lock
+  is acquired inside final admission; a check reads captured state and never writes or acquires mutation locks.
 - **The move lock,** `arc/locks/migrate.lock` beside them, serializes moves alone: each move holds it for its whole run
   (§ 10.3), across its network calls, the one lock held there, since no write, pull, or push takes it. A second move
   waits the lock's default, then refuses `lock-held` naming it, and a killed run's lock goes as an abandoned holder's
@@ -3322,6 +3392,25 @@ the default in a files-format code repository, and the separate one in its refta
   initial and newer versions included; reads and listings select each origin's own format. A put or removal of one
   preserves the other's content, format, and record version. An unsupported format diagnoses only its origin and
   reads after rebuilding with support.
+
+#### 14.3.1 Atomic local admission (A22)
+
+Run shared observation conformance in both layouts, including omitted/empty observations, present/absent records,
+strict merge-kind versions, exact conflict sets, observation/write overlap, write-once observations, invalid
+references and duplicates, whole-batch refusal, and unchanged observation-only results and history. Pinned
+`before.history` must expose only the captured before-state, including archive and retained-history resolution;
+writer action and observations reach registered checks without granting mutation authority.
+
+Inject real competing Store operations after capture and before publication: change a read-only record, add a
+conflict without changing its subject version, create/update an incoming dependent, resolve an unknown outgoing
+provider, and add a source/removal companion. Exercise production cut admission once its shared registration is
+available, including corrected acquisition/approval retry, stale discard, and irrelevant new owners. Demonstrate
+that sync publication and new-ref creation obey the same local boundary; ensure a writer attempted during an
+admission cannot publish before that admission completes. Preserve refusal rollback and normal successful retry.
+Use faithful public Store fixtures rather than private-module imports or a reference queue as native atomicity
+proof. Recheck no-op admission, retirement's pre-sweep view, role replacement, layout restart, CAS retry, and lock
+release. An unrelated publication can force an internal retry but must not demand renewed approval. Retain all
+existing process-cost and burst gates; no whole-store expected token is introduced.
 
 #### 14.4 Serialization rules
 
@@ -4129,6 +4218,12 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     rename chains, without enumerating terminal primary histories or changing UID-less direct operation resolution
     (§ 3.3, § 8, § 10.9, § 14.7) (A21).
 
+29. **Observations and checks are atomic with native publication.** In both layouts, every explicit record-version
+    and conflict-set observation and every registered write check holds against one coherent before-state through
+    publication, including read-only and newly created relevant records. § 14.3.1 proves refusal rollback, captured
+    history, trusted evidence, repaired retry, participating sync/new-ref publishers, and admission after unrelated
+    writes without renewed approval. Observation-only records gain no published effect (A22).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4231,5 +4326,8 @@ open:
 
 - **A21** — 2026-10-19 — spec-depth: retain authenticated terminal former names for lineage lookup.
   _Supersedes:_ none. _Trigger:_ door. _Work:_ 15.R4. _Revalidated:_ 15.R4.
+
+- **A22** — 2026-10-19 — design: atomic checks and observations. _Supersedes:_ §§ 2.1 batch, 5.1 steps 6–7,
+  5.3 input/race, 11.4 layout. _Trigger:_ door. _Work:_ 4.R. _Revalidated:_ pending → 4.R.c.
 
 ---
