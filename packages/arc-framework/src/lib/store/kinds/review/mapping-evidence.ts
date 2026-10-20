@@ -1,4 +1,5 @@
 /** Translate legacy approved disposition lineages without changing their approved identities. */
+import { reviewEvidenceBindingForRecord } from "./evidence/binding.js";
 import { mapReviewEvidencePerformance } from "./mapping-evidence-performance.js";
 import type { ReviewMappingSources } from "./mapping-sources.js";
 import { recordReferences } from "../../identity.js";
@@ -10,14 +11,6 @@ import type { MappedReviewOutcome } from "./mapping-source-listing.js";
 import type { ReviewMappingResult } from "./mapping-types.js";
 import type { ReviewEvidence } from "./evidence/schema.js";
 
-function dispositionBinding(record: ApprovedDispositionRecord): ReviewEvidence["binding"] {
-  if (record.errand !== null) return { kind: "errand", errand: record.errand };
-  if (record.candidate !== null && record.deliveryMember !== null) {
-    return { kind: "candidate-member", candidate: record.candidate, deliveryMember: record.deliveryMember };
-  }
-  if (record.candidate !== null) return { kind: "candidate", candidate: record.candidate };
-  return record.deliveryMember === null ? null : { kind: "delivery-member", deliveryMember: record.deliveryMember };
-}
 
 function enumeratedRecord(source: Extract<ReviewMappingSource, { kind: "gate" }>): ApprovedDispositionRecord | null {
   try { return parseApprovedDispositionRecord(new TextDecoder().decode(source.bytes)); }
@@ -41,7 +34,7 @@ function dispositionEvidence(record: ApprovedDispositionRecord, node: ApprovedDi
   mapped: MappedDispositionResult, sources: ReviewMappingSources): ReviewEvidence {
   const performance = mapReviewEvidencePerformance(node, sources);
   const settlement = dispositionSettlement(node, sources);
-  return { schemaVersion: 1, ...mapped, binding: dispositionBinding(record), approval: node.approvedDisposition.approval,
+  return { schemaVersion: 1, ...mapped, binding: reviewEvidenceBindingForRecord(record), approval: node.approvedDisposition.approval,
     predecessorDispositionSetId: node.predecessorDispositionSetId, successorDispositionSetId: node.successorDispositionSetId,
     responsePolicyRequest: node.responsePolicyRequest,
     ...(performance === undefined ? {} : { performance }),
