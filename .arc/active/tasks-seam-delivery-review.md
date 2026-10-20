@@ -971,26 +971,12 @@ this extension, following the 4.11 local proof.
       integration, reduction, and respond. Hosted acknowledged attempt lookup stays within the selected owner. Exercise
       completed result/response paths after pruning and from a second clone, plus cross-owner refusal and repair.
 
-    - `[ ]` **5.6.a The result readers**
+    - `[x]` **5.6.a The result readers**
 
-        - `rg/hosts/local/review-result-reader.ts`'s frontline and hosted arms and its composition,
-          `rg/core/review-result.ts`, and `rg/core/review-result-disposition.ts`, which decodes source references
-          (§ 9.3) and whose lineage check becomes a per-set check over evidence records.
-        - From the flip the reader's frontline result carries an `outcomeRef` whose durable part is the outcome key, as
-          the run envelope's (5.1.a) and the composed approved-disposition record's (4.1.a) do, so the disposition's
-          source check (`approvedRecordSourceMatchesResult`) and respond's comparison (`rg/runtime/respond-command.ts`)
-          match (§ 9.3).
-        - The frontline result returns the recorded `sourceBindingId`; source-context matching never recomputes it
-          from the redacted descriptor. Its portable outcome projection carries no executable path or arguments.
-        - Build `test-first` (one behavior at a time):
-            - a frontline and a hosted result read back from their outcomes as today
-            - an existing frontline approved set still matches after redaction, including a command source with a
-              Candidate/member response binding
-            - a disposition over a superseded set refuses as today
-            - from the flip frontline closure reads the same verdicts through the composed approved-disposition record
-              (4.1.a) as in-repo
-            - from the flip a frontline run envelope's `outcomeRef` settles through respond, and the settled advice
-              closes the frontline window
+        - Native result composition preserves producer verdicts, portable source keys, recorded frontline binding IDs,
+          and Candidate/member bindings after redaction. Exact owner/project references retain refusal and repair.
+          Default respond settles a native frontline source from outcomes and evidence alone, closing its opening
+          window with no legacy execution, outcome, or disposition files; supersession retains current-set checks.
 
     - `[ ]` **5.6.b Policy evidence, earlier reviews, the pending fix, and reduction**
 
