@@ -738,35 +738,11 @@ family's schemas are store schemas, never entries in the review gate's published
   bullet but the subject's, which 7.6 moves, reads the Candidate record instead; and session-init's projection takes an
   Integrating work unit's branch from its link.
 
-    - `[ ]` **4.6.a Attest's reads, its batch, and its pause refusal**
+    - `[x]` **4.6.a Attest's reads, its batch, and its pause refusal**
 
-        - The meta through `readWorkUnit` (`lib/store/lifecycle-write.ts`) and the task list as `runStoreReopen` reads it
-          (`lib/work-unit/verbs/reopen-store.ts`), in place of `base.io.readFile` and, for `--new-root`,
-          `buildLifecycleIndex` (`handlers/lifecycle-delivery-review.ts`); `--new-root` on a Shipped work unit reaches
-          its ended item through its root's retry (7.5).
-        - Delivery inspection's task-list read (`readTaskList`, `lib/delivery/repository-entry.ts`), which attest's
-          renewal of an Integrating or Shipped work unit runs through (`lib/delivery/entry-inspection.ts`), reads the
-          stored task list from the flip; the reopen permit reaches the same read (6.4).
-        - The writes in place of `setMetaBulletFields` and `setMetaCandidate`, with the values and conditions
-          `handleAttest` selects today: `Current Workflow` from `ATTESTED_ORIENTATION` (`lib/work-unit/verbs/attest.ts`)
-          unless a repair leaves it unchanged, and `Next Action` from the next action of the boundary it writes where
-          the singleton publication recovery applies or the boundary does not match on a work unit not Shipped,
-          otherwise from `ATTESTED_ORIENTATION`, unless a repair of a matching boundary finds it set; the pause is read
-          through `checkAdvancingPause` (`lib/store/lifecycle-pause.ts`).
-        - Build `test-first` (one behavior at a time):
-            - from the flip attest reads a stored meta and task list with no file for either in the checkout, refusing
-              an open task as today
-            - attest renews an Integrating work unit's Candidate reading the stored task list with no task-list file in
-              the checkout
-            - `--new-root` attests a shipped work unit found by `lookup`
-            - from the flip attest writes `Current Workflow` and `Next Action` with the Candidate and boundary in one
-              batch, and none of `Last Completed`, `Next Task`, and `Candidate`
-            - from the flip a non-matching boundary's next action becomes `Next Action`, and a repair of the current
-              Candidate over a matching boundary writes neither field it would leave unchanged
-            - from the flip attest's boundary, its unchanged write's included, reads back as version 2, and a
-              convergence refusal at attest emits `"merge"` in its next actions
-            - on a paused work unit it refuses naming `arc resume <slug>` and writes nothing, and succeeds after
-              `arc resume`
+        - Attest reads stored metadata, tasks, and pause state by exact identity. Candidate, version 2 boundary, and
+          only the two orientation fields land in one batch; stale metadata, Candidate, or boundary bases leave no
+          partial writes. Native root, re-root, convergence, and repair retain their continuations and retired fields.
 
     - `[ ]` **4.6.b The `Candidate` bullet's readers**
 

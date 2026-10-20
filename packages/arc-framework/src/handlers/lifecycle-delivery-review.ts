@@ -6,6 +6,9 @@ import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/comma
 import { formatValue, parseMetaRecord, setMetaBulletFields, setMetaCandidate } from "../lib/active/meta-reader.js";
 import { checkCurrentWorkflowConsistency } from "../lib/active/current-workflow-consistency.js";
 import { checkAdvancingPause } from "../lib/store/lifecycle-pause.js";
+import { writeStoredAttestation, type StoredAttestationInput } from "../lib/store/attest-publication.js";
+import type { StoreRecord } from "../lib/store/read.js";
+import type { StoreRefusal } from "../lib/store/refusal.js";
 import type { Store } from "../lib/store/contract.js";
 import { usesOffBranchState, readWorkUnit } from "../lib/store/lifecycle-write.js";
 import { lifecycleRecordPath } from "../lib/store/lifecycle-record-path.js";
@@ -83,6 +86,21 @@ import {
 class DeliveryCandidateRenewalRefusal extends Error {}
 
 class CandidateReviewRecoveryRefusal extends Error {}
+
+class AttestationStoreWriteRefusal extends Error {
+  constructor(readonly refusal: StoreRefusal) { super(refusal.condition); }
+}
+
+/** Adapt the exact Store batch to attestation's publication callback. */
+async function publishStoredAttestation(store: Store | undefined, primary: StoreRecord | undefined,
+  input: Omit<StoredAttestationInput, "store" | "primary">): Promise<Awaited<ReturnType<AttestContext["publish"]>>> {
+  if (store === undefined || primary === undefined) {
+    throw new Error("Native attestation requires its selected metadata record and Store.");
+  }
+  const written = await writeStoredAttestation({ ...input, store, primary });
+  if (written.status === "refused") throw new AttestationStoreWriteRefusal(written.refusal);
+  return written.result;
+}
 
 /** Name a bounded sample of paths so a wide refusal stays readable without hiding its scale. */
 function summarizePaths(paths: readonly string[], limit = 5): string {
@@ -188,6 +206,7 @@ export async function handleAttest(
   const base = await resolveVerbBase(context, input.json === true);
   if (base === null) return;
   const { executor, settings } = await buildExecutor(base);
+  const boundarySchemaVersion = executor.store?.capabilities.stateOffBranch === true ? 2 : 1;
   const subjectInput = await readAttestInput({ cwd: base.cwd, store: executor.store,
     readFile: path => base.io.readFile(path), activeMetaPath: projectActiveMetaPath,
     readArchivedMeta: async slug => (await buildLifecycleIndex({ cwd: base.cwd, fs: lifecycleFs })).get(slug),
@@ -278,7 +297,7 @@ export async function handleAttest(
   let result: Awaited<ReturnType<typeof runAttest>>;
   try {
     result = await runAttest({
-      boundarySchemaVersion: executor.store?.capabilities.stateOffBranch === true ? 2 : 1,
+      boundarySchemaVersion,
       actor: base.identity,
       now: () => new Date().toISOString(),
       verificationEvidenceRef: (slug) => `tasks-${slug}.md#verification`,
@@ -347,7 +366,7 @@ export async function handleAttest(
             );
           }
         }
-        const recordPath = await writeCandidateRecord(
+        const recordPath = boundarySchemaVersion === 2 ? null : await writeCandidateRecord(
           base.cwd,
           publication.name,
           publication.record,
@@ -380,15 +399,17 @@ export async function handleAttest(
                 workUnit: publication.name,
                 candidateId: publication.candidateId,
                 candidateSubjectDigest: publication.candidateSubjectDigest,
-              }));
+              }, boundarySchemaVersion));
+        const nextAction = locus === singletonPublication
+          ? locus.nextAction.interactionText
+          : boundaryMatches || priorMeta.state === "Shipped" ? publication.nextAction : locus.nextAction.interactionText;
+        if (recordPath === null) return publishStoredAttestation(executor.store, subjectInput.primary, {
+          publication, boundary: locus, expectedBoundaryVersion: boundarySnapshot.version, boundaryMatches, nextAction });
         const withCandidate = setMetaCandidate(metaContent, publication.candidateId);
         const orientation: Record<string, string> = {};
         if (!publication.repairCurrent || priorMeta.currentWorkflow !== publication.currentWorkflow) {
           orientation["Current Workflow"] = formatValue(publication.currentWorkflow, "identifier");
         }
-        const nextAction = locus === singletonPublication
-          ? locus.nextAction.interactionText
-          : boundaryMatches || priorMeta.state === "Shipped" ? publication.nextAction : locus.nextAction.interactionText;
         if (!publication.repairCurrent || !boundaryMatches || priorMeta.nextAction === null) {
           orientation["Next Action"] = formatValue(nextAction, "narrative");
         }
@@ -429,6 +450,10 @@ export async function handleAttest(
           }),
     });
   } catch (error) {
+    if (error instanceof AttestationStoreWriteRefusal) {
+      refuseWithRemedy(error.refusal.condition, error.refusal.remedy, input.json === true);
+      return;
+    }
     if (error instanceof CandidateReviewRecoveryRefusal) {
       refuseWithRemedy(
         `\`arc attest\` cannot bind the live review to its Candidate record: ${error.message}`,
