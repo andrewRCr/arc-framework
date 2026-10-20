@@ -8,7 +8,7 @@ import ts from "typescript";
 
 const packageRoot = resolve(import.meta.dirname, "../..");
 
-const dormantModules = [
+const foundationModules = [
   "src/lib/locus/derived-lifecycle-evidence.ts",
   "src/lib/locus/derived-reader.ts",
   "src/lib/locus/derived-roster.ts",
@@ -18,180 +18,18 @@ const dormantModules = [
   "src/lib/locus/role-topology.ts",
 ] as const;
 
-const expectedSourceIncoming: Readonly<Record<(typeof dormantModules)[number], readonly string[]>> = {
-  "src/lib/locus/derived-lifecycle-evidence.ts": [
-    "src/lib/locus/derived-evidence.ts",
-    "src/lib/locus/derived-reader.ts",
-    "src/lib/locus/derived-roster.ts",
-    "src/lib/locus/store-identities.ts",
-    "src/lib/locus/subject-meta.ts",
-  ],
-  "src/lib/locus/derived-reader.ts": [
-    "src/commands/locus.ts",
-    "src/commands/status/run.ts",
-    "src/commands/status/types.ts",
-    "src/handlers/derived-locus-state-probe.ts",
-    "src/handlers/status/store-session.ts",
-    "src/lib/compaction-seed/emitter.ts",
-    "src/lib/compaction-seed/schema.ts",
-    "src/lib/errand/abandon-runtime.ts",
-    "src/lib/errand/close-runtime.ts",
-    "src/lib/errand/leave-runtime.ts",
-    "src/lib/errand/open.ts",
-    "src/lib/errand/partial-settle-runtime.ts",
-    "src/lib/errand/promote-runtime.ts",
-    "src/lib/errand/promote-store-runtime.ts",
-    "src/lib/errand/store-overlap.ts",
-    "src/lib/errand/terminal-authority.ts",
-    "src/lib/handoff/locus-plan.ts",
-    "src/lib/locus/allocator.ts",
-    "src/lib/locus/derived-evidence.ts",
-    "src/lib/locus/entering-unclosed-task-commits.ts",
-    "src/lib/locus/session-guidance.ts",
-    "src/lib/recover/audit.ts",
-    "src/lib/recover/integration-correction.ts",
-    "src/lib/recover/locus-context.ts",
-    "src/lib/work-unit/candidate-mutation-owner.ts",
-    "src/scripts/review-gate/hosted/errand-authority.ts",
-  ],
-  "src/lib/locus/derived-roster.ts": [
-    "src/commands/locus.ts",
-    "src/handlers/status/checkout-roster.ts",
-    "src/lib/errand/promote-runtime.ts",
-    "src/lib/errand/terminal-authority.ts",
-    "src/lib/errand/terminal-occupancy.ts",
-    "src/lib/git/in-flight-derivation.ts",
-    "src/lib/git/in-flight-store.ts",
-    "src/lib/handoff/locus-plan.ts",
-    "src/lib/locus/derived-reader.ts",
-    "src/lib/locus/marker-occupancy.ts",
-    "src/lib/locus/markerless-work-units.ts",
-    "src/lib/locus/session-guidance.ts",
-    "src/lib/locus/store-identities.ts",
-    "src/lib/recover/locus-context.ts",
-    "src/lib/session-init/branch-gone-recovery.ts",
-    "src/lib/session-init/locus-classification.ts",
-    "src/lib/session-init/missing-worktree-folders.ts",
-    "src/lib/session-init/orphan-branch-sweep.ts",
-    "src/lib/session-init/orphan-store-candidates.ts",
-    "src/lib/session-init/paused-current-wu-actions.ts",
-    "src/lib/session-init/stale-worktree-sweep.ts",
-    "src/lib/session-init/store-worktree-selection.ts",
-    "src/lib/status/slug-position.ts",
-  ],
-  "src/lib/locus/occupancy-marker.ts": [
-    "src/lib/locus/derived-evidence.ts",
-    "src/lib/locus/derived-lifecycle-evidence.ts",
-    "src/lib/locus/store-identities.ts",
-  ],
-  "src/lib/locus/role-corroboration.ts": [
-    "src/lib/locus/derived-roster.ts",
-    "src/lib/locus/role-topology.ts",
-  ],
-  "src/lib/locus/role-derivation.ts": [
-    "src/lib/handoff/locus-plan.ts",
-    "src/lib/locus/derived-evidence.ts",
-    "src/lib/locus/derived-lifecycle-evidence.ts",
-    "src/lib/locus/derived-reader.ts",
-    "src/lib/locus/derived-roster.ts",
-    "src/lib/locus/derived-roster.ts",
-    "src/lib/locus/role-corroboration.ts",
-    "src/lib/locus/role-topology.ts",
-    "src/lib/locus/store-work-unit-evidence.ts",
-    "src/lib/recover/locus-context.ts",
-  ],
-  "src/lib/locus/role-topology.ts": ["src/lib/locus/derived-roster.ts"],
-};
-
-const expectedTestIncoming: Readonly<Record<(typeof dormantModules)[number], readonly string[]>> = {
-  "src/lib/locus/derived-lifecycle-evidence.ts": [
-    "__tests__/unit/git/in-flight-store-branchless.test.ts",
-    "__tests__/unit/locus/derived-lifecycle-evidence.test.ts",
-    "__tests__/unit/locus/derived-roster.test.ts",
-    "__tests__/unit/locus/store-identities-missed.test.ts",
-  ],
-  "src/lib/locus/derived-reader.ts": [
-    "__tests__/helpers/store-terminal-authority.ts",
-    "__tests__/integration/recovery-locus.test.ts",
-    "__tests__/integration/status.test.ts",
-    "__tests__/unit/compaction-seed/emitter.test.ts",
-    "__tests__/unit/errand/partial-settle-runtime.test.ts",
-    "__tests__/unit/errand/promote-store-runtime.test.ts",
-    "__tests__/unit/errand/terminal-authority.test.ts",
-    "__tests__/unit/handoff/locus-plan.test.ts",
-    "__tests__/unit/locus/allocator.test.ts",
-    "__tests__/unit/locus/derived-evidence.test.ts",
-    "__tests__/unit/locus/derived-reader.test.ts",
-    "__tests__/unit/locus/derived-store-evidence.test.ts",
-    "__tests__/unit/locus/derived-task-conflicts.test.ts",
-    "__tests__/unit/locus/session-guidance.test.ts",
-    "__tests__/unit/recover/audit.test.ts",
-    "__tests__/unit/recover/locus-context.test.ts",
-    "__tests__/unit/scripts/review-gate/hosted/errand-authority.test.ts",
-    "__tests__/unit/session-init/stale-worktree-store.test.ts",
-    "__tests__/unit/status/run.test.ts",
-  ],
-  "src/lib/locus/derived-roster.ts": [
-    "__tests__/integration/recovery-locus.test.ts",
-    "__tests__/unit/errand/leave-runtime-removal.test.ts",
-    "__tests__/unit/errand/partial-settle-runtime.test.ts",
-    "__tests__/unit/errand/store-discovery-conflicts.test.ts",
-    "__tests__/unit/errand/terminal-authority.test.ts",
-    "__tests__/unit/errand/terminal-occupancy.test.ts",
-    "__tests__/unit/git/in-flight-store-branchless.test.ts",
-    "__tests__/unit/handlers/status/store-derived-position.test.ts",
-    "__tests__/unit/handoff/locus-plan.test.ts",
-    "__tests__/unit/locus/allocator.test.ts",
-    "__tests__/unit/locus/derived-roster.test.ts",
-    "__tests__/unit/locus/store-identities-missed.test.ts",
-    "__tests__/unit/recover/audit.test.ts",
-    "__tests__/unit/recover/locus-context.test.ts",
-    "__tests__/unit/session-init/branch-gone-recovery-authority.test.ts",
-    "__tests__/unit/session-init/locus-classification.test.ts",
-    "__tests__/unit/session-init/missing-worktree-folders.test.ts",
-    "__tests__/unit/session-init/stale-worktree-sweep.test.ts",
-    "__tests__/unit/status/slug-position.test.ts",
-  ],
-  "src/lib/locus/occupancy-marker.ts": [
-    "__tests__/unit/locus/derived-lifecycle-evidence.test.ts",
-    "__tests__/unit/locus/derived-roster.test.ts",
-    "__tests__/unit/locus/occupancy-marker.test.ts",
-    "__tests__/unit/locus/origin-binding.test.ts",
-  ],
-  "src/lib/locus/role-corroboration.ts": [
-    "__tests__/unit/locus/role-authority-boundary.test.ts",
-    "__tests__/unit/locus/role-corroboration.test.ts",
-  ],
-  "src/lib/locus/role-derivation.ts": [
-    "__tests__/unit/locus/role-authority-boundary.test.ts",
-    "__tests__/unit/locus/role-corroboration.test.ts",
-    "__tests__/unit/locus/role-derivation.test.ts",
-  ],
-  "src/lib/locus/role-topology.ts": ["__tests__/unit/locus/role-authority-boundary.test.ts"],
-};
-
 interface ModuleReference {
   readonly consumer: string;
   readonly target: string;
   readonly kind: "static" | "dynamic";
 }
 
-const referenceCache = new Map<"src" | "__tests__", readonly ModuleReference[]>();
+let sourceReferences: readonly ModuleReference[] | undefined;
 
-describe("dormant locus foundation acceptance and activation", () => {
-  it("limits production activation to the exact derived adapter and probe paths", () => {
-    const sourceReferences = referencesUnder("src");
-    const testReferences = referencesUnder("__tests__");
-
-    for (const target of dormantModules) {
-      expect(incoming(sourceReferences, target), target).toEqual(expectedSourceIncoming[target]);
-      expect(incoming(testReferences, target), target).toEqual(expectedTestIncoming[target]);
-    }
-  });
-
-  it("has no dynamic production reference to a dormant module", () => {
-    const dynamic = referencesUnder("src")
-      .filter((reference) => reference.kind === "dynamic" && isDormant(reference.target));
+describe("activated locus foundation import boundaries", () => {
+  it("has no dynamic production reference to a foundation module", () => {
+    const dynamic = productionReferences()
+      .filter((reference) => reference.kind === "dynamic" && isFoundation(reference.target));
     expect(dynamic).toEqual([]);
   });
 
@@ -211,21 +49,23 @@ describe("dormant locus foundation acceptance and activation", () => {
       "src/lib/locus/roster.ts",
       "src/lib/locus/state.ts",
     ]);
-    expect(referencesUnder("src").filter((reference) =>
-      activated.has(reference.consumer) && forbidden.has(reference.target))).toEqual([]);
+    const references = [...activated].flatMap((path) => {
+      const absolute = join(packageRoot, path);
+      return referencesOf(absolute, readFileSync(absolute, "utf8"));
+    });
+    expect(references.filter((reference) => forbidden.has(reference.target))).toEqual([]);
   });
 });
 
-function referencesUnder(root: "src" | "__tests__"): ModuleReference[] {
-  const cached = referenceCache.get(root);
-  if (cached !== undefined) return [...cached];
-  const moduleNames = dormantModules.map((path) => path.split("/").at(-1)?.replace(/\.ts$/u, "") ?? path);
-  const references = typescriptFiles(join(packageRoot, root)).flatMap((path) => {
+function productionReferences(): readonly ModuleReference[] {
+  if (sourceReferences !== undefined) return sourceReferences;
+  const moduleNames = foundationModules.map((path) => path.split("/").at(-1)?.replace(/\.ts$/u, "") ?? path);
+  const references = typescriptFiles(join(packageRoot, "src")).flatMap((path) => {
     const content = readFileSync(path, "utf8");
     return moduleNames.some((name) => content.includes(name)) ? referencesOf(path, content) : [];
   });
-  referenceCache.set(root, references);
-  return [...references];
+  sourceReferences = references;
+  return references;
 }
 
 function typescriptFiles(root: string): string[] {
@@ -273,13 +113,6 @@ function packageRelative(path: string): string {
   return relative(packageRoot, path).split(sep).join("/");
 }
 
-function incoming(references: readonly ModuleReference[], target: string): string[] {
-  return references
-    .filter((reference) => reference.target === target)
-    .map((reference) => reference.consumer)
-    .sort();
-}
-
-function isDormant(path: string): boolean {
-  return dormantModules.includes(path as (typeof dormantModules)[number]);
+function isFoundation(path: string): boolean {
+  return foundationModules.includes(path as (typeof foundationModules)[number]);
 }
