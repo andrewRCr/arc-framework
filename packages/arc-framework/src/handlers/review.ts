@@ -69,7 +69,7 @@ import {
 } from "./review-locus-context.js";
 import type { SpineRemedy } from "../scripts/integration/spine-refusal.js";
 
-import { resolveReviewActiveWu } from "../scripts/review-gate/runtime/review-work-unit.js";
+import { resolveReviewActiveWu, resolveNamedReviewWorkUnitInvocation } from "../scripts/review-gate/runtime/review-work-unit.js";
 import {
   FrontlineResolveEnvelopeSchema,
   FrontlineRunEnvelopeSchema,
@@ -4439,7 +4439,7 @@ function prePublicationStandardLaneAccess(exec: GitExec, invocationFor: (root: s
       })).version;
     },
     withStandardLaneLock: async (root, candidateId, headSha, action) => {
-      const { publisher } = createReviewCompositionContext({ ...invocationFor(root), cwd: root, exec });
+      const publisher = new RepositoryGitCommonStatePublisher(exec, root);
       const repositoryId = await resolveRepositoryIdentity(publisher, undefined, invocationFor(root));
       return withRepositoryReviewOperationLock(exec, root, laneContinuationOperationId({
         lane: "standard", repositoryId, headSha,
@@ -4451,10 +4451,10 @@ function prePublicationStandardLaneAccess(exec: GitExec, invocationFor: (root: s
 
 function defaultPrePublicationDependencies(
   interaction?: InteractionContext,
-  invocation: ReviewInvocationOptions = {},
+  invocation: ReviewHandlerInvocationOptions = {},
 ): ReviewPrePublicationHandlerDependencies {
   const boundary = defaultReviewHandlerBoundary();
-  const exec = createGitExec(interaction?.subprocess);
+  const exec = invocation.exec ?? createGitExec(interaction?.subprocess);
   const invocationFor = createReviewInvocationResolver(exec, invocation);
   const recordStoreFor = (root: string): Store => invocationFor(root).store;
   const boundarySnapshots = new Map<string, Awaited<ReturnType<typeof readSubmissionBoundaryVersioned>>>();
@@ -4467,7 +4467,10 @@ function defaultPrePublicationDependencies(
     readCandidate: (root, workUnit) => createPrePublicationCompositionDependencies({ ...invocationFor(root), cwd: root, exec })
       .readCandidate(workUnit),
     readBoundary: async (root, workUnit) => {
-      const snapshot = await readSubmissionBoundaryVersioned(root, workUnit, { store: recordStoreFor(root), owner: invocationFor(root).workItem });
+      const bound = invocationFor(root);
+      const selected = await resolveNamedReviewWorkUnitInvocation({ ...bound, cwd: root, exec }, workUnit);
+      if (selected.workItem !== undefined) bound.workItem = selected.workItem;
+      const snapshot = await readSubmissionBoundaryVersioned(root, workUnit, { store: bound.store, owner: bound.workItem });
       boundarySnapshots.set(workUnit, snapshot);
       return snapshot;
     },
@@ -4565,7 +4568,7 @@ export async function handleReviewPrePublication(
   options: ReviewPrePublicationOptions,
   overrides: Partial<ReviewPrePublicationHandlerDependencies> = {},
   interaction?: InteractionContext,
-  invocation: ReviewInvocationOptions = {},
+  invocation: ReviewHandlerInvocationOptions = {},
 ): Promise<void> {
   const dependencies = { ...defaultPrePublicationDependencies(interaction, invocation), ...overrides };
   const target = SlugSchema.safeParse(name.trim());
