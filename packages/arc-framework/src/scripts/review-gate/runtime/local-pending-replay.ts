@@ -107,7 +107,7 @@ async function retireStalePendingAdmission(
     lane: "standard", repositoryId: state.repositoryId, changeRequestId: attempt.changeRequestId,
     headSha: state.target.headSha, lineage: state.lineage, attemptId: state.operationId,
     sourceId: state.laneSourceId, logicalPass: state.logicalPass, retryGeneration: state.retryGeneration,
-    outcome: "stale-target", consumedPass: false, advancePendingAttempt: true,
+    outcome: "stale-target", consumedPass: false, advancePendingAttempt: true, localOutcome: { state },
     local: attempt.local, expectedOwnerVersion: ownerVersion, now: dependencies.now(),
   });
   return true;

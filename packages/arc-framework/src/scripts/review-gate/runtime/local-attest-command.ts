@@ -171,6 +171,7 @@ async function attestLocalReviewWithinLocalReviewLock(
       sourceId: state.laneSourceId,
       outcome: "terminal-failure",
       consumedPass: false,
+      localOutcome: { state },
       local: {
         operationId: state.operationId,
         requestId: state.requestId,

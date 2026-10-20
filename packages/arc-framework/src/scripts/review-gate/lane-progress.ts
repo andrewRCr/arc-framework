@@ -18,7 +18,8 @@ import {
   laneSubjectOwnerMatches,
   type LaneSubjectLineage,
 } from "./core/lane-admission.js";
-import type { ReviewOperationStateStore } from "./core/ports.js";
+import { publishEndedLaneOutcome, type LocalLaneOutcomeSource } from "./lane-progress-outcomes.js";
+import type { ReviewLaneTransitionStore, ReviewOperationStateStore } from "./core/ports.js";
 import {
   isReviewVersionConflict,
   REVIEW_VERSION_RETRY_ATTEMPTS,
@@ -313,6 +314,7 @@ export async function recordLocalReceiptConclusion(
     consumedPass,
     chunkSeriesComplete: consumedPass,
     advancePendingAttempt: true,
+    localOutcome: { state, receipt },
     local: {
       operationId: state.operationId,
       requestId: state.requestId,
@@ -490,7 +492,7 @@ function buildNextLaneProgress(
 }
 
 async function publishLaneAttemptVersion(
-  store: ReviewOperationStateStore,
+  store: ReviewLaneTransitionStore,
   input: RecordLaneAttemptInput,
   operationId: string, lineage: LaneSubjectLineage,
   existing: LaneProgressState | null, replay: LaneAttempt | undefined,
@@ -506,6 +508,7 @@ async function publishLaneAttemptVersion(
     return null;
   }
   try {
+    await publishEndedLaneOutcome(store, { attempt, lane: next, endedAt: input.now, local: input.localOutcome });
     await store.publishOperation(next, version);
     return next;
   } catch (error) {
@@ -518,7 +521,7 @@ async function publishLaneAttemptVersion(
 }
 
 export async function recordLaneAttempt(
-  store: ReviewOperationStateStore,
+  store: ReviewLaneTransitionStore,
   input: {
     lane: LaneProgressState["lane"];
     repositoryId: string;
@@ -532,6 +535,7 @@ export async function recordLaneAttempt(
     chunkSeriesComplete?: boolean;
     hosted?: LaneAttempt["hosted"];
     local?: LaneAttempt["local"];
+    localOutcome?: LocalLaneOutcomeSource;
     frontline?: LaneAttempt["frontline"];
     now: string;
     advancePendingAttempt?: boolean;

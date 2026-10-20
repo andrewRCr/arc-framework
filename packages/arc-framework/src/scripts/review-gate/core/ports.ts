@@ -58,6 +58,11 @@ export type ReviewDecisionPort = ReviewFactPort<ReviewDecision>;
 /** Numeric working-state CAS and completeness-preserving operation observations. */
 export type ReviewInFlightPort = ReviewOperationStateStore & ReviewOperationStateSnapshotIndex;
 
+/** Working-state access plus the selected immutable result writer for lane transitions. */
+export interface ReviewLaneTransitionStore extends ReviewOperationStateStore {
+  readonly outcomeWriter?: ReviewOutcomePort;
+}
+
 /** Versioned forward receipt snapshot, optionally filtered to one target. */
 export interface ForwardReceiptLedger {
   ledgerVersion: number;
