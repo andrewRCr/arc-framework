@@ -593,6 +593,22 @@ outcome reader, and the existing Phase 5 scenario exercises the remaining lanes.
 passed pre-flip scenarios, and the six-kind family remain unaffected; the completed schema-widening task takes an
 additive amendment pointer. The bounded amendment composes existing identities and reference codecs at medium depth.
 
+## A15 — Policy calculation does not imply vehicle admission
+
+At `1a82b2781`, `resolveReviewPolicyInvocation` retains no owner when `readStoredLiveContext` finds neither a linked
+work unit nor an active Errand claim. `resolveConfiguredReviewPolicy` immediately binds the family, so
+`bindReviewFamilyPorts` adds its internal owner-required error even for a fact-free policy request. The in-repo root
+allows that request; `errandFrontlinePhaseClosed` and `errandStandardVehicle` tolerate an absent vehicle. Admission's
+existing vehicle checks do not supply a refusal for this generic read-only calculation.
+
+The clarification keeps fact-free calculation and defers native family access until actual evidence is needed.
+`bindReviewPolicyEvidence` needs a producer for terminal `clean` or `findings` attempts. Runnable standard review also
+needs derived lane history through `readResolveNextPassContext`, as `validateReviewNextPassContext` requires, even
+with no terminal attempt. Those paths need established owner context and report its absence actionably rather than
+claiming empty history. No owner scan, repository fallback, new locator, or admission authorization is introduced.
+The bounded correction follows existing reducer and evidence-binding predicates at low amendment depth; 4.R4 carries
+its default-handler proofs before the local segment verifier.
+
 ## Neighbors
 
 The spec names no other work unit. These are the ones its descriptive references mean, and what each owns where it

@@ -706,6 +706,7 @@ through rename and slug reuse; mismatched references refuse and succeed after co
   requiring a caller-supplied `workItem`, adding no family refusal or owner-selection policy (A11).
 
 - _Amended in:_ 4.R2 (A13)
+- _Amended in:_ 4.R4 (A15)
 
 - **Additional Context:** `notes-seam-delivery-review.md` § A11. The boundary and attestation footing in 4.5–4.6 precedes
   the complete native handler proof; the work-unit and Errand selections are 4.4's.
@@ -852,6 +853,29 @@ through rename and slug reuse; mismatched references refuse and succeed after co
 
     - Check `LocalAttestEnvelopeSchema`, `LocalResumeEnvelopeSchema`, and their command producers against the existing
       envelope and command tests. Verify the completed native replay through 4.R2.d and the 4.11 scenario.
+
+### `[ ]` **4.R4 Preserve fact-free generic policy resolution — § 2.3**
+
+- _Goal:_ Native generic policy resolution binds family ports only for required record evidence, preserving fact-free
+  resolution without a vehicle and refusing missing evidence context actionably without another owner or invented
+  history (A15).
+
+- **Additional Context:** `notes-seam-delivery-review.md` § A15. This closes the ownerless generic root in 4.4.R;
+  local, frontline, and hosted admission retain their established vehicle checks.
+
+    - `[ ]` **4.R4.a Defer generic family binding until a record read is needed**
+
+        - Keep the invocation's Store, project-ID reader, and established owner. Resolve fact-free requests without
+          opening native family ports. Terminal `clean` or `findings` producers and runnable standard review require
+          native record context; refuse its absence through the existing error envelope with a remedy to use the
+          owning checkout. Do not create an empty lane, select another owner, or fall back to repository records.
+        - Build `test-first` (one behavior at a time):
+            - default ownerless native frontline resolution with no terminal producer returns its configured result
+            - default ownerless exempt and source-free standard requests with no terminal producer still resolve
+            - a terminal producer request and runnable standard request refuse actionably without an owner, and
+              resolve after the checkout's actual branch link or Errand claim establishes the owning work item
+            - an already bound generation is retained; project-identity refusal and recovery remain intact
+            - the corresponding in-repo requests retain their current results
 
 ### `[ ]` **4.11 The review gate's store** — validate exit criterion at segment scope
 
@@ -1942,3 +1966,9 @@ prerequisites have landed, and every earlier task is independent of the remainin
 - `[ ]` Local attest's `attested-current` payload carries the actual retained source-store reference, or omits it on
   ended native replay when that record is absent. Resume payloads carry no `sourceRef`; completed receipt references
   retain the native outcome key and owner. In-repo payloads stay unchanged (spec, A14).
+
+- `[ ]` Native generic frontline resolution without a terminal producer and exempt or source-free standard
+  resolution without one retain their configured results without an established owner. Producer reads and runnable
+  standard review refuse with an actionable owning-checkout remedy and succeed after context repair, without selecting
+  another owner or treating unknown history as empty. Existing owner, project-identity, and in-repo behavior remain
+  intact (spec, A15).

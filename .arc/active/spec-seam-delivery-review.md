@@ -228,6 +228,18 @@ already bound owner. A reference never substitutes a slug's current holder, a Ca
 unrelated work items. Pending execution reads its local working state; ended result reads use the bound owner's
 outcomes and evidence (§ 4.7, § 9.3).
 
+Generic policy resolution (`resolveConfiguredReviewPolicy`, `handlers/review.ts`) is not review admission and may
+have no established work item. It binds the family's ports only when it needs native records (A15). With no selected
+owner, a request that needs no producer or lane-history evidence still resolves from its command input and configured
+policy: a frontline request whose last attempt is neither `clean` nor `findings`, or a standard request with no such
+terminal attempt whose configured source list is empty or whose obligation is `exempt`. Those paths read no family
+records and publish nothing. Runnable standard review needs the repository-derived next-pass context
+(`validateReviewNextPassContext`), even without a terminal attempt, so it is not fact-free. A request that needs a
+producer, response, or lane-history read without an established owner reports an actionable missing-context error in
+the existing command error envelope, naming the owning checkout as the remedy; it succeeds after that context is
+restored. It never treats unknown history as empty, falls back to repository records, or discovers another owner.
+Already selected owners, project-identity refusals, lane admission, and the in-repo command's behavior stay unchanged.
+
 #### 2.4 Portable identities
 
 Every stored record carries portable identities only:
@@ -2397,6 +2409,12 @@ spec's review copy until the candidate tail deletes it (§ 12.5).
     record is absent. Resume payloads carry no `sourceRef`; their completed receipt references retain the native
     outcome key and owner. In-repo payloads stay unchanged.
 
+15. **Fact-free policy resolution needs no vehicle (A15).** With no established native owner, generic frontline
+    resolution without a terminal producer and exempt or source-free standard resolution without one retain their
+    configured policy results. Producer reads and runnable standard review refuse with an actionable context remedy,
+    without reading another owner or claiming empty history, and succeed from the owning checkout. Existing owner
+    binding, project-identity recovery, and in-repo behavior remain intact.
+
 ## Open Questions
 
 None blocks starting. The rest are expected contracts with stated availability, and none leaves design open: the ref
@@ -2455,5 +2473,7 @@ rewrite, and deletion pass (§ 11.2, § 12.6, § 14.3).
   _Trigger:_ 4.4.R must-stop. _Work:_ 4.R2. _Revalidated:_ pending → 4.11.
 - **A14** — 2026-10-20 — design: keep resume payloads unchanged. _Supersedes:_ § 9.3 final paragraph.
   _Trigger:_ 4.R2.d must-stop. _Work:_ 4.R3. _Revalidated:_ pending → 4.11.
+- **A15** — 2026-10-20 — spec-depth: preserve fact-free policy resolution. _Supersedes:_ none.
+  _Trigger:_ 4.4.R must-stop. _Work:_ 4.R4. _Revalidated:_ pending → 4.11.
 
 ---
