@@ -191,7 +191,7 @@ describe("CompactionSeed schema", () => {
     expect(() => stringifyCompactionSeed(value)).toThrow("Unrecognized key");
   });
 
-  it("strips unknown nested fields from cursor and load-set payloads", () => {
+  it("strips unknown fields at every nested reader boundary", () => {
     const canonical = seed();
     const value = {
       ...canonical,
@@ -218,6 +218,10 @@ describe("CompactionSeed schema", () => {
           },
         })),
       },
+      locus: {
+        ...canonical.locus,
+        stale: { authority: "retired" },
+      },
     };
 
     expect(isCompactionSeed(value)).toBe(false);
@@ -226,6 +230,27 @@ describe("CompactionSeed schema", () => {
       seed: canonical,
     });
     expect(() => stringifyCompactionSeed(value)).toThrow("Unrecognized key");
+  });
+
+  it("keeps locus producers strict while stripping unknown persisted hint fields", () => {
+    const canonical = seed();
+    const value = { ...canonical, locus: { ...canonical.locus, extra: true } };
+
+    expect(isCompactionSeed(value)).toBe(false);
+    expect(() => stringifyCompactionSeed(value)).toThrow("Unrecognized key");
+    expect(parseCompactionSeedJson(JSON.stringify(value))).toEqual({ ok: true, seed: canonical });
+  });
+
+  it.each(["checkoutPath", "parentCheckoutPath"])("rejects invalid known locus field %s despite extras", (key) => {
+    const canonical = seed();
+    const result = parseCompactionSeedJson(JSON.stringify({
+      ...canonical,
+      locus: { ...canonical.locus, [key]: "relative", extra: true },
+    }));
+
+    expect(result).toMatchObject({ ok: false, error: {
+      kind: "invalid-schema", message: expect.stringContaining(`locus.${key}`),
+    } });
   });
 
   it("accepts null WU pointers for between-unit recovery state", () => {

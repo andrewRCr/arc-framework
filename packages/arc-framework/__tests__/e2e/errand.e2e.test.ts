@@ -589,6 +589,19 @@ describe("arc errand JSON topology failures", () => {
       await cleanupTempDir(outsideProject);
     }
   });
+
+  it("keeps the project-root refusal's log line off stdout so the JSON result parses", async () => {
+    const outsideProject = await mkdtemp(join(tmpdir(), "arc-outside-project-"));
+    try {
+      const result = await runArc(["errand", "next", "--json"], outsideProject);
+
+      expect(result.exitCode).toBe(1);
+      expect(JSON.parse(result.stdout)).toMatchObject({ mode: "errand-next", state: "refused" });
+      expect(result.stderr).toContain("Not inside an ARC project");
+    } finally {
+      await cleanupTempDir(outsideProject);
+    }
+  });
 });
 
 describe("arc errand leave", () => {

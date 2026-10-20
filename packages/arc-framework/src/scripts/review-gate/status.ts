@@ -1530,16 +1530,6 @@ export async function resolveReviewStatus(
         : { deliveryCursor: projectDeliveryReviewCursor(conjunction, currentMember) }),
       detail: base.routedObligation.detail, remedy: base.routedObligation.remedy };
   }
-  if (base.currentBaseOid === null) {
-    return {
-      ...base,
-      state: "blocked",
-      nextAction: "stop",
-      reason: "status-unavailable",
-      detail: "The current base revision is unavailable.",
-      remedy: reviewStatusRetryRemedy(request.target),
-    };
-  }
   if (base.routedObligation.state === "blocked") {
     if ("reason" in base.routedObligation && currentMember !== null && conjunction !== undefined) {
       return ReviewStatusCoverageRefusalSchema.parse({
@@ -1566,6 +1556,16 @@ export async function resolveReviewStatus(
       nextAction: "stop",
       reason: "status-unavailable",
       detail: base.routedObligation.detail,
+      remedy: reviewStatusRetryRemedy(request.target),
+    };
+  }
+  if (base.currentBaseOid === null) {
+    return {
+      ...base,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "status-unavailable",
+      detail: "The current base revision is unavailable.",
       remedy: reviewStatusRetryRemedy(request.target),
     };
   }

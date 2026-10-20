@@ -50,7 +50,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | composable-workflows                | P2       | andrew | —          | agent-context-optimization |
 | loadset-composition                 | P2       | andrew | —          | agent-context-optimization |
 | commit-increments                   | P2       | andrew | —          | approval-flow-refinement   |
-| decompose-scaling                   | P2       | andrew | —          | decompose-core-hardening   |
 | method-conventions                  | P2       | andrew | —          | doc-conventions            |
 | agent-session-bridge                | P2       | andrew | —          | —                          |
 | cross-wu-coordination               | P2       | andrew | —          | —                          |

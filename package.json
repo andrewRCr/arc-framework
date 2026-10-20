@@ -39,7 +39,7 @@
     "typecheck": "npm run typecheck -w packages/arc-framework",
     "typecheck:test": "npm run typecheck:test -w packages/arc-framework",
     "typecheck:all": "npm run typecheck:all -w packages/arc-framework",
-    "lint:ts": "npm run lint:ts -w packages/arc-framework",
+    "lint:ts": "npm run lint:ts -w packages/arc-framework --",
     "lint:ts:file": "node --import tsx packages/arc-framework/src/scripts/run-focused-lint.ts",
     "lint:sh": "npm run lint:sh -w packages/arc-framework",
     "lint:workflows": "bash scripts/lint-workflows.sh",
