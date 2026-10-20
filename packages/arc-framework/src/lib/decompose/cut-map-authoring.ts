@@ -3,12 +3,14 @@ import { z } from "zod";
 import { SlugSchema, WorkClassSchema } from "../kernel/index.js";
 import { CanonicalDigestSchema } from "../kernel/schema/vocabulary.js";
 import { isManagedPath } from "../kernel/canonical/managed-path.js";
+import { isWellFormedUnicode } from "../kernel/canonical/unicode.js";
 import { isSafeCohortPath, validateCohortPath } from "../active/cohort-path.js";
 import { V3DecomposeLocatorSchema } from "../work-unit/decompose-content.js";
 
 const DecomposeSlugSchema: z.ZodType<string, string> = SlugSchema;
 const NonEmptyStringSchema = z.string().refine((value) => value.trim() !== "", "must be non-empty");
-const DestinationIdSchema = NonEmptyStringSchema.normalize("NFC");
+const DestinationIdSchema = NonEmptyStringSchema.normalize("NFC")
+  .refine(isWellFormedUnicode, "must contain only well-formed Unicode");
 const ManagedPathSchema = z.string().refine(
   (value: string): boolean => isManagedPath(value),
   "must be a managed repository-relative path",
