@@ -34,6 +34,12 @@ describe("persisted publication boundary versions", () => {
     expect(parseReviewIntegrationBoundary(JSON.stringify({ ...boundaryV2Fixture(original.locus), nextAction: {
       ...original.nextAction, postAttestContinuation } }))).toBeNull();
   });
+  it("keeps native merge verification out of version 1 and accepts the repository kind", () => {
+    const original = boundaryV1Fixture("candidate-convergence-verification-pending");
+    expect(parseReviewIntegrationBoundary(JSON.stringify({ ...original, nextAction: {
+      ...original.nextAction, verificationKind: "merge" } }))).toBeNull();
+    expect(parseReviewIntegrationBoundary(JSON.stringify(original))).toEqual(original);
+  });
   it("refuses the staged-projection continuation field under version 2", () => {
     const original = boundaryV1Fixture("candidate-convergence-verification-pending");
     expect(parseReviewIntegrationBoundary(JSON.stringify({ ...boundaryV2Fixture(original.locus), nextAction: {

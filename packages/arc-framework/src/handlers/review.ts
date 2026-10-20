@@ -142,6 +142,7 @@ import { OwnerAcceptedReviewTerminusSchema } from "../scripts/review-gate/policy
 import {
   CandidateReviewResumeBoundarySchema,
   IntegrationBoundaryLocusSchema,
+  IntegrationBoundaryLocusV2Schema,
   parseIntegrationBoundaryLocus,
   type IntegrationBoundaryLocus,
   type PublishedIntegrationBoundaryLocus,
@@ -4336,6 +4337,7 @@ export interface ReviewPrePublicationHandlerDependencies {
   readRootGitHead(root: string): Promise<string>;
   readCandidate(root: string, workUnit: string): Promise<CandidateRead>;
   readBoundary(root: string, workUnit: string): Promise<VersionedSubmissionBoundary>;
+  boundarySchemaVersion?(root: string): 1 | 2;
   readStandardLaneOwnerVersion(root: string, candidateId: CanonicalDigest, headSha: string): Promise<number>;
   withStandardLaneLock<T>(
     root: string, candidateId: CanonicalDigest, headSha: string, action: () => Promise<T>,
@@ -4360,6 +4362,21 @@ export interface ReviewPrePublicationHandlerDependencies {
   write(text: string): void;
   warn(text: string): void;
   setExitCode(code: number): void;
+}
+
+function projectPrePublicationForBackend(dependencies: ReviewPrePublicationHandlerDependencies, root: string,
+  request: PrePublicationReviewRequest, continuation: PostAttestContinuation): PrePublicationReviewEnvelope {
+  const native = dependencies.boundarySchemaVersion?.(root) === 2;
+  return projectPrePublicationReview(request, continuation, native ? { terminus: null, readinessBinding: null } : undefined);
+}
+
+async function persistPrePublicationBoundary(input: ReviewInvocationInput, value: unknown,
+  expectedVersion: string | null): Promise<void> {
+  const bound = resolveReviewInvocation(input);
+  const native = bound.store.capabilities.stateOffBranch;
+  const boundary = native ? IntegrationBoundaryLocusV2Schema.parse(value) : parseIntegrationBoundaryLocus(value);
+  const path = await writeSubmissionBoundary(input.cwd, boundary, expectedVersion, { store: bound.store, owner: bound.workItem });
+  if (!native) await input.exec("git", ["add", "--", path], { cwd: input.cwd });
 }
 
 async function recoverProjectedPublicationBoundary(
@@ -4504,6 +4521,7 @@ function defaultPrePublicationDependencies(
     readRootGitHead: async (root) => GitObjectIdSchema.parse(
       (await exec("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim(),
     ),
+    boundarySchemaVersion: root => recordStoreFor(root).capabilities.stateOffBranch ? 2 : 1,
     readCandidate: (root, workUnit) => createPrePublicationCompositionDependencies({ ...invocationFor(root), cwd: root, exec })
       .readCandidate(workUnit),
     readBoundary: async (root, workUnit) => {
@@ -4559,10 +4577,9 @@ function defaultPrePublicationDependencies(
         && existing.reservation !== null
         && settled.reservation === null
         && settled.terminus === null;
-      const path = await writeSubmissionBoundary(root, parseIntegrationBoundaryLocus(preservesReservation
+      await persistPrePublicationBoundary({ ...invocationFor(root), cwd: root, exec }, preservesReservation
         ? { ...settled, reservation: existing.reservation }
-        : settled), snapshot.version, { store: recordStoreFor(root), owner: invocationFor(root).workItem });
-      await exec("git", ["add", "--", path], { cwd: root });
+        : settled, snapshot.version);
     },
     persistAcceptedFrontlineSkip: (root, accepted) => persistAcceptedFrontlineSkip({
       ...invocationFor(root),
@@ -4571,8 +4588,7 @@ function defaultPrePublicationDependencies(
       exec,
     }),
     recoverAttestationOrdering: async (root, recovered, expectedVersion) => {
-      const path = await writeSubmissionBoundary(root, recovered, expectedVersion, { store: recordStoreFor(root), owner: invocationFor(root).workItem });
-      await exec("git", ["add", "--", path], { cwd: root });
+      await persistPrePublicationBoundary({ ...invocationFor(root), cwd: root, exec }, recovered, expectedVersion);
       boundarySnapshots.set(recovered.workUnit, await readSubmissionBoundaryVersioned(root, recovered.workUnit, { store: recordStoreFor(root), owner: invocationFor(root).workItem }));
     },
     write: (text) => {
@@ -5050,7 +5066,7 @@ export async function handleReviewPrePublication(
       },
       projectionDisposition: "keep-staged-until-publication",
     };
-    envelope = projectPrePublicationReview(composition.request, postAttestContinuation);
+    envelope = projectPrePublicationForBackend(dependencies, root, composition.request, postAttestContinuation);
     if (pendingFixAtCurrentRoot
       && (envelope.locus !== "candidate-fix-pending"
         || envelope.nextAction.command !== "arc review respond -")) {

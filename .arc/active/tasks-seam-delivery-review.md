@@ -721,19 +721,12 @@ through rename and slug reuse; mismatched references refuse and succeed after co
             - a delivery member's local review admission refuses when the boundary's store version moves during its
               validation
 
-    - `[ ]` **4.5.d `verificationKind`**
+    - `[x]` **4.5.d `verificationKind`**
 
-        - From the flip `createRunConvergenceVerificationAction` (`rg/policy/integration-boundary-locus.ts`) emits
-          `"merge"` at its callers, the integration checkpoint (`scripts/integration/checkpoint.ts`) and the
-          pre-publication procedure (`rg/policy/pre-publication-procedure.ts`), and attest's own builder emits it for
-          its next actions (`lib/work-unit/verbs/attest.ts`), which 4.6.a tests from the flip. The kind check of the
-          widened copy and of attest's own action schemas (4.5.a) admits `"merge"` beside `"tier-3"` for a full scope;
-          the boundary's version 1 keeps `"tier-3"` alone, and version 2 admits `"merge"` alone (§ 9.1).
-        - Build `test-first` (one behavior at a time):
-            - a convergence refusal from the flip emits `"merge"` at the checkpoint and pre-publication, and in-repo each,
-              attest's among them, emits `"tier-3"`
-            - the widened copy and attest's schemas admit a full scope with either kind, a version 1 boundary refuses
-              `"merge"`, and a version 2 boundary refuses `"tier-3"`
+        - Native full convergence actions report `merge` at attest, pre-publication, and both checkpoint routes;
+          repository actions retain `tier-3`. Published action schemas admit either backend's full-scope kind, while
+          persisted V1 boundaries reject `merge` and V2 boundaries reject `tier-3`. Default pre-publication persists
+          native convergence through the Store without staging a projected file; focused scope retains its own kind.
 
 ### `[x]` **4.6 Store reads for attest and delivery inspection, and the `Candidate` bullet's readers — § 12.1, § 12.4**
 
