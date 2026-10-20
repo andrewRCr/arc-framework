@@ -424,7 +424,7 @@ export interface HostedReservationRequestAttempt {
 export interface PendingFindingRoute {
   readonly sourceId: string;
   readonly responsePlan?: HostedFindingsResponsePlan;
-  readonly localResumeAction?: { readonly schemaVersion: 1; readonly operationId: string };
+  readonly localResumeAction?: { readonly schemaVersion: 1; readonly operationId: string; readonly operationRef?: string };
 }
 
 export function projectPendingFindings(
@@ -482,7 +482,7 @@ export interface HostedReservationDischarge {
   applicabilityAuthority?: "decision-required" | "blocked";
   responsePlan?: HostedFindingsResponsePlan;
   awaitAction?: HostedAwaitEnvelope;
-  localResumeAction?: { readonly schemaVersion: 1; readonly operationId: string };
+  localResumeAction?: { readonly schemaVersion: 1; readonly operationId: string; readonly operationRef?: string };
   requestAttempts?: readonly HostedReservationRequestAttempt[];
   /** Existing admitted source choice carried into a native request continuation. */
   invocation?: HostedRequestEnvelope["invocation"];

@@ -1,3 +1,6 @@
+import { bindNativeReviewOperationReference } from "../../../../../src/scripts/review-gate/core/review-operation-reference.js";
+import { OwnerIdentitySchema } from "../../../../../src/lib/store/identity.js";
+import { bindReviewSourceReference } from "../../../../../src/scripts/review-gate/core/review-source-reference.js";
 import { linearReviewRangeProof } from "../../../../fixtures/local-review-delta.js";
 import { proveReviewDeltaRange } from "../../../../../src/scripts/review-gate/policy/review-delta-range-proof.js";
 import { withReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
@@ -534,7 +537,7 @@ describe("earlier review attempt query", () => {
     })).toMatchObject({ status: "unavailable", reason: "no-matching-attempt" });
   });
 
-  it("retains the exact delegated operation needed to resume earlier findings", async () => {
+  it.each([false, true])("retains the exact delegated operation needed to resume earlier findings, native=%s", async native => {
     const prior = laneState({ delivery: true });
     const local = LaneProgressStateSchema.parse({
       ...prior,
@@ -561,13 +564,16 @@ describe("earlier review attempt query", () => {
       }],
     });
 
+    const workItem = OwnerIdentitySchema.parse({ type: "work-item", name: "example", uid: "14bc6336-193b-4d7a-9380-1b4ca79a714b" });
+    const sourceOwner = native ? { repositoryId: local.repositoryId, workItem } : undefined;
     await expect(projectEarlierReviewApplicability({
+      sourceOwner,
       query: {
         ...selector(deliveryVehicle(oid("c"))),
         sourceId: "delegated-agent",
       },
       currentBase: oid("2"),
-      snapshot: { status: "complete", records: [{ version: 1, state: local }] },
+      snapshot: { status: "complete", records: [{ version: 1, state: native ? { ...local, workItem } : local }] },
       candidate: candidateRecord(),
       exec: async () => { throw new Error("injected projection must own Git"); },
       observeEndpoints: stableEndpoints,
@@ -582,12 +588,16 @@ describe("earlier review attempt query", () => {
         outcome: "findings",
         scopeMode: "chunked",
         chunkSeriesComplete: true,
-        localResumeAction: { schemaVersion: 1, operationId: "local-review-prior" },
+        localResumeAction: { schemaVersion: 1, operationId: "local-review-prior", ...(sourceOwner === undefined ? {} : {
+          operationRef: bindNativeReviewOperationReference({ ...sourceOwner, operationId: "local-review-prior" }),
+        }) },
       }],
     });
   });
 
-  it.each([false, true])("retains a settled local findings pass at its corrected member head, moved base=%s", async movedBase => {
+  it.each([{ movedBase: false, native: false }, { movedBase: true, native: false },
+    { movedBase: false, native: true }])(
+    "retains a settled local findings pass at its corrected member head, moved base=$movedBase, native=$native", async ({ movedBase, native }) => {
     const prior = laneState({ delivery: true });
     const oldTarget = prior.attempts[0]!.hosted!.reviewTarget;
     const local = LaneProgressStateSchema.parse({
@@ -655,6 +665,8 @@ describe("earlier review attempt query", () => {
       headSha: oid("c"),
       headTree: oid("d"),
     });
+    const workItem = OwnerIdentitySchema.parse({ type: "work-item", name: "example", uid: "14bc6336-193b-4d7a-9380-1b4ca79a714b" });
+    const sourceOwner = native ? { repositoryId: oldTarget.repositoryId, workItem } : undefined;
     const disposition = ApprovedDispositionRecordSchema.parse({
       schemaVersion: 1,
       semanticsVersion: "review-advisory/v1",
@@ -665,7 +677,8 @@ describe("earlier review attempt query", () => {
       deliveryMember: deliveryVehicle(oid("a")),
       source: {
         kind: "attested-local",
-        receiptRef: "arc-review-source:v1:attested-local:local-review-prior:receipt%2F1",
+        receiptRef: sourceOwner === undefined ? "arc-review-source:v1:attested-local:local-review-prior:receipt%2F1"
+          : bindReviewSourceReference({ ...sourceOwner, kind: "attested-local", operationId: "local-review-prior", durableRef: "receipt/1" }),
         localSourceRef: "git-common:review-gate/local/source.json",
       },
       currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
@@ -699,12 +712,13 @@ describe("earlier review attempt query", () => {
     });
 
     await expect(projectEarlierReviewApplicability({
+      sourceOwner,
       query: {
         ...selector(deliveryVehicle(oid("c"))),
         sourceId: "delegated-agent",
       },
       currentBase: movedBase ? oid("e") : newTarget.diffBaseSha,
-      snapshot: { status: "complete", records: [{ version: 1, state: local }] },
+      snapshot: { status: "complete", records: [{ version: 1, state: native ? { ...local, workItem } : local }] },
       candidate: candidateRecord(),
       exec: async () => { throw new Error("verified response should retain without Git projection"); },
       observeEndpoints: stableEndpoints,
@@ -1014,7 +1028,7 @@ describe("earlier review attempt query", () => {
     }
   });
 
-  it("projects an exact hosted response plan for an earlier findings attempt", async () => {
+  it.each(["repository", "native", "foreign-owner"] as const)("projects an exact %s hosted response plan for an earlier findings attempt", async selection => {
     const clean = laneState();
     const findings = LaneProgressStateSchema.parse({
       ...clean,
@@ -1044,10 +1058,13 @@ describe("earlier review attempt query", () => {
         };
       }),
     });
-    const projected = await projectEarlierReviewApplicability({
+    const workItem = OwnerIdentitySchema.parse({ type: "work-item", name: "example", uid: "14bc6336-193b-4d7a-9380-1b4ca79a714b" });
+    const sourceOwner = selection === "repository" ? undefined : { repositoryId: findings.repositoryId, workItem };
+    const read = (owner = workItem) => projectEarlierReviewApplicability({
+      sourceOwner,
       query: selector(),
       currentBase: oid("2"),
-      snapshot: { status: "complete", records: [{ version: 1, state: findings }] },
+      snapshot: { status: "complete", records: [{ version: 1, state: sourceOwner === undefined ? findings : { ...findings, workItem: owner } }] },
       candidate: candidateRecord(),
       exec: async () => { throw new Error("injected projection must own Git"); },
       observeEndpoints: stableEndpoints,
@@ -1057,6 +1074,9 @@ describe("earlier review attempt query", () => {
       ),
     });
 
+    if (selection === "foreign-owner") expect(await read(OwnerIdentitySchema.parse({ ...workItem,
+      uid: "24bc6336-193b-4d7a-9380-1b4ca79a714b" }))).toMatchObject({ status: "not-found" });
+    const projected = await read();
     expect(projected).toMatchObject({
       status: "complete",
       attempts: [{
@@ -1064,9 +1084,10 @@ describe("earlier review attempt query", () => {
         responsePlan: {
           source: {
             kind: "hosted",
-            attemptRef: `arc-review-source:v1:hosted:lane-progress%2Fprior:${encodeURIComponent(
+            attemptRef: sourceOwner === undefined ? `arc-review-source:v1:hosted:lane-progress%2Fprior:${encodeURIComponent(
               findings.attempts[0]!.attemptId,
-            )}`,
+            )}` : bindReviewSourceReference({ ...sourceOwner, kind: "hosted", operationId: findings.operationId,
+              durableRef: findings.attempts[0]!.attemptId }),
           },
           findings: [{
             findingId: "finding-prior",

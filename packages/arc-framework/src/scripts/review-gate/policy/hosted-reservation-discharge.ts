@@ -1,4 +1,5 @@
 /** Discharge evidence for a hosted-review reservation carried across publication. */
+import { bindNativeReviewOperationReference } from "../core/review-operation-reference.js";
 import { createReviewCompositionContext } from "../runtime/composition-context.js";
 import type { ReviewInvocationInput } from "../runtime/invocation.js";
 import { composeHostedCorrectionProof, confirmHostedCurrentCorrection } from "./hosted-correction-proof.js";
@@ -80,6 +81,36 @@ import {
 } from "./hosted-reservation-support.js";
 export * from "./hosted-reservation-support.js";
 
+type CurrentFindingReferences = Pick<Parameters<typeof projectHostedReservationDischarge>[0],
+  "bindCurrentAttemptRef" | "bindCurrentOperationRef">;
+
+function currentFindingRoute(attempt: ProjectedLaneAttempt, sourceId: string,
+  references: CurrentFindingReferences): PendingFindingRoute {
+  if (attempt.local !== undefined) {
+    const operationRef = references.bindCurrentOperationRef?.(attempt.attemptId);
+    return { sourceId, localResumeAction: { schemaVersion: 1, operationId: attempt.attemptId,
+      ...(operationRef === undefined ? {} : { operationRef }) } };
+  }
+  if (attempt.hosted === undefined || attempt.hosted.sealedResult?.outcome !== "findings"
+    || references.bindCurrentAttemptRef === undefined) return { sourceId };
+  return { sourceId, responsePlan: { schemaVersion: 1, target: attempt.hosted.reviewTarget,
+    source: { kind: "hosted", attemptRef: references.bindCurrentAttemptRef(attempt.attemptId) },
+    findings: attempt.hosted.sealedResult.findings.map(projectHostedFinding) } };
+}
+
+function currentFindingReferences(input: ReviewInvocationInput, repositoryId: string, headSha: string,
+  lineage?: LaneSubjectLineage): CurrentFindingReferences {
+  const sourceOwner = input.store?.capabilities.stateOffBranch === true && input.workItem !== undefined
+    ? { repositoryId, workItem: input.workItem } : undefined;
+  return {
+    bindCurrentAttemptRef: attemptId => bindReviewSourceReference({ ...sourceOwner, kind: "hosted",
+      operationId: laneProgressOperationId({ lane: "standard", repositoryId, headSha, ...(lineage === undefined ? {} : { lineage }) }),
+      durableRef: attemptId }),
+    bindCurrentOperationRef: sourceOwner === undefined ? undefined
+      : operationId => bindNativeReviewOperationReference({ ...sourceOwner, operationId }),
+  };
+}
+
 /**
  * Decide whether a carried hosted-review reservation has been discharged.
  *
@@ -113,6 +144,7 @@ export async function projectHostedReservationDischarge(input: {
   ) => Promise<EarlierHostedAttemptApplicabilityRead>;
   requireEarlierApplicabilityEvidence?: boolean | ((sourceId: string) => boolean);
   bindCurrentAttemptRef?: (attemptId: string) => string;
+  bindCurrentOperationRef?: (operationId: string) => string;
   resolveTerminalPolicy: (attempt: ProjectedLaneAttempt) => Promise<ReviewResolveEnvelope>;
   resolveEarlierTerminalPolicy: (attempt: EarlierApplicableAttempt) => Promise<ReviewResolveEnvelope>;
   resolveIncrementalCorrectionScope?: (
@@ -174,29 +206,7 @@ export async function projectHostedReservationDischarge(input: {
   const currentFindingRoutes = reservation.sources.flatMap((sourceId) => (
     currentAttempts
       .filter((attempt) => attempt.sourceId === sourceId && attempt.outcome === "findings")
-      .map((attempt): PendingFindingRoute => {
-        if (attempt.local !== undefined) {
-          return {
-            sourceId,
-            localResumeAction: { schemaVersion: 1, operationId: attempt.attemptId },
-          };
-        }
-        if (attempt.hosted === undefined
-          || attempt.hosted.sealedResult?.outcome !== "findings"
-          || input.bindCurrentAttemptRef === undefined) return { sourceId };
-        return {
-          sourceId,
-          responsePlan: {
-            schemaVersion: 1,
-            target: attempt.hosted.reviewTarget,
-            source: {
-              kind: "hosted",
-              attemptRef: input.bindCurrentAttemptRef(attempt.attemptId),
-            },
-            findings: attempt.hosted.sealedResult.findings.map(projectHostedFinding),
-          },
-        };
-      })
+      .map(attempt => currentFindingRoute(attempt, sourceId, input))
   ));
   const currentFindings = projectPendingFindings(currentFindingRoutes, "current");
   if (currentFindings !== null) return currentFindings;
@@ -609,7 +619,8 @@ export function createHostedReservationDischargeReader(options: ReviewInvocation
   const rawExec = input.rawExec ?? createRawGitExec(input.cwd);
 
   const createApplicabilityContext = (args: Omit<HostedReservationDischargeReaderArgs, "workUnitId" | "reservation">) =>
-    createHostedApplicabilityContext({ ...input, store, dispositions, repositoryId, rawExec, args });
+    createHostedApplicabilityContext({ ...input, store, dispositions, repositoryId, rawExec, args,
+      nativeWorkItem: context.family.mode === "stored" ? input.workItem : undefined });
 
   const correctionProof = (args: Pick<HostedReservationDischargeReaderArgs,
     "candidate" | "approvedHead" | "baseRevision" | "vehicle">, target: ReviewResult["target"]) =>
@@ -784,16 +795,7 @@ export function createHostedReservationDischargeReader(options: ReviewInvocation
             ...(vehicle === undefined ? {} : { vehicle }),
           },
       readLaneProgress: readProgress,
-      bindCurrentAttemptRef: (attemptId) => bindReviewSourceReference({
-        kind: "hosted",
-        operationId: laneProgressOperationId({
-          lane: "standard",
-          repositoryId: currentRepositoryId,
-          headSha: approvedHead,
-          ...(lineage === undefined ? {} : { lineage }),
-        }),
-        durableRef: attemptId,
-      }),
+      ...currentFindingReferences(input, currentRepositoryId, approvedHead, lineage),
       resolveTerminalPolicy: (attempt) => {
         const producerTarget = attempt.local?.target ?? attempt.hosted?.reviewTarget;
         if (producerTarget === undefined) {

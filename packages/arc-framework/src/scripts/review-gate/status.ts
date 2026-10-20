@@ -7,6 +7,7 @@ import type { StandardReviewObligationProjection } from "./policy/standard-revie
 import { projectHostedIncrementalRefusal, projectReviewDriverRefusal, ReviewDriverRefusalReasonSchema, ReviewDriverRefusalSchema } from "./status-driver-refusal.js";
 import { routeDischargeCoverageOffer, type ReviewStatusRoute } from "./status-route.js";
 import { z } from "zod";
+import { NativeReviewOperationRefSchema, nativeReviewOperationReferenceMatches } from "./core/review-operation-reference.js";
 
 import {
   BaseMovementObservationSchema,
@@ -251,8 +252,10 @@ export const DeliveryReviewCursorSchema = z.strictObject({
 
 export const DeliveryLocalResumeActionSchema = z.strictObject({
   schemaVersion: z.literal(1),
+  operationRef: NativeReviewOperationRefSchema.optional(),
   operationId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u),
-});
+}).refine(value => value.operationRef === undefined || nativeReviewOperationReferenceMatches(value.operationRef, value.operationId),
+{ path: ["operationRef"], message: "reference must match the requested operation" });
 
 const RoutedReviewCoverageRefusalSchema = z.strictObject({
   state: z.literal("blocked"),

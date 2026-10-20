@@ -2486,6 +2486,8 @@ async function resolveHostedProgressContext(input: ReviewInvocationOptions & {
   };
   if (input.admitCapacity && input.vehicle?.kind !== "delivery-member") {
     const earlier = await projectEarlierReviewApplicability({
+      sourceOwner: bound.store.capabilities.stateOffBranch && bound.workItem !== undefined
+        ? { repositoryId, workItem: bound.workItem } : undefined,
       query: applicabilityQuery,
       currentBase: reviewTarget.diffBaseSha,
       snapshot: await store.readOperationSnapshot(),

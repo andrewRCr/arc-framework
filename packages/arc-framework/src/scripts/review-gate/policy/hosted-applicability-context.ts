@@ -1,4 +1,5 @@
 /** Fresh hosted applicability reads for one exact Candidate or delivery member. */
+import type { OwnerIdentity } from "../../../lib/store/identity.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import type { GitExec, RawGitExec } from "../../../lib/git/exec.js";
 import type { DeliveryHostPort } from "../../../lib/delivery/host.js";
@@ -9,6 +10,7 @@ import { projectEarlierReviewApplicability, type EarlierHostedAttemptApplicabili
 import type { HostedReservationDischargeReaderArgs } from "./hosted-reservation-support.js";
 
 interface HostedApplicabilityContextInput {
+  readonly nativeWorkItem?: OwnerIdentity;
   readonly cwd: string;
   readonly exec: GitExec;
   readonly rawExec: RawGitExec;
@@ -97,6 +99,8 @@ export async function createHostedApplicabilityContext(input: HostedApplicabilit
     ? undefined
     : async (sourceId: string): Promise<EarlierHostedAttemptApplicabilityRead> => (
         projectEarlierReviewApplicability({
+          sourceOwner: input.nativeWorkItem === undefined ? undefined
+            : { repositoryId: currentRepositoryId, workItem: input.nativeWorkItem },
           query: {
             schemaVersion: 1,
             repositoryId: currentRepositoryId,
