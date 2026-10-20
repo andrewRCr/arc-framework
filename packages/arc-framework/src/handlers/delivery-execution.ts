@@ -261,7 +261,8 @@ import { parseIntegrationBoundaryLocus } from
   "../scripts/review-gate/policy/integration-boundary-locus.js";
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
 import { resolveReviewInvocation, type ReviewInvocationOptions } from "../scripts/review-gate/runtime/invocation.js";
-import { createReviewCompositionContext } from "../scripts/review-gate/runtime/composition-context.js";
+import { createDeliveryReviewRecordContext, readDeliveryLocalReviewResponse, publishDeliveryReviewFixResponse,
+  type DeliveryLocalReviewResponse } from "./delivery-review-records.js";
 import { resolveCandidateRecordRelativePath, resolveSubmissionBoundaryPath } from "../lib/store/kinds/review/paths.js";
 import { resolveGitCommonDir } from "../lib/git/exec.js";
 import type { GitExec } from "../lib/git/exec.js";
@@ -279,20 +280,14 @@ import {
   "../scripts/review-gate/delivery-landing-readiness.js";
 import { createGhMergeMethodPolicyPort } from "../scripts/review-gate/hosts/github/merge-method.js";
 import { RepositoryDeliveryMemberLookup } from "../scripts/review-gate/hosts/local/delivery-member-lookup.js";
-import { LocalApprovedDispositionRecordStore } from
-  "../scripts/review-gate/hosts/local/disposition-record-store.js";
 import { currentApprovedDispositionNode } from
   "../scripts/review-gate/core/advisory-records.js";
-import { LocalReviewOperationStateStore } from
-  "../scripts/review-gate/hosts/local/operation-state-store.js";
 import { parseReviewSourceReferenceForInvocation } from
   "../scripts/review-gate/runtime/source-invocation.js";
 import { RespondEnvelopeSchema } from
   "../scripts/review-gate/core/review-command-envelope.js";
 import { HostedFindingsResponsePlanSchema } from
   "../scripts/review-gate/core/response-plan-schema.js";
-import type { LaneSubjectLineage } from "../scripts/review-gate/core/lane-admission.js";
-import { settleLaneAttempt } from "../scripts/review-gate/lane-progress.js";
 import { projectGitReviewContributionApplicability } from
   "../scripts/review-gate/policy/git-review-contribution-applicability.js";
 import { createRespondDependencies } from
@@ -2243,8 +2238,7 @@ async function executeDeliveryCommand(
   const exec = internalContext?.exec ?? createGitExec(interaction?.subprocess);
   const invocation = resolveReviewInvocation({ ...internalContext, cwd, exec });
   const reviewRecordStore = invocation.store;
-  let reviewContext: ReturnType<typeof createReviewCompositionContext> | undefined;
-  const review = () => reviewContext ??= createReviewCompositionContext({ ...invocation, cwd, exec });
+  const review = createDeliveryReviewRecordContext({ ...invocation, cwd, exec });
   const publisher = new RepositoryGitCommonStatePublisher(exec, cwd);
   const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
   const stateStore = new RepositoryDeliveryStateStore(publisher);
@@ -2281,7 +2275,7 @@ async function executeDeliveryCommand(
         currentDerivation = expected.derivedFrom;
       } else {
         if (entry.status !== "not-applicable") return { status: "moved" };
-        const records = await review().family.ports.dispositions.listDispositionRecords();
+        const records = await (await review()).family.ports.dispositions.listDispositionRecords();
         const selection = selectPendingDeliveryReviewFixAuthority({
           workUnitId: state.workUnitId,
           records,
@@ -3170,7 +3164,7 @@ async function executeDeliveryCommand(
         }
         let dispositionRecords;
         try {
-          dispositionRecords = await review().family.ports.dispositions.listDispositionRecords();
+          dispositionRecords = await (await review()).family.ports.dispositions.listDispositionRecords();
         } catch {
           return { status: "refused", reason: "review-fix-response-unavailable" };
         }
@@ -3196,7 +3190,7 @@ async function executeDeliveryCommand(
       }
       let dispositionRecords;
       try {
-        dispositionRecords = await review().family.ports.dispositions.listDispositionRecords();
+        dispositionRecords = await (await review()).family.ports.dispositions.listDispositionRecords();
       } catch {
         return { status: "refused", reason: "review-fix-response-unavailable" };
       }
@@ -3259,11 +3253,11 @@ async function executeDeliveryCommand(
           }
           let operationReference;
           try {
-            operationReference = await parseReviewSourceReferenceForInvocation({ ...invocation, cwd, exec }, selection.source.attemptRef, "hosted");
+            operationReference = await parseReviewSourceReferenceForInvocation({ ...(await review()), cwd, exec }, selection.source.attemptRef, "hosted");
           } catch {
             return { status: "refused", reason: "review-fix-response-stale" };
           }
-          const operationRead = await review().family.ports.inFlight
+          const operationRead = await (await review()).family.ports.inFlight
             .readOperation(operationReference.operationId);
           const attempts = operationRead.state?.kind === "lane-progress"
             ? operationRead.state.attempts.filter(({ attemptId }) => attemptId === selection.operationId)
@@ -3490,7 +3484,7 @@ async function executeDeliveryCommand(
         if (reviewStatus.nextAction === "respond-to-findings") {
           let records;
           try {
-            records = await review().family.ports.dispositions.listDispositionRecords();
+            records = await (await review()).family.ports.dispositions.listDispositionRecords();
           } catch {
             return { status: "refused" as const, reason: "review-fix-response-replay-unavailable" };
           }
@@ -3788,58 +3782,15 @@ async function executeDeliveryCommand(
         return { status: "refused", reason: "candidate-mutation-unowned" };
       }
       const verifiedAt = new Date().toISOString();
-      const dispositionWriter = new LocalApprovedDispositionRecordStore(publisher);
-      const dispositionStore = review().family.ports.dispositions;
+      const dispositionStore = (await review()).family.ports.dispositions;
       const dispositionRecords = await dispositionStore.listDispositionRecords();
-      const validateLocalResponse = async (record: (typeof dispositionRecords)[number]) => {
-        const responseMember = record.deliveryMember;
-        const current = currentApprovedDispositionNode(record);
-        if (record.source.kind !== "attested-local" || responseMember === null) return null;
-        let sourceReference;
-        try {
-          sourceReference = await parseReviewSourceReferenceForInvocation({ ...invocation, cwd, exec }, record.source.receiptRef, "attested-local");
-        } catch {
-          return null;
-        }
-        const operation = await review().family.ports.inFlight
-          .readOperation(sourceReference.operationId);
-        const admission = operation.state?.kind === "local-review"
-          ? operation.state.deliveryAdmission
-          : undefined;
-        if (operation.state?.kind !== "local-review"
-          || operation.state.operationId !== record.operationId
-          || sourceReference.operationId !== record.operationId
-          || operation.state.repositoryId !== record.repositoryId
-          || admission === undefined
-          || canonicalize(admission.vehicle) !== canonicalize(responseMember)
-          || operation.state.target.kind !== "delivery-member"
-          || operation.state.target.targetId !== current.approvedDisposition.dispositionSet.targetId
-          || operation.state.target.headSha !== responseMember.head) return null;
-        return {
-          oldTarget: operation.state.target,
-          settlement: {
-            repositoryId: operation.state.repositoryId,
-            headSha: operation.state.target.headSha,
-            lineage: operation.state.lineage,
-            attemptId: operation.state.operationId,
-            dispositionSetId: current.approvedDisposition.dispositionSet.dispositionSetId,
-            ...(current.predecessorDispositionSetId === null
-              ? {} : { predecessorDispositionSetId: current.predecessorDispositionSetId }),
-          },
-        };
-      };
+      const validateLocalResponse = async (record: (typeof dispositionRecords)[number]) =>
+        readDeliveryLocalReviewResponse({ ...(await review()), cwd, exec }, record);
       let responseAdvance: Exclude<
         ReturnType<typeof advanceDeliveryReviewFixResponse>,
         { readonly status: "refused" }
       > | null = null;
-      let localResponseSettlement: {
-        readonly repositoryId: string;
-        readonly headSha: string;
-        readonly lineage: LaneSubjectLineage;
-        readonly attemptId: string;
-        readonly dispositionSetId: CanonicalDigest;
-        readonly predecessorDispositionSetId?: CanonicalDigest;
-      } | null = null;
+      let localResponseSettlement: DeliveryLocalReviewResponse["settlement"] | null = null;
       let verification = parsed.verification;
       const selectedIndex = stateRead.value.value.members.findIndex(
         ({ deliverableId }) => deliverableId === parsed.selectedDeliverableId,
@@ -3910,11 +3861,11 @@ async function executeDeliveryCommand(
         if (responseRecord.source.kind === "hosted") {
           let sourceReference;
           try {
-            sourceReference = await parseReviewSourceReferenceForInvocation({ ...invocation, cwd, exec }, responseRecord.source.attemptRef, "hosted");
+            sourceReference = await parseReviewSourceReferenceForInvocation({ ...(await review()), cwd, exec }, responseRecord.source.attemptRef, "hosted");
           } catch {
             return { status: "refused", reason: "review-fix-response-invalid" };
           }
-          const operation = await review().family.ports.inFlight
+          const operation = await (await review()).family.ports.inFlight
             .readOperation(sourceReference.operationId);
           const attempts = operation.state?.kind === "lane-progress"
             ? operation.state.attempts.filter(({ attemptId }) => attemptId === responseRecord.operationId)
@@ -4047,17 +3998,12 @@ async function executeDeliveryCommand(
       });
       if (carried.status === "refused") return carried;
 
-      if (responseAdvance !== null) {
-        await dispositionWriter.appendDispositionRecord(responseAdvance.record);
-      }
-      if (localResponseSettlement !== null) {
-        await settleLaneAttempt(new LocalReviewOperationStateStore(publisher), {
-          lane: "standard",
-          ...localResponseSettlement,
-          producedHeadSha: selectedMember.coordinates.head,
-          now: verifiedAt,
-        });
-      }
+      await publishDeliveryReviewFixResponse(await review(), {
+        record: responseAdvance?.record ?? null,
+        settlement: localResponseSettlement,
+        producedHeadSha: selectedMember.coordinates.head,
+        verifiedAt,
+      });
       const recordPath = recorded.status === "recorded"
         ? await writeCandidateRecord(
             cwd,

@@ -949,23 +949,16 @@ this extension, following the 4.11 local proof.
   retain consumption, author, and current-set refusals with working repair routes; repeated capture or withdrawal
   preserves the stored facts, including withdrawal replay after succession.
 
-### `[ ]` **5.5 Move delivery's review fix onto evidence — § 6, § 9.3, § 14.2**
+### `[x]` **5.5 Move delivery's review fix onto evidence — § 6, § 9.3, § 14.2**
 
 - _Goal:_ From the flip a delivery member's fix advances its evidence record, its continuation reads the resolved policy
   request from it, and delivery reads evidence and outcomes in place of disposition and operation-state records, while
   a verification response stays a Candidate transition alone.
 
-    - `lib/delivery/review-fix.ts` (`currentApprovedDispositionNode`), `lib/delivery/review-fix-continuation.ts`
-      (`selectPendingDeliveryReviewFixAuthority`), the disposition listing `lib/delivery/repository-entry.ts` gives it,
-      and `handlers/delivery-execution.ts`'s disposition and operation-state reads, its source-reference decodes, its
-      disposition write, and its `settleLaneAttempt` call.
-    - Build `test-first` (one behavior at a time):
-        - a delivery member's fix advances its evidence record's performance, where `settleLaneAttempt` settles its
-          attempt today
-        - its continuation reads the resolved policy request from the evidence record, and the pending fix authority
-          selects from evidence
-        - a verification response writes no evidence record (`createCandidateVerificationResponseEvidence`,
-          `lib/work-unit/candidate-attestation.ts`)
+- _Outcome:_ Delivery binds its native owner lazily, validates ended local member responses from immutable outcomes,
+  and publishes complete fix performance through native evidence. Continuation retains the approved policy request
+  after pruning and on a fresh checkout; exact replay preserves evidence versions and outcomes. Verification-only
+  responses remain Candidate transitions, with no evidence write. Repository delivery acknowledgment paths remain intact.
 
 ### `[ ]` **5.6 Compose review results, policy evidence, reduction, and status from records — § 4, § 6, § 9.3, § 14.2**
 
