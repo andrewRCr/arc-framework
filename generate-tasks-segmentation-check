@@ -3,7 +3,7 @@
   "slug": "generate-tasks-segmentation-check",
   "claimId": "339498ba861039eadfc7ead66cbd9733",
   "createdAt": "2026-10-20T02:18:51.040Z",
-  "updatedAt": "2026-10-20T02:18:51.040Z",
+  "updatedAt": "2026-10-20T02:43:53.198Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "generate-tasks-segmentation-check",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Stop the shipped generate-tasks workflow naming a script only this repository defines",
   "originEntrySourceDigest": "sha256:5e0ee9441f3bcf3b35cd7c37f5d744d3bad0b407518bf75741b2fefe9b82c907",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/generate-tasks-segmentation-check",
+    "headSha": "cce4cf5af48943627ab6bf52caa5065bf8d8a109"
+  }
 }
