@@ -588,39 +588,19 @@ through rename and slug reuse; mismatched references refuse and succeed after co
           error envelopes refuse. Native policy, lifecycle, checkpoint, and merge re-entry resumes after project
           restoration, retaining exact primary owners and unchanged native boundaries.
 
-### `[ ]` **4.4 Resolve the checkout's work unit and Errand through the store from the flip — § 12.4**
+### `[x]` **4.4 Resolve the checkout's work unit and Errand through the store from the flip — § 12.4**
 
 - _Goal:_ From the flip the review gate resolves the checkout's work unit through its branch link and its Errand
   through the checkout's claim and `lookup`, refusing where either refuses with anything but `not-found`, and
   pre-publication reads the work unit's assurance from its stored meta, so every later arm from the flip reviews a
   work unit whose meta carries no `Branch` and has no file in the checkout.
 
-- _Note:_ The status change's identity fix also edits `readLocalReviewLiveContext` before the flip; whichever of the two
-  lands second takes the conflict (`notes-seam-delivery-review.md` § Neighbors).
+    - `[x]` **4.4.a The work-unit resolution**
 
-    - `[ ]` **4.4.a The work-unit resolution**
-
-        - The live context's work-unit half (`readLocalReviewLiveContext`) and the review subject's
-          (`resolveReviewSubject`, `rg/core/review-subject.ts`) resolve the work unit by `lookup`'s `ref` arm on the
-          checkout's branch or head ref, the repository the project ID, and read its meta record through the store, in
-          place of `readActiveMetaCandidates`' `Branch` match with its file read and of `branchToWorkUnitSlug`.
-        - The review gate's five calls to `resolveActiveWu` (`lib/release/wu-resolution.ts`) switch to a review-local
-          resolver taking the root's store and project-ID reader and resolving by the same branch link from the flip.
-          Preserve the shared resolver's shipped checkout-occupancy selection (§ 12.4). The five calls are the
-          incremental-applicability check (`confirmIncrementalApplicability`), hosted review progress, and the chunking
-          resolve in `handlers/review.ts`, and `resolveOriginatingTop` and `resolveLifecyclePaths`
-          (`createPreBindingDeliveryReviewTargetDependencies`, `rg/policy/pre-publication-composition.ts`). The
-          originating top compares the checkout's branch with the work item's work-branch link (`selectWorkBranchLink`,
-          `lib/store/lifecycle-branch.ts`) in place of the meta's `Branch`, and the lifecycle paths take the meta's
-          projected path (`workUnitMetaPath`, `lib/store/lifecycle-write.ts`), which the `work-unit-paths` ratchet does
-          not count, in place of its file's (§ 12.4).
-        - Build `test-first` (one behavior at a time):
-            - from the flip review on a work unit's branch resolves it with no `Branch` in its meta and no meta file
-            - an adopted branch whose name parses as no slug resolves the work unit its link names
-            - a branch no link names resolves no work unit, falling through to the Errand and delivery reads as today
-            - from the flip hosted review progress, the chunking resolve, and the incremental-applicability check
-              resolve the work unit with no meta file, and the originating top is the linked branch's ref where the
-              checkout is on it and `null` where it is not
+        - Live context, subject selection, and all five review-local resolver calls use project-qualified branch links
+          and stored metadata from the flip. Default hosted progress, chunking, and incremental applicability resolve
+          adopted branches without a metadata file. Pre-binding delivery uses the linked originating top and the
+          primary's projected lifecycle location; unlinked branches remain unbound and repository occupancy is retained.
 
     - `[x]` **4.4.b The Errand reads**
 

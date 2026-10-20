@@ -12,6 +12,7 @@ import type { LocalReviewAuthority } from "../../src/scripts/review-gate/core/lo
 import type { LocalReviewCoverageAdmission } from "../../src/scripts/review-gate/core/local-review-coverage.js";
 import type { ReviewScopeMode } from "../../src/scripts/review-gate/core/review-primitives.js";
 import type { DeliveryLocalReviewAdmission } from "../../src/scripts/review-gate/policy/delivery-local-review-admission.js";
+import type { StandardReviewObligationProjection } from "../../src/scripts/review-gate/policy/standard-review-projection-schema.js";
 import { createFrontlineFixture } from "./frontline-review.js";
 
 export function hostedOutcome(options: HostedHandleFixtureInput & {
@@ -60,7 +61,7 @@ export function localOutcome(options: {
   lineage?: LaneSubjectLineage; target?: ReviewTarget; logicalPass?: number; retryGeneration?: number; scopeMode?: ReviewScopeMode;
   vehicle?: LocalReviewAuthority["vehicle"]; coverageAdmission?: LocalReviewCoverageAdmission;
   deliveryAdmission?: DeliveryLocalReviewAdmission; outcome?: "clean" | "findings" | "terminal-failure";
-  findings?: NormalizedReviewFinding[];
+  findings?: NormalizedReviewFinding[]; retrigger?: StandardReviewObligationProjection["retrigger"];
 } = {}) {
   const target = options.target ?? createHostedHandleFixture().admission.reviewTarget;
   const logicalPass = options.logicalPass ?? 1;
@@ -70,7 +71,7 @@ export function localOutcome(options: {
   const effectiveCoverage = outcome === "terminal-failure" ? null : coverageAdmission.requestedCoverage;
   const requirement = createReviewRequirement({
     target, projection: { obligation: "required", reasons: ["sensitive-change-set"], rubricVersion: "standard-review/v1",
-      rubricDigest: canonicalDigest({ rubric: 1 }), retrigger: "full-final", count: 1 },
+      rubricDigest: canonicalDigest({ rubric: 1 }), retrigger: options.retrigger ?? "full-final", count: 1 },
     acceptableSources: [{ sourceKind: "agent", qualifier: "standard-review/v1" }], initialAdmission: "automatic",
   });
   if (requirement === null) throw new Error("expected required review");
