@@ -13,7 +13,6 @@ import {
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
-import { parseMetaFile } from "../lib/active/meta-reader.js";
 import { workUnitPathTreatmentContext } from "../lib/base-drift/current-adapters.js";
 import {
   closeDeliveryEligibilityForPublication,
@@ -81,8 +80,6 @@ import {
   routeDeliveryPosition,
 } from "../lib/delivery/position.js";
 import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../lib/delivery/local-stores.js";
-import { inspectRepositoryDeliveryEntry as inspectRepositoryDeliveryEntryAt } from
-  "../lib/delivery/repository-entry.js";
 import {
   deriveDeliveryResidueLocators,
   observeDeliveryGateCheckout,
@@ -232,8 +229,7 @@ import {
 } from "../lib/kernel/index.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { resolveTaskListCursor } from "../lib/task-list/cursor.js";
-import { resolveTaskListPath } from "../commands/active/status.js";
-import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
+import { createDeliveryReviewFixEntry } from "./delivery-review-fix-entry.js";
 import { readAncestry } from "../lib/work-unit/git-decomposition-object-readers.js";
 import {
   readCandidateRecord,
@@ -1786,6 +1782,9 @@ async function pathExists(path: string): Promise<boolean> {
   }
 }
 
+/** Operational authority and optional external boundaries for delivery execution. */
+export interface DeliveryExecutionInvocationOptions extends ReviewInvocationOptions { cwd?: string; exec?: GitExec }
+
 export interface DeliveryExecutionHandlerDependencies {
   readText(source: string): Promise<string>;
   execute(command: DeliveryExecutionCommand, request: unknown, interaction?: InteractionContext): Promise<unknown>;
@@ -1793,7 +1792,7 @@ export interface DeliveryExecutionHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultDependencies(invocation: ReviewInvocationOptions = {}): DeliveryExecutionHandlerDependencies {
+function defaultDependencies(invocation: DeliveryExecutionInvocationOptions = {}): DeliveryExecutionHandlerDependencies {
   return {
     readText: (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
     execute: (command, request, interaction) => executeDeliveryCommand(command, request, interaction, invocation),
@@ -1966,7 +1965,7 @@ export async function handleDeliveryExecution(
   opts: DeliveryExecutionOptions,
   interaction?: InteractionContext,
   overrides: Partial<DeliveryExecutionHandlerDependencies> = {},
-  invocation: ReviewInvocationOptions = {},
+  invocation: DeliveryExecutionInvocationOptions = {},
 ): Promise<void> {
   const deps = { ...defaultDependencies(invocation), ...overrides };
   const options = InputOptionSchema.safeParse(opts);
@@ -2237,11 +2236,11 @@ async function executeDeliveryCommand(
   command: DeliveryExecutionCommand,
   request: unknown,
   interaction?: InteractionContext,
-  internalContext?: ReviewInvocationOptions & { readonly settledRecordEffectHead?: string | null },
+  internalContext?: DeliveryExecutionInvocationOptions & { readonly settledRecordEffectHead?: string | null },
 ): Promise<unknown> {
-  const cwd = requireArcProjectRoot();
+  const cwd = internalContext?.cwd ?? requireArcProjectRoot();
   if (cwd === null) return { status: "refused", reason: "arc-project-root-unresolved" };
-  const exec = createGitExec(interaction?.subprocess);
+  const exec = internalContext?.exec ?? createGitExec(interaction?.subprocess);
   const invocation = resolveReviewInvocation({ ...internalContext, cwd, exec });
   const reviewRecordStore = invocation.store;
   let reviewContext: ReturnType<typeof createReviewCompositionContext> | undefined;
@@ -2260,7 +2259,7 @@ async function executeDeliveryCommand(
     let currentDerivation: z.infer<typeof DeliveryCorrectionDerivationSchema> | undefined;
     let requiredFindingPaths: readonly string[] = [];
     try {
-      const entry = await inspectActiveRepositoryDeliveryEntry({ entryMode: "execution" }, interaction, invocation);
+      const entry = await inspectActiveRepositoryDeliveryEntry({ entryMode: "execution" }, interaction, { ...invocation, cwd, exec });
       if (expected.derivedFrom.kind === "open-task") {
         if (entry.status !== "correction-routing-required"
           || entry.planId !== expected.planId
@@ -2556,65 +2555,9 @@ async function executeDeliveryCommand(
     let projectionRequest: z.infer<typeof ReviewFixContinueSchema> = parsed;
     let expectedRecordEffects: readonly DeliveryReviewFixExpectedRecord[] = parsed.recordEffects ?? [];
     let settledRecordEffectHead: string | null = null;
-    type DeliveryReviewFixWorkUnitLocus = {
-      readonly name: string;
-      readonly path: string;
-      readonly branch: string | null;
-      readonly baseBranch: string;
-    };
-    let reviewFixLocusPromise: Promise<DeliveryReviewFixWorkUnitLocus | null> | null = null;
-    const resolveReviewFixLocus = (): Promise<DeliveryReviewFixWorkUnitLocus | null> => {
-      reviewFixLocusPromise ??= (async () => {
-        const [{ settings }, active] = await Promise.all([
-          readConfigSettings(cwd),
-          resolveActiveWu({ cwd, store: invocation.store, projectId: invocation.projectId }),
-        ]);
-        if (active.status === "resolved" && active.name !== "") {
-          return { ...active, baseBranch: settings["branch.base"] };
-        }
-        const owner = await resolveCandidateMutationOwner({ ...invocation, cwd, exec });
-        if (owner.status !== "owned") return null;
-        const index = await buildLifecycleIndex({
-          cwd,
-          fs: {
-            readdir: (path) => readdir(path, { withFileTypes: true }),
-            readFile: (path) => readFile(path, "utf8"),
-          },
-        });
-        const completed = index.get(owner.workUnit);
-        if (completed?.location !== "completed") return null;
-        const branch = await exec("git", ["symbolic-ref", "--quiet", "--short", "HEAD"], {
-          cwd,
-          objectAccess: "local-only",
-        }).then(({ stdout }) => stdout.trim(), () => null);
-        return {
-          name: owner.workUnit,
-          path: completed.path,
-          branch,
-          baseBranch: settings["branch.base"],
-        };
-      })();
-      return reviewFixLocusPromise;
-    };
-    const inspectReviewFixRepositoryEntry = async (
-      entryMode: "execution" | "integrating",
-    ): Promise<DeliveryEntryInspectionResult> => {
-      const locus = await resolveReviewFixLocus();
-      if (locus === null) throw new Error("Delivery review-fix work unit unavailable");
-      const meta = parseMetaFile(await readFile(resolve(cwd, locus.path), "utf8"));
-      const taskListPath = meta.taskList === null || meta.taskList === "[none]"
-        ? null
-        : resolveTaskListPath(locus.path, meta.taskList);
-      if (taskListPath === null) throw new Error("Delivery review-fix task list unavailable");
-      return inspectRepositoryDeliveryEntryAt({
-        ...invocation,
-        cwd,
-        taskListPath,
-        request: { workUnitId: SlugSchema.parse(locus.name), entryMode },
-        baseBranch: locus.baseBranch,
-        exec,
-      });
-    };
+    const reviewFixEntry = createDeliveryReviewFixEntry(cwd, exec, invocation);
+    const resolveReviewFixLocus = reviewFixEntry.resolveLocus;
+    const inspectReviewFixRepositoryEntry = reviewFixEntry.inspect;
     const captureExpectedRecordEffects = async (paths: readonly string[]): Promise<void> => {
       expectedRecordEffects = await readExpectedRecordEffects(paths);
     };
@@ -3239,12 +3182,8 @@ async function executeDeliveryCommand(
       if (locus === null) {
         return { status: "refused", reason: "active-work-unit-unavailable" };
       }
-      const meta = parseMetaFile(await readFile(resolve(cwd, locus.path), "utf8"));
-      const taskListPath = meta.taskList === null || meta.taskList === "[none]"
-        ? null
-        : resolveTaskListPath(locus.path, meta.taskList);
-      if (taskListPath === null) return { status: "refused", reason: "task-list-unavailable" };
-      const taskList = await readFile(resolve(cwd, taskListPath), "utf8");
+      const taskList = await reviewFixEntry.readTaskList(locus);
+      if (taskList === null) return { status: "refused", reason: "task-list-unavailable" };
       const cursor = resolveTaskListCursor(taskList);
       if (cursor.status !== "no-open-task") {
         return cursor.status === "malformed"

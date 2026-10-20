@@ -58,7 +58,8 @@ export interface RepositoryDeliveryInspectionInput extends ReviewInvocationOptio
   readonly exec: GitExec;
 }
 
-async function readInspectionTaskList(input: Pick<RepositoryDeliveryInspectionInput, "cwd" | "taskListPath" | "workItem">,
+/** Read the selected task kind natively, or its validated repository path on the repository backend. */
+export async function readInspectionTaskList(input: Pick<RepositoryDeliveryInspectionInput, "cwd" | "taskListPath" | "workItem">,
   store: Store): Promise<string> {
   if (!store.capabilities.stateOffBranch) return readFile(join(input.cwd, input.taskListPath), "utf8");
   if (input.workItem === undefined) throw new Error("Resolve the selected work item before inspecting its task list.");

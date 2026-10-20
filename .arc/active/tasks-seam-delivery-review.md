@@ -729,7 +729,7 @@ family's schemas are store schemas, never entries in the review gate's published
             - the widened copy and attest's schemas admit a full scope with either kind, a version 1 boundary refuses
               `"merge"`, and a version 2 boundary refuses `"tier-3"`
 
-### `[ ]` **4.6 Store reads for attest and delivery inspection, and the `Candidate` bullet's readers — § 12.1, § 12.4**
+### `[x]` **4.6 Store reads for attest and delivery inspection, and the `Candidate` bullet's readers — § 12.1, § 12.4**
 
 - _Goal:_ From the flip `arc attest` reads the work unit's meta and task list through the store, writes only
   `Current Workflow` and `Next Action` through the meta kind's field writers in the batch that writes the Candidate and
@@ -750,27 +750,11 @@ family's schemas are store schemas, never entries in the review gate's published
           Active and session-init projections share their Store and selected owner, read native Candidate and boundary
           records without files, and select the Integrating branch by project-qualified link behind a lazy module.
 
-    - `[ ]` **4.6.c Delivery entry inspection's work unit and meta**
+    - `[x]` **4.6.c Delivery entry inspection's work unit and meta**
 
-        - `inspectActiveRepositoryDeliveryEntry` (`handlers/delivery-entry.ts`), which `arc delivery entry inspect` runs,
-          and delivery execution's review-fix inspection (`resolveReviewFixLocus`, `inspectReviewFixRepositoryEntry`,
-          `handlers/delivery-execution.ts`) resolve the work unit through the store from the flip — the checkout's as
-          4.4.a resolves it, and the review-fix one's completed owner confirmed by `lookup` in place of
-          `buildLifecycleIndex` — and read its meta through `readWorkUnit` (`lib/store/lifecycle-write.ts`) in place of
-          the file at its active or completed path, handing the inspection the work unit so its task-list read is 4.6.a's
-          stored one, with no path resolved from the meta's `Task List` (§ 12.4).
-        - `inspectActiveRepositoryDeliveryEntry` opens no store today: it opens the checkout's store as 4.1.b's roots
-          open it, and the review-fix inspection reads through delivery execution's (4.1.b), each reading the project ID
-          through the project-ID port (`projectId`) for 4.4.a's resolution by link.
-        - The completed owner resolves through the shipped `resolveCandidateMutationOwner` and
-          `resolveCompletedCandidateWorkUnits` (`handlers/candidate-mutation-owner.ts`), supplied the same store and
-          project-ID reader; the tests exercise production resolution through 4.2's seeded records and topology.
-        - Build `test-first` (one behavior at a time):
-            - from the flip `arc delivery entry inspect` reports a work unit's entry with neither its meta nor its task
-              list in the checkout
-            - from the flip the review-fix inspection reads an active work unit's stored meta and task list with neither
-              file in the checkout, and, given its owner, a completed work unit's
-            - a work unit whose meta names no task list refuses as today
+        - Entry and review-fix continuation read stored metadata and tasks by selected generation, without following
+          the metadata path. Production resolution confirms active and completed owners; exact family binding and
+          task reads retain the invocation Store, with refusal and normal continuation after repair.
 
 ### `[ ]` **4.4.R Bind native family ports after authenticated vehicle resolution — § 2.3**
 

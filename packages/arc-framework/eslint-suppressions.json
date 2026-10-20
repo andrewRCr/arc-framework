@@ -354,9 +354,6 @@
     }
   },
   "src/handlers/delivery-execution.ts": {
-    "arc/store-raw-state": {
-      "count": 2
-    },
     "arc/surface-names": {
       "count": 2
     },
