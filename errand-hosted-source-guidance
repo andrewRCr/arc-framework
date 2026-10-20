@@ -3,7 +3,7 @@
   "slug": "errand-hosted-source-guidance",
   "claimId": "0cd69e0e476597db7bebbdc626ad6f08",
   "createdAt": "2026-10-20T16:58:24.912Z",
-  "updatedAt": "2026-10-20T16:58:24.912Z",
+  "updatedAt": "2026-10-20T17:28:14.810Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Forward the existing hosted source choice in Errand review workflow, correct no-action diagnosis, and align status help",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Offer an Errand's later hosted pass when the Owner selects a hosted source after a local pass",
   "originEntrySourceDigest": "sha256:127bf7643bd0a5ee5f750dd9f14f751831dc32c202601b0c5271869f53092250",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/errand-hosted-source-guidance",
+    "headSha": "b5b70558a3ae8c8ae0ffa5a2d501a5174a7108ed"
+  }
 }
