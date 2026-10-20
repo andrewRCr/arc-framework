@@ -217,7 +217,7 @@ describes types the code does not have.
 
 ```ts
 interface Store {
-  // read, list, write, version, history, changes, lookup: unchanged
+  // read, list, write, version, lookup: unchanged; history and changes retain creation receipts (§ 5.7, A23).
   // batch retains its operation shape and accepts observations under § 5.4 (A22).
   /** Fetch from the state remote and read sources, and merge into local state; publishes nothing. */
   pull(input?: PullInput): Promise<StoreResult<PullResult>>;
@@ -495,6 +495,8 @@ pushes (§ 6.8), and the transient-identity refs the import deletes (§ 10.11).
   and an entry whose stored state names two owners is `key-mismatch`: one under a metadata file whose UID is not its
   ref's, one at a path naming an owner — a slug, a UID, or a person — other than its ref's or its metadata file's, or
   one whose parsed content names an owner other than the one its path and ref map to.
+- **Creation facts (A23).** State commits retain the complete operation receipt independently of caller provenance,
+  encoded and validated as § 5.7 defines; historical import facts remain unavailable.
 - **One commit per batch per ref,** and a second where a write's stale-base merge files conflict records there (§ 5.1).
   Each commit's message renders the batch's provenance as D3 has a backend over Git render it: a subject naming the verb
   and the owner's slug (`archive storage-contract`), and the trailers `Arc-Lifecycle-Action`, `Arc-Code-Head` where the
@@ -1043,8 +1045,9 @@ caller names any. A ref in one manifest only reads by its namespace:
    selected physical layout and the captured logical-state tips, including history. A changed layout releases every
    lock and restarts at step 2. Changed logical tips release the publication lock and retry from step 4, rebuilding
    views and proposed mutations internally. Exclude temporary, tracking, and control refs from that comparison.
-   Under the unchanged captured basis, compare every submitted observation (§ 5.4), then run every registered write
-   check (§ 5.3). Hold the publication lock through the retirement sweep and ref transaction. A refusal publishes
+   Under the unchanged captured basis, derive the complete proposed owner-birth inventory (§ 5.7, A23),
+   compare every submitted observation (§ 5.4), then run every registered write check (§ 5.3) with that same inventory.
+   Hold the publication lock through the retirement sweep and ref transaction. A refusal publishes
    nothing. The same admission applies when prepared writes would otherwise be no-ops.
 7. **Commit (A22).** Still under the publication lock, write the new objects, one commit per touched
    ref — and on a ref where a stale base's merge files conflict records, a second commit atop it holding them, with the
@@ -1099,7 +1102,7 @@ Each written record's registered write check (`WriteCheck`, `lib/store/write-che
   read-only views, `before` over the tips the write found and `after` over the batch's new trees laid over those tips,
   each offering `read`, `list`, and `lookup`. `before` additionally offers `history` pinned to those captured tips;
   `after` has no hypothetical history. The input includes the validated `observations`, or `[]` for a single write or
-  a batch omitting them (A22).
+  a batch omitting them (A22), and backend-only `proposedCreatedOwners` (§ 5.7, A23).
 - **A retirement's check view precedes its final sweep (A4).** For an end under § 7.4, `after` contains the batch's
   prepared mutations laid over the captured tips, including its own inbound-list settlement or explicit removal,
   before the backend's automatic sweep. All write checks must admit the batch before that sweep runs. The empty final
@@ -1154,11 +1157,9 @@ acquire no published history, provenance, identity, conflict, or resolution effe
 observe the owning primary too when depending on a companion's inherited name, placement, or links: a record
 version and conflict set do not bind every derived public field.
 
-Native adoption consumes the shared strict schemas and observation comparator when available, rather than
-creating a second interpretation. The shared extension and registered cut-map admission rule are prerequisites
-whose runtime implementation is not yet in this checkout. Native support must be connected and verified before
-cutover. The expected interim in-repo behavior for a nonempty request is terminal `unsupported`, case
-`batch-observations`; empty/omitted behavior remains unchanged.
+Native adoption consumes `RecordObservationSchema` and `checkRecordObservations` from the shared implementation
+(A23); namespace and identity admission precede absence interpretation. The interim in-repo backend refuses nonempty
+observations as terminal `unsupported`, case `batch-observations`; empty/omitted behavior remains unchanged.
 
 **Captured rule evidence (A22).** `WriteCheckInput.before` is `StoreView & Pick<Store, "history">`, using the same
 captured homes and tips as its reads. Reuse `readRefHistory`'s pinned-tip traversal and extract the resolution from
@@ -1166,7 +1167,7 @@ captured homes and tips as its reads. Reuse `readRefHistory`'s pinned-tip traver
 trusted writer action through the existing `checkRefWrites` dispatch. No callback, predicate registry, inventory
 index, or new stored witness is introduced.
 
-The expected registered `cut-map.atomic-binding` rule uses these facilities to compare complete current origin and
+The registered `cut-map.atomic-binding` rule uses these facilities to compare complete current origin and
 removed-group membership against observed present records, authenticate member generations using captured history,
 recompute relevant incoming edge identities over complete lifecycle listings, and repeat outgoing lookup. New
 relevant owners, group companions, or newly resolvable providers must be visible at final admission; unrelated
@@ -1174,7 +1175,7 @@ owners and content changes must not invalidate an otherwise current cut. Additiv
 and edges; terminal rechecks current eligibility and stored source/edge binding; discard guards removed groups
 without requiring obsolete source conservation. Incomplete/unreadable evidence fails closed with an actionable
 repair. This remains a kind rule, not backend-specific decomposition logic; native tests consume its production
-registration once available.
+registration. Native creation facts supply its proposed birth evidence (§ 5.7, A23).
 
 #### 5.5 Provenance on the backend's own writes
 
@@ -1250,6 +1251,49 @@ condition, and its remedy.
   `.ipynb`, and `.svg` excluded, or an extensionless name in `KNOWN_EXTENSIONLESS` — skips every path with a
   dot-prefixed segment and every `README.md`, and caps files at 256 KiB (`serialize`, `lib/git/user-sync.ts`), with no
   test of content and none for private keys; those rules retire with notes, and these replace them from the flip.
+
+#### 5.7 Native creation facts (A23)
+
+Creation evidence is a backend fact, separate from caller provenance and record content. The shared
+`CreatedOwnerSchema`, `CreatedOwnersSchema`, `compareCreatedOwners`, and `BatchCreationReceiptSchema`
+(`lib/store/creation-receipt.ts`) define its strict public shape. A birth names a `work-item/meta`, `work-item/record`,
+or `cohort/document` primary and its owner type, birth name, and freshly allocated generation UID. Inventories are
+complete, unique by owner type and UID, and sorted by binary UTF-8 owner type, name, primary kind, and UID. Distinct
+generations may share a birth name. `[]` proves no births; absence means unavailable, never known empty.
+
+**Proposed facts.** Retain the fresh UID allocation evidence currently local to `resolveRefWrites`
+(`lib/store/ref/write-resolution.ts`) on its resolved attempt. At final admission, intersect those allocations with
+actual prepared primary creations in the exact before/after trees: the primary was absent before, its proposed put
+is present after, and its generation was freshly allocated by this attempt. Companion-only allocations, conflict
+records, role replacements, renames, reopens, and an expected-absence operand alone establish no birth. A newly born
+primary with completed placement still counts. Derive one complete `proposedCreatedOwners` array for every registered
+check, including `[]`, before the retirement sweep. No caller field can supply it. Recompute it after every captured
+basis rebuild; re-resolution discards obsolete allocation evidence. The same accepted inventory alone feeds the
+receipt after all checks admit the attempt. Failed attempts publish no facts.
+
+**Accepted facts.** Every physical state commit produced by one accepted ordinary write or batch carries the same
+complete `{ schemaVersion: 1, batchId, createdOwners }` envelope, including conflict commits, archive/history and reopen
+commits, completed-folder refreshes, and retirement commits. A single write mints its own batch ID as already required
+by § 3.1. Encode one reserved `Arc-Creation-Receipt` trailer as canonical JSON; it is not caller provenance and cannot be
+supplied or overridden through provenance. Preserve every existing provenance and ancestry rule. Copies and fast
+forwards preserve original objects and receipts. New sync merges, withdrawal commits, and forwarding-registry commits
+advertise complete-none for their own operation, never ancestor births. Historical import/replay leaves creation
+facts unavailable rather than fabricating historical allocations. Forwarding and move-journal control roots remain
+outside record history and gain no receipt ancestry that retains departed state.
+
+**Queries and corruption.** `history`, captured `before.history`, and `changes` expose the complete envelope unchanged
+on every selected entry; record/reference/family filters never narrow its inventory. Keep existing owner, path,
+reference, family, and window acquisition bounds: no global scan, sibling discovery, new index, or evidence expansion.
+Validate every advertised receipt in physical commits acquired by that traversal before unchanged-record filtering,
+batch grouping, or net-zero omission can hide it. Every encountered commit of a batch must agree on the whole envelope,
+including advertised versus unavailable. A dedicated strict decoder checks JSON, schema/version, uniqueness/order,
+reserved-trailer multiplicity, and exact agreement with the physical commit's structured batch ID; do not fall back
+through the permissive provenance parser when advertised evidence is invalid. Refuse corruption as terminal
+`namespace-corrupt`, identifying its historical ref/commit or batch. Name restoration from an authentic intact source,
+or explicit regeneration of this development namespace where authentic evidence is unavailable. An absent trailer is
+unavailable evidence, not a legacy migration reader. No compatibility alias, backfill, migration, or heuristic birth
+inference is introduced. Recoverable acquisition or observation refusals retain their specific condition and remedy;
+verification proves refusal and successful continuation after the named repair.
 
 ### 6. Sync
 
@@ -3412,6 +3456,20 @@ proof. Recheck no-op admission, retirement's pre-sweep view, role replacement, l
 release. An unrelated publication can force an internal retry but must not demand renewed approval. Retain all
 existing process-cost and burst gates; no whole-store expected token is introduced.
 
+#### 14.3.2 Native owner births and retained receipts (A23)
+
+In both layouts, exercise mixed multi-owner birth batches and single writes, the same complete proposed facts at every
+registered check, `[]` for no births, aborted admission, capture rebuild/re-resolution, and companion/role/rename/reopen
+non-births. Ordinary and conflict commits, archives, retained history, reopen, quarter refresh, and removal preserve
+whole accepted envelopes. History and changes retain them across bounded reference/family/window queries and net-zero
+grouping. Corrupt advertised JSON, duplicate trailers, unsupported versions, invalid/duplicate or noncanonical owners,
+batch mismatches, and encountered same-batch disagreement refuse before omission; authenticate restoration and successful
+retry. Missing/imported evidence remains unavailable. Copies and fast forwards preserve facts; newly authored merge,
+withdrawal, and registry-migration commits advertise complete-none. Exercise the production cut-map rule against these
+facts and § 14.3.1's final-gap scenarios before the moving-remote segment verifier. Run the complete shared conformance
+suite and affected native write/history/changes/lifecycle/sync/move suites, retaining query bounds and measuring costs
+under §§ 14.5 and 14.9–14.12's existing cost and platform obligations.
+
 #### 14.4 Serialization rules
 
 `checkSerializationRules` refuses each rule — a binary file, a projected record over the cap, an `.env` file, a private
@@ -4224,6 +4282,12 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     history, trusted evidence, repaired retry, participating sync/new-ref publishers, and admission after unrelated
     writes without renewed approval. Observation-only records gain no published effect (A22).
 
+30. **Native creation evidence is complete and retained.** Every check receives the exact proposed operation's
+    backend-proved birth inventory, accepted physical commits retain its complete receipt, and bounded history/changes
+    queries preserve and strictly validate advertised facts before grouping or omission. § 14.3.2 proves no invented
+    births, retry recomputation, lifecycle/sync/import policy, corruption refusal and repaired continuation, and
+    production cut-map admission under both layouts (A23).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4328,6 +4392,9 @@ open:
   _Supersedes:_ none. _Trigger:_ door. _Work:_ 15.R4. _Revalidated:_ 15.R4.
 
 - **A22** — 2026-10-19 — design: atomic checks and observations. _Supersedes:_ §§ 2.1 batch, 5.1 steps 6–7,
-  5.3 input/race, 11.4 layout. _Trigger:_ door. _Work:_ 4.R. _Revalidated:_ pending → 4.R.c.
+  5.3 input/race, 11.4 layout. _Trigger:_ door. _Work:_ 4.R. _Revalidated:_ pending → 4.R2.d.
+
+- **A23** — 2026-10-20 — spec-depth: native candidate births and retained batch receipts. _Supersedes:_ none.
+  _Trigger:_ 4.R.c door. _Work:_ 4.R2. _Revalidated:_ pending → 4.R2.d.
 
 ---

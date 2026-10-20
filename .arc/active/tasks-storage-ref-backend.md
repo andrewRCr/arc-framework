@@ -333,6 +333,8 @@ and 15 for every served family, but for the assertions 4.4.d excludes by name, a
 - _Goal:_ `write` and `batch` land a put or removal as one commit per ref in one compare-and-swap transaction under the
   refs' locks, all or none, with nothing landing on refs an owner has left.
 
+    - _Amended in:_ 4.R2 (A23)
+
     - _Amended in:_ 4.R (A22)
 
     - `[x]` **4.2.a Validation and resolution**
@@ -360,6 +362,8 @@ and 15 for every served family, but for the assertions 4.4.d excludes by name, a
 
 - _Goal:_ Every commit renders its batch's provenance as D3 has a backend over Git render it, authored as the person, so
   `history` and `changes` read the stored provenance back and conflict labels name the machine.
+
+    - _Amended in:_ 4.R2 (A23)
 
 - _Outcome:_ Ref commits use a shared store message codec for caller provenance, optional code head and owner UID,
   operation batch ID, and optional clone actor. Parsing derives each changed record's owner UID from its reference.
@@ -400,7 +404,7 @@ and 15 for every served family, but for the assertions 4.4.d excludes by name, a
         - Pull, push, and synchronized primary-role assertions retain their later retirement boundary.
             - _Retired in:_ Phase 11
 
-### `[ ]` **4.R Atomic observations and native publication admission — § 5.1, § 5.3, § 5.4, § 11.4 (A22)**
+### `[x]` **4.R Atomic observations and native publication admission — § 5.1, § 5.3, § 5.4, § 11.4 (A22)**
 
 - _Goal:_ Correct the write spine and check views under A22: observations and every registered check hold against
   one coherent before-state through local publication, with no effect from observation-only records and no renewed
@@ -417,18 +421,43 @@ and 15 for every served family, but for the assertions 4.4.d excludes by name, a
           archived, and retained tips; observation-only records publish no effect. Incoming callers and conflict
           fixtures use the pull/push and hunk contracts already served by this backend.
 
-    - `[ ]` **4.R.c Verify production admission and close the native contract correction**
-        - Consume the production cut-map rule once available. Exercise final-gap changed read-only evidence,
-          conflict-only changes, existing/new incoming owners, newly resolvable providers, and source/removal group
-          additions in both layouts. Include stale discard, actionable refusal followed by fresh acquisition and
-          approval, and unrelated owner/content changes that still admit. Keep cut logic in its kind registration.
-        - Run native observation conformance and the affected write/check/history, sync, layout, and lifecycle suites;
-          retain the source-grounded publisher audit. Record § 14.3.1's scenario and close A22 before Task 17.6.
+    - `[~]` **4.R.c Verify production admission and close the native contract correction**
+        - Superseded by 4.R2.d, which verifies the production rule with the complete native creation facts its
+          landed implementation requires and closes both A22 and A23 before 17.6.
+
+### `[ ]` **4.R2 Native owner births and retained receipts — § 5.7, § 14.3.2 (A23)**
+
+- _Goal:_ Supply exact backend-owned candidate births and whole accepted-batch receipts to checks and bounded
+  history queries, then verify the production admission rule before moving-remote segment verification.
+
+    - `[ ]` **4.R2.a Derive exact proposed owner births**
+        - Retain native fresh-allocation evidence and intersect it with actual proposed primary creations at
+          final admission; every check receives the same complete array, including known-empty. Rebuilds recompute
+          it and re-resolution discards obsolete evidence. Build test-first for birth/non-birth, rejection, and retry.
+
+    - `[ ]` **4.R2.b Publish strict accepted receipts**
+        - Build test-first for the dedicated canonical trailer codec and ordinary single/multi-owner commits;
+          retain the accepted complete envelope on conflict and lifecycle commits, with strict batch binding.
+
+    - `[ ]` **4.R2.c Retain facts through queries and other publishers**
+        - Build test-first for bounded history/changes retention and visible corruption before grouping/omission;
+          prove specific refusal and authentic repair followed by successful continuation. Cover lifecycle/history,
+          copy/fast-forward preservation, complete-none new sync/withdrawal/registry operations, and unavailable import
+          facts without inventing births, compatibility readers, global scans, or new indexes.
+
+    - `[ ]` **4.R2.d Verify production admission and the complete native contract correction**
+        - Exercise § 14.3.1's final-gap production cut-map scenarios and § 14.3.2 in both layouts, including changed
+          read-only/conflict evidence, existing/new incoming owners, newly resolvable providers, source/removal group
+          additions, stale discard, unrelated writes that still admit, and actionable refusal then repaired acquisition.
+          Run full conformance and affected native write/check/history/changes, lifecycle, sync/layout, and move suites;
+          record closure of A22 and A23 before 17.6. Keep domain logic in its production registration.
 
 ### `[x]` **4.5 The engine's first path** — validate exit criterion at segment scope
 
 - _Goal:_ The ref-backend fixture in the default layout passes items 1, 2, 4, 6, 9, 10, 13, and 15 for every served
   family, with every other item and assertion excluded by name, reason, and retiring phase.
+
+    - _Amended in:_ 4.R2 (A23)
 
     - _Amended in:_ 4.R (A22)
 
@@ -512,6 +541,8 @@ _Mode:_ `layer` through Phase 8 — closes on the local engine complete in both 
 - _Goal:_ `history` returns a record's versions as its own ref's log holds them, every one a commit where the record's
   version or presence changed, so a stale base finds the version it names.
 
+    - _Amended in:_ 4.R2 (A23)
+
     - _Amended in:_ 4.R (A22)
 
     - _Amended in:_ 7.2.R (A9)
@@ -557,6 +588,8 @@ _Mode:_ `layer` through Phase 8 — closes on the local engine complete in both 
 
 - _Goal:_ Every registered write check runs under the write's locks over the state before and after the batch, and the
   first broken rule refuses the whole write.
+
+    - _Amended in:_ 4.R2 (A23)
 
     - _Amended in:_ 4.R (A22)
 
@@ -604,6 +637,8 @@ close, and renames and role changes.
 - _Goal:_ A placement write to `completed` ends a work item in one transaction: a final commit on its ref, its records
   in a numbered or named folder of its quarter's ref, and its ref moved under `refs/arc/history/`.
 
+    - _Amended in:_ 4.R2 (A23)
+
 - _Outcome:_ Archive and Errand-close batches lock the quarter and history destinations, stamp the final item,
   copy record/metadata blobs without anchor manifests, and move refs in one transaction. Reads and check views derive
   completed placement from assigned folders; numbering counts cohorts and current gaps. A missing quarter tree refuses
@@ -613,6 +648,8 @@ close, and renames and role changes.
 
 - _Goal:_ A placement write out of `completed` brings an item back under `refs/arc/work/` and removes every folder it
   holds, refusing where this clone lacks what the folder names.
+
+    - _Amended in:_ 4.R2 (A23)
 
 - _Outcome:_ Reopens validate every archive folder's batch against retained history, revalidate after acquiring locks,
   and publish the live move with every folder removal while preserving other owners. Check views retain independent
@@ -624,6 +661,8 @@ close, and renames and role changes.
 - _Goal:_ Every write to a completed item's records lands on its history ref and refreshes its quarter folder in one
   transaction, so `history` reads one log and a reopen finds the latest state.
 
+    - _Amended in:_ 4.R2 (A23)
+
 - _Outcome:_ Completed writes and conflict resolutions validate retained history and refresh every folder, preserving
   each end's batch and quarter. Reads and listings select one latest folder; check views expose the prepared state.
   Shared quarter preparation composes archive, reopen, and refresh changes, while identical rewrites remain no-ops.
@@ -632,6 +671,8 @@ close, and renames and role changes.
 
 - _Goal:_ An item ends outside the archive exactly when a write leaves it with its lineage and no primary, and every other
   removal is an ordinary write of absence, so each end carries a record other machines read.
+
+    - _Amended in:_ 4.R2 (A23)
 
 - _Outcome:_ Lineage writes lock their origin and history destination. After checks admit the prepared batch, a
   primary-less origin with lineage moves to history with an empty final tree; history recovers paths from retained
@@ -700,6 +741,9 @@ by every tier, and an item ref broken outside ARC.
 
 - _Goal:_ `changes` returns every landed mutation between two manifests, one entry per record per batch where its version
   changed, whatever ref carried it, or refuses naming what this clone lacks.
+
+    - _Amended in:_ 4.R2 (A23)
+
 - _Outcome:_ Immutable ref windows enumerate record versions and group them by batch, discovering ended and reopened
   owners through quarter folders and lineage changes. Copied archive records add no changes; saved archive batches
   bound the log even after later lifecycle moves. Missing manifests or retained history admit repaired retries;
@@ -867,6 +911,8 @@ converge with no lost write.
 - _Goal:_ A pull brings every fetched ref into local state as a fast-forward or a merge commit by each kind's mechanism,
   never as a check that gates and never bringing a deletion back.
 
+    - _Amended in:_ 4.R2 (A23)
+
     - `[x]` **9.2.a Fast-forwards and merge commits**
         - Pull merges captured ref sets under ref locks and the layout-guarded commit step, with local-first parents
           and per-ref batches. Kind-driven records and field-wise metadata preserve deletions, whole-record clashes,
@@ -936,6 +982,8 @@ converge with no lost write.
 
 - _Goal:_ The shared suite's sync items, and the assertions 4.4.d holds for a pull or push, pass over the ref backend in
   both layouts, so no exclusion remains beyond § 14.1's.
+
+    - _Amended in:_ 4.R2 (A23)
 
 - _Outcome:_ A prepared peer clone, real origin fault controls, and a virtual between-attempt deadline exercise sync
   and repair through public stores in both layouts. All temporary sync exclusions are retired. Ordinary clashes keep
@@ -1309,6 +1357,8 @@ without duplicating one.
 
 - _Goal:_ The import lands in one transaction with one `Arc-Batch` across every ref's landing commit, is finished by a
   rerun after any step, publishes through `push`, and reports in its trial exactly what it then lands.
+
+    - _Amended in:_ 4.R2 (A23)
 
 - _Outcome:_ The import declares build, land, and publish steps, replaces interrupted gathering refs in the selected
   store, and lands all refs atomically under one batch. Its trial matches the landing after UID masking. Reruns
@@ -1916,3 +1966,8 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
   publication, including changed read-only evidence, new relevant refs, and sync publishers. Captured history,
   refusal rollback, repaired retry, and unrelated-write admission are proved through public Store behavior;
   observation-only records gain no published effect (§ 14.3.1) (A22)
+
+- `[ ]` Native proposed births and complete accepted-batch receipts meet § 5.7 and § 14.3.2 in both layouts:
+  backend allocation evidence binds exact primary creations; bounded history/changes preserve whole envelopes and
+  reject visible corruption before grouping/omission, with repaired continuation and the stated lifecycle/sync/import
+  policy; production admission closes A22 and A23 before the moving-remote segment verifier

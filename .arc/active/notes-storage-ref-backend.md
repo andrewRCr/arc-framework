@@ -664,3 +664,31 @@ outcomes remain intact. Existing merge semantics, slug-resolution policy, import
 move/follow routes, and Phase 17's transport scenarios are unaffected. Phase 18's existing burst and cost obligations
 still measure the widened local lock. The new criterion joins the flat terminal criteria. 4.R.c covers the native
 correction before 17.6; no new segment, lifecycle transition, or Phase 19 execution is introduced.
+
+## A23 — Native creation facts after shared-contract landing
+
+The landed `CreatedOwnerSchema`, `BatchCreationReceiptSchema`, and `WriteCheckInput.proposedCreatedOwners` now make the
+production cut-map rule depend on candidate allocation evidence and retained whole-batch receipts. Goal 1's complete
+contract and Goal 6's forward contract changes cover adoption; § 5.7 elaborates the missing native design and criterion
+30 makes it checkable. This is bounded composition at medium depth; Heavy remains appropriate and no segment is added.
+The authorized post-review absorption and deferred execution apply; independent reviews remain skipped by direction.
+
+`resolveRefWrites` currently keeps fresh allocations only in a local map. Retain that backend evidence across the
+resolved attempt, then derive actual primary births from prepared before/after trees at each `commitRefWrites` attempt.
+An existing owner acquiring a primary path or an expected-absence operand is insufficient. The accepted array must
+reach every ordinary/conflict/lifecycle physical commit, not a filtered per-ref subset. The producer audit includes
+`commitRefTree`, `commitSyncMerge`, `commitWithdrawEnd`, and `commitMigrationRegistry`; forwarding and move-record roots
+are control records with intentionally bounded ancestry. Imports preserve unavailable historical birth evidence.
+
+History queries validate the physical commit inputs they already acquire, before filtering and grouping. The shared
+memory reference helper can see all events for a selected batch, but native adoption does not inherit a global scan:
+existing native owner/path/reference/family/window bounds remain authoritative. Complete producer envelopes and
+agreement among encountered commits establish the required guarantee. Missing receipts mean unavailable evidence;
+advertised corruption is terminal, with authentic restoration or explicit development regeneration as its remedy.
+No aliases, legacy readers, migrations, backfills, or inferred historical births are introduced.
+
+Propagation: 4.R.c moves forward to 4.R2.d because meaningful production verification now needs these creation facts.
+A22 remains open in its log until that covering verifier, even though the observations/history implementation parent
+closes. The amended write/check/history, lifecycle, sync, and import tasks retain their original Goals and outcomes
+with additive pointers. Existing move/follow semantics remain; receipt retention joins their regression coverage.
+Phase 18 retains its platform, host, and cost obligations. The physical query bounds prevent an unplanned global cost.
