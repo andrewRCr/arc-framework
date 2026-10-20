@@ -993,8 +993,10 @@ describe("singleton hosted review after publication", () => {
 });
 
 describe("review status when the base read goes unavailable under it", () => {
-  it("blocks on the unavailable base revision, and settles once the read is restored", async () => {
+  it("reports the failed base refresh, and settles once the read is restored", async () => {
     const fixture = await publishedSingleton();
+    expect(await git(fixture.root, ["rev-parse", "--verify", "refs/remotes/origin/main"]))
+      .toMatch(/^[0-9a-f]{40}$/u);
 
     const blocked = await statusThroughPort(fixture, (exec) => withUnavailableBaseRead(exec));
 
@@ -1002,8 +1004,9 @@ describe("review status when the base read goes unavailable under it", () => {
       state: "blocked",
       nextAction: "stop",
       reason: "status-unavailable",
-      detail: "The current base revision is unavailable.",
+      detail: "fatal: unable to access 'origin': Could not resolve host: origin",
       currentBaseOid: null,
+      hostReview: { state: "unavailable" },
     });
     // The remedy names a re-run of the same reading, and with the base read restored that is what it reports.
     expect(await statusThroughPort(fixture)).toMatchObject({
