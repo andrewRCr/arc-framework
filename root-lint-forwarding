@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "root-lint-forwarding",
+  "claimId": "c34d52675a3fe6976f429bf7bb881bb7",
+  "createdAt": "2026-10-20T17:51:58.168Z",
+  "updatedAt": "2026-10-20T17:51:58.168Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Forward options from the root TypeScript lint script through npm to ESLint and verify option delivery.",
+  "branch": "chore/root-lint-forwarding",
+  "origin": "inbox",
+  "originEntry": "Forward root TypeScript lint options to the workspace script",
+  "originEntrySourceDigest": "sha256:499ff7d5e290d985d1a071bb1225b96e9bfe96d5af6bc0d0fb52b9c102a5e48a",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
