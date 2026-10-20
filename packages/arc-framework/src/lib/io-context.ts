@@ -218,14 +218,14 @@ function parseGitBlobContents(
 async function readGitBlobObjects(
   exec: RawGitExec,
   oids: readonly string[],
-  objectAccess: "local-only" | undefined,
+  options: { objectAccess?: "local-only"; indexFile?: string },
 ): Promise<Map<string, Uint8Array>> {
   if (oids.length === 0) return new Map();
   const inputFor = (batch: readonly string[]): Uint8Array =>
     gitInputEncoder.encode(`${batch.join("\n")}\n`);
   const sizeResult = await exec(
     ["cat-file", "--batch-check=%(objectname) %(objecttype) %(objectsize)"],
-    { input: inputFor(oids), ...(objectAccess === undefined ? {} : { objectAccess }) },
+    { ...options, input: inputFor(oids) },
   );
   const sizes = parseGitBlobSizes(sizeResult.stdout, oids);
   if (sizes === null) throw new Error("Cannot read exact Git blob objects.");
@@ -233,7 +233,7 @@ async function readGitBlobObjects(
   for (const batch of partitionGitBlobBatches(oids, sizes)) {
     const result = await exec(
       ["cat-file", "--batch"],
-      { input: inputFor(batch), ...(objectAccess === undefined ? {} : { objectAccess }) },
+      { ...options, input: inputFor(batch) },
     );
     const parsed = parseGitBlobContents(result.stdout, batch);
     if (parsed === null) throw new Error("Cannot read exact Git blob objects.");
@@ -260,10 +260,9 @@ async function readGitBlobMetadataBatches(input: {
   ref: string | null;
   paths: readonly string[];
   requestedByBytes: ReadonlyMap<string, string>;
-  objectAccess?: "local-only";
+  options: { objectAccess?: "local-only"; indexFile?: string };
 }): Promise<Map<string, GitBlobMetadata>> {
   const { exec, ref } = input;
-  const execOptions = input.objectAccess === undefined ? undefined : { objectAccess: input.objectAccess };
   const source = ref === null ? "index" : "tree";
   const lookupPrefix = ref === null
     ? ["ls-files", "--stage", "-z", "--full-name"]
@@ -275,7 +274,7 @@ async function readGitBlobMetadataBatches(input: {
   const metadata = new Map<string, GitBlobMetadata>();
   for (const pathspecs of partitionGitPathspecBatches(input.paths)) {
     const batchMetadata = parseGitBlobMetadata(
-      (await exec([...lookupPrefix, "--", ...pathspecs], execOptions)).stdout,
+      (await exec([...lookupPrefix, "--", ...pathspecs], input.options)).stdout,
       source,
       input.requestedByBytes,
     );
@@ -299,14 +298,14 @@ async function readGitBlobMetadataBatches(input: {
  * @param cwd - Repository worktree used to locate the index and object database
  * @param ref - Exact tree-ish, or `null` for the current index
  * @param paths - Repository-relative paths to read; absent leaves are omitted
- * @param options - Optional local-only object-access constraint
+ * @param options - Optional local-only object-access constraint and explicitly selected index
  * @returns Present entries keyed by their exact requested paths
  */
 export async function readGitBlobEntries(
   cwd: string,
   ref: string | null,
   paths: readonly string[],
-  options: { objectAccess?: "local-only" } = {},
+  options: { objectAccess?: "local-only"; indexFile?: string } = {},
 ): Promise<ReadonlyMap<string, GitBlobEntry>> {
   const selectedPaths = [...new Set(paths)];
   if (selectedPaths.length === 0) return new Map();
@@ -314,13 +313,13 @@ export async function readGitBlobEntries(
   const metadata = await readGitBlobMetadataBatches({
     exec, ref, paths: selectedPaths,
     requestedByBytes: requestedGitPathsByBytes(selectedPaths),
-    ...(options.objectAccess === undefined ? {} : { objectAccess: options.objectAccess }),
+    options,
   });
   const blobOids = [...new Set(selectedPaths.flatMap((path) => {
     const entry = metadata.get(path);
     return entry?.objectType === "blob" ? [entry.oid] : [];
   }))];
-  const blobContents = await readGitBlobObjects(exec, blobOids, options.objectAccess);
+  const blobContents = await readGitBlobObjects(exec, blobOids, options);
   const entries = new Map<string, GitBlobEntry>();
   for (const path of selectedPaths) {
     const entry = metadata.get(path);
