@@ -1,11 +1,11 @@
 /** Provider-aware reconciliation of retained members' seeded fields. */
 import type { Store } from "../store/contract.js";
 import type { StoreRecord } from "../store/read.js";
-import type { CutMap } from "./cut-map-schema.js";
+import type { DecomposeRevisionInput } from "./acquire-revision.js";
 import type { DecomposeResult } from "./refusal.js";
 import { readLifecycleMetaFields } from "../store/lifecycle-write.js";
 import { writeMetaDependsOn, writeMetaCohort } from "../store/kinds/meta/writers.js";
-import { decomposeDependencyContributions } from "./dependency-contributions.js";
+import { decomposeDependencyContributions, type DecomposeDependencyContribution } from "./dependency-contributions.js";
 import { observeDecomposeSeededProvider, sameDecomposeSeededProvider, type DecomposeSeededProvider } from "./seeded-provider.js";
 import { resolveDecomposeRetiredEdge } from "./retired-edge.js";
 import { decomposeStoreRefusal } from "./refusal.js";
@@ -15,7 +15,7 @@ import { decomposeReadCache } from "./read-cache.js";
 export interface DecomposeRevisionSeeds { content: string; records: readonly StoreRecord[] }
 
 /** Replace only prior seeded providers, preserving unrelated edges and compatible current aliases. */
-export async function projectDecomposeRevisionSeeds(store: Store, prior: CutMap, member: StoreRecord,
+export async function projectDecomposeRevisionSeeds(store: Store, prior: Pick<DecomposeRevisionInput, "map" | "members">, member: StoreRecord,
   desired: { dependsOn: readonly string[]; cohort: string | null; addedSlugs: ReadonlySet<string> }): Promise<DecomposeResult<DecomposeRevisionSeeds>> {
   store = decomposeReadCache(store, [member]);
   const fields = readLifecycleMetaFields(member);
@@ -48,16 +48,20 @@ async function observeProviders(store: Store, names: readonly string[], pending:
   return { status: "ok", result: providers };
 }
 
-async function priorProviders(store: Store, map: CutMap, member: StoreRecord): Promise<DecomposeResult<DecomposeSeededProvider[]>> {
+async function priorProviders(store: Store, prior: Pick<DecomposeRevisionInput, "map" | "members">,
+  member: StoreRecord): Promise<DecomposeResult<DecomposeSeededProvider[]>> {
+  const map = prior.map;
   const recipients = new Map(map.authoring.destinations.flatMap(destination => destination.kind === "new-member" ? [[destination.slug, destination.slug] as const] : []));
   const seeds = decomposeDependencyContributions(map, recipients).flatMap(seed => seed.kind !== "incoming"
     && seed.recipient === member.reference.owner.name ? [seed] : []);
   const providers: DecomposeSeededProvider[] = [];
   for (const seed of seeds) {
-    const original = await observeDecomposeSeededProvider(store, seed.provider, seed.providerUid);
+    const original = await observePriorProvider(store, prior, seed);
     if (original.status === "refused") return original;
+    if (original.result === null) continue;
     providers.push(original.result);
-    const retired = await resolveDecomposeRetiredEdge(store, seed.provider, member.reference.owner, seed.providerUid);
+    const providerUid = seed.kind === "internal" ? original.result.uid : seed.providerUid;
+    const retired = await resolveDecomposeRetiredEdge(store, seed.provider, member.reference.owner, providerUid);
     if (retired.status === "refused") return retired;
     if (retired.result === null) continue;
     const observed = original.result;
@@ -68,4 +72,22 @@ async function priorProviders(store: Store, map: CutMap, member: StoreRecord): P
     providers.push(...replacements.result.map(provider => ({ ...provider, records: [...provider.records, ...retired.result?.records ?? []] })));
   }
   return { status: "ok", result: providers };
+}
+
+async function observePriorProvider(store: Store, prior: Pick<DecomposeRevisionInput, "members">,
+  seed: Exclude<DecomposeDependencyContribution, { kind: "incoming" }>): Promise<DecomposeResult<DecomposeSeededProvider | null>> {
+  const member = seed.kind === "internal" ? prior.members.find(candidate => candidate.slug === seed.provider) : undefined;
+  if (member?.primary !== null) {
+    const owner = member?.primary?.reference.owner;
+    return observeDecomposeSeededProvider(store, seed.provider, owner?.type === "work-item" ? owner.uid : seed.providerUid);
+  }
+  // A gone member's current name holder is unrelated. Only its retired identity can prove an old seed.
+  const lineage = await store.lookup({ kind: "lineage", origin: seed.provider });
+  if (lineage.status === "refused") return lineage.refusal.code === "not-found" || lineage.refusal.code === "ambiguous-match"
+    ? { status: "ok", result: null } : decomposeStoreRefusal(lineage.refusal);
+  const record = await store.read({ reference: lineage.result.reference });
+  if (record.status === "refused") return decomposeStoreRefusal(record.refusal);
+  const owner = record.result.reference.owner;
+  return { status: "ok", result: owner.type === "work-item" && owner.uid !== undefined
+    ? { slug: seed.provider, uid: owner.uid, records: [record.result] } : null };
 }

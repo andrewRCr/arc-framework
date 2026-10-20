@@ -57,7 +57,7 @@ async function prepareRetainedMember(ctx: DecomposeContext, input: DecomposeRevi
   const priorPut = settled.find(write => write.action === "put" && sameReference(write.reference, primary.reference));
   const basis = priorPut?.action === "put" ? proposedMember(primary, priorPut.content) : { status: "ok" as const, result: primary };
   if (basis.status === "refused") return basis;
-  const moved = await projectDecomposeRevisionSeeds(ctx.executor.store, input.prior.map, basis.result, {
+  const moved = await projectDecomposeRevisionSeeds(ctx.executor.store, input.prior, basis.result, {
     dependsOn, cohort: input.cohorts.topology.memberCohort, addedSlugs: decomposeRevisionAddedSlugs(input) });
   if (moved.status === "refused") return moved;
   const protectedMove = checkDecomposeRevisionSeedMove(primary, moved.result.content);

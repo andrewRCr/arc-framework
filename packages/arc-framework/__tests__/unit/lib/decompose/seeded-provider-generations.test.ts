@@ -8,6 +8,7 @@ import { runStoreRename } from "../../../../src/lib/work-unit/verbs/rename-store
 import { acquireDecomposeTerminal } from "../../../../src/lib/decompose/acquire-terminal.js";
 import { checkDecomposeSeededFields } from "../../../../src/lib/decompose/check-seeded-fields.js";
 import { projectDecomposeRevisionSeeds } from "../../../../src/lib/decompose/revision-seeds.js";
+import { acquireDecomposeRevision } from "../../../../src/lib/decompose/acquire-revision.js";
 import type { StoreRecord } from "../../../../src/lib/store/read.js";
 
 async function fixture() {
@@ -51,7 +52,9 @@ it("requires the original provider's assigned retirement disposition after a dif
 it("preserves an unrelated replacement generation when a revision drops the original seed", async () => {
   const h = await fixture();
   const member = lifecycleSuccess(await readWorkUnit(h.store, "member-b"));
-  const result = await projectDecomposeRevisionSeeds(h.store, h.map, member,
+  const prior = await acquireDecomposeRevision(h.ctx, "origin");
+  if (prior.status === "refused") throw new Error(JSON.stringify(prior));
+  const result = await projectDecomposeRevisionSeeds(h.store, prior.result, member,
     { dependsOn: [], cohort: lifecycleSuccess(readLifecycleMetaFields(member)).cohort, addedSlugs: new Set() });
   expect(result).toMatchObject({ status: "ok", result: { content: member.content } });
 });

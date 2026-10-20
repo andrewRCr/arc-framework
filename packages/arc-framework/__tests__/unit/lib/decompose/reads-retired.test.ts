@@ -6,6 +6,7 @@ import { createCountingStore } from "../../../helpers/store/counting-store.js";
 import { lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { prepareDecomposeAdditive } from "../../../../src/lib/decompose/additive-plan.js";
 import { acquireDecomposeTerminal } from "../../../../src/lib/decompose/acquire-terminal.js";
+import { acquireDecomposeRevision } from "../../../../src/lib/decompose/acquire-revision.js";
 import { checkDecomposeSeededFields } from "../../../../src/lib/decompose/check-seeded-fields.js";
 import { projectDecomposeRevisionSeeds } from "../../../../src/lib/decompose/revision-seeds.js";
 import { readWorkUnit } from "../../../../src/lib/store/lifecycle-write.js";
@@ -39,7 +40,9 @@ async function measure(mode: "additive" | "terminal" | "revision", unrelated: nu
     expect(await checkDecomposeSeededFields(h.ctx, input.result)).toMatchObject({ status: "ok" });
   } else {
     const member = lifecycleSuccess(await readWorkUnit(h.store, "member-b"));
-    expect(await projectDecomposeRevisionSeeds(counted.store, h.map, member,
+    const prior = await acquireDecomposeRevision(h.ctx, "origin");
+    if (prior.status === "refused") throw Error(JSON.stringify(prior));
+    expect(await projectDecomposeRevisionSeeds(counted.store, prior.result, member,
       { dependsOn: [], cohort: null, addedSlugs: new Set() })).toMatchObject({ status: "ok" });
   }
   const calls = counted.observations();
