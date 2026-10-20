@@ -11,7 +11,22 @@ type Locator = CutMap["machine"]["sourceUnits"][number]["sourceLocator"];
 
 /** Check destination identity, locator ownership, and source ownership without reading target content. */
 export function checkDecomposeAllocations(map: CutMap, homes: readonly DecomposeHome[] = []): DecomposeRefusal | undefined {
-  return checkDestinationIdentities(map, homes) ?? checkAllocationOwnership(map, homes);
+  return checkDestinationIdentities(map, homes) ?? checkDecomposeOriginDestinations(map, homes) ?? checkAllocationOwnership(map, homes);
+}
+
+/** Exclude the origin generation from every transfer home, including terminal conservation. */
+export function checkDecomposeOriginDestinations(map: CutMap, homes: readonly DecomposeHome[]): DecomposeRefusal | undefined {
+  for (const [index, destination] of map.authoring.destinations.entries()) {
+    const home = homes.find(candidate => candidate.destinationId === destination.destinationId);
+    const owner = home?.primary.reference.owner;
+    const isOrigin = destination.kind === "new-member" ? destination.slug === map.machine.origin.slug
+      : destination.kind === "existing-home" && destination.target.kind !== "document"
+        && (owner?.type === "work-item" && owner.uid !== undefined ? owner.uid === map.machine.origin.uid
+          : (owner?.name ?? destination.target.slug) === map.machine.origin.slug);
+    if (isOrigin) return decomposeMapRuleRefusal("retiring-origin-destination", `authoring.destinations.${index}`,
+      "Choose a destination other than the origin; retain extraction scope with retained-origin instead, then retry.");
+  }
+  return undefined;
 }
 
 function checkDestinationIdentities(map: CutMap, homes: readonly DecomposeHome[]): DecomposeRefusal | undefined {
@@ -23,12 +38,6 @@ function checkDestinationIdentities(map: CutMap, homes: readonly DecomposeHome[]
     if (identities.has(identity)) return decomposeMapRuleRefusal("duplicate-destination-identity", locus,
       "Keep one destination per work unit, cohort, document, or draft-block locator in the map, then retry.");
     identities.add(identity);
-    if ((destination.kind === "new-member" && destination.slug === map.machine.origin.slug)
-      || (destination.kind === "existing-home" && destination.target.kind === "work-unit"
-        && (destination.target.slug === map.machine.origin.slug || home?.primary.reference.owner.name === map.machine.origin.slug))) {
-      return decomposeMapRuleRefusal("retiring-origin-destination", locus,
-        "Choose a destination other than the origin; retain extraction scope with retained-origin instead, then retry.");
-    }
   }
   return undefined;
 }

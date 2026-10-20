@@ -16,6 +16,7 @@ import { renderV3DecomposeArgv } from "../work-unit/decompose-command-renderer.j
 import { decomposeReadCache } from "./read-cache.js";
 import { checkDecomposeRecordConflicts, DECOMPOSE_SOURCE_CONFLICT_REMEDY } from "./source-conflicts.js";
 import { sameReference } from "../store/identity.js";
+import { checkDecomposeOriginDestinations } from "./allocation-rules.js";
 
 /** One allocation's current resolved section and its exact stored-record basis. */
 export interface DecomposeResolvedAllocation {
@@ -25,6 +26,8 @@ export interface DecomposeResolvedAllocation {
 export interface DecomposeConservation { allocations: readonly DecomposeResolvedAllocation[]; records: readonly StoreRecord[] }
 /** Require every destination allocation's complete saved locator to resolve exactly once. */
 export async function checkDecomposeConservation(ctx: DecomposeContext, input: DecomposeTerminalRecords): Promise<DecomposeResult<DecomposeConservation>> {
+  const origin = checkDecomposeOriginDestinations(input.map, input.homes);
+  if (origin !== undefined) return origin;
   const store = decomposeReadCache(ctx.executor.store, input.records);
   const groups = new Map<string, readonly TargetArtifact[]>();
   const scans = new Map<StoreRecord, ReturnType<typeof scanV3DecomposeContent>>();
