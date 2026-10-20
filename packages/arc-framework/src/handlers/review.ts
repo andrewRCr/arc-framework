@@ -71,7 +71,6 @@ import { readRepositoryCandidateSupersessionChain } from "../lib/store/kinds/rev
 import type { Store } from "../lib/store/contract.js";
 import { sameOwner } from "../lib/store/identity.js";
 import type {
-  CandidateManagedRecordV1,
   CandidateSupersessionAncestor,
 } from "../lib/work-unit/candidate-attestation.js";
 import { readAncestry } from "../lib/work-unit/git-decomposition-object-readers.js";
@@ -192,6 +191,7 @@ import {
 import { readLocalReviewLiveContext } from
   "../scripts/review-gate/hosts/local/live-context.js";
 import { recordNativeFrontlineSkip, createNativeFrontlineSkipRecorder } from "../scripts/review-gate/runtime/native-frontline-window.js";
+import { createHostedPassJudgmentContext } from "../scripts/review-gate/runtime/native-hosted-pass-judgments.js";
 import { createNativeFrontlinePassJudgmentResolver } from "../scripts/review-gate/runtime/native-frontline-pass-judgments.js";
 import {
   projectReviewPolicyAttempt,
@@ -280,7 +280,6 @@ import {
   acknowledgeHostedRequest,
   hostedLaneAttemptId,
   laneContinuationOperationId,
-  readCandidateInheritedLaneProgress,
   readLaneProgressOwner,
   readLaneProgressOwnerVersioned,
   readLaneResponsePerformance,
@@ -2275,6 +2274,7 @@ async function resolveHostedProgressContext(input: ReviewInvocationOptions & {
       errandBinding,
       reservation: null,
       candidateRecord: null,
+      decisionSubjectDigest: reviewTarget.targetId,
       settings,
       statusTarget: changeRequest.targetRef,
     };
@@ -2429,6 +2429,7 @@ async function resolveHostedProgressContext(input: ReviewInvocationOptions & {
     errandBinding: null,
     reservation,
     candidateRecord,
+    decisionSubjectDigest: input.vehicle?.kind === "delivery-member" ? reviewTarget.targetId : candidate.subjectDigest,
     settings,
     statusTarget: changeRequest.targetRef,
   };
@@ -3183,26 +3184,6 @@ export interface ReviewHostedRequestHandlerDependencies extends HostedReviewHand
   request(input: unknown): Promise<unknown>;
 }
 
-async function hostedCandidateSupersessionAncestors(input: ReviewInvocationOptions & {
-  root: string;
-  exec: GitExec;
-  lineage: LaneSubjectLineage;
-  candidateRecord: CandidateManagedRecordV1 | null;
-}): Promise<readonly CandidateSupersessionAncestor[]> {
-  if (input.lineage.kind !== "candidate") return [];
-  if (input.candidateRecord === null
-    || input.candidateRecord.attestation.candidateId !== input.lineage.candidateId) {
-    throw new Error("Hosted Candidate supersession authority is unavailable");
-  }
-  return readRepositoryCandidateSupersessionChain({
-    ...input,
-    cwd: input.root,
-    workUnit: input.candidateRecord.attestation.workUnit,
-    record: input.candidateRecord,
-    exec: input.exec,
-  });
-}
-
 async function indexedErrandClaimIsCurrent(root: string, expectedClaimId: string, exec: GitExec, invocation: ReviewInvocationOptions = {}): Promise<boolean> {
   try {
     return (await readIndexedHostedReviewErrand(root, exec, invocation)).claimId === expectedClaimId;
@@ -3436,7 +3417,7 @@ async function executeDefaultHostedRequest(
 ): Promise<unknown> {
   if (root === null || publisher === null) throw new Error("Hosted review requires an ARC project.");
   const initial = resolveReviewInvocation({ ...invocation, cwd: root, exec });
-  const request = HostedRequestEnvelopeSchema.parse(input);
+  let request = HostedRequestEnvelopeSchema.parse(input);
   const index = new HostedRequestOwnerIndex(publisher);
   const repositoryId = await resolveRepositoryIdentity(publisher, undefined, initial);
   return withRepositoryReviewOperationLock(
@@ -3471,18 +3452,10 @@ async function executeDefaultHostedRequest(
         ...(request.invocation === undefined ? {} : { invocation: request.invocation }),
       });
       if (request.coverage === "incremental") throw new HostedIncrementalCoverageError(context.statusTarget);
-      const supersessionAncestors = await hostedCandidateSupersessionAncestors({
-        ...bound,
-        root,
-        exec,
-        lineage: context.lineage,
-        candidateRecord: context.candidateRecord,
-      });
-      const inheritedProgress = await readCandidateInheritedLaneProgress(context.store, {
-        lane: "standard",
-        repositoryId: context.repositoryId,
-        headSha: request.target.headSha,
-        ancestors: supersessionAncestors,
+      const { supersessionAncestors, inheritedProgress, resolveGrants } = await createHostedPassJudgmentContext({
+        ...bound, cwd: root, exec, operationStore: context.store, repositoryId: context.repositoryId,
+        lineage: context.lineage, reviewTarget: context.reviewTarget, candidateRecord: context.candidateRecord,
+        decisionSubjectDigest: context.decisionSubjectDigest,
       });
       const actorIdentity = await port.currentActorIdentity();
       const policy = await resolveConfiguredLanePolicy({
@@ -3498,6 +3471,7 @@ async function executeDefaultHostedRequest(
         progress,
         logicalPass,
       }: Parameters<Parameters<typeof recordHostedRequestAdmission>[1]["authorizeCapacity"]>[0]) => {
+        request = await resolveGrants(request, progress);
         if (deliveryVehicle !== null) {
           if (context.reservation === null) {
             throw new Error("Hosted delivery-member review requires a carried reservation.");

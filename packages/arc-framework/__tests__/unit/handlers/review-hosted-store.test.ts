@@ -26,7 +26,10 @@ import { resolveReviewRouting } from "../../../src/scripts/review-gate/policy/ro
 import { projectStandardReviewObligation } from "../../../src/scripts/review-gate/policy/standard-review-projection.js";
 import { resolveReviewPolicy, ReviewPolicyCommandRequestSchema, projectReviewPolicyAttempt } from "../../../src/scripts/review-gate/policy/review-policy-driver.js";
 import { withReviewNextPassContext } from "../../fixtures/review-next-pass.js";
-import { HostedRequestEnvelopeSchema, HostedRequestResultSchema } from "../../../src/scripts/review-gate/hosted/request.js";
+import { HostedRequestEnvelopeSchema, HostedRequestResultSchema, hostedLaneAttemptId } from "../../../src/scripts/review-gate/hosted/request.js";
+import { createReviewDecisionPort } from "../../../src/lib/store/kinds/review/decision/access.js";
+import { reviewDecisionKey } from "../../../src/lib/store/kinds/review/decision/key.js";
+import { canonicalDigest } from "../../../src/lib/kernel/index.js";
 import type { HostedProcessRunner } from "../../../src/scripts/review-gate/hosted/gh-process.js";
 import { RepositoryGitCommonStatePublisher } from "../../../src/lib/git-common-state.js";
 import { HostedRequestOwnerIndex } from "../../../src/scripts/review-gate/hosts/local/hosted-request-owner-index.js";
@@ -109,7 +112,7 @@ async function fixture(workUnit = false, findings = false, threaded = false) {
   }
   const request = HostedRequestEnvelopeSchema.parse(workUnit
     ? { schemaVersion: 1, target, provider: "codex-pr", coverage: "complete" } : policy.action);
-  let complete = false, resolved = false;
+  let complete = false, resolved = false, requestNumber = 0;
   let reply: string | null = null;
   const hostedRunner: HostedProcessRunner = { run: async args => {
     const endpoint = args[1];
@@ -120,7 +123,7 @@ async function fixture(workUnit = false, findings = false, threaded = false) {
       head: { ref: branch, sha: head, repo: { full_name: target.repository } },
       base: { ref: "main", sha: base, repo: { full_name: target.repository } } };
     else if (endpoint === "repos/owner/repository/issues/42/comments" && args.includes("POST")) value = {
-      node_id: "request-comment", html_url: "https://example.test/request", user: { id: 123 }, body: "@codex review",
+      node_id: `request-comment-${++requestNumber}`, html_url: "https://example.test/request", user: { id: 123 }, body: "@codex review",
       created_at: "2026-10-19T12:00:00Z", updated_at: "2026-10-19T12:00:00Z" };
     else if (endpoint?.startsWith("repos/owner/repository/issues/42/comments?")) value = [complete ? [{
       node_id: "clean-comment", html_url: "https://example.test/clean", user: { id: 199175422 },
@@ -178,9 +181,51 @@ Reclassify the changed target before continuing.`,
       return JSON.parse(output) as unknown;
     },
     run: (bound?: { workItem?: OwnerIdentity }) => invoke(handleReviewHostedRequest, request, bound),
+    runRequest: (input: unknown) => invoke(handleReviewHostedRequest, input),
     settle: (input: unknown, bound?: { workItem?: OwnerIdentity; store?: Store }) => invoke(handleReviewHostedSettle, input, bound),
     awaitResult: (input: unknown, bound?: { workItem?: OwnerIdentity; store?: Store }) => invoke(handleReviewHostedAwait, input, bound) };
 }
+
+async function completedHostedPass(workUnit = false) {
+  const h = await fixture(workUnit);
+  const requested = HostedRequestResultSchema.parse(await h.run());
+  if (requested.state !== "requested") throw new Error(JSON.stringify(requested));
+  h.complete();
+  expect(await h.awaitResult(requested.action)).toMatchObject({ state: "clean" });
+  const additionalPassAuthorization = { target: h.request.target, lane: "standard" as const,
+    precedingProducerId: hostedLaneAttemptId(requested.handle), completedPasses: 1, nextPass: 2 };
+  return { ...h, additionalPassAuthorization };
+}
+
+it.each([false, true])("records a hosted additional grant with the active identity and relays its reference (work unit: %s)", async workUnit => {
+  const h = await completedHostedPass(workUnit);
+  const request = { ...h.request, additionalPassAuthorization: h.additionalPassAuthorization };
+  const raw = await h.runRequest(request);
+  expect(raw, JSON.stringify(raw)).toMatchObject(workUnit
+    ? { error: { message: "Hosted Candidate request no longer matches the fresh discharge position." } }
+    : { state: "requested", handle: { admission: { logicalPass: 2, actorIdentity: "123" } } });
+  const decisions = await createReviewDecisionPort(h.store, h.primary.reference.owner).list();
+  if (decisions.status !== "complete") throw new Error(decisions.reason);
+  expect(decisions.records).toHaveLength(1);
+  const decision = decisions.records[0]!;
+  expect(decision.value).toMatchObject({ decidedBy: "test-user", lane: "standard", subject: { headSha: head },
+    choice: { kind: "extra-pass", passCount: 1, precondition: { kind: "additional",
+      precedingProducerId: h.additionalPassAuthorization.precedingProducerId,
+      targetBinding: { kind: "policy-target", repository: "owner/repository", pullRequest: 42 } } } });
+  const version = lifecycleSuccess(await h.store.version());
+  expect(await h.runRequest({ ...request, additionalPassAuthorization: { ...request.additionalPassAuthorization,
+    decisionKey: reviewDecisionKey(decision.value) } })).toEqual(raw);
+  expect(lifecycleSuccess(await h.store.version())).toBe(version);
+});
+
+it("refuses a missing hosted grant reference before fresh capacity and accepts its repaired judgment", async () => {
+  const h = await completedHostedPass();
+  const request = { ...h.request, additionalPassAuthorization: { ...h.additionalPassAuthorization,
+    decisionKey: canonicalDigest({ missing: true }) } };
+  expect(await h.runRequest(request)).toMatchObject({ error: { code: "invalid-input" } });
+  expect(await h.runRequest({ ...h.request, additionalPassAuthorization: h.additionalPassAuthorization }))
+    .toMatchObject({ state: "requested", handle: { admission: { logicalPass: 2 } } });
+});
 
 it("retains the stored Errand owner from hosted request through its actual await action", async () => {
   const h = await fixture();

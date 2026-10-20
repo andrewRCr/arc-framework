@@ -1131,12 +1131,15 @@ this phase puts publication's claim and reopen's boundary write in their transit
             - Native frontline resolution records and relays ordinary ceiling authority before pending replay,
               preserving exact head reach and window closure. Delivery policy targets use the member's retained
               branch; matching references preserve the admission, and invalid references refuse before replay.
-        - `[ ]` **6.2.a.5 Hosted requests**
-            - Resolve ordinary grants before fresh capacity admission while keeping reserved replay and provider
-              actor identity separate from the judgment's active identity.
+        - `[x]` **6.2.a.5 Hosted requests**
+            - Fresh capacity authorization records and resolves ordinary grants on the actual Candidate or head-bound
+              subject and logical count. Exact references retain their author, reserved replay writes no new grant,
+              and provider actor identity stays separate from the judgment's active identity.
         - `[ ]` **6.2.a.6 Publication status**
             - Compose singleton and delivery-member grants at their selected targets before pure policy and preserve
               references in emitted continuation actions.
+            - Compose stored grants in the reservation's terminal-policy read so a converged Candidate or delivery
+              member's additional judgment reaches fresh admission and status composition.
             - Prove that returned native delivery references survive local driver admission comparison while all
               target, grant, coverage, and pass constraints remain binding.
 
