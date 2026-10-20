@@ -15,6 +15,7 @@ import { classifyRemoteFailure } from "../../git/remote-ref-reader.js";
 import { syncRefIsAncestor } from "./sync-graph.js";
 import { readBatchObjects } from "./batch-read.js";
 import { projectIdentityQueries, projectOwnerFromObjects } from "./project-identity.js";
+import { fetchLayoutObjects } from "./migrate-layout-build.js";
 
 /** A registry observation belonging to one exact candidate. */
 export interface RefFollowCandidate { remote: MoveRemote; registry: string }
@@ -26,9 +27,12 @@ export type RefFollowJudgment = { status: "none" }
 /** No designation, pointer, stored record, or remote state changes while candidates are judged. */
 export async function judgeRefFollow(context: RefBackendContext, due: RefFollowDue): Promise<RefFollowJudgment> {
   const code = await migrationCodeContext(context);
+  let readingSource = false;
   try {
     const source = await readFollowRemote(due.remote.name, () => captureMoveRemote(context, code, due.remote));
+    readingSource = true;
     const refs = await readFollowRemote(source.name, () => fetchMigrationRemote(code, source, false, { prefix: "refs/arc/tmp/follow/source/", controls: ["moved"] }));
+    readingSource = false;
     const forwarding = await readFollowRemote(source.name, () => readForwardingRecord(code, refs.get(FORWARDING_REF), source.name));
     if (forwarding.status === "refused") return forwarding;
     if (!forwarding.result) { await dropStaleFollow(context, due); return { status: "none" }; }
@@ -44,21 +48,50 @@ export async function judgeRefFollow(context: RefBackendContext, due: RefFollowD
     return { status: "decided", source, record, forwardingTip, accepted, result: followResult(due, accepted, rejected) };
   } catch (error) {
     if (!(error instanceof MigrationRefusal)) throw error;
+    if (readingSource && error.refusal.code === "store" && error.refusal.refusal.code === "unreachable") {
+      return { status: "refused", refusal: await departedSourceRemedy(context, code, due, error.refusal) };
+    }
     return { status: "refused", refusal: error.refusal };
   } finally { await clearMigrationRefs(code, "refs/arc/tmp/follow/"); }
 }
 
-async function followCandidates(context: RefBackendContext, code: RefBackendContext, due: RefFollowDue): Promise<MoveRemote[]> {
+async function followCandidates(context: RefBackendContext, code: RefBackendContext, due: RefFollowDue, exclude?: string): Promise<MoveRemote[]> {
   const pointer = await context.backingRepository();
   if (pointer) return [{ name: "backing", repository: "backing", fetchUrl: pointer, pushUrl: pointer }];
   const candidates: MoveRemote[] = [];
   for (const remote of due.designation.codeRemotes) {
+    if (remote.name === exclude) continue;
     const captured = await readFollowRemote(remote.name, () => captureMoveRemote(context, code, remote));
     const presence = await readRefRegistryPresence(code, captured.fetchUrl);
     if (presence.status === "unreachable") throw followReadFailure(remote.name, presence.condition, presence.cause);
     if (presence.present) candidates.push(captured);
   }
   return candidates;
+}
+
+async function departedSourceRemedy(context: RefBackendContext, code: RefBackendContext, due: RefFollowDue,
+  failure: Extract<StoreCommandRefusal, { code: "store" }>): Promise<StoreCommandRefusal> {
+  const off = `arc store remote ${due.remote.name} off`;
+  if (due.remote.repository === "code" && due.remote.role === "read") return { ...failure,
+    refusal: { ...failure.refusal, remedy: { text: `Stop fetching the deleted read source with ${off}, then designate the remote the state moved to.` } } };
+  const destinations: MoveRemote[] = [];
+  try {
+    const physical = await readRefRepository(context);
+    await fetchLayoutObjects(code, physical.repository?.gitDir ?? physical.repository?.commonDir ?? "", new Map([[FORWARDING_REF, due.tip]]));
+    const cached = await readForwardingRecord(code, due.tip, due.remote.name);
+    if (cached.status === "ok" && cached.result) {
+      for (const candidate of await followCandidates(context, code, due, due.remote.name)) {
+        const record = cached.result;
+        if ((await readFollowRemote(candidate.name, () => judgeCandidate(code, candidate, record))).accepted) destinations.push(candidate);
+      }
+    }
+  } catch (error) { if (!(error instanceof MigrationRefusal)) throw error; }
+  const targets = destinations.map(remote => remote.repository === "backing" ? remote.fetchUrl : remote.name);
+  const commands = (targets.length ? targets : ["<remote>"]).map(target => `arc store migrate --leave-source --to ${target}`);
+  return { ...failure, refusal: { ...failure.refusal, remedy: {
+    text: `Repair the old remote and retry arc store migrate, or leave it from this clone's last view with ${commands.join(" or ")}. To publish nothing, use ${off}.`,
+    ...(targets.length === 1 ? { argv: ["arc", "store", "migrate", "--leave-source", "--to", targets[0] ?? ""] } : {}),
+  } } };
 }
 
 async function judgeCandidate(code: RefBackendContext, remote: MoveRemote, record: ForwardingRecord): Promise<

@@ -1615,46 +1615,15 @@ _Exit criterion:_ Every case of § 14.6 and § 14.7 passes.
           records to one home. Covered both clearing timings, unseen-ref restoration after a follower's push, preserved
           destination publications during re-copy, and the next pull's history after every switch.
 
-### `[ ]` **17.3 Leaving the source — § 10.6**
+### `[x]` **17.3 Leaving the source — § 10.6**
 
 - _Goal:_ A clone whose old remote can no longer be read re-homes its own state onto the new remote from its last view,
   without ever reading or deleting on the old one, and says what it leaves there.
 
-    - Under the move lock: copy the store refs the old remote's tracking refs name onto the destination through 13.1's
-      copy, those tracking refs the incoming side; write the record, `move.json`'s leaving-the-source arm naming each
-      remote by its name and URLs; switch as a move does, carrying those tracking refs and kept tips; delete nothing; the
-      copy, the record, and the switch each declared at the step port (13.1)
-    - Its old remote is `backing`, whatever its role, or the remote of the code repository carrying `push`, never a read
-      source; its destination `--to`'s, or the pointer's URL where `backing`'s differs from it; a code-repository
-      destination must hold this project's registry ref, and where the clone holds the old remote's forwarding-record
-      tracking ref, the commit that record names
-    - Tests delete a remote by removing its bare directory, and archive one read-only by a pre-receive hook that declines
-      every push
-    - Build `test-first` (one behavior at a time):
-        - a follow whose listing of a deleted old remote fails refuses through the `store` arm's `unreachable`, naming
-          `arc store migrate --leave-source --to <remote>`, which lands the clone's last view, an end it pushed there
-          after the move's copy among it, on the new remote and switches, ending with no record and no
-          `move-unfinished`, without a TTY too
-        - on a clone whose backing repository went before any forwarding record reached it, `--leave-source --to` the
-          code remote holding the project's registry moves the store into the code repository's refs, removing
-          `backing`, and from a checkout whose code remote holds none refuses `request-invalid` naming that remote's
-          `push` setting
-        - on a fork whose upstream carries `push` and was deleted, `--leave-source --to <remote>` leaves the upstream,
-          setting it `off`, and lands the clone's last view of it on the destination
-        - a clone with neither `backing` nor a code remote carrying `push` refuses `no-state-remote` as `--to` does from
-          a local-only clone, and one with no `--to` whose `backing` matches the pointer refuses `request-invalid`
-          naming `--to`
-        - a destination carrying this project's forwarding record refuses `moved`, naming `--leave-source --to` the
-          remote the state moved to, or the mover's `--leave-source` where that is the remote this clone is leaving
-        - a destination whose URL is the old remote's and `--trial` refuse `request-invalid`, and a read source as the
-          old remote refuses `no-state-remote`, as a clone with neither does
-        - leaving the source onto a remote a later move left refuses `moved` by the project check, changing nothing
-        - a follower whose old remote, a read source, was deleted is refused `no-state-remote` naming
-          `arc store remote <remote> off` and a setting of the remote the state moved to
-        - interrupted at the step port after its copy, leaving the source leaves no record, and its command run again
-          merges onto the copy it landed and completes; interrupted after its record, or inside its switch, the layout
-          move's half among it where the destination calls for the other layout, it finishes on a no-target
-          `arc store migrate` in its record's direction, deleting nothing on the old remote
+- _Outcome:_ Added last-view source departures with isolated destination admission, captured heads, and a retained
+  copy/switch record. No source transport or deletion occurs, and tracked pointers stay untouched. Code receivers must
+  identify the project and hold any tracked move commit. Native CLI and restart paths carry late ends and unpublished
+  work across both layouts; source, destination, and input refusals retain concrete repair routes.
 
 ### `[ ]` **17.4 `--leave-source` ending a recorded move — § 10.1, § 10.6**
 

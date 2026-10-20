@@ -14,6 +14,7 @@ import { applyRefRemoteSetting, remoteView } from "./remote-setting.js";
 import { guardRefFollowSetting, readRefFollowDue } from "./follow-due.js";
 import { resumeRefFollow } from "./follow.js";
 import { judgeRefFollow } from "./follow-candidates.js";
+import { leaveRefSource } from "./leave-source.js";
 
 /** No-target migration reconciles the physical store with its explicitly recorded roles. */
 export async function runRefMigrate(context: RefBackendContext, store: Store, input: StoreMigrateInput): Promise<StoreMigrateResult> {
@@ -24,10 +25,13 @@ export async function runRefMigrate(context: RefBackendContext, store: Store, in
     const { importTrackedState } = await import("./import/entry.js");
     return importTrackedState(context, store, parsed.data);
   });
-  if (parsed.data.leaveSource) return unsupportedCommand("--leave-source is not implemented.");
+  if (parsed.data.leaveSource) return withMigrationLock(context, () => leaveRefSource(context, store, parsed.data));
   return withMigrationLock(context, async () => {
     const existing = await readMoveRecord(await migrationCodeContext(context));
     if (existing.status === "refused") return existing;
+    if (existing.result?.record.kind === "leave-source") {
+      return leaveRefSource(context, store, parsed.data, { record: existing.result.record, tip: existing.result.tip });
+    }
     if (existing.result?.record.kind === "remote") return moveRefRemote(context, store, parsed.data.to, parsed.data.trial, { record: existing.result.record, tip: existing.result.tip });
     if (existing.result?.record.kind === "follow") return resumeFollowRequest(context, store, { record: existing.result.record, tip: existing.result.tip }, parsed.data.to);
     let finished: MigrateReport | undefined;
@@ -87,6 +91,7 @@ async function resumeFollowRequest(context: RefBackendContext, store: Store, rec
 
 async function finishRecordedMove(context: RefBackendContext, store: Store, existing: RecordedMove): Promise<import("../commands.js").StoreCommandResult<MigrateReport>> {
   const { record, tip } = existing;
+  if (record.kind === "leave-source") return leaveRefSource(context, store, {}, { record, tip });
   if (record.kind === "follow") return resumeRefFollow(context, store, { record, tip });
   if (record.kind === "layout") return moveRefLayout(context, store, record.destination, record.setting, { record, tip });
   const resumed = await moveRefRemote(context, store, undefined, false, { record, tip });

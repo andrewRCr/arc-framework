@@ -102,7 +102,8 @@ async function checkSourceForwarding(code: RefBackendContext, incoming: Readonly
   return "none";
 }
 
-async function checkCopyProject(code: RefBackendContext, local: ReadonlyMap<string, string>, destination: ReadonlyMap<string, string>,
+/** Refuse cross-project copies and identify a recorded destination that has moved beyond its source. */
+export async function checkCopyProject(code: RefBackendContext, local: ReadonlyMap<string, string>, destination: ReadonlyMap<string, string>,
   source: ReadonlyMap<string, string>, remote: MoveRemote, recorded?: RecordedRemote): Promise<boolean> {
   const forwarding = await readForwardingRecord(code, destination.get(FORWARDING_REF), remote.name);
   if (forwarding.status === "refused") throw new MigrationRefusal(forwarding.refusal);
@@ -166,10 +167,10 @@ export function migrationPushRefusal(outcome: PushOutcome): Extract<import("../c
 
 /** Pin a landed copy and comparison heads for an enclosing move or follow. */
 export async function retainCopiedTips(code: RefBackendContext, source: ReadonlyMap<string, string>, observed: ReadonlyMap<string, string>,
-  copied: { registry: string; report: MigrateReport; destination: ReadonlyMap<string, string>; headBasis?: ReadonlyMap<string, string> }): Promise<void> {
+  copied: { registry?: string; report: MigrateReport; destination: ReadonlyMap<string, string>; headBasis?: ReadonlyMap<string, string> }): Promise<void> {
   const prior = await readSyncRefs(code, copiedRoot);
   const retained = new Map([...source].filter(([ref]) => ref !== FORWARDING_REF).map(([ref, tip]) => [copiedRoot + "state/" + ref.slice("refs/arc/".length), tip]));
-  retained.set(copiedRoot + "registry", copied.registry);
+  if (copied.registry) retained.set(copiedRoot + "registry", copied.registry);
   retained.set(copiedRoot + "report", await writeRefBlob(code, JSON.stringify(MigrateReportSchema.parse(copied.report))));
   for (const [name, tip] of observed) {
     const suffix = name.slice(name.indexOf("/") + 1), live = "refs/arc/" + suffix;
@@ -245,7 +246,8 @@ async function retainDeletedRecord(code: RefBackendContext, tip?: string): Promi
   await requireLayoutTransaction(code, [{ ref: deletedRecordRef, next: tip, expected: before }]);
 }
 
-async function copyProjectId(code: RefBackendContext, refs: ReadonlyMap<string, string>): Promise<string | undefined> {
+/** Read the project identity held by a captured registry without adopting it. */
+export async function copyProjectId(code: RefBackendContext, refs: ReadonlyMap<string, string>): Promise<string | undefined> {
   const owner = projectOwnerFromObjects(refs, await readBatchObjects(code, projectIdentityQueries(refs)));
   if (owner.status === "refused") throw new MigrationRefusal({ code: "store", refusal: owner.refusal });
   return owner.result.type === "project" ? owner.result.uid : undefined;

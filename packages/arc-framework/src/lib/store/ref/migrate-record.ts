@@ -25,7 +25,13 @@ const RemoteRecordSchema = z.strictObject({ kind: z.literal("remote"), source: R
 const FollowRecordSchema = z.strictObject({ kind: z.literal("follow"), source: RemoteSchema, destination: RemoteSchema,
   answer: SettingSchema.shape.role, forwarding: ForwardingRecordSchema, forwardingTip: CommitShaSchema,
   sourceLayout: LayoutSchema, destinationLayout: LayoutSchema });
-const MoveRecordSchema = z.union([LayoutRecordSchema, RemoteRecordSchema, FollowRecordSchema]);
+const LeaveSourceRecordSchema = z.strictObject({ kind: z.literal("leave-source"), source: RemoteSchema, destination: RemoteSchema,
+  sourceLayout: LayoutSchema, destinationLayout: LayoutSchema });
+const MoveRecordSchema = z.union([LayoutRecordSchema, RemoteRecordSchema, FollowRecordSchema, LeaveSourceRecordSchema]);
+/** A source departure retains its targets and layout direction after its last-view copy lands. */
+export type LeaveSourceMoveRecord = z.infer<typeof LeaveSourceRecordSchema>;
+/** The source is never contacted while this recorded switch completes. */
+export interface RecordedLeaveSource { record: LeaveSourceMoveRecord; tip: string }
 /** A follow retains the exact judged control and the person's publication answer. */
 export type FollowMoveRecord = z.infer<typeof FollowRecordSchema>;
 /** The follow's compare-and-swap basis stays in the code repository across layout changes. */
