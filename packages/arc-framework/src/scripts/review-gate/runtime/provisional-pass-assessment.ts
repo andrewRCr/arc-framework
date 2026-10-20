@@ -15,6 +15,14 @@ export interface ProvisionalStandardPassFacts {
   readonly delegatedAgentSelectable: boolean;
 }
 
+/** A frontline next pass names the coverage it expects; the standard lane selects its own. */
+function nextPassCoverage(consequence: Extract<ProvisionalFixConsequence, { kind: "next-pass" }>,
+  lane: "frontline" | "standard"): string {
+  return lane === "standard" || consequence.coverage === null ? ""
+    : consequence.coverage === "complete" ? ", with complete coverage"
+      : ", covering only the fix where its chain is proven";
+}
+
 function fixConsequenceText(
   consequence: ProvisionalFixConsequence,
   lane: "frontline" | "standard",
@@ -28,17 +36,37 @@ function fixConsequenceText(
       return ` Approving a FIX moves the head without another ${lane === "standard" ? "standard complete" : lane} pass.`;
     case "next-pass": {
       if (lane === "standard" && consequence.coverage === "incremental-when-proven") {
-        return ` Approving a FIX moves the head, which needs ${nextFixCheck}, where its chain is proven.`;
+        return ` Approving a FIX moves the head, which needs a ${nextFixCheck}, where its chain is proven.`;
       }
-      const coverage = lane === "standard" || consequence.coverage === null ? ""
-        : consequence.coverage === "complete" ? ", with complete coverage"
-          : ", covering only the fix where its chain is proven";
-      return ` Approving a FIX moves the head, which needs ${nextPass}${coverage}.`;
+      return ` Approving a FIX moves the head, which needs ${nextPass}${nextPassCoverage(consequence, lane)}.`;
     }
     case "ceiling-decision":
       return ` Approving a FIX moves the head, and another ${lane === "standard" ? "complete pass" : "pass"} needs a ceiling decision.`;
     case "decided-at-fixed-head":
       return " Approving a FIX moves the head; review status there decides whether another complete pass is needed.";
+  }
+}
+
+/** What the fixed head needs next, phrased to follow "After the fix:", or null when no fix moves the head. */
+function nextActivityText(
+  consequence: ProvisionalFixConsequence,
+  lane: "frontline" | "standard",
+  nextPass: string,
+  nextFixCheck: string,
+): string | null {
+  switch (consequence.kind) {
+    case "no-fix":
+      return null;
+    case "lane-closes":
+      return `no further ${lane === "standard" ? "standard complete" : lane} pass`;
+    case "next-pass":
+      return lane === "standard" && consequence.coverage === "incremental-when-proven"
+        ? `${nextFixCheck}, where its chain is proven`
+        : `${nextPass}${nextPassCoverage(consequence, lane)}`;
+    case "ceiling-decision":
+      return `another ${lane === "standard" ? "complete pass" : "pass"}, which needs a ceiling decision`;
+    case "decided-at-fixed-head":
+      return "review status there decides whether another complete pass is needed";
   }
 }
 
@@ -106,15 +134,13 @@ export function projectProvisionalPassAssessment(input: {
     ? "No confirmed findings."
     : `${confirmedFindingCount} confirmed finding${confirmedFindingCount === 1 ? "" : "s"}, `
       + `highest ${severitySymbol[maxConfirmedSeverity]} ${maxConfirmedSeverity}.`;
-  const positionText = { "below-ceiling": "", "at-ceiling": " (limit reached)", "above-ceiling": " (over the limit)" }[
+  const capText = { "below-ceiling": "", "at-ceiling": " (limit reached)", "above-ceiling": " (over the limit)" }[
     capPosition
   ];
-  const consequenceText = fixConsequenceText(
-    fixConsequence,
-    input.lane,
-    `${input.lane === "standard" ? "standard complete" : "frontline"} pass ${ceilingPassCount + 1} of ${input.configuredMaxPasses}`,
-    input.standardFacts === undefined ? "" : `a fix check, round ${fixCheckRound(input.result, input.standardFacts.facts) + 1} since pass ${ceilingPassCount}`,
-  );
+  const nextPass = `${input.lane === "standard" ? "standard complete" : "frontline"} pass ${ceilingPassCount + 1} of ${input.configuredMaxPasses}`;
+  const nextFixCheck = input.standardFacts === undefined ? ""
+    : `fix check, round ${fixCheckRound(input.result, input.standardFacts.facts) + 1} since pass ${ceilingPassCount}`;
+  const consequenceText = fixConsequenceText(fixConsequence, input.lane, nextPass, nextFixCheck);
   const reviewText = input.lane === "standard" && input.standardFacts !== undefined
     ? standardPositionText(input.result, input.standardFacts.facts, input.configuredMaxPasses)
     : `Frontline pass ${input.admittedLogicalPass} of ${input.configuredMaxPasses}`;
@@ -129,8 +155,10 @@ export function projectProvisionalPassAssessment(input: {
     fixConsequence,
     potentialStopReason,
     nextPassAuthority: "none",
-    summaryText: `${reviewText}${positionText}. `
+    summaryText: `${reviewText}${capText}. `
       + `${signalText}${consequenceText}`,
+    positionText: `${reviewText}${capText}`,
+    nextActivityText: nextActivityText(fixConsequence, input.lane, nextPass, nextFixCheck),
   });
 }
 

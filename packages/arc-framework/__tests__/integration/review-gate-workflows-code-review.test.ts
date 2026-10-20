@@ -552,9 +552,9 @@ describe("shared code-review workflow contracts", () => {
     const triage = (await readRepositoryFile("packages/arc-framework/arc/system/methods/review-triage.md"))
       .replace(/\s+/gu, " ");
     expect(triage).toContain(
-      "When the pass line says a fix requires a fix check or complete pass, the recommendation also covers that activity",
+      "When a fix requires a fix check or complete pass, the recommendation covers that activity",
     );
-    expect(triage).toContain("the line names the fix check or complete pass the fixed head then needs");
+    expect(triage).toContain("then the step the fixed head needs beside your `successorRecommendation`");
     expect(triage).toContain("as spend the approver may decline");
     expect(triage).toContain("confirmed there once before any pass is dispatched");
 

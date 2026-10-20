@@ -255,29 +255,18 @@ describe("review response command", () => {
             dispositionSetId: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
           },
         },
-        dispositionReportText: `Standard complete pass 1 of 2. 2 confirmed findings, highest 🟠 major. Approving a FIX moves the head, which needs a fix check, round 1 since pass 1, where its chain is proven. provisional · not converged; critical 0, major 1, minor 1.
-
-**Verification:** focused
-
-**Fix tags:** agent's advisory reading.
+        dispositionReportText: `**Standard complete pass 1 of 2** · 🟠 1 major · 🟡 1 minor
 
 | # | Grade | Finding | Action |
 |---|---|---|---|
 | F1 | 🟠 major | Finding title | FIX (local correction) |
-| F2 | 🟡 minor · record-only | Finding title | FIX (local correction) |
-
-**Decisions**
-- Approve the complete disposition set with focused verification?
-- Fix-check offer: approve round 1 since pass 1 after these repairs, where its exact correction chain is proven. A complete pass does not replace it.
-- Successor recommendation (advisory): Check approved repairs before considering a successor complete pass.
+| F2 | 🟡 minor | Finding title | FIX (local correction) |
 
 ### F1 — Finding title
 
-🟠 major · Confirmed · blocking · FIX (local correction)
+🟠 major · FIX (local correction) · fails Correctness and failure behavior
 
 **Finding:** The reviewer's claim.
-
-**Fails:** Correctness and failure behavior
 
 **Action:** Apply the fix.
 
@@ -287,20 +276,17 @@ describe("review response command", () => {
 
 ### F2 — Finding title
 
-🟡 minor · Confirmed · reviewer graded 🟠 major · record-only · FIX (local correction)
+🟡 minor · reviewer graded 🟠 major · FIX (local correction) · fails Correctness and failure behavior
 
 **Finding:** The reviewer's claim.
-
-**Fails:** Correctness and failure behavior
 
 **Action:** Apply the fix.
 
 **Detail:** The selected source supports this disposition.
 
-**Loop reading (advisory)**
-- Material trend: no completed looks.
-- reviewed artifact: 2 findings, 0 new-design fixes (agent's reading).
-- baseline: Use this look's findings to decide its bounded repairs.`,
+**Decisions**
+- Approve the complete disposition set with focused verification?
+- After the fix: fix check, round 1 since pass 1, where its chain is proven. Check approved repairs before considering a successor complete pass.`,
         dispositionEvidenceText: [
           "**Evidence**",
           "- F1 · src/index.ts:7 · source #1 · review:finding-1 · verified at source:src/index.ts:7",
@@ -1293,10 +1279,8 @@ describe("review response command", () => {
     }), deps);
     if (proposed.state !== "awaiting-approval") throw new Error("expected a proposed disposition set");
     const expectedReport = proposed.payload.dispositionReportText;
-    expect(expectedReport).toContain(
-      "| F1 | — | Finding title | REJECT |",
-    );
-    expect(expectedReport).toContain("— · Not supported · reviewer graded 🟠 major · record-only · REJECT");
+    expect(expectedReport).not.toContain("| F1 |");
+    expect(expectedReport).toContain("### F1 — Finding title\n\n— · Not supported · reviewer graded 🟠 major · REJECT");
     const dispositions = approveDispositionState({
       proposed: proposed.payload.proposal,
       approvedBy: records.authority.authorIdentity,
@@ -1309,17 +1293,11 @@ describe("review response command", () => {
       policyRequest: policyRequest(records),
       dispositions,
     } as const;
-    const approvedReport = `Approved disposition set ${dispositions.dispositionSet.dispositionSetId}
-
-**Verification:** full
-
-| # | Grade | Finding | Action |
-|---|---|---|---|
-| F1 | — | Finding title | REJECT |
+    const approvedReport = `**Approved disposition set ${dispositions.dispositionSet.dispositionSetId}** · full verification
 
 ### F1 — Finding title
 
-— · Not supported · reviewer graded 🟠 major · record-only · REJECT
+— · Not supported · reviewer graded 🟠 major · REJECT
 
 **Finding:** The reviewer's claim.
 
@@ -1935,7 +1913,8 @@ describe("review response command", () => {
     }), deps);
     if (proposal.state !== "awaiting-approval") throw new Error("hosted proposal was not materialized");
 
-    expect(proposal.payload.dispositionReportText).toContain("**Fails:** Agent's reading: Correctness and failure behavior");
+    expect(proposal.payload.dispositionReportText).toContain(" · fails Correctness and failure behavior\n");
+    expect(proposal.payload.dispositionReportText).not.toContain("Agent's reading");
     expect(proposal).toMatchObject({
       state: "awaiting-approval",
       payload: {
@@ -1947,10 +1926,7 @@ describe("review response command", () => {
       },
     });
     expect(proposal.payload.dispositionReportText).toContain(
-      "| F1 | 🟠 major | Finding title | FIX (local correction) |",
-    );
-    expect(proposal.payload.dispositionReportText).toContain(
-      "🟠 major · Confirmed · reviewer graded 🟡 minor nit · blocking · FIX",
+      "### F1 — Finding title\n\n🟠 major · reviewer graded 🟡 minor nit · FIX (local correction)",
     );
   });
 

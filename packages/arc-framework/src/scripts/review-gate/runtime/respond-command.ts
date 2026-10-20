@@ -1799,7 +1799,7 @@ async function prepareResponseProposal(
     const proposal = prepareDispositionProposal(request, source);
     const { assessment: provisionalPassAssessment, standardFacts } = await readResponsePassAssessment(source.result, proposal, dependencies);
     const report = await readProposedResponseReport({ proposal, producerFindings: source.findings, assessment: provisionalPassAssessment,
-      report: request.report, hosted: source.result.kind === "hosted", standardFacts,
+      report: request.report, standardFacts,
       readRecord: dependencies.dispositionStore.readDispositionRecord.bind(dependencies.dispositionStore) });
     return RespondEnvelopeSchema.parse({
       schemaVersion: 1,

@@ -42,7 +42,7 @@ criteria walk; where it runs determines independence. Evidence-only callers may 
 | Findings handling         | [review-triage](review-triage.md), [review-response](review-response.md), [disposition-report](disposition-report.md)                                                                                                                                                                                                                                                                                 |
 | Routing and scope         | [classify-review-risk](classify-review-risk.md), [review-chunking](review-chunking.md)                                                                                                                                                                                                                                                                                                                |
 | Moved-target judgment     | [assess-evidence-applicability](assess-evidence-applicability.md) at applicability stops, informed by its bounded check                                                                                                                                                                                                                                                                               |
-| Shared model              | `review-model`: passes, fix checks, convergence, cadence, and loop readings                                                                                                                                                                                                                                                                                                                           |
+| Shared model              | `review-model`: passes, fix checks, convergence, cadence, and trend readings                                                                                                                                                                                                                                                                                                                          |
 
 [code-review-author](code-review-author.md) is code review's author check; [code-review](code-review.md#author-check)
 owns its findings and approval procedure. Planning and verification can use the same independent vehicle without sharing
@@ -106,12 +106,14 @@ Keep each family's records separate: adversarial review retains its `review/adve
 its exact producer results, disposition sets, and lane progress. Shared vocabulary introduces no shared record or
 approval authority.
 
-### Loop reading
+### Trend
 
-Report the material trend across passes and rounds (for example `P1: 6 → R1: 2`), where findings originated, and how
-many fixes introduce new design. Give one advisory reading with a one-line rationale and the decision it points to:
+Once a lane has two or more looks, report the material trend across passes and rounds (for example `P1: 6 → R1: 2`),
+where findings originated, and how many fixes introduce new design. Give one reading with a one-line rationale and the
+decision it points to:
 
-- **`baseline`** — the first look has no trend yet; decide the fixes and their check from that look's own signal.
+- **`baseline`** — the first look has no trend yet; decide the fixes and their check from that look's own signal. A
+  report shows no Trend for it.
 - **`converging`** — material findings come from earlier folds, adjacent repair code, or siblings of a known defect
   class; counts fall or stay flat, and fixes are mostly local corrections. This supports stopping once fix checks
   converge.
@@ -126,7 +128,7 @@ Planning review derives the counts, origins, and tags from its pass record. In c
 material trend separate from advisory interpretation: read its per-round change signals beside earlier stored tags
 and current tags. A tag forecasts what the proposed repair implies; the signals describe what the performed round
 changed. Origin counts are the agent's reading of whether findings fall in an earlier fix range. Neither a falling
-count nor a tag alone settles the loop reading, convergence, or authorization.
+count nor a tag alone settles the trend reading, convergence, or authorization.
 
 ---
 

@@ -141,15 +141,15 @@ it("joins each historical response round to its own approved set", async () => {
   const assessment = projectProvisionalPassAssessment({ proposal, result: producer, lane: "standard",
     admittedLogicalPass: producer.admission.logicalPass, configuredMaxPasses: 4, standardFacts });
   const report = await readProposedResponseReport({ proposal, producerFindings: producer.findings,
-    assessment, standardFacts, hosted: false, readRecord: async id => id === producer.producerId ? record : null,
+    assessment, standardFacts, readRecord: async id => id === producer.producerId ? record : null,
     report: { tags: [], fails: [{ findingId: "finding-1", fails: "Correctness and failure behavior" }],
       successorRecommendation: "Stop after the approved response.", origin: [],
       reading: { kind: "converging", rationale: "The latest response defers the remaining finding." } },
   });
-  expect(report.dispositionReportText).toContain("Round 1 observed signals: paths outside cited loci no, "
-    + "added files no; stored forecast tags (advisory): 0 new design, 1 local correction.");
-  expect(report.dispositionReportText).toContain("Round 2 observed signals: paths outside cited loci yes, "
-    + "added files no; stored forecast tags (advisory): 0 new design, 0 local correction.");
+  expect(report.dispositionReportText).toContain("**Trend:** converging — The latest response defers the remaining finding.\n- Looks: ");
+  expect(report.dispositionReportText).not.toContain("Round 1 ");
+  expect(report.dispositionReportText).toContain(
+    "- Round 2 changed paths outside the cited loci; its tags forecast 0 new design, 0 local correction.");
 });
 
 it("resets fix-check rounds when a later complete look concludes", async () => {

@@ -64,24 +64,18 @@ The command is at `state: awaiting-approval`, `nextAction: obtain-approval`, wit
 The command's `payload.dispositionReportText` is exactly these renderer-produced bytes:
 
 ```text
-**Verification:** full
-
-| # | Grade | Finding | Action |
-|---|---|---|---|
-| F1 | — | Failing path at the cited branch | REJECT |
-
-**Decisions**
-- F1: Should the reviewer clarify the cited execution path?
-
 ### F1 — Failing path at the cited branch
 
-— · Not supported · reviewer graded 🟠 major · record-only · REJECT
+— · Not supported · reviewer graded 🟠 major · REJECT
 
 **Finding:** The reviewer alleges the branch at this locus enters a failing execution path.
 
 **Action:** Reject the finding without changing code.
 
 **Detail:** The reviewer alleges this branch enters a failing path, but source verification shows it is unreachable, so no execution failure occurs.
+
+**Decisions**
+- F1: Should the reviewer clarify the cited execution path?
 ```
 
 Its `payload.dispositionEvidenceText`, held back from the report and shown when the approver asks, is exactly:

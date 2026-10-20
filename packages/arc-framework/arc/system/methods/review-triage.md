@@ -95,18 +95,19 @@ governing caller. The command resolves the durable producer, applies the input p
 
 Supply the separate `report` beside `proposal`: one `tags` entry per fix (`new-design` or `local-correction`),
 one `fails` anchor per finding, the `successorRecommendation`, origin counts, and one of
-[review-model's loop readings][loop-reading] with its rationale. Key tags and anchors by finding identity. Lift a
+[review-model's trend readings][trend-reading] with its rationale. Key tags and anchors by finding identity. Lift a
 local reviewer's `Fails:` line from its referenced report; for a hosted source, supply the rubric anchor while
-verifying it, as the agent's reading. Use the supplied rubric's item names, or `none` with a reason. These judgments
-are advisory and outside the canonical set's identity. The approved call carries the same tags again; only those tags
-are stored, as an immutable advisory note beside the set. Verified-fix and settlement replays read that note.
+verifying it. Use the supplied rubric's item name alone, or `none` with a short reason; the anchor closes the
+finding's status line. These judgments are advisory and outside the canonical set's identity. The approved call
+carries the same tags again; only those tags are stored, as an immutable advisory note beside the set. Verified-fix
+and settlement replays read that note.
 
 Author each finding's narrative so the report stands without the raw review:
 
 - `title` — the issue in a phrase; it names the finding in the decision table and heads its section.
-- `issue` — the reviewer's claim in plain words, before any judgment of it.
+- `issue` — the reviewer's claim in plain words, before any judgment of it: what is wrong and why it matters.
 - `recommendation` — the proposed action and its boundaries.
-- `rationale` — the source check and consequence behind the verdict.
+- `rationale` — how the finding was verified: the source check, probe, or search behind the verdict.
 - `openQuestions` — what remains for the approver, when anything does.
 
 The command renders `payload.dispositionReportText` and `payload.dispositionEvidenceText` in the
@@ -114,30 +115,27 @@ The command renders `payload.dispositionReportText` and `payload.dispositionEvid
 override replaces or extends presentation. Show it as text in your reply to the approver — never a file path, link, or
 summary in its place — because approval binds to the report the approver read. Emit the evidence text verbatim when
 the approver asks for it; its references are part of the canonical set the approval binds, and once approved the
-durable disposition record holds them. A code-review report adds three things to the shared shape:
-
-- a leading `**Verification:** <targeted | focused | full>` line naming the proposed scope;
-- each finding's gating after its verdict — `<verdict> · <blocking or record-only>` — and `nit` after a `minor` grade
-  that carries one;
-- the producer source on each evidence line, between the locus and ARC's own verification references:
+durable disposition record holds them. A code-review report names the proposed verification scope in its approval
+ask, and adds the producer source to each evidence line, between the locus and ARC's own verification references:
 
 ```markdown
 - F{ordinal} · <locus> · <native label, when available> · source #{sourceOrdinal} · <originating reference> · verified at <ARC source-verification references>
 ```
 
 The command assigns stable `F` labels in canonical grade and gating order before ordering the display by fix tag.
-Labels remain the same in the proposal, approved report, and replay. Tags forecast what a fix implies; they are the
-agent's reading, never an approved judgment. Keep them distinct from observed fix-round signals. Producer-native
-labels, capture ordinals, and references remain beside the report-local labels.
+Labels remain the same in the proposal, approved report, and replay. Tags forecast what a fix implies; they are
+stored as the agent's reading beside the set, never as an approved judgment. Keep them distinct from observed
+fix-round signals. Producer-native labels, capture ordinals, and references remain beside the report-local labels.
 
-The report's provisional header names the lane's position and signal: standard `complete pass N of M` or `fix check,
-round N since pass M`, with frontline's recorded pass and ceiling. When a fix moves the head, the line names the fix
-check or complete pass the fixed head then needs. Its single Decisions block carries complete-set approval, open
-questions, bounded offers, and the agent's successor recommendation. Supply a clear recommendation for each decision
-from expected signal and cost, including at the ceiling. When the pass line says a fix requires a fix check or complete
-pass, the recommendation also covers that activity, as spend the approver may decline. Emit the composed report without
-adding a second pass line or Decisions block. The loop reading combines the CLI's trend with the agent's origin counts
-and reading; it is advice, never admission or convergence evidence.
+The report's header names the lane's position — standard `complete pass N of M` or `fix check, round N since pass
+M`, or frontline's recorded pass and ceiling — and the verified counts. Its closing Decisions block carries
+complete-set approval, then the step the fixed head needs beside your `successorRecommendation`, then open questions.
+The command states the step, so write the recommendation as the choice you recommend and why, in a sentence or two,
+without restating the fix, the step, or its authorization. Supply a clear recommendation from expected signal and
+cost, including at the ceiling. When a fix requires a fix check or complete pass, the recommendation covers that
+activity, as spend the approver may decline. Emit the composed report without adding a second header or Decisions
+block. Once the lane has two or more looks, its Trend combines the CLI's looks with your origin counts and reading; it
+is advice, never admission or convergence evidence.
 
 A fix check verifies repairs and a complete pass looks for what remains undiscovered. Recommend the fix check on the
 approved fixes' merits, even when a complete pass follows. Converge the rounds before a successor complete pass;
@@ -163,7 +161,7 @@ performed fix exceeds the approved scope, a verification or gate failure is not 
 host state is ambiguous, or a new finding arrives.
 
 Author self-review remains a non-producer path. Identify its standalone report as author self-review and compose it in
-the [disposition-report][disposition-report] shape, giving each verdict its gating as the command does. Omit rather than
+the [disposition-report][disposition-report] shape as the command renders it. Omit rather than
 fabricate a provider grade, native label, producer ordinal, source receipt, or producer-bound identity. Preserve an
 initial/revised author grade distinction when one exists without implying a separate evaluator. Its governing caller
 obtains complete-set approval directly and does not invoke the response command.
@@ -184,4 +182,4 @@ disposition-set identity.
 [review-model]: review-model.md
 [code-author-check]: code-review.md#author-check
 
-[loop-reading]: review-model.md#loop-reading
+[trend-reading]: review-model.md#trend

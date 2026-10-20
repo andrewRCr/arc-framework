@@ -236,21 +236,21 @@ reads.
 finding: fix it in place, carry it forward durably, or drop it. The primary assigns disposition only after source
 verification and obtains approval for the complete set before any finding-driven response.
 
-**Presenting the set.** Render each pass and fix-check round through [disposition-report][disposition-report]: the
-header, `#` / `Grade` / `Finding` / `Action` table, one Decisions block, and a section per finding with its status,
-Finding, Fails, Action, and Detail. A fix in place is `FIX`, durable carry-forward `DEFER`, a drop `REJECT`, and a refuted
-finding `Not supported`. Assign canonical labels before displaying new-design folds first within their grade.
+**Presenting the set.** Render each pass and fix-check round through [disposition-report][disposition-report],
+following its conditions for the table, Trend, and Decisions block. A fix in place is `FIX`, durable carry-forward
+`DEFER`, a drop `REJECT`, and a refuted finding `Not supported`. Assign canonical labels before displaying new-design
+folds first within their grade.
 
-Supply a `Pass N of M` header for a complete pass, or `Fix check, round R since pass N` for a round. State the result —
-converged, not converged, or the stop reason — and finding counts by verified grade; mark the result provisional until
-the complete disposition set is approved. Keep unsupported findings ungraded. Each Fails field names the supplied
-rubric item in its own terms, or `none` with the source-verified reason, and the primary verifies it with the finding.
+Bold a `Pass N of M` position for a complete pass, or `Fix check, round R since pass N` for a round, followed by the
+finding counts by verified grade; add a stop reason when the look has one. Keep unsupported findings ungraded. Each
+finding's status line ends with the supplied rubric item it fails, in the rubric's own terms, or `none` with the
+source-verified reason; the primary verifies it with the finding. Write each Finding as what is wrong and why it
+matters, and each Detail as how the primary verified it.
 
-Put every ask in the Decisions block: complete-set approval, open questions, the fix-check offer, and the separate
-successor-pass recommendation, each with its recommendation. After the finding sections, render the material trend,
-origins, and new-design counts with one advisory [loop reading][review-model-loop] and its rationale. Planning counts
-come from the pass record, including each fix-check round, while the header and approval retain their own look's
-convergence. The same shape applies to a first pass, a successor pass, and a fix-check round.
+Once the loop has two or more looks, render the material trend, origins, and new-design counts after the finding
+sections, led by one [trend reading][review-model-trend] and its rationale; planning counts come from the pass record,
+including each fix-check round. Put every ask in the closing Decisions block: complete-set approval, the decision a fix
+creates about the next round or pass, and open questions, each with its recommendation.
 
 Disposition is orthogonal to severity: any severity can be fixed, carried forward, or dropped. Disposing a finding
 settles the approved response backlog; it does not rewrite what the pass surfaced. Carry-forward is therefore not a
@@ -686,4 +686,4 @@ the same source verification, disposition, and exit-gate rules as a standard pas
 [mutation-guard]: ../rules/DEV-RULES.ARC.md#review-finding-mutation-guard
 
 [review-model]: review-model.md
-[review-model-loop]: review-model.md#loop-reading
+[review-model-trend]: review-model.md#trend
