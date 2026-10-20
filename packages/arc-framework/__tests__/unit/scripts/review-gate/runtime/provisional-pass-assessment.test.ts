@@ -11,6 +11,7 @@ const assessment = {
   proposedSignal: { confirmedFindingCount: 1, maxConfirmedSeverity: "major", materialFix: false },
   capPosition: "at-ceiling", fixConsequence: { kind: "no-fix" }, potentialStopReason: null,
   nextPassAuthority: "none", summaryText: "Complete pass count remains two after three fix checks.",
+  positionText: "Standard fix check, round 3 since pass 2", nextActivityText: null,
 };
 
 describe("provisional ceiling facts", () => {
@@ -61,4 +62,8 @@ it.each((["complete", "incremental"] as const).flatMap(coverage =>
   expect(projected.summaryText).not.toContain(`pass ${logicalPass} of`);
   expect(projected.summaryText).toContain(!chainAdequate ? "needs standard complete pass 3 of 3"
     : coverage === "complete" ? "needs a fix check, round 1 since pass 2" : "needs a fix check, round 5 since pass 2");
+  expect(projected.positionText).toBe(`${coverage === "complete" ? `Standard complete pass 2 of ${ceiling}`
+    : "Standard fix check, round 4 since pass 2"}${chainAdequate ? " (limit reached)" : ""}`);
+  expect(projected.nextActivityText).toBe(!chainAdequate ? "standard complete pass 3 of 3"
+    : `fix check, round ${coverage === "complete" ? 1 : 5} since pass 2, where its chain is proven`);
 });

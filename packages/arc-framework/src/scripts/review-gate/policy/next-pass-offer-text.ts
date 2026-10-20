@@ -9,8 +9,8 @@ function sizeText(size: Size | null): string {
 }
 function signalText(signal: boolean | null): string { return signal === null ? "unknown" : signal ? "yes" : "no"; }
 
-/** Render the ordered material trend with complete-pass counts and fix-check rounds. */
-export function materialTrendText(facts: NextPassFacts): string {
+/** Name each ordered trend entry's lane position: its complete pass, or its fix-check round since one. */
+export function materialTrendEntries(facts: NextPassFacts): (NextPassFacts["materialTrend"][number] & { position: string })[] {
   let completePass = 0;
   let round = 0;
   const positions = new Map<string, string>();
@@ -27,8 +27,15 @@ export function materialTrendText(facts: NextPassFacts): string {
       }
       positions.set(look.producerId, position);
     }
-    return `${position}: ${look.outcome}, ${look.materialCount ?? "unknown"} material${look.provisional ? " (provisional)" : ""}`;
-  }).join("; ");
+    return { ...look, position };
+  });
+}
+
+/** Render the ordered material trend with complete-pass counts and fix-check rounds. */
+export function materialTrendText(facts: NextPassFacts): string {
+  return materialTrendEntries(facts).map(look =>
+    `${look.position}: ${look.outcome}, ${look.materialCount ?? "unknown"} material${look.provisional ? " (provisional)" : ""}`,
+  ).join("; ");
 }
 
 /** Render each observation with its limits and the decision it can inform. */

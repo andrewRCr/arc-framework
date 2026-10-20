@@ -192,6 +192,8 @@ const provisionalPassAssessment = {
   potentialStopReason: "cap-exhausted",
   nextPassAuthority: "none",
   summaryText: "Provisional pass 2 of 2; approval and response are pending; no next-pass authority.",
+  positionText: "Standard complete pass 2 of 2 (limit reached)",
+  nextActivityText: "another complete pass, which needs a ceiling decision",
 } as const;
 
 describe("review command envelopes", () => {

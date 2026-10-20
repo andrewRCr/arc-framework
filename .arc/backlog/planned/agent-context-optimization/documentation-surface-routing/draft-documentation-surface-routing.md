@@ -66,6 +66,12 @@ time.
 - _Routing decision (2026-10-03):_ home is `documentation-surface-routing`; conversation is another output
   surface whose content discipline this design can settle. The capture's `TBD` records its original home uncertainty.
 
+- _Progress (2026-10-20):_ the `dispositionReportText` slice landed with Errand `disposition-report-trim`. The report
+  now carries the lane position and grade counts, exception-only status lines, a Trend only from the second look,
+  Decisions for real choices, and one CLI-composed approval question naming what approval releases; the advisory
+  disclaimers and provisional and converged markers are gone. Still open: interlock and offer text,
+  `recommendedPromptText`, and `provisionalPassAssessment.summaryText`.
+
 ## Problem / Motivation
 
 The codified rules across task-adjacent surfaces already say "don't restate":

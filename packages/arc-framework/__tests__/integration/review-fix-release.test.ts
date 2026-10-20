@@ -37,10 +37,11 @@ describe("review-fix round release", () => {
     const triage = shipped("system/methods/review-triage.md");
     const response = shipped("system/methods/review-response.md");
 
-    expect(triage).toMatch(softWrappedProse("Approve: 3 fixes → verify → commit → push → settle 2 threads → local fix check, round 1 since pass 1?"));
+    expect(triage).toMatch(softWrappedProse("Approve: 3 fixes → focused verification → commit → push → settle 2 threads?"));
+    expect(triage).toMatch(softWrappedProse("It never names the next pass, which stays a decision."));
     expect(triage).toMatch(softWrappedProse("as information, not a gate"));
     expect(triage).toMatch(softWrappedProse(
-      "Disposition approval and each next activity's authorization remain distinct, even when one prompt asks both",
+      "Disposition approval and each next activity's authorization remain distinct, even when one reply grants both",
     ));
     expect(triage).not.toMatch(softWrappedProse("Keep disposition approval separate from next-pass authorization."));
     expect(response).toMatch(softWrappedProse("whose commit the complete-set approval releases where `arc.commitInterlock` allows"));
@@ -99,6 +100,7 @@ describe("review-fix round release", () => {
     expect(end).toBeGreaterThan(start);
     const section = operations.slice(start, end);
     expect(section).toMatch(softWrappedProse("releases the commit-interlock for the approved fixes"));
+    expect(section).toMatch(softWrappedProse("names what it releases and never the next pass"));
     expect(section).toMatch(softWrappedProse("Merge stays behind the integration-interlock."));
   });
 });

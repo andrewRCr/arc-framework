@@ -125,7 +125,7 @@ it("retains advisory fix tags through a performed member fix and its verified re
     `Approved disposition set ${node.approvedDisposition.dispositionSet.dispositionSetId}`,
   );
   expect(replay.payload.dispositionReportText).toContain("FIX (local correction)");
-  for (const absent of ["**Fails:**", "**Decisions**", "Loop reading"]) {
+  for (const absent of [" · fails ", "**Decisions**", "**Trend:**"]) {
     expect(replay.payload.dispositionReportText).not.toContain(absent);
   }
   expect(await store.readDispositionRecord(local.prepared.payload.operationId)).toEqual(record);
