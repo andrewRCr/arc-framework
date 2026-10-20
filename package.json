@@ -39,7 +39,7 @@
     "typecheck": "npm run typecheck -w packages/arc-framework",
     "typecheck:test": "npm run typecheck:test -w packages/arc-framework",
     "typecheck:all": "npm run typecheck:all -w packages/arc-framework",
-    "lint:ts": "npm run lint:ts -w packages/arc-framework",
+    "lint:ts": "npm run lint:ts -w packages/arc-framework --",
     "lint:ts:file": "node --import tsx packages/arc-framework/src/scripts/run-focused-lint.ts",
     "lint:sh": "npm run lint:sh -w packages/arc-framework",
     "lint:workflows": "bash scripts/lint-workflows.sh",
@@ -57,7 +57,7 @@
     "husky": "^9.1.7",
     "jsonc-parser": "3.3.1",
     "markdown-it": "15.0.1",
-    "markdownlint": "0.40.0",
+    "markdownlint": "0.41.1",
     "markdownlint-cli2": "0.23.3",
     "tsx": "^4.22.4"
   },
@@ -67,6 +67,7 @@
   },
   "overrides": {
     "markdownlint-cli2": {
+      "markdownlint": "$markdownlint",
       "smol-toml": "1.9.0"
     }
   }

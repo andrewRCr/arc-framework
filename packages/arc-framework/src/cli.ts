@@ -1629,31 +1629,31 @@ program
     new Option(
       "--session-init",
       "Select session initialization context; add --json for JSON output",
-    ).conflicts(["session-handoff", "conflicts"]),
+    ).conflicts(["sessionHandoff", "conflicts"]),
   )
   .addOption(
     new Option(
       "--session-handoff",
       "Select handoff context; requires --json",
-    ).conflicts(["session-init", "recover", "conflicts"]),
+    ).conflicts(["sessionInit", "recover", "conflicts"]),
   )
   .addOption(
     new Option(
       "--recover",
       "Select recovery context; requires --json",
-    ).conflicts(["session-init", "session-handoff", "user", "conflicts"]),
+    ).conflicts(["sessionInit", "sessionHandoff", "user", "conflicts"]),
   )
   .addOption(
     new Option(
       "--user",
       "Render the in-flight-mine view (STATUS.USER) — your work units in flight across worktrees",
-    ).conflicts(["session-init", "session-handoff", "recover", "project", "conflicts"]),
+    ).conflicts(["sessionInit", "sessionHandoff", "recover", "project", "conflicts"]),
   )
   .addOption(
     new Option(
       "--project",
       "Render the live project status view",
-    ).conflicts(["session-init", "session-handoff", "recover", "user", "conflicts"]),
+    ).conflicts(["sessionInit", "sessionHandoff", "recover", "user", "conflicts"]),
   )
   .addOption(
     new Option("--conflicts [conflict]", "List open store conflicts or inspect a conflict token")
@@ -1668,7 +1668,7 @@ program
     new Option(
       "--write-compaction-seed",
       "With --session-init: write the machine-local compaction recovery seed",
-    ).conflicts(["recover", "session-handoff", "user", "project", "conflicts"]),
+    ).conflicts(["recover", "sessionHandoff", "user", "project", "conflicts"]),
   )
   .option("--json", "Emit the typed result as JSON")
   .action(withInteractionContext(
@@ -2022,7 +2022,7 @@ reviewCmd
   .option("--ceiling-override <override>", "Exact JSON consequence approving one additional review pass")
   .option("--additional-pass <authorization>", "Exact JSON Owner authorization for review after convergence")
   .option("--coverage <coverage>", "Requested review coverage (complete or incremental; hosted sources require complete)")
-  .option("--source <source-id>", "Explicit standard-review source for this work-unit status invocation")
+  .option("--source <source-id>", "Explicit standard-review source for this status invocation")
   .addOption(new Option("--json").hideHelp())
   .on("option:json", rejectUnsupportedReviewOutputJson)
   .action(withInteractionContext(

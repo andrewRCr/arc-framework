@@ -1,6 +1,7 @@
 /** Worktree loader for the shared Markdown dependency-alignment check. */
 
 import { existsSync, readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join, parse } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -8,7 +9,7 @@ import { getVersion as getMarkdownlintVersion } from "markdownlint";
 import stringWidth from "string-width";
 
 import { assertMarkdownDependencyAlignment } from "../lib/markdown/index.js";
-import type { MarkdownDependencyVersions } from "../lib/markdown/dependency-alignment.js";
+import type { MarkdownRuntimeVersions } from "../lib/markdown/dependency-alignment.js";
 import { resolveRepoRoot } from "./repo-root.js";
 
 function readJson(path: string): unknown {
@@ -33,11 +34,17 @@ function importedPackageVersion(entryPath: string, packageName: string): string 
 }
 
 /** Return versions from the implementations imported by the Markdown tooling process. */
-export function markdownRuntimeVersions(): MarkdownDependencyVersions {
+export function markdownRuntimeVersions(): MarkdownRuntimeVersions {
   stringWidth("");
+  const cliLinter = createRequire(import.meta.resolve("markdownlint-cli2")).resolve("markdownlint");
+  const cliWidth = createRequire(cliLinter).resolve("string-width");
   return {
     markdownlint: getMarkdownlintVersion(),
     stringWidth: importedPackageVersion(fileURLToPath(import.meta.resolve("string-width")), "string-width"),
+    cli2: {
+      markdownlint: importedPackageVersion(cliLinter, "markdownlint"),
+      stringWidth: importedPackageVersion(cliWidth, "string-width"),
+    },
   };
 }
 

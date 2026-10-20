@@ -4,75 +4,113 @@ import type { ApprovedDispositionSet, ProposedDispositionSet } from "../core/dis
 import { renderDispositionEvidence, renderDispositionReport } from "../core/disposition-report.js";
 import type { NormalizedReviewFinding } from "../core/finding-records.js";
 import { validateReviewFixTags, validateReviewReportInput, type ReviewFixTags, type ReviewReportInput } from "../core/review-report-inputs.js";
-import { materialTrendText } from "../policy/next-pass-offer-text.js";
+import { materialTrendEntries } from "../policy/next-pass-offer-text.js";
 import { projectProvisionalPassAssessment, type ProvisionalStandardPassFacts } from "./provisional-pass-assessment.js";
 import type { ReviewResult } from "../core/review-result.js";
 import type { RespondCommandDependencies } from "./respond-command.js";
 
+/** What approving a proposal releases beyond its fixes, as the caller's interlocks and hosted plan decide. */
+export interface ResponseApprovalRelease {
+  /** Approval releases the fix commit, then its push. */
+  commit: boolean;
+  push: boolean;
+  /** Hosted threads settled by approval alone, and those settled once the fix is pushed; null when unknown. */
+  threads: { beforeFix: number; afterFix: number } | null;
+}
+
 interface ProposedResponseReportInput {
   proposal: ProposedDispositionSet;
+  release: ResponseApprovalRelease;
   producerFindings: readonly NormalizedReviewFinding[];
   assessment: ReturnType<typeof projectProvisionalPassAssessment>;
   report: ReviewReportInput;
   standardFacts: ProvisionalStandardPassFacts | undefined;
-  hosted: boolean;
   readRecord(producerId: string): Promise<ApprovedDispositionRecord | null>;
 }
 
-function reportHeader(input: ProposedResponseReportInput): string {
+const GRADE_SYMBOL = { critical: "🔴", major: "🟠", minor: "🟡" } as const;
+
+function plural(count: number, noun: string, suffix = "s"): string {
+  return `${count} ${noun}${count === 1 ? "" : suffix}`;
+}
+
+/** The lane position, then each verified grade's count and any unsupported count; a zero count says nothing. */
+function reportHeader(input: ProposedResponseReportInput): { title: string; details: string[] } {
   const counts = { critical: 0, major: 0, minor: 0 };
+  let unsupported = 0;
   for (const finding of input.proposal.dispositionSet.findings) {
     if (finding.sourceVerification === "verified") counts[finding.verifiedSeverity] += 1;
+    else unsupported += 1;
   }
-  const result = input.assessment.potentialStopReason
-    ?? (input.assessment.proposedSignal.materialFix ? "not converged" : "converged");
-  return `${input.assessment.summaryText} provisional · ${result}; `
-    + `critical ${counts.critical}, major ${counts.major}, minor ${counts.minor}.`;
+  const details = (["critical", "major", "minor"] as const).filter(grade => counts[grade] > 0)
+    .map(grade => `${GRADE_SYMBOL[grade]} ${counts[grade]} ${grade}`);
+  return { title: input.assessment.positionText, details: unsupported === 0 ? details : [...details, `${unsupported} not supported`] };
 }
 
+/** The computed next step a fix creates beside the agent's recommendation for it, a decision apart from approval. */
 function reportDecisions(input: ProposedResponseReportInput): string[] {
-  const consequence = input.assessment.fixConsequence;
-  const lines = [`Approve the complete disposition set with ${input.proposal.dispositionSet.proposedVerification} verification?`];
-  if (consequence.kind === "next-pass") {
-    const round = (input.standardFacts?.facts.fixChecksSinceLastComplete
-      .findIndex(look => look.producerId === input.proposal.dispositionSet.producerId) ?? -1) + 2;
-    lines.push(consequence.coverage === "incremental-when-proven"
-      ? `Fix-check offer: approve round ${round} since pass ${input.assessment.ceilingPassCount} after these repairs, `
-        + "where its exact correction chain is proven. "
-        + "A complete pass does not replace it."
-      : `Successor offer: a ${input.assessment.lane === "frontline" ? "frontline" : "complete"} pass follows the performed fix `
-        + "only with its separate named approval.");
-  } else if (consequence.kind === "ceiling-decision") {
-    lines.push("Another complete pass requires the Owner's explicit ceiling decision; fix checks do not spend that authority.");
-  }
-  lines.push(`Successor recommendation (advisory): ${input.report.successorRecommendation}`);
-  return lines;
+  const next = input.assessment.nextActivityText;
+  const recommendation = input.report.successorRecommendation;
+  return [next === null ? `Next: ${recommendation}` : `After the fix: ${next}. ${recommendation}`];
 }
 
-function loopReading(input: ProposedResponseReportInput): string[] {
-  const trend = input.standardFacts === undefined
-    ? `frontline pass ${input.assessment.admittedLogicalPass}: current provisional result`
-    : materialTrendText(input.standardFacts.facts);
-  return [`Material trend: ${trend === "" ? "no completed looks" : trend}.`,
-    ...input.report.origin.map(group => `${group.origin}: ${group.findings} finding${group.findings === 1 ? "" : "s"}, `
-      + `${group.newDesignFixes} new-design fix${group.newDesignFixes === 1 ? "" : "es"} (agent's reading).`),
-    `${input.report.reading.kind}: ${input.report.reading.rationale}`];
+/** Ask for the set's approval, naming what it releases and never the next pass, which approval leaves open. */
+function reportCloser(input: ProposedResponseReportInput): string {
+  const set = input.proposal.dispositionSet;
+  const counts = { fix: 0, defer: 0, reject: 0 };
+  for (const finding of set.findings) counts[finding.disposition] += 1;
+  const actions = (["fix", "defer", "reject"] as const).filter(action => counts[action] > 0)
+    .map(action => plural(counts[action], action, action === "fix" ? "es" : "s"));
+  const { commit, push, threads } = input.release;
+  const fixSteps = counts.fix === 0 ? []
+    : [`${set.proposedVerification} verification`, ...(commit ? ["commit"] : []), ...(commit && push ? ["push"] : [])];
+  const settled = threads === null ? 0 : threads.beforeFix + (commit && push ? threads.afterFix : 0);
+  const settleSteps = settled === 0 ? [] : [`settle ${plural(settled, "thread")}`];
+  return `Approve: ${[actions.join(", "), ...fixSteps, ...settleSteps].join(" → ")}?`;
 }
 
-function observedSignal(value: boolean | null): string { return value === null ? "unknown" : value ? "yes" : "no"; }
+/** One entry per look, in lane order; the current look's provisional count replaces its unapproved one. */
+function trendLooks(facts: NonNullable<ProposedResponseReportInput["standardFacts"]>["facts"]) {
+  const looks = new Map<string, ReturnType<typeof materialTrendEntries>[number]>();
+  for (const entry of materialTrendEntries(facts)) looks.set(entry.producerId, entry);
+  return [...looks.values()];
+}
 
-async function priorRoundReadings(input: ProposedResponseReportInput): Promise<string[]> {
-  return Promise.all((input.standardFacts?.facts.fixRounds ?? []).map(async (round, index) => {
+/** A performed round's observed change signals, named only when one fired, beside the tags it forecast. */
+async function firedRoundSignals(input: ProposedResponseReportInput,
+  facts: NonNullable<ProposedResponseReportInput["standardFacts"]>["facts"]): Promise<string[]> {
+  const lines = await Promise.all(facts.fixRounds.map(async (round, index) => {
+    const fired = [round.outsideCitedLoci === true ? "changed paths outside the cited loci" : undefined,
+      round.addedFiles === true ? "added files" : undefined].filter(signal => signal !== undefined);
+    if (fired.length === 0) return undefined;
     const record = await input.readRecord(round.producerId);
-    const node = record?.approvedDispositionLineage.find(entry =>
-      entry.approvedDisposition.dispositionSet.dispositionSetId === round.dispositionSetId);
-    const tags = node?.advisoryFixTags;
-    const forecast = tags === undefined ? "not recorded"
-      : `${tags.filter(tag => tag.tag === "new-design").length} new design, `
+    const tags = record?.approvedDispositionLineage.find(entry =>
+      entry.approvedDisposition.dispositionSet.dispositionSetId === round.dispositionSetId)?.advisoryFixTags;
+    const forecast = tags === undefined ? ""
+      : `; its tags forecast ${tags.filter(tag => tag.tag === "new-design").length} new design, `
         + `${tags.filter(tag => tag.tag === "local-correction").length} local correction`;
-    return `Round ${index + 1} observed signals: paths outside cited loci ${observedSignal(round.outsideCitedLoci)}, `
-      + `added files ${observedSignal(round.addedFiles)}; stored forecast tags (advisory): ${forecast}.`;
+    return `Round ${index + 1} ${fired.join(" and ")}${forecast}.`;
   }));
+  return lines.filter(line => line !== undefined);
+}
+
+/** The agent's reading of a lane with two or more looks, over its looks, origins, and fired round signals. */
+async function reportTrend(input: ProposedResponseReportInput): Promise<{ reading: string; lines: string[] } | undefined> {
+  const facts = input.standardFacts?.facts;
+  if (facts === undefined) return undefined;
+  const looks = trendLooks(facts);
+  if (looks.length < 2) return undefined;
+  const origins = input.report.origin.map(group =>
+    `${group.origin} ${plural(group.findings, "finding")}, ${plural(group.newDesignFixes, "new-design fix", "es")}`);
+  return {
+    reading: `${input.report.reading.kind} — ${input.report.reading.rationale}`,
+    lines: [
+      `Looks: ${looks.map(look => `${look.position}: ${look.materialCount ?? "unknown"} material`
+        + (look.provisional ? " (provisional)" : "")).join(" → ")}`,
+      ...(origins.length === 0 ? [] : [`Origins: ${origins.join("; ")}`]),
+      ...await firedRoundSignals(input, facts),
+    ],
+  };
 }
 
 /** Render unstored report judgments beside the canonical proposal and computed lane trend. */
@@ -80,11 +118,10 @@ export async function readProposedResponseReport(input: ProposedResponseReportIn
   dispositionReportText: string; dispositionEvidenceText: string;
 }> {
   validateReviewReportInput(input.proposal.dispositionSet.findings, input.report);
+  const trend = await reportTrend(input);
   const reportInput = { dispositionSet: input.proposal.dispositionSet, producerFindings: input.producerFindings,
-    headerLine: reportHeader(input), decisions: reportDecisions(input), tags: input.report.tags,
-    fails: input.report.fails.map(anchor => ({ ...anchor,
-      fails: input.hosted ? `Agent's reading: ${anchor.fails}` : anchor.fails })),
-    loopReading: [...(await priorRoundReadings(input)), ...loopReading(input)] };
+    header: reportHeader(input), decisions: reportDecisions(input), closer: reportCloser(input), tags: input.report.tags,
+    fails: input.report.fails, ...(trend === undefined ? {} : { trend }) };
   return { dispositionReportText: renderDispositionReport(reportInput),
     dispositionEvidenceText: renderDispositionEvidence(reportInput) };
 }
@@ -126,6 +163,7 @@ export async function readApprovedResponseReport(input: {
   }
   const tags = node === undefined ? input.incomingTags : node.advisoryFixTags;
   return renderDispositionReport({ dispositionSet: set, producerFindings: input.producerFindings,
-    headerLine: `Approved disposition set ${set.dispositionSetId}`, includeDecisions: false,
+    header: { title: `Approved disposition set ${set.dispositionSetId}`, details: [`${set.proposedVerification} verification`] },
+    includeDecisions: false,
     ...(tags === undefined ? {} : { tags }) });
 }

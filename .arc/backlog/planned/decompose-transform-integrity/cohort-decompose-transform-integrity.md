@@ -24,7 +24,7 @@ decompose-transform-integrity (shipped core)
 ├── decompose-planning-lane ──────────── shipped
 ├── decompose-transition-record ──────── shipped; replaced the receipt spine
 ├── decompose-extraction ─────────────── re-validate against the lean core, then proceed
-└── decompose-core-hardening ─────────── conservation/authoring spine + scaling measurement
+└── decompose-core-hardening ─────────── conservation/authoring spine; cost stub retired
 ```
 
 The core, base mobility, planning-lane admission, and the transition record have all shipped. The record replaced
@@ -35,7 +35,7 @@ The members formerly held on that replacement were dispositioned at the 2026-08-
 the dispositions recorded at the 2026-08-05 re-groom (see § Retired members below and the matching records in
 `cohort-decompose-core-hardening.md`). What remains: `decompose-extraction` re-validates its spec against the
 surviving core surfaces rather than re-deriving (it never consumed receipt authority), and
-`decompose-core-hardening` carries two members — the widened conservation/authoring spine and a merged
+`decompose-core-hardening` carries the widened conservation/authoring spine and the recorded retirement of its
 measure-first scaling stub. `decomposition-doctrine` remains outside the cohort and resumes now that the
 machinery's shape is settled.
 
@@ -145,5 +145,10 @@ Recorded dispositions per the closeout criteria — each member retired against 
   present scale). Its two surviving errand-sized behaviors — terminal-decomposition narrative silence and
   absent/equal/strict-ancestor remote source-ref teardown — were routed to errand captures rather than carried as
   a work unit.
+
+**2026-10-16 retirement amendment:** `decompose-scaling` is abandoned by the disposition in
+`cohort-decompose-core-hardening.md`. The interrupted-execute caveat above remains part of representative rehearsal
+evidence and closeout owned by `storage-cutover`, against both cohorts' unchanged closeout criteria. Neither cohort
+closes with the scaling stub's retirement.
 
 ---

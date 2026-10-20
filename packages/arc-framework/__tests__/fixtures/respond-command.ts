@@ -463,6 +463,7 @@ export function dependencies(records: ReturnType<typeof fixture>) {
       };
     },
     readConfiguredLanePolicy: async lane => ({ sources: lane === "frontline" ? ["coderabbit-cli"] : ["delegated-agent"], maxPasses: 2 }),
+    readReleaseInterlocks: async () => ({ commit: "on-workflow", push: "on-workflow" }),
     readProvisionalPassFacts: async ({ result, configuredMaxPasses, configuredSources }) => provisionalPassFactsFixture({ completePasses: result.admission.logicalPass - Number(result.admission.effectiveCoverage !== "complete"),
       ceiling: configuredMaxPasses, chainAdequate: result.admission.effectiveCoverage === "complete", delegatedAgentSelectable: configuredSources.includes("delegated-agent") }),
     captureConditionalNextPass: async (input) => ({

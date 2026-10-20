@@ -13,6 +13,7 @@ import { readStoreRetirementEvidence, type StoreRetirementEvidence } from "../st
 import type { Remedy } from "../../store/refusal.js";
 import { selectStoreRetirementHusk, type SelectedStoreRetirementHusk } from "../store-retirement-husk.js";
 import { returnRetiringCheckout } from "../return-retiring-checkout.js";
+import { missingRegistrationActions } from "../../session-init/missing-worktree-folders.js";
 import { withWorktreeOperationLock } from "../worktree-operation-lock.js";
 import { nodeReconcileWorkUnitWorktreeFs, isSelfTeardown, reconcileUserSurfacesForRemoval } from "../mutators/reconcile-work-unit-worktree.js";
 import type { TeardownContext, TeardownParams, TeardownResult } from "./teardown.js";
@@ -96,7 +97,10 @@ async function retireHolder(ctx: Bound, invokingPath: string, selected?: Selecte
 function reportAdopted(ctx: Bound, branch: string): void {
   const holder = ctx.worktrees.find((item) => item.branch === branch);
   ctx.notices.push(`Kept ${branch}: it was adopted from its owner.`);
-  if (holder !== undefined) ctx.notices.push(`Owner cleanup: git switch ${ctx.baseBranch} (from ${holder.path}, or detach where base is occupied).`);
+  if (holder?.folderPresent === false) {
+    const actions = missingRegistrationActions(holder.path, { locked: holder.locked !== undefined });
+    ctx.notices.push(...actions.map(({ text }) => `Owner cleanup: ${text}`));
+  } else if (holder !== undefined) ctx.notices.push(`Owner cleanup: git switch ${ctx.baseBranch} (from ${holder.path}, or detach where base is occupied).`);
   ctx.notices.push(`Owner cleanup: git branch -D ${branch}`);
 }
 async function prepareCreatedBranch(ctx: Bound, branch: string): Promise<boolean> {

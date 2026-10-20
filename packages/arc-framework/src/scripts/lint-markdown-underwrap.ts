@@ -6,18 +6,21 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import MarkdownIt from "markdown-it";
 import { lint } from "markdownlint/promise";
+import type { MarkdownItBaseToken } from "markdownlint";
 import { z } from "zod";
 import { formatUnexpectedError } from "../lib/errors.js";
 import type { GitExec } from "../lib/git/index.js";
-import { gitExec, readGitBlobBytes } from "../lib/io-context.js";
+import { gitExec } from "../lib/io-context.js";
 import { ArcError } from "../lib/kernel/index.js";
 import { isMarkdownPathExcluded, validateMarkdownPath } from "../lib/markdown/authority.js";
 import { assertIndexedMarkdownCheckerAlignment, resolveIndexedMarkdownCheckerPaths } from "../lib/markdown/checker-alignment.js";
 import { loadIndexedMarkdownDependencies } from "../lib/markdown/indexed-dependencies.js";
 import type { ReadIndexedBlob } from "../lib/markdown/indexed-snapshot.js";
+import { createIndexedMarkdownReader } from "../lib/markdown/indexed-reader.js";
 import { resolveMarkdownRepositoryRoot, validateExplicitMarkdownPaths } from "../lib/markdown/selection.js";
 import { enumerateStagedMarkdownGatePaths } from "../lib/markdown/staged-gate.js";
 import { underwrapRule } from "../lib/markdown/underwrap.js";
+import { enumerateWorktreeIndexDriftPaths } from "../lib/markdown/worktree-index-drift.js";
 import { markdownRuntimeVersions } from "./verify-markdown-dependencies.js";
 
 const entryPaths = ["packages/arc-framework/src/scripts/lint-markdown-underwrap.ts"];
@@ -50,6 +53,35 @@ interface UnderwrapInputs {
   readonly readBlob: ReadIndexedBlob;
 }
 
+async function readUnderwrapBytes(options: UnderwrapInputs, path: string, automatic: boolean): Promise<Uint8Array | null> {
+  const worktreePath = join(options.root, ...path.split("/"));
+  const bytes = options.worktree ? await readFile(worktreePath) : await options.readBlob(options.root, path);
+  if (bytes === null) {
+    if (automatic) return null;
+    throw new ArcError(`Indexed Markdown blob is missing: ${path}`, "markdown.index-blob-missing");
+  }
+  return bytes;
+}
+
+async function assertExplicitIndexAlignment(options: UnderwrapInputs, paths: readonly string[]): Promise<void> {
+  const requested = new Set(paths);
+  const { stdout } = await options.exec("git", ["ls-files", "-v", "-z"], { cwd: options.root });
+  for (const entry of stdout.split("\0").filter(Boolean)) {
+    const tag = entry.charAt(0);
+    const path = entry.slice(2);
+    if (requested.has(path) && (tag === "S" || tag === tag.toLowerCase())) {
+      throw new ArcError(`Markdown index flags hide worktree changes: ${path}. Clear assume-unchanged/skip-worktree ` +
+        "for this path, or use --worktree to check it without certifying the Git index.", "markdown.index-flags-hide-drift");
+    }
+  }
+  const drifted = new Set<string>(await enumerateWorktreeIndexDriftPaths(options.root, options.exec));
+  const path = paths.find(path => drifted.has(path));
+  if (path !== undefined) {
+    throw new ArcError(`Markdown worktree/index drift: ${path}. Re-stage the file to check its indexed bytes, ` +
+      "or use --worktree to check the edited file without certifying the Git index.", "markdown.worktree-index-drift");
+  }
+}
+
 async function readUnderwrapStrings(options: UnderwrapInputs): Promise<Record<string, string>> {
   const automatic = options.paths.length === 0;
   const paths = automatic
@@ -58,6 +90,9 @@ async function readUnderwrapStrings(options: UnderwrapInputs): Promise<Record<st
   for (const path of paths) {
     if (isMarkdownPathExcluded(path)) throw new ArcError(`Markdown path is excluded: ${path}`, "markdown.excluded-path");
   }
+  if (!automatic && !options.worktree) {
+    await assertExplicitIndexAlignment(options, paths);
+  }
   if (options.worktree) {
     await validateExplicitMarkdownPaths({ root: options.root, paths, operation: "lint-read", exec: options.exec, lstat, realpath,
       allowIgnoredPaths: options.allowIgnored ? new Set(paths) : undefined });
@@ -65,9 +100,8 @@ async function readUnderwrapStrings(options: UnderwrapInputs): Promise<Record<st
   }
   const strings: Record<string, string> = {};
   for (const path of paths) {
-    const bytes = options.worktree ? await readFile(join(options.root, ...path.split("/"))) : await options.readBlob(options.root, path);
-    if (bytes === null && automatic) continue;
-    if (bytes === null) throw new ArcError(`Indexed Markdown blob is missing: ${path}`, "markdown.index-blob-missing");
+    const bytes = await readUnderwrapBytes(options, path, automatic);
+    if (bytes === null) continue;
     strings[path] = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   }
   return strings;
@@ -87,7 +121,7 @@ export async function main(cwd = process.cwd(), receivedPaths: readonly string[]
     const indexFile = process.env.GIT_INDEX_FILE;
     const exec: GitExec = (command, args, options) => gitExec(command, args, { ...options, indexFile });
     const root = await resolveMarkdownRepositoryRoot({ cwd, exec, realpath });
-    const readBlob: ReadIndexedBlob = (repoRoot, path) => readGitBlobBytes(repoRoot, null, path, { indexFile });
+    const { readBlob, readBlobs } = createIndexedMarkdownReader(indexFile);
     const strings = await readUnderwrapStrings({ root, paths: positionals, worktree: values.worktree,
       allowIgnored: values["allow-ignored"], exec, readBlob });
     if (Object.keys(strings).length === 0) {
@@ -95,12 +129,16 @@ export async function main(cwd = process.cwd(), receivedPaths: readonly string[]
       return 5;
     }
     if (!values.worktree) {
-      const runtimePaths = await resolveIndexedMarkdownCheckerPaths({ root, readBlob, entryPaths });
-      await assertIndexedMarkdownCheckerAlignment({ root, readBlob, readFile, runtimePaths });
+      const runtimePaths = await resolveIndexedMarkdownCheckerPaths({ root, readBlob, readBlobs, entryPaths });
+      await assertIndexedMarkdownCheckerAlignment({ root, readBlob, readBlobs, readFile, runtimePaths });
       await loadIndexedMarkdownDependencies({ root, readBlob, runtimeVersions: markdownRuntimeVersions() });
       await assertParserDependency(root, readBlob);
     }
-    const result = await lint({ strings, customRules: [underwrapRule], markdownItFactory: () => new MarkdownIt({ html: true }),
+    const result = await lint({ strings, customRules: [underwrapRule], markdownItFactory: () => {
+      const parser = new MarkdownIt({ html: true });
+      // markdownlint's parser declaration narrows token attributes to strings.
+      return { parse: (source, environment) => parser.parse(source, environment as Record<string, unknown>) as MarkdownItBaseToken[] };
+    },
       config: { default: false, ARC001: { min: 75, max: 120 } } });
     for (const [path, errors] of Object.entries(result)) {
       for (const error of errors) process.stderr.write(`${path}:${error.lineNumber} ARC001 ${error.errorDetail}\n`);

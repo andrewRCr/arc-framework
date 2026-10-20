@@ -68,11 +68,11 @@ approved response or edit its disposition set. Only `conditional-authority-withd
 `payload.replayed` distinguishing an exact replay. A stale-disposition, foreign, consumed, or superseded refusal
 stops. Withdrawal preserves the invalidated capture as audit evidence and can never create authority for another pass.
 
-The proposal's separate `report` inputs render the agent's rubric anchors and loop reading without entering the
+The proposal's separate `report` inputs render the agent's rubric anchors and trend reading without entering the
 approved set. The first approved call repeats the fix `tags`; it stores only those advisory tags beside the set,
 outside its identity. Later advances preserve them unchanged. Approved, verified-fix, and settlement reports read
-them and use the reduced shape: approved-set header, tagged table and sections, without Fails, Decisions, or loop
-reading. A record without stored tags renders in canonical order.
+them and use the reduced shape: approved-set header with its verification scope, tagged table and sections, without
+rubric anchors, Trend, or Decisions. A record without stored tags renders in canonical order.
 
 A fix-check round and a successor complete pass are separate decisions under [review-model][review-model]. Never
 decline a repair check because a complete pass follows. Human review follows closed agentic review out of band and

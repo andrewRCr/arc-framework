@@ -10,6 +10,7 @@ import type { BranchLink } from "../../../src/lib/store/links.js";
 import type { TeardownContext } from "../../../src/lib/work-unit/verbs/teardown.js";
 import { nodeReconcileWorkUnitWorktreeFs } from "../../../src/lib/work-unit/mutators/reconcile-work-unit-worktree.js";
 import type { GitExecInput } from "../../../src/lib/git/exec.js";
+import { scanRegisteredWorktrees } from "../../../src/lib/git/worktree-roster.js";
 const base = "a".repeat(40), work = "b".repeat(40), errand = "c".repeat(40);
 export const retirementLink = (ref = "feat/demo", linkedAs: "created" | "adopted" = "created"): BranchLink => ({ repository: "repo", ref, linkedAs, excluded: [] });
 export async function createRetirementHarness(options: { harness?: ReturnType<typeof createLifecycleHarness>; fields?: MetaRenderOverrides; ended?: boolean; state?: "Planning" | "Active" | "Integrating"; placement?: WritePlacement; spawned?: boolean; end?: "abandon" | "decompose" | "archive"; branches?: BranchLink[]; noSnapshot?: boolean; held?: boolean; heldBranch?: string | null; dirty?: boolean; secondaryOwnWork?: boolean; unlanded?: boolean } = {}) {
@@ -48,6 +49,10 @@ export async function createRetirementHarness(options: { harness?: ReturnType<ty
     readBlob: async () => { throw Error("no Git lifecycle proof"); }, chdir: () => { throw Error("primary should not hop"); },
     readMarker: () => Promise.resolve(options.held ? { kind: "present" as const, marker: { spawnedByArc: options.spawned ?? false, wuName: "demo", createdFor: { kind: "work-unit" as const, name: "demo" }, spawningIdentity: "test-user", createdAt: "2026-10-14T00:00:00.000Z" } } : { kind: "absent" as const }),
     worktreeFs: { ...nodeReconcileWorkUnitWorktreeFs, directoryExists: () => Promise.resolve(true), removeFile: () => Promise.resolve() },
+    scanWorktrees: (exec) => scanRegisteredWorktrees(exec, async (path) => {
+      if (await ctx.worktreeFs!.directoryExists(path)) return {};
+      throw Object.assign(new Error("Missing fixture folder"), { code: "ENOENT" });
+    }),
     withWorkItemLock: (operation) => operation(),
   };
   const execInput: GitExecInput = async (args, commands) => {

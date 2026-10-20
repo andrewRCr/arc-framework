@@ -12,7 +12,10 @@
   finding is `not-supported` with `verifiedSeverity: null`.
 - Proposed disposition: `reject`, record-only.
 - Proposed verification: `full`.
+- Rubric anchor: `none — the cited branch is unreachable`.
 - Open question: should the reviewer clarify the cited execution path?
+- Successor recommendation: do not request another standard pass from this unsupported finding; request a named next
+  pass only if it identifies a new expected signal worth the reviewer cost.
 
 The first response-command invocation carried `proposal.severityGatingPolicy: { minorGating: "record-only" }`.
 The command used it to derive the canonical finding's `gating: "record-only"`; the input-only policy object is not
@@ -61,27 +64,26 @@ The command is at `state: awaiting-approval`, `nextAction: obtain-approval`, wit
 }
 ```
 
-The command's `payload.dispositionReportText` is exactly these renderer-produced bytes:
+The command's `payload.dispositionReportText` is exactly these bytes:
 
 ```text
-**Verification:** full
-
-| # | Grade | Finding | Action |
-|---|---|---|---|
-| F1 | — | Failing path at the cited branch | REJECT |
-
-**Decisions**
-- F1: Should the reviewer clarify the cited execution path?
+**Standard complete pass 1 of 2** · 1 not supported
 
 ### F1 — Failing path at the cited branch
 
-— · Not supported · reviewer graded 🟠 major · record-only · REJECT
+— · Not supported · reviewer graded 🟠 major · REJECT · none — the cited branch is unreachable
 
 **Finding:** The reviewer alleges the branch at this locus enters a failing execution path.
 
 **Action:** Reject the finding without changing code.
 
 **Detail:** The reviewer alleges this branch enters a failing path, but source verification shows it is unreachable, so no execution failure occurs.
+
+**Decisions**
+- Next: Do not request another standard pass from this unsupported finding; request a named next pass only if it identifies a new expected signal worth the reviewer cost.
+- F1: Should the reviewer clarify the cited execution path?
+
+Approve: 1 reject?
 ```
 
 Its `payload.dispositionEvidenceText`, held back from the report and shown when the approver asks, is exactly:
@@ -97,10 +99,5 @@ The same command payload supplies this provisional pass line:
 Standard complete pass 1 of 2. No confirmed findings.
 ```
 
-Agent recommendation beside the command payload: Do not request another standard pass from this provisional
-unsupported finding. After any approved record-only response, follow the typed policy continuation; request a named
-next pass only if it identifies a new expected signal worth the reviewer cost. This recommendation grants no
-next-pass authority.
-
-Assess the combined report, typed proposal, pass line, and agent recommendation as the proposed
-complete-set approval surface. Do not invent operator approval.
+Assess the combined report, typed proposal, and pass line as the proposed complete-set approval surface. Do not invent
+operator approval.

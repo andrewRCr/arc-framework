@@ -211,6 +211,15 @@ describe("work-unit path ratchet", () => {
 });
 
 
+describe("pure table merge dependencies", () => {
+  it.each(["mdast-util-from-markdown","mdast-util-gfm-table","micromark-extension-gfm-table","../../markdown/display-width.js"])(
+    "allows %s only at the table padding boundary", (specifier) => {
+      const text = `import value from ${JSON.stringify(specifier)};`;
+      expect(violations("lib/store/concurrency/table-padding.ts",text,"store-concurrency")).toEqual([]);
+      expect(violations("lib/store/concurrency/line-merge.ts",text,"store-concurrency")).toContain(`forbidden module reference ${specifier}`);
+    });
+});
+
 describe("aliased Node loader module references", () => {
   const targets = [
     ["handlers/outside.ts", "../lib/active/meta-reader.js", "store-raw-state"],
