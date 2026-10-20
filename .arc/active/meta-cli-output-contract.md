@@ -1,8 +1,8 @@
 # Metadata: cli-output-contract
 
-| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
-| ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | [TBD]     | `P2`         |
+| **State**  | **Owner** | **Branch**                 | **Class** | **Priority** |
+| ---------- | --------- | -------------------------- | --------- | ------------ |
+| `Planning` | `andrew`  | `plan/cli-output-contract` | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,13 +12,12 @@
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** [none]
+- **Current Workflow:** `draft-design`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run draft-design: settle one output contract covering machine-readable failures and a declared output
-  mode.
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
