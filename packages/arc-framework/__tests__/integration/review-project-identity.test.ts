@@ -121,21 +121,30 @@ it("refuses frontline resolution without a project ID and resumes the selected i
 }, 30_000);
 
 it("refuses hosted await without a project ID, then replays its sealed result after repair", async () => {
-  const { createHostedHandleFixture, createHostedTerminalAttemptFixture, publishHostedTerminalProgressFixture } = await import("../fixtures/hosted-review.js");
+  const { createHostedHandleFixture } = await import("../fixtures/hosted-review.js");
   const { createReviewCompositionContext } = await import("../../src/scripts/review-gate/runtime/composition-context.js");
-  const { laneProgressOperationId } = await import("../../src/scripts/review-gate/lane-progress.js");
+  const { recordHostedRequestAdmission, acknowledgeHostedRequest, recordHostedAwaitAttempt } = await import("../../src/scripts/review-gate/lane-progress.js");
   const h = await fixture(), originalCwd = process.cwd();
   try {
     const handle = createHostedHandleFixture({ repositoryId: projectId,
       target: { repository: "owner/repo", pullRequest: 42, headSha: h.head },
       lineage: { kind: "head-bound", vehicleKind: "errand", vehicleIdentity: "1".repeat(32), headSha: h.head } });
-    const ended = createHostedTerminalAttemptFixture({ admission: handle.admission, artifact: handle.artifact, outcome: "clean" });
+    const identity = await h.reference.seedProject(projectId);
     const { family } = createReviewCompositionContext({ ...h.native, ...h.invocation });
-    await publishHostedTerminalProgressFixture(family.ports.inFlight, {
-      operationId: laneProgressOperationId({ lane: "standard", repositoryId: projectId, headSha: h.head, lineage: handle.admission.lineage }),
-      repositoryId: projectId, changeRequestId: "pull/42", headSha: h.head, lineage: handle.admission.lineage,
-      logicalPass: handle.admission.logicalPass, sourceId: handle.provider, outcome: "clean", terminal: ended,
-      now: "2026-10-19T12:00:00Z" });
+    const admission = await recordHostedRequestAdmission(family.ports.inFlight, { repositoryId: projectId,
+      lineage: handle.admission.lineage, request: { schemaVersion: 1, target: handle.target,
+        provider: handle.provider, coverage: handle.requestedCoverage }, reviewTarget: handle.admission.reviewTarget,
+      requirement: handle.admission.requirement, actorIdentity: handle.admission.actorIdentity,
+      authorizeCapacity: async () => {}, now: "2026-10-19T12:00:00Z" });
+    if (admission.state !== "admitted") throw new Error(JSON.stringify(admission));
+    expect(admission.admission).toEqual(handle.admission);
+    await acknowledgeHostedRequest(family.ports.inFlight, { admission: admission.admission, handle,
+      now: "2026-10-19T12:00:01Z" });
+    await recordHostedAwaitAttempt(family.ports.inFlight, { repositoryId: projectId, now: "2026-10-19T12:00:02Z",
+      result: { schemaVersion: 1, mode: "review-hosted-await", handle, state: "clean", nextAction: "complete",
+        reviewUrl: "https://example.invalid/review" } });
+    lifecycleSuccess(await h.reference.store.write({ action: "remove", reference: identity.reference,
+      expected: identity.version, provenance: { verb: "remove-fixture-identity", lifecycleAction: "remove" } }));
     const request = { schemaVersion: 1, handle };
     const invoke = async () => {
       const output: string[] = [];
