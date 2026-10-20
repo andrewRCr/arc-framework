@@ -7,6 +7,34 @@ import { candidateRecordFixture } from "../../../../fixtures/review-candidate.js
 import { OwnerIdentitySchema, recordReferences } from "../../../../../src/lib/store/identity.js";
 import { projectPublicationBoundary } from "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { stageSingletonPublicationResponse } from "../../../../../src/scripts/review-gate/runtime/singleton-publication-response.js";
+import { createReviewHarness } from "../../../../helpers/store/review-harness.js";
+import { createStandardReviewReservation } from "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { projectStandardReviewObligation } from "../../../../../src/scripts/review-gate/policy/standard-review-projection.js";
+import { resolveReviewRouting } from "../../../../../src/scripts/review-gate/policy/routing.js";
+import { readSubmissionBoundaryVersioned } from "../../../../../src/lib/store/kinds/review/integration-boundary/access.js";
+
+it("rebinds and replays a checked native hosted boundary without projected Git effects", async () => {
+  const h = createReviewHarness();
+  const primary = await h.seedMeta("example");
+  const { record, response } = candidateRecordFixture();
+  await h.seedCandidate(primary.reference.owner, record);
+  const reservation = createStandardReviewReservation({ candidateId: response.candidateId,
+    sourceId: "codex-pr", sources: ["codex-pr"], repository: "owner/repo", headSha: response.oldTarget.revision,
+    obligation: projectStandardReviewObligation(resolveReviewRouting({}).decision) });
+  await h.seedBoundary(primary.reference.owner, projectPublicationBoundary({ workUnit: "example", branch: "topic/opaque",
+    candidateId: response.candidateId, candidateSubjectDigest: response.oldTarget.subject.subjectDigest,
+    reservation, readinessBinding: null, changeRequest: { repository: "owner/repo", pullRequest: 42 } }, 2));
+  const input = { cwd: "/unavailable", store: h.store, workItem: primary.reference.owner,
+    exec: scriptGitExec([]).exec, workUnit: "example", response, requirePublished: true };
+  await stageSingletonPublicationResponse(input);
+  const access = { store: h.store, owner: primary.reference.owner };
+  const rebound = await readSubmissionBoundaryVersioned(input.cwd, "example", access);
+  expect(rebound.boundary).toMatchObject({ schemaVersion: 2, locus: "hosted-review-pending", terminus: null,
+    candidateSubjectDigest: response.newTarget.subject.subjectDigest,
+    reservation });
+  await stageSingletonPublicationResponse(input);
+  expect(await readSubmissionBoundaryVersioned(input.cwd, "example", access)).toEqual(rebound);
+});
 
 it("advances the selected generation's publication boundary after its slug is reused", async () => {
   const { store } = createReferenceFixture();

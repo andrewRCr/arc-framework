@@ -45,5 +45,7 @@ export async function stageSingletonPublicationResponse(input: ReviewInvocationI
       throw error;
     }
   }
-  await input.exec("git", ["add", "--", path], { cwd: input.cwd });
+  if (!invocation.store.capabilities.stateOffBranch) {
+    await input.exec("git", ["add", "--", path], { cwd: input.cwd });
+  }
 }
