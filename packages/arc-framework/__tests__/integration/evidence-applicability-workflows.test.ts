@@ -67,6 +67,9 @@ describe("evidence applicability workflow fire-points", () => {
     expect(method).toMatch(softWrappedProse("Whether it runs is the Owner's choice"));
     expect(method).toMatch(softWrappedProse("Run the check only when the Owner chooses it"));
     expect(method).not.toMatch(softWrappedProse("have a fresh-context local evaluator check the movement"));
+    expect(method).toMatch(softWrappedProse("other evidence already reads each residual change"));
+    expect(method).toMatch(softWrappedProse("the residual holds code no review or check has read"));
+    expect(method).not.toMatch(softWrappedProse("nothing in the residual could contradict a premise"));
     expect(integrate).toMatch(softWrappedProse("whether to run the movement check first"));
     expect(integrate).not.toMatch(softWrappedProse("Show the bounded check's findings and"));
   });

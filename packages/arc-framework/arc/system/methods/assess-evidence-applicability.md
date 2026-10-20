@@ -43,19 +43,22 @@ At status's `resolve-review-applicability` or the final Candidate checkpoint's b
 local evaluator can check the movement before the Owner chooses. Whether it runs is the Owner's choice, made with the
 applicability choice the stop already asks for, so it adds no stop. Recommend one of:
 
-- `covered` without the check, when the residual judgment above gives `supplemental` and nothing in the residual
-  could contradict a premise of the reviewed evidence;
-- the check first, when the movement may have changed what the review read; the Owner then chooses with its
-  findings in view, and at the reconcile a clean check is `targeted-check`'s evidence;
+- `covered` without the check, when the residual judgment above gives `supplemental` and other evidence already
+  reads each residual change: base-only movement the branch neither changes nor depends on, or configuration its own
+  required check verifies;
+- the check first, when the movement may have changed what the review read, or the residual holds code no review or
+  check has read; the Owner then chooses with its findings in view, and at the reconcile a clean check is
+  `targeted-check`'s evidence;
 - `review-required`, or `changed` at the reconcile, when the residual judgment gives `fresh`; the complete pass that
   follows reads the movement anyway.
 
 Weigh what the check could find. A merge whose resolution departs from Git's automatic merge, a rewrite whose
 interdiff changes reviewed code, and residual changes the reviewed code depends on can each break a premise the
-review rests on; they favor the check. Configuration verified by its own required check, such as a resource limit
-whose CI run is the evidence, and movement the reviewed change neither touches nor depends on leave the check
-nothing to read; they favor `covered`. State the recommendation and what would change it. The residual often holds
-the agent's own change, so the recommendation is advice, never a waiver: only the Owner's recorded selection acts.
+review rests on, and new code no review or check has read would merge unread; they favor the check. Configuration
+verified by its own required check, such as a resource limit whose CI run is the evidence, and base-only movement the
+branch neither changes nor depends on leave the check nothing to read; they favor `covered`. State the recommendation
+and what would change it. The residual often holds the agent's own change, so the recommendation is advice, never a
+waiver: only the Owner's recorded selection acts.
 
 Run the check only when the Owner chooses it, and at most once for the movement. Supply the exact movement
 coordinates, reviewed evidence and its premises, residual files, and dependencies across both sides explicitly. For a

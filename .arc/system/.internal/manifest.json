@@ -305,7 +305,7 @@
     "system/methods/assess-evidence-applicability.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "a4a2b7911668083813b936f143ad703c53ed8374a803978dbb1ab2dd27756c5c"
+      "pristine_hash": "6c97e20fd4e17c620c6a6734334779e9e5a84fa688d3e431c7c9b9c0ab4f840f"
     },
     "system/methods/adversarial-review.md": {
       "classification": "Configurable",
