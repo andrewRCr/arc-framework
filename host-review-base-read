@@ -3,7 +3,7 @@
   "slug": "host-review-base-read",
   "claimId": "a2d712a68ddec0dba87d669a5dfd5a90",
   "createdAt": "2026-10-20T19:19:44.584Z",
-  "updatedAt": "2026-10-20T19:19:44.584Z",
+  "updatedAt": "2026-10-20T19:44:40.765Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Preserve the actual review-status observation failure before the generic missing-base fallback, without weakening freshness or merge admission.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Investigate ARC host-review reads refusing an available base revision",
   "originEntrySourceDigest": "sha256:833c9c55520b522bb664f6312546fff23f15cd846f6a532f5189fcf0103a655e",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/host-review-base-read",
+    "headSha": "6518f00976a7ce5ce6deef96d7a07172e6055587"
+  }
 }
