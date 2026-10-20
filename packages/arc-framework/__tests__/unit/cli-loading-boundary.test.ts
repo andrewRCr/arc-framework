@@ -55,6 +55,7 @@ const expectedImplementationModules = [
   "./scripts/remedy-roadmap-conflict.js",
 ] as const;
 const deferredActiveProjectionModules = [
+  "../../lib/store/active-review-access.js",
   "../../lib/config/status-reader.js",
   "../../lib/store/kinds/review/integration-boundary/access.js",
   "../../lib/store/kinds/review/candidate/access.js",

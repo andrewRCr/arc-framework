@@ -1,5 +1,5 @@
 /** Candidate-authorized publication over one prepared reconcile followed by one lifecycle batch. */
-import type { StoreRefusal, Remedy } from "../../store/refusal.js";
+import type { StoreRefusal, StoreResult, Remedy } from "../../store/refusal.js";
 import type { Store } from "../../store/contract.js";
 import type { StoreRecord } from "../../store/read.js";
 import { readWorkUnit, readLifecycleMetaFields, workUnitMetaPath } from "../../store/lifecycle-write.js";
@@ -10,6 +10,9 @@ import type { CurrentWuReconcileHost } from "../side-effects/discharge-dep-edges
 import { authorizeActivePublication, type PublishParams, type PublishResult } from "./publish.js";
 import { projectPublicationBoundary } from "../../../scripts/review-gate/policy/integration-boundary-locus.js";
 import { spineRemedy } from "../../../scripts/integration/spine-refusal.js";
+import { recordReferences } from "../../store/identity.js";
+import { CandidateManagedRecordV1Schema } from "../../store/kinds/review/candidate/schema.js";
+import { describeRecordConflicts } from "../../store/conflict-diagnostics.js";
 
 type PublicationReject = (reason: string, refusal?: StoreRefusal, remedy?: Remedy) => Extract<PublishResult, { status: "rejected" }>;
 
@@ -68,11 +71,27 @@ async function inspectPublication(ctx: ExecuteTransitionContext & { store: Store
   if (pause.status === "rejected") return reject(pause.reason, pause.refusal, pause.remedy);
   const branch = await linkedWorkBranch(ctx, read.result);
   if (branch === null) return reject("The work unit has no unambiguous branch link; activate its work branch first.");
-  if (!params.candidateCurrent || meta.candidateId !== params.candidateId) return reject("The current Candidate identity is absent or stale; re-attest it.");
+  const candidate = ctx.store.capabilities.stateOffBranch
+    ? await readPublicationCandidate(ctx.store, read.result) : { status: "ok" as const, result: meta.candidateId };
+  if (candidate.status === "refused") return reject(candidate.refusal.condition, candidate.refusal);
+  if (!params.candidateCurrent || candidate.result !== params.candidateId) return reject("The current Candidate identity is absent or stale; re-attest it.");
   if (meta.state === "Integrating" && meta.currentWorkflow === "integrate-work-unit") {
     return resumeIntegratingPublication(params, branch, reject);
   }
   return { status: "ready", branch, metaPath, primary: read.result };
+}
+
+async function readPublicationCandidate(store: Store, primary: StoreRecord): Promise<StoreResult<string | null>> {
+  const reference = recordReferences["review/candidate"](primary.reference.owner);
+  const read = await store.read({ reference });
+  if (read.status === "refused") return read.refusal.code === "not-found" ? { status: "ok", result: null } : read;
+  const parsed = CandidateManagedRecordV1Schema.safeParse(read.result.fields);
+  if (parsed.success && parsed.data.attestation.workUnit === primary.reference.owner.name && read.result.conflicts.length === 0) {
+    return { status: "ok", result: parsed.data.attestation.candidateId };
+  }
+  return { status: "refused", refusal: { code: "record-malformed", class: "recoverable", reference,
+    rule: "publication.candidate", condition: `Candidate authority is unreadable.${describeRecordConflicts(read.result.conflicts)}`,
+    remedy: { text: "Repair the Candidate record or resolve its named conflicts, then retry publication." } } };
 }
 
 async function resumeIntegratingPublication(params: PublishParams, branch: string, reject: PublicationReject):

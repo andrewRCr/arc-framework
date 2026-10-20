@@ -15,6 +15,7 @@ import type { Slug } from "../../lib/kernel/index.js";
 import type { WorkUnitPlacement } from "../../lib/layout/index.js";
 import type { PublishedIntegrationBoundaryLocus } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
 import type { CandidateTargetProjector } from "../../lib/work-unit/candidate-effective-target.js";
+import type { ReviewInvocationOptions } from "../../scripts/review-gate/runtime/invocation.js";
 import type { CandidateReviewFixAuthorityReader } from
   "../../scripts/review-gate/policy/candidate-review-fix-continuation.js";
 
@@ -104,7 +105,7 @@ export interface ActiveSessionInitInternalResult {
 
 export type ActiveResult = ActiveStatusResult | ActiveSessionInitResult;
 
-export interface ActiveStatusOptions {
+export interface ActiveStatusOptions extends ReviewInvocationOptions {
   cwd: string;
   exec?: GitExec;
   projectCandidateTarget?: CandidateTargetProjector;
@@ -128,7 +129,7 @@ export interface ActiveStatusOptions {
  * circuits to `resolution: "none"` with a diagnostic warning — the contributor
  * active root is identity-keyed and cannot be resolved without one.
  */
-export interface ActiveSessionInitOptions {
+export interface ActiveSessionInitOptions extends ReviewInvocationOptions {
   cwd: string;
   identity?: string | null;
   role?: string | null;

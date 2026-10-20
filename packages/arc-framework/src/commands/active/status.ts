@@ -13,6 +13,9 @@
  * @module
  */
 
+import type { createActiveReviewAccess } from "../../lib/store/active-review-access.js";
+import type { OwnerIdentity } from "../../lib/store/identity.js";
+import type { CandidateManagedRecordV1 } from "../../lib/store/kinds/review/candidate/schema.js";
 import { stat } from "node:fs/promises";
 import { join, posix } from "node:path";
 
@@ -108,8 +111,9 @@ function inferFromBranchPattern(currentBranch: string | null): SessionType | nul
 export async function runActiveStatus(
   options: ActiveStatusOptions,
 ): Promise<ActiveStatusResult> {
-  const { layout, candidates: rawCandidates, warnings } = await readActiveMetaCandidates(options.cwd);
   const exec = options.exec ?? gitExec;
+  const access = (await import("../../lib/store/active-review-access.js")).createActiveReviewAccess({ ...options, exec });
+  const { layout, candidates: rawCandidates, warnings, owners } = await readActiveMetaCandidates(options.cwd, { store: access.store });
   const projectCandidateTarget = options.projectCandidateTarget
     ?? createRepositoryCandidateTargetProjector(exec);
   const readPendingCandidateFix = options.readPendingCandidateReviewFixAuthority
@@ -123,6 +127,7 @@ export async function runActiveStatus(
       warnings,
       projectCandidateTarget,
       readPendingCandidateFix,
+      { access, owner: owners?.get(candidate.path) },
     )));
   return {
     mode: "full",
@@ -182,7 +187,8 @@ export async function runActiveSessionInitStatusInternal(
     }, resolved: null, candidates: [] };
   }
 
-  const readerOptions = resolveReaderOptions(role, identity);
+  const access = (await import("../../lib/store/active-review-access.js")).createActiveReviewAccess(options);
+  const readerOptions = { ...resolveReaderOptions(role, identity), store: access.store };
   const [scan, currentBranch] = await Promise.all([
     readActiveMetaCandidates(options.cwd, readerOptions),
     getCurrentBranch(options.exec),
@@ -200,6 +206,7 @@ export async function runActiveSessionInitStatusInternal(
       scan.warnings,
       projectCandidateTarget,
       readPendingCandidateFix,
+      { access, owner: scan.owners?.get(candidate.path) },
     )));
   const semantic = resolveCandidateSemantics(projected, role, identity, scan.warnings);
   const result = await resolveSessionInit(options.cwd, scan.layout, semantic.valid, scan.warnings, currentBranch);
@@ -373,7 +380,15 @@ async function projectCandidateIntegrationBoundary(
   warnings: string[],
   projectCandidateTarget: CandidateTargetProjector,
   readPendingCandidateFix: CandidateReviewFixAuthorityReader,
+  authority: { access: ReturnType<typeof createActiveReviewAccess>; owner?: OwnerIdentity },
 ): Promise<MetaFileCandidate> {
+  let selected;
+  try { selected = await authority.access.readSubject(candidate, authority.owner); }
+  catch (error) {
+    warnings.push(`Candidate authority for ${candidate.filename} is unavailable: ${error instanceof Error ? error.message : String(error)}`);
+    return { ...candidate, integrationBoundary: null };
+  }
+  candidate = selected.candidate;
   if (candidate.candidateId === null || candidate.candidateId === undefined) return candidate;
   if (candidate.state === "Active"
     && normalizeNullablePointer(candidate.currentWorkflow) !== "prepare-work-unit") {
@@ -382,7 +397,6 @@ async function projectCandidateIntegrationBoundary(
   const [
     { readSubmissionBoundary },
     { readCandidateRecord },
-    { reduceCandidateDurableBaseline },
     {
       projectCandidateFixResumeBoundary,
       projectCandidateReviewBoundary,
@@ -392,53 +406,28 @@ async function projectCandidateIntegrationBoundary(
   ] = await Promise.all([
     import("../../lib/store/kinds/review/integration-boundary/access.js"),
     import("../../lib/store/kinds/review/candidate/access.js"),
-    import("../../lib/work-unit/candidate-attestation.js"),
     import("../../scripts/review-gate/policy/integration-boundary-locus.js"),
   ]);
   const match = /^meta-(.+)\.md$/u.exec(candidate.filename);
   const slug = match?.[1];
   if (slug === undefined || !SlugSchema.safeParse(slug).success) return candidate;
-  const record = await readCandidateRecord(cwd, slug);
+  const record = selected.record === undefined ? await readCandidateRecord(cwd, slug) : selected.record;
   if (record === null || record.attestation.candidateId !== candidate.candidateId) {
     warnings.push(
       `Candidate authority for ${candidate.filename} is unavailable or does not match its managed record.`,
     );
     return { ...candidate, integrationBoundary: null };
   }
-  let candidateSubjectDigest: string;
-  let requireExactDurableBoundary = false;
-  let pendingCandidateFix = false;
-  try {
-    const effective = await projectCandidateTarget({ cwd, name: slug, record });
-    if (effective.state === "current") {
-      candidateSubjectDigest = effective.recognizedTarget.subject.subjectDigest;
-    } else if (candidate.state === "Integrating") {
-      candidateSubjectDigest = reduceCandidateDurableBaseline(record).target.subject.subjectDigest;
-      requireExactDurableBoundary = true;
-    } else if (effective.state === "changed" || effective.state === "decision-required") {
-      const pending = await readPendingCandidateFix({ cwd, workUnitId: slug, candidate: record });
-      if (pending.status === "refused") {
-        warnings.push(`Candidate review-fix authority for ${candidate.filename} is unavailable (${pending.reason}).`);
-        return { ...candidate, integrationBoundary: null };
-      }
-      if (pending.status === "none") {
-        warnings.push(`Candidate target for ${candidate.filename} requires ${effective.nextAction}.`);
-        return { ...candidate, integrationBoundary: null };
-      }
-      candidateSubjectDigest = reduceCandidateDurableBaseline(record).target.subject.subjectDigest;
-      pendingCandidateFix = true;
-    } else {
-      warnings.push(`Candidate target for ${candidate.filename} requires ${effective.nextAction}.`);
-      return { ...candidate, integrationBoundary: null };
-    }
-  } catch (error) {
-    warnings.push(
-      `Candidate target for ${candidate.filename} is unavailable: ${error instanceof Error ? error.message : String(error)}`,
-    );
-    return { ...candidate, integrationBoundary: null };
-  }
+  const target = await selectCandidateBoundaryTarget(cwd, slug, candidate, record, warnings, projectCandidateTarget,
+    input => readPendingCandidateFix({ ...input, store: authority.access.store,
+      projectId: authority.access.projectId, workItem: selected.owner }));
+  if (target === null) return { ...candidate, integrationBoundary: null };
+  const { candidateSubjectDigest, requireExactDurableBoundary, pendingCandidateFix } = target;
+  const accessOptions = authority.access.store.capabilities.stateOffBranch
+    ? { store: authority.access.store, owner: selected.owner } : undefined;
+  const schemaVersion = authority.access.store.capabilities.stateOffBranch ? 2 : 1;
   if (candidate.state === "Integrating") {
-    const stored = await readSubmissionBoundary(cwd, slug);
+    const stored = await readSubmissionBoundary(cwd, slug, accessOptions);
     if (candidate.branch === null) return candidate;
     if (requireExactDurableBoundary && stored?.candidateSubjectDigest !== candidateSubjectDigest) {
       warnings.push(
@@ -466,10 +455,10 @@ async function projectCandidateIntegrationBoundary(
         workUnit: slug,
         candidateId: candidate.candidateId,
         candidateSubjectDigest,
-      }),
+      }, schemaVersion),
     };
   }
-  const stored = await readSubmissionBoundary(cwd, slug);
+  const stored = await readSubmissionBoundary(cwd, slug, accessOptions);
   const recovered = recoverPrePublicationBoundary({
     stored,
     workUnit: slug,
@@ -482,8 +471,49 @@ async function projectCandidateIntegrationBoundary(
       workUnit: slug,
       candidateId: candidate.candidateId,
       candidateSubjectDigest,
-    }),
+    }, schemaVersion),
   };
+}
+
+async function selectCandidateBoundaryTarget(cwd: string, slug: string, candidate: MetaFileCandidate,
+  record: CandidateManagedRecordV1, warnings: string[], projectCandidateTarget: CandidateTargetProjector,
+  readPendingCandidateFix: CandidateReviewFixAuthorityReader): Promise<{
+    candidateSubjectDigest: string; requireExactDurableBoundary: boolean; pendingCandidateFix: boolean;
+  } | null> {
+  const { reduceCandidateDurableBaseline } = await import("../../lib/work-unit/candidate-attestation.js");
+  let candidateSubjectDigest: string;
+  let requireExactDurableBoundary = false;
+  let pendingCandidateFix = false;
+  try {
+    const effective = await projectCandidateTarget({ cwd, name: slug, record });
+    if (effective.state === "current") {
+      candidateSubjectDigest = effective.recognizedTarget.subject.subjectDigest;
+    } else if (candidate.state === "Integrating") {
+      candidateSubjectDigest = reduceCandidateDurableBaseline(record).target.subject.subjectDigest;
+      requireExactDurableBoundary = true;
+    } else if (effective.state === "changed" || effective.state === "decision-required") {
+      const pending = await readPendingCandidateFix({ cwd, workUnitId: slug, candidate: record });
+      if (pending.status === "refused") {
+        warnings.push(`Candidate review-fix authority for ${candidate.filename} is unavailable (${pending.reason}).`);
+        return null;
+      }
+      if (pending.status === "none") {
+        warnings.push(`Candidate target for ${candidate.filename} requires ${effective.nextAction}.`);
+        return null;
+      }
+      candidateSubjectDigest = reduceCandidateDurableBaseline(record).target.subject.subjectDigest;
+      pendingCandidateFix = true;
+    } else {
+      warnings.push(`Candidate target for ${candidate.filename} requires ${effective.nextAction}.`);
+      return null;
+    }
+  } catch (error) {
+    warnings.push(
+      `Candidate target for ${candidate.filename} is unavailable: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return null;
+  }
+  return { candidateSubjectDigest, requireExactDurableBoundary, pendingCandidateFix };
 }
 
 function createRepositoryCandidateTargetProjector(

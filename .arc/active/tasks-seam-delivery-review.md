@@ -744,29 +744,11 @@ family's schemas are store schemas, never entries in the review gate's published
           only the two orientation fields land in one batch; stale metadata, Candidate, or boundary bases leave no
           partial writes. Native root, re-root, convergence, and repair retain their continuations and retired fields.
 
-    - `[ ]` **4.6.b The `Candidate` bullet's readers**
+    - `[x]` **4.6.b The `Candidate` bullet's readers**
 
-        - The store-backed publication's check (`inspectPublication`, `lib/work-unit/verbs/publish-store.ts`) and
-          session-init's boundary projection (`commands/active/status.ts`) read the record's `attestation.candidateId`
-          from the flip, and the store-backed rename (`readStoreRenameSubject`, `lib/store/lifecycle-rename.ts`) refuses
-          where the work unit holds a `review/candidate` record.
-        - Session-init's projection takes an Integrating work unit's branch from its work-branch link
-          (`selectWorkBranchLink`, `lib/store/lifecycle-branch.ts`) in place of the meta's `Branch`.
-        - `commands/active/status.ts` opens no store today, and its heavy imports load lazily, pinned by
-          `deferredActiveProjectionModules` (`__tests__/unit/cli-loading-boundary.test.ts`) and the file's
-          restricted-import list in `eslint.config.js`. From the flip it opens the checkout's store as 4.1.b's roots
-          open it, through a module it imports lazily and that joins both lists, and reads the work item's links through
-          it, the project ID from the project-ID port (`projectId`) as `selectWorkBranchLink`'s `repository`; its
-          in-repo arm, branched on the store's `stateOffBranch`, reads the meta's `Branch` as today.
-        - _Note:_ Build on `commands/active/status.ts`'s shipped locus projection and preserve its lazy import
-          boundary (§ 14.4).
-        - Build `test-first` (one behavior at a time):
-            - the store-backed publication's check reads the attested Candidate from the record with no `Candidate` in
-              the meta, and a work unit attested from the flip refuses rename
-            - session-init's projection shows an Integrating work unit's boundary with no `Branch` in its meta
-            - in-repo the projection reads the meta's `Branch` as today, and the loading-boundary test finds the store's
-              module loaded lazily
-            - session-init's projection names the Candidate the record holds
+        - Publication checks the stored Candidate; rename refuses an attested owner, completed placement included.
+          Active and session-init projections share their Store and selected owner, read native Candidate and boundary
+          records without files, and select the Integrating branch by project-qualified link behind a lazy module.
 
     - `[ ]` **4.6.c Delivery entry inspection's work unit and meta**
 

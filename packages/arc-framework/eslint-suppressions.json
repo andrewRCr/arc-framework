@@ -127,9 +127,6 @@
     "jsdoc/require-jsdoc": {
       "count": 1
     },
-    "max-lines-per-function": {
-      "count": 1
-    },
     "sonarjs/cognitive-complexity": {
       "count": 1
     }

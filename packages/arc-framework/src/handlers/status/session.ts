@@ -224,7 +224,7 @@ export async function handleCompositeStatus(context: SessionStatusContext, opts:
   const probes: StatusProbes = {
     user: (id) => runUserStatus({ cwd, io, identity: id }),
     config: () => runConfigStatus({ cwd }),
-    active: () => runActiveStatus({ cwd, exec }),
+    active: () => runActiveStatus({ cwd, exec, store: context.store }),
   };
   const result = await runStatus({ identity, role, probes });
 
