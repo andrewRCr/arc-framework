@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "seed-locus-reader",
+  "claimId": "8ec666a3cdee59dd19548bddaa117131",
+  "createdAt": "2026-10-20T18:52:32.605Z",
+  "updatedAt": "2026-10-20T18:52:32.605Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Strip unknown same-version locus hint keys at the persisted compaction-seed reader while preserving strict producers and recovery validation.",
+  "branch": "chore/seed-locus-reader",
+  "origin": "inbox",
+  "originEntry": "Strip unknown locus hint keys when reading same-version compaction seeds",
+  "originEntrySourceDigest": "sha256:3cc5b2c5b9ed6de79116e64c27a7aab7a1454cc422753942b2e1d492c49d82aa",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
