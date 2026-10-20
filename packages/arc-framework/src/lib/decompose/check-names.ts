@@ -7,6 +7,7 @@ import type { DecomposeResult, DecomposeRefusal } from "./refusal.js";
 import { decomposeStoreRefusal } from "./refusal.js";
 import { parseCohortDocument } from "../store/kinds/cohort/index.js";
 import { SlugSchema } from "../kernel/index.js";
+import { checkDecomposeRecordConflicts, DECOMPOSE_SOURCE_CONFLICT_REMEDY } from "./source-conflicts.js";
 
 /** One cohort's authoritative path and mutation basis. */
 export interface DecomposeCohortObservation { path: string; record: StoreRecord }
@@ -22,6 +23,8 @@ interface AcquiredName { name: string; locus: string; cohort: boolean }
 export async function checkDecomposeNames(store: Store, map: CutMap, retainedMembers: readonly RecordReference[] = []): Promise<DecomposeResult<DecomposeNames>> {
   const cohorts = await acquireDecomposeCohortInventory(store);
   if (cohorts.status === "refused") return cohorts;
+  const conflicts = selectedCohortConflicts(map, cohorts.result);
+  if (conflicts !== undefined) return conflicts;
   const newCohorts = placementCohorts(map.authoring.placement).filter(({ path }) =>
     !cohorts.result.some(cohort => cohort.path === path && cohort.record.placement?.kind !== "completed"));
   const names = [
@@ -43,6 +46,15 @@ export async function checkDecomposeNames(store: Store, map: CutMap, retainedMem
     if (refusal !== undefined) return refusal;
   }
   return { status: "ok", result: { cohorts: cohorts.result, newCohorts } };
+}
+
+function selectedCohortConflicts(map: CutMap, cohorts: readonly DecomposeCohortObservation[]): DecomposeRefusal | undefined {
+  const placement = map.authoring.placement;
+  const path = placement.kind === "direct-member" ? null : placement.kind === "at-cap" ? placement.parent : placement.cohort;
+  const names = path?.split("/") ?? [];
+  const selected = cohorts.filter(({ record }) => record.placement?.kind !== "completed"
+    && names.includes(record.reference.owner.name)).map(({ record }) => record);
+  return checkDecomposeRecordConflicts(selected, "cohort decision", DECOMPOSE_SOURCE_CONFLICT_REMEDY);
 }
 
 async function checkNamespaceName(store: Store, named: AcquiredName,

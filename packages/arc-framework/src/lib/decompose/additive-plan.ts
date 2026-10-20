@@ -58,9 +58,12 @@ export async function prepareDecomposeAdditive(ctx: DecomposeContext, origin: st
   if (settled.status === "refused") return settled;
   const storedMap = recordReferences["work-item/cut-map"](acquired.primary.reference.owner);
   const records = uniqueRecords([...acquired.records, ...settlement.result.settlements.map(entry => entry.primary)]);
+  const path = cohorts.result.topology.memberCohort;
+  const selectedCohorts = names.result.cohorts.filter(cohort => path === cohort.path || path?.startsWith(`${cohort.path}/`) === true)
+    .map(cohort => cohort.record);
   return { status: "ok", result: { map, storedMap, members: members.result.members, cohorts: cohorts.result.cohorts,
     absenceObservations: settlement.result.absenceObservations,
-    observations: uniqueRecords([...settlement.result.records, ...facts.result.dependents, ...homes.result.map(home => home.primary)]),
+    observations: uniqueRecords([...settlement.result.records, ...facts.result.dependents, ...homes.result.map(home => home.primary), ...selectedCohorts]),
     prepared: { records, writes: [...members.result.writes, ...cohorts.result.writes, ...settled.result,
       { action: "put", reference: storedMap, expected: null, content: writeCutMapRecord(map) }] } } };
 }
