@@ -23,8 +23,8 @@ interface ResolutionContext { store: Store; dependent: OwnerIdentity }
 
 /** Resolve the previous holder without considering the new member that will take its name. */
 export async function resolveDecomposeRetiredEdge(store: Store, slug: string,
-  dependent: OwnerIdentity): Promise<DecomposeResult<ResolvedDecomposeRetiredEdge | null>> {
-  const resolved = await resolveTargets({ store, dependent }, { name: SlugSchema.parse(slug) }, new Set());
+  dependent: OwnerIdentity, uid?: string): Promise<DecomposeResult<ResolvedDecomposeRetiredEdge | null>> {
+  const resolved = await resolveTargets({ store, dependent }, { name: SlugSchema.parse(slug), ...(uid === undefined ? {} : { uid }) }, new Set());
   if (resolved.status === "refused") return resolved;
   if (resolved.result === null) return { status: "ok", result: null };
   const { priorTarget, targets, records } = resolved.result;
@@ -39,19 +39,28 @@ async function resolveTargets(ctx: ResolutionContext, target: WorkItemRef,
   if (visited.has(key) || matchesDependent(target, ctx.dependent)) return { status: "ok", result: null };
   const lookup = await ctx.store.lookup({ kind: "slug", slug: target.name });
   if (lookup.status === "ok") {
+    const selected = lookup.result.reference.owner;
+    if (target.uid !== undefined && (selected.type !== "work-item" || target.uid !== selected.uid))
+      return resolveRetiredTarget(ctx, target, visited);
     const primary = await ctx.store.read({ reference: lookup.result.reference });
     if (primary.status === "refused") return decomposeStoreRefusal(primary.refusal);
     const owner = primary.result.reference.owner;
     if (owner.type !== "work-item" || primary.result.conflicts.length > 0) return { status: "ok", result: null };
-    if (target.uid === undefined || target.uid === owner.uid) return resolveLive(primary.result, ctx.dependent);
-  } else if (lookup.refusal.code !== "not-found") return lookup.refusal.code === "ambiguous-match"
+    return resolveLive(primary.result, ctx.dependent);
+  } else if (lookup.refusal.code === "ambiguous-match" && target.uid !== undefined) return resolveRetiredTarget(ctx, target, visited);
+  else if (lookup.refusal.code !== "not-found") return lookup.refusal.code === "ambiguous-match"
     ? { status: "ok", result: null } : decomposeStoreRefusal(lookup.refusal);
+  return resolveRetiredTarget(ctx, target, visited);
+}
+
+async function resolveRetiredTarget(ctx: ResolutionContext, target: WorkItemRef,
+  visited: ReadonlySet<string>): Promise<DecomposeResult<ResolvedTargets | null>> {
   const record = await readDecomposeRetiredLineage(ctx.store, target);
   if (record.status === "refused") return record;
   if (record.result === null) return { status: "ok", result: null };
   const transition = parseLineageRecord(record.result.content);
   if (!usableTransition(transition, record.result)) return { status: "ok", result: null };
-  return resolveTransition(ctx, transition, record.result, new Set([...visited, key]));
+  return resolveTransition(ctx, transition, record.result, new Set([...visited, target.uid ?? target.name]));
 }
 
 function resolveLive(primary: StoreRecord, dependent: OwnerIdentity): DecomposeResult<ResolvedTargets | null> {

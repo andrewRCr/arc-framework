@@ -5,7 +5,7 @@ import { canonicalDigest } from "../kernel/canonical/canonical-json.js";
 export type DecomposeDependencyContribution = {
   kind: "incoming"; edgeId: string; recipient: string; replacements: readonly string[]; locus: string;
 } | {
-  kind: "outgoing" | "internal" | "external"; edgeId: string; recipient: string; provider: string; locus: string;
+  kind: "outgoing" | "internal" | "external"; edgeId: string; recipient: string; provider: string; providerUid?: string; locus: string;
 };
 
 /** Translate authored contributions into recipient-generation keys and stable edge order. */
@@ -22,7 +22,7 @@ export function decomposeDependencyContributions(map: CutMap, recipients: Readon
     const authored = map.authoring.outgoingDispositions[index];
     if (authored?.disposition.kind !== "targets") continue;
     for (const [targetIndex, target] of authored.disposition.targets.entries()) contributions.push({ kind: "outgoing",
-      edgeId: edge.edgeId, recipient: recipients.get(target) ?? target, provider: edge.provider.slug,
+      edgeId: edge.edgeId, recipient: recipients.get(target) ?? target, ...providerIdentity(edge.provider),
       locus: `authoring.outgoingDispositions.${index}.disposition.targets.${targetIndex}` });
   }
   for (const kind of ["internal", "external"] as const) {
@@ -32,4 +32,8 @@ export function decomposeDependencyContributions(map: CutMap, recipients: Readon
   }
   return contributions.sort((a, b) => Buffer.compare(Buffer.from(a.edgeId), Buffer.from(b.edgeId))
     || Buffer.compare(Buffer.from(a.recipient), Buffer.from(b.recipient)));
+}
+
+function providerIdentity(provider: CutMap["machine"]["outgoingEdges"][number]["provider"]): { provider: string; providerUid?: string } {
+  return { provider: provider.slug, ...(provider.uid === undefined ? {} : { providerUid: provider.uid }) };
 }

@@ -44,14 +44,16 @@ it.each(["renamed", "abandoned", "decomposed", "renamed-retired"] as const)("res
     .toEqual([{ provider: identity, edgeId: cutOutgoingEdgeId({ provider: identity }) }]);
 });
 
-it("keeps slug identity when a renamed and retired provider is still named by its earlier alias", async () => {
+it("retains generation identity when a renamed and retired provider is still named by its earlier alias", async () => {
   const h = createDecomposeHarness();
   const provider = await h.seedRenamedWorkUnit("old-provider", "new-provider");
   await h.seedMeta("origin", { dependsOn: ["old-provider"] });
   await h.seedRetiredWorkUnit(provider);
   const acquired = await acquireDecomposeOrigin(decomposeContext(h.store), "origin");
   if (acquired.status === "refused") throw new Error(JSON.stringify(acquired));
-  const identity = { slug: "old-provider" };
+  const owner = provider.reference.owner;
+  if (owner.type !== "work-item" || owner.uid === undefined) throw Error("Expected provider generation.");
+  const identity = { slug: "old-provider", uid: owner.uid };
   expect(deriveDecomposeEdges(acquired.result.edges).outgoingEdges)
     .toEqual([{ provider: identity, edgeId: cutOutgoingEdgeId({ provider: identity }) }]);
 });

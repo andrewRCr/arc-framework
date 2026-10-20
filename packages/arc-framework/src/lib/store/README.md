@@ -28,6 +28,11 @@ Landing and task commit captures carry their own repository, SHA and optional pa
 captures by repository and prefers exact SHA matches; it needs no branch or change-request link. Task captures
 reject duplicate repository and SHA pairs.
 
+Lineage lookup selects an exact UID or prefers current generation names before authenticated former names retained
+after retirement. Multiple candidates refuse `ambiguous-match`. Backends retain identity evidence so resolution
+does not enumerate terminal primary histories. Name-only record reads, listings, and writes gain no alias behavior
+from this lookup guarantee.
+
 The `concurrency/` library supplies pure entry and line merges, stable entry IDs, and rank keys. Conflicts preserve
 both labeled sides as separate records while the current side remains visible. A resolving write names the conflict
 references explicitly.

@@ -4,11 +4,69 @@ import { expect } from "vitest";
 import { LinksSchema, OwnerIdentitySchema, RecordReferenceSchema, singletonReference, type Links } from "../../../src/lib/store/index.js";
 import { SlugSchema } from "../../../src/lib/kernel/index.js";
 import { assertion, seed, success, testProvenance, update, type SuiteContext } from "./suite-tools.js";
+import type { ConformanceFixture } from "./fixture-contract.js";
+
+async function retireRenamed(fixture: ConformanceFixture, name: string, withDraft = false) {
+  const work = await seed(fixture, fixture.reference("work-item/meta"));
+  const renamed = RecordReferenceSchema.parse({ ...work.reference, owner: { ...work.reference.owner, name } });
+  success(await fixture.store.write({ ...update(fixture, work), reference: renamed }));
+  const current = success(await fixture.store.read({ reference: renamed }));
+  const draft = withDraft ? await seed(fixture, singletonReference(current.reference.owner, "work-item/draft")) : undefined;
+  const lineage = await seed(fixture, singletonReference(current.reference.owner, "lineage/transition"));
+  success(await fixture.store.write({ action: "remove", reference: current.reference, expected: current.version, provenance: testProvenance }));
+  return { work, lineage, draft };
+}
+
+async function checkDirectAliasBoundary(fixture: ConformanceFixture, operation: "read" | "list" | "write" | "saved-read", synced: boolean) {
+  const { work, lineage, draft } = await retireRenamed(fixture, "renamed-terminal", true);
+  if (draft === undefined) throw Error("Expected associated draft.");
+  const owner = OwnerIdentitySchema.parse({ type: "work-item", name: work.reference.owner.name });
+  const reference = singletonReference(owner, "work-item/draft");
+  const store = synced ? fixture.remote(true) : fixture.store;
+  if (store === undefined) throw Error("Expected a remote fixture.");
+  if (synced) success(await fixture.store.sync());
+  const saved = success(await store.version());
+  if (operation === "read") expect(await store.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  else if (operation === "list") expect(success(await store.list({ family: "work-item", owner })).status).toBe("absent");
+  else if (operation === "saved-read") expect(await store.read({ reference: singletonReference(owner, "lineage/transition"), asOf: saved }))
+    .toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  else {
+    const original = success(await store.read({ reference: draft.reference }));
+    expect(await store.write({ ...update(fixture, draft), reference })).toMatchObject({ status: "refused", refusal: { code: "version-conflict" } });
+    expect(success(await store.read({ reference: draft.reference }))).toEqual(original);
+  }
+  expect(success(await store.version())).toBe(saved);
+  expect(success(await store.lookup({ kind: "lineage", origin: work.reference.owner.name })).reference).toEqual(lineage.reference);
+}
 
 /** Register slug, origin, claim, commit and ref resolution through caller-written links.
  * @param context - Backend registration context.
  */
 export function registerLookupAssertions(context: SuiteContext): void {
+  for (const synced of [false, true]) for (const operation of ["read", "list", "write", "saved-read"] as const) assertion(context, "lineage",
+    `terminal-alias-lookup-only:${operation}:${synced ? "synced" : "local"}`, fixture => checkDirectAliasBoundary(fixture, operation, synced));
+  assertion(context, "lineage", "terminal-origin-former-slug-lookup", async fixture => {
+    const { work, lineage } = await retireRenamed(fixture, "renamed-terminal");
+    expect(success(await fixture.reopen().lookup({ kind: "lineage", origin: work.reference.owner.name })).reference).toEqual(lineage.reference);
+  });
+  assertion(context, "lineage", "terminal-origin-former-slug-ambiguity", async fixture => {
+    const first = await retireRenamed(fixture, "first-terminal");
+    const second = await retireRenamed(fixture, "second-terminal");
+    expect(await fixture.store.lookup({ kind: "lineage", origin: first.work.reference.owner.name })).toMatchObject({
+      status: "refused", refusal: { code: "ambiguous-match", candidates: expect.arrayContaining([first.lineage.reference, second.lineage.reference]) },
+    });
+  });
+  for (const identity of ["current-name", "UID"] as const) assertion(context, "lineage", `terminal-origin-${identity}-after-name-reuse`, async fixture => {
+    const first = await retireRenamed(fixture, "first-terminal");
+    const current = await seed(fixture, fixture.reference("work-item/meta"));
+    const latest = await seed(fixture, singletonReference(current.reference.owner, "lineage/transition"));
+    success(await fixture.store.write({ action: "remove", reference: current.reference, expected: current.version, provenance: testProvenance }));
+    const owner = first.work.reference.owner;
+    if (owner.type !== "work-item" || owner.uid === undefined) throw Error("Expected a stored generation.");
+    const origin = identity === "UID" ? owner.uid : owner.name;
+    expect(success(await fixture.store.lookup({ kind: "lineage", origin })).reference)
+      .toEqual(identity === "UID" ? first.lineage.reference : latest.reference);
+  });
   assertion(context, "work-item", "current-slug", async (fixture) => {
     const record = await seed(fixture, fixture.reference("work-item/meta"));
     expect(success(await fixture.store.lookup({ kind: "slug", slug: record.reference.owner.name })).reference).toEqual(record.reference);

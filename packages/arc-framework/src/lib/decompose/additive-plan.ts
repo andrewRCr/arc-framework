@@ -18,6 +18,7 @@ import { planDecomposeSlugSettlements } from "./slug-settlement.js";
 import { decomposeSlugSettlementWrites } from "./slug-settler.js";
 import { recordReferences, sameReference } from "../store/identity.js";
 import { writeCutMapRecord } from "../store/kinds/cut-map/index.js";
+import { decomposeReadCache } from "./read-cache.js";
 
 /** Prepared edits and their immutable provider observations, with report inputs. */
 export interface DecomposeAdditivePlan extends Omit<DecomposeAdditiveApplied, "batch" | "report"> {
@@ -28,6 +29,7 @@ export interface DecomposeAdditivePlan extends Omit<DecomposeAdditiveApplied, "b
 /** Rebind and check all authored decisions before composing any record mutation. */
 export async function prepareDecomposeAdditive(ctx: DecomposeContext, origin: string, mode: DecomposeAdditiveMode,
   input: DecomposeMapInput): Promise<DecomposeResult<DecomposeAdditivePlan>> {
+  ctx = { ...ctx, executor: { ...ctx.executor, store: decomposeReadCache(ctx.executor.store) } };
   const bound = await bindDecomposeMap(ctx, origin, mode, input);
   if (bound.status === "refused") return bound;
   const { map, acquired } = bound.result;

@@ -50,7 +50,7 @@ async function checkMemberProviders(store: Store, input: DecomposeTerminalRecord
   if (originRefusal !== undefined) return originRefusal;
   for (const seed of contributions) {
     if (seed.kind === "incoming" || seed.recipient !== member.slug) continue;
-    const provider = await satisfiesDecomposeSeededProvider(store, seed.provider, current, member.primary.reference.owner);
+    const provider = await satisfiesDecomposeSeededProvider(store, seed.provider, current, member.primary.reference.owner, seed.providerUid);
     if (provider.status === "refused") return provider;
     records.push(...provider.result.records);
     if (!provider.result.held) return missingSeed(member.slug, seed.provider, origin.name);

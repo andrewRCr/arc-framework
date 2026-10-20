@@ -330,6 +330,14 @@ The verb derives it at preflight (§ 5); the operator never edits it.
   carries no `uid` and keeps its slug as its identity, as `v3OutgoingEdgeId` digests it under 3. Outgoing dispositions
   key by `edgeId`, as today, so a provider renamed or ended between the batches keeps its edge (§ 8.3, § 8.4).
 
+Lineage lookup also resolves authenticated former names retained after the primary ends (A3): a UID selects only
+that generation; a slug prefers exact current terminal names, otherwise former names, with multiple candidates refusing
+`ambiguous-match`. It uses backend-maintained identity evidence rather than enumerating terminal primary histories.
+Provider observations retain known UIDs through dependency contributions, seeded-field validation, revision settlement,
+and recursive retirement replacements. Preparation reuses observations within its invocation; revalidation reads the
+original store. This is an expected backend contract, exercised here by the reference backend and available on the
+ref backend before cutover (§ 18).
+
 Version 3's Git pins go: `source.logicalBranch`, `source.ref`, `source.head`, and `resultBase`.
 
 #### 3.3 The authoring half
@@ -1082,6 +1090,10 @@ This design consumes behavior other changes build. Each is an expected contract,
 holds until then is stated with it.
 
 - **The ref backend** (`storage-ref-backend`):
+    - lineage lookup retains authenticated former-name identity after primary retirement (A3), with the exact UID,
+      current-name preference, ambiguity refusal, and bounded observations specified in § 3.2. No lookup input shape
+      changes. The in-repo decomposition arm stays unchanged; the reference backend supplies this contract for the
+      dormant store implementation until the ref backend provides it before cutover.
     - the kind's ref home: this change registers the cut-map kind after that change lands, with its mechanism's
       `RefHome` at `cut-map-<uid>.json`; should this change land first, that change sets the kind's `RefHome`, as it
       sets one for every kind whose family has a ref (its § 3.2). Its codec derives the path, its shared suite covers
@@ -1287,5 +1299,7 @@ this design open.
   _Supersedes:_ § 8.4 ¶1. _Trigger:_ F1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 - **A2** — 2026-10-19 — design: surviving removal edges are checked at atomic batch admission.
   _Supersedes:_ § 9.3 ¶2. _Trigger:_ F1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A3** — 2026-10-19 — design: lineage lookup resolves authenticated retired former names without history scans.
+  _Supersedes:_ § 3.2 outgoingEdges. _Trigger:_ F2 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

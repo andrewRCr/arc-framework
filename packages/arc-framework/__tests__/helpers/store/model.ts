@@ -16,6 +16,8 @@ export interface MemoryRecord {
   formatVersion: number;
   fields?: unknown;
   formerSlugs: string[];
+  /** Terminal lookup evidence; never part of generic owner canonicalization. */
+  terminalFormerSlugs?: string[];
   placement?: ReadPlacement;
   links?: Links;
   conflict?: ConflictRecord;

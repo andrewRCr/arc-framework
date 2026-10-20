@@ -9,6 +9,7 @@ import { decomposeDependencyContributions } from "./dependency-contributions.js"
 import { observeDecomposeSeededProvider, sameDecomposeSeededProvider, type DecomposeSeededProvider } from "./seeded-provider.js";
 import { resolveDecomposeRetiredEdge } from "./retired-edge.js";
 import { decomposeStoreRefusal } from "./refusal.js";
+import { decomposeReadCache } from "./read-cache.js";
 
 /** A retained member's proposed content and provider records supporting its edge identities. */
 export interface DecomposeRevisionSeeds { content: string; records: readonly StoreRecord[] }
@@ -16,6 +17,7 @@ export interface DecomposeRevisionSeeds { content: string; records: readonly Sto
 /** Replace only prior seeded providers, preserving unrelated edges and compatible current aliases. */
 export async function projectDecomposeRevisionSeeds(store: Store, prior: CutMap, member: StoreRecord,
   desired: { dependsOn: readonly string[]; cohort: string | null; addedSlugs: ReadonlySet<string> }): Promise<DecomposeResult<DecomposeRevisionSeeds>> {
+  store = decomposeReadCache(store, [member]);
   const fields = readLifecycleMetaFields(member);
   if (fields.status === "refused") return decomposeStoreRefusal(fields.refusal);
   const actual = await observeProviders(store, fields.result.dependsOn);
@@ -48,17 +50,18 @@ async function observeProviders(store: Store, names: readonly string[], pending:
 
 async function priorProviders(store: Store, map: CutMap, member: StoreRecord): Promise<DecomposeResult<DecomposeSeededProvider[]>> {
   const recipients = new Map(map.authoring.destinations.flatMap(destination => destination.kind === "new-member" ? [[destination.slug, destination.slug] as const] : []));
-  const names = decomposeDependencyContributions(map, recipients).flatMap(seed => seed.kind !== "incoming"
-    && seed.recipient === member.reference.owner.name ? [seed.provider] : []);
-  const original = await observeProviders(store, names);
-  if (original.status === "refused") return original;
-  const providers = [...original.result];
-  for (const name of names) {
-    const retired = await resolveDecomposeRetiredEdge(store, name, member.reference.owner);
+  const seeds = decomposeDependencyContributions(map, recipients).flatMap(seed => seed.kind !== "incoming"
+    && seed.recipient === member.reference.owner.name ? [seed] : []);
+  const providers: DecomposeSeededProvider[] = [];
+  for (const seed of seeds) {
+    const original = await observeDecomposeSeededProvider(store, seed.provider, seed.providerUid);
+    if (original.status === "refused") return original;
+    providers.push(original.result);
+    const retired = await resolveDecomposeRetiredEdge(store, seed.provider, member.reference.owner, seed.providerUid);
     if (retired.status === "refused") return retired;
     if (retired.result === null) continue;
-    const observed = providers.find(provider => provider.slug === name);
-    if (observed !== undefined) observed.records = [...observed.records, ...retired.result.records];
+    const observed = original.result;
+    observed.records = [...observed.records, ...retired.result.records];
     if (retired.result.disposition.kind !== "replace") continue;
     const replacements = await observeProviders(store, retired.result.disposition.replacementTargets);
     if (replacements.status === "refused") return replacements;

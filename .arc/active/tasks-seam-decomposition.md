@@ -654,28 +654,32 @@ canonical JSON on standard output, with its reason and remedy on standard error.
 
 ### `[ ]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
 
+- _Note:_ The approved removal and lineage-lookup repairs, including both follow-up corrections, pass focused
+  checks. Independent fix-check round 2 returned no findings; the forced merge gate and final author criteria walk
+  supply completion evidence in `notes-seam-decomposition.md` § Verification evidence.
+
 ---
 
 ## Success Criteria
 
-- `[ ]` Nothing a cut does changes before the flip: every decomposition test passes over the in-repo implementation,
+- `[x]` Nothing a cut does changes before the flip: every decomposition test passes over the in-repo implementation,
   unchanged but for the lists the new modes, the `cut-map` schema, and the cut-map kind join; the dispatch sends no
   invocation to the store version; `--revise` and `--discard` refuse `unsupported`, and `--finish` without its map
   refuses, each naming what serves; and the locator move leaves version 3's decode tests and the scanner's unchanged and
   passing.
 
-- `[ ]` A retirement runs end to end on the reference backend — `--preflight`, `--execute`, authoring through
+- `[x]` A retirement runs end to end on the reference backend — `--preflight`, `--execute`, authoring through
   write-back, `--finish`, and `--finish --apply` — the additive batch writing the members, their copies, the cohort
   documents with their Purpose, and the stored map in one batch, and the terminal batch writing `decompose` lineage
   carrying `retiredBranches`, removing the origin's primary and the stored map, rewriting stub dependents, writing home
   edges, and under `at-cap` appending the fan-out block in one batch; and the teardown step after it completes over the
   lineage record, as does `arc teardown <origin>` after that step fails.
 
-- `[ ]` An extraction runs end to end on the reference backend: `--extract` and `--finish --apply` thin the origin's
+- `[x]` An extraction runs end to end on the reference backend: `--extract` and `--finish --apply` thin the origin's
   draft or spec to its kept units, set its `Cohort` to the members' path under every placement but `direct-member`,
   rewrite stub dependents, and remove the stored map, writing no lineage.
 
-- `[ ]` A discard leaves the members only in `history`, and a revision adds and removes stubs and cohort documents,
+- `[x]` A discard leaves the members only in `history`, and a revision adds and removes stubs and cohort documents,
   moves only seeded edges and `Cohort`, and replaces the stored map; after a changed origin, `--revise` emits the
   complete revised map when the only change is to the content of units allocated `drop` or, in an extraction, kept by
   the origin, or to the source kind, and otherwise a fresh starter with the stored authoring beside it and the first
@@ -692,22 +696,29 @@ canonical JSON on standard output, with its reason and remedy on standard error.
   the stored map and of each item a member's slug finds once per run, none of those counts growing with the repository's
   history, and nothing from Git but the locus reads of § 11.
 
-- `[ ]` The kind and schema are registered: `work-item/cut-map` passes the store's conformance suite as a registered
+- `[x]` The kind and schema are registered: `work-item/cut-map` passes the store's conformance suite as a registered
   kind, the in-repo implementation refuses its writes `unsupported`, and `arc schema get cut-map` publishes version 4
   beside `decompose-cut-map` version 3.
 
-- `[ ]` The ratchet holds: at landing no `store-raw-state`, `surface-names`, or `work-unit-paths` count in
+- `[x]` The ratchet holds: at landing no `store-raw-state`, `surface-names`, or `work-unit-paths` count in
   `eslint-suppressions.json` exceeds its count at the final merged base, in total or per file; no module under
   `lib/decompose/` holds an entry; and `npm run -s lint:ts` passes with no suppression added for a new violation.
 
-- `[ ]` The store version imports no module the deletion pass removes: no module under `lib/decompose/` imports a
+- `[x]` The store version imports no module the deletion pass removes: no module under `lib/decompose/` imports a
   module § 1.5 and § 13 leave to the in-repo arm.
 
 - `[ ]` All quality gates pass (tests, linting, type checking)
 
 - `[ ]` Ready for integration
 
-- `[ ]` Destination conservation follows ordinal locator resolution: a target locator that no longer resolves refuses,
+- `[x]` Destination conservation follows ordinal locator resolution: a target locator that no longer resolves refuses,
   naming its allocation and a revision; an earlier matching heading that takes the saved ordinal passes, as does an
   authored body change that leaves the locator resolvable. Retirement and extraction use the same rule, and a revision
   can name a different current target locator.
+
+- `[ ]` Discard and revision refuse atomically when a surviving dependency or pause edge is introduced at batch
+  admission, and complete after its owner repairs it; same-batch retargeting or removal discharges the edge (A2).
+
+- `[ ]` Renamed-then-retired providers resolve by authenticated identity without enumerating unrelated terminal
+  histories in additive, terminal, or revision preparation; lineage lookup prefers exact current terminal names,
+  refuses ambiguous former names, and preserves exact known provider UIDs (A3).

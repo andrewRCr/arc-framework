@@ -183,6 +183,9 @@ function land(context: ReferenceContext, write: WriteInput, batchId?: string, va
     context.state.records.set(key, {
       reference, content: content!, version: allocated.version,
       formatVersion: context.registry[reference.kind].formatVersion, formerSlugs,
+      ...(reference.kind === "lineage/transition" ? { terminalFormerSlugs: [...new Set([
+        ...generationAliases(context.state, { ...reference, kind: "work-item/meta" }), ...prior?.terminalFormerSlugs ?? [],
+      ])] } : {}),
       label,
       ...(selectedPlacement === undefined ? {} : { placement: selectedPlacement }),
       ...(write.links === undefined ? prior?.links === undefined ? {} : { links: prior.links } : { links: write.links }),
