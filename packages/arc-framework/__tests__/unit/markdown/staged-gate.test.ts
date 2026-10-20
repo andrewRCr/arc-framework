@@ -141,6 +141,37 @@ describe("staged Markdown checker alignment", () => {
     });
   });
 
+  describe.each([
+    { kind: "import", source: 'import { "first-value" as first } from "./first.js";\nconsole.log(first);\n' },
+    { kind: "reexport", source: 'export { first as "first-value" } from "./first.js";\n' },
+  ])("quoted names in a runtime $kind", ({ source }) => {
+    const entry = "packages/arc-framework/src/checker.ts";
+    const first = "packages/arc-framework/src/first.ts";
+    const sources = new Map([
+      [entry, source],
+      [first, 'const first = 1;\nexport { first, first as "first-value" };\n'],
+    ]);
+    const options = {
+      root: "/repo", entryPaths: [entry],
+      readBlob: async (_root: string, path: string): Promise<Uint8Array | null> => {
+        const value = sources.get(path);
+        return value === undefined ? null : Buffer.from(value);
+      },
+    };
+
+    it("discovers the runtime dependency", async () => {
+      await expect(resolveIndexedMarkdownCheckerPaths(options)).resolves.toEqual([entry, first]);
+    });
+
+    it("refuses a byte mismatch in the dependency", async () => {
+      await expect(assertIndexedMarkdownCheckerAlignment({
+        ...options,
+        readFile: async path => Buffer.from(path === `/repo/${first}`
+          ? 'const first = 9;\nexport { first, first as "first-value" };\n' : source),
+      })).rejects.toThrow(`Indexed Markdown checker differs from executing worktree bytes: ${first}`);
+    });
+  });
+
   it.each(["missing", "invalid-utf8", "unsupported-import", "read-failure"])("refuses invalid bulk checker inputs (%s)", async failure => {
     const entry = "packages/arc-framework/src/scripts/checker.ts";
     const readFailure = new Error("Bulk object read failed");
