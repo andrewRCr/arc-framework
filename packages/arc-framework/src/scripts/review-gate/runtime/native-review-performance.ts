@@ -1,4 +1,6 @@
 /** Native response performance publishes complete fix facts in one evidence advance. */
+import { assertNativeHostedResponseHeads } from "./native-hosted-response-heads.js";
+import type { ConfirmResponseHeadContinuation } from "../core/response-head-continuation.js";
 import { canonicalize } from "../../../lib/kernel/index.js";
 import { StoredReviewResultReader } from "../hosts/local/stored-result-reader.js";
 import { validateApprovedDispositionRecordForResult } from "../core/review-result-disposition.js";
@@ -11,6 +13,7 @@ import type { StoredReviewFact } from "../core/ports.js";
 /** Producer-bound approval and complete performance supplied by the verified response. */
 export interface NativeReviewPerformanceInput extends Omit<NativeReviewApprovalInput, "now"> {
   performance: LaneResponsePerformance;
+  confirmResponseHeadContinuation?: ConfirmResponseHeadContinuation;
 }
 
 /** Publish a response's performance and fix transition together, retaining exact replay and Candidate binding. */
@@ -39,5 +42,7 @@ export async function publishNativeReviewPerformance(input: NativeReviewPerforma
     }
     if (canonicalize(performance) === canonicalize(current)) return prior;
   }
-  return input.evidence.advance({ ...prior.value, performance }, prior.version);
+  const next = { ...prior.value, performance };
+  await assertNativeHostedResponseHeads(next, result, input.confirmResponseHeadContinuation);
+  return input.evidence.advance(next, prior.version);
 }

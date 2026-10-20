@@ -3,6 +3,7 @@
 import type { LaneProgressState } from "./core/operation-state-schema.js";
 import type { ConfirmResponseHeadContinuation } from "./core/response-head-continuation.js";
 import type { LaneSubjectLineage } from "./core/lane-admission.js";
+import { assertHostedFixSettlementHeads } from "./hosted-settlement-heads.js";
 import { bindCompletedConditionalPassAuthorization } from "./lane-progress-conditional.js";
 
 type LaneAttempt = LaneProgressState["attempts"][number];
@@ -28,28 +29,9 @@ async function confirmHostedFixSettlementHeads(attempt: LaneAttempt, context?: R
   if (hosted === undefined || performance === undefined) {
     throw new Error("hosted fix settlement lacks durable response-head evidence");
   }
-  const hostFixFindingIds = hosted.dispositionSetLineage.at(-1)?.findingActions
-    .filter(({ disposition, channelAction }) =>
-      disposition === "fix" && channelAction === "reply-and-resolve")
-    .map(({ findingId }) => findingId) ?? [];
-  const fixEvidence = hosted.settlementEvidence.filter((evidence) =>
-    evidence.dispositionSetId === hosted.dispositionSetId
-    && hostFixFindingIds.includes(evidence.findingId));
-  if (fixEvidence.length !== hostFixFindingIds.length) {
-    throw new Error("hosted fix settlement does not match durable response-head evidence");
-  }
-  for (const evidence of fixEvidence) {
-    if (evidence.channelAction !== "reply-and-resolve") {
-      throw new Error("hosted fix settlement does not match durable response-head evidence");
-    }
-    const head = evidence.fixTarget?.headSha;
-    if (head === undefined
-      || (head !== performance.producedHeadSha && !await context?.confirmResponseHeadContinuation?.({
-        repositoryId: context.repositoryId, lineage: context.lineage, producerId: attempt.attemptId,
-        dispositionSetId: performance.dispositionSetId, originatingHeadSha: performance.originatingHeadSha,
-        fromHeadSha: performance.producedHeadSha, toHeadSha: head,
-      }))) throw new Error("hosted fix settlement does not match durable response-head evidence");
-  }
+  await assertHostedFixSettlementHeads({ producerId: attempt.attemptId, dispositionSetId: hosted.dispositionSetId,
+    performance, findingActions: hosted.dispositionSetLineage.at(-1)?.findingActions ?? [],
+    settlementEvidence: hosted.settlementEvidence, context });
 }
 
 /**
