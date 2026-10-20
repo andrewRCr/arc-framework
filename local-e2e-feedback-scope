@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "local-e2e-feedback-scope",
+  "claimId": "8ccff079c10858d068130a7601434ba3",
+  "createdAt": "2026-10-20T15:35:43.469Z",
+  "updatedAt": "2026-10-20T15:35:43.469Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Clarify local E2E feedback selection and how source changes name applicable E2E tests.",
+  "branch": "chore/local-e2e-feedback-scope",
+  "origin": "inbox",
+  "originEntry": "Say that local E2E feedback runs only changed E2E test files, so a source change names its E2E tests",
+  "originEntrySourceDigest": "sha256:0a7c54d92d3c8d70b1ecd239cfe0cff9966a2044e1d720fddf88c08e2f7afc42",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
