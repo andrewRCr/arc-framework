@@ -1829,6 +1829,10 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
         - The standalone Node change-facts entrypoint loads cancellation support only for signaled executor calls.
           Command-surface coverage requires remote designation to register while the default backend stays in-repo.
 
+    - `[x]` **18.3.b Errand-import CLI source fixture**
+        - The E2E source now creates the open Errand's recorded branch, as the integration source already does;
+          both layouts import and rerun without weakening missing-branch admission.
+
 ### `[ ]` **18.4 The host kit — § 14.8**
 
 - _Goal:_ The checks no CI host can run are run by hand against the real hosts, GitHub and GitLab holding every one, so

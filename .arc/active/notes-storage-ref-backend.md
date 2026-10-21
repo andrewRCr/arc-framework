@@ -997,3 +997,12 @@ configured. Policy/fork fixtures and Azure DevOps, Bitbucket, Gitea, and Forgejo
 segment verifier remain incomplete. Raw evidence is retained under
 `.arc/user/andrew/.internal/storage-ref-backend-tools/task-18.4/`, including per-command stdout/stderr and
 `backend-results.json`; results never imply that unavailable setups passed.
+
+## Errand import E2E source — Task 18.3.b
+
+Dispatched run `39530714223` at `cdf5fa119` refused both `store-import-errands.e2e.test.ts` cases with
+`branch-missing`: their open legacy Errand declared `chore/example` without creating it. The independent integration
+source already creates each declared branch. The E2E fixture now does the same; both layouts pass the real CLI import
+and repeat-import assertions. This corrects source setup and retains import's refusal and remedy for a genuinely
+missing branch. The failing hosted log is `/tmp/arc-storage-18-ci-e2e3.log`; the corrected focused run passed two cases
+in 12.29 seconds, retained in `/tmp/arc-storage-18.3-errand-e2e.log`.

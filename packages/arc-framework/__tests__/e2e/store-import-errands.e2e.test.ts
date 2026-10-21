@@ -13,6 +13,7 @@ describe.each(["default", "separate"] as const)("CLI Errand import in %s", (layo
       createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", kind: "errand", purpose: "errand",
       intent: "Preserve this source", branch: "chore/example", origin: "description", originEntry: null,
       state: "open", savedHead: null, changeRequest: null });
+    await h.git("git", ["branch", record.branch!]);
     const ref = "refs/arc/user/andrew/errands";
     const io = { exec: h.ports.exec, execInput: h.ports.execInput, identity: "andrew" };
     const blob = await hashBlob(io.execInput, serializeTransientIdentityRecord(record));
