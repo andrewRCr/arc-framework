@@ -435,9 +435,10 @@ and 15 for every served family, but for the assertions 4.4.d excludes by name, a
           inventory from actual proposed primary creations and supplies it to every check, including known-empty.
           Re-resolution rebuilds evidence, refused allocations publish nothing, and existing generations stay out.
 
-    - `[ ]` **4.R2.b Publish strict accepted receipts**
-        - Build test-first for the dedicated canonical trailer codec and ordinary single/multi-owner commits;
-          retain the accepted complete envelope on conflict and lifecycle commits, with strict batch binding.
+    - `[x]` **4.R2.b Publish strict accepted receipts**
+        - Accepted ordinary operations validate one complete receipt after checks and retain it on ordinary,
+          conflict, archive/history, reopen, completed-refresh, and retirement commits. The canonical trailer codec
+          distinguishes unavailable facts and refuses malformed, duplicated, or batch-mismatched advertised evidence.
 
     - `[ ]` **4.R2.c Retain facts through queries and other publishers**
         - Build test-first for bounded history/changes retention and visible corruption before grouping/omission;

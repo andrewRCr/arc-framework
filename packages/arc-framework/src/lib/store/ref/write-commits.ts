@@ -1,5 +1,7 @@
 /** Build the write commit and its separately attributed conflict-record commit. */
 
+import type { BatchCreationReceipt } from "../creation-receipt.js";
+import { appendStoreCreationReceipt } from "../commit-creation-receipt.js";
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 import type { ReadPlacement } from "../placement.js";
 import type { RefChange } from "../../git/ref-transaction.js";
@@ -20,7 +22,7 @@ export interface RefWriteGroup extends CapturedWriteGroup { original: Map<string
 export async function prepareRefCommits(context: RefBackendContext, writes: readonly PreparedRefMutation[],
   targets: readonly RefWriteTarget[],
   groups: ReadonlyMap<string, RefWriteGroup>, completed: ReadonlyMap<string, RefWriteGroup>, tips: ReadonlyMap<string, string>,
-  provenance: BatchInput["provenance"], batchId: string): Promise<RefChange[]> {
+  provenance: BatchInput["provenance"], batchId: string, receipt: BatchCreationReceipt): Promise<RefChange[]> {
   const changes: RefChange[] = [];
   const identity = await context.identity();
   const actor = identity === null ? undefined : await context.actor(identity);
@@ -34,12 +36,12 @@ export async function prepareRefCommits(context: RefBackendContext, writes: read
     const clashes = selected.some((write) => write.conflicts.length > 0);
     if (!clashes && unchangedGroup(group)) continue;
     const parent = tips.get(ref);
-    let next = await commitRefTree(context, group.entries.values(), parent, provenance, first.reference, batchId, actor);
+    let next = await commitRefTree(context, group.entries.values(), parent, provenance, first.reference, batchId, actor, receipt);
     if (clashes) {
       const final = completed.get(ref);
       if (!final) throw new Error("A ref with staged conflicts has no final tree");
       await serializeRefMetadata(context, final, path);
-      next = await commitRefTree(context, final.entries.values(), next, { ...provenance, verb: "merge" }, first.reference, batchId, actor);
+      next = await commitRefTree(context, final.entries.values(), next, { ...provenance, verb: "merge" }, first.reference, batchId, actor, receipt);
     }
     changes.push({ ref, next, expected: parent ?? null });
   }
@@ -48,10 +50,10 @@ export async function prepareRefCommits(context: RefBackendContext, writes: read
 
 /** Commit a prepared entry set with the same structured provenance on every lifecycle ref. */
 export async function commitRefTree(context: RefBackendContext, entries: Iterable<RefTreeEntry>, parent: string | undefined,
-  provenance: BatchInput["provenance"], reference: RecordReference, batchId: string, actor: string | undefined): Promise<string> {
+  provenance: BatchInput["provenance"], reference: RecordReference, batchId: string, actor: string | undefined, receipt?: BatchCreationReceipt): Promise<string> {
   const tree = await writeRefTree(context, entries);
   const { stdout } = await context.exec("git", ["commit-tree", tree, ...(parent ? ["-p", parent] : []),
-    "-m", renderStoreCommitMessage(provenance, reference, batchId, actor)], { cwd: context.checkoutRoot });
+    "-m", appendStoreCreationReceipt(renderStoreCommitMessage(provenance, reference, batchId, actor), receipt)], { cwd: context.checkoutRoot });
   return stdout.trim();
 }
 

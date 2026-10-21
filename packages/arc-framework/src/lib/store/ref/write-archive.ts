@@ -5,6 +5,7 @@ import type { RefChange } from "../../git/ref-transaction.js";
 import type { RecordReference } from "../identity.js";
 import type { StoreResult } from "../refusal.js";
 import type { ReadPlacement } from "../placement.js";
+import type { BatchCreationReceipt } from "../creation-receipt.js";
 import type { BatchInput } from "../write.js";
 import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
 import { readRefTrees, type RefTreeEntry } from "./batch-read.js";
@@ -64,7 +65,7 @@ export async function planRefArchives(context: RefBackendContext, writes: readon
 /** Replace ordinary live updates with one history move and one commit per touched quarter. */
 export async function archiveRefChanges(context: RefBackendContext, changes: readonly RefChange[], plans: readonly RefArchivePlan[],
   groups: ReadonlyMap<string, RefWriteGroup>, completed: ReadonlyMap<string, RefWriteGroup>, writes: readonly PreparedRefMutation[],
-  tips: ReadonlyMap<string, string>, provenance: BatchInput["provenance"], batchId: string): Promise<RefChange[]> {
+  tips: ReadonlyMap<string, string>, provenance: BatchInput["provenance"], batchId: string, receipt: BatchCreationReceipt): Promise<RefChange[]> {
   if (plans.length === 0) return [...changes];
   const result = changes.filter(({ ref }) => !plans.some(({ source }) => source === ref));
   const identity = await context.identity(), actor = identity === null ? undefined : await context.actor(identity);
@@ -82,7 +83,7 @@ export async function archiveRefChanges(context: RefBackendContext, changes: rea
   const quarters = new Map(plans.map((plan) => [plan.home.ref, plan]));
   for (const [ref, plan] of quarters) {
     const parent = tips.get(ref);
-    const next = await commitRefTree(context, plan.entries.values(), parent, provenance, plan.reference, batchId, actor);
+    const next = await commitRefTree(context, plan.entries.values(), parent, provenance, plan.reference, batchId, actor, receipt);
     result.push({ ref, next, expected: parent ?? null });
   }
   return result;

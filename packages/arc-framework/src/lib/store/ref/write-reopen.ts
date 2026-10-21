@@ -1,6 +1,7 @@
 /** Prepare reopen metadata and remove every archived copy in the owning ref transaction. */
 
 import type { RefChange } from "../../git/ref-transaction.js";
+import type { BatchCreationReceipt } from "../creation-receipt.js";
 import type { BatchInput } from "../write.js";
 import type { RecordReference } from "../identity.js";
 import { sameOwner } from "../identity.js";
@@ -44,7 +45,7 @@ export async function planRefReopens(context: RefBackendContext, batch: Resolved
 
 /** Move each prepared history commit live and publish all quarter removals in that transaction. */
 export async function reopenRefChanges(context: RefBackendContext, changes: readonly RefChange[], plans: readonly RefReopenPlan[],
-  tips: ReadonlyMap<string, string>, provenance: BatchInput["provenance"], batchId: string): Promise<RefChange[]> {
+  tips: ReadonlyMap<string, string>, provenance: BatchInput["provenance"], batchId: string, receipt: BatchCreationReceipt): Promise<RefChange[]> {
   if (!plans.length) return [...changes];
   const result = changes.filter(({ ref }) => !plans.some(({ history, quarters }) => history === ref || quarters.has(ref)));
   for (const plan of plans) {
@@ -57,7 +58,7 @@ export async function reopenRefChanges(context: RefBackendContext, changes: read
   const identity = await context.identity(), actor = identity === null ? undefined : await context.actor(identity);
   for (const [ref, entries] of first.quarters) {
     const parent = tips.get(ref);
-    const next = await commitRefTree(context, entries.values(), parent, provenance, first.reference, batchId, actor);
+    const next = await commitRefTree(context, entries.values(), parent, provenance, first.reference, batchId, actor, receipt);
     result.push({ ref, next, expected: parent ?? null });
   }
   return result;

@@ -2,6 +2,7 @@
 
 import type { RefChange } from "../../git/ref-transaction.js";
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
+import type { BatchCreationReceipt } from "../creation-receipt.js";
 import type { BatchInput } from "../write.js";
 import type { StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
@@ -30,7 +31,7 @@ export async function stampCompletedWrites(context: RefBackendContext, batch: Re
 
 /** Refresh every folder in the same transaction, composing with other quarter changes. */
 export async function refreshCompletedChanges(context: RefBackendContext, changes: readonly RefChange[], batch: ResolvedBatch,
-  groups: ReadonlyMap<string, RefWriteGroup>, provenance: BatchInput["provenance"], batchId: string): Promise<StoreResult<RefChange[]>> {
+  groups: ReadonlyMap<string, RefWriteGroup>, provenance: BatchInput["provenance"], batchId: string, receipt: BatchCreationReceipt): Promise<StoreResult<RefChange[]>> {
   const folders = (batch.archived ?? []).filter(({ liveRef }) => {
     const history = liveRef.replace("refs/arc/", "refs/arc/history/");
     return changes.some(({ ref }) => ref === history) && !groups.get(history)?.viewRef;
@@ -52,7 +53,7 @@ export async function refreshCompletedChanges(context: RefBackendContext, change
   const reference = batch.writes[0]?.mutation.reference;
   if (!reference) throw new Error("A completed batch has no mutation");
   for (const [ref, entries] of quarters) result.push({ ref,
-    next: await commitRefTree(context, entries.values(), batch.tips.get(ref), provenance, reference, batchId, actor), expected: batch.tips.get(ref) ?? null });
+    next: await commitRefTree(context, entries.values(), batch.tips.get(ref), provenance, reference, batchId, actor, receipt), expected: batch.tips.get(ref) ?? null });
   return { status: "ok", result };
 }
 

@@ -1,5 +1,6 @@
 /** Prepare record trees over captured tips and publish their commits in one transaction. */
 
+import { BatchCreationReceiptSchema } from "../creation-receipt.js";
 import { readObjectFormat } from "./manifest.js";
 import { commitRefStep } from "./commit-step.js";
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
@@ -73,11 +74,12 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
     const proposedCreatedOwners = proposedRefCreatedOwners(resolved, prepared.result, completed);
     const broken = await checkRefWrites(physical, prepared.result, completed, tips, provenance, proposedCreatedOwners, observations);
     if (broken) return { status: "refused", refusal: broken };
+    const receipt = BatchCreationReceiptSchema.parse({ schemaVersion: 1, batchId, createdOwners: proposedCreatedOwners });
     sweepRefRetirements(retirements.result, groups, completed);
-    const committed = await prepareRefCommits(physical, prepared.result, refWriteTargets(context, resolved), groups, completed, tips, provenance, batchId);
-    const archived = await archiveRefChanges(physical, committed, archives.result, groups, completed, prepared.result, tips, provenance, batchId);
-    const reopened = await reopenRefChanges(physical, archived, reopens.result, tips, provenance, batchId);
-    const refreshed = await refreshCompletedChanges(physical, reopened, resolved, completed, provenance, batchId);
+    const committed = await prepareRefCommits(physical, prepared.result, refWriteTargets(context, resolved), groups, completed, tips, provenance, batchId, receipt);
+    const archived = await archiveRefChanges(physical, committed, archives.result, groups, completed, prepared.result, tips, provenance, batchId, receipt);
+    const reopened = await reopenRefChanges(physical, archived, reopens.result, tips, provenance, batchId, receipt);
+    const refreshed = await refreshCompletedChanges(physical, reopened, resolved, completed, provenance, batchId, receipt);
     if (refreshed.status === "refused") return refreshed;
     const changes = retirementRefChanges(refreshed.result, retirements.result, tips);
     if (changes.length === 0) return { status: "ok", result: { batchId, writes: results } };
