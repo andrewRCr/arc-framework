@@ -5,7 +5,7 @@
 | `Active`  | `andrew`  | `feat/storage-ref-backend` | `Heavy`   | `P1`         |
 
 - **Cohort:** `state-storage`
-- **Depends On:** `seam-locus`
+- **Depends On:** [none]
 
 - **Origin:** [internal] — the `state-storage` re-cut (2026-09-28)
 - **Design:** `spec-storage-ref-backend.md`
