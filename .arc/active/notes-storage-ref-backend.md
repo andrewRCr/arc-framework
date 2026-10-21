@@ -1882,3 +1882,65 @@ CPU. The persistent reader's native lifetime remains separate and must not be su
 All new profiling and baseline calls run after the unchanged acceptance medians. They do not alter the workload,
 sample count, numeric limits, or failure assertions. One hosted run will ground the next budget judgment before
 another enumeration mechanism is implemented; no new numeric target is approved here.
+
+Dispatch `39663125872` binds to `26eb84244c2933ae2fdf1eb02cf4faa58cb4abc1`. The bounded job graph ran classification,
+setup, and the platform pair; unrelated Linux jobs skipped. Windows failed its default-read assertion after retaining
+both layouts' complete measurements; macOS passed its diagnostic and additional platform checks. This diagnostic is
+not the full portability pair required by 18.2.a.2.
+
+| Platform/layout  | Version (ms) | Read (ms) | List (ms) | Lookup (ms) | Write (ms) |
+| ---------------- | ------------ | --------- | --------- | ----------- | ---------- |
+| Windows/default  | 92.505       | 206.787   | 429.923   | 155.155     | 1,077.811  |
+| Windows/separate | 57.707       | 166.632   | 392.314   | 119.419     | 1,077.347  |
+| macOS/default    | 15.583       | 51.553    | 136.496   | 37.575      | 199.998    |
+| macOS/separate   | 7.456        | 50.412    | 141.842   | 17.763      | 154.118    |
+
+Windows uses Node 24.22.0 x64, Git 2.56.0.windows.2, image `win25-vs2026` version `20261018.275.1`; macOS uses Node
+24.21.0 arm64, Git 2.56.0, image `macos26` version `20261013.0424.1`. Each baseline observes 614 state refs after the
+measured and profiled edits. Baselines are separate post-measurement samples, not deductions from operation medians.
+
+| Platform/layout  | Git version (ms) | Repository probe (ms) | Complete namespace capture (ms) |
+| ---------------- | ---------------- | --------------------- | ------------------------------- |
+| Windows/default  | 56.717           | 57.855                | 96.880                          |
+| Windows/separate | 58.674           | 59.242                | 60.242                          |
+| macOS/default    | 6.766            | 20.193                | 29.514                          |
+| macOS/separate   | 5.722            | 6.116                 | 7.536                           |
+
+The post-measurement traced writes use 14/default and 16/separate native processes. Windows profile wall clocks are
+1,325.941/1,333.831 ms, with intercepted invocation unions of 1,188.237/1,191.636 ms and remaining intervals of
+137.704/142.195 ms. These are single traced writes, slower than the untraced medians, not acceptance samples or a
+precise partition of those medians. The remaining interval also includes the identity port's native `git config`
+call, which is visible in Trace2 but does not pass through the three intercepted executor ports. Persistent-reader
+lifetimes overlap other commands and are never added to this union. macOS profile walls are 185.192/165.150 ms.
+
+`executeRefBatch` resolves ownership before choosing target locks; `commitLockedRefBatch` recaptures after those
+locks to detect changed lifecycle/archive/retained bases; `commitRefStep` checks layout under the publication lock,
+and `refAdmissionBasisChanged` checks fresh namespace evidence, including newly created relevant refs. These
+observation boundaries remain required. Their current three separate Git captures are an implementation choice,
+not a proven lower bound. Native-confirmed blobs precede admission, persisted trees precede their commits, and the
+atomic expected-old ref transaction follows complete commit construction; readers close before the public return.
+
+Two recursive `diff-tree` launches remain. Their intercepted Windows profile calls take 82.274/86.090 ms in default
+layout and 80.778/74.886 ms in separate layout. Reader-based enumeration could remove those launches, but these
+single traced intervals cannot establish its untraced saving, and removing them alone is not a credible explanation
+for closing the 477–478 ms gap to 600 ms. Combining tree batches, scheduling independent commit construction, and
+reducing actor/config acquisition remain possible optimizations, not permission to remove admission or publication
+boundaries. The current process counts are not irreducible minima.
+
+Assessment: the original local 30 ms process estimate understates the observed hosted minimal-call medians by about
+1.9 times; no end-to-end or user-experience derivation for 600 ms was found in the planning evidence. The target is
+optimistic and uncalibrated for this hosted workload, not proven impossible. Consecutive hosted runs also show
+material baseline variation. GitHub's [hosted runner reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)
+specifies machine resources, not a Git-operation latency guarantee; external research cannot settle this backend's
+numeric budget in place of native measurement.
+
+Recommendation, pending approval: retain the 100 ms version and 300 ms lookup limits; forward-amend read to 300 ms,
+list to 600 ms, and write to 1,500 ms. These round upward from the latest worst-layout medians with at least the 35%
+headroom already used for advisory test costs, while remaining explicit regression limits rather than a user-facing
+latency promise. That headroom is a proposed policy, not a statistically established stability guarantee from one
+calibration run. Retain the complete workload, correctness/resource regressions, and full dispatched portability
+acceptance. Do not implement another enumeration mechanism solely to pursue the uncalibrated limit. Until an
+approved forward amendment changes them, every original numeric limit remains required and 18.2.a.2 stays open.
+
+Run metadata, complete raw samples and traces, the Windows failure log, and the derived interval summary are retained
+under `task-18.2-budget-calibration/` in the machine-local storage-ref-backend tools directory.
