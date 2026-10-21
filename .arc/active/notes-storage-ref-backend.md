@@ -2067,3 +2067,31 @@ retained in `task-18.2-a27-full/`. The watcher polled through completion rather 
 
 This closes the phase's stated scenario and the A25/A26/A27 revalidation boundary. Success Criteria markers remain
 unchanged for terminal verification; Phase 19 has not begun.
+
+### E2E cost investigation and follow-up disposition
+
+The paired hosted E2E shard-1 artifacts above contain the same 33 files and 319 cases. The test step rises from
+4m48s to 7m53s without E2E, production, or workflow source changes between the tested heads. Its summed concurrent
+file work rises by about 65%; this is a different clock from elapsed shard time. Test growth cannot explain that
+particular jump, and the precise hosted-runner cause remains unproved. The broader before/after WU measurements
+also include suite growth and merged base changes, so they do not isolate this backend's incremental cost.
+
+Source inspection identifies candidates, not measured savings. `e2e/errand.e2e.test.ts` repeatedly creates a repository
+and runs CLI initialization in `beforeEach`, including the open and close groups. Its review-response group already
+uses `prepareRepositoryTemplate` and `copyPreparedRepository` for independent copies. Compatible fixture reuse could
+remove repeated setup while preserving real CLI assertions. The Errand file itself rises from 229.4 to 385.5 seconds;
+as one file it cannot be divided among shards by the current sequencer. Splitting at command-group boundaries could
+reduce the longest shard without reducing total executed work, whereas fixture reuse could reduce both costs.
+
+`helpers/heavy-first-sequencer.ts::assignDurationShards` already assigns complete files greedily by recorded duration,
+with fallback weights for unseen files. `ci.yml` supplies one immutable input to every shard, then merges disjoint
+results and caches fresh durations after successful dispatched or scheduled functional runs. Dispatch `39674185052`
+successfully saved `arc-test-durations-Linux-39674185052`; a manual reassignment is not the first missing mechanism.
+
+The agreed disposition is a separate evaluation after this WU ships, held in the identity-global USER-INBOX entry
+“Evaluate hosted E2E fixture cost and oversized-file scheduling” for the next housekeep drain. This section preserves
+its evidence, not an execution queue. The evaluation can separate setup cost from exercised behavior, assess compatible
+fixture copies, and consider splitting persistent oversized files after observing refreshed scheduling. Coordinate
+with the cutover suite inventory above: preserve public consumer assertions and avoid investing in obsolete direct
+Errand-ref fixtures. No fixture, shard, test population, or budget changed during this investigation; the advisory
+overrun remains recorded and terminal verification remains a separate task.
