@@ -2,6 +2,10 @@
 import { posix } from "node:path";
 import type { StoreRecord } from "../../store/read.js";
 import type { Store } from "../../store/contract.js";
+import { canonicalize } from "../../kernel/index.js";
+import { IntegrationBoundaryLocusV2Schema } from "../../../scripts/review-gate/policy/integration-boundary-locus-v2.js";
+import { projectCandidateReviewBoundary } from "../../../scripts/review-gate/policy/integration-boundary-locus.js";
+import type { StoreTransitionInputs } from "../store-transition-types.js";
 import { recordReferences } from "../../store/identity.js";
 import { checkAdvancingPause } from "../../store/lifecycle-pause.js";
 import { readWorkUnit, readLifecycleMetaFields, workUnitMetaPath, recordPut } from "../../store/lifecycle-write.js";
@@ -21,9 +25,12 @@ export async function runStoreReopen(ctx: ExecuteTransitionContext & { store: St
   if (pause.status === "rejected") return pause;
   const task = await storedTaskAuthority(ctx.store, primary, meta.taskList, params.nextTask);
   if (task.status === "rejected") return task;
+  const review = await storedReviewWithdrawal(ctx.store, primary);
+  if (review.status === "rejected") return review;
   const requested = task.requested;
   const outcome = await executeTransition(ctx, { verb: "reopen", slug: params.name, inputs: {
-    storeTransition: { primary, preparedRecords: [task.record], additionalWrites: [recordPut(task.record)] },
+    storeTransition: { primary, preparedRecords: [task.record, ...review.records],
+      additionalWrites: [recordPut(task.record), ...review.writes] },
     prMerged: params.prMerged, prWithdrawMode: params.withdrawMode ?? "close",
     ...(requested === undefined ? {} : { currentWorkflowOverride: "process-task-loop" }),
   } });
@@ -31,6 +38,30 @@ export async function runStoreReopen(ctx: ExecuteTransitionContext & { store: St
     : { status: "rejected", reason: outcome.message,
       ...(outcome.status === "rejected" && outcome.refusal !== undefined ? { refusal: outcome.refusal } : {}),
       ...(outcome.status === "rejected" && outcome.remedy !== undefined ? { remedy: outcome.remedy } : {}) };
+}
+
+async function storedReviewWithdrawal(store: Store, primary: StoreRecord): Promise<
+  { status: "ready"; records: StoreRecord[]; writes: NonNullable<StoreTransitionInputs["additionalWrites"]> }
+  | Extract<ReopenResult, { status: "rejected" }>> {
+  const read = await store.read({ reference: recordReferences["review/integration-boundary"](primary.reference.owner) });
+  if (read.status === "refused") return read.refusal.code === "not-found"
+    ? { status: "ready", records: [], writes: [] }
+    : { status: "rejected", reason: read.refusal.condition, refusal: read.refusal, remedy: read.refusal.remedy };
+  const saved = read.result;
+  if (saved.conflicts.length > 0) return { status: "rejected",
+    reason: "Resolve the integration boundary's conflicts, then retry reopening the work unit." };
+  try {
+    const boundary = IntegrationBoundaryLocusV2Schema.parse(JSON.parse(saved.content));
+    if (boundary.workUnit !== primary.reference.owner.name) throw new Error("The integration boundary names another work unit.");
+    const withdrawn = IntegrationBoundaryLocusV2Schema.parse({
+      ...projectCandidateReviewBoundary({ workUnit: boundary.workUnit, candidateId: boundary.candidateId,
+        candidateSubjectDigest: boundary.candidateSubjectDigest }, 2),
+      terminus: boundary.terminus, deliveryReviewTermini: boundary.deliveryReviewTermini,
+    });
+    return { status: "ready", records: [saved], writes: [recordPut(saved, { content: canonicalize(withdrawn) })] };
+  } catch (error) {
+    return { status: "rejected", reason: `Repair the integration boundary before reopening, then retry: ${String(error)}` };
+  }
 }
 
 async function storedTaskAuthority(store: Store, primary: StoreRecord, binding: string | null, nextTask?: string): Promise<

@@ -753,10 +753,12 @@ export async function permitDeliveryReopen(
   settings: Awaited<ReturnType<typeof readConfigSettings>>["settings"],
 ): Promise<boolean> {
   let taskListPath: string | null;
+  let workItem = base.workItem;
   try {
     if (base.store !== undefined && usesOffBranchState(base.store)) {
       const primary = await readWorkUnit(base.store, target);
       if (primary.status === "refused") { refuse(primary.refusal.condition, primary.refusal); return false; }
+      workItem = primary.result.reference.owner;
       const meta = ParsedMetaRecordSchema.parse(primary.result.fields);
       const task = await base.store.read({ reference: recordReferences["work-item/task-list"](primary.result.reference.owner) });
       if (task.status === "refused") { refuse(task.refusal.condition, task.refusal); return false; }
@@ -780,7 +782,7 @@ export async function permitDeliveryReopen(
   let delivery;
   try {
     delivery = await inspectRepositoryDeliveryReopen({
-      ...resolveReviewInvocation({ ...base, exec: base.io.exec }),
+      ...resolveReviewInvocation({ ...base, workItem, exec: base.io.exec }),
       cwd: base.cwd,
       taskListPath,
       workUnitId: target,

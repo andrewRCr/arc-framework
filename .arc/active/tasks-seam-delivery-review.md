@@ -1215,36 +1215,17 @@ this phase puts publication's claim and reopen's boundary write in their transit
   the result and composed approval share the outcome's portable source digest. Default readiness re-entry retains the
   same Candidate's hosted reservation and replaces its ID after re-root, preserving reservation coordinates and checks.
 
-### `[ ]` **6.4 Withdraw publication at reopen, and retire with the work item — § 10.1, § 10.2, § 10.4**
+### `[x]` **6.4 Withdraw publication at reopen, and retire with the work item — § 10.1, § 10.2, § 10.4**
 
 - _Goal:_ From the flip reopen rewrites the boundary, for the same Candidate, to `candidate-review-pending` naming
   `arc review pre-publication <slug>` with no reservation and the terminus names it carries, in its lifecycle batch, so
   a reopened work unit cannot publish until readiness is recorded again while an interrupted publish still finishes; a
   re-root removes no decision; and an archived work unit's Candidate leaves the live listings with no write of its own.
 
-- _Note:_ The reference backend's test double has no history refs: it lists every saved record, with its meta's
-  placement (`__tests__/helpers/store/read.ts`). Moving an ended item's records under `refs/arc/history/work/<uid>`
-  (§ 10.4) is the ref backend's own conformance check.
-
-    - `runStoreReopen` (`lib/work-unit/verbs/reopen-store.ts`) reads the boundary through the store for its expected
-      version and adds its write to the transition's `additionalWrites`, as `projectCandidateReviewBoundary` writes it
-      but keeping the terminus names; `recoverAttestedSingletonPublicationBoundary` takes only an Integrating work unit.
-    - The reopen permit (`permitDeliveryReopen`, `handlers/lifecycle-delivery-review.ts`) reads the stored task list
-      through delivery inspection's read (4.6.a).
-    - Build `test-first` (one behavior at a time):
-        - from the flip the reopen permit reads the stored task list with no task-list file in the checkout
-        - a reopened work unit's publication refuses, and a no-change `arc attest` restores nothing
-        - `arc review pre-publication` records readiness again for the same Candidate and mints the reservation it had
-          before reopen, while the standard lane awaits its change request
-        - a reopened Candidate whose standard lane closed by Owner terminus records readiness again with no new
-          acceptance
-        - with the change request kept as a draft (`--keep-pr`), readiness recorded again mints a reservation only
-          where the standard lane still awaits its change request
-        - an Integrating work unit with no boundary reopens writing none
-        - a reopen whose boundary moved since it was read refuses and writes nothing, and its retry succeeds
-        - a re-root after code changes keeps a recorded terminus and ceiling extra pass, neither binding the new Candidate
-        - archive from the flip writes no review record, and a `review` listing filtered to live placements (`active`,
-          `planned`, `provisional`) omits the archived Candidate
+- _Outcome:_ Native reopen withdraws publication authority in its lifecycle batch, retaining the Candidate and
+  terminus references while dropping readiness and reservation. Stored task-list inspection retains the named owner;
+  moved or damaged boundaries refuse before effects and resume after repair. Fresh readiness, unchanged attestation,
+  close/draft withdrawal, decision survival after re-root, and Candidate retirement through archive are exercised.
 
 ### `[ ]` **6.5 Retire the branch-riding mechanisms from the flip — § 14.3**
 
