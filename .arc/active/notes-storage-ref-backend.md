@@ -1593,3 +1593,80 @@ Raw schema-5 captures, normalized reports, complete invocation logs, derived tab
 candidate are retained under `task-18.2-post-corrections/` in the machine-local storage-ref-backend tools directory.
 Hosted artifacts and exact job-ID logs are retained alongside them. Earlier diagnostic and platform failures remain in
 their original evidence directories and are not replaced by these measurements.
+
+## Dispatched platform results after acquisition corrections
+
+Full dispatch `39557918142` tests `c39ed377807ab78bcc8f3d6c037485ebbf16742d`, with `run_portability_pair: true` and the
+timing-only diagnostic flag false. The native suite retains the same 600-item/twelve-quarter timing fixture and all
+twenty writers in every burst.
+
+| Platform | Job result | All four full bursts |
+| -------- | ---------- | -------------------- |
+| Linux    | success    | passed               |
+| macOS    | success    | passed               |
+| Windows  | failure    | passed               |
+
+All four native burst cases pass on Linux, macOS, and Windows, retaining every accepted insertion/removal and the exact
+final inbox and remote tip. The bounded harness retains publication attempts; accepted writes are never replayed, and
+production deadlines and the 900-second test/process bounds remain unchanged.
+
+Windows completes 43 passing files, one failing timing file, and one skipped file: 1,393 passing cases, one failing
+case, and 84 registered skips. The sole assertion failure is `store-ref-timing.test.ts`’s default-write budget; both
+layouts’ complete median sets were written before assertions. Linux and macOS each pass all 45 native files (1,417 cases,
+61 skips); macOS also passes its 185 additional checks.
+
+Windows native execution reports 3,628.42 seconds, and separate conformance 2,869.875 seconds. The four-case burst file
+takes 549.467 seconds on Windows, 298.177 on macOS, and 95.003 on Linux. The previous full Windows run’s native 5,764.66
+seconds and separate-conformance 5,000.048 seconds remain historical observations, not an isolated causal comparison.
+
+### Eleven-sample operation medians
+
+| Platform | Layout   | Version (ms) | Read (ms) | List (ms) | Lookup (ms) | Write (ms) |
+| -------- | -------- | ------------ | --------- | --------- | ----------- | ---------- |
+| Linux    | default  | 7.749        | 41.455    | 105.706   | 16.531      | 166.186    |
+| Linux    | separate | 5.272        | 37.109    | 107.229   | 14.584      | 179.921    |
+| macOS    | default  | 27.158       | 95.219    | 219.324   | 36.291      | 421.840    |
+| macOS    | separate | 11.309       | 73.785    | 259.647   | 33.147      | 441.211    |
+| Windows  | default  | 63.779       | 146.988   | 269.405   | 113.801     | 1258.505   |
+| Windows  | separate | 46.423       | 129.581   | 247.472   | 98.978      | 1294.184   |
+
+The unchanged Windows limits are 100/150/300/300/600 ms for version/read/list/lookup/write. Linux and macOS figures are
+recorded observations; numeric acceptance is enforced on Windows.
+
+### Post-measurement write profiles
+
+| Platform | Layout   | Native commands | Public wall (ms) | Summed Git internal (ms) |
+| -------- | -------- | --------------- | ---------------- | ------------------------ |
+| macOS    | default  | 22              | 495.287          | 160.926                  |
+| macOS    | separate | 24              | 386.508          | 107.994                  |
+| Windows  | default  | 22              | 1591.275         | 694.228                  |
+| Windows  | separate | 24              | 1639.036         | 695.414                  |
+
+Profiles run only after both layouts’ acceptance medians are recorded, and verify exact readback afterward. Git internal
+times and public wall times use different clocks; TRACE2 adds I/O and some native commands may overlap. These profiles
+identify remaining process work, not a hard lower bound for an untraced operation.
+
+Exact job-ID logs, timing artifacts, write traces, and platform-result derivations are retained under
+`task-18.2-post-corrections/hosted/` in the machine-local storage-ref-backend tools directory.
+
+### Remaining Windows write-budget decision
+
+`store-ref-timing.test.ts::measure` reports default/separate writes at 1,258.505/1,294.184 ms against the unchanged 600
+ms limit. Version, read, list, and lookup medians fit their respective limits in both layouts. The prior complete run
+recorded writes at 2,155.793/2,180.604 ms. Current timing runs in its isolated sequence group before the burst group;
+local sessions do not contend with the hosted Windows job.
+
+`store-ref-timing.test.ts::profileWrite` confirms 22/default and 24/separate commands: three namespace captures, five
+`cat-file` launches, three tree enumerations, three hash calls, two configuration reads, two tree writes, two commit
+writes, one retained-history read, and one ref update. Separate layout adds two identity lookups. The Windows profile’s
+1,591/1,639 ms public walls and 694/695 ms summed Git times do not establish a lower bound for untraced medians.
+
+Specification § 11.7 both fixes the 600 ms target and prescribes write-side object batching on the premise that an
+operation reader does not shorten writes. `write.ts::executeRefBatch`, `write-build.ts::readWriteGroups`, and
+`batch-read.ts::readBatchObjects` still perform operation-local reads. Extending the coordinated reader to writes would
+revisit that premise and require settling its maintenance ordering. Aggregate object construction can also be investigated
+under the existing batching requirement; these profiles do not establish that 600 ms is impossible. Raising the numeric
+target requires explicit amendment. No new target, reader design, or amendment is selected by this evidence record.
+
+Task 18.2.a.2 remains open for the Windows write limit, alongside the existing host policy, fork, and separate-role
+gaps. Task 18.7 has not run; this record closes only the independently passing burst evidence.

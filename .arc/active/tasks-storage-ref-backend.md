@@ -1765,7 +1765,7 @@ workload differences are recorded, affected tier/job cost rows are re-measured a
 Linux portability marginal cost, the host kit's results, the pack-cost measurement, and the surviving suites are recorded
 in `notes-storage-ref-backend.md` (A25).
 
-### `[ ]` **18.1 The bursts — § 14.5**
+### `[x]` **18.1 The bursts — § 14.5**
 
 - _Goal:_ Twenty worktrees and twenty clones writing at once lose no write, on the platforms where contention costs most.
 
@@ -1776,10 +1776,11 @@ in `notes-storage-ref-backend.md` (A25).
         - The exact suite joins portability selection under `ARC_STORE_BURSTS`, with 900-second process/test bounds.
           Linux enables it on dispatch; the existing scheduled/dispatched Windows and macOS pair enables it too.
 
-    - `[ ]` **18.1.b Dispatched platform evidence**
-        - Passes with no lost write in one dispatched run of the Windows and macOS pair (`run_portability_pair: true`)
-          and one of the Linux portability job before this change lands, each recorded in
-          `notes-storage-ref-backend.md`, since a scheduled workflow runs only on the default branch
+    - `[x]` **18.1.b Dispatched platform evidence**
+        - Full dispatch `39557918142`, source `c39ed3778`, passes all four twenty-writer burst cases on Linux, macOS,
+          and Windows, preserving exact final inboxes and remote tips. The pair uses `run_portability_pair: true`.
+          Native logs and artifacts are recorded in `notes-storage-ref-backend.md`; Windows's independent write-budget
+          failure remains open under 18.2.
 
     - `[x]` **18.1.c Publishing failure diagnostics**
         - Boolean pull and publish assertions retain full native result details on failure, including the initial
@@ -1797,7 +1798,7 @@ in `notes-storage-ref-backend.md` (A25).
           typed recoverable timeout/exhaustion results; terminal, configuration, notice, and credential stops remain.
           Production deadlines and the 900-second harness bound stay intact.
         - Both layouts complete native timeout recovery and all four twenty-writer bursts with unchanged exact final
-          inbox and remote-tip checks; the dispatched platform evidence remains open.
+          inbox and remote-tip checks.
 
 ### `[ ]` **18.2 The Windows budget and the portability pair — § 11.7, § 14.10**
 
