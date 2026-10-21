@@ -3,7 +3,7 @@
   "slug": "e2e-deletion-only-selection",
   "claimId": "32d4810e099c7c1314707386cd942699",
   "createdAt": "2026-10-21T16:20:11.121Z",
-  "updatedAt": "2026-10-21T16:20:11.121Z",
+  "updatedAt": "2026-10-21T17:16:20.561Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Keep local E2E feedback applicable when every selected E2E path was deleted or renamed away, without handing missing paths to focused tests",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Run local E2E feedback for deletion-only selections",
   "originEntrySourceDigest": "sha256:7860affdb7e3c9742bdc3399831cef62756f3932355a72fa112dcdabcc8c2d8f",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/e2e-deletion-only-selection",
+    "headSha": "8ca9e88eb7f5ac4a4dd3a563338674aaeeb5746a"
+  }
 }
