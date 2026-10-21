@@ -4438,12 +4438,12 @@ open:
   _Supersedes:_ § 3.2 personal paths. _Trigger:_ 18.5 door. _Work:_ 18.R. _Revalidated:_ 18.R.
 
 - **A25** — 2026-10-21 — design: measure complete CI cost without the interim legacy ratio. _Supersedes:_ § 14.12, SC 11.
-  _Trigger:_ 18.3 must-stop. _Work:_ 18.3.R. _Revalidated:_ pending → 18.7.
+  _Trigger:_ 18.3 must-stop. _Work:_ 18.3.R. _Revalidated:_ 18.7.
 
 - **A26** — 2026-10-21 — design: reuse an operation-scoped reader during native writes without relaxing budgets.
-  _Supersedes:_ § 11.7 write-reader exclusion. _Trigger:_ 18.2.a.2 must-stop. _Work:_ 18.2.R. _Revalidated:_ pending → 18.7.
+  _Supersedes:_ § 11.7 write-reader exclusion. _Trigger:_ 18.2.a.2 must-stop. _Work:_ 18.2.R. _Revalidated:_ 18.7.
 
 - **A27** — 2026-10-21 — design: calibrate hosted Windows limits. _Supersedes:_ §§ 11.6–11.7, SC 9.
-  _Trigger:_ 18.2.n.2 must-stop. _Work:_ 18.2.R2. _Revalidated:_ pending → 18.7.
+  _Trigger:_ 18.2.n.2 must-stop. _Work:_ 18.2.R2. _Revalidated:_ 18.7.
 
 ---

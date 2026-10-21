@@ -2087,13 +2087,16 @@ in `notes-storage-ref-backend.md` (A25).
           aliases and both collision classes refuse atomically, then corrected keys succeed. Full native conformance
           and personal import comparisons retain the original logical keys without an old-name reader.
 
-### `[ ]` **18.7 Hosts, platforms, and cost** — validate exit criterion at segment scope
+### `[x]` **18.7 Hosts, platforms, and cost** — validate exit criterion at segment scope
 
 - _Goal:_ The bursts and the Windows budget pass on their dispatched runs, CI cost holds, and the host kit, pack cost,
   and surviving suites are recorded.
 
     - _Amended in:_ 18.3.R (A25)
-    - Request `arc check segment`
+
+- _Outcome:_ The complete platform pair and all twelve platform/burst combinations pass; both layouts meet the
+  calibrated Windows limits. Corrected Linux CI `39674185052` passes. The cost measurements, real-host results and
+  limitations, pack trial, surviving-suite inventory, and latest advisory E2E overrun are retained in the notes.
 
 ## **Phase 19:** Verification
 

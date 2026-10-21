@@ -2023,3 +2023,47 @@ the billed pair; the new Linux run is still required to confirm the harness fixe
 Run/job metadata, native logs, timing artifacts, traces, and duration inventories are retained under
 `task-18.2-a27-full/` in the machine-local storage-ref-backend tools directory. The thirty-second watcher detected the
 Windows completion before the follow-up dispatch; earlier failures remain preserved as failures.
+
+### Corrected Linux CI and advisory cost
+
+Dispatch `39674185052` passes at `a59b321c1e18f6fbf61ba89d69928499e45dd6a1`: build, both unit shards, lint/types, all
+four integration and E2E shards, Linux portability, and duration merging. Integration shard 3 contains both corrected
+files: all four authored CI-condition cases and both snapshot cases pass. Its complete population is unchanged at
+2,590 registered cases: 1,854 pass and 736 skip, replacing the earlier 1,850 passes and four failures. No case was
+removed to obtain the passing result.
+
+Nine of the ten functional job clocks are within the retained advisory rows. E2E shard 1 reports 490,458 ms against
+its 298,747 ms baseline and 403,309 ms allowance: an 87,149 ms advisory overrun, not a test failure. The budget remains
+unchanged. Both this run and `39664555792` assign the same 33 files to that shard; no E2E, production, or workflow
+source changes between their tested heads. Its `Run balanced shard` step increases from 288 to 473 seconds, while summed
+concurrent file work increases from 798,912 to 1,319,524 ms. Several unchanged files slow, including Errand, review,
+hook-commit, session-init, and init coverage; the exact runner-level cause is not established by these artifacts.
+Queue latency is not included in the job budget, and local test contention does not explain this hosted observation.
+
+This preserves the advisory overrun rather than raising a budget or attributing it to the harness fix. A25's complete
+conformance reporting, before/after tier/job measurements, retained 35% allowance, and Linux marginal file-cost record
+remain in the earlier cost sections; they are not replaced with these different measurements. The fixed Windows
+operation limits are independently satisfied by the complete platform run above.
+
+The complete follow-up run metadata, job-log archive, corrected shard log, and paired E2E duration inventories are
+retained in `task-18.2-a27-full/`. The watcher polled through completion rather than waiting for a status request.
+
+### Phase 18 exit scenario
+
+- Complete platform dispatch `39664555792` proves all twelve twenty-writer platform/case combinations, both layouts'
+  calibrated Windows medians, full native platform selections, and the additional macOS suite. The bounded source
+  applicability above preserves that evidence across the two harness-only corrections.
+- Corrected Linux dispatch `39674185052` proves the complete functional suite and native portability selection at the
+  corrected source. The two prior harness failures pass with their case populations and assertions retained.
+- The A25 cost sections retain complete conformance workloads, final fourteen-row tier/job baselines and deltas,
+  queue/raw/job-clock distinctions, and Linux separate-layout file work. The later advisory E2E overrun is explicit
+  and does not become a pass against its retained allowance.
+- The real-host trial retains all seven fully capable hosts' native observations and Azure's capability refusals,
+  supported continuation, and full-fork residual, meeting the GitHub/GitLab must-hold floor without a fallback.
+- The sixteen-person, forty-snapshot pack trial retains paired object inventories and all three corpus measurements;
+  A24's identity-suffixed mapping retains logical and projection addresses under native conformance.
+- The cutover inventory names retained contract/native/consumer coverage, implementation-specific retirements,
+  mixed-suite splits, dormancy cases, and fixture sequencing. These two corrections change no suite classification.
+
+This closes the phase's stated scenario and the A25/A26/A27 revalidation boundary. Success Criteria markers remain
+unchanged for terminal verification; Phase 19 has not begun.
