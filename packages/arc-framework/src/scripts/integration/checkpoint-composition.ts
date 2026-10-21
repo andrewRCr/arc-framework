@@ -1,6 +1,8 @@
 /** Production composition for the typed integration checkpoint. */
 
 import { resolve } from "node:path";
+import type { Store } from "../../lib/store/contract.js";
+import { readStoredLifecycleSummary } from "./lifecycle-record.js";
 
 import { resolveTaskListPath } from "../../commands/active/status.js";
 import { parseMetaRecord } from "../../lib/active/meta-reader.js";
@@ -434,13 +436,14 @@ async function readLifecycleArtifactFacts(
 }
 
 /**
- * Read the exact-tree lifecycle position and required archive products for one checkpoint.
+ * Read the selected lifecycle position and required archive products for one checkpoint.
  *
  * @param cwd - Repository root used to resolve managed artifact paths.
  * @param workUnit - Work-unit slug whose lifecycle is being checked.
  * @param archiveCadence - Cadence selecting the required pre-merge lifecycle position.
  * @param storageVersion - Immutable version identifying the supplied filesystem view.
- * @param fs - Exact-version filesystem projection.
+ * @param fs - Exact-version filesystem projection used by repository storage.
+ * @param store - Optional store selecting current native metadata authority.
  * @returns A typed summary bound to the supplied storage version.
  */
 export async function readLifecycleSummary(
@@ -449,7 +452,11 @@ export async function readLifecycleSummary(
   archiveCadence: "with-integration" | "manual",
   storageVersion: string,
   fs: IntegrationLifecycleReadFs,
+  store?: Store,
 ): Promise<IntegrationLifecycleSummary> {
+  if (store?.capabilities.stateOffBranch) return (await readStoredLifecycleSummary({
+    store, workUnit, archiveCadence, storageVersion,
+  })).summary;
   const { index } = await resolveComposedLifecycleIndex({ cwd, fs });
   const query = resolveSlugQuery(index, workUnit);
   const positioned = archiveCadence === "with-integration"
@@ -779,6 +786,13 @@ export function createIntegrationCheckpointDependencies(options: ReviewInvocatio
     readLifecycle: async (workUnit) => {
       const config = await settings();
       const snapshot = await lifecycleStorage.readSnapshot();
+      if (reviewRecordStore.capabilities.stateOffBranch) {
+        const observed = await readStoredLifecycleSummary({ store: reviewRecordStore, workUnit, owner: input.workItem,
+          archiveCadence: config.settings["archive.cadence"] === "manual" ? "manual" : "with-integration",
+          storageVersion: snapshot.version });
+        lifecycleRecordVersions.set(JSON.stringify([workUnit, snapshot.version]), observed.recordVersion);
+        return observed.summary;
+      }
       lifecycleRecordVersions.set(JSON.stringify([workUnit, snapshot.version]), snapshot.metaVersion(workUnit));
       return readLifecycleSummary(
         input.cwd,

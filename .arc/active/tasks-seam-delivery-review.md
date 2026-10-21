@@ -1303,22 +1303,12 @@ prerequisites have landed, and every earlier task is independent of the remainin
   position from placement and lifecycle state, its artifact facts from the stored meta — and a landed merge writes the
   landing-commit link naming the project ID and the merge commit, a rerun writing it where the first write failed.
 
-    - `[ ]` **7.1.a The lifecycle read**
+    - `[x]` **7.1.a The lifecycle read**
 
-        - `readLifecycleSummary` (`scripts/integration/checkpoint-composition.ts`) and `readStatus`
-          (`scripts/integration/merge-composition.ts`) read the meta through `readWorkUnit` (`lib/store/lifecycle-write.ts`),
-          merge comparing the meta record's version with the one the checkpoint bound.
-        - A `not-found` refusal reads as the lifecycle state `nonexistent`, as a missing meta does today; a
-          `record-malformed` one, an Errand's slug among them, becomes an artifact fact naming its condition; any other
-          refusal throws with its condition and remedy. `storageVersion` stays the lifecycle snapshot's whole version,
-          which the callers pass in (2.1.a).
-        - _Note:_ `readWorkUnit` resolves by `lookup`, which reaches an archived item under the ref backend, where a live
-          listing would not (§ 10.4); the reference backend's test double lists every record, so it cannot tell them apart.
-        - Build `test-first` (one behavior at a time):
-            - with a projected meta file that differs from the stored meta, the checkpoint reads the position and
-              artifact facts from the stored meta
-            - a store reporting the meta `not-found` reads as `nonexistent`, a malformed one as an artifact fact, and
-              any other refusal throws naming its condition
+        - Native checkpoint and merge read current metadata through the store, deriving position and artifact facts
+          without trusting the projected file. Checkpoint persistence and merge comparison bind the exact observed meta
+          version while the lifecycle summary retains the whole snapshot version. Missing records read as nonexistent;
+          malformed records become artifact facts, and other refusals preserve their condition and repair instructions.
 
     - `[ ]` **7.1.b The landing-commit link**
 

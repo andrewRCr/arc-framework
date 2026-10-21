@@ -1,5 +1,6 @@
 /** Production boundaries for the exact-checkpoint integration merge. */
 
+import { readStoredLifecycleSummary } from "./lifecycle-record.js";
 import { z } from "zod";
 
 import { resolveReviewInvocation, type ReviewInvocationInput } from "../review-gate/runtime/invocation.js";
@@ -297,6 +298,11 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
         }).then(({ stdout }) => stdout.trim()),
       ]);
       const snapshot = await lifecycleStorage.readSnapshot();
+      if (input.store.capabilities.stateOffBranch) {
+        const observed = await readStoredLifecycleSummary({ store: input.store, workUnit, owner: input.workItem,
+          archiveCadence: cadence, storageVersion: snapshot.version });
+        return { actualHead, lifecycleComplete: observed.summary.complete, lifecycleVersion: observed.recordVersion, target };
+      }
       const lifecycle = await readLifecycleSummary(
         input.cwd,
         workUnit,
