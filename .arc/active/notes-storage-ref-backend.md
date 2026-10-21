@@ -1989,3 +1989,37 @@ arm must still produce 128 complete, uniform snapshots while writes advance. No 
 Both corrected files pass all six cases locally on Git 2.55.0. The original hosted failure and before/after focused
 logs are retained in `task-18.2-a27-full/` and `task-18.2-ci-harness/` in the machine-local tools directory. These
 test-only corrections do not change the backend, workload, numeric budgets, or hosted acceptance requirements.
+
+### Complete calibrated portability acceptance
+
+Dispatch `39664555792` binds to `ec617a92e5c58f02f105e9dfd78681288afc9228`, with `run_portability_pair: true` and
+`portability_timing_only: false`. Both complete platform jobs pass. Windows completes 44 passing files and one
+platform-skipped file, with 1,404 passing cases and 84 skips; macOS completes all 45 native files with 1,427 passing
+cases and 61 skips, then its additional 22-file suite with 185 passing cases. Linux portability completes the same
+45-file native selection with 1,427 passing cases and 61 skips. Each platform passes all four twenty-writer burst
+cases, twelve platform/case combinations in total.
+
+| Platform/layout  | Version (ms) | Read (ms) | List (ms) | Lookup (ms) | Write (ms) |
+| ---------------- | ------------ | --------- | --------- | ----------- | ---------- |
+| Windows/default  | 56.168       | 132.377   | 286.859   | 101.288     | 729.986    |
+| Windows/separate | 39.729       | 120.956   | 261.038   | 83.175      | 727.299    |
+| macOS/default    | 27.548       | 67.118    | 144.155   | 37.942      | 176.798    |
+| macOS/separate   | 9.249        | 55.884    | 136.376   | 44.491      | 147.001    |
+
+All eleven-sample Windows medians satisfy A27's 100/300/600/300/1,500 ms limits over the unchanged 600-item,
+twelve-quarter population. The earlier 600 ms write limit would still fail; approval of A27, rather than a claimed
+pass against the original limit, is the basis for acceptance. Native profiles retain 14/default and 16/separate
+processes; their single traced write walls are 905.613/990.322 ms, separate from the untraced acceptance medians.
+Windows's job takes 65 minutes 9 seconds; its native runner reports 3,823.620 seconds, including its burst cases.
+
+The overall workflow remains failed because Linux integration shard 3 contains the two harness failures described
+above. This is not a claim that every CI job passed. Follow-up dispatch `39674185052` tests their corrected source
+`a59b321c1` on Linux with the platform-pair flag false. The bounded diff from the passing platform source changes only
+the two harnesses and execution notes/task state: no backend source, timing limit, fixture population, measurement
+loop, or workflow changes. The reftable consistency assertions remain identical, and the files control now uses one
+iteration. This is the applicability basis for retaining the passing complete platform evidence without repeating
+the billed pair; the new Linux run is still required to confirm the harness fixes before segment closure.
+
+Run/job metadata, native logs, timing artifacts, traces, and duration inventories are retained under
+`task-18.2-a27-full/` in the machine-local storage-ref-backend tools directory. The thirty-second watcher detected the
+Windows completion before the follow-up dispatch; earlier failures remain preserved as failures.

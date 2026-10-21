@@ -1800,7 +1800,7 @@ in `notes-storage-ref-backend.md` (A25).
         - Both layouts complete native timeout recovery and all four twenty-writer bursts with unchanged exact final
           inbox and remote-tip checks.
 
-### `[ ]` **18.2 The Windows budget and the portability pair — § 11.7, § 14.10**
+### `[x]` **18.2 The Windows budget and the portability pair — § 11.7, § 14.10**
 
 - _Goal:_ A dispatched portability run passes `--git-dir` with Windows paths and reftable on NTFS, and times `version`,
   `read`, `list`, `lookup`, and `write` within their budgets over 600 work items in twelve quarters.
@@ -1811,7 +1811,7 @@ in `notes-storage-ref-backend.md` (A25).
       reftable on each platform and the Linux `portability` job runs them on each reviewed pull request it runs on;
       `ARC_STORE_BURSTS` gates only the bursts (18.1) and the timing suite (18.2.a)
 
-    - `[ ]` **18.2.a The timing run**
+    - `[x]` **18.2.a The timing run**
         - `[x]` **18.2.a.1 Bulk fixture, measurements, and portability selection**
             - One native-produced prototype supplies exact record/registry formats; one bulk stream builds identical
               600-item, twelve-quarter stores in both layouts, retaining complete per-quarter creation receipts.
@@ -1819,9 +1819,10 @@ in `notes-storage-ref-backend.md` (A25).
             - Directory and separate-conformance suites join portability ungated; timing retains `ARC_STORE_BURSTS`.
               Windows alone enforces the budgets. Both layouts' medians and native durations persist as CI artifacts.
 
-        - `[ ]` **18.2.a.2 Dispatched budget evidence**
-            - One dispatched run passes before this change lands, its figures recorded in
-              `notes-storage-ref-backend.md`
+        - `[x]` **18.2.a.2 Dispatched budget evidence**
+            - Both complete platform jobs pass in dispatch `39664555792`; Windows satisfies all calibrated limits
+              in both layouts. Exact source, medians, complete native outcomes, and the separate Linux harness
+              failure/correction are recorded in `notes-storage-ref-backend.md`.
 
     - `[x]` **18.2.b Only where a budget is breached**
 
@@ -1958,7 +1959,7 @@ in `notes-storage-ref-backend.md` (A25).
   reader in each layout. Reader ownership remains per public call; immutable evidence remains per write attempt.
   Hosted acceptance is separate; local measurements and reconstruction evidence are in `notes-storage-ref-backend.md`.
 
-### `[ ]` **18.2.R2 Calibrated Windows operation limits**
+### `[x]` **18.2.R2 Calibrated Windows operation limits**
 
 - _Goal:_ Both layouts enforce the approved 100/300/600/300/1,500 ms version/read/list/lookup/write medians over the
   unchanged 600-item, twelve-quarter workload, and the complete dispatched portability pair passes (A27).
@@ -1968,9 +1969,10 @@ in `notes-storage-ref-backend.md` (A25).
           validation, reader ownership, resource coverage, and diagnostic/full-run selection retain their meaning;
           the complete hosted run remains the acceptance witness under 18.2.R2.b.
 
-    - `[ ]` **18.2.R2.b Complete the dispatched portability pair**
-        - Record both layouts' Windows medians, complete platform outcomes, and exact source head; close 18.2.a.2
-          only when the full pair passes. Preserve earlier failures as failures and retain the raw artifacts.
+    - `[x]` **18.2.R2.b Complete the dispatched portability pair**
+        - Dispatch `39664555792` passes both complete platform jobs at `ec617a92e`; Windows writes measure
+          729.986/727.299 ms and every calibrated median passes. The unchanged backend/workload retains this
+          platform evidence across the two test-harness fixes; their Linux CI confirmation remains separate.
 
 ### `[~]` **18.3 CI cost — § 14.12**
 
