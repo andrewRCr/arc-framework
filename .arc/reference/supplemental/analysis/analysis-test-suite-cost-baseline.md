@@ -15,6 +15,7 @@ and gitignored, while the normalized evidence below is the durable record.
 - [Schema-v4 metric correction](#schema-v4-metric-correction)
 - [Warm-run measurement practice](#warm-run-measurement-practice)
 - [Method and its limits](#method-and-its-limits)
+- [Diagnosing a wall-clock change](#diagnosing-a-wall-clock-change)
 - [Tier baselines](#tier-baselines)
 - [Post-cost baseline](#post-cost-baseline)
 - [Where the time concentrates](#where-the-time-concentrates)
@@ -153,6 +154,83 @@ with `git check-ignore`. What is committed here is the normalized ranking, mode,
 Only successful captures are eligible. Before persistence, every reported module must be terminal (`passed` or
 `skipped`) and `ok()`, and Vitest must report no run-level unhandled errors. The JSON normalizer refuses legacy
 records or any record without schema v3's explicit `outcome: "passed"` and zero-error stamps.
+
+## Diagnosing a wall-clock change
+
+A 2026-10-20 investigation at `b83a37f45` asked why heavy checks had slowed since the 2026-10-07 closing capture
+(`closing-local-a12/`). The readings below separated test growth from a per-operation regression and apply to any
+later slowdown; the figures in them are that day's observations.
+
+### Compare like with like
+
+- **Worker sizing differs by entry point.** Gate commands — `npm run test:unit`, `test:integration`, `arc check` —
+  size workers through `vitest-worker-policy.ts`: half the available parallelism, at most eight. That is eight on this
+  host and five on the `arc-gates` VM. `benchmark:test-cost --workers <n>` fixes the count instead. Compare a capture
+  only with one at the same sizing; efficiency computed against the wrong count reads a work-bound tier as idle.
+- **The benchmark takes about twice its retained wall clock.** Each invocation completes a discarded warm-up first.
+- **One flake discards the capture.** Only fully passed runs are retained, so an intermittent failure costs the whole
+  run; rerun it rather than reading partial output.
+- **Direct runs bypass `remote-check`.** `benchmark:test-cost` and `test:file` execute on the invoking host whatever
+  the switch says, and take that host's heavy-test slot; unit-only runs take no slot.
+
+### Tell growth from regression
+
+Two readings over a pair of retained per-file captures settle it:
+
+- **Parallel efficiency** — summed file time over workers times wall clock. Near 1 means the tier is work-bound:
+  ordering, placement, and splitting have nothing to take, and only less work or more capacity moves it. A single
+  file gates the tier only when its own duration approaches the tier's wall clock.
+- **Unchanged files** — restrict the comparison to files whose test count, and for E2E whose CLI spawn count, matches
+  in both captures. A median ratio near 1, with new files carrying the added time, is growth. Unchanged files slowing
+  together is a per-operation regression.
+
+On 2026-10-20 the integration tier was growth: efficiency 0.97 then 0.98 at 12 workers, a median ratio of 1.13 and a
+4% summed change over 233 unchanged files, and 1,245 s carried by 136 new files. Unchanged E2E files ran 1.2–2.8×
+slower, the regression signature.
+
+### Narrow a per-operation regression
+
+Run each step at both refs, interleaved, on an idle host:
+
+1. **One unchanged file alone**, through `npm run test:file`. This removes contention: a solo difference is work the
+   commands do, and any in-suite difference beyond it is load.
+2. **Git calls**, through a `git` shim first on `PATH` that logs each call's duration and arguments. Tests resolve Git
+   from `PATH`, so the shim sees fixture and CLI calls alike.
+3. **CLI processes from inside.** Tests spawn the CLI through `process.execPath`, so a `node` shim on `PATH` sees none
+   of them. A `NODE_OPTIONS="--require <file>"` preload that appends `performance.now()` on `exit`, when
+   `process.argv[1]` is the CLI entry, gives each verb's in-process time.
+4. **One verb profiled**, with `node --cpu-prof --cpu-prof-dir=<dir> <cli> <verb>`, then self and inclusive time
+   aggregated by named frame. Profile a real verb; `--version` loads no handler.
+
+For whole tiers at another commit, `benchmark:test-cost --ref <ref>` measures that commit in a temporary checkout
+when its lockfile matches; otherwise a detached worktree with its own `npm ci` and `npm run build:fast` serves.
+
+The integration IO context (`makeIOContext` in `__tests__/helpers/integration.ts`) stubs the editor-document writer,
+so a cost in checkout provisioning surfaces in E2E alone.
+
+### Placement and host
+
+| Gate command, quiet host | VM, 5 workers | This host, 8 workers |
+| ------------------------ | ------------- | -------------------- |
+| `test:unit`              | 34 s          | 35 s                 |
+| `test:integration`       | 415 s         | 391 s                |
+
+The VM is `arc-gates`: 10 cores and 12 GB on the Mac mini. This host is an i9-12900K under WSL2, with 24 threads and
+15 GB. Per test the VM is about 1.5× faster — integration summed test time 1,835 s against 2,715 s — so its five
+workers roughly match this host's eight. Under suite load this host spends about as much CPU time in the kernel as in
+user space, at about 130,000 context switches per second. Through the compile-cache launcher, a current-build CLI
+start measured 143 ms for `--version` and about 400 ms for `status --json`.
+
+### CI data
+
+- **Per-file durations** — every pull-request run uploads a `test-duration-input` artifact holding per-file
+  durations for unit, integration, and E2E in Vitest's results format, the sequencer's input. Retrieve it with
+  `gh run download <run> -n test-duration-input`.
+- **Job timings** — `gh run view <run> --json jobs` gives each job's start and end. Pushes to `main` skip the heavy
+  tiers, so read pull-request runs.
+- **Span** — a run spends about 90 s on classification, shared setup, and build before its test shards start, then
+  waits on the slowest of the four integration and four E2E shards. On 2026-10-20 no single file gated a shard, and
+  shard wall clocks within one run spread 150–170 s.
 
 ## Tier baselines
 
