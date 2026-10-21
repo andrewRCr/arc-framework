@@ -240,33 +240,57 @@ async function runGitCheck(context: RequestedCheck, io: DeclaredCheckDependencie
   request: CheckRequest): Promise<DeclaredCheckResult> {
   const { id, check, root, resolved, selection, kind, definition, indexViews, selectionTree } = context;
   let { tree } = resolved;
+  let executed = check;
   let forecast = request.dryRun ? resolveCheckForecast(check, root, [], io.platform) : {};
   const selected = selectCheckInputs({ id, check, request, resolved, selection });
   if (selected.status === "not selected") return { id, kind, ...forecast, outcome: "not selected", reason: selected.reason };
   let paths: string[] = [];
   let mergedIn: string[] = [];
   if (check.mode === "files") {
-    paths = await selectedFilePaths(io, { id, root, tree, selectionTree, inputs: check.inputs, selectedPaths: selected.paths,
-      withDeletions: !check.pass_paths });
-    if (paths.length === 0) return { id, kind, ...forecast, outcome: "not selected", reason: "no files to check" };
-    const checkedTree = usesFormingWorktree(check, request) ? resolved.worktreeTree ?? tree : tree;
-    mergedIn = await readRangeMergedInPaths(io.git, root, { scope: resolved.scope, base: resolved.base, merges: resolved.merges,
-      remoteBase: resolved.remoteBase, tree: checkedTree, inputs: check.inputs, paths });
-    const left = new Set(mergedIn);
-    paths = paths.filter(path => !left.has(path));
-    if (paths.length === 0) return { id, kind, ...forecast, outcome: "not selected", reason: MERGED_IN_ONLY, mergedIn };
+    const run = await selectFilesRun(context, io, request, selected.paths);
+    if (run.status === "not selected") return { id, kind, ...forecast, outcome: "not selected", reason: run.reason,
+      ...(run.mergedIn === undefined ? {} : { mergedIn: run.mergedIn }) };
+    ({ paths, mergedIn, check: executed } = run);
   }
-  if (request.dryRun) forecast = resolveCheckForecast(check, root, paths, io.platform);
+  if (request.dryRun) forecast = resolveCheckForecast(executed, root, paths, io.platform);
   if (usesFormingWorktree(check, request)) {
     tree = resolved.tree = resolved.worktreeTree ?? tree;
   }
   const divergent = await readCheckDivergence(io.git, root, tree, resolved.worktreeTree ?? tree, check.inputs, definition.global_inputs);
-  const result = await executeSelectedCheck({ id, check, root, tree, paths, kind, definition, indexViews, divergent, selectionTree, coordinates: resolved, ...(check.mode === "files" ? { content: { base: resolved.base, tree, merged: resolved.merged } } : {}) }, io, request);
+  const result = await executeSelectedCheck({ id, check: executed, root, tree, paths, kind, definition, indexViews, divergent, selectionTree, coordinates: resolved, ...(check.mode === "files" ? { content: { base: resolved.base, tree, merged: resolved.merged } } : {}) }, io, request);
   if (result.outcome === "failed" || result.outcome === "couldn't run") {
     result.remedy = checkRetryCommand({ id, request, resolved, widenedFiles: usesWidenedFileRetry(check, selection, request) });
   }
   if (mergedIn.length > 0) result.mergedIn = mergedIn;
   return { ...result, ...forecast };
+}
+
+type FilesRun = { status: "run"; paths: string[]; mergedIn: string[]; check: CheckDeclaration["checks"][string] }
+  | { status: "not selected"; reason: string; mergedIn?: string[] };
+
+/**
+ * Choose the paths a files check runs over once merged-in paths leave. A check that selects deletions, when deletions
+ * are all that changed, runs once without paths, as a check that withholds its paths does.
+ */
+async function selectFilesRun(context: RequestedCheck, io: DeclaredCheckDependencies, request: CheckRequest,
+  selectedPaths: TreePathChange[] | undefined): Promise<FilesRun> {
+  const { id, check, root, resolved, selectionTree } = context;
+  const { tree } = resolved;
+  const fileSelection = { id, root, tree, selectionTree, inputs: check.inputs, selectedPaths };
+  let executed = check;
+  let paths = await selectedFilePaths(io, { ...fileSelection, withDeletions: !check.pass_paths });
+  if (paths.length === 0 && check.mode === "files" && check.select_deletions) {
+    paths = await selectedFilePaths(io, { ...fileSelection, withDeletions: true });
+    executed = { ...check, pass_paths: false };
+  }
+  if (paths.length === 0) return { status: "not selected", reason: "no files to check" };
+  const checkedTree = usesFormingWorktree(check, request) ? resolved.worktreeTree ?? tree : tree;
+  const mergedIn = await readRangeMergedInPaths(io.git, root, { scope: resolved.scope, base: resolved.base, merges: resolved.merges,
+    remoteBase: resolved.remoteBase, tree: checkedTree, inputs: check.inputs, paths });
+  const left = new Set(mergedIn);
+  paths = paths.filter(path => !left.has(path));
+  return paths.length === 0 ? { status: "not selected", reason: MERGED_IN_ONLY, mergedIn }
+    : { status: "run", paths, mergedIn, check: executed };
 }
 
 async function runProjectedCheck(context: RequestedCheck, io: DeclaredCheckDependencies,
@@ -314,7 +338,7 @@ async function partiallyStagedRefusal(io: DeclaredCheckDependencies, context: {
     const selected = selectCheckInputs({ id, check, request, resolved, selection });
     if (selected.status === "not selected") continue;
     if (check.mode === "files" && (await selectedFilePaths(io, { id, root, tree: resolved.tree, selectionTree: resolved.tree,
-      inputs: check.inputs, selectedPaths: selected.paths, withDeletions: !check.pass_paths })).length === 0) continue;
+      inputs: check.inputs, selectedPaths: selected.paths, withDeletions: !check.pass_paths || check.select_deletions })).length === 0) continue;
     candidates.push({ id, inputs: check.inputs });
     if (context.globalInputs.length > 0) candidates.push({ id, inputs: context.globalInputs });
   }
@@ -329,7 +353,8 @@ async function partiallyStagedRefusal(io: DeclaredCheckDependencies, context: {
 
 /**
  * The changed input paths that select a files check. A deleted path cannot be handed to a command, so it counts only
- * for a check that withholds its paths, which any change to its inputs selects.
+ * for a check that withholds its paths, which any change to its inputs selects, or one that selects deletions and so
+ * runs without paths when deletions are all that changed.
  */
 async function selectedFilePaths(io: DeclaredCheckDependencies, input: {
   id: string; root: string; tree: string; selectionTree: string; inputs: string[]; selectedPaths?: TreePathChange[];

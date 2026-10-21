@@ -39,7 +39,7 @@ it("documents selection scope and enforces its authored restrictions in the edit
   const document = foldKernelSchemaClosure(projectKernelSchemas("input", registry), "check-declaration");
   const validate = new Ajv2020({ strict: true, validateFormats: false }).compile(document);
   expect(validate({ checks: { selected: { command: ["lint"], mode: "selection" } } })).toBe(true);
-  for (const field of ["gate", "shell", "fixes", "reads_index", "ci_only", "cache", "widen", "pass_paths"]) {
+  for (const field of ["gate", "shell", "fixes", "reads_index", "ci_only", "cache", "widen", "pass_paths", "select_deletions"]) {
     const value = field === "gate" ? "commit" : field === "pass_paths" ? false : true;
     expect(validate({ checks: { selected: { command: ["lint"], mode: "selection", [field]: value } } })).toBe(false);
   }
