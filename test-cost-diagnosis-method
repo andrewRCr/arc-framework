@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "test-cost-diagnosis-method",
+  "claimId": "9497f48b60d9115c7cc9102124a1e65f",
+  "createdAt": "2026-10-21T04:36:38.560Z",
+  "updatedAt": "2026-10-21T04:36:38.560Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Record how to diagnose a test-suite wall-clock change in the test-cost baseline analysis",
+  "branch": "chore/test-cost-diagnosis-method",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
