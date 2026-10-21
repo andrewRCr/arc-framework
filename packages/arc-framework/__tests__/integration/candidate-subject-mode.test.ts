@@ -52,6 +52,31 @@ function subjectPaths(target: Awaited<ReturnType<typeof collectSubject>>): strin
 }
 
 describe("Git Candidate subject modes", () => {
+  it.each(["add", "rewrite", "delete"] as const)("keeps the subject unchanged when an exported spec is %s", async (operation) => {
+    const root = await initRepository("arc-candidate-export-");
+    await writeAt(root, "src/example.ts", "base\n");
+    await git(root, "add", "-A");
+    await git(root, "commit", "-m", "base");
+    await git(root, "switch", "-c", "feat/example");
+    await writeAt(root, "src/example.ts", "implementation\n");
+    const copy = ".arc/specs/example/spec-example.md";
+    if (operation !== "add") await writeAt(root, copy, "initial design\n");
+    await git(root, "add", "-A");
+    await git(root, "commit", "-m", "implementation and initial design");
+    const before = await collectSubject({ cwd: root, name: "example", baseBranch: "main", exec });
+
+    if (operation === "delete") await rm(join(root, copy));
+    else await writeAt(root, copy, "exported design\n");
+    await git(root, "add", "-A");
+    const staged = await collectSubject({ cwd: root, name: "example", baseBranch: "main", exec });
+    expect(staged.subject.subjectDigest).toBe(before.subject.subjectDigest);
+    await git(root, "commit", "-m", "update exported design");
+    const committed = await collectSubject({
+      cwd: root, name: "example", baseBranch: "main", revision: await git(root, "rev-parse", "HEAD"), exec,
+    });
+    expect(committed.subject.subjectDigest).toBe(before.subject.subjectDigest);
+  }, 30_000);
+
   it("changes the reviewable subject when staged executable mode changes over identical bytes", async () => {
     const root = await mkdtemp(join(tmpdir(), "arc-candidate-mode-"));
     roots.push(root);

@@ -15,6 +15,19 @@ const context = {
 };
 
 describe("evidence applicability path treatment", () => {
+  it("neutralizes only the current work unit's export folder by path alone", () => {
+    expect(classifyPathTreatment(".arc/specs/example/spec-example.md", context)).toBe("evidence-neutral");
+    expect(classifyPathTreatment(".arc/specs/example/other.md", context)).toBe("evidence-neutral");
+  });
+
+  it.each([
+    [".arc/specs/example-other/spec-example-other.md", context],
+    [".arc/specs/sibling/spec-sibling.md", context],
+    [".arc/specs/example/spec-example.md", {}],
+  ])("keeps an unowned export reviewable: %s", (path, owner) => {
+    expect(classifyPathTreatment(path, owner)).toBe("reviewable");
+  });
+
   it("keeps ordinary implementation and shipped framework content reviewable", () => {
     expect(classifyPathTreatment("packages/arc-framework/src/example.ts", context)).toBe("reviewable");
     expect(classifyPathTreatment(".arc/system/workflows/arc/process-task-loop.md", context))

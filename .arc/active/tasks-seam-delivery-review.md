@@ -1333,17 +1333,12 @@ prerequisites have landed, and every earlier task is independent of the remainin
   the export path stays evidence-neutral so adding, re-exporting, and deleting the copy leave the review subject
   unchanged.
 
-    - `[ ]` **7.3.a The evidence-neutral arm**
+    - `[x]` **7.3.a The evidence-neutral arm**
 
-        - `classifyPathTreatment` (`lib/evidence-applicability/path-treatment.ts`) gains the export path's arm,
-          classifying by path alone, through 6.5.d's layout address, the export folder of the work unit its context
-          names (`workUnit`), so every caller sees its own work unit's copy as evidence-neutral and another work unit's
-          as reviewable, and a context naming no work unit, as Errand status's does (`rg/status-errand.ts`), classifies
-          no export path; delivery's lifecycle-contribution path group gains nothing.
-        - Build `test-first` (one behavior at a time):
-            - adding, re-exporting, and deleting the copy leave the Candidate's subject digest unchanged
-            - another work unit's copy classifies as reviewable, and a context naming no work unit classifies no copy
-              as evidence-neutral
+        - The shared path classifier uses the layout address to neutralize only the context work unit's export
+          folder, without inspecting file content or existence. Other work units' copies and contexts without a work
+          unit remain reviewable. Adding, rewriting, and deleting a copy preserve staged and committed Candidate
+          subject digests; delivery's lifecycle-contribution group stays unchanged.
 
     - `[ ]` **7.3.b The option and the export**
 
