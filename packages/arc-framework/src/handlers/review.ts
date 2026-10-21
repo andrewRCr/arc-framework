@@ -144,6 +144,7 @@ import {
   type PrePublicationReviewRequest,
 } from "../scripts/review-gate/policy/pre-publication-procedure.js";
 import { CandidateReviewResumeBoundaryV2Schema } from "../scripts/review-gate/policy/integration-boundary-locus-v2.js";
+import { bindPrePublicationCarriedTerminus } from "../scripts/review-gate/policy/pre-publication-carried-terminus.js";
 import { OwnerAcceptedReviewTerminusSchema } from "../scripts/review-gate/policy/review-terminus.js";
 import {
   CandidateReviewResumeBoundarySchema,
@@ -4140,7 +4141,8 @@ export interface ReviewPrePublicationHandlerDependencies extends PrePublicationP
 function projectPrePublicationForBackend(dependencies: ReviewPrePublicationHandlerDependencies, root: string,
   request: PrePublicationReviewRequest, continuation: PostAttestContinuation, progress: PrePublicationProgress | null): PrePublicationReviewEnvelope {
   const native = dependencies.boundarySchemaVersion?.(root) === 2;
-  return projectPrePublicationReview(request, continuation, native ? { terminus: null, readinessBinding: progress?.schemaVersion === 2 ? progress.digest : null } : undefined);
+  return projectPrePublicationReview(request, continuation, native ? { terminus: request.standard.terminus?.schemaVersion === 2
+    ? request.standard.terminus.decisionKey : null, readinessBinding: progress?.schemaVersion === 2 ? progress.digest : null } : undefined);
 }
 
 async function persistPrePublicationBoundary(input: ReviewInvocationInput, value: unknown,
@@ -4321,6 +4323,8 @@ function defaultPrePublicationDependencies(
       const snapshot = boundarySnapshots.get(input.name)
         ?? await readSubmissionBoundaryVersioned(root, input.name, { store: recordStoreFor(root), owner: invocationFor(root).workItem });
       boundarySnapshots.set(input.name, snapshot);
+      const compositionDependencies = bindPrePublicationCarriedTerminus(
+        createPrePublicationCompositionDependencies({ ...invocationFor(root), cwd: root, exec }), snapshot.boundary);
       const composition = await composePrePublicationReviewRequest(
         {
           workUnit: input.name,
@@ -4331,7 +4335,7 @@ function defaultPrePublicationDependencies(
             ? {}
             : { frontlineCeilingHeadSha: judgment.frontlineCeilingHeadSha }),
         },
-        createPrePublicationCompositionDependencies({ ...invocationFor(root), cwd: root, exec }),
+        compositionDependencies,
       );
       const existing = snapshot.boundary;
       let carried = composition;
@@ -4342,7 +4346,7 @@ function defaultPrePublicationDependencies(
           reservation: existing.reservation,
         });
       }
-      if (existing?.terminus !== null && existing?.terminus !== undefined) {
+      if (existing?.schemaVersion === 1 && existing.terminus !== null) {
         carried = applyCarriedOwnerAcceptedTerminus(carried, {
           candidateId: existing.candidateId,
           candidateSubjectDigest: existing.candidateSubjectDigest,

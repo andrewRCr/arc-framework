@@ -1,5 +1,6 @@
 /** Compose stored pass judgments and the existing per-call lane invocation before pure policy runs. */
 import { requireNativeReviewDecisionReferences } from "./review-grant-references.js";
+import type { NativeOwnerAcceptedReviewTerminus } from "./review-terminus.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import type { LaneProgressProjection } from "../lane-progress.js";
@@ -13,21 +14,24 @@ export async function composePrePublicationLaneJudgment(input: {
   judgment?: ReviewLaneJudgment; dependencies: PrePublicationCompositionDependencies;
 }): Promise<{
   completedPasses: number; currentLineage: LaneSubjectLineage; judgment?: ReviewLaneJudgment;
-  invocation: ReviewLaneJudgment["invocation"]; frontlinePhaseClosed?: true;
+  invocation: ReviewLaneJudgment["invocation"]; frontlinePhaseClosed?: true; terminus?: NativeOwnerAcceptedReviewTerminus;
   extraPassAuthority: Pick<ReviewPolicyCommandRequest, "ceilingOverride" | "additionalPassAuthorization">;
 }> {
   const { candidate, lane, lineage, policyTarget, exactTarget, progress, dependencies } = input;
   const completedPasses = progress.status === "recorded" ? progress.completedPasses : 0;
   const currentLineage = lineage ?? { kind: "candidate" as const, candidateId: candidate.candidateId };
+  const subject = { lineage: currentLineage, headSha: policyTarget.headSha,
+    subjectDigest: currentLineage.kind === "candidate" ? candidate.subjectDigest : exactTarget?.targetId ?? null };
+  const terminus = lane !== "standard" || dependencies.resolveNativeTerminus === undefined ? undefined
+    : await dependencies.resolveNativeTerminus({ subject });
   const judgment = dependencies.resolveExtraPassJudgment === undefined ? input.judgment
     : await dependencies.resolveExtraPassJudgment({ repositoryId: exactTarget?.repositoryId,
-      subject: { lineage: currentLineage, headSha: policyTarget.headSha,
-        subjectDigest: currentLineage.kind === "candidate" ? candidate.subjectDigest : exactTarget?.targetId ?? null },
+      subject,
       policyTarget, lane, completedPasses, judgment: input.judgment });
   const closed = lane === "frontline" && lineage?.kind === "candidate"
     && dependencies.readSingletonFrontlinePhaseClosed !== undefined
     && await dependencies.readSingletonFrontlinePhaseClosed(lineage.candidateId, candidate.supersessionAncestors ?? []);
-  return { completedPasses, currentLineage, judgment,
+  return { completedPasses, currentLineage, judgment, terminus,
     ...(closed && dependencies.stateOffBranch === true
       ? { invocation: judgment?.invocation, frontlinePhaseClosed: true as const }
       : { invocation: closed ? { mode: "skip" as const } : judgment?.invocation }),

@@ -1115,7 +1115,7 @@ this phase puts publication's claim and reopen's boundary write in their transit
                   and replay comparisons omit transient keys while retaining grant constraints. Native pre-publication
                   composition reuses each stored grant without another write.
 
-    - `[ ]` **6.2.R2 Preserve native terminus provenance through policy composition**
+    - `[x]` **6.2.R2 Preserve native terminus provenance through policy composition**
 
         - _Goal:_ Native policy resolves an imported terminus with no recorded author through its original decision
           and stored pass-count basis, without changing public command inputs, repository records, or in-repo output
@@ -1125,20 +1125,15 @@ this phase puts publication's claim and reopen's boundary write in their transit
                 - Native bound requests and policy results retain the decision key and nullable author. Evidence and
                   continuation preserve that authority only with trusted native context; public commands and remedies
                   retain their version-one shape. Native boundary projection requires the matching decision key.
-            - `[ ]` **6.2.R2.b Native decision reads and pre-publication composition**
-                - Resolve live termini on the selected owner, preserving recorded author and basis, and inject the
-                  native projection before policy. Native envelope and boundary projection retain the selected key;
-                  read-only re-entry asks for no new author or acceptance and writes no decision. Owned generic
-                  resolution recomposes omitted native authority from the same owner; fact-free ownerless paths stay
-                  unchanged, and corrective command payloads omit the native projection.
-                - Build `test-first` (one behavior at a time): the actual replay mapper's authorless decision reaches
-                  default pre-publication readiness and a boundary naming that key; a stored known-author decision
-                  preserves its author; wrong-kind, withdrawn, missing, or mismatching references refuse before policy
-                  and retry succeeds with matching authority. Incomplete listings retain their repair route.
-            - `[ ]` **6.2.R2.c Bounded regression proof**
-                - Verify the default imported-terminus path, bound evidence and continuation consumers, and unchanged
-                  command/remedy contracts. The live singleton and member writers and their atomic batches remain in
-                  6.2.b; re-run the full Candidate segment scenario at 6.6.
+            - `[x]` **6.2.R2.b Native decision reads and pre-publication composition**
+                - Native composition resolves live decisions on the selected owner before policy, retaining their
+                  author and pass-count basis. Default pre-publication and owned generic resolution recompose omitted
+                  authority without another decision write; retained invalid keys and incomplete listings refuse with
+                  repair routes. Pre-publication boundaries name the original key, and ownerless resolution is unchanged.
+            - `[x]` **6.2.R2.c Bounded regression proof**
+                - Replay-imported termini reach default readiness, retain their provenance, and re-enter without a new
+                  decision. Bound evidence, continuation, command, and remedy contracts retain their required forms;
+                  repaired references resume normally. Live singleton and member writes remain in 6.2.b.
 
     - `[x]` **6.2.a Ceiling and additional extra passes**
 

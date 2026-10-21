@@ -1,4 +1,5 @@
 /** Lane policy-request composition for the typed pre-publication review procedure. */
+import { projectPrePublicationTerminus } from "./pre-publication-owner-judgments.js";
 import { composePrePublicationLaneJudgment, applyPrePublicationExtraPassJudgment } from "./pre-publication-lane-judgments.js";
 import { deriveReviewNextPassContextFromAttempts, latestCompletedLaneAttempt } from "./review-next-pass.js";
 import type { PerformedResponseProofInput } from "./performed-response-proof.js";
@@ -38,7 +39,7 @@ import {
   projectReviewPolicyAttempt,
   resolveReviewPolicy,
   ReviewLaneJudgmentSchema,
-  type ReviewPolicyCommandRequest,
+  type ReviewPolicyBoundRequest,
   type ReviewLaneJudgment,
 } from "./review-policy-driver.js";
 import {
@@ -47,7 +48,7 @@ import {
   readIncrementalPredecessorResponseEvidence,
   ReviewProducerScopeMismatchError,
 } from "./review-policy-evidence.js";
-import type { OwnerAcceptedReviewTerminus } from "./review-terminus.js";
+import type { NativeOwnerAcceptedReviewTerminus, ResolvedOwnerAcceptedReviewTerminus } from "./review-terminus.js";
 import { projectStandardReviewObligation } from "./standard-review-projection.js";
 import { resolveReviewRouting } from "./routing.js";
 import type {
@@ -193,6 +194,10 @@ export interface PrePublicationCompositionDependencies {
   readDeliveryReviewTargets(workUnit: string): Promise<PreBindingDeliveryReviewTargets>;
   deriveImmutableTarget(headSha: string): Promise<ImmutableTargetRead>;
   readOwnerTerminusAuthority(workUnit: string): Promise<OwnerTerminusAuthorityRead>;
+  resolveNativeTerminus?(input: {
+    decisionKey?: CanonicalDigest;
+    subject: { lineage: LaneSubjectLineage; headSha: string; subjectDigest: CanonicalDigest | null };
+  }): Promise<NativeOwnerAcceptedReviewTerminus | undefined>;
   resolveExtraPassJudgment?(input: {
     repositoryId?: string; subject: { lineage: LaneSubjectLineage; headSha: string; subjectDigest: CanonicalDigest | null };
     policyTarget: ReviewPolicyTarget; lane: ReviewLane; completedPasses: number; judgment?: ReviewLaneJudgment;
@@ -485,7 +490,7 @@ function effectiveTerminalAttempt(
 }
 
 async function terminalResponseSource(
-  request: ReviewPolicyCommandRequest,
+  request: ReviewPolicyBoundRequest,
   dependencies: PrePublicationCompositionDependencies,
   terminalAttempt?: LanePolicyAttempt,
 ): Promise<z.infer<typeof ReviewResponseSettlementSourceSchema> | null> {
@@ -770,7 +775,7 @@ export async function composePrePublicationReviewRequest(
       : { progress: rawProgress, sameHeadCandidate: undefined };
     refusePendingLaneReview(progress, lane);
     if (progress.status === "unrecorded") advisories.push(unrecordedLaneAdvisory(lane));
-    const { completedPasses, currentLineage, judgment, invocation, frontlinePhaseClosed, extraPassAuthority } =
+    const { completedPasses, currentLineage, judgment, invocation, frontlinePhaseClosed, extraPassAuthority, terminus } =
       await composePrePublicationLaneJudgment({ candidate, lane, lineage, policyTarget, exactTarget, progress,
         judgment: lanes.data[lane], dependencies });
     const historicalAttempt = await applicableHistoricalAttempt({
@@ -778,7 +783,7 @@ export async function composePrePublicationReviewRequest(
       workUnit: input.workUnit, policyTarget, dependencies,
     });
     terminalAttempts[lane] = effectiveTerminalAttempt(progress, historicalAttempt);
-    const policyInput: ReviewPolicyCommandRequest = {
+    const policyInput: ReviewPolicyBoundRequest = {
       schemaVersion: 1,
       target: policyTarget,
       lane,
@@ -788,24 +793,11 @@ export async function composePrePublicationReviewRequest(
       completedPasses,
       attempts: policyAttempts(progress, historicalAttempt),
       ...extraPassAuthority,
+      ...projectPrePublicationTerminus({ lane, judgment, authority: ownerTerminusAuthority, completedPasses, stored: terminus }),
       ...(judgment?.scopeMode === undefined
         ? {}
         : { scopeSelection: { mode: judgment.scopeMode, target: policyTarget } }),
       ...(invocation === undefined ? {} : { invocation }),
-      ...(lane !== "standard"
-        || judgment?.terminus === undefined
-        || ownerTerminusAuthority?.status !== "authorized"
-        ? {}
-        : {
-            terminus: {
-              schemaVersion: 1,
-              semanticsVersion: "review-terminus/v1",
-              kind: "owner-accepted",
-              lane: "standard",
-              acceptedBy: ownerTerminusAuthority.ownerIdentity,
-              completedPasses,
-            } satisfies OwnerAcceptedReviewTerminus,
-          }),
     };
     // A fresh findings result must expose the exact response route before dispositions exist.
     // Binding still validates the immutable producer; only this known pending route permits its
@@ -1036,7 +1028,7 @@ export function applyCarriedOwnerAcceptedTerminus(
   input: {
     candidateId: CanonicalDigest;
     candidateSubjectDigest: string | null;
-    terminus: OwnerAcceptedReviewTerminus;
+    terminus: ResolvedOwnerAcceptedReviewTerminus;
   },
 ): PrePublicationComposition {
   if (composition.status !== "composed"

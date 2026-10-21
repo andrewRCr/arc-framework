@@ -11,6 +11,7 @@ import { resolveReviewRouting } from "../../src/scripts/review-gate/policy/routi
 
 import { createProjectIdentityReader } from "../../src/lib/store/project-identity.js";
 import type { OwnerIdentity } from "../../src/lib/store/identity.js";
+import { readCandidateRecord } from "../../src/lib/store/kinds/review/candidate/access.js";
 import { collectGitCandidateSubject } from "../../src/lib/work-unit/git-candidate-subject.js";
 import { createCandidateAttestation } from "../../src/lib/work-unit/candidate-attestation.js";
 import { deriveLocalReviewTarget } from "../../src/scripts/review-gate/hosts/local/repository-target.js";
@@ -165,4 +166,25 @@ it("retains an already selected generation when its slug is reused beside an unl
   expect(resolved.exits, JSON.stringify(resolved.value)).toEqual([]);
   expect(resolved.value).toMatchObject({ state: "pass-complete" });
   expect(await produced.outcomes.read(produced.outcome.attemptId)).toEqual(produced.stored);
+}, 30_000);
+
+it.each([null, "recorded-owner"])("recomposes omitted native terminus authority from the selected owner with author %s", async author => {
+  const h = await fixture(), produced = await producedContext(h, "runnable-standard");
+  await h.git("switch", "-c", "topic/owner");
+  const candidate = await readCandidateRecord(h.cwd, "example", { store: h.reference.store, owner: produced.primary.reference.owner });
+  if (candidate === null) throw new Error("expected selected Candidate");
+  const decisions = createReviewDecisionPort(h.reference.store, produced.primary.reference.owner);
+  const recorded = await decisions.create({ schemaVersion: 1, subject: {
+    lineage: { kind: "candidate", candidateId: candidate.attestation.candidateId }, headSha: null,
+    subjectDigest: candidate.subject.subjectDigest }, lane: "standard", choice: { kind: "terminus" },
+    decidedBy: author, decidedAt: null, basis: { passCount: 2 } });
+  const decisionKey = reviewDecisionKey(recorded.value);
+  await h.git("config", "arc.identity", "different-relayer");
+  const before = lifecycleSuccess(await h.reference.store.version());
+  const result = await h.run(produced.request);
+  expect(result.exits, JSON.stringify(result.value)).toEqual([]);
+  expect(result.value).toMatchObject({ state: "owner-accepted", payload: { terminus: {
+    schemaVersion: 2, semanticsVersion: "review-terminus/v2", decisionKey, acceptedBy: author, completedPasses: 2 } } });
+  expect(lifecycleSuccess(await h.reference.store.version())).toBe(before);
+  expect(await decisions.read(decisionKey)).toEqual(recorded);
 }, 30_000);

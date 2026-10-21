@@ -22,6 +22,10 @@ import { composePrePublicationReviewRequest } from "../../../src/scripts/review-
 import { createPrePublicationCompositionDependencies } from "../../../src/scripts/review-gate/policy/pre-publication-composition.js";
 import { resolveReviewPolicy } from "../../../src/scripts/review-gate/policy/review-policy-driver.js";
 
+import { createReviewDecisionPort } from "../../../src/lib/store/kinds/review/decision/access.js";
+import { reviewDecisionKey } from "../../../src/lib/store/kinds/review/decision/key.js";
+import { mapReviewReplayDecisions } from "../../../src/lib/store/kinds/review/mapping-replay-decisions.js";
+
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 async function fixture(project = true) {
   const h = createReviewHarness();
@@ -236,3 +240,71 @@ it.each(["ceilingOverride", "additionalPassAuthorization"] as const)("records an
     expect(await h.store.version()).toEqual(before);
   }
 });
+
+
+it.each([null, "recorded-owner"])("resolves an imported native terminus with author %s through the default readiness path", async author => {
+  const h = await fixture(), owner = await h.seedCandidate();
+  const snapshot = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
+  if (snapshot.boundary?.candidateSubjectDigest === null || snapshot.boundary === null) throw new Error("expected Candidate boundary");
+  const { candidateId, candidateSubjectDigest } = snapshot.boundary;
+  const token = Buffer.from(JSON.stringify(PrePublicationReplayInputSchema.parse({ candidateId, candidateSubjectDigest,
+    lanes: { standard: { terminus: { mode: "owner-accepted" } } } })), "utf8").toString("base64url");
+  const original = projectCandidateReviewResumeBoundary({ workUnit: "example", candidateId, candidateSubjectDigest,
+    reservation: null, postAttestContinuation: { projectionDisposition: "keep-staged-until-publication", reviewedHead: "a".repeat(40), nextAction: {
+      kind: "continue-pre-publication-review", command: `arc review pre-publication example --resume ${token}`,
+      interactionText: "Resume the retained review judgment." } } });
+  if (original.schemaVersion !== 1) throw new Error("expected original replay boundary");
+  const mapped = mapReviewReplayDecisions(original, () => 2);
+  const imported = mapped.find(value => value.choice.kind === "terminus");
+  if (imported === undefined) throw new Error("expected imported terminus");
+  const decision = author === null ? imported : { ...imported, decidedBy: author };
+  const port = createReviewDecisionPort(h.store, owner);
+  const recorded = await port.create(decision);
+  const key = reviewDecisionKey(recorded.value);
+  await writeFile(join(h.cwd, ".arc/system/arc-config.yml"), "branch.base: main\nreview.standard_sources: [delegated-agent]\n");
+  const result = await h.run(true);
+  expect(result, JSON.stringify(result)).toMatchObject({ schemaVersion: 2, locus: "candidate-publish-ready", terminus: key });
+  const stored = (await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner })).boundary;
+  expect(stored).toMatchObject({ schemaVersion: 2, locus: "candidate-publish-ready", terminus: key });
+  const listing = await port.list();
+  if (listing.status !== "complete") throw new Error(listing.reason);
+  expect(listing.records.filter(({ value }) => value.choice.kind === "terminus"))
+    .toMatchObject([{ value: { decidedBy: author, basis: { passCount: 2 } } }]);
+  expect((await port.read(key))?.version).toBe(recorded.version);
+  const before = await h.store.version();
+  expect(await h.run()).toMatchObject({ terminus: key, locus: "candidate-publish-ready" });
+  expect(await h.store.version()).toEqual(before);
+});
+
+it.each(["live", "missing", "wrong-kind", "withdrawn", "outside-subject", "superseded"] as const)(
+  "validates a retained native %s terminus before policy and recovers with a live key", async kind => {
+    const h = await fixture(), owner = await h.seedCandidate();
+    const snapshot = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
+    const boundary = snapshot.boundary;
+    if (boundary?.schemaVersion !== 2) throw new Error("expected native boundary");
+    const port = createReviewDecisionPort(h.store, owner);
+    const decision = { schemaVersion: 1 as const,
+      subject: { lineage: { kind: "candidate" as const, candidateId: boundary.candidateId }, headSha: null,
+        subjectDigest: boundary.candidateSubjectDigest }, lane: "standard" as const, choice: { kind: "terminus" as const },
+      decidedBy: null, decidedAt: null, basis: { passCount: 2 } };
+    const recorded = await port.create(decision);
+    let liveKey = reviewDecisionKey(recorded.value), retainedKey = liveKey;
+    if (kind === "missing") retainedKey = canonicalDigest({ missing: true });
+    if (kind === "wrong-kind") retainedKey = reviewDecisionKey((await port.create({ ...decision, basis: null,
+      choice: { kind: "extra-pass", passCount: 2, precondition: { kind: "ceiling", targetBinding: { kind: "call-target" } } } })).value);
+    if (kind === "outside-subject") retainedKey = reviewDecisionKey((await port.create({ ...decision,
+      subject: { ...decision.subject, subjectDigest: canonicalDigest({ outside: true }) } })).value);
+    if (kind === "withdrawn") await port.create({ ...decision, basis: null, choice: { kind: "withdrawal", decisionKey: liveKey } });
+    if (kind === "withdrawn" || kind === "superseded") liveKey = reviewDecisionKey((await port.create({ ...decision,
+      decidedBy: "recorded-owner", decidedAt: "2026-10-20T16:00:00Z" })).value);
+    await writeSubmissionBoundary(h.cwd, { ...boundary, terminus: retainedKey }, snapshot.version, { store: h.store, owner });
+    const retained = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
+    await writeFile(join(h.cwd, ".arc/system/arc-config.yml"), "branch.base: main\nreview.standard_sources: [delegated-agent]\n");
+    if (kind !== "live") {
+      const version = await h.store.version();
+      expect(await h.run(true)).toMatchObject({ error: { message: expect.stringMatching(/terminus/i) } });
+      expect(await h.store.version()).toEqual(version);
+      await writeSubmissionBoundary(h.cwd, { ...boundary, terminus: liveKey }, retained.version, { store: h.store, owner });
+    }
+    expect(await h.run(true)).toMatchObject({ schemaVersion: 2, locus: "candidate-publish-ready", terminus: liveKey });
+  });

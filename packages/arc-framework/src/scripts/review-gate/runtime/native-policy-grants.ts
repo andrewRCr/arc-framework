@@ -10,9 +10,10 @@ import type { ReviewInFlightPort, ReviewResultReader } from "../core/ports.js";
 import { deriveLocalReviewTarget } from "../hosts/local/repository-target.js";
 import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
 import { readLaneProgress, readCandidateInheritedLaneProgress } from "../lane-progress.js";
-import type { ReviewPolicyCommandRequest } from "../policy/review-policy-driver.js";
+import type { ReviewPolicyCommandRequest, ReviewPolicyBoundRequest } from "../policy/review-policy-driver.js";
 import type { ReviewInvocationInput } from "./invocation.js";
 import { resolveNativeInvocationExtraPassJudgment } from "./native-extra-pass.js";
+import { resolveNativeReviewTerminus } from "./native-terminus.js";
 import type { NativeExtraPassResolution } from "./native-extra-pass.js";
 
 /** Bind resolved targetless projections at use while leaving explicit incremental grants subject to policy refusal. */
@@ -53,15 +54,16 @@ export async function readNativeDecisionSubject(input: ReviewInvocationInput & {
 export async function composeNativePolicyGrants(input: ReviewInvocationInput & {
   request: ReviewPolicyCommandRequest; operationStore: ReviewInFlightPort;
   resultReader: ReviewResultReader; baseBranch: string; incremental: boolean;
-}): Promise<ReviewPolicyCommandRequest> {
+}): Promise<ReviewPolicyBoundRequest> {
   const facts = input.operationStore.nativeFacts;
   if (input.operationStore.stateOffBranch !== true) return input.request;
   if (facts === undefined) throw new Error("Restore the selected native review facts and retry the policy request.");
   const listing = await facts.decisions.list();
   if (listing.status !== "complete") throw new Error(listing.reason);
   if (input.request.ceilingOverride === undefined && input.request.additionalPassAuthorization === undefined
-    && !listing.records.some(({ value }) => value.choice.kind === "extra-pass"
-      && value.choice.precondition.kind !== "approved-fix")) return input.request;
+    && !listing.records.some(({ value }) => (value.choice.kind === "extra-pass"
+      && value.choice.precondition.kind !== "approved-fix")
+      || (input.request.lane === "standard" && value.choice.kind === "terminus"))) return input.request;
   const request = input.request, repositoryId = await facts.readProjectId();
   const target = await deriveLocalReviewTarget({ ...input, repositoryId, baseRef: input.baseBranch });
   if (target.headSha !== request.target.headSha) throw new Error("Restore the requested review head in the owning checkout and retry.");
@@ -85,5 +87,6 @@ export async function composeNativePolicyGrants(input: ReviewInvocationInput & {
   const resolved = await resolveNativeInvocationExtraPassJudgment(input, facts, { repositoryId, subject, lane: request.lane,
     completedPasses, policyTarget: request.target, ceilingOverride: request.ceilingOverride,
     additionalPassAuthorization: request.additionalPassAuthorization });
-  return projectNativePolicyGrants(request, resolved, input.incremental);
+  const terminus = request.lane === "standard" ? await resolveNativeReviewTerminus({ facts, subject }) : undefined;
+  return { ...projectNativePolicyGrants(request, resolved, input.incremental), ...(terminus === undefined ? {} : { terminus }) };
 }

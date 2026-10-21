@@ -5,11 +5,14 @@ import type { ReviewInFlightPort } from "../core/ports.js";
 import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
 import type { ReviewInvocationInput } from "../runtime/invocation.js";
 import { resolveNativeInvocationExtraPassJudgment } from "../runtime/native-extra-pass.js";
-import type { PrePublicationCompositionDependencies } from "./pre-publication-request.js";
+import { resolveNativeReviewTerminus } from "../runtime/native-terminus.js";
+import type { ReviewLaneJudgment, ReviewPolicyBoundRequest } from "./review-policy-driver.js";
+import type { NativeOwnerAcceptedReviewTerminus } from "./review-terminus.js";
+import type { OwnerTerminusAuthorityRead, ReviewLane, PrePublicationCompositionDependencies } from "./pre-publication-request.js";
 
 /** Preserve Owner-only terminus authorization while recording ordinary judgments under the active identity. */
 export function createPrePublicationOwnerJudgments(input: ReviewInvocationInput, store: ReviewInFlightPort):
-  Pick<PrePublicationCompositionDependencies, "readOwnerTerminusAuthority" | "resolveExtraPassJudgment"> {
+  Pick<PrePublicationCompositionDependencies, "readOwnerTerminusAuthority" | "resolveExtraPassJudgment" | "resolveNativeTerminus"> {
   return { readOwnerTerminusAuthority: async workUnit => {
     const name = SlugSchema.parse(workUnit);
     let live: Awaited<ReturnType<typeof readLocalReviewLiveContext>>;
@@ -29,6 +32,11 @@ export function createPrePublicationOwnerJudgments(input: ReviewInvocationInput,
     }
     return { status: "authorized", ownerIdentity: live.context.workUnit.owner };
   }, ...(input.store?.capabilities.stateOffBranch !== true ? {} : {
+    resolveNativeTerminus: async context => {
+      const facts = store.nativeFacts;
+      if (facts === undefined) throw new Error("Resolve the selected native review facts before reading its terminus.");
+      return resolveNativeReviewTerminus({ facts, ...context });
+    },
     resolveExtraPassJudgment: async context => {
       const facts = store.nativeFacts;
       if (facts === undefined) throw new Error("Resolve the selected native review facts before reading extra-pass judgments.");
@@ -37,4 +45,17 @@ export function createPrePublicationOwnerJudgments(input: ReviewInvocationInput,
       return result.judgment;
     },
   }) };
+}
+
+
+/** Preserve stored provenance unless this call supplies a newly authorized Owner judgment. */
+export function projectPrePublicationTerminus(input: {
+  lane: ReviewLane; judgment?: ReviewLaneJudgment; authority: OwnerTerminusAuthorityRead | null;
+  completedPasses: number; stored?: NativeOwnerAcceptedReviewTerminus;
+}): Pick<ReviewPolicyBoundRequest, "terminus"> {
+  if (input.lane !== "standard") return {};
+  if (input.judgment?.terminus === undefined) return input.stored === undefined ? {} : { terminus: input.stored };
+  if (input.authority?.status !== "authorized") return {};
+  return { terminus: { schemaVersion: 1, semanticsVersion: "review-terminus/v1", kind: "owner-accepted", lane: "standard",
+    acceptedBy: input.authority.ownerIdentity, completedPasses: input.completedPasses } };
 }
