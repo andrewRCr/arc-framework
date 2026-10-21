@@ -4,10 +4,10 @@ import { z } from "zod";
 
 import type { RawGitExec } from "../git/exec.js";
 import {
-  DeliveryContributionCoordinateSchema,
-  DeliveryContributionEndpointsSchema,
-} from "../delivery/contribution-proof.js";
-import { proveGitDeliveryContribution } from "../delivery/git-contribution-proof.js";
+  contributionReadFailure,
+  proveContributionFacts,
+  readMergeBases,
+} from "../evidence-applicability/git-contribution-facts.js";
 import {
   classifyPredecessorRelation,
   type AncestryAnswer,
@@ -27,22 +27,6 @@ const ObservedEndpointsSchema = z.strictObject({
   candidateHead: ObjectIdSchema,
   baseHead: ObjectIdSchema,
 });
-const decoder = new TextDecoder("utf-8", { fatal: true });
-
-class MalformedGitEvidenceError extends Error {
-  constructor(message: string, cause?: unknown) {
-    super(message, cause === undefined ? undefined : { cause });
-    this.name = "MalformedGitEvidenceError";
-  }
-}
-
-function decodeEvidence(bytes: Uint8Array, description: string): string {
-  try {
-    return decoder.decode(bytes);
-  } catch (error) {
-    throw new MalformedGitEvidenceError(`${description} is not valid UTF-8.`, error);
-  }
-}
 
 function failure(
   request: CandidateApplicabilityRequest,
@@ -128,57 +112,10 @@ function movement(
   });
 }
 
-function decodeLines(bytes: Uint8Array): string[] {
-  const value = decodeEvidence(bytes, "Git line evidence").trim();
-  return value === "" ? [] : value.split(/\r?\n/u);
-}
-
-async function coordinate(exec: RawGitExec, head: string) {
-  const [commitResult, treeResult] = await Promise.all([
-    exec(["rev-parse", "--verify", `${head}^{commit}`], { objectAccess: "local-only" }),
-    exec(["rev-parse", `${head}^{tree}`], { objectAccess: "local-only" }),
-  ]);
-  const commit = decodeEvidence(commitResult.stdout, "Git commit evidence").trim();
-  const tree = decodeEvidence(treeResult.stdout, "Git tree evidence").trim();
-  if (commit !== head) {
-    throw new MalformedGitEvidenceError(`Git did not resolve the exact commit ${head}.`);
-  }
-  return DeliveryContributionCoordinateSchema.parse({ head, tree });
-}
-
 export interface GitCandidateApplicabilityInput {
   readonly request: CandidateApplicabilityRequest;
   readonly exec: RawGitExec;
   readonly observeEndpoints: () => Promise<{ candidateHead: string; baseHead: string }>;
-}
-
-/**
- * Read every best common ancestor of one revision and the observed base.
- *
- * A pair with none reports none rather than raising: having no ancestor is an answer about the pair, which
- * the caller states in its own words, and it reaches this reader as two different Git outcomes.
- *
- * @param exec - The Git boundary.
- * @param revision - The pinned baseline or current target revision.
- * @param currentBase - The independently observed base revision.
- * @returns Every ancestor the pair has, or nothing when it has none.
- */
-async function readMergeBases(
-  exec: RawGitExec,
-  revision: string,
-  currentBase: string,
-): Promise<readonly string[] | null> {
-  const args = ["merge-base", "--all", revision, currentBase];
-  let result;
-  try {
-    result = await exec(args, { objectAccess: "local-only" });
-  } catch (error) {
-    const rejected = normalizeGitRejection(error, { command: "git", args });
-    if (rejected.kind === "nonzero-exit" && rejected.exitCode === 1 && rejected.stdout === "") return null;
-    throw rejected;
-  }
-  const mergeBases = decodeLines(result.stdout);
-  return mergeBases.length === 0 ? null : mergeBases;
 }
 
 /** Derive D4 structural facts from exact current Git endpoints and classify the Candidate target. */
@@ -232,27 +169,17 @@ export async function projectGitCandidateApplicability(
     const currentContributionBase = headMergeBases?.length === 1
       ? ObjectIdSchema.parse(headMergeBases[0])
       : request.currentBase;
-    const [beforeBase, beforeMember, afterBase, afterMember] = await Promise.all([
-      coordinate(input.exec, mergeBase),
-      coordinate(input.exec, request.baselineTarget.revision),
-      coordinate(input.exec, currentContributionBase),
-      coordinate(input.exec, request.currentTarget.revision),
-    ]);
-    const endpoints = DeliveryContributionEndpointsSchema.parse({
-      before: { predecessor: beforeBase, member: beforeMember },
-      after: { predecessor: afterBase, member: afterMember },
+    const facts = await proveContributionFacts(input.exec, {
+      beforeBase: mergeBase,
+      beforeMember: request.baselineTarget.revision,
+      afterBase: currentContributionBase,
+      afterMember: request.currentTarget.revision,
     });
-    const proof = await proveGitDeliveryContribution({ exec: input.exec, ...endpoints });
     const finalMovement = movement(request, await input.observeEndpoints());
     if (finalMovement !== null) return finalMovement;
-    return classifyCandidateApplicability(request, { endpoints, proof });
+    return classifyCandidateApplicability(request, facts);
   } catch (error) {
-    return failure(
-      request,
-      error instanceof z.ZodError || error instanceof MalformedGitEvidenceError
-        ? "malformed-evidence"
-        : "git-failure",
-      error instanceof Error ? error.message : String(error),
-    );
+    const { reason, detail } = contributionReadFailure(error);
+    return failure(request, reason, detail);
   }
 }
