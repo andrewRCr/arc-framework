@@ -1977,3 +1977,15 @@ these corrections begin; no push or replacement dispatch cancels it.
 diagnostic exclusion references. It now supplies an empty object for ordinary events, matching absent dispatch input
 properties. The native classifier and authored job conditions still decide the expected light-content selections.
 The same three cases fail locally before this correction and pass afterward. No workflow selection changes here.
+
+`store-ref-snapshot.test.ts` previously passed separate `refs/arc/work/` and `refs/arc/cohort/` patterns to its files
+control's concurrent listing. In the hosted Git 2.55.0 run, enumeration reported duplicate refs with differing object
+IDs and exited 128 before the test could observe a torn listing. The control and final stable readback now list the
+single `refs/arc/` prefix, excluding `refs/arc/tmp/` so the reftable arm's saved manifest stays outside the records.
+This matches the single-iteration boundary used by the real version path. The native control must still return a
+partial or mixed listing, the stopped-writer readback must still contain all 4,096 refs at one tip, and the reftable
+arm must still produce 128 complete, uniform snapshots while writes advance. No exception is converted into success.
+
+Both corrected files pass all six cases locally on Git 2.55.0. The original hosted failure and before/after focused
+logs are retained in `task-18.2-a27-full/` and `task-18.2-ci-harness/` in the machine-local tools directory. These
+test-only corrections do not change the backend, workload, numeric budgets, or hosted acceptance requirements.

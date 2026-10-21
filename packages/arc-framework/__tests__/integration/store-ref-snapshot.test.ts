@@ -5,6 +5,8 @@ import { plantRef } from "../helpers/store/ref-plant.js";
 
 const refs = Array.from({ length: 4096 }, (_, index) =>
   `refs/arc/${index < 2048 ? "work" : "cohort"}/12345678-1234-4234-8234-${index.toString(16).padStart(12, "0")}`);
+// One prefix keeps a single iteration; the saved manifest is not a state record.
+const listingArgs = ["for-each-ref", "--format=%(objectname)", "--exclude=refs/arc/tmp/", "refs/arc/"];
 
 // Many refs widen the files backend's publish window while every transaction still has only two namespaces.
 describe.each(["files", "reftable"] as const)("concurrent state snapshots (%s)", (format) => {
@@ -47,7 +49,7 @@ describe.each(["files", "reftable"] as const)("concurrent state snapshots (%s)",
           if (token.status !== "ok") throw new Error("No saved state token");
           output = (await f.exec("git", ["ls-tree", "-r", "--format=%(objectname)", token.result])).stdout;
         } else {
-          output = (await f.exec("git", ["for-each-ref", "--format=%(objectname)", "refs/arc/work/", "refs/arc/cohort/"])).stdout;
+          output = (await f.exec("git", listingArgs)).stdout;
         }
         const ids = output.trim().split("\n");
         const partial = ids.length !== refs.length;
@@ -63,7 +65,7 @@ describe.each(["files", "reftable"] as const)("concurrent state snapshots (%s)",
       [writerResult] = await writing;
     }
     if (writerResult.status === "rejected") throw writerResult.reason;
-    const stable = (await f.exec("git", ["for-each-ref", "--format=%(objectname)", "refs/arc/work/", "refs/arc/cohort/"])).stdout.split("\n");
+    const stable = (await f.exec("git", listingArgs)).stdout.split("\n");
     expect(stable).toHaveLength(refs.length);
     expect(new Set(stable).size).toBe(1);
     console.info("Concurrent snapshot probe", { format, snapshots, updatesDuringRead, partialListings, mixedListings });
