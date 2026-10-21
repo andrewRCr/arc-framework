@@ -1952,22 +1952,12 @@ in `notes-storage-ref-backend.md` (A25).
         - Raw file work, admission waits, and job clocks remain distinct; native coverage and fixed Windows operation
           budgets remain required. The successful source tree is bound in the retained measurement evidence.
 
-### `[ ]` **18.4 The host kit — § 14.8**
+### `[x]` **18.4 The host kit — § 14.8**
 
 - _Goal:_ The checks no CI host can run are run by hand against the real hosts, GitHub and GitLab holding every one, so
   the design's two unverified load-bearing assumptions are settled before the flip.
 
-    - `[ ]` **18.4.a The kit**
-        - 2.5's hand-run script under `__tests__/benchmarks/` grown into the kit, as the hand-run benchmarks there are,
-          never in a tier, a CI job, or the shipped package, needing credentials and scratch repositories
-        - The contract's trial re-authored, its scripts never kept: push, fetch, delete, and lease of `refs/arc/*`; a
-          default clone fetching none; `--atomic` holding a code branch back; rulesets; an ordinary member's write and
-          read permissions; forks copying no `refs/arc/*`; each driven through the built backend's `pull` and `push`
-          where the check concerns its behavior
-        - What this design adds: `--porcelain` on each host, what a receiver without atomic pushes prints, each host's
-          text for a lost race under `--atomic` and on a single ref, leased deletes, the forwarding record, Azure DevOps'
-          fork copying and its ordinary members' permissions, the history-replay push refusal's message, and 2.5's two
-          checks, protocol v2's narrowing and `atomic` over HTTP, run again on every host
+    - `[x]` **18.4.a The kit**
 
         - `[x]` **18.4.a.1 Native owner and receiver probes**
             - The manual kit binds production store ports, checks default-clone isolation and exact public roundtrips,
@@ -1976,15 +1966,17 @@ in `notes-storage-ref-backend.md` (A25).
             - Temporary native refs are removed only through exact leases; raw stdout/stderr and structured results
               remain in the requested evidence directory. GitHub/GitLab use their existing CLI logins.
 
-        - `[ ]` **18.4.a.2 Provider policy, fork, and separate-role probes**
-            - Complete provider ruleset/protected-branch and fork cases and ordinary writer/read-only cases when their
-              setups are available. The kit currently reports these as unverified; it does not infer them from owner
-              access. Other HTTPS hosts may use their existing Git credential configuration.
+        - `[x]` **18.4.a.2 Provider policy, fork, and separate-role probes**
+            - Invocation-owned production Git bindings isolate owner/member credentials and appliance trust. Native
+              role refusals recover after access restoration; protected code stays held while state publishes.
+              Provider-created forks are checked against copied code and state refs, including Azure's full copy.
+              Capability failures remain nonzero, and unreached checks remain unverified.
 
-    - `[ ]` **18.4.b The run**
-        - Run against GitHub and GitLab, which must hold, Azure DevOps and Bitbucket, which should, and Gitea and
-          Forgejo, best effort; results recorded in `notes-storage-ref-backend.md`; a must-hold host failing a check goes
-          back to the specification as a design defect before landing, never a code fix alone
+    - `[x]` **18.4.b The run**
+        - GitHub, GitLab.com, GHES, self-managed GitLab, Bitbucket, Gitea, and Forgejo completed every probe. Azure
+          lacks protocol v2 narrowing and atomic pushes; its multi-ref refusal, single-ref continuation, roles, policy,
+          and full-state fork copy were observed separately. Evidence and limitations are recorded in
+          `notes-storage-ref-backend.md` § Real-host backend trials. The public policy fixture was deleted afterward.
 
 ### `[x]` **18.5 The pack cost of shared personal names — § 14.9**
 

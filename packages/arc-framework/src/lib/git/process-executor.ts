@@ -58,12 +58,13 @@ function isLiteralOpenSshExecutable(executable: string): boolean {
  * Build an environment where `cwd` selects the Git repository.
  *
  * @param cwd - Repository working directory, when the command is cwd-scoped.
+ * @param environment - Optional invocation-owned environment, replacing ambient inheritance.
  * @returns The inherited environment without repository-local Git overrides.
  */
-export function environmentForGitCwd(cwd: string | undefined): NodeJS.ProcessEnv | undefined {
-  if (cwd === undefined) return undefined;
+export function environmentForGitCwd(cwd: string | undefined, environment?: NodeJS.ProcessEnv): NodeJS.ProcessEnv | undefined {
+  if (cwd === undefined) return environment;
   return Object.fromEntries(
-    Object.entries(process.env).filter(([variable]) => !GIT_REPOSITORY_LOCAL_ENVIRONMENT.has(variable)),
+    Object.entries(environment ?? process.env).filter(([variable]) => !GIT_REPOSITORY_LOCAL_ENVIRONMENT.has(variable)),
   );
 }
 
@@ -117,11 +118,13 @@ function applyNonInteractiveSshEnvironment(base: NodeJS.ProcessEnv): NodeJS.Proc
  * Construct the captured-output execa adapter without changing the live binding.
  *
  * @param maxBuffer - Captured-output ceiling; injectable only for focused process-boundary tests.
+ * @param environment - Optional snapshot used by this binding without changing process.env.
  * @returns A plain-Promise {@link GitExec} implementation.
  */
-export function createExecaGitExec(maxBuffer = MAX_GIT_OUTPUT_BYTES): GitExec {
+export function createExecaGitExec(maxBuffer = MAX_GIT_OUTPUT_BYTES, environment?: NodeJS.ProcessEnv): GitExec {
+  const boundEnvironment = environment === undefined ? undefined : { ...environment };
   return async (command, args, options) => {
-    const environment = environmentForGitCwd(options?.cwd);
+    const environment = environmentForGitCwd(options?.cwd, boundEnvironment);
     const indexedEnvironment = options?.indexFile === undefined
       ? environment
       : { ...(environment ?? process.env), GIT_INDEX_FILE: options.indexFile };
@@ -163,15 +166,18 @@ export function createExecaGitExec(maxBuffer = MAX_GIT_OUTPUT_BYTES): GitExec {
 
 /** Construct a byte-preserving Git adapter for raw tree and object reads.
  * @param onStart - Optional process-attempt observer, including starts inside persistent readers.
+ * @param environment - Optional snapshot used by this binding without changing process.env.
  */
 export function createExecaRawGitExec(
   cwd = process.cwd(),
   maxBuffer = MAX_GIT_OUTPUT_BYTES,
   onStart?: () => void,
+  environment?: NodeJS.ProcessEnv,
 ): RawGitExec {
+  const boundEnvironment = environment === undefined ? undefined : { ...environment };
   return async (args, options = {}) => {
     const effectiveCwd = options.cwd ?? cwd;
-    const environment = environmentForGitCwd(effectiveCwd);
+    const environment = environmentForGitCwd(effectiveCwd, boundEnvironment);
     const filteredEnvironment = Object.fromEntries(
       Object.entries(environment ?? process.env).filter(([name]) => !options.removeEnvironment?.includes(name)),
     );
@@ -223,14 +229,17 @@ export function createExecaRawGitExec(
  *
  * @param maxBuffer - Captured-output ceiling; injectable only for focused process-boundary tests.
  * @param interaction - Invocation-bound terminal and prompt policy.
+ * @param environment - Optional snapshot used by this binding without changing process.env.
  * @returns A raw-stdout {@link GitExecInput} implementation.
  */
 export function createExecaGitExecInput(
   maxBuffer = MAX_GIT_OUTPUT_BYTES,
   interaction?: InteractionContext["subprocess"],
+  environment?: NodeJS.ProcessEnv,
 ): GitExecInput {
+  const boundEnvironment = environment === undefined ? undefined : { ...environment };
   return async (args, input, options) => {
-    const environment = environmentForGitCwd(options?.cwd);
+    const environment = environmentForGitCwd(options?.cwd, boundEnvironment);
     const objectEnvironment = options?.objectAccess === "local-only"
       ? { ...(environment ?? process.env), GIT_NO_LAZY_FETCH: "1" }
       : environment;

@@ -10,6 +10,7 @@
 - [CI cost history](#ci-cost-history)
 - [A designation per scope](#a-designation-per-scope)
 - [Host properties](#host-properties)
+- [Real-host backend trials](#real-host-backend-trials)
 - [A3 — Backslashes in stored paths](#a3--backslashes-in-stored-paths)
 
 ## Prior art
@@ -1670,3 +1671,62 @@ target requires explicit amendment. No new target, reader design, or amendment i
 
 Task 18.2.a.2 remains open for the Windows write limit, alongside the existing host policy, fork, and separate-role
 gaps. Task 18.7 has not run; this record closes only the independently passing burst evidence.
+
+## Real-host backend trials
+
+The manual kit ran against synthetic scratch state on eight real servers on 2026-10-21, using Git 2.55.0 and the native
+ref backend. Separate owner and ordinary-member credentials were bound to each invocation, without changing global
+account selection or persisting credential helpers in the clones. The native executor environment is snapshotted at
+binding, preserving cwd sanitization, cancellation, byte framing, and local-only object reads. A real-Git regression
+first failed with an empty credential username, then passed for concurrent writer/reader bindings across all three
+executor forms. Secrets remained in private local profiles; packet evidence excludes HTTP header tracing.
+
+| Host             | Protocol v2 / prefix narrowing          | Atomic receiver | Ordinary roles / policy / fork                            |
+| ---------------- | --------------------------------------- | --------------- | --------------------------------------------------------- |
+| GitHub.com       | Passed                                  | Passed          | Passed; fork excludes state                               |
+| GitLab.com       | Passed                                  | Passed          | Passed; fork excludes state                               |
+| GHES 3.22.2      | Passed                                  | Passed          | Passed; fork excludes state                               |
+| GitLab CE 19.4.1 | Passed                                  | Passed          | Passed; fork excludes state                               |
+| Bitbucket Cloud  | Passed                                  | Passed          | Passed; fork excludes state                               |
+| Gitea 1.27.3     | Passed                                  | Passed          | Passed; fork excludes state                               |
+| Forgejo 16.0.5   | Passed                                  | Passed          | Passed; fork excludes state                               |
+| Azure DevOps     | Failed: protocol v0, full advertisement | Not advertised  | Supported single-ref cases passed; full fork copies state |
+
+Each of the seven capable hosts completed thirteen native observations: default-clone isolation, public write/push
+and pull/read roundtrips, stale atomic carry, stale single-ref and deletion leases, history replay, forwarding refusal
+and repair, ordinary writer, read-only refusal and restored-writer continuation, provider-created fork isolation,
+protected-branch policy, an intentionally non-atomic local receiver, and leased cleanup. The fork check independently
+observed a copied `main` branch and inspected the provider fork's remote state refs; ordinary clone behavior did not
+stand in for a fork. The protected-code trial first held code and state unchanged, then exercised public carried-code
+refusal and state-only publication while the protected branch remained unchanged. Role controls verified effective
+provider permissions; native operations independently proved the outcomes and successful continuation after repair.
+
+GitLab.com's fixture retained two older spike refs. Its complete pre-trial `refs/arc/` inventory, plus the newly
+created protocol refs, was compared with the protocol v2 advertisement; no code refs escaped the requested prefix.
+Those older refs were preserved. The GHES enterprise policy required a separate organization as the private fork's
+destination. Bitbucket initially reported its new fork unavailable; bounded reads waited for provider completion.
+Neither setup condition was treated as a backend defect or a pass before the native observations completed.
+
+Azure is not a fully capable state receiver in this run. Repeated actual updates advertised only `report-status`,
+`side-band-64k`, `quiet`, and `delete-refs`, and Git refused `--atomic` before updating any ref. Protocol v2 requests
+received a v0 advertisement including `main`, without prefix negotiation. An earlier no-op `--atomic` invocation had
+returned success; it did not prove receiver capability and is superseded by the actual-update packet evidence.
+
+The Azure native trial separately proved that initial multi-ref publication refuses with all pending state retained.
+An explicitly recorded single-ref registry bootstrap then allowed the remaining single-ref public roundtrips, roles,
+forwarding, leases, protected-code handling, and fork observations. Its fork copied the exact source state refs,
+including the protocol fixtures, matching the design's existing full-fork residual. The complete kit remained nonzero
+for the missing capabilities; no non-atomic multi-ref fallback was added. The GitHub/GitLab must-hold floor, including
+GHES and self-managed GitLab, passed; Azure's should-hold capabilities remain a documented limitation.
+
+Machine-local evidence lives under `task-18.4/` in the storage-ref-backend tools directory. `native-host-summary.json`
+selects each final evidence directory; `result.json` records capabilities, `backend-results.json` records native
+outcomes, numbered logs preserve attempts, and provider control receipts record identities and forks. Seven runs have
+thirteen completed native cases; Azure has fourteen with its explicit unsupported-bootstrap observation. Earlier setup
+and diagnostic failures remain alongside the final results. Source digests are retained in `native-host-source-digests.json`.
+
+The public synthetic GitHub policy repository, ID 1428776752, was deleted after its successful trial and evidence
+capture; the API returned 404 afterward. The dedicated organization's private-fork setting and the private source's
+fork permission were restored. Private provider forks remain identified in their local receipts for inspection and
+separate cleanup. Every native source ref the kit created was removed with its exact lease; unrelated spike refs and
+protected `main` branches were preserved. No credential, private key, or profile was committed.

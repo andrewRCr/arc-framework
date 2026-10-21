@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { createDefaultRefStorePorts, createRefStore, RecordReferenceSchema } from "../../src/lib/store/index.js";
+import { type createRefStore, RecordReferenceSchema } from "../../src/lib/store/index.js";
+import { isGitProcessError } from "../../src/lib/git/process-error.js";
+import { probeHostFork, probeHostPolicy, probeHostRoles, type HostSettings } from "./ref-host-access.js";
 
 type Git = (label: string, cwd: string, args: string[], trace?: boolean) => Promise<string>;
 type Probe = { status: "passed" | "unverified"; detail: unknown };
@@ -20,27 +22,30 @@ function success<T>(value: { status: "ok"; result: T } | { status: "refused"; re
 }
 
 /** Probe native public operations and exact receiver outcomes, cleaning only owned, leased refs. */
-export async function probeBackend(input: { root: string; remote: string; evidence: string; host: string; git: Git }): Promise<Record<string, Probe>> {
-  const { root, remote, evidence, host, git } = input;
-  const results: Record<string, Probe> = {};
+export async function probeBackend(input: { root: string; remote: string; evidence: string; git: Git;
+  store: (path: string) => ReturnType<typeof createRefStore>; settings: HostSettings; atomic: boolean }): Promise<Record<string, Probe>> {
+  const { root, remote, evidence, git, settings } = input;
+  const results: Record<string, Probe> = Object.fromEntries([
+    "defaultClone", "backendRoundtrip", "atomicCarryRefusal", "singleLeaseRefusal", "staleDeleteRefusal", "historyReplayRefusal",
+    "forwardingRecovery", "ordinaryWriter", "readOnly", "fork", "rulesets", "unsupportedAtomic", "leasedDeletes",
+  ].map(name => [name, { status: "unverified", detail: "Not reached; inspect the first failing probe and its diagnostics" }]));
   const owned = new Map<string, string>();
   const a = join(root, "backend-a"), b = join(root, "backend-b");
   const tips = async () => new Map((await git("backend-remote-tips", root, ["ls-remote", "--refs", "--", remote]))
     .trim().split("\n").filter(Boolean).map(line => { const [tip = "", ref = ""] = line.split(/\s+/u); return [ref, tip]; }));
   const before = await tips();
   assert(ownedRefs.every(ref => !before.has(ref)), "Native probe refs must be absent before starting");
-  const cli = host === "github.com" ? "gh" : host === "gitlab.com" ? "glab" : null;
   for (const [label, path] of [["a", a], ["b", b]] as const) {
     await git(`backend-clone-${label}`, root, ["clone", "--no-checkout", "--", remote, path]);
     assert.equal((await git(`default-clone-${label}`, path, ["for-each-ref", "--format=%(refname)", "refs/arc/"])).trim(), "");
     const config: readonly (readonly [string, string])[] = [["arc.identity", "andrew"], ["user.name", "Host probe"], ["user.email", "host-probe@example.invalid"],
-      ["remote.origin.arc-state", "push"], ...cli ? [["credential.helper", ""], [`credential.https://${host}.helper`, `!${cli} auth git-credential`]] as const : []];
+      ["remote.origin.arc-state", "push"]];
     for (const [key, value] of config) {
       await git(`config-${label}-${key.replaceAll(/[^a-z]/gu, "-")}`, path, ["config", "--local", key, value]);
     }
   }
   results.defaultClone = { status: "passed", detail: "Neither ordinary clone acquired refs/arc/*" };
-  const stores = [a, b].map(checkoutRoot => createRefStore(createDefaultRefStorePorts({ checkoutRoot, backingRepository: async () => null })));
+  const stores = [a, b].map(input.store);
   const first = stores[0]!, second = stores[1]!;
   const write = async (content: string) => {
     const read = await first.read({ reference });
@@ -58,7 +63,7 @@ export async function probeBackend(input: { root: string; remote: string; eviden
   };
   const expectFailure = async (label: string, path: string, args: string[]) => {
     try { await git(label, path, args); } catch (error) {
-      assert(error && typeof error === "object" && "code" in error && typeof error.code === "number", "Expected receiver rejection, not a setup failure");
+      assert(isGitProcessError(error) && error.kind === "nonzero-exit", "Expected receiver rejection, not a setup failure");
       const output = "stdout" in error ? String(error.stdout) : "";
       const diagnostic = "stderr" in error ? String(error.stderr) : "";
       return { output, diagnostic };
@@ -69,7 +74,20 @@ export async function probeBackend(input: { root: string; remote: string; eviden
     const identityRef = RecordReferenceSchema.parse({ kind: "project-registry/identity", owner: { type: "project", name: "project" } });
     success(await first.write({ action: "put", reference: identityRef, expected: null,
       content: JSON.stringify({ projectId: randomUUID() }), provenance }));
-    await write("First host value.\r\n"); const pushed = await publish();
+    await write("First host value.\r\n");
+    if (!input.atomic) {
+      const held = success(await first.push());
+      assert(held.publishes.some(row => row.status === "failed" && JSON.stringify(row).includes("atomic")), JSON.stringify(held));
+      assert(![personal, registry].some(ref => before.has(ref)));
+      const after = await tips();
+      assert(!after.has(personal) && !after.has(registry));
+      const bootstrap = (await git("single-registry-source", a, ["rev-parse", registry])).trim();
+      await git("single-registry-bootstrap", a, ["push", "--porcelain", `--force-with-lease=${registry}:`, "--", remote, `${bootstrap}:${registry}`]);
+      owned.set(registry, bootstrap);
+      results.multiRefBootstrap = { status: "passed", detail: { limitation: "Receiver lacks atomic pushes; backend preserved all pending refs",
+        held, continuation: "Operator seeded the project registry with an exact single-ref lease for the remaining single-ref trials" } };
+    }
+    const pushed = await publish();
     success(await second.pull());
     assert.equal(success(await second.read({ reference })).content, "First host value.\r\n");
     const old = owned.get(personal)!;
@@ -79,7 +97,8 @@ export async function probeBackend(input: { root: string; remote: string; eviden
     const candidate = (await git("code-candidate", a, ["rev-parse", "refs/remotes/origin/main"])).trim();
     const failed = await expectFailure("stale-atomic", a, ["push", "--porcelain", "--atomic",
       `--force-with-lease=${personal}:${old}`, `--force-with-lease=${code}:`, "--", remote, `${old}:${personal}`, `${candidate}:${code}`]);
-    assert.match(failed.output, /^!\t/mu);
+    if (input.atomic || failed.output.includes("!\t")) assert.match(failed.output, /^!\t/mu);
+    else assert.match(failed.diagnostic, /does not support.*atomic/iu);
     assert.equal((await tips()).get(personal), current);
     assert.equal((await tips()).has(code), false);
     results.atomicCarryRefusal = { status: "passed", detail: failed };
@@ -120,10 +139,10 @@ export async function probeBackend(input: { root: string; remote: string; eviden
     assert.equal(success(await second.read({ reference })).content, "Unpublished host value.\r\n");
     results.forwardingRecovery = { status: "passed", detail: { pushed: held, pulled } };
 
-    for (const [name, detail] of Object.entries({ ordinaryWriter: "Requires a distinct ordinary writer login", readOnly: "Requires a distinct read-only login",
-      rulesets: "Requires a provider-specific protected-branch setup", fork: "Requires a provider-created fork in another namespace" })) {
-      results[name] = { status: "unverified", detail };
-    }
+    Object.assign(results, await probeHostRoles({ root, remote, evidence, settings, ownerGit: git,
+      reference, personalRef: personal, ownerStore: first, owned }));
+    results.fork = await probeHostFork({ root, remote, settings, git, personalRef: personal });
+    results.rulesets = await probeHostPolicy({ root, remote, evidence, settings, owned, atomic: input.atomic });
     const receiver = join(root, "no-atomic.git");
     await git("no-atomic-init", root, ["init", "--bare", receiver]);
     await git("no-atomic-config", receiver, ["config", "receive.advertiseAtomic", "false"]);
@@ -131,8 +150,9 @@ export async function probeBackend(input: { root: string; remote: string; eviden
     assert.match(unsupported.diagnostic, /does not support.*atomic/iu);
     assert.equal((await git("no-atomic-unchanged", receiver, ["for-each-ref", "--format=%(refname)"])).trim(), "");
     await git("no-atomic-single", a, ["push", "--porcelain", `--force-with-lease=${personal}:`, "--", receiver, `${personal}:${personal}`]);
-    assert.equal((await git("no-atomic-single-tip", receiver, ["rev-parse", personal])).trim(), owned.get(personal));
-    results.unsupportedAtomic = { status: "passed", detail: { scope: "Local Git receiver; the HTTPS host advertises atomic", ...unsupported } };
+    assert.equal((await git("no-atomic-single-tip", receiver, ["rev-parse", personal])).trim(),
+      (await git("no-atomic-source-tip", a, ["rev-parse", personal])).trim());
+    results.unsupportedAtomic = { status: "passed", detail: { scope: "Local Git receiver; real-host capability is recorded separately", ...unsupported } };
     return results;
   } finally {
     try {
