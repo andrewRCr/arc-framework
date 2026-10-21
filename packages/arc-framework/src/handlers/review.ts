@@ -1777,22 +1777,25 @@ export interface ReviewReadinessHandlerDependencies {
 function readinessBoundTo(
   root: string,
   exec: GitExec,
+  invocation: ReviewInvocationOptions = {},
 ): (request: ReviewReadinessRequest) => Promise<ReviewReadinessEnvelope> {
   const deliveryMemberLookup = new RepositoryDeliveryMemberLookup({ exec, cwd: root });
   // Pinned to the resolved root for the same reason the lookup is: the ancestry
   // answer must come from the repository this composition root bound, never from
   // whatever directory the process happens to be running in.
   const rootExec: GitExec = (command, args, options) => exec(command, args, { ...options, cwd: root });
+  const selectInvocation = createReviewInvocationResolver(rootExec, invocation);
   return (request) => evaluateReviewReadiness(request, {
+    ...(request.vehicle.kind === "work-unit" ? { store: selectInvocation(root).store } : {}),
     deliveryMemberLookup,
     readDeliveryAncestry: (ancestor, descendant) => readAncestry(rootExec, ancestor, descendant),
   });
 }
 
-function defaultReviewReadinessDependencies(exec: GitExec): ReviewReadinessHandlerDependencies {
+function defaultReviewReadinessDependencies(exec: GitExec, invocation: ReviewInvocationOptions): ReviewReadinessHandlerDependencies {
   return {
     ...defaultReviewHandlerBoundary(),
-    check: (request, root) => readinessBoundTo(root, exec)(request),
+    check: (request, root) => readinessBoundTo(root, exec, invocation)(request),
   };
 }
 
@@ -1807,13 +1810,14 @@ export async function handleReviewReadiness(
   source: string,
   overrides: Partial<ReviewReadinessHandlerDependencies> = {},
   suppliedContext?: InteractionContext,
+  invocation: ReviewInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false,
     machineReadable: true,
     yes: "absent",
   });
-  const dependencies = { ...defaultReviewReadinessDependencies(createGitExec(context.subprocess)), ...overrides };
+  const dependencies = { ...defaultReviewReadinessDependencies(createGitExec(context.subprocess), invocation), ...overrides };
   await executeReviewHandler({
     mode: "review-readiness",
     source,
@@ -1874,8 +1878,9 @@ export function defaultMergeLockPort(
   root: string,
   exec: GitExec,
   runner: HostedProcessRunner = hostedGhRunner,
+  invocation: ReviewInvocationOptions = {},
 ): MergeLockPort {
-  return new GhMergeLockPort(runner, readinessBoundTo(root, exec), readMergeLockSetting);
+  return new GhMergeLockPort(runner, readinessBoundTo(root, exec, invocation), readMergeLockSetting);
 }
 
 /**
@@ -1923,11 +1928,12 @@ async function handleMergeLockTransition(
   source: string,
   overrides: Partial<MergeLockTransitionHandlerDependencies>,
   context: InteractionContext,
+  invocation: ReviewInvocationOptions = {},
 ): Promise<void> {
   const exec = createGitExec(context.subprocess);
   const dependencies: MergeLockTransitionHandlerDependencies = {
     ...defaultReviewHandlerBoundary(),
-    transition: (request, root) => verb(request, defaultMergeLockPort(root, exec)),
+    transition: (request, root) => verb(request, defaultMergeLockPort(root, exec, hostedGhRunner, invocation)),
     ...overrides,
   };
   await executeReviewHandler({
@@ -1984,6 +1990,7 @@ export async function handleMergeLockRelease(
   source: string,
   overrides: Partial<MergeLockTransitionHandlerDependencies> = {},
   suppliedContext?: InteractionContext,
+  invocation: ReviewInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false,
@@ -1997,6 +2004,7 @@ export async function handleMergeLockRelease(
     source,
     overrides,
     context,
+    invocation,
   );
 }
 

@@ -1,16 +1,16 @@
 /**
- * Exact-head, vehicle-aware lifecycle readiness over a caller-supplied tree.
+ * Exact-head, vehicle-aware lifecycle readiness over the selected operational state.
  *
- * The checker reads lifecycle products beneath the supplied root. It does not
- * infer state from the caller's checkout or fail-soft indexes.
+ * Repository-backed work units read lifecycle products beneath the supplied root.
+ * Native work units read current records through the supplied store. Neither arm
+ * infers lifecycle readiness from the caller's checkout or fail-soft indexes.
  *
  * A `delivery-member` vehicle adds two further authority sources, both outside
  * that root and both supplied by the caller's composition root: the delivery
  * lookup, which reads the Git-common delivery state of the repository that root
  * resolved, and ancestry reads over the heads that state records. Delivery state
  * is repository-common rather than a tree product and ancestry is a property of
- * the object graph, so neither can come from the request. No other vehicle reads
- * outside the supplied root.
+ * the object graph, so neither can come from the request.
  *
  * The member a request names is selected from the identity the request asserts,
  * so ancestry is what ties that member to the head under review — and one read
@@ -34,6 +34,12 @@
  *
  * @module
  */
+
+import { lifecycleArtifactFacts, validCohortCloseout } from "./readiness-artifact-facts.js";
+export { lifecycleArtifactFacts } from "./readiness-artifact-facts.js";
+import { evaluateStoredWorkUnitReadiness } from "./readiness-store.js";
+import type { Store } from "../../lib/store/contract.js";
+import { usesOffBranchState } from "../../lib/store/lifecycle-write.js";
 
 import { readFile, readdir, stat } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
@@ -174,6 +180,7 @@ export interface ReviewReadinessFs {
 
 /** Injectable boundaries for the readiness checker. */
 export interface ReviewReadinessDependencies {
+  store?: Store;
   fs: ReviewReadinessFs;
   /**
    * Delivery read backing `delivery-member` authentication.
@@ -323,7 +330,7 @@ async function readDirectory(
   }
 }
 
-function identityFacts(request: ReviewReadinessRequest): ReviewReadinessFact[] {
+function identityFacts(request: ReviewReadinessRequest, storedWorkUnit = false): ReviewReadinessFact[] {
   const facts: ReviewReadinessFact[] = [];
   if (
     request.target.repository.toLowerCase() !== request.pullRequest.repository.toLowerCase()
@@ -343,6 +350,7 @@ function identityFacts(request: ReviewReadinessRequest): ReviewReadinessFact[] {
   }
   if (
     request.vehicle.kind !== "delivery-member"
+    && !storedWorkUnit
     && branchToWorkUnitSlug(request.pullRequest.headBranch) !== request.vehicle.slug
   ) {
     facts.push(fact(
@@ -369,144 +377,6 @@ function identityFacts(request: ReviewReadinessRequest): ReviewReadinessFact[] {
   return facts;
 }
 
-function sectionBodies(content: string, heading: string): string[] {
-  const lines = content.split(/\r?\n/u);
-  const bodies: string[] = [];
-  for (let index = 0; index < lines.length; index += 1) {
-    if (lines[index] !== `## ${heading}`) continue;
-    const body: string[] = [];
-    for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
-      const line = lines[cursor];
-      if (line === undefined || /^## /u.test(line)) break;
-      body.push(line);
-    }
-    bodies.push(body.join("\n").trim());
-  }
-  return bodies;
-}
-
-function completionFacts(content: string, path: string): ReviewReadinessFact[] {
-  const sections = sectionBodies(content, "Completion Notes");
-  if (sections.length === 0) {
-    return [fact("missing-completion-notes", path, "Completion Notes are required.")];
-  }
-  const body = sections[0]?.trim() ?? "";
-  if (
-    sections.length !== 1
-    || body.length === 0
-    || /^\[(?:none|tbd)\]$/iu.test(body)
-    || containsOnlyHtmlComments(body)
-  ) {
-    return [fact("malformed-completion-notes", path, "Completion Notes must be unique and non-empty.")];
-  }
-  return [];
-}
-
-function containsOnlyHtmlComments(value: string): boolean {
-  let cursor = 0;
-  let comments = 0;
-  while (cursor < value.length) {
-    while (cursor < value.length && /\s/u.test(value[cursor] ?? "")) cursor += 1;
-    if (cursor === value.length) return comments > 0;
-    if (!value.startsWith("<!--", cursor)) return false;
-    const end = value.indexOf("-->", cursor + 4);
-    if (end === -1) return false;
-    comments += 1;
-    cursor = end + 3;
-  }
-  return comments > 0;
-}
-
-const RELEASE_NOTE_CATEGORIES = [
-  "Added",
-  "Changed",
-  "Removed",
-  "Fixed",
-  "Infrastructure",
-  "Deprecated",
-  "Security",
-] as const;
-
-function releaseNotesFacts(content: string, path: string): ReviewReadinessFact[] {
-  const sections = sectionBodies(content, "Release Notes Entry");
-  if (sections.length === 0) return [];
-  if (sections.length !== 1) {
-    return [fact("malformed-release-notes", path, "Release Notes Entry must appear at most once.")];
-  }
-  const section = sections[0] ?? "";
-  const lines = section.split(/\r?\n/u);
-  const firstCategory = lines.findIndex((line) => /^### /u.test(line));
-  if (firstCategory <= 0 || lines.slice(0, firstCategory).join("\n").trim().length === 0) {
-    return [fact(
-      "malformed-release-notes",
-      path,
-      "Release Notes Entry requires a summary followed by categorized changes.",
-    )];
-  }
-  const seen = new Set<string>();
-  let previousIndex = -1;
-  let categorized = 0;
-  for (let index = firstCategory; index < lines.length;) {
-    const heading = /^### (.+)$/u.exec(lines[index] ?? "")?.[1];
-    if (heading === undefined) {
-      return [fact("malformed-release-notes", path, "Release Notes content must stay inside named categories.")];
-    }
-    const next = lines.findIndex((line, cursor) => cursor > index && /^### /u.test(line));
-    const end = next === -1 ? lines.length : next;
-    const body = lines.slice(index + 1, end).filter((line) => line.trim().length > 0);
-    if (body.length === 0) {
-      return [fact("malformed-release-notes", path, `Release Notes category '${heading}' is empty.`)];
-    }
-    if (heading === "Breaking Changes") {
-      if (end !== lines.length || seen.has(heading)) {
-        return [fact(
-          "malformed-release-notes",
-          path,
-          "Breaking Changes may appear once, after the categorized changes.",
-        )];
-      }
-      seen.add(heading);
-      index = end;
-      continue;
-    }
-    const categoryIndex = RELEASE_NOTE_CATEGORIES.indexOf(
-      heading as (typeof RELEASE_NOTE_CATEGORIES)[number],
-    );
-    if (
-      categoryIndex === -1
-      || categoryIndex <= previousIndex
-      || seen.has(heading)
-      || !/^- \S/u.test(body[0] ?? "")
-      || !body.every((line) => /^- \S/u.test(line) || /^\s{2,}\S/u.test(line))
-    ) {
-      return [fact(
-        "malformed-release-notes",
-        path,
-        "Release Notes categories must be unique, ordered, supported, and contain non-empty list items.",
-      )];
-    }
-    seen.add(heading);
-    previousIndex = categoryIndex;
-    categorized += 1;
-    index = end;
-  }
-  if (categorized === 0) {
-    return [fact("malformed-release-notes", path, "Release Notes Entry requires at least one change category.")];
-  }
-  return [];
-}
-
-/**
- * Collect the lifecycle-artifact facts a work-unit meta owes before merge: Completion
- * Notes are required, and a Release Notes Entry is validated whenever one is present.
- *
- * @param content - The work-unit meta's full text.
- * @param path - The meta's path, reported on each fact.
- * @returns One fact per unmet obligation; empty when the artifacts are satisfied.
- */
-export function lifecycleArtifactFacts(content: string, path: string): ReviewReadinessFact[] {
-  return [...completionFacts(content, path), ...releaseNotesFacts(content, path)];
-}
 
 /**
  * Bound one admitted advance from above, against every member head bound over this one.
@@ -886,16 +756,6 @@ async function hasOpenCohortMember(
   return { open: false, facts: [] };
 }
 
-function validCohortCloseout(content: string, slug: string): boolean {
-  const sections = sectionBodies(content, "Closeout");
-  if (sections.length !== 1) return false;
-  const body = sections[0] ?? "";
-  return /^- \*\*Closed:\*\* \d{4}-\d{2}-\d{2}$/mu.test(body)
-    && new RegExp(`^- \\*\\*Final member:\\*\\* \`${escapeRegExp(slug)}\`$`, "mu").test(body)
-    && /^- \*\*Member archives:\*\* \S.+$/mu.test(body)
-    && /^- \*\*Outcome:\*\* \S.+$/mu.test(body)
-    && /^- \*\*Follow-up:\*\* \S.+$/mu.test(body);
-}
 
 async function cohortCoordinateFacts(
   root: string,
@@ -1049,7 +909,8 @@ export async function evaluateReviewReadiness(
 ): Promise<ReviewReadinessEnvelope> {
   const request = ReviewReadinessRequestSchema.parse(input);
   const fs = overrides.fs ?? DEFAULT_FS;
-  const facts = identityFacts(request);
+  const storedWorkUnit = request.vehicle.kind === "work-unit" && usesOffBranchState(overrides.store);
+  const facts = identityFacts(request, storedWorkUnit);
   if (facts.length > 0) return invalid(request, facts);
 
   const resolved = await resolveRoot(request.treeRoot, fs);
@@ -1073,6 +934,10 @@ export async function evaluateReviewReadiness(
       overrides.readDeliveryAncestry,
     );
     return memberFacts.length === 0 ? ready(request) : invalid(request, memberFacts);
+  }
+  if (storedWorkUnit && overrides.store !== undefined) {
+    const productFacts = await evaluateStoredWorkUnitReadiness({ ...request, vehicle: request.vehicle }, overrides.store);
+    return productFacts.length === 0 ? ready(request) : invalid(request, productFacts);
   }
   if (request.vehicle.archiveCadence === "with-integration") {
     const productFacts = await evaluateArchivedWorkUnit(

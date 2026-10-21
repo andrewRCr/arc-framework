@@ -159,6 +159,7 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
   const lockPort = new GhMergeLockPort(
     runner,
     (request) => evaluateReviewReadiness(request, {
+      store: input.store,
       deliveryMemberLookup,
       readDeliveryAncestry: (ancestor, descendant) => readAncestry(rootExec, ancestor, descendant),
       fs: createGitTreeReadFs({

@@ -1348,54 +1348,17 @@ prerequisites have landed, and every earlier task is independent of the remainin
           and staging failures restore its prior bytes for retry. Errands, delivery members, and in-repo storage export
           nothing.
 
-### `[ ]` **7.4 Read readiness through the store for the merge lock — § 12.7**
+### `[x]` **7.4 Read readiness through the store for the merge lock — § 12.7**
 
 - _Goal:_ From the flip both composition roots give `evaluateReviewReadiness` the store, and readiness reads the work
   unit's position, branch link, notes facts, other metas' diagnostics, cohort placement, and change-request link through
   it, refusing as today.
 
-    - Roots: merge's lock port (`scripts/integration/merge-composition.ts`) and `readinessBoundTo`
-      (`handlers/review.ts`); readiness's reads in `rg/readiness.ts` (`evaluateManualWorkUnit`,
-      `evaluateArchivedWorkUnit`, `lifecycleArtifactFacts`, `lifecycleCandidateFacts`, `cohortCloseoutFacts`).
-    - `ReviewReadinessDependencies` takes the store as optional: both work-unit roots pass it, and the work-unit arms
-      read through it from the flip, an archived work unit's current records included; the
-      Errand's caller (`scripts/integration/errand-merge-composition.ts`) and the delivery member's
-      (`handlers/delivery-execution.ts`) read no lifecycle state and pass none.
-    - The cleared-branch and completion-date facts retire from the flip; the pull-request fact reads the change-request
-      link, passing where none exists; the cohort facts read the stored cohort document for the cohort and, for a
-      subcohort, its parent (`cohortCoordinateFacts`): `missing-cohort-coordination` where an open member or subcohort
-      remains and no document resolves, and once none remains, `incomplete-cohort-closeout` where the document is still
-      placed planned, `missing-cohort-closeout` where none resolves, and `malformed-cohort-closeout` where its Closeout
-      section fails `validCohortCloseout`.
-    - Each diagnostic a store listing carries (`ListingDiagnosticSchema`, `lib/store/read.ts`) becomes a
-      `malformed-artifact` fact, its path the diagnostic's `key` and its message its `condition`, where today the
-      lifecycle index's own diagnostics become facts.
-    - A listing readiness cannot read whole — `unreadable`, or `complete` with `missed: true` (`ListingOutcomeSchema`,
-      `lib/store/read.ts`) — refuses as an `unreadable-artifact` fact naming its condition, as readiness reports an
-      artifact it cannot read today, so an incomplete listing never passes as a clean one.
-    - From the flip a work unit's head-branch check compares the pull request's head branch with its work-branch link
-      (`selectWorkBranchLink`, `lib/store/lifecycle-branch.ts`) in place of parsing a slug from the branch's name
-      (`branchToWorkUnitSlug`, as `rg/readiness.ts` calls it), refusing `vehicle-branch-mismatch` where they differ; an
-      Errand keeps today's check.
-    - Build `test-first` (one behavior at a time):
-        - both roots give readiness the store, so `arc integrate merge` and `arc merge lock release` read the stored meta
-        - under the manual cadence, readiness passes for an Integrating work unit whose branch link names the head
-          branch, and refuses where the position, branch link, or notes facts fail
-        - under `with-integration`, an archived work unit passes with no change-request link and refuses
-          `pr-url-mismatch` where the link names another pull request
-        - an archived work unit refuses naming a diagnostic the lifecycle listing carries, as a `malformed-artifact` fact
-          whose path is the diagnostic's key and whose message is its condition
-        - an unreadable lifecycle listing, and one that missed entries, refuse as an `unreadable-artifact` fact
-        - a cohort whose final member archived reads `completed` with a well-formed Closeout section and passes, and one
-          still planned with no open holding refuses `incomplete-cohort-closeout`
-        - a cohort with an open member and no stored document refuses `missing-cohort-coordination`, and with none open
-          and no stored document refuses `missing-cohort-closeout`
-        - a completed cohort document whose Closeout section is malformed refuses `malformed-cohort-closeout`
-        - a subcohort's parent is checked the same way, a malformed parent closeout refusing
-        - a work unit whose branch was adopted under a name that parses as no slug passes where the head branch is its
-          linked branch, and a pull request whose head branch is not the work unit's linked branch refuses
-          `vehicle-branch-mismatch`
-        - an Errand's and a delivery member's readiness are unchanged
+- _Outcome:_ Both lock roots bind work-unit readiness to the selected store. Native checks use current placement,
+  project-qualified branch and change-request links, stored notes, and complete lifecycle/cohort inventories. Listing
+  diagnostics and missed entries refuse; cohort closeout checks include the parent and distinguish open holdings from
+  final closeout. Shared authored-notes and closeout validators serve both storage arms; archived branch/date field
+  requirements remain confined to in-repo readiness.
 
 ### `[ ]` **7.5 Retry an ended item's reads and writes through every store this change opens — § 10.4**
 
