@@ -270,27 +270,35 @@ type FilesRun = { status: "run"; paths: string[]; mergedIn: string[]; check: Che
 
 /**
  * Choose the paths a files check runs over once merged-in paths leave. A check that selects deletions, when deletions
- * are all that changed, runs once without paths, as a check that withholds its paths does.
+ * are all the change made itself, runs once without paths, as a check that withholds its paths does.
  */
 async function selectFilesRun(context: RequestedCheck, io: DeclaredCheckDependencies, request: CheckRequest,
   selectedPaths: TreePathChange[] | undefined): Promise<FilesRun> {
   const { id, check, root, resolved, selectionTree } = context;
-  const { tree } = resolved;
-  const fileSelection = { id, root, tree, selectionTree, inputs: check.inputs, selectedPaths };
+  const fileSelection = { id, root, tree: resolved.tree, selectionTree, inputs: check.inputs, selectedPaths };
   let executed = check;
-  let paths = await selectedFilePaths(io, { ...fileSelection, withDeletions: !check.pass_paths });
-  if (paths.length === 0 && check.mode === "files" && check.select_deletions) {
-    paths = await selectedFilePaths(io, { ...fileSelection, withDeletions: true });
+  let selection = await leaveMergedIn(context, io, request,
+    await selectedFilePaths(io, { ...fileSelection, withDeletions: !check.pass_paths }));
+  if (selection.paths.length === 0 && check.mode === "files" && check.select_deletions) {
+    selection = await leaveMergedIn(context, io, request, await selectedFilePaths(io, { ...fileSelection, withDeletions: true }));
     executed = { ...check, pass_paths: false };
   }
-  if (paths.length === 0) return { status: "not selected", reason: "no files to check" };
-  const checkedTree = usesFormingWorktree(check, request) ? resolved.worktreeTree ?? tree : tree;
-  const mergedIn = await readRangeMergedInPaths(io.git, root, { scope: resolved.scope, base: resolved.base, merges: resolved.merges,
-    remoteBase: resolved.remoteBase, tree: checkedTree, inputs: check.inputs, paths });
-  const left = new Set(mergedIn);
-  paths = paths.filter(path => !left.has(path));
+  const { examined, paths, mergedIn } = selection;
+  if (examined.length === 0) return { status: "not selected", reason: "no files to check" };
   return paths.length === 0 ? { status: "not selected", reason: MERGED_IN_ONLY, mergedIn }
     : { status: "run", paths, mergedIn, check: executed };
+}
+
+/** Leave out of one file selection the files a base merge on the range brought in unchanged. */
+async function leaveMergedIn(context: RequestedCheck, io: DeclaredCheckDependencies, request: CheckRequest,
+  examined: string[]): Promise<{ examined: string[]; paths: string[]; mergedIn: string[] }> {
+  const { check, root, resolved } = context;
+  if (examined.length === 0) return { examined, paths: [], mergedIn: [] };
+  const tree = usesFormingWorktree(check, request) ? resolved.worktreeTree ?? resolved.tree : resolved.tree;
+  const mergedIn = await readRangeMergedInPaths(io.git, root, { scope: resolved.scope, base: resolved.base,
+    merges: resolved.merges, remoteBase: resolved.remoteBase, tree, inputs: check.inputs, paths: examined });
+  const left = new Set(mergedIn);
+  return { examined, paths: examined.filter(path => !left.has(path)), mergedIn };
 }
 
 async function runProjectedCheck(context: RequestedCheck, io: DeclaredCheckDependencies,
