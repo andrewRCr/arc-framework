@@ -16,28 +16,33 @@ export async function readRefRepository(context: RefBackendContext): Promise<Ref
   return bindRefRepository(context, commonDir, await directoryExists(context, directory) ? directory : null);
 }
 
-/** A first mutation places an empty store by designation, preserving either existing location. */
-export async function writeRefRepository(context: RefBackendContext): Promise<RefBackendContext> {
+/** A first mutation places an empty store by designation, preserving either existing location.
+ * @param captured Receives the initial namespace only when it proves the code repository already holds state.
+ */
+export async function writeRefRepository(context: RefBackendContext,
+  captured?: (tips: ReadonlyMap<string, string>) => void): Promise<RefBackendContext> {
   if (context.repository) return context;
   const selected = await readRefRepository(context);
   const location = selected.repository;
   if (!location) throw new Error("Repository selection did not return its coordinate");
-  if (location.gitDir || await codeHoldsState(context)) return selected;
+  if (location.gitDir || await codeHoldsState(context, captured)) return selected;
   const designation = await readRefDesignation(context, location.commonDir);
   if (designation.backing === null && designation.pushes.length === 1 && designation.pushes[0]?.name === designation.codeRemote) return selected;
   const release = await context.lock("layout");
   try {
     const directory = join(location.commonDir, "arc", "store");
     if (await directoryExists(context, directory)) return bindRefRepository(context, location.commonDir, directory);
-    if (await codeHoldsState(context)) return selected;
+    if (await codeHoldsState(context, captured)) return selected;
     await createStoreDirectory(context, location.commonDir, directory);
     return bindRefRepository(context, location.commonDir, directory);
   } finally { await release(); }
 }
 
-async function codeHoldsState(context: RefBackendContext): Promise<boolean> {
+async function codeHoldsState(context: RefBackendContext, captured?: (tips: ReadonlyMap<string, string>) => void): Promise<boolean> {
   const tips = await readRefTips(context, { includeHistory: true });
-  return [...tips.keys()].some((ref) => isManifestRef(ref.replace("refs/arc/history/", "refs/arc/")));
+  const present = [...tips.keys()].some((ref) => isManifestRef(ref.replace("refs/arc/history/", "refs/arc/")));
+  if (present) captured?.(tips);
+  return present;
 }
 
 async function createStoreDirectory(context: RefBackendContext, commonDir: string, directory: string): Promise<void> {

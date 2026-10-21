@@ -1470,3 +1470,23 @@ incorrectly returned success in both layouts. Existing cold-lookup process asser
 acquisition and are tightened from four to three (unchanged hot lookups remain one). The final 146-case native/CLI run
 passed across lookup tiers, current/former names, claims, linked refs, rename, read sources, project identity, namespace
 diagnostics, reader cleanup, conflict remedies, and the six-hundred-item timing workload. Windows acceptance is open.
+
+### Remaining writer acquisition reuse
+
+`repository.ts::writeRefRepository` optionally reports the initial capture only when `codeHoldsState` proves the selected
+code repository already stores state; `write.ts::executeRefBatch` carries that one selection view into
+`write-resolution.ts::resolveRefWrites`. Preselected/separate/newly installed layouts still acquire their own initial view,
+and the post-ref-lock and layout-locked admission captures remain unchanged. `write-build.ts::readWriteGroups` selects
+metadata by the captured tree’s object ID, exposing existing successful-object evidence. After native Git has confirmed
+every staged blob identity, `tree-write.ts::flushRefBlobStage` retains those physically written bytes for admission reads.
+No failed or merely prospective write enters the confirmed evidence.
+
+A completed-update resource bound first failed in both layouts against the previous implementation, then passed at no
+more than 18/default and 20/separate calls in the generic native fixture. The 130-case native/CLI run includes directory
+selection, layout changes, rename retry, atomic admission, observations, completed edits, reopen, bulk objects, locks,
+retirement, creation facts, anchors, missing-object repair, conflict remedies, and the production timing workload. The
+production 600-item trace now uses 22/default and 24/separate native commands, down from 31/32 in the hosted diagnostic.
+This is a process-count reduction, not evidence that the Windows numeric budgets passed.
+
+The completed `deac253ae` diagnostic run also exposed stale cold-lookup and saved-listing-token process expectations.
+Those retain their complete record/token assertions and tighten to the reduced counts; no acceptance threshold is raised.

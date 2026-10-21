@@ -33,10 +33,11 @@ export function refWriteTargets(context: Pick<RefBackendContext, "registry">, ba
 }
 
 /** Resolve all owner names together so records created in one batch share a generation. */
-export async function resolveRefWrites(context: RefBackendContext, writes: readonly Mutation[]): Promise<StoreResult<ResolvedBatch>> {
+export async function resolveRefWrites(context: RefBackendContext, writes: readonly Mutation[],
+  captured?: ReadonlyMap<string, string>): Promise<StoreResult<ResolvedBatch>> {
   const identity = await refWriteIdentityRefusal(context, writes);
   if (identity) return { status: "refused", refusal: identity };
-  const tips = await readRefTips(context, { includeHistory: true });
+  const tips = new Map(captured ?? await readRefTips(context, { includeHistory: true }));
   const project = await bindProjectMutations(context, writes, tips);
   if (project.status === "refused") return project;
   writes = project.result;

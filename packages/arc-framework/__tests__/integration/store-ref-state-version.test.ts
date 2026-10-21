@@ -31,18 +31,18 @@ describe.each(["files", "reftable"] as const)("saved state versions (%s)", (form
     expect(await store.version()).toEqual(first);
     expect(f.processes() - before).toBe(1);
   });
-  it("returns a live listing token from its snapshot and writes it in six processes", async () => {
+  it("returns a live listing token from its snapshot and writes it in five processes", async () => {
     const f = await createRefReadFixture(format);
     await plantRef(f.root, ref, entries);
     const listing = await f.store.list({ family: "work-item" });
     expect(listing).toMatchObject({ status: "ok", result: { status: "complete", asOf: expect.stringMatching(/^[0-9a-f]{40}$/u),
       records: [expect.objectContaining({ content: "kept" })], diagnostics: [], missed: false } });
-    expect(f.processes()).toBe(6);
+    expect(f.processes()).toBe(5);
     if (listing.status !== "ok" || listing.result.status !== "complete") throw new Error("No complete listing");
     expect(await f.store.version()).toEqual({ status: "ok", result: listing.result.asOf });
-    expect(f.processes()).toBe(7);
+    expect(f.processes()).toBe(6);
     expect(await f.store.list({ family: "work-item" })).toEqual(listing);
-    expect(f.processes()).toBe(11);
+    expect(f.processes()).toBe(9);
   });
 
   it("returns its captured token when another checkout retains a newer manifest first", async () => {

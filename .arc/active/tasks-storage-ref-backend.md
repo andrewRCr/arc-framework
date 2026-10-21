@@ -1881,6 +1881,13 @@ in `notes-storage-ref-backend.md` (A25).
           head, complete file populations, advisory rows and deltas, retaining the earlier source-bound measurements.
         - Use the existing complete dispatch and native artifacts; add no interim legacy comparison mechanism.
 
+    - `[x]` **18.2.h Reuse writer capture and physical confirmations**
+        - _Goal:_ Eliminate duplicate metadata/blob acquisitions and the discarded initial code-store capture without
+          removing any lock-boundary namespace check or reusing evidence across write attempts.
+        - _Outcome:_ Repository selection supplies its proven initial code-store capture; metadata loads use captured
+          object IDs, and staged blobs enter attempt evidence only after Git confirms every identity. Both layouts
+          satisfy the tighter native resource bound with their physical-object refusal/repair and race checks intact.
+
 ### `[~]` **18.3 CI cost — § 14.12**
 
 - _Goal:_ Running both backends until the cutover costs CI no more than the bound: each layout's ref conformance run

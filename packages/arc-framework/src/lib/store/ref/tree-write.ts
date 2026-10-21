@@ -46,6 +46,7 @@ export async function flushRefBlobStage(context: RefBackendContext): Promise<Ref
     if (written.length !== blobs.length || written.some((oid, index) => oid !== blobs[index]?.[0])) {
       throw new Error("A staged blob does not match the store's object format");
     }
+    for (const [oid, bytes] of blobs) context.writeEvidence?.objects.set(oid, { oid, type: "blob", bytes });
   } finally { await context.fs.removeDirectory(directory); }
   return physical;
 }

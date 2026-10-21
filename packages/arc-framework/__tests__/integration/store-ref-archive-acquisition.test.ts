@@ -30,8 +30,10 @@ async function fixture(layout: "default" | "separate") {
   success(await f.store.write({ action: "put", reference: companion, expected: null, content: "Unrelated companion.\n".repeat(16_384),
     provenance: { verb: "merge", lifecycleAction: "test" } }));
   let readBytes = 0;
+  let processes = 0;
   const acquisitions = new Map<string, number>();
   const store = createRefStore({ ...f.ports, rawExec: async (...args) => {
+    processes += 1;
     if (args[0].includes("--batch") && args[1]?.input) {
       for (const query of new TextDecoder().decode(args[1].input).trim().split("\n")) {
         if (/^[0-9a-f]{40}(?:\^\{tree\})?$/u.test(query)) acquisitions.set(query, (acquisitions.get(query) ?? 0) + 1);
@@ -40,10 +42,11 @@ async function fixture(layout: "default" | "separate") {
     const result = await f.ports.rawExec(...args);
     readBytes += result.stdout.byteLength;
     return result;
-  } });
+  }, exec: async (...args) => { processes += 1; return f.ports.exec(...args); },
+  execInput: async (...args) => { processes += 1; return f.ports.execInput(...args); } });
   return { store, target, other, companion,
-    reset: () => { readBytes = 0; parsedBytes = 0; acquisitions.clear(); },
-    costs: () => ({ readBytes, parsedBytes }), acquisitions };
+    reset: () => { readBytes = 0; parsedBytes = 0; processes = 0; acquisitions.clear(); },
+    costs: () => ({ readBytes, parsedBytes, processes }), acquisitions };
 }
 
 describe.each(["default", "separate"] as const)("archived acquisition in %s layout", layout => {
@@ -79,6 +82,7 @@ describe.each(["default", "separate"] as const)("archived acquisition in %s layo
       content: "One acquired before view.\n", placement: { kind: "completed", quarter: targetQuarter },
       provenance: { verb: "merge", lifecycleAction: "test" } }));
     expect([...f.acquisitions].filter(([, count]) => count > 1)).toEqual([]);
+    expect(f.costs().processes).toBeLessThanOrEqual(layout === "default" ? 18 : 20);
     expect(success(await f.store.read({ reference: result.reference }))).toMatchObject({ content: "One acquired before view.\n", version: result.version });
     expect(success(await f.store.read({ reference: f.other.reference }))).toEqual(f.other);
   });

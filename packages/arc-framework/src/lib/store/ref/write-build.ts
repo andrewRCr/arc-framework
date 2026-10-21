@@ -213,17 +213,16 @@ async function readWriteGroups(context: RefBackendContext, resolved: ResolvedBat
   const refs = new Set(targets.map(({ home }) => home.ref));
   const tips = new Map([...resolved.tips].filter(([ref]) => refs.has(ref)));
   const trees = tips.size > 0 ? await readRefTrees(context, tips) : new Map<string, RefTreeEntry[]>();
-  const queries = targets.flatMap(({ home }) => {
-    const tip = tips.get(home.ref);
-    return tip ? [`${tip}:${home.metadataPath}`] : [];
-  });
+  const metadataOids = new Map(targets.map(({ home }) => [home.ref,
+    trees.get(home.ref)?.find(({ path }) => path === home.metadataPath)?.oid]));
+  const queries = [...metadataOids.values()].filter((oid): oid is string => oid !== undefined);
   const objects = await readBatchObjects(context, [...new Set(queries)]);
   const groups = new Map<string, RefGroup>();
   for (const { reference, home } of targets) {
     let group = groups.get(home.ref);
     if (!group) {
       const tip = tips.get(home.ref);
-      const metadata = tip ? parseRefMetadata(objects.get(`${tip}:${home.metadataPath}`), home.ref)
+      const metadata = tip ? parseRefMetadata(objects.get(metadataOids.get(home.ref) ?? ""), home.ref)
         : { formatVersion: 1 as const, formats: {},
           ...(/^refs\/arc\/(?:work|cohort)\//u.test(home.ref)
             ? { slug: reference.owner.name } : {}) };
