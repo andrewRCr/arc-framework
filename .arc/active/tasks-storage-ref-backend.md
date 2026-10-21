@@ -1884,11 +1884,11 @@ in `notes-storage-ref-backend.md` (A25).
 - _Goal:_ Record complete hosted conformance costs and workload differences without an interim legacy ratio, retaining
   all native coverage, Windows budgets, and affected tier/job cost measurements and baseline deltas (A25).
 
-    - `[ ]` **18.3.R.a Complete-file hosted evidence**
-        - Record one dispatch's exact head, shard, complete file time, and completed-case count for the in-repo suite
-          and both native layouts; explain the unequal workloads and preserve the historical ratio miss.
-        - Use existing duration artifacts and retained registration evidence; add no matched-cohort comparison
-          mechanism.
+    - `[x]` **18.3.R.a Complete-file hosted evidence**
+        - Dispatch `39543872100` retains exact-head complete file times, shard identities, and completed populations
+          for the in-repo suite and both native layouts in `notes-storage-ref-backend.md` § CI cost history.
+        - The existing registration inventory explains unequal workloads; all native cases and historical ratio
+          misses remain, without matched-cohort hosted machinery.
 
     - `[ ]` **18.3.R.b Final tier and job cost closure**
         - After the final new file lands, repeat 1.1's tier/job procedure, update each affected budget row to the

@@ -217,6 +217,31 @@ report step, not GitHub's enclosing job duration. Their mode is `ci-job`, `nativ
 | integration-3 | 255,172      | 240,300              | 38856961515 |
 | integration-4 | 281,215      | 264,600              | 38856961515 |
 
+### Final complete-file hosted conformance evidence (A25)
+
+Dispatched run `39543872100` tested `0908ff6d95e252c0717d382351bffd7fff39f9a9` on GitHub-hosted runners. All four
+integration shards completed successfully. Their duration artifacts and native logs retain the following complete
+file times and populations. Each shard is a separate hosted job; the three files did not run sequentially on one
+machine.
+
+| Backend  | Integration shard | File time (ms) | Completed cases | Registered skips |
+| -------- | ----------------- | -------------- | --------------- | ---------------- |
+| in-repo  | 3                 | 125,227.857    | 310             | 736              |
+| default  | 2                 | 899,378.179    | 1,069           | 59               |
+| separate | 1                 | 594,297.154    | 1,069           | 59               |
+
+The retained registration inventory finds 278 shared active assertion IDs, 790 native-only IDs, and 31 in-repo-only
+IDs, excluding each suite's declaration-inventory case. Both native layouts retain the same active population. Their
+additional workload includes merge, format, retained-history, write-check, and per-kind synchronization behavior the
+in-repo fixture excludes. Counts alone do not provide a per-behavior speed comparison. A25 requires these complete
+costs without an interim legacy ratio; all required native cases remain, and no matched-cohort hosted mechanism was
+added. The earlier ratio misses remain failed historical results.
+
+Native logs, integration duration artifacts, population evidence, and derived complete-file figures are retained
+under `task-18.3-hosted/third-run/` in the machine-local storage-ref-backend tools directory. This evidence closes the
+complete-file reporting obligation; Windows operation acceptance, final tier/job measurements, and host checks remain
+separate obligations.
+
 ### Early local conformance comparison
 
 Task 9.6 ran each complete conformance file once, sequentially on the same WSL2 machine, using `npm run test:file`.
