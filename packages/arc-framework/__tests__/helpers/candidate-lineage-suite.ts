@@ -2650,7 +2650,7 @@ function registerReviewBearingIntegration(it: typeof vitestIt): void {
         target,
       }),
       refreshTarget: async () => target,
-      readMerged: async () => false,
+      readMerged: async () => ({ merged: false, providerMergeId: null }),
       readConfiguredBase: async () => "main",
       releaseLock: async () => ({ state: "released" }),
       holdLock: async () => ({ state: "held" }),

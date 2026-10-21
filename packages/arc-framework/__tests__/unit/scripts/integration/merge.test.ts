@@ -11,6 +11,7 @@ import {
   type IntegrationMergeDependencies,
   type IntegrationMergeTarget,
 } from "../../../../src/scripts/integration/merge.js";
+import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
 import { BaseMergeInputSchema } from "../../../../src/scripts/base/merge.js";
 import { IntegrationCheckpointCompositionRecordSchema, persistIntegrationCheckpointComposition,
   readIntegrationCheckpointComposition } from "../../../../src/scripts/integration/checkpoint-store.js";
@@ -18,6 +19,7 @@ import { createIntegrationMergeDependencies } from "../../../../src/scripts/inte
 import { createStoreLifecycleStorage } from "../../../../src/lib/store/lifecycle-storage.js";
 import { OwnerIdentitySchema, recordReferences } from "../../../../src/lib/store/index.js";
 import { writeMetaPriority } from "../../../../src/lib/store/kinds/meta/writers.js";
+import { createReviewHarness } from "../../../helpers/store/review-harness.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
 import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
@@ -98,7 +100,8 @@ function dependencies() {
         headSha: oid("c"),
       },
     }),
-    readMerged: async () => state.merged,
+    readMerged: async () => state.merged
+      ? { merged: true, providerMergeId: "merge-123" } : { merged: false, providerMergeId: null },
     readConfiguredBase: async () => "main",
     refreshTarget: async (target) => target,
     releaseLock: async () => {
@@ -1061,4 +1064,78 @@ describe("integration merge", () => {
     expect(unavailable.payload).not.toHaveProperty("elapsedMs");
     expect(state).toEqual({ held: true, merged: false });
   });
+});
+
+async function nativeLandingMerge(completed = false) {
+  const h = createReviewHarness(), projectId = "123e4567-e89b-42d3-a456-426614174099";
+  await h.seedProject(projectId);
+  const links = { branches: [{ repository: projectId, ref: "topic/opaque", linkedAs: "adopted" as const, excluded: [] }],
+    changeRequest: { repository: projectId, number: 42 } };
+  const meta = await h.seedMeta("example", { state: completed ? "Shipped" : "Integrating",
+    currentWorkflow: completed ? null : "integrate-work-unit" },
+    completed ? { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } : { kind: "active" }, links);
+  const production = createIntegrationMergeDependencies({ cwd: "/unused", exec: scriptGitExec([]).exec,
+    workUnit: "example", store: h.store, projectId: h.projectId, workItem: meta.reference.owner });
+  const { value, state } = dependencies();
+  value.writeLandingCommit = production.writeLandingCommit;
+  value.readMerged = async () => state.merged
+    ? { merged: true, providerMergeId: oid("d") } : { merged: false, providerMergeId: null };
+  value.mergePinned = async target => { state.merged = true; return { state: "merged", target, providerMergeId: oid("d") }; };
+  return { ...h, meta, projectId, links, value, state };
+}
+
+it.each([false, true])("records the native landing commit with project identity and retained links (completed: %s)", async completed => {
+  const h = await nativeLandingMerge(completed);
+  expect(await mergeIntegration(request, h.value)).toMatchObject({ state: "merged", payload: { landingLink: { state: "written" } } });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })).links).toEqual({ ...h.links,
+    landingCommit: { repository: h.projectId, sha: oid("d") } });
+});
+
+it.each(["already-merged", "recovered"] as const)("records the native landing link for %s success", async route => {
+  const h = await nativeLandingMerge();
+  if (route === "already-merged") h.state.merged = true;
+  else h.value.mergePinned = async () => { h.state.merged = true; throw new Error("The host response was lost."); };
+  expect(await mergeIntegration(request, h.value)).toMatchObject({ state: "merged",
+    payload: { providerMergeId: oid("d"), landingLink: { state: "written" } } });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })).links).toEqual({ ...h.links,
+    landingCommit: { repository: h.projectId, sha: oid("d") } });
+});
+
+it("reports a landed merge when its link write fails and repairs the link on an already-merged retry", async () => {
+  const h = await nativeLandingMerge(), write = h.store.write.bind(h.store);
+  h.store.write = async input => input.action === "put" && input.links?.landingCommit !== undefined
+    ? { status: "refused", refusal: { code: "version-conflict", class: "recoverable", records: [h.meta.reference],
+        condition: "Metadata changed before its landing link was saved.", remedy: { text: "Reread metadata and retry." } } }
+    : write(input);
+  expect(await mergeIntegration(request, h.value)).toMatchObject({ state: "merged", payload: {
+    landingLink: { state: "not-written", detail: expect.stringContaining("Metadata changed"),
+      remedy: { argv: ["arc", "integrate", "merge", "example", "--checkpoint", checkpointHandle] } } } });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference }))).toEqual(h.meta);
+  h.store.write = write;
+  expect(await mergeIntegration(request, h.value)).toMatchObject({ state: "merged", payload: { landingLink: { state: "written" } } });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })).links).toEqual({ ...h.links,
+    landingCommit: { repository: h.projectId, sha: oid("d") } });
+});
+
+it("reports the link unwritten when a successful merge has no reported merge commit", async () => {
+  const h = await nativeLandingMerge();
+  h.value.mergePinned = async target => { h.state.merged = true; return { state: "merged", target, providerMergeId: null }; };
+  expect(await mergeIntegration(request, h.value)).toMatchObject({ state: "merged", payload: { providerMergeId: null,
+    landingLink: { state: "not-written", remedy: { argv: ["arc", "integrate", "merge", "example", "--checkpoint", checkpointHandle] } } } });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference }))).toEqual(h.meta);
+});
+
+it("reports an already-merged request with no host merge commit without writing a link", async () => {
+  const h = await nativeLandingMerge();
+  h.value.readMerged = async () => ({ merged: true, providerMergeId: null });
+  expect(await mergeIntegration(request, h.value)).toMatchObject({ state: "merged", payload: { providerMergeId: null,
+    landingLink: { state: "not-written", remedy: { argv: ["arc", "integrate", "merge", "example", "--checkpoint", checkpointHandle] } } } });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference }))).toEqual(h.meta);
+});
+
+it("keeps repository merge success free of native landing-link state", async () => {
+  const { value } = dependencies();
+  const result = await mergeIntegration(request, value);
+  expect(result.state).toBe("merged");
+  expect(result).not.toHaveProperty("payload.landingLink");
 });

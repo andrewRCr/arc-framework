@@ -249,7 +249,7 @@ export function createErrandMergeDependencies(input: {
       return selectCurrentErrandMergeIdentity(frame, slug, store);
     },
     readMerged: async (target) => ({
-      merged: await common.readMerged(target),
+      merged: (await common.readMerged(target)).merged,
       providerMergeId: null,
     }),
     refreshTarget: (target) => common.refreshTarget(target),

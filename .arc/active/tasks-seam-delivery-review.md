@@ -1297,7 +1297,7 @@ retry (7.5) and the subject's store read (7.6) remain last; only the first needs
 backend's `state-unresolvable` refusal and `pull({ history })` on base. The subject's store and Candidate-reader
 prerequisites have landed, and every earlier task is independent of the remaining ref-backend wait (§ 14.4).
 
-### `[ ]` **7.1 Read the checkpoint's lifecycle through the store, and write the landing-commit link — § 12.3, § 12.4**
+### `[x]` **7.1 Read the checkpoint's lifecycle through the store, and write the landing-commit link — § 12.3, § 12.4**
 
 - _Goal:_ From the flip the checkpoint and merge read the work unit's current meta record through the store — its
   position from placement and lifecycle state, its artifact facts from the stored meta — and a landed merge writes the
@@ -1310,32 +1310,12 @@ prerequisites have landed, and every earlier task is independent of the remainin
           version while the lifecycle summary retains the whole snapshot version. Missing records read as nonexistent;
           malformed records become artifact facts, and other refusals preserve their condition and repair instructions.
 
-    - `[ ]` **7.1.b The landing-commit link**
+    - `[x]` **7.1.b The landing-commit link**
 
-        - `scripts/integration/merge.ts` writes `landingCommit` (`lib/store/links.ts`), its repository the project ID
-          read once per invocation through the project-ID port (`projectId`), wired into merge's composition
-          (`scripts/integration/merge-composition.ts`); in-repo nothing is written.
-        - The link names the merge commit the host reports (`providerMergeId`). Where merge finds the pull request
-          already merged, `readMerged` returns one of three states in place of today's boolean — not merged, merged with
-          the host's merge commit, or merged with none reported — at both its calls, before the merge and in the failure
-          path's recovery, and each merged arm writes the link as a fresh merge does. The link joins the work item's
-          other links in one whole-value write (`LinksSchema`) against the version read. Where the host reports no merge
-          commit (`providerMergeId` `null`), merge writes no link and reports the landing-link state not written, naming
-          the rerun.
-        - `IntegrationMergeResultSchema`'s `merged` arm (`scripts/integration/merge.ts`) admits a landing-link state —
-          written, or not written with the rerun's remedy — a pre-flip widening (§ 3.5) under which every result
-          emitted before the flip parses as it did.
-        - Build `test-first` (one behavior at a time):
-            - a landed merge writes one landing-commit link naming the project ID and the merge commit, keeping the work
-              item's other links
-            - a rerun after the pull request merged writes the link from the host's merge commit, and one whose host
-              reports the pull request merged with no merge commit writes none and reports it not written
-            - a merge that fails and then finds the pull request merged writes the link from the host's merge commit
-            - a merge whose host reports no merge commit writes no link and reports it not written with the rerun's
-              remedy
-            - a link write that fails after the merge lands reports the merge landed, its landing-link state not written,
-              and names the rerun, which writes it
-            - in-repo the `merged` result parses as today and carries no landing-link state
+        - Fresh, already-merged, and recovered success retain the host's merge identity and save a project-qualified
+          landing link against the current metadata version, preserving unrelated links and completed-item placement.
+          Missing host identity and failed writes leave the merge reported landed with an executable retry; the
+          already-merged route repairs the link. Repository success carries no native landing-link state.
 
 ### `[ ]` **7.2 Read status's boundary through the store from the flip — § 9.3, § 12.4**
 

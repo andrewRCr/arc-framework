@@ -1,5 +1,6 @@
 /** Exact-checkpoint integration merge and its fail-closed compensating exits. */
 
+import { LandingLinkStateSchema, recordLandingLink } from "./landing-link.js";
 import { z } from "zod";
 
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
@@ -319,6 +320,7 @@ export const IntegrationMergeResultSchema = z.union([
       pullRequest: z.number().int().positive(),
       target: IntegrationMergeTargetSchema,
       providerMergeId: z.string().trim().min(1).nullable(),
+      landingLink: LandingLinkStateSchema.optional(),
     }),
   }),
   z.strictObject({
@@ -534,7 +536,10 @@ export interface IntegrationMergeDependencies {
     lifecycleVersion: string | null;
     target: IntegrationMergeTarget;
   }>;
-  readMerged(target: IntegrationMergeTarget): Promise<boolean>;
+  readMerged(target: IntegrationMergeTarget): Promise<
+    { merged: false; providerMergeId: null } | { merged: true; providerMergeId: string | null }
+  >;
+  writeLandingCommit?(workUnit: string, sha: string): Promise<void>;
   refreshTarget(target: IntegrationMergeTarget): Promise<IntegrationMergeTarget>;
   releaseLock(target: IntegrationMergeTarget): Promise<{ state: string }>;
   holdLock(target?: IntegrationMergeTarget): Promise<{ state: string }>;
@@ -599,6 +604,16 @@ async function invalidated(
   });
 }
 
+async function completeMergedIntegration(request: IntegrationMergeRequest, approvedHead: string,
+  target: IntegrationMergeTarget, providerMergeId: string | null,
+  dependencies: IntegrationMergeDependencies): Promise<IntegrationMergeResult> {
+  const landingLink = await recordLandingLink({ workUnit: request.workUnit, checkpointHandle: request.checkpointHandle,
+    providerMergeId, write: dependencies.writeLandingCommit?.bind(dependencies) });
+  return IntegrationMergeResultSchema.parse({ schemaVersion: 1, mode: "integrate-merge", workUnit: request.workUnit,
+    state: "merged", nextAction: "complete", payload: { approvedHead, pullRequest: target.pullRequest, target, providerMergeId,
+      ...(landingLink === undefined ? {} : { landingLink }) } });
+}
+
 /** Execute the exact persisted post-approval span and merge only its approved head. */
 export async function mergeIntegration(
   input: z.input<typeof IntegrationMergeRequestSchema>,
@@ -624,19 +639,9 @@ export async function mergeIntegration(
       );
     }
     target = IntegrationMergeTargetSchema.parse(checkpoint.target);
-    if (await dependencies.readMerged(target)) {
-      return IntegrationMergeResultSchema.parse({
-        ...base,
-        state: "merged",
-        nextAction: "complete",
-        payload: {
-          approvedHead: checkpoint.approvedHead,
-          pullRequest: target.pullRequest,
-          target,
-          providerMergeId: null,
-        },
-      });
-    }
+    const existing = await dependencies.readMerged(target);
+    if (existing.merged) return await completeMergedIntegration(request, checkpoint.approvedHead, target,
+      existing.providerMergeId, dependencies);
     const settlement = await dependencies.executeSettlement(checkpoint);
     if (settlement.state === "invalidated") {
       return await invalidated(base, "settlement-invalidated", { settlement }, dependencies, target);
@@ -1053,33 +1058,13 @@ export async function mergeIntegration(
         payload: { target: merged.target, detail: mergedDetail },
       });
     }
-    return IntegrationMergeResultSchema.parse({
-      ...base,
-      state: "merged",
-      nextAction: "complete",
-      payload: {
-        approvedHead: checkpoint.approvedHead,
-        pullRequest: target.pullRequest,
-        target: merged.target,
-        providerMergeId: merged.providerMergeId,
-      },
-    });
+    return await completeMergedIntegration(request, checkpoint.approvedHead, merged.target, merged.providerMergeId, dependencies);
   } catch (error) {
     if (target !== undefined) {
       try {
-        if (await dependencies.readMerged(target)) {
-          return IntegrationMergeResultSchema.parse({
-            ...base,
-            state: "merged",
-            nextAction: "complete",
-            payload: {
-              approvedHead: checkpoint?.approvedHead ?? target.headSha,
-              pullRequest: target.pullRequest,
-              target,
-              providerMergeId: null,
-            },
-          });
-        }
+        const recovered = await dependencies.readMerged(target);
+        if (recovered.merged) return await completeMergedIntegration(request, checkpoint?.approvedHead ?? target.headSha,
+          target, recovered.providerMergeId, dependencies);
       } catch {
         // Without exact merged-state evidence the compensating lock remains the safe fallback.
       }

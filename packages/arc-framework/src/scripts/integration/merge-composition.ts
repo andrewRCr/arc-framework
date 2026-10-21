@@ -1,5 +1,6 @@
 /** Production boundaries for the exact-checkpoint integration merge. */
 
+import { writeWorkUnitLandingCommit } from "./landing-link.js";
 import { readStoredLifecycleSummary } from "./lifecycle-record.js";
 import { z } from "zod";
 
@@ -265,6 +266,8 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
   });
 
   return {
+    ...(input.store.capabilities.stateOffBranch ? { writeLandingCommit: (workUnit: string, sha: string) =>
+      writeWorkUnitLandingCommit({ store: input.store, projectId: input.projectId, workUnit, owner: input.workItem, sha }) } : {}),
     readCheckpoint: async (workUnit, handle) => {
       const identity = await resolveIdentity({ exec: input.exec });
       if (identity === null) throw new Error("An ARC identity is required to read the integration checkpoint.");
@@ -330,9 +333,13 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
         },
         changeRequestPort,
       );
-      return resolved.state === "merged-at-head"
-        && resolved.targetRef.repository === target.repository
-        && resolved.candidate.number === target.pullRequest;
+      if (resolved.state !== "merged-at-head"
+        || resolved.targetRef.repository !== target.repository
+        || resolved.candidate.number !== target.pullRequest) return { merged: false, providerMergeId: null };
+      const confirmed = await confirmPinned(target);
+      if (confirmed.state === "merged") return { merged: true, providerMergeId: confirmed.providerMergeId };
+      if (confirmed.state === "unmerged") return { merged: false, providerMergeId: null };
+      throw new Error(confirmed.detail);
     },
     refreshTarget: async (target) => {
       const current = await liveTarget(target);
