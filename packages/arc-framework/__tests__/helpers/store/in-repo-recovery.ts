@@ -114,6 +114,16 @@ async function crossSubstrate(fixture: ConformanceFixture, repairs: Repairs, cas
 async function selectCapableBackend(fixture: ConformanceFixture, repairs: Repairs, caseId: RecoveryCaseId): Promise<RecoveryOperation> {
   const capable = createReferenceFixture();
   let switched = false;
+  if (caseId === "unsupported:batch-observations") {
+    repairs.set(caseId, async () => { switched = true; });
+    return { run: () => {
+      const selected = switched ? capable : fixture;
+      const reference = selected.reference("personal/document");
+      return selected.store.batch({ writes: [{ action: "put", reference, expected: null,
+        content: selected.content(reference) }], provenance: testProvenance,
+      observations: [{ reference: selected.reference("personal/document", "two"), expected: null }] });
+    } };
+  }
   let migrated = capable.reference("work-item/meta");
   const tracked = fixture.reference("work-item/meta");
   let current = caseId === "unsupported:completed-create" ? undefined : await seed(fixture, tracked);

@@ -11,7 +11,9 @@ import { CanonicalDigestSchema } from "../kernel/schema/vocabulary.js";
 import { isManagedPath } from "../kernel/canonical/managed-path.js";
 import { SlugSchema, WorkClassSchema, type KernelRegistry } from "../kernel/index.js";
 import { isSafeCohortPath, validateCohortPath } from "../active/cohort-path.js";
-import { normalizeDecomposeHeadingSource } from "./decompose-heading.js";
+import { V3DecomposeLocatorSchema, v3SourceId } from "./decompose-content.js";
+
+export { V3DecomposeLocatorSchema, v3SourceId } from "./decompose-content.js";
 
 const DecomposeSlugSchema: z.ZodType<string, string> = SlugSchema;
 const NonEmptyStringSchema = z.string().refine((value) => value.trim() !== "", "must be non-empty");
@@ -44,45 +46,6 @@ const NestedCohortPathSchema = z.string().refine(
   "must be a canonical two-segment cohort path",
 );
 const AuthorSlotSchema = z.strictObject({ status: z.literal("author") });
-const HeadingIdentitySchema = z.strictObject({
-  level: z.number().int().min(2).max(6),
-  headingSource: z.string().refine(
-    (value) => normalizeDecomposeHeadingSource(value) === value,
-    "must be normalized",
-  ),
-  occurrence: z.number().int().nonnegative(),
-});
-
-export const V3DecomposeLocatorSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ artifact: BasenameSchema, kind: z.literal("preamble") }),
-  z.strictObject({
-    artifact: BasenameSchema,
-    kind: z.literal("section"),
-    level: z.number().int().min(2).max(6),
-    headingSource: z.string().refine(
-      (value) => normalizeDecomposeHeadingSource(value) === value,
-      "must be normalized",
-    ),
-    ancestry: z.array(HeadingIdentitySchema),
-    occurrence: z.number().int().nonnegative(),
-  }),
-  z.strictObject({ artifact: BasenameSchema, kind: z.literal("whole-file") }),
-]).superRefine((locator, ctx) => {
-  if (locator.kind !== "section") return;
-  let previousLevel = 1;
-  for (let index = 0; index < locator.ancestry.length; index += 1) {
-    const ancestor = locator.ancestry[index];
-    if (ancestor !== undefined
-      && (ancestor.level <= previousLevel || ancestor.level >= locator.level)) {
-      ctx.addIssue({
-        code: "custom",
-        message: "ancestry levels must increase strictly and remain below the section level",
-        path: ["ancestry", index, "level"],
-      });
-    }
-    if (ancestor !== undefined) previousLevel = ancestor.level;
-  }
-});
 
 const SourceSchema = z.strictObject({
   origin: DecomposeSlugSchema,
@@ -298,18 +261,6 @@ export function v3IncomingEdgeId(edge: { dependent: string; currentTargets: stri
 export function v3OutgoingEdgeId(edge: { prerequisite: string }): CanonicalDigest {
   const preimage = OutgoingEdgeSchema.omit({ edgeId: true }).parse(edge);
   return canonicalDigest({ schemaVersion: 3, kind: "outgoing", ...preimage });
-}
-
-/** Canonical identity for one source allocation unit. */
-export function v3SourceId(source: {
-  sourcePath: string;
-  sourceLocator: z.infer<typeof V3DecomposeLocatorSchema>;
-}): CanonicalDigest {
-  const preimage = z.strictObject({
-    sourcePath: ManagedPathSchema,
-    sourceLocator: V3DecomposeLocatorSchema,
-  }).parse(source);
-  return canonicalDigest({ schemaVersion: 3, ...preimage });
 }
 
 /** Canonical identity for the machine-owned decomposition preflight. */

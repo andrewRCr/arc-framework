@@ -17,7 +17,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | ---------- | ------------------------------- | -------- | ------ | ------------------- | ------------- |
 | `Planning` | storage-projection              | P1       | andrew | storage-ref-backend | state-storage |
 | `Active`   | storage-ref-backend             | P1       | andrew | —                   | state-storage |
-| `Active`   | seam-decomposition              | P1       | andrew | —                   | storage-seam  |
 | `Active`   | seam-delivery-review            | P1       | andrew | —                   | storage-seam  |
 | `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —                   | —             |
 | `Planning` | decomposition-doctrine          | P1       | andrew | —                   | —             |
@@ -118,11 +117,11 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 2
 
-| Work unit                | Priority | Owner  | Depends on                                                                                                                         | Cohort                    |
-| ------------------------ | -------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
-| review-request-contracts | P1       | andrew | review-activity-contracts                                                                                                          | review-protocol-alignment |
-| storage-cutover          | P1       | andrew | storage-ref-backend, storage-projection, seam-decomposition, seam-delivery-review, lifecycle-slug-selection, cohort-identity-verbs | state-storage             |
-| wu5-public-release       | P3       | andrew | docs-content-sweep                                                                                                                 | release-readiness         |
+| Work unit                | Priority | Owner  | Depends on                                                                                                     | Cohort                    |
+| ------------------------ | -------- | ------ | -------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| review-request-contracts | P1       | andrew | review-activity-contracts                                                                                      | review-protocol-alignment |
+| storage-cutover          | P1       | andrew | storage-ref-backend, storage-projection, seam-delivery-review, lifecycle-slug-selection, cohort-identity-verbs | state-storage             |
+| wu5-public-release       | P3       | andrew | docs-content-sweep                                                                                             | release-readiness         |
 
 ### Depth 3
 

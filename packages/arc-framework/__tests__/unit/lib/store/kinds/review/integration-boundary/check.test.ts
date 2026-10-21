@@ -7,7 +7,7 @@ import { boundaryV1Fixture, boundaryV2Fixture } from "../../../../../../fixtures
 const owner = OwnerIdentitySchema.parse({ type: "work-item", name: "example" });
 async function check(value: unknown) {
   return checkReviewIntegrationBoundary({ reference: recordReferences["review/integration-boundary"](owner),
-    next: { content: JSON.stringify(value), fields: value }, writer: { kind: "verb", verb: "review-resolve" },
+    next: { content: JSON.stringify(value), fields: value }, observations: [], writer: { kind: "verb", verb: "review-resolve" },
     before: ruleView(), after: ruleView() });
 }
 describe("publication boundary write check", () => {

@@ -8,7 +8,7 @@ import { LinksSchema, CallerProvenanceSchema, type Links, type CallerProvenance 
 import type { StoreRecord } from "./read.js";
 import { recordReferences, type OwnerIdentity } from "./identity.js";
 import type { StoreResult } from "./refusal.js";
-import { BatchInputSchema, MutationSchema, type Mutation, type BatchResult } from "./write.js";
+import { BatchInputSchema, MutationSchema, type Mutation, type BatchResult, type RecordObservation } from "./write.js";
 import { WritePlacementSchema, type WritePlacement, type ReadPlacement } from "./placement.js";
 
 /** Select the lifecycle arm once at its invocation boundary.
@@ -22,7 +22,7 @@ export function usesOffBranchState(store?: Store): boolean { return store?.capab
  * @param slug - Current or former work-unit slug.
  * @returns The metadata record, or the store's refusal.
  */
-export async function readWorkUnit(store: Store, slug: string, owner?: OwnerIdentity): Promise<StoreResult<StoreRecord>> {
+export async function readWorkUnit(store: Pick<Store, "lookup" | "read">, slug: string, owner?: OwnerIdentity): Promise<StoreResult<StoreRecord>> {
   if (owner !== undefined) return store.read({ reference: recordReferences["work-item/meta"](owner) });
   const lookup = await store.lookup({ kind: "slug", slug: SlugSchema.parse(slug) });
   if (lookup.status === "refused") return lookup;
@@ -72,8 +72,10 @@ export function recordPut(record: StoreRecord, changes: { content?: string; plac
  * @param provenance - Verb, lifecycle action, and optional bound code head.
  * @returns One atomic result or the original store refusal.
  */
-export function batchLifecycleWrites(store: Store, writes: readonly Mutation[], provenance: CallerProvenance): Promise<StoreResult<BatchResult>> {
-  return store.batch(BatchInputSchema.parse({ writes: [...writes], provenance: CallerProvenanceSchema.parse(provenance) }));
+export function batchLifecycleWrites(store: Store, writes: readonly Mutation[], provenance: CallerProvenance,
+  observations: readonly RecordObservation[] = []): Promise<StoreResult<BatchResult>> {
+  return store.batch(BatchInputSchema.parse({ writes: [...writes], provenance: CallerProvenanceSchema.parse(provenance),
+    ...(observations.length === 0 ? {} : { observations: [...observations] }) }));
 }
 
 /** Replace keyed link entries while retaining every unrelated link.

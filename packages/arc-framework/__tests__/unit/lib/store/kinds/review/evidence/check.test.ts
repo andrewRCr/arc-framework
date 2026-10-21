@@ -47,7 +47,7 @@ async function check(value: ReviewEvidence, outcome: ReviewOutcome, options: { p
   const prior = options.prior === undefined ? undefined : evidenceRecord(ReviewEvidenceSchema.parse(options.prior));
   return checkReviewEvidence({ reference: next.reference, next: { content: next.content, fields: parsed },
     ...(prior === undefined ? {} : { prior: { content: prior.content, fields: prior.fields } }),
-    writer: { kind: "verb", verb: "review" },
+    observations: [], writer: { kind: "verb", verb: "review" },
     before: ruleView([outcomeRecord(outcome), ...(prior === undefined ? [] : [prior]), ...options.before ?? []]),
     after: options.view ?? ruleView([outcomeRecord(outcome), next, ...options.after ?? []]) });
 }
@@ -188,7 +188,7 @@ describe("evidence write admission", () => {
     const { value, outcome } = performedEvidenceFixture();
     const record = evidenceRecord(value);
     expect(await checkReviewEvidence({ reference: record.reference, prior: { content: record.content, fields: value },
-      writer: { kind: "verb", verb: "review" }, before: ruleView([record, outcomeRecord(outcome)]), after: ruleView([outcomeRecord(outcome)]) }))
+      observations: [], writer: { kind: "verb", verb: "review" }, before: ruleView([record, outcomeRecord(outcome)]), after: ruleView([outcomeRecord(outcome)]) }))
       .toEqual(expect.arrayContaining([expect.objectContaining({ rule: "review.evidence.advance" })]));
   });
   it("does not append settlement to a superseded response", async () => {

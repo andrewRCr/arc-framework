@@ -21,7 +21,7 @@ function outcomeRecord(value: ReviewOutcome, storedOwner = owner, key = reviewOu
 async function check(value: ReviewEvidence, records: readonly StoreRecord[] = [], after?: StoreView) {
   const parsed = ReviewEvidenceSchema.parse(value);
   return checkReviewEvidenceResult({ reference: recordReferences["review/evidence"](owner, parsed.dispositionSet.dispositionSetId),
-    next: { content: JSON.stringify(parsed), fields: parsed }, writer: { kind: "verb", verb: "review" },
+    next: { content: JSON.stringify(parsed), fields: parsed }, observations: [], writer: { kind: "verb", verb: "review" },
     before: ruleView(), after: after ?? ruleView(records) }, parsed);
 }
 const outcome = ReviewOutcomeSchema.parse(localOutcome({ outcome: "findings", findings: [{ findingId: "finding-1",

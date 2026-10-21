@@ -3,6 +3,7 @@
 import type { LookupInput, LookupResult, StoreResult } from "../../../src/lib/store/index.js";
 import type { ReferenceContext } from "./context.js";
 import type { MemoryRecord } from "./model.js";
+import { z } from "zod";
 import { missingLookup, namespaceAdmission, ok, recordAdmission, refused } from "./refusals.js";
 
 function primary(record: MemoryRecord): boolean {
@@ -14,6 +15,14 @@ function preferredSlugRecords(records: MemoryRecord[], slug: string): MemoryReco
   const priority = (record: MemoryRecord) => (record.placement?.kind === "completed" ? 0 : 2) + (record.reference.owner.name === slug ? 1 : 0);
   const highest = Math.max(...matches.map(priority));
   return matches.filter((record) => priority(record) === highest);
+}
+
+function lineageRecords(records: MemoryRecord[], origin: string): MemoryRecord[] {
+  const terminal = records.filter(record => record.reference.kind === "lineage/transition");
+  const exact = terminal.filter(record => record.reference.owner.type !== "person" && record.reference.owner.uid === origin);
+  if (z.uuid().safeParse(origin).success) return exact;
+  const current = terminal.filter(record => record.reference.owner.name === origin);
+  return current.length > 0 ? current : terminal.filter(record => record.terminalFormerSlugs?.includes(origin));
 }
 
 function fields(context: ReferenceContext, record: MemoryRecord): Record<string, unknown> | undefined {
@@ -58,9 +67,9 @@ export function lookupReference(context: ReferenceContext, input: LookupInput): 
     const sha = records.flatMap((record) => commitMatch(record, input, "sha") ?? []);
     candidates = sha.length > 0 ? sha : records.flatMap((record) => commitMatch(record, input, "copyKey") ?? []);
   } else if (input.kind === "slug") candidates = preferredSlugRecords(records, input.slug).map((record) => ({ reference: record.reference }));
+  else if (input.kind === "lineage") candidates = lineageRecords(records, input.origin).map(record => ({ reference: record.reference }));
   else candidates = records.filter((record) => {
     switch (input.kind) {
-      case "lineage": return record.reference.kind === "lineage/transition" && record.reference.owner.type !== "person" && (record.reference.owner.uid === input.origin || record.reference.owner.name === input.origin);
       case "ref": return primary(record) && record.links?.branches?.some((branch)=>branch.repository === input.repository && branch.ref === input.ref) === true;
       case "claim": {
         const claim = input.claim;

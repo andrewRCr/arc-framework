@@ -17,6 +17,10 @@ and their supplied order are preserved.
 
 `rewriteCohortMemberHeading` renames only an exact member heading within Members, preserving all other lines.
 
+`writeCohortFanout` sorts members by UTF-8 bytes and appends an origin's marked fan-out block before the final rule,
+or at the end when no rule exists. It reuses an exact block without edits and refuses conflicting same-origin markers
+as `conflicting-provenance`.
+
 `reportOrphanCohortMemberSections` returns member headings whose slugs are absent from the supplied membership,
 in document order. It supports advisory consistency diagnostics rather than refusing a document write.
 

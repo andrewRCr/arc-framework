@@ -28,7 +28,7 @@ export async function assertReviewMapping(result: ReviewMappingResult): Promise<
     for (const next of versions) {
       const check = registry[reference.kind].check;
       if (check !== null) expect(await check({ reference, prior, next: { content: next.content, fields: next.fields },
-        writer: { kind: "verb", verb: "review" }, before: ruleView(prior === undefined ? [] : [prior]), after }),
+        observations: [], writer: { kind: "verb", verb: "review" }, before: ruleView(prior === undefined ? [] : [prior]), after }),
       `${reference.kind}/${String(reference.key)}`).toEqual([]);
       prior = next;
     }

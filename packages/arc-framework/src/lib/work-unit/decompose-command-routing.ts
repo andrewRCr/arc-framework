@@ -6,6 +6,8 @@ export const DECOMPOSE_MODE_KEYS = [
   "execute",
   "extract",
   "finish",
+  "revise",
+  "discard",
   "advanceBase",
 ] as const;
 

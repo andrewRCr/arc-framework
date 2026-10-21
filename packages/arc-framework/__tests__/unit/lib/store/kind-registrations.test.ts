@@ -39,7 +39,7 @@ describe("production kind registrations", () => {
     const view = new ReferenceBackend();
     const input: WriteCheckInput = {
       reference: recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: "example" })),
-      writer: { kind: "hand-edit" }, before: view, after: view, next: { content, fields: parsed.data },
+      observations: [], writer: { kind: "hand-edit" }, before: view, after: view, next: { content, fields: parsed.data },
     };
     const original = await META_REGISTRATION.check?.(input) ?? [];
     expect(registry["work-item/meta"].parser).toBe(META_REGISTRATION.parser);
@@ -51,7 +51,7 @@ describe("production kind registrations", () => {
     const view = new ReferenceBackend();
     const input: WriteCheckInput = {
       reference: recordReferences["work-item/notes"](OwnerIdentitySchema.parse({ type: "work-item", name: "example" })),
-      writer: { kind: "verb", verb: "pause" }, before: view, after: view,
+      observations: [], writer: { kind: "verb", verb: "pause" }, before: view, after: view,
       next: { content: "[x](relative.md)", fields: undefined },
     };
     expect(registry["work-item/notes"].parser).toBeNull();

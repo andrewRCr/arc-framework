@@ -24,7 +24,7 @@ function outcomeRecord(value: ReviewOutcome): StoreRecord {
 async function check(value: ReviewDecision, records: readonly StoreRecord[] = [], key = reviewDecisionKey(value), after?: StoreView) {
   const next = decisionRecord(value, key);
   return checkReviewDecision({ reference: next.reference, next: { content: next.content, fields: value },
-    writer: { kind: "verb", verb: "review" }, before: ruleView(), after: after ?? ruleView([...records, next]) });
+    observations: [], writer: { kind: "verb", verb: "review" }, before: ruleView(), after: after ?? ruleView([...records, next]) });
 }
 function withdrawal(value: ReviewDecision, decidedBy: string | null = value.decidedBy): ReviewDecision {
   return ReviewDecisionSchema.parse({ ...terminusDecision(), decidedBy,

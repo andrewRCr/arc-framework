@@ -92,6 +92,15 @@ if (familyExclusions.personal?.assertions) Object.assign(familyExclusions.person
   "no-identity-holds-every-identity-family-while-project-publishes": "Every interim publish is keyed by the identity; no project publish can proceed beside no-identity.",
 });
 if (familyExclusions.lineage?.assertions) familyExclusions.lineage.assertions["terminal-origin-UID-lookup"] = "Tracked transition origins use slugs without persisted UIDs.";
+if (familyExclusions.lineage?.assertions) Object.assign(familyExclusions.lineage.assertions, {
+  "terminal-origin-former-slug-lookup": "Tracked writes refuse UID-preserving rename; this guarantee requires retained generation identity.",
+  "terminal-origin-former-slug-ambiguity": "Tracked writes refuse UID-preserving rename; this guarantee requires retained generation identity.",
+  "terminal-origin-current-name-after-name-reuse": "Tracked writes refuse UID-preserving rename; this guarantee requires retained generation identity.",
+  "terminal-origin-UID-after-name-reuse": "Tracked writes refuse UID-preserving rename; this guarantee requires retained generation identity.",
+  ...Object.fromEntries(["read", "list", "write", "saved-read"].flatMap(operation => ["local", "synced"].map(transport => [
+    `terminal-alias-lookup-only:${operation}:${transport}`, "Tracked writes refuse UID-preserving rename; this guarantee requires retained generation identity.",
+  ]))),
+});
 
 /** Static substrate coverage and explicit limitations registered with every fresh fixture. */
 export const inRepoDeclarations: FixtureDeclarations = {

@@ -1,12 +1,13 @@
 /** Registered checks inspect found state and the complete prepared mutation. */
 import {
   composeWriteCheckRefusal, deriveWriteCheckWriter, RecordReferenceSchema, type BrokenRule, type CallerProvenance,
-  type RecordReference, type StoreRefusal, type StoreView,
+  type RecordReference, type StoreRefusal, type StoreView, type WriteCheckInput, type RecordObservation, type CreatedOwner,
 } from "../../../src/lib/store/index.js";
 import type { ReferenceContext } from "./context.js";
 import { canonicalReference, recordKey, type MemoryRecord } from "./model.js";
-import { listReference, publicRecord, readReference } from "./read.js";
+import { listReference, publicRecord, readReference, historyReference, checkedMemoryHistory } from "./read.js";
 import { lookupReference } from "./lookup.js";
+import { missingRecord, refused } from "./refusals.js";
 
 function view(context: ReferenceContext): StoreView {
   return {
@@ -24,15 +25,20 @@ function view(context: ReferenceContext): StoreView {
  * @returns The deterministically composed refusal, or admission.
  */
 export async function checkPreparedWrites(found: ReferenceContext, prepared: ReferenceContext,
-  references: readonly RecordReference[], provenance: CallerProvenance): Promise<StoreRefusal | undefined> {
+  references: readonly RecordReference[], provenance: CallerProvenance,
+  observations: readonly RecordObservation[] = [], proposedCreatedOwners: readonly CreatedOwner[] = []): Promise<StoreRefusal | undefined> {
   const results: { reference: RecordReference; rules: readonly BrokenRule[] }[] = [];
-  const before = view(found), after = view(prepared), writer = deriveWriteCheckWriter(provenance);
+  const before: WriteCheckInput["before"] = { ...view(found), history: async input => {
+    const history = historyReference(found, input.reference);
+    return history.length === 0 ? refused(missingRecord(input.reference, found.environment.identity)) : checkedMemoryHistory(history, found.state.events);
+  } };
+  const after = view(prepared), writer = deriveWriteCheckWriter(provenance);
   const checkVersion = async (reference: RecordReference, prior: MemoryRecord | undefined, next: MemoryRecord | undefined) => {
     const check = prepared.registry[reference.kind].check;
     if (check === null) return;
     const priorFields = prior && publicRecord(found, prior).fields;
     const nextFields = next && publicRecord(prepared, next).fields;
-    const rules = await check({ reference, before, after, writer,
+    const rules = await check({ reference, before, after, writer, observations, proposedCreatedOwners: structuredClone([...proposedCreatedOwners]),
       ...(prior === undefined ? {} : { prior: { content: prior.content,
         ...(priorFields === undefined ? {} : { fields: priorFields }) } }),
       ...(next === undefined ? {} : { next: { content: next.content, fields: nextFields } }),

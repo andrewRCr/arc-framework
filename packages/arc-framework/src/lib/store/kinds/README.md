@@ -9,6 +9,7 @@ registration set independent of deferred review codecs. Callers read records thr
 | ------------------------------ | ----------------------------- | ---------------------------------------------------------------------------- |
 | `meta/`                        | `work-item/meta`              | Metadata projection, shared line reading, and registered parsing             |
 | `lineage/`                     | `lineage/transition`          | Closed terminal history, canonical creation, and content parsing             |
+| `cut-map/`                     | `work-item/cut-map`           | Canonical completed-map codec and registered semantic parsing                |
 | `task-list/`                   | `work-item/task-list`         | Tolerant header fields and pure task-list content operations                 |
 | `review/outcome/`              | `review/outcome`              | Immutable ended attempts, producer bindings, pass and settlement derivations |
 | `review/decision/`             | `review/decision`             | Immutable choices, stable identities, and cross-record admission             |

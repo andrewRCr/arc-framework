@@ -1,16 +1,16 @@
-/** Terminal lineage creation cannot leave its origin's inbound concerns held. */
+/** Terminal lineage creation preserves branch, inbound, and in-flight cut authority. */
 import { isDeepStrictEqual } from "node:util";
 import type { EntryListConfig } from "../../concurrency/entries.js";
 import { OwnerIdentitySchema, recordReferences } from "../../identity.js";
-import { brokenRule } from "../rule-support.js";
+import { brokenRule, observeRecord } from "../rule-support.js";
 import { observeInboundHeld } from "../work-item/inbound-held.js";
 import { isMissingTerminalSnapshotRepair } from "./repair.js";
 import { parseLineageRecord } from "./parser.js";
 import type { BrokenRule, WriteCheckInput } from "../../write-check.js";
-/** Check the proposed origin's inbound list only when creating terminal lineage.
+/** Check branch snapshots, in-flight cuts, and the retiring origin's inbound entries.
  * @param input - Proposed terminal record and both whole-batch views.
  * @param grammar - Declared inbound entry grammar; absent until the kind declares it.
- * @returns Held-entry or unavailable-evidence violations.
+ * @returns Terminal-admission or unavailable-evidence violations.
  */
 export async function checkLineageRecord(input: WriteCheckInput, grammar?: EntryListConfig): Promise<readonly BrokenRule[]> {
   if (input.next === undefined) {
@@ -20,8 +20,8 @@ export async function checkLineageRecord(input: WriteCheckInput, grammar?: Entry
   }
   const lineage = parseLineageRecord(input.next.content);
   if (lineage === null) return [];
-  const snapshot = await checkRetiredBranches(input, lineage);
-  if (snapshot.length !== 0 || grammar === undefined || input.prior !== undefined) return snapshot;
+  const violations = [...await checkRetiredBranches(input, lineage), ...await checkCutInFlight(input, lineage)];
+  if (violations.length !== 0 || grammar === undefined || input.prior !== undefined) return violations;
   const owner = OwnerIdentitySchema.parse({ type: "work-item", ...lineage.origin });
   const held = await observeInboundHeld(input.after, owner, grammar);
   const condition = held.status === "unavailable" ? held.condition
@@ -46,4 +46,15 @@ async function checkRetiredBranches(input: WriteCheckInput, lineage: NonNullable
   const source = await input.before.read({ reference: recordReferences["work-item/meta"](input.reference.owner) });
   if (source.status === "refused") return refuse(`The retiring primary's branch links cannot be read: ${source.refusal.condition}`);
   return isDeepStrictEqual(source.result.links?.branches ?? [], branches) ? [] : refuse("The terminal branch snapshot differs from the retiring primary's exact branch links.");
+}
+
+async function checkCutInFlight(input: WriteCheckInput, lineage: NonNullable<ReturnType<typeof parseLineageRecord>>): Promise<readonly BrokenRule[]> {
+  if (input.prior !== undefined || lineage.kind !== "abandon") return [];
+  const observed = await observeRecord(input.before, recordReferences["work-item/cut-map"](input.reference.owner));
+  if (observed.status === "absent") return [];
+  const origin = input.reference.owner.name;
+  const continuation = `Finish the cut with arc decompose ${origin} --finish or discard it with arc decompose ${origin} --discard before abandoning the origin.`;
+  return [brokenRule("lineage.cut-in-flight", observed.status === "unavailable" ? observed.condition
+    : "The retiring work item holds an in-flight decomposition.", observed.status === "unavailable"
+      ? `Restore readable cut-map evidence for ${origin} and retry abandonment. ${continuation}` : continuation)];
 }

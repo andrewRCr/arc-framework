@@ -2,6 +2,7 @@
 
 import type { RawGitExec } from "../git/exec.js";
 import { readMergeTreeComposition } from "../git/merge-tree.js";
+import { compareByCanonicalBytes } from "../kernel/canonical/canonical-json.js";
 import { normalizeGitRejection } from "../git/process-error.js";
 import {
   compareDeliveryContribution,
@@ -45,7 +46,7 @@ function nulFields(bytes: Uint8Array): string[] | null {
 
 function pathList(bytes: Uint8Array): string[] | null {
   const fields = nulFields(bytes);
-  return fields === null ? null : [...new Set(fields)].sort();
+  return fields === null ? null : [...new Set(fields)].sort(compareByCanonicalBytes);
 }
 
 async function readAncestry(

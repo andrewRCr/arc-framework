@@ -44,12 +44,33 @@ export const WriteInputSchema = z.record(z.string(), z.unknown()).transform((inp
 });
 /** A version-bound record write. */
 export type WriteInput = Mutation & { provenance: z.infer<typeof CallerProvenanceSchema> };
+const observationReference = RecordReferenceSchema.refine(
+  (value) => value.owner.type === "person" || value.owner.uid !== undefined,
+  "Read observations require an exact owner generation",
+);
+/** Strict read-only evidence; absence never stands in for an unreadable record. */
+export const RecordObservationSchema = z.strictObject({
+  reference: observationReference,
+  expected: z.strictObject({
+    version: RecordVersionSchema,
+    conflicts: z.array(observationReference).refine((values) => values.every((value, index) =>
+      value.kind.endsWith("/conflict-record") && !values.slice(0, index).some((other) => sameReference(value, other))),
+    "Expected unique conflict-record references"),
+  }).nullable(),
+});
+/** A record version and conflict set checked without writing that record. */
+export type RecordObservation = z.infer<typeof RecordObservationSchema>;
 /** One atomic batch under a single caller provenance. */
-export const BatchInputSchema = z.strictObject({ writes: z.array(MutationSchema).min(1), provenance: CallerProvenanceSchema })
+export const BatchInputSchema = z.strictObject({ writes: z.array(MutationSchema).min(1), provenance: CallerProvenanceSchema,
+  observations: z.array(RecordObservationSchema).optional(),
+})
   .refine((value) => {
     return value.writes.every((write, index) => !value.writes.slice(0, index)
       .some((other) => sameReference(write.reference, other.reference)));
-  }, "A batch names each record at most once");
+  }, "A batch names each record at most once")
+  .refine((value) => (value.observations ?? []).every((observation, index, all) =>
+    !all.slice(0, index).some((other) => sameReference(observation.reference, other.reference))),
+  "A batch observes each record at most once");
 /** An all-or-nothing write request. */
 export type BatchInput = z.infer<typeof BatchInputSchema>;
 /** Applied mutation; removals return no record version. */

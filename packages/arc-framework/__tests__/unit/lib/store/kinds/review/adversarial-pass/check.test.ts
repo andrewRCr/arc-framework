@@ -9,7 +9,7 @@ const owner = OwnerIdentitySchema.parse({ type: "work-item", name: "example" });
 async function check(activity: string, number: number) {
   const value = ReviewAdversarialPassSchema.parse(adversarialPassFixture());
   return checkReviewAdversarialPass({ reference: recordReferences["review/adversarial-pass"](owner, { activity, number }),
-    next: { content: JSON.stringify(value), fields: value }, writer: { kind: "verb", verb: "review-adversarial-record" },
+    next: { content: JSON.stringify(value), fields: value }, observations: [], writer: { kind: "verb", verb: "review-adversarial-record" },
     before: ruleView(), after: ruleView() });
 }
 describe("adversarial pass write check", () => {

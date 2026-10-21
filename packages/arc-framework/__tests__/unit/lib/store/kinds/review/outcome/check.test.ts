@@ -23,7 +23,7 @@ async function check(values: readonly ReviewOutcome[], key?: string, after?: Sto
   const next = record(written, key);
   const records = values.map((value) => value === written ? next : record(value));
   return checkReviewOutcome({ reference: next.reference, next: { content: next.content, fields: written },
-    writer: { kind: "verb", verb: "review" }, before: ruleView(), after: after ?? ruleView(records) });
+    observations: [], writer: { kind: "verb", verb: "review" }, before: ruleView(), after: after ?? ruleView(records) });
 }
 
 const local = (options: Parameters<typeof localOutcome>[0] = {}) => ReviewOutcomeSchema.parse(localOutcome(options));

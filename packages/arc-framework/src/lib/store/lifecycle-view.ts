@@ -9,7 +9,7 @@ import type { StoreResult } from "./refusal.js";
  * @param store - Operational store.
  * @returns The original listing, identity entries, and derived transition view.
  */
-export async function readLifecycleView(store: Store): Promise<StoreResult<{
+export async function readLifecycleView(store: Pick<Store, "list">): Promise<StoreResult<{
   listing: LifecycleIndexOutcome; entries: readonly LifecycleEntry[]; index: LifecycleIndex;
 }>> {
   const outcome = await listLifecycleIndex(store);

@@ -58,7 +58,7 @@ export async function executeStoreTransition(
     write: async () => {
       const valid = await revalidateLifecycleRecords(ctx.store, inputs.storeTransition?.preparedRecords ?? []);
       return valid.status === "refused" ? valid : batchLifecycleWrites(ctx.store, prepared,
-        inputs.storeTransition?.provenance ?? { verb, lifecycleAction: verb });
+        inputs.storeTransition?.provenance ?? { verb, lifecycleAction: verb }, inputs.storeTransition?.observations);
     },
   });
   if (sequence.status !== "written") return sequenceRejection(sequence);

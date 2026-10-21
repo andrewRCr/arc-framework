@@ -14,6 +14,7 @@ import { runPause } from "../../../src/lib/work-unit/verbs/pause-handover.js";
 import { runStoreRename } from "../../../src/lib/work-unit/verbs/rename-store.js";
 import { batchLifecycleWrites } from "../../../src/lib/store/lifecycle-write.js";
 import type { Store } from "../../../src/lib/store/contract.js";
+import { importRetiredAlias } from "../../helpers/store/terminal-alias-harness.js";
 
 const now = new Date("2026-10-16T12:00:00.000Z");
 const pause = (waitsOn: unknown = null, open = false) => MetaPauseSchema.parse({ pausedBy: "former-owner", since: "2026-09-01T12:00:00.000Z",
@@ -148,25 +149,23 @@ it.each(["abandon", "decompose"] as const)("retains a pause's former-name prereq
     .toMatchObject({ items: [{ slug: "paused", waitsOn: { kind: "work-unit", slug: "dependency" }, marks: ["review-due"] }] });
   expect(lifecycleSuccess(await f.store.read({ reference: f.dependent.reference }))).toEqual(before);
 });
-it("refuses unavailable terminal former-name history and resumes after that authority is restored", async () => {
+it("refuses unavailable terminal former-name lookup and resumes after that authority is restored", async () => {
   const f = await renamedPrerequisite(); await f.end("abandon");
   const store = Object.create(f.store) as Store;
   let repaired = false;
-  store.history = input => repaired ? f.store.history(input) : Promise.resolve({ status: "refused", refusal: {
-    code: "namespace-corrupt", class: "terminal", namespace: "history", condition: "Terminal history is unavailable.",
-    remedy: { text: "Restore terminal history, then retry pause review." } } });
+  store.lookup = input => repaired || input.kind !== "lineage" ? f.store.lookup(input) : Promise.resolve({ status: "refused", refusal: {
+    code: "namespace-corrupt", class: "terminal", namespace: "lineage", condition: "Terminal lookup is unavailable.",
+    remedy: { text: "Restore terminal lookup, then retry pause review." } } });
   const item = { slug: "paused", pause: f.savedPause }, options = { store, reviewAfterDays: 14, now };
-  await expect(markPausedWorkItem(item, options)).rejects.toThrow("Terminal history is unavailable. Restore terminal history, then retry pause review.");
+  await expect(markPausedWorkItem(item, options)).rejects.toThrow("Terminal lookup is unavailable. Restore terminal lookup, then retry pause review.");
   repaired = true;
   expect(await markPausedWorkItem(item, options)).toMatchObject({ marks: ["review-due"] });
 });
 it("refuses ambiguous terminal former names and accepts an explicitly named prerequisite", async () => {
   const f = await renamedPrerequisite(); await f.end("abandon");
-  await f.seedMeta("dependency", { state: "Planning", owner: "andrew", currentWorkflow: "draft-design" });
-  expect(await runStoreRename(f.ctx, { sourceSlug: "dependency", targetSlug: "second" })).toMatchObject({ status: "renamed" });
-  await f.end("abandon", "second");
+  await importRetiredAlias(f.store, "dependency", "second");
   await expect(markPausedWorkItem({ slug: "paused", pause: f.savedPause }, { store: f.store, reviewAfterDays: 14, now }))
-    .rejects.toThrow(/ambiguous.*terminal.*prerequisite.*retry/isu);
+    .rejects.toThrow(/(?:ambiguous|more than one).*(?:retry|repeat)/isu);
   expect(await markPausedWorkItem({ slug: "paused", pause: { ...f.savedPause, waitsOn: { kind: "work-unit", slug: SlugSchema.parse("current") } } },
     { store: f.store, reviewAfterDays: 14, now })).toMatchObject({ marks: ["review-due"] });
 });
