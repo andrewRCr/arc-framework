@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "route-approval-request-derivability",
+  "claimId": "8e2c66e334e5691a4948c8d926f09c15",
+  "createdAt": "2026-10-21T15:11:50.121Z",
+  "updatedAt": "2026-10-21T15:11:50.121Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Route a review-request derivability gap (local-review disposition approval needs undisclosed policyRequest values) into review-request-contracts as a D4.4 inbound entry",
+  "branch": "chore/route-approval-request-derivability",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
