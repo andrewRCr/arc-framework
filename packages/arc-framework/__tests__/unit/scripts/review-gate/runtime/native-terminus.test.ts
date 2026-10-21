@@ -22,3 +22,19 @@ it.each(["incomplete", "unavailable"] as const)("retains a %s listing remedy and
   expect(await decisions.read(decisionKey)).toEqual(recorded);
   expect(await h.store.version()).toEqual(before);
 });
+
+it("keeps earlier termini superseded when the newest decision is withdrawn, then admits a fresh live decision", async () => {
+  const h = createReviewHarness(), primary = await h.seedMeta("example");
+  const decisions = createReviewDecisionPort(h.store, primary.reference.owner);
+  const earlier = await decisions.create({ ...terminusDecision(), decidedAt: "2026-10-20T15:00:00Z" });
+  const latest = await decisions.create({ ...earlier.value, decidedBy: "later-owner", decidedAt: "2026-10-20T16:00:00Z" });
+  await decisions.create({ ...latest.value, basis: null,
+    choice: { kind: "withdrawal", decisionKey: reviewDecisionKey(latest.value) } });
+  const input = { facts: { decisions }, subject: latest.value.subject };
+  expect(await resolveNativeReviewTerminus(input)).toBeUndefined();
+  await expect(resolveNativeReviewTerminus({ ...input, decisionKey: reviewDecisionKey(earlier.value) }))
+    .rejects.toThrow(/terminus reference.*superseded/i);
+  const repaired = await decisions.create({ ...latest.value, decidedBy: "current-owner", decidedAt: "2026-10-20T17:00:00Z" });
+  expect(await resolveNativeReviewTerminus(input)).toMatchObject({ decisionKey: reviewDecisionKey(repaired.value),
+    acceptedBy: "current-owner", completedPasses: 2 });
+});

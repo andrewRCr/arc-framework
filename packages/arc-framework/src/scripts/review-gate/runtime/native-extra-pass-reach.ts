@@ -35,8 +35,14 @@ function compareNewest(left: ReviewDecision, right: ReviewDecision): number {
   return keyA === keyB ? 0 : keyA < keyB ? 1 : -1;
 }
 
-/** Return the newest non-withdrawn grants within this invocation's reach, excluding unrelated decisions. */
+/** Return the latest grant of each kind only while it remains live within this invocation's reach. */
 export function liveExtraPasses(decisions: readonly ReviewDecision[], input: NativeExtraPassInput): ReviewDecision[] {
   const withdrawn = withdrawnExtraPassKeys(decisions);
-  return decisions.filter(value => !withdrawn.has(reviewDecisionKey(value)) && reaches(value, input)).sort(compareNewest);
+  const newest = new Map<string, ReviewDecision>();
+  for (const value of decisions.filter(value => reaches(value, input)).sort(compareNewest)) {
+    if (value.choice.kind === "extra-pass" && !newest.has(value.choice.precondition.kind)) {
+      newest.set(value.choice.precondition.kind, value);
+    }
+  }
+  return [...newest.values()].filter(value => !withdrawn.has(reviewDecisionKey(value)));
 }

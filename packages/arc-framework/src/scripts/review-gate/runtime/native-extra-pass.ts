@@ -37,10 +37,9 @@ export async function resolveNativeExtraPassJudgment(input: NativeExtraPassInput
   const decisions = listing.records.map(({ value }) => value);
   const requests = requestedExtraPasses(input);
   await validateExtraPassReferences(input, decisions, requests);
-  const withdrawn = withdrawnExtraPassKeys(decisions);
   for (const request of requests) {
     if (request.decisionKey !== undefined) continue;
-    const recorded = await recordExtraPassDecision(input, request.choice, withdrawn);
+    const recorded = await recordExtraPassDecision(input, request.choice, decisions);
     if (!decisions.some(value => reviewDecisionKey(value) === reviewDecisionKey(recorded))) decisions.push(recorded);
   }
   const live = liveExtraPasses(decisions, input);
@@ -80,7 +79,7 @@ async function validateExtraPassReferences(input: NativeExtraPassInput, decision
   }
 }
 
-async function recordExtraPassDecision(input: NativeExtraPassInput, choice: ExtraPassChoice, withdrawn: ReadonlySet<CanonicalDigest>): Promise<ReviewDecision> {
+async function recordExtraPassDecision(input: NativeExtraPassInput, choice: ExtraPassChoice, decisions: readonly ReviewDecision[]): Promise<ReviewDecision> {
   if (input.actor === undefined || input.now === undefined || input.subject.headSha === null || input.subject.subjectDigest === null) {
     throw new Error("Resolve the active identity and exact review subject before recording its extra pass.");
   }
@@ -88,8 +87,11 @@ async function recordExtraPassDecision(input: NativeExtraPassInput, choice: Extr
     choice,
     decidedBy: input.actor, decidedAt: input.now, basis: null });
   const key = reviewDecisionKey(value);
-  if (withdrawn.has(key)) refuseExtraPass("This extra-pass decision was withdrawn.");
+  if (withdrawnExtraPassKeys(decisions).has(key)) refuseExtraPass("This extra-pass decision was withdrawn.");
   const prior = await input.facts.decisions.read(key);
+  if (prior !== null && !liveExtraPasses(decisions, input).some(value => reviewDecisionKey(value) === key)) {
+    refuseExtraPass("The stored extra-pass decision is superseded or outside this target's reach; restore current live authority and retry.");
+  }
   return prior?.value ?? (await input.facts.decisions.create(value)).value;
 }
 

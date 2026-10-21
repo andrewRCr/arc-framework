@@ -2,6 +2,7 @@
 import { expect, it } from "vitest";
 import { createReviewHarness } from "../../../../helpers/store/review-harness.js";
 import { candidateFixture } from "../../../../helpers/store/tracked-write-fixture.js";
+import { reviewDecisionKey } from "../../../../../src/lib/store/kinds/review/decision/key.js";
 import { createReviewDecisionPort } from "../../../../../src/lib/store/kinds/review/decision/access.js";
 import { mapReviewReplayDecisions } from "../../../../../src/lib/store/kinds/review/mapping-replay-decisions.js";
 import { projectCandidateReviewBoundary, IntegrationBoundaryLocusSchema } from "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
@@ -250,4 +251,26 @@ it.each(["head", "ordinal", "producer"] as const)("refuses an additional referen
     judgment: { additionalPassAuthorization: { ...value, headSha, completedPasses, nextPass: completedPasses + 1,
       precedingProducerId: invalid === "producer" ? "another-producer" : value.precedingProducerId } } })).rejects.toThrow(/reference.*retry/iu);
   expect(await h.store.version()).toEqual(before);
+});
+
+it.each(["ceiling", "additional"] as const)("keeps an older %s grant superseded after its successor is withdrawn", async kind => {
+  const h = await fixture();
+  const judgment = kind === "ceiling" ? { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 } }
+    : { additionalPassAuthorization: { headSha: h.input.subject.headSha, completedPasses: 2, nextPass: 3, precedingProducerId: "producer-1" } };
+  const first = await resolveNativeExtraPassJudgment({ ...h.input, judgment });
+  const firstKey = kind === "ceiling" ? first.ceilingDecisionKey : first.additionalDecisionKey;
+  if (firstKey === undefined) throw new Error("expected original grant");
+  const original = await h.input.facts.decisions.read(firstKey);
+  if (original === null) throw new Error("expected recorded grant");
+  const latest = await h.input.facts.decisions.create({ ...original.value, decidedBy: "later-owner", decidedAt: "2026-10-20T13:00:00Z" });
+  await h.input.facts.decisions.create({ ...latest.value, choice: { kind: "withdrawal", decisionKey: reviewDecisionKey(latest.value) } });
+  expect(await resolveNativeExtraPassJudgment(h.input)).toEqual({});
+  await expect(resolveNativeExtraPassJudgment({ ...h.input, now: "2026-10-20T15:00:00Z", judgment }))
+    .rejects.toThrow(/superseded/i);
+  const field = kind === "ceiling" ? "ceilingOverride" : "additionalPassAuthorization";
+  await expect(resolveNativeExtraPassJudgment({ ...h.input, judgment: { [field]: { ...judgment[field], decisionKey: firstKey } } }))
+    .rejects.toThrow(/superseded|withdrawn/i);
+  const repaired = await h.input.facts.decisions.create({ ...latest.value, decidedBy: "current-owner", decidedAt: "2026-10-20T14:00:00Z" });
+  expect(await resolveNativeExtraPassJudgment(h.input)).toMatchObject({
+    [kind === "ceiling" ? "ceilingDecisionKey" : "additionalDecisionKey"]: reviewDecisionKey(repaired.value) });
 });

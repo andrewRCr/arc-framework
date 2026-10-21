@@ -21,7 +21,7 @@ function newestFirst(left: ReviewDecision, right: ReviewDecision): number {
   return reviewDecisionKey(right).localeCompare(reviewDecisionKey(left));
 }
 
-/** Read the latest live terminus within the selected owner's exact subject reach. */
+/** Read the latest terminus only while it remains live within the selected owner's exact subject reach. */
 export async function resolveNativeReviewTerminus(input: {
   facts: Pick<NativeReviewFactPorts, "decisions">;
   subject: ReviewDecision["subject"];
@@ -31,8 +31,8 @@ export async function resolveNativeReviewTerminus(input: {
   if (listing.status !== "complete") throw new Error(listing.reason);
   const decisions = listing.records.map(({ value }) => value);
   const withdrawn = new Set(decisions.flatMap(value => value.choice.kind === "withdrawal" ? [value.choice.decisionKey] : []));
-  const selected = decisions.filter(value => reaches(value, input.subject) && !withdrawn.has(reviewDecisionKey(value)))
-    .sort(newestFirst)[0];
+  const newest = decisions.filter(value => reaches(value, input.subject)).sort(newestFirst)[0];
+  const selected = newest === undefined || withdrawn.has(reviewDecisionKey(newest)) ? undefined : newest;
   if (input.decisionKey !== undefined && (selected === undefined || reviewDecisionKey(selected) !== input.decisionKey)) {
     throw new Error("The native review terminus reference is missing, withdrawn, superseded, or outside this subject's reach. "
       + "Restore the live terminus key on the selected owner and subject, then retry.");

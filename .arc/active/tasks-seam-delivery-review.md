@@ -1135,6 +1135,13 @@ this phase puts publication's claim and reopen's boundary write in their transit
                   decision. Bound evidence, continuation, command, and remedy contracts retain their required forms;
                   repaired references resume normally. Live singleton and member writes remain in 6.2.b.
 
+    - `[x]` **6.2.R3 Preserve supersession after withdrawal**
+
+        - _Goal:_ Withdrawing the newest native decision leaves earlier decisions of the same kind superseded within
+          their shared reach, as § 5.4 requires; only a fresh live decision restores authority.
+        - _Outcome:_ Terminus and ordinary-grant selection establishes the newest decision within reach before
+          checking withdrawal. Superseded records refuse key and raw replay; a fresh live decision restores resolution.
+
     - `[x]` **6.2.a Ceiling and additional extra passes**
 
         - `[x]` **6.2.a.1 Generic policy resolution**
