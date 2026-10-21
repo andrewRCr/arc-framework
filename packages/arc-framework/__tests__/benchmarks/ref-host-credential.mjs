@@ -1,5 +1,7 @@
 /** Git credential helper for a local manual-probe profile; credentials go only to Git's pipe. */
 import { readFile, stat } from "node:fs/promises";
+import process from "node:process";
+import { URL } from "node:url";
 
 const [file, authority, operation] = process.argv.slice(2);
 if (operation === "get") {

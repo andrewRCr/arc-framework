@@ -212,7 +212,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["__tests__/**/*.ts"],
+    files: ["__tests__/**/*.{ts,mjs}"],
     ...tseslint.configs.disableTypeChecked,
     rules: {
       ...tseslint.configs.disableTypeChecked.rules,
