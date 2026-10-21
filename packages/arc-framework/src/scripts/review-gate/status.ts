@@ -66,7 +66,7 @@ import {
 import {
   DeliveryReviewTerminusAcceptanceActionSchema,
 } from "./policy/delivery-review-terminus.js";
-import type { DeliveryReviewMemberTerminus } from "./policy/review-terminus.js";
+import type { ResolvedDeliveryReviewMemberTerminus } from "./policy/review-terminus.js";
 import {
   ContinuePrePublicationActionSchema,
   PublishedRunConvergenceVerificationActionSchema,
@@ -497,7 +497,7 @@ export function isDeliveryReviewMemberDischargedByOwnerTerminus(input: {
     readonly coverageSelectionAction?: ReviewCoverageSelectionAction;
     readonly completedPasses: number;
   };
-  readonly ownerTermini?: readonly DeliveryReviewMemberTerminus[];
+  readonly ownerTermini?: readonly ResolvedDeliveryReviewMemberTerminus[];
   readonly ownerTerminusAdvances?: readonly DeliveryReviewOwnerTerminusAdvance[];
 }): boolean {
   const terminus = input.ownerTermini?.find((record) => {
@@ -758,7 +758,7 @@ export function composeDeliveryReviewObligation(input: {
   };
   requestCoverage?: HostedReviewCoverage;
   requestInvocation?: { readonly mode: "force"; readonly sourceId: string };
-  ownerTermini?: readonly DeliveryReviewMemberTerminus[];
+  ownerTermini?: readonly ResolvedDeliveryReviewMemberTerminus[];
   ownerTerminusAdvances?: readonly DeliveryReviewOwnerTerminusAdvance[];
 }): RoutedReviewObligation {
   if (input.targets.length === 0 || input.targets.length !== input.discharges.length) {

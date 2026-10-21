@@ -25,6 +25,7 @@ import { reviewDiscoverableCommandInputSchema } from "./review-request-schema.js
 import { confirmReviewCorrectionLeg } from "../scripts/review-gate/policy/review-next-pass.js";
 
 import { readResolveNextPassContext, readHostedErrandNextPassContext } from "./review-next-pass-context.js";
+import { createNativeMemberTerminusBindings } from "../scripts/review-gate/runtime/native-member-terminus.js";
 import { persistNativeTerminusBoundary, persistNativeTerminusDecision } from "../scripts/review-gate/runtime/native-terminus-persistence.js";
 import { composeNativePolicyGrants } from "../scripts/review-gate/runtime/native-policy-grants.js";
 import { resolveEvidenceBoundReviewPolicyContinuation } from "../scripts/review-gate/policy/review-policy-evidence.js";
@@ -1103,9 +1104,14 @@ async function acceptDeliveryReviewTerminus(
     }
   };
   const result = await resolveDeliveryReviewTerminusAcceptance(request, {
+    ...(reviewRecordStore.capabilities.stateOffBranch
+      ? createNativeMemberTerminusBindings(() => ({ ...bound, cwd: root, exec })) : {}),
     readBoundary: async (workUnitId) => {
-      const snapshot = await readSubmissionBoundaryVersioned(root, workUnitId, { store: reviewRecordStore, owner: bound.workItem });
-      return { ...snapshot, boundary: snapshot.boundary === null ? null : parseIntegrationBoundaryLocus(snapshot.boundary) };
+      if (reviewRecordStore.capabilities.stateOffBranch) {
+        const selected = await resolveNamedReviewWorkUnitInvocation({ ...bound, cwd: root, exec }, workUnitId);
+        if (selected.workItem !== undefined) bound.workItem = selected.workItem;
+      }
+      return readSubmissionBoundaryVersioned(root, workUnitId, { store: reviewRecordStore, owner: bound.workItem });
     },
     readOwnerAuthority,
     readCurrentOffer: async (workUnitId) => {
@@ -1119,8 +1125,13 @@ async function acceptDeliveryReviewTerminus(
       });
       return "terminusAction" in status ? status.terminusAction?.offer ?? null : null;
     },
-    writeBoundary: async (boundary, expectedVersion) => {
+    writeBoundary: async (boundary, expectedVersion, decision) => {
       try {
+        if (reviewRecordStore.capabilities.stateOffBranch) {
+          if (decision !== undefined) await persistNativeTerminusBoundary({ ...bound, cwd: root, exec }, boundary, expectedVersion, decision);
+          else await writeSubmissionBoundary(root, boundary, expectedVersion, { store: reviewRecordStore, owner: bound.workItem });
+          return { status: "written" };
+        }
         return {
           status: "written",
           path: await writeSubmissionBoundary(root, boundary, expectedVersion, { store: reviewRecordStore, owner: bound.workItem }),
@@ -1131,6 +1142,7 @@ async function acceptDeliveryReviewTerminus(
       }
     },
   });
+  if (reviewRecordStore.capabilities.stateOffBranch) return result;
   return stageDeliveryReviewTerminusBoundary({
     root,
     workUnitId: request.offer.workUnitId,

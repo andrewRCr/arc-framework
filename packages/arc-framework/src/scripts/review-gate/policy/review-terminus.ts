@@ -56,3 +56,11 @@ export const DeliveryReviewMemberTerminusSchema = z.strictObject({
 }).readonly();
 /** Durable Owner conclusion scoped to one exact delivery-member review subject. */
 export type DeliveryReviewMemberTerminus = z.infer<typeof DeliveryReviewMemberTerminusSchema>;
+
+
+/** Internal member view retaining the resolved verdict's backend provenance. */
+export const ResolvedDeliveryReviewMemberTerminusSchema = DeliveryReviewMemberTerminusSchema.unwrap().extend({
+  terminus: ResolvedOwnerAcceptedReviewTerminusSchema,
+}).readonly();
+/** An exact member and its authority-bound verdict, never a caller acceptance judgment. */
+export type ResolvedDeliveryReviewMemberTerminus = z.infer<typeof ResolvedDeliveryReviewMemberTerminusSchema>;

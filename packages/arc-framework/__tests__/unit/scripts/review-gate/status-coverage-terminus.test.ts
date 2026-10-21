@@ -6,7 +6,7 @@ import { createHostedHandleFixture } from "../../../fixtures/hosted-review.js";
 import { hostedLaneAttemptId } from "../../../../src/scripts/review-gate/hosted/request.js";
 import { projectHostedCorrectionCoverageSelection } from "../../../../src/scripts/review-gate/policy/hosted-coverage-selection.js";
 import { resolveReviewPolicy } from "../../../../src/scripts/review-gate/policy/review-policy-driver.js";
-import { createStandardReviewReservation, projectPublicationBoundary } from "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { IntegrationBoundaryLocusSchema, createStandardReviewReservation, projectPublicationBoundary } from "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { resolveDeliveryReviewTerminusAcceptance, type DeliveryReviewTerminusAcceptanceAction } from "../../../../src/scripts/review-gate/policy/delivery-review-terminus.js";
 import { bindDeliveryReviewTerminusOffer, composeDeliveryReviewObligation, resolveReviewStatus }
   from "../../../../src/scripts/review-gate/status.js";
@@ -65,7 +65,7 @@ async function acceptStop(action: DeliveryReviewTerminusAcceptanceAction, curren
     readOwnerAuthority: async () => ({ status: "authorized", ownerIdentity: "andrew" }),
     readCurrentOffer: async () => { const fresh = await boundStatus(current);
       return "terminusAction" in fresh ? fresh.terminusAction?.offer ?? null : null; },
-    writeBoundary: async next => { boundary = next; return { status: "written", path: "boundary.json" }; },
+    writeBoundary: async next => { boundary = IntegrationBoundaryLocusSchema.parse(next); return { status: "written", path: "boundary.json" }; },
   });
   return { result, boundary };
 }

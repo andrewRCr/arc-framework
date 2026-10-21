@@ -4,7 +4,7 @@ import { z } from "zod";
 import { RecordVersionSchema } from "../../../lib/store/identity.js";
 import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
-import { canonicalize } from "../../../lib/kernel/canonical/canonical-json.js";
+import { canonicalize, type CanonicalDigest } from "../../../lib/kernel/canonical/canonical-json.js";
 import {
   DeliveryReviewMemberVehicleSchema,
   sameDeliveryReviewMemberVehicle,
@@ -14,11 +14,15 @@ import type { VersionedSubmissionBoundary } from
   "../../../lib/store/kinds/review/integration-boundary/schema.js";
 import { CompletedReviewPassCountSchema } from "../core/review-pass.js";
 import { HostedTargetSchema } from "../hosted/request.js";
-import type { IntegrationBoundaryLocus } from "./integration-boundary-locus.js";
+import type { PublishedIntegrationBoundaryLocus } from "./integration-boundary-locus.js";
 import {
   DeliveryReviewMemberTerminusSchema,
   OwnerAcceptedReviewTerminusJudgmentSchema,
+  type DeliveryReviewMemberTerminus, type ResolvedDeliveryReviewMemberTerminus,
 } from "./review-terminus.js";
+
+import type { ReviewFactPut } from "../core/ports.js";
+import type { PreparedNativeReviewTerminus } from "../runtime/native-terminus-write.js";
 
 const DigestSchema = CanonicalDigestSchema;
 
@@ -121,15 +125,18 @@ export type DeliveryReviewTerminusAcceptanceResult = z.infer<
   typeof DeliveryReviewTerminusAcceptanceResultSchema
 >;
 
-interface DeliveryReviewTerminusAcceptanceDependencies {
-  readBoundary(workUnitId: string): Promise<VersionedSubmissionBoundary<IntegrationBoundaryLocus>>;
+export interface DeliveryReviewTerminusAcceptanceDependencies {
+  readBoundary(workUnitId: string): Promise<VersionedSubmissionBoundary<PublishedIntegrationBoundaryLocus>>;
   readOwnerAuthority(workUnitId: string): Promise<
     | { readonly status: "authorized"; readonly ownerIdentity: string }
     | { readonly status: "refused"; readonly reason: string }
   >;
   readCurrentOffer(workUnitId: string): Promise<DeliveryReviewTerminusOffer | null>;
-  writeBoundary(boundary: IntegrationBoundaryLocus, expectedVersion: string): Promise<
-    | { readonly status: "written"; readonly path: string }
+  readNativeMemberTerminus?(entry: { vehicle: DeliveryReviewMemberTerminus["vehicle"]; terminus: CanonicalDigest }):
+    Promise<ResolvedDeliveryReviewMemberTerminus>;
+  prepareNativeMemberTerminus?(record: DeliveryReviewMemberTerminus): Promise<PreparedNativeReviewTerminus>;
+  writeBoundary(boundary: PublishedIntegrationBoundaryLocus, expectedVersion: string, decision?: ReviewFactPut): Promise<
+    | { readonly status: "written"; readonly path?: string }
     | { readonly status: "version-conflict" }
   >;
 }
@@ -169,19 +176,20 @@ export async function resolveDeliveryReviewTerminusAcceptance(
   if (authority.status !== "authorized") {
     return refused("owner-authority-refused", authority.reason);
   }
-  const existing = boundary.deliveryReviewTermini.find((record) => (
-    sameDeliveryReviewMemberVehicle(record.vehicle, offer.vehicle)
-  ));
+  const existing = await readExistingMemberTerminus(boundary, offer, dependencies);
   if (existing !== undefined) {
     if (existing.terminus.completedPasses !== offer.completedPasses) {
       return refused("record-conflict", "The exact member already carries a different Owner terminus.");
     }
+    const record = publicMemberTerminus(existing);
+    if (record === null) return refused("record-conflict",
+      "The retained member terminus has no recorded author for this acceptance response. Re-run work-unit review status to continue from its stored decision.");
     return DeliveryReviewTerminusAcceptanceResultSchema.parse({
       schemaVersion: 1,
       mode: "review-terminus-accept",
       state: "exact-replay",
       nextAction: "continue",
-      record: existing,
+      record,
       recommendedActionText: "Re-enter work-unit review status; this exact member terminus is already durable.",
     });
   }
@@ -205,13 +213,17 @@ export async function resolveDeliveryReviewTerminusAcceptance(
       completedPasses: offer.completedPasses,
     },
   });
-  const write = await dependencies.writeBoundary({
-    ...boundary,
-    deliveryReviewTermini: [...boundary.deliveryReviewTermini, record],
-  }, offer.expectedBoundaryVersion);
+  const update = await appendMemberTerminus(boundary, record, dependencies);
+  const write = update.decision === undefined
+    ? await dependencies.writeBoundary(update.boundary, offer.expectedBoundaryVersion)
+    : await dependencies.writeBoundary(update.boundary, offer.expectedBoundaryVersion, update.decision);
   if (write.status === "version-conflict") {
     return refused("stale-offer", "The publication boundary changed before the Owner terminus could be recorded.");
   }
+  if (boundary.schemaVersion === 2) return DeliveryReviewTerminusAcceptanceResultSchema.parse({
+    schemaVersion: 1, mode: "review-terminus-accept", state: "recorded", nextAction: "continue", record,
+    recommendedActionText: "Re-enter work-unit review status to continue from the accepted member terminus.",
+  });
   return DeliveryReviewTerminusAcceptanceResultSchema.parse({
     schemaVersion: 1,
     mode: "review-terminus-accept",
@@ -221,4 +233,31 @@ export async function resolveDeliveryReviewTerminusAcceptance(
     record,
     recommendedActionText: "Commit and push the staged Owner terminus, then re-enter work-unit review status.",
   });
+}
+
+
+async function readExistingMemberTerminus(boundary: PublishedIntegrationBoundaryLocus, offer: DeliveryReviewTerminusOffer,
+  dependencies: DeliveryReviewTerminusAcceptanceDependencies): Promise<ResolvedDeliveryReviewMemberTerminus | undefined> {
+  if (boundary.schemaVersion === 1) return boundary.deliveryReviewTermini.find(record => sameDeliveryReviewMemberVehicle(record.vehicle, offer.vehicle));
+  const entry = boundary.deliveryReviewTermini.find(record => sameDeliveryReviewMemberVehicle(record.vehicle, offer.vehicle));
+  if (entry === undefined) return undefined;
+  if (dependencies.readNativeMemberTerminus === undefined) throw new Error("Restore the native member terminus reader and re-run review status.");
+  return dependencies.readNativeMemberTerminus(entry);
+}
+
+function publicMemberTerminus(record: ResolvedDeliveryReviewMemberTerminus): DeliveryReviewMemberTerminus | null {
+  if (record.terminus.schemaVersion === 1) return DeliveryReviewMemberTerminusSchema.parse(record);
+  if (record.terminus.acceptedBy === null) return null;
+  return DeliveryReviewMemberTerminusSchema.parse({ vehicle: record.vehicle, terminus: {
+    schemaVersion: 1, semanticsVersion: "review-terminus/v1", kind: "owner-accepted", lane: "standard",
+    acceptedBy: record.terminus.acceptedBy, completedPasses: record.terminus.completedPasses } });
+}
+
+async function appendMemberTerminus(boundary: PublishedIntegrationBoundaryLocus, record: DeliveryReviewMemberTerminus,
+  dependencies: DeliveryReviewTerminusAcceptanceDependencies): Promise<{ boundary: PublishedIntegrationBoundaryLocus; decision?: ReviewFactPut }> {
+  if (boundary.schemaVersion === 1) return { boundary: { ...boundary, deliveryReviewTermini: [...boundary.deliveryReviewTermini, record] } };
+  if (dependencies.prepareNativeMemberTerminus === undefined) throw new Error("Restore native member terminus persistence and re-run review status.");
+  const prepared = await dependencies.prepareNativeMemberTerminus(record);
+  return { boundary: { ...boundary, deliveryReviewTermini: [...boundary.deliveryReviewTermini, { vehicle: record.vehicle, terminus: prepared.key }] },
+    ...(prepared.put === undefined ? {} : { decision: prepared.put }) };
 }

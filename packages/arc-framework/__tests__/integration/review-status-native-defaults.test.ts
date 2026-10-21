@@ -7,14 +7,17 @@ import { ChangeRequestResolveResultSchema } from "../../src/scripts/review-gate/
 import { ReviewStatusCommandResultSchema } from "../../src/scripts/review-gate/status.js";
 import { LocalPrepareEnvelopeSchema, LocalResumeEnvelopeSchema, LocalAttestEnvelopeSchema } from "../../src/scripts/review-gate/core/review-command-envelope.js";
 import { parseNativeReviewOperationReference } from "../../src/scripts/review-gate/core/review-operation-reference.js";
-import { handleReviewChangeRequestResolve, handleReviewStatus, handleReviewLocalPrepare, handleReviewLocalResume, handleReviewLocalAttest } from "../../src/handlers/review.js";
+import { handleReviewChangeRequestResolve, handleReviewStatus, handleReviewTerminusAccept, handleReviewLocalPrepare, handleReviewLocalResume, handleReviewLocalAttest } from "../../src/handlers/review.js";
 import { TransientIdentityRecordSchema } from "../../src/lib/errand/identity-record.js";
 import type { OwnerIdentity } from "../../src/lib/store/identity.js";
 import { createReviewDecisionPort } from "../../src/lib/store/kinds/review/decision/access.js";
 import { reviewDecisionKey } from "../../src/lib/store/kinds/review/decision/key.js";
 import { SlugSchema, canonicalDigest } from "../../src/lib/kernel/index.js";
 import { readSubmissionBoundaryVersioned, writeSubmissionBoundary } from "../../src/lib/store/kinds/review/integration-boundary/access.js";
-import { createStandardReviewReservation, projectPublicationBoundary } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { createStandardReviewReservation, projectPublicationBoundary, projectCorrectiveDeliveryStatusBoundary } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { collectGitCandidateSubject } from "../../src/lib/work-unit/git-candidate-subject.js";
+import { projectDeliveryPublicReviewContinuation } from "../../src/lib/delivery/public-review-continuation.js";
+import { createIntegrationCheckpointDependencies } from "../../src/scripts/integration/checkpoint-composition.js";
 import { localReviewResult } from "../helpers/in-process-review.js";
 
 async function invokeLocal(h: Awaited<ReturnType<typeof fixture>>,
@@ -68,7 +71,14 @@ async function fixture(errand = false, targetMember = 0) {
       { store: h.reference.store, projectId: createProjectIdentityReader(h.reference.store), ...(workItem === undefined ? {} : { workItem }) });
     return ReviewStatusCommandResultSchema.parse(JSON.parse(output));
   };
-  return { ...h, status, policyTarget: { repository: resolved.targetRef.repository,
+  const workUnitStatus = async (grants: { ceilingOverride?: string; additionalPass?: string } = {}) => {
+    let output = "";
+    await handleReviewStatus({ workUnit: "example", source: "delegated-agent", coverage: "complete", ...grants }, undefined,
+      { resolveRoot: () => h.cwd, write: text => { output += text; }, setExitCode: () => {} },
+      { store: h.reference.store, projectId: createProjectIdentityReader(h.reference.store) });
+    return ReviewStatusCommandResultSchema.parse(JSON.parse(output));
+  };
+  return { ...h, status, workUnitStatus, policyTarget: { repository: resolved.targetRef.repository,
     pullRequest: resolved.candidate.number, headSha: resolved.targetRef.headSha } };
 }
 
@@ -240,4 +250,73 @@ it("resolves the branch-linked native work unit through default status without a
   const h = await fixture(false, 1);
   expect(await h.status()).toMatchObject({ nextAction: "review-local-prepare",
     target: { headRef: "member-2", headSha: h.heads[1] } });
+}, 60_000);
+
+
+it("records and replays a native member terminus and discharges it through default status", async () => {
+  const h = await fixture(false, 1);
+  const initial = await readSubmissionBoundaryVersioned(h.cwd, "example", h.access);
+  await writeSubmissionBoundary(h.cwd, projectPublicationBoundary({ workUnit: "example", branch: h.branches[1],
+    candidateId: h.boundary.candidateId, candidateSubjectDigest: h.boundary.candidateSubjectDigest,
+    reservation: h.boundary.reservation, readinessBinding: null,
+    changeRequest: { repository: h.policyTarget.repository, pullRequest: h.policyTarget.pullRequest } }, 2), initial.version, h.access);
+  await completeMember(h, "terminus-member-one");
+  const precedingProducerId = await completeMember(h, "terminus-member-two", 1);
+  const offered = await h.workUnitStatus({ additionalPass: JSON.stringify({ target: h.policyTarget, lane: "standard",
+    precedingProducerId, completedPasses: 1, nextPass: 2 }) });
+  if (!("terminusAction" in offered) || offered.terminusAction === undefined) throw new Error(JSON.stringify(offered));
+  const request = { ...offered.terminusAction, judgment: { mode: "owner-accepted" } };
+  const accept = async (input = request) => {
+    let output = "";
+    const exits: number[] = [];
+    await handleReviewTerminusAccept("-", undefined, { resolveRoot: () => h.cwd,
+      readText: async () => JSON.stringify(input), write: text => { output += text; }, setExitCode: code => exits.push(code) },
+    { store: h.reference.store, projectId: createProjectIdentityReader(h.reference.store) });
+    return { value: JSON.parse(output) as unknown, exits };
+  };
+  expect(await accept({ ...request, offer: { ...request.offer, completedPasses: 2 } }))
+    .toMatchObject({ value: { state: "refused", reason: "stale-offer" } });
+  const accepted = await accept();
+  expect(accepted, JSON.stringify(accepted)).toMatchObject({ exits: [], value: { state: "recorded", nextAction: "continue",
+    record: { vehicle: offered.terminusAction.offer.vehicle, terminus: { acceptedBy: "andrew", completedPasses: 1 } } } });
+  expect(accepted.value).not.toHaveProperty("boundaryPath");
+  const decisions = createReviewDecisionPort(h.reference.store, h.primary.reference.owner), listing = await decisions.list();
+  if (listing.status !== "complete") throw new Error(listing.reason);
+  const termini = listing.records.filter(({ value }) => value.choice.kind === "terminus");
+  expect(termini).toHaveLength(1);
+  if (termini[0] === undefined) throw new Error("expected native member terminus");
+  const recorded = termini[0], key = reviewDecisionKey(recorded.value), vehicle = offered.terminusAction.offer.vehicle;
+  expect(recorded.value).toMatchObject({ decidedBy: "andrew", lane: "standard", basis: { passCount: 1 },
+    subject: { lineage: { kind: "delivery-member", planId: vehicle.planId, deliverableId: vehicle.deliverableId,
+      workUnitId: vehicle.workUnitId }, headSha: vehicle.head, subjectDigest: null } });
+  expect((await readSubmissionBoundaryVersioned(h.cwd, "example", h.access)).boundary)
+    .toMatchObject({ schemaVersion: 2, deliveryReviewTermini: [{ vehicle, terminus: key }] });
+  const version = lifecycleSuccess(await h.reference.store.version());
+  expect(await accept()).toMatchObject({ exits: [], value: { state: "exact-replay", nextAction: "continue" } });
+  expect(await accept({ ...request, offer: { ...request.offer, completedPasses: 2 } }))
+    .toMatchObject({ value: { state: "refused", reason: "record-conflict" } });
+  expect(await h.workUnitStatus()).toMatchObject({ state: "settled" });
+  expect(await decisions.read(key)).toEqual(recorded);
+  expect(lifecycleSuccess(await h.reference.store.version())).toBe(version);
+  await h.updatePull(0, { merged: true });
+  await h.updatePull(1, { baseRef: "main" });
+  await h.git("update-ref", "refs/heads/main", h.heads[0]!);
+  await h.git("push", "origin", "main");
+  const baseRevision = h.heads[0];
+  if (baseRevision === undefined) throw new Error("Missing delivery base");
+  const collected = await collectGitCandidateSubject({ cwd: h.cwd, name: "example", baseBranch: "main", baseRevision, exec: h.realExec });
+  if (collected.status !== "collected") throw new Error(collected.detail);
+  const carried = await readSubmissionBoundaryVersioned(h.cwd, "example", h.access);
+  if (carried.boundary === null) throw new Error("Missing accepted member boundary");
+  const continuation = projectDeliveryPublicReviewContinuation({ plan: h.plan, state: h.state, stateRevision: h.stateRevision });
+  if (continuation.status !== "projected") throw new Error(continuation.reason);
+  await writeSubmissionBoundary(h.cwd, projectCorrectiveDeliveryStatusBoundary({ workUnit: "example",
+    candidateId: h.boundary.candidateId, candidateSubjectDigest: collected.target.subject.subjectDigest,
+    supersedesCandidateId: null, sourceBoundary: carried.boundary, deliveryContinuation: continuation.continuation }), carried.version, h.access);
+  const dependencies = createIntegrationCheckpointDependencies({ cwd: h.cwd, exec: h.realExec,
+    store: h.reference.store, workItem: h.primary.reference.owner, projectId: createProjectIdentityReader(h.reference.store) });
+  const candidate = await dependencies.readCandidate("example", baseRevision);
+  if (candidate === null || !("status" in candidate) || candidate.status !== "current") throw new Error(JSON.stringify(candidate));
+  const checkpoint = await dependencies.composeDelivery({ workUnit: "example", candidate, baseRevision });
+  expect(checkpoint, JSON.stringify(checkpoint)).toMatchObject({ status: "ready" });
 }, 60_000);

@@ -53,7 +53,7 @@ export async function createNativeDeliveryReviewRepository(firstBranch = "member
     createdFor: { kind: "work-unit", name: "example" } });
   const collected = await collectGitCandidateSubject({ cwd, name: "example", baseBranch: "main", exec: realExec });
   if (collected.status !== "collected") throw new Error(collected.detail);
-  const attestation = createCandidateAttestation({ workUnit: "example", subject: collected.target.subject, baseRevision: base,
+  const attestation = createCandidateAttestation({ workUnit: "example", subject: collected.target.subject, baseRevision: collected.target.revision,
     attestedBy: "andrew", attestedAt: "2026-10-20T18:00:00Z", verificationEvidenceRef: "test://verified" });
   await h.reference.seedCandidate(primary.reference.owner, { schemaVersion: 1, semanticsVersion: "candidate-attestation/v1",
     subject: collected.target.subject, attestation, transitions: [], lineageAttestations: [] });
@@ -66,7 +66,8 @@ export async function createNativeDeliveryReviewRepository(firstBranch = "member
   const publisher = new RepositoryGitCommonStatePublisher(realExec, cwd);
   expect(await new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec).publishCurrent(plan.planId, plan, null))
     .toMatchObject({ status: "ok" });
-  expect(await new RepositoryDeliveryStateStore(publisher).publish(plan.planId, state, 0)).toMatchObject({ status: "ok" });
+  const publishedState = await new RepositoryDeliveryStateStore(publisher).publish(plan.planId, state, 0);
+  if (publishedState.status !== "ok") throw new Error(publishedState.reason);
   const obligation = projectStandardReviewObligation(resolveReviewRouting({}).decision);
   const reservation = createStandardReviewReservation({ candidateId: attestation.candidateId, sourceId: "delegated-agent",
     target: { kind: "delivery", repository: "owner/repo", workUnitId: "example", planId: plan.planId }, obligation });
@@ -81,8 +82,10 @@ export async function createNativeDeliveryReviewRepository(firstBranch = "member
   const pulls = heads.map((head, i) => ({ number: 41 + i, state: "open", merged: false, draft: true,
     head: { ref: branches[i], sha: head, repo: { full_name: "owner/repo" } },
     base: { ref: i === 0 ? "main" : firstBranch, repo: { full_name: "owner/repo" } } }));
-  await writeFile(join(bin, "gh"), `#!/usr/bin/env node\nconst args = process.argv.slice(2);\nconst pulls = ${JSON.stringify(pulls)};\n`
-    + `let value;\nif (args[0] === 'pr' && args[1] === 'list') value = pulls.filter(p => p.head.ref === args[args.indexOf('--head') + 1]).map(p => ({number:p.number,url:'https://github.com/owner/repo/pull/'+p.number,state:'OPEN',baseRefName:p.base.ref,headRefName:p.head.ref,headRefOid:p.head.sha}));\n`
+  const pullsPath = join(bin, "pulls.json");
+  await writeFile(pullsPath, JSON.stringify(pulls));
+  await writeFile(join(bin, "gh"), `#!/usr/bin/env node\nconst args = process.argv.slice(2);\nconst pulls = JSON.parse(require("node:fs").readFileSync(${JSON.stringify(pullsPath)}, "utf8"));\n`
+    + `let value;\nif (args[0] === 'pr' && args[1] === 'list') value = pulls.filter(p => p.head.ref === args[args.indexOf('--head') + 1]).map(p => ({number:p.number,url:'https://github.com/owner/repo/pull/'+p.number,state:p.merged?'MERGED':p.state.toUpperCase(),baseRefName:p.base.ref,headRefName:p.head.ref,headRefOid:p.head.sha}));\n`
     + `else if (args[0] === 'pr' && args[1] === 'checks') value = [];\n`
     + `else if (args.includes('graphql')) value = {data:{repository:{pullRequest:{reviewDecision:null}}}};\n`
     + `else { const path = args.find(a => a.startsWith('repos/')); const match = /^repos\\/owner\\/repo\\/pulls\\/(\\d+)$/.exec(path ?? '');\n`
@@ -94,5 +97,12 @@ export async function createNativeDeliveryReviewRepository(firstBranch = "member
   vi.stubEnv("PATH", `${bin}${delimiter}${process.env.PATH ?? ""}`);
   await git("config", `url.${h.origin}.insteadOf`, "https://github.com/owner/repo.git");
   await git("remote", "set-url", "origin", "https://github.com/owner/repo.git");
-  return { ...h, cwd, realExec, git, primary, project, projectId, heads, branches, plan, state, boundary, obligation, access };
+  const updatePull = async (index: number, changes: { merged?: boolean; baseRef?: string }) => {
+    const pull = pulls[index];
+    if (pull === undefined) throw new Error("Unknown fixture member");
+    if (changes.merged !== undefined) { pull.merged = changes.merged; pull.state = changes.merged ? "closed" : "open"; }
+    if (changes.baseRef !== undefined) pull.base.ref = changes.baseRef;
+    await writeFile(pullsPath, JSON.stringify(pulls));
+  };
+  return { ...h, cwd, realExec, git, primary, project, projectId, heads, branches, plan, state, boundary, obligation, access, updatePull, stateRevision: publishedState.value.revision };
 }

@@ -1238,9 +1238,10 @@ this phase puts publication's claim and reopen's boundary write in their transit
             - Authorized singleton judgments prepare one decision on the effective Candidate subject, joining a
               settled boundary's batch or persisting alone while review remains unfinished. Resume reuses the record;
               a refused boundary batch leaves no decision, and retry records both together.
-        - `[ ]` **6.2.b.2 Member acceptance and native discharge**
-            - Record member termini with the boundary in one batch, retain exact replay and refusal behavior, and
-              resolve member decision keys for status and checkpoint discharge without a tracked-file action.
+        - `[x]` **6.2.b.2 Member acceptance and native discharge**
+            - Native acceptance records the decision and boundary atomically, preserves exact replay and pass-count
+              refusals, and returns without staging a tracked file. Status and checkpoint composition resolve member
+              keys with their recorded provenance; invalid references refuse and repaired authority resumes normally.
         - `[ ]` **6.2.b.3 Terminus carry and recovery proofs**
             - Preserve the existing singleton and member carry/drop rules across publication, response, corrective
               renewal, and attestation recovery; retain key parity with import and close bounded replay proofs.

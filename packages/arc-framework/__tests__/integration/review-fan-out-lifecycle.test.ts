@@ -1,4 +1,5 @@
 /** Executable hosted-review progression across delivery-member targets. */
+import { IntegrationBoundaryLocusSchema } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { withReviewReport } from "../fixtures/review-report-input.js";
 import { createFixedLocalMemberReview, type FanOutHarness, completeLocalReviewThroughHandlers, createHarness, deliveryHost, git, installCandidate, member, repository, respondThroughHandler, resumeLocalThroughHandler, roots, selectReviewRequiredUntilRouted, statusThroughHandler, targetAndRequirement, writeBoundary } from "../fixtures/review-fan-out-harness.js";
 
@@ -1309,7 +1310,7 @@ describe("hosted review fan-out lifecycle", () => {
           },
           writeBoundary: async (boundary, expectedVersion) => ({
             status: "written",
-            path: await writeSubmissionBoundary(harness.root, boundary, expectedVersion),
+            path: await writeSubmissionBoundary(harness.root, IntegrationBoundaryLocusSchema.parse(boundary), expectedVersion),
           }),
         });
         if (result.state === "recorded" && result.nextAction === "commit-boundary") {
@@ -1567,7 +1568,7 @@ describe("hosted review fan-out lifecycle", () => {
       },
       writeBoundary: async (boundary, expectedVersion) => ({
         status: "written",
-        path: await writeSubmissionBoundary(harness.root, boundary, expectedVersion),
+        path: await writeSubmissionBoundary(harness.root, IntegrationBoundaryLocusSchema.parse(boundary), expectedVersion),
       }),
     });
     expect(accepted).toMatchObject({ state: "recorded", nextAction: "commit-boundary" });

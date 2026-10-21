@@ -94,7 +94,8 @@ import {
   type HostedReservationDischarge,
   type HostedReservationDischargeReader,
 } from "../review-gate/policy/hosted-reservation-discharge.js";
-import { DeliveryReviewMemberTerminusSchema, type DeliveryReviewMemberTerminus } from
+import { readStoredDeliveryReviewMemberTermini } from "../review-gate/runtime/native-member-terminus.js";
+import type { ResolvedDeliveryReviewMemberTerminus } from
   "../review-gate/policy/review-terminus.js";
 import {
   projectHostedReservationPolicyProgress,
@@ -221,7 +222,7 @@ export function deliveryCheckpointReviewIsDischarged(input: {
   readonly targets: readonly { readonly vehicle: DeliveryReviewMemberVehicle }[];
   readonly discharges: readonly HostedReservationDischarge[];
   readonly progress: readonly HostedReservationPolicyProgress[];
-  readonly ownerTermini?: readonly DeliveryReviewMemberTerminus[];
+  readonly ownerTermini?: readonly ResolvedDeliveryReviewMemberTerminus[];
   readonly ownerTerminusAdvances?: readonly DeliveryReviewOwnerTerminusAdvance[];
 }): boolean {
   return input.targets.length === input.discharges.length
@@ -1113,7 +1114,7 @@ export function createIntegrationCheckpointDependencies(options: ReviewInvocatio
         targets: deliveryTargets,
         discharges,
         progress,
-        ownerTermini: DeliveryReviewMemberTerminusSchema.array().parse(publicationBoundary.deliveryReviewTermini),
+        ownerTermini: await readStoredDeliveryReviewMemberTermini(publicationBoundary, context.family.ports.inFlight),
         ownerTerminusAdvances,
       });
       const candidateCoordinate = await readCoordinate(input.exec, input.cwd, currentness.recognizedRevision);

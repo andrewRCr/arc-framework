@@ -1,5 +1,5 @@
 /** Production composition for exact-target review status. */
-import { DeliveryReviewMemberTerminusSchema } from "./policy/review-terminus.js";
+import { readStoredDeliveryReviewMemberTermini } from "./runtime/native-member-terminus.js";
 import { ProjectIdentityError } from "../../lib/store/project-identity.js";
 
 
@@ -648,13 +648,14 @@ export async function readRoutedObligation(
           };
         },
       );
+      const ownerTermini = await readStoredDeliveryReviewMemberTermini(boundary, store);
       const findOutstandingIndex = () => composedDischarges.findIndex((discharge, index) => {
         const memberTarget = deliveryTargets[index];
         return !discharge.discharged && (memberTarget === undefined
           || !isDeliveryReviewMemberDischargedByOwnerTerminus({
             target: memberTarget,
             discharge,
-            ownerTermini: DeliveryReviewMemberTerminusSchema.array().parse(boundary.deliveryReviewTermini),
+            ownerTermini,
             ownerTerminusAdvances,
           }));
       });
@@ -713,7 +714,7 @@ export async function readRoutedObligation(
           expectedRecordVersion: RecordVersionSchema.parse(versionedRecord.version),
           candidateId: record.attestation.candidateId,
         },
-        ownerTermini: DeliveryReviewMemberTerminusSchema.array().parse(boundary.deliveryReviewTermini),
+        ownerTermini,
         ownerTerminusAdvances,
       });
     }
