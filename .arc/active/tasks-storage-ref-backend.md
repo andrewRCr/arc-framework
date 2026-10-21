@@ -1907,19 +1907,24 @@ in `notes-storage-ref-backend.md` (A25).
           reopen behavior; the unchanged 600-item profile uses 19/default and 21/separate commands. Hosted timing
           acceptance remains with 18.2.a.2; details are in `notes-storage-ref-backend.md` § Final metadata batching.
 
-### `[ ]` **18.2.R Operation-scoped acquisition during writes**
+### `[x]` **18.2.R Operation-scoped acquisition during writes**
 
 - _Goal:_ Native `write` and `batch` reuse the existing bounded object reader within one public call, close it on
   every exit and before maintenance, and preserve fresh publication checks and later-call corruption detection (A26).
 
-    - `[ ]` **18.2.R.a Bind mutation calls to the existing reader coordinator**
-        - Route both public mutations through the operation coordinator, retaining exact invocation bindings,
+    - `[x]` **18.2.R.a Bind mutation calls to the existing reader coordinator**
+        - Both public mutations use the existing operation coordinator, retaining exact invocation bindings,
           cancellation, output bounds, and layout-specific repository selection without extending evidence lifetime.
 
-    - `[ ]` **18.2.R.b Prove resource ownership and successful continuation**
-        - Native regressions cover both layouts and mutation entry points, one reader across multiple acquisitions,
-          deterministic close before return/maintenance, missing-object refusal and repaired retry in a fresh call,
-          and publication/admission races. Retain the fixed Windows budgets and the final dispatched evidence task.
+    - `[x]` **18.2.R.b Prove resource ownership and successful continuation**
+        - Native traces prove one reader per mutation call and close before successful/refused/error return or
+          maintenance; interrupted calls preserve state and retry successfully. Physical-object refusal/repair and
+          atomic-admission regressions remain intact in both layouts. Existing portability selection includes these
+          witnesses; Windows acceptance remains open under 18.2.a.2.
+
+- _Outcome:_ The unchanged 600-item trace uses 15/default and 17/separate processes, including one native object
+  reader in each layout. Reader ownership remains per public call; immutable evidence remains per write attempt.
+  Hosted acceptance is separate; local measurements and reconstruction evidence are in `notes-storage-ref-backend.md`.
 
 ### `[~]` **18.3 CI cost — § 14.12**
 

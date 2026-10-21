@@ -1,4 +1,4 @@
-/** Keep native readers inside read calls and drain them before repository maintenance. */
+/** Keep native readers inside public calls and drain them before repository maintenance. */
 import { GitBatchReadScope } from "../../git/batch-reader.js";
 import type { RefBackendContext } from "./context.js";
 

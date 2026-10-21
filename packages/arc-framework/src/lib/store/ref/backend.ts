@@ -25,7 +25,8 @@ export function createRefBackend(ports: RefStorePorts): Store {
   const operations = createRefReadCoordinator(context);
   return {
     ...refReadOperations(context, operations),
-    write: (input) => writeRefRecord(context, input), batch: (input) => batchRefRecords(context, input),
+    write: (input) => operations.read((scoped) => writeRefRecord(scoped, input)),
+    batch: (input) => operations.read((scoped) => batchRefRecords(scoped, input)),
     pull: (input) => operations.maintenance(() => pullRefStore(context, input)),
     push: (input) => operations.maintenance(() => pushRefStore(context, input)), maintain: () => operations.maintenance(() => maintainRefStore(context)),
   };

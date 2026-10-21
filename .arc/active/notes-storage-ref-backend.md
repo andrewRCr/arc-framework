@@ -1799,3 +1799,17 @@ The bounded author grounding and specification checks cover § 11.7, the existin
 obligations, the two mutation entry points, and the new revision tasks and criterion. Expected-old publication,
 layout locking, native-confirmed staged blobs, and fresh namespace/observation validation remain required. The
 amendment composes existing behavior at low derivation depth; independent review is omitted at that posture.
+
+Both mutation entry points now use the coordinator. Native lifetime regressions cover single writes and batches in
+both layouts: multiple acquisitions share one `cat-file --batch`; success, expected-version refusal, and an injected
+post-acquisition error leave an exited child before returning; the failed operation leaves the record unchanged and
+its next call succeeds. Maintenance waits for an active mutation's reader to exit, and the following read observes
+the committed content after maintenance. Reconstructing only the former unscoped mutation composition fails all
+eight new resource/ordering cases; restoring the composition passes them. The surrounding native regression run
+covers physical-object refusal and restoration, atomic observations, output/cancellation failures, and staged writes.
+
+The unchanged local timing fixture records 6.762/38.459/122.200/15.243/133.390 ms for version/read/list/lookup/write
+in the default layout and 5.978/39.177/121.265/10.322/137.403 ms in the separate layout. Verified profiles use
+15/default and 17/separate processes, including one native object reader per write, down from the previous 19/21.
+These Linux diagnostics do not establish Windows acceptance. Evidence is retained under `task-18.2-write-reader/`
+in the machine-local storage-ref-backend tools directory; the dispatched timing check remains required.

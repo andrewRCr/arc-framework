@@ -10,7 +10,7 @@ export interface GitBatchReadInvocation {
   args: string[]; cwd: string; env: NodeJS.ProcessEnv; maxBuffer: number; input: Uint8Array; signal?: AbortSignal; onStart?: () => void;
 }
 
-/** A read operation owns its processes; no child or repository state is shared with later operations. */
+/** An operation owns its readers; no child or repository state is shared with later operations. */
 export class GitBatchReadScope {
   private readonly readers = new Map<string, NativeBatchReader>();
   private queue: Promise<unknown> = Promise.resolve();
