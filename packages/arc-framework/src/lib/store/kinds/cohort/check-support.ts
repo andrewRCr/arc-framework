@@ -1,5 +1,6 @@
 /** Parsed cohort changes and complete proposed membership observations. */
 import { ParsedMetaRecordSchema } from "../../../active/meta-schema.js";
+import { describeRecordConflicts } from "../../conflict-diagnostics.js";
 import { observeRecords, type RuleObservation } from "../rule-support.js";
 import { parseCohortDocument, type ParsedCohortDocument } from "./parser.js";
 import type { StoreRecord } from "../../read.js";
@@ -21,7 +22,12 @@ export function changedCohortFields(input: WriteCheckInput, key: keyof ParsedCoh
   const prior = parseCohortDocument(input.prior.content);
   return prior.success && prior.data[key] !== next.data[key] ? next.data : undefined;
 }
-/** Enumerate open cohort documents with no missing or malformed evidence.
+/** Refuse evidence an open conflict could still change, naming the conflicts to resolve. */
+function disputed(record: StoreRecord, evidence: string): { status: "unavailable"; condition: string } {
+  return { status: "unavailable", condition: `The ${evidence} of ${record.reference.owner.name} is disputed by open conflicts.`
+    + describeRecordConflicts(record.conflicts) };
+}
+/** Enumerate open cohort documents with no missing, malformed, or disputed evidence.
  * @param view - Proposed store state.
  * @returns Parsed open documents or an actionable incomplete observation.
  */
@@ -31,13 +37,14 @@ export async function observeOpenCohorts(view: StoreView): Promise<RuleObservati
   const result: OpenCohort[] = [];
   for (const record of listed.value) {
     if (record.placement?.kind === "completed") continue;
+    if (record.conflicts.length > 0) return disputed(record, "Parent");
     const parsed = parseCohortDocument(record.content);
     if (!parsed.success) return { status: "unavailable", condition: `${record.reference.owner.name}: ${parsed.error}` };
     result.push({ record, fields: parsed.data });
   }
   return { status: "known", value: result };
 }
-/** Enumerate open work-unit membership without treating unreadable fields as no membership.
+/** Enumerate open work-unit membership without treating unreadable or disputed fields as no membership.
  * @param view - Proposed store state.
  * @returns Every open membership or an actionable incomplete observation.
  */
@@ -47,6 +54,7 @@ export async function observeOpenMembers(view: StoreView): Promise<RuleObservati
   const result: OpenMember[] = [];
   for (const record of listed.value) {
     if (record.placement?.kind === "completed") continue;
+    if (record.conflicts.length > 0) return disputed(record, "cohort membership");
     const parsed = ParsedMetaRecordSchema.safeParse(record.fields);
     if (!parsed.success) return { status: "unavailable", condition: `${record.reference.owner.name}: membership fields are unavailable.` };
     result.push({ record, cohort: parsed.data.cohort });

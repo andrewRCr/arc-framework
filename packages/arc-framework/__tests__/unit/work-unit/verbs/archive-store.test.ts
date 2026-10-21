@@ -6,9 +6,11 @@ import { ParsedMetaRecordSchema } from "../../../../src/lib/active/meta-schema.j
 import { runArchive } from "../../../../src/lib/work-unit/verbs/archive.js";
 import type { ExecuteTransitionContext } from "../../../../src/lib/work-unit/lifecycle-executor.js";
 import type { Store } from "../../../../src/lib/store/contract.js";
-import { writeMetaPause, writeMetaSessionContext } from "../../../../src/lib/store/kinds/meta/writers.js";
+import { writeMetaCohort, writeMetaPause, writeMetaSessionContext } from "../../../../src/lib/store/kinds/meta/writers.js";
+import { ConflictRecordSchema, RecordReferenceSchema } from "../../../../src/lib/store/index.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { createMemoryRemote } from "../../../helpers/store/sync.js";
+import { withCompetingBatch } from "../../../helpers/store/decompose-harness.js";
 import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
 function context(store: Store): ExecuteTransitionContext {
   const forbidden = async (): Promise<never> => { throw new Error("tracked artifact access"); };
@@ -292,6 +294,30 @@ it("refuses a changed empty-child observation before archiving and succeeds afte
   expect(await archive(store, "alpha")).toMatchObject({ status: "rejected", refusal: { code: "version-conflict" } });
   expect(lifecycleSuccess(await h.store.read({ reference: h.alpha.reference }))).toEqual(h.alpha);
   expect(await archive(store, "alpha")).toMatchObject({ status: "archived" });
+});
+
+it("refuses closing a cohort when a disputed outsider arrives at batch admission, then closes it after resolution", async () => {
+  const h = await groupFixture();
+  expect(await archive(h.store, "alpha")).toMatchObject({ status: "archived" });
+  const outsider = await h.seedMeta("outsider");
+  const racing = withCompetingBatch(h.store, async () => {
+    const label = { actor: "remote", time: new Date(0).toISOString() };
+    lifecycleSuccess(await h.store.write({ action: "put", expected: null,
+      reference: RecordReferenceSchema.parse({ owner: outsider.reference.owner, kind: "work-item/conflict-record", key: "membership-gap" }),
+      content: JSON.stringify(ConflictRecordSchema.parse({ record: outsider.reference, location: { kind: "hunk", start: 1, end: 2 },
+        base: outsider.content, current: { content: outsider.content, label },
+        incoming: { content: writeMetaCohort(outsider.content, "group"), label } })),
+      provenance: { verb: "sync", lifecycleAction: "reconcile" } }));
+  });
+  expect(await archive(racing, "beta")).toMatchObject({ status: "rejected", refusal: { rule: "cohort.open-members",
+    condition: expect.stringContaining("outsider") } });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.beta.reference }))).toEqual(h.beta);
+  expect(lifecycleSuccess(await h.store.read({ reference: h.group.reference })).placement?.kind).not.toBe("completed");
+  const disputed = lifecycleSuccess(await h.store.read({ reference: outsider.reference }));
+  lifecycleSuccess(await h.store.write({ ...recordPut(disputed), resolves: disputed.conflicts,
+    provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
+  expect(await archive(h.store, "beta")).toMatchObject({ status: "archived" });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.group.reference })).placement).toMatchObject({ kind: "completed" });
 });
 
 it("rejects a malformed selected meta without writes and archives after its bytes are repaired", async () => {
