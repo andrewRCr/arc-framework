@@ -1423,3 +1423,19 @@ produce complete portability acceptance. Ordinary scheduled/dispatched runs reta
 argv, exit codes, Git elapsed time, and the public write’s wall time, then verifies the resulting content outside tracing.
 The initial fixture used the read placement’s extra sequence field and was correctly refused; the probe now submits the
 ordinary completed-quarter mutation shape. The timing and existing CI contract cases passed together (42 cases).
+
+### Attempt-local immutable write acquisition
+
+`write.ts::executeRefBatch` allocates positive object and complete-tree evidence after repository selection, replacing it
+when layout or owner resolution restarts. `batch-read.ts::readBatchObjects` reuses only successful immutable queries and
+object IDs; prospective staged bytes, unavailable objects, and failed acquisitions do not enter that evidence.
+`readRefTrees` reuses complete enumerations by immutable tip, returning independent entry copies for mutable planners.
+Filtered traversals never become complete evidence. All namespace re-captures, original-before views, layout validation,
+publication locks, and atomic admission checks remain in their existing places.
+
+Both native layouts first exposed repeated immutable acquisitions during a completed update, then passed with one
+acquisition per exact query. A separate witness removes a physically required prior blob after an accepted write, checks
+the next write’s `state-unresolvable` refusal, restores the bytes, and completes the retry. A deliberately cross-call
+retention reconstruction incorrectly accepted that write in both layouts. The restored implementation passed all 109
+focused native and CLI cases, including observations, new incoming refs, completed edits, reopen, locks, retirement,
+creation facts, write checks, anchors, bulk writes, and conflict remedies. Windows medians remain unverified for this head.

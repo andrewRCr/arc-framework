@@ -1860,9 +1860,10 @@ in `notes-storage-ref-backend.md` (A25).
               missing/empty-tree distinctions remain. Real listings return every record with one fewer native process.
             - Both layouts first exposed the separate tree-check launch; the shared reader closes before return.
 
-        - `[ ]` **18.2.f.2 Reuse successful immutable write evidence**
-            - Build `test-first`: reuse successful exact-object evidence only within one write attempt, retaining all
-              fresh namespace captures, original-before views, publication locks, and failure/retry diagnostics.
+        - `[x]` **18.2.f.2 Reuse successful immutable write evidence**
+            - Successful immutable objects and complete tree enumerations are reused within one repository-bound write
+              attempt; mutable namespace captures and publication locks remain fresh. A later write refuses a missing
+              physical blob and continues after repair; retaining evidence across public calls fails this witness.
 
         - `[ ]` **18.2.f.3 Carry selected point-read evidence**
             - Build `test-first`: retain selected owner-location evidence within the public read while reacquiring

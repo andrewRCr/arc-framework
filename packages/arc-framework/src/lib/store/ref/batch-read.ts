@@ -37,6 +37,8 @@ export async function readBatchObjects(context: RefBackendContext, queries: read
       return new Map(queries.map((query) => [query, buffered.get(query) ?? stored.get(query) ?? null]));
     }
   }
+  const retained = await readRetainedObjects(context, queries);
+  if (retained) return retained;
   try {
     const physical = context.readSource ? queries.map((query) => physicalReadRef(context, query)) : queries;
     const { stdout } = await context.rawExec(["cat-file", "--batch"], {
@@ -44,6 +46,7 @@ export async function readBatchObjects(context: RefBackendContext, queries: read
       batchReader: context.batchReader,
     });
     const objects = parseBatch(stdout, physical);
+    retainObjects(context, objects);
     return context.readSource ? new Map(queries.map((query, index) => [query, objects.get(physical[index] ?? query) ?? null])) : objects;
   } catch (error) {
     if (!isGitProcessError(error) || error.kind !== "output-limit" || queries.length === 1) throw error;
@@ -52,6 +55,27 @@ export async function readBatchObjects(context: RefBackendContext, queries: read
     const right = await readBatchObjects(context, queries.slice(middle));
     return new Map([...left, ...right]);
   }
+}
+
+function retainObjects(context: RefBackendContext, objects: ReadonlyMap<string, BatchObject | null>): void {
+  if (!context.writeEvidence) return;
+  for (const [query, object] of objects) {
+    if (object && /^(?:[0-9a-f]{40}|[0-9a-f]{64})(?:$|:|\^)/u.test(query)) {
+      context.writeEvidence.objects.set(query, object);
+      context.writeEvidence.objects.set(object.oid, object);
+    }
+  }
+}
+
+async function readRetainedObjects(context: RefBackendContext, queries: readonly string[]): Promise<Map<string, BatchObject | null> | null> {
+  if (!context.writeEvidence) return null;
+  const found = new Map(queries.flatMap(query => {
+    const object = context.writeEvidence?.objects.get(query);
+    return object ? [[query, object] as const] : [];
+  }));
+  if (!found.size) return null;
+  const stored = await readBatchObjects(context, queries.filter(query => !found.has(query)));
+  return new Map(queries.map(query => [query, found.get(query) ?? stored.get(query) ?? null]));
 }
 
 function parseBatch(bytes: Uint8Array, queries: readonly string[]): Map<string, BatchObject | null> {
@@ -79,6 +103,20 @@ function parseBatch(bytes: Uint8Array, queries: readonly string[]): Map<string, 
 export async function readRefTrees(context: RefBackendContext, tips: ReadonlyMap<string, string>, paths?: readonly string[]): Promise<Map<string, RefTreeEntry[]>> {
   const pairs = [...tips];
   if (pairs.length === 0) return new Map();
+  const retained = context.writeEvidence?.trees;
+  if (retained && paths === undefined) {
+    const found = new Map(pairs.flatMap(([ref, tip]) => {
+      const entries = retained.get(tip);
+      return entries ? [[ref, entries.map(entry => ({ ...entry }))] as const] : [];
+    }));
+    if (found.size) {
+      const stored = await readRefTrees(context, new Map(pairs.filter(([ref]) => !found.has(ref))));
+      return new Map(pairs.flatMap(([ref]) => {
+        const entries = found.get(ref) ?? stored.get(ref);
+        return entries ? [[ref, entries] as const] : [];
+      }));
+    }
+  }
   const queries = pairs.map(([, tip]) => `${tip}^{tree}`);
   const objects = await readBatchObjects(context, queries);
   const trees = queries.map((query) => {
@@ -91,9 +129,13 @@ export async function readRefTrees(context: RefBackendContext, tips: ReadonlyMap
   });
   const byTree = parseTreeDiff(result.stdout);
   const byRef = new Map<string, RefTreeEntry[]>();
-  pairs.forEach(([ref], index) => {
+  pairs.forEach(([ref, tip], index) => {
     const tree = trees[index];
-    if (tree) byRef.set(ref, byTree.get(tree) ?? []);
+    if (tree) {
+      const entries = byTree.get(tree) ?? [];
+      if (paths === undefined) retained?.set(tip, entries.map(entry => ({ ...entry })));
+      byRef.set(ref, entries);
+    }
   });
   return byRef;
 }

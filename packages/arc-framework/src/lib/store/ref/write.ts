@@ -116,6 +116,7 @@ async function executeRefBatch(context: RefBackendContext, input: BatchInput, ba
   const source = context.repository?.source ?? context;
   for (;;) {
     context = await writeRefRepository(source);
+    context = { ...context, writeEvidence: { objects: new Map(), trees: new Map() } };
     const resolved = await resolveRefWrites(context, input.writes);
     if (resolved.status === "refused") return resolved;
     const admission = checkMutationReferences(context, resolved.result.writes.map((write) => write.mutation), input.provenance.verb);
