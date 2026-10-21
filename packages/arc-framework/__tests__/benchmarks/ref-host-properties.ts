@@ -1,6 +1,8 @@
 /**
  * Manual HTTPS host probes using raw Git, outside every test tier and CI job.
- * Run with: node --import tsx <this-file> <github.com|gitlab.com> <scratch-https-url> <evidence-directory>
+ * Run with: node --import tsx <this-file> <host> <scratch-https-url> <evidence-directory>
+ * GitHub/GitLab use gh/glab; other hosts use existing Git credential configuration.
+ * Separate role, ruleset, and fork checks remain unverified until their setups exist.
  * The designated scratch repository keeps its seeded refs for inspection.
  */
 
@@ -9,13 +11,14 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
+import { probeBackend } from "./ref-host-backend.js";
 
 const execFileAsync = promisify(execFile);
 
 async function main(): Promise<void> {
   const [host, remote, output] = process.argv.slice(2);
-  if ((host !== "github.com" && host !== "gitlab.com") || !remote || !output) {
-    throw new Error("Usage: ref-host-properties.ts <github.com|gitlab.com> <scratch-https-url> <evidence-directory>");
+  if (!host || !remote || !output) {
+    throw new Error("Usage: ref-host-properties.ts <host> <scratch-https-url> <evidence-directory>");
   }
   const url = new URL(remote);
   if (url.protocol !== "https:" || url.hostname !== host || url.username || url.password || url.search || url.hash) {
@@ -24,10 +27,12 @@ async function main(): Promise<void> {
   const evidence = resolve(output);
   await mkdir(evidence, { recursive: true });
   const root = await mkdtemp(join(tmpdir(), "arc-ref-host-"));
-  const cli = host === "github.com" ? "gh" : "glab";
-  const auth = ["-c", "credential.helper=", "-c", `credential.https://${host}.helper=!${cli} auth git-credential`];
+  const cli = host === "github.com" ? "gh" : host === "gitlab.com" ? "glab" : null;
+  const auth = cli ? ["-c", "credential.helper=", "-c", `credential.https://${host}.helper=!${cli} auth git-credential`] : [];
   const inherited = Object.fromEntries(Object.entries(process.env)
     .filter(([name]) => name !== "GIT_TRACE_CURL" && name !== "GIT_CURL_VERBOSE"));
+  delete process.env.GIT_TRACE_CURL;
+  delete process.env.GIT_CURL_VERBOSE;
   const env = { ...inherited, LC_ALL: "C", GIT_TERMINAL_PROMPT: "0", GIT_TRACE_REDACT: "1" };
   async function git(label: string, cwd: string, args: string[], trace = false): Promise<string> {
     const pending = execFileAsync("git", [...auth, ...args], {
@@ -38,6 +43,7 @@ async function main(): Promise<void> {
     const result = await pending.catch(async (error: unknown) => {
       if (error && typeof error === "object" && "stderr" in error) {
         await writeFile(join(evidence, `${label}.stderr.log`), String(error.stderr));
+        if ("stdout" in error) await writeFile(join(evidence, `${label}.stdout.log`), String(error.stdout));
       }
       throw error;
     });
@@ -91,6 +97,10 @@ async function main(): Promise<void> {
     await writeFile(join(evidence, "result.json"), `${JSON.stringify(result, null, 2)}\n`);
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     if (!version2 || !prefix || !narrowed || !atomic) process.exitCode = 1;
+    else {
+      const backend = await probeBackend({ root, remote, evidence, host, git });
+      process.stdout.write(`${JSON.stringify(backend, null, 2)}\n`);
+    }
   } finally {
     await rm(root, { recursive: true, force: true });
   }

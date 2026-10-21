@@ -1846,6 +1846,18 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
           fork copying and its ordinary members' permissions, the history-replay push refusal's message, and 2.5's two
           checks, protocol v2's narrowing and `atomic` over HTTP, run again on every host
 
+        - `[x]` **18.4.a.1 Native owner and receiver probes**
+            - The manual kit binds production store ports, checks default-clone isolation and exact public roundtrips,
+              captures stale single/atomic/delete leases and replay refusals, and verifies forwarding refusal and
+              successful publication after repair. A local receiver supplies the unsupported-atomic diagnostic.
+            - Temporary native refs are removed only through exact leases; raw stdout/stderr and structured results
+              remain in the requested evidence directory. GitHub/GitLab use their existing CLI logins.
+
+        - `[ ]` **18.4.a.2 Provider policy, fork, and separate-role probes**
+            - Complete provider ruleset/protected-branch and fork cases and ordinary writer/read-only cases when their
+              setups are available. The kit currently reports these as unverified; it does not infer them from owner
+              access. Other HTTPS hosts may use their existing Git credential configuration.
+
     - `[ ]` **18.4.b The run**
         - Run against GitHub and GitLab, which must hold, Azure DevOps and Bitbucket, which should, and Gitea and
           Forgejo, best effort; results recorded in `notes-storage-ref-backend.md`; a must-hold host failing a check goes

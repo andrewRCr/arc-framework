@@ -965,3 +965,35 @@ by native import. Remove a helper only after its surviving imports have moved. A
 backend imports survive; replace predicates naming the retiring implementation rather than deleting their broader
 boundary assertions. Preserve all suites outside the explicit retirement set unless their actual assertions target
 another deleted implementation.
+
+## Real-host owner probes — Task 18.4.a.1
+
+The manual `ref-host-properties.ts` kit now uses production `createDefaultRefStorePorts` and `createRefStore` through
+`ref-host-backend.ts`, outside every test tier and CI job. The designated scratch repositories remain
+`andrewRCr/arc-ref-host-probe-20261016` on GitHub.com and GitLab.com. Git 2.55.0 over HTTPS used the existing `gh` and
+`glab` owner logins. Temporary native registry/personal refs were absent at entry and cleaned with exact leases;
+`main` and the two original host-probe refs remain for inspection.
+
+| Check                                                                               | GitHub.com | GitLab.com |
+| ----------------------------------------------------------------------------------- | ---------- | ---------- |
+| Protocol v2 requested prefix and narrowed advertisement                             | passed     | passed     |
+| Atomic capability advertised over HTTPS                                             | passed     | passed     |
+| Ordinary default clone acquires no state refs                                       | passed     | passed     |
+| Native public write/push/pull preserves CRLF bytes                                  | passed     | passed     |
+| Stale atomic state lease holds a code branch back                                   | passed     | passed     |
+| Stale single-ref and delete leases preserve the current tip                         | passed     | passed     |
+| Replaying older state without a force lease refuses                                 | passed     | passed     |
+| Forwarding holds unpublished state; removing it permits publication and convergence | passed     | passed     |
+| Exact leased deletion removes the temporary native refs                             | passed     | passed     |
+| Distinct ordinary writer, read-only principal, policy, and fork cases               | unverified | unverified |
+
+The stale pushes and replay retain each host's actual porcelain rows and stderr, rather than matching one provider's
+English wording. A paired local bare Git receiver with `receive.advertiseAtomic=false` rejects the atomic push with
+`fatal: the receiving end does not support --atomic push`; its refs stay empty and a subsequent single leased push
+succeeds. This diagnostic comes from that local receiver, not from either HTTPS host, both of which advertise atomic.
+
+The current logins do not establish ordinary-member or read-only permissions, and no separate role profiles are
+configured. Policy/fork fixtures and Azure DevOps, Bitbucket, Gitea, and Forgejo runs remain open. Task 18.4 and the
+segment verifier remain incomplete. Raw evidence is retained under
+`.arc/user/andrew/.internal/storage-ref-backend-tools/task-18.4/`, including per-command stdout/stderr and
+`backend-results.json`; results never imply that unavailable setups passed.
