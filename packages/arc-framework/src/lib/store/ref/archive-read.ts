@@ -18,6 +18,22 @@ export interface ArchivedFolder {
 /** Identify quarter refs without admitting other namespaces under the prefix. */
 export function isArchiveRef(ref: string): boolean { return /^refs\/arc\/archive\/\d{4}-q[1-4]$/u.test(ref); }
 
+/** Select complete folders by their metadata UID without acquiring unrelated record blobs. */
+export function archiveOwnerTrees(trees: ReadonlyMap<string, readonly RefTreeEntry[]>,
+  owners: readonly OwnerIdentity[]): Map<string, RefTreeEntry[]> {
+  const names = new Set(owners.flatMap(owner => owner.type !== "person" && owner.uid ? [`metadata-${owner.uid}.json`] : []));
+  const selected = new Map<string, RefTreeEntry[]>();
+  for (const [ref, entries] of trees) {
+    const roots = new Set(entries.flatMap(({ path }) => {
+      const slash = path.indexOf("/");
+      return slash >= 0 && names.has(path.slice(slash + 1)) ? [path.slice(0, slash + 1)] : [];
+    }));
+    const own = entries.filter(({ path }) => roots.has(path.slice(0, path.indexOf("/") + 1)));
+    if (own.length) selected.set(ref, own);
+  }
+  return selected;
+}
+
 /** Decode folder metadata independently, retaining one diagnostic for each unreadable owner. */
 export function archivedFolders(family: FamilyId, ref: string, entries: readonly RefTreeEntry[],
   objects: ReadonlyMap<string, BatchObject | null>): { folders: ArchivedFolder[]; diagnostics: ListingDiagnostic[] } {

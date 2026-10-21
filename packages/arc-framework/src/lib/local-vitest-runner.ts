@@ -179,6 +179,7 @@ export function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
         "store-ref-directory.test.ts",
         "store-ref-write-batching.test.ts",
         "store-ref-reader-lifetime.test.ts",
+        "store-ref-archive-acquisition.test.ts",
         "git-batch-reader.test.ts",
         "store-ref-separate-conformance.test.ts",
         "store-ref-timing.test.ts",

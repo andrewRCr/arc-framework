@@ -14,7 +14,7 @@ import { matchesFamilyRef, refOwner, decodeRecord } from "./codec.js";
 import { resolveCapturedReference, resolveCapturedListInput, listOwnerReference } from "./reference-resolution.js";
 import { claimIdentityRefusal } from "./lookup-claims.js";
 import { appendArchivedLookupTrees, type RefLookupCapture } from "./lookup-trees.js";
-import { isArchiveRef } from "./archive-read.js";
+import { archiveOwnerTrees, isArchiveRef } from "./archive-read.js";
 import { lookupCapturedRefTrees, type RefLookupTree } from "./lookup.js";
 import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
 import { metadataFailure, type RefMetadata } from "./metadata.js";
@@ -184,5 +184,14 @@ function canonicalViewReference(context: RefBackendContext, reference: RecordRef
 function archivedViewRecord(context: RefBackendContext, state: RefViewState, reference: RecordReference): StoreRecord | undefined {
   const input: ListInput = { family: context.registry[reference.kind].family, owner: reference.owner,
     ...(["work-item/meta", "work-item/record"].includes(reference.kind) ? {} : { kind: reference.kind }) };
-  return archivedViewRecords(context, state, input).records.find((record) => sameReference(record.reference, reference));
+  const trees = new Map([...state.refs].flatMap(([ref, group]) => isArchiveRef(ref) && group.entries ? [[ref, group.entries] as const] : []));
+  const selected = archiveOwnerTrees(trees, [reference.owner]);
+  const refs = new Map(state.refs);
+  for (const [ref, group] of state.refs) {
+    if (!isArchiveRef(ref)) continue;
+    const entries = selected.get(ref);
+    if (entries) refs.set(ref, { ...group, entries });
+    else refs.delete(ref);
+  }
+  return archivedViewRecords(context, { ...state, refs }, input).records.find((record) => sameReference(record.reference, reference));
 }

@@ -5,7 +5,7 @@ import type { RecordReference } from "../identity.js";
 import { sameOwner } from "../identity.js";
 import { HistoryRefSchema, type StoreResult, type StoreRefusal } from "../refusal.js";
 import { parseStoreCommitProvenance } from "../commit-provenance.js";
-import { archivedFolders, isArchiveRef, type ArchivedFolder } from "./archive-read.js";
+import { archivedFolders, archiveOwnerTrees, isArchiveRef, type ArchivedFolder } from "./archive-read.js";
 import { readBatchObjects, readRefTrees } from "./batch-read.js";
 import type { RefBackendContext } from "./context.js";
 import type { ResolvedBatch } from "./write-resolution.js";
@@ -17,7 +17,7 @@ export async function resolveArchivedReferences(context: RefBackendContext, refe
   if (!requested.length) return { status: "ok", result: [] };
   const selected = new Map([...tips].filter(([ref]) => isArchiveRef(ref)));
   if (!selected.size) return { status: "ok", result: [] };
-  const trees = await readRefTrees(context, selected);
+  const trees = archiveOwnerTrees(await readRefTrees(context, selected), requested.map(reference => reference.owner));
   const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid)))]);
   const folders = [...trees].flatMap(([ref, entries]) => (["work-item", "cohort"] as const).flatMap((family) => archivedFolders(family, ref, entries, objects).folders))
     .filter(({ owner }) => requested.some((reference) => sameOwner(owner, reference.owner)));

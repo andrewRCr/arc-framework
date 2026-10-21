@@ -1822,6 +1822,13 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
           regression copies and publishes to an independent remote; path assertions compare resolved filesystem
           addresses across host separator spellings.
 
+    - `[x]` **18.2.d UID-scoped archived acquisition**
+        - Archived point reads, mutation resolution, and check-view point reads select complete folders by metadata
+          UID before acquiring or decoding unrelated prose. Cross-quarter selection, retained-history validation,
+          fresh admission captures, and complete-list diagnostics retain their existing meaning.
+        - Native resource regressions exercise both layouts and join portability selection. The measured reduction
+          and remaining fixed native calls are recorded in `notes-storage-ref-backend.md` § Archived acquisition cost.
+
 ### `[ ]` **18.3 CI cost — § 14.12**
 
 - _Goal:_ Running both backends until the cutover costs CI no more than the bound: each layout's ref conformance run

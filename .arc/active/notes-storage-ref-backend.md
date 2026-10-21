@@ -1118,3 +1118,90 @@ the failed pull or publish details. The assertions now attach the complete nativ
 initial clone pulls and final convergence pulls. No accepted-write, notice, publication-status, or convergence
 condition changes. This prepares the next dispatch to distinguish a transport/refusal outcome from a lost-write
 failure; the first run's exact cause remains unestablished.
+
+## Conformance workload comparison
+
+Dispatched run `39536946799` tested `d79fbf32ce493b8eba0e0dd3f790e9337d5f5993`. All four integration shards and all
+four E2E shards passed. Linux portability passed, including its four contention cases. macOS passed the contention,
+native reader, and object-batching cases but timed out one separate-conformance primary-role reopen/sync/conflict
+case at its unchanged 30-second limit. Windows remained in progress when this investigation was recorded.
+
+The integration duration artifacts give the complete-file comparison below. This is the accepted hosted comparison;
+both native layouts still miss the unchanged 1.5-times bound.
+
+| Backend  | Shard | File time (ms) | Completed cases | Ratio to in-repo |
+| -------- | ----- | -------------- | --------------- | ---------------- |
+| in-repo  | 1     | 134,811.190    | 310             | 1.000            |
+| default  | 4     | 549,023.237    | 1,069           | 4.073            |
+| separate | 1     | 674,463.765    | 1,069           | 5.003            |
+
+An inert registration inventory over the three existing files matches those populations exactly, without invoking
+test callbacks, hooks, builds, or Git. Excluding each declaration-inventory test leaves 278 shared active assertion
+IDs, 790 native-only IDs, and 31 in-repo-only IDs. Both native layouts have identical active sets. Native-only
+coverage includes merges, formats, retained history, registered write checks, and much more per-kind synchronization;
+the legacy fixture's declared exclusions leave those cases skipped or unregistered. Counts alone are not a
+per-behavior speed comparison. The full-file target at these populations requires a native average case below 43.5%
+of the in-repo average; reaching it from this run requires about 63% and 70% reductions, respectively.
+
+A separate local diagnostic ran exactly the 278 shared active IDs in each file, sequentially with one worker on
+WSL2, Node 26.3.0, and Git 2.55.0. Its 834 completed cases passed. A 2-minute-45-second admission wait is excluded
+from the file timings below. These are single diagnostic runs, without a discarded warm-up, and matched IDs can
+still assert different backend-declared outcomes. They do not replace the complete-file hosted criterion.
+
+| Backend  | Shared cases | File time (ms) | Ratio to in-repo |
+| -------- | ------------ | -------------- | ---------------- |
+| in-repo  | 278          | 46,124.219     | 1.000            |
+| default  | 278          | 54,019.860     | 1.171            |
+| separate | 278          | 60,816.798     | 1.319            |
+
+The current artifacts cannot attribute the macOS timeout to contention. Portability runs timing, contention,
+and full separate conformance in one native-worker invocation, but buffered output and file-only duration artifacts
+do not establish which cases overlapped. Other local sessions cannot account for hosted CI costs. Controlled host
+timing and native-operation diagnostics are needed before attributing a host failure or changing a numeric budget.
+No timeout, budget, case population, or acceptance assertion changed in this investigation.
+
+The retained population inventory, exact matching pattern, per-test JSON, invocation logs, and environment record
+are machine-local under `task-18.3-investigation/`; the hosted source records remain under `task-18.3-hosted/` in
+`.arc/user/andrew/.internal/storage-ref-backend-tools/`. The unfinished post-batching local cost pipeline was
+interrupted before further implementation; only its unit tier has a retained successful measurement. Integration's
+warm-up passed, but its retained pass was interrupted, and its queued lane/E2E tiers did not run. None supplies a
+final changed-tree baseline or closes Task 18.3.
+
+## Archived acquisition cost
+
+The 600-item write diagnostic exposed work independent of object construction. `resolveArchivedReferences` fetched
+all quarter blobs before selecting a UID, `captureRefViewState` acquired a full immutable snapshot for checks, and
+`archivedViewRecord` decoded every archived record before selecting the requested one. CPU profiles showed repeated
+metadata field extraction, canonicalization, and schema parsing; the write still made 29 default or 30 separate
+native requests after object batching, including eleven object-reader requests.
+
+The diagnostic used the producer-derived 600-item, twelve-quarter timing fixture, then removed eleven unrelated
+quarter refs under exact leases while retaining the selected quarter's fifty owners and every retained-history ref.
+Three successful public updates at each size used the same target, read it back, and checked its resulting version.
+Per-request acquisition, parsing profiles, and wall timings were recorded after admission, with no competing heavy
+test run admitted. This is a bounded local diagnostic, not the eleven-sample Windows acceptance run.
+
+| Layout   | Archived owners | Before median (ms) | After median (ms) | Before blob response (bytes) | After (bytes) |
+| -------- | --------------- | ------------------ | ----------------- | ---------------------------- | ------------- |
+| default  | 600             | 599.434            | 197.486           | 1,115,748                    | 561,074       |
+| default  | 50              | 186.293            | 164.698           | 96,386                       | 51,012        |
+| separate | 600             | 520.187            | 170.418           | 1,115,748                    | 561,074       |
+| separate | 50              | 200.698            | 154.282           | 96,386                       | 51,012        |
+
+`archiveOwnerTrees` selects complete folders through their metadata UID while preserving every matching quarter.
+`readArchivedRecord`, `resolveArchivedReferences`, and captured check-view point selection use it. Quarter selection,
+retained-history checks, fresh tip captures and layout-lock admission remain; full listings still acquire and report
+their complete diagnostics. The full check snapshot still loads other blobs, and fixed request counts remain
+29/30. This removes unrelated acquisition and parsing without introducing a new cache or weakening atomic checks.
+
+The native regressions failed first in both layouts: a point read returned 625,055 bytes against a 16,384-byte
+ceiling, and a checked update parsed 557,132 bytes against the same ceiling. After selection, all four cases pass
+while preserving the target version/content and the unrelated primary and companion. The six existing archive,
+write-version, write-check, observation, snapshot, and read-source suites pass their 72 cases. Both type checks and
+the exact portability-selection unit suite pass; a test fixture's quarter literals were mechanically corrected to
+use `ArchiveQuarterSchema` after test typechecking identified their missing brands.
+
+Raw request records, CPU profiles, the temporary diagnostic source, before/after source evidence, fail-first logs,
+and verification logs are retained machine-locally under
+`.arc/user/andrew/.internal/storage-ref-backend-tools/task-18.2-archive-acquisition/`. Temporary instrumentation was
+removed and the timing helper restored before final gate checks. A fresh dispatched Windows result is still required.

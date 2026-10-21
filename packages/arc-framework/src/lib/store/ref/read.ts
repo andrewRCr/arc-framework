@@ -3,7 +3,7 @@
 import { corruptRef } from "./namespace-health.js";
 import { readRefRepository } from "./repository.js";
 import type { ReadPlacement } from "../placement.js";
-import { archivedFolders, isArchiveRef, latestArchivedFolders } from "./archive-read.js";
+import { archivedFolders, archiveOwnerTrees, isArchiveRef, latestArchivedFolders } from "./archive-read.js";
 import type { ListInput, ListingOutcome, ListingDiagnostic, ReadInput, StoreRecord } from "../read.js";
 import { RecordReferenceSchema, OwnerIdentitySchema, sameOwner, type RecordReference, type OwnerIdentity, type StateVersion } from "../identity.js";
 import type { StoreResult, StoreRefusal } from "../refusal.js";
@@ -257,7 +257,7 @@ async function readArchivedRecord(context: RefBackendContext, reference: RecordR
   if (reference.owner.type === "person" || !reference.owner.uid || !["work-item", "cohort"].includes(rootFamily(family))) return missing(reference);
   const selected = new Map([...tips].filter(([ref]) => isArchiveRef(ref)));
   if (!selected.size) return missing(reference);
-  const trees = await readRefTrees(context, selected);
+  const trees = archiveOwnerTrees(await readRefTrees(context, selected), [reference.owner]);
   const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid)))]);
   const folders = [...trees].flatMap(([ref, entries]) => archivedFolders(family, ref, entries, objects).folders);
   const folder = latestArchivedFolders(folders.filter(({ owner }) => sameOwner(owner, reference.owner)))[0];
