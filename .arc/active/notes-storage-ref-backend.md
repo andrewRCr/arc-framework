@@ -834,3 +834,22 @@ The same run exposed a stale command-inventory exception for `store remote`. Its
 `createStore` still selects the in-repo implementation. The derived inventory now requires every emitted corrective
 command to register, with no dormant exception; default-backend dormancy remains separately checked. The focused
 five-file run passed all 180 cases in 32.78 seconds. The failed cost warmup was interrupted and supplies no baseline.
+
+## A24 — Identity-suffixed personal content paths
+
+Superseded § 3.2: “Personal files share names across people.” Its conditional forward change is taken after Task 18.5's
+controlled pack trial: mixed and distinct personal corpora packed about 17.6 times larger with shared names, while
+nearly identical people benefited from cross-person deltas. Identity suffixes favor the history of a person's own
+content and avoid that measured large-pack case. This changes Git tree spellings only, not projected editor paths.
+
+`KIND_MECHANISMS` carries independent `ref` and projection/substrate addresses. `expandStoredPath` expands the former;
+`decodeStoredReference` reverses that template. `personalPath` and `personalSingletonKey` resolve the existing in-repo
+user surfaces through layout addresses. The correction updates the five personal content templates, preserving the
+independent addresses and opaque keys. The queue takes the same physical suffix as the other content kinds to retain
+one consistent logical alias namespace. Metadata, manifests, conflict IDs, receipts, and claims retain their forms.
+
+Grounding-only task audit and author specification checks cover the changed table, key admission, decoding, native
+writes/reads, and personal import construction. Logical file/folder collisions still refuse after suffix removal for
+collision comparison; current exact preflight cases cover both batch orders. The amendment changes no compatibility
+posture: development stores are regenerated, with no old-name reader or migration. The determinate amendment takes
+low depth, so its independent planning pass is omitted; no evaluator review is run in this deferred batch.

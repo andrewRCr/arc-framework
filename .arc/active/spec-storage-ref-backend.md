@@ -568,11 +568,11 @@ export interface RefHome {
 | `project-registry/identity`                                     | `identity.json`                                                                                |
 | `project-registry/counter`                                      | `counters/<key>.json`                                                                          |
 | `lineage/transition`                                            | `lineage/<uid>.json`                                                                           |
-| `personal/inbox`                                                | `<person>/USER-INBOX.md`                                                                       |
-| `personal/working-memory`                                       | `<person>/WORKING-MEMORY.md`                                                                   |
-| `personal/document`                                             | `<person>/<key>`                                                                               |
-| `personal/errand-queue`                                         | `<person>/errand-queue-<person>.md`                                                            |
-| `personal/session-context`                                      | `<person>/<key>/SESSION-NOTES.md`                                                              |
+| `personal/inbox`                                                | `<person>/USER-INBOX.md.<person>`                                                              |
+| `personal/working-memory`                                       | `<person>/WORKING-MEMORY.md.<person>`                                                          |
+| `personal/document`                                             | `<person>/<key>.<person>`                                                                      |
+| `personal/errand-queue`                                         | `<person>/errand-queue-<person>.md.<person>`                                                   |
+| `personal/session-context`                                      | `<person>/<key>/SESSION-NOTES.md.<person>`                                                     |
 | `claims/groom`, `claims/housekeep`                              | `groom-<key>-<person>.json`, `housekeep-<key>-<person>.json`                                   |
 | every `*/conflict-record` of a family with a ref                | `conflicts/<key>.json` under the family's root                                                 |
 | `project-inbox/routing-receipt`                                 | `receipts/<key>.json`                                                                          |
@@ -627,10 +627,14 @@ export interface RefHome {
   metadata file: a work unit's `<sequence>_<slug>/`, as `completed/` names it today; a closed Errand's
   `<slug>-<suffix>/`, unnumbered and named for its branch, the suffix its UID's first eight hex characters (D2, D10);
   and a closed cohort's `<sequence><a|b>_cohort-<slug>/` (§ 7.6).
-- **Personal files share names across people.** Git's default delta search sorts by a path's last sixteen characters,
-  so `andrew/WORKING-MEMORY.md` hashes as every person's does. Each clone fetches only its own personal ref and a fetch
-  packs only what it sends, so the cost lands only in the host's pack; § 14.9 measures it, and renaming stored paths
-  is a forward change if it bites.
+- **Personal content basenames end in the identity (A24).** The five personal content kinds in the table append
+  `.<person>` to their stored filename, including the arbitrary document key's final segment and the interim session
+  context. Thus `andrew/WORKING-MEMORY.md.andrew` stores the working-memory record; its projected filename remains
+  `.arc/user/andrew/WORKING-MEMORY.md`. Logical keys, projection addresses, refs, metadata, manifests, conflict records,
+  and routing receipts retain their forms. The queue uses the same suffix rule even though its basename already
+  contains the identity. Fixed-role aliases and file/folder collisions are still refused in the logical personal
+  namespace, so changing the physical spelling creates no new logical key. No old-name reader, alias, or development
+  data migration is added; regenerate development stores. The local pack trial in § 14.9 motivates this forward change.
 
 #### 3.3 The metadata file
 
@@ -4288,6 +4292,11 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     births, retry recomputation, lifecycle/sync/import policy, corruption refusal and repaired continuation, and
     production cut-map admission under both layouts (A23).
 
+31. **Personal storage spelling stays separate from logical addresses.** In both layouts, all five personal content
+    kinds use the identity suffix from § 3.2, including nested Unicode document keys. Public read, list, history,
+    changes, pull/push, and import retain logical keys and exact content; role aliases and logical file/folder
+    collisions refuse atomically and a corrected key succeeds. Projection addresses remain unchanged (A24).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4396,5 +4405,8 @@ open:
 
 - **A23** — 2026-10-20 — spec-depth: native candidate births and retained batch receipts. _Supersedes:_ none.
   _Trigger:_ 4.R.c door. _Work:_ 4.R2. _Revalidated:_ 4.R2.d.
+
+- **A24** — 2026-10-20 — design: suffix stored personal content filenames with their identity.
+  _Supersedes:_ § 3.2 personal paths. _Trigger:_ 18.5 door. _Work:_ 18.R. _Revalidated:_ pending → 18.R.
 
 ---

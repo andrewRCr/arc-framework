@@ -249,6 +249,8 @@ default layout.
 
 ### `[x]` **3.2 Stored paths — § 3.2**
 
+- _Amended in:_ 18.R (A24)
+
 - _Goal:_ Every record maps to exactly one ref and one stored path, through one expansion every caller shares.
 
 - _Outcome:_ `expandStoredPath` shares registry-based ref, record, family-root, metadata, and manifest expansion.
@@ -256,6 +258,8 @@ default layout.
   their quarter folders, while history retains the live layout. Expanded instances remain unique across refs.
 
 ### `[x]` **3.3 The read path — § 3.1, § 3.2, § 3.3, § 3.4, § 3.7, § 11.6, § 13.1**
+
+- _Amended in:_ 18.R (A24)
 
 - _Goal:_ `read` and `list` decode records, with their metadata, versions, and open conflicts, in a fixed number of
   one-shot Git processes; every tree entry maps back to one record, its ref's metadata file, its manifest, or a
@@ -1864,6 +1868,22 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
 
     - Recorded in `notes-storage-ref-backend.md`
 
+### `[ ]` **18.R Identity-suffixed personal storage — § 3.2 (A24)**
+
+- _Goal:_ All five personal content kinds use identity-suffixed stored basenames while retaining logical keys,
+  projection addresses, role-alias refusals, logical file/folder collision refusals, and public operation behavior.
+
+    - `[ ]` **18.R.a Canonical mapping and namespace admission**
+        - Update the registry's five personal content templates and their exact path expectations. Normalize the
+          physical suffix only for logical collision comparison; keep metadata and reserved directories protected.
+        - Build test-first: exact mapping, nested Unicode keys, unchanged logical/projected addresses, and aliases and
+          file/folder collisions refusing before I/O in either batch order.
+
+    - `[ ]` **18.R.b Native behavior and import closure**
+        - In both layouts, prove exact stored names and content with public read/list/history/changes and sync, plus
+          refused alias/collision rollback and a repaired successful write. Run both full native conformance suites
+          and the personal import comparisons; retain original logical keys and content without old-name support.
+
 ### `[ ]` **18.7 Hosts, platforms, and cost** — validate exit criterion at segment scope
 
 - _Goal:_ The bursts and the Windows budget pass on their dispatched runs, CI cost holds, and the host kit, pack cost,
@@ -1988,3 +2008,7 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
   backend allocation evidence binds exact primary creations; bounded history/changes preserve whole envelopes and
   reject visible corruption before grouping/omission, with repaired continuation and the stated lifecycle/sync/import
   policy; production admission closes A22 and A23 before the moving-remote segment verifier
+
+- `[ ]` All five personal content kinds retain logical keys, projection addresses, and public operation/import behavior
+  under identity-suffixed stored basenames; aliases and logical file/folder collisions refuse atomically, and corrected
+  keys succeed in both layouts without old-name compatibility (A24)
