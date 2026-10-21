@@ -1761,3 +1761,41 @@ Windows limits remain required and Task 18.2.a.2 stays open.
 Fail-first output, final regression output, timings, and raw native profiles are retained in `task-18.2-final-metadata/`
 in the machine-local storage-ref-backend tools directory. The next hosted run must bind to the committed source and
 retain its diagnostic identity; it cannot stand in for a complete final portability run or the segment verifier.
+
+Hosted timing diagnostic `39658301162` binds to `3d177714ff206582d9256cd6b198656f8ca8d3b4`, with
+`run_portability_pair: true` and `portability_timing_only: true`. Both platform timing artifacts retain eleven samples
+over the unchanged 600-item, twelve-quarter fixture. Windows medians were 57.401/132.598/238.143/102.334/963.800 ms
+for version/read/list/lookup/write in the default layout, and 41.295/112.787/225.982/83.934/979.272 ms in the separate
+layout. Every read operation passes its fixed budget; both writes remain above 600 ms. The Windows diagnostic job
+failed on that budget, while the macOS diagnostic job passed. This does not close Task 18.2.a.2 or full portability.
+
+The hosted Windows profiles confirm 19/default and 21/separate processes. Five separate `cat-file` processes and
+three separate recursive tree-enumeration batches remain in each write; the existing immutable tree cache already
+reuses repeated tips, and none of those enumeration calls uses a path selection. A partial-tree cache would therefore
+not remove these measured calls. The profile clocks, including tracing, were 1,206.967/default and
+1,217.996/separate ms; these are distinct from the untraced medians above. Acquisition scheduling and operation-scoped
+reader reuse remain candidates for further optimization, with no change to the numeric target recorded here.
+
+macOS medians were 14.989/48.631/133.651/25.168/211.329 ms in the default layout and
+7.800/43.120/143.309/29.345/190.451 ms in the separate layout. Raw platform artifacts are retained under
+`task-18.2-final-metadata/hosted/`; the wider Linux jobs from this dispatch are separate feedback, not evidence that
+the Windows write budget passed.
+
+### A26 — bounded readers during writes
+
+The superseded § 11.7 premise stated: "A `write` over its budget batches its object writes instead, since its time
+goes to creating objects and updating refs, which no reader shortens". Hosted trace `39658301162` instead records
+five independent `cat-file --batch` launches in each write after final metadata batching. The fixed 600 ms write
+budget remains required. Reusing the existing reader addresses this measured acquisition cost; further batching may
+still be needed, and no local result substitutes for dispatched Windows acceptance.
+
+`createRefReadCoordinator` already owns per-call readers and a maintenance barrier; `GitBatchReadScope.run` binds
+each process to its exact repository, environment, arguments, and output bound, serializes exchanges, and evicts a
+failed reader. `GitBatchReadScope.close` awaits process termination. `createRefBackend` currently routes read/list/
+lookup through this coordinator while passing unscoped context to write/batch. The amendment extends that existing
+composition to the two mutation entry points. It adds no cross-call cache or new reader implementation.
+
+The bounded author grounding and specification checks cover § 11.7, the existing cancellation and maintenance
+obligations, the two mutation entry points, and the new revision tasks and criterion. Expected-old publication,
+layout locking, native-confirmed staged blobs, and fresh namespace/observation validation remain required. The
+amendment composes existing behavior at low derivation depth; independent review is omitted at that posture.

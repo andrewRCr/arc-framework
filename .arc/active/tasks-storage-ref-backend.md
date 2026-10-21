@@ -1907,6 +1907,20 @@ in `notes-storage-ref-backend.md` (A25).
           reopen behavior; the unchanged 600-item profile uses 19/default and 21/separate commands. Hosted timing
           acceptance remains with 18.2.a.2; details are in `notes-storage-ref-backend.md` § Final metadata batching.
 
+### `[ ]` **18.2.R Operation-scoped acquisition during writes**
+
+- _Goal:_ Native `write` and `batch` reuse the existing bounded object reader within one public call, close it on
+  every exit and before maintenance, and preserve fresh publication checks and later-call corruption detection (A26).
+
+    - `[ ]` **18.2.R.a Bind mutation calls to the existing reader coordinator**
+        - Route both public mutations through the operation coordinator, retaining exact invocation bindings,
+          cancellation, output bounds, and layout-specific repository selection without extending evidence lifetime.
+
+    - `[ ]` **18.2.R.b Prove resource ownership and successful continuation**
+        - Native regressions cover both layouts and mutation entry points, one reader across multiple acquisitions,
+          deterministic close before return/maintenance, missing-object refusal and repaired retry in a fresh call,
+          and publication/admission races. Retain the fixed Windows budgets and the final dispatched evidence task.
+
 ### `[~]` **18.3 CI cost — § 14.12**
 
 - _Goal:_ Running both backends until the cutover costs CI no more than the bound: each layout's ref conformance run
@@ -2154,3 +2168,8 @@ in `notes-storage-ref-backend.md` (A25).
   hosted dispatch; all required native cases remain, affected tier/job rows retain before baselines and receive final
   measurements and deltas, and Linux portability marginal cost is recorded. Raw execution excludes admission waits,
   job clocks are labeled, and Windows budgets remain required (§ 14.12; supersedes the legacy-ratio criterion) (A25)
+
+- `[ ]` Native `write` and `batch` in both layouts reuse only operation-owned, exactly bound object readers; all
+  success/refusal/error exits release them before return or maintenance, subsequent calls detect physical corruption
+  and succeed after repair, and fresh namespace/observation admission remains atomic with unchanged Windows budgets
+  (§ 11.7) (A26)

@@ -3207,12 +3207,16 @@ portability run (§ 14.10). They bound this backend on that runner, which CI can
 
 A read over its budget gets a long-lived reader before this change lands: a `cat-file --batch` process the executor
 keeps open for the operation's reads, with abort on cancellation and closed before maintenance, since Windows cannot
-delete an open pack. A `write` over its budget batches its object writes instead, since its time goes to creating
-objects and updating refs, which no reader shortens: its blobs through one `hash-object -w --no-filters --stdin-paths`
-over files it writes to a temporary directory — `--no-filters`, since a path given to `hash-object` takes the
-repository's line-ending and attribute filters, as a blob from standard input does not: probed on Git 2.55 under
-`core.autocrlf=true`, CRLF content stored other bytes than were written — and its trees through one `mktree --batch`, so
-its process count stops growing with the records it writes.
+delete an open pack. A `write` or `batch` may use the same operation-scoped reader for its object acquisitions (A26). It
+belongs to that public call, reuses only exactly bound repository/environment/argument/output-limit invocations, and
+closes on success, refusal, cancellation, or failure before the call returns. Explicit or fetch-triggered maintenance
+drains these readers too. No reader or immutable evidence survives into a later public call; expected versions, fresh
+namespace captures, publication locking, native-confirmed object evidence, and atomic observation checks retain their
+existing authority. A `write` over its budget also batches its object writes: its blobs through one `hash-object -w
+--no-filters --stdin-paths` over files it writes to a temporary directory — `--no-filters`, since a path given to
+`hash-object` takes the repository's line-ending and attribute filters, as a blob from standard input does not: probed
+on Git 2.55 under `core.autocrlf=true`, CRLF content stored other bytes than were written — and its trees through one
+`mktree --batch`, so its process count stops growing with the records it writes.
 
 #### 11.8 Cancellation on every variant
 
@@ -4424,5 +4428,8 @@ open:
 
 - **A25** — 2026-10-21 — design: measure complete CI cost without the interim legacy ratio. _Supersedes:_ § 14.12, SC 11.
   _Trigger:_ 18.3 must-stop. _Work:_ 18.3.R. _Revalidated:_ pending → 18.7.
+
+- **A26** — 2026-10-21 — design: reuse an operation-scoped reader during native writes without relaxing budgets.
+  _Supersedes:_ § 11.7 write-reader exclusion. _Trigger:_ 18.2.a.2 must-stop. _Work:_ 18.2.R. _Revalidated:_ pending → 18.7.
 
 ---
