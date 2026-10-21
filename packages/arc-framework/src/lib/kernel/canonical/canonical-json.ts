@@ -39,7 +39,7 @@ type CanonicalJson =
  * `localeCompare` (locale/ICU-sensitive) and not the default `<`/`>` operators
  * (UTF-16 code-unit order, which mis-sorts astral-plane codepoints).
  */
-function compareByCanonicalBytes(left: string, right: string): number {
+export function compareByCanonicalBytes(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
 }
 

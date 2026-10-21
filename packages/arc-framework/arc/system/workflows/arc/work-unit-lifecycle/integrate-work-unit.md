@@ -266,8 +266,9 @@ explicit acceptance, render `selectionAction.interactionText`.
 
 **Method fire-point** · [`assess-evidence-applicability`][assess-evidence-applicability]: At this pre-reconcile
 `resolve-review-applicability` stop, apply the method to each supplied review projection whose applicability carries
-`judgmentRequired: true`. Show the bounded check's findings and `supplemental | fresh` recommendation before the
-Owner's choice. A `judgmentRequired: false` result is final; `merge-safety` never fires the method.
+`judgmentRequired: true`. Show its `supplemental | fresh` recommendation, with whether to run the movement check
+first, before the Owner's choice, and the check's findings when the Owner chooses it. A `judgmentRequired: false`
+result is final; `merge-safety` never fires the method.
 
 Obtain the Owner's typed choice and submit the returned `selectionAction` unchanged as `offer` beside that
 `selection` to:
@@ -509,8 +510,8 @@ fires the method.
 
 After an explicit `covered`, `targeted-check`, or `changed` choice, compose the strict input from
 `payload.resolutionSelector`, the selecting actor, and that choice. For `targeted-check`, add the completed check's
-evidence reference; the review movement check above runs once. Other evidence kinds retain their ordinary bounded
-verification. Then invoke `arc candidate applicability resolve {name} -` with that input.
+evidence reference; the review movement check runs at most once for a movement. Other evidence kinds retain their
+ordinary bounded verification. Then invoke `arc candidate applicability resolve {name} -` with that input.
 For `covered` or `targeted-check`, `resolved / commit-selection` and `exact-replay / commit-selection` leave the
 Candidate selection staged. Request `arc check gate commit` over that correction, then commit:
 

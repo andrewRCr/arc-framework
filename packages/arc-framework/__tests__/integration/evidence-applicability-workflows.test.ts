@@ -60,6 +60,20 @@ describe("evidence applicability workflow fire-points", () => {
     expect(method).not.toMatch(softWrappedProse("Receive the exact normalized `delta`, evidence kind, and typed result/action"));
   });
 
+  it("runs the bounded movement check only on the Owner's choice", async () => {
+    const method = await readPair("system/methods/assess-evidence-applicability.md");
+    const integrate = await readPair(workflows.integrate);
+
+    expect(method).toMatch(softWrappedProse("Whether it runs is the Owner's choice"));
+    expect(method).toMatch(softWrappedProse("Run the check only when the Owner chooses it"));
+    expect(method).not.toMatch(softWrappedProse("have a fresh-context local evaluator check the movement"));
+    expect(method).toMatch(softWrappedProse("other evidence already reads each residual change"));
+    expect(method).toMatch(softWrappedProse("the residual holds code no review or check has read"));
+    expect(method).not.toMatch(softWrappedProse("nothing in the residual could contradict a premise"));
+    expect(integrate).toMatch(softWrappedProse("whether to run the movement check first"));
+    expect(integrate).not.toMatch(softWrappedProse("Show the bounded check's findings and"));
+  });
+
   it.each(Object.entries(workflows))("declares bounded residual judgment in %s", async (_name, path) => {
     const workflow = await readPair(path);
     const frontmatter = parseWorkflowFrontmatter(workflow);

@@ -500,6 +500,7 @@ checks:
       - tsx
       - scripts/run-local-e2e.mjs
     mode: files
+    select_deletions: true
     cache: false
     inputs:
       - packages/arc-framework/__tests__/e2e/**

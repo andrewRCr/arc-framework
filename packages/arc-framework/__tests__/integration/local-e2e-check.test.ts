@@ -61,6 +61,19 @@ it("runs the complete E2E suite when a supplied path is a support file", async (
   }
 }, 30_000);
 
+it("runs the complete E2E suite when a deletion alone selected the check, which then supplies no path", async () => {
+  const fixture = await e2eCheckout();
+  try {
+    await unlink(join(fixture.packageRoot, "__tests__/e2e/third.test.mjs"));
+    const result = await runCheck(fixture.root, fixture.base, []);
+    expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+    expect(result.stdout).toContain("SECOND-E2E-RAN");
+    expect(result.stdout).toContain("2 passed");
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+}, 30_000);
+
 it("runs the complete E2E suite when a support file was deleted, though the check supplies only a test", async () => {
   const fixture = await e2eCheckout();
   try {

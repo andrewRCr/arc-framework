@@ -19,13 +19,14 @@ describe("selection declarations", () => {
     const check = { command: ["lint"], mode: "selection", runtime_inputs: [["node", "--version"]] };
     expect(CheckDeclarationSchema.parse({ checks: { lint: check } }).checks.lint).toMatchObject({
       ...check, cache: false, widen: false, pass_paths: true, shell: false, fixes: false,
-      ci_only: false, reads_index: false,
+      ci_only: false, reads_index: false, select_deletions: false,
     });
   });
   it.each([
     ["cache", true], ["widen", true], ["pass_paths", false], ["gate", "commit"],
     ["shell", false], ["shell", true], ["ci_only", false], ["ci_only", true],
     ["reads_index", false], ["reads_index", true], ["fixes", false], ["fixes", true],
+    ["select_deletions", false], ["select_deletions", true],
   ])("refuses declared %s=%j with an actionable field message", (field, value) => {
     const result = CheckDeclarationSchema.safeParse({ checks: { lint: {
       command: ["lint"], mode: "selection", [field]: value,
@@ -66,7 +67,8 @@ describe("check declaration fields", () => {
     expect(CheckDeclarationSchema.parse({ checks: { test: { command: ["npm", "test"] } } })).toEqual({
       global_inputs: [], global_runtime_inputs: [], commit_fixes: "restage",
       checks: { test: { command: ["npm", "test"], mode: "project", pass_paths: true, inputs: ["**"], runtime_inputs: [],
-        root: ".", widen: true, cache: true, shell: false, fixes: false, ci_only: false, reads_index: false } },
+        root: ".", widen: true, cache: true, shell: false, fixes: false, ci_only: false, reads_index: false,
+        select_deletions: false } },
     });
   });
   it.each(["commit", "push", "merge"])("accepts the %s gate and fail-on-fixes policy", (gate) => {
@@ -116,6 +118,8 @@ describe("cross-field check rules", () => {
     { check: { command: ["npm", "test"], shards: { count: 4, argument: "--shard={count}" } }, field: "shards.argument" },
     { check: { command: ["npm", "test"], gate: "push", no_evidence_exit: 5 }, field: "no_evidence_exit" },
     { check: { command: ["npm", "test"], pass_paths: false }, field: "pass_paths" },
+    { check: { command: ["npm", "test"], select_deletions: true }, field: "select_deletions" },
+    { check: { command: ["npm", "test"], mode: "files", pass_paths: false, select_deletions: true }, field: "select_deletions" },
   ])("refuses an incompatible $field", ({ check, field }) => {
     const result = CheckDeclarationSchema.safeParse({ checks: { test: check } });
     expect(result.success).toBe(false);
@@ -125,6 +129,10 @@ describe("cross-field check rules", () => {
   it("accepts a files check that withholds its paths from the command", () => {
     const check = { command: ["npm", "test"], mode: "files", pass_paths: false, inputs: ["docs/**/*.md"] };
     expect(CheckDeclarationSchema.parse({ checks: { test: check } })).toMatchObject({ checks: { test: check } });
+  });
+  it("accepts a files check that passes its paths and selects deletions", () => {
+    const check = { command: ["npm", "test"], mode: "files", select_deletions: true, inputs: ["tests/**"] };
+    expect(CheckDeclarationSchema.parse({ checks: { test: check } })).toMatchObject({ checks: { test: { ...check, pass_paths: true } } });
   });
   it("accepts a project shell command with indexed shards", () => {
     const check = { command: "echo ready", shell: true, shards: { count: 4, argument: "--shard={index}/{count}" } };

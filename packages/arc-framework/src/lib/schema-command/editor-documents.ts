@@ -7,7 +7,7 @@ import type { WorktreeMarkerIgnoreFs } from "../git/worktree-marker.js";
 import { SlugSchema, type KernelRegistry } from "../kernel/index.js";
 import { foldKernelSchemaClosure, projectKernelSchemas } from "../kernel/schema/generate.js";
 import { resolveArcPath } from "../layout/index.js";
-import { createProductionSchemaRegistry } from "../../production-schema-registry.js";
+import { createEditorDocumentSchemaRegistry } from "../../production-schema-registry.js";
 
 export interface EditorDocumentsFs extends WorktreeMarkerIgnoreFs {
   rm(path: string, options: { recursive: boolean; force: boolean }): Promise<void>;
@@ -35,12 +35,12 @@ function detail(error: unknown): string { return error instanceof Error ? error.
  * @param root - Checkout being provisioned.
  * @param exec - Caller-owned Git executor.
  * @param fs - Injectable filesystem operations.
- * @param registry - Optional registry, defaulting to the production contracts.
+ * @param registry - Optional registry, defaulting to the production editor-document families.
  * @returns Written checkout-relative paths, or a typed write failure.
  * @throws Projection defects, which are independent of filesystem failure.
  */
 export async function writeEditorDocuments(
-  root: string, exec: GitExec, fs: EditorDocumentsFs, registry: KernelRegistry = createProductionSchemaRegistry(),
+  root: string, exec: GitExec, fs: EditorDocumentsFs, registry: KernelRegistry = createEditorDocumentSchemaRegistry(),
 ): Promise<EditorDocumentsResult> {
   const directory = resolveArcPath({ kind: "editor-document-root" });
   const exclusion = await ensureGitExcludePattern(root, `${directory}/`, exec, fs);
@@ -98,7 +98,7 @@ export type EditorDocumentReferenceResult =
  * @returns Reference text, or the reason this identity or file has no editor reference.
  */
 export function editorDocumentReference(
-  id: string, referencingPath: string, registry: KernelRegistry = createProductionSchemaRegistry(),
+  id: string, referencingPath: string, registry: KernelRegistry = createEditorDocumentSchemaRegistry(),
 ): EditorDocumentReferenceResult {
   if (registry.meta(id)?.authored !== "editor-document") return { status: "not-an-editor-document" };
   const extension = posix.extname(referencingPath);
