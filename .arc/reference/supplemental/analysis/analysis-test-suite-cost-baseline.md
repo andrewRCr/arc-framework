@@ -163,10 +163,12 @@ later slowdown; the figures in them are that day's observations.
 
 ### Compare like with like
 
-- **Worker sizing differs by entry point.** Gate commands — `npm run test:unit`, `test:integration`, `arc check` —
-  size workers through `vitest-worker-policy.ts`: half the available parallelism, at most eight. That is eight on this
-  host and five on the `arc-gates` VM. `benchmark:test-cost --workers <n>` fixes the count instead. Compare a capture
-  only with one at the same sizing; efficiency computed against the wrong count reads a work-bound tier as idle.
+- **Worker sizing differs by entry point.** Outside CI, gate commands — `npm run test:unit`, `test:integration`,
+  `arc check` — size workers through `vitest-worker-policy.ts`: half the available parallelism, at most eight. That is
+  eight on this host and five on the `arc-gates` VM, since `remote-check` sets no `CI` variable. Under CI, Vitest
+  sizes workers natively. `VITEST_MAX_WORKERS` overrides either, and `benchmark:test-cost --workers <n>` fixes the
+  count for a capture. Compare a capture only with one at the same sizing; efficiency computed against the wrong count
+  reads a work-bound tier as idle.
 - **The benchmark takes about twice its retained wall clock.** Each invocation completes a discarded warm-up first.
 - **One flake discards the capture.** Only fully passed runs are retained, so an intermittent failure costs the whole
   run; rerun it rather than reading partial output.
@@ -180,20 +182,26 @@ Two readings over a pair of retained per-file captures settle it:
 - **Parallel efficiency** — summed file time over workers times wall clock. Near 1 means the tier is work-bound:
   ordering, placement, and splitting have nothing to take, and only less work or more capacity moves it. A single
   file gates the tier only when its own duration approaches the tier's wall clock.
-- **Unchanged files** — restrict the comparison to files whose test count, and for E2E whose CLI spawn count, matches
-  in both captures. A median ratio near 1, with new files carrying the added time, is growth. Unchanged files slowing
-  together is a per-operation regression.
+- **Unchanged files** — restrict the comparison to test files present at both refs that
+  `git diff --name-only <old> <new> -- packages/arc-framework/__tests__` does not list, so both captures ran the same
+  test file; the same diff shows whether shared helpers changed. When one ref is unavailable, matching test counts, and
+  for E2E matching CLI spawn counts, are a weaker stand-in, since a file can change and keep its counts.
 
-On 2026-10-20 the integration tier was growth: efficiency 0.97 then 0.98 at 12 workers, a median ratio of 1.13 and a
-4% summed change over 233 unchanged files, and 1,245 s carried by 136 new files. Unchanged E2E files ran 1.2–2.8×
-slower, the regression signature.
+Then read where the added time sits. Time on new files is growth. A rise across unchanged files beyond the noise band
+is a per-operation cost, and its share of the added time bounds what fixing it can recover. A tier can show both.
+
+On 2026-10-20 the integration tier was mostly growth: efficiency 0.97 then 0.98 at 12 workers, and 1,245 s carried by
+136 new files. Against the per-file medians of the three closing runs, its 165 Git-unchanged files also rose 9% in
+summed time (875 s to 956 s, median ratio 1.15), a smaller per-file rise. The 31 Git-unchanged E2E files rose 44%
+(513 s to 738 s, median ratio 1.31), the regression signature.
 
 ### Narrow a per-operation regression
 
 Run each step at both refs, interleaved, on an idle host:
 
-1. **One unchanged file alone**, through `npm run test:file`. This removes contention: a solo difference is work the
-   commands do, and any in-suite difference beyond it is load.
+1. **One Git-unchanged file alone**, through `npm run test:file`. A difference that persists solo is in the work the
+   commands do. A larger in-suite difference points to contention, though a solo run also changes worker count and
+   cache state, so it is evidence rather than proof.
 2. **Git calls**, through a `git` shim first on `PATH` that logs each call's duration and arguments. Tests resolve Git
    from `PATH`, so the shim sees fixture and CLI calls alike.
 3. **CLI processes from inside.** Tests spawn the CLI through `process.execPath`, so a `node` shim on `PATH` sees none
@@ -223,9 +231,12 @@ start measured 143 ms for `--version` and about 400 ms for `status --json`.
 
 ### CI data
 
-- **Per-file durations** — every pull-request run uploads a `test-duration-input` artifact holding per-file
-  durations for unit, integration, and E2E in Vitest's results format, the sequencer's input. Retrieve it with
-  `gh run download <run> -n test-duration-input`.
+- **Per-file durations** — the shared setup job restores the duration cache and uploads it as the
+  `test-duration-input` artifact: per-file durations for unit, integration, and E2E in Vitest's results format, the
+  sequencer's input. Only scheduled and dispatched runs save that cache, so the artifact holds the last such run's
+  durations rather than the uploading run's own, and a run whose classification or setup fails uploads none. Scheduled
+  and dispatched runs also upload their own `duration-results-<tier>-<shard>` artifacts. Retrieve either with
+  `gh run download <run> -n <artifact>`.
 - **Job timings** — `gh run view <run> --json jobs` gives each job's start and end. Pushes to `main` skip the heavy
   tiers, so read pull-request runs.
 - **Span** — a run spends about 90 s on classification, shared setup, and build before its test shards start, then
