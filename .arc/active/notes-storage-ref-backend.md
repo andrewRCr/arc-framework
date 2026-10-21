@@ -1516,3 +1516,80 @@ build, and lint/type checks passed. This was a diagnostic run, not complete Wind
 `119072759043` reports Windows’s `default read` assertion and agrees with the Windows artifact.
 `ci.yml::portability-cross-platform` now appends the OS to each job name, and full dispatched pairs retain the same
 post-measurement write profiles. No native workload, operation budget, or acceptance condition changes.
+
+## Post-correction tier and hosted measurements
+
+The corrective source and test tree is `c39ed377807ab78bcc8f3d6c037485ebbf16742d`; dispatch `39557918142` tests that
+exact head. These measurements supersede the advisory cost rows at `0908ff6d` while preserving its earlier observations.
+They do not amend the fixed Windows operation budgets or close host validation.
+
+The local host remains WSL2 Linux 5.15.167.4, x86_64, Node 26.3.0, and Git 2.55.0, as in the before capture. It repeats
+the same sequential, twelve-worker, tier-isolated procedure: one discarded warm-up and one retained pass per tier, with
+single-run normalization. The controller records and subtracts CPU admission waits. Wall-clock values below remain
+distinct from summed per-file work and total command latency. No additional local test or performance probe ran in this
+checkout during the capture.
+
+| Local tier  | Wall clock (ms) | Registered files | Completed cases | Delta from 1.1     | Delta from 0908 | Updated budget (ms) |
+| ----------- | --------------- | ---------------- | --------------- | ------------------ | --------------- | ------------------- |
+| unit        | 28,725          | 1,307            | 18,962          | +8,665 (+43.2%)    | -157 (-0.5%)    | 38,779              |
+| integration | 697,900         | 586              | 8,072           | +490,588 (+236.6%) | -48,918 (-6.6%) | 942,165             |
+| lane        | 723,230         | 1,893            | 27,034          | +495,101 (+217.0%) | -45,131 (-5.9%) | 976,361             |
+| e2e         | 320,410         | 126              | 1,223           | unavailable        | -1,856 (-0.6%)  | 432,554             |
+
+Task 1.1 retained no fresh local E2E baseline; that missing before-WU delta remains unavailable. Changes in suite
+population and merged base code prevent attributing every additional millisecond to the ref backend.
+
+Hosted values are the emitted `actualMs` from each job’s budget clock through its report step, excluding queue latency.
+They are neither enclosing GitHub job durations nor file execution times. All ten functional jobs passed. The original
+before sources remain main run `38857807800` for unit and reviewed-PR run `38856961515` for integration/E2E, with their
+tested provenance recorded above.
+
+The hosted functional population is 18,962 unit cases, 8,071 integration cases, and 1,223 E2E cases. Local integration
+completes one additional renderer case because the real Glow command is available there; the existing `glowAvailable`
+condition skips it on the hosted runner. File-level counts confirm this is the only completed-case difference between
+the local and hosted integration selections.
+
+| CI job        | Job clock (ms) | Delta from 1.1     | Delta from 0908   | Updated budget (ms) |
+| ------------- | -------------- | ------------------ | ----------------- | ------------------- |
+| unit-1        | 101,459        | +56,930 (+127.8%)  | +9,807 (+10.7%)   | 136,970             |
+| unit-2        | 83,797         | +27,771 (+49.6%)   | -8,931 (-9.6%)    | 113,126             |
+| integration-1 | 809,075        | +466,548 (+136.2%) | +140,604 (+21.0%) | 1,092,252           |
+| integration-2 | 770,523        | +529,104 (+219.2%) | -203,435 (-20.9%) | 1,040,207           |
+| integration-3 | 832,653        | +577,481 (+226.3%) | -16,843 (-2.0%)   | 1,124,082           |
+| integration-4 | 681,069        | +399,854 (+142.2%) | +156,744 (+29.9%) | 919,444             |
+| e2e-1         | 298,747        | -1,038 (-0.3%)     | +28,739 (+10.6%)  | 403,309             |
+| e2e-2         | 385,245        | +40,547 (+11.8%)   | +72,819 (+23.3%)  | 520,081             |
+| e2e-3         | 422,079        | +89,258 (+26.8%)   | +141,064 (+50.2%) | 569,807             |
+| e2e-4         | 477,436        | +249,995 (+109.9%) | -6,646 (-1.4%)    | 644,539             |
+
+The E2E third shard exceeded its prior advisory row by 42,708 ms; all other hosted rows were within their prior
+allowance. The source result remains an overrun. Every updated baseline uses its completed measurement and retains the
+existing 35% allowance, rounded upward; this scheduled remeasurement does not change an operation target.
+
+### Complete conformance and Linux portability work
+
+| Conformance file                         | Integration shard | File time (ms) | Completed cases | Registered skips |
+| ---------------------------------------- | ----------------- | -------------- | --------------- | ---------------- |
+| `store-in-repo-conformance.test.ts`      | 2                 | 106,279.673    | 310             | 736              |
+| `store-ref-conformance.test.ts`          | 1                 | 776,568.083    | 1,069           | 59               |
+| `store-ref-separate-conformance.test.ts` | 2                 | 744,252.669    | 1,069           | 59               |
+
+Each native layout retains 1,069 active cases and 59 registered skips; the in-repo suite completes 310 with 736
+registered skips. The previously recorded 278 shared, 790 native-only, and 31 in-repo-only active assertion IDs remain
+distinct workloads. A25 requires complete reporting without an interim ratio or a hosted matched-cohort mechanism. These
+concurrent shard figures are observations, not an isolated speed comparison.
+
+| Linux separate-layout file               | File time (ms) |
+| ---------------------------------------- | -------------- |
+| `store-ref-directory.test.ts`            | 2,123.177      |
+| `store-ref-separate-conformance.test.ts` | 488,771.789    |
+
+The two separate-layout files account for 490,894.967 ms of summed file work. This is not a counterfactual additive
+job-wall cost. The complete per-file native inventory is retained with the artifacts, including acquisition, reader,
+write-batching, and publication-continuation coverage. Dispatch-only burst and timing selection remains separate from
+ordinary per-change portability selection.
+
+Raw schema-5 captures, normalized reports, complete invocation logs, derived tables, and the source-bound budget
+candidate are retained under `task-18.2-post-corrections/` in the machine-local storage-ref-backend tools directory.
+Hosted artifacts and exact job-ID logs are retained alongside them. Earlier diagnostic and platform failures remain in
+their original evidence directories and are not replaced by these measurements.

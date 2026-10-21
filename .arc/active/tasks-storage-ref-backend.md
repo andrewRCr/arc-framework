@@ -1876,10 +1876,11 @@ in `notes-storage-ref-backend.md` (A25).
               as diagnostic; ordinary platform runs retain the complete native suite. Post-measurement native traces
               retain a verified write in each layout without entering the median windows.
 
-    - `[ ]` **18.2.g Re-measure costs after platform corrections**
-        - Repeat the established final tier/job procedure after the corrective source and tests settle. Record the new
-          head, complete file populations, advisory rows and deltas, retaining the earlier source-bound measurements.
-        - Use the existing complete dispatch and native artifacts; add no interim legacy comparison mechanism.
+    - `[x]` **18.2.g Re-measure costs after platform corrections**
+        - Source `c39ed3778` supplies the four sequential warm/retained local tiers; dispatch `39557918142` supplies all
+          ten hosted job clocks, complete conformance populations, and Linux portability file costs. All fourteen
+          advisory rows retain the 35% allowance; both baseline deltas and prior overruns remain recorded in
+          `notes-storage-ref-backend.md`. Windows operation and host acceptance remain separate.
 
     - `[x]` **18.2.h Reuse writer capture and physical confirmations**
         - _Goal:_ Eliminate duplicate metadata/blob acquisitions and the discarded initial code-store capture without
