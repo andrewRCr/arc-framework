@@ -395,6 +395,24 @@
 - _Approach:_ likely `D4.4`'s own shape — `frontline resolve` accepts `LocalReviewRoutingInput`, as `local prepare`
   does, and derives the rest, under the same single-input sequencing.
 
+### `[ ]` **Derive a disposition approval's policy request instead of demanding hidden values**
+
+- _Routed from:_ Errand `test-cost-diagnosis-method` (PR #1087), 2026-10-21.
+- _Shapes:_ `D4.4` — the approval call of `arc review respond -` is a fourth instance.
+
+- _Observation:_ approving a disposition set takes a `policyRequest` the caller composes, and its validation
+  (`validateApprovedResponsePolicyBinding`, `runtime/respond-command.ts`) holds two values no published surface states.
+  For a local-review source, the target and scope must carry `pullRequest: null` even while the Errand's PR is open,
+  because `approvedPolicyVehicleMatches` accepts a PR number only for a hosted source or a delivery admission. And
+  `completedPasses` must equal the producer's logical pass, which after a fix check is the fix check's ordinal (3 on
+  PR #1087), not the complete-pass count. The resolve results the caller holds name the PR, the proposal call's
+  `awaiting-approval` payload returns no `policyRequest`, and the refusal ("must name the exact findings producer,
+  lane, pass, scope, and target") names neither field, so composing the approval meant reading source.
+
+- _Approach:_ likely `D4.4`'s own shape — the proposal result returns the exact approval `policyRequest`, as the
+  `ready-to-fix` result already does, or the approval call derives it from the source it is given; failing that, the
+  refusal names the mismatched field and its expected value.
+
 ---
 
 ## Reachable Request Contracts
