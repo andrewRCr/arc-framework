@@ -3,14 +3,20 @@
   "slug": "editor-document-projection-scope",
   "claimId": "4d5220f488b7f138430395fb99ba5d4f",
   "createdAt": "2026-10-21T04:12:01.599Z",
-  "updatedAt": "2026-10-21T04:12:01.599Z",
+  "updatedAt": "2026-10-21T04:35:09.345Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Project editor documents from their own schema families instead of the whole production registry",
   "branch": "chore/editor-document-projection-scope",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/editor-document-projection-scope",
+    "headSha": "1e56d786d95eaf06b6166423581baff3823a517d"
+  }
 }
