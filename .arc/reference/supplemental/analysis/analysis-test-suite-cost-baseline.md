@@ -190,9 +190,10 @@ suggest:
 - **Unchanged files** — restrict the comparison to test files present at both refs that
   `git diff --name-only <old> <new> -- packages/arc-framework/__tests__` does not list, so both captures ran the same
   test file. The reading holds only when shared helpers, global setup, the test runner, and dependency versions are
-  unchanged too, or their changes are ruled out; the same diff lists changed helpers, and `package-lock.json` shows
-  runner and dependency changes. When one ref is unavailable, matching test counts, and for E2E matching CLI spawn
-  counts, are a weaker stand-in, since a file can change and keep its counts.
+  unchanged too, or their changes are ruled out; the same diff lists changed helpers, `package-lock.json` shows
+  runner and dependency changes, and `packages/arc-framework/vitest.config.ts` shows how each tier runs. When one ref
+  is unavailable, matching test counts, and for E2E matching CLI spawn counts, are a weaker stand-in, since a file can
+  change and keep its counts.
 
 Then read where the added time sits. Time on new files is growth. A rise in the unchanged files' summed time beyond
 the noise band is a per-operation cost, and their median ratio says how broad the rise is. A per-operation cost
@@ -223,8 +224,9 @@ Run each step at both refs, interleaved, on an idle host:
    from `PATH`, so the shim sees fixture and CLI calls alike.
 3. **CLI processes from inside.** The E2E helpers spawn the CLI through `process.execPath`, while `runCli` spawns
    `node` from `PATH`, so a `node` shim on `PATH` sees only some spawns. A `NODE_OPTIONS="--require <file>"` preload
-   that appends `performance.now()` on `exit`, when `process.argv[1]` is the CLI entry, gives every verb's in-process
-   time.
+   that appends `performance.now()` on `exit`, when `process.argv[1]` is the CLI entry, gives each verb's in-process
+   time in every spawn that does not set its own `NODE_OPTIONS`. `materializing-fetch.e2e.test.ts` and
+   `one-shot-script-entrypoints.test.ts` set their own for some spawns, so the preload misses those.
 4. **One verb profiled**, with `node --cpu-prof --cpu-prof-dir=<dir> <cli> <verb>`, then self and inclusive time
    aggregated by named frame. Profile a real verb; `--version` loads no handler.
 
@@ -235,8 +237,8 @@ or its captures cannot be compared.
 
 The integration IO context (`makeIOContext` in `__tests__/helpers/integration.ts`) stubs the editor-document writer
 for commands that take it from that context — init, join, and update — so their provisioning cost shows only in
-E2E. Worktree spawn, locus provisioning, and start take the writer from their own context or options, and reach the
-real writer in integration tests that leave it unset.
+E2E. Start and cold start, worktree spawn, locus provisioning, and decompose's candidate occupation take the writer
+from their own context or dependencies, and reach the real writer in integration tests that leave it unset.
 
 ### Placement and host
 
