@@ -247,7 +247,7 @@ it("reports every broken copy rule while retaining the merged records", async ()
   const registry = createKindRegistry(PRODUCTION_REGISTRATIONS);
   const check: WriteCheck = async ({ reference, next, before, after, writer }) => {
     if (reference.key !== "source" || next?.content !== "Source edit.\n") return [];
-    expect(writer).toEqual({ kind: "verb", verb: "sync" });
+    expect(writer).toEqual({ kind: "verb", verb: "sync", lifecycleAction: "merge" });
     expect(success(await before.read({ reference: h.destinationEdit })).content).toBe("Destination edit.\n");
     expect(success(await after.read({ reference: h.sourceEdit })).content).toBe("Source edit.\n");
     expect(success(await after.read({ reference: h.destinationEdit })).content).toBe("Destination edit.\n");

@@ -17,7 +17,7 @@ describe.each(["default", "separate"] as const)("advisory pull checks in the %s 
       expect(prior?.content).toBe(local);
       expect(success(await before.read({ reference })).content).toBe(local);
       expect(success(await after.read({ reference })).content).toBe(combined);
-      expect(writer).toEqual({ kind: "verb", verb: "sync" });
+      expect(writer).toEqual({ kind: "verb", verb: "sync", lifecycleAction: "merge" });
       return ["personal.combination", "personal.balance"].map((rule) => ({ rule,
         condition: "The combined state needs a subsequent correction.", remedy: { text: "Change either side and save again." } }));
     };

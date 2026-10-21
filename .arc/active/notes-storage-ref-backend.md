@@ -692,3 +692,24 @@ A22 remains open in its log until that covering verifier, even though the observ
 closes. The amended write/check/history, lifecycle, sync, and import tasks retain their original Goals and outcomes
 with additive pointers. Existing move/follow semantics remain; receipt retention joins their regression coverage.
 Phase 18 retains its platform, host, and cost obligations. The physical query bounds prevent an unplanned global cost.
+
+## A22 and A23 native closure — Task 4.R2.d
+
+The landed shared contract is now implemented and verified in both native layouts. Proposed births come from fresh
+native allocations intersected with actual proposed primary creations. Every physical accepted operation retains the
+whole receipt; bounded queries validate acquired messages before omission and preserve complete envelopes. Imports
+retain unavailable facts, copies preserve original facts, and newly authored sync, withdrawal, and migration operations
+carry complete-none. Operational corruption and acquisition refusals retain authentic repair routes.
+
+The production cut-map registration passes 22 real-Git scenarios: read-only edits and conflict-only changes during
+retirement/extraction, existing and new incoming dependents, a provider becoming resolvable, source and removal-group
+additions, stale discard, unrelated owner creation, and missing-object refusal followed by successful authentic repair.
+All 22 fail under targeted, export-preserving reconstructions and pass after exact restoration. Whole-group competitors
+run before the first group/history lock; read-only and new-owner competitors run at the final layout boundary.
+
+Full conformance in both layouts and the affected write/check/history/changes, lifecycle, sync/layout, and move suites
+completed 2,515 cases across 36 files, with 118 declared skips. The broad run passed 2,512 and found three old exact
+sync-writer assertions lacking the landed merge action; their focused corrected retries passed. Its total elapsed time
+was 980.71 seconds. The decomposition unit regression passed all 710 cases in 90 files. Evidence and exact selections
+remain under `.arc/user/andrew/.internal/storage-ref-backend-tools/task-4.R2.d/`, with the corresponding logs in `/tmp/`.
+This closes the pending A22/A23 revalidation; Phase 18 still owns hosted timing, process-cost, and platform obligations.

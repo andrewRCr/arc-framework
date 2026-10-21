@@ -4392,9 +4392,9 @@ open:
   _Supersedes:_ none. _Trigger:_ door. _Work:_ 15.R4. _Revalidated:_ 15.R4.
 
 - **A22** — 2026-10-19 — design: atomic checks and observations. _Supersedes:_ §§ 2.1 batch, 5.1 steps 6–7,
-  5.3 input/race, 11.4 layout. _Trigger:_ door. _Work:_ 4.R. _Revalidated:_ pending → 4.R2.d.
+  5.3 input/race, 11.4 layout. _Trigger:_ door. _Work:_ 4.R. _Revalidated:_ 4.R2.d.
 
 - **A23** — 2026-10-20 — spec-depth: native candidate births and retained batch receipts. _Supersedes:_ none.
-  _Trigger:_ 4.R.c door. _Work:_ 4.R2. _Revalidated:_ pending → 4.R2.d.
+  _Trigger:_ 4.R.c door. _Work:_ 4.R2. _Revalidated:_ 4.R2.d.
 
 ---

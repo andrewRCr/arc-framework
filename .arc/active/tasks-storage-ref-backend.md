@@ -425,7 +425,7 @@ and 15 for every served family, but for the assertions 4.4.d excludes by name, a
         - Superseded by 4.R2.d, which verifies the production rule with the complete native creation facts its
           landed implementation requires and closes both A22 and A23 before 17.6.
 
-### `[ ]` **4.R2 Native owner births and retained receipts — § 5.7, § 14.3.2 (A23)**
+### `[x]` **4.R2 Native owner births and retained receipts — § 5.7, § 14.3.2 (A23)**
 
 - _Goal:_ Supply exact backend-owned candidate births and whole accepted-batch receipts to checks and bounded
   history queries, then verify the production admission rule before moving-remote segment verification.
@@ -447,12 +447,13 @@ and 15 for every served family, but for the assertions 4.4.d excludes by name, a
           Copies and fast forwards preserve facts; new sync, withdrawal, and registry commits carry complete-none,
           while imports retain unavailable facts. Native scenarios cover both layouts without expanding acquisition.
 
-    - `[ ]` **4.R2.d Verify production admission and the complete native contract correction**
-        - Exercise § 14.3.1's final-gap production cut-map scenarios and § 14.3.2 in both layouts, including changed
-          read-only/conflict evidence, existing/new incoming owners, newly resolvable providers, source/removal group
-          additions, stale discard, unrelated writes that still admit, and actionable refusal then repaired acquisition.
-          Run full conformance and affected native write/check/history/changes, lifecycle, sync/layout, and move suites;
-          record closure of A22 and A23 before 17.6. Keep domain logic in its production registration.
+    - `[x]` **4.R2.d Verify production admission and the complete native contract correction**
+        - Twenty-two native production scenarios cover final-gap read-only/conflict and dependency changes,
+          source/removal additions, stale discard, unrelated admission, and exact acquisition refusal then repair in
+          both layouts. Targeted reconstructions fail all cases; restored production behavior passes. Full native
+          conformance and affected regressions cover 2,515 completed cases, with 118 declared skips; 710 decomposition
+          unit cases also pass. Three stale sync-writer assertions were aligned with the trusted merge action and
+          passed focused retries. A22 and A23 close before 17.6; domain logic stays in its production registration.
 
 ### `[x]` **4.5 The engine's first path** — validate exit criterion at segment scope
 
