@@ -1110,3 +1110,11 @@ case passed in 20.58 s after batching. Its diagnostic medians in milliseconds we
 
 The native reader-protocol, reader-lifetime, and bulk-write suites join the existing portability selection explicitly
 so the next Windows/macOS pair exercises cancellation, cleanup, byte preservation, and maintenance ordering directly.
+
+## Windows burst diagnostics
+
+The first Windows pair reported two publishing-clone failures at a boolean outcome assertion, which did not retain
+the failed pull or publish details. The assertions now attach the complete native result to failures, including
+initial clone pulls and final convergence pulls. No accepted-write, notice, publication-status, or convergence
+condition changes. This prepares the next dispatch to distinguish a transport/refusal outcome from a lost-write
+failure; the first run's exact cause remains unestablished.

@@ -45,9 +45,9 @@ function assertInbox(record: { content: string; conflicts: readonly unknown[] })
 function assertPublished(result: PushResult): void {
   expect(result.states).toEqual([]);
   expect(result.pulls.length).toBeGreaterThan(0);
-  expect(result.pulls.every(({ status, notices }) => status !== "failed" && notices.length === 0)).toBe(true);
+  expect(result.pulls.every(({ status, notices }) => status !== "failed" && notices.length === 0), JSON.stringify(result, null, 2)).toBe(true);
   expect(result.publishes.length).toBeGreaterThan(0);
-  expect(result.publishes.every(({ status }) => ["pushed", "reconciled", "noop"].includes(status))).toBe(true);
+  expect(result.publishes.every(({ status }) => ["pushed", "reconciled", "noop"].includes(status)), JSON.stringify(result, null, 2)).toBe(true);
 }
 function assertWritten(report: RefProcessReport): void {
   expect(report.outcomes).toHaveLength(1);
@@ -94,7 +94,7 @@ describe.skipIf(process.env.ARC_STORE_BURSTS !== "1").each(["default", "separate
     await Promise.all(stores.map(async (client) => {
       const pulled = success(await client.pull());
       expect(pulled.states).toEqual([]);
-      expect(pulled.pulls.every(({ status, notices }) => status !== "failed" && notices.length === 0)).toBe(true);
+      expect(pulled.pulls.every(({ status, notices }) => status !== "failed" && notices.length === 0), JSON.stringify(pulled, null, 2)).toBe(true);
     }));
     const bases = await Promise.all(stores.map(async (client) => success(await client.read({ reference: inbox }))));
     expect(new Set(bases.map(({ version }) => version)).size).toBe(1);
@@ -119,7 +119,7 @@ describe.skipIf(process.env.ARC_STORE_BURSTS !== "1").each(["default", "separate
     for (const snapshot of settled) {
       const result = success(snapshot.pull);
       expect(result.states).toEqual([]);
-      expect(result.pulls.every(({ status, notices }) => status !== "failed" && notices.length === 0)).toBe(true);
+      expect(result.pulls.every(({ status, notices }) => status !== "failed" && notices.length === 0), JSON.stringify(result, null, 2)).toBe(true);
       assertInbox(success(snapshot.record));
       expect(snapshot.tip).toBe(remoteTip);
     }

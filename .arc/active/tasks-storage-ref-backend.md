@@ -1778,6 +1778,10 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
           and one of the Linux portability job before this change lands, each recorded in
           `notes-storage-ref-backend.md`, since a scheduled workflow runs only on the default branch
 
+    - `[x]` **18.1.c Publishing failure diagnostics**
+        - Boolean pull and publish assertions retain full native result details on failure, including the initial
+          clone pulls and final convergence pulls. Their no-notice and accepted-publication requirements stay intact.
+
 ### `[ ]` **18.2 The Windows budget and the portability pair — § 11.7, § 14.10**
 
 - _Goal:_ A dispatched portability run passes `--git-dir` with Windows paths and reftable on NTFS, and times `version`,
