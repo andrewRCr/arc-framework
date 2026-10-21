@@ -53,7 +53,7 @@ async function applyRemedy(h: Awaited<ReturnType<typeof rewrittenFixture>>, text
 async function trackingLockStore(h: Awaited<ReturnType<typeof rewrittenFixture>>, tracking: string, afterFailure?: () => Promise<void>) {
   const format = (await h.b.git(["rev-parse", "--show-ref-format"])).stdout.trim();
   const lock = join(h.b.gitDir ?? join(h.b.root, ".git"), format === "reftable" ? "reftable/tables.list.lock" : `${tracking}.lock`);
-  let armed = true, nativeStdout = "";
+  let armed = true, nativeStdout = "", nativeStderr = "";
   const store = createRefStore({ ...h.b.ports, exec: async (command, args, options) => {
     if (!armed || !args.includes("fetch")) return h.b.ports.exec(command, args, options);
     armed = false;
@@ -62,12 +62,12 @@ async function trackingLockStore(h: Awaited<ReturnType<typeof rewrittenFixture>>
     await mkdir(dirname(lock), { recursive: true }); await writeFile(lock, "stale fixture lock\n");
     let failure: unknown;
     try { return await h.b.ports.exec(command, failing, options); }
-    catch (error) { failure = error; if (isGitProcessError(error)) nativeStdout = error.stdout; }
+    catch (error) { failure = error; if (isGitProcessError(error)) ({ stdout: nativeStdout, stderr: nativeStderr } = error); }
     finally { await rm(lock, { force: true }); }
     await afterFailure?.();
     throw failure;
   } });
-  return { store, format, observed: () => ({ armed, nativeStdout }) };
+  return { store, format, observed: () => ({ armed, nativeStdout, nativeStderr }) };
 }
 
 describe.each(["default", "separate"] as const)("rewrite refusal in the %s layout", (layout) => {
@@ -270,9 +270,13 @@ describe.each(["default", "separate"] as const)("rewrite refusal in the %s layou
     const { store, format, observed } = await trackingLockStore(h, h.tracking);
     const result = success(await store.pull());
     expect(observed().armed).toBe(false);
-    expect(observed().nativeStdout).toMatch(format === "reftable" || old === "removed"
-      ? /^[ *-] [0-9a-f]+ [0-9a-f]+ refs\/arc-remotes\/[^ ]+\/user\/andrew\/personal$/mu
-      : /^! [0-9a-f]+ [0-9a-f]+ refs\/arc-remotes\/[^ ]+\/user\/andrew\/personal$/mu);
+    if (format === "reftable" || old === "removed") {
+      expect(observed().nativeStdout).toMatch(/^[ *-] [0-9a-f]+ [0-9a-f]+ refs\/arc-remotes\/[^ ]+\/user\/andrew\/personal$/mu);
+    } else {
+      // Git 2.55 marks the refused row `!` while Git 2.53 prints it as applied; both name the ref on stderr.
+      expect(observed().nativeStdout).toMatch(/^[! *] [0-9a-f]+ [0-9a-f]+ refs\/arc-remotes\/[^ ]+\/user\/andrew\/personal$/mu);
+      expect(observed().nativeStderr).toMatch(/(cannot lock ref '|fetching ref )refs\/arc-remotes\/[^ ']+\/user\/andrew\/personal/u);
+    }
     expect(result.pulls.flatMap(({ notices }) => notices), JSON.stringify(result)).toEqual([expect.objectContaining({ kind: "tracking-update-failed", ref: h.ref })]);
     expect((await h.b.git(["for-each-ref", "--format=%(objectname)", h.tracking])).stdout.trim()).toBe(old === "absent" ? "" : h.second);
     expect(success(await h.b.store.read({ reference: h.reference })).content).toBe("Second published value.\n");

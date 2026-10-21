@@ -123,12 +123,14 @@ describe("automatic designation project check", () => {
         if (args.includes("fetch")) reports.push(result.stdout);
         return result;
       } catch (error) {
-        if (args.includes("fetch") && isGitProcessError(error)) reports.push(error.stdout);
+        if (args.includes("fetch") && isGitProcessError(error)) reports.push(error.stdout, error.stderr);
         throw error;
       }
     } });
     const result = PullResultSchema.parse(success(await store.pull()));
-    expect(reports.join("\n")).toMatch(/^! [0-9a-f]+ [0-9a-f]+ refs\/arc\/tmp\/designate\/origin\/registry$/mu);
+    // Git 2.55 marks the refused row `!` while Git 2.53 prints it as applied; both name the ref on stderr.
+    expect(reports.join("\n")).toMatch(/^[! *] [0-9a-f]+ [0-9a-f]+ refs\/arc\/tmp\/designate\/origin\/registry$/mu);
+    expect(reports.join("\n")).toMatch(/(cannot lock ref '|fetching ref )refs\/arc\/tmp\/designate\/origin\/registry/u);
     expect(result.states).toEqual([]);
     expect(result.pulls).toMatchObject([{ status: "failed", role: "candidate", failure: { code: "refused", class: "terminal" } }]);
     expect((await h.b.exec("git", ["config", "--list"])).stdout).not.toContain("remote.origin.arc-state");
