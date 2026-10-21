@@ -4,6 +4,7 @@ import { createExecaRawGitExec } from "../../../src/lib/git/process-executor.js"
 import { SlugSchema, ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
 import { writeLineageRecord } from "../../../src/lib/store/kinds/lineage/index.js";
 import { RefProcessJobSchema, RefProcessReportSchema, type RefProcessReport } from "./ref-process-protocol.js";
+import { publishAcceptedWrite } from "../../helpers/store/ref-publication.js";
 
 const job = RefProcessJobSchema.parse(JSON.parse(process.argv[3] ?? "null"));
 const root = process.argv[2];
@@ -52,7 +53,7 @@ if (job.mode === "inbox") {
     if (result.status === "refused") report.refusals.push(result.refusal);
     if (result.status === "refused" && result.refusal.code === "lock-held" && attempt < 49) continue;
     report.outcomes.push(result); report.retries.push(attempt);
-    if (result.status === "ok" && job.publish) report.publication = await store.push();
+    if (result.status === "ok" && job.publish) Object.assign(report, await publishAcceptedWrite(store));
     break;
   }
 } else if (job.mode === "burst") {

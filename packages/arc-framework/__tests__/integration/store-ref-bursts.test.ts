@@ -109,6 +109,7 @@ describe.skipIf(process.env.ARC_STORE_BURSTS !== "1").each(["default", "separate
     for (const report of reports) {
       assertWritten(report);
       if (!report.publication) throw new Error("The clone never attempted to publish its accepted write");
+      expect(report.publicationAttempts?.at(-1)).toEqual(report.publication);
       assertPublished(success(report.publication));
     }
     const remoteTip = (await f.remote("git", ["rev-parse", personalRef])).stdout;

@@ -1439,3 +1439,17 @@ the next write’s `state-unresolvable` refusal, restores the bytes, and complet
 retention reconstruction incorrectly accepted that write in both layouts. The restored implementation passed all 109
 focused native and CLI cases, including observations, new incoming refs, completed edits, reopen, locks, retirement,
 creation facts, write checks, anchors, bulk writes, and conflict remedies. Windows medians remain unverified for this head.
+
+### Bounded publication continuation
+
+`ref-publication.ts::publishAcceptedWrite` permits at most five public push calls after an already accepted write, keeping
+every result. Only recoverable `retries-exhausted` or `unreachable` with cause `timeout` qualify, and only with no notices,
+configuration states, carried code, or other non-success outcomes. The last result remains subject to the burst suite’s
+clean-publication assertions; all twenty writers, production 120-second deadlines, the 900-second test/process bound, and
+the exact final inbox and remote-tip assertions remain unchanged. No accepted write is repeated.
+
+Decision tests first exposed missing timeout/exhaustion continuation and its finite call bound. A reconstruction that
+continued terminal/configuration/credential stops failed their preservation checks. Native witnesses advance the injected
+clock at the executor boundary to cancel the first publication, then publish that original write and verify the peer’s
+content, version, and tip after retry. One-call reconstruction failed both layouts. The restored helper, native witnesses,
+and all four full twenty-writer bursts passed together (12 cases); hosted Windows/macOS acceptance remains open.

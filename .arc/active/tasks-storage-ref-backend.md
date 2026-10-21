@@ -1792,11 +1792,12 @@ in `notes-storage-ref-backend.md` (A25).
           bursts each run once without overlap while ordinary files still run concurrently. The previous dispatched
           Windows failures remain recorded in `notes-storage-ref-backend.md` § Second dispatched platform results.
 
-    - `[ ]` **18.1.e Bounded publication continuation in the burst harness**
-        - Keep all twenty accepted writes and production deadlines, retaining every public push attempt. Retry only
-          typed recoverable publication exhaustion/timeouts within the existing process/test bound, then require clean
-          publication and the unchanged exact final inbox and remote-tip checks.
-        - Build `test-first`: retryable continuation, terminal failure, bounded exhaustion, and native convergence.
+    - `[x]` **18.1.e Bounded publication continuation in the burst harness**
+        - All twenty writes remain accepted once. Publishing workers retain up to five public attempts, continuing only
+          typed recoverable timeout/exhaustion results; terminal, configuration, notice, and credential stops remain.
+          Production deadlines and the 900-second harness bound stay intact.
+        - Both layouts complete native timeout recovery and all four twenty-writer bursts with unchanged exact final
+          inbox and remote-tip checks; the dispatched platform evidence remains open.
 
 ### `[ ]` **18.2 The Windows budget and the portability pair — § 11.7, § 14.10**
 

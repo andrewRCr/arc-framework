@@ -12,6 +12,7 @@ export const RefProcessJobSchema = z.discriminatedUnion("mode", [
 export type RefProcessJob = z.infer<typeof RefProcessJobSchema>;
 export const RefProcessReportSchema = z.strictObject({
   publication: storeResultSchema(PushResultSchema).optional(),
+  publicationAttempts: z.array(storeResultSchema(PushResultSchema)).min(1).max(5).optional(),
   outcomes: z.array(storeResultSchema(z.union([WriteResultSchema, BatchResultSchema]))),
   retries: z.array(z.number().int().nonnegative().max(49)), refusals: z.array(StoreRefusalSchema),
 });
