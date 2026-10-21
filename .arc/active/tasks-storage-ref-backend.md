@@ -1809,6 +1809,11 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
         - Built test-first against the breached operation's cases only where the run shows a breach; otherwise this
           subtask records that none was needed
 
+    - `[x]` **18.2.c Git-serialized prepared fixture paths**
+        - Copies recognize Git-escaped template roots as well as literal and slash-normalized spellings. The real-Git
+          regression copies and publishes to an independent remote; path assertions compare resolved filesystem
+          addresses across host separator spellings.
+
 ### `[ ]` **18.3 CI cost — § 14.12**
 
 - _Goal:_ Running both backends until the cutover costs CI no more than the bound: each layout's ref conformance run

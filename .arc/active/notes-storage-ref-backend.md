@@ -1032,3 +1032,17 @@ retains its assertion that pull runs before identity configuration and that the 
 Production binding and rendering execute normally. The registered-CLI, identity-setup, and cancellation/recovery suites
 passed eight cases in 33.81 seconds; `/tmp/arc-storage-18.3-join-final.log` retains the run, and
 `/tmp/arc-storage-18-ci-integration{2,3}.log` retain the prior failures.
+
+## Prepared fixture path encoding — Task 18.2.c
+
+The first dispatched Windows run stopped 1,067 separate-conformance cases during fixture copy because Git serializes
+backslashes doubled in `.git/config`. The copier searched only the literal template root or its forward-slash form.
+A real `git config` probe reproduced that encoding, and a prepared remote with a backslash-bearing template path
+reproduced the copy refusal locally. The copier now also recognizes Git's escaped spelling. Filesystem path assertions
+resolve the host's separator spelling rather than requiring one textual form.
+
+The regression failed before the helper change, then the complete prepared-repository suite passed eleven cases in
+6.67 seconds. Its independent-copy push reaches the copied bare remote and leaves the original repository's head
+separate. Windows itself remains unverified until a new dispatched run; these local results do not close its platform
+task. Logs are `/tmp/arc-storage-18.2-prepared-red.log`, `/tmp/arc-storage-18.2-prepared-green.log`, and the first
+Windows job's `/tmp/arc-storage-18-ci-windows.log`.

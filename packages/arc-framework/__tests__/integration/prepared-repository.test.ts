@@ -1,6 +1,6 @@
 /** Integration coverage for reusable prepared-repository fixtures. */
 
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, rename } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 
@@ -140,8 +140,27 @@ describe("prepared repository fixtures", () => {
     roots.add(copy);
     const { stdout } = await execFileAsync("git", ["remote", "get-url", "origin"], { cwd: copy });
 
-    expect(stdout.trim()).toBe(join(copy, PREPARED_REMOTE_PATH));
+    expect(resolve(stdout.trim())).toBe(resolve(join(copy, PREPARED_REMOTE_PATH)));
     expect(await absolutePathOccurrences(copy, template.root)).toEqual([]);
+  });
+
+  it("copies a remote whose template path Git serializes with escaped backslashes", async () => {
+    const template = await prepareRepositoryTemplate(remoteShape, async () => {
+      const original = await buildRemoteRepository();
+      if (process.platform === "win32") return original;
+      const root = `${original}\\escaped`;
+      await rename(original, root); roots.delete(original); roots.add(root);
+      await execFileAsync("git", ["remote", "set-url", "origin", join(root, PREPARED_REMOTE_PATH)], { cwd: root });
+      return root;
+    });
+    const copy = await copyPreparedRepository(template, remoteShape); roots.add(copy);
+    const { stdout } = await execFileAsync("git", ["remote", "get-url", "origin"], { cwd: copy });
+    expect(resolve(stdout.trim())).toBe(resolve(join(copy, PREPARED_REMOTE_PATH)));
+    await makeCommit(copy, "independent escaped-path copy");
+    await execFileAsync("git", ["push", "origin", "HEAD"], { cwd: copy });
+    const original = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: template.root });
+    const published = await execFileAsync("git", ["--git-dir", join(copy, PREPARED_REMOTE_PATH), "rev-parse", "HEAD"]);
+    expect(published.stdout).not.toBe(original.stdout);
   });
 
   it("resolves a copied worktree-bearing fixture inside its own copy", async () => {
@@ -151,7 +170,7 @@ describe("prepared repository fixtures", () => {
     const linked = join(copy, PREPARED_WORKTREE_PATH);
     const { stdout } = await execFileAsync("git", ["rev-parse", "--absolute-git-dir"], { cwd: linked });
 
-    expect(stdout.trim().startsWith(`${copy}/`)).toBe(true);
+    expect(resolve(stdout.trim())).toBe(resolve(join(copy, ".git", "worktrees", "worktree")));
     expect(await absolutePathOccurrences(copy, template.root)).toEqual([]);
   });
 

@@ -129,8 +129,9 @@ export async function copyPreparedRepository(
 
 async function rewriteRequiredPath(file: string, from: string, to: string): Promise<void> {
   const content = await readFile(file, "utf8");
-  const source = content.includes(from) ? from : from.replaceAll("\\", "/");
-  if (!content.includes(source)) {
+  const source = [from, from.replaceAll("\\", "/"), from.replaceAll("\\", "\\\\").replaceAll('"', '\\"')]
+    .find(candidate => content.includes(candidate));
+  if (source === undefined) {
     throw new Error(`Prepared repository expected an absolute template reference in ${file}`);
   }
   await writeFile(file, content.replaceAll(source, to.replaceAll("\\", "/")), "utf8");
