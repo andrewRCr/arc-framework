@@ -1907,6 +1907,11 @@ in `notes-storage-ref-backend.md` (A25).
           reopen behavior; the unchanged 600-item profile uses 19/default and 21/separate commands. Hosted timing
           acceptance remains with 18.2.a.2; details are in `notes-storage-ref-backend.md` § Final metadata batching.
 
+    - `[x]` **18.2.l Bound diagnostic dispatch to its platform measurements**
+        - Explicit timing-only dispatch skips unrelated Linux build/lint/test jobs and selects the Windows/macOS
+          pair even without the additional pair flag. Ordinary push, pull-request, schedule, and complete dispatch
+          selection remain unchanged. Job-graph comparison evidence is retained in `notes-storage-ref-backend.md`.
+
 ### `[x]` **18.2.R Operation-scoped acquisition during writes**
 
 - _Goal:_ Native `write` and `batch` reuse the existing bounded object reader within one public call, close it on

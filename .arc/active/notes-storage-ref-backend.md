@@ -1813,3 +1813,15 @@ in the default layout and 5.978/39.177/121.265/10.322/137.403 ms in the separate
 15/default and 17/separate processes, including one native object reader per write, down from the previous 19/21.
 These Linux diagnostics do not establish Windows acceptance. Evidence is retained under `task-18.2-write-reader/`
 in the machine-local storage-ref-backend tools directory; the dispatched timing check remains required.
+
+An explicit `portability_timing_only` dispatch now selects classification, shared setup, and the two platform timing
+jobs alone. Previously that diagnostic also started every Linux tier and the Linux contention workload. The three
+independent non-platform roots (`build`, `lint-typecheck`, `unit`) exclude the diagnostic input; their dependent jobs
+retain their existing prerequisite checks. The platform pair accepts timing-only as its own explicit selection.
+The diagnostic remains ineligible for full portability acceptance or final tier/job cost measurements.
+
+Evaluating the actual before/after job conditions and dependency results selects only those three job families for
+diagnostics, with either value of the separate pair flag; the former workflow fails that bounded-job expectation.
+Ordinary push, pull-request, schedule, and full-dispatch selections compare identically, including light/heavy and
+auto/reviewed pull-request variants. The probe and selected-job inventories are retained under
+`task-18.2-diagnostic-scope/` in the machine-local storage-ref-backend tools directory.

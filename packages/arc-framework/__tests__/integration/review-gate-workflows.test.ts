@@ -226,7 +226,7 @@ describe("trusted review-gate workflows", () => {
     // The pair fires only on the weekly schedule or an explicit dispatch
     // opt-in, so PR synchronizes never bill hosted-runner multipliers.
     expect(jobValue(workflow, "portability-cross-platform").if).toBe(
-      "${{ needs.setup.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.run_portability_pair) || " +
+      "${{ needs.setup.result == 'success' && ((github.event_name == 'workflow_dispatch' && (inputs.run_portability_pair || inputs.portability_timing_only)) || " +
         "github.event_name == 'schedule') }}",
     );
     expect(jobValue(workflow, "portability-cross-platform").needs).toBe("setup");
@@ -289,7 +289,7 @@ describe("trusted review-gate workflows", () => {
     expect(focused).toEqual([{ id: "arc-contracts", if: "${{ needs.classify.outputs.weight == 'light' }}",
       run: "node --import tsx scripts/run-ci-checks.mjs run lint-typecheck arc-contracts" }]);
 
-    const unitCondition = "${{ !cancelled() && needs.classify.result == 'success' && " +
+    const unitCondition = "${{ !inputs.portability_timing_only && !cancelled() && needs.classify.result == 'success' && " +
       "needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || " +
       "github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && needs.setup.result == 'success' }}";
     expect(jobValue(workflow, "unit").if).toBe(unitCondition);
@@ -308,7 +308,7 @@ describe("trusted review-gate workflows", () => {
       "needs.classify.outputs.weight != 'light')",
       `(needs.classify.outputs.weight != 'light' || ${integrationTarget}))`,
     ));
-    expect(jobValue(workflow, "build").if).toBe("${{ !cancelled() && needs.classify.result == 'success' && " +
+    expect(jobValue(workflow, "build").if).toBe("${{ !inputs.portability_timing_only && !cancelled() && needs.classify.result == 'success' && " +
       "needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || " +
       `${integrationTarget} || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && ` +
       "needs.setup.result == 'success' }}");

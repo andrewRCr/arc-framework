@@ -21,7 +21,7 @@ on:
         type: boolean
         default: false
       portability_timing_only:
-        description: 'Diagnostic only: replace the pair’s complete portability suite with operation timing'
+        description: 'Diagnostic only: run Windows/macOS operation timing, skipping other test jobs'
         type: boolean
         default: false
   # Weekly full-tier duration refresh and cross-platform portability. The pair fires only here or
@@ -304,7 +304,7 @@ jobs:
       contents: read
       actions: write
     needs: [classify, setup]
-    if: ${{ !cancelled() && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || needs.classify.outputs.integration_target == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && needs.setup.result == 'success' }}
+    if: ${{ !inputs.portability_timing_only && !cancelled() && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || needs.classify.outputs.integration_target == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && needs.setup.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
@@ -346,7 +346,7 @@ jobs:
     needs: [classify, setup, build]
     # Documentation and default checks run on light and heavy push/PR runs.
     # The shared build is optional when the classifier selected light weight.
-    if: ${{ !cancelled() && github.event_name != 'schedule' && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && needs.setup.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
+    if: ${{ !inputs.portability_timing_only && !cancelled() && github.event_name != 'schedule' && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && needs.setup.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
@@ -460,7 +460,7 @@ jobs:
       contents: read
       actions: write # upload-artifact under workflow-level contents-only defaults
     needs: [classify, setup]
-    if: ${{ !cancelled() && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && needs.setup.result == 'success' }}
+    if: ${{ !inputs.portability_timing_only && !cancelled() && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && needs.setup.result == 'success' }}
     strategy:
       fail-fast: false
       matrix:
@@ -792,7 +792,7 @@ jobs:
     # The Linux sizing variable does not apply to hosted Windows/macOS.
     env:
       VITEST_MAX_WORKERS: ''
-    if: ${{ needs.setup.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.run_portability_pair) || github.event_name == 'schedule') }}
+    if: ${{ needs.setup.result == 'success' && ((github.event_name == 'workflow_dispatch' && (inputs.run_portability_pair || inputs.portability_timing_only)) || github.event_name == 'schedule') }}
     strategy:
       fail-fast: false
       matrix:
