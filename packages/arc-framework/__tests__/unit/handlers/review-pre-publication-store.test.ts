@@ -16,7 +16,7 @@ import { writeSubmissionBoundary, readSubmissionBoundaryVersioned } from "../../
 
 import { createReviewCompositionContext } from "../../../src/scripts/review-gate/runtime/composition-context.js";
 import { readReviewReadinessBinding } from "../../../src/scripts/review-gate/runtime/readiness-binding.js";
-import { readCandidateRecord } from "../../../src/lib/store/kinds/review/candidate/access.js";
+import { readCandidateRecord, readCandidateRecordVersioned, writeCandidateRecord } from "../../../src/lib/store/kinds/review/candidate/access.js";
 import { recordNativeFrontlineSkip } from "../../../src/scripts/review-gate/runtime/native-frontline-window.js";
 import { composePrePublicationReviewRequest } from "../../../src/scripts/review-gate/policy/pre-publication-request.js";
 import { createPrePublicationCompositionDependencies } from "../../../src/scripts/review-gate/policy/pre-publication-composition.js";
@@ -182,6 +182,43 @@ it("records native readiness with the selected Candidate's complete review bindi
   expect(stored).toMatchObject({ schemaVersion: 2, locus: "candidate-publish-ready", readinessBinding: binding.digest });
   expect(stored).toHaveProperty("terminus", decisionKey);
   expect(stored).not.toHaveProperty("standardLaneOwnerVersion");
+});
+
+it("retains a hosted reservation on readiness refresh and replaces it after a Candidate re-root", async () => {
+  const h = await fixture(), owner = await h.seedCandidate();
+  const lanes = { frontline: { invocation: { mode: "skip" } } };
+  const changeSet = { schemaVersion: 1, changeSetState: "known", contentKind: "code-bearing", reviewRisk: "routine",
+    changeDeterminacy: "ordinary", ownership: "self", surfaceAuthority: "ordinary" };
+  await writeFile(join(h.cwd, ".arc/system/arc-config.yml"), "branch.base: main\nreview.standard_sources: [codex-pr]\n");
+  const run = async () => {
+    let output = "";
+    await handleReviewPrePublication("example", { selfReview: "settled", lanes: "lanes.json", changeSet: "change.json" }, {
+      resolveRoot: () => h.cwd, readText: async source => JSON.stringify(source === "lanes.json" ? lanes : changeSet),
+      write: text => { output += text; }, setExitCode: () => {} }, undefined, { ...h, projectId: createProjectIdentityReader(h.store) });
+    return JSON.parse(output) as unknown;
+  };
+  expect(await run()).toMatchObject({ locus: "candidate-publish-ready" });
+  const first = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
+  if (first.boundary?.reservation === null || first.boundary?.reservation === undefined) throw new Error("Expected the hosted reservation");
+  const token = encodePrePublicationReplayV2({ candidateId: first.boundary.candidateId,
+    candidateSubjectDigest: first.boundary.candidateSubjectDigest, selfReview: "settled", changeSet, lanes });
+  const resume = projectCandidateReviewResumeBoundary({ workUnit: "example", candidateId: first.boundary.candidateId,
+    candidateSubjectDigest: first.boundary.candidateSubjectDigest!, reservation: first.boundary.reservation,
+    postAttestContinuation: { reviewedHead: "a".repeat(40), nextAction: { kind: "continue-pre-publication-review",
+      command: `arc review pre-publication example --resume ${token}`, interactionText: "Resume readiness." } } }, 2);
+  await writeSubmissionBoundary(h.cwd, resume, first.version, { store: h.store, owner });
+  expect(await h.run(false, {}, token)).toHaveProperty("reservation", first.boundary.reservation);
+  const currentRecord = await readCandidateRecordVersioned(h.cwd, "example", { store: h.store, owner });
+  const current = currentRecord.record;
+  if (current === null) throw new Error("Expected the attested Candidate");
+  const next = { ...current, attestation: createCandidateAttestation({ ...current.attestation, subject: current.subject,
+    attestedAt: "2026-10-20T12:00:00Z", supersedes: current.attestation.candidateId }) };
+  await writeCandidateRecord(h.cwd, "example", next, currentRecord.version, { store: h.store, owner });
+  const refreshed = await run();
+  expect(refreshed).toMatchObject({ locus: "candidate-publish-ready", candidateId: next.attestation.candidateId });
+  const last = (await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner })).boundary;
+  expect(last?.reservation).toMatchObject({ sources: first.boundary.reservation.sources, target: first.boundary.reservation.target });
+  expect(last?.reservation?.reservationId).not.toBe(first.boundary.reservation.reservationId);
 });
 
 it.each(["candidate-publish-ready", "publication-pending"] as const)("re-enters native %s without recomposing saved judgments or changing records", async locus => {

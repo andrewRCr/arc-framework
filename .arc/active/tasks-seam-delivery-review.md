@@ -1204,29 +1204,16 @@ this phase puts publication's claim and reopen's boundary write in their transit
           admitting the conditional pass beyond its original cap without another decision. Window closure preserves
           withdrawal, exact producer and subject reach, verified performance, and unrelated terminal conditions.
 
-### `[ ]` **6.3 Reach a cited result through its stored outcome, and keep the reservation's carry — § 9.3, § 9.4**
+### `[x]` **6.3 Reach a cited result through its stored outcome, and keep the reservation's carry — § 9.3, § 9.4**
 
 - _Goal:_ From the flip `continue-pre-publication-review` still cites the result it responds to by
   `responseOperationId` and `responseSource`, opaque keys that match the stored outcome, through which
   `arc review respond` reaches that result with no published schema or workflow text changed; and the hosted
   reservation keeps its ID, its carry on the Candidate, and every check at use.
 
-- _Note:_ Status renders the next action's command in 7.2, and `prepare-work-unit.md` reads both fields, as today.
-
-    - `responseOperationId` is the cited attempt's ID (`reviewOperationId`, which `rg/policy/review-policy-attempt.ts`
-      sets from its `attemptId`), which its outcome keeps, and `responseSource`'s durable part is that outcome's key, a
-      hosted one's its acknowledged `attemptId`; the import resolves a stored boundary's durable part the same way
-      (3.5). Respond reads the result by its attempt ID through the result reader, which from the flip composes it from
-      the outcome, and checks the reference's other part as today (`resolveLocalSource`, `resolveFrontlineSource`,
-      `resolveHostedSource`, `rg/runtime/respond-command.ts`).
-    - The reservation keeps `createStandardReviewReservation`, the carry in `persistBoundary`
-      (`preservesReservation`), and `assertHostedReservationBindingAuthority`'s checks.
-    - Build `test-first` (one behavior at a time):
-        - `arc review respond` reached through the next action responds to the cited outcome, for a result reviewed
-          from the flip and for one the import mapped, an imported local result and the record composed for it both
-          carrying the outcome's `sourceDigest` as `localSourceRef`
-        - the next action parses under `ContinuePrePublicationActionSchema` unchanged
-        - readiness recorded again for the same Candidate keeps the reservation, and a re-root drops it
+- _Outcome:_ Native and imported local outcomes reach the response command through the emitted, schema-valid action;
+  the result and composed approval share the outcome's portable source digest. Default readiness re-entry retains the
+  same Candidate's hosted reservation and replaces its ID after re-root, preserving reservation coordinates and checks.
 
 ### `[ ]` **6.4 Withdraw publication at reopen, and retire with the work item — § 10.1, § 10.2, § 10.4**
 
