@@ -176,11 +176,12 @@ export async function projectCheckoutSubjectMeta(options: {
   let candidateSubjectDigest: string | null = null;
   let requireExactDurableBoundary = false;
   let pendingCandidateFix = false;
+  let candidateId = record.candidateId;
+  const candidateStore = options.store?.capabilities.stateOffBranch === true ? options.store : null;
   const candidateAuthorityRequired = record.state === "Integrating"
     || (record.state === "Active" && record.currentWorkflow === "prepare-work-unit");
-  if (record.candidateId !== null && candidateAuthorityRequired) {
+  if ((candidateStore !== null || candidateId !== null) && candidateAuthorityRequired) {
     try {
-      const candidateStore = options.store?.capabilities.stateOffBranch === true ? options.store : null;
       let candidatePath: string;
       let candidateContent: string;
       if (candidateStore !== null) {
@@ -207,7 +208,9 @@ export async function projectCheckoutSubjectMeta(options: {
         throw new Error(`Candidate record could not be read under this build's schema: ${candidatePath}`
           + (candidateStore === null ? "" : ". Repair the stored Candidate record, then retry."));
       }
-      if (candidateRecord.attestation.candidateId !== record.candidateId) {
+      if (candidateStore !== null) {
+        candidateId = candidateRecord.attestation.candidateId;
+      } else if (candidateRecord.attestation.candidateId !== candidateId) {
         throw new Error("Candidate metadata does not match the managed Candidate record.");
       }
       const effective = await options.io.projectCandidateTarget({
@@ -266,7 +269,7 @@ export async function projectCheckoutSubjectMeta(options: {
     ? "integration"
     : inferSessionType(record.state, taskListPath, record.branch);
   let integrationBoundary: PublishedIntegrationBoundaryLocus | null = null;
-  if (record.candidateId !== null && candidateSubjectDigest !== null && record.state === "Integrating") {
+  if (candidateId !== null && candidateSubjectDigest !== null && record.state === "Integrating") {
     const stored = await readHeldSubmissionBoundary(options);
     const exactDurableBoundary = !requireExactDurableBoundary
       || stored?.candidateSubjectDigest === candidateSubjectDigest;
@@ -276,14 +279,14 @@ export async function projectCheckoutSubjectMeta(options: {
           stored,
           workUnit: options.subjectKey,
           branch: record.branch,
-          candidateId: record.candidateId,
+          candidateId,
           candidateSubjectDigest,
         });
-  } else if (record.candidateId !== null && candidateSubjectDigest !== null && record.state === "Active") {
+  } else if (candidateId !== null && candidateSubjectDigest !== null && record.state === "Active") {
     if (pendingCandidateFix) {
       integrationBoundary = projectCandidateFixResumeBoundary({
         workUnit: options.subjectKey,
-        candidateId: record.candidateId,
+        candidateId,
         candidateSubjectDigest,
       });
     } else {
@@ -291,12 +294,12 @@ export async function projectCheckoutSubjectMeta(options: {
       const recovered = recoverPrePublicationBoundary({
         stored,
         workUnit: options.subjectKey,
-        candidateId: record.candidateId,
+        candidateId,
         candidateSubjectDigest,
       });
       integrationBoundary = recovered ?? projectCandidateReviewBoundary({
         workUnit: options.subjectKey,
-        candidateId: record.candidateId,
+        candidateId,
         candidateSubjectDigest,
       });
     }

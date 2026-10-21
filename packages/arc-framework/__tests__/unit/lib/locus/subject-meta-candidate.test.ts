@@ -14,7 +14,7 @@ import { recordKey } from "../../../helpers/store/model.js";
 import { createMemoryRemote } from "../../../helpers/store/sync.js";
 import { projectDurableCandidateTarget } from "../../../helpers/candidate.js";
 
-import { projectCandidateReviewBoundary } from "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { projectCandidateReviewBoundary, projectCandidateFixResumeBoundary } from "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
@@ -28,8 +28,10 @@ function candidate(attestedBy = "andrew") {
     semanticsVersion: "candidate-attestation/v1", attestation, subject, transitions: [], lineageAttestations: [] }) };
 }
 
-async function seedPrepared(h: ReturnType<typeof createLifecycleHarness>, candidateId: ReturnType<typeof candidate>["id"]) {
-  const initial = await h.seedMeta("demo", { taskList: "tasks-demo.md", candidateId });
+async function seedPrepared(h: ReturnType<typeof createLifecycleHarness>, candidateId: ReturnType<typeof candidate>["id"] | null) {
+  const initial = await h.seedMeta("demo", { taskList: "tasks-demo.md", candidateId }, { kind: "active" }, {
+    branches: [{ repository: "project-1", ref: "feat/demo", linkedAs: "adopted", excluded: [] }],
+  });
   await h.seed(recordReferences["work-item/task-list"](initial.reference.owner),
     "# Task List: Demo\n\n## **Phase 1:** Build\n\n### `[x]` **1.1 Build feature**\n");
   lifecycleSuccess(await h.store.write({ action: "put", reference: initial.reference, expected: initial.version, placement: { kind: "active" },
@@ -37,11 +39,11 @@ async function seedPrepared(h: ReturnType<typeof createLifecycleHarness>, candid
   return lifecycleSuccess(await h.store.read({ reference: initial.reference }));
 }
 
-async function fixture() {
+async function fixture(withMetaCandidate = true) {
   const cwd = await mkdtemp(join(tmpdir(), "arc-subject-candidate-")); roots.push(cwd);
   const h = createLifecycleHarness();
   const authoritative = candidate();
-  const meta = await seedPrepared(h, authoritative.id);
+  const meta = await seedPrepared(h, withMetaCandidate ? authoritative.id : null);
   const workUnit = await readStoreWorkUnitEvidence({ store: h.store, slug: "demo", head: "a".repeat(40), projectId: async () => "project-1" });
   if (workUnit.kind !== "present") throw new Error(JSON.stringify(workUnit));
   const localCandidatePath = join(cwd, ".arc/system/.internal/candidates/demo.json");
@@ -53,6 +55,41 @@ async function fixture() {
   const reference = recordReferences["review/candidate"](meta.reference.owner);
   return { ...h, authoritative, meta, reference, localCandidatePath, options };
 }
+
+it("takes native Candidate authority from its record without a meta Candidate or checkout files", async () => {
+  const h = await fixture(false);
+  await h.seed(h.reference, h.authoritative.content);
+  expect(await projectCheckoutSubjectMeta(h.options)).toMatchObject({ kind: "resolved", branch: "feat/demo",
+    sessionType: "prepublication", integrationBoundary: { candidateId: h.authoritative.id } });
+});
+
+it("uses the stored Candidate ID despite a stale meta Candidate", async () => {
+  const h = await fixture();
+  const current = candidate("current-stored");
+  await h.seed(h.reference, current.content);
+  expect(await projectCheckoutSubjectMeta(h.options)).toMatchObject({ kind: "resolved",
+    integrationBoundary: { candidateId: current.id } });
+});
+
+it.each(["absent", "in-repo"] as const)("keeps injected file IO when the Store is %s", async mode => {
+  const h = await fixture();
+  await writeFile(h.localCandidatePath, h.authoritative.content);
+  const record = parseCandidateManagedRecord(h.authoritative.content);
+  if (record === null) throw new Error("Expected produced Candidate");
+  const boundary = projectCandidateFixResumeBoundary({ workUnit: "demo", candidateId: record.attestation.candidateId,
+    candidateSubjectDigest: record.subject.subjectDigest });
+  await writeFile(join(dirname(h.localCandidatePath), "demo.boundary.json"), JSON.stringify(boundary));
+  const store = mode === "absent" ? undefined : new Proxy(h.store, {
+    get(target, key) {
+      if (key === "capabilities") return { ...target.capabilities, stateOffBranch: false };
+      const value = Reflect.get(target, key);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+  expect(await projectCheckoutSubjectMeta({ ...h.options, store, workUnit: undefined,
+    candidates: [{ kind: "read", name: "meta-demo.md", path: join(h.options.cwd, ".arc/active/meta-demo.md"), text: h.meta.content }] }))
+    .toMatchObject({ kind: "resolved", sessionType: "prepublication", integrationBoundary: boundary });
+});
 
 it("uses stored Candidate bytes when the checkout carries a different Candidate", async () => {
   const h = await fixture();
@@ -172,7 +209,7 @@ it("keeps stored boundary absence when a checkout file holds stale fix authority
 });
 
 it("projects a checked native boundary from the selected work item without a boundary file", async () => {
-  const h = await fixture();
+  const h = await fixture(false);
   await h.seed(h.reference, h.authoritative.content);
   const record = parseCandidateManagedRecord(h.authoritative.content);
   if (record === null) throw new Error("Expected the produced Candidate");

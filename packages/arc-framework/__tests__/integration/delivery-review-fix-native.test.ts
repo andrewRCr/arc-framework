@@ -18,6 +18,9 @@ import { readSubmissionBoundaryVersioned } from "../../src/lib/store/kinds/revie
 import { createStandardReviewReservation, projectPublicationBoundary } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "../../src/scripts/review-gate/policy/standard-review.js";
 import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
+import { runDerivedLocusStateProbe } from "../../src/handlers/derived-locus-state-probe.js";
+import { renderDeliveryPlanSection } from "../../src/lib/delivery/task-list-render.js";
+import { recordReferences } from "../../src/lib/store/identity.js";
 
 it("acknowledges and replays a native delivery correction with no record paths or code commit", async () => {
   const h = await createReviewRepositoryHarness();
@@ -40,7 +43,8 @@ it("acknowledges and replays a native delivery correction with no record paths o
   await git("commit", "-m", "Implement feature");
   const original = await collectGitCandidateSubject({ cwd, name, baseBranch: "main", exec });
   if (original.status !== "collected") throw new Error(original.detail);
-  const primary = await h.reference.seedMeta(name, { state: "Integrating", currentWorkflow: "integrate-work-unit", branch: null }, { kind: "active" }, {
+  const primary = await h.reference.seedMeta(name, { state: "Integrating", currentWorkflow: "integrate-work-unit", branch: null,
+    taskList: `tasks-${name}.md` }, { kind: "active" }, {
     branches: [{ repository: projectId, ref: branch, linkedAs: "adopted", excluded: [] }],
   });
   await writeWorktreeMarker(cwd, { spawnedByArc: false, spawningIdentity: "test-user", createdAt: "2026-10-20T12:00:00Z",
@@ -73,6 +77,12 @@ it("acknowledges and replays a native delivery correction with no record paths o
   await h.reference.seedBoundary(primary.reference.owner, projectPublicationBoundary({ workUnit: name, branch,
     candidateId: record.attestation.candidateId, candidateSubjectDigest: record.subject.subjectDigest,
     readinessBinding: null, reservation, changeRequest: { repository: "owner/repo", pullRequest: 42 } }, 2));
+  await h.reference.seed(recordReferences["work-item/task-list"](primary.reference.owner),
+    `# Task List\n\n## **Phase 1:** Build\n\n### \`[x]\` **1.1 Complete**\n\n${renderDeliveryPlanSection(plan)}`);
+  const frame = await runDerivedLocusStateProbe({ ...h.native, identity: "test-user", baseBranch: "main",
+    archiveCadence: "manual" });
+  expect(frame.active?.context).toMatchObject({ kind: "resolved", sessionType: "integration",
+    workflow: "integrate-work-unit", workUnitStage: "delivery-correction", taskCursor: { status: "no-open-task" } });
   const request = { ...continuation.acknowledgementInput, verification: { applicability: "focused", target: { head, tree },
     commitGate: { outcome: "passed", provenance: "rerun", targetTree: tree }, verificationEvidenceRefs: ["test://scoped-verification"] } };
   const dispatch = async (input = request) => {

@@ -1388,34 +1388,17 @@ prerequisites have landed, and every earlier task is independent of the remainin
           and `arc candidate applicability resolve` on an archived work unit, through the typed access's own store, each
           pull and succeed with no stop
 
-### `[ ]` **7.6 Read the subject's Candidate and boundary through the store from the flip — § 12.1, § 14.4**
+### `[x]` **7.6 Read the subject's Candidate and boundary through the store from the flip — § 12.1, § 14.4**
 
 - _Goal:_ From the flip the subject (`projectCheckoutSubjectMeta`, `lib/locus/subject-meta.ts`) takes its Candidate
   authority from the Candidate record's `attestation.candidateId` and reads that record's content and the boundary
   through the store, so a work unit checked out elsewhere keeps its subject with neither file in that checkout.
 
-    - The shipped projection takes the store (its `store` option) and reads the Candidate record
-      through it where that store reports `stateOffBranch` (`readStoreSubjectCandidate`,
-      `lib/locus/subject-meta-candidate.ts`), gated on the meta's `Candidate`. This task gates that read, and the
-      Candidate authority the projection requires of an Integrating or a preparing work unit, on the record's
-      `attestation.candidateId` in place of the meta's `Candidate`, and reads the boundary through the typed access over
-      the same store (2.3.b), where the projection reads its file (`readSubmissionBoundary`). Its store prerequisite
-      has landed; only 7.5 retains the ref-backend availability wait.
-    - The shipped subject already takes its branch from the link (§ 12.1), so the test seeds that link. Exercise
-      `runDerivedLocusStateProbe`'s production callbacks with the same store and exact selected owner: delivery
-      correction reads its stored task list and review records (4.6.a), and pending-fix authority reads its outcomes
-      and evidence (5.6.b), with no second store or off-branch fallback to legacy files.
-    - Build `test-first` (one behavior at a time):
-        - from the flip the subject's authority names the Candidate the record holds, with no `Candidate` in the meta
-        - from the flip the subject reads the Candidate and its boundary from the store with neither file in the
-          checkout
-        - given no store, or one not reporting `stateOffBranch`, the subject reads both files through its injected IO
-          as today
-        - through the production probe, an Integrating subject projects delivery correction with no materialized
-          task-list, Candidate, or boundary file; an Active changed target resolves pending-fix authority from its
-          stored outcome and evidence with no legacy disposition record, using the exact selected owner in each case
-        - a pending fix's native source reference agrees with its stored producer after execution-state pruning and
-          rename or slug reuse; a substituted owner refuses and the matching reference restores the normal projection
+- _Outcome:_ The native subject takes Candidate authority from its stored attestation, including when the meta has no
+  Candidate or names a stale one. Stored boundary and branch-link reads retain the selected owner; repository and
+  store-free projections retain injected file IO. Production probes recover delivery correction and pending-fix
+  authority without projected files, and portable source references retain their producer after execution pruning and
+  slug reuse, refusing a substituted owner and resuming with the matching reference.
 
 ### `[ ]` **7.7 Delivery and integration at the flip** — validate exit criterion at segment scope
 

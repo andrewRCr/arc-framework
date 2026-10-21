@@ -1351,9 +1351,6 @@
     "arc/surface-names": {
       "count": 2
     },
-    "max-depth": {
-      "count": 1
-    },
     "max-lines-per-function": {
       "count": 1
     },
