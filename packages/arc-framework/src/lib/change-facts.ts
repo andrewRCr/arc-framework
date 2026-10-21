@@ -13,8 +13,6 @@ import type {
   ChangeSet,
 } from "./change-facts.schema.js";
 import type { RawGitExec, RawGitResult } from "./git/exec.js";
-import { assertGitNotCanceled, bindGitProcessCancellation } from "./git/process-cancellation.js";
-import { normalizeGitRejection } from "./git/process-error.js";
 
 export type { CanonicalChange, ChangePathFact, ChangePathSet, ChangeSet };
 export type ChangeStatus = ChangePathFact["status"];
@@ -249,8 +247,12 @@ export async function resolveChangeSet(
  * @returns A raw Git executor
  */
 export function createSpawnRawGitExec(cwd = process.cwd()): RawGitExec {
-  return (args, options) =>
-    new Promise<RawGitResult>((resolveResult, reject) => {
+  return async (args, options) => {
+    // The direct Node entrypoint runs from source before a build or dependency install.
+    // Only callers supplying cancellation need the compiled-module support graph.
+    const cancellation = options?.signal === undefined ? undefined : await import("./git/process-cancellation.js");
+    const failures = options?.signal === undefined ? undefined : await import("./git/process-error.js");
+    return new Promise<RawGitResult>((resolveResult, reject) => {
       const effectiveArgs = options?.objectAccess === "local-only"
         ? ["--no-lazy-fetch", ...args]
         : args;
@@ -260,14 +262,14 @@ export function createSpawnRawGitExec(cwd = process.cwd()): RawGitExec {
       const env = options?.objectAccess === "local-only"
         ? { ...environment, GIT_NO_LAZY_FETCH: "1" }
         : environment;
-      assertGitNotCanceled(options?.signal, { command: "git", args: effectiveArgs });
+      cancellation?.assertGitNotCanceled(options?.signal, { command: "git", args: effectiveArgs });
       const child = spawn("git", effectiveArgs, {
         cwd: effectiveCwd,
         env,
         stdio: ["pipe", "pipe", "pipe"],
       });
       let canceled = false;
-      const dispose = bindGitProcessCancellation(child, options?.signal, () => { canceled = true; });
+      const dispose = cancellation?.bindGitProcessCancellation(child, options?.signal, () => { canceled = true; }) ?? (() => undefined);
       const stdout: Buffer[] = [];
       const stderr: Buffer[] = [];
 
@@ -281,8 +283,8 @@ export function createSpawnRawGitExec(cwd = process.cwd()): RawGitExec {
         dispose();
         const stdoutBytes = Buffer.concat(stdout);
         const stderrBytes = Buffer.concat(stderr);
-        if (canceled) {
-          reject(normalizeGitRejection(
+        if (canceled && failures !== undefined) {
+          reject(failures.normalizeGitRejection(
             { isCanceled: true, stdout: stdoutBytes, stderr: stderrBytes },
             { command: "git", args: effectiveArgs },
           ));
@@ -303,6 +305,7 @@ export function createSpawnRawGitExec(cwd = process.cwd()): RawGitExec {
       });
       child.stdin.end(options?.input);
     });
+  };
 }
 
 const CODE_SURFACE_GLOBS = [

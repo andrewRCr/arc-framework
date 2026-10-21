@@ -1821,6 +1821,10 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
     - The Linux `portability` job, which has no budget row, read from its own per-file times on one dispatched run: the
       time the separate-layout files (18.2) add to each reviewed pull request it runs on, recorded there beside the rows
 
+    - `[x]` **18.3.a CI measurement preflight**
+        - The standalone Node change-facts entrypoint loads cancellation support only for signaled executor calls.
+          Command-surface coverage requires remote designation to register while the default backend stays in-repo.
+
 ### `[ ]` **18.4 The host kit — § 14.8**
 
 - _Goal:_ The checks no CI host can run are run by hand against the real hosts, GitHub and GitLab holding every one, so

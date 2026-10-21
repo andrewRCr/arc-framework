@@ -821,3 +821,16 @@ It supports considering the specification's forward naming change; this measurem
 The reproducible script and complete raw results are retained under
 `.arc/user/andrew/.internal/storage-ref-backend-tools/task-18.5/`; the script's SHA-256 is
 `316d9a4ff654671ed375bf382e0c09968998fd93bb210c011fbf347ba323dd39`.
+
+## CI measurement preflight — Task 18.3.a
+
+The full integration warmup exposed a branch regression before any retained cost sample existed. Static runtime
+imports in `createSpawnRawGitExec` made Node's direct source entrypoint resolve unavailable `.js` dependencies;
+classifier and change-fact executable cases failed before producing their JSON. Cancellation support now loads only
+when an executor caller supplies a signal, preserving the dependency-free command path. Existing native cancellation
+cases continue exercising pre-aborted requests and descendant termination.
+
+The same run exposed a stale command-inventory exception for `store remote`. Its command is registered, while
+`createStore` still selects the in-repo implementation. The derived inventory now requires every emitted corrective
+command to register, with no dormant exception; default-backend dormancy remains separately checked. The focused
+five-file run passed all 180 cases in 32.78 seconds. The failed cost warmup was interrupted and supplies no baseline.
