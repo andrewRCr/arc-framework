@@ -1317,24 +1317,14 @@ prerequisites have landed, and every earlier task is independent of the remainin
           Missing host identity and failed writes leave the merge reported landed with an executable retry; the
           already-merged route repairs the link. Repository success carries no native landing-link state.
 
-### `[ ]` **7.2 Read status's boundary through the store from the flip — § 9.3, § 12.4**
+### `[x]` **7.2 Read status's boundary through the store from the flip — § 9.3, § 12.4**
 
 - _Goal:_ From the flip `arc status <slug>` reads an active or integrating work unit's boundary through the store
   wherever it is checked out, rendering its next action's command as today.
 
-    - The lifecycle change's store arm (`handleStoreLifecycleStatus`, `handlers/status/lifecycle.ts`), which reports
-      `integrationBoundary: null` today, reads the boundary through the store from the flip and reports it and its next
-      action as recorded, with no currentness projection, rendering the stored next action's `command` as today
-      (`handlers/status/lifecycle.ts`); `resolveSlugOperationalBoundary` stays the in-repo arm, the
-      interrupted-publication hint with it, since from the flip an Integrating work unit at `publication-pending` has
-      finished publishing (§ 12.4).
-    - Build `test-first` (one behavior at a time):
-        - status reports an Integrating work unit's `publication-pending` boundary with its push as the next action, for
-          a work unit checked out elsewhere or nowhere
-        - status reports an Active work unit's boundary, and none for a Planning one
-        - status renders a version 2 boundary's stored next-action command as it renders today's, the next action
-          parsing under `ContinuePrePublicationActionSchema` unchanged and `arc status`'s boundary schema admitting
-          version 2 (4.5.a)
+- _Outcome:_ Native named status reads the selected Active or Integrating owner's stored boundary wherever it is
+  checked out, and renders its recorded next-action command without currentness projection. Planning reports none;
+  version-two boundaries and their continuation actions use the existing published schemas.
 
 ### `[ ]` **7.3 Build D18's export and its evidence-neutral arm — § 12.5**
 

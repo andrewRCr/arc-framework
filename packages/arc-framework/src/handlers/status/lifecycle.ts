@@ -10,10 +10,12 @@ import { readGitBlobEntry } from "../../lib/io-context.js";
 import type { StoreRefusal } from "../../lib/store/refusal.js";
 import type { LifecycleIndexOutcome } from "../../lib/store/lifecycle-index.js";
 import type { Store } from "../../lib/store/contract.js";
+import type { StoreRecord } from "../../lib/store/read.js";
 import type { StoreSyncPort } from "../../lib/store/operational-sync.js";
 import { readLifecycleView, buildLifecycleViewIndex } from "../../lib/store/lifecycle-view.js";
 import { selectStandingLifecycleEntries } from "../../lib/status/store-project-standing.js";
 import { readLifecycleDesign } from "../../lib/store/lifecycle-design.js";
+import { readSubmissionBoundary } from "../../lib/store/kinds/review/integration-boundary/access.js";
 import { readWorkUnit, usesOffBranchState } from "../../lib/store/lifecycle-write.js";
 import { MetaPauseSchema, ParsedMetaRecordSchema, type MetaPause, type ParsedMetaRecord } from "../../lib/active/meta-schema.js";
 import { ParsedDesignRecordSchema } from "../../lib/store/kinds/design/index.js";
@@ -256,6 +258,8 @@ async function handleStoreLifecycleStatus(store: Store, slug: string, opts: Stat
     view.result.listing.status === "complete" ? view.result.listing.diagnostics : []);
   const query = resolveSlugQuery(buildLifecycleViewIndex(standing.entries), record.status === "ok" ? record.result.reference.owner.name : slug);
   const fields = storeQueryMetaFields(record);
+  const integrationBoundary = record.status === "ok"
+    ? await readStoreStatusBoundary({ store, cwd: local.cwd, record: record.result, fields }) : null;
   const design = record.status === "ok" ? await readLifecycleDesign(store, record.result) : { record: null, content: null, warnings: [] };
   const locus = await readStoreStatusLocus({ ...local, store, slug: query.slug }, ports);
   const derived = await readDerivedSlugPosition({ slug: query.slug, worktreePath: locus.worktreePath, identity: local.identity,
@@ -266,15 +270,21 @@ async function handleStoreLifecycleStatus(store: Store, slug: string, opts: Stat
   const designFields = ParsedDesignRecordSchema.safeParse(design.record?.fields);
   const purpose = extractPurposeSentence(designFields.success ? designFields.data.purpose : null);
   const output = { ...query, purpose, owner: fields?.owner ?? null,
-    integrationBoundary: null, derivedPosition: derived.position, scopeWindow,
+    integrationBoundary, derivedPosition: derived.position, scopeWindow,
     ...(locus.worktreePath === undefined ? {} : { worktreePath: locus.worktreePath }), ...(warnings.length === 0 ? {} : { warnings: [...new Set(warnings)] }) };
   if (opts.json) process.stdout.write(`${JSON.stringify(output)}\n`);
   else {
     p.intro("arc status");
-    p.note(formatSlugStateQuery(query, { purpose, worktreePath: locus.worktreePath, warnings,
+    p.note(formatSlugStateQuery(query, { purpose, integrationBoundary, worktreePath: locus.worktreePath, warnings,
       derivedPosition: derived.position, scopeWindow }), "Lifecycle state");
     p.outro("Done.");
   }
+}
+
+async function readStoreStatusBoundary(input: { store: Store; cwd: string; record: StoreRecord; fields?: ParsedMetaRecord }):
+  Promise<PublishedIntegrationBoundaryLocus | null> {
+  if (input.fields?.state !== "Active" && input.fields?.state !== "Integrating") return null;
+  return readSubmissionBoundary(input.cwd, input.record.reference.owner.name, { store: input.store, owner: input.record.reference.owner });
 }
 
 function storeQueryMetaFields(record: Awaited<ReturnType<typeof readWorkUnit>>): ParsedMetaRecord | undefined {
