@@ -153,22 +153,22 @@ export interface GitCandidateApplicabilityInput {
 }
 
 /**
- * Read every best common ancestor of the pinned baseline and the observed base.
+ * Read every best common ancestor of one revision and the observed base.
  *
  * A pair with none reports none rather than raising: having no ancestor is an answer about the pair, which
  * the caller states in its own words, and it reaches this reader as two different Git outcomes.
  *
  * @param exec - The Git boundary.
- * @param baselineRevision - The pinned baseline target revision.
+ * @param revision - The pinned baseline or current target revision.
  * @param currentBase - The independently observed base revision.
  * @returns Every ancestor the pair has, or nothing when it has none.
  */
-async function readBaselineMergeBases(
+async function readMergeBases(
   exec: RawGitExec,
-  baselineRevision: string,
+  revision: string,
   currentBase: string,
 ): Promise<readonly string[] | null> {
-  const args = ["merge-base", "--all", baselineRevision, currentBase];
+  const args = ["merge-base", "--all", revision, currentBase];
   let result;
   try {
     result = await exec(args, { objectAccess: "local-only" });
@@ -192,7 +192,7 @@ export async function projectGitCandidateApplicability(
     if (request.baselineTarget.subject.subjectDigest === request.currentTarget.subject.subjectDigest) {
       return classifyCandidateApplicability(request, null);
     }
-    const mergeBases = await readBaselineMergeBases(
+    const mergeBases = await readMergeBases(
       input.exec,
       request.baselineTarget.revision,
       request.currentBase,
@@ -224,10 +224,18 @@ export async function projectGitCandidateApplicability(
     }
     // Every surviving variant has one side containing the other or diverging from it at a single ancestor.
     const mergeBase = ObjectIdSchema.parse(mergeBases[0]);
+    // The current contribution starts where the head last met the base: the base itself once the head has
+    // taken it in, or their sole ancestor for a head cut before the base moved, which keeps the base's own
+    // later commits out of the residual. Without a sole ancestor the observed base stays, which can only add
+    // residual, never hide it.
+    const headMergeBases = await readMergeBases(input.exec, request.currentTarget.revision, request.currentBase);
+    const currentContributionBase = headMergeBases?.length === 1
+      ? ObjectIdSchema.parse(headMergeBases[0])
+      : request.currentBase;
     const [beforeBase, beforeMember, afterBase, afterMember] = await Promise.all([
       coordinate(input.exec, mergeBase),
       coordinate(input.exec, request.baselineTarget.revision),
-      coordinate(input.exec, request.currentBase),
+      coordinate(input.exec, currentContributionBase),
       coordinate(input.exec, request.currentTarget.revision),
     ]);
     const endpoints = DeliveryContributionEndpointsSchema.parse({
