@@ -1912,6 +1912,12 @@ in `notes-storage-ref-backend.md` (A25).
           pair even without the additional pair flag. Ordinary push, pull-request, schedule, and complete dispatch
           selection remain unchanged. Job-graph comparison evidence is retained in `notes-storage-ref-backend.md`.
 
+    - `[x]` **18.2.m Materialize UID-qualified check reads at point scope**
+        - UID-qualified work-item/cohort reads retain their captured owner and archive tips while acquiring only the
+          selected archive folders' blobs. Complete inventories remain independent; later list/lookup and name-only
+          or project reads retain the full captured namespace. Native witnesses preserve refusal/repair and complete
+          inventories after point reads; the 600-item trace uses 14/default and 16/separate processes.
+
 ### `[x]` **18.2.R Operation-scoped acquisition during writes**
 
 - _Goal:_ Native `write` and `batch` reuse the existing bounded object reader within one public call, close it on

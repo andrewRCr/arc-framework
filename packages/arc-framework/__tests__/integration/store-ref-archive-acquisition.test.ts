@@ -11,17 +11,28 @@ import { join } from "node:path";
 const olderQuarter = ArchiveQuarterSchema.parse("2025-q4");
 const targetQuarter = ArchiveQuarterSchema.parse("2026-q1");
 
-async function fixture(layout: "default" | "separate") {
+async function fixture(layout: "default" | "separate", inventory = false) {
   let parsedBytes = 0;
   const check: WriteCheck = async ({ reference, prior, next, before, after }) => {
     if (!prior || !next) return [];
     expect(success(await before.read({ reference })).content).toBe(prior.content);
     expect(success(await after.read({ reference })).content).toBe(next.content);
+    if (inventory) {
+      const registry = success(await before.list({ family: "project-registry", kind: "project-registry/identity" }));
+      expect(registry).toMatchObject({ status: "complete", diagnostics: [], records: [
+        { reference: { kind: "project-registry/identity" } },
+      ] });
+      const items = success(await after.list({ family: "work-item", kind: "work-item/meta", filter: { locations: ["completed"] } }));
+      expect(items).toMatchObject({ status: "complete", diagnostics: [] });
+      if (items.status !== "complete") throw new Error("The check inventory is incomplete");
+      expect(items.records.map(({ reference }) => reference.owner.name).sort()).toEqual(["work-item-target", "work-item-unrelated"]);
+    }
     return [];
   };
   const f = await createRefFixture({ "work-item/meta": {
     parser: content => { parsedBytes += Buffer.byteLength(content); return { success: true, data: { content } }; }, check,
   } }, layout);
+  await seed(f, f.reference("project-registry/identity"));
   const other = await seed(f, f.reference("work-item/meta", "unrelated"), "Unrelated prose.\n".repeat(16_384),
     { kind: "completed", quarter: olderQuarter });
   const target = await seed(f, f.reference("work-item/meta", "target"), "Target prose.\n",
@@ -50,6 +61,17 @@ async function fixture(layout: "default" | "separate") {
 }
 
 describe.each(["default", "separate"] as const)("archived acquisition in %s layout", layout => {
+  it("materializes complete inventories after UID-qualified check reads", async () => {
+    const f = await fixture(layout, true);
+    const result = success(await f.store.write({ action: "put", reference: f.target.reference, expected: f.target.version,
+      content: "Inventory still complete.\n", placement: { kind: "completed", quarter: targetQuarter },
+      provenance: { verb: "merge", lifecycleAction: "test" } }));
+    expect(success(await f.store.read({ reference: result.reference }))).toMatchObject({
+      content: "Inventory still complete.\n", version: result.version,
+    });
+    expect(success(await f.store.read({ reference: f.other.reference }))).toEqual(f.other);
+  });
+
   it("reacquires physical objects on a later write and continues after repair", async () => {
     const f = await createRefFixture({ "work-item/meta": {
       parser: content => ({ success: true, data: { content } }),
@@ -94,13 +116,14 @@ describe.each(["default", "separate"] as const)("archived acquisition in %s layo
     expect(f.costs().readBytes).toBeLessThan(16_384);
   });
 
-  it("checks one archived update without parsing unrelated archive prose", async () => {
+  it("checks one archived update without acquiring or parsing unrelated archive prose", async () => {
     const f = await fixture(layout);
     f.reset();
     const result = success(await f.store.write({ action: "put", reference: f.target.reference, expected: f.target.version,
       content: "Updated target.\n", placement: { kind: "completed", quarter: targetQuarter },
       provenance: { verb: "merge", lifecycleAction: "test" } }));
     expect(f.costs().parsedBytes).toBeLessThan(16_384);
+    expect(f.costs().readBytes).toBeLessThan(16_384);
     expect(success(await f.store.read({ reference: result.reference }))).toMatchObject({ content: "Updated target.\n", version: result.version });
     expect(success(await f.store.read({ reference: f.other.reference }))).toEqual(f.other);
     expect(success(await f.store.read({ reference: f.companion })).content).toBe("Unrelated companion.\n".repeat(16_384));

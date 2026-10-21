@@ -1825,3 +1825,41 @@ diagnostics, with either value of the separate pair flag; the former workflow fa
 Ordinary push, pull-request, schedule, and full-dispatch selections compare identically, including light/heavy and
 auto/reviewed pull-request variants. The probe and selected-job inventories are retained under
 `task-18.2-diagnostic-scope/` in the machine-local storage-ref-backend tools directory.
+
+Dispatch `39660574079` binds to `9073a123abacbd4e30aac19357f548db9bb0866b`; its live job graph confirms the bounded
+diagnostic selection. Windows medians were 90.167/205.049/435.902/149.063/1,105.331 ms for version/read/list/lookup/write
+in the default layout and 54.753/161.628/382.684/114.872/1,087.096 ms in the separate layout. Both writes and read/list
+remain over budget; no acceptance task closes. The unchanged single-process version baseline also rose from the
+prior dispatch's 57.401/41.295 ms. The differing runner baseline prevents attributing the raw write-clock increase
+to the reader change alone; it does not relax or normalize any acceptance limit.
+
+The hosted traces confirm 15/default and 17/separate processes with one `cat-file` reader each. That persistent
+reader's trace duration spans its whole lifetime, including idle time between requests; summing it with the other
+commands' clocks double-counts concurrent lifetimes. macOS timing medians were
+25.286/123.729/314.637/65.572/341.878 ms and 13.435/66.080/235.289/30.151/279.498 ms. Its diagnostic job passed;
+Windows's failed. Raw artifacts remain under `task-18.2-write-reader/hosted/` in the local tools directory.
+
+### Scoped check-view acquisition
+
+`checkMetaStage`, `checkMetaInboundHeld`, `checkFormerSlug`, and `checkSlugEdges` observe individual records through
+`createRefWriteViews` even when a completed edit does not change placement, slug, or dependencies. Previously those
+point reads called `captureRefViewState` over every manifest ref, acquiring unrelated registry trees and archive
+prose before the point decoder selected its subject. The native witness measured 627,517 output bytes for a small
+archived edit with large unrelated archive records; the new bound requires fewer than 16,384 bytes in both layouts.
+
+`captureRefPointViewState` now materializes the UID-qualified work-item/cohort owner's captured live ref and its
+folders selected from every captured archive quarter. It reuses `archiveOwnerTrees` and the existing point decoder;
+unavailable quarter trees stay represented, and no current ref is recaptured. `createRefWriteViews` keeps these
+owner-scoped promises separate from its complete before/after snapshots. Name-only, project, list, and lookup paths
+retain complete acquisition. The specialization requires write-attempt evidence, avoiding repeated partial scans
+for callers without that cache; no partial tree enumeration enters the complete immutable tree cache.
+
+The complete-inventory witness reads a UID first, then requires the project registry and every archived item from
+the same before/after views. Reconstructing partial-state promotion into the complete snapshot fails that witness
+in both layouts; separate snapshots pass. Native physical-object refusal/repair, atomic incoming-ref admission,
+completed writes, historical views, cohort closeout, and reader lifetime regressions retain their outcomes.
+
+Local medians over the unchanged timing fixture were 6.974/39.602/126.872/16.043/116.041 ms in the default layout
+and 5.724/38.742/128.859/18.258/140.130 ms in the separate layout. The trace uses 14/default and 16/separate native
+processes. These remain Linux diagnostics; Windows acceptance is still open. Evidence lives in `task-18.2-check-point/`
+in the machine-local tools directory.

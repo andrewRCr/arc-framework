@@ -10,6 +10,8 @@ import { FAMILY_IDS, type FamilyId } from "../catalog.js";
 import { expandStoredPath } from "../stored-path.js";
 import { matchesFamilyRef } from "./codec.js";
 import { refPrototype } from "./read.js";
+import type { RecordReference } from "../identity.js";
+import { archiveOwnerTrees, isArchiveRef } from "./archive-read.js";
 
 /** A ref's immutable entries, optionally overlaid with prepared metadata. */
 export interface RefViewGroup { entries?: readonly RefTreeEntry[]; metadata?: RefMetadata; readPlacement?: ReadPlacement }
@@ -20,6 +22,22 @@ export interface RefViewState { refs: ReadonlyMap<string, RefViewGroup>; objects
 export async function captureRefViewState(context: RefBackendContext, tips: ReadonlyMap<string, string>): Promise<RefViewState> {
   const selected = new Map([...tips].filter(([ref]) => isManifestRef(ref)));
   const trees = selected.size ? await readRefTrees(context, selected) : new Map<string, RefTreeEntry[]>();
+  return stateFromTrees(context, selected, trees);
+}
+
+/** Materialize a UID-qualified owner's live tree and selected folders from captured archive tips. */
+export async function captureRefPointViewState(context: RefBackendContext, tips: ReadonlyMap<string, string>,
+  reference: RecordReference): Promise<RefViewState> {
+  const home = expandStoredPath(reference, { registry: context.registry });
+  const selected = new Map([...tips].filter(([ref]) => ref === home.ref || isArchiveRef(ref)));
+  const trees = await readRefTrees(context, selected);
+  const archived = archiveOwnerTrees(new Map([...trees].filter(([ref]) => isArchiveRef(ref))), [reference.owner]);
+  for (const ref of trees.keys()) if (isArchiveRef(ref)) trees.set(ref, archived.get(ref) ?? []);
+  return stateFromTrees(context, selected, trees);
+}
+
+async function stateFromTrees(context: RefBackendContext, selected: ReadonlyMap<string, string>,
+  trees: ReadonlyMap<string, RefTreeEntry[]>): Promise<RefViewState> {
   const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid)))]);
   return { refs: new Map([...selected.keys()].map((ref) => [ref, { entries: trees.get(ref) }])), objects };
 }

@@ -4,7 +4,7 @@ import { corruptRef } from "./namespace-health.js";
 import type { StoreView, WriteCheckInput } from "../write-check.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefWriteGroup } from "./write-commits.js";
-import { captureRefViewState, overlayRefViewState, viewRefFamily, viewRefMetadata, type RefViewState } from "./view-state.js";
+import { captureRefPointViewState, captureRefViewState, overlayRefViewState, viewRefFamily, viewRefMetadata, type RefViewState } from "./view-state.js";
 import type { ReadInput, StoreRecord, ListInput, ListingOutcome } from "../read.js";
 import type { LookupInput, LookupResult } from "../lookup.js";
 import type { StoreResult, StoreRefusal } from "../refusal.js";
@@ -29,19 +29,41 @@ export function createRefWriteViews(context: RefBackendContext, tips: ReadonlyMa
   groups: ReadonlyMap<string, RefWriteGroup>): { before: WriteCheckInput["before"]; after: StoreView } {
   let prior: Promise<RefViewState> | undefined;
   let next: Promise<RefViewState> | undefined;
-  const before = () => prior ??= captureRefViewState(context, tips);
-  const after = () => next ??= before().then((state) => overlayRefViewState(context, state, groups));
+  const priorPoints = new Map<string, Promise<RefViewState>>();
+  const nextPoints = new Map<string, Promise<RefViewState>>();
+  const before = (reference?: RecordReference) => {
+    const key = pointViewKey(context, reference);
+    if (prior || key === undefined || !reference) return prior ??= captureRefViewState(context, tips);
+    let point = priorPoints.get(key);
+    if (!point) { point = captureRefPointViewState(context, tips, reference); priorPoints.set(key, point); }
+    return point;
+  };
+  const after = (reference?: RecordReference) => {
+    const key = pointViewKey(context, reference);
+    if (next || key === undefined) return next ??= before().then((state) => overlayRefViewState(context, state, groups));
+    let point = nextPoints.get(key);
+    if (!point) { point = before(reference).then((state) => overlayRefViewState(context, state, groups)); nextPoints.set(key, point); }
+    return point;
+  };
   return { before: { ...capturedRefView(context, before),
     history: input => readCapturedRefHistory(context, input.reference, tips) }, after: capturedRefView(context, after) };
 }
 
 /** Read only immutable captured trees, using the same selection in checks and saved-state reads. */
-export function capturedRefView(context: RefBackendContext, load: () => Promise<RefViewState>): StoreView {
+export function capturedRefView(context: RefBackendContext, load: (reference?: RecordReference) => Promise<RefViewState>): StoreView {
   return {
-    read: async (input) => readView(context, await load(), input),
+    read: async (input) => readView(context, await load(input.reference), input),
     list: async (input) => listView(context, await load(), input),
     lookup: async (input) => lookupView(context, await load(), input, await context.identity()),
   };
+}
+
+function pointViewKey(context: RefBackendContext, reference?: RecordReference): string | undefined {
+  if (!context.writeEvidence || !reference) return undefined;
+  const owner = reference.owner;
+  if ((owner.type !== "work-item" && owner.type !== "cohort") || !owner.uid
+    || context.registry[reference.kind].family !== (owner.type === "work-item" ? "work-item" : "cohort")) return undefined;
+  return `${owner.type}:${owner.uid}`;
 }
 
 function lookupView(context: RefBackendContext, state: RefViewState, input: LookupInput, identity: string | null = null): StoreResult<LookupResult> {
