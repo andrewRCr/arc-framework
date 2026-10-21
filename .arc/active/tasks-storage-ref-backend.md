@@ -1843,13 +1843,14 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
           Forgejo, best effort; results recorded in `notes-storage-ref-backend.md`; a must-hold host failing a check goes
           back to the specification as a design defect before landing, never a code fix alone
 
-### `[ ]` **18.5 The pack cost of shared personal names — § 14.9**
+### `[x]` **18.5 The pack cost of shared personal names — § 14.9**
 
 - _Goal:_ Whether personal files' shared names cost a host's pack is measured, so renaming stored paths stays a forward
   change taken only if it bites.
 
-    - Several people's personal refs pushed to a local bare repository and packed, today's names against names ending in
-      the person's id; the result recorded in `notes-storage-ref-backend.md` beside the host kit's
+- _Outcome:_ Sixteen personal refs with forty snapshots each were pushed and repacked in three controlled corpus
+  variants. Exact paired blob inventories isolate the filename difference; three repetitions record both sizes and
+  repack times in `notes-storage-ref-backend.md` § Personal-path pack cost.
 
 ### `[ ]` **18.6 The suites that survive the cutover — § 14.11**
 

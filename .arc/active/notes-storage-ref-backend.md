@@ -794,3 +794,30 @@ and `/tmp/arc-storage-18.2-*`.
 
 These are Linux figures. Task 18.2.a.2 retains dispatched platform evidence, and 18.2.b retains the conditional budget
 response; neither is closed by local timing. No production performance change has been made at this boundary.
+
+## Personal-path pack cost — Task 18.5
+
+A local Git 2.55.0 trial compared sixteen personal refs, each retaining forty snapshots of three documents:
+`WORKING-MEMORY.md`, `USER-INBOX.md`, and `config.user.yml`. Each document held one hundred deterministic paragraphs;
+one paragraph changed per revision. A fresh source pushed every `refs/arc/user/<id>/personal` ref to a fresh bare
+receiver for each arm and repetition. The sole arm difference was the path: `<id>/<name>` versus
+`<id>/<name>.<id>`. Every paired arm retained the same 1,920 blob object IDs, 640 commits, sixteen refs, and 3,840 total
+objects; full object verification completed before packing.
+
+Each receiver repacked with Git's ten-object delta window and depth fifty, one thread, forcing fresh delta selection.
+Three independent repetitions alternated arm order. Pack sizes were identical across all three repetitions; the table
+reports bytes and median repack milliseconds. The corpus variants change only cross-person similarity: common shares
+paragraph payloads across people, mixed shares half, and distinct shares none. Owner headers differ throughout.
+
+| Corpus   | Shared-name bytes | Identity-suffix bytes | Shared / suffix | Shared ms | Suffix ms |
+| -------- | ----------------- | --------------------- | --------------- | --------- | --------- |
+| common   | 310,228           | 591,561               | 0.524           | 156.6     | 199.7     |
+| mixed    | 10,413,153        | 591,309               | 17.610          | 1,459.6   | 197.4     |
+| distinct | 10,410,153        | 591,264               | 17.607          | 1,323.6   | 200.5     |
+
+This demonstrates a material shared-name pack cost when people's content differs, while shared content benefits from
+cross-person deltas. It measures controlled local Git packing, not any host's pack policy or a production population.
+It supports considering the specification's forward naming change; this measurement itself changes no stored path.
+The reproducible script and complete raw results are retained under
+`.arc/user/andrew/.internal/storage-ref-backend-tools/task-18.5/`; the script's SHA-256 is
+`316d9a4ff654671ed375bf382e0c09968998fd93bb210c011fbf347ba323dd39`.
