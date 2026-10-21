@@ -22,7 +22,7 @@ import { retainedBasisChanged } from "./write-retained.js";
 import { checkRefWriterRules } from "./writer-admission.js";
 
 /** Describe invalid mutation content without changing any state. */
-export function malformedMutation(reference: RecordReference, condition: string, rule = "store.mutation"): StoreRefusal {
+function malformedMutation(reference: RecordReference, condition: string, rule = "store.mutation"): StoreRefusal {
   return { code: "record-malformed", class: "recoverable", reference, rule,
     condition, remedy: { text: "Correct the mutation, including required primary placement, then retry." } };
 }

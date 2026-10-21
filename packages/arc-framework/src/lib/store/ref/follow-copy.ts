@@ -58,7 +58,7 @@ async function checkFollowDestination(code: RefBackendContext, record: FollowMov
 }
 
 /** A newer move requires fresh candidate judgment before any further copy. */
-export function followMoved(remote: string): MigrationRefusal {
+function followMoved(remote: string): MigrationRefusal {
   return new MigrationRefusal({ code: "moved", class: "recoverable", condition: `The forwarding record on ${remote} changed during the follow.`,
     remedy: { text: "Bring in the latest tracked pointer and retry arc store migrate to follow the current move.", argv: ["arc", "store", "migrate"] } });
 }

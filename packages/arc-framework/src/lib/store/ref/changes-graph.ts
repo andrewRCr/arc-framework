@@ -38,7 +38,7 @@ export function createChangeWindowReader(context: RefBackendContext, evidence = 
 }
 
 /** Read each branch in local-before-remote order, bounded by the caller's exact commits. */
-export async function captureChangeWindow(context: RefBackendContext, window: RefChangeWindow, evidence = new StoreCreationReceiptReader()): Promise<StoreResult<CapturedChangeWindow>> {
+async function captureChangeWindow(context: RefBackendContext, window: RefChangeWindow, evidence = new StoreCreationReceiptReader()): Promise<StoreResult<CapturedChangeWindow>> {
   const heads = await readBatchObjects(context, [window.upper, ...window.lower ? [window.lower] : []]);
   if ([...heads.values()].some((object) => object?.type !== "commit")) return { status: "refused", refusal: missingChangeState(window) };
   const headReceipts = captureCommitReceipts(heads, window.ref, evidence);

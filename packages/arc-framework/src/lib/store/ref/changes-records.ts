@@ -18,7 +18,7 @@ import { historicalState, type HistoricalState } from "./history-snapshots.js";
 export interface RefChangeEvent { entry: HistoryEntry; before: RecordVersion | null; revision: string; ref: string; order: number }
 
 /** Stable logical identity retains exact key strings and normalizes a UID primary's two roles. */
-export function changeRecordKey(reference: RecordReference): string {
+function changeRecordKey(reference: RecordReference): string {
   const owner = reference.owner;
   const primary = owner.type === "work-item" && owner.uid !== undefined && ["work-item/meta", "work-item/record"].includes(reference.kind);
   return JSON.stringify([owner.type, "uid" in owner ? owner.uid ?? owner.name : owner.name,

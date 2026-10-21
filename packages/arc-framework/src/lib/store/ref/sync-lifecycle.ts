@@ -29,7 +29,7 @@ export function refEndPublished(context: RefBackendContext, incoming: ReadonlyMa
 }
 
 /** An unpublished end still needs its record and an end absent from both published item tips. */
-export async function hasOwnRefEnd(context: RefBackendContext, held: ReadonlyMap<string, string>, live: string,
+async function hasOwnRefEnd(context: RefBackendContext, held: ReadonlyMap<string, string>, live: string,
   folders: readonly ArchivedFolder[], published: RefEndPublished): Promise<boolean> {
   const history = live.replace("refs/arc/", "refs/arc/history/");
   for (const folder of folders.filter((folder) => folder.liveRef === live)) {
@@ -46,7 +46,7 @@ export async function hasOwnRefEnd(context: RefBackendContext, held: ReadonlyMap
 }
 
 /** A local reopen is unpublished only while the incoming quarter still holds the removed folder. */
-export async function readOwnRefReopens(context: RefBackendContext, held: ReadonlyMap<string, string>,
+async function readOwnRefReopens(context: RefBackendContext, held: ReadonlyMap<string, string>,
   incoming: ReadonlyMap<string, string>): Promise<Set<string>> {
   const local = new Set((await readLifecycleFolders(context, held)).map(({ liveRef }) => liveRef));
   return new Set((await readLifecycleFolders(context, incoming)).filter(({ liveRef }) => held.has(liveRef) && !local.has(liveRef))

@@ -13,7 +13,7 @@ export interface LiveRefOwner {
 }
 
 /** Identify the two record roles whose presence makes a work item live. */
-export function isWorkPrimary(reference: RecordReference): boolean {
+function isWorkPrimary(reference: RecordReference): boolean {
   return reference.kind === "work-item/meta" || reference.kind === "work-item/record";
 }
 

@@ -124,6 +124,39 @@ describe.each(["files", "reftable"] as const)("locked ref writes (%s)", (format)
       await released();
     } finally { await releaseHeld(); }
   });
+  it("acquires each distinct ref lock once in name order, so opposite-order batches both land", async () => {
+    const f = await createRefReadFixture(format);
+    const seeded = await f.store.write({ action: "put", reference: primary, expected: null,
+      content: makeMetaFixture("alpha"), placement: { kind: "active" }, provenance });
+    if (seeded.status !== "ok" || seeded.result.reference.owner.type !== "work-item") throw new Error("No seeded owner");
+    const native = createRefLockFactory(f.ports);
+    const uid = seeded.result.reference.owner.uid;
+    const ordered = [`refs/arc/history/work/${uid}`, "refs/arc/user/andrew/personal", `refs/arc/work/${uid}`];
+    const recordingStore = () => {
+      const acquired: string[] = [];
+      const store = createRefStore({ ...f.ports, lock: (ref) => {
+        if (ref.startsWith("refs/")) acquired.push(ref);
+        return native(ref, 5_000);
+      } });
+      return { acquired, store };
+    };
+    const companion = (key: string) => RecordReferenceSchema.parse({ ...seeded.result.reference, kind: "work-item/companion", key });
+    const personal = (key: string) => RecordReferenceSchema.parse({ owner: { type: "person", name: "andrew" }, kind: "personal/document", key });
+    const batch = (store: ReturnType<typeof createRefStore>, references: ReturnType<typeof companion>[]) =>
+      store.batch({ provenance, writes: references.map((reference) => ({ action: "put", reference, expected: null, content: "ordered" })) });
+
+    const single = recordingStore();
+    expect(await batch(single.store, [companion("a"), personal("a.txt"), companion("c")])).toMatchObject({ status: "ok" });
+    expect(single.acquired).toEqual(ordered);
+
+    const [left, right] = [recordingStore(), recordingStore()];
+    expect(await Promise.all([batch(left.store, [companion("b"), personal("b.txt")]),
+      batch(right.store, [personal("d.txt"), companion("d")])])).toMatchObject([{ status: "ok" }, { status: "ok" }]);
+    for (const { acquired } of [left, right]) {
+      expect(acquired.length % ordered.length).toBe(0);
+      acquired.forEach((ref, index) => expect(ref).toBe(ordered[index % ordered.length]));
+    }
+  }, 20_000);
   it("reports release failure as an error while preserving the already committed record", async () => {
     const f = await createRefReadFixture(format);
     const native = createRefLockFactory(f.ports);

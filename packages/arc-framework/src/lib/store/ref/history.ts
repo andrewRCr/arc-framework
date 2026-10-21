@@ -57,7 +57,7 @@ export async function readCapturedRefHistory(context: RefBackendContext, request
 }
 
 /** Read a record log against one exact tip, also usable by a locked stale-base lookup. */
-export async function readRefHistory(context: RefBackendContext, reference: RecordReference,
+async function readRefHistory(context: RefBackendContext, reference: RecordReference,
   home: StoredRecordHome, tip: string, evidence = new StoreCreationReceiptReader()): Promise<StoreResult<HistoryEntry[]>> {
   const history = await readRefHistoryDetails(context, reference, home, tip, evidence);
   return history.status === "refused" ? history : { status: "ok", result: history.result.map(({ entry }) => entry) };
