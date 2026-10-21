@@ -9,7 +9,7 @@ import { createRefStore, type Store, type ListInput } from "../../src/lib/store/
 
 const TIMING_TIMEOUT_MS = 900_000;
 const listing: ListInput = { family: "work-item", kind: "work-item/meta", filter: { locations: ["completed"] } };
-const budgets = { version: 100, read: 150, list: 300, lookup: 300, write: 600 } as const;
+const budgets = { version: 100, read: 300, list: 600, lookup: 300, write: 1_500 } as const;
 type TimingClient = Awaited<ReturnType<typeof createRefTimingFixture>>["clients"][number];
 interface Invocation { kind: string; argv: string[]; startMs: number; endMs: number }
 async function median<T>(operation: () => Promise<T>, verify: (value: T) => void | Promise<void>, retained?: number[]): Promise<number> {

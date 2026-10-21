@@ -1954,9 +1954,10 @@ in `notes-storage-ref-backend.md` (A25).
 - _Goal:_ Both layouts enforce the approved 100/300/600/300/1,500 ms version/read/list/lookup/write medians over the
   unchanged 600-item, twelve-quarter workload, and the complete dispatched portability pair passes (A27).
 
-    - `[ ]` **18.2.R2.a Align timing assertions with the calibrated limits**
-        - Change only the three approved numeric limits; retain eleven samples, fixture population, validation,
-          reader ownership, native resource regressions, and separate diagnostic/full-run selection.
+    - `[x]` **18.2.R2.a Align timing assertions with the calibrated limits**
+        - The timing assertion table changes read/list/write to 300/600/1,500 ms. Eleven samples, population,
+          validation, reader ownership, resource coverage, and diagnostic/full-run selection retain their meaning;
+          the complete hosted run remains the acceptance witness under 18.2.R2.b.
 
     - `[ ]` **18.2.R2.b Complete the dispatched portability pair**
         - Record both layouts' Windows medians, complete platform outcomes, and exact source head; close 18.2.a.2
