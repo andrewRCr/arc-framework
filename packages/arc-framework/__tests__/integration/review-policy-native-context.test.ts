@@ -1,4 +1,7 @@
 /** Generic native policy calculates without a vehicle until record evidence is required. */
+import { canonicalDigest } from "../../src/lib/kernel/index.js";
+import { writeSubmissionBoundary } from "../../src/lib/store/kinds/review/integration-boundary/access.js";
+import { projectPublicationBoundary, recoverAttestedOwnerTerminusBoundary } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
@@ -168,7 +171,8 @@ it("retains an already selected generation when its slug is reused beside an unl
   expect(await produced.outcomes.read(produced.outcome.attemptId)).toEqual(produced.stored);
 }, 30_000);
 
-it.each([null, "recorded-owner"])("recomposes omitted native terminus authority from the selected owner with author %s", async author => {
+it.each([false, true].flatMap(carried => [null, "recorded-owner"].map(author => ({ carried, author }))))(
+  "recomposes omitted native terminus authority with carry=$carried and author=$author", async ({ carried, author }) => {
   const h = await fixture(), produced = await producedContext(h, "runnable-standard");
   await h.git("switch", "-c", "topic/owner");
   const candidate = await readCandidateRecord(h.cwd, "example", { store: h.reference.store, owner: produced.primary.reference.owner });
@@ -176,9 +180,18 @@ it.each([null, "recorded-owner"])("recomposes omitted native terminus authority 
   const decisions = createReviewDecisionPort(h.reference.store, produced.primary.reference.owner);
   const recorded = await decisions.create({ schemaVersion: 1, subject: {
     lineage: { kind: "candidate", candidateId: candidate.attestation.candidateId }, headSha: null,
-    subjectDigest: candidate.subject.subjectDigest }, lane: "standard", choice: { kind: "terminus" },
+    subjectDigest: carried ? canonicalDigest({ priorSubject: true }) : candidate.subject.subjectDigest }, lane: "standard", choice: { kind: "terminus" },
     decidedBy: author, decidedAt: null, basis: { passCount: 2 } });
   const decisionKey = reviewDecisionKey(recorded.value);
+  if (carried) {
+    const published = projectPublicationBoundary({ workUnit: "example", branch: "topic/owner",
+      candidateId: candidate.attestation.candidateId, candidateSubjectDigest: recorded.value.subject.subjectDigest,
+      terminus: decisionKey, reservation: null, changeRequest: null, readinessBinding: null }, 2);
+    const recovered = recoverAttestedOwnerTerminusBoundary({ stored: published, workUnit: "example",
+      candidateId: candidate.attestation.candidateId, candidateSubjectDigest: candidate.subject.subjectDigest, repairCurrent: true });
+    if (recovered === null) throw new Error("Expected recovered singleton boundary");
+    await writeSubmissionBoundary(h.cwd, recovered, null, { store: h.reference.store, owner: produced.primary.reference.owner });
+  }
   await h.git("config", "arc.identity", "different-relayer");
   const before = lifecycleSuccess(await h.reference.store.version());
   const result = await h.run(produced.request);

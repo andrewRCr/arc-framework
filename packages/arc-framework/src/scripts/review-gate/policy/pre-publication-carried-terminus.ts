@@ -1,8 +1,9 @@
 /** Bind retained native terminus references before evidence binding and pure policy evaluation. */
 import type { PublishedIntegrationBoundaryLocus } from "./integration-boundary-locus.js";
+import { nativeBoundaryTerminusReference } from "../runtime/native-terminus.js";
 import type { PrePublicationCompositionDependencies } from "./pre-publication-request.js";
 
-/** Apply the boundary's existing exact-Candidate carry rule while resolving its original decision. */
+/** Resolve the original decision through the boundary's current Candidate subject. */
 export function bindPrePublicationCarriedTerminus(
   dependencies: PrePublicationCompositionDependencies,
   boundary: PublishedIntegrationBoundaryLocus | null,
@@ -12,11 +13,6 @@ export function bindPrePublicationCarriedTerminus(
   if (dependencies.stateOffBranch !== true || resolve === undefined) {
     throw new Error("Restore the selected native review backend before resolving its retained terminus, then retry.");
   }
-  const decisionKey = boundary.terminus;
-  return { ...dependencies, resolveNativeTerminus: context => {
-    const { subject } = context;
-    const carried = subject.lineage.kind === "candidate" && boundary.candidateSubjectDigest !== null
-      && subject.lineage.candidateId === boundary.candidateId && subject.subjectDigest === boundary.candidateSubjectDigest;
-    return resolve({ ...context, ...(carried ? { decisionKey } : {}) });
-  } };
+  return { ...dependencies, resolveNativeTerminus: context => resolve({ ...context,
+    ...nativeBoundaryTerminusReference(boundary, context.subject) }) };
 }

@@ -53,6 +53,7 @@ import type { NativeOwnerAcceptedReviewTerminus, ResolvedOwnerAcceptedReviewTerm
 import { projectStandardReviewObligation } from "./standard-review-projection.js";
 import { resolveReviewRouting } from "./routing.js";
 import type {
+  PublishedIntegrationBoundaryLocus,
   StandardReviewReservationTarget,
   StandardReviewReservationV1,
 } from "./integration-boundary-locus.js";
@@ -201,6 +202,7 @@ export interface PrePublicationCompositionDependencies {
   }): Promise<PreparedNativeReviewTerminus>;
   resolveNativeTerminus?(input: {
     decisionKey?: CanonicalDigest;
+    carriedBoundary?: PublishedIntegrationBoundaryLocus;
     subject: { lineage: LaneSubjectLineage; headSha: string; subjectDigest: CanonicalDigest | null };
   }): Promise<NativeOwnerAcceptedReviewTerminus | undefined>;
   resolveExtraPassJudgment?(input: {

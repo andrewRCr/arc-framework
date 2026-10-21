@@ -1,4 +1,7 @@
 /** Boundary decisions preserve the exact subject the old record bound. */
+import { createReviewHarness } from "../../../../../helpers/store/review-harness.js";
+import { createReviewDecisionPort } from "../../../../../../src/lib/store/kinds/review/decision/access.js";
+import { prepareNativeReviewTerminus } from "../../../../../../src/scripts/review-gate/runtime/native-terminus-write.js";
 import { expect, it } from "vitest";
 import { createReviewTarget } from "../../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { canonicalDigest } from "../../../../../../src/lib/kernel/index.js";
@@ -46,9 +49,9 @@ async function chainBoundaryInput(ancestorResult: "clean" | "findings" = "clean"
   return { input, current, boundary, olderFixture: fixtures[0]! };
 }
 
-it("maps a Candidate terminus on the boundary's recorded subject, including an unstored digest", async () => {
+it.each([false, true])("keys an imported and live Candidate terminus alike on a stored=%s subject", async stored => {
   const { input, boundary } = boundaryInput();
-  const digest = canonicalDigest({ equivalentSubject: 1 });
+  const digest = stored ? boundary.candidateSubjectDigest : canonicalDigest({ equivalentSubject: 1 });
   const terminus = { schemaVersion: 1, semanticsVersion: "review-terminus/v1", kind: "owner-accepted", lane: "standard",
     acceptedBy: "andrew", completedPasses: 2 };
   input.candidates[0]!.boundary = JSON.stringify(IntegrationBoundaryLocusSchema.parse({ ...boundary,
@@ -61,6 +64,14 @@ it("maps a Candidate terminus on the boundary's recorded subject, including an u
     lane: "standard", choice: { kind: "terminus" }, decidedBy: "andrew", decidedAt: null, basis: { passCount: 2 } });
   expect(JSON.parse(decisions[0]!.contents[0]!)).toEqual(expected);
   expect(decisions[0]!.reference.key).toBe(reviewDecisionKey(expected));
+  const h = createReviewHarness(), primary = await h.seedMeta("example");
+  const port = createReviewDecisionPort(h.store, primary.reference.owner);
+  const live = await prepareNativeReviewTerminus({ facts: { decisions: port }, subject: { ...expected.subject, headSha: "a".repeat(40) },
+    acceptedBy: "andrew", completedPasses: 2, now: "2026-10-20T17:00:00Z" });
+  expect(live.key).toBe(decisions[0]!.reference.key);
+  expect(live.put).toMatchObject({ content: expect.any(String) });
+  if (live.put === undefined) throw new Error("Expected new live decision");
+  expect(JSON.parse(live.put.content)).toMatchObject({ ...expected, decidedAt: "2026-10-20T17:00:00Z" });
   await assertReviewMapping(result);
 });
 

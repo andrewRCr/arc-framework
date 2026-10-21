@@ -5,13 +5,13 @@ import { join } from "node:path";
 import { handleReviewPrePublication } from "../../../src/handlers/review.js";
 import { CandidateManagedRecordV1Schema, createCandidateAttestation, createCandidateSubjectSnapshot, createCandidateReviewResponseEvidence } from "../../../src/lib/work-unit/candidate-attestation.js";
 import { PrePublicationReplayInputSchema, replayTokenFromAction } from "../../../src/scripts/review-gate/policy/pre-publication-replay.js";
-import { canonicalDigest } from "../../../src/lib/kernel/index.js";
+import { canonicalDigest, SlugSchema } from "../../../src/lib/kernel/index.js";
 import { IntegrationBoundaryLocusV2Schema } from "../../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
 import { createProjectIdentityReader } from "../../../src/lib/store/project-identity.js";
 import { createReviewHarness } from "../../helpers/store/review-harness.js";
 import { createReviewCheckout } from "../../helpers/store/review-checkout.js";
 import { lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
-import { projectPublicationBoundary, projectCandidateReviewResumeBoundary } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { projectPublicationBoundary, projectCandidateReviewResumeBoundary, recoverAttestedOwnerTerminusBoundary } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { writeSubmissionBoundary, readSubmissionBoundaryVersioned } from "../../../src/lib/store/kinds/review/integration-boundary/access.js";
 
 import { createReviewCompositionContext } from "../../../src/scripts/review-gate/runtime/composition-context.js";
@@ -292,7 +292,7 @@ it.each([null, "recorded-owner"])("resolves an imported native terminus with aut
   expect(await h.store.version()).toEqual(before);
 });
 
-it.each(["live", "missing", "wrong-kind", "withdrawn", "outside-subject", "superseded"] as const)(
+it.each(["live", "missing", "wrong-kind", "withdrawn", "wrong-lineage", "superseded"] as const)(
   "validates a retained native %s terminus before policy and recovers with a live key", async kind => {
     const h = await fixture(), owner = await h.seedCandidate();
     const snapshot = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
@@ -308,8 +308,9 @@ it.each(["live", "missing", "wrong-kind", "withdrawn", "outside-subject", "super
     if (kind === "missing") retainedKey = canonicalDigest({ missing: true });
     if (kind === "wrong-kind") retainedKey = reviewDecisionKey((await port.create({ ...decision, basis: null,
       choice: { kind: "extra-pass", passCount: 2, precondition: { kind: "ceiling", targetBinding: { kind: "call-target" } } } })).value);
-    if (kind === "outside-subject") retainedKey = reviewDecisionKey((await port.create({ ...decision,
-      subject: { ...decision.subject, subjectDigest: canonicalDigest({ outside: true }) } })).value);
+    if (kind === "wrong-lineage") retainedKey = reviewDecisionKey((await port.create({ ...decision,
+      subject: { lineage: { kind: "delivery-member", planId: "123e4567-e89b-42d3-a456-426614174000",
+        deliverableId: canonicalDigest({ member: 1 }), workUnitId: SlugSchema.parse("example") }, headSha: "a".repeat(40), subjectDigest: null } })).value);
     if (kind === "withdrawn") await port.create({ ...decision, basis: null, choice: { kind: "withdrawal", decisionKey: liveKey } });
     if (kind === "withdrawn" || kind === "superseded") liveKey = reviewDecisionKey((await port.create({ ...decision,
       decidedBy: "recorded-owner", decidedAt: "2026-10-20T16:00:00Z" })).value);
@@ -414,4 +415,61 @@ it("retains a concurrent decision conflict's remedy and reuses that decision on 
   const recorded = termini[0], key = reviewDecisionKey(recorded.value);
   expect(await h.run(true, lanes)).toMatchObject({ schemaVersion: 2, locus: "candidate-publish-ready", terminus: key });
   expect(await decisions.read(key)).toEqual(recorded);
+});
+
+
+it.each([null, "original-owner"])("carries a recovered singleton decision to the attested subject with author %s", async decidedBy => {
+  const h = await fixture(), owner = await h.seedCandidate();
+  const snapshot = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
+  const current = snapshot.boundary;
+  if (current?.schemaVersion !== 2 || current.candidateSubjectDigest === null) throw new Error("Expected native boundary");
+  const decisions = createReviewDecisionPort(h.store, owner);
+  const recorded = await decisions.create({ schemaVersion: 1,
+    subject: { lineage: { kind: "candidate", candidateId: current.candidateId }, headSha: null,
+      subjectDigest: canonicalDigest({ earlierSubject: true }) }, lane: "standard", choice: { kind: "terminus" },
+    decidedBy, decidedAt: null, basis: { passCount: 2 } });
+  const key = reviewDecisionKey(recorded.value);
+  const published = projectPublicationBoundary({ workUnit: "example", branch: "topic/opaque", candidateId: current.candidateId,
+    candidateSubjectDigest: recorded.value.subject.subjectDigest, reservation: null, changeRequest: null,
+    terminus: key, readinessBinding: null }, 2);
+  const recovered = recoverAttestedOwnerTerminusBoundary({ workUnit: "example", candidateId: current.candidateId,
+    candidateSubjectDigest: current.candidateSubjectDigest, repairCurrent: true, stored: published });
+  if (recovered === null) throw new Error("Expected non-semantic boundary recovery");
+  await writeSubmissionBoundary(h.cwd, recovered, snapshot.version, { store: h.store, owner });
+  const termini = async () => { const listing = await decisions.list();
+    if (listing.status !== "complete") throw new Error(listing.reason);
+    return listing.records.filter(record => record.value.choice.kind === "terminus"); };
+  const before = await termini();
+  const ready = await h.run(true);
+  expect(ready, JSON.stringify(ready)).toMatchObject({ schemaVersion: 2, locus: "candidate-publish-ready", terminus: key });
+  const replay = await h.run();
+  expect(replay, JSON.stringify(replay)).toMatchObject({ schemaVersion: 2, locus: "candidate-publish-ready", terminus: key });
+  expect(await termini()).toEqual(before);
+  expect(await decisions.read(key)).toEqual(recorded);
+});
+
+
+it("drops a native terminus when an approved fix advances the private Candidate subject", async () => {
+  const h = await fixture(), owner = await h.seedCandidate(true);
+  const candidate = await readCandidateRecord(h.cwd, "example", { store: h.store, owner });
+  if (candidate === null) throw new Error("Expected response Candidate");
+  const decisions = createReviewDecisionPort(h.store, owner);
+  const recorded = await decisions.create({ schemaVersion: 1, subject: {
+    lineage: { kind: "candidate", candidateId: candidate.attestation.candidateId }, headSha: null,
+    subjectDigest: candidate.subject.subjectDigest }, lane: "standard", choice: { kind: "terminus" },
+    decidedBy: "test-user", decidedAt: null, basis: { passCount: 2 } });
+  const old = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
+  await writeSubmissionBoundary(h.cwd, projectCandidateReviewResumeBoundary({ workUnit: "example",
+    candidateId: candidate.attestation.candidateId, candidateSubjectDigest: candidate.subject.subjectDigest,
+    reservation: null, terminus: reviewDecisionKey(recorded.value), postAttestContinuation: {
+      reviewedHead: candidate.attestation.baseRevision, nextAction: { kind: "continue-pre-publication-review",
+        command: "arc review pre-publication example", interactionText: "Continue review after attestation." } } }, 2),
+  old.version, { store: h.store, owner });
+  const listing = await decisions.list();
+  const result = await h.run(true);
+  expect(result, JSON.stringify(result)).toHaveProperty("terminus", null);
+  const after = await decisions.list();
+  if (listing.status !== "complete" || after.status !== "complete") throw new Error("Expected complete decisions");
+  expect(after.records.filter(record => record.value.choice.kind === "terminus"))
+    .toEqual(listing.records.filter(record => record.value.choice.kind === "terminus"));
 });

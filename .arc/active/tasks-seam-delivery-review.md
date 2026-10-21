@@ -1182,57 +1182,7 @@ this phase puts publication's claim and reopen's boundary write in their transit
               before pure admission or replay. Status and reservation discharge preserve executable continuations
               through the same decision, without changing repository-backed behavior or incremental pass accounting.
 
-    - `[ ]` **6.2.b Termini**
-
-        - The singleton terminus is written by every call carrying one — `arc review pre-publication --lanes` and its
-          `--resume` replay (`handlers/review.ts`), whose compose reads its authority (`readOwnerTerminusAuthority`,
-          `rg/policy/pre-publication-composition.ts`) — in one batch with the boundary `handleReviewPrePublication`
-          persists where the call persists one, and alone where it persists none, as a call returning `run-self-review`
-          or `continue` does; the member terminus is written by `resolveDeliveryReviewTerminusAcceptance`
-          (`rg/policy/delivery-review-terminus.ts`) and `acceptDeliveryReviewTerminus` (`handlers/review.ts`) with the
-          boundary naming it in one batch. Each decision's basis is the pass count its offer counted (`{ passCount }`),
-          and the staged-terminus replay has no flip-time arm. A singleton terminus records no head, its subject the
-          Candidate and the decided subject digest, as the import takes it (§ 5.1, 3.4). From the flip the member
-          terminus's acceptance reports `recorded` with the next action `continue` and no `boundaryPath` (4.5.a).
-        - The two write ports carry the decision's `put` into the boundary's batch: `persistBoundary`
-          (`handlers/review.ts`) and the acceptance's `writeBoundary` (`rg/policy/delivery-review-terminus.ts`) widen to
-          take it beside the boundary.
-        - A call whose terminus decision is already stored reads it and leaves its `put` out of the batch, so a re-run
-          or a `--resume` replay of the same answer does not refuse `version-conflict` over its own decision (§ 5.2).
-          The acceptance's replay and conflict check (`resolveDeliveryReviewTerminusAcceptance`) resolve the decision
-          the member's entry names, comparing its pass count with the offer's, and an exact replay returns its `record`
-          composed from that decision in today's shape.
-        - The resolution reads singleton termini within their reach (§ 5.6) at composition, as 6.2.a reads extra
-          passes, so a terminus decided on a call that persisted no boundary, or imported from a resume token (3.4),
-          reaches readiness; a boundary persisted later names that decision (§ 9.3).
-        - From the flip the readers of a terminus resolve the name the boundary holds to its decision:
-          `isDeliveryReviewMemberDischargedByOwnerTerminus` (`rg/status.ts`), status composition's terminus reads
-          (`rg/status-composition.ts`), the checkpoint composition's (`scripts/integration/checkpoint-composition.ts`),
-          and the pre-publication compose, which reads the boundary's terminus to carry it (`handlers/review.ts`).
-        - The carry follows today's writers: `applyCarriedOwnerAcceptedTerminus` carries it only while the subject is
-          unchanged; `recoverAttestedOwnerTerminusBoundary`, `rebindSingletonPublicationResponseBoundary`,
-          `projectCorrectiveDeliveryStatusBoundary`, `recoverPublicationBoundary`, and `projectPublicationBoundary`
-          (`rg/policy/integration-boundary-locus.ts`), `carryDeliveryReviewFixPublicBoundary`
-          (`lib/delivery/review-fix.ts`), and `convergenceResumeAfterAttest` (`handlers/lifecycle-delivery-review.ts`)
-          carry its name.
-        - Build `test-first` (one behavior at a time):
-            - an accepted terminus writes one decision, which the boundary names, in one batch
-            - a terminus on a call returning `run-self-review` writes its decision alone, its resume reaches readiness
-              with it, and the readiness boundary names it
-            - a terminus decision the import mapped from a resume token reaches the resolution, and the next boundary
-              names it
-            - from the flip a member terminus's acceptance result reports `recorded` with `continue` and no
-              `boundaryPath`, and in-repo `commit-boundary` with its path as today
-            - the decision a singleton terminus writes keys as 3.4 maps the boundary it leaves, on a subject the
-              Candidate record stores and on one it never stores, recognized as equivalent to its target
-            - a second answer refuses where the live offer differs, or where the member carries a terminus with another
-              pass count
-            - from the flip re-running an accepted member terminus reports `exact-replay` with today's record, and a
-              `--resume` replay carrying a stored singleton terminus writes the boundary alone, each writing no second
-              decision and refusing nothing
-            - a member terminus the boundary names discharges the member at status and at the checkpoint
-            - an approved fix that advances the Candidate drops the name, and a non-semantic movement after publication
-              keeps it
+    - `[x]` **6.2.b Termini**
 
         - `[x]` **6.2.b.1 Singleton judgments and atomic persistence**
             - Authorized singleton judgments prepare one decision on the effective Candidate subject, joining a
@@ -1242,9 +1192,10 @@ this phase puts publication's claim and reopen's boundary write in their transit
             - Native acceptance records the decision and boundary atomically, preserves exact replay and pass-count
               refusals, and returns without staging a tracked file. Status and checkpoint composition resolve member
               keys with their recorded provenance; invalid references refuse and repaired authority resumes normally.
-        - `[ ]` **6.2.b.3 Terminus carry and recovery proofs**
-            - Preserve the existing singleton and member carry/drop rules across publication, response, corrective
-              renewal, and attestation recovery; retain key parity with import and close bounded replay proofs.
+        - `[x]` **6.2.b.3 Terminus carry and recovery proofs**
+            - Native resolution follows the retained boundary across attestation, verified response, and corrective
+              renewal, preserving original provenance and live-decision checks. Private subject advance drops the
+              name; imported and live singleton decisions key alike on stored and unstored subjects.
 
     - `[ ]` **6.2.c The resume token and the frontline resolve form**
 

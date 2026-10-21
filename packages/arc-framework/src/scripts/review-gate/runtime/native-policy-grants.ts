@@ -1,5 +1,6 @@
 /** Compose ordinary native pass authority from exact subjects before pure policy runs. */
 import { createRawGitExec } from "../../../lib/io-context.js";
+import { readSubmissionBoundary } from "../../../lib/store/kinds/review/integration-boundary/access.js";
 import { readCandidateRecord } from "../../../lib/store/kinds/review/candidate/access.js";
 import { readRepositoryCandidateSupersessionChain } from "../../../lib/store/kinds/review/candidate/history.js";
 import { projectGitCandidateEffectiveTarget } from "../../../lib/work-unit/git-candidate-effective-target.js";
@@ -13,7 +14,7 @@ import { readLaneProgress, readCandidateInheritedLaneProgress } from "../lane-pr
 import type { ReviewPolicyCommandRequest, ReviewPolicyBoundRequest } from "../policy/review-policy-driver.js";
 import type { ReviewInvocationInput } from "./invocation.js";
 import { resolveNativeInvocationExtraPassJudgment } from "./native-extra-pass.js";
-import { resolveNativeReviewTerminus } from "./native-terminus.js";
+import { nativeBoundaryTerminusReference, resolveNativeReviewTerminus } from "./native-terminus.js";
 import type { NativeExtraPassResolution } from "./native-extra-pass.js";
 
 /** Bind resolved targetless projections at use while leaving explicit incremental grants subject to policy refusal. */
@@ -87,6 +88,15 @@ export async function composeNativePolicyGrants(input: ReviewInvocationInput & {
   const resolved = await resolveNativeInvocationExtraPassJudgment(input, facts, { repositoryId, subject, lane: request.lane,
     completedPasses, policyTarget: request.target, ceilingOverride: request.ceilingOverride,
     additionalPassAuthorization: request.additionalPassAuthorization });
-  const terminus = request.lane === "standard" ? await resolveNativeReviewTerminus({ facts, subject }) : undefined;
+  const terminus = await resolvePolicyTerminus(input, facts, subject, workUnit);
   return { ...projectNativePolicyGrants(request, resolved, input.incremental), ...(terminus === undefined ? {} : { terminus }) };
+}
+
+
+async function resolvePolicyTerminus(input: Parameters<typeof composeNativePolicyGrants>[0],
+  facts: NonNullable<ReviewInFlightPort["nativeFacts"]>, subject: ReviewDecision["subject"], workUnit?: string) {
+  if (input.request.lane !== "standard") return undefined;
+  const boundary = subject.lineage.kind !== "candidate" || workUnit === undefined ? null
+    : await readSubmissionBoundary(input.cwd, workUnit, { store: input.store, owner: input.workItem });
+  return resolveNativeReviewTerminus({ facts, subject, ...nativeBoundaryTerminusReference(boundary, subject) });
 }
