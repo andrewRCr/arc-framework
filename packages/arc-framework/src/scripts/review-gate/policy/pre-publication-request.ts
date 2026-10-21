@@ -219,6 +219,7 @@ export interface PrePublicationCompositionDependencies {
   readSingletonFrontlinePhaseClosed?(
     candidateId: CanonicalDigest,
     ancestors: readonly CandidateSupersessionAncestor[],
+    headSha?: string,
   ): Promise<boolean>;
   readLanePolicy(lane: ReviewLane): Promise<LanePolicyConfig>;
   resultReader: ReviewResultReader;

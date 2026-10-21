@@ -8,7 +8,7 @@ import { reviewCommandError, type ReviewHandlerErrorPhase } from "./review-handl
 export { ReviewCommandInputSchema } from "./review-handler.js";
 import { ProjectIdentityError } from "../lib/store/project-identity.js";
 import { projectIdentitySpineRemedy, reviewProjectIdentityRequestRemedy } from "../scripts/review-gate/runtime/project-identity-remedy.js";
-import { decodePrePublicationReplay, replayTokenFromAction, type PrePublicationReplayInput } from "../scripts/review-gate/policy/pre-publication-replay.js";
+import { decodePrePublicationReplay, encodePrePublicationReplay, replayTokenFromAction } from "../scripts/review-gate/policy/pre-publication-replay.js";
 import { ReviewLaneReadRequestSchema, ReviewLaneReadEnvelopeSchema, type ReviewLaneReadRequest } from "../scripts/review-gate/lane-read-schema.js";
 import { createReviewInvocationResolver, resolveReviewInvocation, type ReviewInvocationOptions, type ReviewInvocationContext, type ReviewInvocationInput } from "../scripts/review-gate/runtime/invocation.js";
 import { resolveHostedAwaitInvocation, resolveHostedRequestInvocation, retainHostedRequestReference, retainHostedAwaitReference,
@@ -21,6 +21,7 @@ import { resolveReduceInvocation } from "../scripts/review-gate/runtime/reduce-i
 import { resolveFrontlineRunInvocation } from "../scripts/review-gate/runtime/frontline-invocation.js";
 import { createReviewCompositionContext } from "../scripts/review-gate/runtime/composition-context.js";
 import { readReviewLane } from "../scripts/review-gate/runtime/lane-read-composition.js";
+import { buildPrePublicationResumeCommand, readPrePublicationCall } from "./review-pre-publication-replay.js";
 import { reviewDiscoverableCommandInputSchema } from "./review-request-schema.js";
 import { confirmReviewCorrectionLeg } from "../scripts/review-gate/policy/review-next-pass.js";
 
@@ -119,8 +120,6 @@ import {
   type FrontlineRunRequest,
 } from "../scripts/review-gate/core/frontline-run-command-schema.js";
 import { DeliveryBindingLookup } from "../scripts/review-gate/core/delivery-binding-lookup.js";
-import type { ReviewTarget } from
-  "../scripts/review-gate/core/gate-contract-v2-schema.js";
 import {
   createLocalFrontlineSourcePreferenceReader,
 } from "../scripts/review-gate/hosts/local/frontline-source-preferences.js";
@@ -132,7 +131,6 @@ import {
 import {
   applyCarriedOwnerAcceptedTerminus,
   applyCarriedStandardReviewReservation,
-  consumeFrontlineCeilingOverride,
   consumeOwnerAcceptedTerminus,
   composePrePublicationReviewRequest,
   PrePublicationLaneJudgmentsSchema,
@@ -1590,6 +1588,7 @@ async function errandFrontlinePhaseClosed(
   return frontlinePhaseClosed(input.operationStore, {
     repositoryId: await resolveRepositoryIdentity(input.publisher, undefined, input),
     lineages: [errandFrontlineLineage(live.context.errand.claimId, request.target.headSha)],
+    headSha: request.target.headSha,
     readSettledFindingsAdvice: settledFrontlineAdviceReader(input.resultReader, input.dispositionStore),
   });
 }
@@ -4215,41 +4214,6 @@ function acceptedSingletonFrontlineSkip(
     && envelope.nextAction.kind !== "run-self-review";
 }
 
-function buildPrePublicationResumeCommand(input: {
-  workUnit: string;
-  candidateId: CanonicalDigest;
-  candidateSubjectDigest: CanonicalDigest;
-  judgment: ReviewPrePublicationJudgment;
-  replaySelfReview: "settled" | undefined;
-  replayLanes: unknown;
-  scopeJudgmentTarget?: ReviewTarget;
-  currentFrontlineHeadSha: string;
-  frontlineCeilingOverrideApplied: boolean;
-}): string {
-  let replayLanes = input.replayLanes;
-  let replayFrontlineCeilingHeadSha = input.judgment.frontlineCeilingHeadSha;
-  if (input.frontlineCeilingOverrideApplied) {
-    replayFrontlineCeilingHeadSha = input.currentFrontlineHeadSha;
-  } else if (replayFrontlineCeilingHeadSha !== undefined
-    && replayFrontlineCeilingHeadSha !== input.currentFrontlineHeadSha) {
-    replayLanes = consumeFrontlineCeilingOverride(replayLanes);
-    replayFrontlineCeilingHeadSha = undefined;
-  }
-  const resume = Buffer.from(canonicalize({
-    candidateId: input.candidateId,
-    candidateSubjectDigest: input.candidateSubjectDigest,
-    ...(input.replaySelfReview === undefined ? {} : { selfReview: input.replaySelfReview }),
-    ...(input.judgment.changeSet === undefined ? {} : { changeSet: input.judgment.changeSet }),
-    ...(replayLanes === undefined ? {} : { lanes: replayLanes }),
-    ...(input.scopeJudgmentTarget === undefined
-      ? {} : { scopeJudgmentTarget: input.scopeJudgmentTarget }),
-    ...(replayFrontlineCeilingHeadSha === undefined
-      ? {}
-      : { frontlineCeilingHeadSha: replayFrontlineCeilingHeadSha }),
-  }), "utf8").toString("base64url");
-  return `arc review pre-publication ${input.workUnit} --resume ${resume}`;
-}
-
 function prePublicationStandardLaneAccess(exec: GitExec, invocationFor: (root: string) => ReviewInvocationContext): Pick<
   ReviewPrePublicationHandlerDependencies, "readStandardLaneOwnerVersion" | "readReadinessBinding" | "withStandardLaneLock"
 > {
@@ -4451,42 +4415,11 @@ export async function handleReviewPrePublication(
     return;
   }
 
-  const readJudgment = async (source: string | undefined): Promise<unknown> =>
-    source === undefined ? undefined : JSON.parse(await dependencies.readText(source));
-
-  let replayInput: PrePublicationReplayInput | null;
-  let judgment: ReviewPrePublicationJudgment;
-  try {
-    replayInput = input.data.resume === undefined
-      ? null
-      : decodePrePublicationReplay(input.data.resume);
-    judgment = replayInput === null
-      ? {
-          selfReview: input.data.selfReview,
-          changeSet: await readJudgment(input.data.changeSet),
-          lanes: await readJudgment(input.data.lanes),
-          frontlineCeilingHeadSha: undefined,
-        }
-      : {
-          selfReview: replayInput.selfReview,
-          changeSet: replayInput.changeSet,
-          lanes: replayInput.lanes,
-          frontlineCeilingHeadSha: replayInput.frontlineCeilingHeadSha,
-        };
-  } catch (error) {
-    emitFailure(error, "request");
-    return;
-  }
-
-  let root: string;
-  try {
-    const resolved = dependencies.resolveRoot(process.cwd());
-    if (resolved === null) throw new Error("Not inside an ARC project.");
-    root = resolved;
-  } catch (error) {
-    emitFailure(error, "execution");
-    return;
-  }
+  const call = await readPrePublicationCall(input.data, dependencies);
+  if (call.status === "failed") { emitFailure(call.error, call.stage); return; }
+  const { root, schemaVersion: replaySchemaVersion } = call;
+  const replayInput = call.replay;
+  let judgment = call.judgment;
 
   const emitOrderingConflict = (
     pendingBoundary: z.infer<typeof CandidateReviewResumeBoundarySchema>
@@ -4498,8 +4431,8 @@ export async function handleReviewPrePublication(
     if (pending === undefined || version === null) {
       throw new Error("The pending post-attest continuation has no durable boundary version.");
     }
-    const replay = decodePrePublicationReplay(replayTokenFromAction(pending.nextAction.command, input.data.name));
-    const recoveryResume = Buffer.from(canonicalize({
+    const replay = decodePrePublicationReplay(replayTokenFromAction(pending.nextAction.command, input.data.name), replaySchemaVersion);
+    const recoveryResume = encodePrePublicationReplay({
       ...replay,
       attestationOrderingRecovery: {
         candidateId: pendingBoundary.candidateId,
@@ -4508,7 +4441,7 @@ export async function handleReviewPrePublication(
         currentHead,
         expectedBoundaryVersion: version,
       },
-    }), "utf8").toString("base64url");
+    }, replaySchemaVersion);
     const message = `Pre-publication reviewed ${pending.reviewedHead}, but the current head is ${currentHead} before readiness.`;
     const refusal = ReviewCommandErrorEnvelopeSchema.parse({
       schemaVersion: 1,
@@ -4638,7 +4571,7 @@ export async function handleReviewPrePublication(
     }
     const savedReplay = pending !== undefined
       && currentRootHead === pending.reviewedHead
-      ? decodePrePublicationReplay(replayTokenFromAction(pending.nextAction.command, input.data.name))
+      ? decodePrePublicationReplay(replayTokenFromAction(pending.nextAction.command, input.data.name), replaySchemaVersion)
       : null;
     if (savedReplay !== null) {
       judgment = {
@@ -4679,6 +4612,7 @@ export async function handleReviewPrePublication(
         };
         const reentry = beforeCompose.status === "current"
           ? buildPrePublicationResumeCommand({
+              schemaVersion: replaySchemaVersion,
               workUnit: input.data.name,
               candidateId: beforeCompose.candidateId,
               candidateSubjectDigest: beforeCompose.subjectDigest,
@@ -4803,6 +4737,7 @@ export async function handleReviewPrePublication(
       nextAction: {
         kind: "continue-pre-publication-review",
         command: buildPrePublicationResumeCommand({
+          schemaVersion: replaySchemaVersion,
           workUnit: composition.request.workUnit,
           candidateId: composition.request.candidateId,
           candidateSubjectDigest: composition.request.candidate.subjectDigest,
@@ -4832,7 +4767,7 @@ export async function handleReviewPrePublication(
       const replaySelfReview = envelope.nextAction.kind === "run-self-review"
         ? "settled"
         : judgment.selfReview;
-      const replayLanes = envelope.locus === "candidate-fix-pending"
+      const replayLanes = replaySchemaVersion === 1 && envelope.locus === "candidate-fix-pending"
         ? consumeOwnerAcceptedTerminus(judgment.lanes)
         : judgment.lanes;
       const frontlineReadyPolicy = envelope.policy?.state === "ready"
@@ -4841,6 +4776,7 @@ export async function handleReviewPrePublication(
         : null;
       const frontlineCeilingOverrideApplied = frontlineReadyPolicy?.payload.ceilingOverrideApplied ?? false;
       const resumeCommand = buildPrePublicationResumeCommand({
+        schemaVersion: replaySchemaVersion,
         workUnit: envelope.workUnit,
         candidateId: composition.request.candidateId,
         candidateSubjectDigest: composition.request.candidate.subjectDigest,

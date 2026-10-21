@@ -765,12 +765,12 @@ export function createPrePublicationCompositionDependencies(options: ReviewInvoc
         completePasses: current.completePasses + inherited.inheritedCompletePasses,
       };
     },
-    readSingletonFrontlinePhaseClosed: async (candidateId, ancestors) => {
+    readSingletonFrontlinePhaseClosed: async (candidateId, ancestors, headSha) => {
       const repository = await repositoryId();
       const lineages = [candidateId, ...ancestors.map(({ candidateId: id }) => id)]
         .map((id) => ({ kind: "candidate" as const, candidateId: id }));
       return frontlinePhaseClosed(store, {
-        repositoryId: repository, lineages,
+        repositoryId: repository, lineages, headSha,
         readSettledFindingsAdvice: settledFrontlineAdviceReader(resultReader, dispositionStore),
       });
     },

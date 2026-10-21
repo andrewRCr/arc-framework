@@ -20,7 +20,8 @@ export function createFrontlineFixture(target: ReviewTarget = createReviewTarget
   baseRef: "main", diffBaseSha: "a".repeat(40), diffBaseTree: "b".repeat(40),
   headSha: "c".repeat(40), headTree: "d".repeat(40),
 }), options: { lineage?: LaneSubjectLineage; findings?: readonly NormalizedReviewFinding[];
-  responseBinding?: BoundFrontlineResponseBinding } = {}) {
+  responseBinding?: BoundFrontlineResponseBinding; maxPasses?: number } = {}) {
+  const maxPasses = options.maxPasses ?? 2;
   const source = { sourceId: "coderabbit-cli", kind: "command" as const, executable: "reviewer", argv: ["--plain"] };
   const lineage = options.lineage ?? { kind: "head-bound" as const, vehicleKind: "review-target" as const,
     vehicleIdentity: target.targetId, headSha: target.headSha };
@@ -31,10 +32,10 @@ export function createFrontlineFixture(target: ReviewTarget = createReviewTarget
   const admission = createFrontlineAdmission({ lineage, target,
     routing: { facts, decision: reduceReviewRouting(facts) },
     frontlineReview: { schemaVersion: 1, semanticsVersion: "frontline-review/v1", action: "attempt",
-      reasons: ["routine-code"], source, maxPasses: 2, promptText: "Review the complete target." },
-    logicalPass: 1, retryGeneration: 0, maxPasses: 2 });
+      reasons: ["routine-code"], source, maxPasses, promptText: "Review the complete target." },
+    logicalPass: 1, retryGeneration: 0, maxPasses });
   const outcome = normalizeFrontlineOutcome({ providerResult: options.findings === undefined ? { kind: "clean" }
-    : { kind: "findings", findings: options.findings.map((finding, index) => ({ ...finding, sourceOrdinal: index + 1 })) }, source, target, pass: 1, maxPasses: 2 });
+    : { kind: "findings", findings: options.findings.map((finding, index) => ({ ...finding, sourceOrdinal: index + 1 })) }, source, target, pass: 1, maxPasses });
   const outcomeRecord = createFrontlineOutcomeRecord({ schemaVersion: 1, semanticsVersion: "review-advisory/v1",
     repositoryId: target.repositoryId, operationId: admission.operationId, sourceIdentity: source.sourceId,
     executableIdentity: { digest: canonicalDigest({ executable: source.executable }), qualifiedVersion: "reviewer/1.0.0" },

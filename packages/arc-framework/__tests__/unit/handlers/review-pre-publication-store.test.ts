@@ -4,7 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { handleReviewPrePublication } from "../../../src/handlers/review.js";
 import { CandidateManagedRecordV1Schema, createCandidateAttestation, createCandidateSubjectSnapshot, createCandidateReviewResponseEvidence } from "../../../src/lib/work-unit/candidate-attestation.js";
-import { PrePublicationReplayInputSchema, replayTokenFromAction } from "../../../src/scripts/review-gate/policy/pre-publication-replay.js";
+import { PrePublicationReplayInputSchema, replayTokenFromAction, decodePrePublicationReplayV2, encodePrePublicationReplayV2 } from "../../../src/scripts/review-gate/policy/pre-publication-replay.js";
 import { canonicalDigest, SlugSchema } from "../../../src/lib/kernel/index.js";
 import { IntegrationBoundaryLocusV2Schema } from "../../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
 import { createProjectIdentityReader } from "../../../src/lib/store/project-identity.js";
@@ -206,8 +206,8 @@ it("recovers native attestation ordering against its stored version and records 
   const ready = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
   if (ready.boundary?.schemaVersion !== 2 || ready.boundary.locus !== "candidate-publish-ready"
     || ready.boundary.candidateSubjectDigest === null) throw new Error("Expected native readiness");
-  const token = Buffer.from(JSON.stringify(PrePublicationReplayInputSchema.parse({ candidateId: ready.boundary.candidateId,
-    candidateSubjectDigest: ready.boundary.candidateSubjectDigest, selfReview: "settled", lanes })), "utf8").toString("base64url");
+  const token = encodePrePublicationReplayV2({ candidateId: ready.boundary.candidateId,
+    candidateSubjectDigest: ready.boundary.candidateSubjectDigest, selfReview: "settled", lanes: { frontline: lanes.frontline } });
   const pending = projectCandidateReviewResumeBoundary({ workUnit: "example", candidateId: ready.boundary.candidateId,
     candidateSubjectDigest: ready.boundary.candidateSubjectDigest, reservation: null, postAttestContinuation: {
       reviewedHead: "b".repeat(40), nextAction: { kind: "continue-pre-publication-review",
@@ -221,7 +221,7 @@ it("recovers native attestation ordering against its stored version and records 
   const action = (refusal as { remedy: { argv: string[] } }).remedy.argv;
   const resume = action[5];
   if (resume === undefined) throw new Error("Expected the explicit recovery token");
-  expect(PrePublicationReplayInputSchema.parse(JSON.parse(Buffer.from(resume, "base64url").toString("utf8"))))
+  expect(decodePrePublicationReplayV2(resume))
     .toMatchObject({ attestationOrderingRecovery: { expectedBoundaryVersion: stored.version } });
   expect(await h.run(false, undefined, resume)).toMatchObject({ locus: "candidate-publish-ready", schemaVersion: 2,
     readinessBinding: ready.boundary.readinessBinding });
@@ -343,6 +343,10 @@ it("records a native singleton terminus before self-review and reuses it when th
   expect(result).toHaveProperty("terminus", key);
   expect(await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner })).toEqual(before);
   const token = replayTokenFromAction((result as { nextAction: { command: string } }).nextAction.command, "example");
+  const replay = decodePrePublicationReplayV2(token);
+  expect(replay).toMatchObject({ selfReview: "settled", lanes: { frontline: { invocation: { mode: "skip" } } } });
+  expect(replay).not.toHaveProperty("lanes.standard.terminus");
+  expect(replay).not.toHaveProperty("frontlineCeilingHeadSha");
   expect(await h.run(false, {}, token)).toMatchObject({ schemaVersion: 2, locus: "candidate-publish-ready", terminus: key });
   expect(await decisions.read(key)).toEqual(decision);
   const after = await decisions.list();

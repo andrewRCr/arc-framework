@@ -16,7 +16,8 @@ import { isReviewVersionConflict, REVIEW_VERSION_RETRY_ATTEMPTS } from
   "../core/version-conflict.js";
 import { readLaneProgressOwner } from "../lane-progress.js";
 import { projectFrontlineFollowUpAdvice, type FrontlineFollowUpAdvice } from "./frontline-follow-up.js";
-import { nativeFrontlineWindowSkipped } from "../runtime/native-frontline-window.js";
+import { nativeFrontlineWindowSkipped, nativeFrontlineCapContinues } from "../runtime/native-frontline-window.js";
+import type { ConfirmResponseHeadContinuation } from "../core/response-head-continuation.js";
 
 export function singletonFrontlinePhaseOperationId(input: {
   repositoryId: string;
@@ -93,6 +94,8 @@ export async function frontlinePhaseClosed(
   input: {
     repositoryId: string;
     lineages: readonly LaneSubjectLineage[];
+    headSha?: string;
+    confirmResponseHeadContinuation?: ConfirmResponseHeadContinuation;
     readSettledFindingsAdvice?: (producerId: string) => Promise<FrontlineFollowUpAdvice>;
   },
 ): Promise<boolean> {
@@ -108,8 +111,16 @@ export async function frontlinePhaseClosed(
     for (const attempt of frontlineOwner?.attempts ?? []) {
       if (!attempt.terminalProducer) continue;
       if (attempt.outcome === "clean") return true;
-      if (attempt.outcome === "settled-findings" && input.readSettledFindingsAdvice !== undefined
-        && (await input.readSettledFindingsAdvice(attempt.attemptId)).action === "stop") return true;
+      if (attempt.outcome !== "settled-findings" || input.readSettledFindingsAdvice === undefined) continue;
+      const advice = await input.readSettledFindingsAdvice(attempt.attemptId);
+      if (advice.action !== "stop") continue;
+      const currentLineage = input.lineages[0];
+      if (advice.reason === "pass-cap-exhausted" && store.nativeFacts !== undefined
+        && input.headSha !== undefined && currentLineage !== undefined
+        && await nativeFrontlineCapContinues(store.nativeFacts, { repositoryId: input.repositoryId,
+          lineage: currentLineage, producerId: attempt.attemptId, passCount: attempt.logicalPass, headSha: input.headSha,
+          confirmResponseHeadContinuation: input.confirmResponseHeadContinuation })) continue;
+      return true;
     }
   }
   return false;

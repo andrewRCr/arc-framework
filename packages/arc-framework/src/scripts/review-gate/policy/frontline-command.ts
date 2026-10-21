@@ -285,6 +285,8 @@ async function readOpeningFrontlinePhase(input: {
   const phaseLineages = openingPhaseLineages(lineage, ancestors);
   const closed = phaseLineages.length > 0 && await frontlinePhaseClosed(dependencies.operationStore, {
     repositoryId: parsed.target.repositoryId,
+    headSha: parsed.target.headSha,
+    confirmResponseHeadContinuation: dependencies.confirmResponseHeadContinuation,
     lineages: phaseLineages,
     readSettledFindingsAdvice: (producerId) => dependencies.readSettledFindingsAdvice(producerId),
   });

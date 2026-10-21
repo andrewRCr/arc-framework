@@ -9,14 +9,14 @@ import { createReviewEvidencePort } from "../../src/lib/store/kinds/review/evide
 import { ReviewOutcomeSchema } from "../../src/lib/store/kinds/review/outcome/schema.js";
 import { composeReviewDispositionRecord } from "../../src/lib/store/kinds/review/evidence/composed-record.js";
 
-export async function createNativeReviewApprovalFixture(kind: "local" | "frontline" | "hosted", disposition: "defer" | "fix" = "defer", lineage?: LaneSubjectLineage) {
+export async function createNativeReviewApprovalFixture(kind: "local" | "frontline" | "hosted", disposition: "defer" | "fix" = "defer", lineage?: LaneSubjectLineage, frontlineMaxPasses = 2) {
   const h = createReviewHarness(), projectId = "123e4567-e89b-42d3-a456-426614174099";
   await h.seedProject(projectId);
   const primary = await h.seedMeta("example"), target = createHostedHandleFixture({ repositoryId: projectId }).admission.reviewTarget;
   const findings = [{ findingId: "finding-1", severity: "major" as const, locus: "src/example.ts:1",
     evidenceUrlOrId: "finding-1", sourceOrdinal: 1 }];
   const outcome = ReviewOutcomeSchema.parse(kind === "local" ? localOutcome({ target, lineage, outcome: "findings", findings,
-    vehicle: { kind: "work-unit", identity: "example" } }) : kind === "frontline" ? frontlineOutcome({ target, findings, lineage })
+    vehicle: { kind: "work-unit", identity: "example" } }) : kind === "frontline" ? frontlineOutcome({ target, findings, lineage, maxPasses: frontlineMaxPasses })
     : hostedOutcome({ repositoryId: projectId, lineage, outcome: "findings", findings: [{ findingId: "finding-1", severity: "major",
       origin: "review-thread", threadId: "thread-1", commentId: "comment-1", settlement: "reply-and-resolve",
       sourceOrdinal: 1, locus: "src/example.ts:1", url: "https://example.invalid/thread-1" }, {

@@ -23,8 +23,8 @@ import { createDispositionSet, approveDispositionSet } from "../../src/scripts/r
 import { publishNativeReviewSuccessor } from "../../src/scripts/review-gate/runtime/native-review-successor.js";
 
 
-export async function createNativeConditionalPassFixture(kind: "local" | "frontline" | "hosted", approve = true, lineage?: LaneSubjectLineage) {
-  const f = await createNativeReviewApprovalFixture(kind, "fix", lineage);
+export async function createNativeConditionalPassFixture(kind: "local" | "frontline" | "hosted", approve = true, lineage?: LaneSubjectLineage, frontlineMaxPasses?: number) {
+  const f = await createNativeReviewApprovalFixture(kind, "fix", lineage, frontlineMaxPasses);
   const approval = approve ? await publishNativeReviewApproval(f.input) : null;
   const decisions = createReviewDecisionPort(f.h.store, f.primary.reference.owner);
   const capture = { lane: f.outcome.lane, repositoryId: f.outcome.target.repositoryId, headSha: f.outcome.target.headSha,
@@ -35,8 +35,8 @@ export async function createNativeConditionalPassFixture(kind: "local" | "frontl
     decisions, readProjectId: f.input.readProjectId, capture } };
 }
 
-export async function createNativeConditionalAdmissionFixture(kind: "local" | "frontline", perform = true, lineage?: LaneSubjectLineage) {
-  const f = await createNativeConditionalPassFixture(kind, true, lineage);
+export async function createNativeConditionalAdmissionFixture(kind: "local" | "frontline", perform = true, lineage?: LaneSubjectLineage, frontlineMaxPasses?: number) {
+  const f = await createNativeConditionalPassFixture(kind, true, lineage, frontlineMaxPasses);
   const decision = await publishNativeConditionalPass(f.input), authorizationId = reviewDecisionKey(decision.value);
   const { value } = performedEvidenceFixture("candidate", f.outcome);
   if (value.performance === undefined) throw new Error("Expected a complete performance");
@@ -53,9 +53,9 @@ export async function createNativeConditionalAdmissionFixture(kind: "local" | "f
   return { ...checkout, f, decision, authorizationId, target, publisher, operations, performanceInput };
 }
 
-export async function createNativeConditionalFrontlineFixture(perform = true) {
+export async function createNativeConditionalFrontlineFixture(perform = true, maxPasses = 2) {
   const common = await createNativeConditionalAdmissionFixture("frontline", perform,
-    { kind: "candidate", candidateId: canonicalDigest({ candidate: "conditional-review" }) });
+    { kind: "candidate", candidateId: canonicalDigest({ candidate: "conditional-review" }) }, maxPasses);
   const { f, authorizationId, target } = common;
   const fixture = createFrontlineFixture(target, { lineage: f.outcome.lineage });
   const admission = createFrontlineAdmission({ ...fixture.admission, logicalPass: f.input.capture.nextPass });

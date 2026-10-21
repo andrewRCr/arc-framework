@@ -1080,7 +1080,7 @@ this phase puts publication's claim and reopen's boundary write in their transit
   preparing its claim for the lifecycle batch. Attestation and response recovery preserve the stored binding, and
   interrupted publication resumes without another write. Version-one publication retains its scalar guard.
 
-### `[ ]` **6.2 Record ceiling and additional extra passes and termini as decisions — § 5.3, § 5.6, § 5.7, § 9.3**
+### `[x]` **6.2 Record ceiling and additional extra passes and termini as decisions — § 5.3, § 5.6, § 5.7, § 9.3**
 
 - _Goal:_ From the flip an Owner's ceiling override, additional pass, and terminus — a singleton's or a member's — are
   decision records written by whichever call carries them and read by the resolution within their reach, the `--resume`
@@ -1197,26 +1197,12 @@ this phase puts publication's claim and reopen's boundary write in their transit
               renewal, preserving original provenance and live-decision checks. Private subject advance drops the
               name; imported and live singleton decisions key alike on stored and unstored subjects.
 
-    - `[ ]` **6.2.c The resume token and the frontline resolve form**
+    - `[x]` **6.2.c The resume token and the frontline resolve form**
 
-        - From the flip `buildPrePublicationResumeCommand` and the replay encode and decode the token through the replay
-          module's schema from the flip (3.5; `rg/policy/pre-publication-replay.ts`), which keeps the call's own inputs
-          alone; today's `PrePublicationReplayInputSchema`, which 3.4 moves into that module, the judgments,
-          `frontlineCeilingHeadSha`, and the scrubbers `consumeOwnerAcceptedTerminus` and
-          `consumeFrontlineCeilingOverride` stay the in-repo arm. The frontline resolve form pre-publication emits
-          (`rg/policy/pre-publication-procedure.ts`) keeps relaying the ceiling override as its `request`'s and
-          `authorizationRequest`'s `policyJudgment`, which `arc review frontline resolve` reads as today
-          (`resolveFrontlineSelection`, `frontlineConditionalAdmission`, `rg/policy/frontline-command.ts`); the judgment
-          is already recorded, its conditional pass authorization's ID its `approved-fix` decision's key (§ 5.2), so the
-          resolve call names that decision and writes nothing (6.2.a).
-        - Build `test-first` (one behavior at a time):
-            - from the flip a resume token carries no ceiling override, additional pass, or terminus, and its replay
-              reaches the same resolution through the decisions
-            - from the flip the frontline resolve form emitted over a frontline ceiling override citing a conditional
-              pass authorization relays the `policyJudgment` with that ID, the recorded decision's key, and the resolve
-              call it names admits the pass past the configured ceiling and writes no second decision
-            - from the flip an attestation-ordering recovery carries the boundary's store version as its
-              `expectedBoundaryVersion`, and its replay writes against that version
+        - Native resume tokens retain only call inputs and ordering recovery's opaque boundary version; repository
+          replay retains its judgments and scrubbers. Emitted frontline forms relay the existing approved-fix key,
+          admitting the conditional pass beyond its original cap without another decision. Window closure preserves
+          withdrawal, exact producer and subject reach, verified performance, and unrelated terminal conditions.
 
 ### `[ ]` **6.3 Reach a cited result through its stored outcome, and keep the reservation's carry — § 9.3, § 9.4**
 

@@ -30,7 +30,7 @@ export async function composePrePublicationLaneJudgment(input: {
       policyTarget, lane, completedPasses, judgment: input.judgment });
   const closed = lane === "frontline" && lineage?.kind === "candidate"
     && dependencies.readSingletonFrontlinePhaseClosed !== undefined
-    && await dependencies.readSingletonFrontlinePhaseClosed(lineage.candidateId, candidate.supersessionAncestors ?? []);
+    && await dependencies.readSingletonFrontlinePhaseClosed(lineage.candidateId, candidate.supersessionAncestors ?? [], policyTarget.headSha);
   return { completedPasses, currentLineage, judgment, terminus,
     ...(closed && dependencies.stateOffBranch === true
       ? { invocation: judgment?.invocation, frontlinePhaseClosed: true as const }

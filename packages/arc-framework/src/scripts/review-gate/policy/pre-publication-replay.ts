@@ -29,8 +29,9 @@ export const PrePublicationReplayInputSchema = z.strictObject({
 );
 export type PrePublicationReplayInput = z.infer<typeof PrePublicationReplayInputSchema>;
 
-/** Decode the legacy opaque replay payload with its original validation. */
-export function decodePrePublicationReplay(token: string): PrePublicationReplayInput {
+/** Decode the selected backend contract while retaining the repository replay shape for orchestration. */
+export function decodePrePublicationReplay(token: string, schemaVersion: 1 | 2 = 1): PrePublicationReplayInput {
+  if (schemaVersion === 2) return PrePublicationReplayInputSchema.parse(decodePrePublicationReplayV2(token));
   return PrePublicationReplayInputSchema.parse(JSON.parse(Buffer.from(token, "base64url").toString("utf8")));
 }
 
@@ -73,4 +74,11 @@ export function encodePrePublicationReplayV2(input: unknown): string {
 /** Decode a store-backed continuation under its strict caller-input schema. */
 export function decodePrePublicationReplayV2(token: string): PrePublicationReplayInputV2 {
   return PrePublicationReplayInputV2Schema.parse(JSON.parse(Buffer.from(token, "base64url").toString("utf8")));
+}
+
+
+/** Encode the selected replay contract without carrying native review decisions in a continuation. */
+export function encodePrePublicationReplay(input: unknown, schemaVersion: 1 | 2 = 1): string {
+  if (schemaVersion === 2) return encodePrePublicationReplayV2(input);
+  return Buffer.from(canonicalize(PrePublicationReplayInputSchema.parse(input)), "utf8").toString("base64url");
 }
