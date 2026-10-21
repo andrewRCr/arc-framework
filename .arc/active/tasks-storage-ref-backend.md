@@ -1785,6 +1785,13 @@ in `notes-storage-ref-backend.md` (A25).
         - Boolean pull and publish assertions retain full native result details on failure, including the initial
           clone pulls and final convergence pulls. Their no-notice and accepted-publication requirements stay intact.
 
+    - `[x]` **18.1.d Isolate full writer bursts from unrelated test execution**
+        - A separate native sequence group preserves all twenty concurrent writers inside each burst while excluding
+          other selected tests. Assertions, production deadlines, timeouts, and tier/cost/portability membership remain.
+        - The live-configuration witness first demonstrated burst overlap with ordinary files, then proved timing and
+          bursts each run once without overlap while ordinary files still run concurrently. The previous dispatched
+          Windows failures remain recorded in `notes-storage-ref-backend.md` § Second dispatched platform results.
+
 ### `[ ]` **18.2 The Windows budget and the portability pair — § 11.7, § 14.10**
 
 - _Goal:_ A dispatched portability run passes `--git-dir` with Windows paths and reftable on NTFS, and times `version`,

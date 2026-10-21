@@ -55,6 +55,7 @@ const maxWorkers = resolveVitestMaxWorkers(process.env);
 // mock-heavy files quarantined so the main tier can relax isolation for its
 // import-cost win without their hoisted mocks leaking across file boundaries.
 const timingTest = "__tests__/integration/store-ref-timing.test.ts";
+const burstTest = "__tests__/integration/store-ref-bursts.test.ts";
 const integrationTest = {
   root: packageRoot,
   ...(integrationTempRoot === undefined ? {} : { env: { TMPDIR: integrationTempRoot } }),
@@ -98,7 +99,7 @@ export default defineConfig({
           ...integrationTest,
           name: "integration",
           include: ["__tests__/integration/**/*.test.ts"],
-          exclude: [...configDefaults.exclude, timingTest],
+          exclude: [...configDefaults.exclude, timingTest, burstTest],
         },
       },
       {
@@ -108,6 +109,16 @@ export default defineConfig({
           include: [timingTest],
           // Finish the parallel group before collecting uncontended operation medians.
           sequence: { groupOrder: 1 },
+          maxWorkers: 1,
+        },
+      },
+      {
+        test: {
+          ...integrationTest,
+          name: "integration-bursts",
+          include: [burstTest],
+          // Keep unrelated selected tests outside the twenty-writer workload.
+          sequence: { groupOrder: 2 },
           maxWorkers: 1,
         },
       },

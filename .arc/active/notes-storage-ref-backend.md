@@ -1262,3 +1262,31 @@ sessions cannot explain a hosted failure, and these results do not establish the
 | -------- | ------------ | --------- | --------- | ----------- | ---------- |
 | default  | 5.233        | 23.923    | 107.985   | 12.003      | 233.246    |
 | separate | 5.905        | 30.561    | 136.403   | 15.311      | 225.066    |
+
+## Second dispatched platform results
+
+Run `39536946799` finished on the pre-optimization head `d79fbf32ce493b8eba0e0dd3f790e9337d5f5993`. Linux portability
+passed. The Windows job took 3,856 seconds including setup; native test execution reported 3,792.62 seconds. Windows
+reported 35 passing files, four failing files, one skipped file; 1,362 passing cases, nine failing, and 84 skipped.
+
+The two publishing-clone bursts failed at explicit production deadline refusals: the default layout expired while
+applying fetched state after six retries and 21,083 ms of backoff; the separate layout expired inside Git push after
+five retries and 11,436 ms of backoff. Neither result by itself establishes a lost write. Both worktree bursts passed.
+Five separate-conformance cases hit the unchanged 30-second test limit: three primary-role cases, cohort close
+placement, and lineage roundtrip. One advisory-lock unit case hit its unchanged five-second test limit. The operation
+timing case failed the default version budget; the complete medians were retained before assertions ran.
+
+| Layout   | Version (ms) | Read (ms) | List (ms) | Lookup (ms) | Write (ms) |
+| -------- | ------------ | --------- | --------- | ----------- | ---------- |
+| default  | 349.284      | 1,664.086 | 1,786.087 | 744.297     | 7,269.188  |
+| separate | 50.534       | 525.351   | 377.399   | 136.864     | 2,604.711  |
+
+The native configuration now places the burst file in `integration-bursts`, separate from ordinary files and from
+`integration-timing`; the burst's own twenty writers remain concurrent. A native execution witness first observed
+burst overlap with ordinary workers, then proved both special workloads run once with disjoint intervals while
+ordinary workers still overlap. Supported integration/lane and cost selectors retain both projects, and portability
+retains all its files. No production deadline, sample count, numeric budget, acceptance assertion, or test timeout was
+changed. The final hosted rerun must establish the platform results; isolation is not a claim about their root cause.
+
+The full Windows log and measurement artifact are retained under `task-18.3-hosted/second-run-windows/` in the local
+storage-ref-backend proof directory. macOS's previously recorded conformance timeout remains a failed result too.

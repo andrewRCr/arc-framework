@@ -148,9 +148,11 @@ export function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
         "integration",
         "--project",
         "integration-timing",
+        "--project",
+        "integration-bursts",
       ];
     case "integration":
-      return ["--project", "integration", "--project", "integration-timing"];
+      return ["--project", "integration", "--project", "integration-timing", "--project", "integration-bursts"];
     case "arc-contracts":
       return ["--project", "integration", ...ARC_CONTRACT_SUITES];
     case "e2e":
