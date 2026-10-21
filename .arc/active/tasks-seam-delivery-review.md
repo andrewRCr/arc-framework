@@ -1121,13 +1121,10 @@ this phase puts publication's claim and reopen's boundary write in their transit
           and stored pass-count basis, without changing public command inputs, repository records, or in-repo output
           (A17).
 
-            - `[ ]` **6.2.R2.a Native projection and bound policy schema**
-                - Add the version-two native terminus projection, keeping the version-one schema and public command
-                  request strict. Separate internal bound requests, evidence/continuation binding, and resolution
-                  output so they preserve the decision key and nullable author; corrective payloads stay command-shaped.
-                - Build `test-first` (one behavior at a time): native unknown-author and known-author projections pass
-                  internal policy and output validation; native projections refuse as public command input and without
-                  trusted native backend context; legacy requests, records, and outputs retain their exact shapes.
+            - `[x]` **6.2.R2.a Native projection and bound policy schema**
+                - Native bound requests and policy results retain the decision key and nullable author. Evidence and
+                  continuation preserve that authority only with trusted native context; public commands and remedies
+                  retain their version-one shape. Native boundary projection requires the matching decision key.
             - `[ ]` **6.2.R2.b Native decision reads and pre-publication composition**
                 - Resolve live termini on the selected owner, preserving recorded author and basis, and inject the
                   native projection before policy. Native envelope and boundary projection retain the selected key;

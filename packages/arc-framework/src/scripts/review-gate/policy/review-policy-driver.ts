@@ -27,6 +27,7 @@ export type { ReviewCeilingOverride } from "./review-ceiling-override.js";
 import {
   OwnerAcceptedReviewTerminusJudgmentSchema,
   OwnerAcceptedReviewTerminusSchema,
+  ResolvedOwnerAcceptedReviewTerminusSchema,
 } from "./review-terminus.js";
 import { StandardReviewObligationProjectionSchema } from "./standard-review-projection-schema.js";
 import { HostedRequestEnvelopeSchema } from "../hosted/request.js";
@@ -202,9 +203,13 @@ const ReviewPolicyRequestBaseShape = {
   terminus: OwnerAcceptedReviewTerminusSchema.optional(),
 };
 
-export const ReviewPolicyCommandRequestSchema = z.strictObject({
-  ...ReviewPolicyRequestBaseShape,
-}).superRefine((request, context) => {
+function validatePolicyCommandInput(
+  request: ReviewPassProgressInput & {
+    invocation?: z.infer<typeof ReviewPolicyInvocationSchema>;
+    terminus?: unknown;
+  },
+  context: z.RefinementCtx,
+): void {
   validateTerminalPassProgress(request, context);
   if (request.lane === "standard" && request.invocation?.mode === "skip") {
     context.addIssue({
@@ -227,8 +232,19 @@ export const ReviewPolicyCommandRequestSchema = z.strictObject({
       path: ["terminus"],
     });
   }
-}).readonly();
+}
+
+export const ReviewPolicyCommandRequestSchema = z.strictObject({
+  ...ReviewPolicyRequestBaseShape,
+}).superRefine(validatePolicyCommandInput).readonly();
 export type ReviewPolicyCommandRequest = z.infer<typeof ReviewPolicyCommandRequestSchema>;
+
+/** Authority-bound policy input; native termini are supplied only by the owning composition. */
+export const ReviewPolicyBoundRequestSchema = z.strictObject({
+  ...ReviewPolicyRequestBaseShape,
+  terminus: ResolvedOwnerAcceptedReviewTerminusSchema.optional(),
+}).superRefine(validatePolicyCommandInput).readonly();
+export type ReviewPolicyBoundRequest = z.infer<typeof ReviewPolicyBoundRequestSchema>;
 
 /**
  * The per-lane inputs above that are judgment rather than repository state.
@@ -294,6 +310,7 @@ function validateConfiguredAttempts(
 
 export const ReviewPolicyRequestSchema = z.strictObject({
   ...ReviewPolicyRequestBaseShape,
+  terminus: ResolvedOwnerAcceptedReviewTerminusSchema.optional(),
   sources: z.array(ReviewSourceIdSchema).readonly(),
   /** Fresh-pass selection order, independently of historical terminal binding. */
   selectionSources: z.array(ReviewSourceIdSchema).readonly().optional(),
@@ -312,28 +329,14 @@ export const ReviewPolicyRequestSchema = z.strictObject({
   /** Repository-proven: the invoking checkout is the subject's own Errand; never a command input. */
   errandVehicle: z.literal(true).optional(),
 }).superRefine((request, context) => {
-  validateTerminalPassProgress(request, context);
+  validatePolicyCommandInput(request, context);
   validateVerifiedTerminalSignal(request, context);
   validateReviewNextPassContext(request, context);
   validateTerminalResponseSettlement(request, context);
-  if (request.lane === "standard" && request.invocation?.mode === "skip") {
+  if (request.terminus?.schemaVersion === 2 && request.stateOffBranch !== true) {
     context.addIssue({
       code: "custom",
-      message: "frontline invocation override cannot be applied to the standard lane",
-      path: ["invocation"],
-    });
-  }
-  if (request.lane === "frontline" && request.invocation?.mode === "force") {
-    context.addIssue({
-      code: "custom",
-      message: "standard source invocation cannot be applied to the frontline lane",
-      path: ["invocation"],
-    });
-  }
-  if (request.lane !== "standard" && request.terminus !== undefined) {
-    context.addIssue({
-      code: "custom",
-      message: "owner-accepted terminus can be applied only to the standard lane",
+      message: "native terminus requires trusted state-off-branch context; resolve it on its owning backend",
       path: ["terminus"],
     });
   }
@@ -390,7 +393,7 @@ export const ReviewResolveEnvelopeSchema = z.discriminatedUnion("state", [
       completedPasses: CompletedReviewPassCountSchema,
       consumedPass: z.literal(false),
       attemptedSources: z.array(ReviewAttemptSchema).readonly(),
-      terminus: OwnerAcceptedReviewTerminusSchema,
+      terminus: ResolvedOwnerAcceptedReviewTerminusSchema,
     }),
   }),
   z.strictObject({

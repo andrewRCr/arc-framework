@@ -6,6 +6,9 @@ import { boundaryContinuation } from "../../../../fixtures/review-boundary.js";
 import { PrePublicationReviewRequestSchema, prePublicationBoundary, projectPrePublicationReview } from
   "../../../../../src/scripts/review-gate/policy/pre-publication-procedure.js";
 
+import { terminusDecision } from "../../../../fixtures/review-decision.js";
+import { reviewDecisionKey } from "../../../../../src/lib/store/kinds/review/decision/key.js";
+
 const target = { repository: "owner/repo", pullRequest: null, headSha: "a".repeat(40) };
 const standardReview = { obligation: "required", reasons: ["sensitive-change-set"], rubricVersion: "standard-review/v1",
   rubricDigest: canonicalDigest({ rubric: 1 }), retrigger: "full-final", count: 1 };
@@ -82,4 +85,27 @@ it("relays a native frontline ceiling decision in both resolve forms", () => {
   expect(envelope.nextAction).toMatchObject({ command: "arc review frontline resolve -",
     request: { policyJudgment: { ceilingOverride: { decisionKey } } },
     authorizationRequest: { policyJudgment: { ceilingOverride: { decisionKey } } } });
+});
+
+it.each([null, "recorded-owner"])("stores only the resolved native terminus key for author %s", acceptedBy => {
+  const decision = { ...terminusDecision(), decidedBy: acceptedBy };
+  const decisionKey = reviewDecisionKey(decision);
+  const native = { schemaVersion: 2, semanticsVersion: "review-terminus/v2", kind: "owner-accepted",
+    lane: "standard", decisionKey, acceptedBy, completedPasses: decision.basis!.passCount };
+  const envelope = projectPrePublicationReview({ ...request, standard: { ...request.standard,
+    completedPasses: 2, stateOffBranch: true, terminus: native } }, boundaryContinuation, { ...authority, terminus: decisionKey });
+  expect(envelope).toMatchObject({ schemaVersion: 2, locus: "candidate-publish-ready", terminus: decisionKey });
+  expect(prePublicationBoundary(envelope)).toHaveProperty("terminus", decisionKey);
+});
+
+it.each(["missing", "different"])("refuses a %s native boundary key before self-review, then resumes with the matching key", kind => {
+  const decision = terminusDecision();
+  const decisionKey = reviewDecisionKey(decision);
+  const input = { ...request, selfReview: "pending", standard: { ...request.standard, completedPasses: 2,
+    stateOffBranch: true, terminus: { schemaVersion: 2, semanticsVersion: "review-terminus/v2", kind: "owner-accepted",
+      lane: "standard", decisionKey, acceptedBy: decision.decidedBy, completedPasses: decision.basis!.passCount } } };
+  expect(() => projectPrePublicationReview(input, boundaryContinuation,
+    kind === "missing" ? undefined : authority)).toThrow(/native terminus.*boundary/i);
+  const repaired = projectPrePublicationReview(input, boundaryContinuation, { ...authority, terminus: decisionKey });
+  expect(repaired).toMatchObject({ schemaVersion: 2, nextAction: { kind: "run-self-review" }, terminus: decisionKey });
 });

@@ -189,6 +189,10 @@ export function projectPrePublicationReview(
   nativeBoundary?: NativePrePublicationBoundary,
 ): PrePublicationReviewEnvelope {
   const request = PrePublicationReviewRequestSchema.parse(input);
+  const nativeTerminus = request.standard.terminus;
+  if (nativeTerminus?.schemaVersion === 2 && nativeBoundary?.terminus !== nativeTerminus.decisionKey) {
+    throw new Error("Native terminus requires its matching boundary key; recompose the boundary on its owning backend.");
+  }
   if (request.selfReview === "pending") {
     return envelope(request, {
       locus: "candidate-review-pending",
@@ -215,7 +219,8 @@ export function projectPrePublicationReview(
   const reservation = standard.state === "awaiting-change-request"
     ? createStandardReviewReservation(request, firstWaitingSource(standard.payload.waitingSources))
     : null;
-  const terminus = standard.state === "owner-accepted" ? standard.payload.terminus : null;
+  const resolvedTerminus = standard.state === "owner-accepted" ? standard.payload.terminus : null;
+  const terminus = resolvedTerminus?.schemaVersion === 1 ? resolvedTerminus : null;
 
   if (request.candidate.convergenceVerification === "pending") {
     return envelope(request, {

@@ -3,7 +3,7 @@ import { requireNativeReviewDecisionReferences } from "./review-grant-references
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import type { LaneProgressProjection } from "../lane-progress.js";
-import type { ReviewLaneJudgment, ReviewPolicyCommandRequest } from "./review-policy-driver.js";
+import type { ReviewLaneJudgment, ReviewPolicyCommandRequest, ReviewPolicyBoundRequest } from "./review-policy-driver.js";
 import type { CandidateRead, PrePublicationCompositionDependencies, ReviewLane, ReviewPolicyTarget } from "./pre-publication-request.js";
 
 /** Bind native grants to their actual Candidate subject or review target without changing caller routing inputs. */
@@ -35,7 +35,7 @@ export async function composePrePublicationLaneJudgment(input: {
 }
 
 /** Preserve in-repository token-carried grants while native composition uses its resolved decisions. */
-export function applyPrePublicationExtraPassJudgment<Request extends ReviewPolicyCommandRequest>(request: Request, input: {
+export function applyPrePublicationExtraPassJudgment<Request extends ReviewPolicyBoundRequest>(request: Request, input: {
   native: boolean; lane: ReviewLane; policyTarget: ReviewPolicyTarget; judgment?: ReviewLaneJudgment; frontlineCeilingHeadSha?: string;
 }): Request {
   requireNativeReviewDecisionReferences(input.native, input.judgment);
