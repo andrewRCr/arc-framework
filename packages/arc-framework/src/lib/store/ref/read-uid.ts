@@ -1,4 +1,4 @@
-/** Two-process live UID reads resolve slug paths from metadata and pin their object basis. */
+/** Live UID reads resolve slug paths from metadata and pin their object basis. */
 import { corruptRef } from "./namespace-health.js";
 import { RecordReferenceSchema, type RecordReference } from "../identity.js";
 import { expandStoredPath } from "../stored-path.js";

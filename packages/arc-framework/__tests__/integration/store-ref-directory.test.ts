@@ -42,7 +42,7 @@ describe("the separate ref store directory", () => {
     const store = createRefStore({ ...f.ports, ...createDefaultStorePorts({ checkoutRoot: linked }), rawExec: createExecaRawGitExec(linked) });
     const before = f.processes();
     expect(success(await f.store.read({ reference: result.reference })).content).toBe(write.content);
-    expect(f.processes() - before).toBe(2);
+    expect(f.processes() - before).toBe(1);
     const observed = success(await store.read({ reference: result.reference }));
     success(await store.write({ ...write, reference: observed.reference, expected: observed.version, content: makeMetaFixture("alpha") + "\nChanged context.\n" }));
     expect(success(await f.store.read({ reference: observed.reference })).version).not.toBe(observed.version);

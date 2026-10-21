@@ -1,4 +1,4 @@
-/** One-shot, byte-framed Git acquisition for state refs and their objects. */
+/** Byte-framed Git acquisition for state refs and their objects. */
 
 import { logicalReadRef, physicalReadRef } from "./read-source-namespace.js";
 import type { RefBackendContext } from "./context.js";
@@ -41,6 +41,7 @@ export async function readBatchObjects(context: RefBackendContext, queries: read
     const physical = context.readSource ? queries.map((query) => physicalReadRef(context, query)) : queries;
     const { stdout } = await context.rawExec(["cat-file", "--batch"], {
       cwd: context.checkoutRoot, objectAccess: "local-only", input: encoder.encode(`${physical.join("\n")}\n`),
+      batchReader: context.batchReader,
     });
     const objects = parseBatch(stdout, physical);
     return context.readSource ? new Map(queries.map((query, index) => [query, objects.get(physical[index] ?? query) ?? null])) : objects;

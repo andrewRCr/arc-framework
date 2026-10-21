@@ -13,14 +13,14 @@ export async function createRefReadFixture(format: "files" | "reftable" = "files
   const repo = await createRefTestRepository(format, objectFormat);
   onTestFinished(repo.cleanup);
   let processes = 0;
-  const raw = createExecaRawGitExec(repo.root, maxBuffer);
   const count = () => { processes += 1; };
+  const raw = createExecaRawGitExec(repo.root, maxBuffer, count);
   const defaults = createDefaultStorePorts({ checkoutRoot: repo.root });
   const ports: RefStorePorts = {
     ...defaults, backingRepository: async () => null, identity: async () => SlugSchema.parse("andrew"),
     exec: async (...args) => { count(); return defaults.exec(...args); },
     execInput: async (...args) => { count(); return defaults.execInput(...args); },
-    rawExec: async (...args) => { count(); return raw(...args); },
+    rawExec: raw,
     actor: async () => "unused", random: () => 0.5,
     ...createRefClock(), lock: async () => async () => {},
   };

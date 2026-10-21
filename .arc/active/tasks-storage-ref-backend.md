@@ -1800,23 +1800,18 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
             - One dispatched run passes before this change lands, its figures recorded in
               `notes-storage-ref-backend.md`
 
-    - `[ ]` **18.2.b Only where a budget is breached**
-        - A read over its budget gets a long-lived `cat-file --batch` reader for the operation's reads, aborting on
-          cancellation and closed before maintenance
-        - A write over its budget writes its blobs through one `hash-object -w --no-filters --stdin-paths` over files in
-          a temporary directory, and its trees through one `mktree --batch`, so its process count stops growing with its
-          records; under `core.autocrlf=true` its blobs keep the bytes written
-        - Built test-first against the breached operation's cases only where the run shows a breach; otherwise this
-          subtask records that none was needed
+    - `[x]` **18.2.b Only where a budget is breached**
 
         - `[x]` **18.2.b.1 Batched blob and tree construction**
             - Staged blobs use one filter-free native hash batch with temporary-file cleanup; each prepared tree uses
               one child-first native tree batch, sharing exact SHA-1/SHA-256 hashing with manifests. Bulk nested
               documents retain CRLF bytes; interrupted staging publishes no record and permits a fresh retry.
 
-        - `[ ]` **18.2.b.2 Operation-scoped object reader**
-            - Reuse a native batch reader through each operation, honoring cancellation and output bounds, and close
-              it before maintenance; verify native framing, process reuse, cleanup, and fresh-operation isolation.
+        - `[x]` **18.2.b.2 Operation-scoped object reader**
+            - Native read, list, and lookup calls reuse byte-framed local-only readers within each operation and close
+              them before returning. Backend-owned readers drain before explicit or fetch-triggered maintenance;
+              cancellation, overflow, malformed framing, native failure, and fresh-operation recovery are covered.
+              Native reader and write-batching cases join portability selection for the dispatched pair.
 
     - `[x]` **18.2.c Git-serialized prepared fixture paths**
         - Copies recognize Git-escaped template roots as well as literal and slash-normalized spellings. The real-Git

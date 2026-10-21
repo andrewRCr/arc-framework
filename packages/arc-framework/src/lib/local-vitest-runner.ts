@@ -177,6 +177,9 @@ export function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
         "delivery-transfer.e2e",
         "store-ref-bursts.test.ts",
         "store-ref-directory.test.ts",
+        "store-ref-write-batching.test.ts",
+        "store-ref-reader-lifetime.test.ts",
+        "git-batch-reader.test.ts",
         "store-ref-separate-conformance.test.ts",
         "store-ref-timing.test.ts",
       ];

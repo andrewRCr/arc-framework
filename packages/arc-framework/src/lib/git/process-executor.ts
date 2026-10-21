@@ -161,10 +161,13 @@ export function createExecaGitExec(maxBuffer = MAX_GIT_OUTPUT_BYTES): GitExec {
   };
 }
 
-/** Construct a byte-preserving Git adapter for raw tree and object reads. */
+/** Construct a byte-preserving Git adapter for raw tree and object reads.
+ * @param onStart - Optional process-attempt observer, including starts inside persistent readers.
+ */
 export function createExecaRawGitExec(
   cwd = process.cwd(),
   maxBuffer = MAX_GIT_OUTPUT_BYTES,
+  onStart?: () => void,
 ): RawGitExec {
   return async (args, options = {}) => {
     const effectiveCwd = options.cwd ?? cwd;
@@ -189,18 +192,25 @@ export function createExecaRawGitExec(
       ? ["--no-lazy-fetch", ...args]
       : args;
     try {
-      const result = await runCancelableGitProcess((cancelSignal) => execa("git", effectiveArgs, {
-        cwd: effectiveCwd,
-        env,
-        cancelSignal,
-        encoding: "buffer",
-        stripFinalNewline: false,
-        extendEnv: false,
-        maxBuffer,
-        ...(options.input === undefined
-          ? { stdin: "ignore" as const }
-          : { input: options.input }),
-      }), options.signal, { command: "git", args: effectiveArgs });
+      if (options.batchReader && options.objectAccess === "local-only" && options.input !== undefined && args.at(-2) === "cat-file" && args.at(-1) === "--batch") {
+        return await options.batchReader.run({ args: effectiveArgs, cwd: effectiveCwd, env, maxBuffer,
+          input: options.input, signal: options.signal, onStart });
+      }
+      const result = await runCancelableGitProcess((cancelSignal) => {
+        onStart?.();
+        return execa("git", effectiveArgs, {
+          cwd: effectiveCwd,
+          env,
+          cancelSignal,
+          encoding: "buffer",
+          stripFinalNewline: false,
+          extendEnv: false,
+          maxBuffer,
+          ...(options.input === undefined
+            ? { stdin: "ignore" as const }
+            : { input: options.input }),
+        });
+      }, options.signal, { command: "git", args: effectiveArgs });
       return { stdout: result.stdout, stderr: result.stderr };
     } catch (error) {
       throw normalizeGitRejection(error, { command: "git", args: effectiveArgs });

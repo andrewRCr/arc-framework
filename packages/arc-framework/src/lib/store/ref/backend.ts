@@ -16,16 +16,18 @@ import { pullRefStore } from "./pull.js";
 import { readSourceContext } from "./read-source-namespace.js";
 import { runRefMigrate, runRefRemote } from "./commands.js";
 import { runRefConflict } from "./conflict-command.js";
+import { createRefReadCoordinator } from "./read-operation.js";
 import { maintainRefStore } from "./maintain.js";
 
 /** Construct the backend with no commands, file reads, or resolved policy ports. */
 export function createRefBackend(ports: RefStorePorts): Store {
   const context = createRefBackendContext(ports);
+  const operations = createRefReadCoordinator(context);
   return {
-    ...refReadOperations(context),
+    ...refReadOperations(context, operations),
     write: (input) => writeRefRecord(context, input), batch: (input) => batchRefRecords(context, input),
-    pull: (input) => pullRefStore(context, input),
-    push: (input) => pushRefStore(context, input), maintain: () => maintainRefStore(context),
+    pull: (input) => operations.maintenance(() => pullRefStore(context, input)),
+    push: (input) => operations.maintenance(() => pushRefStore(context, input)), maintain: () => operations.maintenance(() => maintainRefStore(context)),
   };
 }
 
@@ -34,13 +36,13 @@ export function createRefReadSourceBackend(ports: RefStorePorts, remote: string)
   return refReadOperations(readSourceContext(createRefBackendContext(ports), remote));
 }
 
-function refReadOperations(context: RefBackendContext): ReadOnlyStore {
+function refReadOperations(context: RefBackendContext, operations = createRefReadCoordinator(context)): ReadOnlyStore {
   return {
     capabilities: { stateOffBranch: true },
-    read: (input) => input.asOf ? readSnapshotRecord(context, input) : readRefRecord(context, input),
-    list: (input) => input.asOf ? listSnapshotRecords(context, input) : listRefRecords(context, input),
+    read: (input) => operations.read((scoped) => input.asOf ? readSnapshotRecord(scoped, input) : readRefRecord(scoped, input)),
+    list: (input) => operations.read((scoped) => input.asOf ? listSnapshotRecords(scoped, input) : listRefRecords(scoped, input)),
     version: async () => ({ status: "ok", result: await refStateVersion(context) }),
-    history: (input) => historyRefRecord(context, input), changes: (input) => changesRefRecords(context, input), lookup: (input) => lookupRefRecord(context, input),
+    history: (input) => historyRefRecord(context, input), changes: (input) => changesRefRecords(context, input), lookup: (input) => operations.read((scoped) => lookupRefRecord(scoped, input)),
   };
 }
 

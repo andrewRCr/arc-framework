@@ -5,6 +5,7 @@
  * with an injectable executor for testability.
  */
 
+import type { GitBatchReadScope } from "./batch-reader.js";
 import { normalizeGitRejection } from "./process-error.js";
 import type { InteractionContext } from "../command-input/interaction-context.js";
 import { readFile, rename, rm, writeFile } from "node:fs/promises";
@@ -115,6 +116,8 @@ export type RawGitExec = (
     objectAccess?: "local-only";
     indexFile?: string;
     removeEnvironment?: readonly string[];
+    /** Operation-owned native cat-file reuse; injected executors may retain one-shot behavior. */
+    batchReader?: GitBatchReadScope;
   },
 ) => Promise<RawGitResult>;
 

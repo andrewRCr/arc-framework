@@ -1069,3 +1069,44 @@ unexpected successful publication. The complete five-suite object-construction r
 including manifests, archive retention, and separate bare repositories. Local proof logs remain under
 `/tmp/arc-storage-18.2-{write-batch-red,write-cleanup-red,object-suites}.log`. Windows timing still requires a new
 exact-head dispatch; no budget pass is claimed from this local evidence.
+
+## Windows operation reader
+
+Read, list, and lookup exceeded at least one first-dispatch Windows budget, so those public operations now own a
+lazy `cat-file --batch` scope. The ordinary raw executor retains its injection boundary and environment filtering;
+only local-only batch object reads reuse a child. Scope keys bind the repository, arguments, environment, and output
+bound; exchanges serialize, byte framing retains missing objects and binary payloads, and each request retains the
+existing output ceiling. Overflow invalidates and ends the reader before the existing partition/retry path opens a
+fresh one. Cancellation uses the shared descendant-first termination utility and waits for direct-child cleanup.
+Normal close ends stdin, drains EOF, and awaits child exit; exceptional close destroys buffered stdout before waiting
+so an unread pipe cannot hold cleanup open.
+
+Each public read call closes its scope before returning, including refusal and thrown-error paths. This backend's
+explicit maintenance, pull, and push wait for its already-active readers and hold later reads until completion;
+pull and push are included because native fetch may trigger maintenance. No reader is held across calls or cached
+on the long-lived backend context. This is ownership within a backend instance, not coordination with arbitrary
+external Git processes or other independently constructed backend instances. Version, history, changes, and writes
+retain their existing one-shot acquisition paths.
+
+Native Git trace events proved the original UID read opened two batch processes; both layouts now open one and
+record its exit before the read resolves. A paused read, concurrent maintenance, and later read prove reader exit
+precedes native maintenance start and the later reader starts after maintenance exits. The maintenance-barrier
+reconstruction failed that ordering in both layouts. Further narrow reconstructions failed exact-byte framing,
+request-local output limits, active cancellation, and native exit classification; a framing-bypass reconstruction
+failed all six malformed-stream cases. Restored native coverage passed seven suites and 97 cases in 33.26 s, with
+both layouts, upstream reads, overflow partitioning, maintenance, and executor regression coverage. Protocol coverage
+then gained a native exit-status/diagnostic and successful-continuation case. The focused unit union passed 40 cases,
+including nine framing cases and dependency-free store construction. Proof logs use the
+`/tmp/arc-storage-18.2-reader-*` prefix. The process-cost fixture counts actual native process starts rather than
+raw-executor requests; its reduced UID-read expectations reflect that observed reduction. No Windows budget pass
+or hosted conformance-cost pass follows from these local checks; both remain open for a fresh dispatch.
+
+Related-unit feedback initially refused the new spawn site's absent command-input classification. Its declaration
+now records ARC-fed explicit stdin and an operation-scoped local object-acquisition boundary beside the existing
+raw Git infrastructure policies; the inventory validator supplies the fail-first witness. The local 600-item timing
+case passed in 20.58 s after batching. Its diagnostic medians in milliseconds were: default version 4.7474, read
+42.4738, list 106.2453, lookup 12.6066, write 507.8042; separate version 3.9796, read 43.6168, list 102.2287, lookup
+10.7949, write 494.0704. These local figures are not comparable hosted-runner budget evidence.
+
+The native reader-protocol, reader-lifetime, and bulk-write suites join the existing portability selection explicitly
+so the next Windows/macOS pair exercises cancellation, cleanup, byte preservation, and maintenance ordering directly.

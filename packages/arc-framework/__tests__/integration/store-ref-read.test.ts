@@ -15,7 +15,7 @@ const metadata = canonicalize({ formatVersion: 1, slug: "alpha", formats: {},
   primary: { role: "work-item/meta", placement: { kind: "active" } } });
 
 describe.each(["files", "reftable"] as const)("ref store read pipeline (%s)", (format) => {
-  it("reads and lists a planted record under its metadata owner in two and four processes", async () => {
+  it("reads and lists a planted record under its metadata owner in one and four processes", async () => {
     const f = await fixture(format);
     await plantRef(f.root, ref, [{ path: `metadata-${uid}.json`, content: metadata },
       { path: "extra-alpha.md", content: "# A planted companion\n" }]);
@@ -24,11 +24,11 @@ describe.each(["files", "reftable"] as const)("ref store read pipeline (%s)", (f
     const read = await f.store.read({ reference });
     expect(read).toMatchObject({ status: "ok", result: { reference, content: "# A planted companion\n",
       placement: { kind: "active" }, formatVersion: 1, conflicts: [], version: expect.stringMatching(/^sha256:/u) } });
-    expect(f.processes() - before).toBe(2);
+    expect(f.processes() - before).toBe(1);
     const listing = await f.store.list({ family: "work-item" });
     expect(listing).toMatchObject({ status: "ok", result: { status: "complete", records: [read.status === "ok" ? read.result : null],
       diagnostics: [], missed: false } });
-    expect(f.processes() - before).toBe(6);
+    expect(f.processes() - before).toBe(5);
   });
   it("splits overflowing blob batches and still lists every record", async () => {
     const f = await fixture(format, 4096);
@@ -79,7 +79,7 @@ describe.each(["files", "reftable"] as const)("ref store read pipeline (%s)", (f
     const before = f.processes();
     const unresolved = RecordReferenceSchema.parse({ ...reference, owner: { type: "work-item", name: "alpha" } });
     expect(await f.store.read({ reference: unresolved })).toMatchObject({ status: "ok", result: { reference, content: "found" } });
-    expect(f.processes() - before).toBe(5);
+    expect(f.processes() - before).toBe(4);
   });
   it("refuses person-owned reads without an identity and names arc.identity", async () => {
     const f = await fixture(format);
@@ -109,7 +109,7 @@ describe.each(["files", "reftable"] as const)("ref store read pipeline (%s)", (f
     process.env.GIT_SSH_COMMAND = "ssh -i ~/.ssh/unused-key";
     try {
       expect(await f.store.read({ reference })).toMatchObject({ status: "ok", result: { content: "local" } });
-      expect(f.processes()).toBe(2);
+      expect(f.processes()).toBe(1);
     } finally {
       if (previous === undefined) delete process.env.GIT_SSH_COMMAND;
       else process.env.GIT_SSH_COMMAND = previous;
@@ -127,15 +127,15 @@ describe.each(["files", "reftable"] as const)("ref store read pipeline (%s)", (f
     await f.store.version();
     const before = f.processes();
     expect(await f.store.read({ reference })).toMatchObject({ status: "ok", result: { content: "ours", conflicts: [conflictReference] } });
-    expect(f.processes() - before).toBe(3);
+    expect(f.processes() - before).toBe(1);
     const listing = await f.store.list({ family: "work-item" });
     expect(listing).toMatchObject({ status: "ok", result: { status: "complete", records: expect.arrayContaining([
       expect.objectContaining({ reference, conflicts: [conflictReference] }),
       expect.objectContaining({ reference: conflictReference, conflicts: [] }),
     ]), diagnostics: [], missed: false } });
-    expect(f.processes() - before).toBe(7);
+    expect(f.processes() - before).toBe(5);
     expect(await f.store.list({ family: "work-item", kind: "work-item/companion" })).toMatchObject({ status: "ok",
       result: { status: "complete", records: [expect.objectContaining({ reference, conflicts: [conflictReference] })] } });
-    expect(f.processes() - before).toBe(11);
+    expect(f.processes() - before).toBe(9);
   });
 });

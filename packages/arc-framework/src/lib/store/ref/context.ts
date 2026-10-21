@@ -1,5 +1,6 @@
 /** Resolved pure dependencies shared by ref backend operations. */
 
+import type { GitBatchReadScope } from "../../git/batch-reader.js";
 import type { GitExecOptions, GitExecInput, RawGitExec } from "../../git/exec.js";
 import { withGitVersionFloor } from "../../git/version-floor.js";
 import type { RefStorePorts } from "../ports.js";
@@ -18,6 +19,8 @@ export interface RefBackendContext extends RefStorePorts {
   repository?: { commonDir: string; gitDir: string | null; source: RefBackendContext };
   /** Prospective blobs stay readable in memory until their commit owns the layout lock. */
   blobStage?: { format: ObjectFormat; blobs: Map<string, Uint8Array> };
+  /** Native object readers belong to one public read operation. */
+  batchReader?: GitBatchReadScope;
   /** A push and all its nested pulls share one cancellation bound. */
   syncDeadline?: { signal: AbortSignal; end: number; cleanup: RefBackendContext };
 }
