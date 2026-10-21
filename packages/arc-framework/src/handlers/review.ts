@@ -1658,6 +1658,7 @@ function createResolveContributionConfirmation(input: ReviewInvocationOptions & 
         });
       }
       return confirmNonDeliveryIncrementalApplicability({
+        stateOffBranch: input.store?.capabilities.stateOffBranch,
         predecessor,
         currentTarget: current.target,
         currentLineage: current.admission.lineage,
@@ -2367,6 +2368,7 @@ async function resolveHostedProgressContext(input: ReviewInvocationOptions & {
   };
   if (input.admitCapacity && input.vehicle?.kind !== "delivery-member") {
     const earlier = await projectEarlierReviewApplicability({
+      stateOffBranch: bound.store.capabilities.stateOffBranch,
       sourceOwner: bound.store.capabilities.stateOffBranch && bound.workItem !== undefined
         ? { repositoryId, workItem: bound.workItem } : undefined,
       query: applicabilityQuery,

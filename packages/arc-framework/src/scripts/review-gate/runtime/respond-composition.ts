@@ -388,6 +388,7 @@ function createRespondPolicyConfirmation(context: {
         });
       }
       return confirmNonDeliveryIncrementalApplicability({
+        stateOffBranch: input.store?.capabilities.stateOffBranch,
         predecessor,
         currentTarget: current.target,
         currentLineage: lineage,
@@ -844,18 +845,17 @@ function createBoundRespondDependencies(input: ReviewInvocationInput & ReviewInv
       }
       return collected.target;
     },
-    // Staged like the record `attest` publishes: the Candidate's own projection never enters the
-    // reviewable subject, so staging it advances the lineage without disturbing what review sees.
+    // Repository records share attestation's staging protocol; native writes finish in the store.
     appendCandidateResponse: async ({ workUnit, record, expectedRecordVersion }) => {
       await requireCandidateMutationOwner(workUnit);
       const recordPath = await writeCandidateRecord(input.cwd, workUnit, record, expectedRecordVersion, { store: input.store, owner: input.workItem });
-      await input.exec("git", ["add", "--", recordPath], { cwd: input.cwd });
+      if (!input.store.capabilities.stateOffBranch) await input.exec("git", ["add", "--", recordPath], { cwd: input.cwd });
       return { recordPath };
     },
     stageCandidateResponse: async (workUnit) => {
       await requireCandidateMutationOwner(workUnit);
       const recordPath = resolveCandidateRecordRelativePath(workUnit);
-      await input.exec("git", ["add", "--", recordPath], { cwd: input.cwd });
+      if (!input.store.capabilities.stateOffBranch) await input.exec("git", ["add", "--", recordPath], { cwd: input.cwd });
       return { recordPath };
     },
     rebindSingletonPublicationResponse: async ({ workUnit, response, requirePublished }) => {
@@ -871,7 +871,7 @@ function createBoundRespondDependencies(input: ReviewInvocationInput & ReviewInv
       confirmCandidateResponseHeadContinuation({ ...input, workUnit, candidateId: response.candidateId,
         dispositionSetId: response.dispositionId, expectedResponseId: response.responseId,
         originatingHeadSha: response.oldTarget.revision, verifiedHeadSha: fromHeadSha, fromHeadSha, toHeadSha,
-        approvedBy: response.approvedBy, appliedBy: response.appliedBy }),
+        approvedBy: response.approvedBy, appliedBy: response.appliedBy, stateOffBranch: input.store.capabilities.stateOffBranch }),
     settleLaneFindings: async (settlement) => {
       await settleLaneAttempt(prepare.operationStore, {
         ...settlement,

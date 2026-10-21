@@ -9,6 +9,20 @@ import { createReviewHarness } from "../../../helpers/store/review-harness.js";
 import { candidateFixture } from "../../../helpers/store/tracked-write-fixture.js";
 import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
 import { checkpointDependencies } from "../../../helpers/integration-checkpoint.js";
+import { readGitDeliveryLifecycleArtifactsAtRef } from "../../../../src/lib/delivery/git-lifecycle-contribution.js";
+
+it("does not replay a native shipped boundary from Git", async () => {
+  const h = createReviewHarness(), primary = await h.seedMeta("example");
+  const exec = scriptGitExec([]).exec;
+  const dependencies = createIntegrationCheckpointDependencies({ cwd: "/unavailable", exec,
+    store: h.store, workItem: primary.reference.owner });
+  expect(await dependencies.readShippedDeliveryPublicationCommit("example", "a".repeat(40))).toEqual({ status: "none" });
+});
+
+it("does not reconstruct native lifecycle records from a Git revision", async () => {
+  const exec = scriptGitExec([]).exec;
+  expect(await readGitDeliveryLifecycleArtifactsAtRef(exec, "HEAD", "example", true)).toEqual([]);
+});
 
 it.each([
   { native: false, reconcile: false }, { native: true, reconcile: false },

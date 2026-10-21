@@ -25,6 +25,7 @@ export function deliveryTerminalRecordAdvanceIsRepresented(input: {
 
 /** Prove one terminal movement contains only Candidate-represented operational records. */
 export async function projectGitDeliveryTerminalRecordAdvance(input: {
+  readonly stateOffBranch?: boolean;
   readonly cwd: string;
   readonly exec: GitExec;
   readonly workUnitId: string;
@@ -32,7 +33,7 @@ export async function projectGitDeliveryTerminalRecordAdvance(input: {
   readonly priorHead: string;
   readonly currentHead: string;
 }): Promise<DeliveryTerminalCoordinateAdvanceProof | undefined> {
-  if (input.priorHead === input.currentHead) return undefined;
+  if (input.stateOffBranch === true || input.priorHead === input.currentHead) return undefined;
   const localExec: GitExec = (command, args, options) => input.exec(command, args, {
     ...options,
     cwd: input.cwd,
@@ -87,6 +88,7 @@ export async function projectGitDeliveryTerminalRecordAdvance(input: {
 
 /** Prove one strict-ancestor terminal advance already accepted by Candidate currentness. */
 export async function projectGitDeliveryTerminalCoordinateAdvance(input: {
+  readonly stateOffBranch?: boolean;
   readonly cwd: string;
   readonly exec: GitExec;
   readonly candidate: CandidateEffectiveCurrentProjection;
@@ -129,6 +131,7 @@ export async function projectGitDeliveryTerminalCoordinateAdvance(input: {
       };
     }
     const stateAdvance = await projectGitDeliveryTerminalRecordAdvance({
+      stateOffBranch: input.stateOffBranch,
       cwd: input.cwd,
       exec: input.exec,
       workUnitId: input.workUnitId,
@@ -155,6 +158,7 @@ export async function projectGitDeliveryTerminalCoordinateAdvance(input: {
   const immediateAdvance = immediateParent === undefined || immediateParent === priorHead
     ? undefined
     : await projectGitDeliveryTerminalRecordAdvance({
+        stateOffBranch: input.stateOffBranch,
         cwd: input.cwd,
         exec: input.exec,
         workUnitId: input.workUnitId,

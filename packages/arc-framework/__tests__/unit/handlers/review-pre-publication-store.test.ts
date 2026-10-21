@@ -21,6 +21,7 @@ import { recordNativeFrontlineSkip } from "../../../src/scripts/review-gate/runt
 import { composePrePublicationReviewRequest } from "../../../src/scripts/review-gate/policy/pre-publication-request.js";
 import { createPrePublicationCompositionDependencies } from "../../../src/scripts/review-gate/policy/pre-publication-composition.js";
 import { resolveReviewPolicy } from "../../../src/scripts/review-gate/policy/review-policy-driver.js";
+import { readAdvancedPrePublicationReentry } from "../../../src/handlers/review-pre-publication-progress.js";
 
 import { createReviewDecisionPort } from "../../../src/lib/store/kinds/review/decision/access.js";
 import { reviewDecisionKey } from "../../../src/lib/store/kinds/review/decision/key.js";
@@ -233,6 +234,23 @@ it.each(["candidate-publish-ready", "publication-pending"] as const)("re-enters 
   if (locus === "publication-pending") await writeSubmissionBoundary(h.cwd, expected, ready.version, { store: h.store, owner });
   const before = await h.store.version();
   expect(await h.run()).toMatchObject({ ...expected });
+  expect(await h.store.version()).toEqual(before);
+});
+
+it("retains native advanced authority by Candidate and subject without a checkout-head binding", async () => {
+  const h = await fixture(), owner = await h.seedCandidate();
+  await h.run(true, { frontline: { invocation: { mode: "skip" } }, standard: { terminus: { mode: "owner-accepted" } } });
+  const saved = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
+  if (saved.boundary?.schemaVersion !== 2 || saved.boundary.locus !== "candidate-publish-ready") throw new Error("Expected native readiness");
+  const input = { ...h, workItem: owner }, context = createReviewCompositionContext(input);
+  const dependencies = createPrePublicationCompositionDependencies(input), before = await h.store.version();
+  expect(await readAdvancedPrePublicationReentry({ root: h.cwd, workUnit: "example", currentHead: "b".repeat(40),
+    boundary: saved.boundary, replay: null, orderingRecoveryPresent: false, plainReentry: true }, {
+    readCandidate: (_root, workUnit) => dependencies.readCandidate(workUnit),
+    readStandardLaneOwnerVersion: async () => { throw new Error("repository progress read"); },
+    readReadinessBinding: (_root, candidateId, headSha) => readReviewReadinessBinding({ store: h.store, workItem: owner,
+      inFlight: context.family.ports.inFlight, repositoryId: projectId, candidateId, headSha }),
+  })).toMatchObject({ status: "continued", envelope: { locus: "candidate-publish-ready" } });
   expect(await h.store.version()).toEqual(before);
 });
 

@@ -1388,7 +1388,8 @@ describe("earlier review attempt query", () => {
       [oid("b"), candidateRecord()],
       [oid("c"), candidateRecord([selection])],
     ]);
-    const readEarlier = (segmentPaths: string[]) => projectEarlierReviewApplicability({
+    const readEarlier = (segmentPaths: string[], stateOffBranch = false) => projectEarlierReviewApplicability({
+      stateOffBranch,
       query: selector(),
       currentBase: oid("2"),
       snapshot: { status: "complete", records: [{ version: 1, state }] },
@@ -1417,6 +1418,9 @@ describe("earlier review attempt query", () => {
     await expect(readEarlier([recordPath, "src/example.ts"])).resolves.toMatchObject({
       status: "complete",
       attempts: [{ applicability: "stop", authorityState: "decision-required" }],
+    });
+    await expect(readEarlier([recordPath], true)).resolves.toMatchObject({
+      status: "complete", attempts: [{ applicability: "stop", authorityState: "decision-required" }],
     });
   });
 

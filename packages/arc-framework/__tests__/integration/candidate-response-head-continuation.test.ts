@@ -120,6 +120,27 @@ async function fixture(extraPath?: string,
 }
 
 describe("committed Candidate response continuation", () => {
+  it("refuses a native response continuation made only of tracked record writes", async () => {
+    const { input } = await fixture();
+    expect(await confirmCandidateResponseHeadContinuation({ ...input, stateOffBranch: true })).toBe(false);
+  });
+
+  it("requires the native continuation to advance only the owning work unit's export", async () => {
+    const { input, git } = await fixture();
+    await git("switch", "-c", "native-export", input.verifiedHeadSha);
+    await mkdir(join(input.cwd, ".arc/specs/example"), { recursive: true });
+    await writeFile(join(input.cwd, ".arc/specs/example/spec-example.md"), "# Reviewed specification\n");
+    await git("add", ".arc/specs/example/spec-example.md");
+    await git("commit", "-m", "Copy the reviewed specification");
+    const toHeadSha = await git("rev-parse", "HEAD");
+    expect(await confirmCandidateResponseHeadContinuation({ ...input, toHeadSha, stateOffBranch: true })).toBe(true);
+    await writeFile(join(input.cwd, "other.txt"), "unrelated\n");
+    await git("add", "other.txt");
+    await git("commit", "--amend", "--no-edit");
+    expect(await confirmCandidateResponseHeadContinuation({ ...input,
+      toHeadSha: await git("rev-parse", "HEAD"), stateOffBranch: true })).toBe(false);
+  });
+
   it("proves the required record-only commit against its exact verified response", async () => {
     const { input } = await fixture();
     await expect(confirmCandidateResponseHeadContinuation(input)).resolves.toBe(true);

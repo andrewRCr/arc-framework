@@ -17,7 +17,7 @@ interface HostedApplicabilityContextInput {
   readonly remote?: string;
   readonly delivery?: DeliveryDischargeTargetLookup;
   readonly host?: Pick<DeliveryHostPort, "readRequest">;
-  readonly store: Pick<ReviewInFlightPort, "readOperationSnapshot">;
+  readonly store: Pick<ReviewInFlightPort, "readOperationSnapshot" | "stateOffBranch">;
   readonly dispositions: ApprovedDispositionRecordReader;
   readonly repositoryId: () => Promise<string>;
   readonly args: Omit<HostedReservationDischargeReaderArgs, "workUnitId" | "reservation">;
@@ -99,6 +99,7 @@ export async function createHostedApplicabilityContext(input: HostedApplicabilit
     ? undefined
     : async (sourceId: string): Promise<EarlierHostedAttemptApplicabilityRead> => (
         projectEarlierReviewApplicability({
+          stateOffBranch: store.stateOffBranch,
           sourceOwner: input.nativeWorkItem === undefined ? undefined
             : { repositoryId: currentRepositoryId, workItem: input.nativeWorkItem },
           query: {

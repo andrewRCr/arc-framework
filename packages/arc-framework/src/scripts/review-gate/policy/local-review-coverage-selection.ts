@@ -134,6 +134,7 @@ function standardPredecessorSourceId(
 
 /** Prove a non-delivery predecessor against current contribution and exact Candidate authority. */
 export async function confirmNonDeliveryIncrementalApplicability(input: {
+  readonly stateOffBranch?: boolean;
   readonly predecessor: ReviewResult;
   readonly currentTarget: ReviewTarget;
   readonly currentLineage: LaneSubjectLineage;
@@ -194,7 +195,8 @@ export async function confirmNonDeliveryIncrementalApplicability(input: {
         projection,
         selections,
         projectSelector,
-        ownRecord: gitCandidateRecordAtHead(input.exec, input.candidate.attestation.workUnit),
+        ownRecord: input.stateOffBranch === true ? undefined
+          : gitCandidateRecordAtHead(input.exec, input.candidate.attestation.workUnit),
       });
   const authority = reduceReviewApplicabilityAuthorityWithMechanicalCarry(
     currentLineage.candidateId,

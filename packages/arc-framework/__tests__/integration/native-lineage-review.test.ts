@@ -3,13 +3,16 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
 import { createReviewRepositoryHarness } from "../helpers/store/review-differential.js";
-import { localOutcome, frontlineOutcome } from "../fixtures/review-outcome.js";
-import { reviewEvidenceFixture } from "../fixtures/review-evidence.js";
+import { localOutcome, frontlineOutcome, hostedOutcome } from "../fixtures/review-outcome.js";
+import { reviewEvidenceFixture, hostedSettlementFixture } from "../fixtures/review-evidence.js";
+import { localPendingBinding } from "../fixtures/lane-pending-binding.js";
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
 import { collectGitCandidateSubject } from "../../src/lib/work-unit/git-candidate-subject.js";
 import { createCandidateAttestation, createCandidateReviewResponseEvidence, createCandidateLineageAttestation,
-  CandidateManagedRecordV1Schema } from "../../src/lib/work-unit/candidate-attestation.js";
-import { writeCandidateRecord } from "../../src/lib/store/kinds/review/candidate/access.js";
+  CandidateManagedRecordV1Schema, serializeCandidateManagedRecord } from "../../src/lib/work-unit/candidate-attestation.js";
+import { writeCandidateRecord, readCandidateRecord } from "../../src/lib/store/kinds/review/candidate/access.js";
+import { projectCandidateReviewBoundary } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { createPrePublicationCompositionDependencies } from "../../src/scripts/review-gate/policy/pre-publication-composition.js";
 import { createReviewTarget } from "../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { DeliveryReviewMemberVehicleSchema } from "../../src/lib/delivery/review-vehicle.js";
 import { ReviewOutcomeSchema } from "../../src/lib/store/kinds/review/outcome/schema.js";
@@ -23,12 +26,15 @@ import { createLineageReviewComposer } from "../../src/scripts/integration/linea
 import { composeCandidateResponseConfirmation, confirmCandidateResponseAction } from "../../src/scripts/integration/candidate-response-confirmation.js";
 import { bindReviewSourceReferenceForInvocation } from "../../src/scripts/review-gate/runtime/source-invocation.js";
 import { createReviewCompositionContext } from "../../src/scripts/review-gate/runtime/composition-context.js";
-import { recordLaneResponsePerformance } from "../../src/scripts/review-gate/lane-progress.js";
+import { recordLaneResponsePerformance, recordLaneAttempt, captureConditionalNextPassAuthorization } from "../../src/scripts/review-gate/lane-progress.js";
+import { createCandidateResponseHeadContinuationReader } from "../../src/scripts/review-gate/runtime/candidate-response-head-continuation.js";
+import { publishNativeHostedSettlement } from "../../src/scripts/review-gate/runtime/native-hosted-settlement.js";
+import { StoredReviewResultReader } from "../../src/scripts/review-gate/hosts/local/stored-result-reader.js";
 import { readReviewLane } from "../../src/scripts/review-gate/runtime/lane-read-composition.js";
 import { IntegrationBoundaryLocusV2Schema } from "../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 
-async function fixture(kind: "local" | "private-frontline" | "history") {
+async function fixture(kind: "local" | "private-frontline" | "history" | "hosted") {
   const h = await createReviewRepositoryHarness();
   onTestFinished(h.cleanup);
   const { cwd, exec } = h.native;
@@ -67,7 +73,12 @@ async function fixture(kind: "local" | "private-frontline" | "history") {
     evidenceUrlOrId: "source:reviewed.txt:1", sourceOrdinal: 1 }, ...(kind === "history" ? [{ findingId: "finding-2",
     severity: "major" as const, locus: "reviewed.txt:2", evidenceUrlOrId: "source:reviewed.txt:2", sourceOrdinal: 2 }] : [])];
   const candidate = { workUnit: attestation.workUnit, candidateId: attestation.candidateId };
-  const outcome = ReviewOutcomeSchema.parse(kind !== "private-frontline" ? localOutcome({ target: rootTarget, findings, outcome: "findings",
+  const outcome = ReviewOutcomeSchema.parse(kind === "hosted" ? hostedOutcome({ repositoryId: projectId,
+    target: { repository: "owner/repo", pullRequest: 42, headSha: oldHead },
+    lineage: { kind: "candidate", candidateId: attestation.candidateId }, outcome: "findings",
+    findings: [{ findingId: "thread-1", severity: "major", sourceOrdinal: 1, origin: "review-thread",
+      threadId: "thread-1", commentId: "comment-1", settlement: "reply-and-resolve", locus: "reviewed.txt:1",
+      url: "https://example.invalid/thread-1" }] }) : kind !== "private-frontline" ? localOutcome({ target: rootTarget, findings, outcome: "findings",
     lineage: { kind: "candidate", candidateId: attestation.candidateId }, vehicle: { kind: "work-unit", identity: "example" } })
     : frontlineOutcome({ target: memberTarget, findings, lineage: { kind: "delivery-member", planId: member.planId,
       deliverableId: member.deliverableId, workUnitId: member.workUnitId },
@@ -102,9 +113,55 @@ async function fixture(kind: "local" | "private-frontline" | "history") {
     verificationEvidenceRef: "verification://convergence" });
   await writeCandidateRecord(cwd, "example", { ...initial, transitions: [response], lineageAttestations: [convergence] },
     initialStored.version, { store: h.reference.store, owner: primary.reference.owner });
-  return { ...h, cwd, primary, record, response, outcome, approvedHead, approvedBase: base,
+  return { ...h, cwd, git, primary, record, response, outcome, approvedHead, approvedBase: base,
     invocation: { ...h.native, workItem: primary.reference.owner } };
 }
+
+it.each(["local", "hosted"] as const)("continues a native %s fix through only its export commit", async kind => {
+  const f = await fixture(kind), context = createReviewCompositionContext(f.invocation);
+  if (context.family.mode !== "stored") throw new Error("Expected the native review family");
+  const { inFlight, dispositions, outcomes, evidence } = context.family.ports;
+  const coordinates = { lane: "standard" as const, repositoryId: f.outcome.target.repositoryId,
+    headSha: f.outcome.target.headSha, lineage: f.outcome.lineage, attemptId: f.outcome.attemptId,
+    dispositionSetId: f.record.currentDispositionSetId, now: "2026-10-20T18:03:00Z" };
+  const grant = kind === "local" ? await captureConditionalNextPassAuthorization(inFlight, { ...coordinates,
+    producerId: f.outcome.attemptId, authorizedBy: "andrew", exhaustedPassCount: f.outcome.logicalPass,
+    nextPass: f.outcome.logicalPass + 1 }) : null;
+  await recordLaneResponsePerformance(inFlight, { ...coordinates, producedHeadSha: f.approvedHead,
+    candidateResponseId: f.response.responseId });
+  await mkdir(join(f.cwd, ".arc/specs/example"), { recursive: true });
+  await writeFile(join(f.cwd, ".arc/specs/example/spec-example.md"), "# Reviewed design\n");
+  await f.git("add", ".arc/specs/example/spec-example.md");
+  await f.git("commit", "-m", "Copy the reviewed design");
+  const headSha = await f.git("rev-parse", "HEAD");
+  const proof = createCandidateResponseHeadContinuationReader({ cwd: f.cwd, exec: f.native.exec,
+    operationStore: inFlight, dispositionStore: dispositions });
+  if (kind === "local") {
+    if (grant === null) throw new Error("Expected conditional authority");
+    const admission = await recordLaneAttempt(inFlight, { ...coordinates, headSha, attemptId: "next-native-look",
+      logicalPass: f.outcome.logicalPass + 1, changeRequestId: null, sourceId: "delegated-agent",
+      outcome: "pending", consumedPass: false, local: localPendingBinding({ operationId: "next-native-look",
+        repositoryId: coordinates.repositoryId, headSha }), conditionalPendingAdmission: {
+        authorizationId: grant.authorizationId, repositoryId: coordinates.repositoryId, lane: "standard",
+        lineage: f.outcome.lineage, producedHeadSha: headSha, nextPass: f.outcome.logicalPass + 1,
+        admissionId: "next-native-look", now: coordinates.now, confirmResponseHeadContinuation: proof,
+        confirmDispositionSetCurrent: async (producer, id) => {
+          const current = await evidence.read(id);
+          return current?.value.dispositionSet.producerId === producer && current.value.successorDispositionSetId === null;
+        } } });
+    expect(admission.attempts.find(attempt => attempt.attemptId === "next-native-look"))
+      .toMatchObject({ headSha, admittedBy: grant.authorizationId });
+  } else {
+    if (f.outcome.hosted === undefined) throw new Error("Expected hosted response facts");
+    const receipt = hostedSettlementFixture().entry;
+    await publishNativeHostedSettlement({ outcomes, evidence, readProjectId: f.reference.projectId,
+      producerId: f.outcome.attemptId, confirmResponseHeadContinuation: proof, settlement: { ...receipt,
+        disposition: "fix",
+        dispositionSetId: f.record.currentDispositionSetId, target: f.outcome.hosted.target,
+        fixTarget: { ...f.outcome.hosted.target, headSha } } });
+    expect(await new StoredReviewResultReader({ outcomes, evidence, readProjectId: f.reference.projectId }).readResult(f.outcome.attemptId)).toMatchObject({ settled: true });
+  }
+}, 30_000);
 
 it("confirms a private native frontline response without a Candidate file or local source state", async () => {
   const f = await fixture("private-frontline");
@@ -124,6 +181,9 @@ it("confirms a private native frontline response without a Candidate file or loc
   await expect(composeCandidateResponseConfirmation({ ...input,
     approved: { ...f.record, source: { ...f.record.source, outcomeRef: foreignRef } } })).rejects.toThrow();
   expect(await composeCandidateResponseConfirmation(input)).toEqual(confirmed);
+  await f.git("switch", "main");
+  expect(await composeCandidateResponseConfirmation(input)).toEqual(confirmed);
+  expect(await confirmCandidateResponseAction({ ...input, action: confirmed.action })).toEqual({ state: "confirmed" });
 }, 30_000);
 
 it("composes native local settlement from its outcome and policy snapshot without an operation record", async () => {
@@ -137,6 +197,22 @@ it("composes native local settlement from its outcome and policy snapshot withou
       policyRequest: currentApprovedDispositionNode(f.record).responsePolicyRequest } }] });
   expect(result.actions).toHaveLength(1);
   expect(await f.reference.store.version()).toEqual(before);
+}, 30_000);
+
+it("keeps imported Candidate subject identity when its old tracked projections remain on the branch", async () => {
+  const f = await fixture("local");
+  const record = await readCandidateRecord(f.cwd, "example", { store: f.reference.store, owner: f.primary.reference.owner });
+  if (record === null) throw new Error("Expected the imported Candidate");
+  await mkdir(join(f.cwd, ".arc/system/.internal/candidates"), { recursive: true });
+  await writeFile(join(f.cwd, ".arc/system/.internal/candidates/example.json"), serializeCandidateManagedRecord(record));
+  await writeFile(join(f.cwd, ".arc/system/.internal/candidates/example.boundary.json"), JSON.stringify(
+    projectCandidateReviewBoundary({ workUnit: "example", candidateId: record.attestation.candidateId,
+      candidateSubjectDigest: f.response.newTarget.subject.subjectDigest })));
+  await f.git("add", ".arc/system/.internal/candidates");
+  await f.git("commit", "-m", "Retain tracked projections");
+  expect(await createPrePublicationCompositionDependencies(f.invocation).readCandidate("example"))
+    .toMatchObject({ status: "current", candidateId: record.attestation.candidateId,
+      subjectDigest: f.response.newTarget.subject.subjectDigest });
 }, 30_000);
 
 it("reads native lane history with a rejection, two completed looks, and one complete pass without changing facts", async () => {

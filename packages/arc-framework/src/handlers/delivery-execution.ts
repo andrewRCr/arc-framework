@@ -2526,7 +2526,7 @@ async function executeDeliveryCommand(
   if (command === "authoring-rebind") return executeAuthoringRebind(request);
   const readExpectedRecordEffects = async (
     paths: readonly string[],
-  ): Promise<readonly DeliveryReviewFixExpectedRecord[]> => Promise.all(
+  ): Promise<readonly DeliveryReviewFixExpectedRecord[]> => reviewRecordStore.capabilities.stateOffBranch ? [] : Promise.all(
     sortByCanonicalBytes([...new Set(paths)]).map(async (path) => ({
       path,
       digest: deliveryReviewFixRecordDigest(await readFile(resolve(cwd, path), "utf8")),
@@ -2547,7 +2547,7 @@ async function executeDeliveryCommand(
       return result.success ? result.data.position.landedPrefix : null;
     };
     let projectionRequest: z.infer<typeof ReviewFixContinueSchema> = parsed;
-    let expectedRecordEffects: readonly DeliveryReviewFixExpectedRecord[] = parsed.recordEffects ?? [];
+    let expectedRecordEffects: readonly DeliveryReviewFixExpectedRecord[] = reviewRecordStore.capabilities.stateOffBranch ? [] : parsed.recordEffects ?? [];
     let settledRecordEffectHead: string | null = null;
     const reviewFixEntry = createDeliveryReviewFixEntry(cwd, exec, invocation);
     const resolveReviewFixLocus = reviewFixEntry.resolveLocus;
@@ -2561,6 +2561,7 @@ async function executeDeliveryCommand(
       | { readonly status: "ready"; readonly records: readonly DeliveryReviewFixExpectedRecord[] }
       | { readonly status: "refused"; readonly reason: string; readonly paths: readonly string[] }
     > => {
+      if (reviewRecordStore.capabilities.stateOffBranch) return { status: "none" };
       const candidatePath = resolveCandidateRecordRelativePath(workUnitId);
       const boundaryPath = resolveSubmissionBoundaryPath(workUnitId);
       const readGitRecord = async (revision: string, path: string): Promise<string | null> => {
@@ -3713,16 +3714,17 @@ async function executeDeliveryCommand(
         });
         if (carried.status === "refused") return carried;
         const path = await writeSubmissionBoundary(cwd, carried.boundary, boundary.version, { store: reviewRecordStore, owner: invocation.workItem });
-        await exec("git", ["add", "--", path], { cwd });
+        if (!reviewRecordStore.capabilities.stateOffBranch) await exec("git", ["add", "--", path], { cwd });
         await captureExpectedRecordEffects([path]);
         return {
           status: "carried" as const,
-          path,
+          ...(reviewRecordStore.capabilities.stateOffBranch ? {} : { path }),
           candidateId: carried.candidateId,
           stateRevision: carried.stateRevision,
         };
       },
-      settleRecordEffects: async () => {
+      settleRecordEffects: reviewRecordStore.capabilities.stateOffBranch
+        ? () => Promise.resolve({ status: "idle" as const, effects: [] }) : async () => {
         const locus = await resolveReviewFixLocus();
         if (locus === null) {
           return { status: "refused" as const, reason: "record-effect-work-unit-unavailable" };
@@ -3938,7 +3940,8 @@ async function executeDeliveryCommand(
         }),
         resolveUserIdentity(exec),
         readSubmissionBoundaryVersioned(cwd, planRead.value.workUnitId, { store: reviewRecordStore, owner: invocation.workItem }),
-        exec("git", ["show", `HEAD:${committedCandidatePath}`], { cwd, objectAccess: "local-only" })
+        reviewRecordStore.capabilities.stateOffBranch ? Promise.resolve(null)
+          : exec("git", ["show", `HEAD:${committedCandidatePath}`], { cwd, objectAccess: "local-only" })
           .then(({ stdout }) => parseCandidateManagedRecord(stdout))
           .catch(() => null),
       ]);
@@ -3958,6 +3961,7 @@ async function executeDeliveryCommand(
         return { status: "refused", reason: "candidate-reviewable-content-unstaged" };
       }
       const recorded = recordDeliveryReviewFixCandidateVerification({
+        stateOffBranch: reviewRecordStore.capabilities.stateOffBranch,
         plan: planRead.value,
         state: stateRead.value,
         acknowledgement: {
@@ -4013,7 +4017,7 @@ async function executeDeliveryCommand(
             { store: reviewRecordStore, owner: invocation.workItem },
           )
         : resolveCandidateRecordRelativePath(planRead.value.workUnitId);
-      await exec("git", ["add", "--", recordPath], { cwd });
+      if (!reviewRecordStore.capabilities.stateOffBranch) await exec("git", ["add", "--", recordPath], { cwd });
       const acknowledged = await acknowledgeDeliveryReviewFixVerification({
         plan: planRead.value,
         current: stateRead.value,
@@ -4030,22 +4034,22 @@ async function executeDeliveryCommand(
         boundarySnapshot.version,
         { store: reviewRecordStore, owner: invocation.workItem },
       );
-      await exec("git", ["add", "--", boundaryPath], { cwd });
+      if (!reviewRecordStore.capabilities.stateOffBranch) await exec("git", ["add", "--", boundaryPath], { cwd });
       const recordEffects = await readExpectedRecordEffects([recordPath, boundaryPath]);
       return {
         ...acknowledged,
         candidate: {
           candidateId: recorded.record.attestation.candidateId,
           verificationId: recorded.transition.verificationId,
-          recordPath,
+          ...(reviewRecordStore.capabilities.stateOffBranch ? {} : { recordPath }),
         },
         nextAction: "resolve-delivery-status" as const,
         boundaryCarry: {
-          path: boundaryPath,
+          ...(reviewRecordStore.capabilities.stateOffBranch ? {} : { path: boundaryPath }),
           candidateId: carried.candidateId,
           stateRevision: carried.stateRevision,
         },
-        recordEffects,
+        ...(reviewRecordStore.capabilities.stateOffBranch ? {} : { recordEffects }),
       };
     } catch {
       return { status: "refused", reason: "candidate-verification-unavailable" };
@@ -4224,7 +4228,7 @@ async function executeDeliveryCommand(
     try {
       const paths = await new CurrentDeliveryLifecycleContributionPathSource({
         readDirectory: (path) => readdir(resolve(cwd, path)),
-        readArtifactsAtRef: (ref, workUnitId) => readGitDeliveryLifecycleArtifactsAtRef(exec, ref, workUnitId),
+        readArtifactsAtRef: (ref, workUnitId) => readGitDeliveryLifecycleArtifactsAtRef(exec, ref, workUnitId, reviewRecordStore.capabilities.stateOffBranch),
       }).resolve({
         workUnitId: plan.workUnitId,
         activeMetaPath: validateManagedPath(active.path),
@@ -4594,7 +4598,7 @@ async function executeDeliveryCommand(
     try {
       const resolvedPaths = await new CurrentDeliveryLifecycleContributionPathSource({
         readDirectory: (path) => readdir(resolve(cwd, path)),
-        readArtifactsAtRef: (ref, workUnitId) => readGitDeliveryLifecycleArtifactsAtRef(exec, ref, workUnitId),
+        readArtifactsAtRef: (ref, workUnitId) => readGitDeliveryLifecycleArtifactsAtRef(exec, ref, workUnitId, reviewRecordStore.capabilities.stateOffBranch),
       }).resolve({
         workUnitId: plan.workUnitId,
         activeMetaPath: validateManagedPath(active.path),
@@ -6373,6 +6377,7 @@ async function executeDeliveryCommand(
                   exec,
                   ref,
                   workUnitId,
+                  reviewRecordStore.capabilities.stateOffBranch,
                 ),
               }).resolve({
                 workUnitId: plan.workUnitId,

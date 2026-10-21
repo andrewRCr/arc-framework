@@ -496,6 +496,7 @@ export type DeliveryReviewFixCandidateVerificationResult =
 
 /** Advance the existing Candidate through one exact acknowledged delivery-correction verification. */
 export function recordDeliveryReviewFixCandidateVerification(input: {
+  readonly stateOffBranch?: boolean;
   readonly plan: DeliveryPlanV1;
   readonly state: DeliveryRevisionedRecord<DeliveryStateV1>;
   readonly acknowledgement: Omit<DeliveryReviewFixVerificationAcknowledgementInput, "planId">;
@@ -537,23 +538,9 @@ export function recordDeliveryReviewFixCandidateVerification(input: {
   if (!pendingMatches && !acknowledgedReplay) {
     return { status: "refused", reason: "candidate-verification-continuation-mismatch" };
   }
-  const committedPredecessor = CandidateManagedRecordV1Schema.safeParse(input.committedPredecessorRecord);
-  if (!committedPredecessor.success) {
-    return { status: "refused", reason: "candidate-verification-predecessor-unavailable" };
-  }
-  const recordMatchesPredecessor = canonicalize(record.data) === canonicalize(committedPredecessor.data);
-  const retainedTransition = record.data.transitions.at(-1);
-  const recordIsAuthorizedAppend = record.data.transitions.length
-      === committedPredecessor.data.transitions.length + 1
-    && retainedTransition?.transitionKind === "verification-response"
-    && retainedTransition.authorityRef === input.acknowledgement.continuationDigest
-    && canonicalize(committedPredecessor.data) === canonicalize({
-      ...record.data,
-      transitions: record.data.transitions.slice(0, -1),
-    });
-  if ((!pendingMatches || !recordMatchesPredecessor) && !recordIsAuthorizedAppend) {
-    return { status: "refused", reason: "candidate-verification-replay-unproven" };
-  }
+  const predecessor = proveVerificationPredecessor({ record: record.data, committed: input.committedPredecessorRecord,
+    stateOffBranch: input.stateOffBranch === true, authorityRef: input.acknowledgement.continuationDigest, pendingMatches });
+  if (predecessor.status === "refused") return predecessor;
   const terminalHead = state.data.members.at(-1)?.coordinates?.head;
   if (terminalHead === undefined || terminalHead !== currentTarget.data.revision) {
     return { status: "refused", reason: "candidate-verification-target-mismatch" };
@@ -566,7 +553,7 @@ export function recordDeliveryReviewFixCandidateVerification(input: {
   if (existing.length > 1) {
     return { status: "refused", reason: "candidate-verification-duplicated" };
   }
-  if (recordMatchesPredecessor && existing.length > 0) {
+  if (predecessor.matchesCommitted && existing.length > 0) {
     return { status: "refused", reason: "candidate-verification-replay-unproven" };
   }
   const retained = existing[0];
@@ -634,6 +621,28 @@ export function recordDeliveryReviewFixCandidateVerification(input: {
     transition,
     nextAction: "renew-public-continuation",
   };
+}
+
+function proveVerificationPredecessor(input: {
+  record: CandidateManagedRecordV1; committed?: CandidateManagedRecordV1; stateOffBranch: boolean;
+  authorityRef: CanonicalDigest; pendingMatches: boolean;
+}): { status: "ready"; matchesCommitted: boolean } | { status: "refused"; reason: string } {
+  const tail = input.record.transitions.at(-1);
+  const authorizedTail = tail?.transitionKind === "verification-response" && tail.authorityRef === input.authorityRef;
+  const refused = { status: "refused" as const, reason: "candidate-verification-replay-unproven" };
+  if (input.stateOffBranch) {
+    const hasAuthority = input.record.transitions.some(transition => transition.transitionKind === "verification-response"
+      && transition.authorityRef === input.authorityRef);
+    if ((!input.pendingMatches || hasAuthority) && !authorizedTail) return refused;
+    return { status: "ready", matchesCommitted: false };
+  }
+  const committed = CandidateManagedRecordV1Schema.safeParse(input.committed);
+  if (!committed.success) return { status: "refused", reason: "candidate-verification-predecessor-unavailable" };
+  const matchesCommitted = canonicalize(input.record) === canonicalize(committed.data);
+  const authorizedAppend = authorizedTail && input.record.transitions.length === committed.data.transitions.length + 1
+    && canonicalize(committed.data) === canonicalize({ ...input.record, transitions: input.record.transitions.slice(0, -1) });
+  return (!input.pendingMatches || !matchesCommitted) && !authorizedAppend
+    ? refused : { status: "ready", matchesCommitted };
 }
 
 function sameCandidateTargetIdentity(

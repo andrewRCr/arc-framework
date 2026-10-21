@@ -1,10 +1,11 @@
-/** Prove the required record commit that follows an immutable verified Candidate response. */
+/** Prove the selected backend's permitted Git successor of an immutable verified response. */
 
 import type { GitExec } from "../../../lib/git/exec.js";
 import { currentApprovedDispositionNode, type ApprovedDispositionRecord } from "../core/advisory-records.js";
 import type { ApprovedDispositionRecordReader, ReviewOperationStateStore } from "../core/ports.js";
 import type { ConfirmResponseHeadContinuation, ResponseHeadContinuationInput } from "../core/response-head-continuation.js";
-import { canonicalize, type CanonicalDigest } from "../../../lib/kernel/index.js";
+import { canonicalize, SlugSchema, type CanonicalDigest } from "../../../lib/kernel/index.js";
+import { resolveArcPath } from "../../../lib/layout/index.js";
 import { candidateReviewResponses, parseCandidateManagedRecord } from
   "../../../lib/work-unit/candidate-attestation.js";
 import type { CandidateReviewResponseEvidenceV1 } from "../../../lib/work-unit/candidate-attestation.js";
@@ -62,10 +63,10 @@ async function boundaryMatches(
 }
 
 /**
- * Confirm one clean, direct record-only successor of the verified fix head.
+ * Confirm one clean, direct successor permitted by the selected backend.
  *
  * @param input - Repository and the exact Candidate, producer target, disposition, and verified fix bindings.
- * @returns Whether local Git proves the required committed response continuation, with no source movement.
+ * @returns Whether local Git proves an exact record advance or a native export-only continuation.
  */
 export async function confirmCandidateResponseHeadContinuation(input: {
   cwd: string;
@@ -80,13 +81,12 @@ export async function confirmCandidateResponseHeadContinuation(input: {
   toHeadSha: string;
   approvedBy: string;
   appliedBy: string;
+  stateOffBranch?: boolean;
 }): Promise<boolean> {
   if (input.fromHeadSha !== input.verifiedHeadSha || input.fromHeadSha === input.toHeadSha) return false;
   const read = async (args: string[]) => (await input.exec("git", args, {
     cwd: input.cwd, objectAccess: "local-only",
   })).stdout;
-  const recordPath = resolveCandidateRecordRelativePath(input.workUnit);
-  const boundaryPath = resolveSubmissionBoundaryPath(input.workUnit);
   const [head, dirty, parents, changed] = await Promise.all([
     read(["rev-parse", "HEAD"]),
     read(["status", "--porcelain=v1", "-z"]),
@@ -96,17 +96,31 @@ export async function confirmCandidateResponseHeadContinuation(input: {
   if (head.trim() !== input.toHeadSha || dirty !== ""
     || parents.trim() !== `${input.toHeadSha} ${input.fromHeadSha}`) return false;
   const paths = changed.split("\0").filter((path) => path !== "");
+  const matches = input.stateOffBranch === true
+    ? exportChangesMatch(input.workUnit, paths)
+    : await recordChangesMatch(read, input, paths);
+  if (!matches) return false;
+  const [finalHead, finalDirty] = await Promise.all([
+    read(["rev-parse", "HEAD"]), read(["status", "--porcelain=v1", "-z"]),
+  ]);
+  return finalHead.trim() === input.toHeadSha && finalDirty === "";
+}
+
+function exportChangesMatch(workUnit: string, paths: string[]): boolean {
+  const folder = resolveArcPath({ kind: "work-unit-export", slug: SlugSchema.parse(workUnit) });
+  return paths.length > 0 && paths.every(path => path.startsWith(`${folder}/`));
+}
+
+async function recordChangesMatch(read: (args: string[]) => Promise<string>,
+  input: Parameters<typeof confirmCandidateResponseHeadContinuation>[0], paths: string[]): Promise<boolean> {
+  const recordPath = resolveCandidateRecordRelativePath(input.workUnit);
+  const boundaryPath = resolveSubmissionBoundaryPath(input.workUnit);
   if (!paths.includes(recordPath) || paths.some((path) => path !== recordPath && path !== boundaryPath)) return false;
   const [content, previousContent] = await Promise.all([
     read(["show", `${input.toHeadSha}:${recordPath}`]), read(["show", `${input.fromHeadSha}:${recordPath}`]),
   ]);
   const response = readMatchingResponse({ ...input, content, previousContent });
-  if (response === null || (paths.includes(boundaryPath)
-    && !await boundaryMatches(read, input, boundaryPath, response))) return false;
-  const [finalHead, finalDirty] = await Promise.all([
-    read(["rev-parse", "HEAD"]), read(["status", "--porcelain=v1", "-z"]),
-  ]);
-  return finalHead.trim() === input.toHeadSha && finalDirty === "";
+  return response !== null && (!paths.includes(boundaryPath) || await boundaryMatches(read, input, boundaryPath, response));
 }
 
 function candidateApprovalMatches(
@@ -137,7 +151,7 @@ export function createCandidateResponseHeadContinuationReader(repository: {
   cwd: string;
   exec: GitExec;
   dispositionStore: ApprovedDispositionRecordReader;
-  operationStore: Pick<ReviewOperationStateStore, "readOperation">;
+  operationStore: Pick<ReviewOperationStateStore, "readOperation" | "stateOffBranch">;
 }): ConfirmResponseHeadContinuation {
   return async (input) => {
     if (input.lineage.kind !== "candidate") return false;
@@ -157,6 +171,7 @@ export function createCandidateResponseHeadContinuationReader(repository: {
       ...repository, ...input, workUnit: record.candidate.workUnit, candidateId: record.candidate.candidateId,
       verifiedHeadSha: input.fromHeadSha, expectedResponseId: performance.candidateResponseId,
       approvedBy: approved.approval.approvedBy, appliedBy: approved.dispositionSet.proposedBy,
+      stateOffBranch: repository.operationStore.stateOffBranch,
     });
   };
 }

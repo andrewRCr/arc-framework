@@ -451,6 +451,7 @@ export async function readRoutedObligation(
       }
       const terminalCoordinates = continuationState.members.at(-1)?.coordinates ?? undefined;
       const terminalCoordinateAdvance = await projectGitDeliveryTerminalCoordinateAdvance({
+        stateOffBranch: reviewRecordStore.capabilities.stateOffBranch,
         cwd,
         exec,
         candidate: effective,
@@ -579,6 +580,7 @@ export async function readRoutedObligation(
             if (!sameDeliveryReviewMemberIdentity(record.vehicle, terminalTarget.vehicle)
               || record.vehicle.head === terminalTarget.vehicle.head) return [];
             const proof = await projectGitDeliveryTerminalRecordAdvance({
+              stateOffBranch: reviewRecordStore.capabilities.stateOffBranch,
               cwd,
               exec,
               workUnitId: workUnit,

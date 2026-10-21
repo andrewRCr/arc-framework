@@ -145,11 +145,9 @@ function createRepositoryDeliveryInspectionDependencies(
         }
         const tail = record.transitions.at(-1);
         const terminalCoordinateAdvance = await projectGitDeliveryTerminalCoordinateAdvance({
-          cwd: input.cwd,
-          exec: input.exec,
+          ...input,
+          stateOffBranch: reviewRecordStore.capabilities.stateOffBranch,
           candidate: projected,
-          workUnitId,
-          baseBranch: input.baseBranch,
           ...(terminalCoordinates === undefined ? {} : { terminalCoordinates }),
         });
         return {
@@ -191,7 +189,7 @@ async function classifyTerminalDelta(
     toRevision: "HEAD",
     readDirectory: (path) => readdir(resolve(input.cwd, path)),
     readArtifactsAtRef: (ref, workUnitId) =>
-      readGitDeliveryLifecycleArtifactsAtRef(input.exec, ref, workUnitId),
+      readGitDeliveryLifecycleArtifactsAtRef(input.exec, ref, workUnitId, input.store?.capabilities.stateOffBranch),
   });
 }
 

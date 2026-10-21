@@ -507,7 +507,9 @@ export async function attestCandidateWithReviewBoundary(base: VerbBase,
         currentBoundary.version,
         { store: executor.store, owner: reviewInvocation.workItem },
       );
-      await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
+      if (executor.store?.capabilities.stateOffBranch !== true) {
+        await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
+      }
     }
   }
 

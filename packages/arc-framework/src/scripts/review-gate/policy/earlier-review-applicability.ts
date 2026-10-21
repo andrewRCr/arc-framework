@@ -76,6 +76,7 @@ export function earlierAttemptRetainsReservationPosition(outcome: string): boole
 }
 
 export interface EarlierReviewApplicabilityInput {
+  readonly stateOffBranch?: boolean;
   readonly sourceOwner?: ReviewSourceReferenceOwner;
   readonly query: EarlierReviewAttemptQuery;
   readonly currentBase: string;
@@ -202,7 +203,8 @@ export async function projectEarlierReviewApplicability(
     return { status: "unavailable", detail: queried.detail };
   }
   const selections = candidateReviewApplicabilitySelections(input.candidate);
-  const ownRecord = gitCandidateRecordAtHead(input.exec, input.candidate.attestation.workUnit);
+  const ownRecord = input.stateOffBranch === true ? undefined
+    : gitCandidateRecordAtHead(input.exec, input.candidate.attestation.workUnit);
   const attempts = await Promise.all(queried.candidates.map(async (candidate) => {
     const dispositionRecord = candidate.outcome === "settled-findings"
       && input.readDispositionRecord !== undefined

@@ -21,6 +21,7 @@ import { deliveryReviewFixRecordDigest } from "../lib/delivery/review-fix-record
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
 import { createStore } from "../lib/store/create.js";
 import { createDefaultStorePorts } from "../lib/store/default-ports.js";
+import type { ReviewInvocationInput } from "../scripts/review-gate/runtime/invocation.js";
 import { resolveCandidateRecordRelativePath } from "../lib/store/kinds/review/paths.js";
 import { SlugSchema } from "../lib/kernel/schema/slug.js";
 import {
@@ -138,11 +139,12 @@ async function executeCandidateApplicabilityResolution(
   input: CandidateApplicabilityCommandInput,
   interaction: InteractionContext | undefined,
   requireMutationOwner: () => Promise<void>,
+  invocation?: ReviewInvocationInput,
 ): Promise<CandidateApplicabilityCommandResult> {
   const { settings } = await readConfigSettings(root);
   const baseBranch = settings["branch.base"];
-  const git = createGitExec(interaction?.subprocess);
-  const store = createStore(createDefaultStorePorts({ checkoutRoot: root, exec: git }));
+  const git = invocation?.exec ?? createGitExec(interaction?.subprocess);
+  const store = invocation?.store ?? createStore(createDefaultStorePorts({ checkoutRoot: root, exec: git }));
   const rawGit = createRawGitExec(root);
   const readObjectId = async (expression: string): Promise<string> => (
     await git("git", ["rev-parse", "--verify", expression], {
@@ -258,7 +260,7 @@ async function executeCandidateApplicabilityResolution(
   const stagesSelection = resolution.mode === "candidate-applicability-resolve"
     ? resolution.nextAction === "continue"
     : resolution.nextAction === "continue" || resolution.nextAction === "request-review";
-  if (!stagesSelection) return resolution;
+  if (!stagesSelection || store.capabilities.stateOffBranch) return resolution;
   const recordPath = resolveCandidateRecordRelativePath(name);
   await requireMutationOwner();
   await git("git", ["add", "--", recordPath], { cwd: root });
@@ -299,16 +301,17 @@ export interface CandidateApplicabilityResolveHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultDependencies(): CandidateApplicabilityResolveHandlerDependencies {
+function defaultDependencies(invocation?: ReviewInvocationInput): CandidateApplicabilityResolveHandlerDependencies {
   return {
-    resolveRoot: () => requireArcProjectRoot(),
+    resolveRoot: () => invocation?.cwd ?? requireArcProjectRoot(),
     resolveMutationOwner: (root, interaction) => resolveCandidateMutationOwner({
       cwd: root,
-      exec: createGitExec(interaction?.subprocess),
+      ...invocation,
+      exec: invocation?.exec ?? createGitExec(interaction?.subprocess),
     }),
-    resolveCompletedWorkUnits: resolveCompletedCandidateWorkUnits,
+    resolveCompletedWorkUnits: root => resolveCompletedCandidateWorkUnits(root, invocation?.store),
     readText: (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
-    execute: executeCandidateApplicabilityResolution,
+    execute: (...args) => executeCandidateApplicabilityResolution(...args, invocation),
     write: (text) => process.stdout.write(text),
     setExitCode: (code) => { process.exitCode = code; },
   };
@@ -398,8 +401,9 @@ export async function handleCandidateApplicabilityResolve(
   input: string,
   interaction?: InteractionContext,
   overrides: Partial<CandidateApplicabilityResolveHandlerDependencies> = {},
+  invocation?: ReviewInvocationInput,
 ): Promise<void> {
-  const deps = { ...defaultDependencies(), ...overrides };
+  const deps = { ...defaultDependencies(invocation), ...overrides };
   const commandInput = CandidateApplicabilityResolveCommandInputSchema.safeParse({ name, input });
   if (!commandInput.success) {
     emit(deps, CandidateApplicabilityResolutionResultSchema.parse({

@@ -51,6 +51,8 @@ function projectAddress(address: ArcLayoutAddress): string {
       return projectInbox(address);
     case "arc-root":
       return ".arc";
+    case "work-unit-export":
+      return `.arc/specs/${address.slug}`;
     case "placement-root":
       return projectPlacementRoot(address.tier);
     case "work-unit-container":

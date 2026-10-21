@@ -349,6 +349,7 @@ export function createPreBindingDeliveryReviewTargetDependencies(options: Review
           input.exec,
           ref,
           workUnitId,
+          input.store.capabilities.stateOffBranch,
         ),
       }).resolve({
         workUnitId: plan.workUnitId,
@@ -548,6 +549,7 @@ export function createPrePublicationCompositionDependencies(options: ReviewInvoc
         });
       }
       return confirmNonDeliveryIncrementalApplicability({
+        stateOffBranch: reviewRecordStore.capabilities.stateOffBranch,
         predecessor,
         currentTarget,
         currentLineage,

@@ -1227,92 +1227,45 @@ this phase puts publication's claim and reopen's boundary write in their transit
   moved or damaged boundaries refuse before effects and resume after repair. Fresh readiness, unchanged attestation,
   close/draft withdrawal, decision survival after re-root, and Candidate retirement through archive are exercised.
 
-### `[ ]` **6.5 Retire the branch-riding mechanisms from the flip — § 14.3**
+### `[x]` **6.5 Retire the branch-riding mechanisms from the flip — § 14.3**
 
 - _Goal:_ From the flip no delivery or review path stages a record, emits a `commit-*` next action, replays against
   `HEAD` or the index, proves a record commit moved the head, honors an advanced boundary only while the Candidate's
   head is the current root, or reads a record from history or a head tree; each mechanism keeps its in-repo arm behind
   one branch on `stateOffBranch`.
 
-    - `[ ]` **6.5.a Write, then stage**
+    - `[x]` **6.5.a Write, then stage**
 
-        - The `git add` sites in `handlers/lifecycle-delivery-review.ts`, `handlers/candidate.ts`,
-          `rg/runtime/respond-composition.ts` (`appendCandidateResponse`, `stageCandidateResponse`),
-          `rg/runtime/singleton-publication-response.ts`, `handlers/review.ts`'s Owner terminus, pre-publication
-          boundary, and attestation-ordering recovery writes (`recoverAttestationOrdering`), and
-          `handlers/delivery-execution.ts`'s four.
+        - Native applicability and response writes finish in the selected store. Attestation, pre-publication, member
+          terminus, and delivery writes retain staging only in their repository arms.
 
-    - `[ ]` **6.5.b `commit-*` next actions and the keep-staged rule**
+    - `[x]` **6.5.b `commit-*` next actions and the keep-staged rule**
 
-        - `commit-boundary` (`rg/policy/delivery-review-terminus.ts`, `handlers/review.ts`,
-          `scripts/integration/checkpoint.ts`) and `commit-selection` (`rg/policy/review-applicability-resolution.ts`,
-          `lib/work-unit/candidate-applicability-resolution.ts`, `handlers/candidate.ts`).
-        - The keep-staged rule (`keep-staged-until-publication`), emitted by `handlers/review.ts` and
-          `checkpointPostAttestContinuation` (`scripts/integration/checkpoint.ts`), with the diff base that tolerates it
-          (`resolvePrePublicationDiffBase`, `rg/policy/pre-publication-composition.ts`).
+        - Native applicability and terminus results continue from stored authority; version-two convergence actions
+          omit projection bookkeeping, and the native checkpoint performs no staged-boundary publication check.
 
-    - `[ ]` **6.5.c Replays against `HEAD` or the index**
+    - `[x]` **6.5.c Replays against `HEAD` or the index**
 
-        - The staged-terminus recovery in `handlers/review.ts`, the boundary checks in
-          `scripts/integration/checkpoint-composition.ts`, and `candidate-response-confirmation.ts`'s
-          `HEAD == approvedHead` check and committed-record comparison.
+        - Native terminus re-entry and checkpoint composition bypass staged-record replay. Private response confirmation
+          reads the selected store and validates its pinned Git objects without requiring the checkout at that head.
 
-    - `[ ]` **6.5.d Proofs that a record commit moved the head**
+    - `[x]` **6.5.d Proofs that a record commit moved the head**
 
-        - `confirmCandidateResponseHeadContinuation`'s proof that a record commit followed the fix
-          (`rg/runtime/candidate-response-head-continuation.ts`). The port threaded for it stays —
-          `rg/core/response-head-continuation.ts`, `rg/hosted-response-completion.ts`, `rg/lane-progress.ts`,
-          `rg/lane-progress-conditional.ts`, `rg/lane-progress-hosted-request.ts`,
-          `rg/lane-progress-hosted-settlement.ts`, `rg/policy/frontline-command.ts`, `rg/runtime/local-prepare.ts`,
-          `rg/runtime/local-prepare-composition.ts`, `rg/runtime/respond-composition.ts`, and `handlers/review.ts` — and
-          from the flip proves only that a head is a direct successor of the produced head whose only change is the work
-          unit's export path (§ 5.6).
-        - The export folder becomes a layout address (`ArcLayoutAddressSchema`, `lib/layout/schema.ts`; `resolveArcPath`,
-          `lib/layout/projection.ts`) resolving to `.arc/specs/<slug>`, with no trailing separator, which
-          `validateManagedPath` refuses as an empty segment, the copy being `spec-<slug>.md` inside it; the proof reads
-          it, as 7.3.a's arm and 7.3.b's export do. It names no work-unit state, so the `work-unit-paths` ratchet does not
-          count it (§ 12.5).
-        - `projectGitDeliveryTerminalRecordAdvance` (`lib/delivery/public-review-continuation-git.ts`) and the
-          owner-terminus advances it proves (`ownerTerminusAdvances`) in `rg/status-composition.ts` and
-          `scripts/integration/checkpoint-composition.ts`; and the two arms of
-          `projectGitDeliveryTerminalCoordinateAdvance` (same module) that call it — the state advance from the prior
-          head and the immediate parent's advance — at its three consumers, `lib/delivery/repository-entry.ts`,
-          `rg/status-composition.ts`, and `scripts/integration/checkpoint-composition.ts`, its subject-equality and
-          machine-proof arms staying.
-        - `gitCandidateRecordAtHead` and `recordsOwnSelection` with their consumers
-          (`rg/policy/earlier-review-applicability.ts`, `rg/policy/local-review-coverage-selection.ts`).
-        - Build `test-first` (one behavior at a time), a scripted commit changing only the export path standing in for
-          7.3.b's export:
-            - the export folder's address resolves to `.arc/specs/<slug>`, and the copy's path under it to
-              `.arc/specs/<slug>/spec-<slug>.md`
-            - from the flip a fix that amends the stored spec admits its `approved-fix` pass at the head of the copy's
-              commit that follows it, and a successor changing any other path admits nothing
-            - from the flip a hosted fix that amends the stored spec settles at the head of the copy's commit
-            - from the flip delivery entry, status, and the checkpoint compute no record-commit advance, the coordinate
-              advance's included, and consult no `recordsOwnSelection`
+        - The export folder is a validated layout address with no store role. Native response continuation admits only
+          its clean, direct export successor, through actual approved-fix admission and hosted settlement. Record-commit
+          advances and own-record selection carry retire on the capability; ordinary coordinate proofs remain available.
 
-    - `[ ]` **6.5.e Subject protection and record reads from history**
+    - `[x]` **6.5.e Subject protection and record reads from history**
 
-        - `handlers/review.ts` honoring an advanced boundary only while the Candidate's head is the current root; the
-          shipped-delivery boundary replay in `scripts/integration/checkpoint-composition.ts`; and
-          `readGitDeliveryLifecycleArtifactsAtRef`. `candidateProjectionPaths` (`lib/work-unit/git-candidate-subject.ts`)
-          keeps the Candidate and boundary paths neutral from the flip too, since a live work unit's committed files stay
-          on its branch (§ 10.3, § 14.3).
-        - Delivery's whole record-effect settlement retires from the flip (§ 14.3): its capture, its reconstruction of
-          the Candidate and boundary at Git revisions (`reconstructExpectedRecordEffects`,
-          `handlers/delivery-execution.ts`; `reconstructDeliveryReviewFixExpectedRecords`), and its record commit and
-          push (`settleDeliveryReviewFixRecordEffects`, `lib/delivery/review-fix-record-effects.ts`). From the flip its
-          acknowledged result carries no `candidate.recordPath`, `boundaryCarry.path`, or `recordEffects`, and its
-          driver reads none (4.5.a).
+        - Native advanced re-entry binds Candidate and subject identity; retained tracked projections remain neutral.
+          Lifecycle and shipped-boundary reads bypass Git reconstruction. Delivery acknowledgment uses the stored
+          Candidate, rejects changed or displaced replay evidence, and carries its boundary with no record-path output,
+          capture, reconstruction, staging, commit, or push protocol.
 
-    - Build `test-first` (one behavior at a time):
-        - over the reference backend, a work unit's attest, review, response, terminus, and publication make no
-          record-only commit and emit no `commit-*` next action
-        - from the flip, delivery's review fix carries its boundary through the store and makes no record-effect commit,
-          its acknowledged result naming no record path or record effect
-        - from the flip a work unit whose branch carries its committed Candidate and boundary files computes the subject
-          digest its imported Candidate holds
-        - every in-repo arm passes today's tests unchanged
+- _Outcome:_ Native review and delivery continuations complete through stored facts without branch-carried record
+  authority. Export-only successor proof retains approved-fix and hosted continuations; old tracked projections keep
+  imported subject identity. Native delivery acknowledgment and replay preserve exact verification without record
+  effects, while the repository arms retain their existing behavior.
 
 ### `[ ]` **6.6 The Candidate and its boundary** — validate exit criterion at segment scope
 

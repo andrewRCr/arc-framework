@@ -35,7 +35,9 @@ export async function readGitDeliveryLifecycleArtifactsAtRef(
   exec: GitExec,
   ref: string,
   workUnitId: string,
+  stateOffBranch = false,
 ): Promise<readonly ManagedPath[]> {
+  if (stateOffBranch) return [];
   const { stdout } = await exec("git", [
     "ls-tree", "--full-tree", "-r", "-z", "--name-only", ref, "--",
     ".arc/active", ".arc/backlog/planned", ".arc/backlog/provisional", ".arc/completed",

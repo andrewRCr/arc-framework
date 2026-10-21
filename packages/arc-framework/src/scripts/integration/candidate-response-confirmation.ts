@@ -145,12 +145,13 @@ export async function composeCandidateResponseConfirmation(options: ReviewInvoca
     return null;
   }
   const dispositionId = current.approvedDisposition.dispositionSet.dispositionSetId;
-  const { stdout: currentHead } = await input.exec("git", ["rev-parse", "HEAD^{commit}"], {
-    cwd: input.cwd,
-    objectAccess: "local-only",
-  });
-  if (currentHead.trim() !== input.approvedHead) {
-    throw new Error(`The private disposition ${dispositionId} does not bind the current checkout head.`);
+  if (context.family.mode !== "stored") {
+    const { stdout: currentHead } = await input.exec("git", ["rev-parse", "HEAD^{commit}"], {
+      cwd: input.cwd, objectAccess: "local-only",
+    });
+    if (currentHead.trim() !== input.approvedHead) {
+      throw new Error(`The private disposition ${dispositionId} does not bind the current checkout head.`);
+    }
   }
   const candidate = await readCurrentCandidate(context, input);
   if (candidate === null || candidate.attestation.workUnit !== input.workUnit

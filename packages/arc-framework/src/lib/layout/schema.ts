@@ -105,6 +105,7 @@ const UserDocumentSchema = z.discriminatedUnion("kind", [
 /** Runtime authority for complete semantic ARC layout addresses. */
 export const ArcLayoutAddressSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("arc-root") }),
+  z.strictObject({ kind: z.literal("work-unit-export"), slug: SlugSchema }),
   z.strictObject({ kind: z.literal("candidate-record"), slug: SlugSchema }),
   z.strictObject({ kind: z.literal("integration-boundary-record"), slug: SlugSchema }),
   z.strictObject({ kind: z.literal("transition-record"), origin: SlugSchema }),

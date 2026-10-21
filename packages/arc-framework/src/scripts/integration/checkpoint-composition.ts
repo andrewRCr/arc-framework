@@ -1074,6 +1074,7 @@ export function createIntegrationCheckpointDependencies(options: ReviewInvocatio
             if (!sameDeliveryReviewMemberIdentity(record.vehicle, terminalTarget.vehicle)
               || record.vehicle.head === terminalTarget.vehicle.head) return [];
             const proof = await projectGitDeliveryTerminalRecordAdvance({
+              stateOffBranch: reviewRecordStore.capabilities.stateOffBranch,
               cwd: input.cwd,
               exec: input.exec,
               workUnitId: workUnit,
@@ -1156,6 +1157,7 @@ export function createIntegrationCheckpointDependencies(options: ReviewInvocatio
       });
     },
     readShippedDeliveryPublicationCommit: async (workUnit, baseRevision) => {
+      if (reviewRecordStore.capabilities.stateOffBranch) return { status: "none" };
       const boundaryPath = resolveSubmissionBoundaryPath(workUnit);
       const [stagedPaths, unstagedPaths, untrackedPaths] = await Promise.all([
         readGitPaths(input.exec, input.cwd, ["diff", "--cached", "--name-only", "-z", "--"]),
@@ -1243,6 +1245,7 @@ export function createIntegrationCheckpointDependencies(options: ReviewInvocatio
           throw new Error("The shipped delivery terminal coordinates are unavailable.");
         }
         const terminalCoordinateAdvance = await projectGitDeliveryTerminalCoordinateAdvance({
+          stateOffBranch: reviewRecordStore.capabilities.stateOffBranch,
           cwd: input.cwd,
           exec: input.exec,
           candidate: value.effective,

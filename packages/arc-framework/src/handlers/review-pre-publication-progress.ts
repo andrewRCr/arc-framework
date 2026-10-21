@@ -56,7 +56,7 @@ export async function readAdvancedPrePublicationReentry(input: {
 }, access: PrePublicationProgressAccess & { readCandidate(root: string, workUnit: string): Promise<CandidateRead> }): Promise<AdvancedReentry> {
   const { boundary, replay } = input;
   const candidate = await access.readCandidate(input.root, input.workUnit);
-  const matching = candidate.status === "current" && candidate.headSha === input.currentHead
+  const matching = candidate.status === "current" && (boundary.schemaVersion === 2 || candidate.headSha === input.currentHead)
     && candidate.candidateId === boundary.candidateId && candidate.subjectDigest === boundary.candidateSubjectDigest;
   if (input.orderingRecoveryPresent) return { status: "ordering-conflict",
     message: "The attestation-ordering recovery input is stale after the Candidate boundary advanced." };
