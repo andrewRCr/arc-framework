@@ -18,6 +18,8 @@ const OrdinaryCheckSchema = z.strictObject({
   mode: z.enum(["files", "project"]).optional().default("project")
     .describe("files receives selected tracked paths; project runs once over its declared inputs."),
   pass_paths: z.boolean().default(true),
+  select_deletions: z.boolean().default(false)
+    .describe("A files check that passes paths is still selected by a change that only deletes its inputs, and then runs once with no paths."),
   widen: z.boolean().default(true),
   fixes: z.boolean().default(false),
   ci_only: z.boolean().default(false),
@@ -38,17 +40,19 @@ const SelectionInputSchema = z.strictObject({
   ci_only: z.never({ error: "selection cannot declare ci_only: a CI clone projects nothing." }).optional(),
   reads_index: z.never({ error: "selection cannot declare reads_index: projected files are never indexed." }).optional(),
   fixes: z.never({ error: "selection cannot declare fixes: fixer rewrites are detected only through Git." }).optional(),
+  select_deletions: z.never({ error: "selection cannot declare select_deletions: projected paths carry no Git deletions." }).optional(),
 });
 // Validate authored presence before supplying the common execution fields.
 const SelectionCheckSchema = z.codec(SelectionInputSchema, z.strictObject({
   ...SelectionFields,
   shell: z.literal(false).default(false), ci_only: z.literal(false).default(false),
   reads_index: z.literal(false).default(false), fixes: z.literal(false).default(false),
+  select_deletions: z.literal(false).default(false),
 }), {
   decode: check => ({ ...check, shell: false as const, ci_only: false as const,
-    reads_index: false as const, fixes: false as const }),
+    reads_index: false as const, fixes: false as const, select_deletions: false as const }),
   encode: check => SelectionInputSchema.parse({ ...check,
-    shell: undefined, ci_only: undefined, reads_index: undefined, fixes: undefined }),
+    shell: undefined, ci_only: undefined, reads_index: undefined, fixes: undefined, select_deletions: undefined }),
 });
 const CheckSchema = z.discriminatedUnion("mode", [OrdinaryCheckSchema, SelectionCheckSchema]).superRefine((check, context) => {
   if (check.shell && check.mode === "files") {
@@ -57,6 +61,10 @@ const CheckSchema = z.discriminatedUnion("mode", [OrdinaryCheckSchema, Selection
   if (!check.pass_paths && check.mode !== "files") {
     context.addIssue({ code: "custom", path: ["pass_paths"],
       message: "Only a files check can withhold its paths; a project check never receives any." });
+  }
+  if (check.select_deletions && (check.mode !== "files" || !check.pass_paths)) {
+    context.addIssue({ code: "custom", path: ["select_deletions"],
+      message: "Only a files check that passes its paths can select deletions; any other check is already selected by them." });
   }
   if (check.shell && typeof check.command !== "string") {
     context.addIssue({ code: "custom", path: ["command"], message: "A shell command must be one string." });
