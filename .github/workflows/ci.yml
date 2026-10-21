@@ -842,6 +842,7 @@ jobs:
         path: |
           packages/arc-framework/.test-cost-runs/store-timing.json
           packages/arc-framework/.test-cost-runs/store-write-profile*
+          packages/arc-framework/.test-cost-runs/store-process-baseline.json
           packages/arc-framework/node_modules/.vite/vitest/**/results.json
         include-hidden-files: true
         if-no-files-found: error

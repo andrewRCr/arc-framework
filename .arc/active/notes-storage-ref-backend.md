@@ -1863,3 +1863,22 @@ Local medians over the unchanged timing fixture were 6.974/39.602/126.872/16.043
 and 5.724/38.742/128.859/18.258/140.130 ms in the separate layout. The trace uses 14/default and 16/separate native
 processes. These remain Linux diagnostics; Windows acceptance is still open. Evidence lives in `task-18.2-check-point/`
 in the machine-local tools directory.
+
+### Budget calibration
+
+The original process-cost premise comes from `analysis-storage-concurrency-spike.md` § Windows-native checkout:
+Windows 11 build 26200, Node 22.17, Git for Windows 2.49, NTFS, and Defender enabled. Its `spawncost.mjs` uses
+`spawnSync` for forty samples of `git rev-parse HEAD`, finding 30 ms at the median and 57 ms at p90. That is a local
+machine and adapter measurement, not a GitHub-hosted operation baseline or an end-to-end derivation of the 600 ms
+write target. `analysis-storage-substrate-direction.md` repeats that process-cost result.
+
+The bounded timing diagnostic now retains three eleven-sample caller-visible baselines through the actual raw Git
+adapter: `git --version`, `git rev-parse --show-object-format`, and the write's complete `for-each-ref` capture over
+the same populated store. Raw samples, medians, ref count, Node/Git versions, and runner image identity accompany
+the platform artifact. A separate post-measurement write records each parent-side Git invocation interval and their
+overlap-aware union; the remaining wall interval includes JavaScript, filesystem work, and cleanup, not exclusively
+CPU. The persistent reader's native lifetime remains separate and must not be summed with overlapping commands.
+
+All new profiling and baseline calls run after the unchanged acceptance medians. They do not alter the workload,
+sample count, numeric limits, or failure assertions. One hosted run will ground the next budget judgment before
+another enumeration mechanism is implemented; no new numeric target is approved here.

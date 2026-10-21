@@ -5,12 +5,14 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createRefTimingFixture, timingQuarters, timingSubject } from "../helpers/store/ref-timing.js";
 import { success } from "../helpers/store/suite-tools.js";
-import type { Store, ListInput } from "../../src/lib/store/index.js";
+import { createRefStore, type Store, type ListInput } from "../../src/lib/store/index.js";
 
 const TIMING_TIMEOUT_MS = 900_000;
 const listing: ListInput = { family: "work-item", kind: "work-item/meta", filter: { locations: ["completed"] } };
 const budgets = { version: 100, read: 150, list: 300, lookup: 300, write: 600 } as const;
-async function median<T>(operation: () => Promise<T>, verify: (value: T) => void | Promise<void>): Promise<number> {
+type TimingClient = Awaited<ReturnType<typeof createRefTimingFixture>>["clients"][number];
+interface Invocation { kind: string; argv: string[]; startMs: number; endMs: number }
+async function median<T>(operation: () => Promise<T>, verify: (value: T) => void | Promise<void>, retained?: number[]): Promise<number> {
   const samples = [];
   for (let iteration = 0; iteration < 11; iteration += 1) {
     const start = performance.now();
@@ -18,6 +20,7 @@ async function median<T>(operation: () => Promise<T>, verify: (value: T) => void
     samples.push(performance.now() - start);
     await verify(result);
   }
+  retained?.push(...samples);
   return samples.sort((left, right) => left - right)[5]!;
 }
 async function measure(store: Store) {
@@ -53,7 +56,21 @@ async function measure(store: Store) {
   };
 }
 
-async function profileWrite(store: Store, layout: string, directory: string) {
+async function profileWrite(client: TimingClient, directory: string) {
+  const invocations: Invocation[] = [];
+  let origin = 0;
+  const record = async <T>(kind: string, argv: string[], operation: () => Promise<T>): Promise<T> => {
+    const startMs = performance.now() - origin;
+    try { return await operation(); }
+    finally { invocations.push({ kind, argv, startMs, endMs: performance.now() - origin }); }
+  };
+  const ports = client.ports;
+  const store = createRefStore({ ...ports,
+    exec: (command, args, options) => record("text", args, () => ports.exec(command, args, options)),
+    execInput: (args, input, options) => record("input", args, () => ports.execInput(args, input, options)),
+    rawExec: (args, options) => record("raw", args, () => ports.rawExec(args, options)),
+  });
+  const layout = client.layout;
   const current = success(await store.read({ reference: timingSubject }));
   if (current.placement?.kind !== "completed") throw new Error("The profiling subject is not completed");
   const tracePath = resolve(directory, `store-write-profile-${layout}.jsonl`);
@@ -63,6 +80,8 @@ async function profileWrite(store: Store, layout: string, directory: string) {
   try {
     process.env.GIT_TRACE2_EVENT = tracePath;
     const start = performance.now();
+    origin = start;
+    invocations.length = 0;
     const written = success(await store.write({ action: "put", reference: current.reference, expected: current.version,
       content: current.content + "\nProfile update.\n", placement: { kind: "completed", quarter: current.placement.quarter },
       provenance: { verb: "save", lifecycleAction: "edit" } }));
@@ -72,6 +91,7 @@ async function profileWrite(store: Store, layout: string, directory: string) {
     if (previous === undefined) delete process.env.GIT_TRACE2_EVENT;
     else process.env.GIT_TRACE2_EVENT = previous;
   }
+  const calls = invocations.slice();
   expect(success(await store.read({ reference: current.reference })).content).toBe(current.content + "\nProfile update.\n");
   const events = (await readFile(tracePath, "utf8")).trim().split("\n")
     .map(line => JSON.parse(line) as { event: string; sid: string; argv?: string[]; t_abs?: number; code?: number });
@@ -82,7 +102,36 @@ async function profileWrite(store: Store, layout: string, directory: string) {
     return { argv: start.argv, nativeMs: end!.t_abs! * 1000, code: end!.code };
   });
   expect(commands.length).toBeGreaterThan(0);
-  return { platform: process.platform, layout, wallMs, commands };
+  let coveredMs = 0, through = 0;
+  for (const call of [...calls].sort((left, right) => left.startMs - right.startMs)) {
+    coveredMs += Math.max(0, call.endMs - Math.max(through, call.startMs));
+    through = Math.max(through, call.endMs);
+  }
+  return { platform: process.platform, layout, wallMs, commands, invocations: calls,
+    invocationWallMs: coveredMs, outsideInvocationWallMs: wallMs - coveredMs };
+}
+
+async function processBaseline(client: TimingClient) {
+  const run = (args: string[]) => client.ports.rawExec([...client.scope, ...args], { objectAccess: "local-only" });
+  const text = (bytes: Uint8Array) => new TextDecoder().decode(bytes).trim();
+  const expectedRefs = (await client.tips()).trim().split("\n").filter(Boolean).length;
+  const samplesMs = { gitVersion: [] as number[], repositoryProbe: [] as number[], namespaceCapture: [] as number[] };
+  let gitVersion = "";
+  return { platform: process.platform, layout: client.layout, samples: 11, stateRefs: expectedRefs,
+    runtime: { node: process.version, arch: process.arch, runnerOS: process.env.RUNNER_OS,
+      imageOS: process.env.ImageOS, imageVersion: process.env.ImageVersion },
+    mediansMs: {
+    gitVersion: await median(() => run(["--version"]), value => {
+      gitVersion = text(value.stdout);
+      expect(gitVersion).toMatch(/^git version /u);
+    }, samplesMs.gitVersion),
+    repositoryProbe: await median(() => run(["rev-parse", "--show-object-format"]), value => {
+      expect(text(value.stdout)).toBe("sha1");
+    }, samplesMs.repositoryProbe),
+    namespaceCapture: await median(() => run(["for-each-ref", "--format=%(objectname) %(refname)", "refs/arc/"]), value => {
+      expect(text(value.stdout).split("\n")).toHaveLength(expectedRefs);
+    }, samplesMs.namespaceCapture),
+  }, samplesMs, gitVersion };
 }
 
 describe.skipIf(process.env.ARC_STORE_BURSTS !== "1")("native operation timing", () => {
@@ -117,8 +166,11 @@ describe.skipIf(process.env.ARC_STORE_BURSTS !== "1")("native operation timing",
       console.info(JSON.stringify(results));
       if (process.env.ARC_STORE_PROFILE === "1") {
         const profiles = [];
-        for (const { layout, store } of fixture.clients) profiles.push(await profileWrite(store, layout, directory));
+        for (const client of fixture.clients) profiles.push(await profileWrite(client, directory));
         await writeFile(resolve(directory, "store-write-profile.json"), JSON.stringify(profiles, null, 2) + "\n");
+        const baselines = [];
+        for (const client of fixture.clients) baselines.push(await processBaseline(client));
+        await writeFile(resolve(directory, "store-process-baseline.json"), JSON.stringify(baselines, null, 2) + "\n");
       }
       for (const { layout, mediansMs } of results) for (const [name, milliseconds] of Object.entries(mediansMs)) {
         expect(Number.isFinite(milliseconds)).toBe(true);

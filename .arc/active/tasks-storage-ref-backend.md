@@ -1918,6 +1918,15 @@ in `notes-storage-ref-backend.md` (A25).
           or project reads retain the full captured namespace. Native witnesses preserve refusal/repair and complete
           inventories after point reads; the 600-item trace uses 14/default and 16/separate processes.
 
+    - `[ ]` **18.2.n Calibrate the budget before further mechanism changes**
+        - `[x]` **18.2.n.1 Retain caller-visible native baselines and write-stage costs**
+            - Profiling retains eleven raw samples for Git startup, a repository probe, and the actual namespace
+              capture through production adapters, plus runtime/image identity. Write profiles retain parent-call
+              intervals and their overlap-aware union; all diagnostics run after unchanged acceptance medians.
+        - `[ ]` **18.2.n.2 Assess hosted cost and the original target's basis**
+            - Record one bounded Windows/macOS dispatch, compare measured call costs with required work and the
+              original spike, and report a budget recommendation before implementing another enumeration mechanism.
+
 ### `[x]` **18.2.R Operation-scoped acquisition during writes**
 
 - _Goal:_ Native `write` and `batch` reuse the existing bounded object reader within one public call, close it on

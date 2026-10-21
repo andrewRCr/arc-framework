@@ -99,7 +99,7 @@ export async function createRefTimingFixture() {
       const ports = createDefaultRefStorePorts({ checkoutRoot: repository.root, backingRepository: async () => null });
       const scope = gitDir ? [`--git-dir=${gitDir}`] : [];
       await ports.rawExec([...scope, "fast-import", "--quiet"], { input: stream });
-      clients.push({ layout, store: createRefStore(ports),
+      clients.push({ layout, store: createRefStore(ports), ports, scope,
         tips: async () => (await repository.exec("git", [...scope, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout });
     }
     return { clients, cleanup };
