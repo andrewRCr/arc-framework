@@ -1868,6 +1868,11 @@ in `notes-storage-ref-backend.md` (A25).
             - Build `test-first`: retain selected owner-location evidence within the public read while reacquiring
               required physical objects; preserve ambiguity, aliases, retained-history, and corruption behavior.
 
+        - `[x]` **18.2.f.4 Bounded hosted timing diagnostics**
+            - An explicit dispatch input runs only the unchanged operation timing case on Windows/macOS, clearly named
+              as diagnostic; ordinary platform runs retain the complete native suite. Post-measurement native traces
+              retain a verified write in each layout without entering the median windows.
+
     - `[ ]` **18.2.g Re-measure costs after platform corrections**
         - Repeat the established final tier/job procedure after the corrective source and tests settle. Record the new
           head, complete file populations, advisory rows and deltas, retaining the earlier source-bound measurements.

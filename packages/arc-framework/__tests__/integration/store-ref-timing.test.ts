@@ -1,6 +1,6 @@
 /** Dispatched native operation medians over the same six-hundred-item archive. */
 import { performance } from "node:perf_hooks";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createRefTimingFixture, timingQuarters, timingSubject } from "../helpers/store/ref-timing.js";
@@ -53,6 +53,38 @@ async function measure(store: Store) {
   };
 }
 
+async function profileWrite(store: Store, layout: string, directory: string) {
+  const current = success(await store.read({ reference: timingSubject }));
+  if (current.placement?.kind !== "completed") throw new Error("The profiling subject is not completed");
+  const tracePath = resolve(directory, `store-write-profile-${layout}.jsonl`);
+  await writeFile(tracePath, "");
+  const previous = process.env.GIT_TRACE2_EVENT;
+  let wallMs: number;
+  try {
+    process.env.GIT_TRACE2_EVENT = tracePath;
+    const start = performance.now();
+    const written = success(await store.write({ action: "put", reference: current.reference, expected: current.version,
+      content: current.content + "\nProfile update.\n", placement: { kind: "completed", quarter: current.placement.quarter },
+      provenance: { verb: "save", lifecycleAction: "edit" } }));
+    wallMs = performance.now() - start;
+    expect(written.conflicts).toEqual([]);
+  } finally {
+    if (previous === undefined) delete process.env.GIT_TRACE2_EVENT;
+    else process.env.GIT_TRACE2_EVENT = previous;
+  }
+  expect(success(await store.read({ reference: current.reference })).content).toBe(current.content + "\nProfile update.\n");
+  const events = (await readFile(tracePath, "utf8")).trim().split("\n")
+    .map(line => JSON.parse(line) as { event: string; sid: string; argv?: string[]; t_abs?: number; code?: number });
+  const commands = events.filter(event => event.event === "start").map(start => {
+    const end = events.find(event => event.event === "exit" && event.sid === start.sid);
+    expect(end?.code).toBe(0);
+    expect(end?.t_abs).toBeGreaterThanOrEqual(0);
+    return { argv: start.argv, nativeMs: end!.t_abs! * 1000, code: end!.code };
+  });
+  expect(commands.length).toBeGreaterThan(0);
+  return { platform: process.platform, layout, wallMs, commands };
+}
+
 describe.skipIf(process.env.ARC_STORE_BURSTS !== "1")("native operation timing", () => {
   it("measures eleven samples in both layouts and enforces the Windows budgets", async () => {
     const fixture = await createRefTimingFixture();
@@ -83,6 +115,11 @@ describe.skipIf(process.env.ARC_STORE_BURSTS !== "1")("native operation timing",
       await mkdir(directory, { recursive: true });
       await writeFile(resolve(directory, "store-timing.json"), JSON.stringify(results, null, 2) + "\n");
       console.info(JSON.stringify(results));
+      if (process.env.ARC_STORE_PROFILE === "1") {
+        const profiles = [];
+        for (const { layout, store } of fixture.clients) profiles.push(await profileWrite(store, layout, directory));
+        await writeFile(resolve(directory, "store-write-profile.json"), JSON.stringify(profiles, null, 2) + "\n");
+      }
       for (const { layout, mediansMs } of results) for (const [name, milliseconds] of Object.entries(mediansMs)) {
         expect(Number.isFinite(milliseconds)).toBe(true);
         expect(milliseconds).toBeGreaterThan(0);

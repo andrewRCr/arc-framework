@@ -1412,3 +1412,14 @@ name-only live reads in the existing resource checks also save one process. Coun
 records, diagnostics, overflow splitting, conflicts, snapshots, archived acquisition, and read-source behavior remain.
 This local resource reduction does not establish a Windows budget pass. Fail-first/native logs and the source diff
 are retained under `task-18.2-shared-tree-reader/` in the machine-local tools directory.
+
+### Bounded hosted timing diagnostics
+
+`ci.yml` adds the opt-in `portability_timing_only` dispatch input, default false and subordinate to the existing
+`run_portability_pair` opt-in. The named diagnostic runs the exact operation-timing file with one worker; it does not
+produce complete portability acceptance. Ordinary scheduled/dispatched runs retain the whole platform suite.
+
+`store-ref-timing.test.ts::profileWrite` runs after both layouts’ medians have been recorded. Each trace retains native
+argv, exit codes, Git elapsed time, and the public write’s wall time, then verifies the resulting content outside tracing.
+The initial fixture used the read placement’s extra sequence field and was correctly refused; the probe now submits the
+ordinary completed-quarter mutation shape. The timing and existing CI contract cases passed together (42 cases).

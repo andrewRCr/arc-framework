@@ -20,6 +20,10 @@ on:
         description: 'Also run the Windows/macOS portability pair (billed at hosted-runner multipliers)'
         type: boolean
         default: false
+      portability_timing_only:
+        description: 'Diagnostic only: replace the pair’s complete portability suite with operation timing'
+        type: boolean
+        default: false
   # Weekly full-tier duration refresh and cross-platform portability. The pair fires only here or
   # on an explicit dispatch opt-in — never from PR synchronizes — so the weekly
   # cadence is a post-merge backstop against OS-specific concurrency-guard
@@ -780,7 +784,7 @@ jobs:
   # Schedule and explicit dispatch opt-in retain native install/build per OS.
   # Setup supplies the shared invocation forecast.
   portability-cross-platform:
-    name: Portability targeted
+    name: ${{ inputs.portability_timing_only && 'Portability timing diagnostic' || 'Portability targeted' }}
     permissions:
       contents: read
       actions: write # upload portability measurements
@@ -817,10 +821,18 @@ jobs:
       env:
         ARC_E2E_SKIP_BUILD: ''
     - id: test
+      if: ${{ !inputs.portability_timing_only }}
       run: node --import tsx scripts/run-ci-checks.mjs run portability-cross-platform test
       env:
         ARC_E2E_SKIP_BUILD: '1'
         ARC_STORE_BURSTS: '1'
+    - name: Measure native operation timing only
+      if: ${{ github.event_name == 'workflow_dispatch' && inputs.portability_timing_only }}
+      run: npm run test:file -- packages/arc-framework/__tests__/integration/store-ref-timing.test.ts --maxWorkers=1
+      env:
+        ARC_E2E_SKIP_BUILD: '1'
+        ARC_STORE_BURSTS: '1'
+        ARC_STORE_PROFILE: '1'
     - name: Upload portability measurements
       if: ${{ !cancelled() }}
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -828,6 +840,7 @@ jobs:
         name: portability-results-${{ runner.os }}
         path: |
           packages/arc-framework/.test-cost-runs/store-timing.json
+          packages/arc-framework/.test-cost-runs/store-write-profile*
           packages/arc-framework/node_modules/.vite/vitest/**/results.json
         include-hidden-files: true
         if-no-files-found: error
