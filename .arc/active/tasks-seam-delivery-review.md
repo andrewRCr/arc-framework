@@ -1267,9 +1267,14 @@ this phase puts publication's claim and reopen's boundary write in their transit
   imported subject identity. Native delivery acknowledgment and replay preserve exact verification without record
   effects, while the repository arms retain their existing behavior.
 
-### `[ ]` **6.6 The Candidate and its boundary** — validate exit criterion at segment scope
+### `[x]` **6.6 The Candidate and its boundary** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
+
+- _Outcome:_ Base `b83a37f45` is reconciled in `c43f1e4df`. Reference-backend attestation, withdrawal, fresh readiness,
+  interrupted publication, and archive retirement preserve stored authority without record-only commits. Changed
+  standard-lane facts and incomplete listings refuse publication; re-rooting preserves decision records, and archived
+  Candidates leave live listings.
 
 ## **Phase 7:** Delivery and integration at the flip
 
