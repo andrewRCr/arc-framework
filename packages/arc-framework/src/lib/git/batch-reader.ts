@@ -65,7 +65,10 @@ class NativeBatchReader {
     this.output = new GitBatchOutput(this.child.stdout, input.maxBuffer, this.invocation);
     let spawnError: GitProcessError | undefined;
     this.child.on("error", (error) => { spawnError = normalizeGitRejection(error, this.invocation); this.fail(spawnError); });
-    this.child.stdin.on("error", (error) => { this.fail(normalizeGitRejection(error, this.invocation)); });
+    // A write meets a closed pipe once Git exits; its exit status and stderr, reported at close, explain the failure.
+    this.child.stdin.on("error", (error) => {
+      void this.finished.then((exit) => { if (exit === undefined) this.fail(normalizeGitRejection(error, this.invocation)); });
+    });
     this.child.stderr.on("data", (bytes: Buffer) => {
       this.stderrBytes += bytes.length;
       if (this.stderrBytes > input.maxBuffer) {
