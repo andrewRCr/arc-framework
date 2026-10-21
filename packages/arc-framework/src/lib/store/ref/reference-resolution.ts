@@ -5,7 +5,7 @@ import type { StoreResult, StoreRefusal } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import { type RefLookupTree } from "./lookup.js";
 import { preferredNameTrees } from "./lookup-primary.js";
-import { readCapturedLookupTrees } from "./lookup-trees.js";
+import { readCapturedLookupTrees, type RefLookupCapture } from "./lookup-trees.js";
 import { isArchiveRef } from "./archive-read.js";
 import { resolveLineageReadReference, lineageOwnerCandidates } from "./lineage-resolution.js";
 import { matchesFamilyRef, rootFamily, refOwner } from "./codec.js";
@@ -47,6 +47,23 @@ export async function resolveRefName(context: RefBackendContext, reference: Reco
   const selected = new Map([...tips].filter(([ref]) => matchesFamilyRef(ref, family) || isArchiveRef(ref)));
   const trees = await readCapturedLookupTrees(context, selected);
   return trees.status === "refused" ? trees : resolveCapturedReference(context, reference, trees.result.trees, trees.result.unreadable, requirePrimary);
+}
+
+/** Resolve a public point read while retaining freshly validated archive selection evidence. */
+export async function resolveRefReadName(context: RefBackendContext, reference: RecordReference,
+  tips: ReadonlyMap<string, string>): Promise<StoreResult<{ reference: RecordReference; lookup?: RefLookupCapture }>> {
+  const owner = reference.owner;
+  if (owner.type === "person" || owner.type === "project" || owner.uid) return { status: "ok", result: { reference } };
+  if (reference.kind.startsWith("lineage/")) {
+    const result = await resolveLineageReadReference(context, reference, tips);
+    return result.status === "refused" ? result : { status: "ok", result: { reference: result.result } };
+  }
+  const family = owner.type === "cohort" ? "cohort" : "work-item";
+  const selected = new Map([...tips].filter(([ref]) => matchesFamilyRef(ref, family) || isArchiveRef(ref)));
+  const lookup = await readCapturedLookupTrees(context, selected, null, true);
+  if (lookup.status === "refused") return lookup;
+  const result = resolveCapturedReference(context, reference, lookup.result.trees, lookup.result.unreadable);
+  return result.status === "refused" ? result : { status: "ok", result: { reference: result.result, lookup: lookup.result } };
 }
 
 /** Name-only owner filters bind before listing, while unknown names keep an empty selection. */

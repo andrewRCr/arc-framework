@@ -1453,3 +1453,20 @@ continued terminal/configuration/credential stops failed their preservation chec
 clock at the executor boundary to cancel the first publication, then publish that original write and verify the peer’s
 content, version, and tip after retry. One-call reconstruction failed both layouts. The restored helper, native witnesses,
 and all four full twenty-writer bursts passed together (12 cases); hosted Windows/macOS acceptance remains open.
+
+### Named archived acquisition
+
+`reference-resolution.ts::resolveRefReadName` retains the selected archive folder after ordinary owner ranking. A matching
+lookup signature is an acquisition plan: `lookup-acquisition.ts::revalidateLookupAcquisition` fetches every captured root,
+the complete parent-directory closure (including nonempty sibling subtrees), and every original metadata/payload query
+inside the operation-owned native batch reader. Equal freshly acquired ranking bytes permit reuse of their decoded
+metadata; changed or unavailable evidence is decoded with the existing unreadable/ambiguity rules. Selected record and
+conflict objects are then fetched afresh. No physical failure is filled from the cache.
+
+The native resource witness first observed the repeated recursive enumeration and then passed with two Git processes for
+a hot named archived read in each layout. Removing an unrelated cached sibling subtree now refuses with
+`namespace-corrupt` and succeeds after object repair. A reconstruction that omitted the parent-directory closure
+incorrectly returned success in both layouts. Existing cold-lookup process assertions were stale after shared root
+acquisition and are tightened from four to three (unchanged hot lookups remain one). The final 146-case native/CLI run
+passed across lookup tiers, current/former names, claims, linked refs, rename, read sources, project identity, namespace
+diagnostics, reader cleanup, conflict remedies, and the six-hundred-item timing workload. Windows acceptance is open.

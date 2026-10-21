@@ -21,7 +21,8 @@ import { checkRefKey } from "./path-admission.js";
 import { projectIdentityQueries, projectOwnerFromObjects, admitProjectReference, projectListInput, projectListingBinding, checkProjectIdentity } from "./project-identity.js";
 import { resolveLineageReadReference } from "./lineage-resolution.js";
 
-import { resolveRefName, resolveRefListInput } from "./reference-resolution.js";
+import { resolveRefName, resolveRefListInput, resolveRefReadName } from "./reference-resolution.js";
+import type { RefLookupCapture } from "./lookup-trees.js";
 import { readUidRefRecord } from "./read-uid.js";
 
 /** Read a record, resolving name-only owners through one captured namespace. */
@@ -35,12 +36,12 @@ export async function readRefRecord(context: RefBackendContext, input: ReadInput
   const byUid = await readUidRefRecord(context, reference);
   if (byUid) return byUid;
   const tips = await readRefTips(context);
-  const resolved = personal ?? await resolveReadReference(context, reference, tips);
+  const resolved = await resolveRefReadName(context, personal?.result ?? reference, tips);
   if (resolved.status === "refused") return resolved;
-  reference = resolved.result;
+  reference = resolved.result.reference;
   const home = expandStoredPath(reference, { registry: context.registry });
   const tip = tips.get(home.ref);
-  if (!tip && reference.owner.type !== "project") return readArchivedRecord(context, reference, tips);
+  if (!tip && reference.owner.type !== "project") return readArchivedRecord(context, reference, tips, resolved.result.lookup);
   const recordQuery = `${tip}:${home.path}`;
   const metadataQuery = `${tip}:${home.metadataPath}`;
   const conflictsQuery = `${tip}:${home.root}conflicts`;
@@ -252,12 +253,15 @@ function projectReadReference(reference: RecordReference, tips: ReadonlyMap<stri
   return owner.status === "refused" ? owner : admitProjectReference(reference, owner.result);
 }
 
-async function readArchivedRecord(context: RefBackendContext, reference: RecordReference, tips: ReadonlyMap<string, string>): Promise<StoreResult<StoreRecord>> {
+async function readArchivedRecord(context: RefBackendContext, reference: RecordReference, tips: ReadonlyMap<string, string>,
+  lookup?: RefLookupCapture): Promise<StoreResult<StoreRecord>> {
   const family = context.registry[reference.kind].family;
   if (reference.owner.type === "person" || !reference.owner.uid || !["work-item", "cohort"].includes(rootFamily(family))) return missing(reference);
   const selected = new Map([...tips].filter(([ref]) => isArchiveRef(ref)));
   if (!selected.size) return missing(reference);
-  const trees = archiveOwnerTrees(await readRefTrees(context, selected), [reference.owner]);
+  const located = [...lookup?.trees.values() ?? []].find(tree => tree.liveRef === expandStoredPath(reference, { registry: context.registry }).ref)?.archived;
+  const trees = located ? new Map([[located.ref, located.entries.map(entry => ({ ...entry, path: located.root + entry.path }))]])
+    : archiveOwnerTrees(await readRefTrees(context, selected), [reference.owner]);
   const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid)))]);
   const folders = [...trees].flatMap(([ref, entries]) => archivedFolders(family, ref, entries, objects).folders);
   const folder = latestArchivedFolders(folders.filter(({ owner }) => sameOwner(owner, reference.owner)))[0];

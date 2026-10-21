@@ -12,9 +12,10 @@ import { claimLookupCandidates, claimIdentityRefusal } from "./lookup-claims.js"
 import { readLookupTrees } from "./lookup-trees.js";
 import { z } from "zod";
 import type { Slug } from "../../kernel/schema/slug.js";
+import type { ArchivedFolder } from "./archive-read.js";
 
 /** One immutable tree's entries and decoded metadata, also usable by write views. */
-export interface RefLookupTree { entries: readonly RefTreeEntry[]; metadata: RefMetadata; liveRef?: string; objects?: ReadonlyMap<string, BatchObject | null> }
+export interface RefLookupTree { entries: readonly RefTreeEntry[]; metadata: RefMetadata; liveRef?: string; objects?: ReadonlyMap<string, BatchObject | null>; archived?: ArchivedFolder }
 
 /** Resolve logical handles from one tip capture, reusing unchanged metadata within this process. */
 export async function lookupRefRecord(context: RefBackendContext, input: LookupInput): Promise<StoreResult<LookupResult>> {

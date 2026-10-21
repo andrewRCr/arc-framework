@@ -1853,7 +1853,7 @@ in `notes-storage-ref-backend.md` (A25).
           override while ordinary files still overlapped. Local eleven-sample results are recorded in
           `notes-storage-ref-backend.md` § Timing isolation; hosted Windows acceptance remains open.
 
-    - `[ ]` **18.2.f Remove redundant native acquisition**
+    - `[x]` **18.2.f Remove redundant native acquisition**
         - Retain all fixed Windows operation budgets; record each resource reduction and its refusal/recovery proof.
 
         - `[x]` **18.2.f.1 Share tree and blob acquisition**
@@ -1866,9 +1866,10 @@ in `notes-storage-ref-backend.md` (A25).
               attempt; mutable namespace captures and publication locks remain fresh. A later write refuses a missing
               physical blob and continues after repair; retaining evidence across public calls fails this witness.
 
-        - `[ ]` **18.2.f.3 Carry selected point-read evidence**
-            - Build `test-first`: retain selected owner-location evidence within the public read while reacquiring
-              required physical objects; preserve ambiguity, aliases, retained-history, and corruption behavior.
+        - `[x]` **18.2.f.3 Carry selected point-read evidence**
+            - Named reads retain the selected archive folder and revalidate root/interior trees and ranking objects
+              from their unchanged capture plan; selected record bytes are acquired afresh. Hot archived reads use two
+              native processes, preserving ambiguity, aliases, retained history, and physical-corruption refusal/repair.
 
         - `[x]` **18.2.f.4 Bounded hosted timing diagnostics**
             - An explicit dispatch input runs only the unchanged operation timing case on Windows/macOS, clearly named
