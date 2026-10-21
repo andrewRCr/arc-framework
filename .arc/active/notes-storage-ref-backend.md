@@ -1241,3 +1241,24 @@ Criterion 11 remains unchanged for supersession disposition at terminal verifica
 the replacement. The Phase 18 verifier retains its Goal and uses the amended cost obligation. Baseline work, prepared
 fixtures, native conformance, Windows budgets, host checks, pack measurements, and cutover-suite disposition are
 unaffected. No runtime or test mechanism changes in this capture.
+
+## Timing isolation
+
+The native configuration places only `store-ref-timing.test.ts` in `integration-timing`, with a distinct sequence
+order. Vitest completes each sequence group's workers before executing the next group. Supported integration and
+lane selectors include that project once; `projectSetArguments` composes those same selectors for cost measurements.
+The fixture, eleven samples, assertions, timeouts, Windows budgets, and existing artifact upload remain unchanged.
+
+A regression copies the live configuration into a disposable native checkout and runs tiny witness files with an
+explicit three-worker override. Before isolation, the timing interval enclosed both ordinary workers' intervals.
+Afterward, its interval is disjoint from theirs, with exactly one timing execution; the ordinary workers' rendezvous
+still requires their mutual overlap. The regression joins portability selection and survives cutover with native suites.
+
+The supported focused controller then ran the real 600-item, twelve-quarter timing fixture and this regression with
+one worker. Both passed; medians below are local Linux diagnostics, not dispatched Windows acceptance. Other local
+sessions cannot explain a hosted failure, and these results do not establish the cause of the previous macOS timeout.
+
+| Layout   | Version (ms) | Read (ms) | List (ms) | Lookup (ms) | Write (ms) |
+| -------- | ------------ | --------- | --------- | ----------- | ---------- |
+| default  | 5.233        | 23.923    | 107.985   | 12.003      | 233.246    |
+| separate | 5.905        | 30.561    | 136.403   | 15.311      | 225.066    |

@@ -54,6 +54,15 @@ const maxWorkers = resolveVitestMaxWorkers(process.env);
 // per-file isolation, and `unit` runs everything else. The split keeps the
 // mock-heavy files quarantined so the main tier can relax isolation for its
 // import-cost win without their hoisted mocks leaking across file boundaries.
+const timingTest = "__tests__/integration/store-ref-timing.test.ts";
+const integrationTest = {
+  root: packageRoot,
+  ...(integrationTempRoot === undefined ? {} : { env: { TMPDIR: integrationTempRoot } }),
+  globalSetup: ["__tests__/integration/global-setup.ts"],
+  testTimeout: 30_000,
+  passWithNoTests: true,
+};
+
 export default defineConfig({
   test: {
     sequence: { sequencer: HeavyFirstSequencer },
@@ -86,13 +95,20 @@ export default defineConfig({
       },
       {
         test: {
+          ...integrationTest,
           name: "integration",
-          root: packageRoot,
           include: ["__tests__/integration/**/*.test.ts"],
-          ...(integrationTempRoot === undefined ? {} : { env: { TMPDIR: integrationTempRoot } }),
-          globalSetup: ["__tests__/integration/global-setup.ts"],
-          testTimeout: 30_000,
-          passWithNoTests: true,
+          exclude: [...configDefaults.exclude, timingTest],
+        },
+      },
+      {
+        test: {
+          ...integrationTest,
+          name: "integration-timing",
+          include: [timingTest],
+          // Finish the parallel group before collecting uncontended operation medians.
+          sequence: { groupOrder: 1 },
+          maxWorkers: 1,
         },
       },
       {

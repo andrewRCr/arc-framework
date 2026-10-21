@@ -24,8 +24,8 @@ const tiers = [
   ["full", []],
   ["unit", ["--project", "unit", "--project", "unit-mocks"]],
   ["changed", ["--run", "--project", "unit", "--project", "unit-mocks", "--passWithNoTests=false"]],
-  ["lane", ["--project", "unit", "--project", "unit-mocks", "--project", "integration"]],
-  ["integration", ["--project", "integration"]],
+  ["lane", ["--project", "unit", "--project", "unit-mocks", "--project", "integration", "--project", "integration-timing"]],
+  ["integration", ["--project", "integration", "--project", "integration-timing"]],
   ["arc-contracts", ["--project", "integration", "framework-sync", "live-transition-records",
     "pr-lifecycle", "review-gate-workflows", "ci-check-plumbing",
     "markdown/descriptor-spacing",
@@ -83,6 +83,7 @@ it("retains each native portability boundary on the portability tier", () => {
     "store-ref-directory.test.ts", "store-ref-write-batching.test.ts", "store-ref-reader-lifetime.test.ts",
     "store-ref-archive-acquisition.test.ts",
     "git-batch-reader.test.ts", "store-ref-separate-conformance.test.ts", "store-ref-timing.test.ts",
+    "store-ref-timing-isolation.test.ts",
   ]);
 });
 

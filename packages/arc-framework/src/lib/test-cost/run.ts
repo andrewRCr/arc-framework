@@ -8,6 +8,7 @@ import { dirname, join } from "node:path";
 import { createVitest, parseCLI } from "vitest/node";
 
 import type { LocalHeavyTestTier } from "../local-test-admission.js";
+import { localVitestTierArguments } from "../local-vitest-runner.js";
 import type { TestOwnershipOverrides } from "../build-ownership.js";
 import { discoverVitestSelection } from "../vitest-discovery.js";
 import { executeVitestSelection } from "../vitest-execution.js";
@@ -136,17 +137,7 @@ export function resolveEffectiveWorkerSizing(
 }
 
 export function projectSetArguments(projectSet: MeasurementProjectSet): string[] {
-  switch (projectSet) {
-    case "unit":
-      return ["--project", "unit", "--project", "unit-mocks"];
-    case "integration":
-    case "e2e":
-      return ["--project", projectSet];
-    case "lane":
-      return ["--project", "unit", "--project", "unit-mocks", "--project", "integration"];
-    case "full":
-      return [];
-  }
+  return localVitestTierArguments(projectSet);
 }
 
 export function projectSetAdmissionTier(projectSet: MeasurementProjectSet): LocalHeavyTestTier {

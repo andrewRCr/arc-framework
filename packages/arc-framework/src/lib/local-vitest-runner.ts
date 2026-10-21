@@ -146,9 +146,11 @@ export function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
         "unit-mocks",
         "--project",
         "integration",
+        "--project",
+        "integration-timing",
       ];
     case "integration":
-      return ["--project", "integration"];
+      return ["--project", "integration", "--project", "integration-timing"];
     case "arc-contracts":
       return ["--project", "integration", ...ARC_CONTRACT_SUITES];
     case "e2e":
@@ -183,6 +185,7 @@ export function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
         "git-batch-reader.test.ts",
         "store-ref-separate-conformance.test.ts",
         "store-ref-timing.test.ts",
+        "store-ref-timing-isolation.test.ts",
       ];
     case "portability-macos":
       return ["anchored-sequence", "git-identity", "locus-errand-roundtrip", "rename"];

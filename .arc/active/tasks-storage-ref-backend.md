@@ -1832,6 +1832,13 @@ in `notes-storage-ref-backend.md` (A25).
         - Native resource regressions exercise both layouts and join portability selection. The measured reduction
           and remaining fixed native calls are recorded in `notes-storage-ref-backend.md` § Archived acquisition cost.
 
+    - `[x]` **18.2.e Isolate operation timing from other test execution**
+        - A dedicated native project/sequence group isolates the unchanged timing case; supported integration, lane,
+          and cost-run selectors include it once. Other portability cases retain normal parallelism and artifacts.
+        - A native configuration regression first observed overlap, then proved isolation with an explicit three-worker
+          override while ordinary files still overlapped. Local eleven-sample results are recorded in
+          `notes-storage-ref-backend.md` § Timing isolation; hosted Windows acceptance remains open.
+
 ### `[ ]` **18.3 CI cost — § 14.12**
 
 - _Goal:_ Running both backends until the cutover costs CI no more than the bound: each layout's ref conformance run
