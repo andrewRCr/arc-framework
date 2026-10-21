@@ -9,7 +9,7 @@ function observedPorts() {
   const unexpected = async (): Promise<never> => { calls.push("io"); throw new Error("Unexpected I/O"); };
   const ports: RefStorePorts = {
     exec: unexpected, execInput: unexpected, rawExec: unexpected,
-    fs: { readFile: unexpected, readBytes: unexpected, readdir: unexpected, lstat: unexpected, mkdir: unexpected,
+    fs: { readFile: unexpected, readBytes: unexpected, writeBytes: unexpected, readdir: unexpected, lstat: unexpected, mkdir: unexpected,
       writeFile: unexpected, exclusiveCreate: unexpected, unlink: unexpected, rename: unexpected, removeDirectory: unexpected },
     checkoutRoot: "/no-repository", identity: unexpected, backingRepository: unexpected, actor: unexpected, lock: unexpected,
     clock: () => { calls.push("clock"); return new Date(0); },

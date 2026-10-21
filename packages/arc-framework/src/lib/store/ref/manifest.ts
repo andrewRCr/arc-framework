@@ -1,7 +1,7 @@
 /** Git-compatible manifest trees naming the current tips of registered state refs. */
 
 import { readRefRepository } from "./repository.js";
-import { createHash } from "node:crypto";
+import { hashObjectTree, writeObjectTrees } from "./object-trees.js";
 import { join } from "node:path";
 import { updateRefTransaction } from "../../git/ref-transaction.js";
 import { readGitDirectories } from "../../git/directories.js";
@@ -66,12 +66,9 @@ export function buildRefManifest(tips: ReadonlyMap<string, string>, format: Obje
 function hashTree(node: ManifestNode, format: ObjectFormat, trees: ManifestTree[]): string {
   const entries: ManifestEntry[] = [...node.tips].map(([name, oid]) => ({ name, oid, mode: "160000" }));
   for (const [name, child] of node.children) entries.push({ name, oid: hashTree(child, format, trees), mode: "40000" });
-  const sortName = (entry: ManifestEntry) => Buffer.from(entry.name + (entry.mode === "40000" ? "/" : ""));
-  entries.sort((left, right) => Buffer.compare(sortName(left), sortName(right)));
-  const bytes = Buffer.concat(entries.flatMap((entry) => [Buffer.from(`${entry.mode} ${entry.name}\0`), Buffer.from(entry.oid, "hex")]));
-  const oid = createHash(format).update(Buffer.from(`tree ${bytes.byteLength}\0`)).update(bytes).digest("hex");
-  trees.push({ oid, entries });
-  return oid;
+  const tree = hashObjectTree(entries, format);
+  trees.push(tree);
+  return tree.oid;
 }
 
 /** Persist a captured manifest and retain it with an expected-value local token ref. */
@@ -79,15 +76,7 @@ export async function saveCapturedManifest(context: RefBackendContext, tips: Rea
   const manifest = buildRefManifest(tips, await readObjectFormat(context));
   const tokenRef = context.readSource?.versionRef ?? "refs/arc/tmp/version";
   if (tips.get(tokenRef) === manifest.version) return manifest.version;
-  const input = manifest.trees.map((tree) => tree.entries.map((entry) =>
-    `${entry.mode} ${entry.mode === "40000" ? "tree" : "commit"} ${entry.oid}\t${entry.name}\0`).join("") + "\0").join("");
-  const { stdout } = await context.rawExec(["mktree", "--batch", "-z"], {
-    cwd: context.checkoutRoot, objectAccess: "local-only", input: Buffer.from(input),
-  });
-  const written = new TextDecoder().decode(stdout).trim().split(/\r?\n/u);
-  if (written.length !== manifest.trees.length || written.some((oid, index) => oid !== manifest.trees[index]?.oid)) {
-    throw new Error("Git wrote a manifest tree different from its computed object ID");
-  }
+  await writeObjectTrees(context, manifest.trees);
   // A competing checkout may retain a newer token; this captured manifest remains a valid result.
   await updateRefTransaction(context, [{ ref: tokenRef, next: manifest.version, expected: tips.get(tokenRef) ?? null }], {
     cwd: context.checkoutRoot,

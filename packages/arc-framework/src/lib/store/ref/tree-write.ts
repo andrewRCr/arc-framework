@@ -2,7 +2,11 @@
 
 import type { RefBackendContext } from "./context.js";
 import type { RefTreeEntry } from "./batch-read.js";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { join } from "node:path";
+import { readGitDirectories } from "../../git/directories.js";
+import { readObjectFormat, type ObjectFormat } from "./manifest.js";
+import { hashObjectTree, writeObjectTrees, type ObjectTree, type ObjectTreeEntry } from "./object-trees.js";
 
 interface TreeNode { files: Map<string, RefTreeEntry>; children: Map<string, TreeNode> }
 
@@ -23,12 +27,26 @@ export async function writeRefBlob(context: RefBackendContext, content: string):
 /** Write every prospective blob into the repository protected by the commit scope. */
 export async function flushRefBlobStage(context: RefBackendContext): Promise<RefBackendContext> {
   const physical = { ...context, blobStage: undefined };
-  for (const [oid, bytes] of context.blobStage?.blobs ?? []) {
-    const { stdout } = await physical.rawExec(["hash-object", "-w", "--stdin"], {
-      cwd: physical.checkoutRoot, objectAccess: "local-only", input: bytes,
+  const blobs = [...context.blobStage?.blobs ?? []];
+  if (blobs.length === 0) return physical;
+  const commonDir = context.repository?.commonDir ?? (await readGitDirectories(context.checkoutRoot, context.fs)).commonDir;
+  const directory = join(commonDir, "arc", `object-stage-${randomUUID()}`);
+  try {
+    await context.fs.mkdir(directory, { recursive: true });
+    const paths: string[] = [];
+    for (const [index, [, bytes]] of blobs.entries()) {
+      const path = join(directory, String(index));
+      await context.fs.writeBytes(path, bytes);
+      paths.push(quoteGitPath(path));
+    }
+    const { stdout } = await physical.rawExec(["hash-object", "-w", "--no-filters", "--stdin-paths"], {
+      cwd: physical.checkoutRoot, objectAccess: "local-only", input: Buffer.from(paths.join("\n") + "\n"),
     });
-    if (new TextDecoder().decode(stdout).trim() !== oid) throw new Error("A staged blob does not match the store's object format");
-  }
+    const written = new TextDecoder().decode(stdout).trim().split(/\r?\n/u);
+    if (written.length !== blobs.length || written.some((oid, index) => oid !== blobs[index]?.[0])) {
+      throw new Error("A staged blob does not match the store's object format");
+    }
+  } finally { await context.fs.removeDirectory(directory); }
   return physical;
 }
 
@@ -48,16 +66,28 @@ export async function writeRefTree(context: RefBackendContext, entries: Iterable
     }
     parent.files.set(name, entry);
   }
-  return writeNode(context, root);
+  const trees: ObjectTree[] = [];
+  const oid = buildNode(root, await readObjectFormat(context), trees);
+  // Retained entries may already name unavailable objects; keep their identities unchanged.
+  await writeObjectTrees(context, trees, true);
+  return oid;
 }
 
-async function writeNode(context: RefBackendContext, node: TreeNode): Promise<string> {
-  const rows = [...node.files].map(([name, entry]) =>
-    `${entry.mode} ${entry.mode === "160000" ? "commit" : entry.mode === "040000" ? "tree" : "blob"} ${entry.oid}\t${name}\0`);
-  for (const [name, child] of node.children) rows.push(`040000 tree ${await writeNode(context, child)}\t${name}\0`);
-  // Retained entries may already name unavailable blobs; keep their identities unchanged.
-  const { stdout } = await context.rawExec(["mktree", "-z", "--missing"], {
-    cwd: context.checkoutRoot, objectAccess: "local-only", input: Buffer.from(rows.join("")),
-  });
-  return new TextDecoder().decode(stdout).trim();
+function buildNode(node: TreeNode, format: ObjectFormat, trees: ObjectTree[]): string {
+  const entries: ObjectTreeEntry[] = [...node.files].map(([name, entry]) => ({
+    name, oid: entry.oid, mode: entry.mode === "040000" ? "40000" : entry.mode,
+  }));
+  for (const [name, child] of node.children) entries.push({ name, oid: buildNode(child, format, trees), mode: "40000" });
+  const tree = hashObjectTree(entries, format);
+  trees.push(tree);
+  return tree.oid;
+}
+
+function quoteGitPath(path: string): string {
+  let quoted = '"';
+  for (const byte of Buffer.from(path)) {
+    if (byte === 34 || byte === 92) quoted += `\\${String.fromCharCode(byte)}`;
+    else quoted += byte >= 32 && byte < 127 ? String.fromCharCode(byte) : `\\${byte.toString(8).padStart(3, "0")}`;
+  }
+  return quoted + '"';
 }

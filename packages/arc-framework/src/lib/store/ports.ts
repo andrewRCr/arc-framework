@@ -54,7 +54,7 @@ export interface RefStorePorts {
   exec: GitExec;
   execInput: GitExecInput;
   rawExec: RawGitExec;
-  fs: StoreFileAccess & RefRepositoryFileAccess & { readBytes(path: string): Promise<Uint8Array> };
+  fs: StoreFileAccess & RefRepositoryFileAccess & { readBytes(path: string): Promise<Uint8Array>; writeBytes(path: string, content: Uint8Array): Promise<void> };
   clock: () => Date;
   sleep: RefStoreSleep;
   random: () => number;

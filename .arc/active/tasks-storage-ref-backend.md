@@ -1809,6 +1809,15 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
         - Built test-first against the breached operation's cases only where the run shows a breach; otherwise this
           subtask records that none was needed
 
+        - `[x]` **18.2.b.1 Batched blob and tree construction**
+            - Staged blobs use one filter-free native hash batch with temporary-file cleanup; each prepared tree uses
+              one child-first native tree batch, sharing exact SHA-1/SHA-256 hashing with manifests. Bulk nested
+              documents retain CRLF bytes; interrupted staging publishes no record and permits a fresh retry.
+
+        - `[ ]` **18.2.b.2 Operation-scoped object reader**
+            - Reuse a native batch reader through each operation, honoring cancellation and output bounds, and close
+              it before maintenance; verify native framing, process reuse, cleanup, and fresh-operation isolation.
+
     - `[x]` **18.2.c Git-serialized prepared fixture paths**
         - Copies recognize Git-escaped template roots as well as literal and slash-normalized spellings. The real-Git
           regression copies and publishes to an independent remote; path assertions compare resolved filesystem

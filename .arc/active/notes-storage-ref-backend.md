@@ -1046,3 +1046,26 @@ The regression failed before the helper change, then the complete prepared-repos
 separate. Windows itself remains unverified until a new dispatched run; these local results do not close its platform
 task. Logs are `/tmp/arc-storage-18.2-prepared-red.log`, `/tmp/arc-storage-18.2-prepared-green.log`, and the first
 Windows job's `/tmp/arc-storage-18-ci-windows.log`.
+
+## Windows object batching
+
+The first dispatched Windows run (39530714223, `cdf5fa119`) exceeded the read and write budgets in both layouts.
+Default medians were 318.9771 ms read and 11895.5451 ms write; separate medians were 282.2979 ms read and
+13270.7832 ms write. The original budgets remain unchanged; Task 18.2.b's conditional implementation is required.
+
+The blob stage now uses one `hash-object -w --no-filters --stdin-paths` over byte-written temporary files, with a
+unique directory removed in `finally`. It retains its position after layout admission under the publication lock.
+Each prepared recursive tree uses one child-first `mktree --batch -z --missing`, with exact computed object IDs
+checked against every native result. Manifests share that tree encoding and validation. Separate physical refs and
+successive commits still require their own prepared-tree batches; this does not claim one process for a multi-ref
+operation. Metadata written after the stage retains its fixed direct blob writes.
+
+The new native bulk-write case initially used 39 object-writing processes for eighteen nested documents and failed
+the fixed four-process ceiling in SHA-1 and SHA-256 repositories. With batching, both formats and layouts pass with
+all documents retaining exact CRLF/Unicode bytes under `core.autocrlf=true`. Three failure cases cover interrupted
+file writes, interrupted native writes, and mismatched returned identities: no record publishes, temporary files
+are removed, and a fresh retry succeeds. Their reconstruction against the original stage failed all three on the
+unexpected successful publication. The complete five-suite object-construction run passed 44 cases in 15.00 s,
+including manifests, archive retention, and separate bare repositories. Local proof logs remain under
+`/tmp/arc-storage-18.2-{write-batch-red,write-cleanup-red,object-suites}.log`. Windows timing still requires a new
+exact-head dispatch; no budget pass is claimed from this local evidence.
