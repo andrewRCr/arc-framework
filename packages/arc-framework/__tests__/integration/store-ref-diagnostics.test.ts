@@ -68,7 +68,7 @@ describe.each(["files", "reftable"] as const)("ref diagnostics (%s)", (format) =
       { path: `review/evidence-good-${uid}.json`, content: bytes }]);
     const personal = RecordReferenceSchema.parse({ owner: { type: "person", name: "andrew" }, kind: "personal/document", key: "notes.json" });
     await plantRef(f.root, "refs/arc/user/andrew/personal", [{ path: "andrew/metadata-andrew.json", content: canonicalize({ formatVersion: 1, formats: {} }) },
-      { path: "andrew/notes.json", content: bytes }]);
+      { path: "andrew/notes.json.andrew", content: bytes }]);
     expect(await f.store.read({ reference: good })).toMatchObject({ status: "ok", result: { content: '{"a":1,"z":"café"}' } });
     expect(await f.store.list({ family: "review" })).toMatchObject({ status: "ok", result: { status: "complete",
       records: [expect.objectContaining({ content: '{"a":1,"z":"café"}' })], diagnostics: [], missed: false } });

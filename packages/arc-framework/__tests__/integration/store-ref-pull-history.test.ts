@@ -28,7 +28,7 @@ describe.each(["default", "separate"] as const)("pulled history in the %s layout
       await h.a.git(["fetch", "--no-tags", h.b.gitDir ?? h.b.root, `${ref}:refs/merge-fixture/local`]);
       const metadata = (await h.a.git(["rev-parse", `${ref}:andrew/metadata-andrew.json`])).stdout;
       await plantRef(h.a.root, ref, [{ path: "andrew/metadata-andrew.json", oid: metadata, mode: "100644" },
-        { path: "andrew/ordered.md", content: text("local") }], { parents: [localTip, remoteTip],
+        { path: "andrew/ordered.md.andrew", content: text("local") }], { parents: [localTip, remoteTip],
         ...h.a.gitDir ? { gitDir: h.a.gitDir } : {},
         message: renderStoreCommitMessage({ verb: "sync", lifecycleAction: "merge" }, reference, randomUUID()),
       });

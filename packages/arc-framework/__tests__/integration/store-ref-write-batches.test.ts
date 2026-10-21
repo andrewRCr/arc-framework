@@ -42,7 +42,7 @@ describe.each(["files", "reftable"] as const)("atomic ref batches (%s)", (format
         compete = false;
         await plantRef(f.root, "refs/arc/user/andrew/personal", [
           { path: "andrew/metadata-andrew.json", content: canonicalize({ formatVersion: 1, formats: {} }) },
-          { path: "andrew/batch.txt", content: "competing writer" },
+          { path: "andrew/batch.txt.andrew", content: "competing writer" },
         ]);
       }
       return f.ports.execInput(args, input, options);

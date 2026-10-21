@@ -1006,3 +1006,18 @@ source already creates each declared branch. The E2E fixture now does the same; 
 and repeat-import assertions. This corrects source setup and retains import's refusal and remedy for a genuinely
 missing branch. The failing hosted log is `/tmp/arc-storage-18-ci-e2e3.log`; the corrected focused run passed two cases
 in 12.29 seconds, retained in `/tmp/arc-storage-18.3-errand-e2e.log`.
+
+## Personal raw-tree fixture closure — Task 18.3.c
+
+The first dispatch exposed remaining fixtures that planted unsuffixed content or inspected an unsuffixed Git object
+path after A24. The raw fixtures in conflict labels, batch races, JSON prose diagnostics, pull history, historical
+bytes/recovery, and remote re-copy now use the canonical physical spelling; follow convergence, pull serialization,
+prior-blob recovery, and write-byte checks inspect it too. Oversized-entry diagnostics name the physical stored path.
+Logical references and all original behavioral assertions remain unchanged.
+
+The effective native verification union covers eleven files and 126 cases. The seven-file run passed six files and
+found one remaining old historical path; the next five-file run passed four and found the old oversized-diagnostic
+path. Correcting those yielded the final ten-case pull-check run. No passing unchanged suite was rerun solely to
+produce one aggregate result. Logs are `/tmp/arc-storage-18.3-personal-fixtures-final.log`,
+`/tmp/arc-storage-18.3-personal-fixtures-closure.log`, and `/tmp/arc-storage-18.3-personal-pull-checks.log`; the first
+dispatch's shard logs remain `/tmp/arc-storage-18-ci-integration{1,3,4}.log`.

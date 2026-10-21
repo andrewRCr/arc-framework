@@ -38,7 +38,7 @@ it.each(["before", "after", "during-recopy"] as const)("follows %s the mover cle
   const registryHistory = (await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "log", "--format=%H", "refs/arc/project/registry"])).stdout.trim().split("\n");
   expect(registryHistory).toContain(forwardedRegistry);
   if (timing === "after") await follow();
-  expect((await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "ls-tree", "-r", "--name-only", "refs/arc/user/andrew/personal"])).stdout.split("\n")).toContain("andrew/follower-only.md");
+  expect((await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "ls-tree", "-r", "--name-only", "refs/arc/user/andrew/personal"])).stdout.split("\n")).toContain("andrew/follower-only.md.andrew");
   expect((await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "grep", "-F", "Follower publication survives re-copy.", "refs/arc/user/andrew/personal"])).stdout).toContain("Follower publication survives re-copy.");
   const pulled = success(await store.pull());
   expect(pulled.states).toEqual([]);

@@ -91,7 +91,7 @@ describe("record history over state refs", () => {
     const message = "Human-authored change\n\nDetail preserved.\n";
     await plantRef(f.root, ref, [
       { path: "test-user/metadata-test-user.json", content: metadata },
-      { path: `test-user/${record.reference.key}`, content: "legacy bytes\n" },
+      { path: `test-user/${record.reference.key}.test-user`, content: "legacy bytes\n" },
     ], { parents: [parent], message });
     const registry = f.ports.registry;
     if (!registry) throw new Error("No fixture registry");
@@ -111,7 +111,7 @@ describe("record history over state refs", () => {
     const git = makeGitExec(f.root);
     const parent = (await git("git", ["rev-parse", ref])).stdout;
     const metadata = (await git("git", ["show", `${ref}:test-user/metadata-test-user.json`])).stdout;
-    const path = `test-user/${record.reference.key}`;
+    const path = `test-user/${record.reference.key}.test-user`;
     const content = "Unavailable historical content\n";
     const planted = await plantRef(f.root, ref, [{ path: "test-user/metadata-test-user.json", content: metadata },
       { path, content }], { parents: [parent] });

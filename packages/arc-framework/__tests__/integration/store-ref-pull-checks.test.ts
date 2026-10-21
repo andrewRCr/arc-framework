@@ -54,7 +54,7 @@ describe.each(["default", "separate"] as const)("advisory pull checks in the %s 
     await h.a.git(["push", h.remoteName, `${ref}:${ref}`]);
     expect(success(await h.b.store.pull()).pulls[0]?.status).toBe("pulled");
     const expected = prefix + baseText + suffix;
-    expect((await h.b.git(["show", `${ref}:andrew/combined.md`])).stdout).toBe(expected.trimEnd());
+    expect((await h.b.git(["show", `${ref}:andrew/combined.md.andrew`])).stdout).toBe(expected.trimEnd());
     expect(checkSerializationRules(reference, expected)?.rule).toBe(rule === "size cap" ? "store.size-cap" : "store.private-key");
     if (rule === "private-key frame") {
       expect(success(await h.b.store.read({ reference })).content).toBe(expected);
@@ -62,7 +62,7 @@ describe.each(["default", "separate"] as const)("advisory pull checks in the %s 
     }
     const listed = success(await h.b.store.list({ family: "personal", kind: "personal/document" }));
     expect(listed).toMatchObject({ status: "complete", missed: true, diagnostics: [expect.objectContaining({
-      kind: "oversized", key: "andrew/combined.md",
+      kind: "oversized", key: "andrew/combined.md.andrew",
     })] });
     expect(await h.b.store.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "record-malformed" } });
   });

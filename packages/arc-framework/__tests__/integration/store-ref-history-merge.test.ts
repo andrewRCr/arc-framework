@@ -21,7 +21,7 @@ describe("ordered ref merge history", () => {
     const source = kept === "remote" ? remote : local;
     const metadataPath = "test-user/metadata-test-user.json";
     await plantRef(f.root, ref, [{ path: metadataPath, content: (await git("git", ["show", `${source}:${metadataPath}`])).stdout },
-      { path: `test-user/${initial.reference.key}`, content: `${kept}\n` }], { parents: [local, remote],
+      { path: `test-user/${initial.reference.key}.test-user`, content: `${kept}\n` }], { parents: [local, remote],
       message: renderStoreCommitMessage({ ...testProvenance, verb: "merge", lifecycleAction: "merged" }, initial.reference, randomUUID()) });
     const history = success(await f.store.history({ reference: initial.reference }));
     expect(history.map(({ content }) => content)).toEqual(kept === "remote" ? ["remote\n", "local\n", "base\n"] : ["local\n", "remote\n", "local\n", "base\n"]);

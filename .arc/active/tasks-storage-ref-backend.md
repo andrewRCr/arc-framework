@@ -1833,6 +1833,11 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
         - The E2E source now creates the open Errand's recorded branch, as the integration source already does;
           both layouts import and rerun without weakening missing-branch admission.
 
+    - `[x]` **18.3.c Personal raw-tree fixture closure**
+        - Eleven native suites plant and inspect canonical identity-suffixed personal paths, including historical
+          damage/recovery and oversized-entry diagnostics. Logical references and merge, conflict, history, and
+          rollback assertions retain their existing meaning.
+
 ### `[ ]` **18.4 The host kit — § 14.8**
 
 - _Goal:_ The checks no CI host can run are run by hand against the real hosts, GitHub and GitLab holding every one, so

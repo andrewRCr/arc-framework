@@ -312,7 +312,7 @@ it("retains the source when corrupt metadata prevents a complete re-copy and res
     success(await h.store.push());
     expect(good.filter(entry => /(^|\/)metadata-/u.test(entry.path))).toHaveLength(1);
     const entries: PlantTreeEntry[] = good.map(entry => /(^|\/)metadata-/u.test(entry.path) ? { path: entry.path, content: "not metadata JSON" } : entry);
-    entries.push({ path: "andrew/unique-source.md", content: "Only the damaged source holds this write.\n" });
+    entries.push({ path: "andrew/unique-source.md.andrew", content: "Only the damaged source holds this write.\n" });
     broken = (await plantRef(h.origin, ref, entries, { parents: [h.sourcePersonal], gitDir: h.origin })).tip;
     destination = (await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout;
   } });

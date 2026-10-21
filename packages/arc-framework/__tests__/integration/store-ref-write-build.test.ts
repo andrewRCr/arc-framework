@@ -56,7 +56,7 @@ describe.each(["files", "reftable"] as const)("ref record construction (%s)", (f
     const result = await f.store.write({ action: "put", reference, expected: null, content, provenance });
     expect(result).toMatchObject({ status: "ok", result: { version: expect.any(String) } });
     expect(await f.store.read({ reference })).toMatchObject({ status: "ok", result: { content } });
-    const blob = (await f.exec("git", ["rev-parse", "refs/arc/user/andrew/personal:andrew/notes.json"])).stdout;
+    const blob = (await f.exec("git", ["rev-parse", "refs/arc/user/andrew/personal:andrew/notes.json.andrew"])).stdout;
     const expected = (await f.execInput(["hash-object", "--stdin"], content)).trim();
     expect(blob).toBe(expected);
   });

@@ -146,7 +146,7 @@ describe("registered ref write checks", () => {
     const f = await createRefFixture({ "personal/document": { check: async () => [] } });
     const record = await seed(f, f.reference("personal/document"), "old prior\n");
     const before = await f.settle();
-    const oid = (await makeGitExec(f.root)("git", ["rev-parse", `refs/arc/user/test-user/personal:test-user/${record.reference.key}`])).stdout;
+    const oid = (await makeGitExec(f.root)("git", ["rev-parse", `refs/arc/user/test-user/personal:test-user/${record.reference.key}.test-user`])).stdout;
     await removeLooseObject(f.root, oid);
     expect(await f.store.write(update(f, record, "new content\n"))).toMatchObject({ status: "refused", refusal: {
       code: "state-unresolvable", reference: record.reference, remedy: { text: expect.stringMatching(/restore|fetch/iu) },

@@ -15,7 +15,7 @@ async function legacyChange(f: RefConformanceFixture, key: string, email: string
   const parent = (await git("git", ["rev-parse", personalRef])).stdout;
   const metadata = (await git("git", ["show", `${personalRef}:test-user/metadata-test-user.json`])).stdout;
   const planted = await plantRef(f.root, personalRef, [
-    { path: "test-user/metadata-test-user.json", content: metadata }, { path: `test-user/${key}`, content: "legacy\n" },
+    { path: "test-user/metadata-test-user.json", content: metadata }, { path: `test-user/${key}.test-user`, content: "legacy\n" },
   ], { parents: [parent] });
   const epoch = Date.parse("2025-03-01T10:00:00Z") / 1000;
   const raw = `tree ${planted.tree}\nparent ${parent}\nauthor Human <human@example.test> ${epoch} +0000\n` +
