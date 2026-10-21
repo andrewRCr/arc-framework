@@ -334,6 +334,13 @@ sync.auto_pull: false
 #   manual           - Defer archival until explicitly invoked.
 archive.cadence: with-integration
 
+# --- Design export ---
+
+# Export the stored specification into the code repository for pull-request review.
+#   specs - Write and stage the spec at attestation and after a review fix. (default)
+#   none  - Keep design documents exclusively in operational storage.
+storage.track_design_docs: specs
+
 # --- Inbox ---
 
 # Reminder threshold, in whole days, for flagged USER-INBOX captures. A `_Remind:_`-flagged

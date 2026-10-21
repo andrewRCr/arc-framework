@@ -65,6 +65,7 @@ import type {
   ReviewResultReader,
 } from "../core/ports.js";
 import type { ReviewResult } from "../core/review-result.js";
+import type { DesignExportResult } from "../../../lib/work-unit/design-export.js";
 import {
   dispositionSourceContextForResult,
   validateApprovedDispositionRecordForResult,
@@ -337,6 +338,8 @@ export interface RespondCommandDependencies {
     expectedRecordVersion: string;
   }): Promise<{ recordPath: string }>;
   stageCandidateResponse(workUnit: string): Promise<{ recordPath: string }>;
+  /** Re-export a Candidate's changed stored specification after its performed response. */
+  exportCandidateDesign?(workUnit: string): Promise<DesignExportResult | null>;
   rebindSingletonPublicationResponse(input: {
     workUnit: string;
     response: CandidateReviewResponseEvidenceV1;
@@ -981,8 +984,10 @@ async function replayCandidateResponse(
       dependencies,
       matching.responseId,
     );
+    const diagnostics = await exportCandidateResponseDesign(source, lineage.workUnit, dependencies);
     return RespondEnvelopeSchema.parse({
       ...header,
+      diagnostics,
       state: "candidate-current",
       nextAction: "continue-review",
       payload: {
@@ -994,6 +999,17 @@ async function replayCandidateResponse(
         ...continuation,
       },
     });
+}
+
+async function exportCandidateResponseDesign(source: ResolvedResponseSource, workUnit: string,
+  dependencies: RespondCommandDependencies): Promise<Array<{ code: string; message: string }>> {
+  if (source.target.kind === "delivery-member" || source.responseBinding?.deliveryMember !== undefined
+    || source.hostedAttempt?.vehicle !== undefined || source.deliveryAdmission !== undefined) return [];
+  const exported = await dependencies.exportCandidateDesign?.(workUnit);
+  if (exported == null) return [];
+  return [{ code: "design-exported", message: exported.overwritten
+    ? `Re-exported ${exported.path}, replacing the existing copy with the stored specification.`
+    : `Exported the stored specification to ${exported.path}.` }];
 }
 
 function candidateAuthorityBindingMatches(
@@ -1132,8 +1148,10 @@ async function persistCandidateResponse(
     dependencies,
     response.responseId,
   );
+  const diagnostics = await exportCandidateResponseDesign(source, lineage.workUnit, dependencies);
   return RespondEnvelopeSchema.parse({
     ...header,
+    diagnostics,
     state: "candidate-advanced",
     nextAction: "continue-review",
     payload: {

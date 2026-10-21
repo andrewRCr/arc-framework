@@ -1326,7 +1326,7 @@ prerequisites have landed, and every earlier task is independent of the remainin
   checked out, and renders its recorded next-action command without currentness projection. Planning reports none;
   version-two boundaries and their continuation actions use the existing published schemas.
 
-### `[ ]` **7.3 Build D18's export and its evidence-neutral arm — § 12.5**
+### `[x]` **7.3 Build D18's export and its evidence-neutral arm — § 12.5**
 
 - _Goal:_ From the flip one export writes and stages the work unit's spec as `.arc/specs/<slug>/spec-<slug>.md` at
   attest and re-exports it when a review fix amends the stored spec, `storage.track_design_docs` turning it off, while
@@ -1340,33 +1340,13 @@ prerequisites have landed, and every earlier task is independent of the remainin
           unit remain reviewable. Adding, rewriting, and deleting a copy preserve staged and committed Candidate
           subject digests; delivery's lifecycle-contribution group stays unchanged.
 
-    - `[ ]` **7.3.b The option and the export**
+    - `[x]` **7.3.b The option and the export**
 
-        - `storage.track_design_docs: none | specs`, default `specs`, in `lib/config/schema.ts`, a pre-flip addition
-          (§ 3.5) joining the lists kept by hand that name every option, among them `VALIDATION_DOMAIN_ORDER`
-          (`commands/config/validate.ts`), the shipped `arc-config.yml` (`packages/arc-framework/arc/system/`),
-          `__tests__/unit/config/schema.test.ts`, and the rendered validation lines the configuration tests keep
-          (`EMPTY_CONFIG_VALIDATION_PASS_LINES`, `__tests__/fixtures/config/cases.ts`), and every complete settings
-          object a test builds (`ConfigSettingsSchema`), which type checking finds. One export function in a new module
-          writes and stages the copy, `spec-<slug>.md`, in the folder at 6.5.d's layout address.
-        - `arc attest` calls it inside its publish step, just before writing the Candidate record
-          (`writeCandidateRecord`, `handlers/lifecycle-delivery-review.ts`), after every refusal `runAttest` and the
-          renewal checks make; the subject `handleAttest` collected earlier may omit the copy, which 7.3.a makes
-          evidence-neutral.
-        - `arc review respond` calls it for a Candidate's response alone, right after its single `performance` write for
-          a performed fix (`recordPerformedResponse`, `rg/runtime/respond-command.ts`; 5.3.b) on both its paths
-          (`persistCandidateResponse`, `replayCandidateResponse`), outside every check 6.5.c and 6.5.d retire, comparing
-          the stored spec with the copy and re-exporting on a difference, so a replay after a completed export writes
-          nothing, the copy riding the commit that follows. An Errand's and a delivery member's responses export nothing
-          (§ 12.5).
-        - Build `test-first` (one behavior at a time):
-            - attest from the flip writes the copy before writing the Candidate record, a refused attest writes none,
-              and the attested Candidate's subject digest is the one it would be without the copy
-            - a performed fix's response re-exports a stored spec that differs from the copy, overwriting a hand-edited
-              copy and reporting that it did, and re-exports nothing where they match, a replayed response included
-            - an Errand's and a delivery member's performed responses export nothing
-            - `none` exports nothing, and in-repo nothing is exported
-            - the option parses with its default, and `arc config validate` reports it
+        - Added `storage.track_design_docs` (`none | specs`, default `specs`) and synchronized configuration
+          inventories. One exporter stages the native stored spec after attest admission and after a Candidate's
+          performed response, including replay; replacement is reported, matching responses leave the copy untouched,
+          and staging failures restore its prior bytes for retry. Errands, delivery members, and in-repo storage export
+          nothing.
 
 ### `[ ]` **7.4 Read readiness through the store for the merge lock — § 12.7**
 

@@ -16,6 +16,7 @@ import { recordReferences } from "../lib/store/identity.js";
 import { ParsedMetaRecordSchema } from "../lib/active/meta-schema.js";
 import { resolveTaskListPath } from "../commands/active.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
+import { exportWorkUnitSpec } from "../lib/work-unit/design-export.js";
 import { createPublicationBoundaryAccess, openPublicationReviewContext } from "./lifecycle-publication-boundary.js";
 import { CanonicalDigestSchema } from "../lib/kernel/schema/vocabulary.js";
 import { resolveReviewInvocation } from "../scripts/review-gate/runtime/invocation.js";
@@ -386,6 +387,9 @@ export async function attestCandidateWithReviewBoundary(base: VerbBase,
             );
           }
         }
+        await exportWorkUnitSpec({ cwd: base.cwd, workUnit: publication.name, store: executor.store,
+          owner: reviewInvocation.workItem, exec: base.io.exec, trackDesignDocs: settings["storage.track_design_docs"],
+          stageMatching: true });
         const recordPath = boundarySchemaVersion === 2 ? null : await writeCandidateRecord(
           base.cwd,
           publication.name,

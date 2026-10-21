@@ -78,6 +78,7 @@ function buildSettings(overrides: FixtureOverrides = {}): ResolvedSettingsResult
     "session.init_load.notes": "prompt",
     "sync.auto_pull": "false",
     "archive.cadence": "with-integration",
+    "storage.track_design_docs": "specs",
     "user.notes_push": "on-sync",
   };
 

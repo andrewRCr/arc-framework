@@ -69,6 +69,7 @@ const VALIDATION_DOMAIN_ORDER = [
   "user.notes_push",
   "sync.auto_pull",
   "archive.cadence",
+  "storage.track_design_docs",
 ] as const satisfies readonly ArcConfigKey[];
 
 const OPTIONAL_INTEGER_KEYS = [

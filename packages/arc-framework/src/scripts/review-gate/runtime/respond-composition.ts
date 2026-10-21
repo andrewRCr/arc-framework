@@ -15,6 +15,7 @@ import { readFile } from "node:fs/promises";
 
 import { canonicalize } from "../../../lib/kernel/canonical/canonical-json.js";
 import { readConfigSettings } from "../../../lib/config/status-reader.js";
+import { exportWorkUnitSpec } from "../../../lib/work-unit/design-export.js";
 import { resolveCommitInterlock, resolvePushInterlock } from "../../../lib/config/resolved-settings.js";
 import {
   projectTransientInFlightRead,
@@ -858,6 +859,9 @@ function createBoundRespondDependencies(input: ReviewInvocationInput & ReviewInv
       if (!input.store.capabilities.stateOffBranch) await input.exec("git", ["add", "--", recordPath], { cwd: input.cwd });
       return { recordPath };
     },
+    exportCandidateDesign: async workUnit => exportWorkUnitSpec({
+      ...input, workUnit, owner: input.workItem, trackDesignDocs: (await settings())["storage.track_design_docs"],
+    }),
     rebindSingletonPublicationResponse: async ({ workUnit, response, requirePublished }) => {
       await requireCandidateMutationOwner(workUnit);
       await stageSingletonPublicationResponse({

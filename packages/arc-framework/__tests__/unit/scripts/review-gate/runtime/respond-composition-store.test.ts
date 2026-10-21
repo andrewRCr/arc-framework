@@ -6,6 +6,23 @@ import { createRespondDependencies } from "../../../../../src/scripts/review-gat
 import { createReviewHarness } from "../../../../helpers/store/review-harness.js";
 import { candidateRecordFixture } from "../../../../fixtures/review-candidate.js";
 import { readCandidateRecord } from "../../../../../src/lib/store/kinds/review/candidate/access.js";
+import { recordReferences } from "../../../../../src/lib/store/identity.js";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+
+it("exports the invocation Store's spec through the response composition", async () => {
+  const h = createReviewHarness(), primary = await h.seedMeta("example");
+  await h.seed(recordReferences["work-item/spec"](primary.reference.owner), "# Selected specification\n");
+  const path = ".arc/specs/example/spec-example.md";
+  const checkout = await createReviewCheckout(h, { script: [
+    { match: ["add", "--", path], responses: [{ stdout: "" }] },
+  ] });
+  onTestFinished(checkout.cleanup);
+  const dependencies = createRespondDependencies({ cwd: checkout.cwd, exec: checkout.exec,
+    store: h.store, workItem: primary.reference.owner, projectId: h.projectId });
+  expect(await dependencies.exportCandidateDesign?.("example")).toEqual({ path, overwritten: false });
+  expect(await readFile(join(checkout.cwd, path), "utf8")).toBe("# Selected specification\n");
+});
 
 it("withdraws conditional authority against the supplied Store's current approved fix", async () => {
   const f = await createNativeConditionalPassFixture("frontline");
