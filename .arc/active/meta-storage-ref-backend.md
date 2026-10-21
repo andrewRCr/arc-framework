@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** Task 15.2 — Lineage, renames, and abandoned origins
-- **Next Task:** Task 15.3.a — Errands and claims re-homed (line ~1347)
-- **Blockers:** Waiting for `seam-locus` to ship before Task 15.3.a
+- **Last Completed:** Task 18.7 — Hosts, platforms, and cost (phases 15–18 complete)
+- **Next Task:** Task 19.1 — Complete verification (line ~2103)
+- **Blockers:** [none]
 
-- **Next Action:** Once `seam-locus` ships, reconcile its changes and agree the next execution scope before Task 15.3.a
+- **Next Action:** Fresh session: load `verify-work-unit.md` for the authorized Task 19.1 verification.
 
 - **PR URL:** [none]
 - **Completed:** [none]
