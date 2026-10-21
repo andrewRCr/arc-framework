@@ -1838,6 +1838,11 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
           damage/recovery and oversized-entry diagnostics. Logical references and merge, conflict, history, and
           rollback assertions retain their existing meaning.
 
+    - `[x]` **18.3.d Join synchronization fixture**
+        - Registered join and identity-setup cases supply schema-shaped outcomes through their selected store's public
+          pull; production synchronization binding and rendering run unchanged. The first-identity pull precedes
+          configuration, preserving its supplied inbox; neighboring cancellation/recovery assertions remain covered.
+
 ### `[ ]` **18.4 The host kit — § 14.8**
 
 - _Goal:_ The checks no CI host can run are run by hand against the real hosts, GitHub and GitLab holding every one, so

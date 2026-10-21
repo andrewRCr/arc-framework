@@ -1021,3 +1021,14 @@ path. Correcting those yielded the final ten-case pull-check run. No passing unc
 produce one aggregate result. Logs are `/tmp/arc-storage-18.3-personal-fixtures-final.log`,
 `/tmp/arc-storage-18.3-personal-fixtures-closure.log`, and `/tmp/arc-storage-18.3-personal-pull-checks.log`; the first
 dispatch's shard logs remain `/tmp/arc-storage-18-ci-integration{1,3,4}.log`.
+
+## Join synchronization fixture — Task 18.3.d
+
+The dispatched join and identity-setup integration cases mocked `createStoreSyncPort`, but the current
+`bindStoreSyncPort` calls its own module-local implementation, so those mocks supplied neither designation nor the
+promised records. Both cases now supply schema-shaped store-result envelopes at their selected store's public `pull`
+boundary. The designation uses current `push`/`read` choices and an executable push remedy. The first-identity case
+retains its assertion that pull runs before identity configuration and that the pulled inbox is preserved.
+Production binding and rendering execute normally. The registered-CLI, identity-setup, and cancellation/recovery suites
+passed eight cases in 33.81 seconds; `/tmp/arc-storage-18.3-join-final.log` retains the run, and
+`/tmp/arc-storage-18-ci-integration{2,3}.log` retain the prior failures.
