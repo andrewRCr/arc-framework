@@ -3959,10 +3959,17 @@ in-repo implementation, notes, or Errand refs by name retires with them. This ch
 
 #### 14.12 CI cost
 
-Until the cutover CI runs both backends. The ref fixture copies a prepared template repository per test, and its
-conformance run per layout stays within 1.5 times the in-repo conformance's time on the same GitHub-hosted runner. The
-test-cost budget rows the new files touch — tier and CI-job rows in `packages/arc-framework/test-cost-budgets.json` —
-are baselined before the first file lands.
+Until the cutover CI runs both backends. `createRefFixture` copies a prepared template repository per test. Record the
+complete conformance file times and completed-case populations for the in-repo backend and both ref layouts from one
+GitHub-hosted dispatch, naming each shard. Explain their workload differences; no native-to-legacy time ratio is an
+acceptance bound, and no matched-cohort comparison mechanism is required (A25).
+
+Retain every required native case and the Windows operation budgets of § 11.7. The test-cost budget rows the new files
+touch — tier and CI-job rows in `packages/arc-framework/test-cost-budgets.json` — are baselined before the first file
+lands, re-measured after the last one lands using the baseline procedure, and updated with the measured figures. Record
+each delta and the Linux portability job's separate-layout marginal file cost in `notes-storage-ref-backend.md`.
+Separate queue/admission waits from raw test timings and label job-clock measurements as such; local diagnostics do not
+establish hosted cost or explain a hosted failure (A25).
 
 #### 14.13 Retained conflict recovery (A16)
 
@@ -4297,6 +4304,12 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     changes, pull/push, and import retain logical keys and exact content; role aliases and logical file/folder
     collisions refuse atomically and a corrected key succeeds. Projection addresses remain unchanged (A24).
 
+32. **CI cost is measured without an interim legacy ratio.** Complete conformance times, completed-case populations,
+    shards, and workload differences are recorded from one hosted dispatch. All required native cases remain; affected
+    tier and CI-job rows retain their before baseline and are re-measured and updated after the final new file, with
+    deltas and Linux portability marginal cost recorded. Raw timings distinguish admission waits from execution and
+    job-clock costs; the Windows budgets remain required (§ 14.12). Supersedes criterion 11 (A25).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4408,5 +4421,8 @@ open:
 
 - **A24** — 2026-10-20 — design: suffix stored personal content filenames with their identity.
   _Supersedes:_ § 3.2 personal paths. _Trigger:_ 18.5 door. _Work:_ 18.R. _Revalidated:_ 18.R.
+
+- **A25** — 2026-10-21 — design: measure complete CI cost without the interim legacy ratio. _Supersedes:_ § 14.12, SC 11.
+  _Trigger:_ 18.3 must-stop. _Work:_ 18.3.R. _Revalidated:_ pending → 18.7.
 
 ---

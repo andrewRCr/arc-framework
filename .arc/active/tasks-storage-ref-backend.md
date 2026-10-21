@@ -992,6 +992,8 @@ converge with no lost write.
 
     - _Amended in:_ 4.R2 (A23)
 
+    - _Amended in:_ 18.3.R (A25)
+
 - _Outcome:_ A prepared peer clone, real origin fault controls, and a virtual between-attempt deadline exercise sync
   and repair through public stores in both layouts. All temporary sync exclusions are retired. Ordinary clashes keep
   the published side current, including metadata, removals, labels, and primary roles; local-first history remains.
@@ -1752,15 +1754,16 @@ _Exit criterion:_ Every case of § 14.6 and § 14.7 passes.
 ## **Phase 18:** Hosts, platforms, and cost
 
 _Purpose:_ The evidence no per-change CI run gathers: the bursts, the Windows and macOS pair with the Windows budget and
-its conditional reader or object batching, the CI cost bound, the hand-run host kit, the pack cost of shared personal
-names, and the suites that survive the cutover.
+its conditional reader or object batching, the CI cost measurements, the hand-run host kit, the pack cost of shared
+personal names, and the suites that survive the cutover.
 
 _Mode:_ `replication` — closes when every platform, host, and measurement § 14.5 and § 14.8–§ 14.12 enumerate has run
 and is recorded.
 
-_Exit criterion:_ The bursts and the Windows budget pass on their dispatched runs, each layout's conformance run stays
-within 1.5 times the in-repo conformance's time, and the host kit's results, the pack-cost measurement, and the
-surviving suites are recorded in `notes-storage-ref-backend.md`.
+_Exit criterion:_ The bursts and the Windows budget pass on their dispatched runs, complete conformance costs and
+workload differences are recorded, affected tier/job cost rows are re-measured and updated with baseline deltas, and
+Linux portability marginal cost, the host kit's results, the pack-cost measurement, and the surviving suites are recorded
+in `notes-storage-ref-backend.md` (A25).
 
 ### `[ ]` **18.1 The bursts — § 14.5**
 
@@ -1834,8 +1837,7 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
 - _Goal:_ Running both backends until the cutover costs CI no more than the bound: each layout's ref conformance run
   within 1.5 times the in-repo conformance's time on the same GitHub-hosted runner.
 
-    - Resolve the early local cost miss recorded by 9.6 in `notes-storage-ref-backend.md` § CI cost history; the
-      original hosted bound remains the target
+    - _Amended in:_ 18.3.R (A25)
     - Per-file times from the `duration-results-integration-*` artifacts a dispatched run uploads (`ci.yml`), the in-repo
       conformance file (`__tests__/integration/store-in-repo-conformance.test.ts`) and each layout's ref conformance file
       read from one run on `ubuntu-latest`, the shard that ran each named beside its time
@@ -1862,6 +1864,24 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
         - Registered join and identity-setup cases supply schema-shaped outcomes through their selected store's public
           pull; production synchronization binding and rendering run unchanged. The first-identity pull precedes
           configuration, preserving its supplied inbox; neighboring cancellation/recovery assertions remain covered.
+
+### `[ ]` **18.3.R Record complete conformance cost and retain tier/job budgets — § 14.12**
+
+- _Goal:_ Record complete hosted conformance costs and workload differences without an interim legacy ratio, retaining
+  all native coverage, Windows budgets, and affected tier/job cost measurements and baseline deltas (A25).
+
+    - `[ ]` **18.3.R.a Complete-file hosted evidence**
+        - Record one dispatch's exact head, shard, complete file time, and completed-case count for the in-repo suite
+          and both native layouts; explain the unequal workloads and preserve the historical ratio miss.
+        - Use existing duration artifacts and retained registration evidence; add no matched-cohort comparison
+          mechanism.
+
+    - `[ ]` **18.3.R.b Final tier and job cost closure**
+        - After the final new file lands, repeat 1.1's tier/job procedure, update each affected budget row to the
+          measured figure, and record baseline deltas and the Linux portability separate-layout marginal file cost.
+        - Distinguish raw execution, queue/admission waits, and job clocks. Preserve every required native case and
+          Windows operation budget; local diagnostics cannot close hosted evidence or establish a hosted failure's
+          cause.
 
 ### `[ ]` **18.4 The host kit — § 14.8**
 
@@ -1935,6 +1955,7 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
 - _Goal:_ The bursts and the Windows budget pass on their dispatched runs, CI cost holds, and the host kit, pack cost,
   and surviving suites are recorded.
 
+    - _Amended in:_ 18.3.R (A25)
     - Request `arc check segment`
 
 ## **Phase 19:** Verification
@@ -2058,3 +2079,8 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
 - `[ ]` All five personal content kinds retain logical keys, projection addresses, and public operation/import behavior
   under identity-suffixed stored basenames; aliases and logical file/folder collisions refuse atomically, and corrected
   keys succeed in both layouts without old-name compatibility (A24)
+
+- `[ ]` Complete conformance costs, completed-case populations, shards, and workload differences are recorded from one
+  hosted dispatch; all required native cases remain, affected tier/job rows retain before baselines and receive final
+  measurements and deltas, and Linux portability marginal cost is recorded. Raw execution excludes admission waits,
+  job clocks are labeled, and Windows budgets remain required (§ 14.12; supersedes the legacy-ratio criterion) (A25)

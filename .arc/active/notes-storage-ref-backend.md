@@ -1205,3 +1205,39 @@ Raw request records, CPU profiles, the temporary diagnostic source, before/after
 and verification logs are retained machine-locally under
 `.arc/user/andrew/.internal/storage-ref-backend-tools/task-18.2-archive-acquisition/`. Temporary instrumentation was
 removed and the timing helper restored before final gate checks. A fresh dispatched Windows result is still required.
+
+## A25 — Retire the interim legacy ratio
+
+The interim bound compared unequal workloads: the hosted run completed 310 in-repo cases and 1,069 in each native
+layout, at ratios of 4.073 and 5.003. The original target was missed. The local 278-ID diagnostic is useful evidence
+about the mismatch, not a hosted acceptance result. The comparison retires at cutover with the legacy suite; building
+a temporary matched-cohort hosted mechanism would add machinery whose acceptance purpose disappears there.
+
+The approved forward amendment replaces that ratio with complete hosted cost and workload reporting. Required native
+coverage, the Windows operation budgets, before baselines, final tier/job re-measurements and budget-row updates,
+baseline deltas, and Linux portability marginal cost remain obligations. It does not establish a pass for any pending
+platform, host, timeout, or cost-measurement check.
+
+Superseded § 14.12:
+
+> Until the cutover CI runs both backends. The ref fixture copies a prepared template repository per test, and its
+> conformance run per layout stays within 1.5 times the in-repo conformance's time on the same GitHub-hosted runner. The
+> test-cost budget rows the new files touch — tier and CI-job rows in `packages/arc-framework/test-cost-budgets.json` —
+> are baselined before the first file lands.
+
+Superseded criterion 11:
+
+> **CI cost holds:** each layout's conformance run stays within 1.5 times the in-repo conformance's time on the same
+> runner, and the test-cost rows the new files touch were baselined before they landed.
+
+Superseded Phase 18 exit criterion:
+
+> The bursts and the Windows budget pass on their dispatched runs, each layout's conformance run stays within 1.5 times
+> the in-repo conformance's time, and the host kit's results, the pack-cost measurement, and the surviving suites are
+> recorded in `notes-storage-ref-backend.md`.
+
+Propagation retains Task 9.6's historical outcome and Task 18.3's original Goal, with forward markers to 18.3.R.
+Criterion 11 remains unchanged for supersession disposition at terminal verification; appended criterion 32 carries
+the replacement. The Phase 18 verifier retains its Goal and uses the amended cost obligation. Baseline work, prepared
+fixtures, native conformance, Windows budgets, host checks, pack measurements, and cutover-suite disposition are
+unaffected. No runtime or test mechanism changes in this capture.
