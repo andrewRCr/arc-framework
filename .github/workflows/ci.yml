@@ -23,9 +23,9 @@ on:
   # Weekly full-tier duration refresh and cross-platform portability. The pair fires only here or
   # on an explicit dispatch opt-in — never from PR synchronizes — so the weekly
   # cadence is a post-merge backstop against OS-specific concurrency-guard
-  # regressions at a trivial cost (macOS bills 10×, but a single weekly firing is
-  # a few billed minutes). classify still computes portability_target as the
-  # relevance signal; the pair no longer consumes it.
+  # regressions. The complete native suites also run in the pair, so additional
+  # hosted executions stay scheduled or explicitly requested. classify still
+  # computes portability_target as the relevance signal; the pair no longer consumes it.
   schedule:
     - cron: '17 8 * * 1'
 
