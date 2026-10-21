@@ -1944,3 +1944,24 @@ approved forward amendment changes them, every original numeric limit remains re
 
 Run metadata, complete raw samples and traces, the Windows failure log, and the derived interval summary are retained
 under `task-18.2-budget-calibration/` in the machine-local storage-ref-backend tools directory.
+
+### A27 — calibrated hosted Windows limits
+
+The superseded § 11.6 premise read: "start costs about 30 ms on Windows against 1.3 ms on Linux." The superseded
+§ 11.7 table required version ≤ 100 ms, read ≤ 150 ms, list/lookup ≤ 300 ms, and write ≤ 600 ms. The original local
+spike and the production-adapter calibration above establish that the premise did not calibrate those hosted limits;
+they do not prove the former limits impossible. Approval selects a bounded change to the regression limits before
+further enumeration work, without treating the previous failed runs as passes.
+
+The approved limits are version 100 ms, read 300 ms, list 600 ms, lookup 300 ms, and write 1,500 ms. The three changed
+limits round above the latest worst-layout medians with at least 35% headroom. The margin is an explicit policy choice,
+not a proven latency guarantee. The full dispatched pair, eleven samples, 600-item/twelve-quarter fixture, native
+correctness and resource coverage, and per-call reader/admission boundaries remain required. No new tree-enumeration
+mechanism is included. `store-ref-timing.test.ts::budgets` is the enforcement locus; its existing measurement loop and
+Windows-only assertions remain the implementation path.
+
+The propagation sweep covers § 11.6's premise, § 11.7's table, criterion 9 and its appended replacement, Tasks 18.2
+and 18.2.R2, and the appended task-list criterion. Earlier completed reduction tasks and A26 retain their historical
+unchanged-budget claims; the new criterion supersedes only those numeric obligations. The phase exit criterion,
+§ 14.10's full-run requirement, A25's CI-cost obligations, and Task 18.7 continue to require the current budget without
+changing their outcomes. No Success Criteria checkbox changes before terminal verification.

@@ -3186,8 +3186,9 @@ manifest — as today's batch reads do (`lib/io-context.ts`, `lib/git/object-ava
 adds the scan's four once per process (§ 8). Each binding in `lib/git/process-executor.ts` caps a call's captured output
 at 64 MiB (`MAX_GIT_OUTPUT_BYTES`), so a `cat-file --batch` that fails `output-limit` (`GitProcessError`,
 `lib/git/process-error.ts`) runs again as two calls over halves of its blobs, until each fits; the split costs nothing
-where a read fits, and a single blob past the ceiling, which no record nears, fails the read with that error. A process
-start costs about 30 ms on Windows against 1.3 ms on Linux. Every read passes `objectAccess: "local-only"`
+where a read fits, and a single blob past the ceiling, which no record nears, fails the read with that error. The
+planning spike measured about 30 ms per local Windows Git call against 1.3 ms on WSL; hosted costs are measured
+separately for § 11.7 (A27). Every read passes `objectAccess: "local-only"`
 (`GitExecOptions` and `RawGitExec`, `lib/git/exec.ts`), which runs Git with `--no-lazy-fetch`, so a read never reaches
 the network: an object the clone lacks fails the read rather than fetching it, and in a partial clone every state object
 came with the fetch that brought its ref (§ 6.2).
@@ -3196,14 +3197,19 @@ came with the fetch that brought its ref (§ 6.2).
 
 Medians on a GitHub-hosted Windows runner, over a store holding 600 work items across twelve quarters, measured by the
 portability run (§ 14.10). They bound this backend on that runner, which CI can repeat. On any machine a no-change
-`version` is one Git process (§ 4.2), and a consumer's budget on its own machine rests on that, not on these figures:
+`version` is one Git process (§ 4.2), and a consumer's budget on its own machine rests on that, not on these figures.
 
-| Operation        | Budget   |
-| ---------------- | -------- |
-| `version`        | ≤ 100 ms |
-| `read`           | ≤ 150 ms |
-| `list`, `lookup` | ≤ 300 ms |
-| `write`          | ≤ 600 ms |
+The hosted regression limits are calibrated to the production adapter and full workload, rather than inferred from
+local process startup. Read/list/write limits include measured hosted headroom; version and lookup limits remain
+unchanged (A27):
+
+| Operation | Budget     |
+| --------- | ---------- |
+| `version` | ≤ 100 ms   |
+| `read`    | ≤ 300 ms   |
+| `list`    | ≤ 600 ms   |
+| `lookup`  | ≤ 300 ms   |
+| `write`   | ≤ 1,500 ms |
 
 A read over its budget gets a long-lived reader before this change lands: a `cat-file --batch` process the executor
 keeps open for the operation's reads, with abort on cancellation and closed before maintenance, since Windows cannot
@@ -4314,6 +4320,11 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     deltas and Linux portability marginal cost recorded. Raw timings distinguish admission waits from execution and
     job-clock costs; the Windows budgets remain required (§ 14.12). Supersedes criterion 11 (A25).
 
+33. **Calibrated Windows budgets hold on the full workload.** A complete dispatched portability pair passes, with
+    eleven-sample Windows medians over 600 work items across twelve quarters at or below 100/300/600/300/1,500 ms for
+    version/read/list/lookup/write in both layouts. Correctness and native resource coverage remain required; no
+    acceptance claim rests on a timing-only diagnostic. Supersedes criterion 9's original numeric limits (A27).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4431,5 +4442,8 @@ open:
 
 - **A26** — 2026-10-21 — design: reuse an operation-scoped reader during native writes without relaxing budgets.
   _Supersedes:_ § 11.7 write-reader exclusion. _Trigger:_ 18.2.a.2 must-stop. _Work:_ 18.2.R. _Revalidated:_ pending → 18.7.
+
+- **A27** — 2026-10-21 — design: calibrate hosted Windows limits. _Supersedes:_ §§ 11.6–11.7, SC 9.
+  _Trigger:_ 18.2.n.2 must-stop. _Work:_ 18.2.R2. _Revalidated:_ pending → 18.7.
 
 ---

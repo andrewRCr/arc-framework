@@ -1805,6 +1805,7 @@ in `notes-storage-ref-backend.md` (A25).
 - _Goal:_ A dispatched portability run passes `--git-dir` with Windows paths and reftable on NTFS, and times `version`,
   `read`, `list`, `lookup`, and `write` within their budgets over 600 work items in twelve quarters.
 
+    - _Amended in:_ 18.2.R2 (A27)
     - The separate layout's suites join the `portability` tier's list ungated, each listed by file name: 8.2's
       `store-ref-directory.test.ts` and 8.6's `store-ref-separate-conformance.test.ts`, so the pair runs `--git-dir` and
       reftable on each platform and the Linux `portability` job runs them on each reviewed pull request it runs on;
@@ -1947,6 +1948,19 @@ in `notes-storage-ref-backend.md` (A25).
 - _Outcome:_ The unchanged 600-item trace uses 15/default and 17/separate processes, including one native object
   reader in each layout. Reader ownership remains per public call; immutable evidence remains per write attempt.
   Hosted acceptance is separate; local measurements and reconstruction evidence are in `notes-storage-ref-backend.md`.
+
+### `[ ]` **18.2.R2 Calibrated Windows operation limits**
+
+- _Goal:_ Both layouts enforce the approved 100/300/600/300/1,500 ms version/read/list/lookup/write medians over the
+  unchanged 600-item, twelve-quarter workload, and the complete dispatched portability pair passes (A27).
+
+    - `[ ]` **18.2.R2.a Align timing assertions with the calibrated limits**
+        - Change only the three approved numeric limits; retain eleven samples, fixture population, validation,
+          reader ownership, native resource regressions, and separate diagnostic/full-run selection.
+
+    - `[ ]` **18.2.R2.b Complete the dispatched portability pair**
+        - Record both layouts' Windows medians, complete platform outcomes, and exact source head; close 18.2.a.2
+          only when the full pair passes. Preserve earlier failures as failures and retain the raw artifacts.
 
 ### `[~]` **18.3 CI cost — § 14.12**
 
@@ -2200,3 +2214,8 @@ in `notes-storage-ref-backend.md` (A25).
   success/refusal/error exits release them before return or maintenance, subsequent calls detect physical corruption
   and succeed after repair, and fresh namespace/observation admission remains atomic with unchanged Windows budgets
   (§ 11.7) (A26)
+
+- `[ ]` A complete dispatched portability pair passes with eleven-sample Windows medians over 600 work items across
+  twelve quarters at or below 100/300/600/300/1,500 ms for version/read/list/lookup/write in both layouts, retaining
+  all correctness and native resource coverage. Timing-only diagnostics do not close acceptance; these limits
+  supersede the earlier numeric budget obligations, including the unchanged-budget clause in A26 (§ 11.7) (A27)
