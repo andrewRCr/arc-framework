@@ -17,7 +17,7 @@ import { classifyReviewContributionApplicability } from
 const oid = (character: string): string => character.repeat(40);
 const CANDIDATE_ID = canonicalDigest({ candidate: "example" });
 
-function decision() {
+function decision(paths = ["src/example.ts"]) {
   const selector = {
     schemaVersion: 1 as const,
     repositoryId: "repository-1",
@@ -42,7 +42,7 @@ function decision() {
         member: { head: oid("b"), tree: oid("6") },
       },
     },
-    proof: { status: "refused", reason: "contribution-diverged", paths: ["src/example.ts"] },
+    proof: { status: "refused", reason: "contribution-diverged", paths },
   });
   if (projection.state !== "decision-required") throw new Error("expected decision fixture");
   return projection;
@@ -64,6 +64,46 @@ function selection(
     selectedAt: "2026-08-23T12:00:00.000Z",
     choice,
   };
+}
+
+/** An Owner selection over `selectedPaths`, carried across the commit that writes `recordPath`. */
+function recordCarry(recordPath: string, selectedPaths: string[]) {
+  const selectedProjection = decision(selectedPaths);
+  const ownerSelection = selection(selectedProjection, "covered");
+  const diverged = (
+    applicabilitySelector: typeof selectedProjection.selector,
+    paths: string[],
+  ) => {
+    const projection = classifyReviewContributionApplicability(applicabilitySelector, {
+      endpoints: {
+        before: selectedProjection.projection.after,
+        after: {
+          predecessor: selectedProjection.projection.after.predecessor,
+          member: { head: applicabilitySelector.currentHead, tree: oid("9") },
+        },
+      },
+      proof: { status: "refused", reason: "contribution-diverged", paths },
+    });
+    if (projection.state !== "decision-required") throw new Error("record carry fixtures must classify");
+    return projection;
+  };
+  const current = { ...selectedProjection.selector, currentHead: oid("c") };
+  const mechanicalProjection = diverged({
+    ...current,
+    priorHead: selectedProjection.selector.currentHead,
+    priorBase: selectedProjection.selector.currentBase,
+  }, [recordPath]);
+  const reduce = (paths: string[]) => {
+    const projection = diverged(current, paths);
+    return reduceReviewApplicabilityAuthorityWithMechanicalCarry(
+      CANDIDATE_ID,
+      projection,
+      [ownerSelection],
+      [{ selection: ownerSelection, selectedProjection, mechanicalProjection, ownRecordPath: recordPath }],
+    );
+  };
+
+  return { ownerSelection, reduce };
 }
 
 describe("review applicability authority", () => {
@@ -119,40 +159,7 @@ describe("review applicability authority", () => {
 
   it("preserves an exact Owner selection across the commit recording it, only for the record's own path", () => {
     const recordPath = ".arc/system/.internal/candidates/example.json";
-    const selectedProjection = decision();
-    const ownerSelection = selection(selectedProjection, "covered");
-    const diverged = (
-      applicabilitySelector: typeof selectedProjection.selector,
-      paths: string[],
-    ) => {
-      const projection = classifyReviewContributionApplicability(applicabilitySelector, {
-        endpoints: {
-          before: selectedProjection.projection.after,
-          after: {
-            predecessor: selectedProjection.projection.after.predecessor,
-            member: { head: applicabilitySelector.currentHead, tree: oid("9") },
-          },
-        },
-        proof: { status: "refused", reason: "contribution-diverged", paths },
-      });
-      if (projection.state !== "decision-required") throw new Error("record carry fixtures must classify");
-      return projection;
-    };
-    const current = { ...selectedProjection.selector, currentHead: oid("c") };
-    const mechanicalProjection = diverged({
-      ...current,
-      priorHead: selectedProjection.selector.currentHead,
-      priorBase: selectedProjection.selector.currentBase,
-    }, [recordPath]);
-    const reduce = (paths: string[]) => {
-      const projection = diverged(current, paths);
-      return reduceReviewApplicabilityAuthorityWithMechanicalCarry(
-        CANDIDATE_ID,
-        projection,
-        [ownerSelection],
-        [{ selection: ownerSelection, selectedProjection, mechanicalProjection, ownRecordPath: recordPath }],
-      );
-    };
+    const { ownerSelection, reduce } = recordCarry(recordPath, ["src/example.ts"]);
 
     expect(reduce([recordPath, "src/example.ts"])).toMatchObject({
       state: "applicable",
@@ -160,6 +167,19 @@ describe("review applicability authority", () => {
       selection: ownerSelection,
     });
     expect(reduce([recordPath, "src/added.ts", "src/example.ts"])).toMatchObject({ state: "decision-required" });
+  });
+
+  /** The record path sorts before the selected one by UTF-8 bytes and after it by UTF-16 code units. */
+  it("carries the selection across its record commit in the residual's UTF-8 byte order", () => {
+    const recordPath = "src/\uE000.json";
+    const selectedPath = "src/\u{10000}.ts";
+    const { ownerSelection, reduce } = recordCarry(recordPath, [selectedPath]);
+
+    expect(reduce([recordPath, selectedPath])).toMatchObject({
+      state: "applicable",
+      authority: "owner-covered",
+      selection: ownerSelection,
+    });
   });
 
   it("keeps an unresolved residual factual and turns only the exact choices into consumer outcomes", () => {
