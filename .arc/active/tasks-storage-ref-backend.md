@@ -1846,7 +1846,7 @@ in `notes-storage-ref-backend.md` (A25).
           override while ordinary files still overlapped. Local eleven-sample results are recorded in
           `notes-storage-ref-backend.md` § Timing isolation; hosted Windows acceptance remains open.
 
-### `[ ]` **18.3 CI cost — § 14.12**
+### `[~]` **18.3 CI cost — § 14.12**
 
 - _Goal:_ Running both backends until the cutover costs CI no more than the bound: each layout's ref conformance run
   within 1.5 times the in-repo conformance's time on the same GitHub-hosted runner.
@@ -1879,7 +1879,10 @@ in `notes-storage-ref-backend.md` (A25).
           pull; production synchronization binding and rendering run unchanged. The first-identity pull precedes
           configuration, preserving its supplied inbox; neighboring cancellation/recovery assertions remain covered.
 
-### `[ ]` **18.3.R Record complete conformance cost and retain tier/job budgets — § 14.12**
+- _Outcome:_ A25 supersedes the interim ratio with complete cost reporting and tier/job budget updates in 18.3.R.
+  The original ratio misses remain recorded; supersession does not turn them into passes.
+
+### `[x]` **18.3.R Record complete conformance cost and retain tier/job budgets — § 14.12**
 
 - _Goal:_ Record complete hosted conformance costs and workload differences without an interim legacy ratio, retaining
   all native coverage, Windows budgets, and affected tier/job cost measurements and baseline deltas (A25).
@@ -1890,12 +1893,12 @@ in `notes-storage-ref-backend.md` (A25).
         - The existing registration inventory explains unequal workloads; all native cases and historical ratio
           misses remain, without matched-cohort hosted machinery.
 
-    - `[ ]` **18.3.R.b Final tier and job cost closure**
-        - After the final new file lands, repeat 1.1's tier/job procedure, update each affected budget row to the
-          measured figure, and record baseline deltas and the Linux portability separate-layout marginal file cost.
-        - Distinguish raw execution, queue/admission waits, and job clocks. Preserve every required native case and
-          Windows operation budget; local diagnostics cannot close hosted evidence or establish a hosted failure's
-          cause.
+    - `[x]` **18.3.R.b Final tier and job cost closure**
+        - Warm, retained twelve-worker captures cover unit, integration, combined lane, and E2E; ten hosted job clocks
+          update the affected rows with the existing 35% allowance. Baseline deltas and Linux portability file costs
+          are recorded in `notes-storage-ref-backend.md` § CI cost history, including the missing local E2E before value.
+        - Raw file work, admission waits, and job clocks remain distinct; native coverage and fixed Windows operation
+          budgets remain required. The successful source tree is bound in the retained measurement evidence.
 
 ### `[ ]` **18.4 The host kit — § 14.8**
 

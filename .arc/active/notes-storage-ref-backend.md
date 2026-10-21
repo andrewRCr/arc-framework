@@ -242,6 +242,61 @@ under `task-18.3-hosted/third-run/` in the machine-local storage-ref-backend too
 complete-file reporting obligation; Windows operation acceptance, final tier/job measurements, and host checks remain
 separate obligations.
 
+### Final tier and job measurements (A25)
+
+The final capture uses source and tests at `0908ff6d95e252c0717d382351bffd7fff39f9a9`. The subsequent hosted-conformance
+recording commit changes only the task list and these notes. Hosted job figures come from dispatch `39543872100`.
+
+The local capture repeats the baseline procedure on the same WSL2 host: sequential tiers, twelve workers, one discarded
+warm-up followed by one retained run, with `single-run` normalization. The supported controller records admission waits
+separately and subtracts them from `wallClockMs`; the table uses that retained wall clock, not total command latency. It
+includes selected execution and its controller overhead. Summed per-file work is a different metric and is not used as
+elapsed wall time.
+
+| Local tier  | Before (ms) | Final (ms) | Delta              | Registered files | Completed cases | Updated budget (ms) |
+| ----------- | ----------- | ---------- | ------------------ | ---------------- | --------------- | ------------------- |
+| unit        | 20,060      | 28,882     | +8,822 (+44.0%)    | 1,306            | 18,956          | 38,991              |
+| integration | 207,312     | 746,818    | +539,506 (+260.2%) | 584              | 8,060           | 1,008,205           |
+| lane        | 228,129     | 768,361    | +540,232 (+236.8%) | 1,890            | 27,016          | 1,037,288           |
+| e2e         | unavailable | 322,266    | unavailable        | 126              | 1,223           | 435,060             |
+
+Task 1.1 retained no fresh local E2E baseline; its older tracked 147,402 ms advisory baseline is not a before-WU
+measurement. The final E2E row is updated from its successful retained run without inventing that missing delta. Base
+merges also increased the suite population, so the measured differences are branch-level changes, not an attribution of
+every additional millisecond to the native backend.
+
+The hosted rows use `report-test-budget.ts`'s `actualMs`: the budget clock through its report step, including job setup
+after that clock starts. They exclude pre-job queue latency and differ from both raw file execution and GitHub's
+enclosing job duration. The before sources are the approved Task 1.1 observations: main run `38857807800` for unit and
+reviewed-PR run `38856961515` for integration/E2E, with the tested merge provenance recorded above. All ten functional
+jobs passed. Nine exceeded their old advisory rows; those overruns remain in the source reports. The updated rows set
+each baseline to the final measurement and retain the existing 35% allowance, rounded upward.
+
+| CI job        | Before (ms) | Final job clock (ms) | Delta              | Updated budget (ms) |
+| ------------- | ----------- | -------------------- | ------------------ | ------------------- |
+| unit-1        | 44,529      | 91,652               | +47,123 (+105.8%)  | 123,731             |
+| unit-2        | 56,026      | 92,728               | +36,702 (+65.5%)   | 125,183             |
+| integration-1 | 342,527     | 668,471              | +325,944 (+95.2%)  | 902,436             |
+| integration-2 | 241,419     | 973,958              | +732,539 (+303.4%) | 1,314,844           |
+| integration-3 | 255,172     | 849,496              | +594,324 (+232.9%) | 1,146,820           |
+| integration-4 | 281,215     | 524,325              | +243,110 (+86.4%)  | 707,839             |
+| e2e-1         | 299,785     | 270,008              | -29,777 (-9.9%)    | 364,511             |
+| e2e-2         | 344,698     | 312,426              | -32,272 (-9.4%)    | 421,776             |
+| e2e-3         | 332,821     | 281,015              | -51,806 (-15.6%)   | 379,371             |
+| e2e-4         | 227,441     | 484,082              | +256,641 (+112.8%) | 653,511             |
+
+The Linux portability duration artifact records `store-ref-directory.test.ts` at 2,292.140 ms and
+`store-ref-separate-conformance.test.ts` at 499,845.333 ms: 502,137.473 ms of summed file work for the two added
+separate-layout files. This is measured work within a concurrent job, not a counterfactual additive job-wall cost. Other
+native resource coverage adds these measured file times: batch reader 1,983.811 ms, archived acquisition 4,237.524 ms,
+reader lifetime 3,623.676 ms, timing-isolation witness 5,339.322 ms, and write batching 2,187.119 ms. The full separate
+conformance file remains selected in both integration and portability. Bursts and operation timing remain
+dispatch/schedule-only under `ARC_STORE_BURSTS`; they are not added to ordinary per-change portability cost.
+
+Raw schema-5 local captures, normalized reports, and full invocation logs are retained under `task-18.3-final-tree/` in
+the machine-local storage-ref-backend tools directory. Hosted logs, duration artifacts, job-clock records, population
+evidence, and derived tables are retained under `task-18.3-hosted/third-run/` there.
+
 ### Early local conformance comparison
 
 Task 9.6 ran each complete conformance file once, sequentially on the same WSL2 machine, using `npm run test:file`.
