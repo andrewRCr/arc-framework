@@ -1490,3 +1490,11 @@ This is a process-count reduction, not evidence that the Windows numeric budgets
 
 The completed `deac253ae` diagnostic run also exposed stale cold-lookup and saved-listing-token process expectations.
 Those retain their complete record/token assertions and tighten to the reduced counts; no acceptance threshold is raised.
+
+### Platform coverage after acquisition corrections
+
+`local-vitest-runner.ts::localVitestTierArguments` explicitly retains the new named-acquisition and public-publication
+boundaries in portability. Their native cases remain in the ordinary integration tier; the matching publication
+decision tests run in the unit tier and also match portability’s filename selection. The existing selector contract
+first failed on the missing entries, then passed with the complete selection. Cutover preservation already covers every
+`integration/store-ref-*` suite and every test outside the explicitly retired implementation groups.

@@ -1888,6 +1888,10 @@ in `notes-storage-ref-backend.md` (A25).
           object IDs, and staged blobs enter attempt evidence only after Git confirms every identity. Both layouts
           satisfy the tighter native resource bound with their physical-object refusal/repair and race checks intact.
 
+    - `[x]` **18.2.i Retain the new native boundaries in platform selection**
+        - The named-acquisition and publication-continuation suites join the existing portability selector; both
+          remain ordinary integration cases as well. The selector contract first exposed the missing membership.
+
 ### `[~]` **18.3 CI cost — § 14.12**
 
 - _Goal:_ Running both backends until the cutover costs CI no more than the bound: each layout's ref conformance run

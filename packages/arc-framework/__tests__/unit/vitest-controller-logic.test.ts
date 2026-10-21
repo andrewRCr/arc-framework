@@ -83,6 +83,7 @@ it("retains each native portability boundary on the portability tier", () => {
     "git-executor", "delivery-transfer.e2e", "store-ref-bursts.test.ts",
     "store-ref-directory.test.ts", "store-ref-write-batching.test.ts", "store-ref-reader-lifetime.test.ts",
     "store-ref-archive-acquisition.test.ts",
+    "store-ref-named-acquisition.test.ts", "store-ref-publication.test.ts",
     "git-batch-reader.test.ts", "store-ref-separate-conformance.test.ts", "store-ref-timing.test.ts",
     "store-ref-timing-isolation.test.ts",
   ]);
