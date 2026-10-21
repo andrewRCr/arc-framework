@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "candidate-applicability-merge-base",
+  "claimId": "a43140d157ccb760e087111f2e499df1",
+  "createdAt": "2026-10-21T00:15:51.745Z",
+  "updatedAt": "2026-10-21T00:15:51.745Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Compare a Candidate head against its own merge base, and share the applicability Git reader between the Candidate and review producers",
+  "branch": "chore/candidate-applicability-merge-base",
+  "origin": "inbox",
+  "originEntry": "Compare a Candidate head against its own merge base, and share the applicability Git reader",
+  "originEntrySourceDigest": "sha256:3a34392c5bf8276878fc3a7b5217e9ee9e28bf0adb73a11ecbdaf09ae001efc5",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
