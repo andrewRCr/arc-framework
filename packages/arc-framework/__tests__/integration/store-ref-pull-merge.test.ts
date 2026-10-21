@@ -132,7 +132,7 @@ describe.each(["default", "separate"] as const)("pull merging in the %s layout",
       const tip = (await client.git(["rev-parse", ref])).stdout;
       const metadata = (await client.git(["rev-parse", `${ref}:andrew/metadata-andrew.json`])).stdout;
       await plantRef(client.root, ref, [{ path: "andrew/metadata-andrew.json", oid: metadata, mode: "100644" },
-        { path: "andrew/USER-INBOX.md", content: content.replace("22222222", "11111111") }],
+        { path: "andrew/USER-INBOX.md.andrew", content: content.replace("22222222", "11111111") }],
       { parents: [tip], ...client.gitDir ? { gitDir: client.gitDir } : {} });
     };
     success(await h.a.store.write({ action: "put", reference, expected: null, content: text("base"), provenance }));

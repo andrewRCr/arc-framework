@@ -853,3 +853,18 @@ writes/reads, and personal import construction. Logical file/folder collisions s
 collision comparison; current exact preflight cases cover both batch orders. The amendment changes no compatibility
 posture: development stores are regenerated, with no old-name reader or migration. The determinate amendment takes
 low depth, so its independent planning pass is omitted; no evaluator review is run in this deferred batch.
+
+`KIND_MECHANISMS` now supplies the five suffixed templates; existing expansion and decoding use them unchanged.
+`checkRefPathCollision` checks both the physical paths and their logical personal spellings, retaining Git tree safety
+as well as projected file/folder safety. Native public operations preserve CRLF content and a nested Unicode/quoted
+key, with current/historical read, listing, changes, publishing, and pulling covered under both layouts. Corrected
+keys succeed after alias/collision refusals without publishing the companion mutation.
+
+Exact path expectations failed before implementation; native collision assertions failed after changing templates
+without logical admission. Removing only the physical comparison likewise failed both native cases, and the exact
+source was restored in `finally`. The final run passed 2,279 cases in eleven files with 118 declared skips, taking
+705.69 seconds: both complete native conformance suites, the personal import comparisons, key admission, and the
+neighboring read/decode/merge cases. Unit mapping and preflight passed 97 cases; both typechecks and TypeScript lint
+passed. Raw tree fixtures now use the new spelling, and the registered-path roundtrip uses actual cut-map and routing
+receipt writers instead of generic prose. Proof is retained under
+`.arc/user/andrew/.internal/storage-ref-backend-tools/task-18.R/` and `/tmp/arc-storage-a24-*`.

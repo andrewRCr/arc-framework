@@ -53,7 +53,7 @@ describe("record serialization admission", () => {
       ".gitmo\u202adules", ".gitattributes", ".GitAttributes", "GITATT~1", "gitatt~4", ".gitattributes. :x",
       ".gitattribu\u200ftes", "gi7eba~1", "GI7D29~9", "gi7eb~12", "g~123456", "~1234567"];
     for (const segment of reserved) {
-      for (const key of [segment, `scratch/${segment}`, `scratch/${segment}/file.md`]) {
+      for (const key of [`${segment}/file.md`, `scratch/${segment}/file.md`]) {
         expect(checkSerializationRules(document(key), "text"), key).toMatchObject({ rule: "store.git-path" });
       }
     }
@@ -61,10 +61,14 @@ describe("record serialization admission", () => {
       "gi7eba~12", "gi7d2x~1", ".g\u200cit.", ".git\u200b", ".gitmodules.md"]) {
       expect(checkSerializationRules(document(`scratch/${segment}/notes.md`), "text"), segment).toBeUndefined();
     }
+    for (const key of [".git", "scratch/.gitmodules", "scratch/.gitattributes"]) {
+      expect(checkSerializationRules(document(key), "text"), key).toBeUndefined();
+    }
   });
   it("bounds expanded components and owner/key bytes, exempting the whole personal path key", () => {
     expect(checkSerializationRules(document(`scratch/${"é".repeat(2_048)}x`), "text")).toMatchObject({ rule: "store.git-path" });
-    expect(checkSerializationRules(document(`scratch/${"é".repeat(2_048)}/${"b".repeat(4_096)}`), "text")).toBeUndefined();
+    expect(checkSerializationRules(document(`scratch/${"é".repeat(2_048)}/${"b".repeat(4_086)}`), "text")).toBeUndefined();
+    expect(checkSerializationRules(document(`scratch/${"b".repeat(4_087)}`), "text")).toMatchObject({ rule: "store.git-path" });
     for (const length of [2_040, 2_041]) {
       const owner = { type: "work-item", name: "a".repeat(length) };
       const slug = RecordReferenceSchema.parse({ owner, kind: "work-item/spec" });

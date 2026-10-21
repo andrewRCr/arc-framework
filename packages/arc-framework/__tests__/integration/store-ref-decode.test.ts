@@ -7,11 +7,28 @@ import { createRefReadFixture } from "../helpers/store/ref-read.js";
 import { plantRef, type PlantTreeEntry } from "../helpers/store/ref-plant.js";
 import { inRepoContent } from "../helpers/store/in-repo-fixture.js";
 import { createReferenceFixture } from "../helpers/store/reference-fixture.js";
+import { writeRoutingReceipt } from "../../src/lib/store/kinds/routing-receipt.js";
+import { writeCutMapRecord } from "../../src/lib/store/kinds/cut-map/index.js";
+import { cutMapFixture, rebindCutFixture } from "../fixtures/decompose-v4.js";
+import { storedCutMapFixture } from "../fixtures/stored-cut-map.js";
+import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
 
 const uid = "12345678-1234-4234-8234-123456789abc";
 const retiredUid = "abcdef12-1234-4234-8234-123456789abc";
 const owner = { type: "work-item", name: "alpha", uid } as const;
+function machineContent(reference: RecordReference): string | undefined {
+  if (reference.kind === "work-item/cut-map") {
+    const map = cutMapFixture();
+    map.machine.origin = { slug: SlugSchema.parse(reference.owner.name), uid };
+    rebindCutFixture(map);
+    return writeCutMapRecord(storedCutMapFixture(map));
+  }
+  if (reference.kind.endsWith("/routing-receipt")) return writeRoutingReceipt({ entryId: "12345678",
+    source: null, destination: { list: reference.kind === "personal/routing-receipt" ? "personal/inbox" : "project-inbox/inbox",
+      ...(reference.owner.type === "person" ? { identity: reference.owner.name } : {}) }, time: "2026-01-01T00:00:00Z" });
+  return undefined;
+}
 const metadata = { formatVersion: 1, slug: "alpha", formats: {},
   primary: { role: "work-item/meta", placement: { kind: "active" } } };
 
@@ -48,7 +65,7 @@ describe.each(["files", "reftable"] as const)("registered ref decode (%s)", (for
       const producer = PRODUCTION_REGISTRATIONS.some((registration) => registration.kind === kind.id)
         || kind.id === "review/candidate" || kind.id === "review/integration-boundary" || kind.family === "claims";
       const content = kind.id === "project-registry/identity" ? canonicalize({ projectId: "34567890-1234-4234-8234-123456789abc" })
-        : producer && !kind.id.endsWith("/conflict-record") ? inRepoContent(reference) : referenceFixture.content(reference);
+        : machineContent(reference) ?? (producer && !kind.id.endsWith("/conflict-record") ? inRepoContent(reference) : referenceFixture.content(reference));
       entries.set(home.path, { path: home.path, content });
     }
     for (const [ref, entries] of groups) await plantRef(f.root, ref, [...entries.values()]);
@@ -90,11 +107,11 @@ describe.each(["files", "reftable"] as const)("registered ref decode (%s)", (for
     const f = await createRefReadFixture(format);
     await plantRef(f.root, "refs/arc/user/andrew/personal", [
       { path: "andrew/metadata-andrew.json", content: canonicalize({ formatVersion: 1, formats: {} }) },
-      { path: "andrew/extra.txt", content: "kept" }, { path: "bea/extra.txt", content: "wrong owner" },
+      { path: "andrew/extra.txt.andrew", content: "kept" }, { path: "bea/extra.txt.bea", content: "wrong owner" },
     ]);
     expect(await f.store.list({ family: "personal" })).toMatchObject({ status: "ok", result: { status: "complete",
       records: [expect.objectContaining({ content: "kept" })],
-      diagnostics: [expect.objectContaining({ key: "bea/extra.txt", kind: "key-mismatch" })], missed: true } });
+      diagnostics: [expect.objectContaining({ key: "bea/extra.txt.bea", kind: "key-mismatch" })], missed: true } });
   });
   it("keeps raw companions while diagnosing unknown review and reserved subtree paths", async () => {
     const f = await createRefReadFixture(format);
@@ -137,11 +154,11 @@ describe.each(["files", "reftable"] as const)("registered ref decode (%s)", (for
   });
   it("rejects derived and machine-local personal keys while keeping nested status documents", async () => {
     const f = await createRefReadFixture(format);
-    const personalPaths = ["andrew/STATUS.USER.md", "andrew/.internal/note.txt", "andrew/work/.internal/note.txt",
-      "andrew/conflicts/note.txt", "andrew/receipts/note.txt"];
+    const personalPaths = ["andrew/STATUS.USER.md.andrew", "andrew/.internal/note.txt.andrew", "andrew/work/.internal/note.txt.andrew",
+      "andrew/conflicts/note.txt.andrew", "andrew/receipts/note.txt.andrew"];
     await plantRef(f.root, "refs/arc/user/andrew/personal", [
       { path: "andrew/metadata-andrew.json", content: canonicalize({ formatVersion: 1, formats: {} }) },
-      { path: "andrew/scratch/STATUS.USER.md", content: "kept" }, ...personalPaths.map((path) => ({ path, content: "{}" })),
+      { path: "andrew/scratch/STATUS.USER.md.andrew", content: "kept" }, ...personalPaths.map((path) => ({ path, content: "{}" })),
     ]);
     expect(await f.store.list({ family: "personal" })).toMatchObject({ status: "ok", result: { status: "complete",
       records: [expect.objectContaining({ content: "kept" })], diagnostics: expect.arrayContaining(personalPaths.map((key) =>

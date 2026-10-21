@@ -62,8 +62,8 @@ describe.each(["files", "reftable"] as const)("ref store read pipeline (%s)", (f
     const personal = family === "personal";
     const target = personal ? "refs/arc/user/andrew/personal" : ref;
     const metadataPath = personal ? "andrew/metadata-andrew.json" : `metadata-${uid}.json`;
-    const badPath = personal ? 'andrew/bad\\name.txt' : 'sub/bad\\name.svg';
-    const goodPath = personal ? 'andrew/café "note.txt' : "extra-alpha.md";
+    const badPath = personal ? 'andrew/bad\\name.txt.andrew' : 'sub/bad\\name.svg';
+    const goodPath = personal ? 'andrew/café "note.txt.andrew' : "extra-alpha.md";
     await plantRef(f.root, target, [
       { path: metadataPath, content: personal ? canonicalize({ formatVersion: 1, formats: {} }) : metadata },
       { path: goodPath, content: "kept" }, { path: badPath, content: "invalid key" },
@@ -86,7 +86,7 @@ describe.each(["files", "reftable"] as const)("ref store read pipeline (%s)", (f
     const personal = RecordReferenceSchema.parse({ owner: { type: "person", name: "andrew" }, kind: "personal/document", key: "note.txt" });
     await plantRef(f.root, "refs/arc/user/andrew/personal", [
       { path: "andrew/metadata-andrew.json", content: canonicalize({ formatVersion: 1, formats: {} }) },
-      { path: "andrew/note.txt", content: "personal" },
+      { path: "andrew/note.txt.andrew", content: "personal" },
     ]);
     const store = createRefStore({ ...f.ports, identity: async () => null });
     expect(await store.read({ reference: personal })).toMatchObject({ status: "refused", refusal: {

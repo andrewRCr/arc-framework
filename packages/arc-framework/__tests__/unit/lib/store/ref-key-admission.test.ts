@@ -52,7 +52,7 @@ describe("ref key admission before I/O", () => {
   });
   it("refuses file/folder collisions in either batch order before consulting a port", async () => {
     const session = RecordReferenceSchema.parse({ owner: { type: "person", name: "andrew" }, kind: "personal/session-context", key: "work" });
-    for (const writes of [[put(document("scratch/item")), put(document("scratch/item/child.md"))], [put(document("work")), put(session)]]) {
+    for (const writes of [[put(document("scratch/item")), put(document("scratch/item/child.md"))], [put(document("scratch/item")), put(document("scratch/item.andrew/child.md"))], [put(document("work")), put(session)]]) {
       for (const batch of [writes, [...writes].reverse()]) {
         expect(await createPreflightRefStore().batch({ writes: batch, provenance })).toMatchObject({ status: "refused", refusal: {
           code: "unsupported", case: "unhomed-kind", condition: expect.stringContaining("personal/") } });

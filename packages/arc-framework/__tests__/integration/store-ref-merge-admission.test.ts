@@ -11,7 +11,7 @@ async function plantInbox(f: RefConformanceFixture, content: string) {
   const metadata = (await git("git", ["show", `${ref}:test-user/metadata-test-user.json`])).stdout;
   return plantRef(f.root, ref, [
     { path: "test-user/metadata-test-user.json", content: metadata },
-    { path: "test-user/USER-INBOX.md", content },
+    { path: "test-user/USER-INBOX.md.test-user", content },
   ], { parents: [tip] });
 }
 

@@ -4407,6 +4407,6 @@ open:
   _Trigger:_ 4.R.c door. _Work:_ 4.R2. _Revalidated:_ 4.R2.d.
 
 - **A24** — 2026-10-20 — design: suffix stored personal content filenames with their identity.
-  _Supersedes:_ § 3.2 personal paths. _Trigger:_ 18.5 door. _Work:_ 18.R. _Revalidated:_ pending → 18.R.
+  _Supersedes:_ § 3.2 personal paths. _Trigger:_ 18.5 door. _Work:_ 18.R. _Revalidated:_ 18.R.
 
 ---

@@ -1868,21 +1868,19 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
 
     - Recorded in `notes-storage-ref-backend.md`
 
-### `[ ]` **18.R Identity-suffixed personal storage — § 3.2 (A24)**
+### `[x]` **18.R Identity-suffixed personal storage — § 3.2 (A24)**
 
 - _Goal:_ All five personal content kinds use identity-suffixed stored basenames while retaining logical keys,
   projection addresses, role-alias refusals, logical file/folder collision refusals, and public operation behavior.
 
-    - `[ ]` **18.R.a Canonical mapping and namespace admission**
-        - Update the registry's five personal content templates and their exact path expectations. Normalize the
-          physical suffix only for logical collision comparison; keep metadata and reserved directories protected.
-        - Build test-first: exact mapping, nested Unicode keys, unchanged logical/projected addresses, and aliases and
-          file/folder collisions refusing before I/O in either batch order.
+    - `[x]` **18.R.a Canonical mapping and namespace admission**
+        - Five registry templates append the identity to stored content basenames, keeping independent logical and
+          projection addresses. Admission checks both physical overlap and the logical namespace before I/O.
 
-    - `[ ]` **18.R.b Native behavior and import closure**
-        - In both layouts, prove exact stored names and content with public read/list/history/changes and sync, plus
-          refused alias/collision rollback and a repaired successful write. Run both full native conformance suites
-          and the personal import comparisons; retain original logical keys and content without old-name support.
+    - `[x]` **18.R.b Native behavior and import closure**
+        - Both layouts preserve exact names/content and logical keys through read/list/history/changes and sync;
+          aliases and both collision classes refuse atomically, then corrected keys succeed. Full native conformance
+          and personal import comparisons retain the original logical keys without an old-name reader.
 
 ### `[ ]` **18.7 Hosts, platforms, and cost** — validate exit criterion at segment scope
 

@@ -19,12 +19,21 @@ export function checkRefPathCollision(reference: RecordReference, home: RefPathN
     if (neighbor.home.ref !== home.ref) continue;
     const other = neighbor.home.path;
     if (other === home.path && neighbor.reference && sameReference(reference, neighbor.reference)) continue;
-    if (other === home.path || other.startsWith(`${home.path}/`) || home.path.startsWith(`${other}/`)) {
+    if (pathsOverlap(home.path, other) || pathsOverlap(personalCollisionPath(reference, home.path), personalCollisionPath(reference, other))) {
       const record = neighbor.reference ? `${neighbor.reference.kind} ${JSON.stringify(neighbor.reference.key)}` : "stored entry";
       return unsupportedKey(reference, `The path ${home.path} collides with ${record} at ${other}`);
     }
   }
   return undefined;
+}
+
+function pathsOverlap(left: string, right: string): boolean {
+  return left === right || left.startsWith(`${right}/`) || right.startsWith(`${left}/`);
+}
+
+function personalCollisionPath(reference: RecordReference, path: string): string {
+  const suffix = `.${reference.owner.name}`;
+  return reference.kind.startsWith("personal/") && path.endsWith(suffix) ? path.slice(0, -suffix.length) : path;
 }
 
 /** Check proposed puts together; unresolved owner names remain separate until canonical resolution. */
