@@ -1,4 +1,5 @@
 /** Decode logical record events without treating copied archive entries as new writes. */
+import { withCreationReceipt } from "./history-receipts.js";
 import type { HistoryEntry } from "../contract.js";
 import type { OwnerIdentity, RecordReference, RecordVersion } from "../identity.js";
 import type { StoreResult } from "../refusal.js";
@@ -74,7 +75,9 @@ function recordWindowEvents(context: RefBackendContext, captured: CapturedChange
     const before = row.parents.length > 1 ? previous ?? (captured.window.lower ? states.get(captured.window.lower) : parent) : parent;
     if (after.version === (before?.version ?? null)) continue;
     const selected = after.version === null ? before?.reference ?? after.reference : after.reference;
-    const entry = { ...after, reference: selected, provenance: parseStoreCommitProvenance(changeCommitMessage(captured, row.revision), selected) };
+    const creationReceipt = captured.receipts.get(row.revision);
+    const entry = withCreationReceipt({ ...after, reference: selected,
+      provenance: parseStoreCommitProvenance(changeCommitMessage(captured, row.revision), selected) }, creationReceipt);
     events.push({ entry, before: before?.version ?? null, revision: row.revision, ref: captured.window.ref, order });
     previous = after;
   }

@@ -1,5 +1,7 @@
 /** Batched, path-limited historical states with record-specific version metadata. */
 
+import { StoreCreationReceiptReader } from "../commit-creation-receipt.js";
+import { captureCommitReceipts, capturedCommitMessage } from "./history-receipts.js";
 import type { HistoryEntry } from "../contract.js";
 import { RecordReferenceSchema, type RecordReference } from "../identity.js";
 import type { StoreRefusal, StoreResult } from "../refusal.js";
@@ -16,14 +18,17 @@ import { refRecordVersion } from "./record-version.js";
 /** Exact state at a commit before attaching the commit's provenance. */
 export type HistoricalState = Pick<HistoryEntry, "reference" | "version" | "content">;
 /** Captured record state and verbatim commit message. */
-export interface HistoricalSnapshot { state: HistoricalState; message: string }
+export interface HistoricalSnapshot { state: HistoricalState; message: string; creationReceipt?: HistoryEntry["creationReceipt"] }
 
 /** Read candidate and parent states without confusing an absent path with an unavailable blob. */
 export async function readHistorySnapshots(context: RefBackendContext, reference: RecordReference,
-  home: StoredRecordHome, revisions: readonly string[], paths: readonly string[] = [home.path, home.metadataPath]): Promise<StoreResult<Map<string, HistoricalSnapshot>>> {
+  home: StoredRecordHome, revisions: readonly string[], paths: readonly string[] = [home.path, home.metadataPath],
+  evidence = new StoreCreationReceiptReader()): Promise<StoreResult<Map<string, HistoricalSnapshot>>> {
   if (revisions.length === 0) return { status: "ok", result: new Map() };
   const trees = await readRefTrees(context, new Map(revisions.map((revision) => [revision, revision])), paths);
   const objects = await readBatchObjects(context, [...new Set([...revisions, ...[...trees.values()].flatMap((entries) => entries.map((entry) => entry.oid))])]);
+  const receipts = captureCommitReceipts(objects, home.ref, evidence, reference);
+  if (receipts.status === "refused") return receipts;
   const snapshots = new Map<string, HistoricalSnapshot>();
   for (const revision of revisions) {
     const tree = trees.get(revision);
@@ -31,10 +36,9 @@ export async function readHistorySnapshots(context: RefBackendContext, reference
     if (!tree || commit?.type !== "commit") return { status: "refused", refusal: unavailableHistory(reference, revision) };
     const state = historicalState(context, reference, home, tree, objects);
     if (state.status === "refused") return state;
-    const raw = new TextDecoder().decode(commit.bytes);
-    const boundary = raw.indexOf("\n\n");
-    if (boundary < 0) throw new Error("Git returned a commit without a header boundary");
-    snapshots.set(revision, { state: state.result, message: raw.slice(boundary + 2) });
+    const creationReceipt = receipts.result.get(revision);
+    snapshots.set(revision, { state: state.result, message: capturedCommitMessage(commit),
+      ...(creationReceipt ? { creationReceipt } : {}) });
   }
   return { status: "ok", result: snapshots };
 }

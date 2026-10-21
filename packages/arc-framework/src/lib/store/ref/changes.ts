@@ -1,4 +1,5 @@
 /** Landed record mutations between exact saved manifests, grouped across physical refs. */
+import { StoreCreationReceiptReader } from "../commit-creation-receipt.js";
 import type { ChangesInput, HistoryEntry } from "../contract.js";
 import { readRefRepository } from "./repository.js";
 import type { StoreResult } from "../refusal.js";
@@ -38,9 +39,10 @@ export async function changesRefRecords(context: RefBackendContext, input: Chang
   input = { ...input, references: restrictions.result };
   const windows: RefChangeWindow[] = [...after].filter(([ref, upper]) => !isArchiveRef(ref) && !isLifecycleRef(ref) && before.get(ref) !== upper
     && (identity !== null || !ref.startsWith("refs/arc/user/"))).map(([ref, upper]) => ({ ref, upper, lower: before.get(ref), version: input.to }));
-  const readWindow = createChangeWindowReader(context);
+  const evidence = new StoreCreationReceiptReader();
+  const readWindow = createChangeWindowReader(context, evidence);
   if (needsLifecycleWindows(context, input.references)) {
-    const lifecycle = await lifecycleChangeWindows(context, { ...interval, input }, readWindow);
+    const lifecycle = await lifecycleChangeWindows(context, { ...interval, input }, readWindow, evidence);
     if (lifecycle.status === "refused") return lifecycle;
     windows.push(...lifecycle.result);
   }

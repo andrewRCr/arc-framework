@@ -1,5 +1,6 @@
 /** Resolve completed subjects from captured archive folders and retained history batches. */
 
+import type { StoreCreationReceiptReader } from "../commit-creation-receipt.js";
 import type { RecordReference } from "../identity.js";
 import { sameOwner } from "../identity.js";
 import { HistoryRefSchema, type StoreResult, type StoreRefusal } from "../refusal.js";
@@ -10,7 +11,7 @@ import type { RefBackendContext } from "./context.js";
 import type { ResolvedBatch } from "./write-resolution.js";
 
 /** Find every folder belonging to a requested ended UID, validating its history basis. */
-export async function resolveArchivedReferences(context: RefBackendContext, references: readonly RecordReference[], tips: ReadonlyMap<string, string>): Promise<StoreResult<ArchivedFolder[]>> {
+export async function resolveArchivedReferences(context: RefBackendContext, references: readonly RecordReference[], tips: ReadonlyMap<string, string>, evidence?: StoreCreationReceiptReader): Promise<StoreResult<ArchivedFolder[]>> {
   const requested = references.filter((reference) => (reference.owner.type === "work-item" || reference.owner.type === "cohort") && reference.owner.uid
     && !tips.has(`refs/arc/${reference.owner.type === "work-item" ? "work" : "cohort"}/${reference.owner.uid}`) && !reference.kind.startsWith("lineage/"));
   if (!requested.length) return { status: "ok", result: [] };
@@ -27,14 +28,29 @@ export async function resolveArchivedReferences(context: RefBackendContext, refe
     if (!history) throw new Error("An archived owner has no history coordinate");
     const tip = tips.get(history);
     if (!tip) return { status: "refused", refusal: missingArchivedHistory(reference, history) };
-    const { stdout } = await context.exec("git", ["log", "--format=%B%x00", tip], { cwd: context.checkoutRoot, objectAccess: "local-only" });
-    const batches = new Set(stdout.split("\0").map((message) => parseStoreCommitProvenance(message.trimStart(), reference))
-      .flatMap((entry) => "batchId" in entry ? [entry.batchId] : []));
+    const found = await archivedHistoryBatches(context, reference, history, tip, evidence);
+    if (found.status === "refused") return found;
+    const batches = found.result;
     if (own.some(({ metadata }) => !metadata.batch || !batches.has(metadata.batch))) {
       return { status: "refused", refusal: missingArchivedHistory(reference, history) };
     }
   }
   return { status: "ok", result: folders };
+}
+
+async function archivedHistoryBatches(context: RefBackendContext, reference: RecordReference, history: string,
+  tip: string, evidence?: StoreCreationReceiptReader): Promise<StoreResult<Set<string>>> {
+  const { stdout } = await context.exec("git", ["log", "--format=%H%x00%B%x00", tip], { cwd: context.checkoutRoot, objectAccess: "local-only" });
+  const values = stdout.split("\0"), batches = new Set<string>();
+  for (let index = 0; index + 1 < values.length; index += 2) {
+    const revision = values[index]?.trim(), message = values[index + 1];
+    if (!revision || message === undefined) continue;
+    const receipt = evidence?.read(message, reference, `${history}@${revision}`);
+    if (receipt?.status === "refused") return receipt;
+    const provenance = parseStoreCommitProvenance(message, reference);
+    if ("verb" in provenance && provenance.batchId) batches.add(provenance.batchId);
+  }
+  return { status: "ok", result: batches };
 }
 
 /** Lock both lifecycle ref names and every quarter holding a completed owner. */

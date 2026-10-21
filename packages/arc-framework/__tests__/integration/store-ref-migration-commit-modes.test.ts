@@ -32,6 +32,10 @@ it("merges temporary state in the code repository while another holder retains l
     expect(copied).toBe(true);
     expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout.trim()).toBe("refs/arc/project/moved");
     success(await h.store.pull());
+    const registryMessage = (await h.a.exec("git", ["-C", h.destinationDirectory, "show", "-s", "--format=%B", "refs/arc/project/registry"])).stdout;
+    const registryBatch = /^Arc-Batch: (.+)$/mu.exec(registryMessage)?.[1];
+    const registryReceipt = /^Arc-Creation-Receipt: (.+)$/mu.exec(registryMessage)?.[1];
+    expect(registryReceipt && JSON.parse(registryReceipt)).toEqual({ schemaVersion: 1, batchId: registryBatch, createdOwners: [] });
     expect(success(await h.store.read({ reference: source })).content).toBe("Source state.\n");
     expect(success(await h.store.read({ reference: destination })).content).toBe("Destination state.\n");
   } finally { await release(); }

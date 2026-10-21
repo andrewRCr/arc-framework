@@ -1,5 +1,6 @@
 /** Reconcile captured state ref sets under caller-selected locks and publication scopes. */
 
+import { appendStoreCreationReceipt } from "../commit-creation-receipt.js";
 import { randomUUID } from "node:crypto";
 import { renderStoreCommitMessage } from "../commit-provenance.js";
 import { readObjectFormat } from "./manifest.js";
@@ -79,7 +80,7 @@ export async function mergeRefSets(context: RefBackendContext, local: ReadonlyMa
         if (source !== ref && current) changes.push({ ref: sourceTarget, delete: true, expected: current });
         if (prepared) for (const quarter of quarters) {
           const identity = await physical.identity(), actor = identity === null ? undefined : await physical.actor(identity);
-          const next = await commitRefTree(physical, quarter.entries.values(), quarter.tip, { verb: "sync", lifecycleAction: "merge" }, prepared.reference, batchId, actor);
+          const next = await commitRefTree(physical, quarter.entries.values(), quarter.tip, { verb: "sync", lifecycleAction: "merge" }, prepared.reference, batchId, actor, { schemaVersion: 1, batchId, createdOwners: [] });
           changes.push({ ref: options.targetRef?.(quarter.ref) ?? quarter.ref, next, expected: quarter.tip });
           refreshed.push({ ref: quarter.ref, before: quarter.tip, after: next });
         }
@@ -101,6 +102,7 @@ async function commitSyncMerge(context: RefBackendContext, prepared: SyncMergedT
   const tree = await writeRefTree(context, prepared.entries.values());
   const identity = await context.identity(), actor = identity === null ? undefined : await context.actor(identity);
   const { stdout } = await context.exec("git", ["commit-tree", tree, ...parents.flatMap((parent) => ["-p", parent]), "-m",
-    renderStoreCommitMessage({ verb: "sync", lifecycleAction: "merge" }, prepared.reference, batchId, actor)], { cwd: context.checkoutRoot });
+    appendStoreCreationReceipt(renderStoreCommitMessage({ verb: "sync", lifecycleAction: "merge" }, prepared.reference, batchId, actor),
+      { schemaVersion: 1, batchId, createdOwners: [] })], { cwd: context.checkoutRoot });
   return stdout.trim();
 }

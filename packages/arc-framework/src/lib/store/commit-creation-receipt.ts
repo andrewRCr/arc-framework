@@ -37,3 +37,22 @@ function corruptReceipt(namespace: string, condition: string): StoreResult<never
   return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace, condition,
     remedy: { text: "Restore the complete authentic batch evidence from a known intact source, or explicitly regenerate this development namespace; then retry." } } };
 }
+
+/** Compare complete envelopes only across physical messages encountered by one bounded query. */
+export class StoreCreationReceiptReader {
+  private readonly batches = new Map<string, { encoded: string; locus: string }>();
+
+  /** Decode one acquired message and retain its batch's first complete or unavailable evidence. */
+  read(message: string, reference: RecordReference, locus: string): StoreResult<BatchCreationReceipt | undefined> {
+    const parsed = parseStoreCreationReceipt(message, reference, locus);
+    if (parsed.status === "refused") return parsed;
+    const provenance = parseStoreCommitProvenance(message, reference);
+    if (!("verb" in provenance) || !provenance.batchId) return parsed;
+    const encoded = parsed.result === undefined ? "unavailable" : canonicalize(parsed.result);
+    const previous = this.batches.get(provenance.batchId);
+    if (previous && previous.encoded !== encoded) return corruptReceipt(`${locus} batch ${provenance.batchId}`,
+      `Batch ${provenance.batchId} has inconsistent complete creation evidence at ${locus} and ${previous.locus}.`);
+    this.batches.set(provenance.batchId, { encoded, locus });
+    return parsed;
+  }
+}

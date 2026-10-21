@@ -1,4 +1,7 @@
 /** Immutable commit windows and raw trees used to enumerate landed record changes. */
+import { StoreCreationReceiptReader } from "../commit-creation-receipt.js";
+import type { BatchCreationReceipt } from "../creation-receipt.js";
+import { captureCommitReceipts } from "./history-receipts.js";
 import { checkRefTip } from "./namespace-health.js";
 import { expandStoredPath } from "../stored-path.js";
 import { refPrototype } from "./read.js";
@@ -14,6 +17,7 @@ import { parseHistoryRows, orderHistoryCommits, type HistoryCommit } from "./his
 export interface RefChangeWindow { ref: string; upper: string; lower?: string; version: StateVersion; paths?: readonly string[] }
 /** Captured commits include boundary parents so per-record comparisons need no live reads. */
 export interface CapturedChangeWindow {
+  receipts: Map<string, BatchCreationReceipt | undefined>;
   window: RefChangeWindow; rows: HistoryCommit[]; trees: Map<string, RefTreeEntry[]>; objects: Map<string, BatchObject | null>;
 }
 
@@ -23,33 +27,37 @@ export interface RefChangeInterval { input: ChangesInput; before: ReadonlyMap<st
 export type ChangeWindowReader = (window: RefChangeWindow) => Promise<StoreResult<CapturedChangeWindow>>;
 
 /** Reuse an end ref's captured graph when it also supplies ordinary record events. */
-export function createChangeWindowReader(context: RefBackendContext): ChangeWindowReader {
+export function createChangeWindowReader(context: RefBackendContext, evidence = new StoreCreationReceiptReader()): ChangeWindowReader {
   const reads = new Map<string, Promise<StoreResult<CapturedChangeWindow>>>();
   return (window) => {
     const key = JSON.stringify([window.ref, window.upper, window.lower, window.paths, window.version]);
     let captured = reads.get(key);
-    if (!captured) { captured = captureChangeWindow(context, window); reads.set(key, captured); }
+    if (!captured) { captured = captureChangeWindow(context, window, evidence); reads.set(key, captured); }
     return captured;
   };
 }
 
 /** Read each branch in local-before-remote order, bounded by the caller's exact commits. */
-export async function captureChangeWindow(context: RefBackendContext, window: RefChangeWindow): Promise<StoreResult<CapturedChangeWindow>> {
+export async function captureChangeWindow(context: RefBackendContext, window: RefChangeWindow, evidence = new StoreCreationReceiptReader()): Promise<StoreResult<CapturedChangeWindow>> {
   const heads = await readBatchObjects(context, [window.upper, ...window.lower ? [window.lower] : []]);
   if ([...heads.values()].some((object) => object?.type !== "commit")) return { status: "refused", refusal: missingChangeState(window) };
+  const headReceipts = captureCommitReceipts(heads, window.ref, evidence);
+  if (headReceipts.status === "refused") return headReceipts;
   const unhealthy = await checkWindowTips(context, window);
   if (unhealthy) return { status: "refused", refusal: unhealthy };
   const { stdout } = await context.exec("git", ["rev-list", "--full-history", "--parents", "--topo-order", window.upper,
     ...window.lower ? [`^${window.lower}`] : [], ...window.paths ? ["--", ...window.paths.map((path) => `:(literal)${path}`)] : []],
   { cwd: context.checkoutRoot, objectAccess: "local-only" });
   const rows = orderHistoryCommits(parseHistoryRows(stdout)).reverse();
-  if (!rows.length) return { status: "ok", result: { window, rows, trees: new Map(), objects: heads } };
+  if (!rows.length) return { status: "ok", result: { window, rows, trees: new Map(), objects: heads, receipts: headReceipts.result } };
   const revisions = [...new Set([...rows.flatMap(({ revision, parents }) => [revision, ...parents]), ...window.lower ? [window.lower] : []])];
   const trees = await readRefTrees(context, new Map(revisions.map((revision) => [revision, revision])), window.paths);
   if (revisions.some((revision) => !trees.has(revision))) return { status: "refused", refusal: missingChangeState(window) };
   const objects = await readBatchObjects(context, [...new Set([...revisions, ...[...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid))])]);
   if (revisions.some((revision) => objects.get(revision)?.type !== "commit")) return { status: "refused", refusal: missingChangeState(window) };
-  return { status: "ok", result: { window, rows, trees, objects } };
+  const receipts = captureCommitReceipts(objects, window.ref, evidence);
+  if (receipts.status === "refused") return receipts;
+  return { status: "ok", result: { window, rows, trees, objects, receipts: receipts.result } };
 }
 
 /** Name the retained history that can repair a missing item window. */

@@ -26,7 +26,12 @@ describe.each(["default", "separate"] as const)("live import in %s", (layout) =>
     expect(listed.records).toHaveLength(expected.size);
     expect(new Set(listed.records.map(({ reference }) => "uid" in reference.owner ? reference.owner.uid : undefined)).size).toBe(1);
     expect(new Set(listed.records.map(({ reference }) => expandStoredPath(reference).ref)).size).toBe(1);
-    for (const record of listed.records) expect(record.content).toBe(expected.get(record.reference.kind));
+    for (const record of listed.records) {
+      expect(record.content).toBe(expected.get(record.reference.kind));
+      const history = success(await store.history({ reference: record.reference }));
+      expect(history.length).toBeGreaterThan(0);
+      expect(history.every(entry => entry.creationReceipt === undefined)).toBe(true);
+    }
   });
 
   it("lands the open cohort on its own cohort ref", async () => {

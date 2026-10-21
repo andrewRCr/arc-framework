@@ -440,11 +440,12 @@ and 15 for every served family, but for the assertions 4.4.d excludes by name, a
           conflict, archive/history, reopen, completed-refresh, and retirement commits. The canonical trailer codec
           distinguishes unavailable facts and refuses malformed, duplicated, or batch-mismatched advertised evidence.
 
-    - `[ ]` **4.R2.c Retain facts through queries and other publishers**
-        - Build test-first for bounded history/changes retention and visible corruption before grouping/omission;
-          prove specific refusal and authentic repair followed by successful continuation. Cover lifecycle/history,
-          copy/fast-forward preservation, complete-none new sync/withdrawal/registry operations, and unavailable import
-          facts without inventing births, compatibility readers, global scans, or new indexes.
+    - `[x]` **4.R2.c Retain facts through queries and other publishers**
+        - Bounded history, captured before-history, and changes retain whole receipts and validate every acquired
+          physical message before filtering/grouping, including lifecycle discovery and boundary tips. Encountered
+          batch disagreement refuses with authentic restoration or explicit regeneration remedies; repair resumes.
+          Copies and fast forwards preserve facts; new sync, withdrawal, and registry commits carry complete-none,
+          while imports retain unavailable facts. Native scenarios cover both layouts without expanding acquisition.
 
     - `[ ]` **4.R2.d Verify production admission and the complete native contract correction**
         - Exercise § 14.3.1's final-gap production cut-map scenarios and § 14.3.2 in both layouts, including changed

@@ -1,4 +1,5 @@
 /** Registry commits provide an atomic move version without changing registry content. */
+import { appendStoreCreationReceipt } from "../commit-creation-receipt.js";
 import { randomUUID } from "node:crypto";
 import { renderStoreCommitMessage } from "../commit-provenance.js";
 import { RecordReferenceSchema } from "../identity.js";
@@ -15,8 +16,10 @@ export async function commitMigrationRegistry(code: RefBackendContext, parent: s
   const reference = RecordReferenceSchema.parse({ kind: "project-registry/identity", owner: owner.result });
   const { stdout: tree } = await code.exec("git", ["rev-parse", `${parent}^{tree}`], { cwd: code.checkoutRoot });
   const identity = await code.identity(), actor = identity === null ? undefined : await code.actor(identity);
+  const batchId = randomUUID();
   const { stdout } = await code.exec("git", ["commit-tree", tree.trim(), "-p", parent, "-m",
-    renderStoreCommitMessage({ verb: "migrate", lifecycleAction: action }, reference, randomUUID(), actor)], { cwd: code.checkoutRoot });
+    appendStoreCreationReceipt(renderStoreCommitMessage({ verb: "migrate", lifecycleAction: action }, reference, batchId, actor),
+      { schemaVersion: 1, batchId, createdOwners: [] })], { cwd: code.checkoutRoot });
   return stdout.trim();
 }
 

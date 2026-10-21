@@ -1,4 +1,6 @@
 /** Apply the saved-state namespace table to live, completed, reopened, and retired owners. */
+import { StoreCreationReceiptReader } from "../commit-creation-receipt.js";
+import { captureCommitReceipts } from "./history-receipts.js";
 import type { ChangesInput } from "../contract.js";
 import { RecordReferenceSchema } from "../identity.js";
 import type { StoreResult } from "../refusal.js";
@@ -11,7 +13,7 @@ import { latestArchivedFolders } from "./archive-read.js";
 import { missingChangeState, type RefChangeWindow, type RefChangeInterval, type ChangeWindowReader } from "./changes-graph.js";
 
 /** Select one continuous history window per owner, excluding states before a reopen. */
-export async function lifecycleChangeWindows(context: RefBackendContext, interval: RefChangeInterval, readWindow: ChangeWindowReader): Promise<StoreResult<RefChangeWindow[]>> {
+export async function lifecycleChangeWindows(context: RefBackendContext, interval: RefChangeInterval, readWindow: ChangeWindowReader, evidence = new StoreCreationReceiptReader()): Promise<StoreResult<RefChangeWindow[]>> {
   const { input, before, after } = interval;
   const ends = await readChangeEnds(context, interval, readWindow);
   if (ends.status === "refused") return ends;
@@ -24,7 +26,7 @@ export async function lifecycleChangeWindows(context: RefBackendContext, interva
   for (const live of owners) {
     if (!includesLifecycleOwner(context, input.references, live)) continue;
     if (before.get(live) && before.get(live) === after.get(live)) continue;
-    const planned = await ownerChangeWindow(context, input, live, before.get(live), after.get(live), ends.result, current);
+    const planned = await ownerChangeWindow(context, input, live, before.get(live), after.get(live), ends.result, current, evidence);
     if (planned.status === "refused") return planned;
     if (planned.result) windows.push(planned.result);
   }
@@ -32,7 +34,7 @@ export async function lifecycleChangeWindows(context: RefBackendContext, interva
 }
 
 async function ownerChangeWindow(context: RefBackendContext, input: ChangesInput, live: string, older: string | undefined, newer: string | undefined,
-  ends: ChangeEnds, current: ReadonlyMap<string, string>): Promise<StoreResult<RefChangeWindow | null>> {
+  ends: ChangeEnds, current: ReadonlyMap<string, string>, evidence: StoreCreationReceiptReader): Promise<StoreResult<RefChangeWindow | null>> {
   if (older && newer) return { status: "ok", result: { ref: live, upper: newer, lower: older, version: input.to } };
   const history = live.replace("refs/arc/", "refs/arc/history/");
   const from = latestArchivedFolders(ends.before.filter(({ liveRef }) => liveRef === live))[0];
@@ -42,7 +44,7 @@ async function ownerChangeWindow(context: RefBackendContext, input: ChangesInput
   if (newer && !from) return { status: "ok", result: { ref: live, upper: newer, version: input.to } };
   const source = newer ?? current.get(history) ?? current.get(live);
   if (!source) return { status: "refused", refusal: missingChangeState({ ref: history, version: input.to }) };
-  const index = await lifecycleBatchIndex(context, history, source, input);
+  const index = await lifecycleBatchIndex(context, history, source, input, evidence);
   if (index.status === "refused") return index;
   if (!hasLifecycleBatches(live, ends, index.result, batches)) return { status: "refused", refusal: missingChangeState({ ref: history, version: input.to }) };
   const upper = newer ?? (to?.metadata.batch ? index.result.get(to.metadata.batch) : source);
@@ -51,9 +53,11 @@ async function ownerChangeWindow(context: RefBackendContext, input: ChangesInput
   return { status: "ok", result: upper === lower ? null : { ref: newer ? live : history, upper, lower, version: input.to } };
 }
 
-async function lifecycleBatchIndex(context: RefBackendContext, history: string, tip: string, input: ChangesInput): Promise<StoreResult<Map<string, string>>> {
+async function lifecycleBatchIndex(context: RefBackendContext, history: string, tip: string, input: ChangesInput, evidence: StoreCreationReceiptReader): Promise<StoreResult<Map<string, string>>> {
   const object = (await readBatchObjects(context, [tip])).get(tip);
   if (object?.type !== "commit") return { status: "refused", refusal: missingChangeState({ ref: history, version: input.to }) };
+  const headReceipt = captureCommitReceipts(new Map([[tip, object]]), history, evidence);
+  if (headReceipt.status === "refused") return headReceipt;
   const cohort = history.startsWith("refs/arc/history/cohort/");
   const reference = RecordReferenceSchema.parse({ kind: cohort ? "cohort/document" : "work-item/meta",
     owner: { type: cohort ? "cohort" : "work-item", name: "unresolved", uid: history.split("/").at(-1) } });
@@ -62,6 +66,8 @@ async function lifecycleBatchIndex(context: RefBackendContext, history: string, 
   for (let index = 0; index + 1 < values.length; index += 2) {
     const revision = values[index]?.trim(), message = values[index + 1];
     if (!revision || message === undefined) continue;
+    const receipt = evidence.read(message, reference, `${history}@${revision}`);
+    if (receipt.status === "refused") return receipt;
     const provenance = parseStoreCommitProvenance(message, reference);
     if ("batchId" in provenance && provenance.batchId && !batches.has(provenance.batchId)) batches.set(provenance.batchId, revision);
   }

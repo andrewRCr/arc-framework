@@ -1,5 +1,6 @@
 /** Record history follows immutable ref commits and filters unrelated changes. */
 
+import { StoreCreationReceiptReader } from "../commit-creation-receipt.js";
 import { checkRefTip } from "./namespace-health.js";
 import { readRefRepository } from "./repository.js";
 import type { HistoryEntry } from "../contract.js";
@@ -45,25 +46,26 @@ export async function readCapturedRefHistory(context: RefBackendContext, request
     if (admitted.status === "refused") return admitted;
     reference = admitted.result;
   }
-  const archived = await resolveArchivedReferences(context, [reference], tips);
+  const evidence = new StoreCreationReceiptReader();
+  const archived = await resolveArchivedReferences(context, [reference], tips, evidence);
   if (archived.status === "refused") return archived;
   const retired = archived.result.length ? { status: "ok" as const, result: null } : await retiredHistoryHome(context, reference, tips);
   if (retired.status === "refused") return retired;
   const home = retired.result ?? expandStoredPath(reference, { registry: context.registry, history: archived.result.length > 0 });
   const tip = tips.get(home.ref);
-  return tip ? readRefHistory(context, reference, home, tip) : { status: "ok", result: [] };
+  return tip ? readRefHistory(context, reference, home, tip, evidence) : { status: "ok", result: [] };
 }
 
 /** Read a record log against one exact tip, also usable by a locked stale-base lookup. */
 export async function readRefHistory(context: RefBackendContext, reference: RecordReference,
-  home: StoredRecordHome, tip: string): Promise<StoreResult<HistoryEntry[]>> {
-  const history = await readRefHistoryDetails(context, reference, home, tip);
+  home: StoredRecordHome, tip: string, evidence = new StoreCreationReceiptReader()): Promise<StoreResult<HistoryEntry[]>> {
+  const history = await readRefHistoryDetails(context, reference, home, tip, evidence);
   return history.status === "refused" ? history : { status: "ok", result: history.result.map(({ entry }) => entry) };
 }
 
 /** Retain change-commit identities for merge bases and stored-side labels. */
 export async function readRefHistoryDetails(context: RefBackendContext, reference: RecordReference,
-  home: StoredRecordHome, tip: string): Promise<StoreResult<RefHistoryDetail[]>> {
+  home: StoredRecordHome, tip: string, evidence = new StoreCreationReceiptReader()): Promise<StoreResult<RefHistoryDetail[]>> {
   const unhealthy = await checkRefTip(context, home.ref, tip, home.metadataPath);
   if (unhealthy) return { status: "refused", refusal: unhealthy };
   const paths = await readHistoryPaths(context, reference, home, tip);
@@ -71,7 +73,7 @@ export async function readRefHistoryDetails(context: RefBackendContext, referenc
     ...paths.map((path) => `:(literal)${path}`)], { cwd: context.checkoutRoot, objectAccess: "local-only" });
   const rows = parseHistoryRows(stdout);
   const revisions = [...new Set(rows.flatMap((row) => [row.revision, ...row.parents]))];
-  const snapshots = await readHistorySnapshots(context, reference, home, revisions, paths);
+  const snapshots = await readHistorySnapshots(context, reference, home, revisions, paths, evidence);
   if (snapshots.status === "refused") return snapshots;
   const entries: RefHistoryDetail[] = [];
   for (const row of orderHistoryCommits(rows).reverse()) {
@@ -82,7 +84,8 @@ export async function readRefHistoryDetails(context: RefBackendContext, referenc
     if (after.state.version === (before?.version ?? null)) continue;
     const selected = after.state.version === null ? before?.reference ?? after.state.reference : after.state.reference;
     entries.push({ revision: row.revision,
-      entry: { ...after.state, reference: selected, provenance: parseStoreCommitProvenance(after.message, selected) } });
+      entry: { ...after.state, reference: selected, provenance: parseStoreCommitProvenance(after.message, selected),
+        ...(after.creationReceipt ? { creationReceipt: after.creationReceipt } : {}) } });
   }
   return { status: "ok", result: entries.reverse() };
 }

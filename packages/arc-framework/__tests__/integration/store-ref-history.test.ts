@@ -16,12 +16,13 @@ describe("record history over state refs", () => {
     const thirdWrite = success(await f.store.write({ ...update(f, second, "first\n"),
       provenance: { ...testProvenance, lifecycleAction: "third" } }));
     const history = success(await f.store.history({ reference }));
+    const noneReceipt = { schemaVersion: 1, batchId: expect.any(String), createdOwners: [] };
     expect(history).toEqual([
-      { reference, content: "first\n", version: first.version, provenance: { ...testProvenance, lifecycleAction: "third", reference,
+      { creationReceipt: noneReceipt, reference, content: "first\n", version: first.version, provenance: { ...testProvenance, lifecycleAction: "third", reference,
         batchId: expect.any(String) } },
-      { reference, content: "second\n", version: secondWrite.version, provenance: { ...testProvenance, lifecycleAction: "second", reference,
+      { creationReceipt: noneReceipt, reference, content: "second\n", version: secondWrite.version, provenance: { ...testProvenance, lifecycleAction: "second", reference,
         batchId: expect.any(String) } },
-      { reference, content: "first\n", version: first.version, provenance: { ...testProvenance, reference, batchId: expect.any(String) } },
+      { creationReceipt: noneReceipt, reference, content: "first\n", version: first.version, provenance: { ...testProvenance, reference, batchId: expect.any(String) } },
     ]);
     expect(thirdWrite.version).toBe(first.version);
     expect(new Set(history.map((entry) => "batchId" in entry.provenance ? entry.provenance.batchId : "legacy")).size).toBe(3);

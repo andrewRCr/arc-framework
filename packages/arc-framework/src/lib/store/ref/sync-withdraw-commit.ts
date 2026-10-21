@@ -1,5 +1,6 @@
 /** Commit a lifecycle withdrawal as one ordered-lock, compare-and-swap transaction. */
 
+import { appendStoreCreationReceipt } from "../commit-creation-receipt.js";
 import { randomUUID } from "node:crypto";
 import { RecordReferenceSchema, type OwnerIdentity } from "../identity.js";
 import { renderStoreCommitMessage } from "../commit-provenance.js";
@@ -50,8 +51,8 @@ export async function commitWithdrawEnd(context: RefBackendContext, end: Withdra
       for (const [ref, entries] of prepared) {
         const parent = state.get(ref), tree = await writeRefTree(physical, entries.values());
         const subject = await withdrawGroupReference(physical, ref, entries, reference);
-        const message = renderStoreCommitMessage({ verb: "sync", lifecycleAction: "withdraw-end" }, subject, batch, actor)
-          + `Arc-Withdrawn-End: ${end.batch}\n`;
+        const message = appendStoreCreationReceipt(renderStoreCommitMessage({ verb: "sync", lifecycleAction: "withdraw-end" }, subject, batch, actor)
+          + `Arc-Withdrawn-End: ${end.batch}\n`, { schemaVersion: 1, batchId: batch, createdOwners: [] });
         const { stdout } = await physical.exec("git", ["commit-tree", tree, ...parent ? ["-p", parent] : [], "-m", message], { cwd: context.checkoutRoot });
         const destination = targets.get(ref) ?? ref;
         changes.push({ ref: options.targetRef?.(destination) ?? destination, next: stdout.trim(), expected: state.get(destination) ?? null });
