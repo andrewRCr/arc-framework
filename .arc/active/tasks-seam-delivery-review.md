@@ -1234,6 +1234,17 @@ this phase puts publication's claim and reopen's boundary write in their transit
             - an approved fix that advances the Candidate drops the name, and a non-semantic movement after publication
               keeps it
 
+        - `[x]` **6.2.b.1 Singleton judgments and atomic persistence**
+            - Authorized singleton judgments prepare one decision on the effective Candidate subject, joining a
+              settled boundary's batch or persisting alone while review remains unfinished. Resume reuses the record;
+              a refused boundary batch leaves no decision, and retry records both together.
+        - `[ ]` **6.2.b.2 Member acceptance and native discharge**
+            - Record member termini with the boundary in one batch, retain exact replay and refusal behavior, and
+              resolve member decision keys for status and checkpoint discharge without a tracked-file action.
+        - `[ ]` **6.2.b.3 Terminus carry and recovery proofs**
+            - Preserve the existing singleton and member carry/drop rules across publication, response, corrective
+              renewal, and attestation recovery; retain key parity with import and close bounded replay proofs.
+
     - `[ ]` **6.2.c The resume token and the frontline resolve form**
 
         - From the flip `buildPrePublicationResumeCommand` and the replay encode and decode the token through the replay

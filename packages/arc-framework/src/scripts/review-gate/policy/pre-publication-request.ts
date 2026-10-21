@@ -1,5 +1,6 @@
 /** Lane policy-request composition for the typed pre-publication review procedure. */
-import { projectPrePublicationTerminus } from "./pre-publication-owner-judgments.js";
+import type { PreparedNativeReviewTerminus } from "../runtime/native-terminus-write.js";
+import { projectPrePublicationTerminus, preparePrePublicationTerminusDecision } from "./pre-publication-owner-judgments.js";
 import { composePrePublicationLaneJudgment, applyPrePublicationExtraPassJudgment } from "./pre-publication-lane-judgments.js";
 import { deriveReviewNextPassContextFromAttempts, latestCompletedLaneAttempt } from "./review-next-pass.js";
 import type { PerformedResponseProofInput } from "./performed-response-proof.js";
@@ -194,6 +195,10 @@ export interface PrePublicationCompositionDependencies {
   readDeliveryReviewTargets(workUnit: string): Promise<PreBindingDeliveryReviewTargets>;
   deriveImmutableTarget(headSha: string): Promise<ImmutableTargetRead>;
   readOwnerTerminusAuthority(workUnit: string): Promise<OwnerTerminusAuthorityRead>;
+  prepareNativeTerminusDecision?(input: {
+    subject: { lineage: LaneSubjectLineage; headSha: string | null; subjectDigest: CanonicalDigest | null };
+    acceptedBy: string; completedPasses: number;
+  }): Promise<PreparedNativeReviewTerminus>;
   resolveNativeTerminus?(input: {
     decisionKey?: CanonicalDigest;
     subject: { lineage: LaneSubjectLineage; headSha: string; subjectDigest: CanonicalDigest | null };
@@ -260,6 +265,7 @@ export type PrePublicationComposition =
     request: PrePublicationReviewRequest;
     /** Composition facts the envelope cannot carry and a caller must not lose. */
     advisories: readonly string[];
+    terminusDecision?: PreparedNativeReviewTerminus;
     /** Independently observed current root head for an approved, pending Candidate fix. */
     pendingFixRootHeadSha?: string;
   }
@@ -1012,10 +1018,13 @@ export async function composePrePublicationReviewRequest(
         + request.error.issues.map(({ path, message }) => `${path.join(".")}: ${message}`).join("; "),
     };
   }
+  const terminusDecision = await preparePrePublicationTerminusDecision({ request: request.data,
+    judgment: lanes.data.standard, authority: ownerTerminusAuthority, dependencies });
   return {
     status: "composed",
     request: request.data,
     advisories,
+    ...(terminusDecision === undefined ? {} : { terminusDecision }),
     ...(candidate.pendingFixRootHeadSha === undefined
       ? {}
       : { pendingFixRootHeadSha: candidate.pendingFixRootHeadSha }),

@@ -1,7 +1,8 @@
 /** Machine-readable review workflow handlers. */
+import { persistPrePublicationOutcome, type PrePublicationPersistenceAccess } from "./review-pre-publication-persistence.js";
 import { readReviewReadinessBinding } from "../scripts/review-gate/runtime/readiness-binding.js";
-import { readPrePublicationProgress, bindPrePublicationProgress, prePublicationProgressUnchanged, readAdvancedPrePublicationReentry,
-  type PrePublicationProgress, type PrePublicationProgressAccess } from "./review-pre-publication-progress.js";
+import { readPrePublicationProgress, bindPrePublicationProgress, readAdvancedPrePublicationReentry,
+  type PrePublicationProgress } from "./review-pre-publication-progress.js";
 import { defaultReviewHandlerBoundary, executeReviewHandler, ReviewCommandInputSchema, reviewCommandInputSchema, type ReviewHandlerBoundary } from "./review-handler.js";
 import { reviewCommandError, type ReviewHandlerErrorPhase } from "./review-handler-errors.js";
 export { ReviewCommandInputSchema } from "./review-handler.js";
@@ -24,9 +25,10 @@ import { reviewDiscoverableCommandInputSchema } from "./review-request-schema.js
 import { confirmReviewCorrectionLeg } from "../scripts/review-gate/policy/review-next-pass.js";
 
 import { readResolveNextPassContext, readHostedErrandNextPassContext } from "./review-next-pass-context.js";
+import { persistNativeTerminusBoundary, persistNativeTerminusDecision } from "../scripts/review-gate/runtime/native-terminus-persistence.js";
 import { composeNativePolicyGrants } from "../scripts/review-gate/runtime/native-policy-grants.js";
 import { resolveEvidenceBoundReviewPolicyContinuation } from "../scripts/review-gate/policy/review-policy-evidence.js";
-import type { ApprovedDispositionRecordReader, ReviewOperationStateStore } from "../scripts/review-gate/core/ports.js";
+import type { ApprovedDispositionRecordReader, ReviewOperationStateStore, ReviewFactPut } from "../scripts/review-gate/core/ports.js";
 import type { EvidenceBoundReviewPolicyDependencies } from "../scripts/review-gate/policy/review-policy-evidence.js";
 
 import { createCandidateResponseHeadContinuationReader } from
@@ -138,7 +140,6 @@ import {
 } from "../scripts/review-gate/policy/pre-publication-request.js";
 import {
   PrePublicationReviewEnvelopeSchema,
-  prePublicationBoundary,
   projectPrePublicationReview,
   type PrePublicationReviewEnvelope,
   type PrePublicationReviewRequest,
@@ -151,7 +152,6 @@ import {
   IntegrationBoundaryLocusV2Schema,
   parseIntegrationBoundaryLocus,
   type IntegrationBoundaryLocus,
-  type PublishedIntegrationBoundaryLocus,
   type PostAttestContinuation,
 } from "../scripts/review-gate/policy/integration-boundary-locus.js";
 import {
@@ -4107,66 +4107,43 @@ export interface ReviewPrePublicationJudgment {
 
 
 
-export interface ReviewPrePublicationHandlerDependencies extends PrePublicationProgressAccess {
+export interface ReviewPrePublicationHandlerDependencies extends PrePublicationPersistenceAccess {
   resolveRoot(cwd: string): string | null;
   readText(source: string): Promise<string>;
   readRootGitHead(root: string): Promise<string>;
   readCandidate(root: string, workUnit: string): Promise<CandidateRead>;
   readBoundary(root: string, workUnit: string): Promise<VersionedSubmissionBoundary>;
-  withStandardLaneLock<T>(
-    root: string, candidateId: CanonicalDigest, headSha: string, action: () => Promise<T>,
-  ): Promise<T>;
   compose(
     root: string,
     input: z.infer<typeof ReviewPrePublicationInputSchema>,
     judgment: ReviewPrePublicationJudgment,
   ): Promise<PrePublicationComposition>;
-  persistBoundary(root: string, boundary: PublishedIntegrationBoundaryLocus): Promise<void>;
   persistAcceptedFrontlineSkip(root: string, input: {
     workUnit: string;
     candidateId: CanonicalDigest;
     repositoryId: string;
     headSha: string;
   }): Promise<void>;
-  recoverAttestationOrdering(
-    root: string,
-    boundary: PublishedIntegrationBoundaryLocus,
-    expectedVersion: string,
-  ): Promise<void>;
   write(text: string): void;
   warn(text: string): void;
   setExitCode(code: number): void;
 }
 
 function projectPrePublicationForBackend(dependencies: ReviewPrePublicationHandlerDependencies, root: string,
-  request: PrePublicationReviewRequest, continuation: PostAttestContinuation, progress: PrePublicationProgress | null): PrePublicationReviewEnvelope {
+  request: PrePublicationReviewRequest, continuation: PostAttestContinuation, progress: PrePublicationProgress | null, terminusKey?: CanonicalDigest): PrePublicationReviewEnvelope {
   const native = dependencies.boundarySchemaVersion?.(root) === 2;
-  return projectPrePublicationReview(request, continuation, native ? { terminus: request.standard.terminus?.schemaVersion === 2
-    ? request.standard.terminus.decisionKey : null, readinessBinding: progress?.schemaVersion === 2 ? progress.digest : null } : undefined);
+  return projectPrePublicationReview(request, continuation, native ? { terminus: terminusKey ?? (request.standard.terminus?.schemaVersion === 2
+    ? request.standard.terminus.decisionKey : null), readinessBinding: progress?.schemaVersion === 2 ? progress.digest : null } : undefined);
 }
 
 async function persistPrePublicationBoundary(input: ReviewInvocationInput, value: unknown,
-  expectedVersion: string | null): Promise<void> {
+  expectedVersion: string | null, decision?: ReviewFactPut): Promise<void> {
   const bound = resolveReviewInvocation(input);
   const native = bound.store.capabilities.stateOffBranch;
   const boundary = native ? IntegrationBoundaryLocusV2Schema.parse(value) : parseIntegrationBoundaryLocus(value);
+  if (native && decision !== undefined) return persistNativeTerminusBoundary(input, boundary, expectedVersion, decision);
   const path = await writeSubmissionBoundary(input.cwd, boundary, expectedVersion, { store: bound.store, owner: bound.workItem });
   if (!native) await input.exec("git", ["add", "--", path], { cwd: input.cwd });
-}
-
-async function recoverProjectedPublicationBoundary(
-  dependencies: ReviewPrePublicationHandlerDependencies,
-  root: string,
-  boundary: PublishedIntegrationBoundaryLocus,
-  expectedVersion: string,
-): Promise<SubmissionBoundaryVersionConflictError | null> {
-  try {
-    await dependencies.recoverAttestationOrdering(root, boundary, expectedVersion);
-    return null;
-  } catch (error) {
-    if (error instanceof SubmissionBoundaryVersionConflictError) return error;
-    throw error;
-  }
 }
 
 async function persistAcceptedFrontlineSkip(input: ReviewInvocationOptions & {
@@ -4355,7 +4332,8 @@ function defaultPrePublicationDependencies(
       }
       return carried;
     },
-    persistBoundary: async (root, settled) => {
+    persistTerminusDecision: (root, decision) => persistNativeTerminusDecision({ ...invocationFor(root), cwd: root, exec }, decision),
+    persistBoundary: async (root, settled, decision) => {
       const snapshot = boundarySnapshots.get(settled.workUnit)
         ?? await readSubmissionBoundaryVersioned(root, settled.workUnit, { store: recordStoreFor(root), owner: invocationFor(root).workItem });
       const existing = snapshot.boundary;
@@ -4367,7 +4345,7 @@ function defaultPrePublicationDependencies(
         && settled.terminus === null;
       await persistPrePublicationBoundary({ ...invocationFor(root), cwd: root, exec }, preservesReservation
         ? { ...settled, reservation: existing.reservation }
-        : settled, snapshot.version);
+        : settled, snapshot.version, decision);
     },
     persistAcceptedFrontlineSkip: (root, accepted) => persistAcceptedFrontlineSkip({
       ...invocationFor(root),
@@ -4375,8 +4353,8 @@ function defaultPrePublicationDependencies(
       ...accepted,
       exec,
     }),
-    recoverAttestationOrdering: async (root, recovered, expectedVersion) => {
-      await persistPrePublicationBoundary({ ...invocationFor(root), cwd: root, exec }, recovered, expectedVersion);
+    recoverAttestationOrdering: async (root, recovered, expectedVersion, decision) => {
+      await persistPrePublicationBoundary({ ...invocationFor(root), cwd: root, exec }, recovered, expectedVersion, decision);
       boundarySnapshots.set(recovered.workUnit, await readSubmissionBoundaryVersioned(root, recovered.workUnit, { store: recordStoreFor(root), owner: invocationFor(root).workItem }));
     },
     write: (text) => {
@@ -4827,7 +4805,7 @@ export async function handleReviewPrePublication(
       },
       projectionDisposition: "keep-staged-until-publication",
     };
-    envelope = projectPrePublicationForBackend(dependencies, root, composition.request, postAttestContinuation, progressBeforeCompose);
+    envelope = projectPrePublicationForBackend(dependencies, root, composition.request, postAttestContinuation, progressBeforeCompose, composition.terminusDecision?.key);
     if (pendingFixAtCurrentRoot
       && (envelope.locus !== "candidate-fix-pending"
         || envelope.nextAction.command !== "arc review respond -")) {
@@ -4892,33 +4870,15 @@ export async function handleReviewPrePublication(
       }
       envelope = bindPrePublicationProgress(envelope, progressBeforeCompose);
     }
-    if (envelope.locus === "candidate-publish-ready"
-      || envelope.locus === "candidate-convergence-verification-pending") {
-      const persist = async (): Promise<"written" | "lane-moved" | SubmissionBoundaryVersionConflictError> => {
-        if (envelope.locus === "candidate-publish-ready"
-          && !await prePublicationProgressUnchanged(dependencies, root, envelope, currentRootHead)) return "lane-moved";
-        if (orderingRecovery !== undefined) {
-          const conflict = await recoverProjectedPublicationBoundary(
-            dependencies, root, prePublicationBoundary(envelope), orderingRecovery.expectedBoundaryVersion,
-          );
-          return conflict ?? "written";
-        }
-        await dependencies.persistBoundary(root, prePublicationBoundary(envelope));
-        return "written";
-      };
-      const result = envelope.locus === "candidate-publish-ready"
-        ? await dependencies.withStandardLaneLock(
-          root, composition.request.candidateId, currentRootHead, persist,
-        )
-        : await persist();
-      if (result === "lane-moved") {
-        emitLaneMovedRefusal();
-        return;
-      }
-      if (result !== "written") {
-        emitFailure(result, "execution", "attestation-ordering-conflict");
-        return;
-      }
+    const persisted = await persistPrePublicationOutcome(dependencies, { root, envelope, currentHead: currentRootHead,
+      recoveryVersion: orderingRecovery?.expectedBoundaryVersion, decision: composition.terminusDecision?.put });
+    if (persisted === "lane-moved") {
+      emitLaneMovedRefusal();
+      return;
+    }
+    if (persisted !== "written") {
+      emitFailure(persisted, "execution", "attestation-ordering-conflict");
+      return;
     }
   } catch (error) {
     emitFailure(error, "execution");

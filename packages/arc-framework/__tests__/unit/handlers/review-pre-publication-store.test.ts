@@ -4,7 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { handleReviewPrePublication } from "../../../src/handlers/review.js";
 import { CandidateManagedRecordV1Schema, createCandidateAttestation, createCandidateSubjectSnapshot, createCandidateReviewResponseEvidence } from "../../../src/lib/work-unit/candidate-attestation.js";
-import { PrePublicationReplayInputSchema } from "../../../src/scripts/review-gate/policy/pre-publication-replay.js";
+import { PrePublicationReplayInputSchema, replayTokenFromAction } from "../../../src/scripts/review-gate/policy/pre-publication-replay.js";
 import { canonicalDigest } from "../../../src/lib/kernel/index.js";
 import { IntegrationBoundaryLocusV2Schema } from "../../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
 import { createProjectIdentityReader } from "../../../src/lib/store/project-identity.js";
@@ -81,14 +81,18 @@ async function fixture(project = true) {
       nextAction: { kind: "run-self-review", command: "self-review", interactionText: "Review the Candidate." } }));
     return primary.reference.owner;
   };
-  return { ...checkout, seedCandidate, run: async (settled = false, lanes: unknown = { frontline: { invocation: { mode: "skip" } } }, resume?: string) => {
+  const invoke = async (options: Parameters<typeof handleReviewPrePublication>[1], lanes: unknown) => {
     let output = "";
-    await handleReviewPrePublication("example", resume === undefined ? settled ? { selfReview: "settled", lanes: "lanes.json" } : {} : { resume }, { resolveRoot: () => checkout.cwd,
-      readText: async () => JSON.stringify(lanes),
-      write: text => { output += text; }, setExitCode: () => {} }, undefined,
+    await handleReviewPrePublication("example", options, { resolveRoot: () => checkout.cwd,
+      readText: async () => JSON.stringify(lanes), write: text => { output += text; }, setExitCode: () => {} }, undefined,
     { ...checkout, projectId: createProjectIdentityReader(checkout.store) });
     return JSON.parse(output) as unknown;
-  } };
+  };
+  return { ...checkout, seedCandidate,
+    run: (settled = false, lanes: unknown = { frontline: { invocation: { mode: "skip" } } }, resume?: string) => invoke(
+      resume === undefined ? settled ? { selfReview: "settled", lanes: "lanes.json" } : {} : { resume }, lanes),
+    runPendingJudgment: (lanes: unknown) => invoke({ lanes: "lanes.json" }, lanes),
+  };
 }
 
 it("reaches self-review through the native default without an injected owner or metadata file", async () => {
@@ -156,6 +160,17 @@ it("projects a native skipped window as proven closure through default pre-publi
 it("records native readiness with the selected Candidate's complete review binding", async () => {
   const h = await fixture(), owner = await h.seedCandidate();
   const result = await h.run(true, { frontline: { invocation: { mode: "skip" } }, standard: { terminus: { mode: "owner-accepted" } } });
+  const decisions = createReviewDecisionPort(h.store, owner);
+  const listing = await decisions.list();
+  if (listing.status !== "complete") throw new Error(listing.reason);
+  const termini = listing.records.filter(({ value }) => value.choice.kind === "terminus");
+  expect(termini).toHaveLength(1);
+  const decision = termini[0];
+  if (decision === undefined) throw new Error("expected accepted terminus decision");
+  const decisionKey = reviewDecisionKey(decision.value);
+  expect(decision.value).toMatchObject({ lane: "standard", decidedBy: "test-user", basis: { passCount: 0 },
+    subject: { headSha: null } });
+  expect(result).toMatchObject({ terminus: decisionKey });
   const stored = (await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner })).boundary;
   const candidate = await readCandidateRecord(h.cwd, "example", { store: h.store, owner });
   if (candidate === null) throw new Error("expected the current Candidate");
@@ -165,6 +180,7 @@ it("records native readiness with the selected Candidate's complete review bindi
   if (binding.status !== "complete") throw new Error(binding.condition);
   expect(result, JSON.stringify(result)).toMatchObject({ schemaVersion: 2, locus: "candidate-publish-ready", readinessBinding: binding.digest });
   expect(stored).toMatchObject({ schemaVersion: 2, locus: "candidate-publish-ready", readinessBinding: binding.digest });
+  expect(stored).toHaveProperty("terminus", decisionKey);
   expect(stored).not.toHaveProperty("standardLaneOwnerVersion");
 });
 
@@ -308,3 +324,94 @@ it.each(["live", "missing", "wrong-kind", "withdrawn", "outside-subject", "super
     }
     expect(await h.run(true)).toMatchObject({ schemaVersion: 2, locus: "candidate-publish-ready", terminus: liveKey });
   });
+
+
+it("records a native singleton terminus before self-review and reuses it when the saved command reaches readiness", async () => {
+  const h = await fixture(), owner = await h.seedCandidate();
+  const before = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
+  const result = await h.runPendingJudgment({ frontline: { invocation: { mode: "skip" } },
+    standard: { terminus: { mode: "owner-accepted" } } });
+  expect(result).toMatchObject({ schemaVersion: 2, nextAction: { kind: "run-self-review" } });
+  const decisions = createReviewDecisionPort(h.store, owner), listing = await decisions.list();
+  if (listing.status !== "complete") throw new Error(listing.reason);
+  const termini = listing.records.filter(({ value }) => value.choice.kind === "terminus");
+  expect(termini).toHaveLength(1);
+  const decision = termini[0];
+  if (decision === undefined) throw new Error("expected accepted terminus");
+  const key = reviewDecisionKey(decision.value);
+  expect(result).toHaveProperty("terminus", key);
+  expect(await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner })).toEqual(before);
+  const token = replayTokenFromAction((result as { nextAction: { command: string } }).nextAction.command, "example");
+  expect(await h.run(false, {}, token)).toMatchObject({ schemaVersion: 2, locus: "candidate-publish-ready", terminus: key });
+  expect(await decisions.read(key)).toEqual(decision);
+  const after = await decisions.list();
+  if (after.status !== "complete") throw new Error(after.reason);
+  expect(after.records.filter(({ value }) => value.choice.kind === "terminus")).toEqual(termini);
+});
+
+it("leaves no accepted decision when its native boundary batch refuses and succeeds on retry", async () => {
+  const h = await fixture(), owner = await h.seedCandidate();
+  const before = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
+  const write = h.store.write.bind(h.store), batch = h.store.batch.bind(h.store);
+  let refuseBoundary = true;
+  h.store.write = async input => {
+    if (refuseBoundary && input.action === "put" && input.reference.kind === "review/integration-boundary") {
+      refuseBoundary = false;
+      return write({ ...input, expected: null });
+    }
+    return write(input);
+  };
+  h.store.batch = async input => {
+    if (refuseBoundary && input.writes.some(value => value.reference.kind === "review/integration-boundary")) {
+      refuseBoundary = false;
+      return batch({ ...input, writes: input.writes.map(value => value.action === "put"
+        && value.reference.kind === "review/integration-boundary" ? { ...value, expected: null } : value) });
+    }
+    return batch(input);
+  };
+  const lanes = { frontline: { invocation: { mode: "skip" } }, standard: { terminus: { mode: "owner-accepted" } } };
+  expect(await h.run(true, lanes)).toMatchObject({ error: { message: expect.stringMatching(/boundary.*changed|boundary.*version/i) } });
+  const decisions = createReviewDecisionPort(h.store, owner), listing = await decisions.list();
+  if (listing.status !== "complete") throw new Error(listing.reason);
+  expect(listing.records.filter(({ value }) => value.choice.kind === "terminus")).toEqual([]);
+  expect(await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner })).toEqual(before);
+  const repaired = await h.run(true, lanes);
+  const after = await decisions.list();
+  if (after.status !== "complete") throw new Error(after.reason);
+  const termini = after.records.filter(({ value }) => value.choice.kind === "terminus");
+  expect(termini).toHaveLength(1);
+  if (termini[0] === undefined) throw new Error("expected recovered terminus");
+  expect(repaired).toMatchObject({ schemaVersion: 2, locus: "candidate-publish-ready", terminus: reviewDecisionKey(termini[0].value) });
+});
+
+it("retains a concurrent decision conflict's remedy and reuses that decision on retry", async () => {
+  const h = await fixture(), owner = await h.seedCandidate();
+  const before = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
+  const batch = h.store.batch.bind(h.store);
+  let concurrent = true, condition = "";
+  h.store.batch = async input => {
+    const decision = input.writes.find(value => value.action === "put" && value.reference.kind === "review/decision");
+    if (concurrent && decision !== undefined) {
+      concurrent = false;
+      lifecycleSuccess(await h.store.write({ ...decision, provenance: input.provenance }));
+      const result = await batch(input);
+      if (result.status !== "refused") throw new Error("expected concurrent decision conflict");
+      condition = `${result.refusal.condition} ${result.refusal.remedy.text}`;
+      return result;
+    }
+    return batch(input);
+  };
+  const lanes = { frontline: { invocation: { mode: "skip" } }, standard: { terminus: { mode: "owner-accepted" } } };
+  const result = await h.run(true, lanes);
+  expect(condition).not.toBe("");
+  expect(result).toMatchObject({ error: { message: expect.stringContaining(condition) } });
+  expect(await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner })).toEqual(before);
+  const decisions = createReviewDecisionPort(h.store, owner), listing = await decisions.list();
+  if (listing.status !== "complete") throw new Error(listing.reason);
+  const termini = listing.records.filter(({ value }) => value.choice.kind === "terminus");
+  expect(termini).toHaveLength(1);
+  if (termini[0] === undefined) throw new Error("expected concurrently recorded decision");
+  const recorded = termini[0], key = reviewDecisionKey(recorded.value);
+  expect(await h.run(true, lanes)).toMatchObject({ schemaVersion: 2, locus: "candidate-publish-ready", terminus: key });
+  expect(await decisions.read(key)).toEqual(recorded);
+});
