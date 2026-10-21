@@ -16,6 +16,29 @@ async function trace(path: string): Promise<TraceEvent[]> {
 }
 
 describe.each(["default", "separate"] as const)("operation reader (%s)", (layout) => {
+  it("shares native tree and blob acquisition while returning the complete listing", async () => {
+    const f = await createRefReadFixture();
+    if (layout === "separate") await f.exec("git", ["config", "remote.origin.arc-state", "off"]);
+    const reference = RecordReferenceSchema.parse({ owner: { type: "work-item", name: "alpha" }, kind: "work-item/meta" });
+    expect(await f.store.write({ action: "put", expected: null, reference, content: makeMetaFixture("alpha"),
+      placement: { kind: "active" }, provenance })).toMatchObject({ status: "ok" });
+    // Establish the retained manifest outside the measured native acquisition.
+    expect(await f.store.version()).toMatchObject({ status: "ok" });
+    const path = join(f.root, "listing-reader-trace.json");
+    vi.stubEnv("GIT_TRACE2_EVENT", path);
+    try {
+      expect(await f.store.list({ family: "work-item" })).toMatchObject({ status: "ok", result: {
+        status: "complete", missed: false, diagnostics: [], records: [{ content: makeMetaFixture("alpha"), conflicts: [] }],
+      } });
+      const events = await trace(path);
+      const starts = events.filter(({ event }) => event === "start");
+      expect(starts.filter(({ argv }) => argv?.includes("--batch-check"))).toHaveLength(0);
+      const readers = starts.filter(({ argv }) => argv?.includes("--batch"));
+      expect(readers).toHaveLength(1);
+      expect(events.some(({ event, sid }) => event === "exit" && sid === readers[0]?.sid)).toBe(true);
+    } finally { vi.unstubAllEnvs(); }
+  }, 30_000);
+
   it("reuses one native process for a UID read and closes it before resolving", async () => {
     const f = await createRefReadFixture();
     if (layout === "separate") await f.exec("git", ["config", "remote.origin.arc-state", "off"]);

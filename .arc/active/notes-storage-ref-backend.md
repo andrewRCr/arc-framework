@@ -1370,3 +1370,45 @@ changed. The final hosted rerun must establish the platform results; isolation i
 
 The full Windows log and measurement artifact are retained under `task-18.3-hosted/second-run-windows/` in the local
 storage-ref-backend proof directory. macOS's previously recorded conformance timeout remains a failed result too.
+
+## Third dispatched platform results
+
+Run `39543872100` tested `0908ff6d95e252c0717d382351bffd7fff39f9a9`. Linux passed all 42 portability files and
+1,399 cases; macOS passed the same population plus its additional 22-file, 185-case targeted selection. All four
+contention cases passed on Linux and macOS. Windows completed 39 passing files, two failing files, and one skipped
+file; 1,373 cases passed, three failed, and 84 skipped. Its complete separate-conformance suite passed without the
+previous timeouts. Native Windows execution took 5,764.66 seconds; the separate-conformance file took 5,000.048 seconds
+and the four-case burst file 458.414 seconds.
+
+The isolated Windows medians still miss read, list, and write budgets in both layouts; version and lookup fit. The
+first assertion failed at default read, but the complete measurement artifact was written before assertions.
+
+| Layout   | Version (ms) | Read (ms) | List (ms) | Lookup (ms) | Write (ms) |
+| -------- | ------------ | --------- | --------- | ----------- | ---------- |
+| default  | 89.730       | 278.043   | 462.197   | 151.382     | 2,155.793  |
+| separate | 63.762       | 254.759   | 448.031   | 129.739     | 2,180.604  |
+
+Both Windows publishing-clone bursts reached recoverable pull deadlines while applying fetched state, after four
+publication retries and 11,457/11,852 ms of backoff. These results do not establish a lost write: the harness stopped
+at the failed publication assertion before checking final convergence. Worktree bursts passed in both layouts.
+`ref-process-writer.ts` currently performs one public push after the accepted write; the bounded continuation work
+exercises the existing retry remedy without repeating that write, changing production deadlines, or relaxing final
+inbox/tip assertions. Raw logs, final job state, timings, and duration artifacts remain under
+`task-18.3-hosted/third-run/` in the machine-local storage-ref-backend tools directory.
+
+The earlier cost closure remains bound to its measured source. Task 18.2.g records fresh costs after the remaining
+platform corrections; the host policy, fork, and separate-role gaps remain blocking for the next session.
+
+## Shared native tree acquisition
+
+`readRefTrees` now acquires `${tip}^{tree}` through `readBatchObjects`, sharing the existing operation reader with
+subsequent blob requests. Native `diff-tree` still enumerates paths. A missing or non-tree root remains omitted from
+the returned map, an empty tree remains readable, malformed framing fails closed, and root bodies use the same
+bounded-output partitioning as blobs. An empty tip selection returns an empty map without starting Git.
+
+The public-listing regression first observed an extra `--batch-check` child in both layouts, then returned the exact
+complete record set through one closed native batch reader. Listings now use three native processes instead of four;
+name-only live reads in the existing resource checks also save one process. Count expectations were tightened, while
+records, diagnostics, overflow splitting, conflicts, snapshots, archived acquisition, and read-source behavior remain.
+This local resource reduction does not establish a Windows budget pass. Fail-first/native logs and the source diff
+are retained under `task-18.2-shared-tree-reader/` in the machine-local tools directory.

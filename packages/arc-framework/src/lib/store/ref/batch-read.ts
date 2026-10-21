@@ -78,15 +78,13 @@ function parseBatch(bytes: Uint8Array, queries: readonly string[]): Map<string, 
 /** Resolve each tip's root tree and enumerate it, optionally limited to literal paths. */
 export async function readRefTrees(context: RefBackendContext, tips: ReadonlyMap<string, string>, paths?: readonly string[]): Promise<Map<string, RefTreeEntry[]>> {
   const pairs = [...tips];
+  if (pairs.length === 0) return new Map();
   const queries = pairs.map(([, tip]) => `${tip}^{tree}`);
-  const { stdout } = await context.rawExec(["cat-file", "--batch-check"], {
-    cwd: context.checkoutRoot, objectAccess: "local-only", input: encoder.encode(`${queries.join("\n")}\n`),
+  const objects = await readBatchObjects(context, queries);
+  const trees = queries.map((query) => {
+    const object = objects.get(query);
+    return object?.type === "tree" ? object.oid : null;
   });
-  const trees = decoder.decode(stdout).trimEnd().split("\n").map((line) => {
-    const match = /^([0-9a-f]{40}|[0-9a-f]{64}) tree \d+$/u.exec(line);
-    return match?.[1] ?? null;
-  });
-  if (trees.length !== pairs.length) throw new Error("Incomplete tree batch-check response");
   const input = trees.filter((tree): tree is string => tree !== null).map((tree) => `${emptyTree(tree.length)} ${tree}\n`).join("");
   const result = await context.rawExec(["diff-tree", "--stdin", "-r", "-t", "-z", ...(paths ? ["--", ...paths.map((path) => `:(literal)${path}`)] : [])], {
     cwd: context.checkoutRoot, objectAccess: "local-only", input: encoder.encode(input),

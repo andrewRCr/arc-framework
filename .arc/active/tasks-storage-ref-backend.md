@@ -1792,6 +1792,12 @@ in `notes-storage-ref-backend.md` (A25).
           bursts each run once without overlap while ordinary files still run concurrently. The previous dispatched
           Windows failures remain recorded in `notes-storage-ref-backend.md` § Second dispatched platform results.
 
+    - `[ ]` **18.1.e Bounded publication continuation in the burst harness**
+        - Keep all twenty accepted writes and production deadlines, retaining every public push attempt. Retry only
+          typed recoverable publication exhaustion/timeouts within the existing process/test bound, then require clean
+          publication and the unchanged exact final inbox and remote-tip checks.
+        - Build `test-first`: retryable continuation, terminal failure, bounded exhaustion, and native convergence.
+
 ### `[ ]` **18.2 The Windows budget and the portability pair — § 11.7, § 14.10**
 
 - _Goal:_ A dispatched portability run passes `--git-dir` with Windows paths and reftable on NTFS, and times `version`,
@@ -1845,6 +1851,27 @@ in `notes-storage-ref-backend.md` (A25).
         - A native configuration regression first observed overlap, then proved isolation with an explicit three-worker
           override while ordinary files still overlapped. Local eleven-sample results are recorded in
           `notes-storage-ref-backend.md` § Timing isolation; hosted Windows acceptance remains open.
+
+    - `[ ]` **18.2.f Remove redundant native acquisition**
+        - Retain all fixed Windows operation budgets; record each resource reduction and its refusal/recovery proof.
+
+        - `[x]` **18.2.f.1 Share tree and blob acquisition**
+            - Root-tree acquisition shares the operation's native reader with blobs; recursive enumeration and
+              missing/empty-tree distinctions remain. Real listings return every record with one fewer native process.
+            - Both layouts first exposed the separate tree-check launch; the shared reader closes before return.
+
+        - `[ ]` **18.2.f.2 Reuse successful immutable write evidence**
+            - Build `test-first`: reuse successful exact-object evidence only within one write attempt, retaining all
+              fresh namespace captures, original-before views, publication locks, and failure/retry diagnostics.
+
+        - `[ ]` **18.2.f.3 Carry selected point-read evidence**
+            - Build `test-first`: retain selected owner-location evidence within the public read while reacquiring
+              required physical objects; preserve ambiguity, aliases, retained-history, and corruption behavior.
+
+    - `[ ]` **18.2.g Re-measure costs after platform corrections**
+        - Repeat the established final tier/job procedure after the corrective source and tests settle. Record the new
+          head, complete file populations, advisory rows and deltas, retaining the earlier source-bound measurements.
+        - Use the existing complete dispatch and native artifacts; add no interim legacy comparison mechanism.
 
 ### `[~]` **18.3 CI cost — § 14.12**
 
