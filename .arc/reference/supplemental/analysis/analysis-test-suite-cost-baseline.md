@@ -169,52 +169,74 @@ later slowdown; the figures in them are that day's observations.
   sizes workers natively. `VITEST_MAX_WORKERS` overrides either, and `benchmark:test-cost --workers <n>` fixes the
   count for a capture. Compare a capture only with one at the same sizing; efficiency computed against the wrong count
   reads a work-bound tier as idle.
+- **Both sides need the same protocol and sample count.** Compare schema-v5 warmed captures only with schema-v5
+  warmed captures, and a median only with a median of as many runs. Records from before the warm-run protocol of
+  2026-10-09 cannot be normalized or compared, and a single retained run is a `single-run`, not a median.
 - **The benchmark takes about twice its retained wall clock.** Each invocation completes a discarded warm-up first.
 - **One flake discards the capture.** Only fully passed runs are retained, so an intermittent failure costs the whole
   run; rerun it rather than reading partial output.
-- **Direct runs bypass `remote-check`.** `benchmark:test-cost` and `test:file` execute on the invoking host whatever
-  the switch says, and take that host's heavy-test slot; unit-only runs take no slot.
+- **Direct runs bypass `remote-check`.** `benchmark:test-cost`, run from `packages/arc-framework/`, and `test:file`,
+  run from the repository root, execute on the invoking host whatever `remote-check`'s mode says, and take that
+  host's heavy-test slot; unit-only runs take no slot.
 
 ### Tell growth from regression
 
-Two readings over a pair of retained per-file captures settle it:
+Two readings over a pair of retained per-file captures screen it, and the narrowing steps below confirm what they
+suggest:
 
 - **Parallel efficiency** — summed file time over workers times wall clock. Near 1 means the tier is work-bound:
   ordering, placement, and splitting have nothing to take, and only less work or more capacity moves it. A single
   file gates the tier only when its own duration approaches the tier's wall clock.
 - **Unchanged files** — restrict the comparison to test files present at both refs that
   `git diff --name-only <old> <new> -- packages/arc-framework/__tests__` does not list, so both captures ran the same
-  test file; the same diff shows whether shared helpers changed. When one ref is unavailable, matching test counts, and
-  for E2E matching CLI spawn counts, are a weaker stand-in, since a file can change and keep its counts.
+  test file. The reading holds only when shared helpers, global setup, the test runner, and dependency versions are
+  unchanged too, or their changes are ruled out; the same diff lists changed helpers, and `package-lock.json` shows
+  runner and dependency changes. When one ref is unavailable, matching test counts, and for E2E matching CLI spawn
+  counts, are a weaker stand-in, since a file can change and keep its counts.
 
-Then read where the added time sits. Time on new files is growth. A rise across unchanged files beyond the noise band
-is a per-operation cost, and its share of the added time bounds what fixing it can recover. A tier can show both.
+Then read where the added time sits. Time on new files is growth. A rise in the unchanged files' summed time beyond
+the noise band is a per-operation cost, and their median ratio says how broad the rise is. A per-operation cost
+inflates new and changed files too, so its share of the added time, measured on unchanged files, is a lower bound on
+what fixing it recovers. A tier can show both.
 
-On 2026-10-20 the integration tier was mostly growth: efficiency 0.97 then 0.98 at 12 workers, and 1,245 s carried by
-136 new files. Against the per-file medians of the three closing runs, its 165 Git-unchanged files also rose 9% in
-summed time (875 s to 956 s, median ratio 1.15), a smaller per-file rise. The 31 Git-unchanged E2E files rose 44%
-(513 s to 738 s, median ratio 1.31), the regression signature.
+The 2026-10-20 readings break the comparison rule above. The 2026-10-07 baseline is schema-v4 three-run medians
+captured without a warm-up, and the 2026-10-20 side is single schema-v5 warmed runs, both at 12 workers,
+tier-isolated. A cold baseline understates a rise, so the readings served as a screen, and the narrowing steps
+confirmed the cause.
+
+On that basis the integration tier was mostly growth: efficiency 0.97 then 0.98, and 1,245 s carried by 136 new
+files. Its 165 Git-unchanged files rose 9.3% in summed time (875 s to 956 s), inside the noise band, with a median
+ratio of 1.15: a broad rise, not established as a per-operation cost. The 31 Git-unchanged E2E files rose 44% (513 s
+to 738 s, median ratio 1.31), the regression signature, and Git-changed E2E files rose 87%. Shared helpers changed
+between the refs, including the CLI entry, which moved to the compile-cache launcher, and Vitest moved from 4.1.8 to
+4.1.11. The launcher starts faster, and the in-process timer in step 3 below placed the rise inside the CLI, so
+neither explains it.
 
 ### Narrow a per-operation regression
 
 Run each step at both refs, interleaved, on an idle host:
 
-1. **One Git-unchanged file alone**, through `npm run test:file`. A difference that persists solo is in the work the
-   commands do. A larger in-suite difference points to contention, though a solo run also changes worker count and
-   cache state, so it is evidence rather than proof.
+1. **One Git-unchanged file alone**, through `npm run test:file` from the repository root. A difference that persists
+   solo is in the work the commands do. A larger in-suite difference points to contention, though a solo run also
+   changes worker count and cache state, so it is evidence rather than proof.
 2. **Git calls**, through a `git` shim first on `PATH` that logs each call's duration and arguments. Tests resolve Git
    from `PATH`, so the shim sees fixture and CLI calls alike.
-3. **CLI processes from inside.** Tests spawn the CLI through `process.execPath`, so a `node` shim on `PATH` sees none
-   of them. A `NODE_OPTIONS="--require <file>"` preload that appends `performance.now()` on `exit`, when
-   `process.argv[1]` is the CLI entry, gives each verb's in-process time.
+3. **CLI processes from inside.** The E2E helpers spawn the CLI through `process.execPath`, while `runCli` spawns
+   `node` from `PATH`, so a `node` shim on `PATH` sees only some spawns. A `NODE_OPTIONS="--require <file>"` preload
+   that appends `performance.now()` on `exit`, when `process.argv[1]` is the CLI entry, gives every verb's in-process
+   time.
 4. **One verb profiled**, with `node --cpu-prof --cpu-prof-dir=<dir> <cli> <verb>`, then self and inclusive time
    aggregated by named frame. Profile a real verb; `--version` loads no handler.
 
 For whole tiers at another commit, `benchmark:test-cost --ref <ref>` measures that commit in a temporary checkout
-when its lockfile matches; otherwise a detached worktree with its own `npm ci` and `npm run build:fast` serves.
+when its lockfile matches; otherwise use a detached worktree with its own `npm ci` and `npm run build:fast`. A ref
+from before the warm-run protocol needs the current measurement instrumentation applied first, as described above,
+or its captures cannot be compared.
 
-The integration IO context (`makeIOContext` in `__tests__/helpers/integration.ts`) stubs the editor-document writer,
-so a cost in checkout provisioning surfaces in E2E alone.
+The integration IO context (`makeIOContext` in `__tests__/helpers/integration.ts`) stubs the editor-document writer
+for commands that take it from that context — init, join, and update — so their provisioning cost shows only in
+E2E. Worktree spawn, locus provisioning, and start take the writer from their own context or options, and reach the
+real writer in integration tests that leave it unset.
 
 ### Placement and host
 
@@ -233,15 +255,17 @@ start measured 143 ms for `--version` and about 400 ms for `status --json`.
 
 - **Per-file durations** — the shared setup job restores the duration cache and uploads it as the
   `test-duration-input` artifact: per-file durations for unit, integration, and E2E in Vitest's results format, the
-  sequencer's input. Only scheduled and dispatched runs save that cache, so the artifact holds the last such run's
-  durations rather than the uploading run's own, and a run whose classification or setup fails uploads none. Scheduled
+  sequencer's input. Only a scheduled or dispatched run whose three test tiers all succeed saves that cache, so the
+  artifact holds the last such run's durations rather than the uploading run's own, and holds empty files when no
+  cache was restored. A run whose classification or setup fails, or a duplicate push run, uploads none. Scheduled
   and dispatched runs also upload their own `duration-results-<tier>-<shard>` artifacts. Retrieve either with
   `gh run download <run> -n <artifact>`.
-- **Job timings** — `gh run view <run> --json jobs` gives each job's start and end. Pushes to `main` skip the heavy
-  tiers, so read pull-request runs.
+- **Job timings** — `gh run view <run> --json jobs` gives each job's start and end. Integration and E2E jobs run on
+  every scheduled or dispatched run, and on a pull-request run only when it takes the reviewed lane with a heavy or
+  integration-targeted change; pushes to `main` skip them.
 - **Span** — a run spends about 90 s on classification, shared setup, and build before its test shards start, then
   waits on the slowest of the four integration and four E2E shards. On 2026-10-20 no single file gated a shard, and
-  shard wall clocks within one run spread 150–170 s.
+  the fastest and slowest shards of one run differed by 150–170 s.
 
 ## Tier baselines
 
