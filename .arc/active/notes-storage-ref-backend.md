@@ -1498,3 +1498,21 @@ boundaries in portability. Their native cases remain in the ordinary integration
 decision tests run in the unit tier and also match portability’s filename selection. The existing selector contract
 first failed on the missing entries, then passed with the complete selection. Cutover preservation already covers every
 `integration/store-ref-*` suite and every test outside the explicitly retired implementation groups.
+
+### Hosted diagnostic and evidence identity
+
+Run `39554966301` tested `deac253ae`, before the later write and named-read reductions. Its Windows timing file completed
+in 93.57 seconds (99.23 seconds including native test startup), rather than the full conformance workload. Windows
+medians were version/read/list/lookup/write = 90.869/217.404/436.867/154.998/2175.213 ms in default layout and
+59.455/185.035/400.644/125.408/2169.167 ms in separate layout. Read, list, and write missed their unchanged budgets.
+The retained traces contain 31/32 native commands; their public wall times were 2746/2737 ms, versus summed Git internal
+times of 1294/1234 ms. These are different clocks and profiles outside the acceptance median windows.
+
+macOS’s timing diagnostic passed. Linux’s two failed integration files contained only the stale lookup and listing-token
+process counts tightened by the acquisition corrections; the other integration shards, unit/E2E shards, Linux portability,
+build, and lint/type checks passed. This was a diagnostic run, not complete Windows/macOS portability acceptance.
+
+`gh run view --log-failed` returned the macOS step for the failed identically named matrix job; direct job-ID log
+`119072759043` reports Windows’s `default read` assertion and agrees with the Windows artifact.
+`ci.yml::portability-cross-platform` now appends the OS to each job name, and full dispatched pairs retain the same
+post-measurement write profiles. No native workload, operation budget, or acceptance condition changes.

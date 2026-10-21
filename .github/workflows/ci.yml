@@ -784,7 +784,7 @@ jobs:
   # Schedule and explicit dispatch opt-in retain native install/build per OS.
   # Setup supplies the shared invocation forecast.
   portability-cross-platform:
-    name: ${{ inputs.portability_timing_only && 'Portability timing diagnostic' || 'Portability targeted' }}
+    name: ${{ inputs.portability_timing_only && 'Portability timing diagnostic' || 'Portability targeted' }} (${{ matrix.os }})
     permissions:
       contents: read
       actions: write # upload portability measurements
@@ -826,6 +826,7 @@ jobs:
       env:
         ARC_E2E_SKIP_BUILD: '1'
         ARC_STORE_BURSTS: '1'
+        ARC_STORE_PROFILE: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
     - name: Measure native operation timing only
       if: ${{ github.event_name == 'workflow_dispatch' && inputs.portability_timing_only }}
       run: npm run test:file -- packages/arc-framework/__tests__/integration/store-ref-timing.test.ts --maxWorkers=1

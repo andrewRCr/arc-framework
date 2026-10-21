@@ -1892,6 +1892,10 @@ in `notes-storage-ref-backend.md` (A25).
         - The named-acquisition and publication-continuation suites join the existing portability selector; both
           remain ordinary integration cases as well. The selector contract first exposed the missing membership.
 
+    - `[x]` **18.2.j Identify platform evidence and retain diagnostics**
+        - Platform matrix jobs name their OS, avoiding ambiguous same-name log retrieval. Full dispatched pair runs
+          retain the existing post-measurement write traces; the complete native workload and numeric limits remain.
+
 ### `[~]` **18.3 CI cost — § 14.12**
 
 - _Goal:_ Running both backends until the cutover costs CI no more than the bound: each layout's ref conformance run
