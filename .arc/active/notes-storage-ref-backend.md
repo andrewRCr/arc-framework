@@ -713,3 +713,26 @@ sync-writer assertions lacking the landed merge action; their focused corrected 
 was 980.71 seconds. The decomposition unit regression passed all 710 cases in 90 files. Evidence and exact selections
 remain under `.arc/user/andrew/.internal/storage-ref-backend-tools/task-4.R2.d/`, with the corresponding logs in `/tmp/`.
 This closes the pending A22/A23 revalidation; Phase 18 still owns hosted timing, process-cost, and platform obligations.
+
+## Moving-remote segment closure — Task 17.6
+
+The exit scenario composes the preserved 13.6 designation/layout and shared-sync result, 15.10's complete import,
+notes-snapshot, post-import, Candidate, and review-mapping result, and the remaining move/follow cases. Task 4.R2.d
+already reran both complete native conformance suites, layout-lock/move, follow-lifecycle, leave-recorded-move-back,
+and lineage-alias-sync on unchanged production source. Those exact-subject results remain part of this union rather
+than spending another full run on them.
+
+The fresh selection runs 24 native integration files covering remote copy/switch/delete, lifecycle deletion, restart,
+reporting, crossing, ended items, forwarding/designation, follow candidates/convergence/races/restart/worktrees,
+leave-source and recorded-move variants, backing repoint, and read-source behavior. The three real CLI E2Es cover
+remote moves, following, and backing repoint. All 223 cases in these 27 files pass in 475.61 seconds. The exact
+selection and output are `/tmp/arc-storage-17.6-scenario-files` and `/tmp/arc-storage-17.6-scenario.log`; the retained
+proof directory is `.arc/user/andrew/.internal/storage-ref-backend-tools/task-17.6/`.
+
+This closes §§ 14.6–14.7's effective scenario without modifying production code. Hosted platform, host-capability,
+and cost evidence remain Phase 18's obligations; terminal verification and independent reviews have not run here.
+
+The first segment quality run found one stale command-boundary caller list: `runStoreRemote` now also belongs to
+`commands/store-migrate.ts`, whose answered follow prompt delegates the explicit role choice through that public entry.
+The exact two-command allowlist now names both adapters; the scan still rejects every other caller. The initial full
+unit run passed 18,946 cases and failed only this assertion, with 584 declared skips; no runtime correction was needed.

@@ -1736,11 +1736,14 @@ _Exit criterion:_ Every case of § 14.6 and § 14.7 passes.
   candidate URL before changing designation. Native cases retain late ends and a reopen's owed history delete, keep
   read-to-push settings copy-free, and recover stale-pointer and missing-code-home refusals through their named routes.
 
-### `[ ]` **17.6 Moving state between remotes** — validate exit criterion at segment scope
+### `[x]` **17.6 Moving state between remotes** — validate exit criterion at segment scope
 
 - _Goal:_ Every case of § 14.6 and § 14.7 passes, every clone of each scenario ending on one remote holding every write.
 
-    - Request `arc check segment`
+- _Outcome:_ The effective scenario combines 13.6's designation/layout coverage, 15.10's import coverage, 4.R2.d's
+  unchanged native lifecycle-move coverage, and fresh move, forwarding, follow, leave-source, backing-repoint, and
+  read-source runs in both layouts, including their CLI paths. Every scenario retains all accepted writes at its
+  selected remote; the evidence union is recorded in `notes-storage-ref-backend.md`.
 
 ## **Phase 18:** Hosts, platforms, and cost
 
