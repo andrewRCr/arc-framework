@@ -763,6 +763,7 @@ jobs:
       run: node --import tsx scripts/run-ci-checks.mjs run portability test
       env:
         ARC_E2E_SKIP_BUILD: '1'
+        ARC_STORE_BURSTS: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
 
   # Cross-platform legs keep their own install+build: OS-native deps make a
   # Linux node_modules cache unusable on Windows/macOS (Pass 1 is Linux-only).
@@ -809,6 +810,7 @@ jobs:
       run: node --import tsx scripts/run-ci-checks.mjs run portability-cross-platform test
       env:
         ARC_E2E_SKIP_BUILD: '1'
+        ARC_STORE_BURSTS: '1'
     - id: macos
       if: ${{ runner.os == 'macOS' }}
       run: node --import tsx scripts/run-ci-checks.mjs run portability-cross-platform macos

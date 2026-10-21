@@ -1,5 +1,5 @@
 /** Independent writer exercising the public store over a shared real repository. */
-import { createRefStore, createDefaultStorePorts, createRefLockFactory, RecordReferenceSchema, type WriteInput } from "../../../src/lib/store/index.js";
+import { createRefStore, createDefaultRefStorePorts, createDefaultStorePorts, createRefLockFactory, RecordReferenceSchema, type WriteInput } from "../../../src/lib/store/index.js";
 import { createExecaRawGitExec } from "../../../src/lib/git/process-executor.js";
 import { SlugSchema, ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
 import { writeLineageRecord } from "../../../src/lib/store/kinds/lineage/index.js";
@@ -15,7 +15,7 @@ const resume = async () => {
   process.stdout.write("READY\n");
   await new Promise<void>((resolve) => process.stdin.once("data", () => { process.stdin.pause(); resolve(); }));
 };
-const store = createRefStore({ ...defaults, backingRepository: async () => null, rawExec: createExecaRawGitExec(root),
+const store = createRefStore(job.mode === "inbox" ? createDefaultRefStorePorts({ checkoutRoot: root, backingRepository: async () => null }) : { ...defaults, backingRepository: async () => null, rawExec: createExecaRawGitExec(root),
   identity: async () => SlugSchema.parse(job.identity), actor: async (identity) => `${identity}@00000000-0000-4000-8000-000000000001`,
   random: Math.random, sleep: { wait: async () => {}, bound: async () => {} },
   lock: async (ref, wait) => {
@@ -44,7 +44,18 @@ async function relocate(kind: "active" | "completed", quarter = "2026-q4"): Prom
     content: current.result.content, placement: kind === "active" ? { kind } : { kind, quarter: ArchiveQuarterSchema.parse(quarter) },
     provenance: { ...provenance, verb: kind === "active" ? "reopen" : "archive" } });
 }
-if (job.mode === "burst") {
+if (job.mode === "inbox") {
+  await resume();
+  // Retry only an unaccepted lock acquisition, preserving the captured merge basis.
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const result = await store.write(job.input);
+    if (result.status === "refused") report.refusals.push(result.refusal);
+    if (result.status === "refused" && result.refusal.code === "lock-held" && attempt < 49) continue;
+    report.outcomes.push(result); report.retries.push(attempt);
+    if (result.status === "ok" && job.publish) report.publication = await store.push();
+    break;
+  }
+} else if (job.mode === "burst") {
   await resume();
   for (let iteration = 0; iteration < job.iterations; iteration += 1) {
     await write({ action: "put", reference: RecordReferenceSchema.parse({ kind: "personal/document", owner: { type: "person", name: job.identity },

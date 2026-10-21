@@ -1762,15 +1762,17 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
 
 - _Goal:_ Twenty worktrees and twenty clones writing at once lose no write, on the platforms where contention costs most.
 
-    - Twenty worktrees writing personal-inbox insertions and removals at once, and twenty clones converging on one ref,
-      in a suite registered in the `portability` tier's list (`localVitestTierArguments`, `lib/local-vitest-runner.ts`),
-      which both portability jobs (`.github/workflows/ci.yml`) run through `test:portability`
-    - The suite runs only where `ci.yml` sets `ARC_STORE_BURSTS`: on the pair's `schedule` and `workflow_dispatch`
-      runs and the Linux job's `workflow_dispatch` runs, so the Linux job's runs on reviewed pull requests and the
-      integration tier skip it; a per-test timeout above the Windows bursts' 378–401 s
-    - Passes with no lost write in one dispatched run of the Windows and macOS pair (`run_portability_pair: true`) and one
-      of the Linux portability job before this change lands, each recorded in `notes-storage-ref-backend.md`, since a
-      scheduled workflow runs only on the default branch
+    - `[x]` **18.1.a Native contention suite and dispatch gating**
+        - Both native layouts retain every insertion and observed removal from twenty independent worktree writers
+          and converge twenty publishing clones on the exact final remote tip. Workers preserve the captured basis
+          and use production locks, clocks, identities, and publication backoff.
+        - The exact suite joins portability selection under `ARC_STORE_BURSTS`, with 900-second process/test bounds.
+          Linux enables it on dispatch; the existing scheduled/dispatched Windows and macOS pair enables it too.
+
+    - `[ ]` **18.1.b Dispatched platform evidence**
+        - Passes with no lost write in one dispatched run of the Windows and macOS pair (`run_portability_pair: true`)
+          and one of the Linux portability job before this change lands, each recorded in
+          `notes-storage-ref-backend.md`, since a scheduled workflow runs only on the default branch
 
 ### `[ ]` **18.2 The Windows budget and the portability pair — § 11.7, § 14.10**
 

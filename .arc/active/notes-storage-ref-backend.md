@@ -736,3 +736,26 @@ The first segment quality run found one stale command-boundary caller list: `run
 `commands/store-migrate.ts`, whose answered follow prompt delegates the explicit role choice through that public entry.
 The exact two-command allowlist now names both adapters; the scan still rejects every other caller. The initial full
 unit run passed 18,946 cases and failed only this assertion, with 584 declared skips; no runtime correction was needed.
+
+## Native inbox contention — Task 18.1.a
+
+The gated burst suite runs twenty independent Node processes in linked worktrees and twenty independently publishing
+clones, in both native layouts. Every worker derives one distinct removal and insertion from the same captured inbox
+version. The final inventory retains the sentinel and all twenty new entries, with no old entries or conflicts.
+Every clone's final pull reads that inventory and the exact final remote tip. Publication checks inspect states,
+notices, and every per-family outcome, rather than treating a successful outer call as successful publication.
+
+The new inbox worker uses production ports, native locks, real clocks and machine identities, and normal sync waits
+and deadlines. Only unaccepted lock acquisition retries repeat the original write input; no retry refreshes its
+expected version. The suite chooses 900-second process/test bounds, while existing worker modes keep their original
+semantics and default 60-second helper deadline. Portability selection names the suite explicitly. Linux's test step
+sets `ARC_STORE_BURSTS` only on dispatch, and the existing scheduled/dispatched Windows and macOS pair sets it on its
+main test step. Ordinary integration and reviewed-PR Linux runs skip the bursts.
+
+All four burst cases passed locally in 46.56 seconds. A narrow incoming-only entry-merge reconstruction made all four
+fail on missing additions and resurrected removals; exact source bytes were restored in `finally`. The final run passed
+54 cases across the burst, existing process-worker, and CI workflow-contract files in 101.95 seconds. Portability
+selection also failed on the missing suite before registration and passed all 22 cases afterward. Proof is retained
+under `.arc/user/andrew/.internal/storage-ref-backend-tools/task-18.1.a/` and `/tmp/arc-storage-18.1-*`.
+
+Task 18.1.b retains the required dispatched Linux, Windows, and macOS evidence. Those hosted results remain open.

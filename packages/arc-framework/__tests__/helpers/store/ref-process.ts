@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { onTestFinished } from "vitest";
 import { RefProcessJobSchema, RefProcessReportSchema, type RefProcessJob, type RefProcessReport } from "../../fixtures/store/ref-process-protocol.js";
 
-export function startRefWriter(root: string, input: RefProcessJob) {
+export function startRefWriter(root: string, input: RefProcessJob, timeoutMs = 60_000) {
   const job = RefProcessJobSchema.parse(input);
   const env = { ...process.env };
   delete env.FORCE_COLOR;
@@ -25,7 +25,7 @@ export function startRefWriter(root: string, input: RefProcessJob) {
     try { payload = RefProcessReportSchema.parse(JSON.parse(line)); } catch (error) { parseFailure = error; }
   });
   const result = new Promise<RefProcessReport>((resolve, reject) => {
-    const timeout = setTimeout(() => { child.kill(); reject(new Error(`Writer exceeded 60s: ${errors}`)); }, 60_000);
+    const timeout = setTimeout(() => { child.kill(); reject(new Error(`Writer exceeded ${timeoutMs}ms: ${errors}`)); }, timeoutMs);
     child.on("error", (error) => { clearTimeout(timeout); failReady(error); reject(error); });
     child.on("close", (code) => {
       clearTimeout(timeout);
