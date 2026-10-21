@@ -868,3 +868,100 @@ neighboring read/decode/merge cases. Unit mapping and preflight passed 97 cases;
 passed. Raw tree fixtures now use the new spelling, and the registered-path roundtrip uses actual cut-map and routing
 receipt writers instead of generic prose. Proof is retained under
 `.arc/user/andrew/.internal/storage-ref-backend-tools/task-18.R/` and `/tmp/arc-storage-a24-*`.
+
+## Cutover suite inventory — Task 18.6
+
+Paths below are relative to `packages/arc-framework/__tests__/`. This inventory classifies assertions, not spelling: a
+consumer that happens to borrow the in-repo fixture keeps its contract behavior and changes its fixture. Native import
+tests intentionally retain legacy source data. No test or helper is deleted by this inventory.
+
+### Preserve shared, native, and consumer coverage
+
+Keep `helpers/store/conformance-suite.ts`, `suite-*.ts`, `fixture-contract.ts`, the reference backend/fixture, and their
+registration/exclusion-policy unit tests. Keep both native conformance registrations and every `integration/store-ref-*`
+suite, including import, timing, bursts, and native admission. The in-repo conformance registration currently runs the
+same assertions; preserve those assertions when the obsolete adapter registration and its helper go away. Do not carry a
+deleted backend merely to retain a three-line registration wrapper.
+
+Keep `unit/lib/store/{reference-*,ref-*,conformance-*,kinds/**,concurrency/**}` and shared identity, envelope, registry,
+serialization, conflict, provenance, receipt, observation, link, and lifecycle-contract tests. Keep the independent
+layout/address assertions and native port/identity tests. `integration/store-default-ref-ports`,
+`store-conflict-command`, `store-remote-command`, and `store-reference-packaging` survive despite lacking the
+native-suite filename prefix.
+
+Keep native store-command E2Es and the contract-based status, view, lifecycle, session-init, handoff, recovery,
+materialization, selected-store Errand, personal-user, and join consumers. Concrete integration suites include
+`store-public-readers-cli`, `errand-open-selected-store`, `errand-preservation-store-cli`,
+`errand-promote-store{,-cli}`, `errand-open-rollback-cli`, `errand-reserved-slugs-cli`, `executor-store-rebind`,
+`identity-setup-store-cli`, `join-store-cli`, `join-store-cancellation`, `lifecycle-default-locus-ports`,
+`lifecycle-marker-occupancy`, `materialize-store-cli`, `orphan-store-branches`, `user-open-store-cli`,
+`user-personal-store-callers`, and `view-store-cli`. Preserve `e2e/lifecycle.e2e` and `status-lifecycle.e2e` too.
+
+`e2e/store-command-dormancy.e2e.test.ts` is a deliberate exception: retire its unsupported-before-flip cases when those
+capabilities activate, keeping the independent locus-inspection scenario. Likewise update the default no-effect arm in
+`unit/lib/store/operational-sync.test.ts` and command-inventory/default-factory assertions when the production backend
+switches; retain the bound sync/history/refusal behavior. A pre-flip dormancy expectation is not a native contract.
+
+### Retire assertions about the deleted implementation
+
+Retire integration `store-in-repo-{fixture,fixture-sync,cohort-placement,errand-branches}`; `store-notes-*`;
+`store-transient{,-batches,-boundary,-history-order,-local-causes,-retry-acceptance,-version-retention}`;
+`store-tracked-{generation,history,listing-failures,lock,lock-release,lookup,reads,writes}`; and
+`store-tracked-write-{admission,batches,ownership,placement}`. These arrange or assert tracked placement, filesystem
+locks/digests, notes history/publication, or old Errand-ref transactions. Codec and consumer exceptions follow below.
+Retire personal batch, derived-status, and symlink-boundary integration suites whose assertions belong to the old
+physical-file adapter rather than the projected working copy's own contract.
+
+Retire integration `branch-bounded-notes-export`,
+`notes-{export-state-coherence,publication-history,publication-proof}`, `user-notes-{compaction,interleaving}`,
+`sync-state-{marker-publish,ref,ref-reconcile}`, `errand-common-basis-observation`,
+`errand-identity-{claims,transaction}`, `errand-partial-push-marker`, and `errand-record-sync`. Retire
+`e2e/sync-state-producer.e2e.test.ts`: its paired notes/sync-state push and partial-push marker are obsolete.
+
+Retire unit `lib/store/in-repo-{flat-read,boundary,identity-admission}` and the adapter-specific dispatch assertions;
+`user-sync-{classifier,current-wu,inference,orphan-classification,projection,retired-subdir}`; `user-sync-compaction*`;
+`user-sync-note-set-relation`; `user-sync-notes-{lock,ref,publication-proof}`;
+`user-sync/{sync-state-read,sync-state-write-validation}`; `git/user-sync`; old notes push/reconcile retry; and old
+sync-state marker/merge tests. Direct legacy Errand snapshot and transaction tests retire with their acquisition code.
+
+`unit/lib/store/write-context.test.ts` checks the old checkout-committability refusal mapper. Its only production symbol
+occurrence is the mapper's export, `checkoutRefusalFromPreflight`; its branch-preflight expectations retire with that
+guard. Generic preservation of actionable refusal/remedy fields remains covered by surviving contract/native refusal
+tests. Do not keep a retired checkout restriction merely because its test uses a pure function.
+
+### Split mixed suites before deleting their support
+
+| Suite or group                                                                                                                | Preserve                                                                                             | Retire or replace                                                           |
+| ----------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `store-cohort-fields`, `store-design-fields`, `store-task-list-fields`, `store-registered-reads`                              | Registered parsed fields, read/list behavior, malformed-content diagnostics                          | In-repo filesystem arrangement                                              |
+| `store-lifecycle-storage`, `store-lifecycle-{consumers,verbs}-differential`                                                   | Snapshot isolation, refusal, deciding-port composition, lifecycle/consumer eligibility and authority | Legacy Git-tree/parser comparison and tracked fixture side                  |
+| `store-lifecycle-index`, `store-review-listings`, `store-composed-acquisition`, `store-project-inbox`, `store-slug-ambiguity` | Contract queries and consumer outcomes                                                               | Old placement/branch setup                                                  |
+| `store-tracked-write-codecs`                                                                                                  | Candidate, boundary, transition, lineage writer behavior                                             | Tracked placement/setup                                                     |
+| `store-personal-{read,write}`, `store-default-identity`                                                                       | Selected identity, opaque content, transforms, stale versions, parser/listing/refusal behavior       | Notes locks, primary/linked file-root selection, direct old-file comparison |
+| `store-sync*`, `store-pull`                                                                                                   | Shared pull/push result/refusal behavior exercised through the current contract                      | Notes refspecs, captured notes trees, old sync-state/Errand publication     |
+| `status`, `start-dispatch`, `park-resume-roundtrip`, `user`, `user-inbox-remove`                                              | Public status/start/park/user/inbox/queue behavior                                                   | Old notes/file arrangement and lock assertions                              |
+| `unit/user-sync-merge`                                                                                                        | Cross-work-unit memory/inbox parsers and exact bytes                                                 | Notes merge/tombstone reconciliation                                        |
+| `unit/user-sync/schema`                                                                                                       | `CrossWuEntrySchema` and `CrossWuEntryParseSchema`                                                   | Persisted sync-state schemas and normalizers                                |
+| `unit/user-sync-notes-merge`                                                                                                  | Git error predicates used outside notes                                                              | Notes strategy, temp refs, manifests                                        |
+| `unit/lib/store/tracked-lock`                                                                                                 | `resolveCheckoutGitDir` behavior used by surviving Git callers                                       | `withTrackedWriteLock` and lock-file lifetime                               |
+| `unit/lib/store/current-work-unit`                                                                                            | Contract consumer selection semantics                                                                | Flat active-meta setup and legacy-reader parity                             |
+| `unit/errand-identity-{claims,transitions,record}`                                                                            | Surviving state transitions/rollback and legacy codec inputs still needed by the one-time import     | Old ref publication/acquisition                                             |
+| `e2e/errand.e2e`, `locus-errand-roundtrip.e2e`, `errand-open-provisioning-recovery.e2e`                                       | Public open/close/promotion/provisioning/materialization                                             | Direct old Errand-ref seeding, deletion, and assertions                     |
+
+Keep `unit/user-sync-inbox-writer`, `user-sync/{execution-offer,inbox-target}`, `lib/inbox/**`, and newer
+Errand/session-init store-backed consumers. Their content grammar, generation-qualified identity, mutation, and queue
+behavior survives; the `user-sync` directory name alone is no retirement basis. Preserve the identity-precedence
+semantics in `unit/lib/store/default-identity` and the reference-backed `current-work-unit-marker` tests.
+
+The distinction follows source assertions: `tracked-lock` has a separate checkout-directory resolver group;
+`user-sync-merge` has independent cross-work-unit parser groups; the field-reader suites assert parsed contract data;
+and `store-default-ref-ports` asserts native personal-ref actor facts. These are not lost with their temporary adapters.
+
+### Helper and architecture follow-through
+
+Rebind surviving consumers before retiring `helpers/store/in-repo-*` and old tracked/personal/sync fixture helpers.
+Preserve `ref-*`, shared suite/reference support, lifecycle harnesses, grammar fixtures, and legacy input fixtures used
+by native import. Remove a helper only after its surviving imports have moved. Architecture tests that forbid private
+backend imports survive; replace predicates naming the retiring implementation rather than deleting their broader
+boundary assertions. Preserve all suites outside the explicit retirement set unless their actual assertions target
+another deleted implementation.

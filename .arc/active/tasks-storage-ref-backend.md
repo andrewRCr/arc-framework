@@ -1860,13 +1860,15 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
   variants. Exact paired blob inventories isolate the filename difference; three repetitions record both sizes and
   repack times in `notes-storage-ref-backend.md` § Personal-path pack cost.
 
-### `[ ]` **18.6 The suites that survive the cutover — § 14.11**
+### `[x]` **18.6 The suites that survive the cutover — § 14.11**
 
 - _Goal:_ The cutover's deletion pass has the list of suites it keeps and retires: one running the shared suite or testing
   a consumer through the contract survives, and one targeting the in-repo implementation, notes, or Errand refs by name
   retires.
 
-    - Recorded in `notes-storage-ref-backend.md`
+- _Outcome:_ `notes-storage-ref-backend.md` § Cutover suite inventory names preserved shared/native and consumer
+  assertions, implementation-specific retirement groups, mixed-suite splits, dormancy exceptions, and helper
+  sequencing. Surviving consumers rebind before their old fixture helpers retire.
 
 ### `[x]` **18.R Identity-suffixed personal storage — § 3.2 (A24)**
 
