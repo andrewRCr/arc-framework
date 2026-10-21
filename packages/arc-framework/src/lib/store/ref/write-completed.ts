@@ -31,7 +31,8 @@ export async function stampCompletedWrites(context: RefBackendContext, batch: Re
 
 /** Refresh every folder in the same transaction, composing with other quarter changes. */
 export async function refreshCompletedChanges(context: RefBackendContext, changes: readonly RefChange[], batch: ResolvedBatch,
-  groups: ReadonlyMap<string, RefWriteGroup>, provenance: BatchInput["provenance"], batchId: string, receipt: BatchCreationReceipt): Promise<StoreResult<RefChange[]>> {
+  groups: ReadonlyMap<string, RefWriteGroup>, provenance: BatchInput["provenance"], batchId: string, receipt: BatchCreationReceipt,
+  actor: string | undefined): Promise<StoreResult<RefChange[]>> {
   const folders = (batch.archived ?? []).filter(({ liveRef }) => {
     const history = liveRef.replace("refs/arc/", "refs/arc/history/");
     return changes.some(({ ref }) => ref === history) && !groups.get(history)?.viewRef;
@@ -49,7 +50,6 @@ export async function refreshCompletedChanges(context: RefBackendContext, change
     await refreshArchivedFolder(context, folder, group, entries, reference);
   }
   const result = changes.filter(({ ref }) => !refs.has(ref));
-  const identity = await context.identity(), actor = identity === null ? undefined : await context.actor(identity);
   const reference = batch.writes[0]?.mutation.reference;
   if (!reference) throw new Error("A completed batch has no mutation");
   for (const [ref, entries] of quarters) result.push({ ref,

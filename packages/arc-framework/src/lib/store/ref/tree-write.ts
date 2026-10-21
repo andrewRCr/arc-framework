@@ -12,11 +12,16 @@ interface TreeNode { files: Map<string, RefTreeEntry>; children: Map<string, Tre
 
 /** Write UTF-8 record bytes as a blob in the local object store. */
 export async function writeRefBlob(context: RefBackendContext, content: string): Promise<string> {
-  if (context.blobStage) {
+  const format = context.blobStage?.format ?? context.writeEvidence?.format;
+  if (format) {
     const bytes = Buffer.from(content);
-    const oid = createHash(context.blobStage.format).update(Buffer.from(`blob ${bytes.length}\0`)).update(bytes).digest("hex");
-    context.blobStage.blobs.set(oid, bytes);
-    return oid;
+    const oid = createHash(format).update(Buffer.from(`blob ${bytes.length}\0`)).update(bytes).digest("hex");
+    if (context.blobStage) {
+      context.blobStage.blobs.set(oid, bytes);
+      return oid;
+    }
+    const confirmed = context.writeEvidence?.objects.get(oid);
+    if (confirmed?.type === "blob" && Buffer.from(confirmed.bytes).equals(bytes)) return oid;
   }
   const { stdout } = await context.rawExec(["hash-object", "-w", "--stdin"], {
     cwd: context.checkoutRoot, objectAccess: "local-only", input: Buffer.from(content),

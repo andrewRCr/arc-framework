@@ -1730,3 +1730,34 @@ capture; the API returned 404 afterward. The dedicated organization's private-fo
 fork permission were restored. Private provider forks remain identified in their local receipts for inspection and
 separate cleanup. Every native source ref the kit created was removed with its exact lease; unrelated spike refs and
 protected `main` branches were preserved. No credential, private key, or profile was committed.
+
+## Final metadata batching
+
+The completed-record timing path still wrote retained-history and completed-folder metadata separately after the
+verified record-blob batch had flushed. A strengthened native completed-write regression first observed two standalone
+`hash-object --stdin` processes in each layout. Both layouts now pre-stage final metadata without changing the
+prepared admission views, preserving each completed folder's original end batch through one shared metadata-shaping
+function. The existing layout-locked flush still verifies every native blob identity before admitting writes.
+
+After that flush, metadata serialization reuses only an exact blob identity, type, and bytes already confirmed in the
+same repository-bound write attempt. Prospective hashes alone never become evidence, and a subsequent public write
+still starts with an empty evidence cache. The retained-history and completed-quarter commits share one resolved
+actor. Fresh namespace comparison, registered admission checks, retirement sweep ordering, layout locking, and
+expected-old ref publication are unchanged. Tree construction still uses its existing per-tree batches.
+
+The focused regressions cover exact history/folder metadata, public content/version, retained end identity, reopen,
+multiple ends, conflicts, mixed lifecycle writes, atomic observations, missing-object refusal and repair, and
+interrupted staging. The resource witness requires one blob batch, no standalone blob writes, and at most three
+object-writing processes for the completed edit in either layout. The wider focused run passed 76 cases before the
+mechanical lint correction; the final focused confirmation and gate outputs are retained locally.
+
+The unchanged 600-item, twelve-quarter fixture passed eleven local samples per operation. Default medians were
+7.260/39.713/136.276/16.661/158.458 ms for version/read/list/lookup/write; separate medians were
+6.241/45.268/134.530/14.966/172.291 ms. These local clocks are diagnostic and do not establish Windows acceptance or
+exclude other local sessions' contention. Verified post-measurement native profiles used 19/default and 21/separate
+commands, down from 22/24: two metadata writes and the duplicate actor resolution no longer launch Git. The fixed
+Windows limits remain required and Task 18.2.a.2 stays open.
+
+Fail-first output, final regression output, timings, and raw native profiles are retained in `task-18.2-final-metadata/`
+in the machine-local storage-ref-backend tools directory. The next hosted run must bind to the committed source and
+retain its diagnostic identity; it cannot stand in for a complete final portability run or the segment verifier.

@@ -15,14 +15,20 @@ export async function refreshArchivedFolder(context: RefBackendContext, folder: 
   entries: Map<string, RefTreeEntry>, reference: RecordReference): Promise<void> {
   const home = expandStoredPath(reference, { registry: context.registry });
   for (const path of entries.keys()) if (path.startsWith(folder.root)) entries.delete(path);
-  const metadata: RefMetadata = { ...group.metadata, endBatch: folder.metadata.endBatch };
-  if (folder.placement.kind !== "completed") throw new Error("A completed folder has no completed placement");
-  if (metadata.placement) metadata.placement = { kind: "completed", quarter: folder.placement.quarter };
-  if (metadata.primary) metadata.primary = { ...metadata.primary, placement: { kind: "completed", quarter: folder.placement.quarter } };
+  const metadata = completedFolderMetadata(folder, group.metadata);
   const root = expandStoredPath({ ...reference, owner: { ...reference.owner, name: group.metadata.slug ?? reference.owner.name } }, { registry: context.registry, placement: folder.placement }).root;
   for (const entry of group.entries.values()) {
     if (entry.path === home.manifestPath.slice(0, -1) || entry.path.startsWith(home.manifestPath)) continue;
     const path = root + entry.path;
     entries.set(path, { ...entry, path, ...(entry.path === home.metadataPath ? { oid: await writeRefBlob(context, canonicalize(metadata)) } : {}) });
   }
+}
+
+/** Preserve a folder's end identity while normalizing its final completed placement. */
+export function completedFolderMetadata(folder: ArchivedFolder, source: RefMetadata): RefMetadata {
+  const metadata: RefMetadata = { ...source, endBatch: folder.metadata.endBatch };
+  if (folder.placement.kind !== "completed") throw new Error("A completed folder has no completed placement");
+  if (metadata.placement) metadata.placement = { kind: "completed", quarter: folder.placement.quarter };
+  if (metadata.primary) metadata.primary = { ...metadata.primary, placement: { kind: "completed", quarter: folder.placement.quarter } };
+  return metadata;
 }

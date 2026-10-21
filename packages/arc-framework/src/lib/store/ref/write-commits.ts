@@ -22,10 +22,8 @@ export interface RefWriteGroup extends CapturedWriteGroup { original: Map<string
 export async function prepareRefCommits(context: RefBackendContext, writes: readonly PreparedRefMutation[],
   targets: readonly RefWriteTarget[],
   groups: ReadonlyMap<string, RefWriteGroup>, completed: ReadonlyMap<string, RefWriteGroup>, tips: ReadonlyMap<string, string>,
-  provenance: BatchInput["provenance"], batchId: string, receipt: BatchCreationReceipt): Promise<RefChange[]> {
+  provenance: BatchInput["provenance"], batchId: string, receipt: BatchCreationReceipt, actor: string | undefined): Promise<RefChange[]> {
   const changes: RefChange[] = [];
-  const identity = await context.identity();
-  const actor = identity === null ? undefined : await context.actor(identity);
   for (const [ref, group] of groups) {
     const selected = writes.filter((write) => write.home.ref === ref);
     const first = targets.find(({ home }) => home.ref === ref);

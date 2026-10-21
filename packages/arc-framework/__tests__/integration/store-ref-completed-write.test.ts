@@ -12,8 +12,8 @@ import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 const quarter = ArchiveQuarterSchema.parse("2026-q4");
 
 describe("writes to completed ref records", () => {
-  it("updates retained history and its folder atomically, keeps the end batch, and reopens the latest state", async () => {
-    const f = await createRefFixture();
+  it.each(["default", "separate"] as const)("updates retained history and its folder atomically, keeps the end batch, and reopens the latest state (%s)", async (layout) => {
+    const f = await createRefFixture({}, layout);
     const primary = await seed(f, f.reference("work-item/meta"));
     const companion = await seed(f, f.reference("work-item/companion"));
     success(await f.store.write({ ...update(f, primary), placement: { kind: "completed", quarter } }));
@@ -21,10 +21,21 @@ describe("writes to completed ref records", () => {
     const uid = "uid" in primary.reference.owner ? primary.reference.owner.uid : undefined;
     const history = `refs/arc/history/work/${uid}`, archive = `refs/arc/archive/${quarter}`;
     const path = `metadata-${uid}.json`, folder = `01_${primary.reference.owner.name}/`;
-    const git = makeGitExec(f.root);
+    const native = makeGitExec(f.root);
+    const git = (command: string, args: string[]) => native(command, [...f.gitDir ? [`--git-dir=${f.gitDir}`] : [], ...args]);
     const prior = (await git("git", ["rev-parse", history])).stdout.trim();
     const old = JSON.parse((await git("git", ["show", `${history}:${path}`])).stdout) as Record<string, unknown>;
-    const changed = success(await f.store.write(update(f, archived)));
+    let batches = 0, singles = 0, objects = 0;
+    const measured = createRefStore({ ...f.ports, rawExec: (args, options) => {
+      if (args.includes("hash-object") || args.includes("mktree")) objects++;
+      if (args.includes("hash-object") && args.includes("--stdin-paths")) batches++;
+      if (args.includes("hash-object") && args.includes("--stdin")) singles++;
+      return f.ports.rawExec(args, options);
+    } });
+    const changed = success(await measured.write(update(f, archived)));
+    expect(batches).toBe(1);
+    expect(singles).toBe(0);
+    expect(objects).toBeLessThanOrEqual(3);
     expect((await git("git", ["rev-parse", `${history}^`])).stdout.trim()).toBe(prior);
     const metadata = JSON.parse((await git("git", ["show", `${history}:${path}`])).stdout) as Record<string, unknown>;
     expect(metadata.endBatch).toBe(old.endBatch);

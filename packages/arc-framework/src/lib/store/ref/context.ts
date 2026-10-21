@@ -23,7 +23,7 @@ export interface RefBackendContext extends RefStorePorts {
   /** Native object readers belong to one public read operation. */
   batchReader?: GitBatchReadScope;
   /** Successful immutable evidence belongs to one repository-bound write attempt. */
-  writeEvidence?: { objects: Map<string, BatchObject>; trees: Map<string, readonly RefTreeEntry[]> };
+  writeEvidence?: { objects: Map<string, BatchObject>; trees: Map<string, readonly RefTreeEntry[]>; format?: ObjectFormat };
   /** A push and all its nested pulls share one cancellation bound. */
   syncDeadline?: { signal: AbortSignal; end: number; cleanup: RefBackendContext };
 }
