@@ -1965,3 +1965,15 @@ and 18.2.R2, and the appended task-list criterion. Earlier completed reduction t
 unchanged-budget claims; the new criterion supersedes only those numeric obligations. The phase exit criterion,
 § 14.10's full-run requirement, A25's CI-cost obligations, and Task 18.7 continue to require the current budget without
 changing their outcomes. No Success Criteria checkbox changes before terminal verification.
+
+### Full-run harness corrections
+
+Full dispatch `39664555792`, source `ec617a92e5c58f02f105e9dfd78681288afc9228`, reports four failing cases in Linux
+integration shard 3: three authored CI-condition cases and one files-format snapshot control. Other Linux integration
+shards, build, lint/types, unit, E2E, Linux portability, and macOS portability pass. Windows remains in progress when
+these corrections begin; no push or replacement dispatch cancels it.
+
+`e2e-light-ci.test.ts::selected` evaluated the actual build condition without the `inputs` context that the new
+diagnostic exclusion references. It now supplies an empty object for ordinary events, matching absent dispatch input
+properties. The native classifier and authored job conditions still decide the expected light-content selections.
+The same three cases fail locally before this correction and pass afterward. No workflow selection changes here.

@@ -1930,6 +1930,14 @@ in `notes-storage-ref-backend.md` (A25).
               local 30 ms premise. The budget assessment and proposed limits are recorded in the notes; no limit
               changes, enumeration mechanism, or portability acceptance are claimed.
 
+    - `[ ]` **18.2.o Correct the full-run test harnesses**
+        - `[x]` **18.2.o.1 Supply ordinary workflow input context**
+            - The authored-condition evaluator supplies the empty `inputs` object present on ordinary events, so
+              light-content build/E2E selection remains exercised after diagnostic dispatch conditions were added.
+        - `[ ]` **18.2.o.2 Keep the snapshot control to one ref iteration**
+            - Read both state namespaces through one prefix, excluding the saved manifest; retain visible files-format
+              tearing, complete stable readback, and 128 consistent reftable snapshots during writer progress.
+
 ### `[x]` **18.2.R Operation-scoped acquisition during writes**
 
 - _Goal:_ Native `write` and `batch` reuse the existing bounded object reader within one public call, close it on

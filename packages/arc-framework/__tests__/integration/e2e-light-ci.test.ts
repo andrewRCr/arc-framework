@@ -30,6 +30,7 @@ function selected(job: Job, event: string, outputs: Record<string, string>): boo
   const expression = job.if.slice(3, -2).trim();
   return Boolean(runInNewContext(expression, {
     cancelled: () => false,
+    inputs: {},
     github: { event_name: event },
     needs: { classify: { result: "success", outputs }, setup: { result: "success" }, build: { result: "success" } },
   }, { timeout: 1000 }));
