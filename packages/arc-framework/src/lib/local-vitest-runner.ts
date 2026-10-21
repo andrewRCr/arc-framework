@@ -176,6 +176,9 @@ export function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
         "git-executor",
         "delivery-transfer.e2e",
         "store-ref-bursts.test.ts",
+        "store-ref-directory.test.ts",
+        "store-ref-separate-conformance.test.ts",
+        "store-ref-timing.test.ts",
       ];
     case "portability-macos":
       return ["anchored-sequence", "git-identity", "locus-errand-roundtrip", "rename"];

@@ -1785,12 +1785,16 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
       `ARC_STORE_BURSTS` gates only the bursts (18.1) and the timing suite (18.2.a)
 
     - `[ ]` **18.2.a The timing run**
-        - A timing suite in the same list under `ARC_STORE_BURSTS`, over a store of 600 work items in twelve quarters
-          built once per run as one `git fast-import` stream imported into each layout's repository — the default
-          layout's files-format code repository and the separate layout's reftable directory — timing each operation in
-          both layouts and taking the median of eleven runs of each
-        - It asserts § 11.7's budgets on `win32` alone and reports its medians on macOS and Linux; one dispatched run
-          passes before this change lands, its figures recorded in `notes-storage-ref-backend.md`
+        - `[x]` **18.2.a.1 Bulk fixture, measurements, and portability selection**
+            - One native-produced prototype supplies exact record/registry formats; one bulk stream builds identical
+              600-item, twelve-quarter stores in both layouts, retaining complete per-quarter creation receipts.
+              Eleven samples measure each operation with verification outside the timing window.
+            - Directory and separate-conformance suites join portability ungated; timing retains `ARC_STORE_BURSTS`.
+              Windows alone enforces the budgets. Both layouts' medians and native durations persist as CI artifacts.
+
+        - `[ ]` **18.2.a.2 Dispatched budget evidence**
+            - One dispatched run passes before this change lands, its figures recorded in
+              `notes-storage-ref-backend.md`
 
     - `[ ]` **18.2.b Only where a budget is breached**
         - A read over its budget gets a long-lived `cat-file --batch` reader for the operation's reads, aborting on

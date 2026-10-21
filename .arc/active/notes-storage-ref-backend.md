@@ -759,3 +759,38 @@ selection also failed on the missing suite before registration and passed all 22
 under `.arc/user/andrew/.internal/storage-ref-backend-tools/task-18.1.a/` and `/tmp/arc-storage-18.1-*`.
 
 Task 18.1.b retains the required dispatched Linux, Windows, and macOS evidence. Those hosted results remain open.
+
+## Native operation timing — Task 18.2.a.1
+
+The fixture captures registry and completed-primary bytes through two native production writes. It expands that
+prototype into one bulk stream, preserving every opaque metadata field and remapping owner, slug, quarter, and batch
+coordinates together. Shared provenance and creation-receipt codecs emit complete fifty-owner envelopes for each
+quarter's physical commits. Both measured repositories import identical bytes: files refs in the code repository and
+reftable in the separate directory. Setup uses one import per layout instead of hundreds of native fixture writes.
+
+Untimed checks establish identical initial ref maps, 600 completed primaries, fifty per quarter across twelve
+quarters, and a readable selected history with its complete creation receipt. The read reaches the fourth quarter
+from the newest one. Each operation takes eleven samples; assertions and write-verification reads happen after the
+elapsed sample. Windows alone enforces the stated budgets. Both layouts finish measurement before budget assertions,
+so a breach still leaves the complete report available.
+
+The exact directory and separate-conformance file names join portability ungated; the timing suite uses the existing
+burst gate. Its JSON report and native per-file duration cache upload as `portability-results-Linux`,
+`portability-results-Windows`, and `portability-results-macOS` on the applicable dispatched/scheduled jobs. Keeping these
+artifacts outside the integration-duration merge avoids combining platform timings into that baseline.
+
+Local Linux medians from the final profile, in milliseconds:
+
+| Layout   | Version | Read   | List    | Lookup | Write   |
+| -------- | ------- | ------ | ------- | ------ | ------- |
+| default  | 5.758   | 44.571 | 109.990 | 10.792 | 645.659 |
+| separate | 3.376   | 41.481 | 103.061 | 9.391  | 637.504 |
+
+The final timing and workflow-contract run passed all 39 cases in 24.45 seconds; portability selection passed all 22
+cases after first failing on the three missing files. The empty imported fixture first failed the complete-listing
+requirement. Discarded setup probes exposed an explicitly missing registry seed and required primary placement; those
+were fixture corrections. Proof is retained under `.arc/user/andrew/.internal/storage-ref-backend-tools/task-18.2.a.1/`
+and `/tmp/arc-storage-18.2-*`.
+
+These are Linux figures. Task 18.2.a.2 retains dispatched platform evidence, and 18.2.b retains the conditional budget
+response; neither is closed by local timing. No production performance change has been made at this boundary.
