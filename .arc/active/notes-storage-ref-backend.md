@@ -2450,3 +2450,49 @@ designation after the rename (`switchLayout`), so a restart buys nothing a perso
 absence (`directoryExists`) before restarting, so no other Git failure restarts an operation.
 The view, whose designation read checks the directory itself, confirms after its reads that the directory its binding
 found is still there, and starts again where it is not.
+
+## A32 — A no-target run returns the report of the move it finishes
+
+18.R2.h's probe (`run-h-ten-one-probe.log` in `.internal/storage-ref-backend-tools/verification/apply/`) ran a remote
+move ended before and after its switch by a move back, and one finished from its record, each followed by a second
+no-target run. Each first run returned the move's report; each second run returned nothing, 0 refs and no notices,
+since the forwarding record that makes a follow due reaches this clone's tracking refs only through a pull
+(`readRefFollowDue`, `follow-due.ts`), and the record's switch already leaves the designated layout. In those states
+§ 10.1's order and the code's agree in effect, so the probe alone decides nothing.
+
+**What decides it.** Where going on would act — a follow already due beside the record, on a remote the move leaves
+reading or pushing — the follow ends in `designation-needed` or a refusal (`followResult`, `follow-candidates.ts`), and
+§ 9.3's question carries no report. Going on would put the question in place of the move's report: the ended move's
+leftovers § 10.3 has it name, a finished remote move's notice that teammates follow once the pointer's change reaches
+them as code, and a layout move's refs. The code returned after a recorded remote move, follow, or leaving the source
+(`runRefMigrate`, `commands.ts`), but after a recorded layout move went on (`reconcileNoTarget`), dropping the finished
+layout report whenever the follow decided.
+
+**Why design.** On its face this is the task arm, § 10.1 stating an order the code does not run, but realizing that
+order as written either drops the report or gives the question a report, which changes § 9.3's result shape. A
+settled statement changes either way.
+
+**Superseded text.** § 10.1 ¶3: "`arc store migrate` with no target does three things, in order: it finishes an
+interrupted move from its record, in the direction the record names (§ 10.3); then follows another clone's move where a
+remote this clone fetches carries the forwarding record, asking about the move's destination (§ 10.6); then brings this
+clone into the layout its designation calls for, …" § 10.3 ¶4: "a no-target run then goes on to the follow where one is
+due (§ 10.1)."
+
+**Decision: return the move's report.** A no-target run finishing or ending a recorded move returns that report; a
+follow then due waits for the next run, which finds no record and follows. The ended move's notice already names
+`arc store migrate` to follow, so the design already assumed a second run. Rejected: going on and giving
+`designation-needed` a report, a change to the command result union and its rendering for a state a second run settles.
+
+**Sweep.** § 10.1 ¶3 and § 10.3 ¶4 revise in place; § 10.3's "finishes the move that record names" already holds,
+and § 14.7's "a no-target rerun holding a move's record while a follow is due finishes the move first" now names the
+report it returns and the next run's follow, which "first" left open. 13.1 recorded the
+layout-record path going on ("finishes the recorded direction before aligning designation") and takes the pointer.
+`arc store remote`, which finishes a recorded move before its own setting and combines the reports, is a setting
+rather than a no-target run and is unaffected. Criterion 42 names the layout path's row and the ended remote move's
+existing rows (`store-ref-remote-ended`).
+
+**For the fix.** `runRefMigrate` returns a finished layout move's report as it does the others', and
+`reconcileNoTarget` loses its `finished` argument. The row interrupts a setting turning origin from `push` to `read` at
+`layout.rename`, which fires before that move's rename and designation, so a pull meanwhile still fetches origin
+after another clone moved the state off it; the rerun's report is then the layout move's, and the next run asks the
+follow.

@@ -1288,6 +1288,8 @@ layouts.
 
     - _Amended in:_ 18.R2.h (A30)
 
+    - _Amended in:_ 18.R2.h (A32)
+
 - _Outcome:_ Public migrate and remote-setting entries share a clone-wide move lock and leased root record. Isolated
   copies reuse pull lifecycle reconciliation under held layout serialization, then land through one ref transaction or
   directory rename. No-target recovery finishes the recorded direction before aligning designation and cleaning up.
@@ -2199,7 +2201,7 @@ in `notes-storage-ref-backend.md` (A25).
           F8, a push's listing read racing a move in (`.internal/storage-ref-backend-tools/verification/apply/`).
           13.2, 14.3, 14.4, 14.5, 15.R4, and 15.10 cite removed cases.
 
-    - `[ ]` **18.R2.h Defects the derivations found — § 10.3, § 10.5, § 10.6, § 10.11, § 11.4 (A30, A31)**
+    - `[ ]` **18.R2.h Defects the derivations found — § 10.1, § 10.3, § 10.5, § 10.6, § 10.11, § 11.4 (A30, A31, A32)**
         - Each defect gets its exposing case first, then its fix. An interrupted local-only import that re-homed
           transient refs reruns to `ok` without the notices naming origin's copies: `store-ref-import-landing`'s
           [separate, publish] restart seeds one. A remote move overtaken by a move back inside its switch, at
@@ -2223,7 +2225,11 @@ in `notes-storage-ref-backend.md` (A25).
           a step hook after a record's removal exposes it on a rerun, and a new move's first record and a no-target run
           with no record clear both, never `import/`. A no-target run that finishes or ends a recorded remote move or
           follow returns there, where § 10.1 has it go on to the follow and the layout: a probe settles which is right,
-          and the code changes, or the specification does through `amend-design`.
+          and the code changes, or the specification does through `amend-design`. A run that finishes a recorded
+          layout move returns its report too rather than going on to a follow due beside it, exposed by a setting
+          turning origin from `push` to `read` interrupted at `layout.rename` while another clone moves the state off
+          origin and a pull brings in its forwarding record, the rerun returning the layout move's report and the next
+          run asking the follow (A32).
 
     - `[ ]` **18.R2.e Prepared multi-clone states — § 14.14**
         - `copyPreparedRepository` gains multi-clone shapes whose copies resolve every path inside themselves: remote
@@ -2471,3 +2477,7 @@ in `notes-storage-ref-backend.md` (A25).
   the push publishes nothing to the old state remote, the pull's merge lands in the code repository's refs, the write
   lands there, readable after the move, the read returns the record's content, `maintain` its measurements, and the view
   the default layout with the roles the move set (§ 11.4) (A31)
+
+- `[ ]` A layout move interrupted inside its switch, rerun with no target once a follow has become due, returns the
+  layout move's report rather than the follow's question, and the next no-target run asks the follow; a remote move
+  another move overtook returns its report naming each ref it leaves and the next run to follow (§ 10.1, § 10.3) (A32)

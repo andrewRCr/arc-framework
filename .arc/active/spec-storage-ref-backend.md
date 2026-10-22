@@ -2258,11 +2258,13 @@ private: a wording amendment to D10 (§ 2.6).
   `arc store remote <remote> push` for a remote of the code repository, which designates it and runs the layout move
   (§ 9.4), and for a URL the tracked pointer's change to it, then `arc store remote backing push`, which adds `backing`
   there.
-- **`arc store migrate`** with no target does three things, in order: it finishes an interrupted move from its record,
-  in the direction the record names (§ 10.3); then follows another clone's move where a remote this clone fetches
-  carries the forwarding record, asking about the move's destination (§ 10.6); then brings this clone into the layout
-  its designation calls for, deleting store refs an earlier move left in the code repository's refs beside the store
-  directory, and any temporary directory an interrupted build left (§ 10.2).
+- **`arc store migrate`** with no target finishes an interrupted move from its record, in the direction the record
+  names, and returns that move's report (§ 10.3), so a follow's question never takes the place of what the move did; a
+  follow then due waits for the next run. With no record standing, it does two things, in order: it follows another
+  clone's move where a remote this clone fetches carries the forwarding record, asking about the move's destination
+  (§ 10.6); then it brings this clone into the layout its designation calls for, deleting store refs an earlier move
+  left in the code repository's refs beside the store directory, and any temporary directory an interrupted build left
+  (§ 10.2) (A32).
 - **`arc store migrate --leave-source`** ends a recorded remote move or follow whose old remote is gone for good —
   deleted, or archived read-only — without its deletes, or a remote move or follow whose new remote is gone for good,
   before its switch or after, or before its switch refuses its copy for good — a remote move's withdrawing its own
@@ -2476,7 +2478,7 @@ the in-repo implementation; everything at the destination is the verb's.
   whose copy deleted the record there, a later move off the new one, or another move off the old remote at once whose
   record landed first — so the round writes nothing and the move ends, its record going: its report names in `notices`
   each ref it leaves on the old remote and, ended before its switch, the copy it leaves at the new remote, which stays
-  as a refused move's does (below); a no-target run then goes on to the follow where one is due (§ 10.1). A move ended
+  as a refused move's does (below); the run returns that report and the next run follows (§ 10.1) (A32). A move ended
   so once any step of its switch is taken (§ 10.2 step 3, § 10.6) and before the switch completes first undoes what of
   that switch it made, since its record alone tells the half-switched state's direction (above): a remote move's pointer
   returns to what the record's source gives it, none for a remote of the code repository and the source's URL for a
@@ -3770,10 +3772,10 @@ remote.
   source, interrupted between the directory's rename and the designation's change finish on a no-target rerun in the
   direction their records name, never reversed, save a follow another move overtook meanwhile (below, A30), while
   leaving the source interrupted before its record completes when its command runs again, merging onto the copy it
-  landed; a no-target rerun holding a move's record while a follow is due finishes the move first; and a layout move out
-  interrupted before its source's delete, leaving the clone with no state remote, has `pull` and `push` report
-  `move-unfinished` beside `no-remote` until a rerun deletes the leftover, and a setting moving the layout back in
-  meanwhile first finishes the move out, then moves in; a setting made while a
+  landed; a no-target rerun holding a move's record while a follow is due finishes the move and returns its report,
+  the next run following (A32); and a layout move out interrupted before its source's delete, leaving the clone with no
+  state remote, has `pull` and `push` report `move-unfinished` beside `no-remote` until a rerun deletes the leftover,
+  and a setting moving the layout back in meanwhile first finishes the move out, then moves in; a setting made while a
   layout move in stands interrupted after renaming its directory aside likewise finishes that move first, so no
   directory stays aside. A layout move out interrupted after its build and before its record leaves a temporary
   directory, which the next build replaces, a ref deleted meanwhile staying deleted, and a no-target run removes. Each
@@ -4520,6 +4522,11 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     read returns the record's content, `maintain` its measurements, and the view the default layout with the roles the
     move set (§ 11.4) (A31).
 
+42. **A no-target run that finishes or ends a recorded move returns that move's report.** A layout move interrupted
+    inside its switch, rerun with no target once a follow has become due, returns the layout move's report rather than
+    the follow's question, and the next no-target run asks the follow; a remote move another move overtook returns its
+    report naming each ref it leaves and the next run to follow (§ 10.1, § 10.3) (A32).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4652,5 +4659,8 @@ open:
 
 - **A31** — 2026-10-22 — spec-depth: an operation whose bound store directory goes before the layout lock restarts.
   _Supersedes:_ none. _Trigger:_ 18.R2.h must-stop. _Work:_ 18.R2.h. _Revalidated:_ pending → 19.1.
+
+- **A32** — 2026-10-22 — design: a no-target run that finishes or ends a recorded move returns that move's report.
+  _Supersedes:_ § 10.1 ¶3, § 10.3 ¶4. _Trigger:_ 18.R2.h must-stop. _Work:_ 18.R2.h. _Revalidated:_ pending → 19.1.
 
 ---
