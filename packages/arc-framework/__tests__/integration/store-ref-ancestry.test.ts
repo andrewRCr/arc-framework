@@ -2,7 +2,7 @@ import { runStoreMigrate } from "../../src/lib/store/index.js";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { dirname, join } from "node:path";
 import { mkdir, rm, writeFile } from "node:fs/promises";
-import { refSyncFixture } from "../helpers/store/ref-sync.js";
+import { preparedRefSync, refSyncFixture } from "../helpers/store/ref-sync.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { createRefStore, RecordReferenceSchema } from "../../src/lib/store/index.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
@@ -15,28 +15,29 @@ import { isGitProcessError } from "../../src/lib/git/process-error.js";
 
 const provenance = { verb: "save", lifecycleAction: "save" };
 
-async function rewrittenFixture(layout: "default" | "separate", divergent = false) {
-  const h = await refSyncFixture(layout);
-  const reference = RecordReferenceSchema.parse({ owner: { type: "person", name: "andrew" }, kind: "personal/document", key: "ancestry.md" });
-  const ref = "refs/arc/user/andrew/personal", tracking = `refs/arc-remotes/${h.remoteName}/user/andrew/personal`;
-  success(await h.a.store.write({ action: "put", reference, expected: null, content: "First published value.\n", provenance }));
-  success(await h.a.store.push()); success(await h.b.store.pull());
-  const first = (await h.remote("git", ["rev-parse", ref])).stdout.trim();
-  const current = success(await h.a.store.read({ reference }));
-  success(await h.a.store.write({ action: "put", reference, expected: current.version, content: "Second published value.\n", provenance }));
-  success(await h.a.store.push()); success(await h.b.store.pull());
-  const second = (await h.remote("git", ["rev-parse", ref])).stdout.trim();
-  const other = RecordReferenceSchema.parse({ owner: { type: "project", name: "project" }, kind: "project-inbox/inbox" });
-  const otherContent = "# Atomic Inbox\n\n## Inbox\n\nIndependent published update.\n";
-  success(await h.a.store.write({ action: "put", reference: other, expected: null, content: otherContent, provenance }));
-  success(await h.a.store.push());
-  if (divergent) {
-    await h.a.git(["update-ref", ref, first, second]);
-    const old = success(await h.a.store.read({ reference }));
-    success(await h.a.store.write({ action: "put", reference, expected: old.version, content: "Rewritten remote value.\n", provenance }));
-    await h.a.git(["push", `--force-with-lease=${ref}:${second}`, h.remoteName, `${ref}:${ref}`]);
-  } else await h.remote("git", ["update-ref", ref, first, second]);
-  return { ...h, reference, ref, tracking, first, second, other, otherContent };
+function rewrittenFixture(layout: "default" | "separate", divergent = false) {
+  return preparedRefSync(`rewritten in ${layout}${divergent ? ", divergent" : ""}`, layout, async (h) => {
+    const reference = RecordReferenceSchema.parse({ owner: { type: "person", name: "andrew" }, kind: "personal/document", key: "ancestry.md" });
+    const ref = "refs/arc/user/andrew/personal", tracking = `refs/arc-remotes/${h.remoteName}/user/andrew/personal`;
+    success(await h.a.store.write({ action: "put", reference, expected: null, content: "First published value.\n", provenance }));
+    success(await h.a.store.push()); success(await h.b.store.pull());
+    const first = (await h.remote("git", ["rev-parse", ref])).stdout.trim();
+    const current = success(await h.a.store.read({ reference }));
+    success(await h.a.store.write({ action: "put", reference, expected: current.version, content: "Second published value.\n", provenance }));
+    success(await h.a.store.push()); success(await h.b.store.pull());
+    const second = (await h.remote("git", ["rev-parse", ref])).stdout.trim();
+    const other = RecordReferenceSchema.parse({ owner: { type: "project", name: "project" }, kind: "project-inbox/inbox" });
+    const otherContent = "# Atomic Inbox\n\n## Inbox\n\nIndependent published update.\n";
+    success(await h.a.store.write({ action: "put", reference: other, expected: null, content: otherContent, provenance }));
+    success(await h.a.store.push());
+    if (divergent) {
+      await h.a.git(["update-ref", ref, first, second]);
+      const old = success(await h.a.store.read({ reference }));
+      success(await h.a.store.write({ action: "put", reference, expected: old.version, content: "Rewritten remote value.\n", provenance }));
+      await h.a.git(["push", `--force-with-lease=${ref}:${second}`, h.remoteName, `${ref}:${ref}`]);
+    } else await h.remote("git", ["update-ref", ref, first, second]);
+    return { reference, ref, tracking, first, second, other, otherContent };
+  });
 }
 
 async function applyRemedy(h: Awaited<ReturnType<typeof rewrittenFixture>>, text: string, label: string) {

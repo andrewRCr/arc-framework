@@ -5,23 +5,28 @@ import { expect } from "vitest";
 import { SlugSchema } from "../../../src/lib/kernel/index.js";
 import { createStoreCommandPorts } from "../../../src/commands/store-ports.js";
 import { createRefStore, RecordReferenceSchema } from "../../../src/lib/store/index.js";
-import { switchFixture, personal, provenance, capturePeerState, landPreparedOldPush } from "./remote-move.js";
+import { switchFixture, switchState, productionStore, personal, provenance, capturePeerState, landPreparedOldPush } from "./remote-move.js";
+import { preparedRefSync } from "./ref-sync.js";
 import { invokeStoreMigrate } from "./migrate-command.js";
 import { success } from "./suite-tools.js";
 import { invokeStoreRemote } from "./remote-command.js";
 import type { RefStorePorts } from "../../../src/lib/store/ports.js";
 
+/** A follower holding unpublished state, built once per file, whose state another clone moves in each test. */
 export async function followFixture(beforeMove?: (h: Awaited<ReturnType<typeof switchFixture>>) => Promise<void>, source: "code" | "backing" = "code") {
-  const h = await switchFixture(source, "backing");
-  success(await h.b.store.pull());
-  const config = join(h.b.root, ".arc", "system", "arc-config.yml");
-  await mkdir(join(h.b.root, ".arc", "system"), { recursive: true });
-  await writeFile(config, "# The invoking checkout's pointer.\n" + (source === "backing" ? `storage.backing_repository: ${JSON.stringify(h.origin)}\n` : ""));
-  const production = createStoreCommandPorts(h.b.root);
-  const ports = { ...production, ...h.b.ports, backingRepository: production.backingRepository };
-  const store = createRefStore(ports);
-  const unpublished = RecordReferenceSchema.parse({ ...personal, key: "follower-only.md" });
-  success(await store.write({ action: "put", reference: unpublished, expected: null, content: "Unpublished follower data.\n", provenance }));
+  const { followerConfig: config, unpublished, ...prepared } = await preparedRefSync(`follow from ${source}`,
+    source === "code" ? "default" : "separate", async (fixture) => {
+      const state = await switchState(fixture, source, "backing");
+      success(await fixture.b.store.pull());
+      const followerConfig = join(fixture.b.root, ".arc", "system", "arc-config.yml");
+      await mkdir(join(fixture.b.root, ".arc", "system"), { recursive: true });
+      await writeFile(followerConfig, "# The invoking checkout's pointer.\n" + (source === "backing" ? `storage.backing_repository: ${JSON.stringify(fixture.origin)}\n` : ""));
+      const reference = RecordReferenceSchema.parse({ ...personal, key: "follower-only.md" });
+      success(await productionStore(fixture.b).store.write({ action: "put", reference, expected: null, content: "Unpublished follower data.\n", provenance }));
+      return { ...state, followerConfig, unpublished: reference };
+    });
+  const h = { ...prepared, ...productionStore(prepared.a) };
+  const { ports, store } = productionStore(h.b);
   await beforeMove?.(h);
   expect((await invokeStoreMigrate(["--to", h.to], h.ports)).status).toBe("ok");
   expect(success(await store.pull()).states).toContainEqual(expect.objectContaining({ status: "moved", remote: h.sourceName }));

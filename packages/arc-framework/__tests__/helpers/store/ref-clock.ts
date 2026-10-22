@@ -6,6 +6,8 @@ export interface RefClock {
   clock: () => Date;
   sleep: RefStoreSleep;
   advance: (milliseconds: number) => void;
+  /** The current time, without the tick a `clock` reading takes. */
+  at: () => Date;
 }
 
 export function createRefClock(initial = new Date("2026-01-01T00:00:00Z"), tickMs = 1): RefClock {
@@ -22,7 +24,7 @@ export function createRefClock(initial = new Date("2026-01-01T00:00:00Z"), tickM
     now = target;
   };
   return {
-    clock: () => new Date(now += tickMs), advance,
+    clock: () => new Date(now += tickMs), advance, at: () => new Date(now),
     sleep: {
       wait: async (milliseconds, signal) => { if (!signal.aborted) advance(milliseconds); },
       bound: (milliseconds, signal) => new Promise<void>((resolve) => {

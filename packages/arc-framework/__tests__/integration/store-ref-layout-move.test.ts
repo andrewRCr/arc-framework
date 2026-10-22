@@ -10,7 +10,7 @@ import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { createReadSourceStore, createRefStore, createKindRegistry, HistoryRefSchema, PushResultSchema, MigrateReportSchema, RecordReferenceSchema, runStoreMigrate, runStoreRemote,
   type StoreCommandResult, type MigrateReport, type Store, type RecordReference, type WriteCheck } from "../../src/lib/store/index.js";
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
-import { createRefSyncCheckout, refSyncFixture } from "../helpers/store/ref-sync.js";
+import { createRefSyncCheckout, preparedRefSync } from "../helpers/store/ref-sync.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { invokeStoreMigrate } from "../helpers/store/migrate-command.js";
 import { success } from "../helpers/store/suite-tools.js";
@@ -18,31 +18,33 @@ import { success } from "../helpers/store/suite-tools.js";
 const provenance = { verb: "start", lifecycleAction: "seed" };
 
 async function layoutFixture() {
-  const h = await refSyncFixture("default");
-  const primary = success(await h.a.store.write({ action: "put", expected: null,
-    reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "alpha" } }),
-    content: makeMetaFixture("alpha"), placement: { kind: "active" }, provenance }));
-  const ended = success(await h.a.store.write({ action: "put", expected: null,
-    reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "ended" } }),
-    content: makeMetaFixture("ended"), placement: { kind: "active" }, provenance }));
-  success(await h.a.store.write({ action: "put", reference: ended.reference, expected: success(await h.a.store.read({ reference: ended.reference })).version, content: makeMetaFixture("ended"),
-    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, provenance: { verb: "archive", lifecycleAction: "archive" } }));
-  for (const [kind, owner, content] of [
-    ["cohort/document", { type: "cohort", name: "group" }, "# Group\n\n**Purpose:** Group the work.\n"],
-    ["project-registry/identity", { type: "project", name: "project" }, '{"projectId":"34567890-1234-4234-8234-123456789abc"}'],
-    ["personal/inbox", { type: "person", name: "andrew" }, "# User Inbox\n"],
-  ] as const) success(await h.a.store.write({ action: "put", expected: null,
-    reference: RecordReferenceSchema.parse({ kind, owner }), content, provenance }));
-  const uid = "uid" in primary.reference.owner ? primary.reference.owner.uid : "";
-  const tip = (await h.a.git(["rev-parse", `refs/arc/work/${uid}`])).stdout;
-  await h.a.git(["update-ref", `refs/arc-remotes/upstream/work/${uid}`, tip]);
-  await h.a.git(["update-ref", `refs/arc/tmp/seen/upstream/work/${uid}`, tip]);
-  await h.a.git(["update-ref", "refs/arc/tmp/migrate/disposable", tip]);
-  const source = createReadSourceStore(h.a.ports, "upstream"), sourceVersion = success(await source.version());
-  const version = success(await h.a.store.version());
-  const before = (await h.a.git(["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/", "refs/arc-remotes/"])).stdout
-    .split("\n").filter((line) => line && !line.startsWith("refs/arc/tmp/migrate/")).sort();
-  return { ...h, primary, source, sourceVersion, version, before, storeDirectory: join(h.a.root, ".git", "arc", "store") };
+  const h = await preparedRefSync("layout state", "default", async (h) => {
+    const primary = success(await h.a.store.write({ action: "put", expected: null,
+      reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "alpha" } }),
+      content: makeMetaFixture("alpha"), placement: { kind: "active" }, provenance }));
+    const ended = success(await h.a.store.write({ action: "put", expected: null,
+      reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "ended" } }),
+      content: makeMetaFixture("ended"), placement: { kind: "active" }, provenance }));
+    success(await h.a.store.write({ action: "put", reference: ended.reference, expected: success(await h.a.store.read({ reference: ended.reference })).version, content: makeMetaFixture("ended"),
+      placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, provenance: { verb: "archive", lifecycleAction: "archive" } }));
+    for (const [kind, owner, content] of [
+      ["cohort/document", { type: "cohort", name: "group" }, "# Group\n\n**Purpose:** Group the work.\n"],
+      ["project-registry/identity", { type: "project", name: "project" }, '{"projectId":"34567890-1234-4234-8234-123456789abc"}'],
+      ["personal/inbox", { type: "person", name: "andrew" }, "# User Inbox\n"],
+    ] as const) success(await h.a.store.write({ action: "put", expected: null,
+      reference: RecordReferenceSchema.parse({ kind, owner }), content, provenance }));
+    const uid = "uid" in primary.reference.owner ? primary.reference.owner.uid : "";
+    const tip = (await h.a.git(["rev-parse", `refs/arc/work/${uid}`])).stdout;
+    await h.a.git(["update-ref", `refs/arc-remotes/upstream/work/${uid}`, tip]);
+    await h.a.git(["update-ref", `refs/arc/tmp/seen/upstream/work/${uid}`, tip]);
+    await h.a.git(["update-ref", "refs/arc/tmp/migrate/disposable", tip]);
+    const sourceVersion = success(await createReadSourceStore(h.a.ports, "upstream").version());
+    const version = success(await h.a.store.version());
+    const before = (await h.a.git(["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/", "refs/arc-remotes/"])).stdout
+      .split("\n").filter((line) => line && !line.startsWith("refs/arc/tmp/migrate/")).sort();
+    return { primary, sourceVersion, version, before, storeDirectory: join(h.a.root, ".git", "arc", "store") };
+  });
+  return { ...h, source: createReadSourceStore(h.a.ports, "upstream") };
 }
 
 function report(result: StoreCommandResult<MigrateReport>): MigrateReport {
