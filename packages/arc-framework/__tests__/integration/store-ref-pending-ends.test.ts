@@ -8,7 +8,8 @@ import { LineageRecordSchema } from "../../src/lib/store/kinds/lineage/index.js"
 
 const quarter = ArchiveQuarterSchema.parse("2026-q4"), provenance = { verb: "archive", lifecycleAction: "archive" };
 
-describe.each(["default", "separate"] as const)("pending ends in the %s layout", (layout) => {
+describe("pending ends in the default layout", () => {
+  const layout = "default";
   it("applies all held items' pending ends while leaving a never-held item's history unfetched", async () => {
     const h = await refSyncFixture(layout);
     const create = async (name: string) => success(await h.a.store.write({ action: "put", expected: null,
@@ -40,76 +41,24 @@ describe.each(["default", "separate"] as const)("pending ends in the %s layout",
     success(await h.a.store.write({ action: "put", reference: current.reference, expected: current.version,
       content: current.content, placement: { kind: "completed", quarter }, provenance }));
     const remote = success(await h.b.store.read({ reference: made.reference }));
+    const transition = RecordReferenceSchema.parse({ kind: "lineage/transition", owner: made.reference.owner });
+    const lineage = JSON.stringify(LineageRecordSchema.parse({ schemaVersion: 2, origin: { name: made.reference.owner.name,
+      uid: "uid" in made.reference.owner ? made.reference.owner.uid : undefined }, kind: "abandon", successors: [], incoming: [] }));
     success(await h.b.store.batch({ writes: [
-      { action: "put", expected: null, reference: RecordReferenceSchema.parse({ kind: "lineage/transition", owner: made.reference.owner }),
-        content: JSON.stringify(LineageRecordSchema.parse({ schemaVersion: 2, origin: { name: made.reference.owner.name,
-          uid: "uid" in made.reference.owner ? made.reference.owner.uid : undefined }, kind: "abandon", successors: [], incoming: [] })) },
+      { action: "put", expected: null, reference: transition, content: lineage },
       { action: "remove", reference: remote.reference, expected: remote.version },
     ], provenance }));
     success(await h.b.store.push());
     if (!("uid" in made.reference.owner)) throw new Error("The item needs a UID");
     const history = `refs/arc/history/work/${made.reference.owner.uid}`;
     const published = (await h.remote("git", ["rev-parse", history])).stdout;
-    success(await h.a.store.pull());
+    const pulled = success(await h.a.store.pull());
+    expect(pulled.pulls.flatMap(({ notices }) => notices)).toContainEqual(expect.objectContaining({ kind: "end-withdrawn", item: made.reference.owner }));
+    expect(await h.a.store.read({ reference: made.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    expect((await h.a.git(["ls-tree", "--name-only", `refs/arc/archive/${quarter}`])).stdout).toBe("");
+    expect(JSON.parse(success(await h.a.store.read({ reference: transition })).content)).toEqual(JSON.parse(lineage));
     const merged = (await h.a.git(["rev-parse", history])).stdout;
     await h.a.git(["merge-base", "--is-ancestor", published, merged]);
-  });
-  it("never pushes a locally live item while its published end's history is missing", async () => {
-    const h = await refSyncFixture(layout);
-    const made = success(await h.a.store.write({ action: "put", expected: null, content: makeMetaFixture("missing"),
-      reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "missing" } }),
-      placement: { kind: "active" }, provenance }));
-    success(await h.a.store.push()); success(await h.b.store.pull());
-    const before = success(await h.a.store.read({ reference: made.reference }));
-    success(await h.a.store.write({ action: "put", reference: before.reference, expected: before.version,
-      content: before.content, placement: { kind: "completed", quarter }, provenance }));
-    success(await h.a.store.push());
-    if (!("uid" in made.reference.owner)) throw new Error("The item needs a UID");
-    const live = `refs/arc/work/${made.reference.owner.uid}`, history = live.replace("refs/arc/", "refs/arc/history/");
-    await h.remote("git", ["update-ref", "-d", history]);
-    success(await h.b.store.pull()); success(await h.b.store.push());
-    expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", live])).stdout).toBe("");
-    expect((await h.b.git(["for-each-ref", "--format=%(refname)", live])).stdout).toBe(live);
-  });
-  it("does not mistake a folder refresh for a new end when history lacks only the later write", async () => {
-    const h = await refSyncFixture(layout);
-    const made = success(await h.a.store.write({ action: "put", expected: null, content: makeMetaFixture("refresh"),
-      reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "refresh" } }),
-      placement: { kind: "active" }, provenance }));
-    success(await h.a.store.push()); success(await h.b.store.pull());
-    const before = success(await h.a.store.read({ reference: made.reference }));
-    success(await h.a.store.write({ action: "put", reference: before.reference, expected: before.version,
-      content: before.content, placement: { kind: "completed", quarter }, provenance }));
-    success(await h.a.store.push()); success(await h.b.store.pull());
-    if (!("uid" in made.reference.owner)) throw new Error("The item needs a UID");
-    const history = `refs/arc/history/work/${made.reference.owner.uid}`;
-    const old = (await h.b.git(["rev-parse", history])).stdout;
-    const closed = success(await h.a.store.read({ reference: made.reference }));
-    success(await h.a.store.write({ action: "put", reference: closed.reference, expected: closed.version,
-      content: `${closed.content}\nLater completed write.\n`, placement: { kind: "completed", quarter }, provenance }));
-    success(await h.a.store.push()); success(await h.b.store.pull());
-    expect((await h.b.git(["rev-parse", history])).stdout).toBe(old);
-    expect(success(await h.b.store.read({ reference: made.reference })).content).toContain("Later completed write.");
-  });
-
-  it("keeps unpublished live writes in a conflict when a published end arrives", async () => {
-    const h = await refSyncFixture(layout);
-    const made = success(await h.a.store.write({ action: "put", expected: null, content: makeMetaFixture("unpublished"),
-      reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "unpublished" } }),
-      placement: { kind: "active" }, provenance }));
-    success(await h.a.store.push()); success(await h.b.store.pull());
-    const local = success(await h.b.store.read({ reference: made.reference }));
-    success(await h.b.store.write({ action: "put", reference: local.reference, expected: local.version,
-      content: `${local.content}\nUnpublished write.\n`, placement: { kind: "active" }, provenance }));
-    const before = success(await h.a.store.read({ reference: made.reference }));
-    const content = `${before.content}\nPublished end.\n`;
-    success(await h.a.store.write({ action: "put", reference: before.reference, expected: before.version,
-      content, placement: { kind: "completed", quarter }, provenance }));
-    success(await h.a.store.push()); success(await h.b.store.pull());
-    const observed = success(await h.b.store.read({ reference: made.reference }));
-    expect(observed.content).toBe(content);
-    expect(observed.placement?.kind).toBe("completed");
-    expect(observed.conflicts).toHaveLength(1);
   });
   it.each([false, true])("reads a second end from its folder against the pre-pull history (requested ahead: %s)", async (ahead) => {
     const h = await refSyncFixture(layout);

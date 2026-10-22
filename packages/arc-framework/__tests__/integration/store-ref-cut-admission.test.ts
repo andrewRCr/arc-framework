@@ -43,8 +43,9 @@ describe.each(["default", "separate"] as const)("production native cut admission
       }
       competing = success(await h.store.version());
     });
-    expect(await runStoreDecomposeFinish(h.ctx, "origin", { applyAuthority: preview.applyAuthority }))
-      .toMatchObject({ status: "refused", remedy: { text: expect.any(String) } });
+    expect(await runStoreDecomposeFinish(h.ctx, "origin", { applyAuthority: preview.applyAuthority })).toMatchObject({ status: "refused",
+      reason: "version-conflict", class: "recoverable", locus: "origin", remedy: { text: expect.any(String) },
+      storeRefusal: { code: "version-conflict", records: expect.arrayContaining([draft.reference]) } });
     injected();
     expect(success(await h.store.version())).toBe(competing);
     if (mode === "edit") await h.handEdit(success(await h.store.read({ reference: draft.reference })), draft.content);
@@ -64,7 +65,9 @@ describe.each(["default", "separate"] as const)("production native cut admission
       competing = success(await h.store.version());
     });
     const input = { cutMap: h.map, cutMapPath: "cut.json" };
-    expect(await runStoreDecomposeAdditive(h.ctx, "origin", "execute", input)).toMatchObject({ status: "refused" });
+    expect(await runStoreDecomposeAdditive(h.ctx, "origin", "execute", input))
+      .toMatchObject({ status: "refused", reason: "stale-machine", class: "recoverable", locus: "machine",
+        remedy: { argv: ["arc", "decompose", "origin", "--preflight"] } });
     injected();
     expect(success(await h.store.version())).toBe(competing);
     expect(await runStoreDecomposeAdditive(h.ctx, "origin", "execute", { ...input, cutMap: await reboundMap(h) }))
@@ -80,7 +83,8 @@ describe.each(["default", "separate"] as const)("production native cut admission
       competing = success(await h.store.version());
     });
     expect(await runStoreDecomposeAdditive(h.ctx, "origin", "execute", { cutMap: h.map, cutMapPath: "cut.json" }))
-      .toMatchObject({ status: "refused" });
+      .toMatchObject({ status: "refused", reason: "stale-machine", class: "recoverable", locus: "machine",
+        remedy: { argv: ["arc", "decompose", "origin", "--preflight"] } });
     injected();
     expect(success(await h.store.version())).toBe(competing);
     const map = await reboundMap(h);
@@ -98,7 +102,8 @@ describe.each(["default", "separate"] as const)("production native cut admission
       competing = success(await h.store.version());
     }, `refs/arc/history/work/${h.primary.reference.owner.uid}`);
     expect(await runStoreDecomposeAdditive(h.ctx, "origin", "execute", { cutMap: h.map, cutMapPath: "cut.json" }))
-      .toMatchObject({ status: "refused" });
+      .toMatchObject({ status: "refused", reason: "stale-machine", class: "recoverable", locus: "machine",
+        remedy: { argv: ["arc", "decompose", "origin", "--preflight"] } });
     injected();
     expect(success(await h.store.version())).toBe(competing);
     const map = await reboundMap(h);
@@ -120,8 +125,9 @@ describe.each(["default", "separate"] as const)("production native cut admission
       await h.seed(recordReferences["work-item/notes"](member.reference.owner), "");
       competing = success(await h.store.version());
     }, `refs/arc/history/work/${member.reference.owner.uid}`);
-    expect(await runStoreDecomposeDiscard(h.ctx, "origin", { applyAuthority: preview.result.applyAuthority }))
-      .toMatchObject({ status: "refused" });
+    expect(await runStoreDecomposeDiscard(h.ctx, "origin", { applyAuthority: preview.result.applyAuthority })).toMatchObject({
+      status: "refused", reason: "store", class: "recoverable",
+      storeRefusal: { code: "record-malformed", rule: "cut-map.atomic-binding" } });
     injected();
     expect(success(await h.store.version())).toBe(competing);
     for (const reference of preview.result.removals) expect((await h.store.read({ reference })).status).toBe("ok");

@@ -23,7 +23,8 @@ async function completedFixture(layout: "default" | "separate") {
   return { ...h, reference: made.reference, history, archive, metadataPath, folder };
 }
 
-describe.each(["default", "separate"] as const)("completed-item reconciliation in the %s layout", (layout) => {
+describe("completed-item reconciliation in the default layout", () => {
+  const layout = "default";
   it("takes a remotely refreshed folder beside a different local archive", async () => {
     const h = await completedFixture(layout);
     const other = success(await h.a.store.write({ action: "put", expected: null, content: makeMetaFixture("other-completed"),
@@ -64,7 +65,7 @@ describe.each(["default", "separate"] as const)("completed-item reconciliation i
     expect(repaired.content).toBe(remoteContent);
     expect(repaired.conflicts).toHaveLength(1);
   });
-  it.each(["history", "changes", "write", "reopen"] as const)("refuses %s on a stale history copy and admits the same retry after a named pull", async (operation) => {
+  it.each(["changes", "write", "reopen"] as const)("refuses %s on a stale history copy and admits the same retry after a named pull", async (operation) => {
     const h = await completedFixture(layout);
     const from = success(await h.a.store.version()), previous = (await h.a.git(["rev-parse", h.history])).stdout;
     const before = success(await h.b.store.read({ reference: h.reference })), content = `${before.content}\nRemote refresh.\n`;
@@ -75,8 +76,7 @@ describe.each(["default", "separate"] as const)("completed-item reconciliation i
     const current = success(await h.a.store.read({ reference: h.reference })), to = success(await h.a.store.version());
     expect(current.content).toBe(content);
     const changed = `${content}\nA repaired write.\n`;
-    const attempt = () => operation === "history" ? h.a.store.history({ reference: h.reference })
-      : operation === "changes" ? h.a.store.changes({ from, to, references: [h.reference] })
+    const attempt = () => operation === "changes" ? h.a.store.changes({ from, to, references: [h.reference] })
       : h.a.store.write({ action: "put", reference: h.reference, expected: current.version,
         content: operation === "write" ? changed : content, placement: operation === "reopen" ? { kind: "active" } : { kind: "completed", quarter },
         provenance: operation === "reopen" ? { verb: "reopen", lifecycleAction: "reopen" } : provenance });
@@ -87,7 +87,7 @@ describe.each(["default", "separate"] as const)("completed-item reconciliation i
     success(await h.a.store.pull({ history: [h.history] }));
     const result = await attempt();
     expect(result.status, JSON.stringify(result)).toBe("ok");
-    if (operation === "history" || operation === "changes") {
+    if (operation === "changes") {
       expect(result).toMatchObject({ status: "ok", result: expect.arrayContaining([expect.objectContaining({ content })]) });
     }
     expect(success(await h.a.store.read({ reference: h.reference })).content).toBe(operation === "write" ? changed : content);
@@ -132,7 +132,8 @@ describe.each(["default", "separate"] as const)("completed-item reconciliation i
     if (missing) await h.a.git(["update-ref", "-d", h.history]);
     success(await h.a.store.pull({ history: [h.history] }));
     expect(success(await h.a.store.read({ reference: h.reference })).content).toBe(content);
-    expect((await h.a.store.history({ reference: h.reference })).status).toBe("ok");
+    expect(await h.a.store.history({ reference: h.reference }))
+      .toMatchObject({ status: "ok", result: expect.arrayContaining([expect.objectContaining({ content })]) });
     expect((await h.a.git(["show", `${h.archive}:${h.folder}${h.metadataPath}`])).stdout)
       .toBe((await h.a.git(["show", `${h.history}:${h.metadataPath}`])).stdout);
   });

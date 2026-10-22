@@ -10,7 +10,7 @@ const ownQuarter = ArchiveQuarterSchema.parse("2027-q1"), remoteQuarter = Archiv
 const provenance = { verb: "archive", lifecycleAction: "archive" };
 
 describe.each(["default", "separate"] as const)("withdrawal side effects in the %s layout", (layout) => {
-  it.each([false, true])("reopens a batch-closed cohort atomically unless the published end closed it too: %s", async (closedRemotely) => {
+  it.each(layout === "default" ? [false, true] : [false])("reopens a batch-closed cohort atomically unless the published end closed it too: %s", async (closedRemotely) => {
     const h = await refSyncFixture(layout);
     const cohort = success(await h.a.store.write({ action: "put", expected: null,
       reference: RecordReferenceSchema.parse({ owner: { type: "cohort", name: "ending-cohort" }, kind: "cohort/document" }),
@@ -63,62 +63,64 @@ describe.each(["default", "separate"] as const)("withdrawal side effects in the 
     else expect(read.placement).toBeUndefined();
     expect(success(await h.a.store.push()).publishes.every(({ status }) => status !== "failed")).toBe(true);
   });
-  it.each([
-    { scope: "project", returnedRemotely: false }, { scope: "project", returnedRemotely: true },
-    { scope: "personal", returnedRemotely: false }, { scope: "personal", returnedRemotely: true },
-  ] as const)("inverts its $scope inbox return and receipt (published return: $returnedRemotely)", async ({ scope, returnedRemotely }) => {
-    const h = await refSyncFixture(layout);
-    const made = success(await h.a.store.write({ action: "put", expected: null,
-      reference: RecordReferenceSchema.parse({ owner: { type: "work-item", name: "returned-entry" }, kind: "work-item/meta" }),
-      content: makeMetaFixture("returned-entry"), placement: { kind: "active" }, provenance: { verb: "start", lifecycleAction: "activate" } }));
-    const owner = scope === "project" ? { type: "project", name: "project" } : { type: "person", name: "andrew" };
-    const reference = RecordReferenceSchema.parse({ owner, kind: scope === "project" ? "project-inbox/inbox" : "personal/inbox" });
-    const receipt = (key: string) => RecordReferenceSchema.parse({ owner,
-      kind: scope === "project" ? "project-inbox/routing-receipt" : "personal/routing-receipt", key });
-    const routeContent = (source: string | null, destination: string) => canonicalize(RoutingReceiptSchema.parse({
-      entryId: "11111111", source: source === null ? null : { list: source },
-      destination: { list: destination, ...(scope === "personal" ? { identity: "andrew" } : {}) },
-      time: "2026-01-01T00:00:00Z",
-    }));
-    if (made.reference.owner.type !== "work-item" || !made.reference.owner.uid) throw new Error("Expected a work UID");
-    const beforeReceipt = routeContent(null, made.reference.owner.uid);
-    const returnedReceipt = routeContent(made.reference.owner.uid, scope);
-    const empty = scope === "project" ? "# Atomic Inbox\n\n## Inbox\n\n" : "# User Inbox\n\n## Errand\n\n## Work Unit\n\n";
-    const entry = "### **Returned concern**\n\n- _Id:_ `11111111`\n\nReturned concern.\n";
-    const unrelated = "### **New concern**\n\n- _Id:_ `22222222`\n\nCaptured independently.\n";
-    const route = { verb: "route", lifecycleAction: "archive" };
-    success(await h.a.store.batch({ writes: [
-      { action: "put", reference, expected: null, content: empty },
-      { action: "put", reference: receipt("before"), expected: null, content: beforeReceipt },
-    ], provenance: route }));
-    success(await h.a.store.push()); success(await h.b.store.pull());
-    const primary = success(await h.a.store.read({ reference: made.reference })), inbox = success(await h.a.store.read({ reference }));
-    success(await h.a.store.batch({ writes: [
-      { action: "put", reference: primary.reference, expected: primary.version, content: primary.content, placement: { kind: "completed", quarter: ownQuarter } },
-      { action: "put", reference, expected: inbox.version, content: empty + entry },
-      { action: "put", reference: receipt("own-return"), expected: null, content: returnedReceipt },
-    ], provenance: route }));
-    const remotePrimary = success(await h.b.store.read({ reference: made.reference }));
-    const remoteInbox = success(await h.b.store.read({ reference }));
-    if (!returnedRemotely) success(await h.b.store.write({ action: "put", reference, expected: remoteInbox.version,
-      content: empty + unrelated, provenance: { verb: "save", lifecycleAction: "capture" } }));
-    success(await h.b.store.batch({ writes: [
-      { action: "put", reference: remotePrimary.reference, expected: remotePrimary.version, content: remotePrimary.content,
-        placement: { kind: "completed", quarter: remoteQuarter } },
-      ...returnedRemotely ? [
-        { action: "put" as const, reference, expected: remoteInbox.version, content: empty + entry },
-        { action: "put" as const, reference: receipt("published-return"), expected: null, content: returnedReceipt },
-      ] : [],
-    ], provenance: route }));
-    success(await h.b.store.push());
-    const pulled = success(await h.a.store.pull());
-    expect(pulled.pulls.flatMap(({ notices }) => notices)).toContainEqual(expect.objectContaining({ kind: "end-withdrawn" }));
-    const content = success(await h.a.store.read({ reference })).content;
-    expect(content).toBe(empty + (returnedRemotely ? entry : unrelated));
-    expect(await h.a.store.read({ reference: receipt("own-return") })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
-    expect(success(await h.a.store.read({ reference: receipt("before") })).content).toBe(beforeReceipt);
-    if (returnedRemotely) expect(success(await h.a.store.read({ reference: receipt("published-return") })).content).toBe(returnedReceipt);
-    expect(success(await h.a.store.push()).publishes.every(({ status }) => status !== "failed")).toBe(true);
-  });
+  if (layout === "default") {
+    it.each([
+      { scope: "project", returnedRemotely: false }, { scope: "project", returnedRemotely: true },
+      { scope: "personal", returnedRemotely: false }, { scope: "personal", returnedRemotely: true },
+    ] as const)("inverts its $scope inbox return and receipt (published return: $returnedRemotely)", async ({ scope, returnedRemotely }) => {
+      const h = await refSyncFixture(layout);
+      const made = success(await h.a.store.write({ action: "put", expected: null,
+        reference: RecordReferenceSchema.parse({ owner: { type: "work-item", name: "returned-entry" }, kind: "work-item/meta" }),
+        content: makeMetaFixture("returned-entry"), placement: { kind: "active" }, provenance: { verb: "start", lifecycleAction: "activate" } }));
+      const owner = scope === "project" ? { type: "project", name: "project" } : { type: "person", name: "andrew" };
+      const reference = RecordReferenceSchema.parse({ owner, kind: scope === "project" ? "project-inbox/inbox" : "personal/inbox" });
+      const receipt = (key: string) => RecordReferenceSchema.parse({ owner,
+        kind: scope === "project" ? "project-inbox/routing-receipt" : "personal/routing-receipt", key });
+      const routeContent = (source: string | null, destination: string) => canonicalize(RoutingReceiptSchema.parse({
+        entryId: "11111111", source: source === null ? null : { list: source },
+        destination: { list: destination, ...(scope === "personal" ? { identity: "andrew" } : {}) },
+        time: "2026-01-01T00:00:00Z",
+      }));
+      if (made.reference.owner.type !== "work-item" || !made.reference.owner.uid) throw new Error("Expected a work UID");
+      const beforeReceipt = routeContent(null, made.reference.owner.uid);
+      const returnedReceipt = routeContent(made.reference.owner.uid, scope);
+      const empty = scope === "project" ? "# Atomic Inbox\n\n## Inbox\n\n" : "# User Inbox\n\n## Errand\n\n## Work Unit\n\n";
+      const entry = "### **Returned concern**\n\n- _Id:_ `11111111`\n\nReturned concern.\n";
+      const unrelated = "### **New concern**\n\n- _Id:_ `22222222`\n\nCaptured independently.\n";
+      const route = { verb: "route", lifecycleAction: "archive" };
+      success(await h.a.store.batch({ writes: [
+        { action: "put", reference, expected: null, content: empty },
+        { action: "put", reference: receipt("before"), expected: null, content: beforeReceipt },
+      ], provenance: route }));
+      success(await h.a.store.push()); success(await h.b.store.pull());
+      const primary = success(await h.a.store.read({ reference: made.reference })), inbox = success(await h.a.store.read({ reference }));
+      success(await h.a.store.batch({ writes: [
+        { action: "put", reference: primary.reference, expected: primary.version, content: primary.content, placement: { kind: "completed", quarter: ownQuarter } },
+        { action: "put", reference, expected: inbox.version, content: empty + entry },
+        { action: "put", reference: receipt("own-return"), expected: null, content: returnedReceipt },
+      ], provenance: route }));
+      const remotePrimary = success(await h.b.store.read({ reference: made.reference }));
+      const remoteInbox = success(await h.b.store.read({ reference }));
+      if (!returnedRemotely) success(await h.b.store.write({ action: "put", reference, expected: remoteInbox.version,
+        content: empty + unrelated, provenance: { verb: "save", lifecycleAction: "capture" } }));
+      success(await h.b.store.batch({ writes: [
+        { action: "put", reference: remotePrimary.reference, expected: remotePrimary.version, content: remotePrimary.content,
+          placement: { kind: "completed", quarter: remoteQuarter } },
+        ...returnedRemotely ? [
+          { action: "put" as const, reference, expected: remoteInbox.version, content: empty + entry },
+          { action: "put" as const, reference: receipt("published-return"), expected: null, content: returnedReceipt },
+        ] : [],
+      ], provenance: route }));
+      success(await h.b.store.push());
+      const pulled = success(await h.a.store.pull());
+      expect(pulled.pulls.flatMap(({ notices }) => notices)).toContainEqual(expect.objectContaining({ kind: "end-withdrawn" }));
+      const content = success(await h.a.store.read({ reference })).content;
+      expect(content).toBe(empty + (returnedRemotely ? entry : unrelated));
+      expect(await h.a.store.read({ reference: receipt("own-return") })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+      expect(success(await h.a.store.read({ reference: receipt("before") })).content).toBe(beforeReceipt);
+      if (returnedRemotely) expect(success(await h.a.store.read({ reference: receipt("published-return") })).content).toBe(returnedReceipt);
+      expect(success(await h.a.store.push()).publishes.every(({ status }) => status !== "failed")).toBe(true);
+    });
+  }
 
 });

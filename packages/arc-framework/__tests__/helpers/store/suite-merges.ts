@@ -160,10 +160,11 @@ export function registerMergeAssertions(context: SuiteContext): void {
     }
     success(await fixture.store.pull());
     const read = success(await fixture.store.read({ reference }));
+    expect(read.content).toBe("remote\n");
     expect(read.conflicts).toHaveLength(1);
     const conflict = success(await fixture.store.read({ reference: read.conflicts[0]! }));
-    expect(ConflictRecordSchema.parse(JSON.parse(conflict.content)))
-      .toMatchObject({ baseVersion: expected, currentLines: 1, incomingLines: 1 });
+    expect(ConflictRecordSchema.parse(JSON.parse(conflict.content))).toMatchObject({ location: { kind: "hunk" }, baseVersion: expected,
+      base: absentBase ? "" : "base", current: { content: "remote" }, incoming: { content: "local" }, currentLines: 1, incomingLines: 1 });
   }, (kind) => kind === "personal/document");
 }
 

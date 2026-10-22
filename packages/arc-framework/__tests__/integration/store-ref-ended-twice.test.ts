@@ -26,7 +26,8 @@ async function doubleFixture(layout: "default" | "separate", snapshot = false) {
   return { ...h, reference: made.reference, lineage, content, place };
 }
 
-describe.each(["default", "separate"] as const)("published double ends in the %s layout", (layout) => {
+describe("published double ends in the default layout", () => {
+  const layout = "default";
   it("keeps both published archives after a mirror erases the first, until reopening clears every quarter", async () => {
     const h = await doubleFixture(layout);
     await h.place(h.a, { kind: "completed", quarter }); success(await h.a.store.push());

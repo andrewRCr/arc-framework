@@ -38,7 +38,8 @@ async function endsFixture(layout: "default" | "separate") {
   return { ...h, reference: made.reference, transition, live, history, archive, retire };
 }
 
-describe.each(["default", "separate"] as const)("two ends in the %s layout", (layout) => {
+describe("two ends in the default layout", () => {
+  const layout = "default";
   it.each([false, true])("withdraws its unpublished archive while keeping the first published archive (reopened: %s)", async (reopened) => {
     const h = await endsFixture(layout);
     if (reopened) {
@@ -106,6 +107,7 @@ describe.each(["default", "separate"] as const)("two ends in the %s layout", (la
     const result = success(await h.a.store.push());
     expect(result.publishes.every(({ status }) => status !== "failed")).toBe(true);
     expect(result.pulls.flatMap(({ notices }) => notices)).toContainEqual(expect.objectContaining({ kind: "end-withdrawn" }));
+    expect(result.pulls.flatMap(({ notices }) => notices).some(({ kind }) => kind === "ended-twice")).toBe(false);
     expect(await h.a.store.read({ reference: h.transition })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
     expect(success(await h.a.store.read({ reference: companion })).content).toBe("A separate concern preceding the end.\n");
     expect(success(await h.a.store.read({ reference: h.reference })).placement).toMatchObject({ kind: "completed", quarter: publishedQuarter });

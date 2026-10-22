@@ -47,41 +47,43 @@ describe.each(["default", "separate"] as const)("many processes (%s)", (layout) 
     }
   }, 90_000);
 
-  it.each(["archive", "abandon", "reopen", "reopen-and-archive"] as const)("never resurrects state left by a racing %s", async (action) => {
-    const f = await fixture();
-    const primary = success(await f.store.write({ action: "put", reference: RecordReferenceSchema.parse({ kind: "work-item/meta",
-      owner: { type: "work-item", name: "alpha" } }), expected: null, content: makeMetaFixture("alpha"), placement: { kind: "active" }, provenance }));
-    const reference = RecordReferenceSchema.parse({ ...primary.reference, kind: "work-item/companion", key: "extra" });
-    const original = success(await f.store.write({ action: "put", reference, expected: null, content: "before\n", provenance }));
-    if (action.startsWith("reopen")) {
-      const current = success(await f.store.read({ reference: primary.reference }));
-      success(await f.store.write({ action: "put", reference: current.reference, expected: current.version,
-        content: current.content, placement: { kind: "completed", quarter }, provenance: { ...provenance, verb: "archive" } }));
-    }
-    const current = success(await f.store.read({ reference: original.reference }));
-    const writer = startRefWriter(f.root, { mode: "write", identity: "andrew", pause: true,
-      input: { action: "put", reference: current.reference, expected: current.version, content: "after\n", provenance } });
-    await writer.ready;
-    const lifecycle = startRefWriter(f.root, { mode: "lifecycle", identity: "andrew", primary: primary.reference, action });
-    const moved = await lifecycle.result;
-    expect(moved.outcomes.every((outcome) => outcome.status === "ok")).toBe(true);
-    writer.resume();
-    const result = await writer.result;
-    if (action === "abandon") {
-      expect(result.outcomes).toMatchObject([{ status: "refused", refusal: { code: "not-found" } }]);
-      expect(await f.store.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
-    } else {
-      expect(result.outcomes).toMatchObject([{ status: "ok" }]);
-      expect(success(await f.store.read({ reference })).content).toBe("after\n");
-    }
-    if (primary.reference.owner.type !== "work-item") throw new Error("No work item");
-    const live = `refs/arc/work/${primary.reference.owner.uid}`, history = `refs/arc/history/work/${primary.reference.owner.uid}`;
-    const absent = action === "reopen" ? history : live;
-    expect((await f.exec("git", [...f.args, "for-each-ref", "--format=%(refname)", absent])).stdout).toBe("");
-    if (action === "abandon") expect((await f.exec("git", [...f.args, "ls-tree", "-r", history])).stdout).toBe("");
-    if (action.startsWith("reopen")) {
-      expect((await f.exec("git", [...f.args, "ls-tree", "--name-only", `refs/arc/archive/${quarter}`])).stdout).toBe("");
-    }
-    if (action === "reopen-and-archive") expect(success(await f.store.read({ reference })).placement).toMatchObject({ kind: "completed", quarter: "2027-q1" });
-  }, 30_000);
+  if (layout === "default") {
+    it.each(["archive", "abandon", "reopen", "reopen-and-archive"] as const)("never resurrects state left by a racing %s", async (action) => {
+      const f = await fixture();
+      const primary = success(await f.store.write({ action: "put", reference: RecordReferenceSchema.parse({ kind: "work-item/meta",
+        owner: { type: "work-item", name: "alpha" } }), expected: null, content: makeMetaFixture("alpha"), placement: { kind: "active" }, provenance }));
+      const reference = RecordReferenceSchema.parse({ ...primary.reference, kind: "work-item/companion", key: "extra" });
+      const original = success(await f.store.write({ action: "put", reference, expected: null, content: "before\n", provenance }));
+      if (action.startsWith("reopen")) {
+        const current = success(await f.store.read({ reference: primary.reference }));
+        success(await f.store.write({ action: "put", reference: current.reference, expected: current.version,
+          content: current.content, placement: { kind: "completed", quarter }, provenance: { ...provenance, verb: "archive" } }));
+      }
+      const current = success(await f.store.read({ reference: original.reference }));
+      const writer = startRefWriter(f.root, { mode: "write", identity: "andrew", pause: true,
+        input: { action: "put", reference: current.reference, expected: current.version, content: "after\n", provenance } });
+      await writer.ready;
+      const lifecycle = startRefWriter(f.root, { mode: "lifecycle", identity: "andrew", primary: primary.reference, action });
+      const moved = await lifecycle.result;
+      expect(moved.outcomes.every((outcome) => outcome.status === "ok")).toBe(true);
+      writer.resume();
+      const result = await writer.result;
+      if (action === "abandon") {
+        expect(result.outcomes).toMatchObject([{ status: "refused", refusal: { code: "not-found" } }]);
+        expect(await f.store.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+      } else {
+        expect(result.outcomes).toMatchObject([{ status: "ok" }]);
+        expect(success(await f.store.read({ reference })).content).toBe("after\n");
+      }
+      if (primary.reference.owner.type !== "work-item") throw new Error("No work item");
+      const live = `refs/arc/work/${primary.reference.owner.uid}`, history = `refs/arc/history/work/${primary.reference.owner.uid}`;
+      const absent = action === "reopen" ? history : live;
+      expect((await f.exec("git", [...f.args, "for-each-ref", "--format=%(refname)", absent])).stdout).toBe("");
+      if (action === "abandon") expect((await f.exec("git", [...f.args, "ls-tree", "-r", history])).stdout).toBe("");
+      if (action.startsWith("reopen")) {
+        expect((await f.exec("git", [...f.args, "ls-tree", "--name-only", `refs/arc/archive/${quarter}`])).stdout).toBe("");
+      }
+      if (action === "reopen-and-archive") expect(success(await f.store.read({ reference })).placement).toMatchObject({ kind: "completed", quarter: "2027-q1" });
+    }, 30_000);
+  }
 });

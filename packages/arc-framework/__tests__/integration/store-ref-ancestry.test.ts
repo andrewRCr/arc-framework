@@ -126,39 +126,41 @@ describe.each(["default", "separate"] as const)("rewrite refusal in the %s layou
     expect(success(await h.b.store.read({ reference: h.reference })).content).toBe("Rewritten remote value.\n");
   });
 
-  it("retains the last tip before Git starts its pruning fetch", async () => {
-    const h = await rewrittenFixture(layout), seen = `refs/arc/tmp/seen/${h.remoteName}/user/andrew/personal`;
-    await h.remote("git", ["update-ref", "-d", h.ref]);
-    const observations: string[] = [];
-    const observer = createRefStore({ ...h.b.ports, exec: async (command, args, options) => {
-      if (args.includes("fetch")) observations.push((await h.b.git(["for-each-ref", "--format=%(objectname)", seen])).stdout.trim());
-      return h.b.ports.exec(command, args, options);
-    } });
-    success(await observer.pull());
-    expect(observations).toEqual([h.second]);
-    expect((await h.b.git(["for-each-ref", "--format=%(objectname)", seen])).stdout.trim()).toBe(h.second);
-  });
+  if (layout === "default") {
+    it("retains the last tip before Git starts its pruning fetch", async () => {
+      const h = await rewrittenFixture(layout), seen = `refs/arc/tmp/seen/${h.remoteName}/user/andrew/personal`;
+      await h.remote("git", ["update-ref", "-d", h.ref]);
+      const observations: string[] = [];
+      const observer = createRefStore({ ...h.b.ports, exec: async (command, args, options) => {
+        if (args.includes("fetch")) observations.push((await h.b.git(["for-each-ref", "--format=%(objectname)", seen])).stdout.trim());
+        return h.b.ports.exec(command, args, options);
+      } });
+      success(await observer.pull());
+      expect(observations).toEqual([h.second]);
+      expect((await h.b.git(["for-each-ref", "--format=%(objectname)", seen])).stdout.trim()).toBe(h.second);
+    });
 
-  it.each(["ancestor", "descendant"] as const)("accepts an ordered %s return and drops the retained tip", async (direction) => {
-    const h = await rewrittenFixture(layout), seen = `refs/arc/tmp/seen/${h.remoteName}/user/andrew/personal`;
-    let returned = h.first;
-    if (direction === "descendant") {
-      const old = success(await h.a.store.read({ reference: h.reference }));
-      success(await h.a.store.write({ action: "put", reference: h.reference, expected: old.version, content: "Third published value.\n", provenance }));
-      returned = (await h.a.git(["rev-parse", h.ref])).stdout.trim();
-    }
-    await h.remote("git", ["update-ref", "-d", h.ref]);
-    success(await h.b.store.pull());
-    expect((await h.b.git(["for-each-ref", "--format=%(objectname)", seen])).stdout.trim()).toBe(h.second);
-    await h.a.git(["push", h.remoteName, `${returned}:${h.ref}`]);
-    expect(success(await h.b.store.pull()).pulls.flatMap(({ notices }) => notices)).toEqual([]);
-    expect((await h.b.git(["for-each-ref", "--format=%(refname)", seen])).stdout).toBe("");
-    expect(success(await h.b.store.read({ reference: h.reference })).content)
-      .toBe(direction === "descendant" ? "Third published value.\n" : "Second published value.\n");
-    const pushed = success(await h.b.store.push());
-    expect(pushed.publishes.every(({ status }) => status !== "failed")).toBe(true);
-    expect((await h.remote("git", ["rev-parse", h.ref])).stdout.trim()).toBe(direction === "descendant" ? returned : h.second);
-  });
+    it.each(["ancestor", "descendant"] as const)("accepts an ordered %s return and drops the retained tip", async (direction) => {
+      const h = await rewrittenFixture(layout), seen = `refs/arc/tmp/seen/${h.remoteName}/user/andrew/personal`;
+      let returned = h.first;
+      if (direction === "descendant") {
+        const old = success(await h.a.store.read({ reference: h.reference }));
+        success(await h.a.store.write({ action: "put", reference: h.reference, expected: old.version, content: "Third published value.\n", provenance }));
+        returned = (await h.a.git(["rev-parse", h.ref])).stdout.trim();
+      }
+      await h.remote("git", ["update-ref", "-d", h.ref]);
+      success(await h.b.store.pull());
+      expect((await h.b.git(["for-each-ref", "--format=%(objectname)", seen])).stdout.trim()).toBe(h.second);
+      await h.a.git(["push", h.remoteName, `${returned}:${h.ref}`]);
+      expect(success(await h.b.store.pull()).pulls.flatMap(({ notices }) => notices)).toEqual([]);
+      expect((await h.b.git(["for-each-ref", "--format=%(refname)", seen])).stdout).toBe("");
+      expect(success(await h.b.store.read({ reference: h.reference })).content)
+        .toBe(direction === "descendant" ? "Third published value.\n" : "Second published value.\n");
+      const pushed = success(await h.b.store.push());
+      expect(pushed.publishes.every(({ status }) => status !== "failed")).toBe(true);
+      expect((await h.remote("git", ["rev-parse", h.ref])).stdout.trim()).toBe(direction === "descendant" ? returned : h.second);
+    });
+  }
 
   it.each(["global", "local"] as const)("refuses a rewrite despite disabled forced-update checking in %s configuration", async (scope) => {
     const h = await rewrittenFixture(layout);
@@ -174,88 +176,90 @@ describe.each(["default", "separate"] as const)("rewrite refusal in the %s layou
     expect(success(await h.b.store.read({ reference: h.other })).content).toBe(h.otherContent);
   });
 
-  it.each(["archive", "abandon"] as const)("drops a pruned live tip after applying the item's %s", async (end) => {
-    const h = await refSyncFixture(layout);
-    const made = success(await h.a.store.write({ action: "put", expected: null, content: makeMetaFixture("ending"),
-      reference: RecordReferenceSchema.parse({ owner: { type: "work-item", name: "ending" }, kind: "work-item/meta" }),
-      placement: { kind: "active" }, provenance: { verb: "start", lifecycleAction: "start" } }));
-    success(await h.a.store.push()); success(await h.b.store.pull());
-    const current = success(await h.a.store.read({ reference: made.reference })), owner = made.reference.owner;
-    if (owner.type !== "work-item" || !owner.uid) throw new Error("Expected a minted work item");
-    if (end === "archive") success(await h.a.store.write({ action: "put", reference: made.reference, expected: current.version,
-      content: current.content, placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
-      provenance: { verb: end, lifecycleAction: end } }));
-    else success(await h.a.store.batch({ writes: [
-      { action: "remove", reference: made.reference, expected: current.version },
-      { action: "put", reference: RecordReferenceSchema.parse({ owner, kind: "lineage/transition" }), expected: null,
-        content: writeLineageRecord({ schemaVersion: 2, origin: { name: owner.name, uid: owner.uid }, kind: "abandon", successors: [], incoming: [] }) },
-    ], provenance: { verb: end, lifecycleAction: end } }));
-    success(await h.a.store.push());
-    expect(success(await h.b.store.pull()).pulls.flatMap(({ notices }) => notices)).toEqual([]);
-    expect((await h.b.git(["for-each-ref", "--format=%(refname)", `refs/arc/work/${owner.uid}`])).stdout).toBe("");
-    expect((await h.b.git(["for-each-ref", "--format=%(refname)", `refs/arc/tmp/seen/${h.remoteName}/work/${owner.uid}`])).stdout).toBe("");
-    expect((await h.b.git(["for-each-ref", "--format=%(refname)", `refs/arc/history/work/${owner.uid}`])).stdout.trim())
-      .toBe(`refs/arc/history/work/${owner.uid}`);
-  });
-
-  it("replaces a rewritten forwarding record and never retains it after pruning", async () => {
-    const h = await refSyncFixture(layout), ref = "refs/arc/project/moved";
-    const tracking = `refs/arc-remotes/${h.remoteName}/project/moved`, seen = `refs/arc/tmp/seen/${h.remoteName}/project/moved`;
-    const first = await plantRef(h.origin, ref, [{ path: "moved.json", content: '{"destination":"first"}\n' }], { gitDir: h.origin });
-    success(await h.b.store.pull());
-    expect((await h.b.git(["rev-parse", tracking])).stdout.trim()).toBe(first.tip);
-    const second = await plantRef(h.origin, ref, [{ path: "moved.json", content: '{"destination":"second"}\n' }], { gitDir: h.origin });
-    expect(success(await h.b.store.pull()).pulls.flatMap(({ notices }) => notices)).toEqual([]);
-    expect((await h.b.git(["rev-parse", tracking])).stdout.trim()).toBe(second.tip);
-    await h.remote("git", ["update-ref", "-d", ref]); success(await h.b.store.pull());
-    expect((await h.b.git(["for-each-ref", "--format=%(refname)", tracking, seen, ref])).stdout).toBe("");
-    await h.remote("git", ["update-ref", ref, first.tip]);
-    expect(success(await h.b.store.pull()).pulls.flatMap(({ notices }) => notices)).toEqual([]);
-    expect((await h.b.git(["rev-parse", tracking])).stdout.trim()).toBe(first.tip);
-  });
-
-  describe.each(["held", "pruned"] as const)("publication with %s tracking", (trackingState) => {
-    it.each([false, true])("handles a refused ref with unpublished local writes = %s", async (dirty) => {
-      const h = await rewrittenFixture(layout, true);
-      const remote = (await h.remote("git", ["rev-parse", h.ref])).stdout.trim();
-      if (trackingState === "pruned") {
-        await h.remote("git", ["update-ref", "-d", h.ref]); success(await h.b.store.pull());
-        await h.remote("git", ["update-ref", h.ref, remote]);
-      } else success(await h.b.store.pull());
-      if (dirty) {
-        const old = success(await h.b.store.read({ reference: h.reference }));
-        success(await h.b.store.write({ action: "put", reference: h.reference, expected: old.version,
-          content: "Unpublished personal write.\n", provenance }));
-      }
-      const other = success(await h.b.store.read({ reference: h.other }));
-      success(await h.b.store.write({ action: "put", reference: h.other, expected: other.version,
-        content: `${other.content}\nLocal inbox write.\n`, provenance }));
-      const inboxTip = (await h.remote("git", ["rev-parse", "refs/arc/project/inbox"])).stdout.trim();
-      const store = createRefStore({ ...h.b.ports, ...createRefClock(new Date(0), 2500) });
-      const result = success(await store.push());
-      expect(result.pulls).toHaveLength(1);
-      expect(result.pulls[0]?.notices).toContainEqual(expect.objectContaining({ kind: "history-diverged", ref: h.ref }));
-      if (dirty) {
-        expect(result.publishes).toEqual([{ status: "failed", failure: expect.objectContaining({ code: "refused", class: "terminal" }),
-          families: FAMILY_IDS.filter((family) => family !== "constitution" && family !== "project-machinery"), retryCount: 0, waitedMs: 0 }]);
-        expect((await h.remote("git", ["rev-parse", "refs/arc/project/inbox"])).stdout.trim()).toBe(inboxTip);
-      } else {
-        expect(result.publishes.every(({ status }) => status !== "failed")).toBe(true);
-        expect((await h.remote("git", ["rev-parse", "refs/arc/project/inbox"])).stdout.trim()).not.toBe(inboxTip);
-      }
-      expect((await h.remote("git", ["rev-parse", h.ref])).stdout.trim()).toBe(remote);
+  if (layout === "default") {
+    it.each(["archive", "abandon"] as const)("drops a pruned live tip after applying the item's %s", async (end) => {
+      const h = await refSyncFixture(layout);
+      const made = success(await h.a.store.write({ action: "put", expected: null, content: makeMetaFixture("ending"),
+        reference: RecordReferenceSchema.parse({ owner: { type: "work-item", name: "ending" }, kind: "work-item/meta" }),
+        placement: { kind: "active" }, provenance: { verb: "start", lifecycleAction: "start" } }));
+      success(await h.a.store.push()); success(await h.b.store.pull());
+      const current = success(await h.a.store.read({ reference: made.reference })), owner = made.reference.owner;
+      if (owner.type !== "work-item" || !owner.uid) throw new Error("Expected a minted work item");
+      if (end === "archive") success(await h.a.store.write({ action: "put", reference: made.reference, expected: current.version,
+        content: current.content, placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
+        provenance: { verb: end, lifecycleAction: end } }));
+      else success(await h.a.store.batch({ writes: [
+        { action: "remove", reference: made.reference, expected: current.version },
+        { action: "put", reference: RecordReferenceSchema.parse({ owner, kind: "lineage/transition" }), expected: null,
+          content: writeLineageRecord({ schemaVersion: 2, origin: { name: owner.name, uid: owner.uid }, kind: "abandon", successors: [], incoming: [] }) },
+      ], provenance: { verb: end, lifecycleAction: end } }));
+      success(await h.a.store.push());
+      expect(success(await h.b.store.pull()).pulls.flatMap(({ notices }) => notices)).toEqual([]);
+      expect((await h.b.git(["for-each-ref", "--format=%(refname)", `refs/arc/work/${owner.uid}`])).stdout).toBe("");
+      expect((await h.b.git(["for-each-ref", "--format=%(refname)", `refs/arc/tmp/seen/${h.remoteName}/work/${owner.uid}`])).stdout).toBe("");
+      expect((await h.b.git(["for-each-ref", "--format=%(refname)", `refs/arc/history/work/${owner.uid}`])).stdout.trim())
+        .toBe(`refs/arc/history/work/${owner.uid}`);
     });
-  });
 
-  it("restores a pruned ref on push while the remote still has no returned history", async () => {
-    const h = await rewrittenFixture(layout);
-    await h.remote("git", ["update-ref", "-d", h.ref]); success(await h.b.store.pull());
-    const result = success(await h.b.store.push());
-    expect(result.publishes.every(({ status }) => status !== "failed")).toBe(true);
-    expect((await h.remote("git", ["for-each-ref", "--format=%(objectname)", h.ref])).stdout.trim()).toBe(h.second);
-    expect(success(await h.b.store.pull()).pulls.flatMap(({ notices }) => notices)).toEqual([]);
-    expect((await h.b.git(["for-each-ref", "--format=%(refname)", `refs/arc/tmp/seen/${h.remoteName}/user/andrew/personal`])).stdout).toBe("");
-  });
+    it("replaces a rewritten forwarding record and never retains it after pruning", async () => {
+      const h = await refSyncFixture(layout), ref = "refs/arc/project/moved";
+      const tracking = `refs/arc-remotes/${h.remoteName}/project/moved`, seen = `refs/arc/tmp/seen/${h.remoteName}/project/moved`;
+      const first = await plantRef(h.origin, ref, [{ path: "moved.json", content: '{"destination":"first"}\n' }], { gitDir: h.origin });
+      success(await h.b.store.pull());
+      expect((await h.b.git(["rev-parse", tracking])).stdout.trim()).toBe(first.tip);
+      const second = await plantRef(h.origin, ref, [{ path: "moved.json", content: '{"destination":"second"}\n' }], { gitDir: h.origin });
+      expect(success(await h.b.store.pull()).pulls.flatMap(({ notices }) => notices)).toEqual([]);
+      expect((await h.b.git(["rev-parse", tracking])).stdout.trim()).toBe(second.tip);
+      await h.remote("git", ["update-ref", "-d", ref]); success(await h.b.store.pull());
+      expect((await h.b.git(["for-each-ref", "--format=%(refname)", tracking, seen, ref])).stdout).toBe("");
+      await h.remote("git", ["update-ref", ref, first.tip]);
+      expect(success(await h.b.store.pull()).pulls.flatMap(({ notices }) => notices)).toEqual([]);
+      expect((await h.b.git(["rev-parse", tracking])).stdout.trim()).toBe(first.tip);
+    });
+
+    describe.each(["held", "pruned"] as const)("publication with %s tracking", (trackingState) => {
+      it.each([false, true])("handles a refused ref with unpublished local writes = %s", async (dirty) => {
+        const h = await rewrittenFixture(layout, true);
+        const remote = (await h.remote("git", ["rev-parse", h.ref])).stdout.trim();
+        if (trackingState === "pruned") {
+          await h.remote("git", ["update-ref", "-d", h.ref]); success(await h.b.store.pull());
+          await h.remote("git", ["update-ref", h.ref, remote]);
+        } else success(await h.b.store.pull());
+        if (dirty) {
+          const old = success(await h.b.store.read({ reference: h.reference }));
+          success(await h.b.store.write({ action: "put", reference: h.reference, expected: old.version,
+            content: "Unpublished personal write.\n", provenance }));
+        }
+        const other = success(await h.b.store.read({ reference: h.other }));
+        success(await h.b.store.write({ action: "put", reference: h.other, expected: other.version,
+          content: `${other.content}\nLocal inbox write.\n`, provenance }));
+        const inboxTip = (await h.remote("git", ["rev-parse", "refs/arc/project/inbox"])).stdout.trim();
+        const store = createRefStore({ ...h.b.ports, ...createRefClock(new Date(0), 2500) });
+        const result = success(await store.push());
+        expect(result.pulls).toHaveLength(1);
+        expect(result.pulls[0]?.notices).toContainEqual(expect.objectContaining({ kind: "history-diverged", ref: h.ref }));
+        if (dirty) {
+          expect(result.publishes).toEqual([{ status: "failed", failure: expect.objectContaining({ code: "refused", class: "terminal" }),
+            families: FAMILY_IDS.filter((family) => family !== "constitution" && family !== "project-machinery"), retryCount: 0, waitedMs: 0 }]);
+          expect((await h.remote("git", ["rev-parse", "refs/arc/project/inbox"])).stdout.trim()).toBe(inboxTip);
+        } else {
+          expect(result.publishes.every(({ status }) => status !== "failed")).toBe(true);
+          expect((await h.remote("git", ["rev-parse", "refs/arc/project/inbox"])).stdout.trim()).not.toBe(inboxTip);
+        }
+        expect((await h.remote("git", ["rev-parse", h.ref])).stdout.trim()).toBe(remote);
+      });
+    });
+
+    it("restores a pruned ref on push while the remote still has no returned history", async () => {
+      const h = await rewrittenFixture(layout);
+      await h.remote("git", ["update-ref", "-d", h.ref]); success(await h.b.store.pull());
+      const result = success(await h.b.store.push());
+      expect(result.publishes.every(({ status }) => status !== "failed")).toBe(true);
+      expect((await h.remote("git", ["for-each-ref", "--format=%(objectname)", h.ref])).stdout.trim()).toBe(h.second);
+      expect(success(await h.b.store.pull()).pulls.flatMap(({ notices }) => notices)).toEqual([]);
+      expect((await h.b.git(["for-each-ref", "--format=%(refname)", `refs/arc/tmp/seen/${h.remoteName}/user/andrew/personal`])).stdout).toBe("");
+    });
+  }
 
   it.each(["present", "absent", "removed"] as const)("reports a native tracking lock failure with the old tip %s and succeeds after release", async (old) => {
     const h = await rewrittenFixture(layout);

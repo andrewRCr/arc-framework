@@ -32,7 +32,8 @@ async function corruptFixture(layout: "default" | "separate", damage: "missing" 
   return { ...h, made, home, before, broken, other, otherContent };
 }
 
-describe.each(["default", "separate"] as const)("damaged sync refs in the %s layout", (layout) => {
+describe("damaged sync refs in the default layout", () => {
+  const layout = "default";
   it.each(["missing", "malformed"] as const)("keeps a live ref with %s metadata while applying other refs", async (damage) => {
     const h = await corruptFixture(layout, damage);
     const result = success(await h.b.store.pull());

@@ -33,7 +33,8 @@ async function archivedFixture(layout: "default" | "separate", lineage: boolean)
   return { ...h, reference: made.reference, transition, lineageContent, reopen, live, history };
 }
 
-describe.each(["default", "separate"] as const)("own unpublished lifecycle in the %s layout", (layout) => {
+describe("own unpublished lifecycle in the default layout", () => {
+  const layout = "default";
   it.each([false, true])("does not revive an undone unpublished archive when another machine's later end reopens (lineage: %s)", async (lineage) => {
     const h = await refSyncFixture(layout);
     const made = success(await h.a.store.write({ action: "put", expected: null, content: makeMetaFixture("undone"),

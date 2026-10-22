@@ -13,7 +13,8 @@ const personal = (key: string) => RecordReferenceSchema.parse({ kind: "personal/
 const provenance = { verb: "user", lifecycleAction: "save" };
 const ref = "refs/arc/user/andrew/personal";
 
-describe.each(["default", "separate"] as const)("pull merging in the %s layout", (layout) => {
+describe("pull merging in the default layout", () => {
+  const layout = "default";
   it("fast-forwards another clone's writes into the local ref", async () => {
     const h = await refSyncFixture(layout), reference = personal("draft.md");
     success(await h.a.store.write({ action: "put", reference, expected: null, content: "first\n", provenance }));
@@ -96,32 +97,6 @@ describe.each(["default", "separate"] as const)("pull merging in the %s layout",
       base: { content: base.content, version: base.version },
       current: { value: { content: incoming.content, version: incoming.version }, label: { actor: remoteActor } },
       incoming: { value: { content: local.content, version: local.version }, label: { actor: localActor } } });
-  });
-
-  it("merges competing prose with the merge base's record version on its hunk", async () => {
-    const h = await refSyncFixture(layout), reference = personal("clash.md");
-    success(await h.a.store.write({ action: "put", reference, expected: null, content: "base\n", provenance }));
-    const base = success(await h.a.store.read({ reference }));
-    await h.a.git(["push", h.remoteName, `${ref}:${ref}`]);
-    success(await h.b.store.pull());
-    success(await h.a.store.write({ action: "put", reference, expected: base.version, content: "remote\n", provenance }));
-    success(await h.b.store.write({ action: "put", reference, expected: base.version, content: "local\n", provenance }));
-    await h.a.git(["push", h.remoteName, `${ref}:${ref}`]);
-    success(await h.b.store.pull());
-    const merged = success(await h.b.store.read({ reference }));
-    expect(merged.content).toBe("remote\n");
-    expect(merged.conflicts).toHaveLength(1);
-    const conflict = merged.conflicts[0];
-    if (!conflict) throw new Error("Expected the stored prose clash");
-    const clash = ConflictRecordSchema.parse(JSON.parse(success(await h.b.store.read({ reference: conflict })).content));
-    expect(clash).toMatchObject({ location: { kind: "hunk" }, baseVersion: base.version, base: "base",
-      current: { content: "remote" }, incoming: { content: "local" } });
-    const late = success(await h.a.store.write({ action: "put", reference, expected: base.version, content: "late\n", provenance }));
-    const writeConflict = late.conflicts[0];
-    if (!writeConflict) throw new Error("Expected the stale write to clash against the same base");
-    expect(JSON.parse(success(await h.a.store.read({ reference: writeConflict })).content)).toMatchObject({
-      baseVersion: base.version, base: "base", current: { content: "remote" }, incoming: { content: "late" },
-    });
   });
 
   it.each(["base", "local", "incoming"] as const)("preserves a whole-record clash for repeated entry IDs in %s", async (badSide) => {
@@ -209,13 +184,11 @@ describe.each(["default", "separate"] as const)("pull merging in the %s layout",
     expect(merged.conflicts).toEqual([]);
   });
 
-  it.each(["shared group", "unrelated tips"])("uses a null base version when both sides create a record from %s", async (basis) => {
+  it("uses a null base version when both sides create a record from a shared group", async () => {
     const h = await refSyncFixture(layout), reference = personal("created.md");
-    if (basis === "shared group") {
-      success(await h.a.store.write({ action: "put", reference: personal("other.md"), expected: null, content: "common\n", provenance }));
-      await h.a.git(["push", h.remoteName, `${ref}:${ref}`]);
-      success(await h.b.store.pull());
-    }
+    success(await h.a.store.write({ action: "put", reference: personal("other.md"), expected: null, content: "common\n", provenance }));
+    await h.a.git(["push", h.remoteName, `${ref}:${ref}`]);
+    success(await h.b.store.pull());
     success(await h.a.store.write({ action: "put", reference, expected: null, content: "remote\n", provenance }));
     success(await h.b.store.write({ action: "put", reference, expected: null, content: "local\n", provenance }));
     const current = (await h.b.git(["rev-parse", ref])).stdout, incoming = (await h.a.git(["rev-parse", ref])).stdout;

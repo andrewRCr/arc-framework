@@ -38,6 +38,7 @@ describe.each(["default", "separate"] as const)("pending-end fetch repair in the
     }
     success(await h.b.store.push());
     expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", h.live])).stdout).toBe("");
+    expect((await h.b.git(["for-each-ref", "--format=%(refname)", h.live])).stdout).toBe(h.live);
     await h.a.git(["push", h.remoteName, `${retained}:${h.history}`]);
     success(await h.b.store.pull());
     expect((await h.b.git(["for-each-ref", "--format=%(refname)", h.live])).stdout).toBe("");
