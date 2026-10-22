@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "measured-bound-stop",
+  "claimId": "48ee42ae90dde69bcd271c12b2b0a8ab",
+  "createdAt": "2026-10-22T19:20:29.044Z",
+  "updatedAt": "2026-10-22T19:20:29.044Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "amend-design's design-arms stop cites a measured bound with its measured value and what exceeding it costs later work",
+  "branch": "chore/measured-bound-stop",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
