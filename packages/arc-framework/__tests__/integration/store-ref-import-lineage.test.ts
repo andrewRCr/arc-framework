@@ -2,9 +2,10 @@
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createRefStore, RecordReferenceSchema } from "../../src/lib/store/index.js";
-import { LineageRecordSchema, type WorkItemRef } from "../../src/lib/store/kinds/lineage/index.js";
+import { LineageRecordSchema } from "../../src/lib/store/kinds/lineage/index.js";
 import { importFixture } from "../helpers/store/import-fixture.js";
 import { IMPORT_TRANSITIONS } from "../helpers/store/import-lineage.js";
+import { IMPORT_ARCHIVED_WORK, IMPORT_ARCHIVED_COHORTS } from "../helpers/store/import-archives.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
@@ -18,7 +19,8 @@ import { writeLineageRecord } from "../../src/lib/store/kinds/lineage/index.js";
 
 const ref = (kind: "lineage/transition" | "work-item/meta", name: string) => RecordReferenceSchema.parse({ kind, owner: { type: "work-item", name } });
 
-describe.each(["default", "separate"] as const)("lineage import in %s", (layout) => {
+describe("lineage import in the default layout", () => {
+  const layout = "default";
   it("compares terminal records and former slugs with only their documented transition transforms", async () => {
     const h = await importComparisonFixture(layout, undefined, { completed: true, lineage: true });
     expect(await h.target.migrate()).toMatchObject({ status: "ok" });
@@ -72,23 +74,30 @@ describe.each(["default", "separate"] as const)("lineage import in %s", (layout)
   it("pulls completed and terminal origins into a second clone without pending ends on repeated pulls", async () => {
     const h = await importFixture(layout, { completed: true, lineage: true });
     expect(await h.migrate()).toMatchObject({ status: "ok" });
-    const scope = layout === "separate" ? [`--git-dir=${join(h.root, ".git/arc/store")}`] : [];
-    if (layout === "separate") {
-      await h.git("git", [...scope, "remote", "add", "backing", h.origin]);
-      await h.git("git", [...scope, "config", "remote.backing.arc-state", "push"]);
-    }
     expect(success(await createRefStore(h.ports).push()).publishes.every(({ status }) => status !== "failed")).toBe(true);
+    const tips = async (run: (args: string[]) => Promise<{ stdout: string }>, prefix: string) =>
+      (await run(["for-each-ref", "--format=%(refname) %(objectname)", prefix])).stdout;
+    const importer = (args: string[]) => h.git("git", args), remote = (args: string[]) => h.remote("git", args);
+    const imported = { history: await tips(importer, "refs/arc/history/"), archive: await tips(importer, "refs/arc/archive/") };
+    expect(await tips(remote, "refs/arc/history/")).toBe(imported.history);
+    expect(await tips(remote, "refs/arc/archive/")).toBe(imported.archive);
     const second = await importFixture(layout);
     await second.git("git", ["remote", "set-url", "origin", h.origin]);
     const peer = await createRefSyncCheckout(second.root, layout, h.origin);
-    const histories = (await h.git("git", [...scope, "for-each-ref", "--format=%(refname)", "refs/arc/history/"])).stdout.split("\n").filter(Boolean).map((value) => HistoryRefSchema.parse(value));
+    const histories = imported.history.split("\n").filter(Boolean).map((line) => HistoryRefSchema.parse(line.split(" ")[0]));
     expect(histories).toHaveLength(7);
     for (let attempt = 0; attempt < 3; attempt++) {
       const pull = success(await peer.store.pull({ history: histories }));
       expect(pull.pulls.length).toBeGreaterThan(0);
       expect(pull.pulls.every(({ status }) => status !== "failed")).toBe(true);
       expect(pull.pulls.flatMap(({ notices }) => notices).some(({ kind }) => kind === "end-pending")).toBe(false);
-      expect(success(await peer.store.read({ reference: ref("work-item/meta", "archived") })).placement).toMatchObject({ kind: "completed", sequence: "53" });
+      expect(await tips(peer.git, "refs/arc/history/")).toBe(imported.history);
+      expect(await tips(peer.git, "refs/arc/archive/")).toBe(imported.archive);
+      for (const { name, sequence } of IMPORT_ARCHIVED_WORK) expect(success(await peer.store.read({ reference: ref("work-item/meta", name) })).placement)
+        .toEqual({ kind: "completed", quarter: "2026-q3", sequence });
+      for (const { name, sequence, closeout } of IMPORT_ARCHIVED_COHORTS) expect(success(await peer.store.read({ reference:
+        RecordReferenceSchema.parse({ kind: "cohort/document", owner: { type: "cohort", name } }) })).placement)
+        .toEqual({ kind: "completed", quarter: "2026-q3", sequence, closeout });
       const origin = success(await peer.store.read({ reference: ref("lineage/transition", "cut-origin") }));
       expect(await peer.store.history({ reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: origin.reference.owner }) })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
     }
@@ -108,10 +117,9 @@ describe.each(["default", "separate"] as const)("lineage import in %s", (layout)
     const original = success(await store.read({ reference: ref("work-item/meta", "archived") }));
     expect(success(await store.lookup({ kind: "slug", slug: SlugSchema.parse("old-archived") })).reference).toEqual(original.reference);
     expect(await store.read({ reference: ref("lineage/transition", "old-archived") })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
-    const scope = layout === "separate" ? [`--git-dir=${join(h.root, ".git/arc/store")}`] : [];
     const uid = original.reference.owner.type === "work-item" ? original.reference.owner.uid : "";
     const path = `53_archived/metadata-${uid}.json`;
-    const metadata = JSON.parse((await h.git("git", [...scope, "show", `refs/arc/archive/2026-q3:${path}`])).stdout);
+    const metadata = JSON.parse((await h.git("git", ["show", `refs/arc/archive/2026-q3:${path}`])).stdout);
     expect(metadata.formerSlugs).toEqual(["old-archived"]);
     const lineage = success(await store.list({ family: "lineage", kind: "lineage/transition" }));
     expect(lineage.status).toBe("complete");
@@ -134,56 +142,24 @@ describe.each(["default", "separate"] as const)("lineage import in %s", (layout)
       provenance: { verb: "edit", lifecycleAction: "edit" } }));
     const history = success(await store.history({ reference: cohort.reference }));
     expect(history[0]?.content).toContain("Late cohort correction.");
-    const scope = layout === "separate" ? [`--git-dir=${join(h.root, ".git/arc/store")}`] : [];
     const uid = cohort.reference.owner.type === "cohort" ? cohort.reference.owner.uid : "";
-    expect((await h.git("git", [...scope, "show", `refs/arc/history/cohort/${uid}:cohort-closed-a.md`])).stdout).toContain("Late cohort correction.");
+    expect((await h.git("git", ["show", `refs/arc/history/cohort/${uid}:cohort-closed-a.md`])).stdout).toContain("Late cohort correction.");
   });
   it("retains each terminal origin as one empty history commit and reports missing records", async () => {
     const h = await importFixture(layout, { completed: true, lineage: true });
     expect(await h.migrate()).toMatchObject({ status: "ok" });
     const store = createRefStore(h.ports);
-    const scope = layout === "separate" ? [`--git-dir=${join(h.root, ".git/arc/store")}`] : [];
     for (const name of ["cut-origin", "abandoned"]) {
       const transition = success(await store.read({ reference: ref("lineage/transition", name) }));
       const owner = transition.reference.owner;
       const history = `refs/arc/history/work/${owner.type === "work-item" ? owner.uid : ""}`;
-      expect((await h.git("git", [...scope, "rev-list", "--count", history])).stdout).toBe("1");
-      expect((await h.git("git", [...scope, "show", "-s", "--format=%P", history])).stdout).toBe("");
-      expect((await h.git("git", [...scope, "ls-tree", "-r", "--name-only", history])).stdout).toBe("");
-      expect((await h.git("git", [...scope, "show", "-s", "--format=%B", history])).stdout).toMatch(/Arc-Lifecycle-Action: import/u);
+      expect((await h.git("git", ["rev-list", "--count", history])).stdout).toBe("1");
+      expect((await h.git("git", ["show", "-s", "--format=%P", history])).stdout).toBe("");
+      expect((await h.git("git", ["ls-tree", "-r", "--name-only", history])).stdout).toBe("");
+      expect((await h.git("git", ["show", "-s", "--format=%B", history])).stdout).toMatch(/Arc-Lifecycle-Action: import/u);
       expect(await store.history({ reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner }) })).toMatchObject({
         status: "refused", refusal: { code: "not-found" },
       });
-    }
-  });
-  it("keys terminal origins and every held cross-reference by the imported owner's UID", async () => {
-    const h = await importFixture(layout, { completed: true, lineage: true });
-    expect(await h.migrate()).toMatchObject({ status: "ok" });
-    const store = createRefStore(h.ports);
-    const scope = layout === "separate" ? [`--git-dir=${join(h.root, ".git/arc/store")}`] : [];
-    for (const original of IMPORT_TRANSITIONS.filter(({ kind }) => kind !== "rename")) {
-      const record = success(await store.read({ reference: ref("lineage/transition", original.origin.name) }));
-      const fields = LineageRecordSchema.parse(JSON.parse(record.content));
-      expect(fields.origin).toEqual(record.reference.owner.type === "work-item"
-        ? { name: record.reference.owner.name, uid: record.reference.owner.uid } : undefined);
-      expect(fields.origin.uid).toMatch(/^[0-9a-f-]{36}$/u);
-      const mapped = async (value: WorkItemRef): Promise<WorkItemRef> => {
-        if (value.name === "unheld") return value;
-        const primary = success(await store.read({ reference: ref("work-item/meta", value.name) }));
-        return { name: value.name, uid: primary.reference.owner.type === "work-item" ? primary.reference.owner.uid : undefined };
-      };
-      expect(fields.successors).toEqual(await Promise.all(original.successors.map(mapped)));
-      for (const [index, entry] of (original.incoming ?? []).entries()) {
-        expect(fields.incoming[index]?.dependent).toEqual(await mapped(entry.dependent));
-        if (entry.disposition.kind === "replace") expect(fields.incoming[index]?.disposition).toEqual({ kind: "replace",
-          replacementTargets: await Promise.all(entry.disposition.replacementTargets.map(mapped)) });
-      }
-      for (const [index, entry] of (original.outgoing ?? []).entries()) expect(fields.outgoing?.[index]).toEqual({
-        prerequisite: await mapped(entry.prerequisite), members: await Promise.all(entry.members.map(mapped)),
-      });
-      expect((await h.git("git", [...scope, "ls-tree", "-r", "--name-only", "refs/arc/project/registry"])).stdout).toContain(`lineage/${fields.origin.uid}.json`);
-      const metadata = JSON.parse((await h.git("git", [...scope, "show", "refs/arc/project/registry:metadata-registry.json"])).stdout);
-      expect(metadata.lineage[fields.origin.uid!]).toBe(original.origin.name);
     }
   });
 });

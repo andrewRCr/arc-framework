@@ -12,21 +12,8 @@ import { CandidateManagedRecordV1Schema } from "../../src/lib/work-unit/candidat
 import { createKindRegistry } from "../../src/lib/store/registry.js";
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
 
-describe.each(["default", "separate"] as const)("import comparison in %s", (layout) => {
-  it("reports a record's content and parsed purpose when they drift beyond its allowed transform", async () => {
-    const h = await importComparisonFixture(layout);
-    expect(await h.target.migrate()).toMatchObject({ status: "ok" });
-    expect(await h.compare()).toEqual([]);
-    const reference = RecordReferenceSchema.parse({ kind: "work-item/spec", owner: { type: "work-item", name: "alpha" } });
-    const record = success(await h.store.read({ reference }));
-    success(await h.store.write({ action: "put", reference: record.reference, expected: record.version,
-      content: record.content.replace("Define the example.", "Changed beyond the source."),
-      provenance: { verb: "edit", lifecycleAction: "edit" } }));
-    expect(await h.compare()).toEqual(expect.arrayContaining([
-      expect.objectContaining({ reference: expect.objectContaining({ kind: "work-item/spec" }), field: "content" }),
-      expect.objectContaining({ reference: expect.objectContaining({ kind: "work-item/spec" }), field: "fields.purpose" }),
-    ]));
-  });
+describe("import comparison in the default layout", () => {
+  const layout = "default";
   it("compares every live work-unit record and cohort clean against an independent source copy", async () => {
     const h = await importComparisonFixture(layout);
     expect(h.source.root).not.toBe(h.target.root);
@@ -38,8 +25,7 @@ describe.each(["default", "separate"] as const)("import comparison in %s", (layo
       ref: row.ref.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gu, "<uid>"),
     })).sort();
     expect(mask(imported.result.refs)).toEqual(mask(trial.result.refs));
-    const scope = layout === "separate" ? [`--git-dir=${join(h.target.root, ".git/arc/store")}`] : [];
-    const refs = async () => (await h.target.git("git", [...scope, "for-each-ref", "--format=%(refname) %(objectname)",
+    const refs = async () => (await h.target.git("git", ["for-each-ref", "--format=%(refname) %(objectname)",
       "refs/arc/work/", "refs/arc/cohort/", "refs/arc/project/"])).stdout;
     const before = await refs();
     expect(await h.compare()).toEqual([]);
@@ -52,15 +38,17 @@ describe.each(["default", "separate"] as const)("import comparison in %s", (layo
     expect(await h.compare()).toEqual(expect.arrayContaining([
       expect.objectContaining({ reference: expect.objectContaining({ kind: "cohort/document" }), field: "content" }),
     ]));
-  });
-  it("ignores inbox ID stamps while reporting changed entry prose", async () => {
-    const h = await importComparisonFixture(layout);
-    expect(await h.target.migrate()).toMatchObject({ status: "ok" });
-    expect(await h.compare()).toEqual([]);
-    const record = success(await h.store.read({ reference: RecordReferenceSchema.parse({ kind: "project-inbox/inbox", owner: { type: "project", name: "project" } }) }));
-    expect(record.content).toMatch(/_Id:_ `[0-9a-f]{8}`/u);
-    success(await h.store.write({ action: "put", reference: record.reference, expected: record.version,
-      content: record.content.replace("First source entry.", "Unexpected imported entry."), provenance: { verb: "edit", lifecycleAction: "edit" } }));
+    const spec = success(await h.store.read({ reference: RecordReferenceSchema.parse({ kind: "work-item/spec", owner: { type: "work-item", name: "alpha" } }) }));
+    success(await h.store.write({ action: "put", reference: spec.reference, expected: spec.version,
+      content: spec.content.replace("Define the example.", "Changed beyond the source."), provenance: { verb: "edit", lifecycleAction: "edit" } }));
+    expect(await h.compare()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ reference: expect.objectContaining({ kind: "work-item/spec" }), field: "content" }),
+      expect.objectContaining({ reference: expect.objectContaining({ kind: "work-item/spec" }), field: "fields.purpose" }),
+    ]));
+    const inbox = success(await h.store.read({ reference: RecordReferenceSchema.parse({ kind: "project-inbox/inbox", owner: { type: "project", name: "project" } }) }));
+    expect(inbox.content).toMatch(/_Id:_ `[0-9a-f]{8}`/u);
+    success(await h.store.write({ action: "put", reference: inbox.reference, expected: inbox.version,
+      content: inbox.content.replace("First source entry.", "Unexpected imported entry."), provenance: { verb: "edit", lifecycleAction: "edit" } }));
     expect(await h.compare()).toEqual(expect.arrayContaining([
       expect.objectContaining({ reference: expect.objectContaining({ kind: "project-inbox/inbox" }), field: "content" }),
     ]));

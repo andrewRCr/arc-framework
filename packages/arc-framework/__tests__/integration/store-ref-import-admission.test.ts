@@ -11,7 +11,6 @@ const candidate = resolveArcPath({ kind: "candidate-record", slug: SlugSchema.pa
 const cases = [
   { rule: "store.text-only", path: ".arc/active/extra-alpha.md", content: "binary\0content" },
   { rule: "store.size-cap", path: ".arc/active/extra-alpha.md", content: "x".repeat(1048577) },
-  { rule: "store.env-file", path: ".arc/user/andrew/settings.env", content: "EXAMPLE=value\n", repairPath: ".arc/user/andrew/settings.txt" },
   { rule: "store.private-key", path: ".arc/active/extra-alpha.md", content: "-----BEGIN PRIVATE KEY-----\nexample\n-----END PRIVATE KEY-----\n" },
   { rule: "store.git-path", path: ".arc/user/andrew/git~1/example.md", content: "example\n", repairPath: ".arc/user/andrew/notes/example.md" },
   { rule: "store.json", path: candidate, content: "not JSON", remove: true },
@@ -38,7 +37,6 @@ describe("import serialization admission", () => {
       await mkdir(dirname(target), { recursive: true });
       await writeFile(target, "Repaired source\n");
     }
-    if (path.endsWith("settings.env")) await saveImportPersonal(h.root);
     expect(await h.migrate()).toMatchObject({ status: "ok" });
   });
   it.each([

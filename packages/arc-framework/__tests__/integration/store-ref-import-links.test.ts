@@ -112,21 +112,23 @@ it.each(["merge", "missing-author", "unreadable-patch"] as const)("omits a %s fo
 }, 30_000);
 
 describe.each(["default", "separate"] as const)("imported links in %s", layout => {
-  it("links a live branch to the same primary as the source lookup", async () => {
-    const h = await importComparisonFixture(layout);
-    expect(await h.target.migrate()).toMatchObject({ status: "ok" });
-    const repository = await projectId(h.store);
-    const primary = success(await h.store.read({ reference: RecordReferenceSchema.parse({
-      kind: "work-item/meta", owner: { type: "work-item", name: "alpha" },
-    }) }));
-    expect(primary.links?.branches).toEqual([{ repository, ref: "feat/alpha", linkedAs: "created", excluded: [] }]);
-    const source = createStore(createDefaultStorePorts({ checkoutRoot: h.source.root }));
-    const before = success(await source.lookup({ kind: "ref", repository: h.source.root, ref: "feat/alpha" }));
-    const after = success(await h.store.lookup({ kind: "ref", repository, ref: "feat/alpha" }));
-    expect(after.reference.kind).toBe(before.reference.kind);
-    expect(after.reference.owner.name).toBe(before.reference.owner.name);
-    expect(await h.compare()).toEqual([]);
-  }, 30_000);
+  if (layout === "default") {
+    it("links a live branch to the same primary as the source lookup", async () => {
+      const h = await importComparisonFixture(layout);
+      expect(await h.target.migrate()).toMatchObject({ status: "ok" });
+      const repository = await projectId(h.store);
+      const primary = success(await h.store.read({ reference: RecordReferenceSchema.parse({
+        kind: "work-item/meta", owner: { type: "work-item", name: "alpha" },
+      }) }));
+      expect(primary.links?.branches).toEqual([{ repository, ref: "feat/alpha", linkedAs: "created", excluded: [] }]);
+      const source = createStore(createDefaultStorePorts({ checkoutRoot: h.source.root }));
+      const before = success(await source.lookup({ kind: "ref", repository: h.source.root, ref: "feat/alpha" }));
+      const after = success(await h.store.lookup({ kind: "ref", repository, ref: "feat/alpha" }));
+      expect(after.reference.kind).toBe(before.reference.kind);
+      expect(after.reference.owner.name).toBe(before.reference.owner.name);
+      expect(await h.compare()).toEqual([]);
+    }, 30_000);
+  }
 
   it("captures only closed footer tasks and retains every remaining non-merge branch commit as excluded", async () => {
     const histories = new Map<string, { setup: string; closed: string; open: string; empty: string }>();

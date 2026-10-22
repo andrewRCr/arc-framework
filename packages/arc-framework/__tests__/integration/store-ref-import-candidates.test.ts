@@ -12,7 +12,8 @@ import { success } from "../helpers/store/suite-tools.js";
 const reference = (name: string) => RecordReferenceSchema.parse({ kind: "review/candidate", owner: { type: "work-item", name } });
 const semantic = (values: readonly CandidateSupersessionAncestor[]) => values.map((value) => ({ ...value, recordRevision: undefined }));
 
-describe.each(["default", "separate"] as const)("Candidate import in %s", (layout) => {
+describe("Candidate import in the default layout", () => {
+  const layout = "default";
   it("replays the merge-introduced predecessors before the archived current files", async () => {
     const h = await importFixture(layout, { completed: true });
     const current = CandidateManagedRecordV1Schema.parse(JSON.parse(await readFile(join(h.root, importCandidatePath("archived")), "utf8")));

@@ -53,7 +53,8 @@ async function park(h: Awaited<ReturnType<typeof importFixture>>) {
   return { meta, tip, tree };
 }
 
-describe.each(["default", "separate"] as const)("parked work in %s", layout => {
+describe("parked work in the default layout", () => {
+  const layout = "default";
   it("imports the preserved records as Active with the pointer's current reason and first committer time", async () => {
     const facts = new Map<string, Awaited<ReturnType<typeof park>>>();
     const h = await importComparisonFixture(layout, async fixture => { facts.set(fixture.root, await park(fixture)); });

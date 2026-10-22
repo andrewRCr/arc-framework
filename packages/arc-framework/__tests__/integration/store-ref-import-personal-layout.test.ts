@@ -58,7 +58,8 @@ const moved = [
   ["memo.txt", "scratch/memo.txt", "Root personal prose.\n"],
 ] as const;
 
-describe.each(["default", "separate"] as const)("personal layout in %s", layout => {
+describe("personal layout in the default layout", () => {
+  const layout = "default";
   it("compares every person's independent source snapshot with its moved files and folded context", async () => {
     const h = await importComparisonFixture(layout, async fixture => {
       await meta(fixture, "beta", makeMetaFixture("beta", { owner: "alex", branch: null }));

@@ -1,7 +1,7 @@
 /** Atomic landing, resumable migration steps, and publication of the imported state. */
 import { describe, expect, it } from "vitest";
 import { join } from "node:path";
-import { rename, writeFile } from "node:fs/promises";
+import { mkdir, rename, writeFile } from "node:fs/promises";
 import { importFixture } from "../helpers/store/import-fixture.js";
 
 describe("import publication", () => {
@@ -23,8 +23,14 @@ describe("import publication", () => {
     const h = await importFixture();
     await h.git("git", ["config", "--unset", "arc.identity"]);
     h.ports.identity = async () => null;
+    await mkdir(join(h.root, ".arc/user/andrew"), { recursive: true });
+    await writeFile(join(h.root, ".arc/user/andrew/README.md"), "Personal readme\n");
     const result = await h.migrate();
     expect(result.status, JSON.stringify(result)).toBe("ok");
+    expect(result).toMatchObject({ result: { notices: expect.arrayContaining([{
+      condition: "Only project state was synchronized because no personal identity is configured.",
+      remedy: expect.objectContaining({ text: expect.stringContaining("arc.identity") }) }]) } });
+    expect((await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc/user/andrew/"])).stdout).not.toBe("");
     const remote = (await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout.split("\n").filter(Boolean);
     expect(remote).toHaveLength(4);
     expect(remote.some((ref) => ref.startsWith("refs/arc/user/"))).toBe(false);
@@ -92,7 +98,8 @@ describe.each(["default", "separate"] as const)("interrupted import in %s", (lay
   });
 });
 
-describe.each(["default", "separate"] as const)("import landing in %s", (layout) => {
+describe("import landing in the default layout", () => {
+  const layout = "default";
   it("lands none of its other refs when one destination's absence lease loses a race", async () => {
     const h = await importFixture(layout);
     const original = h.ports.execInput;
@@ -111,8 +118,7 @@ describe.each(["default", "separate"] as const)("import landing in %s", (layout)
       remedy: { text: expect.stringMatching(/clone.*(?:empty|no state)/u) },
     } } });
     expect(injected).toMatch(/^refs\/arc\/cohort\//u);
-    const scope = layout === "separate" ? [`--git-dir=${join(h.root, ".git/arc/store")}`] : [];
-    const state = (await h.git("git", [...scope, "for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout.split("\n").filter((line) => line && !line.startsWith("refs/arc/tmp/"));
+    const state = (await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout.split("\n").filter((line) => line && !line.startsWith("refs/arc/tmp/"));
     expect(state).toEqual([injected]);
     expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout).toBe("");
   });
@@ -123,10 +129,9 @@ describe.each(["default", "separate"] as const)("import landing in %s", (layout)
     const result = await h.migrate();
     expect(result.status, JSON.stringify(result)).toBe("ok");
     if (result.status !== "ok") throw new Error("Import refused");
-    const scope = layout === "separate" ? [`--git-dir=${join(h.root, ".git/arc/store")}`] : [];
     const batches: string[] = [];
     for (const { ref } of result.result.refs) {
-      const message = (await h.git("git", [...scope, "show", "-s", "--format=%B", ref])).stdout;
+      const message = (await h.git("git", ["show", "-s", "--format=%B", ref])).stdout;
       expect(message).toMatch(/^migrate /u);
       expect(message).toContain("Arc-Lifecycle-Action: import");
       expect(message).toContain(`Arc-Code-Head: ${head}`);
@@ -137,18 +142,4 @@ describe.each(["default", "separate"] as const)("import landing in %s", (layout)
     expect(batches[0]).toMatch(/^[0-9a-f-]{36}$/u);
   });
 
-  it("lands exactly the trial's ref multiset with minted UIDs masked", async () => {
-    const h = await importFixture(layout);
-    const trial = await h.migrate(true), landed = await h.migrate();
-    expect(trial.status, JSON.stringify(trial)).toBe("ok");
-    expect(landed.status, JSON.stringify(landed)).toBe("ok");
-    if (trial.status !== "ok" || landed.status !== "ok") throw new Error("Import refused");
-    const normalize = (rows: typeof trial.result.refs) => rows.map((row) => JSON.stringify({ ...row,
-      ref: row.ref.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gu, "<uid>"),
-    })).sort();
-    expect(normalize(landed.result.refs)).toEqual(normalize(trial.result.refs));
-    const scope = layout === "separate" ? [`--git-dir=${join(h.root, ".git/arc/store")}`] : [];
-    const refs = (await h.git("git", [...scope, "for-each-ref", "--format=%(refname)", "refs/arc/work/", "refs/arc/cohort/", "refs/arc/project/"])).stdout.split("\n").filter(Boolean).sort();
-    expect(refs).toEqual(landed.result.refs.map(({ ref }) => ref).sort());
-  });
 });

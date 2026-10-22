@@ -1,6 +1,6 @@
 /** Import admits personal state only after notes and every materialized copy agree. */
 import { expect, it, onTestFinished } from "vitest";
-import { mkdir, readFile, writeFile, unlink, mkdtemp, rm } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile, unlink, mkdtemp, rm } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { compactNotesRefSnapshot } from "../../src/lib/user-sync/compaction.js";
@@ -99,7 +99,12 @@ it.each(["default", "separate"] as const)("carries notes-excluded files but refu
   const trial = trialReport(await h.migrate(true));
   expect(trial.differingNotes).toEqual([...contents.keys(), ".env"].sort().map(path => ({ person: "andrew", path, kind: "disk-only" })));
   expect(trial.refused).toEqual([{ reference: personal("personal/document", "scratch/.env"), rule: "store.env-file" }]);
-  expect(await h.migrate()).toMatchObject({ status: "refused" });
+  expect(await h.migrate()).toMatchObject({ status: "refused", refusal: { code: "import-refused",
+    report: { refused: [{ reference: personal("personal/document", "scratch/.env"), rule: "store.env-file" }] } } });
+  const storeDirectory = join(h.root, ".git/arc/store");
+  for (const scope of [[], ...await access(storeDirectory).then(() => [[`--git-dir=${storeDirectory}`]], () => [])]) {
+    expect((await h.git("git", [...scope, "for-each-ref", "--format=%(refname)", "refs/arc/work/", "refs/arc/user/", "refs/arc/project/"])).stdout).toBe("");
+  }
   await unlink(join(h.root, ".arc/user/andrew/.env"));
   expect(await h.migrate()).toMatchObject({ status: "ok" });
   const store = createRefStore(h.ports);
