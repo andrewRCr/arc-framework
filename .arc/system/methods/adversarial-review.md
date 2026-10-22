@@ -159,6 +159,7 @@ You are performing one fresh adversarial-review pass.
 
 Use only the context supplied in this prompt plus source files you inspect directly.
 Do not rely on the primary agent's intent, unstated assumptions, or prior session context.
+Personal files under `.arc/user/` carry that context; read them only at paths this prompt names.
 
 Rubric:
 {rubric}
