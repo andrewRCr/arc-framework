@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { join } from "node:path";
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import { importFixture } from "../helpers/store/import-fixture.js";
+import { ordinaryErrand, seedTransients, transientSourceRef } from "../helpers/store/import-transients.js";
 
 describe("import publication", () => {
   it("publishes every landed ref through the designated state remote without moving code", async () => {
@@ -74,6 +75,9 @@ describe("import publication", () => {
 describe.each(["default", "separate"] as const)("interrupted import in %s", (layout) => {
   it.each(["land", "publish"])("resumes an interruption before %s without duplicating owners", async (step) => {
     const h = await importFixture(layout);
+    const seeded = layout === "separate" && step === "publish";
+    const tip = seeded ? await seedTransients(h, [ordinaryErrand]) : undefined;
+    if (seeded) await h.git("git", ["push", "origin", `${transientSourceRef}:${transientSourceRef}`]);
     h.ports.migrateStep = async (observed) => { if (observed === `import.${step}`) throw new Error(`interrupt-${step}`); };
     await expect(h.migrate()).rejects.toThrow(`interrupt-${step}`);
     const scope = layout === "separate" ? [`--git-dir=${join(h.root, ".git/arc/store")}`] : [];
@@ -84,17 +88,20 @@ describe.each(["default", "separate"] as const)("interrupted import in %s", (lay
       expect((await read("refs/arc/tmp/migrate/import/")).length).toBeGreaterThan(0);
       if (layout === "separate") expect((await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/import/"])).stdout).toBe("");
     }
-    if (step === "publish") expect(before).toHaveLength(4);
+    if (step === "publish") expect(before).toHaveLength(seeded ? 5 : 4);
     h.ports.migrateStep = async () => {};
     const result = await h.migrate();
     expect(result.status, JSON.stringify(result)).toBe("ok");
+    if (seeded) expect(result).toMatchObject({ result: { notices: expect.arrayContaining([
+      expect.objectContaining({ condition: `origin still holds ${transientSourceRef}; no state remote is designated.` })]) } });
     const finalScope = layout === "separate" ? [`--git-dir=${join(h.root, ".git/arc/store")}`] : [];
     const final = (await h.git("git", [...finalScope, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout.split("\n").filter((line) => line && !line.startsWith("refs/arc/tmp/")).sort();
-    expect(final).toHaveLength(4);
+    expect(final).toHaveLength(seeded ? 5 : 4);
     if (before.length) expect(final).toEqual(before);
     expect((await h.git("git", [...finalScope, "for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/import/"])).stdout).toBe("");
+    expect((await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/import/"])).stdout).toBe("");
     const remote = (await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout.split("\n").filter(Boolean).sort();
-    expect(remote).toEqual(layout === "default" ? final : []);
+    expect(remote).toEqual(layout === "default" ? final : seeded ? [`${transientSourceRef} ${tip}`] : []);
   });
 });
 

@@ -24,7 +24,7 @@ export function importTransientDeletes(tips: ReadonlyMap<string, string>): RefCh
 }
 
 /** Finish the separate layout's local transaction before any publication. */
-export async function retireImportLocals(context: RefBackendContext, report: MigrateReport): Promise<StoreMigrateResult | undefined> {
+export async function retireImportLocals(context: RefBackendContext): Promise<StoreMigrateResult | undefined> {
   const kept = await readSyncRefs(context, IMPORT_KEPT_PREFIX);
   if (!kept.size) return;
   const physical = await readRefRepository(context);
@@ -38,21 +38,19 @@ export async function retireImportLocals(context: RefBackendContext, report: Mig
     if (actual !== undefined && actual !== expected) return cleanupRefused(`${source} advanced after the import read it.`);
     if (actual !== undefined) changes.push({ ref: source, expected, delete: true });
   }
-  const designation = await readRefDesignation(context);
-  if (refDesignationStop(designation)?.status === "no-remote") {
-    const notices = await retainedRemoteNotices(context, kept);
-    report.notices.push(...notices);
-    changes.push(...[...kept].map(([ref, expected]) => ({ ref, expected, delete: true as const })));
-  }
   if (changes.length && (await updateRefTransaction(context, changes, { cwd: context.checkoutRoot })).status !== "committed") {
     return cleanupRefused("Transient identity refs changed during their local deletion.");
   }
 }
 
-/** After publication, remove only the origin generations actually re-homed. */
-export async function retireImportRemote(context: RefBackendContext): Promise<StoreMigrateResult | undefined> {
+/** After publication, remove only the origin generations actually re-homed; with no state remote, name them instead. */
+export async function retireImportRemote(context: RefBackendContext, report: MigrateReport): Promise<StoreMigrateResult | undefined> {
   const kept = await readSyncRefs(context, IMPORT_KEPT_PREFIX);
   if (!kept.size) return;
+  if (refDesignationStop(await readRefDesignation(context))?.status === "no-remote") {
+    report.notices.push(...await retainedRemoteNotices(context, kept));
+    return dropKeptTips(context, kept);
+  }
   await context.migrateStep?.("import.transient.remote-delete");
   try {
     const remote = await originTips(context, [...kept.keys()].map(sourceRef));
@@ -63,6 +61,11 @@ export async function retireImportRemote(context: RefBackendContext): Promise<St
       await context.exec("git", ["push", `--force-with-lease=${source}:${expected}`, "origin", `:${source}`], { cwd: context.checkoutRoot });
     }
   } catch (error) { return cleanupRefused(`Could not retire origin's transient refs: ${error instanceof Error ? error.message : String(error)}`); }
+  return dropKeptTips(context, kept);
+}
+
+/** The kept tips go last, so an interrupted cleanup still knows what it re-homed. */
+async function dropKeptTips(context: RefBackendContext, kept: ReadonlyMap<string, string>): Promise<StoreMigrateResult | undefined> {
   await context.migrateStep?.("import.transient.drop-kept");
   const changes = [...kept].map(([ref, expected]) => ({ ref, expected, delete: true as const }));
   if ((await updateRefTransaction(context, changes, { cwd: context.checkoutRoot })).status !== "committed") {

@@ -7,7 +7,7 @@ import { retireImportLocals, retireImportRemote } from "./transient-cleanup.js";
 
 /** A retry publishes the existing landing through the same store synchronization operation. */
 export async function publishImport(context: RefBackendContext, store: Store, report: MigrateReport): Promise<StoreMigrateResult> {
-  const local = await retireImportLocals(context, report);
+  const local = await retireImportLocals(context);
   if (local) return local;
   await context.migrateStep?.("import.publish");
   const pushed = await store.push();
@@ -26,7 +26,7 @@ export async function publishImport(context: RefBackendContext, store: Store, re
   if (missingIdentity?.status === "no-identity") report.notices.push({ condition: "Only project state was synchronized because no personal identity is configured.", remedy: missingIdentity.remedy });
   const state = pushed.result.states.find(({ status }) => status !== "no-remote" && status !== "no-identity");
   if (state && "remedy" in state) return unfinished(`State publication reported ${state.status}.`, state.remedy);
-  const retired = await retireImportRemote(context);
+  const retired = await retireImportRemote(context, report);
   if (retired) return retired;
   return { status: "ok", result: report };
 }

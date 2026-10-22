@@ -4,10 +4,9 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createRefStore, RecordReferenceSchema } from "../../src/lib/store/index.js";
 import { inboxEntrySourceDigest } from "../../src/lib/user-sync/inbox-writer.js";
-import { z } from "zod";
-import { serializeTransientIdentityRecord, TransientIdentityRecordSchema } from "../../src/lib/errand/identity-record.js";
-import { hashBlob, writeTreeCommit } from "../../src/lib/errand/ref-tree.js";
 import { importFixture, saveImportPersonal } from "../helpers/store/import-fixture.js";
+import { keptPrefix, ordinaryErrand as ordinary, seedTransients as seed, transientCommon as common, transientSourceRef as sourceRef,
+  type TransientIdentityRecord } from "../helpers/store/import-transients.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { importComparisonFixture } from "../helpers/store/import-comparison.js";
 import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
@@ -15,30 +14,12 @@ import { rejoinEntryList, splitEntryList } from "../../src/lib/store/concurrency
 import { ENTRY_CONFIGS } from "../../src/lib/store/kinds/entry-configs.js";
 import { parseEntryList } from "../../src/lib/store/kinds/entry-list.js";
 
-const timestamp = "2026-01-01T00:00:00.000Z";
-type TransientIdentityRecord = z.input<typeof TransientIdentityRecordSchema>;
-const common = { version: 3 as const, claimId: "1".repeat(32), createdAt: timestamp, updatedAt: timestamp };
-const ordinary: TransientIdentityRecord = { ...common, kind: "errand", purpose: "errand", slug: "example", branch: "chore/example",
-  intent: "Keep this intent", origin: "description", originEntry: null, state: "open", savedHead: null, changeRequest: null };
-const sourceRef = "refs/arc/user/andrew/errands";
-const keptPrefix = "refs/arc/tmp/migrate/import/kept/";
-
 /** Designate a backing repository at origin's URL as the separate layout's state remote. */
 async function designateBacking(h: Awaited<ReturnType<typeof importFixture>>): Promise<void> {
   await h.migrate(true);
   const scope = [`--git-dir=${join(h.root, ".git/arc/store")}`];
   await h.git("git", [...scope, "config", "remote.backing.url", h.origin]);
   await h.git("git", [...scope, "config", "remote.backing.arc-state", "push"]);
-}
-
-async function seed(h: Awaited<ReturnType<typeof importFixture>>, records: TransientIdentityRecord[]): Promise<string> {
-  const io = { exec: h.ports.exec, execInput: h.ports.execInput, identity: "andrew" };
-  const entries = new Map<string, string>();
-  for (const record of records) {
-    entries.set(record.slug, await hashBlob(io.execInput, serializeTransientIdentityRecord(TransientIdentityRecordSchema.parse(record))));
-    if (record.kind === "errand" && record.purpose === "errand" && record.branch) await h.git("git", ["branch", record.branch]);
-  }
-  return writeTreeCommit(io, entries, "Seed transient identities", [], null);
 }
 
 it("retains origin and the cleanup lease if publication is disabled after landing", async () => {
