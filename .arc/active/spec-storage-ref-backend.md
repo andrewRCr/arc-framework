@@ -2323,12 +2323,13 @@ the in-repo implementation; everything at the destination is the verb's.
   tracking refs under `refs/arc-remotes/` and the machine-local `refs/arc/tmp/seen/`, `refs/arc/tmp/version`, and
   `refs/arc/tmp/read/`, which hold the last heads § 6.3 checks against and the newest tokens' keepers; never
   `refs/arc/tmp/migrate/`, which each move keeps in the code repository (§ 10.3), but for the import's build (§ 10.4). A
-  fetch racing the move may land in the copy it leaves behind, and the next pull fetches again. No remote changes. The
-  directory's presence is the layout, so its switch is a rename: into the separate layout the store is built under a
-  temporary name beside `arc/store` and renamed into place, each build first removing any directory an interrupted one
-  left there, whose refs may predate a delete since; out of it the directory is renamed aside, then removed. The move
-  holds the layout lock from its listing through the switch and the delete (§ 11.4), so no write from another worktree
-  commits into either copy meanwhile.
+  fetch racing the move may land in the copy it leaves behind, and the next pull fetches again; an operation still bound
+  to a store directory a move into the code repository's refs takes away starts again against the new layout (§ 11.4)
+  (A31). No remote changes. The directory's presence is the layout, so its switch is a rename: into the separate layout
+  the store is built under a temporary name beside `arc/store` and renamed into place, each build first removing any
+  directory an interrupted one left there, whose refs may predate a delete since; out of it the directory is renamed
+  aside, then removed. The move holds the layout lock from its listing through the switch and the delete (§ 11.4), so no
+  write from another worktree commits into either copy meanwhile.
 - **The project's state** changes remote — to a backing repository before a repository that wants its state private
   goes public (D10), or back. It runs over the old remote's whole state, not this clone's, since D10's refspec keeps
   every other person's identity refs and every history ref this clone never pulled out of its fetch:
@@ -3160,7 +3161,15 @@ worktree of the clone serializes on it, in either layout.
   source's delete (§ 10.2). A write takes it last, after its ref locks, across final admission and publication (§ 5.1,
   A22); a pull's merge takes it last across publication. Under it each reads the layout again by the store directory's
   presence and, where it changed, releases every lock and restarts from step 2, so no write commits into a copy a move
-  has taken or left. The move takes no ref lock, so the order cannot deadlock. Under reftable every commit already waits
+  has taken or left. A read outside the layout lock that finds the store directory its operation bound gone — a move
+  into the code repository's refs renamed it aside or removed it since the operation read the layout — meets the same
+  change and never fails on it: the operation releases every lock and starts again against the layout the directory's
+  absence gives, a write from step 2 (§ 5.1), the push loop from step 1, as its step 4 does after a switch (§ 6.7), and
+  a pull, a read operation, `maintain`, or `arc store remote`'s view from its start (A31). A move out leaves its source
+  in place until its delete, and reads take no lock, so a read bound to the code repository's refs while a move out
+  deletes them returns `not-found` or a short list, and `arc store remote`'s view during a move out can show the default
+  layout beside `backing`: a residual, a read being point-in-time and a move a person's explicit act (A31).
+  The move takes no ref lock, so the order cannot deadlock. Under reftable every commit already waits
   on one lock (§ 11.2); in the files format the layout lock serializes final admission and commits to unrelated refs
   that prepared in parallel, holding it across local captured-view checks, objects, and one ref transaction, never a
   network call. The captured `before.history` is local-only too; § 14.5's bursts measure what that costs (A22). A move
@@ -4503,6 +4512,14 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     recorded follow whose old remote's forwarding record another move replaced, or whose new remote carries another
     move's forwarding record, ends on its rerun, its record going, rather than refusing (§ 10.3, § 10.6) (A30).
 
+41. **A store directory a move takes away restarts what was bound to it.** While a move into the code repository's refs
+    renames the store directory aside and removes it, a push holding its listing's ref locks, a pull holding its
+    merge's, a write holding its batch's, and a read, `maintain`, and `arc store remote`'s view already bound to the
+    directory each complete against the default layout without throwing: the push publishes nothing to the old state
+    remote, the pull's merge lands in the code repository's refs, the write lands there, readable after the move, the
+    read returns the record's content, `maintain` its measurements, and the view the default layout with the roles the
+    move set (§ 11.4) (A31).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4632,5 +4649,8 @@ open:
 
 - **A30** — 2026-10-22 — design: a move overtaken inside its switch undoes it, and an overtaken follow ends.
   _Supersedes:_ § 14.7 "never reversed". _Trigger:_ 18.R2.h must-stop. _Work:_ 18.R2.h. _Revalidated:_ pending → 19.1.
+
+- **A31** — 2026-10-22 — spec-depth: an operation whose bound store directory goes before the layout lock restarts.
+  _Supersedes:_ none. _Trigger:_ 18.R2.h must-stop. _Work:_ 18.R2.h. _Revalidated:_ pending → 19.1.
 
 ---

@@ -267,6 +267,8 @@ default layout.
   one-shot Git processes; every tree entry maps back to one record, its ref's metadata file, its manifest, or a
   diagnostic, and a fault in one entry or ref is a diagnostic beside every other record rather than a failed listing.
 
+    - _Amended in:_ 18.R2.h (A31)
+
     - `[x]` **3.3.R Exact diagnostics for invalid path keys — § 11.6 (A3)**
         - _Goal:_ Preserve managed-path admission while a backslash-bearing entry lists as `malformed` under its exact
           original path beside valid Unicode and quote-bearing records (A3).
@@ -365,6 +367,8 @@ and 15 for every served family, but for the assertions 4.4.d excludes by name, a
     - _Amended in:_ 4.R2 (A23)
 
     - _Amended in:_ 4.R (A22)
+
+    - _Amended in:_ 18.R2.h (A31)
 
     - `[x]` **4.2.a Validation and resolution**
         - Input schemas refuse missing primary placement before Git; personal writes without identity refuse before
@@ -872,6 +876,8 @@ those 4.4.d holds until Phase 11, and every § 14.3 case that needs no pull pass
 
     - _Amended in:_ 16.R (A12)
 
+    - _Amended in:_ 18.R2.h (A31)
+
 - _Outcome:_ A shared commit step takes the layout lock after ref locks and retains it through publication. Layout
   changes release all locks and restart resolution; prospective blobs remain in memory until publication, preserving
   writes across a separate-store replacement at the same path. Migration modes retain public-caller verification.
@@ -880,6 +886,8 @@ those 4.4.d holds until Phase 11, and every § 14.3 case that needs no pull pass
 
 - _Goal:_ `maintain()` keeps a store packed that only plumbing writes, and reports each never-retiring ref's growth for
   the tripwire.
+
+    - _Amended in:_ 18.R2.h (A31)
 
 - _Outcome:_ Both layouts run Git auto maintenance and measure captured permanent tips, omitting absent refs and
   other identities. A real Git configuration failure remains retryable after repair; the shared maintenance assertion
@@ -947,6 +955,8 @@ converge with no lost write.
 
     - _Amended in:_ 4.R2 (A23)
 
+    - _Amended in:_ 18.R2.h (A31)
+
     - `[x]` **9.2.a Fast-forwards and merge commits**
         - Pull merges captured ref sets under ref locks and the layout-guarded commit step, with local-first parents
           and per-ref batches. Kind-driven records and field-wise metadata preserve deletions, whole-record clashes,
@@ -982,6 +992,8 @@ converge with no lost write.
 
 - _Goal:_ `push` publishes every ref this clone wrote, never part of a local batch and never over a write it has not
   merged, and reports each declared family once.
+
+    - _Amended in:_ 18.R2.h (A31)
 
     - `[x]` **9.4.a Listing and locks**
         - Captures changed state refs under sorted native locks, releasing and retaking the whole set when it grows.
@@ -1313,6 +1325,8 @@ layouts.
 - _Goal:_ A person sees each remote's role and sets one, the setting moving the layout first where it must and refusing
   any setting that would strand state or publish it where the person did not choose.
 
+    - _Amended in:_ 18.R2.h (A31)
+
     - Repointing `backing` refuses `unsupported` until 17.5 builds it
         - _Retired in:_ Phase 17
 
@@ -1356,6 +1370,8 @@ layouts.
 
 - _Goal:_ Every case of § 14.6 not needing a follow, leaving the source, the forwarding record, or a `backing` repoint,
   and every layout-move case of § 14.7, passes, and so do the conformance suite's sync items in both layouts.
+
+    - _Amended in:_ 18.R2.h (A31)
 
 - _Outcome:_ The designation/layout scenario and both layouts' shared sync assertions hold, including native command
   answers, deadline repair, read-source isolation, and interrupted/concurrent layout moves. Hidden command pages have
@@ -1795,6 +1811,8 @@ _Exit criterion:_ Every case of § 14.6 and § 14.7 passes.
 
     - _Amended in:_ 18.R2.h (A30)
 
+    - _Amended in:_ 18.R2.h (A31)
+
 - _Outcome:_ The effective scenario combines 13.6's designation/layout coverage, 15.10's import coverage, 4.R2.d's
   unchanged native lifecycle-move coverage, and fresh move, forwarding, follow, leave-source, backing-repoint, and
   read-source runs in both layouts, including their CLI paths. Every scenario retains all accepted writes at its
@@ -2181,7 +2199,7 @@ in `notes-storage-ref-backend.md` (A25).
           F8, a push's listing read racing a move in (`.internal/storage-ref-backend-tools/verification/apply/`).
           13.2, 14.3, 14.4, 14.5, 15.R4, and 15.10 cite removed cases.
 
-    - `[ ]` **18.R2.h Defects the derivations found — § 10.3, § 10.5, § 10.6, § 10.11 (A30)**
+    - `[ ]` **18.R2.h Defects the derivations found — § 10.3, § 10.5, § 10.6, § 10.11, § 11.4 (A30, A31)**
         - Each defect gets its exposing case first, then its fix. An interrupted local-only import that re-homed
           transient refs reruns to `ok` without the notices naming origin's copies: `store-ref-import-landing`'s
           [separate, publish] restart seeds one. A remote move overtaken by a move back inside its switch, at
@@ -2198,7 +2216,8 @@ in `notes-storage-ref-backend.md` (A25).
           [separate] stops relying on it. Kept import tips a rerun no longer re-homes are pruned. A push whose listing
           reads the separate store while a move into the default layout deletes it returns a result rather than
           throwing: `layout-move:476` [default], its old state remote a third repository with origin taking `push`,
-          exposes it, and since the specification leaves the mechanism open, the fix enters `amend-design`. A move ended
+          exposes it. The push starts again from step 1, and a pull, a write, a read, `maintain`, and
+          `arc store remote`'s view meeting the same move start again too, each with its own row (A31). A move ended
           between removing its record and clearing `refs/arc/tmp/migrate/remote/` and `copied/` leaves them, and a new
           move's first record clears no `copied/` ref, whose kept forwarding record and copy version a later move reads:
           a step hook after a record's removal exposes it on a rerun, and a new move's first record and a no-target run
@@ -2445,3 +2464,10 @@ in `notes-storage-ref-backend.md` (A25).
   `push` from a remote it read, interrupted inside its switch and so overtaken, ends with that remote carrying `read`
   again; and a recorded follow whose old remote's forwarding record another move replaced, or whose new remote carries
   another move's forwarding record, ends on its rerun, its record going, rather than refusing (§ 10.3, § 10.6) (A30)
+
+- `[ ]` While a move into the code repository's refs renames the store directory aside and removes it, a push holding
+  its listing's ref locks, a pull holding its merge's, a write holding its batch's, and a read, `maintain`, and
+  `arc store remote`'s view already bound to the directory each complete against the default layout without throwing:
+  the push publishes nothing to the old state remote, the pull's merge lands in the code repository's refs, the write
+  lands there, readable after the move, the read returns the record's content, `maintain` its measurements, and the view
+  the default layout with the roles the move set (§ 11.4) (A31)

@@ -2396,3 +2396,57 @@ recorded move reads the same predicate, so it reports the undo a rerun would mak
 other directions take the same undo with their own designation writes. The restart sets above follow the design's reads;
 18.R2.h derives them again against its fix's code, as 18.R2.c derived the others against source, and gives any state
 they miss its row.
+
+## A31 — A store directory taken away under a bound operation
+
+18.R2.d withheld `store-ref-layout-move`'s "does not publish a sync that pulled before the switch" row for the default
+layout (`.internal/storage-ref-backend-tools/verification/apply/F8-layout-move-476-default-row.patch`). Built with its
+old state remote a third repository and origin taking `push`, it pauses a push holding its listing's ref locks while a
+move into the code repository's refs runs, and the resumed listing throws `not a git repository` for the removed
+`.git/arc/store` from `cat-file --batch` (`readBatchObjects` under `readPushListing`, `push-listing.ts`;
+`run-h-F8-expose.log`).
+
+**Why spec-depth.** § 11.4 re-reads the layout only under the layout lock, which a write takes last and the push loop
+never takes for its listing; `commitRefStep` (`commit-step.ts`) answers `layout-changed` there, and the write, merge, and
+withdrawal loops restart on it. § 10.2's "a fetch racing the move may land in the copy it leaves behind" holds for a move
+out, whose source stays readable until its delete, but not for a move in, which renames the directory aside and removes
+it. D4 has `pull` and `push` report states rather than fail, and nothing settled what a read outside the lock does when
+its directory goes, so the rule fills a hole.
+
+**Decision: treat the vanished directory as the layout change.** An operation finding its bound directory gone before
+the layout lock releases every lock and starts again where the layout lock's re-read would send it: a write from step 2
+(`executeRefBatch`, `write.ts`, already loops on `layout-changed`), a pull from its start (`pullRefStoreOnce`, `pull.ts`,
+restarts so on a merge's `restart`), and the push loop from step 1, as its designation re-read after a switch does
+(`checkedPushTarget`, `push.ts`). The lock order stays as it is. Rejected: taking the layout lock across the push's
+listing, which would hold it across reads the lock order keeps outside it, and a refusal, which D4 rules out for a
+state a rerun settles.
+
+**Sweep.** The same read outside the lock exists in a pull's merge, which reads under its ref locks before taking the
+layout lock (`mergeRefSets`, `sync-merge.ts`); in a write's step 4, read under its ref locks (`commitLockedRefBatch`,
+`write.ts`); in every read operation, which binds the directory (`readRefRepository`, `repository.ts`) and takes no
+lock; and in `maintain` (`maintainRefStore`, `maintain.ts`), which binds the same way and runs `git maintenance` and
+`rev-list` against the bound directory, and which handoff calls once its rewrite lands (§ 12); and in
+`arc store remote`'s view (`remoteView`, `remote-setting.ts`), which `runRefRemote` (`commands.ts`) returns outside the
+move lock, its designation read checking the store directory and then running `git config` against it
+(`readRefDesignation`, `designation.ts`), and its layout coming from a binding made before that check, so a directory
+gone between them reads as the separate layout beside the default layout's roles, no Git
+failure showing it. Every other command binds it through these operations, as
+`arc store conflict` does through the read operations, or holds the move lock a move holds
+(`withMigrationLock`). All are folded: § 11.4's rule and § 10.2's clause name them, criterion 41
+names a push, a pull, a write, a read, `maintain`, and the view, and 18.R2.h
+writes a row for each beside the withheld push row, pausing each the way that row pauses its push. A pull's fetch racing
+the move parses as `unreachable` but its next read of the bound directory throws, so the restart belongs at the pull's
+level, not on the fetch's outcome.
+
+**Accepted residual.** A move out leaves its source readable until its delete, and the delete takes the layout lock, but
+reads take no lock: a read bound to the code repository's refs while a move out deletes them returns `not-found` or a
+short list rather than throwing. Reads are point-in-time and a move is a person's rare, explicit operation, so the
+window stays. So does `arc store remote`'s view during a move out, whose binding, made before the directory's rename,
+can sit beside a designation read after it, showing the default layout with `backing`; reading again would show the
+move's own in-flight state instead, `backing` and the old remote both carrying `push` until the move applies its
+designation after the rename (`switchLayout`), so a restart buys nothing a person can act on.
+
+**For the fix.** A vanished directory shows as Git refusing the bound `--git-dir`; the fix confirms the directory's
+absence (`directoryExists`) before restarting, so no other Git failure restarts an operation.
+The view, whose designation read checks the directory itself, confirms after its reads that the directory its binding
+found is still there, and starts again where it is not.
