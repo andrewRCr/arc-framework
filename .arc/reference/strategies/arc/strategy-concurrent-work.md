@@ -214,7 +214,10 @@ holding the old history. Append-only keeps a pushed branch a safe, shared base. 
   `git -c merge.directoryRenames=false merge refs/remotes/origin/main`, as `arc base merge` does. Substitute the
   configured base branch for `main` in both commands. Disabling directory-rename inference for that invocation keeps
   a branch's new active artifacts in place when base archives the last active work unit, while preserving individual
-  file renames. The repository's Git configuration stays unchanged.
+  file renames. The repository's Git configuration stays unchanged. A merge that applies cleanly can still break the
+  branch, where base code assumes the old shape of something the branch changed. Before building on the merge, run
+  `arc check new-head --from <pre-merge head>`, the check integration runs after its own base merge, and fix what it
+  finds.
 - **Integration is the single sanctioned rewrite point.** Any history cleanup — squash, reorder, final rebase —
   happens at integration, after review, when the branch stops being a shared working base and becomes a merge
   candidate.
