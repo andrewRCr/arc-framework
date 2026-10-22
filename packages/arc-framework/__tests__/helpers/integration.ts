@@ -38,6 +38,7 @@ import {
 } from "../../src/lib/user-sync/compaction-manifest.js";
 import { createTempRepoCore, removeGitBackedDir } from "./temp-repo.js";
 import { createExecaGitExec, createExecaGitExecInput } from "../../src/lib/git/process-executor.js";
+import { readUserDir } from "../../src/lib/io-context.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -435,38 +436,6 @@ export function makeGitNoteReader(cwd: string) {
       return null;
     }
   };
-}
-
-/**
- * Read directory entries with name and size (real filesystem).
- * Recurses into subdirectories — entries use relative paths.
- * Skips dot-directories (infrastructure, not user content).
- */
-export async function readUserDir(dirPath: string): Promise<DirEntry[]> {
-  const entries: DirEntry[] = [];
-
-  async function walk(currentPath: string, prefix: string): Promise<void> {
-    let names: string[];
-    try {
-      names = await readdir(currentPath);
-    } catch {
-      return;
-    }
-    for (const name of names) {
-      const fullPath = join(currentPath, name);
-      const s = await stat(fullPath);
-      if (s.isDirectory()) {
-        if (name.startsWith(".")) continue;
-        await walk(fullPath, prefix ? `${prefix}/${name}` : name);
-      } else if (s.isFile()) {
-        const relativeName = prefix ? `${prefix}/${name}` : name;
-        entries.push({ name: relativeName, size: s.size });
-      }
-    }
-  }
-
-  await walk(dirPath, "");
-  return entries;
 }
 
 /** Create a real UserIOContext for a temp repo. */
