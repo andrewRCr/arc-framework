@@ -11,6 +11,7 @@ import { moveRefLayoutAsSwitch } from "./migrate-layout.js";
 import { fetchLayoutObjects, requireLayoutTransaction, layoutRefs } from "./migrate-layout-build.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
+import type { SwitchUndo } from "./migrate-switch-undo.js";
 
 /** Derive completion from the installed layout and exact configured destination URLs. */
 export async function remoteSwitchComplete(context: RefBackendContext, recorded: RecordedRemote): Promise<boolean> {
@@ -36,9 +37,7 @@ export async function switchRemoteMove(context: RefBackendContext, store: Store,
   if (!context.writeBackingRepository) throw new MigrationRefusal({ code: "move-unfinished", class: "recoverable",
     condition: "This migration caller has no tracked backing-pointer writer.", remedy: { text: "Run arc store migrate through the store command to finish the recorded switch.", argv: ["arc", "store", "migrate"] } });
   await context.migrateStep?.("remote.pointer");
-  try { await context.writeBackingRepository(destination.repository === "backing" ? destination.fetchUrl : null); }
-  catch (error) { throw new MigrationRefusal({ code: "move-unfinished", class: "recoverable", condition: `The tracked pointer could not be written: ${error instanceof Error ? error.message : String(error)}`,
-    remedy: { text: "Repair the checkout's arc-config.yml and retry arc store migrate.", argv: ["arc", "store", "migrate"] } }); }
+  await writeMovePointer(context, movePointer(destination));
   const configuration = {
     prepareTarget: async (target: RefBackendContext): Promise<void> => {
       await installCopiedHeads(code, target, destination.name);
@@ -56,6 +55,27 @@ export async function switchRemoteMove(context: RefBackendContext, store: Store,
     finally { await release(); }
   }
   await context.migrateStep?.("remote.switched");
+}
+
+/** A remote move's switch is undone from its record: the source's pointer, roles, and layout. */
+export async function remoteSwitchUndo(context: RefBackendContext, recorded: RecordedRemote): Promise<SwitchUndo> {
+  const { codeRemote } = await readRefDesignation(context), { source, destination } = recorded.record;
+  return { recorded, source, destination, sourceRole: "push", destinationRole: "push",
+    sourceLayout: remoteLayout(source, codeRemote), destinationLayout: remoteLayout(destination, codeRemote),
+    pointer: { source: movePointer(source), destination: movePointer(destination) } };
+}
+
+/** Write the tracked pointer a move's switch or its undo sets, refusing recoverably where it cannot. */
+export async function writeMovePointer(context: RefBackendContext, value: string | null): Promise<void> {
+  if (!context.writeBackingRepository) throw new MigrationRefusal({ code: "move-unfinished", class: "recoverable",
+    condition: "This migration caller has no tracked backing-pointer writer.", remedy: { text: "Run arc store migrate through the store command to finish the recorded switch.", argv: ["arc", "store", "migrate"] } });
+  try { await context.writeBackingRepository(value); }
+  catch (error) { throw new MigrationRefusal({ code: "move-unfinished", class: "recoverable", condition: `The tracked pointer could not be written: ${error instanceof Error ? error.message : String(error)}`,
+    remedy: { text: "Repair the checkout's arc-config.yml and retry arc store migrate.", argv: ["arc", "store", "migrate"] } }); }
+}
+
+function movePointer(remote: MoveRemote): string | null {
+  return remote.repository === "backing" ? remote.fetchUrl : null;
 }
 
 function remoteLayout(remote: MoveRemote, codeRemote: string | null): StoreLayout {
@@ -84,20 +104,27 @@ async function applyRemoteDesignation(context: RefBackendContext, code: RefBacke
   const { source, destination } = recorded.record;
   if (destination.repository === "code") await code.exec("git", ["config", `remote.${destination.name}.arc-state`, "push"], { cwd: context.checkoutRoot });
   if (source.repository === "code") await code.exec("git", ["config", `remote.${source.name}.arc-state`, "off"], { cwd: context.checkoutRoot });
-  else if (destination.repository === "code") {
-    const physical = await readRefRepository(context);
-    const names = (await physical.exec("git", ["remote"], { cwd: context.checkoutRoot })).stdout.split(/\r?\n/u);
-    if (names.includes("backing")) await physical.exec("git", ["remote", "remove", "backing"], { cwd: context.checkoutRoot });
-  }
+  else if (destination.repository === "code") await removeBacking(await readRefRepository(context));
+}
+
+/** Remove `backing` from the repository that holds it; it rides out with the store directory otherwise. */
+export async function removeBacking(physical: RefBackendContext): Promise<void> {
+  const names = (await physical.exec("git", ["remote"], { cwd: physical.checkoutRoot })).stdout.trim().split(/\r?\n/u);
+  if (names.includes("backing")) await physical.exec("git", ["remote", "remove", "backing"], { cwd: physical.checkoutRoot });
 }
 
 /** Require the source layout, interrupted build directories, and layout gathering refs to be fully cleaned. */
 export async function remoteLayoutCleanupComplete(code: RefBackendContext, source: StoreLayout, destination: StoreLayout): Promise<boolean> {
   if (source === destination) return true;
   if (destination === "separate" && (await layoutRefs(code)).size) return false;
-  if ((await readSyncRefs(code, "refs/arc/tmp/migrate/layout/")).size) return false;
+  return !await layoutMoveLeftovers(code);
+}
+
+/** A layout move leaves its gathering refs and any build or aside directory until its source cleanup ends. */
+export async function layoutMoveLeftovers(code: RefBackendContext): Promise<boolean> {
+  if ((await readSyncRefs(code, "refs/arc/tmp/migrate/layout/")).size) return true;
   const common = code.repository?.commonDir;
   if (!common) throw new Error("No common code repository selected");
-  for (const name of ["store-migrate-old", "store-migrate-build"]) if (await directoryExists(code, join(common, "arc", name))) return false;
-  return true;
+  for (const name of ["store-migrate-old", "store-migrate-build"]) if (await directoryExists(code, join(common, "arc", name))) return true;
+  return false;
 }

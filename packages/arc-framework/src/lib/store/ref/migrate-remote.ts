@@ -11,9 +11,10 @@ import { fetchLayoutObjects } from "./migrate-layout-build.js";
 import { copyRemoteMove, clearRemoteGathering, remoteCopyReport, readRemoteCopyReport, type RemoteCopy } from "./migrate-remote-copy.js";
 import { deleteRemoteSource } from "./migrate-remote-delete.js";
 import { forwardRemoteMove } from "./migrate-remote-forward.js";
-import { switchRemoteMove, remoteSwitchComplete } from "./migrate-remote-switch.js";
+import { switchRemoteMove, remoteSwitchComplete, remoteSwitchUndo } from "./migrate-remote-switch.js";
+import { switchBegun, undoSwitch } from "./migrate-switch-undo.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
-import { describeEndedRemoteMove, endRemoteMove } from "./migrate-remote-end.js";
+import { describeEndedRemoteMove, endRemoteMove, type EndedSwitch } from "./migrate-remote-end.js";
 import { FORWARDING_REF } from "./forwarding-record.js";
 
 /** Copy under the caller's move lock and retain the exact record until forwarding and switching finish. */
@@ -46,8 +47,9 @@ async function runRemoteMoveRounds(context: RefBackendContext, code: RefBackendC
     const copied = await copyRemoteMove(code, transports.source, transports.destination, local, trial, active);
     if (trial) return remoteMoveTrial(context, code, copied, active !== undefined);
     if (copied.ended) {
-      if (!copied.recorded) throw new Error("An ended remote move has no record");
-      const ended = await endRemoteMove(code, copied.recorded, copied);
+      const recorded = copied.recorded;
+      if (!recorded) throw new Error("An ended remote move has no record");
+      const ended = await endRemoteMove(code, recorded, copied, async () => undoSwitch(context, store, await remoteSwitchUndo(context, recorded)));
       if (ended) return { status: "ok", result: ended };
       active = copied.recorded;
       continue;
@@ -62,8 +64,13 @@ async function runRemoteMoveRounds(context: RefBackendContext, code: RefBackendC
 
 async function remoteMoveTrial(context: RefBackendContext, code: RefBackendContext, copy: RemoteCopy, recorded: boolean): Promise<StoreMigrateResult> {
   if (!recorded) await clearRemoteGathering(code);
-  if (copy.ended && copy.recorded) return { status: "ok", result: describeEndedRemoteMove(copy.recorded, copy, await remoteSwitchComplete(context, copy.recorded)) };
+  if (copy.ended && copy.recorded) return { status: "ok", result: describeEndedRemoteMove(copy.recorded, copy, await trialEnd(context, copy.recorded), true) };
   return { status: "ok", result: trialRemoteReport(copy) };
+}
+
+async function trialEnd(context: RefBackendContext, recorded: RecordedRemote): Promise<EndedSwitch> {
+  if (await remoteSwitchComplete(context, recorded)) return "after";
+  return await switchBegun(context, await remoteSwitchUndo(context, recorded)) ? "during" : "before";
 }
 
 async function resolveMoveRemotes(context: RefBackendContext, code: RefBackendContext, to?: string): Promise<{ source: MoveRemote; destination: MoveRemote }> {

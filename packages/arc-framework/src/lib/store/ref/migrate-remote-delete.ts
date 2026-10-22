@@ -22,7 +22,7 @@ export async function deleteRemoteSource(code: RefBackendContext, recorded: Reco
       await code.migrateStep?.("remote.list-source");
       const source = await fetchMigrationRemote(code, recorded.record.source, true);
       const currentSource = await readSourceLicense(code, recorded, source);
-      if (!currentDestination || !currentSource) return await finishEndedRemoteMove(code, recorded, { report, source, destination: controls }, true);
+      if (!currentDestination || !currentSource) return await finishEndedRemoteMove(code, recorded, { report, source, destination: controls }, "after");
       const ordinary = new Map([...source].filter(([ref]) => ref !== FORWARDING_REF));
       if (!ordinary.size) {
         await code.migrateStep?.("remote.finish");
@@ -31,7 +31,7 @@ export async function deleteRemoteSource(code: RefBackendContext, recorded: Reco
         return report;
       }
       const destination = await fetchMigrationRemote(code, recorded.record.destination, true);
-      if (!await readDestinationLicense(code, recorded, destination)) return await finishEndedRemoteMove(code, recorded, { report, source, destination }, true);
+      if (!await readDestinationLicense(code, recorded, destination)) return await finishEndedRemoteMove(code, recorded, { report, source, destination }, "after");
       if (!await recopyDeleteRound(code, recorded, ordinary, destination, report)) continue;
       await code.migrateStep?.("remote.delete");
       const deleted = await atomicMigrationPush(code, recorded.record.source.pushUrl,
