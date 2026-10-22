@@ -53,10 +53,24 @@ it("hands the same setup artifact to every adopted job and clears native results
   }
 });
 
+it("runs the store suites on the integration tier's handed durations and writes theirs beside its shards", async () => {
+  const steps = (await workflow()).jobs.store?.steps ?? [];
+  const download = steps.findIndex((entry) => entry.name === "Download duration input");
+  const clear = steps.findIndex((entry) => entry.name === "Clear native test results");
+  const run = steps.findIndex((entry) => entry.name === "Run store suites");
+  expect(download).toBeGreaterThanOrEqual(0);
+  expect(clear).toBeGreaterThan(download);
+  expect(run).toBeGreaterThan(clear);
+  expect(steps[run]?.env).toMatchObject({
+    ARC_TEST_DURATION_FILE: "${{ github.workspace }}/packages/arc-framework/.test-cost-runs/duration-input/integration.json" });
+  expect(steps.find((entry) => entry.name === "Upload native durations")?.with?.name).toBe("duration-results-integration-store");
+});
+
 it("merges and saves only after all writer shards succeeded and gives unit reports distinct names", async () => {
   const value = await workflow();
   const merger = value.jobs["merge-test-durations"];
-  expect(merger?.needs).toEqual(["unit", "integration", "e2e"]);
+  expect(merger?.needs).toEqual(["unit", "integration", "store", "e2e"]);
+  expect(merger?.if).toContain("needs.store.result == 'success'");
   expect(merger?.if).toContain("github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'");
   expect(merger?.steps.find((entry) => entry.name === "Save duration cache")?.uses).toMatch(/^actions\/cache\/save@/u);
   expect(merger?.steps.find((entry) => entry.name === "Save duration cache")?.with?.key)

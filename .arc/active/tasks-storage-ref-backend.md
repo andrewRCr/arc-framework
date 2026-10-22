@@ -2172,35 +2172,22 @@ in `notes-storage-ref-backend.md` (A25).
           and never at module scope, and copies it per test, heaviest first, and a case run against a copy proves what
           it proved against a fresh build.
 
-    - `[ ]` **18.R2.f Selection by reach — § 14.14**
-        - The store suites leave the whole integration tier for their own non-widening `files` merge-gate check in
-          `.arc/system/arc-checks.yml` that withholds its paths, so it runs once per gate, and whose declared inputs
-          cover every path a suite's reach can hold and the selection's own declaration and code: the check's entry, a
-          data file in this repository naming the suites, locating modules, and widening inputs, which the runner reads,
-          and the runner. Its runner reads the change, deletions included, from `ARC_CHECK_BASE` and `ARC_CHECK_TREE`;
-          computes each suite's static import closure, the files its modules locate from their own paths (spawned
-          scripts with their closures, `src/cli.ts` and other read files by themselves), the declared locating modules'
-          finds (`lib/paths.ts`: `arc/`, `templates/`, `init-recipe.json`; the closures a suite copies with
-          `copyLiveDependencies`), and the widening inputs, the Vitest and TypeScript configuration with the modules
-          they import among them; fails on a location-relative path it can neither resolve nor find declared; and
-          reports the suites it selected. Inline spawned code moves into files under `__tests__/fixtures/store/`. A full
-          run — asked for, or, with no ask, given no base or on a change to the selection — runs every suite, the
-          separate layout's whole suite among them, which runs only there and in the portability tier's scheduled and
-          dispatched runs; a per-change run over every suite can also be asked for, and the ask enters the check's cache
-          key through a runtime input. Selected suites run in their current Vitest projects, so the timing and burst
-          suites keep their single-worker projects and order; `store-ref-timing-isolation.test.ts` proves that over the
-          store check's invocation rather than the integration tier's, the runner takes the heavy-test admission
-          (`withLocalHeavyTestAdmission`) the integration tier's runs take, and the host runner gives the store check's
-          command the integration tier's class before the check first runs on the remote check machine, a host change
-          outside this repository. On a pull request the portability tier runs without its store files, and on scheduled
-          and dispatched runs with them. Pull-request CI selects the same way through the check plumbing
-          (`.github/check-plumbing.yml`, `scripts/run-ci-checks.mjs`, `ci.yml`); a CI job of its own makes a full run on
-          every push to `main`, and CI asks for full runs on the weekly and dispatched runs. § 14.14's departure from
-          the whole-suite merge gate is stated in `DEV-RULES.PROJECT` § Test execution with the rule. Unit cases cover
-          selection, deletions, located files, an undeclared location-relative path, widening, full runs, the per-change
-          run over every suite, an ask setting the form on a change to the selection, an asked run never reusing a pass
-          made in another form, the empty-reach report, failed or empty reach computations, and the portability tier's
-          pull-request run leaving out its store files.
+    - `[x]` **18.R2.f Selection by reach — § 14.14**
+        - `test:store` (`.arc/system/arc-checks.yml`) is a non-widening `files` merge-gate check that withholds its
+          paths, over the integration tier's inputs, with its ask (`ARC_STORE_CHECK`) a runtime input.
+          `scripts/run-reach-check.mjs` reads `__tests__/reach/store-suites.json` and runs `runReachCheck`
+          (`lib/reach-check.ts`): the change from `ARC_CHECK_BASE` to `ARC_CHECK_TREE`, deletions included, selects each
+          suite whose reach (`lib/vitest-reach.ts`) holds a changed path — its import closure, the literal
+          `new URL(…, import.meta.url)` and `resolve(import.meta.dirname, …)` locations, scripts under
+          `__tests__/fixtures/store/` with their closures, declared locating modules' finds, and the widening inputs —
+          and an unplaceable location, an unresolved import, or no suite fails. An ask, no base, or a change to the data
+          file, runner, or check entry sets the full or per-change-every form. Selected suites run in the `store` tier's
+          projects under the heavy-test admission, the `ARC_STORE_BURSTS`-gated bursts and timing suites left out
+          without it. The integration tier, the lane, and a pull request's portability run (`ARC_PORTABILITY_FORM`)
+          leave the store suites out; `ci.yml`'s `store` job replays the forecast on a pull request and asks for a full
+          run on push, schedule, and dispatch, and `remote-check` gives the check the integration class. The lock
+          holder's inline code moved to `__tests__/fixtures/store/`, and `store-ref-timing-isolation.test.ts` proves
+          the order under the store tier.
 
     - `[ ]` **18.R2.g Measure and record — § 14.12**
         - Rerun the merge gate on the remote check machine with the store check's own pool at five workers asked to

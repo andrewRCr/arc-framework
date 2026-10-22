@@ -34,3 +34,21 @@ it("discovers hashed native result paths in tier-labelled shard artifacts", () =
     ] });
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+it("merges the store job's results into the integration tier beside its shards", () => {
+  const root = mkdtempSync(join(tmpdir(), "duration-merge-"));
+  try {
+    for (const [artifact, path] of [["duration-results-integration-1", "a.test.ts"],
+      ["duration-results-integration-store", "store-ref-a.test.ts"]] as const) {
+      const directory = join(root, "download", artifact, "hash");
+      mkdirSync(directory, { recursive: true });
+      writeFileSync(join(directory, "results.json"), JSON.stringify({ version: "4.1.8", results: [
+        [`integration:${path}`, { duration: 4, failed: false }],
+      ] }));
+    }
+    const output = join(root, "output");
+    mergeDurationArtifacts(join(root, "download"), output);
+    expect(JSON.parse(readFileSync(join(output, "integration.json"), "utf8")).results.map(([key]: [string]) => key))
+      .toEqual(["integration:a.test.ts", "integration:store-ref-a.test.ts"]);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});

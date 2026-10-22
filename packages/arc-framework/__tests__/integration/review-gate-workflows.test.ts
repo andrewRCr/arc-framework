@@ -52,7 +52,7 @@ describe("trusted review-gate workflows", () => {
     // Shared setup is a required dependency so a failed install cannot roll up green
     // via skipped consumer legs.
     expect(workflow).toContain(
-      "needs: [classify, setup, build, lint-typecheck, unit, integration, e2e, portability, portability-cross-platform]",
+      "needs: [classify, setup, build, lint-typecheck, unit, integration, store, e2e, portability, portability-cross-platform]",
     );
     expect(workflow).toContain("scripts/classify-change.sh lane --stdin0");
     expect(workflow).toContain("scripts/classify-change.sh portability --stdin0");
@@ -308,10 +308,15 @@ describe("trusted review-gate workflows", () => {
       "needs.classify.outputs.weight != 'light')",
       `(needs.classify.outputs.weight != 'light' || ${integrationTarget}))`,
     ));
+    // The store suites run by reach on a pull request and in full on every push to main, which needs the build too.
+    expect(jobValue(workflow, "store").if).toBe(broadSuiteCondition.replace(
+      "needs.classify.outputs.weight != 'light')",
+      `(needs.classify.outputs.weight != 'light' || ${integrationTarget}))`,
+    ).replace(" || github.event_name == 'workflow_dispatch'", " || github.event_name == 'push' || github.event_name == 'workflow_dispatch'"));
     expect(jobValue(workflow, "build").if).toBe("${{ !inputs.portability_timing_only && !cancelled() && needs.classify.result == 'success' && " +
       "needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || " +
-      `${integrationTarget} || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && ` +
-      "needs.setup.result == 'success' }}");
+      `${integrationTarget} || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || ` +
+      "github.event_name == 'schedule') && needs.setup.result == 'success' }}");
   });
 
   it("parses every workflow and pins every external action", async () => {

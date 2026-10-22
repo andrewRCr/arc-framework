@@ -1,0 +1,85 @@
+{
+  "name": "store suites",
+  "package": "packages/arc-framework",
+  "check": { "id": "test:store", "declaration": ".arc/system/arc-checks.yml" },
+  "ask": "ARC_STORE_CHECK",
+  "suites": ["packages/arc-framework/__tests__/integration/store-ref-*.test.ts"],
+  "fullOnly": ["packages/arc-framework/__tests__/integration/store-ref-separate-conformance.test.ts"],
+  "environment": [
+    {
+      "suites": [
+        "packages/arc-framework/__tests__/integration/store-ref-bursts.test.ts",
+        "packages/arc-framework/__tests__/integration/store-ref-timing.test.ts"
+      ],
+      "variable": "ARC_STORE_BURSTS",
+      "value": "1"
+    }
+  ],
+  "scripts": ["packages/arc-framework/__tests__/fixtures/store/"],
+  "locating": [
+    {
+      "module": "packages/arc-framework/src/lib/paths.ts",
+      "finds": [
+        "packages/arc-framework/package.json",
+        "packages/arc-framework/arc/**",
+        "packages/arc-framework/templates/**",
+        "packages/arc-framework/init-recipe.json",
+        "packages/arc-framework/changelog/versions.json"
+      ]
+    },
+    { "module": "packages/arc-framework/src/lib/version.ts", "finds": ["packages/arc-framework/package.json"] },
+    { "module": "packages/arc-framework/src/lib/change-facts.ts", "finds": [] },
+    { "module": "packages/arc-framework/src/scripts/build-compiler.ts", "finds": [] },
+    { "module": "packages/arc-framework/src/lib/local-vitest-runner.ts", "finds": [] },
+    {
+      "module": "packages/arc-framework/__tests__/helpers/native-build-fixture.ts",
+      "finds": [
+        "package.json",
+        "package-lock.json",
+        "packages/arc-framework/package.json",
+        {
+          "closureOf": [
+            "packages/arc-framework/tsup.config.ts",
+            "packages/arc-framework/tsup.fast.config.ts",
+            "packages/arc-framework/build-compiler.config.ts",
+            "packages/arc-framework/src/scripts/run-build.ts",
+            "packages/arc-framework/src/scripts/build-compiler.ts",
+            "packages/arc-framework/src/lib/build-command.ts",
+            "packages/arc-framework/src/lib/build-generation.ts",
+            "packages/arc-framework/src/scripts/run-local-test-tier.ts",
+            "packages/arc-framework/src/scripts/run-focused-tests.ts",
+            "packages/arc-framework/src/scripts/measure-test-cost.ts",
+            "packages/arc-framework/src/lib/unit-process-metadata.ts"
+          ]
+        }
+      ]
+    },
+    { "module": "packages/arc-framework/__tests__/integration/store-ref-timing.test.ts", "finds": [] },
+    {
+      "module": "packages/arc-framework/__tests__/integration/store-ref-timing-isolation.test.ts",
+      "finds": [{ "closureOf": ["packages/arc-framework/vitest.config.ts"] }]
+    }
+  ],
+  "widening": [
+    "package.json",
+    "package-lock.json",
+    ".npmrc",
+    "packages/arc-framework/package.json",
+    "packages/arc-framework/tsconfig*.json",
+    "vitest.config.ts",
+    "scripts/check-runner.sh",
+    {
+      "closureOf": [
+        "packages/arc-framework/vitest.config.ts",
+        "packages/arc-framework/__tests__/integration/global-setup.ts",
+        "packages/arc-framework/src/lib/local-vitest-runner.ts",
+        "packages/arc-framework/src/lib/reach-check.ts"
+      ]
+    }
+  ],
+  "selection": [
+    "scripts/run-reach-check.mjs",
+    "packages/arc-framework/src/lib/vitest-reach.ts",
+    "packages/arc-framework/src/lib/reach-check.ts"
+  ]
+}

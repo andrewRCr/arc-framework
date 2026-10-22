@@ -6,6 +6,7 @@ import type { GitExec } from "./git/exec.js";
 import type { LocalHeavyTestTier } from "./local-test-admission.js";
 import { discoverVitestSelection } from "./vitest-discovery.js";
 import { executeVitestSelection } from "./vitest-execution.js";
+import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 /**
@@ -34,6 +35,15 @@ export const ARC_CONTRACT_SUITES = [
 ] as const;
 
 /**
+ * Reach declarations, package-relative, whose suites run by reach in their own check rather than in the tiers that
+ * would otherwise run them whole.
+ */
+export const REACH_DECLARATIONS = ["__tests__/reach/store-suites.json"] as const;
+
+/** Names the form of a portability run; a pull request's leaves its store suites to their own check. */
+export const PORTABILITY_FORM_VARIABLE = "ARC_PORTABILITY_FORM";
+
+/**
  * Exit status of a related-tests run that no configured unit test reaches, so a caller can tell missing evidence
  * from a failing test. pytest exits with the same status when it collects no tests.
  */
@@ -50,15 +60,47 @@ export async function runLocalVitestTier(
   tier: LocalHeavyTestTier,
   forwardedArguments: string[],
 ): Promise<void> {
+  const packageRoot = resolve(import.meta.dirname, "../..");
   const { filter, options } = parseCLI([
     "vitest",
     tier === "changed" ? "related" : "run",
     ...localVitestTierArguments(tier),
+    ...reachSuiteExclusions(tier, process.env, await readReachSuites(packageRoot, tier, process.env)),
     ...forwardedArguments,
   ]);
   const selection = await discoverVitestSelection(filter, options);
-  await executeVitestSelection(selection, { cwd: process.cwd(), env: process.env, tier,
-    packageRoot: resolve(import.meta.dirname, "../..") });
+  await executeVitestSelection(selection, { cwd: process.cwd(), env: process.env, tier, packageRoot });
+}
+
+/**
+ * Leave the suites that run by reach out of the tiers that would run them whole: the integration tier, the lane that
+ * contains it, and a pull request's portability run.
+ * @param tier - Logical package-script tier
+ * @param env - The run's environment, which names a portability run's form
+ * @param suites - Package-relative suite globs of every reach declaration
+ * @returns Native exclusion arguments
+ */
+export function reachSuiteExclusions(tier: LocalHeavyTestTier, env: Readonly<Record<string, string | undefined>>,
+  suites: readonly string[]): string[] {
+  const excluded = tier === "integration" || tier === "lane"
+    || (tier === "portability" && env[PORTABILITY_FORM_VARIABLE] === "pull-request");
+  return excluded ? suites.flatMap((suite) => ["--exclude", suite]) : [];
+}
+
+async function readReachSuites(packageRoot: string, tier: LocalHeavyTestTier,
+  env: Readonly<Record<string, string | undefined>>): Promise<string[]> {
+  if (reachSuiteExclusions(tier, env, ["any"]).length === 0) return [];
+  const { ReachDeclarationSchema } = await import("./vitest-reach.js");
+  const suites: string[] = [];
+  for (const path of REACH_DECLARATIONS) {
+    const declaration = ReachDeclarationSchema.parse(JSON.parse(await readFile(resolve(packageRoot, path), "utf8")));
+    const prefix = `${declaration.package}/`;
+    for (const suite of declaration.suites) {
+      if (!suite.startsWith(prefix)) throw new Error(`Reach suite ${suite} lies outside its package ${declaration.package}`);
+      suites.push(suite.slice(prefix.length));
+    }
+  }
+  return suites;
 }
 
 /**
@@ -152,6 +194,7 @@ export function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
         "integration-bursts",
       ];
     case "integration":
+    case "store":
       return ["--project", "integration", "--project", "integration-timing", "--project", "integration-bursts"];
     case "arc-contracts":
       return ["--project", "integration", ...ARC_CONTRACT_SUITES];

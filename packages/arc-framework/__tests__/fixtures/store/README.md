@@ -1,8 +1,12 @@
 # Ref-store process fixtures
 
+Every script a store suite spawns lives here, so the store check's reach follows each one through its imports.
+
 `ref-process-writer.ts` runs the public ref-store factory in an independent Node process against a shared checkout.
 `ref-process-protocol.ts` validates its input and results. The integration helper starts each writer and releases its
 readiness barrier, allowing tests to coordinate real lock contention and lifecycle transitions.
+`ref-first-pull.ts` and `ref-layout-worker.ts` run a first pull and a layout move in their own processes, and
+`personal-lock-holder.ts` holds a personal-state lock until its caller releases it.
 
 `fetch-porcelain.json` records unmodified stdout, stderr, arguments, and exit codes from Git 2.55 fetching between
 local bare repositories. The six scenarios cover creation, verbose up-to-date reporting, fast-forward, non-fast-forward
