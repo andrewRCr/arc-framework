@@ -11,8 +11,13 @@ import { captureMoveHeads, retainCopiedTips, prepareRemoteReCopy, remoteCopyChan
 import { projectIdentityQueries, projectOwnerFromObjects } from "./project-identity.js";
 import { readBatchObjects } from "./batch-read.js";
 
-/** The source is incoming; destination state is the local side of every lifecycle merge. */
-export async function copyFollowState(code: RefBackendContext, record: FollowMoveRecord): Promise<MigrateReport | null> {
+/** The source is incoming; destination state is the local side of every lifecycle merge; a recorded rerun reports another move rather than refusing. */
+export async function copyFollowState(code: RefBackendContext, record: FollowMoveRecord, recorded = false): Promise<MigrateReport | null | "moved"> {
+  try { return await copyLicensedFollowState(code, record); }
+  catch (error) { if (recorded && error instanceof FollowMovedRefusal) return "moved"; throw error; }
+}
+
+async function copyLicensedFollowState(code: RefBackendContext, record: FollowMoveRecord): Promise<MigrateReport | null> {
   for (;;) {
     const heads = await captureMoveHeads(code, record.source);
     await code.migrateStep?.("follow.fetch-source");
@@ -57,8 +62,11 @@ async function checkFollowDestination(code: RefBackendContext, record: FollowMov
   }
 }
 
+/** Another move's forwarding state, which a first run refuses and a recorded rerun ends on. */
+class FollowMovedRefusal extends MigrationRefusal {}
+
 /** A newer move requires fresh candidate judgment before any further copy. */
 function followMoved(remote: string): MigrationRefusal {
-  return new MigrationRefusal({ code: "moved", class: "recoverable", condition: `The forwarding record on ${remote} changed during the follow.`,
+  return new FollowMovedRefusal({ code: "moved", class: "recoverable", condition: `The forwarding record on ${remote} changed during the follow.`,
     remedy: { text: "Bring in the latest tracked pointer and retry arc store migrate to follow the current move.", argv: ["arc", "store", "migrate"] } });
 }

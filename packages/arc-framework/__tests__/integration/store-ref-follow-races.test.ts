@@ -50,6 +50,25 @@ it("refuses a new source record and a destination another move left before the f
   }
 }, 60_000);
 
+it.each(["source", "destination"] as const)("ends a recorded follow whose %s a later move changed, leaving the new move to follow", async changed => {
+  const h = await followFixture(), follower = h.follower;
+  await expect(invokeStoreRemote(["backing", "push", "--json"], { cwd: follower.root, ports: { ...follower.ports,
+    migrateStep: async step => { if (step === "follow.recorded") throw new Error("Paused recorded follow"); },
+  } })).rejects.toThrow("Paused recorded follow");
+  const mover = await createRemoteMover(h, h.destinationDirectory, `later-${changed}`);
+  const onward = join(mover.root, "onward.git");
+  await mover.exec("git", ["init", "--bare", onward]);
+  if (changed === "source") expect((await invokeStoreMigrate(["--to", h.origin], mover.ports)).status).toBe("ok");
+  expect((await invokeStoreMigrate(["--to", onward], mover.ports)).status).toBe("ok");
+  const ended = await invokeStoreMigrate([], follower.ports);
+  expect(ended.status, JSON.stringify(ended)).toBe("ok");
+  if (ended.status === "ok") expect(ended.result.notices).toContainEqual(expect.objectContaining({ condition: expect.stringContaining("Another move has taken the state") }));
+  expect((await follower.exec("git", ["config", "remote.origin.arc-state"])).stdout.trim()).toBe("push");
+  expect((await follower.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/"])).stdout).toBe("");
+  await writeFile(follower.config, `storage.backing_repository: ${JSON.stringify(onward)}\n`);
+  expect((await invokeStoreRemote(["backing", "push", "--json"], { cwd: follower.root, ports: follower.ports })).result.status).toBe("ok");
+}, 60_000);
+
 it.each(["before", "during"] as const)("ends recorded follow cleanup after a move back %s its reads and makes the new follow due", async timing => {
   const h = await followFixture(), follower = h.follower;
   await expect(invokeStoreRemote(["backing", "push", "--json"], { cwd: follower.root, ports: { ...follower.ports,

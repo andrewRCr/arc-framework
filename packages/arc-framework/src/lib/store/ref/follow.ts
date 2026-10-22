@@ -52,8 +52,10 @@ export async function answerRefFollow(context: RefBackendContext, store: Store, 
 export async function resumeRefFollow(context: RefBackendContext, store: Store, recorded: RecordedFollow, copied = false): Promise<StoreCommandResult<MigrateReport>> {
   try {
     const code = await migrationCodeContext(context);
-    if (!copied && recorded.record.answer === "push" && !await followSwitchComplete(context, recorded) &&
-        await copyFollowState(code, recorded.record) === null) return await endStaleRecordedFollow(context, store, code, recorded);
+    if (!copied && recorded.record.answer === "push" && !await followSwitchComplete(context, recorded)) {
+      const copiedState = await copyFollowState(code, recorded.record, true);
+      if (copiedState === null || copiedState === "moved") return await endRecordedFollow(context, store, code, recorded, copiedState ?? "stale");
+    }
     const report = recorded.record.answer === "push" ? await readRemoteCopyReport(code) : remoteCopyReport(new Map(), new Map(), []);
     await switchRefFollow(context, store, recorded);
     if (recorded.record.answer === "push") await deleteFollowSource(code, recorded, report);
@@ -64,15 +66,27 @@ export async function resumeRefFollow(context: RefBackendContext, store: Store, 
   } catch (error) { if (error instanceof MigrationRefusal) return { status: "refused", refusal: error.refusal }; throw error; }
 }
 
-async function endStaleRecordedFollow(context: RefBackendContext, store: Store, code: RefBackendContext, recorded: RecordedFollow): Promise<StoreCommandResult<MigrateReport>> {
+/** End a recorded follow another move overtook, undoing a begun switch; a changed record stays due for the next run to judge. */
+async function endRecordedFollow(context: RefBackendContext, store: Store, code: RefBackendContext, recorded: RecordedFollow,
+  cause: "stale" | "moved"): Promise<StoreCommandResult<MigrateReport>> {
   const undone = await undoSwitch(context, store, followSwitchUndo(recorded));
-  const physical = await readRefRepository(context), trackingRef = `refs/arc-remotes/${recorded.record.source.name}/project/moved`;
-  const tip = (await readSyncRefs(physical, trackingRef)).get(trackingRef);
-  if (tip) await dropStaleFollow(context, { trackingRef, tip });
+  if (cause === "stale") {
+    const physical = await readRefRepository(context), trackingRef = `refs/arc-remotes/${recorded.record.source.name}/project/moved`;
+    const tip = (await readSyncRefs(physical, trackingRef)).get(trackingRef);
+    if (tip) await dropStaleFollow(context, { trackingRef, tip });
+  }
   await removeMoveRecord(code, recorded); await clearRemoteGathering(code);
-  return { status: "ok", result: remoteCopyReport(new Map(), new Map(), [{ condition: undone
+  return { status: "ok", result: remoteCopyReport(new Map(), new Map(), [endedFollowNotice(cause, undone)]) };
+}
+
+function endedFollowNotice(cause: "stale" | "moved", undone: boolean): MigrateReport["notices"][number] {
+  if (cause === "stale") return { condition: undone
     ? "The old remote no longer carries the followed record: another move overtook this follow during its switch, which was undone, and the follow ended without deletes."
-    : "The old remote no longer carries the followed record; the stale follow ended without a switch or deletes." }]) };
+    : "The old remote no longer carries the followed record; the stale follow ended without a switch or deletes." };
+  return { condition: undone
+    ? "Another move has taken the state since this follow judged it, overtaking the follow during its switch, which was undone; the follow ended without deletes."
+    : "Another move has taken the state since this follow judged it; the follow ended without a switch or deletes.",
+  remedy: { text: "Bring in the latest tracked pointer, then run arc store migrate to follow the current move.", argv: ["arc", "store", "migrate"] } };
 }
 
 /** A follow's switch is undone to its old remote's recorded role and layout; the checkout's pointer stays as found. */
