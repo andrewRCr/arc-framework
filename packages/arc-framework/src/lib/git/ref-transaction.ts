@@ -2,6 +2,7 @@
 
 import type { GitExec, GitExecInput, GitExecOptions } from "./exec.js";
 import { isCompletedGitFailure } from "./process-error.js";
+import { retryTornRefListing } from "./ref-listing.js";
 import { checkGitVersionFloor } from "./version-floor.js";
 
 /** One ref change whose old value must match, with null requiring absence. */
@@ -50,9 +51,9 @@ export async function updateRefTransaction(
     return { status: "committed" };
   } catch (error) {
     if (!isCompletedGitFailure(error)) throw error;
-    const { stdout } = await ports.exec("git", [
+    const { stdout } = await retryTornRefListing(() => ports.exec("git", [
       "for-each-ref", "--format=%(refname) %(objectname)", "--", ...changes.map((change) => change.ref),
-    ], execution);
+    ], execution));
     const tips = new Map<string, string>();
     for (const line of stdout.split("\n")) {
       const [ref, oid] = line.split(" ");

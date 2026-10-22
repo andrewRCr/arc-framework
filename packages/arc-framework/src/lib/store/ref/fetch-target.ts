@@ -2,6 +2,7 @@
 
 import type { RefBackendContext } from "./context.js";
 import type { RefDesignation, RefRemoteDesignation } from "./designation.js";
+import { retryTornRefListing } from "../../git/ref-listing.js";
 
 /** Read the target Git uses without importing transport settings from the code repository. */
 export async function refFetchTarget(context: RefBackendContext, remote: RefRemoteDesignation,
@@ -16,8 +17,8 @@ export async function refFetchNegotiation(context: RefBackendContext, identity: 
   const patterns = ["refs/arc/work/*", "refs/arc/cohort/*", "refs/arc/archive/*", "refs/arc/project/*",
     "refs/arc/history/work/*", "refs/arc/history/cohort/*", "refs/arc-remotes/*",
     ...identity ? [`refs/arc/user/${identity}/personal*`, `refs/arc/user/${identity}/claims*`] : []];
-  const { stdout } = await context.exec("git", ["for-each-ref", "--format=%(refname)", ...patterns.map((pattern) => pattern.slice(0, -1))],
-    { cwd: context.checkoutRoot, objectAccess: "local-only" });
+  const { stdout } = await retryTornRefListing(() => context.exec("git", ["for-each-ref", "--format=%(refname)",
+    ...patterns.map((pattern) => pattern.slice(0, -1))], { cwd: context.checkoutRoot, objectAccess: "local-only" }));
   const refs = stdout.split(/\r?\n/u).filter(Boolean);
   const held = patterns.filter((pattern) => refs.some((ref) => ref.startsWith(pattern.slice(0, -1))));
   return held.length > 0 ? held.map((pattern) => `--negotiation-tip=${pattern}`) : ["--negotiation-tip=refs/arc/work/*"];

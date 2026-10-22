@@ -3,6 +3,7 @@
 import { logicalReadRef, physicalReadRef } from "./read-source-namespace.js";
 import type { RefBackendContext } from "./context.js";
 import { isGitProcessError } from "../../git/process-error.js";
+import { retryTornRefListing } from "../../git/ref-listing.js";
 
 /** A present Git object returned by a batch request. */
 export interface BatchObject { oid: string; type: string; bytes: Uint8Array }
@@ -13,9 +14,10 @@ const encoder = new TextEncoder();
 
 /** Capture local ref tips without dereferencing their potentially missing objects. */
 export async function readRefTips(context: RefBackendContext, options: { includeHistory?: boolean } = {}): Promise<Map<string, string>> {
-  const { stdout } = await context.rawExec(["for-each-ref", ...(options.includeHistory ? [] : [`--exclude=${physicalReadRef(context, "refs/arc/history/")}`]),
+  const { stdout } = await retryTornRefListing(() => context.rawExec(["for-each-ref",
+    ...(options.includeHistory ? [] : [`--exclude=${physicalReadRef(context, "refs/arc/history/")}`]),
     "--format=%(objectname) %(refname)", physicalReadRef(context, "refs/arc/"),
-    ...context.readSource ? [context.readSource.versionRef] : []], { cwd: context.checkoutRoot, objectAccess: "local-only" });
+    ...context.readSource ? [context.readSource.versionRef] : []], { cwd: context.checkoutRoot, objectAccess: "local-only" }));
   return new Map(decoder.decode(stdout).split("\n").filter(Boolean).map((line) => {
     const separator = line.indexOf(" ");
     if (separator < 1) throw new Error("Malformed ref-tip response");

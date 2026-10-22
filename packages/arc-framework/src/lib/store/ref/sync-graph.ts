@@ -3,11 +3,13 @@
 import { logicalReadRef, physicalReadRef } from "./read-source-namespace.js";
 import type { RefBackendContext } from "./context.js";
 import { isCompletedGitFailure, isGitProcessError } from "../../git/process-error.js";
+import { retryTornRefListing } from "../../git/ref-listing.js";
 
 /** Read selected namespaces without dereferencing their tips or consulting a worktree. */
 export async function readSyncRefs(context: RefBackendContext, prefix: string | readonly string[]): Promise<Map<string, string>> {
-  const { stdout } = await context.exec("git", ["for-each-ref", "--format=%(refname) %(objectname)", ...(typeof prefix === "string" ? [prefix] : prefix).map((ref) => physicalReadRef(context, ref))],
-    { cwd: context.checkoutRoot, objectAccess: "local-only" });
+  const { stdout } = await retryTornRefListing(() => context.exec("git", ["for-each-ref", "--format=%(refname) %(objectname)",
+    ...(typeof prefix === "string" ? [prefix] : prefix).map((ref) => physicalReadRef(context, ref))],
+    { cwd: context.checkoutRoot, objectAccess: "local-only" }));
   return new Map(stdout.split(/\r?\n/u).filter(Boolean).map((line) => {
     const at = line.indexOf(" ");
     if (at < 1) throw new Error("Git returned an invalid reconciliation ref row");

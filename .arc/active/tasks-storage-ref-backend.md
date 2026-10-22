@@ -317,7 +317,7 @@ default layout.
           the token. Listings return their own snapshot's token. A competing checkout keeps its newer retained token,
           and bounded atomic cross-namespace writers leave reftable snapshots coherent while the files control tears.
 
-### `[ ]` **3.R Refused torn listings run again — § 4.3, § 11.1, § 11.6 (A28)**
+### `[x]` **3.R Refused torn listings run again — § 4.3, § 11.1, § 11.6 (A28)**
 
 - _Goal:_ A state-ref listing Git refuses because one directory read met a ref at two values runs again, at most three
   attempts in all, in the tip read, sync's ref sets, fetch negotiation, and the ref-transaction helper's re-read, while
@@ -328,14 +328,15 @@ default layout.
           fails with the duplicate-ref refusal, three attempts in all; every other failure and the last refusal
           propagate unchanged.
 
-    - `[ ]` **3.R.b The four listings take it**
-        - `readRefTips`, `readSyncRefs`, `refFetchNegotiation`, and `updateRefTransaction`'s re-read run through the
-          retry; the import's listing in `personal-disk.ts` stays outside, since it lists notes refs, not state refs.
-        - Build `test-first` (one behavior at a time):
-            - Through `createRefStore`, `version` and `read` succeed when the first tip listing is refused once, and
-              rethrow Git's refusal when every attempt is refused
-            - A `pull` succeeds when its first sync-ref listing and its negotiation listing are each refused once
-            - A lost race still returns `lost-race` when the transaction's re-read is refused once
+    - `[x]` **3.R.b The four listings take it**
+        - `readRefTips`, `readSyncRefs`, `refFetchNegotiation`, and `updateRefTransaction`'s re-read run through
+          `retryTornRefListing`; the notes-ref listing in `personal-disk.ts` stays outside. Refusals injected through
+          `createRefStore` (`version`, a name-resolved `read`, `pull`) and the transaction's scripted re-read each
+          fail with their site unwired.
+
+- _Outcome:_ Every operation's tip read, a pull's sync and negotiation reads, and the lost-race read behind the
+  write path's retries survive a refused torn listing, while the files-format snapshot control counts the same refusal
+  as a tear (`bf0013ce7`).
 
 ## **Phase 4:** The write spine and the conformance fixture
 

@@ -30,3 +30,19 @@ describe("unclassified ref transaction failures", () => {
     await expect(run()).rejects.toBe(original);
   });
 });
+
+describe("lost races behind a refused torn re-read", () => {
+  it("reports the lost race once the re-read runs again", async () => {
+    const execInput: GitExecInput = async () => {
+      throw makeGitProcessError({ command: "git", args: ["update-ref", "--stdin"], exitCode: 128,
+        stderr: `fatal: cannot lock ref '${ref}': is at ${next} but expected ${old}\n` });
+    };
+    const { exec, calls } = scriptGitExec([{ match: { prefix: ["for-each-ref"] }, responses: [
+      { failure: { exitCode: 128, stderr: `fatal: Duplicated ref, and SHA1s don't match: ${ref}\n` } },
+      { stdout: `${ref} ${next}\n` },
+    ] }]);
+    await expect(updateRefTransaction({ exec, execInput }, [{ ref, next: "c".repeat(40), expected: old }]))
+      .resolves.toEqual({ status: "lost-race", refs: [{ ref, expected: old, actual: next }] });
+    expect(calls.filter((call) => call.args[0] === "for-each-ref")).toHaveLength(2);
+  });
+});
