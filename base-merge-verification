@@ -3,14 +3,20 @@
   "slug": "base-merge-verification",
   "claimId": "b6b2b007bf8302a5f89b1717f0f3adcc",
   "createdAt": "2026-10-22T14:42:38.974Z",
-  "updatedAt": "2026-10-22T14:42:38.974Z",
+  "updatedAt": "2026-10-22T15:12:29.489Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Verify a mid-flight base merge before building on it",
   "branch": "chore/base-merge-verification",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/base-merge-verification",
+    "headSha": "8fe2e8532224eea233c78a98c66617747ea5a0ef"
+  }
 }
