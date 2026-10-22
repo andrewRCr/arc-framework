@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { isGitProcessError } from "../../src/lib/git/process-error.js";
 import { updateRefTransaction } from "../../src/lib/git/ref-transaction.js";
 import { createRefReadFixture } from "../helpers/store/ref-read.js";
 import { plantRef } from "../helpers/store/ref-plant.js";
@@ -7,6 +8,8 @@ const refs = Array.from({ length: 4096 }, (_, index) =>
   `refs/arc/${index < 2048 ? "work" : "cohort"}/12345678-1234-4234-8234-${index.toString(16).padStart(12, "0")}`);
 // One prefix keeps a single iteration; the saved manifest is not a state record.
 const listingArgs = ["for-each-ref", "--format=%(objectname)", "--exclude=refs/arc/tmp/", "refs/arc/"];
+// Git refuses a loose-ref read that saw one ref at two values: the files format tearing as a refusal.
+const duplicatedRef = /^fatal: Duplicated ref, and SHA1s don't match: refs\/arc\//mu;
 
 // Many refs widen the files backend's publish window while every transaction still has only two namespaces.
 describe.each(["files", "reftable"] as const)("concurrent state snapshots (%s)", (format) => {
@@ -34,6 +37,7 @@ describe.each(["files", "reftable"] as const)("concurrent state snapshots (%s)",
     let tears = 0;
     let partialListings = 0;
     let mixedListings = 0;
+    let refusedListings = 0;
     let updatesDuringRead: number;
     let writerResult: Awaited<typeof writing>[0];
     try {
@@ -49,7 +53,15 @@ describe.each(["files", "reftable"] as const)("concurrent state snapshots (%s)",
           if (token.status !== "ok") throw new Error("No saved state token");
           output = (await f.exec("git", ["ls-tree", "-r", "--format=%(objectname)", token.result])).stdout;
         } else {
-          output = (await f.exec("git", listingArgs)).stdout;
+          try {
+            output = (await f.exec("git", listingArgs)).stdout;
+          } catch (error) {
+            if (!isGitProcessError(error) || error.kind !== "nonzero-exit" || !duplicatedRef.test(error.stderr)) throw error;
+            refusedListings += 1;
+            tears += 1;
+            snapshots += 1;
+            continue;
+          }
         }
         const ids = output.trim().split("\n");
         const partial = ids.length !== refs.length;
@@ -68,7 +80,7 @@ describe.each(["files", "reftable"] as const)("concurrent state snapshots (%s)",
     const stable = (await f.exec("git", listingArgs)).stdout.split("\n");
     expect(stable).toHaveLength(refs.length);
     expect(new Set(stable).size).toBe(1);
-    console.info("Concurrent snapshot probe", { format, snapshots, updatesDuringRead, partialListings, mixedListings });
+    console.info("Concurrent snapshot probe", { format, snapshots, updatesDuringRead, partialListings, mixedListings, refusedListings });
     expect(updates).toBeGreaterThan(0);
     if (format === "reftable") {
       expect(updatesDuringRead).toBeGreaterThan(0);
