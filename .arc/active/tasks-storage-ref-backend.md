@@ -169,6 +169,8 @@ recorded holding the two load-bearing host properties.
 - _Goal:_ One `update-ref --stdin` transaction applies every ref change with its expected old value, and a failure comes
   back as a typed lost race naming each ref's actual tip, or as Git's own error where nothing raced.
 
+    - _Amended in:_ 3.R (A28)
+
     - `[x]` **2.3.a The transaction and its outcomes**
         - `updateRefTransaction` applies changes atomically and re-reads exact ref names to report every lost race.
           Matching tips preserve Git's failure or name the Git floor; updates never follow symbolic refs into another
@@ -303,6 +305,8 @@ default layout.
 - _Goal:_ A state version names one saved state of the whole store, costs one Git process when nothing changed, and is
   never torn in the separate layout's reftable format.
 
+    - _Amended in:_ 3.R (A28)
+
     - `[x]` **3.4.a The manifest**
         - In-process tree hashing mirrors registered state refs as gitlinks and matches Git under both object formats;
           the common config selects the hash without Git. Legacy, history, temporary, and forwarding refs stay outside
@@ -312,6 +316,29 @@ default layout.
         - Captured manifests persist through one batch tree write and an expected-value token update; equal state reuses
           the token. Listings return their own snapshot's token. A competing checkout keeps its newer retained token,
           and bounded atomic cross-namespace writers leave reftable snapshots coherent while the files control tears.
+
+### `[ ]` **3.R Refused torn listings run again — § 4.3, § 11.1, § 11.6 (A28)**
+
+- _Goal:_ A state-ref listing Git refuses because one directory read met a ref at two values runs again, at most three
+  attempts in all, in the tip read, sync's ref sets, fetch negotiation, and the ref-transaction helper's re-read, while
+  every other failure keeps Git's error (A28).
+
+    - `[ ]` **3.R.a The bounded listing retry**
+        - `retryTornRefListing` in `lib/git/` matches only a completed Git call's `fatal: Duplicated ref, and SHA1s
+          don't match` refusal and runs the listing again without waiting.
+        - Build `test-first` (one behavior at a time):
+            - A first refusal runs the listing again and returns the second attempt's result
+            - A third consecutive refusal rethrows that refusal unchanged
+            - Any other Git failure, and any error that is not Git's, rethrows on the first attempt
+
+    - `[ ]` **3.R.b The four listings take it**
+        - `readRefTips`, `readSyncRefs`, `refFetchNegotiation`, and `updateRefTransaction`'s re-read run through the
+          retry; the import's listing in `personal-disk.ts` stays outside, since it lists notes refs, not state refs.
+        - Build `test-first` (one behavior at a time):
+            - Through `createRefStore`, `version` and `read` succeed when the first tip listing is refused once, and
+              rethrow Git's refusal when every attempt is refused
+            - A `pull` succeeds when its first sync-ref listing and its negotiation listing are each refused once
+            - A lost race still returns `lost-race` when the transaction's re-read is refused once
 
 ## **Phase 4:** The write spine and the conformance fixture
 
@@ -2234,3 +2261,7 @@ in `notes-storage-ref-backend.md` (A25).
   twelve quarters at or below 100/300/600/300/1,500 ms for version/read/list/lookup/write in both layouts, retaining
   all correctness and native resource coverage. Timing-only diagnostics do not close acceptance; these limits
   supersede the earlier numeric budget obligations, including the unchanged-budget clause in A26 (§ 11.7) (A27)
+
+- `[ ]` The tip read, sync's ref sets, fetch negotiation, and the ref-transaction helper's re-read each run a listing
+  again when Git refuses it with `Duplicated ref, and SHA1s don't match`, at most three attempts in all, and rethrow
+  Git's error unchanged past them or on any other failure (§ 4.3, § 11.1) (A28)

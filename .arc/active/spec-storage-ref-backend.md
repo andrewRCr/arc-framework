@@ -887,6 +887,13 @@ that one manifest is wrong.
 - `for-each-ref` reads one snapshot per pattern, so `version` lists with one. Probed on Git 2.55 against a writer moving
   two refs in one transaction, reftable tore in none of 11,303 listings with one pattern and in 81 of 11,221 with two; the
   files format tore with either.
+- **A torn listing can also be refused (A28).** Under the files format Git refuses a listing outright, `fatal:
+  Duplicated ref, and SHA1s don't match`, when one directory read meets a ref twice at two values, as observed on Git
+  2.53 and 2.55 under a concurrent writer. Every state-ref listing — the tip read (`readRefTips`), sync's ref sets
+  (`readSyncRefs`), fetch negotiation (`refFetchNegotiation`), and the ref-transaction helper's re-read (§ 11.1) — runs
+  through `retryTornRefListing` (`lib/git/`), which runs it again on that refusal alone, at most three attempts in all
+  with no wait, and rethrows Git's error unchanged past them or on any other failure. Git's own iteration inside `fetch`
+  and `maintenance run` stays outside: a refusal there fails that call as any other Git failure does.
 - The push loop never publishes part of a local batch (§ 6.7), so the torn cut stays a property of a manifest alone.
 
 #### 4.4 Reads as of a state version
@@ -3074,10 +3081,11 @@ type RefTransactionOutcome =
 - **One `update-ref --stdin` transaction** applies every change, with each ref's expected old value, under the lock waits
   of § 11.2.
 - **A failed transaction is read by state, not text.** Git exits 128 with one line naming only the first ref that
-  failed, so the helper re-reads every ref in the transaction with one `for-each-ref`: a ref off its expected value is a
-  lost race, returned with its actual tip. When every ref matches, the failure is no race — Git has already waited for
-  its locks — so the helper runs the floor check (§ 11.3) and rethrows with Git's text, as D4 throws what it cannot
-  classify: a stale lock file, a name colliding with an existing ref's directory, or a missing object.
+  failed, so the helper re-reads every ref in the transaction with one `for-each-ref`, run again on a refused torn
+  listing (§ 4.3, A28): a ref off its expected value is a lost race, returned with its actual tip. When every ref
+  matches, the failure is no race — Git has already waited for its locks — so the helper runs the floor check (§ 11.3)
+  and rethrows with Git's text, as D4 throws what it cannot classify: a stale lock file, a name colliding with an
+  existing ref's directory, or a missing object.
 - **It never uses `--batch-updates`,** which reports per ref in a machine-readable form only by letting some updates
   land while others fail; a batch is all or none (D3).
 - **It replaces message matching for the store:** `isCasRejectionError` (`lib/git/ref-tree.ts:51`) matches
@@ -3173,25 +3181,25 @@ fails locally a `tracking-update-failed` notice, told apart by ancestry (§ 6.3)
 #### 11.6 Batched reads
 
 Every read batches per operation, each process one-shot, its whole input written before it runs: one `for-each-ref` for
-tips; where the operation needs a tree's entries — a listing, a lookup, or a read reaching a quarter's folder, whose
-name carries a sequence — one `cat-file --batch-check` resolving each tip's root tree and one `git diff-tree --stdin -r
--z` over those trees (§ 3.3), retaining exact paths with non-ASCII bytes, quotes, or backslashes. Valid Unicode and
-quote-bearing path keys decode as records; `validateManagedPath` (`lib/kernel/canonical/managed-path.ts`) rejects
-backslashes (§ 2.5), so a stored entry holding one lists as `malformed` under its exact original path, beside the valid
-records (A3). One `cat-file --batch` reads the blobs, by id or as `<tip>:<path>`. `version` costs one process (§ 4.2), a
-live `read` two — three where its ref holds open conflict records, whose IDs alone name them, so the family root's
-`conflicts` tree, read in the first batch, gives the blobs a second reads to fill the record's `conflicts` (§ 3.7) — and
-a `list`, a `lookup`, or a read reaching a quarter four — `version` and a live `list` two more where they write a new
-manifest — as today's batch reads do (`lib/io-context.ts`, `lib/git/object-availability.ts`); a reference without a UID
-adds the scan's four once per process (§ 8). Each binding in `lib/git/process-executor.ts` caps a call's captured output
-at 64 MiB (`MAX_GIT_OUTPUT_BYTES`), so a `cat-file --batch` that fails `output-limit` (`GitProcessError`,
-`lib/git/process-error.ts`) runs again as two calls over halves of its blobs, until each fits; the split costs nothing
-where a read fits, and a single blob past the ceiling, which no record nears, fails the read with that error. The
-planning spike measured about 30 ms per local Windows Git call against 1.3 ms on WSL; hosted costs are measured
-separately for § 11.7 (A27). Every read passes `objectAccess: "local-only"`
-(`GitExecOptions` and `RawGitExec`, `lib/git/exec.ts`), which runs Git with `--no-lazy-fetch`, so a read never reaches
-the network: an object the clone lacks fails the read rather than fetching it, and in a partial clone every state object
-came with the fetch that brought its ref (§ 6.2).
+tips, run again on a refused torn listing (§ 4.3, A28); where the operation needs a tree's entries — a listing, a
+lookup, or a read reaching a quarter's folder, whose name carries a sequence — one `cat-file --batch-check` resolving
+each tip's root tree and one `git diff-tree --stdin -r -z` over those trees (§ 3.3), retaining exact paths with
+non-ASCII bytes, quotes, or backslashes. Valid Unicode and quote-bearing path keys decode as records;
+`validateManagedPath` (`lib/kernel/canonical/managed-path.ts`) rejects backslashes (§ 2.5), so a stored entry holding
+one lists as `malformed` under its exact original path, beside the valid records (A3). One `cat-file --batch` reads the
+blobs, by id or as `<tip>:<path>`. `version` costs one process (§ 4.2), a live `read` two — three where its ref holds
+open conflict records, whose IDs alone name them, so the family root's `conflicts` tree, read in the first batch, gives
+the blobs a second reads to fill the record's `conflicts` (§ 3.7) — and a `list`, a `lookup`, or a read reaching a
+quarter four — `version` and a live `list` two more where they write a new manifest — as today's batch reads do
+(`lib/io-context.ts`, `lib/git/object-availability.ts`); a reference without a UID adds the scan's four once per process
+(§ 8). Each binding in `lib/git/process-executor.ts` caps a call's captured output at 64 MiB (`MAX_GIT_OUTPUT_BYTES`),
+so a `cat-file --batch` that fails `output-limit` (`GitProcessError`, `lib/git/process-error.ts`) runs again as two
+calls over halves of its blobs, until each fits; the split costs nothing where a read fits, and a single blob past the
+ceiling, which no record nears, fails the read with that error. The planning spike measured about 30 ms per local
+Windows Git call against 1.3 ms on WSL; hosted costs are measured separately for § 11.7 (A27). Every read passes
+`objectAccess: "local-only"` (`GitExecOptions` and `RawGitExec`, `lib/git/exec.ts`), which runs Git with
+`--no-lazy-fetch`, so a read never reaches the network: an object the clone lacks fails the read rather than fetching
+it, and in a partial clone every state object came with the fetch that brought its ref (§ 6.2).
 
 #### 11.7 The Windows budget
 
@@ -4411,7 +4419,7 @@ open:
   _Supersedes:_ § 6.3 failed-update flag premise. _Trigger:_ 11.1 must-stop. _Work:_ 11.1.R. _Revalidated:_ 11.6.
 
 - **A16** — 2026-10-17 — spec-depth: inspect and explicitly discard lineage-ended conflicts without reviving the owner.
-  _Supersedes:_ none. _Trigger:_ door. _Work:_ 13.5.R. _Revalidated:_ pending → 13.5.R.
+  _Supersedes:_ none. _Trigger:_ door. _Work:_ 13.5.R. _Revalidated:_ 13.5.R.
 
 - **A17** — 2026-10-17 — design: partial-clone checks traverse fetched tips without tracking cutoffs.
   _Supersedes:_ § 6.2 tracking-tip cutoffs. _Trigger:_ 11.3 must-stop. _Work:_ 11.3.R. _Revalidated:_ 11.6.
@@ -4445,5 +4453,8 @@ open:
 
 - **A27** — 2026-10-21 — design: calibrate hosted Windows limits. _Supersedes:_ §§ 11.6–11.7, SC 9.
   _Trigger:_ 18.2.n.2 must-stop. _Work:_ 18.2.R2. _Revalidated:_ 18.7.
+
+- **A28** — 2026-10-21 — spec-depth: retry a state-ref listing Git refuses as torn under the files format.
+  _Supersedes:_ none. _Trigger:_ 19.1 terminal. _Work:_ 3.R. _Revalidated:_ pending → 19.1.
 
 ---
