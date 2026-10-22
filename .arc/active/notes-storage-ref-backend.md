@@ -2095,3 +2095,98 @@ fixture copies, and consider splitting persistent oversized files after observin
 with the cutover suite inventory above: preserve public consumer assertions and avoid investing in obsolete direct
 Errand-ref fixtures. No fixture, shard, test population, or budget changed during this investigation; the advisory
 overrun remains recorded and terminal verification remains a separate task.
+
+## A29 — Per-change cost and selection of the store suites
+
+Verification paused at `212f6432e` when the merge gate on the check VM took about 18.7 minutes, 984 s of it the
+integration tier at five workers, against 7–8 minutes before this change. A29 halves the store suites' per-change cost
+and runs them only on changes that reach them (spec § 14.14).
+
+### What the measurements showed
+
+- Summed integration test work was 4,342 s: the `store-ref-*` files 2,633 s (61%), of which the two ref conformance
+  files 822 s, and everything else 1,709 s. With no store suite at all the gate would still take about 8.7 minutes.
+- `test-cost-budgets.json`'s local integration tier went from 167,261 ms at `124a36047` to 697,900 ms. 18.3.R.b and
+  18.2.g updated the rows to the measured figures under the advisory 35% allowance, so the row recorded the growth
+  rather than bounding it.
+- Per test, on the VM at five workers: the 162 non-conformance `store-ref-*` files hold 1,652 tests and 1,814 s, median
+  581 ms; the 651 tests over a second carry 80% of it, and separate-layout tests 526 s (29%). The cost is broad, not a
+  few slow tests.
+- Git processes per operation, from a local probe: a write starts 13, four of them `git config arc.identity`; a push
+  35–45; a pull 21–27. A caller trace over four heavy files found identity reads at 8.8% of 58,277 spawns, and the
+  starting state each test builds before its behavior at 38–71% of a file's spawns.
+- Building an ancestry-style starting state (three writes, three pushes, two pulls) took a median 548 ms; copying the
+  built origin and clones with their paths rewritten took 36 ms, and a pull on the copy worked.
+- The layout dependency map found the store repository chosen for each operation attempt and the calls made against it
+  bound to it, while designation, transport targets, carry, and the code repository's identity read the code repository
+  by design, so a 50-case separate subset reaches every mechanism the full separate run does. Seven layout mechanisms —
+  store creation, first designation and backing install, the config stop beside a code push, the remedies' `--git-dir`,
+  reftable fetch-lock classification, the joined code and state push, and the moves — are reached by neither conformance
+  layout and rest on integration files that run both.
+- Three value reviews over 36 files and 621 runs classed 439 keep, 98 default-layout-only, 66 duplicate, and 18 weak.
+  These are unverified upper bounds; 18.R2.c verifies each case against source and the criteria it evidences.
+- All but one of the 164 `store-ref-*` files share the same 845 source files in their static import closures. Replayed
+  over the last 80 merges to `main`, 60 would have reached no store suite and 18 nearly all of them.
+- At eight workers the whole integration tier took 814 s (−17%) while summed test time rose to 6,040 s (+39%).
+
+### Superseded text
+
+- § 14.1 ¶1: "over real temporary repositories and a bare origin, once per layout: the default in a files-format code
+  repository, and the separate one in its reftable directory."
+- § 14.5: "Integration tier, every change:"
+- § 14.7 ¶1: "is interrupted after each step and run again to completion"; its follow bullet: "and interrupted after
+  each step, rerunning its answering command completes it"; criterion 7: "each move, interrupted after each step,
+  completes on a rerun".
+- Criterion 5: "Every integration case of § 14.5 passes on every change, and the bursts pass with no lost write in one
+  dispatched run of the Windows and macOS pair and one of the Linux portability job before this change lands."
+
+### Decisions
+
+- Identity resolves once per ref-store operation, not once per shared default ports, which the in-repo implementation's
+  live callers also use: the measured cost is the ref backend's, and the live path stays unchanged until the cutover.
+- The separate subset is a declared registration, not a name filter, so the selection cannot drift from the cases.
+- A restart case stands for each distinct recovery state § 10.3 gives a move or a follow, not each step hook. The state
+  counts what the interrupted run left on the machine, so the value review's eight same-path groups for the remote
+  move's 23 hooks and four for the follow's 11, drawn before that counted, seed 18.R2.c's derivation rather than settle
+  it: the pointer and fetch boundaries, at least, meet different leftovers.
+- The store check passes a change that reaches no suite with a report of what it selected, since a gated check cannot
+  use a no-evidence exit (`no_evidence_exit`, `lib/checks/declaration.ts`). It withholds its paths and reads the change
+  itself, because the check framework splits a files check's paths into argument batches and runs its command once per
+  batch (`batchCheckPaths`, `lib/checks/batching.ts`): this branch's own source and test changes make two from the
+  package directory.
+- Selecting at the merge gate departs from `strategy-quality-gates.md`'s whole-suite merge run (spec § 14.14). It rests
+  on reach counting every path the suites' code locates at run time — among them `src/cli.ts`, which three store helpers
+  read, and the package's `arc/`, `templates/`, and `init-recipe.json`, which `lib/paths.ts` finds from the closure of
+  every store suite but `store-ref-timing-isolation` — a path the runner cannot place failing the check, and on a full
+  run on every push to `main` in a CI job of its own, since CI runs integration only on reviewed pull requests,
+  dispatches, and the weekly schedule (`ci.yml`). Counting `lib/paths.ts`'s finds costs precision: 7 of the last 80
+  merges to `main` changed them and no source or test file, and would now select every store suite.
+- The target sums Vitest's per-file durations, the measure the 2,633 s baseline used (the merge gate's integration run
+  at `212f6432e`), so a starting state built once per file, in a hook or a test, counts where it is spent; collection,
+  where module-level code runs, is outside the measure.
+- Apart from the cases the specification or a criterion names in both layouts, which keep both, a case runs both layouts
+  only when what it asserts depends on layout or format code beyond the selection and binding every operation runs and
+  the commit step every committing operation runs, and a case that runs each ref format in the default layout keeps its
+  formats there unless what it asserts also depends on the layout. § 14.1's separate subset reaches the shared code on
+  every change that reaches it, and counting passage through it would keep every case in both layouts, leaving no case
+  for the default layout alone.
+- The portability tier's pull-request run leaves the store suites to the store check: the `portability` job (`ci.yml`)
+  ran the store files `localVitestTierArguments("portability")` lists on every reviewed full-weight pull request
+  whatever the change reached, the whole separate conformance suite about 490–500 s of hosted file time (§ Complete
+  conformance and Linux portability work; § Final tier and job measurements). Its scheduled and dispatched runs keep
+  them whole, so the Windows and macOS pair still covers § 14.10 and the bursts keep their dispatched runs.
+- The selection's suites, locating modules, and widening inputs live in a data file the runner reads rather than in the
+  check's entry, whose schema is the framework's strict one (`z.strictObject`, `lib/checks/declaration.ts`); putting
+  them in the schema waits for the rule to extend past the store suites.
+- The store runner takes the heavy-test admission the integration tier's runs take (`withLocalHeavyTestAdmission`, which
+  the integration tier reaches through `executeVitestSelection`), so 18.R2.g compares runs under the same admission. The
+  host runner (`remote-check`'s `command_class`) gives the integration class, with its checkout turn and memory tokens,
+  only to commands naming `test:integration` and runs any other as a light command, so its classification of the store
+  check's command is a host change made before the store check first runs on the remote check machine, when 18.R2.f puts
+  it in the merge gate.
+- Not taken here: consolidating push and pull's repeated ref listings, which carry the concurrency design; extending
+  selection to the rest of the suite, and re-measuring the store's import coupling after the cutover's deletions, both
+  captured for `test-suite-contention-hardening`.
+
+Measurement scripts and raw results, the per-file baseline, the layout dependency map, and the three value reviews among
+them, sit in the checkout's `.internal/storage-ref-backend-tools/verification/selection/`.

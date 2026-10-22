@@ -899,6 +899,8 @@ those 4.4.d holds until Phase 11, and every § 14.3 case that needs no pull pass
 - _Goal:_ The shared suite passes over the ref backend in each layout with only § 14.1's named exclusions and those
   4.4.d holds until Phase 11.
 
+    - _Amended in:_ 18.R2 (A29)
+
 - _Outcome:_ Both prepared layouts run the local shared suite with only the permanent and remote-only exclusions.
   Real lock and recovery hooks, location-filtered views, current-role removals, fresh named generations, and refusal
   details meet the shared contract. Both-layout identity, lineage, path, alias, and repair replays close A5, A6, A7,
@@ -1018,6 +1020,8 @@ converge with no lost write.
     - _Amended in:_ 4.R2 (A23)
 
     - _Amended in:_ 18.3.R (A25)
+
+    - _Amended in:_ 18.R2 (A29)
 
 - _Outcome:_ A prepared peer clone, real origin fault controls, and a virtual between-attempt deadline exercise sync
   and repair through public stores in both layouts. All temporary sync exclusions are retired. Ordinary clashes keep
@@ -1831,6 +1835,7 @@ in `notes-storage-ref-backend.md` (A25).
   `read`, `list`, `lookup`, and `write` within their budgets over 600 work items in twelve quarters.
 
     - _Amended in:_ 18.2.R2 (A27)
+    - _Amended in:_ 18.R2 (A29)
     - The separate layout's suites join the `portability` tier's list ungated, each listed by file name: 8.2's
       `store-ref-directory.test.ts` and 8.6's `store-ref-separate-conformance.test.ts`, so the pair runs `--git-dir` and
       reftable on each platform and the Linux `portability` job runs them on each reviewed pull request it runs on;
@@ -2005,6 +2010,7 @@ in `notes-storage-ref-backend.md` (A25).
   within 1.5 times the in-repo conformance's time on the same GitHub-hosted runner.
 
     - _Amended in:_ 18.3.R (A25)
+    - _Amended in:_ 18.R2 (A29)
     - Per-file times from the `duration-results-integration-*` artifacts a dispatched run uploads (`ci.yml`), the in-repo
       conformance file (`__tests__/integration/store-in-repo-conformance.test.ts`) and each layout's ref conformance file
       read from one run on `ubuntu-latest`, the shard that ran each named beside its time
@@ -2039,6 +2045,8 @@ in `notes-storage-ref-backend.md` (A25).
 
 - _Goal:_ Record complete hosted conformance costs and workload differences without an interim legacy ratio, retaining
   all native coverage, Windows budgets, and affected tier/job cost measurements and baseline deltas (A25).
+
+    - _Amended in:_ 18.R2 (A29)
 
     - `[x]` **18.3.R.a Complete-file hosted evidence**
         - Dispatch `39543872100` retains exact-head complete file times, shard identities, and completed populations
@@ -2112,12 +2120,105 @@ in `notes-storage-ref-backend.md` (A25).
           aliases and both collision classes refuse atomically, then corrected keys succeed. Full native conformance
           and personal import comparisons retain the original logical keys without an old-name reader.
 
+### `[ ]` **18.R2 Per-change cost and selection of the store suites — § 14.14, § 14.1, § 14.12 (A29)**
+
+- _Goal:_ The store suites cost at most half their 2,633 s summed merge-gate time at `212f6432e` and run only on changes
+  that reach them, every required case keeping its coverage on every change that reaches it (A29).
+
+    - `[ ]` **18.R2.a Identity once per operation — § 1.2**
+        - Each public ref-store operation, its nested pulls included, resolves the identity at most once, and the next
+          operation resolves it again; unit cases count resolutions across a write, a push, and a pull, and observe a
+          changed identity in a later operation. The shared default ports, which the in-repo implementation's live
+          callers also use, stay as they are.
+
+    - `[ ]` **18.R2.b The separate layout's declared subset and the split default run — § 14.1**
+        - The separate registration declares one case for each operation path through the layout's selection and
+          binding, seeded from the 50-case subset in the layout dependency map (`layout-dependency-map.md` in
+          `.arc/user/andrew/.internal/storage-ref-backend-tools/verification/selection/`) and chosen by declaration
+          rather than name, in its own file; the whole separate suite keeps its file, which 18.R2.f marks to run only in
+          full runs and the portability tier's scheduled and dispatched runs, and runs in the pre-landing hosted
+          dispatch. Until 18.R2.f lands, both files run in the integration tier. The default conformance run splits into
+          files by item range with an unchanged case population. `validateUsedAssertionExclusions`
+          (`__tests__/helpers/store/suite-tools.ts`) checks every declared exclusion against the whole registration's
+          cases, for the in-repo and reference fixtures too, rather than the cases one file runs.
+
+    - `[ ]` **18.R2.c The verified cut set — § 14.14**
+        - Verify every candidate from the three value reviews and the layout map (`value-review-A-sync.md`,
+          `value-review-B-moves.md`, `value-review-C-import.md`, and `layout-dependency-map.md` in
+          `.arc/user/andrew/.internal/storage-ref-backend-tools/verification/selection/`) against source, § 14.14's
+          layout rule, and the criteria each case evidences: duplicates, cases that need only the default layout, bare
+          refusals to strengthen, the restart matrices reduced to one boundary per distinct recovery state, and the
+          coverage gaps the reviews found — layout-move's add and rename edits ending in one configuration,
+          read-source's default local-only cases running in a move-incomplete clone, the archive import's push-and-pull
+          tail pulling its own push, and the landing's unasserted no-identity notice. Each move's and each follow's
+          recovery states count what the interrupted run leaves on the machine (§ 14.7), and their sets, with the
+          boundary standing for each, are recorded in `notes-storage-ref-backend.md` § A29. Present the complete set
+          with each case's evidence for approval before any change.
+
+    - `[ ]` **18.R2.d Apply the approved set — § 14.14**
+        - Remove, move to one layout, and strengthen exactly the approved cases, and close the gaps; a completed task
+          whose recorded outcome cites a removed case takes `_Amended in:_ 18.R2 (A29)`.
+
+    - `[ ]` **18.R2.e Prepared multi-clone states — § 14.14**
+        - `copyPreparedRepository` gains multi-clone shapes whose copies resolve every path inside themselves: remote
+          URLs, worktree links, alternates, and the backing pointer are rewritten, reflog messages naming the template
+          are left, and a state holding a resolved path inside a Git object, such as a recorded move's record, is built
+          per test. An integration case proves a copy's remotes, worktree links, alternates, store directory, and
+          backing pointer resolve inside the copy, and finds no template path in the objects the copy's refs reach. Each
+          file whose tests share a starting state builds it once per file, in a hook or in the first test that needs it
+          and never at module scope, and copies it per test, heaviest first, and a case run against a copy proves what
+          it proved against a fresh build.
+
+    - `[ ]` **18.R2.f Selection by reach — § 14.14**
+        - The store suites leave the whole integration tier for their own non-widening `files` merge-gate check in
+          `.arc/system/arc-checks.yml` that withholds its paths, so it runs once per gate, and whose declared inputs
+          cover every path a suite's reach can hold and the selection's own declaration and code: the check's entry, a
+          data file in this repository naming the suites, locating modules, and widening inputs, which the runner reads,
+          and the runner. Its runner reads the change, deletions included, from `ARC_CHECK_BASE` and `ARC_CHECK_TREE`;
+          computes each suite's static import closure, the files its modules locate from their own paths (spawned
+          scripts with their closures, `src/cli.ts` and other read files by themselves), the declared locating modules'
+          finds (`lib/paths.ts`: `arc/`, `templates/`, `init-recipe.json`; the closures a suite copies with
+          `copyLiveDependencies`), and the widening inputs, the Vitest and TypeScript configuration with the modules
+          they import among them; fails on a location-relative path it can neither resolve nor find declared; and
+          reports the suites it selected. Inline spawned code moves into files under `__tests__/fixtures/store/`. A full
+          run — asked for, or, with no ask, given no base or on a change to the selection — runs every suite, the
+          separate layout's whole suite among them, which runs only there and in the portability tier's scheduled and
+          dispatched runs; a per-change run over every suite can also be asked for, and the ask enters the check's cache
+          key through a runtime input. Selected suites run in their current Vitest projects, so the timing and burst
+          suites keep their single-worker projects and order; `store-ref-timing-isolation.test.ts` proves that over the
+          store check's invocation rather than the integration tier's, the runner takes the heavy-test admission
+          (`withLocalHeavyTestAdmission`) the integration tier's runs take, and the host runner gives the store check's
+          command the integration tier's class before the check first runs on the remote check machine, a host change
+          outside this repository. On a pull request the portability tier runs without its store files, and on scheduled
+          and dispatched runs with them. Pull-request CI selects the same way through the check plumbing
+          (`.github/check-plumbing.yml`, `scripts/run-ci-checks.mjs`, `ci.yml`); a CI job of its own makes a full run on
+          every push to `main`, and CI asks for full runs on the weekly and dispatched runs. § 14.14's departure from
+          the whole-suite merge gate is stated in `DEV-RULES.PROJECT` § Test execution with the rule. Unit cases cover
+          selection, deletions, located files, an undeclared location-relative path, widening, full runs, the per-change
+          run over every suite, an ask setting the form on a change to the selection, an asked run never reusing a pass
+          made in another form, the empty-reach report, failed or empty reach computations, and the portability tier's
+          pull-request run leaving out its store files.
+
+    - `[ ]` **18.R2.g Measure and record — § 14.12**
+        - Rerun the merge gate on the remote check machine with the store check's own pool at five workers asked to
+          select every suite in its per-change form, under the admission the baseline's integration run had — the
+          heavy-test slot and the host runner's integration class (18.R2.f) — and one hosted dispatch that includes the
+          whole separate suite. Sum the store suites' per-file durations against the 2,633 s baseline measured from the
+          integration tier's pool at `212f6432e` (`integration-file-times-212f.txt` in
+          `.arc/user/andrew/.internal/storage-ref-backend-tools/verification/selection/`), and record them, the
+          selection replayed over recent merges to `main`, the run's admission, and the worker measurement in
+          `notes-storage-ref-backend.md` § A29. Re-measure the tier and CI-job rows and update them to the measured
+          figures, the notes separating relocation from reduction, recording the store check's own cost, and keeping the
+          A25 figures as history.
+
 ### `[x]` **18.7 Hosts, platforms, and cost** — validate exit criterion at segment scope
 
 - _Goal:_ The bursts and the Windows budget pass on their dispatched runs, CI cost holds, and the host kit, pack cost,
   and surviving suites are recorded.
 
     - _Amended in:_ 18.3.R (A25)
+
+    - _Amended in:_ 18.R2 (A29)
 
 - _Outcome:_ The complete platform pair and all twelve platform/burst combinations pass; both layouts meet the
   calibrated Windows limits. Corrected Linux CI `39674185052` passes. The cost measurements, real-host results and
@@ -2263,3 +2364,39 @@ in `notes-storage-ref-backend.md` (A25).
 - `[ ]` The tip read, sync's ref sets, fetch negotiation, and the ref-transaction helper's re-read each run a listing
   again when Git refuses it with `Duplicated ref, and SHA1s don't match`, at most three attempts in all, and rethrow
   Git's error unchanged past them or on any other failure (§ 4.3, § 11.1) (A28)
+
+- `[ ]` The store suites' summed per-file durations, hooks included, on the remote check machine at five workers in a
+  merge-gate run whose store check is asked to select every store suite in its per-change form, are at most half the
+  2,633 s the integration tier's pool measured at `212f6432e`; prepared states, layout assignment, and removals follow
+  § 14.14, no case that was a criterion's last evidence is gone, and the tier and CI-job rows are re-measured after that
+  work and updated to the measured figures, the notes separating relocation from reduction and keeping the A25 figures
+  as history (§ 14.12, § 14.14) (A29)
+
+- `[ ]` The merge gate and pull-request CI run the store check once per gate, and it runs each store suite a change
+  reaches through its import closure, a file its code locates from its own path, a declared locating module's finds, or
+  a widening input, deletions included, and reports the suites selected; a change reaching none passes with that report,
+  a failed or empty reach computation or a location-relative path the runner cannot place fails, and every push to
+  `main`, through a CI job of its own, the weekly scheduled run, a dispatched run, and a run not asked for another form
+  that is given no base or a change to the selection run them all, the separate layout's whole suite among them, while
+  the portability tier's pull-request run leaves them to the store check and its scheduled and dispatched runs keep them
+  whole (§ 14.14) (A29)
+
+- `[ ]` The separate registration declares a subset holding one case for each operation path through the layout's
+  selection and binding, run on every change that reaches it; the whole separate suite passes in one hosted dispatch
+  before this change lands with no exclusion beyond § 14.1's; and the default run spans files split by item range, every
+  declared exclusion checked against the whole registration (§ 14.1) (A29)
+
+- `[ ]` Every integration case of § 14.5 passes on every change that reaches it (§ 14.14), and the bursts pass with no
+  lost write in one dispatched run of the Windows and macOS pair and one of the Linux portability job before this change
+  lands; supersedes the every-change criterion (§ 14.5) (A29)
+
+- `[ ]` Every case of § 14.7 passes: each move and each follow, interrupted at each distinct recovery state § 10.3 gives
+  it, what the interrupted run left on the machine counted and each one's sets recorded in
+  `notes-storage-ref-backend.md`, completes on a rerun; the trial report of each move that takes `--trial` matches it;
+  and the import's comparison differs only by the transforms of § 10.9, its three entry kinds compared under § 14.1's
+  test grammars, refusing for the review gate's facts while no mapping is in the port and landing a test mapping's
+  records in place of what it was given; and a parked work unit lands paused and in flight, every branch link carrying
+  `linkedAs` and `excluded` and every task capture its copy key; supersedes the after-each-step criterion (§ 14.7) (A29)
+
+- `[ ]` Each public ref-store operation, its nested pulls included, resolves the identity at most once, and the next
+  operation resolves it again (§ 1.2) (A29)

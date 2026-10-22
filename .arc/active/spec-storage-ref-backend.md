@@ -174,19 +174,22 @@ review chunking to hold.
 Construction follows the contract's composition rule: `createRefBackend(ports)` takes every dependency as one object —
 the Git executor and its stdin and byte variants, file access, the clock, a sleep port whose waits and bounds a signal
 ends, a random source, the checkout root, the identity, the actor, the kind registry (the production set by default),
-and the lock factory — and runs no command and reads no file until an operation needs one. The sleep port and the random
-source drive the push loop's backoff and the deadline (§ 6.1, § 6.7), so a test runs either without waiting: a retry's
-backoff is a wait, which its caller awaits, and the deadline and a remote read's limit (§ 9.2) are bounds, each raced
-against the call its end aborts. The **actor** names this machine in conflict labels and commit trailers (§ 3.1, § 3.7):
-this clone's random machine ID for the configured identity, which `getOrCreateMachineId` (`lib/user-sync/sync-state.ts`)
-keeps today at `arc/user/<identity>/.internal/.machine-id` in the common Git directory (`getRepoSharedUserInternalDir`,
-`lib/user-sync/repo-shared-paths.ts`), resolved lazily on the first write that needs it. A clone with no identity
-configured has no actor: its commits carry no `Arc-Actor`, and their sides are labeled as a commit without the trailer
-is (§ 3.7). It holds no identity-scope state either, as the contract has it: a read or write of a record a person owns
-refuses `not-found`, saying no identity is configured and naming `arc.identity`, and a listing of a family of identity
-scope is `absent`, as the reference backend answers (`recordAdmission`, `__tests__/helpers/store/refusals.ts`;
-`listReference`, `__tests__/helpers/store/read.ts`). The reader and its exclusive create move into `lib/store/` with
-this change, since `lib/user-sync/` retires with notes, and notes sync calls them there until it does.
+and the lock factory — and runs no command and reads no file until an operation needs one. Each public operation
+resolves the identity at most once and reuses that answer for the rest of the operation, its nested pulls included; the
+next operation resolves it again, so an identity configured between operations takes effect (A29). The sleep port and
+the random source drive the push loop's backoff and the deadline (§ 6.1, § 6.7), so a test runs either without waiting:
+a retry's backoff is a wait, which its caller awaits, and the deadline and a remote read's limit (§ 9.2) are bounds,
+each raced against the call its end aborts. The **actor** names this machine in conflict labels and commit trailers
+(§ 3.1, § 3.7): this clone's random machine ID for the configured identity, which `getOrCreateMachineId`
+(`lib/user-sync/sync-state.ts`) keeps today at `arc/user/<identity>/.internal/.machine-id` in the common Git directory
+(`getRepoSharedUserInternalDir`, `lib/user-sync/repo-shared-paths.ts`), resolved lazily on the first write that needs
+it. A clone with no identity configured has no actor: its commits carry no `Arc-Actor`, and their sides are labeled as a
+commit without the trailer is (§ 3.7). It holds no identity-scope state either, as the contract has it: a read or write
+of a record a person owns refuses `not-found`, saying no identity is configured and naming `arc.identity`, and a listing
+of a family of identity scope is `absent`, as the reference backend answers (`recordAdmission`,
+`__tests__/helpers/store/refusals.ts`; `listReference`, `__tests__/helpers/store/read.ts`). The reader and its exclusive
+create move into `lib/store/` with this change, since `lib/user-sync/` retires with notes, and notes sync calls them
+there until it does.
 
 #### 1.3 Dark until the flip
 
@@ -3302,8 +3305,18 @@ from incomplete evidence.
 #### 14.1 Conformance over both layouts
 
 A ref-backend fixture beside the in-repo and reference ones runs `registerStoreConformanceSuite`
-(`__tests__/helpers/store/conformance-suite.ts`) over real temporary repositories and a bare origin, once per layout:
-the default in a files-format code repository, and the separate one in its reftable directory.
+(`__tests__/helpers/store/conformance-suite.ts`) over real temporary repositories and a bare origin in each layout: the
+default in a files-format code repository, whole on every change that reaches it (§ 14.14), and the separate one in its
+reftable directory, as a declared subset on every such change and whole in every full run (§ 14.14), one hosted dispatch
+among them before this change lands. The subset holds one case for each operation path through the separate layout's
+selection and binding: `readRefRepository` and `writeRefRepository` (`lib/store/ref/repository.ts`) choose the store
+repository for each operation attempt, and `bindRefRepository` (`lib/store/ref/repository-context.ts`) prefixes the
+calls made against it, while designation, transport targets, carry, and the code repository's identity read the code
+repository by design; none of that code keys on a kind, content, or ref name, so no case needs a particular one to reach
+layout code. The registration declares the subset and each default file's item range, and checks every declared
+exclusion against the whole registration's cases rather than the cases one file runs (`validateUsedAssertionExclusions`,
+`__tests__/helpers/store/suite-tools.ts`), so no case is chosen by a name filter, and the default run splits across
+files by item range, so no one file bounds a shard (A29).
 
 - **Families:** every family but `project-machinery` and `constitution`, which stay tracked in the standard profile
   (`profiles`, `FAMILY_REGISTRY`). The three reserved families have no kinds yet and list absent.
@@ -3513,7 +3526,7 @@ companion name combined with its owner's slug refuse `store.git-path`, while a 2
 Held to the spikes' pass criteria for writes (`analysis-storage-concurrency-spike.md`) — no lost write, bounded retries,
 typed conflicts:
 
-- **Integration tier, every change:**
+- **Integration tier, every change that reaches it (§ 14.14) (A29):**
     - four processes each writing 25 times to one surface, and to four, in both layouts;
     - a write to an item racing its archive or its abandon, and a write to a completed item racing its reopen, or its
       reopen and archive into a later quarter, in two processes on one machine: each write restarts and lands on the
@@ -3716,26 +3729,30 @@ remote.
 #### 14.7 The migrate verb and the import, by comparison
 
 - **Each move** — a clone's layout both ways, a project's remote with its forwarding record, a remote move that changes
-  the clone's layout, leaving the source, and the import — is interrupted after each step and run again to completion, a
-  remote move's rerun merging onto the copy it landed, and for each move that takes `--trial` — a remote move, the one
-  that changes the clone's layout among them, and the import (§ 10.1) — a trial run's report matches what the move then
-  does, a layout move run by a setting reporting what it did, while `--trial` with no target refuses, changing nothing.
-  Two remote moves started at once from two worktrees: the second refuses `lock-held` before it fetches, and the first
-  finishes, carrying the heads its own step 1 kept; a move started after a run was killed takes the lock its dead holder
-  left. A layout move each way, a follow, and leaving the source, interrupted between the directory's rename and the
-  designation's change finish on a no-target rerun in the direction their records name, never reversed, while leaving
-  the source interrupted before its record completes when its command runs again, merging onto the copy it landed; a
-  no-target rerun holding a move's record while a follow is due finishes the move first; and a layout move out
-  interrupted before its source's delete, leaving the clone with no state remote, has `pull` and `push` report
-  `move-unfinished` beside `no-remote` until a rerun deletes the leftover, and a setting moving the layout back in
-  meanwhile first finishes the move out, then moves in; a setting made while a layout move in stands interrupted after
-  renaming its directory aside likewise finishes that move first, so no directory stays aside. A layout move out
-  interrupted after its build and before its record leaves a temporary directory, which the next build replaces, a ref
-  deleted meanwhile staying deleted, and a no-target run removes. Each layout move, both ways, also runs beside a writer
-  in a second worktree creating one item and updating another, and both writes land in the layout the move leaves, and
-  beside a sync there that pulled before the switch, which pushes nothing to the old remote after it, and the same for a
-  layout move to local-only; and after each, a ref rewritten on the remote before the move still refuses
-  `history-diverged` at the next pull.
+  the clone's layout, leaving the source, and the import — is interrupted at each distinct recovery state § 10.3 gives
+  it — each set of step boundaries whose rerun meets the same state and takes the same path, one boundary standing for
+  its set, the state counting everything the rerun reads: the move's record, the published refs, and what the
+  interrupted run left on the machine, such as temporary refs and directories, a directory renamed aside, designation
+  keys, and an uncommitted pointer change; `notes-storage-ref-backend.md` records each move's sets and the boundary
+  standing for each (A29) — and run again to completion, a remote move's rerun merging onto the copy it landed, and for
+  each move that takes `--trial` — a remote move, the one that changes the clone's layout among them, and the import
+  (§ 10.1) — a trial run's report matches what the move then does, a layout move run by a setting reporting what it did,
+  while `--trial` with no target refuses, changing nothing. Two remote moves started at once from two worktrees: the
+  second refuses `lock-held` before it fetches, and the first finishes, carrying the heads its own step 1 kept; a move
+  started after a run was killed takes the lock its dead holder left. A layout move each way, a follow, and leaving the
+  source, interrupted between the directory's rename and the designation's change finish on a no-target rerun in the
+  direction their records name, never reversed, while leaving the source interrupted before its record completes when
+  its command runs again, merging onto the copy it landed; a no-target rerun holding a move's record while a follow is
+  due finishes the move first; and a layout move out interrupted before its source's delete, leaving the clone with no
+  state remote, has `pull` and `push` report `move-unfinished` beside `no-remote` until a rerun deletes the leftover,
+  and a setting moving the layout back in meanwhile first finishes the move out, then moves in; a setting made while a
+  layout move in stands interrupted after renaming its directory aside likewise finishes that move first, so no
+  directory stays aside. A layout move out interrupted after its build and before its record leaves a temporary
+  directory, which the next build replaces, a ref deleted meanwhile staying deleted, and a no-target run removes. Each
+  layout move, both ways, also runs beside a writer in a second worktree creating one item and updating another, and
+  both writes land in the layout the move leaves, and beside a sync there that pulled before the switch, which pushes
+  nothing to the old remote after it, and the same for a layout move to local-only; and after each, a ref rewritten on
+  the remote before the move still refuses `history-diverged` at the next pull.
 - **The remote move** runs with a second person's identity refs and a history ref the moving clone never pulled on the
   old remote, and both reach the new one. It also runs with a teammate's write, a teammate's new item, and a teammate's
   end of an item landing on the old remote after the copy, and afterward the new remote holds the old one's last state
@@ -3850,19 +3867,20 @@ remote.
   about the move's destination, never carrying the old role, and without a terminal reports `designation-needed`, whose
   answering command completes it — a follower holding `backing` following a move back to the code remote among them; on
   `push` the follower ends in the layout the move calls for, the old remote `off`, and `backing` repointed or removed,
-  and on `read` or `off` with the old source `off`; and interrupted after each step, rerunning its answering command
-  completes it. Following a move back to the upstream, a fork that copied the upstream's registry before the state left
-  it, with no write since, is refused for lacking the move's commit and the follow takes the upstream, and where the
-  fork is the follower's only remote the follow refuses, naming the remedy to add the upstream; where two of the
-  follower's remotes hold the move's commit — a fork that copied the upstream's registry after the move — the follow
-  refuses naming both, and `arc store remote <remote> push` naming one completes it. Following two consecutive moves of
-  different kinds — a backing repository to the code remote and on to a second backing repository, and a backing
-  repository to a second and on to the code remote — a follower that missed both follows from a checkout holding the
-  second move's pointer straight to its destination, and from a checkout between the two moves refuses, naming the
-  remedy to bring in the pointer's change. A follow whose presence read, or whose read of a candidate's forwarding
-  record, project ID, or registry, fails refuses, changes nothing, and names that remote `unreachable`. A `read`
-  follower whose store holds its own project ID, a contributor with a state remote of its own, follows the upstream's
-  move to the candidate naming the forwarding record's project ID.
+  and on `read` or `off` with the old source `off`; and interrupted at each distinct recovery state, counted as each
+  move's are and its sets recorded beside theirs, rerunning its answering command completes it (A29). Following a move
+  back to the upstream, a fork that copied the upstream's registry before the state left it, with no write since, is
+  refused for lacking the move's commit and the follow takes the upstream, and where the fork is the follower's only
+  remote the follow refuses, naming the remedy to add the upstream; where two of the follower's remotes hold the move's
+  commit — a fork that copied the upstream's registry after the move — the follow refuses naming both, and `arc store
+  remote <remote> push` naming one completes it. Following two consecutive moves of different kinds — a backing
+  repository to the code remote and on to a second backing repository, and a backing repository to a second and on to
+  the code remote — a follower that missed both follows from a checkout holding the second move's pointer straight to
+  its destination, and from a checkout between the two moves refuses, naming the remedy to bring in the pointer's
+  change. A follow whose presence read, or whose read of a candidate's forwarding record, project ID, or registry, fails
+  refuses, changes nothing, and names that remote `unreachable`. A `read` follower whose store holds its own project ID,
+  a contributor with a state remote of its own, follows the upstream's move to the candidate naming the forwarding
+  record's project ID.
 - **Two checkouts of one clone** — a second worktree, and the first checkout switched to a branch older than the move —
   after the clone moved or followed, the other holding the pointer's change: each pulls and pushes to the clone's one
   state remote in its one layout, neither reports a state, a no-target `arc store migrate` from either changes nothing,
@@ -3989,6 +4007,11 @@ each delta and the Linux portability job's separate-layout marginal file cost in
 Separate queue/admission waits from raw test timings and label job-clock measurements as such; local diagnostics do not
 establish hosted cost or explain a hosted failure (A25).
 
+Once § 14.14's work lands, the same rows are re-measured by the same procedure and updated to the measured figures.
+`notes-storage-ref-backend.md` separates what a row lost because the store suites left its population from what their
+cost fell, records the store check's own cost, which no row's project set describes, and keeps the A25 figures as the
+peak they replace (A29).
+
 #### 14.13 Retained conflict recovery (A16)
 
 In both layouts, an abandon and a decomposition followed by a conflicting late write report the exact conflict
@@ -4001,6 +4024,75 @@ A real-CLI temporary-repository E2E case executes the notice's inspection argv, 
 runs it with `--discard` and observes absence and a still-retired primary. Cover `--json`, already-removed IDs, invalid
 kinds, missing history repaired by the named retry, and failed fetch preserving the original refusal. The command
 remains hidden and only its handler calls `runStoreConflict`; the normal backend selection remains in-repo.
+
+#### 14.14 Per-change cost and selection (A29)
+
+The store suites — every `store-ref-*` integration file and the ref conformance files — must not set the pace of work
+that cannot reach them, and cost no more than their evidence needs where it can.
+
+- **Target.** Their summed file time falls to at most half the 2,633 s measured at `212f6432e`. Both figures sum the
+  per-file durations Vitest reports for the store suites, setup and teardown hooks included, on the remote check machine
+  at five workers in a merge-gate run: the baseline's store files ran in the integration tier's pool, and the new
+  figure's run is the store check's own pool asked to select every store suite in its per-change form, the separate
+  layout's declared subset in place of its whole suite (§ 14.1). Every required case keeps its coverage on every change
+  that reaches it.
+- **Prepared states.** A file whose tests share a starting state — clones, remotes, records, and syncs built before the
+  behavior under test — builds it once per file and copies it per test, extending `copyPreparedRepository`
+  (`__tests__/helpers/prepared-repository.ts`) to multi-clone shapes; it builds the state in a hook or in the first test
+  that needs it, never at module scope, where collection would hide its cost from the target's measure. Every path Git
+  or ARC resolves from a copy — remote URLs, worktree links, alternates, and `storage.backing_repository` in
+  `.arc/system/arc-config.yml` — lies inside the copy, reflog messages naming the template changing nothing; a state
+  holding such a path inside a Git object, as a recorded move's record does (§ 10.3), is built per test, so a copy holds
+  the state a fresh build produces.
+- **A second layout only where layout code runs.** An integration case runs both layouts when what it asserts depends on
+  a branch on the selected store repository or the ref format beyond the selection and binding every operation runs and
+  the commit step every committing operation runs (`repository.ts`, `repository-context.ts`, `commit-step.ts`), which
+  § 14.1's separate subset reaches on every change that reaches it: designation, creating the store directory, the code
+  repository's identity on the store's commits, transport configuration read from the store's own repository and the
+  remedies naming its `--git-dir` or configuration, carry, fetch targets, keeper locks, a commit step finding the layout
+  changed, maintenance, moves, and a ref format's locking or listing among them. Passing through that shared code alone
+  keeps no case in both layouts. A case that runs each ref format in the default layout keeps its formats there and runs
+  no second layout unless what it asserts also depends on the layout. Every case this specification or a success
+  criterion names in both layouts keeps both; the others run the default layout.
+- **No duplicate and no bare refusal.** A case that another case proves at equal or greater strength in the same layout
+  goes, and a case asserting only that a call refused also asserts the refusal's code and the state it protects. A case
+  that is a criterion's last evidence stays.
+- **Selection by reach.** The store suites form their own merge-gate check, a `files` check that does not widen and
+  withholds its paths, so it runs once per gate whatever the change's size; its declared inputs cover every path a
+  suite's reach can hold and the selection's own declaration and code — the check's entry, a data file of this
+  repository's that the runner reads, and the runner — so the framework invokes it whenever one changes. Its runner
+  reads the change itself, deletions included, from the base and tree the check is given (`ARC_CHECK_BASE`,
+  `ARC_CHECK_TREE`, `lib/checks/process.ts`), and runs each suite whose reach holds a changed path. A suite's reach is
+  its static import closure; each repository file a module in that closure locates from its own path — a script under
+  `__tests__/fixtures/store/`, where every script a suite spawns lives, with its import closure, and any other file by
+  itself, such as `src/cli.ts`, which the store command helpers read; what each declared locating module finds, as its
+  declaration states, among them `lib/paths.ts`'s `arc/`, `templates/`, and `init-recipe.json` and the import closures a
+  suite copies from the package root to run (`copyLiveDependencies`); and the widening inputs that reach every suite:
+  the package manifest and lockfile, the Vitest and TypeScript configuration with the modules they import, and the test
+  runners. A path built from a module's own location that the runner can neither resolve to a file nor find declared
+  fails the check, so a new runtime read joins the reach or stops the gate. The runner reports the suites it selected; a
+  change reaching none passes with that report, and a reach computation that fails or finds no suite to choose from
+  fails the check. On a selected change the separate layout runs its declared subset (§ 14.1). A full run — every store
+  suite, the separate layout's whole suite among them — is one the runner is asked for, and the runner can also be asked
+  to select every suite in its per-change form, which measures the target; an ask sets the run's form, and only a run
+  with none given no base or changing the selection's own declaration or code runs in full. The ask enters the check's
+  cache key through a runtime input, so an asked run never reuses a pass made in another form. Pull-request CI selects
+  the same way, and CI asks for a full run on every push to `main`, in a job of its own, on the weekly scheduled run,
+  and on a dispatched run; a push whose run a later push cancels leaves its tree, and anything it missed, to the later
+  full run. The check runs each selected suite in the Vitest project it runs in today, so the timing and burst suites
+  keep their single-worker projects and order, and the runner takes the heavy-test admission the integration tier's runs
+  take (`withLocalHeavyTestAdmission`, `lib/local-test-admission.ts`). The rest of the integration tier keeps its
+  whole-tier run without the store suites. The runner's data file names the suites, locating modules, and widening
+  inputs, since the check declaration's schema is the framework's and admits no such fields, so another suite can take
+  the rule unchanged.
+- **The portability tier.** On a pull request the Linux portability job runs its tier without the store suites, which
+  the store check runs on Linux by reach. The tier's scheduled and dispatched runs — the Windows and macOS pair's, on
+  which § 14.10 rests, and the dispatched Linux job's — keep them whole, the separate layout's whole suite among them.
+- **Departure from the whole-suite merge gate.** `strategy-quality-gates.md` puts the complete project suite at the
+  merge quality gate to catch what an import graph misses. For the store suites the merge gate runs only what a change
+  reaches, resting on that reach, which counts every path the suites' code locates at run time and fails on one it
+  cannot place, and on the full run CI makes on every push to `main`; a miss shows on `main` after merge rather than
+  before it.
 
 ## Alternatives & Rationale
 
@@ -4333,6 +4425,44 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     version/read/list/lookup/write in both layouts. Correctness and native resource coverage remain required; no
     acceptance claim rests on a timing-only diagnostic. Supersedes criterion 9's original numeric limits (A27).
 
+34. **The store suites cost half as much per change.** Their summed file time is at most half the 2,633 s measured at
+    `212f6432e`, both summing the per-file durations Vitest reports, hooks included, on the remote check machine at five
+    workers in a merge-gate run, the new run's store check asked to select every store suite in its per-change form;
+    prepared states, layout assignment, and removals follow § 14.14, and no case that was a criterion's last evidence is
+    gone. The tier and CI-job rows are re-measured after that work and updated to the measured figures, the notes
+    separating relocation from reduction and keeping the A25 figures as history (§ 14.12, § 14.14) (A29).
+
+35. **The store suites run by reach.** The merge gate and pull-request CI run the store check once per gate, and it runs
+    each store suite a change reaches through its import closure, a file its code locates from its own path, a declared
+    locating module's finds, or a widening input, deletions included, and reports the suites selected; a change reaching
+    none passes with that report, and a failed or empty reach computation, or a location-relative path the runner cannot
+    place, fails. Every push to `main`, through a CI job of its own, the weekly scheduled run, a dispatched run, and a
+    run not asked for another form that is given no base or a change to the selection run them all, the separate
+    layout's whole suite among them; the portability tier's pull-request run leaves them to the store check, and its
+    scheduled and dispatched runs keep them whole (§ 14.14) (A29).
+
+36. **The separate layout's conformance is declared per change and complete before landing.** Its registration declares
+    a subset holding one case for each operation path through the layout's selection and binding, which runs on every
+    change that reaches it; the whole separate suite passes in one hosted dispatch before this change lands with no
+    exclusion beyond § 14.1's; and the default run spans files split by item range, every declared exclusion checked
+    against the whole registration (§ 14.1) (A29).
+
+37. **Sync and lifecycle hold under concurrency on every change that reaches them.** Every integration case of § 14.5
+    passes on every change that reaches it (§ 14.14), and the bursts pass with no lost write in one dispatched run of
+    the Windows and macOS pair and one of the Linux portability job before this change lands (§ 14.5). Supersedes
+    criterion 5 (A29).
+
+38. **Every move restarts from each recovery state and the import compares clean.** Every case of § 14.7 passes: each
+    move and each follow, interrupted at each distinct recovery state § 10.3 gives it, what the interrupted run left on
+    the machine counted and each one's sets recorded in `notes-storage-ref-backend.md`, completes on a rerun; the trial
+    report of each move that takes `--trial` matches it; and the import's comparison differs only by the transforms of
+    § 10.9, its three entry kinds compared under § 14.1's test grammars, the review gate's facts refusing while no
+    mapping is in the port and a test mapping's records landing in place of what it was given, and a parked work unit
+    importing paused (§ 14.7). Supersedes criterion 7 (A29).
+
+39. **Identity resolves once per operation.** Each public ref-store operation, its nested pulls included, resolves the
+    identity at most once, and the next operation resolves it again (§ 1.2) (A29).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4456,5 +4586,8 @@ open:
 
 - **A28** — 2026-10-21 — spec-depth: retry a state-ref listing Git refuses as torn under the files format.
   _Supersedes:_ none. _Trigger:_ 19.1 terminal. _Work:_ 3.R. _Revalidated:_ pending → 19.1.
+
+- **A29** — 2026-10-21 — design: halve the store suites' per-change cost and run them only where a change reaches.
+  _Supersedes:_ §§ 14.1, 14.5, 14.7, SC 5, SC 7. _Trigger:_ 19.1 terminal. _Work:_ 18.R2. _Revalidated:_ pending → 19.1.
 
 ---
