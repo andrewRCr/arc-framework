@@ -8,6 +8,7 @@ import { designatedStoreLayout } from "./layout-state.js";
 import { readRefDesignation } from "./designation.js";
 import { migrationCodeContext, readMoveRecord, type RecordedMove, type RecordedFollow } from "./migrate-record.js";
 import { moveRefRemote } from "./migrate-remote.js";
+import { clearRemoteGathering } from "./migrate-remote-copy.js";
 import { moveRefLayout } from "./migrate-layout.js";
 import { AdvisoryLockTimeoutError } from "../../advisory-lock.js";
 import { applyRefRemoteSetting, remoteView } from "./remote-setting.js";
@@ -27,13 +28,16 @@ export async function runRefMigrate(context: RefBackendContext, store: Store, in
   });
   if (parsed.data.leaveSource) return withMigrationLock(context, () => leaveRefSource(context, store, parsed.data));
   return withMigrationLock(context, async () => {
-    const existing = await readMoveRecord(await migrationCodeContext(context));
+    const code = await migrationCodeContext(context);
+    const existing = await readMoveRecord(code);
     if (existing.status === "refused") return existing;
     if (existing.result?.record.kind === "leave-source") {
       return leaveRefSource(context, store, parsed.data, { record: existing.result.record, tip: existing.result.tip });
     }
     if (existing.result?.record.kind === "remote") return moveRefRemote(context, store, parsed.data.to, parsed.data.trial, { record: existing.result.record, tip: existing.result.tip });
     if (existing.result?.record.kind === "follow") return resumeFollowRequest(context, store, { record: existing.result.record, tip: existing.result.tip }, parsed.data);
+    // A move ended after removing its record leaves gathering no later move may read as its own.
+    if (!existing.result && !parsed.data.trial) await clearRemoteGathering(code);
     let finished: MigrateReport | undefined;
     if (existing.result?.record.kind === "layout") {
       const resumed = await moveRefLayout(context, store, existing.result.record.destination, existing.result.record.setting, { record: existing.result.record, tip: existing.result.tip });

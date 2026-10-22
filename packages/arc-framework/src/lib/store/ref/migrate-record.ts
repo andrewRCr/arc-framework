@@ -89,4 +89,5 @@ export async function saveMoveRecord<T extends MoveRecord>(code: RefBackendConte
 export async function removeMoveRecord(code: RefBackendContext, recorded: RecordedMove): Promise<void> {
   const result = await updateRefTransaction(code, [{ ref: MOVE_REF, delete: true, expected: recorded.tip }], { cwd: code.checkoutRoot });
   if (result.status !== "committed") throw new Error("The recorded migration changed before its removal");
+  await code.migrateStep?.("record.removed");
 }

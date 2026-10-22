@@ -199,7 +199,7 @@ export async function readRemoteCopyVersion(code: RefBackendContext, fallback: s
   return (await readSyncRefs(code, ref)).get(ref) ?? fallback;
 }
 
-/** Drop temporary migration data only after a definitive first-copy refusal. */
+/** Drop a move's remote gathering and copied state, and its deleted forwarding record only after a definitive first-copy refusal. */
 export async function clearRemoteGathering(code: RefBackendContext, includeDeletedRecord = false): Promise<void> {
   await clearMigrationRefs(code, "refs/arc/tmp/migrate/remote/");
   await clearMigrationRefs(code, copiedRoot);

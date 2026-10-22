@@ -130,3 +130,28 @@ it.each(["backing", "code"] as Endpoint[])("finishes a switched backing-to-%s mo
   expect((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/move"])).stdout).toBe("");
   expect(success(await h.store.pull()).states).toEqual([]);
 }, 60_000);
+
+it.each(["no-target run", "new move"] as const)("clears the gathering a move ended after removing its record left before a %s gathers", async (next) => {
+  const h = await switchFixture();
+  await expect(invokeStoreMigrate(["--to", h.to], { ...h.ports, migrateStep: async step => {
+    if (step === "record.removed") throw new Error("Paused after its record");
+  } })).rejects.toThrow("Paused after its record");
+  const gathering = async (...roots: string[]) => (await h.a.exec("git", ["for-each-ref", "--format=%(refname)", ...roots])).stdout.trim();
+  expect(await gathering("refs/arc/tmp/migrate/move")).toBe("");
+  expect(await gathering("refs/arc/tmp/migrate/remote/")).not.toBe("");
+  expect(await gathering("refs/arc/tmp/migrate/copied/")).not.toBe("");
+  const kept = "refs/arc/tmp/migrate/import/kept/project/registry", tip = (await h.a.exec("git", ["rev-parse", "HEAD"])).stdout.trim();
+  await h.a.exec("git", ["update-ref", kept, tip]);
+  if (next === "new move") {
+    const further = join(h.a.root, "further.git");
+    await h.a.exec("git", ["init", "--bare", further]);
+    await expect(invokeStoreMigrate(["--to", further], { ...h.ports, migrateStep: async step => {
+      if (step === "remote.copy") throw new Error("Paused before its copy");
+    } })).rejects.toThrow("Paused before its copy");
+    expect(await gathering("refs/arc/tmp/migrate/copied/")).toBe("");
+  }
+  const rerun = await invokeStoreMigrate([], h.ports);
+  expect(rerun.status, JSON.stringify(rerun)).toBe("ok");
+  expect(await gathering("refs/arc/tmp/migrate/move", "refs/arc/tmp/migrate/remote/", "refs/arc/tmp/migrate/copied/")).toBe("");
+  expect((await h.a.exec("git", ["rev-parse", kept])).stdout.trim()).toBe(tip);
+}, 60_000);
