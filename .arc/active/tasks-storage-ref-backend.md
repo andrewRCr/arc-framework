@@ -1291,6 +1291,8 @@ layouts.
 
 - _Goal:_ Every move runs alone on its clone, and no run replaces another's record or proceeds past one it cannot read.
 
+    - _Amended in:_ 18.R2 (A29)
+
 - _Outcome:_ Real-Git public-entry cases cover clone-wide exclusion across worktrees, captured-value leases for
   record creation, replacement, and removal, and malformed-record refusal followed by repair. Competing records come
   from the real no-target producer; the existing killed-process fixtures cover abandoned-holder recovery.
@@ -1398,6 +1400,8 @@ without duplicating one.
 
     - _Amended in:_ 4.R2 (A23)
 
+    - _Amended in:_ 18.R2 (A29)
+
 - _Outcome:_ The import declares build, land, and publish steps, replaces interrupted gathering refs in the selected
   store, and lands all refs atomically under one batch. Its trial matches the landing after UID masking. Reruns
   recognize their existing project ID and resume publication without reading or duplicating source records, including
@@ -1409,6 +1413,8 @@ without duplicating one.
   through the ref backend — its content and every field both carry, never its version — but for the transforms the
   import's table names.
 
+    - _Amended in:_ 18.R2 (A29)
+
 - _Outcome:_ The differential harness reads an independent prepared source through public store, lifecycle, and
   layout APIs, comparing content, common parsed fields, and placement with per-kind normalization hooks. It ignores
   version differences and entry-ID stamps, normalizes machine JSON, and matches source diagnostics to retained records
@@ -1419,6 +1425,8 @@ without duplicating one.
 
 - _Goal:_ Over the fixture, the import lands every live work unit and open cohort, its trial matching, every record
   comparing clean, and a rerun after the landing duplicating nothing.
+
+    - _Amended in:_ 18.R2 (A29)
 
 - _Outcome:_ The first import path compares clean in both layouts, with masked trial and landing ref multisets
   agreeing and the combined rerun preserving every imported ref. The segment scenario also covers source repair,
@@ -1605,6 +1613,8 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
 - _Goal:_ Amendment A21's terminal lineage lookup keeps exact UID and current-name precedence while retaining
   authenticated former names through retirement, sync, withdrawal, and import, without widening direct operations.
 
+    - _Amended in:_ 18.R2 (A29)
+
 - _Outcome:_ Private per-UID registry evidence retains authenticated former names across rename, retirement, lineage
   recreation, sync, and end withdrawal. Lookup preserves exact UID/current-name precedence and direct-operation
   authority. Import resolves known chains to terminal generations, with independent source comparison and actionable
@@ -1615,6 +1625,8 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
 - _Goal:_ Every import, notes-snapshot, post-import, and Candidate case of § 14.7 passes over the fixture.
 
     - _Amended in:_ 15.R4 (A21)
+
+    - _Amended in:_ 18.R2 (A29)
 
 - _Outcome:_ Independent source comparisons cover every imported record and admitted transform, notes snapshots and
   source retirement, post-import writes and history, Candidate chains, and review mapping. Production entry readers in
@@ -2153,9 +2165,13 @@ in `notes-storage-ref-backend.md` (A25).
           with their standing rows; the derivations and the verified set sit beside the value reviews in the checkout's
           `.internal/storage-ref-backend-tools/verification/selection/`.
 
-    - `[ ]` **18.R2.d Apply the approved set — § 14.14**
-        - Remove, move to one layout, and strengthen exactly the approved cases, and close the gaps; a completed task
-          whose recorded outcome cites a removed case takes `_Amended in:_ 18.R2 (A29)`.
+    - `[x]` **18.R2.d Apply the approved set — § 14.14**
+        - Cases that observe no layout code beyond selection, binding, and the commit step run in the default layout;
+          each removed duplicate's cover first gained its approved assertion; the gap cases are closed; and each move
+          keeps one restart row per recovery state under Reading R, 28 rows cut and 52 added. 18.R2.h's two mid-switch
+          rows and `[separate, publish]` amendment remain there. `layout-move:476` [default] is withheld: it exposes
+          F8, a push's listing read racing a move in (`.internal/storage-ref-backend-tools/verification/apply/`).
+          13.2, 14.3, 14.4, 14.5, 15.R4, and 15.10 cite removed cases.
 
     - `[ ]` **18.R2.h Defects the derivations found — § 10.3, § 10.5, § 10.11**
         - Each defect gets its exposing case first, then its fix. An interrupted local-only import that re-homed
