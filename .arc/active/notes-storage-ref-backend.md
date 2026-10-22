@@ -2251,11 +2251,13 @@ only leftovers the rerun clears, so a first run stands for it.
   transient refs} → `store-ref-import-errands`' changed-lease case [default]; {publish} → [default, publish]; {publish
   with kept tips} → the errands' retained-lease case [default]; {a push fault after the state push} →
   `store-ref-import-landing:47`, and with kept tips add; {remote-delete}, {drop-kept} → the errands' advanced-origin
-  case [default].
+  case [default]; and {publish with kept tips} moved into the separate layout before its rerun → the errands'
+  moved-layout case [default] (18.R2.h).
 - **Import, separate layout:** {build} pristine; {land} → [separate, land]; {land with transient refs} add;
   {local-delete} → the errands' retained-lease case [separate], and with `backing` add; {publish with `backing`} add;
   {publish with no state remote} → [separate, publish], seeded with an origin transient ref (18.R2.h); {remote-delete},
-  {drop-kept} → the errands' advanced-origin case [separate].
+  {drop-kept} → the errands' advanced-origin case [separate]; and {local-delete} and {publish} moved into the default
+  layout before the rerun → the errands' moved-layout cases [separate] (18.R2.h).
 - **Remote move, code to backing:** {fetch-source … record} pristine; {copy} → copy; {copied, forward} → copied;
   {forwarded, pointer} → forwarded; {switch, layout build, record, and rename} → layout.rename; {layout.designation,
   layout.delete} → layout.designation; {switched, read-destination, list-source, recopy} → switched; {recopied,
@@ -2283,16 +2285,16 @@ only leftovers the rerun clears, so a first run stands for it.
   all 18.R2.h; the undo's layout move back interrupted at {build, record}, before the code repository's refs land, reads
   as the state the undo started from, the rebuild clearing those leftovers unread, whose row stands; at {designation,
   rename}, the refs landed and the store directory still present, and at {delete, deleted} or past the move back with
-  carried heads remaining, one 18.R2.h row each; an undo with nothing of the switch left reads as an end before the
-  switch, whose rows stand; and 18.R2.h derives with its code the states between the undo's other writes, whose order
-  the fix sets.
+  the pointer, which the undo writes last, still the destination's, one 18.R2.h row each; an undo with nothing of the
+  switch left reads as an end before the switch, whose rows stand; and the states between the undo's writes after the
+  move back read as past it, since the pointer goes last.
 - **A follow overtaken by a move back** (A30): {follow.switch, layout build} ends as the stale follow does, its switch
   not begun; {layout record and rename}, begun by the build and gathering refs they leave, → layout.rename,
   {layout.designation, layout.delete} → layout.designation, and {layout.deleted} → layout.deleted, all 18.R2.h; its
   undo's states as the remote move's, with their rows; and a follow answering `push` between two backing repositories
-  from one it read, overtaken after `configureBacking` repoints `backing` and sets its role, its source `read` again,
-  one 18.R2.h row on a hook 18.R2.h adds there, since a code remote it read loses its role only to the `off` that
-  completes the switch.
+  from one it read, overtaken after `configureBacking` repoints `backing` and before it sets that remote's role, the
+  undo returning `backing` to the source's URL and `read`, one 18.R2.h row on the `backing.repointed` hook 18.R2.h adds
+  between the two, since a code remote it read loses its role only to the `off` that completes the switch.
 - **A recorded follow overtaken otherwise** (A30): its old remote's forwarding record replaced, and its new remote
   carrying another move's forwarding record, one 18.R2.h row each, at follow.recorded.
 - **A trial over a recorded move:** forwarded, switched, and overtaken keep their rows; a pre-forward record, at

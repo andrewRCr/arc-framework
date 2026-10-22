@@ -2201,41 +2201,12 @@ in `notes-storage-ref-backend.md` (A25).
           F8, a push's listing read racing a move in (`.internal/storage-ref-backend-tools/verification/apply/`).
           13.2, 14.3, 14.4, 14.5, 15.R4, and 15.10 cite removed cases.
 
-    - `[ ]` **18.R2.h Defects the derivations found — § 10.1, § 10.3, § 10.5, § 10.6, § 10.11, § 11.4 (A30, A31, A32)**
-        - Each defect gets its exposing case first, then its fix. An interrupted local-only import that re-homed
-          transient refs reruns to `ok` without the notices naming origin's copies: `store-ref-import-landing`'s
-          [separate, publish] restart seeds one. A remote move overtaken by a move back inside its switch, at
-          `remote.switch` and `layout.designation`, ends with no record beside its pointer, designation, and layout
-          changes. The move undoes its switch before its record goes, clearing what the switch carried or left, and an
-          undo interrupted at any point finishes on the rerun; a follow answering `push` overtaken inside its switch
-          does the same, its record keeping the old remote's role for the undo to restore, a recorded follow whose old
-          remote's forwarding record another move replaced, or whose new remote carries another's, ends rather than
-          refusing, and a trial over a move overtaken inside its switch reports the undo, each with the rows the restart
-          sets in `notes-storage-ref-backend.md` name, derived again against the fix's code, any state they miss gaining
-          its row (A30). A step hook after the layout source's delete reaches the states no hook interrupted, and its
-          rows for leaving the source both ways expose layout gathering refs outliving a switch its predicate completes.
-          A separate-layout import trial stops creating the store directory, and the advanced-origin errands case
-          [separate] stops relying on it. Kept import tips a rerun no longer re-homes are pruned. A push whose listing
-          reads the separate store while a move into the default layout deletes it returns a result rather than
-          throwing: `layout-move:476` [default], its old state remote a third repository with origin taking `push`,
-          exposes it. The push starts again from step 1, and a pull, a write, a read, `maintain`, and
-          `arc store remote`'s view meeting the same move start again too, each with its own row (A31). A move ended
-          between removing its record and clearing `refs/arc/tmp/migrate/remote/` and `copied/` leaves them, and a new
-          move's first record clears no `copied/` ref, whose kept forwarding record and copy version a later move reads:
-          a step hook after a record's removal exposes it on a rerun, and a new move's first record and a no-target run
-          with no record clear both, never `import/`. A no-target run that finishes or ends a recorded remote move or
-          follow returns there, where § 10.1 has it go on to the follow and the layout: a probe settles which is right,
-          and the code changes, or the specification does through `amend-design`. A run that finishes a recorded
-          layout move returns its report too rather than going on to a follow due beside it, exposed by a setting
-          turning origin from `push` to `read` interrupted at `layout.rename` while another clone moves the state off
-          origin and a pull brings in its forwarding record, the rerun returning the layout move's report and the next
-          run asking the follow (A32). A layout move between an import interrupted past its landing and its rerun
-          deletes the kept tips under `refs/arc/tmp/migrate/import/kept/` with every other migration temp ref, so the
-          rerun neither retires nor names origin's transient-identity refs, and the rerun deletes local ones only in the
-          separate layout, so a separate landing's local refs that a move into the default layout carries stay. An
-          import interrupted before its publication in each layout, and one interrupted before its separate local
-          delete, each rerun after `arc store remote` moves the store to the other layout, expose both: a layout move
-          keeps the kept tips, and the rerun deletes what local refs remain in either layout (§ 10.11).
+    - `[x]` **18.R2.h Defects the derivations found — § 10.1, § 10.3, § 10.5, § 10.6, § 10.11, § 11.4 (A30, A31, A32)**
+        - Each defect took its exposing row before its fix: the import's transient cleanup across reruns, trials, and
+          layout moves; layout gathering a switch left; a switch another move overtook, undone before its record goes
+          (A30); operations starting again when a move deletes their separate store (A31); gathering an ended move left;
+          and a no-target run returning the report of the move it finishes or ends (A32).
+          `notes-storage-ref-backend.md`'s restart sets were derived again against the fixes' code.
 
     - `[ ]` **18.R2.e Prepared multi-clone states — § 14.14**
         - `copyPreparedRepository` gains multi-clone shapes whose copies resolve every path inside themselves: remote
