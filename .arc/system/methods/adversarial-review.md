@@ -177,13 +177,13 @@ Prior findings and fixes:
 {prior-findings | "None. This is pass one."}
 
 Authored partition:
-{authored-partition | "None. Use one whole-target reviewer."}
+{authored-partition | "None. No authored partition applies to this call."}
 
 Aggregate evidence:
 {aggregate-evidence | "None. This is not an authored-partition aggregate call."}
 
 Partition map:
-{partition-map | "None. This is a standard non-partitioned pass."}
+{partition-map | "None. No partition map applies to this call."}
 
 Attack the artifact against the rubric. Try to break it. Do not manufacture findings:
 if the artifact holds up, say that plainly and specifically.
