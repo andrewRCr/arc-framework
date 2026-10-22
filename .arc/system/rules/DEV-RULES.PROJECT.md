@@ -97,6 +97,13 @@ the shared test slot for several minutes; weigh that cost when choosing earlier 
 Report feedback failures and handle them under [DEV-RULES.ARC][dev-rules-arc] § Quality gate failure. Checks assigned
 to gates still have to pass by their declared deadlines.
 
+### Hosted CI before verification attests
+
+The local merge gate skips the `ci_only` checks, `test:e2e` among them, and a feature-branch push starts no CI. Once
+the merge gate passes, dispatch CI at the pushed verified head (`gh workflow run ci.yml --ref <branch>`). Work-unit
+verification attests only on a passing run whose `headSha` is that head, recorded by run id in the verification commit
+body. Dispatch again after any later code change; planning-only commits need no new run.
+
 ### Test execution
 
 For incremental checks, root `test:file` selects exact existing repository-relative files/directories through one
