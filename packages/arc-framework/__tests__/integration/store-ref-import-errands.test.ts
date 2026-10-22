@@ -61,6 +61,22 @@ it("resumes a publication interrupted after its state push and retires origin's 
   expect((await h.git("git", ["for-each-ref", "--format=%(refname)", keptPrefix])).stdout).toBe("");
 });
 
+it("prunes a kept tip its rerun no longer re-homes and leaves origin's copy in place", async () => {
+  const h = await importFixture();
+  const tip = await seed(h, [ordinary]);
+  await h.git("git", ["push", "origin", `${sourceRef}:${sourceRef}`]);
+  h.ports.migrateStep = async (step) => { if (step === "import.land") throw new Error("interrupt-import"); };
+  await expect(h.migrate()).rejects.toThrow("interrupt-import");
+  expect((await h.git("git", ["for-each-ref", "--format=%(objectname)", keptPrefix])).stdout.trim()).toBe(tip);
+  await h.git("git", ["update-ref", "-d", sourceRef, tip]);
+  h.ports.migrateStep = async () => {};
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", keptPrefix])).stdout).toBe("");
+  expect((await h.remote("git", ["rev-parse", sourceRef])).stdout.trim()).toBe(tip);
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc/work/"])).stdout.split("\n").filter(Boolean))
+    .toHaveLength((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/work/"])).stdout.split("\n").filter(Boolean).length);
+});
+
 describe("Errand import interrupted in the separate layout", () => {
   const refs = async (exec: (file: string, args: string[]) => Promise<{ stdout: string }>, prefix: string, scope: string[] = []) =>
     (await exec("git", [...scope, "for-each-ref", "--format=%(refname) %(objectname)", prefix])).stdout;

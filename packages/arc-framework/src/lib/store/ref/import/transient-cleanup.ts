@@ -9,10 +9,12 @@ import { readRefDesignation, refDesignationStop } from "../designation.js";
 /** Kept tips live in the code repository until all licensed cleanup finishes. */
 export const IMPORT_KEPT_PREFIX = "refs/arc/tmp/migrate/import/kept/";
 
-/** Preserve the source snapshot independently of the destination's gathering refs. */
+/** Preserve the source snapshot independently of the destination's gathering refs, pruning tips a rebuild no longer reads. */
 export async function keepImportTransients(context: RefBackendContext, tips: ReadonlyMap<string, string>): Promise<void> {
   const held = await readSyncRefs(context, IMPORT_KEPT_PREFIX);
-  const changes = [...tips].map(([ref, next]) => ({ ref: keptRef(ref), next, expected: held.get(keptRef(ref)) ?? null }));
+  const kept = new Map([...tips].map(([ref, next]) => [keptRef(ref), next]));
+  const changes: RefChange[] = [...[...kept].map(([ref, next]) => ({ ref, next, expected: held.get(ref) ?? null })),
+    ...[...held].filter(([ref]) => !kept.has(ref)).map(([ref, expected]) => ({ ref, expected, delete: true as const }))];
   if (changes.length && (await updateRefTransaction(context, changes, { cwd: context.checkoutRoot })).status !== "committed") {
     throw new Error("The import's retained transient tips changed during its build");
   }
