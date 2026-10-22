@@ -428,7 +428,7 @@ it("cleans an unrecorded source leftover without replacing the separate store's 
 });
 
 
-it("finishes the recorded direction before aligning a subsequent designation change", async () => {
+it("finishes the recorded direction and leaves a subsequent designation change to the next run", async () => {
   const h = await layoutFixture();
   expect((await runStoreRemote(h.a.ports, { remote: "origin", role: "off" })).status).toBe("ok");
   await h.a.exec("git", ["config", "remote.origin.arc-state", "push"]);
@@ -437,6 +437,9 @@ it("finishes the recorded direction before aligning a subsequent designation cha
   await h.a.exec("git", ["config", "remote.origin.arc-state", "off"]);
   const reference = RecordReferenceSchema.parse({ kind: "work-item/companion", owner: h.primary.reference.owner, key: "new-after-switch" });
   success(await h.a.store.write({ action: "put", reference, expected: null, content: "Keep the authoritative edit.\n", provenance: { verb: "edit", lifecycleAction: "save" } }));
+  const finished = await runStoreMigrate(h.a.ports);
+  expect(finished, JSON.stringify(finished)).toMatchObject({ status: "ok", result: { move: "layout" } });
+  await expect(h.a.ports.fs.lstat(h.storeDirectory)).rejects.toMatchObject({ code: "ENOENT" });
   const result = await runStoreMigrate({ ...h.a.ports, migrateStep: async (step) => {
     if (step !== "layout.build") return;
     await expect(h.a.ports.fs.lstat(join(h.a.root, ".git", "arc", "store-migrate-old"))).rejects.toMatchObject({ code: "ENOENT" });

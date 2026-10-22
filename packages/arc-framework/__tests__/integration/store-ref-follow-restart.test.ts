@@ -113,3 +113,17 @@ describe.each([
     if (answer === "push") expect(success(await follower.store.pull()).states).toEqual([]);
   }, 60_000);
 });
+
+it("returns a finished layout move's report before the follow that became due beside it asks", async () => {
+  const h = await followFixture(async fixture => {
+    await expect(invokeStoreRemote(["origin", "read", "--json"], { cwd: fixture.b.root, ports: { ...fixture.b.ports,
+      migrateStep: async step => { if (step === "layout.rename") throw new Error("Paused layout move"); },
+    } })).rejects.toThrow("Paused layout move");
+  });
+  const follower = h.follower;
+  const finished = await invokeStoreMigrate([], follower.ports);
+  expect(finished, JSON.stringify(finished)).toMatchObject({ status: "ok", result: { move: "layout" } });
+  expect((await invokeStoreRemote(["--json"], { cwd: follower.root, ports: follower.ports })).result).toMatchObject({ status: "ok",
+    result: { layout: "separate", remotes: [expect.objectContaining({ name: "origin", role: "read" })] } });
+  expect(await invokeStoreMigrate([], follower.ports)).toMatchObject({ status: "designation-needed", remote: "backing" });
+}, 60_000);

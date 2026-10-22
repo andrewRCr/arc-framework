@@ -38,27 +38,24 @@ export async function runRefMigrate(context: RefBackendContext, store: Store, in
     if (existing.result?.record.kind === "follow") return resumeFollowRequest(context, store, { record: existing.result.record, tip: existing.result.tip }, parsed.data);
     // A move ended after removing its record leaves gathering no later move may read as its own.
     if (!existing.result && !parsed.data.trial) await clearRemoteGathering(code);
-    let finished: MigrateReport | undefined;
     if (existing.result?.record.kind === "layout") {
       const resumed = await moveRefLayout(context, store, existing.result.record.destination, existing.result.record.setting, { record: existing.result.record, tip: existing.result.tip });
-      if (resumed.status === "refused") return resumed;
-      finished = resumed.result;
+      if (resumed.status === "refused" || !parsed.data.to) return resumed;
     }
     if (parsed.data.to) return moveRefRemote(context, store, parsed.data.to, parsed.data.trial);
-    return reconcileNoTarget(context, store, finished);
+    return reconcileNoTarget(context, store);
   });
 }
 
-async function reconcileNoTarget(context: RefBackendContext, store: Store, finished?: MigrateReport): Promise<StoreMigrateResult> {
+/** With no record standing, follow a due move, then bring the clone into its designated layout. */
+async function reconcileNoTarget(context: RefBackendContext, store: Store): Promise<StoreMigrateResult> {
   const due = await readRefFollowDue(context);
   if (due) {
     const followed = await judgeRefFollow(context, due);
     if (followed.status === "refused") return followed;
     if (followed.status === "decided") return followed.result;
   }
-  const designation = await readRefDesignation(context);
-  const aligned = await moveRefLayout(context, store, designatedStoreLayout(designation));
-  return aligned.status === "refused" || !finished ? aligned : { status: "ok", result: combineLayoutReports(finished, aligned.result) };
+  return moveRefLayout(context, store, designatedStoreLayout(await readRefDesignation(context)));
 }
 
 /** Apply a code remote's own setting in the order its layout switch requires. */
